@@ -86,6 +86,13 @@ func TestCanonicalReceiptRaisesDailyBudgetBellAtThreshold(t *testing.T) {
 		if total != 96 {
 			t.Fatalf("replayed token sum = %d, want 96", total)
 		}
+	})
+	t.Run("Should record late archived usage without issuing a bell", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.Local)
+		setupDailyBudgetBellFixture(t, db, now)
 		if _, err := db.db.ExecContext(
 			ctx,
 			`UPDATE agent_instances SET archived_at = ? WHERE id = 'receipt-bell'`,
@@ -124,8 +131,8 @@ func TestCanonicalReceiptRaisesDailyBudgetBellAtThreshold(t *testing.T) {
 		).Scan(&notices); err != nil {
 			t.Fatal(err)
 		}
-		if notices != 1 {
-			t.Fatalf("late archived receipt created %d notices, want 1", notices)
+		if notices != 0 {
+			t.Fatalf("late archived receipt created %d notices, want none", notices)
 		}
 	})
 }

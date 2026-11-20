@@ -3,31 +3,36 @@ package agentinstance
 import (
 	"math"
 	"math/big"
+	"strings"
 	"testing"
 )
 
 func TestDailyBudgetLimitsValidate(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		limits DailyBudgetLimits
-		valid  bool
+		name      string
+		limits    DailyBudgetLimits
+		wantError string
 	}{
-		{name: "Should accept disabled limits", valid: true},
-		{name: "Should accept a zero token cap", limits: DailyBudgetLimits{Tokens: new(int64)}, valid: true},
-		{name: "Should reject negative token cap", limits: DailyBudgetLimits{Tokens: new(int64(-1))}},
-		{name: "Should reject negative USD cap", limits: DailyBudgetLimits{USD: new(-0.1)}},
-		{name: "Should reject NaN USD cap", limits: DailyBudgetLimits{USD: new(math.NaN())}},
-		{name: "Should reject infinite USD cap", limits: DailyBudgetLimits{USD: new(math.Inf(1))}},
-		{name: "Should accept tiny positive USD caps", limits: DailyBudgetLimits{USD: new(4e-10)}, valid: true},
-		{name: "Should accept finite USD caps beyond nine billion", limits: DailyBudgetLimits{USD: new(1e301)}, valid: true},
-		{name: "Should accept a finite USD cap", limits: DailyBudgetLimits{USD: new(1.5)}, valid: true},
+		{name: "Should accept disabled limits"},
+		{name: "Should accept a zero token cap", limits: DailyBudgetLimits{Tokens: new(int64)}},
+		{name: "Should reject negative token cap", limits: DailyBudgetLimits{Tokens: new(int64(-1))}, wantError: "daily token cap cannot be negative"},
+		{name: "Should reject negative USD cap", limits: DailyBudgetLimits{USD: new(-0.1)}, wantError: "daily USD cap must be finite and non-negative"},
+		{name: "Should reject NaN USD cap", limits: DailyBudgetLimits{USD: new(math.NaN())}, wantError: "daily USD cap must be finite and non-negative"},
+		{name: "Should reject infinite USD cap", limits: DailyBudgetLimits{USD: new(math.Inf(1))}, wantError: "daily USD cap must be finite and non-negative"},
+		{name: "Should accept tiny positive USD caps", limits: DailyBudgetLimits{USD: new(4e-10)}},
+		{name: "Should accept finite USD caps beyond nine billion", limits: DailyBudgetLimits{USD: new(1e301)}},
+		{name: "Should accept a finite USD cap", limits: DailyBudgetLimits{USD: new(1.5)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := tc.limits.Validate()
-			if (err == nil) != tc.valid {
-				t.Fatalf("Validate() error = %v, want valid=%v", err, tc.valid)
+			if tc.wantError == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v", err)
+				}
+				return
 			}
+			assertDailyBudgetError(t, err, tc.wantError)
 		})
 	}
 }
@@ -173,18 +178,14 @@ func TestEvaluateDailyBudget(t *testing.T) {
 			DailyBudgetUsage{USD: big.NewRat(1, 1)},
 			false,
 		)
-		if err == nil {
-			t.Fatal("EvaluateDailyBudget() accepted NaN cap")
-		}
+		assertDailyBudgetError(t, err, "daily USD cap must be finite and non-negative")
 	})
 
 	t.Run("Should reject negative restored usage before admission", func(t *testing.T) {
 		t.Parallel()
 		tokenLimit := int64(100)
 		_, err := EvaluateDailyBudget(DailyBudgetLimits{Tokens: &tokenLimit}, DailyBudgetUsage{Tokens: -1}, false)
-		if err == nil {
-			t.Fatal("EvaluateDailyBudget() accepted negative restored usage")
-		}
+		assertDailyBudgetError(t, err, "daily usage cannot be negative")
 	})
 }
 
@@ -220,16 +221,18 @@ func TestDailyBudgetUsageAddReceipt(t *testing.T) {
 	t.Run("Should reject a receipt against a negative restored token balance", func(t *testing.T) {
 		t.Parallel()
 		usage := DailyBudgetUsage{Tokens: -1}
-		if err := usage.AddReceipt(100, nil); err == nil || usage.Tokens != -1 {
-			t.Fatalf("invalid restored token balance accepted: usage=%+v err=%v", usage, err)
+		assertDailyBudgetError(t, usage.AddReceipt(100, nil), "daily usage cannot be negative")
+		if usage.Tokens != -1 {
+			t.Fatalf("invalid restored token balance changed: usage=%+v", usage)
 		}
 	})
 
 	t.Run("Should reject a receipt against a negative restored USD balance", func(t *testing.T) {
 		t.Parallel()
 		usage := DailyBudgetUsage{USD: big.NewRat(-1, 1)}
-		if err := usage.AddReceipt(0, new(2.0)); err == nil || usage.USD.Cmp(big.NewRat(-1, 1)) != 0 {
-			t.Fatalf("invalid restored USD balance accepted: usage=%+v err=%v", usage, err)
+		assertDailyBudgetError(t, usage.AddReceipt(0, new(2.0)), "daily usage cannot be negative")
+		if usage.USD.Cmp(big.NewRat(-1, 1)) != 0 {
+			t.Fatalf("invalid restored USD balance changed: usage=%+v", usage)
 		}
 	})
 
@@ -265,33 +268,32 @@ func TestDailyBudgetUsageAddReceipt(t *testing.T) {
 	})
 
 	for _, tc := range []struct {
-		name   string
-		tokens int64
-		usd    *float64
+		name          string
+		tokens        int64
+		usd           *float64
+		wantError     string
+		initialTokens int64
 	}{
-		{name: "Should reject negative token receipts", tokens: -1},
-		{name: "Should reject negative cost receipts", usd: new(-0.01)},
-		{name: "Should reject nonfinite cost receipts", usd: new(math.Inf(1))},
-		{name: "Should reject overflowing token totals", tokens: 1},
+		{name: "Should reject negative token receipts", tokens: -1, wantError: "daily token receipt is invalid or overflows"},
+		{name: "Should reject negative cost receipts", usd: new(-0.01), wantError: "daily USD receipt must be finite and non-negative"},
+		{name: "Should reject nonfinite cost receipts", usd: new(math.Inf(1)), wantError: "daily USD receipt must be finite and non-negative"},
+		{name: "Should reject overflowing token totals", tokens: 1, initialTokens: math.MaxInt64, wantError: "daily token receipt is invalid or overflows"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			usage := DailyBudgetUsage{}
-			if tc.name == "Should reject overflowing token totals" {
-				usage.Tokens = math.MaxInt64
-			}
-			if err := usage.AddReceipt(tc.tokens, tc.usd); err == nil {
-				t.Fatalf("AddReceipt(%d, %v) accepted invalid receipt", tc.tokens, tc.usd)
-			}
+			usage := DailyBudgetUsage{Tokens: tc.initialTokens}
+			assertDailyBudgetError(t, usage.AddReceipt(tc.tokens, tc.usd), tc.wantError)
 		})
 	}
 
 	t.Run("Should keep totals unchanged when a priced receipt is rejected", func(t *testing.T) {
 		t.Parallel()
 		usage := DailyBudgetUsage{Tokens: 50, USD: big.NewRat(1, 1)}
-		if err := usage.AddReceipt(10, new(math.NaN())); err == nil {
-			t.Fatal("AddReceipt() accepted NaN cost")
-		}
+		assertDailyBudgetError(
+			t,
+			usage.AddReceipt(10, new(math.NaN())),
+			"daily USD receipt must be finite and non-negative",
+		)
 		if usage.Tokens != 50 || usage.USD.Cmp(big.NewRat(1, 1)) != 0 {
 			t.Fatalf("rejected receipt mutated totals: %+v", usage)
 		}
@@ -307,4 +309,11 @@ func mustEvaluateDailyBudget(
 		t.Fatalf("EvaluateDailyBudget() error = %v", err)
 	}
 	return assessment
+}
+
+func assertDailyBudgetError(t *testing.T, err error, want string) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want %q", err, want)
+	}
 }

@@ -85,6 +85,18 @@ func TestTokenUsageReceiptSurvivesPreLineageMigrationOrdinaryDelete(t *testing.T
 			Scan(&usage); err != nil || usage != 9 {
 			t.Fatalf("standalone aggregate tokens=%d err=%v", usage, err)
 		}
+		var dailyTokens, dailyTurns int64
+		if err := db.DB().QueryRowContext(ctx,
+			`SELECT total_tokens, turn_count FROM token_usage_daily WHERE profile_id=? AND day=? AND agent_name=?`,
+			daily.ProfileID, daily.Day, daily.AgentName).Scan(&dailyTokens, &dailyTurns); err != nil ||
+			dailyTokens != 9 || dailyTurns != 1 {
+			t.Fatalf(
+				"standalone daily aggregate tokens=%d turns=%d err=%v, want 9 tokens and one turn",
+				dailyTokens,
+				dailyTurns,
+				err,
+			)
+		}
 		if owner, err := db.DailyBudgetSessionOwner(
 			ctx,
 			child,

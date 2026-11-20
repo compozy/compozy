@@ -1,8 +1,7 @@
 package contract
 
 import (
-	"bytes"
-	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -161,10 +160,8 @@ type AgentInstanceDailyBudgetInput struct {
 
 func (input *AgentInstanceDailyBudgetInput) UnmarshalJSON(raw []byte) error {
 	type budgetAlias AgentInstanceDailyBudgetInput
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
 	var replacement budgetAlias
-	if err := decoder.Decode(&replacement); err != nil {
+	if err := jsonv2.Unmarshal(raw, &replacement, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return err
 	}
 	*input = AgentInstanceDailyBudgetInput(replacement)

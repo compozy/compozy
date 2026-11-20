@@ -27,7 +27,9 @@ overlaps: MS-always-on-check-in-sources; RT-spawn-budget-context
    and authenticated operator prompts remain claimable even behind a prepared
    Goal during a budget pause or a latched recovery hold. Submit app-origin
    steering during the hold and verify that it queues for after-turn delivery.
-   Newer guidance from the same sender replaces the held steer.
+   Newer guidance from the same sender replaces the held steer. With an
+   exhausted cap and no persisted pause, verify a human head can run while
+   the first budget-covered batch follower and later entries remain queued.
 5. Restart the real daemon and repeat admission, then try operator resume on the
    same local day. The pause and exhausted cap remain, and resume is rejected.
 6. Advance the injected clock past local midnight. Confirm it stays paused until

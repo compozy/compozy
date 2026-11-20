@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -193,8 +194,9 @@ func TestInstanceDailyBudgetLimitsRejectNoncanonicalStoredUSD(t *testing.T) {
 			) VALUES ('instance-noncanonical', ?, ?)`, value.usd, stamp); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := db.Instances().DailyBudgetLimits(ctx, "instance-noncanonical"); err == nil {
-				t.Fatal("noncanonical stored dollar cap was accepted")
+			if _, err := db.Instances().DailyBudgetLimits(ctx, "instance-noncanonical"); err == nil ||
+				!strings.Contains(err.Error(), "stored daily USD cap is not a canonical decimal") {
+				t.Fatalf("stored cap read error = %v, want noncanonical decimal", err)
 			}
 		})
 	}
@@ -215,7 +217,8 @@ func TestInstanceDailyBudgetWarningRequiresMainSession(t *testing.T) {
 			t.Fatal(err)
 		}
 		issued, err := db.Instances().ReserveDailyBudgetWarning(ctx, "instance-no-main-warning", at)
-		if err == nil || issued {
+		if err == nil || !strings.Contains(err.Error(), "daily budget warning requires a bound main session") ||
+			issued {
 			t.Fatalf("missing main session warning=%v error=%v", issued, err)
 		}
 		var count int
@@ -286,18 +289,19 @@ func TestInstanceDailyBudgetWarningRespectsWorkspaceMute(t *testing.T) {
 
 func TestInstanceDailyBudgetLimitsRejectInvalidCaps(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		limits agentinstance.DailyBudgetLimits
+		name      string
+		limits    agentinstance.DailyBudgetLimits
+		wantError string
 	}{
-		{name: "Should reject negative tokens", limits: agentinstance.DailyBudgetLimits{Tokens: new(int64(-1))}},
-		{name: "Should reject negative dollars", limits: agentinstance.DailyBudgetLimits{USD: new(float64(-1))}},
-		{name: "Should reject NaN dollars", limits: agentinstance.DailyBudgetLimits{USD: new(math.NaN())}},
-		{name: "Should reject infinite dollars", limits: agentinstance.DailyBudgetLimits{USD: new(math.Inf(1))}},
+		{name: "Should reject negative tokens", limits: agentinstance.DailyBudgetLimits{Tokens: new(int64(-1))}, wantError: "daily token cap cannot be negative"},
+		{name: "Should reject negative dollars", limits: agentinstance.DailyBudgetLimits{USD: new(float64(-1))}, wantError: "daily USD cap must be finite and non-negative"},
+		{name: "Should reject NaN dollars", limits: agentinstance.DailyBudgetLimits{USD: new(math.NaN())}, wantError: "daily USD cap must be finite and non-negative"},
+		{name: "Should reject infinite dollars", limits: agentinstance.DailyBudgetLimits{USD: new(math.Inf(1))}, wantError: "daily USD cap must be finite and non-negative"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if err := tc.limits.Validate(); err == nil {
-				t.Fatal("invalid cap was accepted")
+			if err := tc.limits.Validate(); err == nil || !strings.Contains(err.Error(), tc.wantError) {
+				t.Fatalf("validate error = %v, want %q", err, tc.wantError)
 			}
 		})
 	}

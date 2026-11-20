@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,10 +124,14 @@ func TestInstanceDailyBudgetUsageFromReceipts(t *testing.T) {
 		}
 		for index := range 258 {
 			id := fmt.Sprintf("turn-%04d", index)
+			sessionID := "sess-" + id
+			if index == dailyBudgetReceiptPageSize {
+				sessionID = fmt.Sprintf("sess-turn-%04d", index-1)
+			}
 			if _, err := db.db.ExecContext(ctx, `INSERT INTO token_usage_receipts (
 				profile_id, session_id, turn_id, instance_id, day, total_tokens, usd_amount, cost_status, created_at
 			) VALUES (?, ?, ?, 'budget-many', ?, 1, '0.01', 'estimated', ?)`,
-				store.DefaultProfileID, "sess-"+id, id, store.LocalDay(at), stamp,
+				store.DefaultProfileID, sessionID, id, store.LocalDay(at), stamp,
 			); err != nil {
 				t.Fatal(err)
 			}
@@ -167,8 +172,13 @@ func TestInstanceDailyBudgetUsageFromReceipts(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if _, err := db.Instances().ReadDailyBudgetUsage(ctx, "budget-overflow", at); err == nil {
-			t.Fatal("ReadDailyBudgetUsage() accepted overflowing token totals")
+		if _, err := db.Instances().
+			ReadDailyBudgetUsage(ctx, "budget-overflow", at); !errors.Is(
+			err,
+			errDailyBudgetTotalsInvalid,
+		) ||
+			!strings.Contains(err.Error(), "token total overflows") {
+			t.Fatalf("overflowing tokens returned %v; want an overflow accounting error", err)
 		}
 	})
 
@@ -198,8 +208,13 @@ func TestInstanceDailyBudgetUsageFromReceipts(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := db.Instances().ReadDailyBudgetUsage(ctx, "budget-corrupt", at); err == nil {
-				t.Fatalf("ReadDailyBudgetUsage() accepted corrupted USD receipt %q", amount)
+			if _, err := db.Instances().
+				ReadDailyBudgetUsage(ctx, "budget-corrupt", at); !errors.Is(
+				err,
+				errDailyBudgetTotalsInvalid,
+			) ||
+				!strings.Contains(err.Error(), "invalid receipt USD") {
+				t.Fatalf("corrupted USD amount %q returned %v; want an invalid USD accounting error", amount, err)
 			}
 		}
 		// The canonical writer can persist IEEE negative zero as the decimal "-0".
@@ -353,11 +368,16 @@ func TestDailyBudgetProjectionPreservesReceiptsAfterOverflow(t *testing.T) {
 				}
 				wantReceipts++
 			}
+
+			firstTokens := int64(25)
+			if !scenario.legacyCorruption && !scenario.cachedCorruption {
+				firstTokens = math.MaxInt64
+			}
 			for index, tc := range []struct {
 				agent, session string
 				tokens         int64
 			}{
-				{agent: "overflow-writer", session: "overflow-a", tokens: math.MaxInt64},
+				{agent: "overflow-writer", session: "overflow-a", tokens: firstTokens},
 				{agent: "overflow-reviewer", session: "overflow-b", tokens: 1},
 			} {
 				if _, err := db.db.ExecContext(ctx, `INSERT INTO sessions (

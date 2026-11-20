@@ -274,7 +274,7 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 		return options.check(cmd, base, action, id, target)
 	}
 	if action == agentInstanceBudgetAction {
-		return options.updateBudget(cmd, base, id)
+		return options.updateBudget(cmd.Context(), cmd, base, id)
 	}
 	if action == agentInstanceAwayAction || action == agentInstanceMarkSeenAction ||
 		action == agentInstanceCheckInsAction {

@@ -26,7 +26,11 @@ func (g *ObserveRepo) DailyBudgetSessionOwner(
 	if errors.Is(err, sql.ErrNoRows) {
 		count, lookupErr := g.readQueries.CountDailyBudgetSessionCatalogEntry(ctx, sessionID)
 		if lookupErr != nil {
-			return store.DailyBudgetSessionOwnership{}, lookupErr
+			return store.DailyBudgetSessionOwnership{}, fmt.Errorf(
+				"store: find catalog entry for budget recovery session %q: %w",
+				sessionID,
+				lookupErr,
+			)
 		}
 		if count != 0 {
 			return store.DailyBudgetSessionOwnership{}, fmt.Errorf(
@@ -37,7 +41,11 @@ func (g *ObserveRepo) DailyBudgetSessionOwner(
 		return store.DailyBudgetSessionOwnership{}, nil
 	}
 	if err != nil {
-		return store.DailyBudgetSessionOwnership{}, err
+		return store.DailyBudgetSessionOwnership{}, fmt.Errorf(
+			"store: resolve budget recovery owner for session %q: %w",
+			sessionID,
+			err,
+		)
 	}
 	return store.DailyBudgetSessionOwnership{
 		InstanceID: owner.InstanceID, Unresolved: owner.OwnershipUnresolved != 0,
@@ -134,7 +142,7 @@ func (g *ObserveRepo) ListDailyBudgetReconcileSessions(
 		if unresolved {
 			owner, err := g.readQueries.GetTokenUsageReceiptSessionOwner(ctx, row.ID)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return nil, err
+				return nil, fmt.Errorf("store: resolve ownership gap for budget recovery session %q: %w", row.ID, err)
 			}
 			if err == nil && owner.OwnershipUnresolved == 0 && owner.InstanceID != row.InstanceID {
 				continue // the visible root is only a hint, and the actual owner differs
@@ -158,7 +166,12 @@ func dailyBudgetRecoverySessionFromRow(
 		var err error
 		instanceCreatedAt, err = store.ParseTimestamp(row.InstanceCreatedAt)
 		if err != nil {
-			return store.DailyBudgetReconcileSession{}, err
+			return store.DailyBudgetReconcileSession{}, fmt.Errorf(
+				"store: parse instance %q creation time for budget recovery session %q: %w",
+				row.InstanceID,
+				row.ID,
+				err,
+			)
 		}
 	}
 	info := store.SessionInfo{
@@ -202,17 +215,30 @@ func (g *ObserveRepo) DailyBudgetReceiptState(
 }
 
 // QuarantineDailyBudgetInstance records the recovery fence without changing an existing pause or start.
-func (g *ObserveRepo) QuarantineDailyBudgetInstance(ctx context.Context, instanceID string) error {
+func (g *ObserveRepo) QuarantineDailyBudgetInstance(ctx context.Context, instanceID string) (bool, error) {
 	if err := g.checkReady(ctx, "quarantine daily budget instance"); err != nil {
-		return err
+		return false, err
 	}
-	return store.ExecuteWriteOperation(ctx, g.db, "quarantine daily budget instance", func(
+	var quarantined bool
+	err := store.ExecuteWriteOperation(ctx, g.db, "quarantine daily budget instance", func(
 		ctx context.Context, tx *store.WriteTx,
 	) error {
+		quarantined = false
 		q := sqlcgen.New(tx)
-		if err := q.RecordAgentInstanceDailyBudgetRecovery(ctx, instanceID); err != nil {
-			return err
+		limits, err := q.GetAgentInstanceDailyBudgetLimits(ctx, instanceID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
 		}
+		if err != nil {
+			return fmt.Errorf("store: check budget caps before quarantining instance %q: %w", instanceID, err)
+		}
+		if !limits.TokenCap.Valid && !limits.UsdCap.Valid {
+			return nil
+		}
+		if err := q.RecordAgentInstanceDailyBudgetRecovery(ctx, instanceID); err != nil {
+			return fmt.Errorf("store: record budget recovery fence for instance %q: %w", instanceID, err)
+		}
+		quarantined = true
 		changed, err := q.QuarantineAgentInstanceDailyBudget(ctx, sqlcgen.QuarantineAgentInstanceDailyBudgetParams{
 			UpdatedAt: store.FormatTimestamp(g.now()), ID: instanceID,
 		})
@@ -221,6 +247,7 @@ func (g *ObserveRepo) QuarantineDailyBudgetInstance(ctx context.Context, instanc
 		}
 		return q.CancelInstanceWake(ctx, instanceID)
 	})
+	return quarantined && err == nil, err
 }
 
 func (g *ObserveRepo) DailyBudgetRecoveryGeneration(ctx context.Context, instanceID string) (int64, error) {

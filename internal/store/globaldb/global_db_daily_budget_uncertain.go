@@ -44,7 +44,12 @@ func (g *ObserveRepo) ListUnresolvedSessionBudgetCandidates(
 	for _, row := range rows {
 		createdAt, err := store.ParseTimestamp(row.InstanceCreatedAt)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf(
+				"store: parse budget owner %q creation time for session %q: %w",
+				row.InstanceID,
+				sessionID,
+				err,
+			)
 		}
 		result = append(result, store.DailyBudgetPotentialOwner{InstanceID: row.InstanceID, CreatedAt: createdAt})
 	}
@@ -85,7 +90,12 @@ func markUnresolvedBudgetReceipt(
 	for _, row := range rows {
 		createdAt, err := store.ParseTimestamp(row.InstanceCreatedAt)
 		if err != nil {
-			return err
+			return fmt.Errorf(
+				"store: parse budget owner %q creation time for session %q: %w",
+				row.InstanceID,
+				sessionID,
+				err,
+			)
 		}
 		if at.Before(createdAt) {
 			continue // earlier receipts must not affect an instance created later

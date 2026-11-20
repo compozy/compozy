@@ -215,7 +215,7 @@ func (m *Manager) prepareManagedInputPrompt(
 		return beginErr
 	})
 	if err != nil {
-		m.handleManagedBudgetAdmissionError(session, err)
+		m.handleManagedBudgetAdmissionError(m.fallbackLifecycleContext(), session, err)
 		m.handleManagedInputBeginError(leaseCtx, lifecycle, owner, err)
 		m.releaseManagedInputLease(owner)
 		return nil
@@ -262,10 +262,10 @@ func (m *Manager) admitManagedInputLease(session *Session, owner ManagedInputOwn
 	return leaseCtx
 }
 
-func (m *Manager) handleManagedBudgetAdmissionError(session *Session, err error) {
+func (m *Manager) handleManagedBudgetAdmissionError(ctx context.Context, session *Session, err error) {
 	if blocked, ok := errors.AsType[*store.DailyBudgetTurnBlockedError](err); ok &&
 		blocked.PausedInstance != nil && m.instancePaused != nil {
-		if effectErr := m.instancePaused(m.fallbackLifecycleContext(), *blocked.PausedInstance); effectErr != nil {
+		if effectErr := m.instancePaused(ctx, *blocked.PausedInstance); effectErr != nil {
 			m.sessionLogger(session).Error("session: apply Goal daily budget pause effects",
 				"instance_id", blocked.PausedInstance.InstanceID, "error", effectErr)
 		}

@@ -142,6 +142,16 @@ func assertBudgetSideQueueIsolation(t *testing.T, db *GlobalDB, instanceID, leaf
 		metrics.HeldInputCount != 2 {
 		t.Fatalf("held input metrics = %+v, %v; want the owned leaf's agent and app inputs", metrics, err)
 	}
+	entry, claimed, err := db.ClaimSelectedSessionInput(ctx, leaf, "operator", at)
+	if err != nil || !claimed || entry.ID != "operator" {
+		t.Fatalf("operator dispatch during budget hold = %s, %t, %v", entry.ID, claimed, err)
+	}
+	if entry, found, err := db.PeekNextSessionInput(ctx, leaf); err != nil || found {
+		t.Fatalf("next dispatch with only held app and agent inputs = %s, %t, %v", entry.ID, found, err)
+	}
+	if err := db.ReleaseSessionInput(ctx, leaf, "operator", at); err != nil {
+		t.Fatal(err)
+	}
 	if _, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(
 		ctx,
 		side,
@@ -181,8 +191,8 @@ func assertBudgetRecoveryPreservesManualSideHold(
 	if _, err := db.Instances().Pause(ctx, instanceID, "manual"); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.QuarantineDailyBudgetInstance(ctx, instanceID); err != nil {
-		t.Fatal(err)
+	if quarantined, err := db.QuarantineDailyBudgetInstance(ctx, instanceID); err != nil || !quarantined {
+		t.Fatalf("quarantine = %t, error = %v", quarantined, err)
 	}
 	if allowed, _, err := db.Instances().AdmitDailyBudgetTurn(ctx, leaf); err != nil || allowed {
 		t.Fatalf("owned admission with pending recovery = %t, %v; want blocked", allowed, err)

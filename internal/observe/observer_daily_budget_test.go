@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -47,7 +48,8 @@ func (r *blockingFailedReceiptRegistry) RecordTokenUsageOnce(
 func TestObserverDailyBudgetAdmissionCannotPassAnOverlappingFailedReceipt(t *testing.T) {
 	t.Run("Should serialize final admission with failure marking and durable recovery", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t)
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		defer cancel()
 		clock := time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC)
 		h := newHarness(t, globaldb.WithClock(func() time.Time { return clock }))
 		instance, _, err := h.registry.Instances().AdmitCreate(ctx, agentinstance.Instance{
@@ -79,24 +81,30 @@ func TestObserverDailyBudgetAdmissionCannotPassAnOverlappingFailedReceipt(t *tes
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := ledger.AppendEventIfAbsent(ctx, store.SessionEvent{
+		_, _, appendErr := ledger.AppendEventIfAbsent(ctx, store.SessionEvent{
 			ID: "overlapping-event", SessionID: sess.ID, TurnID: event.TurnID,
 			Type: event.Type, AgentName: sess.AgentName, Content: content, Timestamp: clock,
-		}); err != nil {
-			t.Fatal(err)
-		}
-		if err := ledger.Close(ctx); err != nil {
+		})
+		if err := errors.Join(appendErr, ledger.Close(ctx)); err != nil {
 			t.Fatal(err)
 		}
 		registry := &blockingFailedReceiptRegistry{
 			GlobalDB: h.registry, entered: make(chan struct{}), release: make(chan struct{}),
 		}
 		h.observer.registry = registry
+		var workers sync.WaitGroup
+		var release sync.Once
+		releaseReceipt := func() { release.Do(func() { close(registry.release) }) }
+		defer func() {
+			cancel()
+			releaseReceipt()
+			workers.Wait()
+		}()
 		observed := make(chan struct{})
-		go func() {
+		workers.Go(func() {
 			h.observer.OnAgentEvent(ctx, sess.ID, event)
 			close(observed)
-		}()
+		})
 		select {
 		case <-registry.entered:
 		case <-ctx.Done():
@@ -106,7 +114,11 @@ func TestObserverDailyBudgetAdmissionCannotPassAnOverlappingFailedReceipt(t *tes
 			allowed bool
 			err     error
 		}, 1)
-		go func() {
+		if h.observer.budgetAdmissionMu.TryRLock() {
+			h.observer.budgetAdmissionMu.RUnlock()
+			t.Fatal("receipt projection is not fenced against admission")
+		}
+		workers.Go(func() {
 			var allowed bool
 			err := h.observer.WithDailyBudgetAdmission(ctx, sess.ID, func(ctx context.Context) error {
 				var commitErr error
@@ -117,13 +129,8 @@ func TestObserverDailyBudgetAdmissionCannotPassAnOverlappingFailedReceipt(t *tes
 				allowed bool
 				err     error
 			}{allowed: allowed, err: err}
-		}()
-		select {
-		case result := <-admitted:
-			t.Fatalf("admission raced past unaccounted Done: %+v", result)
-		default:
-		}
-		close(registry.release)
+		})
+		releaseReceipt()
 		select {
 		case <-observed:
 		case <-ctx.Done():
@@ -452,6 +459,10 @@ func TestObserverDailyBudgetRebuildsReceiptFromDurableDoneAfterRestart(t *testin
 			compozyconfig.ProviderAuthMode, error,
 		) {
 			return "", errors.New("historical provider definition removed")
+		}
+		if _, err := h.registry.DB().
+			ExecContext(ctx, `DELETE FROM daily_budget_recovery_cursors WHERE session_id = ?`, sess.ID); err != nil {
+			t.Fatal(err)
 		}
 		if err := h.observer.ReconcileDailyBudgetReceipts(ctx); err != nil {
 			t.Fatalf("accepted replay must survive removed provider definition: %v", err)

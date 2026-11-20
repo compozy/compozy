@@ -2,7 +2,10 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,9 +34,14 @@ func TestRecordTokenUsageReceiptsAreIdempotentAcrossReplays(t *testing.T) {
 			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
 			TotalTokens: new(int64(123)), CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 		}
-		for range 3 {
-			if _, err := db.RecordTokenUsageOnce(ctx, stats, daily); err != nil {
-				t.Fatalf("RecordTokenUsageOnce() error = %v", err)
+		for index := range 3 {
+			if accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily); err != nil || accepted != (index == 0) {
+				t.Fatalf(
+					"receipt attempt %d accepted=%t error=%v; only the first write is accepted",
+					index,
+					accepted,
+					err,
+				)
 			}
 		}
 		got, err := db.ListTokenStats(ctx, store.TokenStatsQuery{SessionID: stats.SessionID, Limit: 10})
@@ -64,8 +72,8 @@ func TestRecordTokenUsageReceiptsAreIdempotentAcrossReplays(t *testing.T) {
 		if _, err := db.db.ExecContext(ctx, `DELETE FROM sessions WHERE id = ?`, stats.SessionID); err != nil {
 			t.Fatalf("delete completed triage session: %v", err)
 		}
-		if _, err := db.RecordTokenUsageOnce(ctx, stats, daily); err != nil {
-			t.Fatalf("replay after session deletion: %v", err)
+		if accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily); err != nil || accepted {
+			t.Fatalf("replay after session deletion accepted=%t error=%v", accepted, err)
 		}
 		if err := db.db.QueryRowContext(ctx, `SELECT count(*) FROM token_usage_receipts WHERE session_id = ?`, stats.SessionID).
 			Scan(&receipts); err != nil {
@@ -76,8 +84,9 @@ func TestRecordTokenUsageReceiptsAreIdempotentAcrossReplays(t *testing.T) {
 		}
 		otherProfile := daily
 		otherProfile.ProfileID = "different-profile"
-		if _, err := db.RecordTokenUsageOnce(ctx, stats, otherProfile); err == nil {
-			t.Fatal("replay in another profile was accepted")
+		if accepted, err := db.RecordTokenUsageOnce(ctx, stats, otherProfile); err == nil || accepted ||
+			!strings.Contains(err.Error(), "has a different profile") {
+			t.Fatalf("cross-profile replay accepted=%t error=%v; want original receipt owner rejection", accepted, err)
 		}
 	})
 }
@@ -92,6 +101,14 @@ func TestTokenUsageReceiptSurvivesDatabaseReopen(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		firstOpen := true
+		t.Cleanup(func() {
+			if firstOpen {
+				if err := first.Close(context.WithoutCancel(ctx)); err != nil {
+					t.Errorf("close initial database: %v", err)
+				}
+			}
+		})
 		now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
 		if _, err := first.db.ExecContext(ctx, `INSERT INTO sessions (
 			id, profile_id, scope, agent_name, workspace_id, session_type, state, created_at, updated_at
@@ -115,12 +132,13 @@ func TestTokenUsageReceiptSurvivesDatabaseReopen(t *testing.T) {
 		if err := first.Close(ctx); err != nil {
 			t.Fatal(err)
 		}
+		firstOpen = false
 		reopened, err := OpenGlobalDB(ctx, path)
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() {
-			if err := reopened.Close(context.Background()); err != nil {
+			if err := reopened.Close(context.WithoutCancel(ctx)); err != nil {
 				t.Errorf("close reopened db: %v", err)
 			}
 		})
@@ -172,14 +190,18 @@ func TestTokenUsageReceiptCountsInputAndOutputWithoutReportedTotal(t *testing.T)
 			t.Fatalf("replayed receipt accepted=%v error=%v", accepted, err)
 		}
 		var tokens int64
-		if err := db.db.QueryRowContext(ctx,
-			`SELECT total_tokens FROM token_usage_receipts WHERE session_id = ? AND turn_id = ?`,
-			stats.SessionID, stats.TurnID,
-		).Scan(&tokens); err != nil {
+		var amount sql.NullString
+		var costStatus string
+		if err := db.db.QueryRowContext(
+			ctx,
+			`SELECT total_tokens, usd_amount, cost_status FROM token_usage_receipts WHERE session_id = ? AND turn_id = ?`,
+			stats.SessionID,
+			stats.TurnID,
+		).Scan(&tokens, &amount, &costStatus); err != nil {
 			t.Fatal(err)
 		}
-		if tokens != 1540 {
-			t.Fatalf("receipt tokens=%d, want input+output=1540", tokens)
+		if tokens != 1540 || amount.Valid || costStatus != "unknown" {
+			t.Fatalf("receipt tokens=%d amount=%+v cost=%q; want 1540 unpriced tokens", tokens, amount, costStatus)
 		}
 	})
 }
@@ -211,8 +233,8 @@ func TestTokenUsageReceiptRollbackAndRetry(t *testing.T) {
 			t.Fatal(err)
 		}
 		accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily)
-		if err == nil || accepted {
-			t.Fatalf("forced failure accepted=%v error=%v", accepted, err)
+		if err == nil || !strings.Contains(err.Error(), "forced rollup failure") || accepted {
+			t.Fatalf("forced failure accepted=%v error=%v; want rollup trigger rejection", accepted, err)
 		}
 		for _, table := range []string{"token_usage_receipts", "token_stats", "token_usage_daily"} {
 			var count int
@@ -485,8 +507,13 @@ func TestTokenUsageReceiptAttributesDescendantToOriginatingInstance(t *testing.T
 			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
 			TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 		}
-		if _, err := db.RecordTokenUsageOnce(ctx, stats, daily); err == nil {
-			t.Fatal("cross-profile ancestry was accepted for canonical usage")
+		if _, err := db.RecordTokenUsageOnce(
+			ctx,
+			stats,
+			daily,
+		); !errors.Is(err, sql.ErrNoRows) ||
+			!strings.Contains(err.Error(), "resolve token receipt session") {
+			t.Fatalf("cross-profile ancestry owner lookup returned %v", err)
 		}
 	})
 
@@ -604,7 +631,12 @@ func TestTokenUsageReceiptRejectsBrokenAncestry(t *testing.T) {
 				ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
 				TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 			}
-			if accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily); err == nil || accepted {
+			if accepted, err := db.RecordTokenUsageOnce(
+				ctx,
+				stats,
+				daily,
+			); !errors.Is(err, sql.ErrNoRows) || !strings.Contains(err.Error(), "resolve token receipt session") ||
+				accepted {
 				t.Fatalf("broken owner accepted=%v error=%v", accepted, err)
 			}
 		})
@@ -690,7 +722,12 @@ func TestTokenUsageReceiptRejectsBrokenAncestry(t *testing.T) {
 			ProfileID: store.DefaultProfileID, Day: store.LocalDay(now), AgentName: "writer",
 			TotalTokens: stats.TotalTokens, CostStatus: "unknown", CostSource: "none", UpdatedAt: now,
 		}
-		if accepted, err := db.RecordTokenUsageOnce(ctx, stats, daily); err == nil || accepted {
+		if accepted, err := db.RecordTokenUsageOnce(
+			ctx,
+			stats,
+			daily,
+		); !errors.Is(err, sql.ErrNoRows) || !strings.Contains(err.Error(), "resolve token receipt session") ||
+			accepted {
 			t.Fatalf("cyclic owner accepted=%v error=%v", accepted, err)
 		}
 	})
@@ -764,18 +801,23 @@ func TestTokenUsageReceiptRejectsIncoherentTurnUpdates(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name  string
+		want  string
 		stats store.TokenStatsUpdate
 		daily store.TokenUsageDailyUpdate
 	}{
-		{name: "Should reject two session turns", stats: func() store.TokenStatsUpdate { s := stats; s.Turns = 2; return s }(), daily: daily},
-		{name: "Should reject two daily turns", stats: stats, daily: func() store.TokenUsageDailyUpdate { d := daily; d.Turns = 2; return d }()},
-		{name: "Should reject mismatched totals", stats: stats, daily: func() store.TokenUsageDailyUpdate { d := daily; d.TotalTokens = new(int64(43)); return d }()},
-		{name: "Should reject mismatched agent", stats: stats, daily: func() store.TokenUsageDailyUpdate { d := daily; d.AgentName = "other"; return d }()},
+		{name: "Should reject two session turns", want: "must represent exactly one turn", stats: func() store.TokenStatsUpdate { s := stats; s.Turns = 2; return s }(), daily: daily},
+		{name: "Should reject two daily turns", want: "must represent exactly one turn", stats: stats, daily: func() store.TokenUsageDailyUpdate { d := daily; d.Turns = 2; return d }()},
+		{name: "Should reject mismatched totals", want: "session and daily updates disagree", stats: stats, daily: func() store.TokenUsageDailyUpdate { d := daily; d.TotalTokens = new(int64(43)); return d }()},
+		{name: "Should reject mismatched agent", want: "session and daily updates disagree", stats: stats, daily: func() store.TokenUsageDailyUpdate { d := daily; d.AgentName = "other"; return d }()},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if err := validateTokenReceiptPair(tc.stats, tc.daily); err == nil {
-				t.Fatal("incoherent canonical usage was accepted")
+			if err := validateTokenReceiptPair(
+				tc.stats,
+				tc.daily,
+			); err == nil ||
+				!strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("invalid update returned %v; want %q", err, tc.want)
 			}
 		})
 	}

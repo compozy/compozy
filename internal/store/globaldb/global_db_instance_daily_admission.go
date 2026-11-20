@@ -98,8 +98,11 @@ func admitOwnedDailyBudgetTurn(
 		return false, nil, nil
 	}
 	latched, err := q.CountLatchedAgentInstanceBudgetPauses(ctx, owner.InstanceID)
-	if err != nil || latched > 0 {
-		return false, nil, err
+	if err != nil {
+		return false, nil, fmt.Errorf("store: read daily budget latch for instance %q: %w", row.ID, err)
+	}
+	if latched > 0 {
+		return false, nil, nil
 	}
 	limitsRow, err := q.GetAgentInstanceDailyBudgetLimits(ctx, owner.InstanceID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -186,17 +189,17 @@ func pauseDailyBudgetTurn(
 		ID: instanceID, PauseReason: reason, UpdatedAt: stamp,
 	})
 	if err != nil {
-		return false, nil, err
+		return false, nil, fmt.Errorf("store: persist daily budget pause for instance %q: %w", instanceID, err)
 	}
 	if changed != 1 {
 		return false, nil, errors.New("store: daily budget pause lost instance ownership")
 	}
 	if err := q.CancelInstanceWake(ctx, instanceID); err != nil {
-		return false, nil, err
+		return false, nil, fmt.Errorf("store: cancel wake for budget-paused instance %q: %w", instanceID, err)
 	}
 	instance, err := q.GetAgentInstance(ctx, instanceID)
 	if err != nil {
-		return false, nil, err
+		return false, nil, fmt.Errorf("store: load budget-paused instance %q: %w", instanceID, err)
 	}
 	paused, err := instanceFromRow(instance)
 	if err != nil {

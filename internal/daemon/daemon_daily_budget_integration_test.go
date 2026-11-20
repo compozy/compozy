@@ -78,7 +78,14 @@ func TestDaemonDailyBudgetRealDriverJourney(t *testing.T) {
 		}
 		writeDaemonIntegrationProviderConfig(t, home, acpmock.ProviderName, driver, compozyconfig.ProviderAuthModeNone)
 		var clock atomic.Int64
-		clock.Store(time.Now().UTC().Truncate(time.Second).Unix())
+		wallNow := time.Now().UTC().Truncate(time.Second)
+		clock.Store(wallNow.Unix())
+		// Provider Done events use wall time. Center the local day on the real
+		// fixture start so those events and the daemon stay in one day.
+		originalLocal := time.Local
+		utcMidnight := time.Date(wallNow.Year(), wallNow.Month(), wallNow.Day(), 0, 0, 0, 0, time.UTC)
+		time.Local = time.FixedZone("budget-test", int((12*time.Hour-wallNow.Sub(utcMidnight))/time.Second))
+		t.Cleanup(func() { time.Local = originalLocal })
 		start := func() *Daemon {
 			t.Helper()
 			d := newTestDaemon(t, home, &cfg)
@@ -239,6 +246,17 @@ func TestDaemonDailyBudgetRealDriverJourney(t *testing.T) {
 		if status != http.StatusConflict {
 			t.Fatalf("same-day operator resume over HTTP = %d %s, want conflict", status, raw)
 		}
+		// Reproduce a loss of projection after the peer's durable Done, while
+		// keeping the main instance's complete receipts for replay checks.
+		for _, statement := range []struct{ sql, id string }{
+			{`DELETE FROM daily_budget_recovery_cursors WHERE session_id=?`, otherMain.ID},
+			{`DELETE FROM token_usage_receipts WHERE session_id=?`, otherMain.ID},
+			{`DELETE FROM agent_instance_daily_budget_usage WHERE instance_id=?`, other.ID},
+		} {
+			if _, err := db.DB().ExecContext(ctx, statement.sql, statement.id); err != nil {
+				t.Fatal(err)
+			}
+		}
 		if err := d.Shutdown(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -250,11 +268,16 @@ func TestDaemonDailyBudgetRealDriverJourney(t *testing.T) {
 		}
 		assertReceipts(2) // boot replay must never count completed turns twice
 		var peerReceipts int
+		var peerDay string
 		if err := db.DB().QueryRowContext(ctx,
-			`SELECT count(*) FROM token_usage_receipts WHERE instance_id=?`, other.ID).
-			Scan(&peerReceipts); err != nil ||
-			peerReceipts != 1 {
-			t.Fatalf("restart unpriced receipt count=%d err=%v, want exactly one", peerReceipts, err)
+			`SELECT count(*), COALESCE(min(day), '') FROM token_usage_receipts WHERE instance_id=?`, other.ID).
+			Scan(&peerReceipts, &peerDay); err != nil || peerReceipts != 1 || peerDay != store.LocalDay(wallNow) {
+			t.Fatalf(
+				"restart unpriced receipt count=%d day=%q err=%v, want one receipt on the original day",
+				peerReceipts,
+				peerDay,
+				err,
+			)
 		}
 		peerUsage, err = db.Instances().ReadDailyBudgetUsage(ctx, other.ID, time.Unix(clock.Load(), 0))
 		if err != nil || !peerUsage.HasUnpricedUsage {

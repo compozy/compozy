@@ -283,7 +283,8 @@ func TestAgentInstanceDailyBudgetInputReplacement(t *testing.T) {
 			t.Fatalf("decoded budget=%+v; want only a USD cap of 1.25", input)
 		}
 		if err := json.Unmarshal([]byte(`{"tokens":50,"usdd":1}`), &input); err == nil ||
-			!strings.Contains(err.Error(), `unknown field "usdd"`) {
+			(!strings.Contains(err.Error(), `unknown field "usdd"`) &&
+				!strings.Contains(err.Error(), `unknown object member name "usdd"`)) {
 			t.Fatalf("decode error=%v; want unknown field usdd", err)
 		}
 		if input.Tokens != nil || input.USD == nil || *input.USD != 1.25 {

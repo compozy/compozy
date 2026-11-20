@@ -97,7 +97,7 @@ func TestInstanceDailyBudgetAdmissionScopeAndUnpricedUsage(t *testing.T) {
 	}
 	if _, err := db.db.ExecContext(ctx, `INSERT INTO token_usage_receipts (
 		profile_id, session_id, turn_id, instance_id, day, total_tokens, cost_status, created_at
-	) VALUES (?, 'scope-session-one', 'scope-unpriced', 'scope-one', ?, 100, 'unknown', ?)`,
+	) VALUES (?, 'scope-session-one', 'scope-unpriced', 'scope-one', ?, 25, 'unknown', ?)`,
 		store.DefaultProfileID, store.LocalDay(at), stamp); err != nil {
 		t.Fatal(err)
 	}

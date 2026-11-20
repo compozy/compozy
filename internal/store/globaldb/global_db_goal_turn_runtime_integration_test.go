@@ -258,6 +258,15 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			if _, err := globalDB.Instances().Resume(ctx, instance.ID, 10, true); err != nil {
 				t.Fatal(err)
 			}
+			claim.BudgetDecision = flushGoalRuntimeBudget(
+				t,
+				globalDB,
+				key,
+				taskRunID,
+				goal.BudgetBeforeWork,
+				promptID,
+				0,
+			)
 			if _, err := globalDB.ClaimPreparedWorkPrompt(ctx, claim); err != nil {
 				t.Fatalf("resumed Goal claim: %v", err)
 			}

@@ -477,20 +477,26 @@ func TestAgentInstanceDailyBudgetSettings(t *testing.T) {
 		wantStatus int
 		wantTokens *int64
 		wantUSD    *float64
+		wantError  string
 	}{
-		{"reject both mutations", `{"checks_enabled":false,"daily_budget":{"tokens":100}}`, 422, nil, nil},
-		{"reject invalid cap", `{"daily_budget":{"tokens":-1}}`, 422, nil, nil},
-		{"reject typo without clearing caps", `{"daily_budget":{"token":100}}`, 422, nil, nil},
-		{"set both caps", `{"daily_budget":{"tokens":100,"usd":1.25}}`, 200, new(int64(100)), new(float64(1.25))},
-		{"clear USD but keep tokens", `{"daily_budget":{"tokens":0}}`, 200, new(int64(0)), nil},
-		{"clear all caps", `{"daily_budget":{}}`, 200, nil, nil},
+		{"reject both mutations", `{"checks_enabled":false,"daily_budget":{"tokens":100}}`, 422, nil, nil, "exactly one of checks_enabled or daily_budget is required"},
+		{"reject invalid cap", `{"daily_budget":{"tokens":-1}}`, 422, nil, nil, "daily token cap cannot be negative"},
+		{"reject typo without clearing caps", `{"daily_budget":{"token":100}}`, 422, nil, nil, `"token"`},
+		{"set both caps", `{"daily_budget":{"tokens":100,"usd":1.25}}`, 200, new(int64(100)), new(float64(1.25)), ""},
+		{"clear USD but keep tokens", `{"daily_budget":{"tokens":0}}`, 200, new(int64(0)), nil, ""},
+		{"clear all caps", `{"daily_budget":{}}`, 200, nil, nil, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := performRequest(t, fixture.Engine, "PATCH", url, []byte(tc.body))
 			if resp.Code != tc.wantStatus {
 				t.Fatalf("PATCH status=%d body=%s", resp.Code, resp.Body.String())
 			}
-			if resp.Code != 200 {
+			if tc.wantError != "" {
+				var failure contract.ErrorPayload
+				decodeJSON(t, resp.Body.Bytes(), &failure)
+				if !strings.Contains(failure.Error, tc.wantError) {
+					t.Fatalf("error = %q, want %q", failure.Error, tc.wantError)
+				}
 				return
 			}
 			get := performRequest(t, fixture.Engine, "GET", url, nil)
@@ -517,6 +523,40 @@ func TestAgentInstanceDailyBudgetSettings(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should preserve a configured cap after rejecting a misplaced field", func(t *testing.T) {
+		if err := db.Instances().SetDailyBudgetLimits(ctx, instance.ID, agentinstance.DailyBudgetLimits{
+			Tokens: new(int64(100)),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Instances().SetDailyBudgetLimits(
+				context.WithoutCancel(ctx), instance.ID, agentinstance.DailyBudgetLimits{},
+			); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, body := range []string{
+			`{"daily_budget":{},"usd":1.25}`,
+			`{"daily_budget":{"token":0}}`,
+			`{"daily_budget":{"tokens":100},"DAILY_BUDGET":{}}`,
+			`{"daily_budget":{"tokens":100,"TOKENS":0}}`,
+			`{"daily_budget":{"tokens":100},"daily_budget":{}}`,
+		} {
+			response := performRequest(t, fixture.Engine, "PATCH", url, []byte(body))
+			var failure contract.ErrorPayload
+			decodeJSON(t, response.Body.Bytes(), &failure)
+			if response.Code != http.StatusUnprocessableEntity ||
+				(!strings.Contains(failure.Error, "unknown object member name") &&
+					!strings.Contains(failure.Error, "unknown field") && !strings.Contains(failure.Error, "duplicate")) {
+				t.Fatalf("budget update %s status=%d response=%s", body, response.Code, response.Body.String())
+			}
+		}
+		limits, err := db.Instances().DailyBudgetLimits(ctx, instance.ID)
+		if err != nil || limits.Tokens == nil || *limits.Tokens != 100 {
+			t.Fatalf("stored budget=%+v err=%v; want original cap", limits, err)
+		}
+	})
 	t.Run("Should keep paired app credentials from replacing operator limits", func(t *testing.T) {
 		request := httptest.NewRequestWithContext(t.Context(), "PATCH", url,
 			strings.NewReader(`{"daily_budget":{"tokens":0}}`))

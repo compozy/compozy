@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,15 +46,16 @@ func TestDailyBudgetQuarantinePreservesExistingManualPause(t *testing.T) {
 			agentinstance.DailyBudgetLimits{Tokens: new(int64(100))}); err != nil {
 			t.Fatal(err)
 		}
-		if err := db.QuarantineDailyBudgetInstance(ctx, instance.ID); err != nil {
-			t.Fatal(err)
+		if quarantined, err := db.QuarantineDailyBudgetInstance(ctx, instance.ID); err != nil || !quarantined {
+			t.Fatalf("quarantine = %t, error = %v", quarantined, err)
 		}
 		paused, err := db.Instances().Get(ctx, instance.ID)
 		if err != nil || paused.PauseReason != "manual" {
 			t.Fatalf("quarantine must preserve the manual pause, got %q (err=%v)", paused.PauseReason, err)
 		}
-		if _, err := db.Instances().Resume(ctx, instance.ID, 10, true); err == nil {
-			t.Fatal("operator resume bypassed an unreadable budget ledger")
+		if _, err := db.Instances().Resume(ctx, instance.ID, 10, true); !errors.Is(err, agentinstance.ErrPaused) ||
+			!strings.Contains(err.Error(), "instance daily budget ledger recovery is incomplete") {
+			t.Fatalf("operator resume error = %v, want incomplete ledger recovery", err)
 		}
 		generation, err := db.DailyBudgetRecoveryGeneration(ctx, instance.ID)
 		if err != nil || generation == 0 {
@@ -65,6 +67,31 @@ func TestDailyBudgetQuarantinePreservesExistingManualPause(t *testing.T) {
 		paused, err = db.Instances().Get(ctx, instance.ID)
 		if err != nil || paused.PauseReason != "manual" {
 			t.Fatalf("resolved quarantine must preserve the manual pause, got %q (err=%v)", paused.PauseReason, err)
+		}
+	})
+}
+
+func TestDailyBudgetQuarantineChecksCurrentCaps(t *testing.T) {
+	t.Run("Should not quarantine when the caps were cleared before recovery failed", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		at := time.Date(2026, 11, 19, 12, 0, 0, 0, time.Local)
+		budgetBoundSession(t, db, at)
+		const instanceID = "daily-dispatch-instance"
+		if err := db.Instances().SetDailyBudgetLimits(ctx, instanceID, agentinstance.DailyBudgetLimits{}); err != nil {
+			t.Fatal(err)
+		}
+		if quarantined, err := db.QuarantineDailyBudgetInstance(ctx, instanceID); err != nil || quarantined {
+			t.Fatalf("quarantine after removing caps = %t, error = %v", quarantined, err)
+		}
+		instance, err := db.Instances().Get(ctx, instanceID)
+		if err != nil || instance.State != "active" || instance.PauseReason != "" {
+			t.Fatalf("instance = %+v, error = %v; want unpaused", instance, err)
+		}
+		generation, err := db.DailyBudgetRecoveryGeneration(ctx, instanceID)
+		if err != nil || generation != 0 {
+			t.Fatalf("generation = %d, error = %v; want no recovery fence", generation, err)
 		}
 	})
 }

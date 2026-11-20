@@ -62,6 +62,10 @@ func TestInstanceDailyBudgetResumeEligibility(t *testing.T) {
 		) {
 			t.Fatalf("app resume after rollover error = %v, want forbidden", err)
 		}
+		paused, err = db.Instances().Get(ctx, "budget-resume")
+		if err != nil || paused.State != "paused" || paused.PauseReason != "daily_budget" {
+			t.Fatalf("pause after app resume denial = %+v, error = %v", paused, err)
+		}
 		resumed, err := db.Instances().Resume(ctx, "budget-resume", 10, true)
 		if err != nil || resumed.State != "active" || resumed.PauseReason != "" {
 			t.Fatalf("eligible next-day resume = %+v, error = %v", resumed, err)
@@ -84,7 +88,7 @@ func TestInstanceDailyBudgetResumeEligibility(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := db.Instances().SetDailyBudgetLimits(ctx, "budget-cleared", agentinstance.DailyBudgetLimits{
-			Tokens: new(int64(1)),
+			Tokens: new(int64(1)), USD: new(float64(0.25)),
 		}); err != nil {
 			t.Fatal(err)
 		}

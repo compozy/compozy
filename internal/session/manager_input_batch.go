@@ -17,16 +17,16 @@ const maxQueuedInputBatch = 8
 const queuedInputBatchSeparator = "\n\n---\n\n"
 
 // claimQueuedInputBatch leases the consecutive messages from other sessions and reply wakes that
-// follow a claimed head of the same kind, so one turn answers them together. Operator input,
+// follow a compatible claimed head, so one turn answers them together. Ordinary operator input,
 // interrupts, Goal prompts, subagent wakes, and entries whose attachments, slash commands, mentions, or
 // runtime differ always end the batch and keep a turn of their own.
 func (m *Manager) claimQueuedInputBatch(
 	session *Session,
 	target string,
 	head *store.SessionInputQueueEntry,
-) []queuedInput {
+) ([]queuedInput, *store.InstancePauseTrip) {
 	if !batchableQueuedInput(head) {
-		return nil
+		return nil, nil
 	}
 	effective := effectiveQueuedInputRuntime(session)
 	headRuntime := effective(head.Runtime)
@@ -36,20 +36,36 @@ func (m *Manager) claimQueuedInputBatch(
 			candidate.SessionGeneration == head.SessionGeneration &&
 			sameSessionInputRuntime(effective(candidate.Runtime), headRuntime)
 	}
-	claimed, err := m.inputQueue.ClaimBatch(m.fallbackLifecycleContext(), target, maxQueuedInputBatch-1, accept)
+	ctx := m.fallbackLifecycleContext()
+	var claimed []store.SessionInputQueueEntry
+	var trip *store.InstancePauseTrip
+	err := m.withDailyBudgetAdmission(ctx, target, func(ctx context.Context) error {
+		var err error
+		claimed, trip, err = m.inputQueue.ClaimBatch(ctx, target, maxQueuedInputBatch-1, accept)
+		return err
+	})
 	if err != nil {
 		m.sessionLogger(session).Warn("session: claim queued input batch failed", "error", err)
-		return nil
+		return nil, nil
 	}
 	batch := make([]queuedInput, 0, len(claimed))
 	for index := range claimed {
 		batch = append(batch, queuedInputFromEntry(&claimed[index]))
 	}
-	return batch
+	return batch, trip
+}
+
+func (m *Manager) applyQueuedInputPause(ctx context.Context, session *Session, trip *store.InstancePauseTrip) {
+	if trip != nil && m.instancePaused != nil {
+		if err := m.instancePaused(ctx, *trip); err != nil {
+			m.sessionLogger(session).
+				Error("session: apply instance pause effects", "instance_id", trip.InstanceID, "error", err)
+		}
+	}
 }
 
 // batchableQueuedInput reports an after-turn message from another session or a reply wake without
-// slash commands or mentions. Only those may share a turn; human input is never merged.
+// slash commands or mentions. Only those may share a turn.
 func batchableQueuedInput(entry *store.SessionInputQueueEntry) bool {
 	if entry.Delivery != store.SessionInputDeliveryAfterTurn || len(entry.SkillInvocations) > 0 ||
 		hasStoredMentions(entry.MentionsJSON) {

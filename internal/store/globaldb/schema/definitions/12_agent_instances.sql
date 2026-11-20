@@ -52,7 +52,7 @@ CREATE TABLE agent_instance_daily_budget_uncertain_days (
 );
 
 CREATE TABLE agent_instance_daily_budget_recovery (
-    instance_id TEXT PRIMARY KEY REFERENCES agent_instances(id) ON DELETE CASCADE,
+    instance_id TEXT NOT NULL PRIMARY KEY REFERENCES agent_instances(id) ON DELETE CASCADE,
     generation INTEGER NOT NULL CHECK (generation > 0),
     pending INTEGER NOT NULL CHECK (pending IN (0, 1)),
     latched INTEGER NOT NULL DEFAULT 0 CHECK (latched IN (0, 1))

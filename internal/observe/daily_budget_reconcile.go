@@ -27,7 +27,7 @@ type dailyBudgetReceiptRecovery interface {
 	AdvanceDailyBudgetRecoveryCursor(context.Context, string, int64) error
 	DailyBudgetReceiptState(context.Context, string, string, string) (store.DailyBudgetReceiptState, error)
 	BackfillDailyBudgetReceipt(context.Context, store.TokenStatsUpdate, store.TokenUsageDailyUpdate, bool) error
-	QuarantineDailyBudgetInstance(context.Context, string) error
+	QuarantineDailyBudgetInstance(context.Context, string) (bool, error)
 	DailyBudgetRecoveryGeneration(context.Context, string) (int64, error)
 	ResolveDailyBudgetRecovery(context.Context, string, int64) error
 }
@@ -214,27 +214,28 @@ func (o *Observer) ReconcileBudgetSessionBeforeDeletion(ctx context.Context, ses
 			if readErr != nil {
 				return errors.Join(err, readErr)
 			}
-			if !configured {
-				if !errors.Is(err, errDailyBudgetLedgerUnreadable) {
-					return err // preserve a readable ledger when the global write needs a retry
+			if configured {
+				quarantined, pauseErr := recovery.QuarantineDailyBudgetInstance(ctx, owner.InstanceID)
+				if pauseErr != nil {
+					return errors.Join(err, pauseErr)
 				}
-				// Preserve the old opt-out deletion behavior. The durable
-				// uncertainty marker prevents unsafe retroactive activation
-				// until the next local-day boundary.
-				if markErr := recovery.MarkUncertainDailyBudgetDay(
-					ctx,
-					owner.InstanceID,
-					sessionID,
-					o.now(),
-				); markErr != nil {
-					return errors.Join(err, markErr)
+				if quarantined {
+					return fmt.Errorf("observe: refusing deletion until budget receipt is durable: %w", err)
 				}
-				return nil
 			}
-			if pauseErr := recovery.QuarantineDailyBudgetInstance(ctx, owner.InstanceID); pauseErr != nil {
-				return errors.Join(err, pauseErr)
+			if !errors.Is(err, errDailyBudgetLedgerUnreadable) {
+				return err // preserve a readable ledger when the global write needs a retry
 			}
-			return fmt.Errorf("observe: refusing deletion until budget receipt is durable: %w", err)
+			// Fence retroactive caps for this day when an uncapped ledger is lost.
+			if markErr := recovery.MarkUncertainDailyBudgetDay(
+				ctx,
+				owner.InstanceID,
+				sessionID,
+				o.now(),
+			); markErr != nil {
+				return errors.Join(err, markErr)
+			}
+			return nil
 		}
 		return nil
 	}
@@ -314,10 +315,14 @@ func (o *Observer) reconcileDailyBudgetReceipts(ctx context.Context, instanceID 
 			if !quarantine || sess.InstanceID == "" || ctx.Err() != nil {
 				return err
 			}
-			failedOwners[sess.InstanceID] = struct{}{}
-			if pauseErr := recovery.QuarantineDailyBudgetInstance(ctx, sess.InstanceID); pauseErr != nil {
+			quarantined, pauseErr := recovery.QuarantineDailyBudgetInstance(ctx, sess.InstanceID)
+			if pauseErr != nil {
 				return errors.Join(err, fmt.Errorf("observe: quarantine instance %q: %w", sess.InstanceID, pauseErr))
 			}
+			if !quarantined {
+				continue
+			}
+			failedOwners[sess.InstanceID] = struct{}{}
 			o.logger.ErrorContext(ctx, "observe: quarantined instance after unreadable budget ledger",
 				"instance_id", sess.InstanceID, "session_id", sess.ID, "error", err)
 		}

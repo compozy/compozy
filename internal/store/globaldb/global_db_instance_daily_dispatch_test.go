@@ -484,6 +484,64 @@ func TestDailyBudgetDefinitionPausedDescendantLatchesUntilOperatorResume(t *test
 	}
 }
 
+func TestDailyBudgetBatchAdmission(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		exhausted bool
+	}{
+		{name: "Should hold an autonomous follower behind a human head when the cap is exhausted", exhausted: true},
+		{name: "Should lease a covered follower when budget remains"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			at := time.Date(2026, 11, 19, 12, 0, 0, 0, time.Local)
+			db.now = func() time.Time { return at }
+			sessionID := budgetBoundSession(t, db, at)
+			if !tc.exhausted {
+				if err := db.Instances().SetDailyBudgetLimits(ctx, "daily-dispatch-instance",
+					agentinstance.DailyBudgetLimits{Tokens: new(int64(200))}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for index, id := range []string{"human", "autonomous", "after-autonomous"} {
+				if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+					ID: id, SessionID: sessionID, Text: id, QueueCap: 5, HumanIngress: id != "autonomous",
+					OriginClass: store.SessionInputOriginClassHuman,
+					Now:         at.Add(time.Duration(index) * time.Second),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			head, ok, err := db.ClaimNextSessionInput(ctx, sessionID, at)
+			if err != nil || !ok || head.ID != "human" || head.PausedInstance != nil {
+				t.Fatalf("head=%+v claimed=%t err=%v, want human head without a pause", head, ok, err)
+			}
+			batch, trip, err := db.ClaimSessionInputBatch(ctx, sessionID, 2,
+				func(*store.SessionInputQueueEntry) bool { return true }, at)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.exhausted {
+				if len(batch) != 2 || batch[0].ID != "autonomous" || batch[1].ID != "after-autonomous" || trip != nil {
+					t.Fatalf("batch=%+v pause=%+v, want both ordered followers without a pause", batch, trip)
+				}
+				return
+			}
+			if len(batch) != 0 || trip == nil || trip.Reason != "daily_budget" {
+				t.Fatalf("batch=%+v pause=%+v, want budget pause with no follower claimed", batch, trip)
+			}
+			for _, id := range []string{"autonomous", "after-autonomous"} {
+				entry, err := db.GetSessionInputQueueEntry(ctx, sessionID, id)
+				if err != nil || entry.Status != store.SessionInputQueueStatusQueued || entry.AttemptCount != 0 {
+					t.Fatalf("follower %s=%+v err=%v, want original queued input", id, entry, err)
+				}
+			}
+		})
+	}
+}
+
 func TestDailyBudgetHoldDoesNotLetPreparedGoalBlockOperator(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -541,7 +599,7 @@ func TestDailyBudgetHoldDoesNotLetPreparedGoalBlockOperator(t *testing.T) {
 			} else if err != nil || !ok || entry.ID != wantHead {
 				t.Fatalf("claim of %s = %s, %t, %v", wantHead, entry.ID, ok, err)
 			}
-			batch, err := db.ClaimSessionInputBatch(ctx, main, 2, func(*store.SessionInputQueueEntry) bool {
+			batch, _, err := db.ClaimSessionInputBatch(ctx, main, 2, func(*store.SessionInputQueueEntry) bool {
 				return true
 			}, at)
 			if err != nil {

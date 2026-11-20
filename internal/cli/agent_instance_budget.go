@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -16,7 +17,7 @@ import (
 // operator's concurrent change. Require both flags, including 'off' for a
 // dimension that must remain unlimited; --clear removes both.
 func (options agentInstanceOptions) updateBudget(
-	cmd *cobra.Command, base any, id string,
+	ctx context.Context, cmd *cobra.Command, base any, id string,
 ) error {
 	setTokens, setUSD := cmd.Flags().Changed("tokens"), cmd.Flags().Changed("usd")
 	if options.clearBudget && (setTokens || setUSD) {
@@ -56,7 +57,7 @@ func (options agentInstanceOptions) updateBudget(
 			}
 		}
 	}
-	result, err := budgetClient.SetAgentInstanceDailyBudget(cmd.Context(), id, input)
+	result, err := budgetClient.SetAgentInstanceDailyBudget(ctx, id, input)
 	if err != nil {
 		return err
 	}
