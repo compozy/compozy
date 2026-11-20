@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/compozy/compozy/internal/fileutil"
 )
@@ -45,7 +46,7 @@ func ReadSessionMeta(path string) (SessionMeta, error) {
 }
 
 // WriteSessionMeta writes the metadata file atomically via temp file and rename.
-func WriteSessionMeta(path string, meta *SessionMeta) error {
+func WriteSessionMeta(path string, meta *SessionMeta) (err error) {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
 		return errors.New("store: session meta path is required")
@@ -53,17 +54,29 @@ func WriteSessionMeta(path string, meta *SessionMeta) error {
 	if err := meta.Validate(); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(cleanPath), 0o755); err != nil {
-		return fmt.Errorf("store: create session meta directory for %q: %w", cleanPath, err)
-	}
-
 	payload, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return fmt.Errorf("store: encode session meta %q: %w", cleanPath, err)
 	}
 	payload = append(payload, '\n')
 
-	if err := fileutil.AtomicWriteFile(cleanPath, payload, 0o644); err != nil {
+	directory, name, err := fileutil.OpenParentDirectory(cleanPath)
+	if errors.Is(err, os.ErrNotExist) {
+		directory, name, err = fileutil.OpenOrCreateParentDirectory(cleanPath, 0o755)
+	}
+	if err != nil {
+		if errors.Is(err, fileutil.ErrNotDirectory) {
+			err = syscall.ENOTDIR
+		}
+		pathErr := &os.PathError{Op: "open", Path: filepath.Dir(cleanPath), Err: err}
+		return fmt.Errorf("store: open session meta directory for %q: %w", cleanPath, pathErr)
+	}
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close session meta directory for %q: %w", cleanPath, closeErr))
+		}
+	}()
+	if err := directory.AtomicWriteFile(name, payload, 0o644, true); err != nil {
 		return fmt.Errorf("store: write session meta %q: %w", cleanPath, err)
 	}
 

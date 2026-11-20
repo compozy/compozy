@@ -1,6 +1,7 @@
 package procutil
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"time"
@@ -35,21 +36,21 @@ func ScanProcesses(ctx context.Context) (ProcessSnapshot, error) {
 	}, err
 }
 
-func processMarkers(p *ScannedProcess, env []string) {
-	for _, entry := range env {
-		key, value, found := strings.Cut(entry, "=")
+func processMarkers(p *ScannedProcess, env []byte) {
+	for entry := range bytes.SplitSeq(env, []byte{0}) {
+		key, value, found := bytes.Cut(entry, []byte{'='})
 		if !found {
 			continue
 		}
-		switch key {
+		switch string(key) {
 		case "COMPOZY_SESSION_ID":
-			p.SessionID = value
+			p.SessionID = string(value)
 		case "COMPOZY_HOME":
-			p.Home = value
+			p.Home = string(value)
 		case "COMPOZY_PROFILE_ID":
-			p.Profile = value
+			p.Profile = string(value)
 		case "COMPOZY_WORKSPACE_ID":
-			p.Workspace = value
+			p.Workspace = string(value)
 		}
 	}
 }

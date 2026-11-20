@@ -66,7 +66,7 @@ func darwinArguments(p *ScannedProcess, raw []byte) {
 		raw = raw[end+1:]
 	}
 	processArguments(p, args)
-	processMarkers(p, strings.Split(string(raw), "\x00"))
+	processMarkers(p, raw)
 }
 
 func scanProcessIdentity(pid int) (ScannedProcess, error) {

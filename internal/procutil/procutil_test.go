@@ -23,6 +23,29 @@ func TestAliveCurrentProcess(t *testing.T) {
 	}
 }
 
+func TestProcessMarkers(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain exact attribution markers from the process environment", func(t *testing.T) {
+		t.Parallel()
+		env := []byte("COMPOZY_SESSION_ID=previous\x00" +
+			"COMPOZY_SESSION_ID=sess-1\x00" +
+			"COMPOZY_SESSION_ID_EXTRA=unrelated\x00" +
+			"COMPOZY_HOME=/path=home\x00" +
+			"COMPOZY_PROFILE_ID=profile-1\x00" +
+			"COMPOZY_SESSION_ID\x00" +
+			"COMPOZY_WORKSPACE_ID=workspace-1")
+
+		var process ScannedProcess
+		processMarkers(&process, env)
+		clear(env)
+
+		if process.SessionID != "sess-1" || process.Home != "/path=home" ||
+			process.Profile != "profile-1" || process.Workspace != "workspace-1" {
+			t.Fatalf("process attribution = %+v", process)
+		}
+	})
+}
+
 func TestAliveRejectsNonPositivePIDs(t *testing.T) {
 	t.Parallel()
 
