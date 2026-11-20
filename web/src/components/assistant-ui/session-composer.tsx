@@ -14,7 +14,6 @@ import {
   type QueuedPrompt,
   type SessionBusyInputMode,
   type SessionSendOutcome,
-  type SessionSteerDelivery,
   type UnconfirmedSend,
 } from "@/systems/session";
 import { SESSION_FOCUS_TARGET } from "@/systems/session/lib/session-focus-target";
@@ -79,20 +78,17 @@ export interface SessionComposerProps {
   canPrompt: boolean;
   onCancelPrompt: () => void;
   onQueuePrompt?: SessionBusyInputHandler;
-  onInterruptPrompt?: SessionBusyInputHandler;
   onSteerPrompt?: SessionBusyInputHandler;
   isBusyInputPending?: boolean;
   isSessionRunning?: boolean;
   /**
    * While `stopping`, the primary control reads "Stopping…" and drops a second
-   * activation; steer and interrupt cannot be honored, queue still can.
+   * activation; a steer cannot be honored, a queued follow-up still can.
    */
   stopPhase?: SessionComposerStopPhase;
   allowBusyInput?: boolean;
   /** The daemon-owned follow-up default Enter performs during a turn (ADR-002). */
   busyInputDefaultMode?: SessionBusyInputMode;
-  /** How a steer lands on this agent, from the session resource; `null` when unknown. */
-  busyInputSteerDelivery?: SessionSteerDelivery | null;
   queuedPrompts?: QueuedPrompt[];
   onRemoveQueuedPrompt?: (id: string) => void;
   onReplaceQueuedPrompt?: (prompt: QueuedPrompt, message: string) => Promise<unknown>;
@@ -354,11 +350,9 @@ function SessionComposerControls() {
           ? {
               kind: "busy",
               stopping: state.stopping,
-              submission: state.canSubmitBusyInput ? "enabled" : "disabled",
             }
           : { kind: "send" },
       }}
-      busyInputSteerDelivery={meta.busyInputSteerDelivery}
       environmentControl={meta.environmentControl}
       contextControl={meta.contextControl}
       mcpControl={meta.mcpControl}
@@ -369,15 +363,7 @@ function SessionComposerControls() {
         state.transportDisconnected ? actions.handleDisconnectedSend : undefined
       }
       handleInterceptedSend={state.intercepting ? actions.submitIntercepted : undefined}
-      handleInterruptAction={actions.handleInterruptAction}
-      handleQueueAction={actions.handleQueueAction}
-      handleSteerAction={actions.handleSteerAction}
       onCancelPrompt={meta.onCancelPrompt}
-      onInterruptPrompt={
-        meta.allowBusyInput && !state.stopping ? meta.onInterruptPrompt : undefined
-      }
-      onQueuePrompt={meta.allowBusyInput && !state.queueFull ? meta.onQueuePrompt : undefined}
-      onSteerPrompt={meta.allowBusyInput && !state.stopping ? meta.onSteerPrompt : undefined}
       promptEmbeddedContextCapability={meta.promptEmbeddedContextCapability}
       promptImageCapability={meta.promptImageCapability}
       runtimeControl={meta.runtimeControl}

@@ -7,7 +7,6 @@ export {
   DEFAULT_SESSION_BUSY_INPUT_MODE,
   oppositeSessionBusyInputMode,
   sessionBusyInputDefaultMode,
-  sessionSteerDelivery,
   type SessionBusyInputAction,
   type SessionBusyInputMode,
   type SessionSteerDelivery,

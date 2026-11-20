@@ -60,9 +60,9 @@ export const Idle: Story = {
 };
 
 /**
- * Turn running — the live subagents count widens its tool into a pill, and
- * Queue, Steer, Interrupt and Stop share the 28 px row with no visible shortcut
- * badges (the Enter hint stays for screen readers).
+ * Turn running — the live subagents count widens its tool into a pill, and Stop
+ * takes the send disc's place with no visible shortcut badges (the Enter hint
+ * stays for screen readers).
  */
 export const Busy: Story = {
   args: {
@@ -77,7 +77,6 @@ export const Busy: Story = {
     isSessionRunning: true,
     allowBusyInput: true,
     onQueuePrompt: () => undefined,
-    onInterruptPrompt: () => undefined,
     onSteerPrompt: () => undefined,
   },
 };

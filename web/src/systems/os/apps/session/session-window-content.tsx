@@ -310,14 +310,12 @@ export function SessionWindowContent({
                           canPrompt={controls.canPrompt}
                           onCancelPrompt={controls.handleCancelPrompt}
                           onQueuePrompt={controls.handleQueuePrompt}
-                          onInterruptPrompt={controls.handleInterruptPrompt}
                           onSteerPrompt={controls.handleSteerPrompt}
                           isBusyInputPending={controls.isBusyInputPending}
                           isSessionRunning={controls.isSessionRunning}
                           stopPhase={controls.stopPhase}
                           allowBusyInput={controls.allowBusyInput}
                           busyInputDefaultMode={controls.busyInputDefaultMode}
-                          busyInputSteerDelivery={controls.busyInputSteerDelivery}
                           queuedPrompts={controls.queuedPrompts}
                           onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
                           onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}

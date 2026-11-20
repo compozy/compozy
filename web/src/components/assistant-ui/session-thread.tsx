@@ -112,14 +112,12 @@ export function SessionThread({
   canPrompt,
   onCancelPrompt,
   onQueuePrompt,
-  onInterruptPrompt,
   onSteerPrompt,
   isBusyInputPending = false,
   isSessionRunning = false,
   stopPhase = "idle",
   allowBusyInput = true,
   busyInputDefaultMode,
-  busyInputSteerDelivery,
   queuedPrompts = EMPTY_QUEUED_PROMPTS,
   onRemoveQueuedPrompt,
   onReplaceQueuedPrompt,
@@ -264,7 +262,6 @@ export function SessionThread({
                       canPrompt={thread.lifecycleCanPrompt}
                       onCancelPrompt={thread.handleCancelPrompt}
                       onQueuePrompt={clarificationAnswer.answering(onQueuePrompt)}
-                      onInterruptPrompt={onInterruptPrompt}
                       onSteerPrompt={clarificationAnswer.answering(handleSteerPrompt)}
                       placeholder={clarificationAnswer.placeholder}
                       isBusyInputPending={isBusyInputPending}
@@ -272,7 +269,6 @@ export function SessionThread({
                       stopPhase={stopPhase}
                       allowBusyInput={allowBusyInput}
                       busyInputDefaultMode={busyInputDefaultMode}
-                      busyInputSteerDelivery={busyInputSteerDelivery}
                       queuedPrompts={queuedPrompts}
                       onRemoveQueuedPrompt={onRemoveQueuedPrompt}
                       onReplaceQueuedPrompt={onReplaceQueuedPrompt}

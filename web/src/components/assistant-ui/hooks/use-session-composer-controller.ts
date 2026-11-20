@@ -46,14 +46,12 @@ export function useSessionComposerController({
   canPrompt,
   onCancelPrompt,
   onQueuePrompt,
-  onInterruptPrompt,
   onSteerPrompt,
   isBusyInputPending = false,
   isSessionRunning = false,
   stopPhase = "idle",
   allowBusyInput = true,
   busyInputDefaultMode = DEFAULT_SESSION_BUSY_INPUT_MODE,
-  busyInputSteerDelivery = null,
   queuedPrompts = EMPTY_QUEUED_PROMPTS,
   onRemoveQueuedPrompt,
   onReplaceQueuedPrompt,
@@ -159,7 +157,6 @@ export function useSessionComposerController({
       attachmentIds: composerAttachments.map(attachment => attachment.id),
       composerText,
     },
-    onInterruptPrompt: isStopping ? undefined : onInterruptPrompt,
     onQueuePrompt,
     onRemoveQueuedPrompt,
     onReplaceQueuedPrompt,
@@ -244,9 +241,6 @@ export function useSessionComposerController({
       handleEnterAction: intercepted((variant: "default" | "opposite") =>
         busyActions.handleEnterAction(isStopping ? "default" : variant)
       ),
-      handleInterruptAction: intercepted(busyActions.handleInterruptAction),
-      handleQueueAction: intercepted(busyActions.handleQueueAction),
-      handleSteerAction: intercepted(busyActions.handleSteerAction),
       submitIntercepted: () => {
         submitIntercepted();
       },
@@ -260,12 +254,10 @@ export function useSessionComposerController({
       setComposerInputElement,
     },
     meta: {
-      allowBusyInput,
       attachments,
       autoFocus,
       backdrop,
       placeholder,
-      busyInputSteerDelivery,
       canPrompt,
       commandCatalog,
       commandCatalogStatus,
@@ -285,11 +277,8 @@ export function useSessionComposerController({
       onCommandAction,
       onCommandCatalogOpen,
       onDiscardUnconfirmedSend,
-      onInterruptPrompt,
-      onQueuePrompt,
       onReplaceQueuedPrompt,
       onRetryUnconfirmedSend,
-      onSteerPrompt,
       onSteerQueuedPrompt,
       promptEmbeddedContextCapability,
       promptImageCapability,
@@ -328,7 +317,7 @@ interface ComposerBusyInput {
 /**
  * The busy-turn read model the composer renders from. While a stop is landing
  * the turn is ending: guidance can't be honored, but queued work survives a
- * stop (ADR-003), so Enter queues and only Queue stays.
+ * stop (ADR-003), so both Enter variants queue.
  */
 function deriveComposerBusyState(input: ComposerBusyInput) {
   const runtimeRunning = input.isRunning || input.isSessionRunning;
