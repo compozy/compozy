@@ -171,16 +171,19 @@ When a set budget is exceeded during active work, `budget.on_exceeded` chooses t
   **fan-out bound** (`exhausted`), and the **no-progress window**, **inactivity clock**,
   **blocker-ID stall signature**, and **failure circuit breaker** (`stalled`). Token and wall-clock
   budgets are declarable contract fields with defined `on_exceeded` routing — a set budget is
-  opt-in, and ceilings are expressed in tokens and time, never dollars. Cost is **display-only**
-  everywhere — there is no enforced USD cap.
+  opt-in, and **Loop run** ceilings are expressed in tokens and time, never dollars. An
+  independent estimated USD ceiling is available only for **always-on instances**;
+  it does not change the Loop contract.
 </OperatorNote>
 
 ## Cost is a meter, not a cap
 
 The [run page](/docs/loops/running) shows a live cost meter (tokens × price). It is a
-visibility signal only. No surface accepts a cost cap — the run form and configure sheet have no
-USD field, and no daemon ceiling is expressed in dollars. Spend is bounded by the token budget and
-the iteration cap, not by cost.
+visibility signal only **for this Loop run**. The run form and configure sheet have no
+USD field. A separate [always-on instance daily spend ceiling](/docs/agents/heartbeat#optional-daily-spend-ceilings)
+can block its next autonomous turn based on estimated USD, but does not enforce a
+per-Loop USD budget. Otherwise, a Loop run's spend is bounded by its token budget and
+iteration cap, not by estimated cost.
 
 ## Where these show up
 

@@ -376,6 +376,61 @@ paused run stays paused. Directly resuming a run while its instance is paused re
 main restarts for delivery; stopped descendants retain their queues. Archiving the
 instance cancels its held rows.
 
+### Optional daily spend ceilings
+
+An always-on instance can have an independent **daily token cap**, **daily estimated
+USD cap**, both, or neither (the default). Set or remove them as an operator:
+
+```sh
+compozy agent instance budget triage --workspace my-project --tokens 100000 --usd 5
+compozy agent instance budget triage --workspace my-project --tokens 100000 --usd off
+compozy agent instance budget triage --workspace my-project --clear
+compozy agent instance show triage --workspace my-project -o json
+```
+
+CLI updates replace the whole pair: supply both flags, including `off` for an
+unlimited dimension, or use `--clear` to remove both. This avoids overwriting
+another operator's concurrent edit with an outdated read. The same contract is available
+over HTTP and local UDS via `PATCH /api/agent-instances/{id}` with
+`{"daily_budget":{"tokens":100000,"usd":5}}`. This JSON object replaces both
+dimensions: omit a dimension to remove it, and send `{}` to remove all caps.
+`GET /api/agent-instances/{id}` and the instance list expose `daily_budget` and
+`daily_budget_usage` while a cap is configured; usage includes the local date,
+token total, known estimated USD subtotal, and `has_unpriced_usage`. If the daemon cannot establish
+an accurate total, it shows the configured limits without a usage value and
+refuses further covered turns.
+
+The counter follows the daemon's **local calendar day** (midnight to midnight)
+and the instance's owning profile. One durable completed-turn receipt counts once,
+including after replay or daemon restart. Usage from the instance's spawned
+non-fork descendants counts toward the same instance; separately bound instances
+and other profiles keep independent ceilings. At **80%** of either nonzero cap,
+the instance generates **one in-app bell notification per daily window** (subject
+to the workspace's notification mute). It does not send a push notification or
+webhook.
+
+When committed usage reaches either cap, the **next autonomous turn** is held
+before dispatch. The instance persists a `daily_budget` pause and keeps queued
+work. Turns already admitted may finish and **exceed the configured cap** because
+provider usage arrives at completion. Different sessions owned by an instance
+can have work in flight at the same time. The daemon checks confirmed receipts
+before each new admission and makes no worst-case spending reservation. Human prompts and recovery
+actions still work. The daemon never auto-resumes on the next day: an operator
+must run `compozy agent instance resume ...`, and resume is refused while a cap
+is still exhausted. If a durable usage ledger cannot be reconciled, the instance
+is quarantined with `daily_budget_recovery` instead of admitting more work.
+If historical usage may belong to the instance but its original ownership cannot be recovered,
+normal usage totals still count that turn. The daemon blocks activation or resume for that instance
+until the local day changes and keeps the reason across session deletion.
+
+USD is an **estimate**, not a billing guarantee. Unpriced provider turns still
+consume the token cap. A confirmed receipt with unknown USD holds subsequent
+autonomous turns when a USD cap is set. Confirmed usage included in a provider
+subscription remains separate from unknown cost. A zero-valued cap blocks the next covered turn
+immediately. These ceilings apply only to always-on instances in this release:
+automation, standalone-session and profile budgets are not enforced by this
+control, and Loop run budgets remain separate.
+
 In the app, a brake pause appears in the agent's main session as "Paused until you're
 back", with the number of steps, how many things are waiting, and **Resume**. If you
 were away, the While you were away card says when it paused and offers **Resume** in

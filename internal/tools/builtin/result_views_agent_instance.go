@@ -74,6 +74,25 @@ const agentInstanceCompactRecordSchema = `{
   "attention_dismissible":{"type":"boolean"},
   "authority_status":{"type":"string"},
   "checks_enabled":{"type":"boolean"},
+  "daily_budget":{
+   "type":"object",
+   "properties":{
+    "tokens":{"type":"integer","minimum":0},
+    "usd":{"type":"number","minimum":0}
+   },
+   "additionalProperties":false
+  },
+  "daily_budget_usage":{
+   "type":"object",
+   "required":["day","tokens","known_usd","has_unpriced_usage"],
+   "properties":{
+    "day":{"type":"string"},
+    "tokens":{"type":"integer","minimum":0},
+    "known_usd":{"type":"string"},
+    "has_unpriced_usage":{"type":"boolean"}
+   },
+   "additionalProperties":false
+  },
   "created":{"type":"boolean"},
   "next_wake":{
    "type":"object",

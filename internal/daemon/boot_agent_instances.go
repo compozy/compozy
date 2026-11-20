@@ -97,6 +97,15 @@ func (d *Daemon) bootAgentInstances(_ context.Context, state *bootState) error {
 	}
 	manager.SetInstancePauseHandler(service.AfterPause)
 	state.agentInstances = &core.AgentInstanceAPI{
+		Clock: d.now,
+		WithDailyBudgetUpdate: func(ctx context.Context, instanceID string, commit func(context.Context) error) error {
+			if guarded, ok := state.observer.(interface {
+				WithDailyBudgetUpdate(context.Context, string, func(context.Context) error) error
+			}); ok {
+				return guarded.WithDailyBudgetUpdate(ctx, instanceID, commit)
+			}
+			return errors.New("daemon: instance budget recovery unavailable")
+		},
 		AfterSeen:     instanceSeenPublisher(manager),
 		QueueCap:      state.cfg.Session.BusyInput.QueueCap,
 		AfterPicks:    instancePickEffects(state, repo, manager, definitions),

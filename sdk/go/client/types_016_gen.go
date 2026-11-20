@@ -7,6 +7,54 @@ import (
 	"time"
 )
 
+// Reference is a daemon API value.
+type Reference struct {
+	ID              string     `json:"id"`
+	Identifier      string     `json:"identifier,omitempty"`
+	Title           string     `json:"title"`
+	Status          TaskStatus `json:"status"`
+	Priority        Priority   `json:"priority,omitempty"`
+	Owner           *Ownership `json:"owner,omitempty"`
+	Scope           TaskScope  `json:"scope"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	LatestEventSeq  int64      `json:"latest_event_seq"`
+	Paused          bool       `json:"paused,omitzero"`
+	EffectivePaused bool       `json:"effective_paused,omitzero"`
+	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
+}
+
+// RejectPolicy is a daemon API value.
+type RejectPolicy struct {
+	Route NodeID `json:"route"`
+}
+
+// ReloadExtensionRequest is a daemon API value.
+type ReloadExtensionRequest struct {
+	GenerationHash       string `json:"generation_hash"`
+	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
+}
+
+// RemoveDiscoveredWorktreeRequest is a daemon API value.
+type RemoveDiscoveredWorktreeRequest struct {
+	Path        string `json:"path"`
+	Force       bool   `json:"force,omitempty"`
+	ExpectStale bool   `json:"expect_stale,omitempty"`
+}
+
+// RemoveWorktreesRequest is a daemon API value.
+type RemoveWorktreesRequest struct {
+	Targets      []WorktreeRemovalTarget `json:"targets"`
+	Force        bool                    `json:"force,omitempty"`
+	DeleteBranch bool                    `json:"delete_branch,omitempty"`
+	DryRun       bool                    `json:"dry_run,omitempty"`
+}
+
+// RemoveWorktreesResponse is a daemon API value.
+type RemoveWorktreesResponse struct {
+	DryRun  bool                    `json:"dry_run"`
+	Results []WorktreeRemovalResult `json:"results"`
+}
+
 // RenameProfilePlan is a daemon API value.
 type RenameProfilePlan struct {
 	Revision          string             `json:"revision"`
@@ -397,52 +445,4 @@ type RoleStatus struct {
 	FallbackChain   []RoleFallbackStatus      `json:"fallback_chain"`
 	Provenance      map[string]string         `json:"provenance"`
 	Diagnostics     []RoleDiagnostic          `json:"diagnostics"`
-}
-
-// RoleStatusResponse is a daemon API value.
-type RoleStatusResponse struct {
-	Role RoleStatus `json:"role"`
-}
-
-// RolesResponse is a daemon API value.
-type RolesResponse struct {
-	Roles []RoleStatus `json:"roles"`
-}
-
-// RosterNode is a daemon API value.
-type RosterNode struct {
-	Generation     int               `json:"generation"`
-	NodeID         NodeID            `json:"node_id"`
-	ItemIndex      int               `json:"item_index"`
-	State          NodeState         `json:"state"`
-	Attempt        int               `json:"attempt"`
-	Attempts       []NodeAttemptView `json:"attempts"`
-	NextRetryAt    *time.Time        `json:"next_retry_at,omitempty"`
-	ChildLoopRunID string            `json:"child_loop_run_id,omitempty"`
-	Cancellation   *NodeCancellation `json:"cancellation,omitzero"`
-	StartedAt      *time.Time        `json:"started_at,omitempty"`
-	EndedAt        *time.Time        `json:"ended_at,omitempty"`
-	SessionID      string            `json:"session_id,omitempty"`
-	CellTaskID     string            `json:"cell_task_id,omitempty"`
-	Usage          *NodeUsage        `json:"usage,omitzero"`
-}
-
-// RosterPage is a daemon API value.
-type RosterPage struct {
-	RunID         RunID          `json:"run_id"`
-	LoopName      string         `json:"loop_name"`
-	RunStatus     Status         `json:"run_status"`
-	Nodes         []RosterNode   `json:"nodes"`
-	FanoutRollups []FanoutRollup `json:"fanout_rollups"`
-	NextCursor    string         `json:"next_cursor,omitempty"`
-}
-
-// RouteIntent is a daemon API value.
-// RouteIntent preserves its custom JSON wire representation.
-type RouteIntent = json.RawMessage
-
-// RouteSpec is a daemon API value.
-type RouteSpec struct {
-	When string `json:"when"`
-	To   NodeID `json:"to"`
 }

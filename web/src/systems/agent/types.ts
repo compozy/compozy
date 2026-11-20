@@ -92,6 +92,8 @@ export type AgentInstancePauseReason =
   | "manual"
   | "fatigue"
   | "unattended"
+  | "daily_budget"
+  | "daily_budget_recovery"
   | "definition_not_always_on"
   | "definition_missing";
 
@@ -125,6 +127,8 @@ export interface AgentInstancePayload {
   /** Empty until the main session exists. */
   main_session_id: string;
   checks_enabled: boolean;
+  daily_budget?: { tokens?: number; usd?: number };
+  daily_budget_usage?: { day: string; tokens: number; known_usd: string; has_unpriced_usage: boolean };
   /** Empty until the first check. */
   last_wake_at: string;
   /** Empty when no check is scheduled. */

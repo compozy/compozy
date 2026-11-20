@@ -22,31 +22,33 @@ import (
 )
 
 type AgentInstanceAPI struct {
-	AfterSeen           func(context.Context, agentinstance.Instance, []store.SessionAttentionCommit)
-	PickActions         func(context.Context, string) ([]agentinstance.ActionSnapshot, error)
-	ProjectReport       func(context.Context, string, *agentinstance.Report) error
-	QueueCap            int
-	AfterPicks          func(context.Context, string, []agentinstance.Pick) error
-	SourceExtensions    source.ExtensionPoller
-	Metrics             func(context.Context, string, string) (agentinstance.Metrics, error)
-	ReadPeer            func(context.Context, agentinstance.Instance) (contract.AgentInstancePeer, error)
-	SkillPublished      func(context.Context) error
-	SkillProposals      *agentinstance.SkillProposalService
-	SkillTarget         func(context.Context, agentinstance.Instance) (string, []string, error)
-	HeldWakes           func(context.Context, string) (int64, error)
-	UnattendedTurnLimit int64
-	WakeState           func(context.Context, string) (heartbeat.InstanceWakeState, error)
-	CountActive         func(context.Context, string) (int64, error)
-	MaxActiveInstances  int
-	FatigueLimit        int
-	ReadAttention       func(context.Context, string) (bool, error)
-	ReadPayload         func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
-	CheckSettings       AgentInstanceCheckSettings
-	Checks              AgentInstanceChecker
-	Service             *agentinstance.Service
-	Store               agentinstance.InstanceStore
-	Reports             agentinstance.ReportStore
-	Authority           agentinstance.Authority
+	WithDailyBudgetUpdate func(context.Context, string, func(context.Context) error) error
+	Clock                 func() time.Time
+	AfterSeen             func(context.Context, agentinstance.Instance, []store.SessionAttentionCommit)
+	PickActions           func(context.Context, string) ([]agentinstance.ActionSnapshot, error)
+	ProjectReport         func(context.Context, string, *agentinstance.Report) error
+	QueueCap              int
+	AfterPicks            func(context.Context, string, []agentinstance.Pick) error
+	SourceExtensions      source.ExtensionPoller
+	Metrics               func(context.Context, string, string) (agentinstance.Metrics, error)
+	ReadPeer              func(context.Context, agentinstance.Instance) (contract.AgentInstancePeer, error)
+	SkillPublished        func(context.Context) error
+	SkillProposals        *agentinstance.SkillProposalService
+	SkillTarget           func(context.Context, agentinstance.Instance) (string, []string, error)
+	HeldWakes             func(context.Context, string) (int64, error)
+	UnattendedTurnLimit   int64
+	WakeState             func(context.Context, string) (heartbeat.InstanceWakeState, error)
+	CountActive           func(context.Context, string) (int64, error)
+	MaxActiveInstances    int
+	FatigueLimit          int
+	ReadAttention         func(context.Context, string) (bool, error)
+	ReadPayload           func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
+	CheckSettings         AgentInstanceCheckSettings
+	Checks                AgentInstanceChecker
+	Service               *agentinstance.Service
+	Store                 agentinstance.InstanceStore
+	Reports               agentinstance.ReportStore
+	Authority             agentinstance.Authority
 	// Profiles labels each instance with its owner's profile_name.
 	Profiles ProfileOwnerReader
 }
@@ -280,6 +282,31 @@ func (api *AgentInstanceAPI) payloadWithOwners(
 		}
 	}
 	payload.ProfileName = owners[i.ProfileID].Name
+	if budget, ok := api.Store.(AgentInstanceDailyBudgetStore); ok && i.ArchivedAt == nil {
+		at := time.Now()
+		if api.Clock != nil {
+			at = api.Clock()
+		}
+		limits, err := budget.DailyBudgetLimits(ctx, i.ID)
+		if err != nil {
+			return payload, err
+		}
+		if limits.Tokens != nil || limits.USD != nil {
+			payload.DailyBudget = &contract.AgentInstanceDailyBudgetLimits{
+				Tokens: limits.Tokens, USD: limits.USD,
+			}
+			usage, usageErr := budget.ReadDailyBudgetUsage(ctx, i.ID, at)
+			if usageErr != nil && !errors.Is(usageErr, agentinstance.ErrDailyBudgetUsageUnavailable) {
+				return payload, usageErr
+			}
+			if usageErr == nil {
+				payload.DailyBudgetUsage = &contract.AgentInstanceDailyBudgetUsage{
+					Day: store.LocalDay(at), Tokens: usage.Tokens,
+					KnownUSD: decimalBudgetUSD(usage.USD), HasUnpricedUsage: usage.HasUnpricedUsage,
+				}
+			}
+		}
+	}
 	if reader, ok := api.Checks.(interface {
 		SourceStatuses(context.Context, string) ([]heartbeat.HeartbeatSourceStatus, error)
 	}); ok && payload.Sources == nil {

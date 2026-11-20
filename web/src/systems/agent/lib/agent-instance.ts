@@ -20,6 +20,9 @@ type CountedReason = "" | "fatigue" | "unattended";
 
 const PAUSE_COPY: Record<Exclude<AgentInstancePauseReason, CountedReason>, string> = {
   manual: "Paused by you.",
+  daily_budget: "Paused by its daily budget. Review today's usage and limits before resuming.",
+  daily_budget_recovery:
+    "Paused because today's usage ledger could not be verified. Review it before resuming.",
   definition_not_always_on: "Paused because this agent is no longer always-on.",
   definition_missing: "Paused because this agent's definition is gone. Its memory is kept.",
 };

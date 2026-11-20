@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// CmdPaletteViewSessionEventRequest is a daemon API value.
+type CmdPaletteViewSessionEventRequest struct {
+	Handler      string        `json:"handler"`
+	Args         []any         `json:"args,omitempty"`
+	Revision     string        `json:"revision"`
+	Seq          int64         `json:"seq"`
+	AckEffects   []string      `json:"ack_effects,omitempty"`
+	EffectResult *EffectResult `json:"effect_result,omitzero"`
+}
+
+// CmdPaletteViewSessionOpenRequest is a daemon API value.
+type CmdPaletteViewSessionOpenRequest struct {
+	Workspace string         `json:"workspace"`
+	Args      map[string]any `json:"args,omitempty"`
+}
+
+// CmdPaletteViewSessionOpenResponse is a daemon API value.
+type CmdPaletteViewSessionOpenResponse struct {
+	ProfileLens ProfileLens `json:"profile_lens"`
+	ViewSession string      `json:"view_session"`
+	StreamToken string      `json:"stream_token"`
+	FirstFrame  ViewFrame   `json:"first_frame"`
+}
+
 // CommandFlag is a daemon API value.
 type CommandFlag struct {
 	Name       string          `json:"name"`
@@ -421,28 +445,3 @@ type DaemonReadinessPayload struct {
 
 // DaemonReadinessPhase is a daemon API value.
 type DaemonReadinessPhase string
-
-// DaemonStatusPayload is a daemon API value.
-type DaemonStatusPayload struct {
-	Status         string                  `json:"status"`
-	PID            int                     `json:"pid"`
-	StartedAt      time.Time               `json:"started_at"`
-	Socket         string                  `json:"socket"`
-	HTTPHost       string                  `json:"http_host"`
-	HTTPPort       int                     `json:"http_port"`
-	UserHomeDir    string                  `json:"user_home_dir"`
-	ActiveSessions int                     `json:"active_sessions"`
-	TotalSessions  int                     `json:"total_sessions"`
-	Version        string                  `json:"version,omitempty"`
-	MinAppVersion  string                  `json:"min_app_version"`
-	Gateway        *GatewayStatusPayload   `json:"gateway,omitzero"`
-	SchemaStreams  []SchemaStreamStatus    `json:"schema_streams"`
-	Readiness      *DaemonReadinessPayload `json:"readiness,omitzero"`
-}
-
-// DeleteAgentResponse is a daemon API value.
-type DeleteAgentResponse struct {
-	Name             string      `json:"name"`
-	Origin           AgentOrigin `json:"origin"`
-	UnshadowedOrigin AgentOrigin `json:"unshadowed_origin,omitempty"`
-}

@@ -4,6 +4,23 @@ package client
 
 import "time"
 
+// AgentInstanceProposal is a daemon API value.
+type AgentInstanceProposal struct {
+	Action           *AgentInstanceProposalAction  `json:"action,omitempty"`
+	AutoAcceptStatus AutoAcceptStatus              `json:"auto_accept_status"`
+	Sources          []AgentInstanceProposalSource `json:"sources,omitempty"`
+	Title            string                        `json:"title"`
+	Body             string                        `json:"body"`
+	ItemKeys         []string                      `json:"item_keys"`
+}
+
+// AgentInstanceProposalAction is a daemon API value.
+type AgentInstanceProposalAction struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	AutoAccept bool   `json:"auto_accept"`
+}
+
 // AgentInstanceProposalSource is a daemon API value.
 type AgentInstanceProposalSource struct {
 	SourceID   string `json:"source_id,omitempty"`
@@ -72,7 +89,8 @@ type AgentInstanceSeenResponse struct {
 
 // AgentInstanceUpdateRequest is a daemon API value.
 type AgentInstanceUpdateRequest struct {
-	ChecksEnabled *bool `json:"checks_enabled"`
+	ChecksEnabled *bool                          `json:"checks_enabled,omitempty"`
+	DailyBudget   *AgentInstanceDailyBudgetInput `json:"daily_budget,omitempty"`
 }
 
 // AgentLimitsPayload is a daemon API value.
@@ -416,33 +434,4 @@ type AgentSoulHistoryResponse struct {
 type AgentSoulMutationResponse struct {
 	Soul     AgentSoulPayload         `json:"soul"`
 	Revision AgentSoulRevisionPayload `json:"revision"`
-}
-
-// AgentSoulPayload is a daemon API value.
-type AgentSoulPayload struct {
-	AgentName        string                             `json:"agent_name,omitempty"`
-	Enabled          bool                               `json:"enabled"`
-	Present          bool                               `json:"present"`
-	Active           bool                               `json:"active"`
-	Valid            bool                               `json:"valid"`
-	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
-	SnapshotID       string                             `json:"snapshot_id,omitempty"`
-	RevisionID       string                             `json:"revision_id,omitempty"`
-	Digest           string                             `json:"digest,omitempty"`
-	SourcePath       string                             `json:"source_path,omitempty"`
-	Frontmatter      AgentSoulFrontmatterPayload        `json:"frontmatter"`
-	Body             string                             `json:"body,omitempty"`
-	Truncated        bool                               `json:"truncated,omitempty"`
-	Limits           AuthoredContextLimitsPayload       `json:"limits"`
-	ConfigProvenance AgentSoulConfigProvenancePayload   `json:"config_provenance"`
-	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	CreatedAt        *time.Time                         `json:"created_at,omitempty"`
-}
-
-// AgentSoulPutByPathRequest is a daemon API value.
-type AgentSoulPutByPathRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	Body           string `json:"body"`
-	ExpectedDigest string `json:"expected_digest"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }

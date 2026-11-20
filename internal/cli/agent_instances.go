@@ -29,6 +29,7 @@ func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 		agentInstanceAwayAction,
 		agentInstanceMarkSeenAction,
 		agentInstanceCheckInsAction,
+		"budget",
 	} {
 		parent.AddCommand(newAgentInstanceAction(deps, action))
 	}
@@ -77,6 +78,11 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 	}
 	if action == agentInstanceAdoptAction {
 		cmd.Flags().StringVar(&options.sessionID, "session", "", "Root session to adopt")
+	}
+	if action == "budget" {
+		cmd.Flags().StringVar(&options.budgetTokens, "tokens", "", "Daily token cap; 'off' removes it")
+		cmd.Flags().StringVar(&options.budgetUSD, "usd", "", "Daily estimated USD cap; 'off' removes it")
+		cmd.Flags().BoolVar(&options.clearBudget, "clear", false, "Remove both daily limits")
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return options.run(cmd, deps, action, args)
@@ -169,7 +175,7 @@ func instanceActionText(instance contract.AgentInstancePayload, action string) s
 
 // instanceText renders one instance; the owner profile labels rows of an all-profiles read.
 func instanceText(instance contract.AgentInstancePayload) string {
-	return fmt.Sprintf(
+	result := fmt.Sprintf(
 		"%s\t%s\t%s\nProfile: %s\nMain session: %s\nPause reason: %s\nUnattended turns: %d/%d\nHeld wakes: %d\n",
 		instance.ID,
 		instance.AgentName,
@@ -180,7 +186,27 @@ func instanceText(instance contract.AgentInstancePayload) string {
 		instance.UnattendedTurns,
 		instance.UnattendedTurnLimit,
 		instance.HeldWakes,
-	) + instanceSourcesText(instance)
+	)
+	if instance.DailyBudget != nil {
+		tokens, usd := "unlimited", "unlimited"
+		if instance.DailyBudget.Tokens != nil {
+			tokens = strconv.FormatInt(*instance.DailyBudget.Tokens, 10)
+		}
+		if instance.DailyBudget.USD != nil {
+			usd = strconv.FormatFloat(*instance.DailyBudget.USD, 'f', -1, 64)
+		}
+		result += fmt.Sprintf("Daily budget: %s tokens / $%s estimated USD\n", tokens, usd)
+		if instance.DailyBudgetUsage != nil {
+			usage := instance.DailyBudgetUsage
+			result += fmt.Sprintf("Today (%s): %d tokens / $%s estimated USD",
+				usage.Day, usage.Tokens, usage.KnownUSD)
+			if usage.HasUnpricedUsage {
+				result += " (some usage unpriced)"
+			}
+			result += "\n"
+		}
+	}
+	return result + instanceSourcesText(instance)
 }
 func instanceListText(page contract.AgentInstanceListResponse) string {
 	var text strings.Builder
@@ -197,10 +223,11 @@ func instanceListText(page contract.AgentInstanceListResponse) string {
 }
 
 type agentInstanceOptions struct {
-	global, all, peers, dryRun, noWait bool
-	state, cursor, sessionID, agent    string
-	occurrence                         string
-	limit                              int
+	global, all, peers, dryRun, noWait, clearBudget bool
+	state, cursor, sessionID, agent                 string
+	budgetTokens, budgetUSD                         string
+	occurrence                                      string
+	limit                                           int
 }
 
 func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, action string, args []string) error {
@@ -241,6 +268,9 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 
 	if action == agentInstanceCheckAction || action == "on" || action == agentInstanceChecksOff {
 		return options.check(cmd, base, action, id, target)
+	}
+	if action == "budget" {
+		return options.updateBudget(cmd, base, id)
 	}
 	if action == agentInstanceAwayAction || action == agentInstanceMarkSeenAction ||
 		action == agentInstanceCheckInsAction {

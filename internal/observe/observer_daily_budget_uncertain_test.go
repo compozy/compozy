@@ -110,14 +110,19 @@ func TestObserverDailyBudgetRefusesUnresolvedLegacySpend(t *testing.T) {
 			if tc.recovery {
 				childKind = "recovery"
 			}
-			for _, row := range []struct{ id, parent, workspace, kind string }{
-				{parent, main, h.workspaceID, "spawn"}, {child, parent, childWorkspace, childKind},
+			for _, row := range []struct {
+				id, parent, workspace, kind string
+				depth                       int
+			}{
+				{parent, main, h.workspaceID, "spawn", 1}, {child, parent, childWorkspace, childKind, 2},
 			} {
-				if _, err := h.registry.DB().ExecContext(ctx, `INSERT INTO sessions
-					(id, profile_id, scope, agent_name, workspace_id, session_type, state,
-					 parent_session_id, root_session_id, lineage_kind, created_at, updated_at)
-					VALUES (?, ?, 'workspace', 'coder', ?, 'user', 'stopped', ?, ?, ?, ?, ?)`,
-					row.id, store.DefaultProfileID, row.workspace, row.parent, main, row.kind, stamp, stamp); err != nil {
+				if err := h.registry.RegisterSession(ctx, &store.SessionInfo{
+					ID: row.id, ProfileID: store.DefaultProfileID, WorkspaceID: row.workspace,
+					AgentName: "coder", Provider: "claude", SessionType: "user",
+					RuntimeStatus: store.SessionRuntimeUnbound, State: "stopped", CreatedAt: at, UpdatedAt: at,
+					Lineage: &store.SessionLineage{ParentSessionID: row.parent, RootSessionID: main,
+						Kind: store.LineageKind(row.kind), SpawnDepth: row.depth},
+				}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -138,8 +143,8 @@ func TestObserverDailyBudgetRefusesUnresolvedLegacySpend(t *testing.T) {
 				const sibling = "budget-legacy-root-sibling"
 				if _, err := h.registry.DB().ExecContext(ctx, `INSERT INTO sessions
 					(id, profile_id, scope, agent_name, workspace_id, session_type, state,
-					 parent_session_id, root_session_id, lineage_kind, created_at, updated_at)
-					VALUES (?, ?, 'workspace', 'coder', ?, 'user', 'stopped', ?, ?, 'spawn', ?, ?)`,
+					 parent_session_id, root_session_id, lineage_kind, spawn_depth, created_at, updated_at)
+					VALUES (?, ?, 'workspace', 'coder', ?, 'user', 'stopped', ?, ?, 'spawn', 1, ?, ?)`,
 					sibling, store.DefaultProfileID, h.workspaceID, main, main, stamp, stamp); err != nil {
 					t.Fatal(err)
 				}
@@ -182,9 +187,13 @@ func TestObserverDailyBudgetRefusesUnresolvedLegacySpend(t *testing.T) {
 				// Simulate a receipt observed before the daemon moved its local
 				// date boundary, without changing process-wide time.Local.
 				previous := store.LocalDay(at.AddDate(0, 0, -1))
-				if _, err := h.registry.DB().ExecContext(ctx,
-					"UPDATE token_usage_receipts SET day=? WHERE session_id=?", previous, child); err != nil {
+				result, err := h.registry.DB().ExecContext(ctx,
+					"UPDATE token_usage_receipts SET day=? WHERE session_id=?", previous, child)
+				if err != nil {
 					t.Fatal(err)
+				}
+				if affected, err := result.RowsAffected(); err != nil || affected != 1 {
+					t.Fatalf("updated %d stored receipts, err=%v, want one", affected, err)
 				}
 				if _, err := h.registry.DB().ExecContext(ctx,
 					"UPDATE agent_instance_daily_budget_uncertain_days SET day=? WHERE instance_id=?",

@@ -66,8 +66,52 @@ func (h *BaseHandlers) UpdateAgentInstance(c *gin.Context) {
 		h.respondError(c, 422, err)
 		return
 	}
-	if request.ChecksEnabled == nil {
-		h.respondError(c, 422, errors.New("checks_enabled is required"))
+	if (request.ChecksEnabled == nil) == (request.DailyBudget == nil) {
+		h.respondError(c, 422, errors.New("exactly one of checks_enabled or daily_budget is required"))
+		return
+	}
+	if request.DailyBudget != nil {
+		limits := request.DailyBudget.Limits()
+		if err := limits.Validate(); err != nil {
+			h.respondError(c, 422, err)
+			return
+		}
+		instance, ok := h.instanceTarget(c, "budget_update")
+		if !ok {
+			return
+		}
+		actor, ok := h.instanceActor(c)
+		if !ok {
+			return
+		}
+		if _, app := AppTokenFromContext(c.Request.Context()); !actor.Operator || app {
+			h.instanceError(c, agentinstance.ErrForbidden)
+			return
+		}
+		budget, ok := h.AgentInstances.Store.(AgentInstanceDailyBudgetStore)
+		if !ok {
+			h.respondError(c, 503, errors.New("instance daily budget settings unavailable"))
+			return
+		}
+		commit := func(ctx context.Context) error {
+			return budget.SetDailyBudgetLimits(ctx, instance.ID, limits)
+		}
+		var updateErr error
+		if (limits.Tokens != nil || limits.USD != nil) && h.AgentInstances.WithDailyBudgetUpdate != nil {
+			updateErr = h.AgentInstances.WithDailyBudgetUpdate(c.Request.Context(), instance.ID, commit)
+		} else {
+			updateErr = commit(c.Request.Context())
+		}
+		if updateErr != nil {
+			h.instanceError(c, updateErr)
+			return
+		}
+		payload, err := h.AgentInstances.Payload(c.Request.Context(), instance)
+		if err != nil {
+			h.instanceError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, contract.AgentInstanceResponse{Instance: payload})
 		return
 	}
 	verb := "checks_off"

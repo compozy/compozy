@@ -21,6 +21,8 @@ export {
 export type {
   Action,
   ActorIdentity,
+  AgentInstanceDailyBudgetLimits,
+  AgentInstanceDailyBudgetUsage,
   AgentInstanceNextWake,
   AgentInstancePayload,
   Chip,

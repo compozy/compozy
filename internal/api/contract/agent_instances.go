@@ -1,6 +1,8 @@
 package contract
 
 import (
+	"bytes"
+	"encoding/json"
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -15,6 +17,8 @@ type AgentInstanceNextWake struct {
 }
 
 type AgentInstancePayload struct {
+	DailyBudget          *AgentInstanceDailyBudgetLimits   `json:"daily_budget,omitempty"`
+	DailyBudgetUsage     *AgentInstanceDailyBudgetUsage    `json:"daily_budget_usage,omitempty"`
 	AuthorityStatus      string                            `json:"authority_status"`
 	Sources              []heartbeat.HeartbeatSourceStatus `json:"sources"`
 	UnattendedTurns      int64                             `json:"unattended_turns"`
@@ -46,6 +50,22 @@ type AgentInstancePayload struct {
 	MainSessionID        string                            `json:"main_session_id"`
 	CreatedAt            time.Time                         `json:"created_at"`
 	UpdatedAt            time.Time                         `json:"updated_at"`
+}
+
+// AgentInstanceDailyBudgetUsage reports the known USD subtotal separately from
+// unpriced receipts. Admission still uses exact decimal arithmetic, not this projection.
+type AgentInstanceDailyBudgetUsage struct {
+	Day              string `json:"day"`
+	Tokens           int64  `json:"tokens"`
+	KnownUSD         string `json:"known_usd"`
+	HasUnpricedUsage bool   `json:"has_unpriced_usage"`
+}
+
+// AgentInstanceDailyBudgetLimits is the public optional ceiling projection.
+// Unlike the store-domain type, its name is stable in generated client SDKs.
+type AgentInstanceDailyBudgetLimits struct {
+	Tokens *int64   `json:"tokens,omitempty"`
+	USD    *float64 `json:"usd,omitempty"`
 }
 type AgentInstanceResponse struct {
 	Instance AgentInstancePayload `json:"instance"`
@@ -127,7 +147,27 @@ type AgentInstanceCheckDigest struct {
 }
 
 type AgentInstanceUpdateRequest struct {
-	ChecksEnabled *bool `json:"checks_enabled"`
+	ChecksEnabled *bool                          `json:"checks_enabled,omitempty"`
+	DailyBudget   *AgentInstanceDailyBudgetInput `json:"daily_budget,omitempty"`
+}
+
+// AgentInstanceDailyBudgetInput is a strict full replacement: omitted or null
+// dimensions become unrestricted. Unknown fields are rejected so a typo can
+// never silently clear an existing safety limit.
+type AgentInstanceDailyBudgetInput struct {
+	Tokens *int64   `json:"tokens,omitempty"`
+	USD    *float64 `json:"usd,omitempty"`
+}
+
+func (input *AgentInstanceDailyBudgetInput) UnmarshalJSON(raw []byte) error {
+	type budgetAlias AgentInstanceDailyBudgetInput
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	return decoder.Decode((*budgetAlias)(input))
+}
+
+func (input AgentInstanceDailyBudgetInput) Limits() agentinstance.DailyBudgetLimits {
+	return agentinstance.DailyBudgetLimits{Tokens: input.Tokens, USD: input.USD}
 }
 
 type AgentInstanceOccurrenceResponse struct {

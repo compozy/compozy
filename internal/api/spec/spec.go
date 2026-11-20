@@ -335,6 +335,7 @@ func Document() (*openapi3.T, error) {
 	}
 	resolveComponentSchemaReferences(doc.Components.Schemas)
 	finalizeWindowManagerConfigSchemas(doc.Components.Schemas)
+	finalizeAgentInstanceBudgetUpdateSchema(doc.Components.Schemas)
 	if err := lintDocumentSchemas(doc); err != nil {
 		return nil, fmt.Errorf("lint openapi: %w", err)
 	}

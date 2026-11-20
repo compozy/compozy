@@ -82,6 +82,22 @@ type agentInstanceChecksClient interface {
 	SetAgentInstanceChecks(context.Context, string, bool) (contract.AgentInstanceResponse, error)
 }
 
+type agentInstanceBudgetClient interface {
+	SetAgentInstanceDailyBudget(context.Context, string, contract.AgentInstanceDailyBudgetInput) (
+		contract.AgentInstanceResponse, error)
+}
+
+var _ agentInstanceBudgetClient = (*daemonClient)(nil)
+
+func (c *daemonClient) SetAgentInstanceDailyBudget(
+	ctx context.Context, id string, input contract.AgentInstanceDailyBudgetInput,
+) (contract.AgentInstanceResponse, error) {
+	var result contract.AgentInstanceResponse
+	err := c.doJSON(ctx, http.MethodPatch, "/api/agent-instances/"+url.PathEscape(id), nil,
+		contract.AgentInstanceUpdateRequest{DailyBudget: &input}, &result)
+	return result, err
+}
+
 var _ agentInstanceChecksClient = (*daemonClient)(nil)
 
 func (c *daemonClient) CheckAgentInstance(

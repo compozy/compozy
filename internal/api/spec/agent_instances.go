@@ -53,7 +53,7 @@ func agentInstanceCheckOperations() []OperationSpec {
 			Method:      httpMethodPatch,
 			Path:        "/api/agent-instances/{id}",
 			OperationID: "updateAgentInstance",
-			Summary:     "Update instance checks",
+			Summary:     "Update instance checks or operator-owned daily spend limits",
 			Parameters:  []ParameterSpec{pathParam("id", "Instance ID")},
 			RequestBody: contract.AgentInstanceUpdateRequest{},
 			Responses:   []ResponseSpec{{Status: 200, Description: "Updated", Body: contract.AgentInstanceResponse{}}},

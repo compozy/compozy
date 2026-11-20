@@ -7,6 +7,37 @@ import (
 	"time"
 )
 
+// ExtensionKitChangePayload is a daemon API value.
+type ExtensionKitChangePayload struct {
+	Kind   ResourceKind       `json:"kind"`
+	ID     string             `json:"id"`
+	Name   string             `json:"name"`
+	Change ExtensionKitChange `json:"change"`
+}
+
+// ExtensionKitItemPayload is a daemon API value.
+type ExtensionKitItemPayload struct {
+	Kind ResourceKind `json:"kind"`
+	ID   string       `json:"id"`
+	Name string       `json:"name"`
+	Live bool         `json:"live"`
+}
+
+// ExtensionLogPayload is a daemon API value.
+type ExtensionLogPayload struct {
+	Sequence       int64     `json:"sequence"`
+	Timestamp      time.Time `json:"timestamp"`
+	Message        string    `json:"message"`
+	GenerationHash string    `json:"generation_hash,omitempty"`
+	StreamEpoch    string    `json:"stream_epoch"`
+}
+
+// ExtensionLogsResponse is a daemon API value.
+type ExtensionLogsResponse struct {
+	Logs        []ExtensionLogPayload `json:"logs"`
+	StreamEpoch string                `json:"stream_epoch"`
+}
+
 // ExtensionPayload is a daemon API value.
 type ExtensionPayload struct {
 	Description                 string                            `json:"description,omitempty"`
@@ -413,34 +444,4 @@ type GapsConfig struct {
 	Right  float64 `json:"right"`
 	Bottom float64 `json:"bottom"`
 	Left   float64 `json:"left"`
-}
-
-// GateCriterion is a daemon API value.
-type GateCriterion struct {
-	ID       string         `json:"id"`
-	Type     CriterionType  `json:"type"`
-	Check    string         `json:"check,omitempty"`
-	Expect   string         `json:"expect,omitempty"`
-	Contains string         `json:"contains,omitempty"`
-	Agent    string         `json:"agent,omitempty"`
-	Runtime  RuntimeSpec    `json:"runtime,omitzero"`
-	Rubric   string         `json:"rubric,omitempty"`
-	Prompt   string         `json:"prompt,omitempty"`
-	Tool     string         `json:"tool,omitempty"`
-	Inputs   map[string]any `json:"inputs,omitempty"`
-	Metric   *MetricSpec    `json:"metric,omitzero"`
-}
-
-// GatewayAddressPayload is a daemon API value.
-type GatewayAddressPayload struct {
-	Tier    string `json:"tier"`
-	Address string `json:"address"`
-	Live    bool   `json:"live"`
-}
-
-// GatewayAuditAuthPayload is a daemon API value.
-type GatewayAuditAuthPayload struct {
-	Mode              string `json:"mode"`
-	RequiredRemotely  bool   `json:"required_remotely"`
-	ActiveDeviceCount int    `json:"active_device_count"`
 }

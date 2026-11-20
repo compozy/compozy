@@ -54,7 +54,7 @@ export interface paths {
     delete: operations["archiveAgentInstance"];
     options?: never;
     head?: never;
-    /** Update instance checks */
+    /** Update instance checks or operator-owned daily spend limits */
     patch: operations["updateAgentInstance"];
     trace?: never;
   };
@@ -8617,6 +8617,25 @@ export interface components {
       agent: string;
       workspace: string;
     };
+    AgentInstanceDailyBudgetInput: {
+      /** Format: int64 */
+      tokens?: number | null;
+      /** Format: double */
+      usd?: number | null;
+    };
+    AgentInstanceDailyBudgetLimits: {
+      /** Format: int64 */
+      tokens?: number | null;
+      /** Format: double */
+      usd?: number | null;
+    };
+    AgentInstanceDailyBudgetUsage: {
+      day: string;
+      has_unpriced_usage: boolean;
+      known_usd: string;
+      /** Format: int64 */
+      tokens: number;
+    };
     AgentInstanceListResponse: {
       /** Format: int64 */
       active_count: number;
@@ -8645,6 +8664,8 @@ export interface components {
       created: boolean;
       /** Format: date-time */
       created_at: string;
+      daily_budget?: components["schemas"]["AgentInstanceDailyBudgetLimits"] | null;
+      daily_budget_usage?: components["schemas"]["AgentInstanceDailyBudgetUsage"] | null;
       /** Format: int64 */
       failure_streak: number;
       fatigue_limit: number;
@@ -8768,9 +8789,22 @@ export interface components {
       /** Format: date-time */
       last_seen_at: string;
     };
+    /** @description Set either checks_enabled or daily_budget. An empty daily_budget object removes both caps. */
     AgentInstanceUpdateRequest: {
-      checks_enabled: boolean | null;
-    };
+      checks_enabled?: boolean | null;
+      daily_budget?: components["schemas"]["AgentInstanceDailyBudgetInput"] | null;
+    } & (
+      | {
+          checks_enabled: boolean;
+          /** @enum {unknown|null} */
+          daily_budget?: null;
+        }
+      | {
+          /** @enum {unknown|null} */
+          checks_enabled?: null;
+          daily_budget: components["schemas"]["AgentInstanceDailyBudgetInput"];
+        }
+    );
     AgentLimitsPayload: {
       can_spawn_children: boolean;
       context_section_limit: number;

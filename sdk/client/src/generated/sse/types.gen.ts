@@ -21,6 +21,18 @@ export type ActorIdentity = {
   ref: string;
 };
 
+export type AgentInstanceDailyBudgetLimits = {
+  tokens?: number | null;
+  usd?: number | null;
+};
+
+export type AgentInstanceDailyBudgetUsage = {
+  day: string;
+  has_unpriced_usage: boolean;
+  known_usd: string;
+  tokens: number;
+};
+
 export type AgentInstanceNextWake = {
   at?: string;
   description: string;
@@ -35,6 +47,8 @@ export type AgentInstancePayload = {
   checks_enabled: boolean;
   created: boolean;
   created_at: string;
+  daily_budget?: AgentInstanceDailyBudgetLimits | null;
+  daily_budget_usage?: AgentInstanceDailyBudgetUsage | null;
   failure_streak: number;
   fatigue_limit: number;
   held_wakes: number;

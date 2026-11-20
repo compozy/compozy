@@ -49,6 +49,8 @@ var alwaysOnHardeningAdditions = []struct {
 	{"#/", []string{"target_instance_scope"}},
 	// Agent instances: the spend brake counter, its limit, held wakes and the next wake.
 	{"#/", []string{"unattended_turns", "unattended_turn_limit", "held_wakes", "next_wake"}},
+	// #1849: opt-in instance budgets expose their configured ceilings and daily usage.
+	{"#/", []string{"daily_budget", "daily_budget_usage"}},
 	// Provider summaries: the reviewer mode the `auto` level selects.
 	{"#/", []string{"reviewer_mode"}},
 	// Agent definitions and reachable peers: the input forms an always-on agent declares.

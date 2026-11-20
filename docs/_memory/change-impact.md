@@ -6820,3 +6820,24 @@ Owner [#1850](https://github.com/compozy/compozy/issues/1850).
   the existing tool-list notification.
 - **Web, docs and official skill.** The MCP controls render the existing state and reason fields.
   The MCP docs and tools-and-skills reference explain discovery, refresh and cooldown.
+
+## Always-on daily spend guardrails
+
+Owner [#1848](https://github.com/compozy/compozy/issues/1848).
+
+- **Configuration, CLI, HTTP and UDS.** The operator sets optional daily token
+  and estimated USD limits per always-on instance. CLI and API use the same
+  validation, scope and resume policy. An application credential cannot set
+  limits or resume a daily budget pause.
+- **Runtime and persisted state.** Canonical Done receipts charge the nearest
+  owning instance for the daemon's local day. Replay preserves the original
+  receipt and budget warning. The next autonomous turn checks confirmed usage
+  before dispatch. Concurrent in-flight turns can exceed a cap, and one
+  confirmed unpriced receipt holds further autonomous turns under a USD cap.
+- **Isolation and recovery.** Receipts are profile-scoped and provenance-only
+  links remain independent. Startup and live recovery reconcile the durable
+  session ledger. Queue holds preserve input for eligible operator resume.
+- **Native tools, Web and QA.** The instance payload and compact read tools
+  expose limits and current usage. Existing attention surfaces carry the
+  warning and pause. The official heartbeat guide and
+  `RT-always-on-daily-spend` record the operator workflow and validation.
