@@ -2494,6 +2494,15 @@ func TestManagerStoredStatusUnlessSettled(t *testing.T) {
 		if err != nil || settled || info == nil || info.State != StateStopped || reads.Load() != 2 {
 			t.Fatalf("replaced read info=%+v settled=%v reads=%d err=%v", info, settled, reads.Load(), err)
 		}
+		if err := h.manager.Delete(t.Context(), session.ID); err != nil {
+			t.Fatalf("Delete() error = %v", err)
+		}
+		h.manager.settledStatus.mu.Lock()
+		_, kept := h.manager.settledStatus.entries[session.ID]
+		h.manager.settledStatus.mu.Unlock()
+		if kept {
+			t.Fatal("deleted session kept its settled proof")
+		}
 	})
 
 	t.Run("Should always read a live session", func(t *testing.T) {

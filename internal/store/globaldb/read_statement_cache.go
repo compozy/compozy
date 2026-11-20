@@ -55,7 +55,9 @@ func (c *readStatementCache) statement(ctx context.Context, query string) (*sql.
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if stmt, ok := c.stmts[query]; ok {
-		return stmt, prepared.Close()
+		// The losing duplicate is never used, so its close error cannot affect this read.
+		_ = prepared.Close()
+		return stmt, nil
 	}
 	if c.closed || len(c.stmts) >= c.limit {
 		// A nil statement sends the caller to the unprepared fallback.

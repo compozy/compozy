@@ -3,7 +3,9 @@ package daemon
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -173,14 +175,27 @@ func TestSessionWorkSourcesChildrenSettledMetadata(t *testing.T) {
 		})
 		sources := sessionWorkSources{state: &bootState{registry: registry}, manager: manager, now: time.Now}
 
-		for pass := range 2 {
-			work, err := sources.children(ctx, "sess-parent")
-			if err != nil || len(work) != 0 {
-				t.Fatalf("pass %d children() = %#v, %v; want no work for a stopped child", pass, work, err)
+		work, err := sources.children(ctx, "sess-parent")
+		if err != nil || len(work) != 0 {
+			t.Fatalf("first children() = %#v, %v; want no work for a stopped child", work, err)
+		}
+		// An unreadable but unchanged file proves the second pass never reads it again:
+		// chmod changes neither size, modification time nor inode.
+		childMeta := store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, "sess-child"))
+		if runtime.GOOS != "windows" && os.Geteuid() != 0 {
+			if err := os.Chmod(childMeta, 0); err != nil {
+				t.Fatal(err)
 			}
 		}
+		work, err = sources.children(ctx, "sess-parent")
+		if err != nil || len(work) != 0 {
+			t.Fatalf("second children() = %#v, %v; want the settled child skipped unread", work, err)
+		}
+		if err := os.Chmod(childMeta, 0o644); err != nil {
+			t.Fatal(err)
+		}
 		writeMeta("sess-child", session.StateActive, &lineage)
-		work, err := sources.children(ctx, "sess-parent")
+		work, err = sources.children(ctx, "sess-parent")
 		if err != nil || len(work) != 1 || work[0].Ref != "sess-child" || work[0].Kind != session.WorkSignalActiveChild {
 			t.Fatalf("children() after activation = %#v, %v; want the active child", work, err)
 		}
