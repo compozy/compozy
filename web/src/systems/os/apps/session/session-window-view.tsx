@@ -2,7 +2,7 @@ import { lazy, Suspense, ViewTransition } from "react";
 import { useAgentInstances } from "@/systems/agent";
 import { AlertCircle, History } from "@compozy/ui/icons";
 
-import { Empty, VIEW_TRANSITION_CLASS } from "@compozy/ui";
+import { Button, Empty, Spinner, VIEW_TRANSITION_CLASS } from "@compozy/ui";
 
 import { loadSessionWindowContent } from "./session-window-module-loader";
 import { SessionReadOnlyTranscript } from "./session-read-only-transcript";
@@ -14,6 +14,7 @@ import {
   type SessionPayload,
   SessionPromptRuntimeProvider,
 } from "@/systems/session";
+import { isSessionUnavailable } from "@/systems/session/adapters/session-api-errors";
 import { USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 const SessionWindowContent = lazy(() =>
@@ -30,6 +31,8 @@ export function SessionWindowView({
   liveTailEnabled,
   isLoading,
   error,
+  onRetry,
+  retrying = false,
 }: {
   windowId: string;
   name: string;
@@ -40,6 +43,9 @@ export function SessionWindowView({
   liveTailEnabled: boolean;
   isLoading: boolean;
   error: Error | null;
+  /** Reads the session again; offered when the read failed for a reason other than not-found. */
+  onRetry?: () => void;
+  retrying?: boolean;
 }) {
   const instances = useAgentInstances();
   const instance = instances.find(row => row.id === session?.instance_id);
@@ -49,6 +55,30 @@ export function SessionWindowView({
   const sessionWorkspaceId = session ? (session.workspace_id?.trim() ?? "") : undefined;
 
   if (isLoading) return <SessionWindowSkeleton />;
+  // A daemon or network failure is not a missing session: say so and offer the read again.
+  if (!session && error && !isSessionUnavailable(error)) {
+    return (
+      <SessionWindowNotice
+        title="Couldn't load this session"
+        detail={error.message}
+        action={
+          onRetry ? (
+            <Button
+              data-testid="session-window-retry"
+              disabled={retrying}
+              onClick={onRetry}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              {retrying ? <Spinner aria-hidden="true" className="size-3" /> : null}
+              Try again
+            </Button>
+          ) : undefined
+        }
+      />
+    );
+  }
   if (!session || sessionWorkspaceId !== workspaceId) {
     return <SessionWindowNotice title="Couldn't find this session" detail={error?.message} />;
   }
@@ -130,7 +160,15 @@ export function SessionWindowView({
  * A session the window cannot show. The headline is always plain copy; a raw
  * error message, when there is one, stays behind Empty's "Details" fold.
  */
-export function SessionWindowNotice({ title, detail }: { title: string; detail?: string | null }) {
+export function SessionWindowNotice({
+  title,
+  detail,
+  action,
+}: {
+  title: string;
+  detail?: string | null;
+  action?: React.ReactNode;
+}) {
   return (
     <Empty
       className="min-h-full"
@@ -139,6 +177,7 @@ export function SessionWindowNotice({ title, detail }: { title: string; detail?:
       size="compact"
       title={title}
       cause={detail || undefined}
+      action={action}
     />
   );
 }

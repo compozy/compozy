@@ -82,13 +82,28 @@ export function createStatefulMswStore<T extends { id: string }>(initialItems: R
   };
 }
 
+/** Like `fetch`, an aborted signal rejects with its reason even while a handler still waits. */
+function abortable<T>(pending: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return pending;
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    pending.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+  });
+}
+
 export function createMswFetch(
   getHandlers: () => ReadonlyArray<HttpHandler>,
   baseUrl = typeof window === "undefined" ? "http://localhost" : window.location.origin
 ): typeof globalThis.fetch {
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = input instanceof Request ? input.clone() : new Request(input, init);
-    const response = await getResponse([...getHandlers()], request, { baseUrl });
+    const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+    const response = await abortable(
+      getResponse([...getHandlers()], request, { baseUrl }),
+      signal ?? undefined
+    );
 
     if (!response) {
       const url = new URL(request.url, baseUrl);

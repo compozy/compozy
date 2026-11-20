@@ -2,11 +2,16 @@
 // Invariant: a User-scope session (no workspace, scope "user") is live work and binds the chat
 // runtime to the `@user` selector; only a legacy session without any scope falls back to the
 // read-only history. A window whose session has not loaded holds the frames the loaded window
-// fills (rail, transcript, composer) under one busy status, never a bare spinner.
+// fills (rail, transcript, composer) under one busy status, never a bare spinner. Only a
+// not-found read says "Couldn't find this session"; any other failure says the read failed and
+// offers Try again.
 // Owning layer: the OS session-window view.
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { SessionApiError } from "@/systems/session/adapters/session-api-errors";
 
 import { SessionWindowView } from "../session-window-view";
 
@@ -44,7 +49,11 @@ vi.mock("../session-window-module-loader", () => ({
   loadSessionWindowContent: () => new Promise(() => {}),
 }));
 
-function renderView(session: Record<string, unknown> | undefined, isLoading = false) {
+function renderView(
+  session: Record<string, unknown> | undefined,
+  isLoading = false,
+  { error = null, onRetry }: { error?: Error | null; onRetry?: () => void } = {}
+) {
   return render(
     <SessionWindowView
       windowId="session:sess-1"
@@ -54,7 +63,8 @@ function renderView(session: Record<string, unknown> | undefined, isLoading = fa
       session={session as never}
       liveTailEnabled
       isLoading={isLoading}
-      error={null}
+      error={error}
+      onRetry={onRetry}
     />
   );
 }
@@ -105,5 +115,28 @@ describe("SessionWindowView", () => {
     // One announcement for the whole window: the placeholders are never statuses of their own.
     expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(runtimeProviderSpy).not.toHaveBeenCalled();
+  });
+
+  it("Should offer Try again when the read failed for a reason other than not-found", async () => {
+    const onRetry = vi.fn();
+    renderView(undefined, false, {
+      error: new SessionApiError("daemon unavailable", 503, "sess-1"),
+      onRetry,
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this session");
+    expect(screen.queryByText("Couldn't find this session")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("session-window-retry"));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("Should say the session is missing only for a not-found read", () => {
+    renderView(undefined, false, {
+      error: new SessionApiError("session not found", 404, "sess-1"),
+      onRetry: vi.fn(),
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't find this session");
+    expect(screen.queryByTestId("session-window-retry")).not.toBeInTheDocument();
   });
 });

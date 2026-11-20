@@ -27,9 +27,11 @@ import {
 import type { SessionPayload } from "../types";
 import {
   landDerivedSession,
+  sessionDeriveFailureText,
   type SessionDerivePlacement,
   type SessionDerivePlacementHandlers,
   useSessionContinue,
+  useSessionDeriveAbort,
   useSessionDeriveIdempotencyKey,
   useSessionDerivePreview,
 } from "./use-session-derive";
@@ -261,6 +263,7 @@ export function useSessionContinueDialog({
   const idempotencyKey = useSessionDeriveIdempotencyKey();
   const preview = useSessionDerivePreview(workspaceId, source.id, { enabled: open });
   const mutation = useSessionContinue();
+  const abort = useSessionDeriveAbort();
   const committedChild = useSessionDeriveCommittedChild({
     workspaceId,
     placement,
@@ -308,7 +311,8 @@ export function useSessionContinueDialog({
       : null;
   const isSubmitting = mutation.isPending;
   const measured = preview.view.state === "ready" || preview.view.state === "truncated";
-  const canSubmit = !isSubmitting && measured && agent !== undefined;
+  // The measurement only informs Continue; when it failed or timed out the request still goes.
+  const canSubmit = !isSubmitting && (measured || preview.failed) && agent !== undefined;
 
   const selectAgent = (next: string) => {
     setChosenAgent(next);
@@ -351,7 +355,7 @@ export function useSessionContinueDialog({
     setSubmitError(null);
     setRuntimeValidationRequested(false);
     mutation.mutate(
-      { workspaceId, sourceId: source.id, request },
+      { workspaceId, sourceId: source.id, request, signal: abort.next() },
       {
         onSuccess: result => {
           if (result.derived.child_deleted || !result.session) {
@@ -363,7 +367,7 @@ export function useSessionContinueDialog({
         },
         onError: error => {
           committedChild.noteFailure(error);
-          setSubmitError(error.message);
+          setSubmitError(sessionDeriveFailureText(error));
         },
       }
     );
@@ -389,10 +393,16 @@ export function useSessionContinueDialog({
     onPlacementChange: setPlacement,
     canChoosePlacement: handlers.openInThisWindow !== undefined,
     previewView: preview.view,
+    retryPreview: preview.retry,
     submitError: (runtimeValidationRequested ? runtimeValidationError : null) ?? submitError,
     isSubmitting,
     canSubmit,
     submit,
+    /** Stops waiting on a running submit; the dialog then closes like any cancel. */
+    cancel: () => {
+      abort.cancel();
+      mutation.reset();
+    },
     committedChild,
   };
 }

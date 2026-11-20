@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { readProfileScopeParams } from "@/systems/profiles";
 
 import {
   continueSession,
@@ -9,6 +11,13 @@ import {
   type SessionDeriveResult,
 } from "../adapters/session-derive-api";
 import { sessionKeys } from "../lib/query-keys";
+import { sessionScopedDetailOptions } from "../lib/query-options";
+import {
+  isSessionDeriveAbort,
+  isSessionDeriveTimeout,
+  SESSION_DERIVE_SUBMIT_TIMEOUT_MS,
+  sessionDeriveDeadline,
+} from "../lib/session-derive-deadline";
 import { sessionDerivePreviewOptions } from "../lib/session-derive-query";
 import { sessionDerivePreviewView } from "../lib/session-derive-view";
 import type { SessionPayload } from "../types";
@@ -73,6 +82,8 @@ export interface UseSessionDerivePreviewOptions {
  * after this mount counts. A previous open's cached answer can outlive `gcTime: 0`
  * while the next open remeasures, and it would show an old size and hand Fork
  * obsolete fences; until this open's own answer arrives the line reads measuring.
+ * A failed or timed-out measurement offers `retry`, which reads measuring again
+ * while it runs; `failed` tells the dialog it may submit without the measurement.
  */
 export function useSessionDerivePreview(
   workspaceId: string,
@@ -83,9 +94,15 @@ export function useSessionDerivePreview(
   const query = useQuery({ ...options, enabled: enabled && options.enabled === true });
   const measuredThisOpen = query.isFetchedAfterMount;
   const preview = measuredThisOpen ? query.data : undefined;
+  const status = measuredThisOpen && !query.isFetching ? query.status : "pending";
+  const view = sessionDerivePreviewView(preview, status, isSessionDeriveTimeout(query.error));
   return {
     preview,
-    view: sessionDerivePreviewView(preview, measuredThisOpen ? query.status : "pending"),
+    view,
+    failed: view.state === "error",
+    retry: () => {
+      void query.refetch();
+    },
   };
 }
 
@@ -93,6 +110,8 @@ export interface SessionDeriveVariables<Request> {
   workspaceId: string;
   sourceId: string;
   request: Request;
+  /** Aborts the request: the operator left, or the submit deadline passed. */
+  signal?: AbortSignal;
 }
 
 export type SessionContinueVariables = SessionDeriveVariables<ContinueSessionRequest>;
@@ -100,20 +119,26 @@ export type SessionForkVariables = SessionDeriveVariables<ForkSessionRequest>;
 
 /**
  * One derive verb over its route. The source's by-id reads and the catalog are
- * reread (the child nests under it); the child's detail is seeded from the
- * authoritative response so its window opens without a second round trip.
+ * reread (the child nests under it). The child is seeded from the authoritative
+ * response into the reads its window resolves through (the profile-enforced
+ * by-id lens of the current view and of the child's own profile, plus the
+ * workspace detail), so the window opens on it without a second round trip.
+ * A request the operator left or that timed out may still have created the
+ * child, so the catalog is reread then too.
  */
 function useSessionDeriveMutation<Request>(
-  derive: (workspaceId: string, sourceId: string, request: Request) => Promise<SessionDeriveResult>
+  derive: (
+    workspaceId: string,
+    sourceId: string,
+    request: Request,
+    signal?: AbortSignal
+  ) => Promise<SessionDeriveResult>
 ) {
   const queryClient = useQueryClient();
   return useMutation<SessionDeriveResult, Error, SessionDeriveVariables<Request>>({
-    mutationFn: ({ workspaceId, sourceId, request }) => derive(workspaceId, sourceId, request),
+    mutationFn: ({ workspaceId, sourceId, request, signal }) =>
+      derive(workspaceId, sourceId, request, signal),
     onSuccess: (result, { workspaceId, sourceId }) => {
-      const child = result.session;
-      if (child) {
-        queryClient.setQueryData(sessionKeys.detail(workspaceId, child.id), child);
-      }
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(sourceId) }),
@@ -121,6 +146,24 @@ function useSessionDeriveMutation<Request>(
           queryKey: sessionKeys.byIdRoot(result.derived.child_session_id),
         }),
       ]);
+      // After the invalidation: the seeded entries are the fresh answer, not stale ones.
+      const child = result.session;
+      if (child) {
+        queryClient.setQueryData(sessionKeys.detail(workspaceId, child.id), child);
+        const owner = child.profile_name?.trim() ?? "";
+        const scopes = [
+          readProfileScopeParams(queryClient),
+          ...(owner ? [{ profile: owner }] : []),
+        ];
+        for (const scope of scopes) {
+          queryClient.setQueryData(sessionScopedDetailOptions(child.id, scope).queryKey, child);
+        }
+      }
+    },
+    onError: error => {
+      if (isSessionDeriveAbort(error) || isSessionDeriveTimeout(error)) {
+        void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+      }
     },
   });
 }
@@ -133,6 +176,40 @@ export function useSessionContinue() {
 /** Forks a source session: same agent, whole or through one message's turn. */
 export function useSessionFork() {
   return useSessionDeriveMutation<ForkSessionRequest>(forkSession);
+}
+
+/**
+ * The submit's abort handle. Each submit gets a fresh signal bounded by the
+ * submit deadline; `cancel` stops waiting when the operator leaves, and an
+ * unmounted dialog stops waiting too. The daemon's work is not undone: a child
+ * it already created stays reachable through the same idempotency key.
+ */
+export function useSessionDeriveAbort() {
+  const controllerRef = useRef<AbortController | null>(null);
+  useEffect(() => () => controllerRef.current?.abort(), []);
+  return {
+    next: (): AbortSignal => {
+      controllerRef.current?.abort();
+      const controller = new AbortController();
+      controllerRef.current = controller;
+      return sessionDeriveDeadline(SESSION_DERIVE_SUBMIT_TIMEOUT_MS, controller.signal);
+    },
+    cancel: () => {
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+    },
+  };
+}
+
+/** The submit outlived its deadline: Try again replays the same key and opens a child it created. */
+export const SESSION_DERIVE_TIMED_OUT =
+  "Starting the new session took too long. Try again; if it was created, it opens.";
+
+/** The words a failed submit shows; `null` when the operator left and nothing is shown. */
+export function sessionDeriveFailureText(error: Error): string | null {
+  if (isSessionDeriveAbort(error)) return null;
+  if (isSessionDeriveTimeout(error)) return SESSION_DERIVE_TIMED_OUT;
+  return error.message;
 }
 
 function newIdempotencyKey(): string {

@@ -68,10 +68,10 @@ export const TruncatedPreview: Story = {
   parameters: deriveParameters({ preview: deriveTruncatedPreviewFixture }),
 };
 
-/** Measuring: the preview is in flight and Continue waits for it. */
+/** Measuring: the preview is in flight and Continue waits for it (bounded at 15 s, then Try again). */
 export const Measuring: Story = { parameters: deriveParameters({ preview: "pending" }) };
 
-/** VC-09: the preview failed; never "0 messages", and Continue stays disabled. */
+/** VC-09: the preview failed; never "0 messages". Try again, and Continue still goes. */
 export const PreviewError: Story = { parameters: deriveParameters({ preview: "error" }) };
 
 /** A source whose running turn will not travel. */
@@ -88,8 +88,8 @@ export const TurnInProgress: Story = {
 };
 
 /**
- * VC-10: submitted and waiting on the daemon — fields disabled, close hidden,
- * `Starting the new session…` announced.
+ * VC-10: submitted and waiting on the daemon — fields disabled, Cancel and close
+ * still available, `Starting the new session…` announced.
  */
 export const Pending: Story = {
   parameters: deriveParameters({ result: "pending" }),

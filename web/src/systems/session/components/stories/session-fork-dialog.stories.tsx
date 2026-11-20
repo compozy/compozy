@@ -93,10 +93,19 @@ export const FenceConflict: Story = {
   },
 };
 
-/** Measuring: the preview is in flight and Fork session waits for it. */
+/**
+ * Measuring: the preview is in flight and Fork session waits for it. Past the dialog's 15 s
+ * bound the line reads the slow sentence with Try again, and Fork session becomes available.
+ */
 export const Measuring: Story = { parameters: deriveParameters({ preview: "pending" }) };
 
-/** Submitted and waiting on the daemon — `Starting the new session…`, close hidden. */
+/** The measurement failed: Try again, and Fork session still goes (without fences). */
+export const PreviewError: Story = { parameters: deriveParameters({ preview: "error" }) };
+
+/**
+ * Submitted and waiting on the daemon — `Starting the new session…`. Cancel and close stay
+ * available and stop waiting; past the 60 s bound the timeout sentence offers Try again.
+ */
 export const Pending: Story = {
   parameters: deriveParameters({ result: "pending" }),
   tags: ["play-fn"],

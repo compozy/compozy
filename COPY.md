@@ -270,6 +270,8 @@ Linked work is the set of pull requests, branches and worktrees that belong to a
 - `fork`: a **conversation fork** — a second session with the same agent and the conversation up to a point ("Fork session…", "Fork from here", "Forked from {title}"). Unqualified `fork` in session copy means this; always qualify the others: "fork into a worktree", "Loop fork".
 - **Restart in a new session**: the dead-runtime recovery action (an empty child in the same workspace). Never call it a fork.
 - `handoff`: reserved for Network; never a label for continue or fork. The API's `next_action: "handoff"` is a wire value — the UI says "Continue this session with another agent or route."
+- Dialog waits never trap the operator. A failed measurement reads "Couldn't measure this session's context." and a slow one "Measuring this session's context took too long.", each with "The conversation still carries over." and "Try again"; the primary stays available. While the new session starts ("Starting the new session…") Cancel and the close button stay available and stop waiting. A submit that outlives its wait reads "Starting the new session took too long. Try again; if it was created, it opens."
+- Session window read failures: only a missing session reads "Couldn't find this session"; any other failure reads "Couldn't load this session" with "Try again".
 - Never in this feature's copy: `branch` (git, worktrees, Loops), `chat`, "Handoff from X", a "Badge".
 
 ### Side Chat Terms

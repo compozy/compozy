@@ -6,8 +6,10 @@ import type { SessionForkPoint } from "../contexts/session-fork-context-value";
 import type { SessionPayload } from "../types";
 import {
   landDerivedSession,
+  sessionDeriveFailureText,
   type SessionDerivePlacement,
   type SessionDerivePlacementHandlers,
+  useSessionDeriveAbort,
   useSessionDeriveIdempotencyKey,
   useSessionDerivePreview,
   useSessionFork,
@@ -36,12 +38,14 @@ function refusalText(refusal: ForkRefusal | null): string | null {
   return null;
 }
 
-function forkRefusal(error: Error): ForkRefusal {
+/** `null` when the operator left: nothing is drawn. */
+function forkRefusal(error: Error): ForkRefusal | null {
   if (error instanceof SessionApiError) {
     if (error.code === "session_turn_in_progress") return { kind: "turn_unsettled" };
     if (error.code === "session_fence_conflict") return { kind: "fence_conflict" };
   }
-  return { kind: "message", text: error.message };
+  const text = sessionDeriveFailureText(error);
+  return text === null ? null : { kind: "message", text };
 }
 
 export interface UseSessionForkDialogInput {
@@ -56,8 +60,12 @@ export interface UseSessionForkDialogInput {
 
 /**
  * Fork-dialog state: the locked agent, the measured preview (with the daemon's
- * cut and native decision), and the submit, which lands the child in this window. The transcript fences the preview was read at go with the request,
- * so the child is forked from what the dialog showed or refused as changed.
+ * cut and native decision), and the submit, which lands the child in this window.
+ * The transcript fences the preview was read at go with the request, so the
+ * child is forked from what the dialog showed or refused as changed. When the
+ * measurement failed or timed out the fork still goes, without fences: the
+ * daemon forks the transcript as it is then and refuses an unsettled cut itself.
+ * The submit is bounded and `cancel` stops waiting, so the dialog never traps.
  */
 export function useSessionForkDialog({
   source,
@@ -75,6 +83,7 @@ export function useSessionForkDialog({
     ...(messageId ? { messageId } : {}),
   });
   const mutation = useSessionFork();
+  const abort = useSessionDeriveAbort();
   const committedChild = useSessionDeriveCommittedChild({
     workspaceId,
     placement: FORK_PLACEMENT,
@@ -87,7 +96,8 @@ export function useSessionForkDialog({
     preview.preview?.cut?.turn_settled === false || refusal?.kind === "turn_unsettled";
   const fenceConflict = refusal?.kind === "fence_conflict";
   const isSubmitting = mutation.isPending;
-  const canSubmit = !isSubmitting && measured && !cutUnsettled && !fenceConflict;
+  const canSubmit =
+    !isSubmitting && (measured || preview.failed) && !cutUnsettled && !fenceConflict;
   // Only the whole-session point can clone natively; the daemon already says
   // false for a cut, the dialog does not second-guess either way.
   const nativeClone = measured && preview.preview?.native_fork_possible === true;
@@ -95,16 +105,17 @@ export function useSessionForkDialog({
   /** Posts the fork the dialog measured and lands the child in this window. */
   const submit = () => {
     const measuredPreview = preview.preview;
-    if (!canSubmit || !measuredPreview) return;
+    if (!canSubmit) return;
     // A running source moves its fences with every event; the snapshot already
     // leaves the in-flight turn out, so pinning them would refuse every submit.
-    const fences = measuredPreview.source_turn_in_progress
-      ? {}
-      : {
-          expected_epoch: measuredPreview.transcript.epoch,
-          expected_generation: measuredPreview.transcript.generation,
-          expected_max_sequence: measuredPreview.transcript.max_sequence,
-        };
+    const fences =
+      !measuredPreview || measuredPreview.source_turn_in_progress
+        ? {}
+        : {
+            expected_epoch: measuredPreview.transcript.epoch,
+            expected_generation: measuredPreview.transcript.generation,
+            expected_max_sequence: measuredPreview.transcript.max_sequence,
+          };
     const request: ForkSessionRequest = {
       idempotency_key: idempotencyKey,
       ...(messageId ? { message_id: messageId } : {}),
@@ -112,7 +123,7 @@ export function useSessionForkDialog({
     };
     setRefusal(null);
     mutation.mutate(
-      { workspaceId, sourceId: source.id, request },
+      { workspaceId, sourceId: source.id, request, signal: abort.next() },
       {
         onSuccess: result => {
           if (result.derived.child_deleted || !result.session) {
@@ -130,10 +141,17 @@ export function useSessionForkDialog({
     );
   };
 
+  /** Stops waiting on a running submit; the dialog then closes like any cancel. */
+  const cancel = () => {
+    abort.cancel();
+    mutation.reset();
+  };
+
   return {
     agentName: source.agent_name.trim(),
     provider: source.runtime.effective?.provider.trim() ?? "",
     previewView: preview.view,
+    retryPreview: preview.retry,
     nativeClone,
     previewRefusal: cutUnsettled ? SESSION_FORK_TURN_UNSETTLED : null,
     submitError: refusalText(refusal),
@@ -141,6 +159,7 @@ export function useSessionForkDialog({
     isSubmitting,
     canSubmit,
     submit,
+    cancel,
     committedChild,
   };
 }
