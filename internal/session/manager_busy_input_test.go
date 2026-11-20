@@ -4020,7 +4020,7 @@ func (s *steerResolveFailureStore) ResolveSessionSteer(
 	return s.GlobalDB.ResolveSessionSteer(ctx, sessionID, entryID, delivery, now)
 }
 
-// queuePeekDisagreementStore peeks an entry that claim never returns for its first disagreements peeks.
+// queuePeekDisagreementStore substitutes a ghost for its first disagreements eligible peeks.
 type queuePeekDisagreementStore struct {
 	*globaldb.GlobalDB
 	disagreements int32
@@ -4031,8 +4031,9 @@ func (s *queuePeekDisagreementStore) PeekNextSessionInput(
 	ctx context.Context,
 	sessionID string,
 ) (store.SessionInputQueueEntry, bool, error) {
-	if s.peeks.Add(1) > s.disagreements {
-		return s.GlobalDB.PeekNextSessionInput(ctx, sessionID)
+	entry, found, err := s.GlobalDB.PeekNextSessionInput(ctx, sessionID)
+	if err != nil || !found || s.peeks.Add(1) > s.disagreements {
+		return entry, found, err
 	}
 	return store.SessionInputQueueEntry{ID: "ghost", SessionID: sessionID}, true, nil
 }
