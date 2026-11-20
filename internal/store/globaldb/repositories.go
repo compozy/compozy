@@ -17,18 +17,20 @@ import (
 )
 
 type repoBase struct {
-	db           *sql.DB
-	readDB       *sql.DB
-	queries      *sqlcgen.Queries
-	readQueries  *sqlcgen.Queries
-	background   *store.BackgroundWriter
-	telemetry    *telemetrydb.Store
-	healthBuffer *sessionHealthBuffer
-	path         string
-	now          func() time.Time
-	closed       *atomic.Int32
-	tasks        *TaskRepo
-	sessions     *SessionRepo
+	db          *sql.DB
+	readDB      *sql.DB
+	queries     *sqlcgen.Queries
+	readQueries *sqlcgen.Queries
+	// readStatements is owned and closed by GlobalDB; nil reads go unprepared.
+	readStatements *readStatementCache
+	background     *store.BackgroundWriter
+	telemetry      *telemetrydb.Store
+	healthBuffer   *sessionHealthBuffer
+	path           string
+	now            func() time.Time
+	closed         *atomic.Int32
+	tasks          *TaskRepo
+	sessions       *SessionRepo
 
 	outboxSignals       *outboxSignalHub
 	summaryPublications eventSummaryPublications
@@ -58,6 +60,14 @@ func (r *repoBase) checkReady(ctx context.Context, action string) error {
 		return fmt.Errorf("store: %s context is required", action)
 	}
 	return nil
+}
+
+// queryRead runs structural dynamic read SQL through the shared statement cache.
+func (r *repoBase) queryRead(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	if r.readStatements == nil {
+		return r.readDB.QueryContext(ctx, query, args...)
+	}
+	return r.readStatements.query(ctx, query, args...)
 }
 
 func (r *repoBase) writeBackground(
@@ -143,6 +153,7 @@ type WorktreeRepo struct{ *repoBase }
 func (g *GlobalDB) initializeRepositories(config openConfig) {
 	base := newRepoBase(g.db, g.readDB, func() time.Time { return g.now() }, &g.closed)
 	base.path = g.path
+	base.readStatements = g.readStatements
 	base.background = g.background
 	base.telemetry = g.telemetry
 	if g.background != nil {

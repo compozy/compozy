@@ -4624,6 +4624,54 @@ func BenchmarkSessionCatalogLocalBoard(b *testing.B) {
 	})
 }
 
+// BenchmarkSessionListSupervisionReads measures the catalog reads one supervision pass repeats per child.
+func BenchmarkSessionListSupervisionReads(b *testing.B) {
+	ctx := b.Context()
+	db, err := OpenGlobalDB(ctx, filepath.Join(b.TempDir(), GlobalDatabaseName))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			b.Error(err)
+		}
+	})
+	if _, err := db.db.ExecContext(ctx, `WITH RECURSIVE fixture(i) AS (
+ SELECT 0 UNION ALL SELECT i+1 FROM fixture WHERE i < 1023)
+ INSERT INTO sessions(id,profile_id,workspace_id,scope,agent_name,provider,state,parent_session_id,root_session_id,
+ spawn_depth,lineage_kind,created_at,updated_at)
+ SELECT printf('sess-sup-%04d',i), ?, '', 'global', 'coder', 'claude', 'stopped',
+ CASE WHEN i % 64 = 0 THEN NULL ELSE printf('sess-sup-%04d', i - i % 64) END,
+ CASE WHEN i % 64 = 0 THEN NULL ELSE printf('sess-sup-%04d', i - i % 64) END,
+ CASE WHEN i % 64 = 0 THEN 0 ELSE 1 END, CASE WHEN i % 64 = 0 THEN '' ELSE 'spawn' END,
+ '2026-11-01T00:00:00Z', '2026-11-01T00:00:00Z' FROM fixture`, store.DefaultProfileID); err != nil {
+		b.Fatal(err)
+	}
+	b.Run("OwnerByID", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			rows, err := db.ListSessions(ctx, store.SessionListQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, ID: "sess-sup-0513", Limit: 2,
+			})
+			if err != nil || len(rows) != 1 {
+				b.Fatalf("rows=%d error=%v", len(rows), err)
+			}
+		}
+	})
+	b.Run("ChildrenByParent", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			rows, err := db.ListSessions(ctx, store.SessionListQuery{
+				ReadScope:       store.ReadScope{ProfileID: store.DefaultProfileID},
+				ParentSessionID: "sess-sup-0512",
+			})
+			if err != nil || len(rows) != 63 {
+				b.Fatalf("rows=%d error=%v", len(rows), err)
+			}
+		}
+	})
+}
+
 func logBenchmarkLocalBoardPlan(b *testing.B, db *GlobalDB, query store.SessionCatalogPageQuery) {
 	b.Helper()
 	source, args, err := sessionCatalogPageSource(query)

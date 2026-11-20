@@ -147,7 +147,7 @@ func (g *SessionRepo) ListSessions(
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
 	// dynamic-sql: session catalog filters, resumability, ordering, and limit alter statement structure.
-	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.queryRead(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query sessions: %w", err)
 	}
