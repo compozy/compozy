@@ -92,7 +92,7 @@ func toolListingSafeAtCurrentRevision(discovery *ToolDiscovery, normalizedAt *re
 		return false
 	}
 	var safe bool
-	redact.WithStableSecretSnapshot(func(latest *redact.SecretSnapshot) {
+	redact.WithCurrentSecretSnapshot(func(latest *redact.SecretSnapshot) {
 		unsafe, err := latest.NeedsBinaryJSONRedaction(raw)
 		safe = err == nil && !unsafe
 	})

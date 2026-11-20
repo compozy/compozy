@@ -128,7 +128,7 @@ func (s *mcpDiscoverySnapshot) descriptorsAt(snapshot *redact.SecretSnapshot) []
 			}
 		}
 		keep := make([]bool, len(safe))
-		redact.WithStableSecretSnapshot(func(current *redact.SecretSnapshot) {
+		redact.WithCurrentSecretSnapshot(func(current *redact.SecretSnapshot) {
 			for i, raw := range encoded {
 				keep[i] = raw != nil && safeMCPMetadata(current, raw)
 			}

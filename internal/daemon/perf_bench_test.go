@@ -582,6 +582,8 @@ func newInstanceMCPProjectionFixture(
 	}
 	// Substitute fixture configuration and the agent/catalog sources. The approval
 	// service, instance repository and policy observer retain their boot wiring.
+	// Cache-reuse assertions should only exercise the observation deadline when explicitly requested.
+	policy.instanceCallers = db.Instances().WithMCPProjectionTimeout(5 * time.Second)
 	policy.cfg, policy.agentResolver, policy.approvalAvailable = &cfg, agents, adoption
 	policy.extensionRegistry, policy.mcpSourceGrants, policy.mcpResourceNames = nil, nil, nil
 	policy.profileNames = nil

@@ -151,7 +151,7 @@ func filterUnsafeMCPMetadata(response HostedProjectionResponse, record *hostedBi
 		}
 	}
 	safe := make([]bool, len(response.Tools))
-	redact.WithStableSecretSnapshot(func(snapshot *redact.SecretSnapshot) {
+	redact.WithCurrentSecretSnapshot(func(snapshot *redact.SecretSnapshot) {
 		for i, raw := range encoded {
 			if raw != nil {
 				unsafe, err := snapshot.NeedsBinaryJSONRedaction(raw)
