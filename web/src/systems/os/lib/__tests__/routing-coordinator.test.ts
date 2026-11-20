@@ -20,6 +20,7 @@ import { RoutingEntryLedger } from "../routing-entry-ledger";
 import { routeReplacesWindowContent } from "../window-navigation-guard";
 import type { WindowManagerClientView } from "../window-manager-types";
 import { createDeferred } from "@/test/event-recorder";
+import { sessionComposerFocusStore, withoutSessionComposerFocus } from "@/systems/session";
 
 function route(pathname: string, search: Record<string, unknown> = {}): OsWindowRoute {
   return { pathname, search };
@@ -2420,5 +2421,54 @@ describe("RoutingCoordinator", () => {
       expect(router.navigate).not.toHaveBeenCalled();
       expect(router.replace).not.toHaveBeenCalled();
     });
+  });
+});
+
+// Invariant (#1868): an explicit session activation through this bridge (an open, an in-place
+// retarget, a deep link) asks for that session's composer; other apps and passive walks ask
+// nothing. Owning layer: the coordinator is the one session activation path.
+describe("RoutingCoordinator composer focus requests", () => {
+  const requested = () => sessionComposerFocusStore.getSnapshot().context.request?.sessionId;
+  const settle = () => {
+    const request = sessionComposerFocusStore.getSnapshot().context.request;
+    if (request !== null) sessionComposerFocusStore.trigger.settled({ key: request.key });
+  };
+
+  it("Should ask for the composer of the session an explicit activation lands on", async () => {
+    const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
+    const { coordinator } = createCoordinator([current]);
+    coordinator.completeHydration();
+    settle();
+
+    await coordinator.userRetarget(current.id, {
+      app: "session",
+      instanceKey: "sess-b",
+      route: route("/agents/coder/sessions/sess-b"),
+    });
+    expect(requested()).toBe("sess-b");
+
+    settle();
+    coordinator.reportRouteMatch(route("/agents/coder/sessions/sess-c"));
+    expect(requested()).toBe("sess-c");
+
+    settle();
+    await coordinator.userOpen({ app: "settings", route: route("/settings/layouts") });
+    expect(requested()).toBeUndefined();
+  });
+
+  it("Should ask nothing for a passive walk through the sessions", async () => {
+    const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
+    const { coordinator } = createCoordinator([current]);
+    coordinator.completeHydration();
+    settle();
+
+    await withoutSessionComposerFocus(() =>
+      coordinator.userRetarget(current.id, {
+        app: "session",
+        instanceKey: "sess-b",
+        route: route("/agents/coder/sessions/sess-b"),
+      })
+    );
+    expect(requested()).toBeUndefined();
   });
 });

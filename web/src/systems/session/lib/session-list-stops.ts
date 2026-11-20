@@ -1,5 +1,7 @@
 import type { KeyboardEvent } from "react";
 
+import { withoutSessionComposerFocus } from "./session-composer-focus";
+
 /**
  * The session rail's keyboard walk. Each stop is the focusable element of a
  * project-folder, group or folder header, or a session row, marked with
@@ -65,7 +67,8 @@ export function adjacentSessionListStop(
  * click activates it; it also takes focus when the walk is
  * already inside the rail, so the next step starts from it, while focus held
  * elsewhere (the composer) stays put and the next step resolves the row from
- * the session the window now shows.
+ * the session the window now shows. The walk is a passive activation: the caret never moves
+ * into the composer for it (#1868).
  */
 export function landSessionListStop(
   root: Element,
@@ -79,7 +82,7 @@ export function landSessionListStop(
   // the walk only focuses the row there instead of changing the selection.
   if (sessionListStopKind(stop) === "session" && !stop.hasAttribute("aria-pressed")) {
     if (activeElement !== null && root.contains(activeElement)) stop.focus(focus);
-    stop.click();
+    withoutSessionComposerFocus(() => stop.click());
   } else {
     stop.focus(focus);
   }

@@ -6,6 +6,7 @@ import {
   SESSION_BOARD_DRAWER_SEARCH_KEY,
   sessionHasUnsentInput,
   type SessionLifecycleActionHandlers,
+  withoutSessionComposerFocus,
 } from "@/systems/session";
 
 import { useOsShell } from "../../../hooks/use-os-shell";
@@ -193,7 +194,8 @@ export function useSessionBoardDrawer({
       return;
     }
     target.element.scrollIntoView({ block: "nearest", inline: "nearest" });
-    openSession(target);
+    // Stepping the board is a walk like the session list's: the keyboard stays where it is.
+    withoutSessionComposerFocus(() => openSession(target));
   };
 
   // While the drawer is open, the shell's Previous/Next session shortcut steps the board.

@@ -414,6 +414,13 @@ export { SessionSidebarLayout } from "./components/session-sidebar-layout";
 export { sessionThreadFolds } from "./lib/session-sidebar-scope";
 export { walkSessionList } from "./lib/session-list-stops";
 export {
+  cancelSessionComposerFocus,
+  claimSessionComposerFocus,
+  requestSessionComposerFocus,
+  sessionComposerFocusStore,
+  withoutSessionComposerFocus,
+} from "./lib/session-composer-focus";
+export {
   buildSessionTree,
   childSessionSignalState,
   collectThreadSessions,
