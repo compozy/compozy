@@ -1,0 +1,55 @@
+---
+title: "compozy agent instance budget"
+description: "Manage agent instances: budget"
+---
+
+## compozy agent instance budget
+
+Manage agent instances: budget
+
+```
+compozy agent instance budget <agent-or-instance-id> [flags]
+```
+
+### Examples
+
+```
+  # Output example
+  compozy agent instance budget triage --workspace my-project --tokens 100000 --usd off
+```
+
+### Options
+
+```
+      --clear              Remove both daily limits
+      --global             Use the global scope
+  -h, --help               help for budget
+      --tokens string      Daily token cap; 'off' removes it
+      --usd string         Daily estimated USD cap; 'off' removes it
+      --workspace string   Workspace ID, name, or path
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy agent instance budget triage --workspace my-project --tokens 100000 --usd off -o json
+```

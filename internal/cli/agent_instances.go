@@ -82,6 +82,8 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 		cmd.Flags().StringVar(&options.sessionID, "session", "", "Root session to adopt")
 	}
 	if action == agentInstanceBudgetAction {
+		cmd.Example = "  # Output example\n" +
+			"  compozy agent instance budget triage --workspace my-project --tokens 100000 --usd off"
 		cmd.Flags().StringVar(&options.budgetTokens, "tokens", "", "Daily token cap; 'off' removes it")
 		cmd.Flags().StringVar(&options.budgetUSD, "usd", "", "Daily estimated USD cap; 'off' removes it")
 		cmd.Flags().BoolVar(&options.clearBudget, "clear", false, "Remove both daily limits")
