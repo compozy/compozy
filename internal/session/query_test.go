@@ -2505,6 +2505,20 @@ func TestManagerStoredStatusUnlessSettled(t *testing.T) {
 		}
 	})
 
+	t.Run("Should drop a settled proof on every committed delete path", func(t *testing.T) {
+		t.Parallel()
+		// Workspace removal commits staged deletes without deleteSession; both share this hook.
+		h := newHarness(t)
+		h.manager.settledStatus.remember("sess-batch", metaFileIdentity{size: 1})
+		h.manager.publishCommittedSessionDelete(&stagedSessionDelete{info: &Info{ID: "sess-batch"}})
+		h.manager.settledStatus.mu.Lock()
+		_, kept := h.manager.settledStatus.entries["sess-batch"]
+		h.manager.settledStatus.mu.Unlock()
+		if kept {
+			t.Fatal("committed delete kept its settled proof")
+		}
+	})
+
 	t.Run("Should always read a live session", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

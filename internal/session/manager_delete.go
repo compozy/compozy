@@ -44,9 +44,7 @@ func (m *Manager) deleteSession(ctx context.Context, id string, archived *store.
 	defer func() {
 		if err != nil {
 			m.logger.Error("session: deletion failed", "session_id", target, "error", err)
-			return
 		}
-		m.settledStatus.forget(target)
 	}()
 	ctx, unlock, err := m.lockSessionDelete(ctx, target)
 	if err != nil {
