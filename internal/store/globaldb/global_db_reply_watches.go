@@ -220,17 +220,17 @@ func (g *SessionRepo) AdvanceReplyWatchFollowUp(ctx context.Context, id string, 
 	)
 }
 
-func (g *SessionRepo) AbandonReplyWatch(ctx context.Context, id, reason string) error {
-	return g.executeWriteQuery(
-		ctx,
-		"globaldb.AbandonReplyWatch",
-		func(ctx context.Context, queries *sqlcgen.Queries) error {
+func (g *SessionRepo) AbandonReplyWatch(ctx context.Context, id, reason string) (bool, error) {
+	n, err := executeWriteQueryResult(
+		ctx, g.repoBase, "globaldb.AbandonReplyWatch",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
 			return queries.AbandonReplyWatch(
 				ctx,
 				sqlcgen.AbandonReplyWatchParams{ID: id, AbandonReason: replyNull(reason)},
 			)
 		},
 	)
+	return n == 1, err
 }
 
 func (g *SessionRepo) DeliverReplyWatch(
@@ -268,10 +268,11 @@ func (g *SessionRepo) DeliverReplyWatch(
 			return err
 		}
 		if !exists {
-			return q.AbandonReplyWatch(
+			_, err := q.AbandonReplyWatch(
 				ctx,
 				sqlcgen.AbandonReplyWatchParams{ID: id, AbandonReason: replyNull("sender_gone")},
 			)
+			return err
 		}
 		// The wake joins the sender's current queue generation, read inside this transaction: a clear that
 		// advanced it after the caller prepared the entry must not strand a delivered wake in a dead generation.

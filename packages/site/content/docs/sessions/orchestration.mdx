@@ -199,9 +199,11 @@ existing session. The tool returns `reply_watch: { id, state }`, using its curre
 pre-dispatch failure re-arms the same watch. The sender can then finish its turn;
 CompozyOS delivers a synthetic reply wake after the turn that consumed the message settles.
 When the receiver still has a monitor, a subagent or awaited child, a scheduled wait, or a reply from
-another session pending, the wake identifies the answer as interim and names the work. The watch
-stays outstanding under its original TTL. At the next settled turn with that work complete, or if
-the receiver stops, fails, or is deleted, a single follow-up wakes the sender. A newer watched
+a session other than the sender pending, the wake identifies the answer as interim and names the work.
+The watch stays outstanding under its original TTL. The follow-up carries the answer from the first
+later top-level turn that settles with no awaited work left, regardless of who started the turn. If
+a turn-end notification was missed, recovery uses the latest eligible turn in the session history.
+The receiver stopping, failing, or being deleted also triggers a follow-up. A newer watched
 message from the same sender to the same target supersedes the pending follow-up. Each consumed
 message still receives its own first reply.
 

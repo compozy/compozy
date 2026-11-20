@@ -13,10 +13,11 @@ import (
 )
 
 type TurnResult struct {
-	Outcome  string
-	Text     string
-	Error    string
-	Sequence int64
+	Outcome    string
+	Text       string
+	Error      string
+	Sequence   int64
+	terminalID string
 }
 
 func (m *Manager) TurnResult(ctx context.Context, sessionID, turnID string) (TurnResult, error) {
@@ -27,13 +28,15 @@ func (m *Manager) replyTurnResult(ctx context.Context, sessionID, turnID string,
 	if strings.TrimSpace(turnID) == "" {
 		return TurnResult{}, errors.New("session: reply turn id is required")
 	}
-	events, decodeErr, err := m.replyTurnEvents(ctx, sessionID, turnID, allEvents)
+	ledger, err := m.replyTurnEvents(ctx, sessionID, turnID, allEvents)
 	if err != nil {
-		return TurnResult{}, err
+		return TurnResult{terminalID: ledger.terminalID}, err
 	}
+	events := ledger.events
 	result := replyTurnOutcome(events)
-	if result.Outcome == "" && decodeErr != nil {
-		return result, decodeErr
+	result.terminalID = ledger.terminalID
+	if result.Outcome == "" && ledger.decodeErr != nil {
+		return result, ledger.decodeErr
 	}
 
 	if result.Outcome == "" {
@@ -106,31 +109,38 @@ func replyTurnOutcome(events []store.SessionEvent) TurnResult {
 	return result
 }
 
+type replyTurnLedger struct {
+	events     []store.SessionEvent
+	terminalID string
+	decodeErr  error
+}
+
 func (m *Manager) replyTurnEvents(
 	ctx context.Context, sessionID, turnID string, allEvents bool,
-) (events []store.SessionEvent, decodeErr, readErr error) {
-	query := store.EventQuery{TurnID: turnID, Limit: 200, Forward: true}
+) (replyTurnLedger, error) {
+	query := store.EventQuery{TurnID: turnID, Limit: 200, Forward: true, TopLevelOnly: true}
 	if !allEvents {
-		// Recovery reads one bounded tail of the consuming turn.
 		query.Forward, query.Limit = false, 4096
 	}
+	var ledger replyTurnLedger
 	for {
 		page, err := m.Events(ctx, sessionID, query)
 		if err != nil {
-			return nil, nil, err
+			return ledger, err
 		}
 		for _, event := range page {
-			decoded, err := transcript.UnmarshalAgentEvent(event.Content)
-			if err != nil {
-				decodeErr = err
+			switch event.Type {
+			case acp.EventTypeDone, acp.EventTypeError, EventTypeSessionStopped:
+				ledger.terminalID = event.ID
+			}
+			if _, err := transcript.UnmarshalAgentEvent(event.Content); err != nil {
+				ledger.decodeErr = err
 				continue
 			}
-			if decoded.ParentToolCallID() == "" {
-				events = append(events, event)
-			}
+			ledger.events = append(ledger.events, event)
 		}
 		if !allEvents || len(page) < query.Limit {
-			return events, decodeErr, nil
+			return ledger, nil
 		}
 		query.AfterSequence = page[len(page)-1].Sequence
 	}

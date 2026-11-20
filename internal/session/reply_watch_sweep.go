@@ -13,7 +13,36 @@ const (
 	replyResultUnreadable   = "The reply could not be read. Check the target session."
 )
 
+// WithReplyWatchSweepInterval sets both the periodic cadence and the settlement grace.
+func WithReplyWatchSweepInterval(interval time.Duration) ReplyWatchOption {
+	return func(s *replyWatchService) {
+		if interval > 0 {
+			s.sweepInterval = interval
+		}
+	}
+}
+
+// WithReplyWatchRecoveryGate defers settlement until boot has restored wake-producing work.
+func WithReplyWatchRecoveryGate(ready <-chan struct{}) ReplyWatchOption {
+	return func(s *replyWatchService) { s.recoveryGate = ready }
+}
+
+func (s *replyWatchService) reconciliationReady() bool {
+	if s.recoveryGate == nil {
+		return true
+	}
+	select {
+	case <-s.recoveryGate:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *replyWatchService) sweep(ctx context.Context) {
+	if !s.reconciliationReady() {
+		return
+	}
 	rows, err := s.store.ListReplyWatches(ctx, store.ReplyWatchFilter{})
 	if err != nil {
 		s.logError(ctx, err)
@@ -54,8 +83,41 @@ func (s *replyWatchService) sweep(ctx context.Context) {
 	})
 }
 
+type replySettlementCondition uint8
+
+const (
+	replyAdmissionUnreadable replySettlementCondition = iota
+	replyNoDispatchReceipt
+	replyUncertainDispatch
+	replyTerminalLookupFailed
+	replyTerminalUnreadable
+	replyNoContinuationTerminal
+)
+
+type replySettlement struct {
+	condition  replySettlementCondition
+	turnID     string
+	terminalID string
+}
+
+func (e replySettlement) outcome() (string, string) {
+	switch e.condition {
+	case replyNoContinuationTerminal:
+		return store.ReplyOutcomeCompleted, "The target settled without a further answer. The interim reply stands."
+	case replyTerminalLookupFailed, replyTerminalUnreadable:
+		return store.ReplyOutcomeUnknown, replyResultUnreadable
+	default:
+		return store.ReplyOutcomeUnknown, ""
+	}
+}
+
+type replyGraceObservation struct {
+	evidence replySettlement
+	since    time.Time
+}
+
 func (s *replyWatchService) settleReplyAfterGrace(
-	ctx context.Context, w store.ReplyWatch, pass replyWatchPass, outcome, text string, err error,
+	ctx context.Context, w store.ReplyWatch, pass replyWatchPass, evidence replySettlement, err error,
 ) error {
 	if pass != replyWatchPeriodic {
 		return err
@@ -65,10 +127,16 @@ func (s *replyWatchService) settleReplyAfterGrace(
 		return err
 	}
 	now := s.manager.now()
-	since, _ := s.settleGrace.LoadOrStore(w.ID, now)
-	if observed, ok := since.(time.Time); !ok || now.Sub(observed) < replyWatchSweepInterval {
+	raw, _ := s.settleGrace.LoadOrStore(w.ID, replyGraceObservation{since: now, evidence: evidence})
+	observation, ok := raw.(replyGraceObservation)
+	if !ok || observation.evidence != evidence {
+		s.settleGrace.Store(w.ID, replyGraceObservation{since: now, evidence: evidence})
 		return err
 	}
+	if now.Sub(observation.since) < s.sweepInterval {
+		return err
+	}
+	outcome, text := evidence.outcome()
 	return errors.Join(err, s.fire(ctx, w, outcome, text))
 }
 

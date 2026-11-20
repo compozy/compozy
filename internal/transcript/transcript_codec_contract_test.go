@@ -2,6 +2,7 @@ package transcript
 
 import (
 	"encoding/json"
+	"errors"
 	"reflect"
 	"slices"
 	"strings"
@@ -837,7 +838,6 @@ func TestPromptOriginCodec(t *testing.T) {
 func TestUnmarshalAgentEventDaemonPayload(t *testing.T) {
 	for _, tc := range []struct {
 		name, payload, wantText string
-		wantError               bool
 	}{
 		{
 			name:    "Should accept the persisted MCP reload payload",
@@ -848,18 +848,29 @@ func TestUnmarshalAgentEventDaemonPayload(t *testing.T) {
 			payload:  `{"type":"session.example","text":"preserved","usage":"none","timestamp":10,"synthetic":true}`,
 			wantText: "preserved",
 		},
-		{
-			name:      "Should still reject malformed canonical ACP payloads",
-			payload:   `{"schema":"compozy.session.event.v1","type":"done","runtime":"Codex"}`,
-			wantError: true,
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			event, err := UnmarshalAgentEvent(tc.payload)
-			if (err != nil) != tc.wantError || event.Text != tc.wantText || event.Runtime != nil {
+			if err != nil || event.Text != tc.wantText || event.Runtime != nil {
 				t.Fatalf("decode = %+v, %v", event, err)
 			}
 		})
 	}
+	t.Run("Should preserve the canonical runtime type error", func(t *testing.T) {
+		t.Parallel()
+		_, err := UnmarshalAgentEvent(`{"schema":"compozy.session.event.v1","type":"done","runtime":"Codex"}`)
+		typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err)
+		if !ok || typeErr.Field != "runtime" {
+			t.Fatalf("decode error = %T %v; want runtime type error", err, err)
+		}
+	})
+	t.Run("Should preserve a canonical timestamp error before a case-insensitive schema key", func(t *testing.T) {
+		t.Parallel()
+		_, err := UnmarshalAgentEvent(`{"timestamp":10,"Schema":"compozy.session.event.v1","type":"done"}`)
+		typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err)
+		if !ok || typeErr.Field != "timestamp" {
+			t.Fatalf("decode error = %v; want timestamp type error", err)
+		}
+	})
 }

@@ -323,7 +323,7 @@ const sessionPromptInputSchema = `{
 		"expected_turn_id":{"type":"string","minLength":1},
 		"notify_on_complete":{"type":"boolean","default":false,
  "description":"Wake when the consuming turn settles. If the receiver has a monitor, delegation, ` +
-	`scheduled wait, or another reply pending, the wake is interim and the outstanding watch sends one ` +
+	`scheduled wait, or reply pending from a session other than yours, the wake is interim and the watch sends one ` +
 	`follow-up when the target settles. Intermediate turns do not wake you. A long-lived pull_request monitor, ` +
 	`for example one that stays armed until merge or timeout, keeps the follow-up pending until the wait ends ` +
 	`or the reply watch expires. If the interim text answers your request, act on it and keep working. ` +

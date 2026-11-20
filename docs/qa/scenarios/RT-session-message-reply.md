@@ -99,7 +99,9 @@ Explicit reply and expiry regression (#760)
     original watch. Leave another monitor open in B's next turn and confirm A receives no wake.
 15. On B's last monitor wake, check its provider prompt for the outstanding-reply header. Finish B's
     work and confirm A receives exactly one follow-up with that turn's last answer and outcome.
-    Repeat after restarting the daemon while the watch is outstanding. Repeat with B stopped or
+    Repeat after restarting the daemon while the watch is outstanding, and verify the watch stays
+    armed while the recovered monitor is active. Repeat with an operator-started turn that settles
+    with no awaited work left and confirm its answer is the follow-up. Repeat with B stopped or
     deleted during the wait, and with B's final turn failing.
 16. Repeat with B waiting only for a reply from A. Verify the first reply settles without a
     follow-up. Send two watched requests from A to B and let B consume them in separate turns
@@ -114,6 +116,7 @@ Explicit reply and expiry regression (#760)
     without a further answer and the interim reply stands.
 
 Service-level coverage lives in `TestReplyWatchPeriodicSettlement` and `TestReplyWatchFollowUp`.
+Boot ordering is covered by `TestBootRecoversReplyWatchAfterMonitors`.
 The live provider and Web walkthroughs for these additions are pending.
 
 Release integration verification (2026-10-18): the native busy-sender case keeps the operator input

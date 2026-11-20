@@ -210,6 +210,32 @@ func TestReplyWatchReconcile(t *testing.T) {
 			t.Fatalf("failed send = %+v, %v", got, err)
 		}
 	})
+	t.Run(
+		"Should record a definitive send failure after a failed watch read and preserve a fired answer",
+		func(t *testing.T) {
+			t.Parallel()
+			h, db, _, sender, target, w := replyWatchFixture(t)
+			service, err := NewReplyWatchService(replyRefreshFailureStore{db}, h.manager)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fired := registerReplyTestWatch(t, h, db, sender, target, "fired")
+			changed, err := db.FireReplyWatch(t.Context(), fired.ID, store.ReplyWatchFire{
+				Outcome: store.ReplyOutcomeCompleted, Text: "already answered",
+			})
+			if err != nil || !changed {
+				t.Fatalf("fire answer = %t, %v", changed, err)
+			}
+			sendErr := errors.New("admission failed")
+			service.OnSendResult(t.Context(), w.ID, sendErr)
+			service.OnSendResult(t.Context(), fired.ID, sendErr)
+			abandoned := requireReplyWatchState(t, db, w.ID, store.ReplyWatchAbandoned)
+			answer := requireReplyWatchState(t, db, fired.ID, store.ReplyWatchFired)
+			if abandoned.AbandonReason != "send_failed" || answer.ReplyText != "already answered" {
+				t.Fatalf("failed watch = %+v; fired watch = %+v", abandoned, answer)
+			}
+		},
+	)
 }
 
 func TestReplyWatchRecovery(t *testing.T) {
@@ -332,7 +358,7 @@ func TestReplyWatchRecovery(t *testing.T) {
 				t.Fatalf("list = %+v, %v", rows, err)
 			}
 		}
-		if err := db.AbandonReplyWatch(t.Context(), w.ID, "send_failed"); err != nil {
+		if _, err := db.AbandonReplyWatch(t.Context(), w.ID, "send_failed"); err != nil {
 			t.Fatal(err)
 		}
 		rows, err := service.ListForSender(t.Context(), h.workspaceID, sender.ID)
@@ -2374,6 +2400,104 @@ func replyFollowUpFixture(t *testing.T, opts ...Option) (
 	return h, db, service, sender, target, w, open
 }
 
+// Invariant: continuation reconciliation retains every top-level terminal that could answer the watch.
+func TestReplyWatchFollowUpTerminalSelection(t *testing.T) {
+	t.Run("Should preserve a terminal committed during the work check", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, w, _ := replyFollowUpFixture(t)
+		recordReplyCompletion(t, h, target, "intermediate", "still working", acp.EventTypeDone)
+		h.manager.SetWorkSignalSources(WorkSignalSource{
+			Kind: WorkSignalActiveMonitor,
+			Source: SignalSourceFunc(func(_ context.Context, id string) ([]WorkSignal, error) {
+				if id != target.ID {
+					return nil, nil
+				}
+				recordReplyCompletion(t, h, target, "final", "work finished during inspection", acp.EventTypeDone)
+				now := h.manager.now()
+				return []WorkSignal{{Kind: WorkSignalActiveMonitor, Since: now, ValidUntil: now.Add(time.Hour)}}, nil
+			}),
+		})
+		service.OnTurnSettled(t.Context(), target.ID, "intermediate")
+		requireReplyWatchState(t, db, w.ID, store.ReplyWatchArmed)
+
+		openReplyTestMonitor(h, target).Store(false)
+		service.OnTurnSettled(t.Context(), target.ID, "final")
+		wake := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchDelivered)
+		if !strings.Contains(wake.Text, "work finished during inspection") {
+			t.Fatalf("follow-up = %q", wake.Text)
+		}
+	})
+	t.Run("Should find the final reply behind a page of child terminals", func(t *testing.T) {
+		t.Parallel()
+		h, db, service, sender, target, w, open := replyFollowUpFixture(t)
+		open.Store(false)
+		recordReplyCompletion(t, h, target, "final", "top-level answer", acp.EventTypeDone)
+		for i := range 65 {
+			recordReplyEvent(t, h, target, acp.AgentEvent{
+				Type: acp.EventTypeDone, TurnID: fmt.Sprintf("child-%d", i),
+			}.WithProviderToolMetadata("parent-tool", "", ""))
+		}
+		service.(*replyWatchService).sweep(t.Context())
+		wake := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchDelivered)
+		if !strings.Contains(wake.Text, "top-level answer") {
+			t.Fatalf("follow-up = %q", wake.Text)
+		}
+	})
+}
+
+// Invariant: only the same unreadable settlement can age out through the periodic grace.
+func TestReplyWatchSettlementGrace(t *testing.T) {
+	t.Run("Should restart grace when the condition or terminal changes", func(t *testing.T) {
+		t.Parallel()
+		clock, advance := replyTestClock()
+		h, db, _, sender, target, w, open := replyFollowUpFixture(t, WithNow(clock))
+		service, err := NewReplyWatchService(db, h.manager, WithReplyWatchSweepInterval(time.Second))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sweep := func() { service.(*replyWatchService).sweep(t.Context()) }
+		open.Store(false)
+		sweep()
+		advance(time.Second)
+		recordRawReplyEvent(t, h, target, "continuation", "malformed-terminal", acp.EventTypeDone, `{`)
+		sweep()
+		requireReplyWatchState(t, db, w.ID, store.ReplyWatchArmed)
+		advance(time.Second)
+		recordRawReplyEvent(t, h, target, "continuation", "new-malformed-terminal", acp.EventTypeDone, `{`)
+		sweep()
+		requireReplyWatchState(t, db, w.ID, store.ReplyWatchArmed)
+		advance(time.Second)
+		sweep()
+		wake := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchDelivered)
+		if !strings.Contains(wake.Text, replyResultUnreadable) {
+			t.Fatalf("follow-up = %q", wake.Text)
+		}
+	})
+}
+
+// Invariant: an event from a turn settling after the deadline cannot replace the expiration wake.
+func TestReplyWatchEventExpiry(t *testing.T) {
+	t.Run("Should expire an armed follow-up before delivering a late answer", func(t *testing.T) {
+		t.Parallel()
+		clock, advance := replyTestClock()
+		cfg := compozyconfig.DefaultSessionMessagingConfig()
+		cfg.ReplyWatchTTL = time.Minute
+		h, db, service, sender, target, w, open := replyFollowUpFixture(
+			t,
+			WithNow(clock),
+			WithSessionMessagingConfig(cfg),
+		)
+		open.Store(false)
+		advance(time.Minute)
+		recordReplyCompletion(t, h, target, "late", "late answer", acp.EventTypeDone)
+		service.OnTurnSettled(t.Context(), target.ID, "late")
+		wake := requireReplyWake(t, h, db, sender, w.ID, store.ReplyWatchDelivered)
+		if !strings.Contains(wake.Text, store.ReplyOutcomeExpired) || strings.Contains(wake.Text, "late answer") {
+			t.Fatalf("follow-up = %q", wake.Text)
+		}
+	})
+}
+
 func openReplyTestMonitor(h *harness, target *Session) *atomic.Bool {
 	open := new(atomic.Bool)
 	open.Store(true)
@@ -2571,7 +2695,11 @@ func TestReplyWatchPendingIngress(t *testing.T) {
 		entered := make(chan struct{})
 		release := make(chan struct{})
 		unblock := sync.OnceFunc(func() { close(release) })
-		defer unblock()
+		var sends sync.WaitGroup
+		defer func() {
+			unblock()
+			sends.Wait()
+		}()
 		h.manager.hooks = fullHookSet(&spyHookDispatcher{
 			dispatchInputPreSubmitFn: func(
 				ctx context.Context, p hookspkg.InputPreSubmitPayload,
@@ -2592,10 +2720,10 @@ func TestReplyWatchPendingIngress(t *testing.T) {
 			err    error
 		}
 		done := make(chan receipt, 1)
-		go func() {
+		sends.Go(func() {
 			got, err := h.manager.SendPrompt(t.Context(), target.ID, watchedIngressOpts(h, sender))
 			done <- receipt{result: got, err: err}
-		}()
+		})
 		select {
 		case <-entered:
 		case got := <-done:

@@ -10,9 +10,10 @@ import (
 	"database/sql"
 )
 
-const abandonReplyWatch = `-- name: AbandonReplyWatch :exec
-UPDATE session_prompt_reply_watches SET state = 'abandoned', abandon_reason = ?
-WHERE id = ? AND state IN ('armed', 'fired')
+const abandonReplyWatch = `-- name: AbandonReplyWatch :execrows
+UPDATE session_prompt_reply_watches SET state = 'abandoned', abandon_reason = ?1
+WHERE id = ?2 AND state IN ('armed', 'fired')
+ AND (?1 IS NOT 'send_failed' OR (state = 'armed' AND follow_up_after = 0))
 `
 
 type AbandonReplyWatchParams struct {
@@ -20,9 +21,12 @@ type AbandonReplyWatchParams struct {
 	ID            string         `json:"id"`
 }
 
-func (q *Queries) AbandonReplyWatch(ctx context.Context, arg AbandonReplyWatchParams) error {
-	_, err := q.db.ExecContext(ctx, abandonReplyWatch, arg.AbandonReason, arg.ID)
-	return err
+func (q *Queries) AbandonReplyWatch(ctx context.Context, arg AbandonReplyWatchParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, abandonReplyWatch, arg.AbandonReason, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const advanceReplyWatchFollowUp = `-- name: AdvanceReplyWatchFollowUp :exec

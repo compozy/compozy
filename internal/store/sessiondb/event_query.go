@@ -38,6 +38,16 @@ func buildEventQuerySQL(columns string, query store.EventQuery) (string, []any, 
 			args = append(args, strings.TrimSpace(kind))
 		}
 	}
+	if query.ExcludeTurnID != "" {
+		where = append(where, "turn_id <> ?")
+		args = append(args, query.ExcludeTurnID)
+	}
+	if query.TopLevelOnly {
+		where = append(where, `NOT EXISTS (
+			SELECT 1 FROM json_each(CASE WHEN json_valid(content) THEN content ELSE '{}' END)
+			WHERE key COLLATE NOCASE = 'parent_tool_call_id' AND type = 'text' AND trim(value) <> ''
+		)`)
+	}
 	switch query.Archive {
 	case store.EventArchiveUnarchived:
 		where = append(where, "archived = ?")

@@ -33,12 +33,14 @@ type ReplyWatchService interface {
 const replyNoText = "(no reply text)"
 
 type replyWatchService struct {
-	lifecycleMu sync.Mutex
-	cancel      context.CancelFunc
-	done        chan struct{}
-	runCtx      context.Context
-	store       store.ReplyWatchStore
-	manager     *Manager
+	lifecycleMu   sync.Mutex
+	cancel        context.CancelFunc
+	done          chan struct{}
+	runCtx        context.Context
+	store         store.ReplyWatchStore
+	manager       *Manager
+	sweepInterval time.Duration
+	recoveryGate  <-chan struct{}
 	// resuming holds senders with a reply-driven resume in flight; wakes joins those resumes on Close.
 	// closed (under lifecycleMu) stops admitting new resumes once shutdown begins.
 	resuming    sync.Map
@@ -49,11 +51,19 @@ type replyWatchService struct {
 
 var _ ReplyWatchService = (*replyWatchService)(nil)
 
-func NewReplyWatchService(db store.ReplyWatchStore, manager *Manager) (ReplyWatchService, error) {
+type ReplyWatchOption func(*replyWatchService)
+
+func NewReplyWatchService(
+	db store.ReplyWatchStore, manager *Manager, opts ...ReplyWatchOption,
+) (ReplyWatchService, error) {
 	if db == nil || manager == nil {
 		return nil, errors.New("session: reply watches require store and manager")
 	}
-	return &replyWatchService{store: db, manager: manager}, nil
+	service := &replyWatchService{store: db, manager: manager, sweepInterval: replyWatchSweepInterval}
+	for _, opt := range opts {
+		opt(service)
+	}
+	return service, nil
 }
 
 func (m *Manager) SetReplyWatchService(s ReplyWatchService) {
@@ -98,6 +108,9 @@ func (s *replyWatchService) reconcile(ctx context.Context, id string, pass reply
 }
 
 func (s *replyWatchService) reconcileArmed(ctx context.Context, w store.ReplyWatch, pass replyWatchPass) error {
+	if !s.reconciliationReady() {
+		return nil
+	}
 	id := w.ID
 	sender, err := s.manager.StoredStatus(ctx, w.SenderSessionID)
 	if errors.Is(err, ErrSessionNotFound) || (err == nil && sender.ArchivedAt != nil) {
@@ -114,6 +127,9 @@ func (s *replyWatchService) reconcileArmed(ctx context.Context, w store.ReplyWat
 	}
 	if err != nil {
 		return err
+	}
+	if pass == replyWatchEvent && s.replyWatchExpired(w, s.manager.now()) {
+		return s.expire(ctx, w)
 	}
 	if pass == replyWatchPeriodic && (target.State == StateStarting || target.State == StateStopping) {
 		s.settleGrace.Delete(w.ID)
@@ -147,7 +163,7 @@ func (s *replyWatchService) reconcileInitial(
 		if w.TurnID != "" {
 			return s.reconcileConsumedTurn(ctx, w, target, w.TurnID, w.QueueEntryID, pass)
 		}
-		return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeUnknown, "", err)
+		return s.settleReplyAfterGrace(ctx, w, pass, replySettlement{condition: replyAdmissionUnreadable}, err)
 	}
 	queueID := w.QueueEntryID
 	for i := range inputs {
@@ -189,12 +205,12 @@ func (s *replyWatchService) reconcileUnconsumed(
 		return nil
 	}
 	if outcome == "" {
-		return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeUnknown, "", nil)
+		return s.settleReplyAfterGrace(ctx, w, pass, replySettlement{condition: replyNoDispatchReceipt}, nil)
 	}
 	if outcome == store.ReplyOutcomeUnknown && pass != replyWatchRecovery {
 		settled, err := s.manager.replyTargetSettledSince(ctx, w.TargetSessionID, replyDispatchTime(admission, inputs))
 		if err != nil || !settled {
-			return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeUnknown, "", err)
+			return s.settleReplyAfterGrace(ctx, w, pass, replySettlement{condition: replyUncertainDispatch}, err)
 		}
 	}
 	return s.fire(ctx, w, outcome, "")
@@ -217,7 +233,9 @@ func (s *replyWatchService) reconcileConsumedTurn(
 	}
 	result, err := s.manager.replyTurnResult(ctx, w.TargetSessionID, turn, pass == replyWatchEvent)
 	if err != nil || result.Outcome == "" {
-		return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeUnknown, replyResultUnreadable, err)
+		return s.settleReplyAfterGrace(ctx, w, pass, replySettlement{
+			condition: replyTerminalUnreadable, turnID: turn, terminalID: result.terminalID,
+		}, err)
 	}
 	if target.State == StateStopped || target.ArchivedAt != nil {
 		return s.fireTurnReply(ctx, w, turn, result, "")
@@ -311,11 +329,12 @@ func (s *replyWatchService) fireResult(ctx context.Context, w store.ReplyWatch, 
 }
 
 func (s *replyWatchService) abandon(ctx context.Context, id, reason string) error {
-	if err := s.store.AbandonReplyWatch(ctx, id, reason); err != nil {
-		return err
+	abandoned, err := s.store.AbandonReplyWatch(ctx, id, reason)
+	if abandoned {
+		s.settleGrace.Delete(id)
+		s.manager.logger.InfoContext(ctx, "reply_watch.abandoned", "id", id, "reason", reason)
 	}
-	s.manager.logger.InfoContext(ctx, "reply_watch.abandoned", "id", id, "reason", reason)
-	return nil
+	return err
 }
 
 func (s *replyWatchService) OnTurnSettled(ctx context.Context, sessionID, _ string) {
@@ -331,11 +350,14 @@ func (s *replyWatchService) OnSteerResolved(ctx context.Context, sessionID, mess
 func (s *replyWatchService) OnSendResult(ctx context.Context, id string, sendErr error) {
 	w, err := s.store.GetReplyWatch(ctx, id)
 	if err != nil {
-		s.logWatchError(ctx, store.ReplyWatch{ID: id}, err)
-		return
+		w.ID = id
+		s.logWatchError(ctx, w, err)
 	}
 	if sendErr != nil && !errors.Is(sendErr, store.ErrSessionPromptDispatchIndeterminate) {
 		s.logWatchError(ctx, w, s.abandon(ctx, id, "send_failed"))
+		return
+	}
+	if err != nil {
 		return
 	}
 	if sendErr == nil {
@@ -412,7 +434,7 @@ func (s *replyWatchService) Recover(ctx context.Context) error {
 	return nil
 }
 func (s *replyWatchService) run(ctx context.Context) {
-	ticker := time.NewTicker(replyWatchSweepInterval)
+	ticker := time.NewTicker(s.sweepInterval)
 	defer ticker.Stop()
 	for {
 		select {

@@ -84,9 +84,10 @@ SELECT EXISTS (
   AND (newer.abandon_reason IS NULL OR newer.abandon_reason != 'send_failed')
 );
 
--- name: AbandonReplyWatch :exec
-UPDATE session_prompt_reply_watches SET state = 'abandoned', abandon_reason = ?
-WHERE id = ? AND state IN ('armed', 'fired');
+-- name: AbandonReplyWatch :execrows
+UPDATE session_prompt_reply_watches SET state = 'abandoned', abandon_reason = sqlc.narg(abandon_reason)
+WHERE id = sqlc.arg(id) AND state IN ('armed', 'fired')
+ AND (sqlc.narg(abandon_reason) IS NOT 'send_failed' OR (state = 'armed' AND follow_up_after = 0));
 
 -- name: ReplyWatchAdmission :one
 SELECT * FROM session_prompt_admissions WHERE id = ?;

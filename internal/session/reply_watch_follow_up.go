@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/transcript"
 )
 
 func (s *replyWatchService) reconcileFollowUp(
@@ -25,31 +24,36 @@ func (s *replyWatchService) reconcileFollowUp(
 		s.settleGrace.Delete(w.ID)
 		return err
 	}
+	// Capture the terminal before checking work. The work source may finish and commit a newer turn.
+	terminal, terminalErr := s.latestReplyTerminal(ctx, w)
 	waiting, err := s.replyContinuationWork(ctx, w)
 	if err != nil {
 		return err
 	}
 	if waiting != "" {
 		s.settleGrace.Delete(w.ID)
-		return s.recordIntermediateReplyTurn(ctx, w)
+		if terminalErr != nil || terminal.Sequence == 0 {
+			return terminalErr
+		}
+		return s.store.AdvanceReplyWatchFollowUp(ctx, w.ID, terminal.Sequence)
 	}
 	queue, err := s.manager.InputQueueSummary(ctx, target.ID)
 	if err != nil || queue.PendingInputs > 0 {
 		s.settleGrace.Delete(w.ID)
 		return err
 	}
-	terminal, err := s.latestReplyTerminal(ctx, w)
-	if err != nil {
-		return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeUnknown, replyResultUnreadable, err)
+	if terminalErr != nil {
+		return s.settleReplyAfterGrace(ctx, w, pass, replySettlement{condition: replyTerminalLookupFailed}, terminalErr)
 	}
 	if terminal.TurnID == "" {
-		return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeCompleted,
-			"The target settled without a further answer. The interim reply stands.", nil)
+		return s.settleReplyAfterGrace(ctx, w, pass, replySettlement{condition: replyNoContinuationTerminal}, nil)
 	}
 	turn := terminal.TurnID
 	result, err := s.manager.replyTurnResult(ctx, w.TargetSessionID, turn, pass == replyWatchEvent)
 	if err != nil || result.Outcome == "" {
-		return s.settleReplyAfterGrace(ctx, w, pass, store.ReplyOutcomeUnknown, replyResultUnreadable, err)
+		return s.settleReplyAfterGrace(ctx, w, pass, replySettlement{
+			condition: replyTerminalUnreadable, turnID: turn, terminalID: terminal.ID,
+		}, err)
 	}
 	return s.fireTurnReply(ctx, w, turn, result, "")
 }
@@ -88,37 +92,20 @@ func (s *replyWatchService) replyAfterTargetStop(ctx context.Context, w store.Re
 	return s.fireTurnReply(ctx, w, turn, result, "")
 }
 
-func (s *replyWatchService) recordIntermediateReplyTurn(ctx context.Context, w store.ReplyWatch) error {
-	terminal, err := s.latestReplyTerminal(ctx, w)
-	if err != nil || terminal.Sequence == 0 {
-		return err
-	}
-	return s.store.AdvanceReplyWatchFollowUp(ctx, w.ID, terminal.Sequence)
-}
-
 func (s *replyWatchService) latestReplyTerminal(
 	ctx context.Context, w store.ReplyWatch,
 ) (store.SessionEvent, error) {
-	// Use the newest bounded ledger page; forward cursor reads would select the oldest continuation.
 	events, err := s.manager.Events(ctx, w.TargetSessionID, store.EventQuery{
-		Types: []string{acp.EventTypeDone, acp.EventTypeError, EventTypeSessionStopped},
-		Limit: 64,
+		Types:        []string{acp.EventTypeDone, acp.EventTypeError, EventTypeSessionStopped},
+		TopLevelOnly: true, ExcludeTurnID: w.TurnID, Limit: 1,
 	})
 	if err != nil {
 		return store.SessionEvent{}, err
 	}
-	for i := len(events) - 1; i >= 0; i-- {
-		event := &events[i]
-		if event.Sequence <= w.FollowUpAfter || event.TurnID == "" || event.TurnID == w.TurnID {
-			continue
-		}
-		decoded, err := transcript.UnmarshalAgentEvent(event.Content)
-		if err == nil && decoded.ParentToolCallID() != "" {
-			continue
-		}
-		return *event, nil
+	if len(events) == 0 || events[0].Sequence <= w.FollowUpAfter {
+		return store.SessionEvent{}, nil
 	}
-	return store.SessionEvent{}, nil
+	return events[0], nil
 }
 
 func (s *replyWatchService) replyContinuationWork(ctx context.Context, w store.ReplyWatch) (string, error) {

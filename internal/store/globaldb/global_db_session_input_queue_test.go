@@ -5554,6 +5554,16 @@ func TestGlobalDBReplyWatchMigration(t *testing.T) {
 				"message_id": "message-" + state, "admission_id": "admission-" + state, "turn_id": "original-turn",
 				"created_at": store.FormatTimestamp(now), "hop": 3, "state": state, "reply_text": "legacy text",
 			})
+			if state == store.ReplyWatchDelivered {
+				if _, err := prefix.ExecContext(
+					ctx,
+					"UPDATE session_prompt_reply_watches SET delivered_input_id = ? WHERE id = ?",
+					"legacy-handoff",
+					state,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if _, err := prefix.ExecContext(ctx, "UPDATE session_prompt_reply_watches SET rowid = ? WHERE id = ?",
 				10*(i+1), state); err != nil {
 				t.Fatal(err)
@@ -5587,7 +5597,12 @@ func TestGlobalDBReplyWatchMigration(t *testing.T) {
 				t.Fatalf("migrated row order for %s = %d, %v", state, rowID, err)
 			}
 			w, err := db.GetReplyWatch(ctx, state)
+			wantDeliveredInputID := ""
+			if state == store.ReplyWatchDelivered {
+				wantDeliveredInputID = "legacy-handoff"
+			}
 			if err != nil || w.State != state || w.FollowUpAfter != 0 || w.InterimWait != "" ||
+				w.DeliveredInputID != wantDeliveredInputID ||
 				w.ReplyText != "legacy text" || w.TurnID != "original-turn" || w.WakeMessageID() != "prompt-reply:"+state {
 				t.Fatalf("migrated %s = %+v, %v", state, w, err)
 			}

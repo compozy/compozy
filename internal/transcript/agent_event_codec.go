@@ -235,13 +235,19 @@ func decodeAgentEventPayload(raw []byte) (canonicalEventPayload, error) {
 	if err == nil || decoded.Schema == CanonicalSchema {
 		return decoded, err
 	}
-	// Daemon lifecycle events share the ledger but have independent payload schemas.
-	var fields map[string]json.RawMessage
-	if json.Unmarshal(raw, &fields) != nil {
+	var envelope struct {
+		Schema json.RawMessage `json:"schema"`
+	}
+	if json.Unmarshal(raw, &envelope) != nil {
 		return canonicalEventPayload{}, err
 	}
 	var schema string
-	if json.Unmarshal(fields["schema"], &schema) == nil && schema == CanonicalSchema {
+	if len(envelope.Schema) > 0 && json.Unmarshal(envelope.Schema, &schema) == nil && schema == CanonicalSchema {
+		return canonicalEventPayload{}, err
+	}
+	// Daemon lifecycle events share the ledger but have independent payload schemas.
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil {
 		return canonicalEventPayload{}, err
 	}
 	var compatible canonicalEventPayload
