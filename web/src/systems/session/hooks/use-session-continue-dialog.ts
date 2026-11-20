@@ -310,9 +310,8 @@ export function useSessionContinueDialog({
         ))
       : null;
   const isSubmitting = mutation.isPending;
-  const measured = preview.view.state === "ready" || preview.view.state === "truncated";
   // The measurement only informs Continue; when it failed or timed out the request still goes.
-  const canSubmit = !isSubmitting && (measured || preview.failed) && agent !== undefined;
+  const canSubmit = !isSubmitting && preview.settled && agent !== undefined;
 
   const selectAgent = (next: string) => {
     setChosenAgent(next);

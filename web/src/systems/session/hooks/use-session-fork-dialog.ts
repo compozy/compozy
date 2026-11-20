@@ -96,8 +96,7 @@ export function useSessionForkDialog({
     preview.preview?.cut?.turn_settled === false || refusal?.kind === "turn_unsettled";
   const fenceConflict = refusal?.kind === "fence_conflict";
   const isSubmitting = mutation.isPending;
-  const canSubmit =
-    !isSubmitting && (measured || preview.failed) && !cutUnsettled && !fenceConflict;
+  const canSubmit = !isSubmitting && preview.settled && !cutUnsettled && !fenceConflict;
   // Only the whole-session point can clone natively; the daemon already says
   // false for a cut, the dialog does not second-guess either way.
   const nativeClone = measured && preview.preview?.native_fork_possible === true;

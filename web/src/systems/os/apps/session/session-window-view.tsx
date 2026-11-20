@@ -54,34 +54,14 @@ export function SessionWindowView({
   useMarkSeenOnLeave(instance, Boolean(session) && currentSessionId === session?.id);
   const sessionWorkspaceId = session ? (session.workspace_id?.trim() ?? "") : undefined;
 
-  if (isLoading) return <SessionWindowSkeleton />;
-  // A daemon or network failure is not a missing session: say so and offer the read again.
-  if (!session && error && !isSessionUnavailable(error)) {
-    return (
-      <SessionWindowNotice
-        title="Couldn't load this session"
-        detail={error.message}
-        action={
-          onRetry ? (
-            <Button
-              data-testid="session-window-retry"
-              disabled={retrying}
-              onClick={onRetry}
-              size="sm"
-              type="button"
-              variant="secondary"
-            >
-              {retrying ? <Spinner aria-hidden="true" className="size-3" /> : null}
-              Try again
-            </Button>
-          ) : undefined
-        }
-      />
-    );
-  }
-  if (!session || sessionWorkspaceId !== workspaceId) {
-    return <SessionWindowNotice title="Couldn't find this session" detail={error?.message} />;
-  }
+  const placeholder = sessionWindowPlaceholder({
+    isLoading,
+    shown: Boolean(session) && sessionWorkspaceId === workspaceId,
+    error,
+    onRetry,
+    retrying,
+  });
+  if (placeholder || !session) return placeholder;
 
   const resolvedAgentName = session.agent_name || name;
   if (superseded && currentSessionId) {
@@ -153,6 +133,55 @@ export function SessionWindowView({
         </SessionPromptRuntimeProvider>
       </Suspense>
     </ViewTransition>
+  );
+}
+
+/**
+ * What the window shows instead of the session: the skeleton while it loads, a
+ * retryable notice when the read failed for any reason but not-found, and
+ * "Couldn't find this session" only for a session that is not there (or not in
+ * this workspace). `null` once the session can be shown.
+ */
+function sessionWindowPlaceholder({
+  isLoading,
+  shown,
+  error,
+  onRetry,
+  retrying,
+}: {
+  isLoading: boolean;
+  shown: boolean;
+  error: Error | null;
+  onRetry?: () => void;
+  retrying: boolean;
+}): React.ReactNode {
+  if (isLoading) return <SessionWindowSkeleton />;
+  if (shown) return null;
+  if (error && !isSessionUnavailable(error)) {
+    return (
+      <SessionWindowNotice
+        title="Couldn't load this session"
+        detail={error.message}
+        action={onRetry ? <SessionWindowRetry onRetry={onRetry} retrying={retrying} /> : undefined}
+      />
+    );
+  }
+  return <SessionWindowNotice title="Couldn't find this session" detail={error?.message} />;
+}
+
+function SessionWindowRetry({ onRetry, retrying }: { onRetry: () => void; retrying: boolean }) {
+  return (
+    <Button
+      data-testid="session-window-retry"
+      disabled={retrying}
+      onClick={onRetry}
+      size="sm"
+      type="button"
+      variant="secondary"
+    >
+      {retrying ? <Spinner aria-hidden="true" className="size-3" /> : null}
+      Try again
+    </Button>
   );
 }
 

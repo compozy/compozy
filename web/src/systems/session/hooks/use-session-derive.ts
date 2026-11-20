@@ -83,7 +83,8 @@ export interface UseSessionDerivePreviewOptions {
  * while the next open remeasures, and it would show an old size and hand Fork
  * obsolete fences; until this open's own answer arrives the line reads measuring.
  * A failed or timed-out measurement offers `retry`, which reads measuring again
- * while it runs; `failed` tells the dialog it may submit without the measurement.
+ * while it runs. `settled` is true once the line is measured or failed: the dialog
+ * may submit then, without the measurement when it failed.
  */
 export function useSessionDerivePreview(
   workspaceId: string,
@@ -99,7 +100,7 @@ export function useSessionDerivePreview(
   return {
     preview,
     view,
-    failed: view.state === "error",
+    settled: view.state !== "measuring",
     retry: () => {
       void query.refetch();
     },
