@@ -243,6 +243,9 @@ func runProviderAuthLoginCommand(
 		return err
 	}
 	applyProviderAuthLoginResult(&record, target.Provider, loginResult)
+	if loginResult.ExitCode == 0 {
+		probeLocalDaemonAfterLogin(cmd.Context(), deps, runtime, &target)
+	}
 	return writeCommandOutput(cmd, providerAuthStatusBundle(record))
 }
 
@@ -295,6 +298,7 @@ func runACPProviderLogin(
 	if err != nil {
 		return err
 	}
+	probeLocalDaemonAfterLogin(cmd.Context(), deps, runtime, target)
 	return writeCommandOutput(cmd, providerAuthStatusBundle(record))
 }
 

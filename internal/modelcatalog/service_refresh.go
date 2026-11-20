@@ -229,7 +229,13 @@ func (s *CatalogService) refreshSource(
 	if err != nil {
 		return nil, refreshOutcomeEmpty, err
 	}
-	if !opts.Force {
+	if !opts.RetryFailedBefore.IsZero() {
+		// Recheck inside the refresh flight, after any pre-login refresh publishes its result.
+		due, err := s.failedSourceRetryDue(ctx, source.ID(), opts.ProviderID, executionContext, opts.RetryFailedBefore)
+		if err != nil || !due {
+			return nil, refreshOutcomeEmpty, err
+		}
+	} else if !opts.Force {
 		if statuses, fresh := freshSourceStatuses(ctx, s.store, source, opts.ProviderID, executionContext, now); fresh {
 			return statuses, refreshOutcomeSuccess, nil
 		}
@@ -386,12 +392,13 @@ func refreshFlightScopeKey(providerKey string, opts RefreshOptions) string {
 	}
 	slices.Sort(contextParts)
 	return fmt.Sprintf(
-		"%s\x00%s\x00%s\x00%s\x00%t\x00%s",
+		"%s\x00%s\x00%s\x00%s\x00%t\x00%s\x00%s",
 		providerKey,
 		strings.TrimSpace(opts.SourceID),
 		executionContextScopeKey(opts.ExecutionContext),
 		strings.TrimSpace(opts.ExecutionContext.CommandFingerprint),
 		opts.Force,
+		opts.RetryFailedBefore.Format(time.RFC3339Nano),
 		strings.Join(contextParts, "\x1e"),
 	)
 }

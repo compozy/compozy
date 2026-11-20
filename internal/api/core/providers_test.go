@@ -25,21 +25,30 @@ import (
 func TestProviderAuthHandlers(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should signal same profile provider recovery after a successful auth probe", func(t *testing.T) {
+	t.Run("Should signal same profile session and catalog recovery after a successful auth probe", func(t *testing.T) {
 		t.Parallel()
 		cfg := providerAuthTestConfig(t)
-		var signaled bool
+		var sessionRecovered, catalogRetried bool
 		sessions := &providerAuthRecoverySessions{ready: func(profile, provider, fingerprint string) bool {
-			signaled = true
+			sessionRecovered = true
 			if profile != store.DefaultProfileID || provider != "native" ||
 				fingerprint != authproviders.AuthenticationRouteFingerprint("native", cfg.Providers["native"]) {
 				t.Errorf("unexpected recovery route: %s %s %s", profile, provider, fingerprint)
 			}
 			return true
 		}}
+		now := time.Date(2026, time.November, 20, 12, 0, 0, 0, time.UTC)
+		catalog := &providerAuthRecoveryCatalog{retry: func(profileID, providerID string, before time.Time) {
+			catalogRetried = true
+			if profileID != store.DefaultProfileID || providerID != "native" || !before.Equal(now) {
+				t.Errorf("unexpected catalog recovery scope: %s %s %s", profileID, providerID, before)
+			}
+		}}
 		handlers := NewBaseHandlers(&BaseHandlerConfig{
 			Config:                      cfg,
 			Sessions:                    sessions,
+			ModelCatalog:                catalog,
+			Now:                         func() time.Time { return now },
 			ProviderAuthCommandResolver: func(context.Context, string, []string, string) (string, error) { return "/test/bin/provider-cli", nil },
 			ProviderAuthRunner: func(context.Context, authproviders.ProviderAuthCommandSpec) (authproviders.ProviderAuthCommandResult, error) {
 				return authproviders.ProviderAuthCommandResult{Stdout: "logged in"}, nil
@@ -52,8 +61,11 @@ func TestProviderAuthHandlers(t *testing.T) {
 			response,
 			httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/providers/native/auth/probe", http.NoBody),
 		)
-		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "authenticated") || !signaled {
-			t.Fatalf("probe = %d %s signaled=%t", response.Code, response.Body.String(), signaled)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "authenticated") {
+			t.Fatalf("probe = %d %s, want authenticated", response.Code, response.Body.String())
+		}
+		if !sessionRecovered || !catalogRetried {
+			t.Fatalf("session recovery = %t, catalog retry = %t, want both", sessionRecovered, catalogRetried)
 		}
 	})
 
@@ -941,6 +953,15 @@ func serveProviderJSON(t *testing.T, router http.Handler, path string, out any) 
 	if err := json.Unmarshal(response.Body.Bytes(), out); err != nil {
 		t.Fatalf("decode %s: %v; body=%s", path, err, response.Body.String())
 	}
+}
+
+type providerAuthRecoveryCatalog struct {
+	ModelCatalogService
+	retry func(string, string, time.Time)
+}
+
+func (s *providerAuthRecoveryCatalog) RetryProviderLiveFailures(profileID, providerID string, before time.Time) {
+	s.retry(profileID, providerID, before)
 }
 
 type providerAuthRecoverySessions struct {

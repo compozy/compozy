@@ -152,15 +152,16 @@ not treat the descriptor as a command you can copy or execute.
 
 The `agy` built-in needs no `[providers.agy]` block. Install the official `agy_acp_server`
 executable for your OS on `PATH` (the interactive `agy` CLI is a different binary and is not
-substituted), then sign in explicitly and verify readiness:
+substituted), then sign in explicitly:
 
 ```bash
 compozy provider auth login agy --timeout 5m -o json
-compozy provider auth status agy --remote -o json
+compozy provider list -o json
 ```
 
 Login runs the exact advertised `oauth-personal` agent method and verifies readiness with a
-promptless session; the remote probe never sends `authenticate` and never launches a browser.
+promptless session. The running local daemon then performs its own promptless check for Settings and
+the model picker. The remote status command never sends `authenticate` or launches a browser.
 There is no automatic login on failure: a logged-out probe reports `needs_login`, a missing
 server reports `missing_cli` with an `install_cli` recommendation naming only the executable
 basename, and sessions keep the server-default model. Operator-home login state is shared across
@@ -194,9 +195,9 @@ Copilot CLI releases. CompozyOS was verified against Copilot CLI 1.0.105.
    compozy provider auth login copilot -o json
    ```
 
-   This runs `copilot login` for you. Running `copilot login` yourself works the same way. Copilot
-   also accepts an existing GitHub CLI (`gh`) login. Your Copilot plan, or your organization's
-   policy, must allow Copilot CLI.
+   This runs `copilot login` and asks the running local daemon to check readiness through ACP.
+   Copilot also accepts an existing GitHub CLI (`gh`) login. Your Copilot plan, or your
+   organization's policy, must allow Copilot CLI.
 
 3. Start a session with `--provider copilot`, or pick **GitHub Copilot CLI** in the session
    provider picker.
@@ -447,14 +448,18 @@ safe login descriptor. Use `--no-tty` for deterministic non-interactive runs and
 scripts need a bounded login attempt; these are its only flags. When a provider uses
 `home_policy = "isolated"`, CompozyOS runs the native login with its provider home so credentials land
 where CompozyOS will use them, without displaying the environment prefix or resolved command. HTTP and UDS
-never execute login commands; they only run non-interactive `auth_status_command` probes. Wrapped API-key
+run non-interactive auth probes only. Wrapped API-key
 providers use their configured `credential_slots` instead of Pi login. Custom providers should set
 `auth_mode` to match the runtime's real authentication contract.
 
-After login, run `compozy provider auth status <provider> --remote`. This calls the live authentication
-probe (`POST /api/providers/:provider_id/auth/probe` over HTTP/UDS). An `authenticated` result clears cached startup checks, so you can retry session
-creation immediately without waiting for the 30-second cache expiry. The next startup checks the
-credentials for its own workspace and profile.
+For providers with an auth status command or a configured ACP readiness check, CLI login also asks
+the running local daemon to check sign-in. The CLI still reports its local result if the daemon is
+unavailable. A successful daemon check clears cached startup failures, allows waiting sessions to
+recover, and retries earlier live model discovery failures in the checked profile. The next session
+startup checks the credentials for its own workspace and profile.
+
+If you sign in directly through the provider, run `compozy provider auth status <provider> --remote`
+to refresh the daemon's verdict. This runs the same non-interactive check over HTTP or UDS.
 
 The daemon keeps the last live sign-in result for each `native_cli` provider, whether it came from that
 probe, from **Check sign-in** in Settings → Providers, or from the check that runs before every session
