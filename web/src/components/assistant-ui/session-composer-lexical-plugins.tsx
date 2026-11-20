@@ -23,11 +23,7 @@ import {
 import { useSelector } from "@xstate/store-react";
 import { useEffect, useEffectEvent } from "react";
 
-import {
-  cancelSessionComposerFocus,
-  claimSessionComposerFocus,
-  sessionComposerFocusStore,
-} from "@/systems/session";
+import { claimSessionComposerFocus, sessionComposerFocusStore } from "@/systems/session";
 
 import { readCursorSnapshot, type EditorCursorSnapshot } from "./session-composer-cursor-snapshot";
 import { detectMentionTrigger, type SessionMentionTrigger } from "./session-mention-model";
@@ -365,8 +361,8 @@ function isClipboardEvent(event: unknown): event is ClipboardEvent {
 /**
  * The one place the caret moves into a session's composer after an explicit session activation
  * (#1868): it claims the request the activation recorded once the composer can take focus,
- * retrying each frame while the window settles, until the request lands or lapses. A pointer
- * press meanwhile is the operator placing focus, which ends it.
+ * retrying each frame while the window settles, until the request lands, lapses or a pointer
+ * press ends it.
  */
 export function SessionComposerFocusClaimPlugin({
   sessionId,
@@ -387,11 +383,8 @@ export function SessionComposerFocusClaimPlugin({
       if (claimSessionComposerFocus(sessionId, editor.getRootElement())) return;
       frame = requestAnimationFrame(attempt);
     };
-    const cancel = () => cancelSessionComposerFocus(key);
-    document.addEventListener("pointerdown", cancel, true);
     attempt();
     return () => {
-      document.removeEventListener("pointerdown", cancel, true);
       if (frame !== 0) cancelAnimationFrame(frame);
     };
   }, [editor, enabled, key, sessionId]);

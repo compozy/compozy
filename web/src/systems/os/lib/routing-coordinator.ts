@@ -385,7 +385,10 @@ export class RoutingCoordinator {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win) return false;
-    requestActivatedComposer(target.app, target.instanceKey);
+    // Another session, or another page of it; a search-only change (the board drawer) is not.
+    if (win.instanceKey !== target.instanceKey || win.route.pathname !== target.route.pathname) {
+      requestActivatedComposer(target.app, target.instanceKey);
+    }
     const retargetToken = ++this.nextUserRetargetToken;
     const existing = mruWindowInstance(state.windows, state.client?.focusOrder ?? [], {
       app: target.app,

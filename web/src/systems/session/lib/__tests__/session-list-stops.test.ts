@@ -6,7 +6,7 @@
 // way a click lands, keeping focus that sits outside the rail where it is,
 // and only takes focus while a bulk selection is open. The walk is a passive
 // activation: a row it lands never moves the caret into the composer (#1868),
-// while a real click on the same row still asks for it.
+// and it ends a request still waiting, while a real click on the same row asks.
 // Owning layer: unit (systems/session/lib)
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -178,6 +178,8 @@ describe("walkSessionList", () => {
       }
     });
     const request = () => sessionComposerFocusStore.getSnapshot().context.request;
+    // An earlier activation still waiting ends too: walking back to it never lands it later.
+    requestSessionComposerFocus("s2");
 
     expect(walkSessionList(rail, "next", "s1")).toBe(true);
     expect(request()).toBeNull();

@@ -2456,7 +2456,7 @@ describe("RoutingCoordinator composer focus requests", () => {
     expect(requested()).toBeUndefined();
   });
 
-  it("Should ask nothing for a passive walk through the sessions", async () => {
+  it("Should ask nothing for a passive walk or a search-only retarget", async () => {
     const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
     const { coordinator } = createCoordinator([current]);
     coordinator.completeHydration();
@@ -2469,6 +2469,14 @@ describe("RoutingCoordinator composer focus requests", () => {
         route: route("/agents/coder/sessions/sess-b"),
       })
     );
+    expect(requested()).toBeUndefined();
+
+    // Toggling the board drawer changes only the search: not an activation either.
+    await coordinator.userRetarget(current.id, {
+      app: "session",
+      instanceKey: "sess-b",
+      route: route("/agents/coder/sessions/sess-b", { drawer: "open" }),
+    });
     expect(requested()).toBeUndefined();
   });
 });

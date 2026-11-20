@@ -7258,6 +7258,17 @@ describe("SessionThread composer activation focus", () => {
     expect(editable).not.toHaveFocus();
   });
 
+  it("drops the activation when a pointer press places focus before the composer renders", async () => {
+    requestSessionComposerFocus(primarySessionFixture.id);
+    fireEvent.pointerDown(document.body);
+    expect(sessionComposerFocusStore.getSnapshot().context.request).toBeNull();
+
+    renderComposer({ isSessionRunning: false });
+    const editable = await findComposerEditable();
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+    expect(editable).not.toHaveFocus();
+  });
+
   it("waits while a dialog holds focus and lands once it closes", async () => {
     renderComposer({ isSessionRunning: false });
     const editable = await findComposerEditable();

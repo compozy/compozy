@@ -29,10 +29,35 @@ export const sessionComposerFocusStore = createStore({
 });
 
 let passiveDepth = 0;
+/** Removes the pointer watch of the request in flight, if any. */
+let releasePointerWatch: (() => void) | null = null;
 
-/** A pointer press after the activation is the operator placing focus: the request lapses. */
-export function cancelSessionComposerFocus(key: number): void {
+/** Ends the request `key` (landed, lapsed, cancelled); a newer request is left alone. */
+function settleRequest(key: number): void {
+  if (sessionComposerFocusStore.getSnapshot().context.request?.key !== key) return;
+  releasePointerWatch?.();
   sessionComposerFocusStore.trigger.settled({ key });
+}
+
+/** Ends whatever request is in flight. */
+function settleCurrentRequest(): void {
+  const request = sessionComposerFocusStore.getSnapshot().context.request;
+  if (request !== null) settleRequest(request.key);
+}
+
+/**
+ * A pointer press after the activation is the operator placing focus: the request ends, whether
+ * or not its composer has rendered yet. The press that caused the activation came before it.
+ */
+function watchPointer(key: number): void {
+  releasePointerWatch?.();
+  if (typeof document === "undefined") return;
+  const cancel = () => settleRequest(key);
+  document.addEventListener("pointerdown", cancel, true);
+  releasePointerWatch = () => {
+    document.removeEventListener("pointerdown", cancel, true);
+    releasePointerWatch = null;
+  };
 }
 
 /** Records an explicit activation of `sessionId`; a no-op inside `withoutSessionComposerFocus`. */
@@ -43,14 +68,18 @@ export function requestSessionComposerFocus(sessionId: string, now = Date.now())
     sessionId: id,
     until: now + SESSION_COMPOSER_FOCUS_LIMIT_MS,
   });
+  const request = sessionComposerFocusStore.getSnapshot().context.request;
+  if (request !== null) watchPointer(request.key);
 }
 
 /**
  * Runs a passive activation: the session list's keyboard walk (#1832) and the board drawer's
  * step activate sessions the way a click does, but the keyboard stays where the walk keeps it.
- * Covers the synchronous part of `run`, which is where the activation path records requests.
+ * Covers the synchronous part of `run`, which is where the activation path records requests. A
+ * request still in flight ends too, so walking back to its session never lands it later.
  */
 export function withoutSessionComposerFocus<T>(run: () => T): T {
+  settleCurrentRequest();
   passiveDepth += 1;
   try {
     return run();
@@ -106,7 +135,7 @@ export function claimSessionComposerFocus(
   const request = sessionComposerFocusStore.getSnapshot().context.request;
   if (request === null || request.sessionId !== sessionId) return true;
   const settle = () => {
-    sessionComposerFocusStore.trigger.settled({ key: request.key });
+    settleRequest(request.key);
     return true;
   };
   if (now > request.until) return settle();
