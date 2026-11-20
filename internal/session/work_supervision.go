@@ -114,7 +114,7 @@ func updateSupervisionQuietStateLocked(
 	unknown := supervisionSourceUnknown(state)
 	switch {
 	case !turnInFlight || slices.ContainsFunc(state.WorkSignals, func(signal WorkSignal) bool {
-		return signal.Kind != WorkSignalHeldInput
+		return signal.Kind != WorkSignalHeldInput && signal.Kind != WorkSignalAgentProgress
 	}) || (policy.WarningAfter == 0 && policy.StopAfterQuiet == 0):
 		target.supervisionQuietSince = time.Time{}
 		state.QuietWarning = nil
@@ -125,6 +125,10 @@ func updateSupervisionQuietStateLocked(
 	default:
 		if target.supervisionQuietSince.IsZero() {
 			target.supervisionQuietSince = now
+		}
+		// Agent progress is a timestamped sample. Its freshness must not add time to the quiet window.
+		if target.supervisionProgressAt.After(target.supervisionQuietSince) {
+			target.supervisionQuietSince = target.supervisionProgressAt
 		}
 		if policy.WarningAfter > 0 && state.QuietWarning == nil &&
 			now.Sub(target.supervisionQuietSince) >= policy.WarningAfter {

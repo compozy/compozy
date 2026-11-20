@@ -45,7 +45,6 @@ func (m *Manager) recordWorkProgress(target *Session, at time.Time) {
 		return
 	}
 	target.supervisionProgressAt = at
-	target.supervisionQuietSince = time.Time{}
 	target.supervisionStopAt = time.Time{}
 	cleared := target.supervisionState != nil && target.supervisionState.QuietWarning != nil
 	if cleared {

@@ -28,6 +28,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -160,6 +161,68 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 	if *meta.StopReason != store.StopUserCanceled {
 		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopUserCanceled)
 	}
+}
+
+// Invariant: a failed ACP tool update followed by silence reaches a verified
+// inactivity stop. Owner: session lifecycle; canonical ACP stop integration suite.
+func TestManagerIntegrationSupervisionAfterFailedACPTool(t *testing.T) {
+	t.Run("Should warn and verify inactivity stop for a silent ACP prompt after a failed tool", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, err := filepath.Abs(
+			filepath.Join("..", "testutil", "acpmock", "testdata", "driver_fault_fixture.json"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		command := acpmock.BuildCommand(acpmock.RequireDriver(t), fixture, "faulty", "")
+		cfg := compozyconfig.DefaultSessionSupervisionConfig()
+		startedAt := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+		var elapsed atomic.Int64
+		now := func() time.Time { return startedAt.Add(time.Duration(elapsed.Load())) }
+		h := newRealACPIntegrationHarness(t, command, WithNow(now), WithSessionSupervision(cfg))
+		cleanupTestManager(t, h.manager)
+		target := createSession(t, h)
+		ctx := testutil.Context(t)
+		stream, err := h.manager.Prompt(ctx, target.ID, "fail a tool and wait")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		failure := waitForPromptEvent(t, stream, acp.EventTypeToolResult)
+		if failure.ToolStatus() != "failed" || !target.IsPrompting() {
+			t.Fatalf("tool status = %q, prompting = %t, want failed tool and pending prompt",
+				failure.ToolStatus(), target.IsPrompting())
+		}
+		for _, offset := range []time.Duration{0, cfg.QuietAfter} {
+			elapsed.Store(int64(offset))
+			if err := h.manager.Supervise(ctx, now()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		warning := target.Info().Supervision.QuietWarning
+		wantStopAt := startedAt.Add(cfg.QuietAfter + cfg.StopGrace)
+		if warning == nil || warning.StopAt == nil || !warning.StopAt.Equal(wantStopAt) || !target.IsPrompting() {
+			t.Fatalf("quiet warning = %+v, prompting = %t, want warning with stop at %v and pending prompt",
+				warning, target.IsPrompting(), wantStopAt)
+		}
+		assertSupervisionEventCorrelation(t, h.manager, target, eventspkg.SessionSupervisionWarning)
+
+		elapsed.Store(int64(cfg.QuietAfter + cfg.StopGrace))
+		if err := h.manager.Supervise(ctx, now()); err != nil {
+			t.Fatal(err)
+		}
+		outcome, err := h.manager.AwaitStopped(ctx, target.ID)
+		if err != nil || !outcome.Verified || outcome.Cause != CauseInactivity {
+			t.Fatalf("stop = %+v, %v, want verified inactivity stop", outcome, err)
+		}
+		meta := readMeta(t, target.MetaPath())
+		if meta.State != string(StateStopped) || meta.StopReason == nil ||
+			*meta.StopReason != store.StopTimeout || meta.StopDetail != "inactivity" {
+			t.Fatalf("session state = %s, stop reason = %v, detail = %q, want stopped for inactivity",
+				meta.State, meta.StopReason, meta.StopDetail)
+		}
+		assertSupervisionEventCorrelation(t, h.manager, target, eventspkg.SessionSupervisionStopped)
+	})
 }
 
 // TestManagerIntegrationPermissionLifetime verifies settlement after a closed prompt or verified runtime exit.

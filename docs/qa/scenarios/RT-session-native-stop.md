@@ -233,14 +233,19 @@ process retain their existing result.
 Supervision branch (introduced by sessions-stability task_05 on 2026-09-06; narrowed to in-flight
 turns by #782 on 2026-10-17): configure short `quiet_after`/`stop_grace` intervals in the isolated
 lab. Hold a turn in flight that stops producing work (for example a provider that hangs inside a
-prompt). Exercise fresh progress, verified tool, active child, recent Loop reconciliation, task
-lease, and scheduled wait independently; each must suppress the warning. Provider waiting and an
-open subscriber must not. Observe one quiet warning: no window banner, and the working status line
+prompt). Exercise a verified tool, active child, recent Loop reconciliation, task lease, and
+scheduled wait independently. Each must suspend the watchdog while its work evidence is current.
+Provider waiting and an open subscriber leave the quiet window running. Observe one quiet warning:
+no window banner, and the working status line
 under the transcript reads `Working for … · quiet for …`, also for a turn that hangs before its
 first token (it must not stay on `Thinking`); CLI/HTTP/UDS/resource/native describe
 fields match. Then observe the verified inactivity stop (`session.supervision_stopped`,
 `stop_reason: "timeout"`, `stop_detail: "inactivity"`). Resume real work during grace and confirm
 warning cancellation; end the turn during grace and confirm the warning clears and no stop follows.
+Repeat with an ACP fixture that emits a failed tool update and then leaves `session/prompt` open.
+Confirm the warning reaches the operator after `quiet_after` of observed silence and the verified
+stop follows after `stop_grace`. Send genuine provider updates more frequently than `quiet_after`
+and confirm each restarts the quiet window, even past the original stop time.
 A turn blocked on a pending permission or clarify request must not accrue silence. Let a session
 finish its turn and sit idle past `quiet_after + stop_grace`: no quiet warning, no stop, the badge
 stays `idle`. Check zero quiet, zero grace, source-error unknown/attention, stale-source attention,
