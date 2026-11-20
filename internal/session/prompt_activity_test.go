@@ -118,6 +118,47 @@ func TestPromptActivitySupervisorWaitingHeartbeatDoesNotPreventTimeout(t *testin
 	})
 }
 
+// Invariant: provider updates renew the quiet window without adding a second
+// freshness window. Owner: session supervision; canonical prompt activity suite.
+func TestSupervisionTracksQuietFromLatestProviderActivity(t *testing.T) {
+	t.Run("Should renew the quiet window for every provider update", func(t *testing.T) {
+		t.Parallel()
+
+		startedAt := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+		var elapsed atomic.Int64
+		now := func() time.Time { return startedAt.Add(time.Duration(elapsed.Load())) }
+		cfg := testSupervisionConfig()
+		cfg.QuietAfter, cfg.StopGrace = 3*time.Minute, time.Minute
+		h := newHarness(t, WithNow(now), WithSessionSupervision(cfg))
+		target := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		markTurnInFlight(target)
+		activity := newPromptActivitySupervisor(t.Context(), h.manager, target,
+			newPromptTurnDispatchState(target, target.CurrentTurnID(), TurnSourceUser, "hello"), cfg)
+
+		for range 4 {
+			activity.observeEvent(acp.AgentEvent{Type: acp.EventTypeThought, Timestamp: now(), Text: "working"})
+			elapsed.Add(int64(2 * time.Minute))
+			if err := h.manager.Supervise(t.Context(), now()); err != nil {
+				t.Fatal(err)
+			}
+			if info := target.Info(); info.State != StateActive || info.Supervision.QuietWarning != nil {
+				t.Fatalf("turn with ongoing provider activity: state = %s, warning = %+v",
+					info.State, info.Supervision.QuietWarning)
+			}
+		}
+
+		elapsed.Add(int64(time.Minute))
+		if err := h.manager.Supervise(t.Context(), now()); err != nil {
+			t.Fatal(err)
+		}
+		warning := target.Info().Supervision.QuietWarning
+		if warning == nil || !warning.QuietSince.Equal(now().Add(-cfg.QuietAfter)) {
+			t.Fatalf("quiet warning = %+v, want warning based on the last provider update", warning)
+		}
+	})
+}
+
 func TestPromptActivitySupervisorProgressIsPersistedThroughPromptPump(t *testing.T) {
 	h := newHarness(t,
 		WithSessionSupervision(compozyconfig.SessionSupervisionConfig{

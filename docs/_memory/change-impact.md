@@ -6959,3 +6959,19 @@ Owner: [#1885](https://github.com/compozy/compozy/issues/1885).
   the child's search, outline, or totals. The runtime skill and session lifecycle docs define the
   read and retry behavior. `RT-session-derive-retry` and `RT-session-derive-native-fork` cover the
   changed daemon expectations.
+
+## Quiet supervision after ACP tool failure
+
+Owner: [#1887](https://github.com/compozy/compozy/issues/1887).
+
+- **Runtime and public surfaces.** Each provider update renews the existing quiet window.
+  The recent-progress signal remains available to CLI, HTTP, UDS and native tools.
+  The watchdog measures observed silence without adding the signal's freshness interval.
+  A failed ACP tool result followed by silence reaches the existing warning and verified
+  inactivity stop. The tool result remains turn activity and the provider can recover during
+  the configured grace.
+- **Configuration, extensibility and isolation.** Existing thresholds, event payloads, stop
+  hooks and workspace scoping apply. There are no new config keys or storage changes.
+- **Web, docs and QA.** The existing working status shows the quiet warning and the stop
+  lifecycle carries the inactivity detail. The official runtime guidance and
+  `RT-session-native-stop` describe the silence window and the failed-tool case.

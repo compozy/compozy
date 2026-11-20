@@ -1727,7 +1727,8 @@ process, and old events can omit this additive object. No retry-after seconds ar
 ## Silence supervision and scheduling pressure
 
 Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning` on the
-session resource/status or `compozy__session_describe` with `result_view: "full"`. Fresh agent progress, verified tools,
+session resource/status or `compozy__session_describe` with `result_view: "full"`. Provider updates
+restart the quiet window. Verified tools,
 active children, reconciled Loop runs, future task leases, future scheduled waits, active/delivering
 monitors until their deadline, and awaited
 replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
@@ -1741,7 +1742,9 @@ for inactivity of a hung turn, timeout, shutdown, or crash. An operator-stopped 
 do not renew evidence. Source errors report unknown + attention and suspend automatic silence stops.
 
 `quiet_after`/`stop_grace` are a hung-turn watchdog: silence accrues only while a turn is in flight
-and waiting on the agent. A session with no turn in flight (agent finished, waiting for the operator)
+and waiting on the agent. It is measured from the last provider update or the first observation
+of the quiet episode, whichever comes later. A failed tool update counts as provider activity.
+A session with no turn in flight (agent finished, waiting for the operator)
 never gets a quiet warning and is never stopped for inactivity; a turn blocked on a pending
 permission or clarify request does not accrue silence either. Do not stop, recreate, or "keep alive"
 an idle session to avoid an inactivity stop. With no work in a turn in flight,

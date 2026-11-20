@@ -241,6 +241,10 @@ first token (it must not stay on `Thinking`); CLI/HTTP/UDS/resource/native descr
 fields match. Then observe the verified inactivity stop (`session.supervision_stopped`,
 `stop_reason: "timeout"`, `stop_detail: "inactivity"`). Resume real work during grace and confirm
 warning cancellation; end the turn during grace and confirm the warning clears and no stop follows.
+Repeat with an ACP fixture that emits a failed tool update and then leaves `session/prompt` open.
+Confirm the warning reaches the operator after `quiet_after` of observed silence and the verified
+stop follows after `stop_grace`. Send genuine provider updates more frequently than `quiet_after`
+and confirm each restarts the quiet window, even past the original stop time.
 A turn blocked on a pending permission or clarify request must not accrue silence. Let a session
 finish its turn and sit idle past `quiet_after + stop_grace`: no quiet warning, no stop, the badge
 stays `idle`. Check zero quiet, zero grace, source-error unknown/attention, stale-source attention,

@@ -125,6 +125,29 @@
                     ]
                 },
                 {
+                    "name": "failed-tool-then-no-prompt-response",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "fail a tool and wait"
+                    },
+                    "steps": [
+                        {
+                            "kind": "tool_call",
+                            "tool_call_id": "failed-read",
+                            "title": "Read file",
+                            "tool_kind": "read",
+                            "status": "failed",
+                            "content_text": "The model provider reported a transient error."
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "block_until_cancel"
+                            }
+                        }
+                    ]
+                },
+                {
                     "name": "hold-ignoring-cancel",
                     "match": {
                         "turn_source": "user",

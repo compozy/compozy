@@ -454,8 +454,8 @@ affect a newer turn.
 
 ### Runtime activity supervision
 
-Supervision inspects every live session. Any fresh work signal
-keeps the session alive: agent progress, a verified running tool, an active child, a recently
+Supervision inspects every live session. Provider updates restart the quiet window.
+Fresh evidence of ongoing work keeps the session alive: a verified running tool, an active child, a recently
 reconciled Loop run, a held task lease, a scheduled wait with a future deadline, or a reply the
 session is awaiting (`awaiting_reply`). A session that sent `compozy__session_prompt` with
 `notify_on_complete: true` stays alive while the session it asked is live, and while the reply
@@ -476,6 +476,11 @@ waiting on the agent. A session with no turn in flight (the agent finished and i
 never gets a quiet warning and is never stopped for inactivity. A turn blocked on a pending
 permission or clarify request does not accrue silence either. When a turn ends, any quiet warning
 clears.
+
+The `agent_progress` signal reports recent provider activity. During a quiet episode, silence is
+measured from the last provider update or the first observation of the episode, whichever comes later.
+A failed tool update also counts as provider activity. If the provider leaves the prompt open and
+falls silent after a failed tool, the watchdog uses the same warning and stop thresholds.
 
 After `session.supervision.quiet_after` of observed silence in a turn (default `30m`), CompozyOS
 records one `session.supervision_warning` and the open session shows it on the working status line
