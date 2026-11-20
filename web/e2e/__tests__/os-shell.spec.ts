@@ -688,7 +688,17 @@ test("Herdr E2E-016: ⌘E lands on a session while the shared chords keep their 
   await palette.getByTestId(`os-palette-session-view-${target.id}`).click();
   await expect(sessionWindow(appPage, target.id)).toBeVisible();
 
-  // ⌘B toggles the sessions sidebar.
+  // Activating the session from the palette puts the caret in its composer (#1876), where ⌘B is
+  // the composer's Bold by design (`meta+KeyB` is shadowed there). Leave the editable so the
+  // shell chord is the one under test.
+  const composer = sessionWindow(appPage, target.id).getByRole("textbox", {
+    name: "Session prompt",
+  });
+  await expect(composer).toBeFocused();
+  await composer.blur();
+  await expect(composer).not.toBeFocused();
+
+  // ⌘B toggles the sessions sidebar outside editables.
   const sidebar = appPage.getByTestId("session-sidebar");
   await expect(sidebar).toBeVisible();
   const sidebarVisible = await sidebar.isVisible();
@@ -702,9 +712,6 @@ test("Herdr E2E-016: ⌘E lands on a session while the shared chords keep their 
   await appPage.keyboard.press("Escape");
   await expect(cheatsheet).toHaveCount(0);
 
-  const composer = sessionWindow(appPage, target.id).getByRole("textbox", {
-    name: "Session prompt",
-  });
   await composer.focus();
   await appPage.keyboard.press("?");
   await expect(composer).toHaveText("?");
