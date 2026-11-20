@@ -1304,6 +1304,36 @@
     "single_result_reason": "minimal"
   },
   {
+    "tool_id": "compozy__extensions_removed_list",
+    "native_name": "extensions_removed_list",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
+    "output_schema_digest": "9f0cf529b0c3949d44f2392b55053adf3b9d2a93a29c9e6d9aee70d5ece4f484",
+    "result_contract": "single",
+    "single_result_reason": "caller_bounded"
+  },
+  {
+    "tool_id": "compozy__extensions_restore",
+    "native_name": "extensions_restore",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "b7df1ed73ca66e8c74c38481b326b25948680fe1baf77b52ae5916e2d15df688",
+    "output_schema_digest": "3913f3e4f540b2d17dc51711e7cce276d45c7d7a93b04edde2be564ef4759feb",
+    "result_contract": "single",
+    "single_result_reason": "minimal"
+  },
+  {
     "tool_id": "compozy__extensions_search",
     "native_name": "extensions_search",
     "toolsets": [

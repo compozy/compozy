@@ -407,6 +407,22 @@ func (c *Client) RespondLoopRequest(ctx context.Context, params RespondLoopReque
 	return &out, nil
 }
 
+// RestoreExtensionParams carries the path, query, and header parameters.
+type RestoreExtensionParams struct {
+	Name string `url:"name"`
+}
+
+// RestoreExtension Restore one permanently removed built-in extension
+func (c *Client) RestoreExtension(ctx context.Context, params RestoreExtensionParams) (*ExtensionRestorePayload, error) {
+	path := "/api/extensions/{name}/restore"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out ExtensionRestorePayload
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ResumeAgentInstanceParams carries the path, query, and header parameters.
 type ResumeAgentInstanceParams struct {
 	ID      string  `url:"id"`
@@ -429,12 +445,4 @@ func (c *Client) ResumeAgentInstance(ctx context.Context, params ResumeAgentInst
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ResumeLoopNodeParams carries the path, query, and header parameters.
-type ResumeLoopNodeParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	NodeID      string  `url:"node_id"`
-	Profile     *string `url:"profile"`
 }

@@ -44,6 +44,58 @@
   reference, sessions guide, generated CLI docs, release note, and ET-web-session-list-pinned
   describe the new rule.
 
+## Built-in extension permanent removal and restore — 2026-11-18
+
+- **Native tools.** `compozy__extensions_restore` (mutating, `{"name"}`, write authority; result is the
+  `extension restore -o json` payload) and `compozy__extensions_removed_list` (read-only, `{}`; result is
+  the `extension removed -o json` payload) are registered with policy and result views. No tool removes
+  a built-in permanently: `compozy__extensions_remove` gains no `permanent` input, and permanent removal
+  requires operator scope, so agent sessions are denied.
+- **Extensibility, hooks and config.** Public surfaces are additive: `extension remove --permanent`,
+  `extension restore` and `extension removed`; `DELETE /api/extensions/{name}?permanent=true`,
+  `POST /api/extensions/{name}/restore` and `GET /api/extensions/removed-builtins` over HTTP and UDS; the
+  remove response gains `permanent` and `tombstoned_at`. Built-in manifests, hooks, extension SDK contracts
+  and extension APIs are unchanged. Generated OpenAPI and TypeScript types co-ship through codegen. No
+  config key is added, removed or changed: the tombstone is registry state.
+- **State and isolation.** New table `extension_builtin_tombstones` (migration `00209`, additive, keyed by
+  name, no foreign key to `extensions`). It is global to the daemon home, as bundled rows are global, not
+  per profile or workspace. Permanent removal commits the row delete and the tombstone in one transaction.
+  Restore clears the tombstone under the package mutation lock and writes it back when enrollment fails,
+  unless a partially enrolled row cannot be removed: then the row stays, no tombstone is written, and the
+  error is `extension_restore_failed`, so a row and a tombstone never coexist for one name. The rollback runs
+  detached from the caller's cancellation with a 15-second budget, so a canceled restore still writes the
+  tombstone back.
+  Boot and restore never touch a non-bundled row under the same name. An explicit install keeps the
+  tombstone in place (Q2 a). Input and secret values follow plain `remove` (Q1 a). Tool-policy trust follows
+  row presence, so a tombstoned built-in grants none. Extension MCP overrides (`extension_mcp_overrides`) are
+  kept by permanent removal and restore (Q1 b): neither path deletes them, which matches keeping user data by
+  default and plain `remove`.
+- **Errors and compensation.** New code `extension_removal_compensation_failed` (HTTP 500, category
+  `extension`, additive in `diagnosticcontract`). It answers a removal whose compensation failed after the
+  row delete: `ErrExtensionRemovalCompensationFailed` is the generic sentinel from `RemoveManagedExtension`,
+  and `ErrExtensionBuiltinRemovalCompensationFailed` wraps it for every permanent-removal compensation failure.
+  A failed compensation first returns the built-in to its removed state (no row, no install directory, tombstone
+  recorded), so the built-in sentinel's diagnostic suggests `compozy extension restore <name>`; the
+  generic one suggests `compozy doctor`. Decision (review round 01, F1, option a): the removal and its
+  tombstone stay committed after a failed compensation, and the code reports it, rather than rolling back
+  silently. Safety Invariant 1 in the spec records this. Install conflicts (`install`, local install,
+  marketplace install, and restore) now also carry the code `extension_exists` and the operation payload
+  with its diagnostic, and stay 409. This is intentional and additive.
+- **Web.** The extension remove dialog offers "Remove permanently" for bundled rows only, with the default
+  non-permanent. A "Removed built-ins" section lists tombstones with a restore action, and a successful
+  restore refreshes the installed list. Visual design belongs to the designer lane; E2E-004 covers the
+  browser journey.
+- **Official skill.** `skills/compozy/references/extensions.md` adds a Built-in Permanent Removal section,
+  routes built-in recovery to restore instead of reinstall, and notes that `--permanent` is not a dev-overlay
+  option. `native-tools.md` lists the two new tools and states that no tool removes a built-in permanently.
+- **Docs.** `packages/site/content/docs/cli/extension/{remove,restore,removed}.mdx` match the Cobra help, and
+  `make cli-docs-check` is clean. `extensions/install.mdx` documents operator-only permanent removal and the
+  restore and removed-list tool rows. The glossary entry "Built-in extension" awaits the operator's decision.
+- **QA.** `docs/qa/scenarios/ET-builtin-extension-permanent-removal.md` is the operator journey.
+  `ET-bundled-extension-trust.md` restart reconciliation mentions tombstones.
+- **Compatibility.** SD-013 regime 1 (one additive table) and regime 2 (additive surfaces; non-permanent
+  `remove` unchanged). No shim, deletion or ADR; the decisions live in the spec.
+
 ## Turn off a configured MCP server (GH-1850, requirement 10)
 
 - **Native tools, CLI, HTTP and UDS.** MCP list and status reads expose off definitions. The

@@ -101,9 +101,31 @@ type ExtensionRemoveResponse struct {
 	Extension ManagedExtensionRemovePayload `json:"extension"`
 }
 
+// ExtensionRemovedBuiltinPayload is a daemon API value.
+type ExtensionRemovedBuiltinPayload struct {
+	Name      string `json:"name"`
+	RemovedAt string `json:"removed_at"`
+	RemovedBy string `json:"removed_by"`
+}
+
+// ExtensionRemovedBuiltinsResponse is a daemon API value.
+type ExtensionRemovedBuiltinsResponse struct {
+	Removed []ExtensionRemovedBuiltinPayload `json:"removed"`
+}
+
 // ExtensionResponse is a daemon API value.
 type ExtensionResponse struct {
 	Extension ExtensionPayload `json:"extension"`
+}
+
+// ExtensionRestorePayload is a daemon API value.
+type ExtensionRestorePayload struct {
+	Name    string `json:"name"`
+	Status  string `json:"status"`
+	Source  string `json:"source"`
+	Version string `json:"version"`
+	Enabled bool   `json:"enabled"`
+	Path    string `json:"path"`
 }
 
 // ExtensionSecretBindingInput is a daemon API value.
@@ -413,34 +435,4 @@ type GapsConfig struct {
 	Right  float64 `json:"right"`
 	Bottom float64 `json:"bottom"`
 	Left   float64 `json:"left"`
-}
-
-// GateCriterion is a daemon API value.
-type GateCriterion struct {
-	ID       string         `json:"id"`
-	Type     CriterionType  `json:"type"`
-	Check    string         `json:"check,omitempty"`
-	Expect   string         `json:"expect,omitempty"`
-	Contains string         `json:"contains,omitempty"`
-	Agent    string         `json:"agent,omitempty"`
-	Runtime  RuntimeSpec    `json:"runtime,omitzero"`
-	Rubric   string         `json:"rubric,omitempty"`
-	Prompt   string         `json:"prompt,omitempty"`
-	Tool     string         `json:"tool,omitempty"`
-	Inputs   map[string]any `json:"inputs,omitempty"`
-	Metric   *MetricSpec    `json:"metric,omitzero"`
-}
-
-// GatewayAddressPayload is a daemon API value.
-type GatewayAddressPayload struct {
-	Tier    string `json:"tier"`
-	Address string `json:"address"`
-	Live    bool   `json:"live"`
-}
-
-// GatewayAuditAuthPayload is a daemon API value.
-type GatewayAuditAuthPayload struct {
-	Mode              string `json:"mode"`
-	RequiredRemotely  bool   `json:"required_remotely"`
-	ActiveDeviceCount int    `json:"active_device_count"`
 }

@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+// ResumeLoopNodeParams carries the path, query, and header parameters.
+type ResumeLoopNodeParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	NodeID      string  `url:"node_id"`
+	Profile     *string `url:"profile"`
+}
+
 // ResumeLoopNode Resume one Loop node
 func (c *Client) ResumeLoopNode(ctx context.Context, params ResumeLoopNodeParams, body LoopNodeResumeRequest) (*LoopMutationResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/resume"
@@ -431,18 +439,4 @@ func (c *Client) SearchAgentMemory(ctx context.Context, params SearchAgentMemory
 		return nil, err
 	}
 	return &out, nil
-}
-
-// SearchFileContentsParams carries the path, query, and header parameters.
-type SearchFileContentsParams struct {
-	WorkspaceID   string    `url:"workspace_id"`
-	WorktreeID    *string   `url:"worktree_id"`
-	Q             string    `url:"q"`
-	Regex         *bool     `url:"regex"`
-	CaseSensitive *bool     `url:"case_sensitive"`
-	WholeWord     *bool     `url:"whole_word"`
-	Include       *[]string `url:"include"`
-	Exclude       *[]string `url:"exclude"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
 }

@@ -4,6 +4,22 @@ package client
 
 import "time"
 
+// SessionInspectResponse is a daemon API value.
+type SessionInspectResponse struct {
+	SessionID    string                             `json:"session_id"`
+	Health       SessionHealthPayload               `json:"health"`
+	WakeState    *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
+	WakeEvents   []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
+	PolicyDigest string                             `json:"policy_digest,omitempty"`
+	ConfigDigest string                             `json:"config_digest,omitempty"`
+	Diagnostics  []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+}
+
+// SessionInteractionsResponse is a daemon API value.
+type SessionInteractionsResponse struct {
+	Interactions []PendingInteractionPayload `json:"interactions"`
+}
+
 // SessionLaterPayload is a daemon API value.
 type SessionLaterPayload struct {
 	ParkedAt        time.Time  `json:"parked_at"`
@@ -431,13 +447,3 @@ type SessionRuntimeRecoveryReason string
 
 // SessionRuntimeStatus is a daemon API value.
 type SessionRuntimeStatus string
-
-// SessionRuntimeTransition is a daemon API value.
-type SessionRuntimeTransition string
-
-// SessionSideCommandResult is a daemon API value.
-type SessionSideCommandResult struct {
-	SessionID            string `json:"session_id"`
-	Seed                 string `json:"seed"`
-	SourceTurnInProgress bool   `json:"source_turn_in_progress"`
-}

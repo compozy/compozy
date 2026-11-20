@@ -257,35 +257,6 @@ func (h *BaseHandlers) UpdateExtensions(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.ExtensionUpdateBatchResponse{Updates: items})
 }
 
-// RemoveExtension removes one managed extension via the daemon.
-func (h *BaseHandlers) RemoveExtension(c *gin.Context) {
-	service, name, ok := h.namedExtensionService(c)
-	if !ok {
-		return
-	}
-	actor, ok := h.extensionActorContext(c, extensionActionRemove)
-	if !ok {
-		return
-	}
-
-	var item contract.ManagedExtensionRemovePayload
-	var err error
-	if scoped, supportsScope := service.(ExtensionScopedRemoveService); supportsScope && hasExtensionScopeRequest(c) {
-		actor, actorOK := h.extensionScopedActorContext(c, extensionActionRemove, false)
-		if !actorOK {
-			return
-		}
-		item, err = scoped.RemoveScoped(c.Request.Context(), name, actor)
-	} else {
-		item, err = service.Remove(c.Request.Context(), name, actor)
-	}
-	if err != nil {
-		h.respondExtensionError(c, ExtensionStatusCode(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.ExtensionRemoveResponse{Extension: item})
-}
-
 // EnableExtension enables one installed extension.
 func (h *BaseHandlers) EnableExtension(c *gin.Context) {
 	h.mutateExtensionEnabled(c, true)

@@ -8,6 +8,7 @@
 - Portable Agent Plugins
 - Marketplace categories and Add
 - Install trust
+- Built-in permanent removal
 - Authoring and dev loop
 - Instance scoping
 - Dev overlay versus published install
@@ -213,8 +214,9 @@ remove every workspace attachment. Run v0.6.0 first if automatic compatible-stat
 
 One extension's startup failure remains visible in status without aborting another package's
 mutation. If a previous failed install left a package with no scoped installations, an operator
-can recover it with `compozy extension remove <name> --global`, then reinstall. Workspace agents
-cannot remove an orphaned global package through that recovery path.
+can recover it with `compozy extension remove <name> --global`, then reinstall. A removed built-in
+is not recovered by reinstall: restore it with `compozy extension restore <name>` (see Built-in
+Permanent Removal). Workspace agents cannot remove an orphaned global package through that recovery path.
 
 Install takes one closed source union — `curated`, `marketplace`, `github`, `git`, or `local_path` — plus a required
 `ref` and optional `version`, `asset`, and `allow_unverified`. `compozy extension install <source>`
@@ -306,6 +308,41 @@ acquisition refs keep priority if the same spelling collides; `marketplace:team/
 the plugin. An unknown explicit marketplace source fails before acquisition; it is never interpreted
 as a GitHub repository. Inspect source state with `compozy marketplace sources list -o json`.
 
+## Built-in Permanent Removal
+
+A built-in is a bundled extension, embedded in the binary from `extensions/`. A plain
+`compozy extension remove <name>` of a built-in does not stick: the next daemon boot enrolls it again.
+`--permanent` keeps it removed. `compozy extension remove <name> --permanent --global`, the HTTP or UDS
+call `DELETE /api/extensions/<name>?permanent=true`, and the web dialog's "Remove permanently" choice
+delete the same files, rows, installations, enablement, and secret bindings as a plain remove, and write
+one tombstone in the same transaction. `--permanent` is global only. A marketplace, local, or dev-linked
+row is refused with `extension_not_builtin` (422), an unknown name with `extension_not_found` (404), and a
+caller without operator scope with `403`. A built-in that still has other installations, such as an
+attachment in another workspace or profile, returns a 409 conflict until those installations are removed.
+
+The tombstone is a row in `extension_builtin_tombstones`, keyed by name. Like bundled rows, it is global to
+the daemon home, not per profile. Boot skips a tombstoned name, so the removal survives restarts, upgrades,
+and updates. The built-in has no row, so it grants no tool-policy trust and exposes no skills to new
+sessions. Plain `remove` is unchanged and still returns at boot.
+
+Restore clears the tombstone and enrolls the bundled version at once, enabled, with no restart:
+`compozy extension restore <name>` (`--global` is accepted; built-ins are always global),
+`POST /api/extensions/<name>/restore`, or `compozy__extensions_restore` with `{"name": "<name>"}`. It needs
+write authority, as `remove` does. Its refusals are `extension_builtin_not_removed` (409) when no tombstone
+exists and `extension_exists` (409) when a non-bundled row uses the name. If enrollment fails, the tombstone
+is written back and the error is `extension_restore_failed` (500); if the partially enrolled row cannot be removed, that row stays and no tombstone is written. If a permanent removal commits and its compensation then fails, the error is `extension_removal_compensation_failed` (500): the tombstone stays, and `compozy extension restore <name>` brings the built-in back. To list tombstones, use
+`compozy extension removed [-o json]`, `GET /api/extensions/removed-builtins`, or
+`compozy__extensions_removed_list`; with none, the result is `{"removed":[]}`.
+
+Q2 consequence: an explicit marketplace or local install under a tombstoned name succeeds, and the tombstone
+stays. While that operator copy exists, restore returns `extension_exists`, and boot keeps the copy. Removing
+the copy with a plain `remove` does not bring the built-in back at boot, because the tombstone still gates
+enrollment. Only `compozy extension restore <name>` clears it.
+
+Agents can restore and list. `compozy__extensions_restore` is mutating; `compozy__extensions_removed_list`
+is read-only. No tool removes a built-in permanently: `compozy__extensions_remove` takes no `permanent`
+input. When a built-in must be removed for good, ask the operator to run the CLI or web action.
+
 ## Authoring And Dev Loop
 
 Authoring runs `init` → `build` → `validate` → `dev` → `reload` → `logs` → `publish`. Native tool IDs
@@ -372,7 +409,8 @@ A dev link is a side-table overlay, not an install. It never mutates or displace
 and only `dev` creates one. When both exist, reads report `overrides_published: true` beside `dev`,
 `origin_path`, `generation_hash`, and `workspace_id`. `compozy extension remove <name>` inside a
 workspace unlinks only that overlay and restores the published installation; `--global` removes the
-published installation itself. Dev emits `extension.dev.{linked,unlinked}` and
+published installation itself. `--permanent` is valid only with `--global` and only for a bundled
+built-in, never for a dev overlay (see Built-in Permanent Removal). Dev emits `extension.dev.{linked,unlinked}` and
 `extension.reload.{completed,failed}`.
 
 A dev-linked extension is a trusted tool-policy source in the workspace that linked it, so its tools

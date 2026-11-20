@@ -322,6 +322,25 @@ describe("extension lifecycle mutations", () => {
     expect(mocks.toastSuccess).toHaveBeenCalledWith("otel-bridge removed");
   });
 
+  it("Should send permanent removal without the instance scope and toast the permanent outcome", async () => {
+    mocks.activeWorkspaceId = "ws_northstar";
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useRemoveExtension(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        dev: false,
+        name: "spec-cycle",
+        permanent: true,
+        profileName: "default",
+        workspaceId: "ws_northstar",
+      });
+    });
+
+    expect(mocks.removeExtension).toHaveBeenCalledWith("spec-cycle", { permanent: true });
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("spec-cycle removed permanently");
+  });
+
   it("Should toast successful lifecycle actions without leaking mutation context", async () => {
     const { wrapper } = setup();
     const { result } = renderHook(

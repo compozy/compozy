@@ -2,10 +2,49 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// MarketplaceRefreshSourcePayload is a daemon API value.
+type MarketplaceRefreshSourcePayload struct {
+	Source     string `json:"source"`
+	Outcome    string `json:"outcome"`
+	EntryCount int    `json:"entry_count"`
+	Stale      bool   `json:"stale"`
+	ErrorClass string `json:"error_class,omitempty"`
+}
+
+// MarketplaceSection is a daemon API value.
+type MarketplaceSection struct {
+	ID    string                      `json:"id"`
+	Label string                      `json:"label"`
+	Total int                         `json:"total"`
+	Items []MarketplaceListingPayload `json:"items"`
+}
+
+// MarketplaceSectionsResponse is a daemon API value.
+type MarketplaceSectionsResponse struct {
+	Sections   []MarketplaceSection       `json:"sections"`
+	Revision   string                     `json:"revision"`
+	Stale      bool                       `json:"stale"`
+	Refreshing bool                       `json:"refreshing,omitzero"`
+	ErrorClass string                     `json:"error_class,omitempty"`
+	Error      string                     `json:"error,omitempty"`
+	Sources    []MarketplaceSourceSummary `json:"sources"`
+}
+
+// MarketplaceServerPayload is a daemon API value.
+type MarketplaceServerPayload struct {
+	Name        string          `json:"name"`
+	Owner       string          `json:"owner"`
+	Scope       string          `json:"scope,omitempty"`
+	Transport   string          `json:"transport"`
+	Launch      string          `json:"launch"`
+	Status      string          `json:"status,omitempty"`
+	RuntimeName string          `json:"runtime_name,omitempty"`
+	Auth        *MCPAuthSummary `json:"auth,omitzero"`
+	Profile     string          `json:"profile,omitempty"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+}
 
 // MarketplaceSourcePayload is a daemon API value.
 type MarketplaceSourcePayload struct {
@@ -405,43 +444,3 @@ type OpenAIModelPayload struct {
 type OpenAppEffect struct {
 	App string `json:"app"`
 }
-
-// OpenSessionSideRequest is a daemon API value.
-type OpenSessionSideRequest struct {
-	Message        string `json:"message"`
-	Name           string `json:"name,omitempty"`
-	IdempotencyKey string `json:"idempotency_key"`
-}
-
-// OpenURLEffect is a daemon API value.
-type OpenURLEffect struct {
-	URL string `json:"url"`
-}
-
-// OperatorNotificationEventPayload is a daemon API value.
-type OperatorNotificationEventPayload struct {
-	Kind           string    `json:"kind,omitempty"`
-	Action         string    `json:"action,omitempty"`
-	Resource       string    `json:"resource,omitempty"`
-	NotificationID string    `json:"notification_id"`
-	SessionID      string    `json:"session_id"`
-	ProfileID      string    `json:"profile_id"`
-	ProfileName    string    `json:"profile_name"`
-	WorkspaceID    string    `json:"workspace_id"`
-	Title          string    `json:"title"`
-	Body           string    `json:"body"`
-	At             time.Time `json:"at"`
-}
-
-// OptionalStringList is a daemon API value.
-// OptionalStringList preserves its custom JSON wire representation.
-type OptionalStringList = json.RawMessage
-
-// Origin is a daemon API value.
-type Origin struct {
-	Kind OriginKind `json:"kind"`
-	Ref  string     `json:"ref"`
-}
-
-// OriginKind is a daemon API value.
-type OriginKind string

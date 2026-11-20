@@ -3734,6 +3734,80 @@ func assertExtensionTableColumns(t *testing.T, globalDB *GlobalDB) {
 		"created_at",
 		"updated_at",
 	})
+	assertTableColumns(t, globalDB.db, "extension_builtin_tombstones", []string{
+		"name",
+		"removed_at",
+		"removed_by",
+	})
+}
+
+// Invariant: upgrading from 00211 creates the tombstone table and preserves existing extension rows.
+// Owner: global SQLite migration (UT-010). Fresh and reopen columns are asserted by the extension schema test above.
+func TestGlobalDBBuiltinTombstoneMigration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should add the tombstone table on upgrade without losing extension rows", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path,
+			globalMigrationPrefixBefore(t, "00212_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := store.FormatTimestamp(time.Date(2026, 11, 17, 12, 0, 0, 0, time.UTC))
+		_, seedErr := prior.ExecContext(ctx, `INSERT INTO extensions
+			(name, version, source, manifest_path, installed_at, checksum)
+			VALUES ('spec-cycle', '0.1.0', 'bundled', '/ext/spec-cycle/extension.toml', ?, 'sha256:spec-cycle')`, now)
+		telemetry, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := errors.Join(
+			seedErr,
+			bindTelemetryDestination(ctx, prior, telemetry.DB()),
+			telemetry.Close(ctx),
+			prior.Close(),
+		); err != nil {
+			t.Fatal(err)
+		}
+
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertTableColumns(t, upgraded.db, "extension_builtin_tombstones", []string{"name", "removed_at", "removed_by"})
+		status, err := store.Status(ctx, upgraded.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(after upgrade) error = %v", err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("Close(upgraded) error = %v", err)
+		}
+
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen after tombstone migration) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reopened) error = %v", err)
+			}
+		})
+		var extensions, tombstones int
+		if err := reopened.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM extensions WHERE name = 'spec-cycle'`).Scan(&extensions); err != nil {
+			t.Fatalf("count extensions error = %v", err)
+		}
+		if err := reopened.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM extension_builtin_tombstones`).Scan(&tombstones); err != nil {
+			t.Fatalf("count tombstones error = %v", err)
+		}
+		if extensions != 1 || tombstones != 0 {
+			t.Fatalf("after reopen extensions = %d, tombstones = %d; want 1 and 0", extensions, tombstones)
+		}
+	})
 }
 
 func TestRepositoryCheckReady(t *testing.T) {

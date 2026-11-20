@@ -1,5 +1,5 @@
 import { BadgeCheck, PackageX, Radio } from "@compozy/ui/icons";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   Button,
@@ -13,8 +13,10 @@ import {
   DialogTitle,
   Eyebrow,
   MonoId,
+  RadioCardGroup,
   SkeletonRegion,
   SkeletonText,
+  type RadioCardGroupOption,
 } from "@compozy/ui";
 
 import { useExtensionProvenance } from "../hooks/use-extensions";
@@ -150,31 +152,85 @@ function ProvenanceRow({ term, children }: { term: string; children: ReactNode }
   );
 }
 
+type RemovalChoice = "remove" | "permanent";
+
+const PERMANENT_REMOVAL_CONSEQUENCE = "The built-in will not return on restart or update.";
+
+const REMOVAL_CHOICE_OPTIONS: ReadonlyArray<RadioCardGroupOption<RemovalChoice>> = [
+  {
+    value: "remove",
+    title: "Remove",
+    description: "The built-in returns at the next restart.",
+    "data-testid": "remove-extension-choice-remove",
+  },
+  {
+    value: "permanent",
+    title: "Remove permanently",
+    description: PERMANENT_REMOVAL_CONSEQUENCE,
+    "data-testid": "remove-extension-choice-permanent",
+  },
+];
+
+/**
+ * Only the global bundled row can be removed for good. The daemon refuses permanent removal of a
+ * marketplace or local row, of a dev overlay, and of any workspace-scoped instance.
+ */
+function canRemoveBuiltinPermanently(extension: ExtensionEntry | null): boolean {
+  return extension?.source === "bundled" && extension.dev !== true && !extension.workspace_id;
+}
+
+/**
+ * `canRemovePermanently` is the viewer's write-permission signal. The web has no per-actor
+ * authority field today, so callers pass it for the operator surface; the daemon enforces the
+ * same operator check on every permanent request regardless of what the UI shows.
+ */
 export function RemoveExtensionDialog({
   extension,
   open,
   onOpenChange,
   onRemoved,
+  canRemovePermanently = false,
 }: {
   extension: ExtensionEntry | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRemoved?: () => void;
+  canRemovePermanently?: boolean;
 }) {
   const remove = useRemoveExtension();
+  const [removal, setRemoval] = useState<RemovalChoice>("remove");
   // A dev overlay is a workspace link over the published row: unlinking it never deletes the
   // published installation.
   const isDevOverlay = extension?.dev === true;
+  const offersPermanent = canRemovePermanently && canRemoveBuiltinPermanently(extension);
+  const permanent = offersPermanent && removal === "permanent";
   const subject = extension?.name ?? "this extension";
+  // The choice is per open: a reopened dialog starts from the non-permanent default.
+  const closeDialog = (nextOpen: boolean) => {
+    if (!nextOpen) setRemoval("remove");
+    onOpenChange(nextOpen);
+  };
   return (
     <ConfirmDialog
+      body={
+        offersPermanent ? (
+          <RadioCardGroup
+            aria-label="Removal type"
+            onValueChange={setRemoval}
+            options={REMOVAL_CHOICE_OPTIONS}
+            value={removal}
+          />
+        ) : undefined
+      }
       cancelLabel="Cancel"
       confirmButtonProps={
         !extension
           ? { disabled: true, "data-testid": "remove-extension-confirm" }
           : { "data-testid": "remove-extension-confirm" }
       }
-      confirmLabel={isDevOverlay ? "Unlink local copy" : "Remove extension"}
+      confirmLabel={
+        isDevOverlay ? "Unlink local copy" : permanent ? "Remove permanently" : "Remove extension"
+      }
       confirmTyping={extension?.name}
       description={
         isDevOverlay
@@ -187,15 +243,18 @@ export function RemoveExtensionDialog({
       noteTone="neutral"
       onConfirm={async () => {
         if (!extension) return;
+        // Permanent removal is global: the daemon refuses a workspace or profile with it, so the
+        // installation scope is left out of that request.
         await remove.mutateAsync({
-          ...extensionInstallationScope(extension),
+          ...(permanent ? {} : extensionInstallationScope(extension)),
           dev: isDevOverlay,
           name: extension.name,
+          ...(permanent ? { permanent: true } : {}),
         });
-        onOpenChange(false);
+        closeDialog(false);
         onRemoved?.();
       }}
-      onOpenChange={onOpenChange}
+      onOpenChange={closeDialog}
       open={open}
       title={`${isDevOverlay ? "Unlink" : "Remove"} ${extension?.name ?? "extension"}`}
       tone="destructive"

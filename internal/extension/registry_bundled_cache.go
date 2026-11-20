@@ -1,8 +1,13 @@
 package extensionpkg
 
-import "slices"
+import (
+	"context"
+	"slices"
+)
 
 // EnabledBundledNames returns a cached snapshot of enabled bundled extension names.
+// A tombstoned name is excluded even when a bundled row still exists, so a permanently
+// removed built-in grants no tool trust.
 func (r *Registry) EnabledBundledNames() ([]string, error) {
 	if err := r.checkReady("list enabled bundled extensions"); err != nil {
 		return nil, err
@@ -24,12 +29,24 @@ func (r *Registry) EnabledBundledNames() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	tombstones, err := r.ListTombstones(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	tombstoned := make(map[string]struct{}, len(tombstones))
+	for _, tombstone := range tombstones {
+		tombstoned[tombstone.Name] = struct{}{}
+	}
 	names := make([]string, 0)
 	for infoIndex := range infos {
-		if infos[infoIndex].Enabled &&
-			infos[infoIndex].Source == SourceBundled {
-			names = append(names, infos[infoIndex].Name)
+		if !infos[infoIndex].Enabled ||
+			infos[infoIndex].Source != SourceBundled {
+			continue
 		}
+		if _, removed := tombstoned[infos[infoIndex].Name]; removed {
+			continue
+		}
+		names = append(names, infos[infoIndex].Name)
 	}
 	r.bundledCacheNames = names
 	r.bundledCacheLoaded = true

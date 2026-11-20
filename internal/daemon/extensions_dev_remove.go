@@ -46,7 +46,7 @@ func (s *daemonExtensionService) removeScopedExtensionLocked(
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
 	if link == nil {
-		return s.removeInstalledExtensionLocked(ctx, name, actor, workspaceID)
+		return s.removeInstalledExtensionLocked(ctx, name, actor, workspaceID, false)
 	}
 	runtime, err := s.devRuntime()
 	if err != nil {
@@ -61,7 +61,7 @@ func (s *daemonExtensionService) removeScopedExtensionLocked(
 		if !actor.Scope.Operator {
 			return contract.ManagedExtensionRemovePayload{}, extensionpkg.ErrExtensionWorkspaceDenied
 		}
-		return s.removeInstalledExtensionLocked(ctx, name, actor, "")
+		return s.removeInstalledExtensionLocked(ctx, name, actor, "", false)
 	}
 	snapshot := link
 	retirement, retireErr := s.retireExtensionSecretBindings(ctx, key)

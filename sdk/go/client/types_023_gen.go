@@ -2,7 +2,23 @@
 
 package client
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
+
+// SettingsProviderAuthStatusPayload is a daemon API value.
+type SettingsProviderAuthStatusPayload struct {
+	Mode        string                         `json:"mode"`
+	EnvPolicy   string                         `json:"env_policy"`
+	HomePolicy  string                         `json:"home_policy"`
+	State       string                         `json:"state"`
+	Code        string                         `json:"code,omitempty"`
+	Message     string                         `json:"message,omitempty"`
+	StatusCmd   string                         `json:"status_command,omitempty"`
+	Login       ProviderLoginDescriptorPayload `json:"login"`
+	LastProbeAt *time.Time                     `json:"last_probe_at,omitempty"`
+}
 
 // SettingsProviderCredentialSlotPayload is a daemon API value.
 type SettingsProviderCredentialSlotPayload struct {
@@ -432,19 +448,3 @@ type SettingsSkillsResponse struct {
 
 // SettingsSourceKind is a daemon API value.
 type SettingsSourceKind string
-
-// SettingsSourceMetadataPayload is a daemon API value.
-type SettingsSourceMetadataPayload struct {
-	EffectiveSource  SettingsSourceRefPayload   `json:"effective_source"`
-	ShadowedSources  []SettingsSourceRefPayload `json:"shadowed_sources,omitempty"`
-	AvailableTargets []SettingsWriteTargetKind  `json:"available_targets"`
-}
-
-// SettingsSourceRefPayload is a daemon API value.
-type SettingsSourceRefPayload struct {
-	Kind        SettingsSourceKind `json:"kind"`
-	Scope       SettingsScopeKind  `json:"scope"`
-	WorkspaceID string             `json:"workspace_id,omitempty"`
-	Profile     string             `json:"profile,omitempty"`
-	AgentName   string             `json:"agent_name,omitempty"`
-}

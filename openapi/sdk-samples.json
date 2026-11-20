@@ -2283,6 +2283,13 @@
             "resource": "providers",
             "app_access": "denied"
         },
+        "listRemovedBuiltinExtensions": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.extensions.listRemovedBuiltinExtensions();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListRemovedBuiltinExtensions(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "extensions",
+            "app_access": "denied"
+        },
         "listResources": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.resources.listResources();",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListResources(ctx, client.ListResourcesParams{})\nif err != nil { return err }\nfmt.Println(result)",
@@ -3360,6 +3367,13 @@
             "kind": "json",
             "resource": "loops",
             "app_access": "allowed"
+        },
+        "restoreExtension": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.extensions.restoreExtension({ path: { \"name\": \"name\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RestoreExtension(ctx, client.RestoreExtensionParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "extensions",
+            "app_access": "denied"
         },
         "resumeAgentInstance": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.resumeAgentInstance({ path: { \"id\": \"id\" } });",

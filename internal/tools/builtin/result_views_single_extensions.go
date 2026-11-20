@@ -11,7 +11,10 @@ var singleResultExtensions = map[toolspkg.ToolID]SingleResultReason{
 	"compozy__extensions_provenance": SingleResultContent,
 	"compozy__extensions_publish":    SingleResultMinimal,
 	"compozy__extensions_remove":     SingleResultMinimal,
-	"compozy__extensions_search":     SingleResultCallerBounded,
-	"compozy__extensions_update":     SingleResultMinimal,
-	"compozy__extensions_validate":   SingleResultContent,
+
+	"compozy__extensions_restore":      SingleResultMinimal,
+	"compozy__extensions_removed_list": SingleResultCallerBounded,
+	"compozy__extensions_search":       SingleResultCallerBounded,
+	"compozy__extensions_update":       SingleResultMinimal,
+	"compozy__extensions_validate":     SingleResultContent,
 }

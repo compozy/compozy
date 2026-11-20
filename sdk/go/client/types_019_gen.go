@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// SessionContextRowPayload is a daemon API value.
+type SessionContextRowPayload struct {
+	Key              string    `json:"key"`
+	Label            string    `json:"label"`
+	Kind             string    `json:"kind"`
+	OwnerKind        string    `json:"owner_kind"`
+	Bytes            int64     `json:"bytes"`
+	Tokens           *int64    `json:"tokens,omitzero"`
+	DeliveredTurnID  string    `json:"delivered_turn_id"`
+	DeliverySequence int64     `json:"delivery_sequence"`
+	SentAt           time.Time `json:"sent_at"`
+	LastSeenTurnID   string    `json:"last_seen_turn_id,omitempty"`
+	Unchanged        bool      `json:"unchanged"`
+	Stale            bool      `json:"stale"`
+	Delivery         string    `json:"delivery,omitempty"`
+	HookModified     bool      `json:"hook_modified,omitzero"`
+	Name             string    `json:"name,omitempty"`
+}
+
 // SessionContextSpanPayload is a daemon API value.
 type SessionContextSpanPayload struct {
 	Key          string `json:"key"`
@@ -425,19 +444,3 @@ type SessionInputResponse struct {
 
 // SessionInputStatus is a daemon API value.
 type SessionInputStatus string
-
-// SessionInspectResponse is a daemon API value.
-type SessionInspectResponse struct {
-	SessionID    string                             `json:"session_id"`
-	Health       SessionHealthPayload               `json:"health"`
-	WakeState    *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
-	WakeEvents   []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
-	PolicyDigest string                             `json:"policy_digest,omitempty"`
-	ConfigDigest string                             `json:"config_digest,omitempty"`
-	Diagnostics  []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-// SessionInteractionsResponse is a daemon API value.
-type SessionInteractionsResponse struct {
-	Interactions []PendingInteractionPayload `json:"interactions"`
-}

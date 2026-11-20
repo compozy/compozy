@@ -511,6 +511,17 @@ Browse is grouped by **category**, never by source. Category labels are owned by
 - Live region (polite, one announcement per transition): "Adding {name}…" while Add runs; "{name} added · Ready", or "{name} added · Set up to finish" when a server waits for sign-in; "Added {name} but couldn't turn it on: {cause}" when the enable fails after install; "{name} turned on" after a Retry or Turn on succeeds. A failed Retry announces the daemon's message, which also becomes the Retry button's description ("Added but couldn't turn on: {cause}").
 - Catalog failure (nothing to show, with **Retry**): when the daemon reports its sources unreachable, "The marketplace is unreachable" / "No sources responded. Retry, or come back in a moment."; when the read itself fails (a daemon error), "Couldn't load the marketplace" / "Something went wrong while loading the catalog. Retry, or come back in a moment." Never call a daemon error unreachable.
 
+### Removed Built-in Terms
+
+A **built-in** is an extension CompozyOS ships. Removing one permanently keeps it from returning on restart or update until someone restores it. Use "built-in" in copy, never the bundled code term.
+
+- Section label on the installed list: **Removed built-ins**. It appears only while at least one built-in is permanently removed, and is hidden otherwise.
+- Row: the name, then "Removed {time}" with the absolute removal time. Rows keep the daemon's order.
+- Row action: **Restore** (accessible name "Restore {name}"); **Restoring…** while it runs. Only one restore runs at a time, and the action is absent, not disabled, for a viewer who cannot restore.
+- Success toast: "{name} restored". The built-in then appears in the installed list as enabled, with no reload.
+- Conflict, inline on its row: "{name} is already installed. Remove the installed copy first." The row stays listed. Any other refusal shows the daemon's message on the same row.
+- Load failure, with **Retry**: "Couldn't load removed built-ins", then the daemon's message. Never an empty list in its place.
+
 ### Burned-Out Marketing Phrases
 
 Avoid these unless quoting another source:

@@ -15,7 +15,11 @@ import {
   useTopbarSlot,
 } from "@compozy/ui";
 
-import { extensionUpdateScope, type InstalledExtensionView } from "@/systems/extensions";
+import {
+  extensionUpdateScope,
+  RemovedBuiltinsSection,
+  type InstalledExtensionView,
+} from "@/systems/extensions";
 
 import type { ExtensionBatchUpdateRequest } from "../types";
 import { useUpdateMarketplaceExtensions } from "../hooks/use-marketplace-actions";
@@ -112,6 +116,7 @@ function MarketplaceInstalledPage({
           page={page}
           query={query}
         />
+        <RemovedBuiltinsSection canRestore />
       </div>
       {actions.dialogs}
       {install.dialogs}

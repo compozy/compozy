@@ -9488,6 +9488,39 @@
         ],
         "type": "object"
       },
+      "ExtensionRemovedBuiltinPayload": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "removed_at": {
+            "type": "string"
+          },
+          "removed_by": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "removed_at",
+          "removed_by"
+        ],
+        "type": "object"
+      },
+      "ExtensionRemovedBuiltinsResponse": {
+        "properties": {
+          "removed": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionRemovedBuiltinPayload"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "type": "object"
+      },
       "ExtensionResponse": {
         "properties": {
           "extension": {
@@ -9496,6 +9529,37 @@
         },
         "required": [
           "extension"
+        ],
+        "type": "object"
+      },
+      "ExtensionRestorePayload": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "name",
+          "path",
+          "source",
+          "status",
+          "version"
         ],
         "type": "object"
       },
@@ -18656,10 +18720,16 @@
           "path": {
             "type": "string"
           },
+          "permanent": {
+            "type": "boolean"
+          },
           "quarantine_path": {
             "type": "string"
           },
           "status": {
+            "type": "string"
+          },
+          "tombstoned_at": {
             "type": "string"
           },
           "warnings": {
@@ -18672,7 +18742,9 @@
         "required": [
           "name",
           "path",
-          "status"
+          "permanent",
+          "status",
+          "tombstoned_at"
         ],
         "type": "object"
       },
@@ -64680,6 +64752,62 @@
         ]
       }
     },
+    "/api/extensions/removed-builtins": {
+      "get": {
+        "operationId": "listRemovedBuiltinExtensions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionRemovedBuiltinsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Listing is not available on this extension service"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Extension service is not configured"
+          }
+        },
+        "summary": "List permanently removed built-in extensions",
+        "tags": [
+          "extensions"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/extensions/update": {
       "post": {
         "operationId": "updateExtensions",
@@ -64826,6 +64954,14 @@
             }
           },
           {
+            "description": "Remove a bundled built-in permanently. It is not re-enrolled at boot or update until restored. Global only.",
+            "in": "query",
+            "name": "permanent",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -64844,6 +64980,16 @@
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid request, including permanent with a workspace or profile"
           },
           "403": {
             "content": {
@@ -64875,6 +65021,16 @@
             },
             "description": "Extension is in use"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Extension is not a built-in"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -64884,6 +65040,16 @@
               }
             },
             "description": "Internal server error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Permanent removal is not available on this extension service"
           },
           "503": {
             "content": {
@@ -65749,6 +65915,103 @@
           }
         },
         "summary": "Reload a workspace extension from an immutable generation",
+        "tags": [
+          "extensions"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/extensions/{name}/restore": {
+      "post": {
+        "operationId": "restoreExtension",
+        "parameters": [
+          {
+            "description": "Extension name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionRestorePayload"
+                }
+              }
+            },
+            "description": "Restored at the bundled version, enabled"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Extension not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Not permanently removed, or a non-bundled extension of the same name is installed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Enrollment failed; the removed state is restored and the tombstone is kept"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Restore is not available on this extension service"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Extension service is not configured"
+          }
+        },
+        "summary": "Restore one permanently removed built-in extension",
         "tags": [
           "extensions"
         ],

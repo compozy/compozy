@@ -4,6 +4,17 @@ package client
 
 import "time"
 
+// SettingsExtensionSourcesPayload is a daemon API value.
+type SettingsExtensionSourcesPayload struct {
+	GitHub SettingsExtensionGitHubSourcePayload `json:"github"`
+	Git    SettingsExtensionGitSourcePayload    `json:"git"`
+}
+
+// SettingsExtensionTrustPayload is a daemon API value.
+type SettingsExtensionTrustPayload struct {
+	AllowUnverified bool `json:"allow_unverified"`
+}
+
 // SettingsExtensionsConfigPayload is a daemon API value.
 type SettingsExtensionsConfigPayload struct {
 	Trust     SettingsExtensionTrustPayload     `json:"trust"`
@@ -430,17 +441,4 @@ type SettingsPersonaResponse struct {
 	Profile         string                     `json:"profile,omitempty"`
 	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
 	Config          SettingsDefaultsPayload    `json:"config"`
-}
-
-// SettingsProviderAuthStatusPayload is a daemon API value.
-type SettingsProviderAuthStatusPayload struct {
-	Mode        string                         `json:"mode"`
-	EnvPolicy   string                         `json:"env_policy"`
-	HomePolicy  string                         `json:"home_policy"`
-	State       string                         `json:"state"`
-	Code        string                         `json:"code,omitempty"`
-	Message     string                         `json:"message,omitempty"`
-	StatusCmd   string                         `json:"status_command,omitempty"`
-	Login       ProviderLoginDescriptorPayload `json:"login"`
-	LastProbeAt *time.Time                     `json:"last_probe_at,omitempty"`
 }

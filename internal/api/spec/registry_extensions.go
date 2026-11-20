@@ -35,7 +35,8 @@ func registryExtensionOperations() []OperationSpec {
 			operations[index].Method == httpMethodGet,
 		)
 	}
-	return operations
+	// Built-in restore is global: its handlers read no profile selector, so none is documented.
+	return append(operations, restoreExtensionOperationSpec(), listRemovedBuiltinExtensionsOperationSpec())
 }
 
 func previewExtensionEnableOperationSpec() OperationSpec {
@@ -440,12 +441,27 @@ func removeExtensionOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("name", "Extension name"),
 			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
+			boolQueryParam(
+				"permanent",
+				"Remove a bundled built-in permanently. It is not re-enrolled at boot or update until restored. Global only.",
+			),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionRemoveResponse{}},
+			{
+				Status:      400,
+				Description: "Invalid request, including permanent with a workspace or profile",
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Extension is in use", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Extension is not a built-in", Body: contract.ExtensionOperationErrorPayload{}},
+			{
+				Status:      501,
+				Description: "Permanent removal is not available on this extension service",
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

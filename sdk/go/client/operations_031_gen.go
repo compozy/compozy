@@ -191,6 +191,7 @@ func (c *Client) RemoveDiscoveredWorktree(ctx context.Context, params RemoveDisc
 type RemoveExtensionParams struct {
 	Name      string  `url:"name"`
 	Workspace *string `url:"workspace"`
+	Permanent *bool   `url:"permanent"`
 	Profile   *string `url:"profile"`
 }
 
@@ -201,6 +202,9 @@ func (c *Client) RemoveExtension(ctx context.Context, params RemoveExtensionPara
 	query := url.Values{}
 	if params.Workspace != nil {
 		query.Set("workspace", *params.Workspace)
+	}
+	if params.Permanent != nil {
+		query.Set("permanent", strconv.FormatBool(*params.Permanent))
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)

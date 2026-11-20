@@ -17,6 +17,8 @@
         "publish",
         "reload",
         "remove",
+        "removed",
+        "restore",
         "search",
         "status",
         "update",

@@ -432,6 +432,14 @@ data into quarantine so it can restore the directory if the durable removal fail
 removal commits, deletion of quarantined data is cleanup: a failure reports the retained path as a
 warning. If the initial quarantine move fails, removal fails and the extension remains installed.
 
+Built-in extensions, such as `spec-cycle`, return at the next daemon start after a plain `remove`. Add
+`--permanent --global` to keep one removed: the removal and its tombstone commit together, and the
+built-in stays removed through restarts and updates. `compozy extension restore <name>` brings it back at
+its bundled version, enabled, without a restart, and `compozy extension removed` lists the names that
+restore can act on. An explicit install under the same name succeeds but does not clear the tombstone, so
+restore is refused while that copy exists. Only operators run `--permanent`; agents can restore and list
+through native tools.
+
 ## Validate an Agent Plugins package
 
 Validation detects the same format and component mapping as install without writing registry state or
@@ -634,6 +642,11 @@ workspace is selected. Owner selection does not change the caller's workspace or
 | Remove             | `compozy__extensions_remove`            | `compozy extension remove`         |
 | Enable / disable   | `compozy__extensions_enable`/`_disable` | `compozy extension enable/disable` |
 | Publish            | `compozy__extensions_publish`           | `compozy extension publish`        |
+| Restore built-in   | `compozy__extensions_restore`           | `compozy extension restore`        |
+| Removed built-ins  | `compozy__extensions_removed_list`      | `compozy extension removed`        |
+
+Permanent removal of a built-in has no tool and is operator-only: run
+`compozy extension remove <name> --permanent --global` over the CLI, HTTP, or UDS.
 
 Tools that execute author or extension code (`build`, `dev`, `reload`) are interaction-gated;
 `publish` is additionally `open_world`; `validate` is read-only. Deterministic denials include

@@ -77,6 +77,80 @@ func extensionOperationErrorPayload(
 	case extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported:
 		payload.Code = ExtensionAgentPluginErrorCode(err)
+	case extensionErrorNotBuiltin:
+		payload.Code = diagnosticcontract.CodeExtensionNotBuiltin
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.not_builtin",
+			payload.Code,
+			"Extension is not a built-in",
+			message,
+			"",
+		)
+	default:
+		var ok bool
+		if payload, ok = extensionBuiltinOperationPayload(kind, message, name); !ok {
+			return contract.ExtensionOperationErrorPayload{}, false
+		}
+	}
+	payload.Error = message
+	return payload, true
+}
+
+// extensionBuiltinOperationPayload maps the built-in lifecycle conflicts (not removed, existing copy, failed
+// restore, failed removal compensation) onto their stable codes. It reports false for every other kind.
+func extensionBuiltinOperationPayload(
+	kind extensionErrorKind,
+	message string,
+	name string,
+) (contract.ExtensionOperationErrorPayload, bool) {
+	payload := contract.ExtensionOperationErrorPayload{}
+	switch kind {
+	case extensionErrorBuiltinNotRemoved:
+		payload.Code = diagnosticcontract.CodeExtensionBuiltinNotRemoved
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.builtin_not_removed",
+			payload.Code,
+			"Built-in extension is not permanently removed",
+			message,
+			"",
+		)
+	case extensionErrorExists:
+		payload.Code = diagnosticcontract.CodeExtensionExists
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.exists",
+			payload.Code,
+			"Extension is already installed",
+			message,
+			extensionRemoveCommandFor(name),
+		)
+	case extensionErrorRestoreFailed:
+		payload.Code = diagnosticcontract.CodeExtensionRestoreFailed
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.restore_failed",
+			payload.Code,
+			"Built-in extension restore failed",
+			message,
+			"compozy doctor",
+		)
+	case extensionErrorBuiltinRemovalCompensationFailed:
+		// The tombstone is still recorded, so restore is the action that brings the built-in back.
+		payload.Code = diagnosticcontract.CodeExtensionRemovalCompensationFailed
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.removal_compensation_failed",
+			payload.Code,
+			"Built-in extension removal could not be compensated",
+			message,
+			extensionRestoreCommandFor(name),
+		)
+	case extensionErrorRemovalCompensationFailed:
+		payload.Code = diagnosticcontract.CodeExtensionRemovalCompensationFailed
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.removal_compensation_failed",
+			payload.Code,
+			"Extension removal could not be compensated",
+			message,
+			"compozy doctor",
+		)
 	default:
 		return contract.ExtensionOperationErrorPayload{}, false
 	}
@@ -115,6 +189,24 @@ func extensionOperationDiagnostic(id, code, title, message, command string) *con
 		options...,
 	)
 	return &item
+}
+
+// extensionRemoveCommandFor suggests removing an installed copy so a restore can proceed. It is empty
+// when the request carries no extension name, such as an install.
+func extensionRemoveCommandFor(name string) string {
+	if name = strings.TrimSpace(name); name == "" {
+		return ""
+	}
+	return "compozy extension remove " + name
+}
+
+// extensionRestoreCommandFor suggests restoring a permanently removed built-in. It is empty when the request
+// carries no extension name.
+func extensionRestoreCommandFor(name string) string {
+	if name = strings.TrimSpace(name); name == "" {
+		return ""
+	}
+	return "compozy extension restore " + name
 }
 
 func extensionGatewayRetryCommand(name, digest string) string {

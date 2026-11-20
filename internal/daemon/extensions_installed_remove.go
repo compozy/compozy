@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -15,12 +16,12 @@ const extensionRemovalStatusRemoved = "removed"
 
 // removeInstalledExtension holds the package lock across attachment selection and compensation.
 func (s *daemonExtensionService) removeInstalledExtension(
-	ctx context.Context, name string, actor taskpkg.ActorContext, workspaceID string,
+	ctx context.Context, name string, actor taskpkg.ActorContext, workspaceID string, permanent bool,
 ) (contract.ManagedExtensionRemovePayload, error) {
 	var item contract.ManagedExtensionRemovePayload
 	err := s.lifecycle.withPackageMutation(ctx, []string{name}, func() error {
 		var err error
-		item, err = s.removeInstalledExtensionLocked(ctx, name, actor, workspaceID)
+		item, err = s.removeInstalledExtensionLocked(ctx, name, actor, workspaceID, permanent)
 		return err
 	})
 	return item, err
@@ -28,7 +29,7 @@ func (s *daemonExtensionService) removeInstalledExtension(
 
 // Missing attachments authorize orphan recovery only with explicit operator-global intent.
 func (s *daemonExtensionService) removeInstalledExtensionLocked(
-	ctx context.Context, name string, actor taskpkg.ActorContext, workspaceID string,
+	ctx context.Context, name string, actor taskpkg.ActorContext, workspaceID string, permanent bool,
 ) (contract.ManagedExtensionRemovePayload, error) {
 	profileID := actor.ReadScope.ProfileID
 	if profileID == "" {
@@ -38,8 +39,15 @@ func (s *daemonExtensionService) removeInstalledExtensionLocked(
 	if err != nil {
 		return contract.ManagedExtensionRemovePayload{}, err
 	}
+	if permanent {
+		if err := s.validatePermanentRemoval(name, len(attachments)); err != nil {
+			return contract.ManagedExtensionRemovePayload{}, err
+		}
+	}
 	if len(attachments) == 0 && actor.Scope.Operator && workspaceID == "" {
-		return s.removeManagedExtensionLocked(ctx, name, actor, extensionpkg.GlobalInstanceKey(name), true)
+		return s.removeManagedExtensionLocked(
+			ctx, name, actor, extensionpkg.GlobalInstanceKey(name), true, permanent,
+		)
 	}
 	selected, err := s.registry.ResolveInstallation(ctx, name, extensionpkg.InstallationScope{
 		ProfileID: profileID, WorkspaceID: workspaceID,
@@ -57,9 +65,26 @@ func (s *daemonExtensionService) removeInstalledExtensionLocked(
 		WorkspaceID: selected.Scope.WorkspaceID,
 	}
 	if len(attachments) == 1 {
-		return s.removeManagedExtensionLocked(ctx, name, actor, key, false)
+		return s.removeManagedExtensionLocked(ctx, name, actor, key, false, permanent)
 	}
 	return s.detachInstalledExtension(ctx, name, actor, selected.Scope)
+}
+
+// validatePermanentRemoval refuses permanent removal before any state changes, including secret retirement.
+// The row must be a bundled built-in. Other installations would make the call a detach, so it is refused
+// rather than silently leaving the built-in in place without a tombstone.
+func (s *daemonExtensionService) validatePermanentRemoval(name string, attachmentCount int) error {
+	info, err := s.registry.Get(name)
+	if err != nil {
+		return err
+	}
+	if err := extensionpkg.RequireBuiltinForPermanentRemoval(info); err != nil {
+		return err
+	}
+	if attachmentCount > 1 {
+		return fmt.Errorf("daemon: permanently remove %q: %w", name, extensionpkg.ErrExtensionBuiltinAttached)
+	}
+	return nil
 }
 
 // Detaching one scope keeps the shared package and compensates failed publication.

@@ -2557,8 +2557,27 @@ export type ExtensionRemoveResponse = {
   extension: ManagedExtensionRemovePayload;
 };
 
+export type ExtensionRemovedBuiltinPayload = {
+  name: string;
+  removed_at: string;
+  removed_by: string;
+};
+
+export type ExtensionRemovedBuiltinsResponse = {
+  removed: Array<ExtensionRemovedBuiltinPayload>;
+};
+
 export type ExtensionResponse = {
   extension: ExtensionPayload;
+};
+
+export type ExtensionRestorePayload = {
+  enabled: boolean;
+  name: string;
+  path: string;
+  source: string;
+  status: string;
+  version: string;
 };
 
 export type ExtensionSecretBindingInput = {
@@ -5272,8 +5291,10 @@ export type ManagedExtensionRemovePayload = {
   data_path?: string;
   name: string;
   path: string;
+  permanent: boolean;
   quarantine_path?: string;
   status: string;
+  tombstoned_at: string;
   warnings?: Array<DiagnosticItem>;
 };
 
@@ -20908,6 +20929,41 @@ export type PreviewExtensionInstallResponses = {
 export type PreviewExtensionInstallResponse =
   PreviewExtensionInstallResponses[keyof PreviewExtensionInstallResponses];
 
+export type ListRemovedBuiltinExtensionsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/extensions/removed-builtins";
+};
+
+export type ListRemovedBuiltinExtensionsErrors = {
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Listing is not available on this extension service
+   */
+  501: ErrorPayload;
+  /**
+   * Extension service is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type ListRemovedBuiltinExtensionsError =
+  ListRemovedBuiltinExtensionsErrors[keyof ListRemovedBuiltinExtensionsErrors];
+
+export type ListRemovedBuiltinExtensionsResponses = {
+  /**
+   * OK
+   */
+  200: ExtensionRemovedBuiltinsResponse;
+};
+
+export type ListRemovedBuiltinExtensionsResponse =
+  ListRemovedBuiltinExtensionsResponses[keyof ListRemovedBuiltinExtensionsResponses];
+
 export type UpdateExtensionsData = {
   /**
    * JSON request body
@@ -20979,6 +21035,10 @@ export type RemoveExtensionData = {
      */
     workspace?: string;
     /**
+     * Remove a bundled built-in permanently. It is not re-enrolled at boot or update until restored. Global only.
+     */
+    permanent?: boolean;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -20987,6 +21047,10 @@ export type RemoveExtensionData = {
 };
 
 export type RemoveExtensionErrors = {
+  /**
+   * Invalid request, including permanent with a workspace or profile
+   */
+  400: ErrorPayload;
   /**
    * Forbidden
    */
@@ -21000,9 +21064,17 @@ export type RemoveExtensionErrors = {
    */
   409: ErrorPayload;
   /**
+   * Extension is not a built-in
+   */
+  422: ExtensionOperationErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;
+  /**
+   * Permanent removal is not available on this extension service
+   */
+  501: ErrorPayload;
   /**
    * Extension service is not configured
    */
@@ -21490,6 +21562,56 @@ export type ReloadDevExtensionResponses = {
 
 export type ReloadDevExtensionResponse =
   ReloadDevExtensionResponses[keyof ReloadDevExtensionResponses];
+
+export type RestoreExtensionData = {
+  body?: never;
+  path: {
+    /**
+     * Extension name
+     */
+    name: string;
+  };
+  query?: never;
+  url: "/api/extensions/{name}/restore";
+};
+
+export type RestoreExtensionErrors = {
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Extension not found
+   */
+  404: ErrorPayload;
+  /**
+   * Not permanently removed, or a non-bundled extension of the same name is installed
+   */
+  409: ExtensionOperationErrorPayload;
+  /**
+   * Enrollment failed; the removed state is restored and the tombstone is kept
+   */
+  500: ExtensionOperationErrorPayload;
+  /**
+   * Restore is not available on this extension service
+   */
+  501: ErrorPayload;
+  /**
+   * Extension service is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type RestoreExtensionError = RestoreExtensionErrors[keyof RestoreExtensionErrors];
+
+export type RestoreExtensionResponses = {
+  /**
+   * Restored at the bundled version, enabled
+   */
+  200: ExtensionRestorePayload;
+};
+
+export type RestoreExtensionResponse = RestoreExtensionResponses[keyof RestoreExtensionResponses];
 
 export type ListExtensionSecretsData = {
   body?: never;

@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+// GateCriterion is a daemon API value.
+type GateCriterion struct {
+	ID       string         `json:"id"`
+	Type     CriterionType  `json:"type"`
+	Check    string         `json:"check,omitempty"`
+	Expect   string         `json:"expect,omitempty"`
+	Contains string         `json:"contains,omitempty"`
+	Agent    string         `json:"agent,omitempty"`
+	Runtime  RuntimeSpec    `json:"runtime,omitzero"`
+	Rubric   string         `json:"rubric,omitempty"`
+	Prompt   string         `json:"prompt,omitempty"`
+	Tool     string         `json:"tool,omitempty"`
+	Inputs   map[string]any `json:"inputs,omitempty"`
+	Metric   *MetricSpec    `json:"metric,omitzero"`
+}
+
+// GatewayAddressPayload is a daemon API value.
+type GatewayAddressPayload struct {
+	Tier    string `json:"tier"`
+	Address string `json:"address"`
+	Live    bool   `json:"live"`
+}
+
+// GatewayAuditAuthPayload is a daemon API value.
+type GatewayAuditAuthPayload struct {
+	Mode              string `json:"mode"`
+	RequiredRemotely  bool   `json:"required_remotely"`
+	ActiveDeviceCount int    `json:"active_device_count"`
+}
+
 // GatewayAuditFindingPayload is a daemon API value.
 type GatewayAuditFindingPayload struct {
 	ID          string `json:"id"`
@@ -416,33 +446,4 @@ type GroupedAgentCatalogItemPayload struct {
 	Scopes           []string     `json:"scopes"`
 	Active           int          `json:"active"`
 	Agent            AgentPayload `json:"agent"`
-}
-
-// HarvestSpec is a daemon API value.
-type HarvestSpec struct {
-	Kind string `json:"kind,omitempty"`
-}
-
-// HeartbeatActorKind is a daemon API value.
-type HeartbeatActorKind string
-
-// HeartbeatActorPayload is a daemon API value.
-type HeartbeatActorPayload struct {
-	Kind HeartbeatActorKind `json:"kind"`
-	Ref  string             `json:"ref,omitempty"`
-}
-
-// HeartbeatAuthorityPayload is a daemon API value.
-type HeartbeatAuthorityPayload struct {
-	ReadOnlyTools map[string][]string `json:"read_only_tools,omitempty"`
-	Actions       []ActionDecl        `json:"actions"`
-	Digest        string              `json:"digest"`
-	Status        string              `json:"status"`
-	CheckIns      CheckInsPolicy      `json:"check_ins"`
-}
-
-// HeartbeatConfigProvenancePayload is a daemon API value.
-type HeartbeatConfigProvenancePayload struct {
-	Digest string                       `json:"digest"`
-	Subset HeartbeatConfigSubsetPayload `json:"subset"`
 }

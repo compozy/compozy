@@ -987,6 +987,9 @@ import type {
   ListProviderUsageData,
   ListProviderUsageErrors,
   ListProviderUsageResponses,
+  ListRemovedBuiltinExtensionsData,
+  ListRemovedBuiltinExtensionsErrors,
+  ListRemovedBuiltinExtensionsResponses,
   ListResourcesByKindData,
   ListResourcesByKindErrors,
   ListResourcesByKindResponses,
@@ -1449,6 +1452,9 @@ import type {
   RespondLoopRequestData,
   RespondLoopRequestErrors,
   RespondLoopRequestResponses,
+  RestoreExtensionData,
+  RestoreExtensionErrors,
+  RestoreExtensionResponses,
   ResumeAgentInstanceData,
   ResumeAgentInstanceErrors,
   ResumeAgentInstanceResponses,
@@ -4571,6 +4577,29 @@ export class extensions extends HeyApiClient {
   }
 
   /**
+   * List permanently removed built-in extensions
+   */
+  public listRemovedBuiltinExtensions<ThrowOnError extends boolean = true>(
+    options?: Options<ListRemovedBuiltinExtensionsData, ThrowOnError>
+  ): RequestResult<
+    ListRemovedBuiltinExtensionsResponses,
+    ListRemovedBuiltinExtensionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListRemovedBuiltinExtensionsResponses,
+      ListRemovedBuiltinExtensionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/extensions/removed-builtins",
+      ...options,
+    });
+  }
+
+  /**
    * Update installed extensions and report each outcome
    */
   public updateExtensions<ThrowOnError extends boolean = true>(
@@ -4806,6 +4835,24 @@ export class extensions extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * Restore one permanently removed built-in extension
+   */
+  public restoreExtension<ThrowOnError extends boolean = true>(
+    options: Options<RestoreExtensionData, ThrowOnError>
+  ): RequestResult<RestoreExtensionResponses, RestoreExtensionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      RestoreExtensionResponses,
+      RestoreExtensionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/extensions/{name}/restore",
+      ...options,
     });
   }
 

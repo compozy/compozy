@@ -372,7 +372,8 @@ type ManagedExtensionUpdatePayload struct {
 	Error          *DiagnosticItem  `json:"error,omitzero"`
 }
 
-// ManagedExtensionRemovePayload describes one daemon-owned extension removal.
+// ManagedExtensionRemovePayload describes one daemon-owned extension removal. Permanent and
+// TombstonedAt are additive: a non-permanent removal reports false and an empty timestamp.
 type ManagedExtensionRemovePayload struct {
 	Name           string           `json:"name"`
 	Path           string           `json:"path"`
@@ -380,6 +381,30 @@ type ManagedExtensionRemovePayload struct {
 	QuarantinePath string           `json:"quarantine_path,omitempty"`
 	Status         string           `json:"status"`
 	Warnings       []DiagnosticItem `json:"warnings,omitempty"`
+	Permanent      bool             `json:"permanent"`
+	TombstonedAt   string           `json:"tombstoned_at"`
+}
+
+// ExtensionRestorePayload describes one built-in extension restored at its bundled version.
+type ExtensionRestorePayload struct {
+	Name    string `json:"name"`
+	Status  string `json:"status"`
+	Source  string `json:"source"`
+	Version string `json:"version"`
+	Enabled bool   `json:"enabled"`
+	Path    string `json:"path"`
+}
+
+// ExtensionRemovedBuiltinPayload describes one built-in extension that is permanently removed and can be restored.
+type ExtensionRemovedBuiltinPayload struct {
+	Name      string `json:"name"`
+	RemovedAt string `json:"removed_at"`
+	RemovedBy string `json:"removed_by"`
+}
+
+// ExtensionRemovedBuiltinsResponse wraps the permanently removed built-in listing. An empty listing is `[]`.
+type ExtensionRemovedBuiltinsResponse struct {
+	Removed []ExtensionRemovedBuiltinPayload `json:"removed"`
 }
 
 // ResourcesResponse wraps the shared desired-state resource list payload.

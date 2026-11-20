@@ -57,6 +57,8 @@ var alwaysOnHardeningAdditions = []struct {
 	{"#/", []string{"reviewer_mode"}},
 	// Agent definitions and reachable peers: the input forms an always-on agent declares.
 	{"#/", []string{"accepts"}},
+	// Extension removal reports whether a built-in was removed permanently and its tombstone time (`_dx.md`).
+	{"#/components/schemas/ManagedExtensionRemovePayload", []string{"permanent", "tombstoned_at"}},
 	// Agent memory add: note (default) or operator rule.
 	{"#/components/schemas/AgentMemoryAddRequest", []string{"kind"}},
 	{"#/paths/~1api~1agents~1{name}~1memory~1entries", []string{"kind"}},

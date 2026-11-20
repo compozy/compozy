@@ -9,6 +9,20 @@ import (
 	"strings"
 )
 
+// SearchFileContentsParams carries the path, query, and header parameters.
+type SearchFileContentsParams struct {
+	WorkspaceID   string    `url:"workspace_id"`
+	WorktreeID    *string   `url:"worktree_id"`
+	Q             string    `url:"q"`
+	Regex         *bool     `url:"regex"`
+	CaseSensitive *bool     `url:"case_sensitive"`
+	WholeWord     *bool     `url:"whole_word"`
+	Include       *[]string `url:"include"`
+	Exclude       *[]string `url:"exclude"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
 // SearchFileContents Search project file contents
 func (c *Client) SearchFileContents(ctx context.Context, params SearchFileContentsParams) (*FileSearchResponse, error) {
 	path := "/api/workspaces/{workspace_id}/files/search"

@@ -4,6 +4,16 @@ package client
 
 import "time"
 
+// SessionRuntimeTransition is a daemon API value.
+type SessionRuntimeTransition string
+
+// SessionSideCommandResult is a daemon API value.
+type SessionSideCommandResult struct {
+	SessionID            string `json:"session_id"`
+	Seed                 string `json:"seed"`
+	SourceTurnInProgress bool   `json:"source_turn_in_progress"`
+}
+
 // SessionSideItemPayload is a daemon API value.
 type SessionSideItemPayload struct {
 	ID                     string     `json:"id"`
@@ -433,15 +443,4 @@ type SettingsExtensionResourcesPayload struct {
 	MaxScope               ResourceScopeKind                 `json:"max_scope,omitempty"`
 	SnapshotRateLimit      SettingsExtensionRateLimitPayload `json:"snapshot_rate_limit"`
 	OperatorWriteRateLimit SettingsExtensionRateLimitPayload `json:"operator_write_rate_limit"`
-}
-
-// SettingsExtensionSourcesPayload is a daemon API value.
-type SettingsExtensionSourcesPayload struct {
-	GitHub SettingsExtensionGitHubSourcePayload `json:"github"`
-	Git    SettingsExtensionGitSourcePayload    `json:"git"`
-}
-
-// SettingsExtensionTrustPayload is a daemon API value.
-type SettingsExtensionTrustPayload struct {
-	AllowUnverified bool `json:"allow_unverified"`
 }
