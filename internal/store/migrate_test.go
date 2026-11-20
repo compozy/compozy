@@ -122,14 +122,23 @@ func TestApplyMigrationStream(t *testing.T) {
 		}
 	})
 
-	t.Run("Should apply an explicitly marked table rebuild and preserve rows", func(t *testing.T) {
+	t.Run("Should preserve rebuilt rows and reopen with one connection", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
 		db := openEngineTestDB(t, "no-transaction.db")
+		db.SetMaxOpenConns(2)
 		stream := fixtureMigrationStream("goose_db_version_workspace", "testdata/migrations/no_transaction")
 		if err := Apply(ctx, db, stream); err != nil {
 			t.Fatalf("Apply() error = %v", err)
+		}
+		db.SetMaxOpenConns(1)
+		if err := Apply(ctx, db, stream); err != nil {
+			t.Fatalf("Apply() after rebuild with one connection error = %v", err)
+		}
+		status, err := Status(ctx, db, stream)
+		if err != nil || status.Version != 1 || status.AppliedCount != 1 {
+			t.Fatalf("Status() = %+v, %v, want version 1 recorded once", status, err)
 		}
 		var value string
 		var enabled int

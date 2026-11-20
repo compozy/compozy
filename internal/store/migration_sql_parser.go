@@ -153,7 +153,7 @@ func rebuildMigrationStatements(statements []string) ([]string, error) {
 
 func validateRebuildTransactionControl(statements []string) error {
 	// Goose statement blocks can contain multiple SQL statements, including trigger bodies.
-	scanner := atlasmigrate.Scanner{ScannerOptions: atlasmigrate.ScannerOptions{MatchBegin: true}}
+	scanner := atlasmigrate.Scanner{MatchBegin: true}
 	for _, statement := range statements {
 		parts, err := scanner.Scan(statement)
 		if err != nil {
