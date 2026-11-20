@@ -413,12 +413,7 @@ export { SessionSidebar, type SessionSidebarProps } from "./components/session-s
 export { SessionSidebarLayout } from "./components/session-sidebar-layout";
 export { sessionThreadFolds } from "./lib/session-sidebar-scope";
 export { walkSessionList } from "./lib/session-list-stops";
-export {
-  claimSessionComposerFocus,
-  requestSessionComposerFocus,
-  sessionComposerFocusStore,
-  withoutSessionComposerFocus,
-} from "./lib/session-composer-focus";
+export * from "./composer-focus";
 export {
   buildSessionTree,
   childSessionSignalState,
