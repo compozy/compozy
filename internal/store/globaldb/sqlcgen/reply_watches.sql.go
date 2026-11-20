@@ -601,11 +601,12 @@ func (q *Queries) ReplyWatchSenderExists(ctx context.Context, arg ReplyWatchSend
 
 const supersedeReplyWatchFollowUps = `-- name: SupersedeReplyWatchFollowUps :many
 UPDATE session_prompt_reply_watches
-SET state = CASE WHEN interim_wait IS NOT NULL THEN state ELSE 'abandoned' END,
- abandon_reason = CASE WHEN interim_wait IS NULL THEN 'superseded' ELSE NULL END,
- follow_up_after = CASE WHEN interim_wait IS NULL THEN follow_up_after ELSE 0 END,
+SET state = CASE WHEN state = 'armed' THEN 'abandoned' ELSE state END,
+ abandon_reason = CASE WHEN state = 'armed' THEN 'superseded' ELSE NULL END,
+ follow_up_after = CASE WHEN state = 'armed' THEN follow_up_after ELSE 0 END,
  interim_wait = NULL
-WHERE session_prompt_reply_watches.state IN ('armed', 'fired') AND session_prompt_reply_watches.follow_up_after > 0
+WHERE follow_up_after > 0
+ AND (state = 'armed' OR (state = 'fired' AND interim_wait IS NOT NULL))
  AND EXISTS (
   SELECT 1 FROM session_prompt_reply_watches AS newer
   WHERE newer.id = ?1 AND newer.rowid > session_prompt_reply_watches.rowid
