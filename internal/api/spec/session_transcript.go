@@ -83,7 +83,38 @@ func sessionTranscriptOperations() []OperationSpec {
 		operations,
 		globalSessionHistoryOperation(operations[0]),
 		globalSessionHistoryOperation(operations[1]),
+		inheritedSessionTranscriptOperation(),
+		globalSessionHistoryOperation(inheritedSessionTranscriptOperation()),
 	)
+}
+
+func inheritedSessionTranscriptOperation() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/inherited",
+		AppAccess:   AppAccessAllowed,
+		OperationID: "getSessionInheritedTranscript",
+		Summary:     "Get a bounded page of a derived session's source transcript through the derive cut",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Derived child session id"),
+			intQueryParam("limit", "Maximum page size; defaults to the newest 200 entries and is capped at 1000"),
+			beforeSequenceQueryParam("Return inherited entries whose stable start sequence is before this cursor"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SessionTranscriptResponse{}},
+			{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      404,
+				Description: "Session not found or source transcript unavailable (inherited_transcript_unavailable)",
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTranscriptIncompatibleDescription, Body: contract.ErrorPayload{}},
+		},
+	}
 }
 
 // Global history keeps the same paging/navigation contract, scoped by profile

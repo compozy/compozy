@@ -9,6 +9,36 @@ import (
 	"strings"
 )
 
+// GetGlobalSessionStatus Read compact session status and wake eligibility for a Global session
+func (c *Client) GetGlobalSessionStatus(ctx context.Context, params GetGlobalSessionStatusParams) (*SessionStatusResponse, error) {
+	path := "/api/sessions/{session_id}/status"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetGlobalSessionTranscriptParams carries the path, query, and header parameters.
+type GetGlobalSessionTranscriptParams struct {
+	SessionID      string  `url:"session_id"`
+	Limit          *int    `url:"limit"`
+	BeforeSequence *int64  `url:"before_sequence"`
+	Profile        *string `url:"profile"`
+	AllProfiles    *bool   `url:"all_profiles"`
+}
+
 // GetGlobalSessionTranscript Get a bounded materialized transcript page for a Global session
 func (c *Client) GetGlobalSessionTranscript(ctx context.Context, params GetGlobalSessionTranscriptParams) (*SessionTranscriptResponse, error) {
 	path := "/api/sessions/{session_id}/transcript"

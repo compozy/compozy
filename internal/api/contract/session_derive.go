@@ -76,14 +76,15 @@ type SessionDerivePreviewResponse struct {
 	MessageCount int `json:"message_count"`
 	// SourceMessageCount is the whole source transcript's message count, so a fork cut
 	// or a truncated carry reads "k of n".
-	SourceMessageCount   int                      `json:"source_message_count"`
-	ReplayBytes          int                      `json:"replay_bytes"`
-	Truncated            bool                     `json:"truncated"`
-	OmittedCount         int                      `json:"omitted_count"`
-	SourceTurnInProgress bool                     `json:"source_turn_in_progress"`
-	NativeForkPossible   bool                     `json:"native_fork_possible"`
-	Cut                  *SessionDeriveCutPayload `json:"cut,omitzero"`
-	Transcript           SessionTranscriptFences  `json:"transcript"`
+	SourceMessageCount      int                      `json:"source_message_count"`
+	ReplayBytes             int                      `json:"replay_bytes"`
+	Truncated               bool                     `json:"truncated"`
+	OmittedCount            int                      `json:"omitted_count"`
+	SourceTurnInProgress    bool                     `json:"source_turn_in_progress"`
+	NativeForkPossible      bool                     `json:"native_fork_possible"`
+	NativeForkRefusalReason string                   `json:"native_fork_refusal_reason,omitempty"`
+	Cut                     *SessionDeriveCutPayload `json:"cut,omitzero"`
+	Transcript              SessionTranscriptFences  `json:"transcript"`
 }
 
 // SessionDeriveErrorPayload is a continue/fork error. ChildSessionID is set when the

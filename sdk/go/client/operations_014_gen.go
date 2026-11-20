@@ -74,6 +74,44 @@ func (c *Client) GetSessionHistoryCleanup(ctx context.Context, params GetSession
 	return &out, nil
 }
 
+// GetSessionInheritedTranscriptParams carries the path, query, and header parameters.
+type GetSessionInheritedTranscriptParams struct {
+	WorkspaceID    string  `url:"workspace_id"`
+	SessionID      string  `url:"session_id"`
+	Limit          *int    `url:"limit"`
+	BeforeSequence *int64  `url:"before_sequence"`
+	Profile        *string `url:"profile"`
+	AllProfiles    *bool   `url:"all_profiles"`
+}
+
+// GetSessionInheritedTranscript Get a bounded page of a derived session's source transcript through the derive cut
+func (c *Client) GetSessionInheritedTranscript(ctx context.Context, params GetSessionInheritedTranscriptParams) (*SessionTranscriptResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/inherited"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.BeforeSequence != nil {
+		query.Set("before_sequence", strconv.FormatInt(*params.BeforeSequence, 10))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionTranscriptResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSessionMCPParams carries the path, query, and header parameters.
 type GetSessionMCPParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -404,40 +442,6 @@ func (c *Client) GetSettingsGeneral(ctx context.Context) (*SettingsGeneralRespon
 func (c *Client) GetSettingsHooksExtensions(ctx context.Context) (*SettingsHooksExtensionsResponse, error) {
 	path := "/api/settings/hooks-extensions"
 	var out SettingsHooksExtensionsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsMCPAuthStatusParams carries the path, query, and header parameters.
-type GetSettingsMCPAuthStatusParams struct {
-	Name        string  `url:"name"`
-	Scope       string  `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
-}
-
-// GetSettingsMCPAuthStatus Get redacted daemon-mediated OAuth state for one MCP server
-func (c *Client) GetSettingsMCPAuthStatus(ctx context.Context, params GetSettingsMCPAuthStatusParams) (*SettingsMCPAuthStatusPayload, error) {
-	path := "/api/settings/mcp-servers/{name}/auth/status"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("scope", params.Scope)
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Owner != nil {
-		query.Set("owner", *params.Owner)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsMCPAuthStatusPayload
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
