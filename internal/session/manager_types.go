@@ -194,6 +194,7 @@ type Manager struct {
 	resumeReplayMu             sync.Mutex
 	resumeReplays              map[string]string
 	startLifecycle             sessionStartLifecycle
+	deriveFirstPrompts         map[string]*deriveFirstPromptRun
 	resumeLifecycle            sessionResumeLifecycle
 	processWatchLifecycle      sessionProcessWatchLifecycle
 

@@ -6916,3 +6916,23 @@ Owner: `perf/mcp-poll-churn`.
   builds check that the instance, check-in binding, and approval inputs they consumed match the observation.
 - **Official skill, Web, docs and QA.** The MCP settings, summary events, hosted tool notifications,
   and existing operator journeys use the same timing and contracts.
+
+## Derived session admission and inherited transcript
+
+Owner: [#1885](https://github.com/compozy/compozy/issues/1885).
+
+- **HTTP, UDS, CLI and native tools.** Preview reports the native fork refusal reason. Derive and
+  preview report retryable `derive_source_busy` after a bounded conversation lock wait. Continue
+  returns the acknowledged first message before the runtime binds. A failed bind is visible on the
+  child and same-key retry. HTTP and UDS also expose an inherited transcript page. CLI and native
+  history continue to read the session's own events.
+- **Extensibility, config and storage.** Existing workspace replay budgets and hook entry points
+  apply. Derived session metadata stores the cut and counts. The current source owns the transcript
+  rows. Preview and derive log lock, read, bound, commit, and native clone timing.
+- **Workspace and profile isolation.** The inherited read authorizes the child before looking up
+  its recorded source. It requires the same workspace and profile and the derive epoch and generation.
+  Archived, moved, deleted, or invalidated sources use the same unavailable response.
+- **Web, docs and QA.** The inherited block can page the source without including those entries in
+  the child's search, outline, or totals. The runtime skill and session lifecycle docs define the
+  read and retry behavior. `RT-session-derive-retry` and `RT-session-derive-native-fork` cover the
+  changed daemon expectations.

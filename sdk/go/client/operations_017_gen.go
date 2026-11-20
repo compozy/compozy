@@ -11,6 +11,30 @@ import (
 	"strings"
 )
 
+// GetWindowManagerMigration Read window layout migration status
+func (c *Client) GetWindowManagerMigration(ctx context.Context, params GetWindowManagerMigrationParams) (*MigrationStatus, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/migration"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MigrationStatus
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetWindowManagerSnapshotParams carries the path, query, and header parameters.
+type GetWindowManagerSnapshotParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // GetWindowManagerSnapshot Read one workspace window-manager snapshot
 func (c *Client) GetWindowManagerSnapshot(ctx context.Context, params GetWindowManagerSnapshotParams) (*WindowManagerSnapshot, error) {
 	path := "/api/workspaces/{workspace_id}/window-manager"

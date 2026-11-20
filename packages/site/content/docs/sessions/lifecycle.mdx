@@ -604,8 +604,23 @@ object (`kind`, `source_session_id`, `seed`, `first_prompt`); `compozy session s
 `GET /api/workspaces/:workspace_id/sessions/:session_id/derive/preview` reports what a continue would
 carry right now (`message_count`, `replay_bytes`, `truncated`, `omitted_count`,
 `source_turn_in_progress`), the whole source transcript's `source_message_count`, and the transcript
-fences it was measured at. The preview never writes
-anything and never repairs a stopped source.
+fences it was measured at. The preview never writes anything and never repairs a stopped source.
+Preview, Continue, and Fork return `409 derive_source_busy` with `retryable: true` when the source's
+conversation is held past the wait limit.
+
+### Read the conversation at the cut
+
+`GET /api/workspaces/{workspace_id}/sessions/{session_id}/transcript/inherited` reads the direct
+source through the derived session's cut. Use `GET /api/sessions/{session_id}/transcript/inherited`
+for a Global session. Supply the derived session ID and start with `limit`. If the page has older
+entries, pass its `next_before_sequence` as `before_sequence`. The source must still be in the same
+workspace and profile. A missing, archived, moved, rewound, or cleared source can return
+`404 inherited_transcript_unavailable`.
+
+The derived session's `derivation.inherited_message_count` counts visible source entries at the cut.
+`replay_message_count` and `replay_omitted_count` describe the bounded context carried to the agent
+or kept as the fallback for a native fork. The derived session's own transcript, search, outline,
+and message totals exclude inherited entries.
 
 ### The carried context
 
@@ -633,7 +648,8 @@ Carry on with the migration; run the tests first.
 
 Without `--message` the context waits (`first_prompt: staged`) and is composed in front of the first
 prompt you send. With a message, the message is admitted through the ordinary prompt admission
-(`first_prompt: admitted`); delivery and completion are reported by the new session's prompt events.
+(`first_prompt: admitted`) before the runtime binds. Delivery and completion are reported by the new
+session's prompt events.
 If the daemon stops before that admission, the new session keeps `first_prompt: staged`; repeating the
 same request (same `idempotency_key`) admits the message and sends it once.
 Continuing a continued session carries that session's own transcript with its carried context flattened
@@ -670,10 +686,13 @@ be admitted because the runtime is not authenticated (`422`). The error then car
 dialog keeps offering **Open new session** for the rest of that dialog, even after you edit the request
 or it is refused again, and the CLI prints the session id and the key to rerun with. When the refusal
 names a provider or model problem, its code is the error's `code` too (for example `model_unavailable`).
+A bind failure after admission appears in the child's `runtime.failure`; the same key returns
+`422 derive_first_prompt_failed` with that child ID.
 Errors carry a stable `code`: `invalid_request`, `session_not_found`, `session_not_derivable`,
 `session_archived`, `agent_not_found`, `message_not_found`, `route_not_found`,
 `session_turn_in_progress`, `session_fence_conflict`, `idempotency_conflict`,
-`new_work_admission_unavailable`. The CLI prints them as `Error: <code>: <message>` and exits `1`.
+`derive_source_busy`, `derive_first_prompt_failed`, `new_work_admission_unavailable`. The CLI prints
+them as `Error: <code>: <message>` and exits `1`.
 
 When you send fences (`--expected-epoch`, `--expected-generation`, `--expected-max-sequence`, all three
 or none), they must match the snapshot; otherwise the request fails with `session_fence_conflict`.
@@ -732,7 +751,8 @@ default route.
 Some agents can clone their own session (ACP `session/fork` together with `session/load`). A
 whole-session fork uses that clone when the source is bound on a live process, idle (no prompt in
 progress and nothing queued), and the fork resolves to the same provider identity. The preview reports
-this as `native_fork_possible` (`false` when not possible or unknown). A fork through a message, a
+this as `native_fork_possible` and reports `native_fork_refusal_reason` when the gate refuses a clone.
+A fork through a message, a
 running or stopped source, or an agent without both capabilities uses the carried context instead.
 
 A native fork responds with `seed: native_fork`, `native_state: pending`, and the clone's

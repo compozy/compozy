@@ -117,6 +117,19 @@ func (s *Session) markDeriveFirstPromptAdmitted(admissionKey string) bool {
 	return true
 }
 
+func (s *Session) markDeriveFirstPromptFailed(admissionKey string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.derivation == nil || s.derivation.FirstPrompt.AdmissionKey != admissionKey {
+		return false
+	}
+	s.derivation.FirstPrompt.Failed = true
+	if s.RuntimeFailure == "" {
+		s.RuntimeFailure = ErrDeriveFirstPromptFailed.Error()
+	}
+	return true
+}
+
 // pendingNativeBootstrap returns the native clone bootstrap while it waits for the first bind.
 func (s *Session) pendingNativeBootstrap() *store.SessionNativeBootstrap {
 	if s == nil {

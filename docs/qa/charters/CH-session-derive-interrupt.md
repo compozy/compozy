@@ -18,6 +18,7 @@ charter:
     must_try:
       - "Same idempotency key after the source moved on: `Replayed  yes`, recorded counts; after deleting the child: `child_deleted: true`, nothing created; same key with another agent: `idempotency_conflict`."
       - "Stop the daemon right after a continue with `--message` returns, restart, repeat the command: the message runs exactly once."
+      - "Delay the new session's bind, and confirm Continue returns first. Fail the bind and retry with the same key to inspect the original child's error. Clear or archive a source and verify only its inherited range becomes unavailable."
       - "Rate-limit a user session's turn (acpmock prompt-error step): `next_action: handoff` with guidance naming `compozy session continue`; nothing is created until the operator continues; a spawned child keeps `retry`."
       - "Boot the branch build on a home written by the pre-feature build: lineage kinds are truthful, the --parent child rewinds, the spawned child is refused, the pre-feature root continues and forks."
     must_avoid:

@@ -619,9 +619,12 @@ later turn is excluded with a note), bounded by `[session.derive] max_replay_byt
 `max_message_bytes`; omissions are reported as `truncated` and `omitted_count`. It is stored on the new
 session and prepended once whenever that session's history is rebuilt (first prompt, provider
 replacement, recovery without a native id, rewind restart). `--message` admits the first prompt
-(`first_prompt: admitted`); without it the context waits for the first prompt (`staged`). Preview the
+(`first_prompt: admitted`) before the new session binds its runtime; without it the context waits for
+the first prompt (`staged`). Preview the
 numbers first with `GET /api/workspaces/<ws>/sessions/<id>/derive/preview` (`message_count`,
-`replay_bytes`, `native_fork_possible`, and `cut.turn_id` when `message_id` is given); it never writes.
+`replay_bytes`, `native_fork_possible`, `native_fork_refusal_reason` when ineligible, and `cut.turn_id`
+when `message_id` is given); it never writes. If the source's conversation is held, preview and
+derive return `409 derive_source_busy` with `retryable: true` after a bounded wait.
 The new session reads `lineage.kind = "continue"` plus `lineage.origin_agent_name` and a `derivation`
 object, and is a new top-level session: `lineage.parent_session_id` names the source as provenance, not
 as a parent, so it is not the source's child and keeps top-level governance. Session lists still show
@@ -641,10 +644,13 @@ the new session's first bind; if it was removed or its command changed, that bin
 `route_not_found` and the session stays unbound. Errors carry a stable `code`: `invalid_request`,
 `session_not_found`, `session_not_derivable`, `session_archived`, `agent_not_found`,
 `message_not_found`, `route_not_found`, `session_turn_in_progress`, `session_fence_conflict`,
-`idempotency_conflict`, `new_work_admission_unavailable`. A failure after the new session was created
+`idempotency_conflict`, `derive_source_busy`, `derive_first_prompt_failed`,
+`new_work_admission_unavailable`. A failure after the new session was created
 (for example a `422` when its first message cannot be admitted) also carries `child_session_id`; open
 that session or retry the same key. A provider or model refusal's diagnostic code is also the error
-`code` (for example `model_unavailable`). A retry replays its recorded outcome even after the source was
+`code` (for example `model_unavailable`). A runtime bind that failed after admission is visible in
+the child's `runtime.failure`; the same key returns `422 derive_first_prompt_failed` and the child ID.
+A retry replays its recorded outcome even after the source was
 deleted or can no longer be read; the CLI resolves the source only through read-only lookups.
 
 When a user session's turn fails as `rate_limited` or `not_authenticated`, the error event's
@@ -666,6 +672,17 @@ first prompt loads the clone under the same provider identity and the session re
 `derivation.native_state` `loaded`, or `failed` with `native_fork_error` when the clone could not load
 and the carried context was sent instead. A failed clone request yields `seed: replay` with
 `native_fork_error`. The source never receives the clone's traffic.
+
+The HTTP and UDS inherited transcript read is
+`GET /api/workspaces/{workspace_id}/sessions/{session_id}/transcript/inherited` (or
+`GET /api/sessions/{session_id}/transcript/inherited` for Global), where `session_id` is the derived
+session. Pages use `limit` and `before_sequence`, ordered by `start_sequence` and starting at the tail
+of the cut. The read resolves the immediate source in the child's own workspace and profile.
+`404 inherited_transcript_unavailable` means that scope or the source range is no longer available.
+The child's `derivation.inherited_message_count` measures visible source entries at the cut. Its
+`replay_message_count` and `replay_omitted_count` describe bounded replay, including the fallback for a
+native fork. CLI history, `compozy__session_history`, and the child's transcript stream still read
+the child's own history.
 
 ### Session attention and pending interactions
 

@@ -532,6 +532,9 @@ import type {
   GetGlobalSessionHistoryData,
   GetGlobalSessionHistoryErrors,
   GetGlobalSessionHistoryResponses,
+  GetGlobalSessionInheritedTranscriptData,
+  GetGlobalSessionInheritedTranscriptErrors,
+  GetGlobalSessionInheritedTranscriptResponses,
   GetGlobalSessionStatusData,
   GetGlobalSessionStatusErrors,
   GetGlobalSessionStatusResponses,
@@ -665,6 +668,9 @@ import type {
   GetSessionHistoryData,
   GetSessionHistoryErrors,
   GetSessionHistoryResponses,
+  GetSessionInheritedTranscriptData,
+  GetSessionInheritedTranscriptErrors,
+  GetSessionInheritedTranscriptResponses,
   GetSessionMCPData,
   GetSessionMCPErrors,
   GetSessionMCPResponses,
@@ -8612,6 +8618,29 @@ export class sessions extends HeyApiClient {
   }
 
   /**
+   * Get a bounded page of a derived session's source transcript through the derive cut for a Global session
+   */
+  public getGlobalSessionInheritedTranscript<ThrowOnError extends boolean = true>(
+    options: Options<GetGlobalSessionInheritedTranscriptData, ThrowOnError>
+  ): RequestResult<
+    GetGlobalSessionInheritedTranscriptResponses,
+    GetGlobalSessionInheritedTranscriptErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetGlobalSessionInheritedTranscriptResponses,
+      GetGlobalSessionInheritedTranscriptErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/{session_id}/transcript/inherited",
+      ...options,
+    });
+  }
+
+  /**
    * Get the full retained operator-message trail with reply previews for a Global session
    */
   public getGlobalSessionTranscriptOutline<ThrowOnError extends boolean = true>(
@@ -10242,6 +10271,29 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
+      ...options,
+    });
+  }
+
+  /**
+   * Get a bounded page of a derived session's source transcript through the derive cut
+   */
+  public getSessionInheritedTranscript<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionInheritedTranscriptData, ThrowOnError>
+  ): RequestResult<
+    GetSessionInheritedTranscriptResponses,
+    GetSessionInheritedTranscriptErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetSessionInheritedTranscriptResponses,
+      GetSessionInheritedTranscriptErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/inherited",
       ...options,
     });
   }

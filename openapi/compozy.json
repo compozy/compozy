@@ -27610,6 +27610,10 @@
           "first_prompt": {
             "type": "string"
           },
+          "inherited_message_count": {
+            "nullable": true,
+            "type": "integer"
+          },
           "kind": {
             "enum": [
               "",
@@ -27627,6 +27631,14 @@
           },
           "native_state": {
             "type": "string"
+          },
+          "replay_message_count": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "replay_omitted_count": {
+            "nullable": true,
+            "type": "integer"
           },
           "seed": {
             "type": "string"
@@ -27745,6 +27757,9 @@
           },
           "native_fork_possible": {
             "type": "boolean"
+          },
+          "native_fork_refusal_reason": {
+            "type": "string"
           },
           "omitted_count": {
             "type": "integer"
@@ -77745,6 +77760,117 @@
         ]
       }
     },
+    "/api/sessions/{session_id}/transcript/inherited": {
+      "get": {
+        "operationId": "getGlobalSessionInheritedTranscript",
+        "parameters": [
+          {
+            "description": "Derived child session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum page size; defaults to the newest 200 entries and is capped at 1000",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Return inherited entries whose stable start sequence is before this cursor",
+            "in": "query",
+            "name": "before_sequence",
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTranscriptResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid filter"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found or source transcript unavailable (inherited_transcript_unavailable)"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Transcript projection is incompatible"
+          }
+        },
+        "summary": "Get a bounded page of a derived session's source transcript through the derive cut for a Global session",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/sessions/{session_id}/transcript/outline": {
       "get": {
         "operationId": "getGlobalSessionTranscriptOutline",
@@ -101813,7 +101939,7 @@
                 }
               }
             },
-            "description": "Session cannot be continued"
+            "description": "Session cannot be continued or the source is busy"
           },
           "422": {
             "content": {
@@ -101823,7 +101949,7 @@
                 }
               }
             },
-            "description": "Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it"
+            "description": "Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id"
           },
           "500": {
             "content": {
@@ -101943,7 +102069,7 @@
                 }
               }
             },
-            "description": "Session is archived"
+            "description": "Session is archived or the source is busy"
           },
           "500": {
             "content": {
@@ -103156,7 +103282,7 @@
                 }
               }
             },
-            "description": "Session cannot be forked"
+            "description": "Session cannot be forked or the source is busy"
           },
           "422": {
             "content": {
@@ -103166,7 +103292,7 @@
                 }
               }
             },
-            "description": "Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it"
+            "description": "Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id"
           },
           "500": {
             "content": {
@@ -107856,7 +107982,7 @@
                 }
               }
             },
-            "description": "Runtime or authentication failure; when the new session was already created the error carries child_session_id and a retry with the same idempotency_key returns it"
+            "description": "Runtime, authentication or previously admitted first-message failure; when the new session was already created the error carries child_session_id"
           },
           "500": {
             "content": {
@@ -108979,6 +109105,126 @@
           }
         },
         "summary": "Get a bounded materialized transcript page",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/inherited": {
+      "get": {
+        "operationId": "getSessionInheritedTranscript",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Derived child session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum page size; defaults to the newest 200 entries and is capped at 1000",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Return inherited entries whose stable start sequence is before this cursor",
+            "in": "query",
+            "name": "before_sequence",
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTranscriptResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid filter"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found or source transcript unavailable (inherited_transcript_unavailable)"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Transcript projection is incompatible"
+          }
+        },
+        "summary": "Get a bounded page of a derived session's source transcript through the derive cut",
         "tags": [
           "sessions"
         ],

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1455,6 +1456,56 @@ func (h *deriveHarness) rewindOpts(t *testing.T, sessionID string, text string, 
 func TestDeriveCommitBoundaries(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should acknowledge the first message while binding and retain a failed bind on retry", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		binding := make(chan struct{})
+		finish := make(chan struct{})
+		release := sync.OnceFunc(func() { close(finish) })
+		defer release()
+		h.driver.startContextHook = func(ctx context.Context, _ acp.StartOpts, _ int) (*fakeProcess, error) {
+			close(binding)
+			select {
+			case <-finish:
+				return nil, errors.New("first bind fixture failed")
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		opts := h.continueOpts(source, "idem_async_bind")
+		opts.Route = 1
+		opts.Message = "start once"
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+		defer cancel()
+		result, err := h.manager.ContinueSession(ctx, opts)
+		if err != nil || result.Child == nil || result.FirstPrompt != store.SessionDerivationFirstPromptAdmitted {
+			t.Fatalf("ContinueSession = %+v, %v, want the committed child before finishing bind", result, err)
+		}
+		select {
+		case <-binding:
+		case <-ctx.Done():
+			t.Fatal("the detached bind did not start")
+		}
+		retry, err := h.manager.ContinueSession(ctx, opts)
+		if err != nil || !retry.Replayed || retry.ChildSessionID != result.Child.ID {
+			t.Fatalf("ContinueSession during bind = %+v, %v, want the same child", retry, err)
+		}
+		release()
+		if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+			t.Fatal(err)
+		}
+		retry, err = h.manager.ContinueSession(ctx, opts)
+		if !errors.Is(err, ErrDeriveFirstPromptFailed) || retry.Child == nil ||
+			retry.Child.ID != result.Child.ID || retry.Child.RuntimeFailure == "" {
+			t.Fatalf(
+				"ContinueSession after failed bind = %+v, %v, want a visible failure on the same child",
+				retry,
+				err,
+			)
+		}
+	})
+
 	t.Run("Should issue one registration transaction after the meta write with nothing observable yet",
 		func(t *testing.T) {
 			t.Parallel()
@@ -1719,6 +1770,51 @@ func TestDeriveCommitBoundaries(t *testing.T) {
 func TestDeriveSnapshotConcurrency(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should release the conversation lock during count work and reject a mixed generation", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		db, ok := source.recorderHandle().(*sessiondb.SessionDB)
+		if !ok {
+			t.Fatal("expected a real session DB")
+		}
+		rewind := h.rewindOpts(t, source.ID, "Now run the tests", "rewind-during-derive-shape")
+		started, resume := make(chan struct{}), make(chan struct{})
+		release := sync.OnceFunc(func() { close(resume) })
+		defer release()
+		source.setRecorder(&deriveReplayReadCounter{SessionDB: db, beforeShape: func(ctx context.Context) {
+			close(started)
+			select {
+			case <-resume:
+			case <-ctx.Done():
+			}
+		}})
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		result := make(chan error, 1)
+		go func() {
+			_, err := h.manager.DerivePreview(ctx, h.workspaceID, source.ID, "")
+			result <- err
+		}()
+		select {
+		case <-started:
+		case <-ctx.Done():
+			t.Fatal("preview did not reach the shape read")
+		}
+		if _, err := h.manager.RewindConversation(ctx, source.ID, rewind); err != nil {
+			t.Fatalf("rewind during the paused read: %v", err)
+		}
+		release()
+		select {
+		case err := <-result:
+			if !errors.Is(err, ErrDeriveFenceConflict) {
+				t.Fatalf("preview after rewind = %v, want fence conflict", err)
+			}
+		case <-ctx.Done():
+			t.Fatal("preview did not finish after rewind")
+		}
+	})
+
 	t.Run("Should make a concurrent rewind wait for the snapshot and fence later derives", func(t *testing.T) {
 		t.Parallel()
 		fault := &deriveFaultStore{}
@@ -1787,6 +1883,140 @@ func TestDeriveSnapshotConcurrency(t *testing.T) {
 		if importedContains(messages, "Now run the tests") || !importedContains(messages, "Start the migration") {
 			t.Fatal("derive after the rewind did not take a new snapshot of the rewound transcript")
 		}
+	})
+}
+
+func TestDeriveReplayReadBudget(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep rich event reads bounded as uncarried tool history grows", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		db, ok := source.recorderHandle().(*sessiondb.SessionDB)
+		if !ok {
+			t.Fatal("expected a real session DB")
+		}
+		observed := &deriveReplayReadCounter{SessionDB: db}
+		source.setRecorder(observed)
+		const normalRows = 1200
+		growBy, payloadBytes := normalRows, 512
+		scale := os.Getenv("COMPOZY_DERIVE_SCALE_PROBE") == "1"
+		if scale {
+			growBy, payloadBytes = 30000, 8192
+		}
+		var initialRichRows int64
+		var toolRows int
+		for i, rows := range []int{normalRows, growBy} {
+			recordDeriveToolHistory(t, db, i, rows, payloadBytes)
+			toolRows += rows
+			h.promptSource(t, source.ID, fmt.Sprintf("latest ordinary turn %d", i))
+			observed.richRows.Store(0)
+			measure := readDeriveProbe(t, "preview", func() {
+				preview, err := h.manager.DerivePreview(t.Context(), h.workspaceID, source.ID, "")
+				want := 2*toolRows + 4 + 2*(i+1)
+				if err != nil || !preview.Truncated || preview.SourceMessageCount != want {
+					t.Fatalf("preview = %+v, %v, want %d source messages", preview, err, want)
+				}
+			})
+			previewRows := observed.richRows.Load()
+			observed.richRows.Store(0)
+			readDeriveProbe(t, "derive", func() {
+				result, err := h.manager.ContinueSession(
+					t.Context(),
+					h.continueOpts(source, fmt.Sprintf("derive-scale-%d", i)),
+				)
+				if err != nil || result.Child == nil || !result.Truncated || result.ReplayMessageCount == 0 {
+					t.Fatalf("derive = %+v, %v, want a child with bounded replay", result, err)
+				}
+			})
+			deriveRows := observed.richRows.Load()
+			if previewRows == 0 || previewRows > normalRows || deriveRows != previewRows {
+				t.Fatalf("read %d preview and %d derive rich rows with %d ballast rows", previewRows, deriveRows, rows)
+			}
+			if i == 0 {
+				initialRichRows = previewRows
+			} else if previewRows > initialRichRows+4 {
+				t.Fatalf("rich rows grew from %d to %d with the omitted prefix", initialRichRows, previewRows)
+			}
+			t.Logf("rich event rows preview=%d derive=%d, preview=%s", previewRows, deriveRows, measure)
+			if scale && i == 1 {
+				measureLegacyDeriveReplay(t, db, h.manager.deriveConfig)
+			}
+		}
+	})
+}
+
+type deriveReplayReadCounter struct {
+	*sessiondb.SessionDB
+	richRows    atomic.Int64
+	beforeShape func(context.Context)
+}
+
+func (counter *deriveReplayReadCounter) Query(
+	ctx context.Context,
+	query store.EventQuery,
+) ([]store.SessionEvent, error) {
+	if query.ReplayShape && counter.beforeShape != nil {
+		counter.beforeShape(ctx)
+	}
+	rows, err := counter.SessionDB.Query(ctx, query)
+	if !query.ReplayShape {
+		counter.richRows.Add(int64(len(rows)))
+	}
+	return rows, err
+}
+
+func recordDeriveToolHistory(t *testing.T, db *sessiondb.SessionDB, prefix, rows, payloadBytes int) {
+	t.Helper()
+	const batchSize = 64
+	body := strings.Repeat("synthetic output line\n", payloadBytes/22)
+	for start := 0; start < rows; start += batchSize {
+		turnID := fmt.Sprintf("scale-turn-%d-%d", prefix, start)
+		batch := make([]store.SessionEvent, 0, batchSize+1)
+		for pos := start; pos < min(start+batchSize, rows); pos++ {
+			id := fmt.Sprintf("scale-tool-%d-%d", prefix, pos)
+			batch = append(batch, store.SessionEvent{
+				ID: id, TurnID: turnID, Type: acp.EventTypeToolResult, AgentName: "coder",
+				Content: fmt.Sprintf(`{"tool_call_id":%q,"tool_result":{"content":%q}}`, id, id+body),
+			})
+		}
+		batch = append(batch, store.SessionEvent{
+			ID: turnID + "-done", TurnID: turnID, Type: acp.EventTypeDone, AgentName: "coder",
+		})
+		if _, err := db.RecordPersistedBatch(t.Context(), batch); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func readDeriveProbe(t *testing.T, name string, run func()) time.Duration {
+	t.Helper()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	started := time.Now()
+	run()
+	elapsed := time.Since(started)
+	runtime.ReadMemStats(&after)
+	t.Logf("%s elapsed=%s allocated_bytes=%d", name, elapsed, after.TotalAlloc-before.TotalAlloc)
+	return elapsed
+}
+
+func measureLegacyDeriveReplay(t *testing.T, db *sessiondb.SessionDB, config compozyconfig.SessionDeriveConfig) {
+	t.Helper()
+	readDeriveProbe(t, "previous full-ledger replay", func() {
+		events, err := db.Query(t.Context(), store.EventQuery{Archive: store.EventArchiveUnarchived})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, through, _ := lastSettledTurn(events)
+		messages, err := assembleDeriveMessages(nil, events, 0, through)
+		if err != nil {
+			t.Fatal(err)
+		}
+		boundReplay(
+			messages,
+			replayBudget{MaxBytes: config.MaxReplayBytes, MaxMessageBytes: config.MaxMessageBytes, PinFirstUser: true},
+		)
 	})
 }
 
@@ -2150,6 +2380,43 @@ func (h *deriveHarness) startCallsSnapshot() []acp.StartOpts {
 func TestForkSession(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should page a source prefix through the cut and hide a source after archive", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		opts := h.forkOpts(source, "idem_inherited_page")
+		opts.MessageID = h.rewindOpts(t, source.ID, "Start the migration", "unused").MessageID
+		result, err := h.manager.ForkSession(t.Context(), opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.promptSource(t, source.ID, "A later append")
+		page, epoch, err := h.manager.InheritedTranscript(t.Context(), result.Child, transcript.PageQuery{Limit: 1})
+		if err != nil || len(page.Entries) != 1 || !page.HasOlder || page.NextBeforeSequence == 0 ||
+			page.Entries[0].Message.Role != transcript.UIRoleAssistant || epoch != source.Info().TranscriptEpoch {
+			t.Fatalf("InheritedTranscript(tail) = %+v, epoch %d, %v, want the reply to the cut turn", page, epoch, err)
+		}
+		prior, _, err := h.manager.InheritedTranscript(t.Context(), result.Child, transcript.PageQuery{
+			Limit: 1, BeforeSequence: page.NextBeforeSequence,
+		})
+		if err != nil || len(prior.Entries) != 1 || prior.HasOlder || prior.Entries[0].Message.ID != opts.MessageID {
+			t.Fatalf("InheritedTranscript(older) = %+v, %v, want just the cut prompt", prior, err)
+		}
+		wrongWorkspace := *result.Child
+		wrongWorkspace.WorkspaceID = "ws-other"
+		_, _, err = h.manager.InheritedTranscript(t.Context(), &wrongWorkspace, transcript.PageQuery{})
+		if !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("InheritedTranscript(wrong workspace) = %v, want not found", err)
+		}
+		if _, err := h.manager.ArchiveWithStop(t.Context(), h.workspaceID, source.ID); err != nil {
+			t.Fatal(err)
+		}
+		_, _, err = h.manager.InheritedTranscript(t.Context(), result.Child, transcript.PageQuery{})
+		if !errors.Is(err, ErrInheritedTranscriptUnavailable) {
+			t.Fatalf("InheritedTranscript(archived source) = %v, want unavailable", err)
+		}
+	})
+
 	t.Run("Should fork the whole session on the source agent and runtime and leave the source untouched",
 		func(t *testing.T) {
 			t.Parallel()
@@ -2226,7 +2493,8 @@ func TestForkSession(t *testing.T) {
 		h.promptSource(t, source.ID, "Third step", "Fourth step", "Fifth step")
 		third := h.rewindOpts(t, source.ID, "Third step", "unused").MessageID
 		cutPreview, err := h.manager.DerivePreview(testutil.Context(t), h.workspaceID, source.ID, third)
-		if err != nil || cutPreview.MessageCount != 6 || cutPreview.SourceMessageCount != 10 {
+		if err != nil || cutPreview.MessageCount != 6 || cutPreview.SourceMessageCount != 10 ||
+			cutPreview.NativeForkRefusalReason != nativeForkReasonMessageCut {
 			t.Fatalf("DerivePreview(third) = %+v, %v, want 6 of 10 source messages", cutPreview, err)
 		}
 		opts := h.forkOpts(source, "idem_fork_third")

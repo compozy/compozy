@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -17,7 +18,7 @@ func (m *Manager) DerivePreview(
 	workspaceID string,
 	sourceSessionID string,
 	messageID string,
-) (DerivePreview, error) {
+) (_ DerivePreview, retErr error) {
 	if m == nil {
 		return DerivePreview{}, errors.New("session: manager is required")
 	}
@@ -30,10 +31,12 @@ func (m *Manager) DerivePreview(
 		sourceID:    strings.TrimSpace(sourceSessionID),
 		messageID:   strings.TrimSpace(messageID),
 	}
+	timing := deriveTiming{started: time.Now()}
+	defer func() { m.logDeriveTiming(ctx, spec, "preview", &timing, retErr) }()
 	if spec.sourceID == "" {
 		return DerivePreview{}, fmt.Errorf("%w: workspace and source session id are required", ErrValidation)
 	}
-	snapshot, release, err := m.readDeriveSnapshot(ctx, spec.sourceID, spec.messageID)
+	snapshot, release, err := m.readDeriveSnapshot(ctx, spec, &timing)
 	if err != nil {
 		return DerivePreview{}, err
 	}
@@ -42,14 +45,7 @@ func (m *Manager) DerivePreview(
 	if err := m.validateDeriveSource(ctx, spec, &snapshot); err != nil {
 		return DerivePreview{}, err
 	}
-	workspace, err := m.resolveResumeWorkspace(ctx, &snapshot.meta)
-	if err != nil {
-		return DerivePreview{}, err
-	}
-	imported, err := m.buildImportedContext(&snapshot, spec, m.deriveBudget(&workspace))
-	if err != nil {
-		return DerivePreview{}, err
-	}
+	imported := snapshot.imported
 	// imported counts inherited plus cut messages (carried + omitted); the whole source
 	// adds whatever lies after the cut.
 	cutTotal := imported.MessageCount + imported.OmittedCount
@@ -63,8 +59,10 @@ func (m *Manager) DerivePreview(
 	if spec.messageID != "" {
 		cut := snapshot.cut
 		preview.Cut = &cut
+		preview.NativeForkRefusalReason = nativeForkReasonMessageCut
 	} else {
-		preview.NativeForkPossible = m.previewNativeForkPossible(ctx, &snapshot)
+		decision := m.previewNativeForkDecision(ctx, &snapshot)
+		preview.NativeForkPossible, preview.NativeForkRefusalReason = decision.Eligible, decision.Reason
 	}
 	return preview, nil
 }

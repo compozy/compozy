@@ -20,6 +20,8 @@ const (
 	deriveCodeAdmissionUnavailable = "new_work_admission_unavailable"
 	deriveCodeSessionNotDerivable  = "session_not_derivable"
 	deriveCodeSessionArchived      = "session_archived"
+	deriveCodeSourceBusy           = "derive_source_busy"
+	deriveCodeFirstPromptFailed    = "derive_first_prompt_failed"
 	deriveCodeAgentNotFound        = "agent_not_found"
 	deriveCodeRouteNotFound        = "route_not_found"
 	deriveCodeFenceConflict        = "session_fence_conflict"
@@ -139,6 +141,9 @@ func DeriveErrorPayload(err error) contract.SessionDeriveErrorPayload {
 // failure after the commit: the wrapped chain (runtime binding, ACP start, agent stderr)
 // is never user-facing.
 func deriveErrorPayload(payload contract.ErrorPayload, err error) contract.SessionDeriveErrorPayload {
+	if errors.Is(err, session.ErrDeriveSourceBusy) {
+		payload.Retryable = true
+	}
 	if payload.Code == "" && payload.Diagnostic != nil {
 		payload.Code = strings.TrimSpace(payload.Diagnostic.Code)
 	}
@@ -182,6 +187,10 @@ func DeriveErrorCode(err error) string {
 		return deriveCodeSessionNotDerivable
 	case errors.Is(err, session.ErrDeriveSourceArchived):
 		return deriveCodeSessionArchived
+	case errors.Is(err, session.ErrDeriveSourceBusy):
+		return deriveCodeSourceBusy
+	case errors.Is(err, session.ErrDeriveFirstPromptFailed):
+		return deriveCodeFirstPromptFailed
 	case errors.Is(err, session.ErrDeriveAgentNotFound):
 		return deriveCodeAgentNotFound
 	case errors.Is(err, session.ErrDeriveRouteNotFound):
@@ -210,10 +219,12 @@ func statusForDeriveError(err error) (int, bool) {
 	case deriveCodeAgentNotFound, deriveCodeMessageNotFound, deriveCodeSessionNotFound:
 		return http.StatusNotFound, true
 	case deriveCodeSessionArchived, deriveCodeRouteNotFound, deriveCodeFenceConflict,
-		deriveCodeIdempotencyConflict, deriveCodeTurnInProgress:
+		deriveCodeIdempotencyConflict, deriveCodeTurnInProgress, deriveCodeSourceBusy:
 		return http.StatusConflict, true
 	case deriveCodeAdmissionUnavailable:
 		return http.StatusServiceUnavailable, true
+	case deriveCodeFirstPromptFailed:
+		return http.StatusUnprocessableEntity, true
 	default:
 		return 0, false
 	}

@@ -36,7 +36,8 @@ load the clone while the source process lives, which exercises step 8.
 5. Source that is not native-eligible (an agent without `supports_fork_session`, such as the acpmock
    replay-only agent, or a stopped/unbound source whose preview reports `native_fork_possible: false`):
    `compozy session fork <src> -o json` returns `seed: replay`, no `native_state`, and the child's first
-   prompt carries `Context rebuilt from log.` with the source transcript.
+   prompt carries `Context rebuilt from log.` with the source transcript. The preview and the
+   `session.derived` log name the refusal reason.
 6. Fork through a middle user message (`--message-id`): `lineage.origin_message_id` and
    `derived.through_turn_id` are set and the carried context ends with that turn's reply.
 7. While the source runs a long turn, fork through that turn's message: `session_turn_in_progress`

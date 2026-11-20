@@ -267,7 +267,7 @@ func (s *ReadOnlySessionDB) Query(
 	if ctx == nil {
 		return nil, errors.New("store: query read-only session database context is required")
 	}
-	sqlQuery, args, err := buildEventQuerySQL(sessionEventColumns, query)
+	sqlQuery, args, err := buildEventQuerySQL(sessionEventProjection(query), query)
 	if err != nil {
 		return nil, err
 	}

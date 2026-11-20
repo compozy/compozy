@@ -2,6 +2,7 @@ package transcript
 
 import (
 	"cmp"
+	"context"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -91,6 +92,11 @@ type toolLifecycle struct {
 
 // Assemble returns the canonical replay transcript for the provided persisted events.
 func Assemble(events []store.SessionEvent) ([]Message, error) {
+	return AssembleContext(context.Background(), events)
+}
+
+// AssembleContext assembles a canonical replay and stops between events when canceled.
+func AssembleContext(ctx context.Context, events []store.SessionEvent) ([]Message, error) {
 	if len(events) == 0 {
 		return []Message{}, nil
 	}
@@ -102,6 +108,9 @@ func Assemble(events []store.SessionEvent) ([]Message, error) {
 	toolStates := make(map[string]*toolLifecycle)
 
 	for _, sessionEvent := range sorted {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		processTranscriptEvent(&messages, &assistant, toolStates, parseEvent(sessionEvent))
 	}
 

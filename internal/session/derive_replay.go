@@ -52,26 +52,35 @@ type replayStats struct {
 
 // boundReplay preserves the newest fitting suffix, including the omission note and first-user pin.
 func boundReplay(messages []transcript.Message, budget replayBudget) ([]transcript.Message, replayStats) {
-	capped := make([]transcript.Message, len(messages))
+	return boundReplayFrom(messages, budget, 0)
+}
+
+func boundReplayFrom(
+	messages []transcript.Message,
+	budget replayBudget,
+	start int,
+) ([]transcript.Message, replayStats) {
+	capped := slices.Clone(messages)
 	sizes := make([]int, len(messages))
 	truncated := false
-	for index := range messages {
-		var cut bool
-		capped[index], cut = capReplayMessage(messages[index], budget.MaxMessageBytes)
-		truncated = truncated || cut
-		sizes[index] = replayMessageBytes(capped[index])
-	}
 	firstUser := -1
 	if budget.PinFirstUser {
 		firstUser = slices.IndexFunc(capped, func(message transcript.Message) bool {
 			return message.Role == transcript.RoleUser
 		})
 	}
-	tailBytes := 0
-	for _, size := range sizes {
-		tailBytes += size
+	if firstUser >= 0 && firstUser < start {
+		capped[firstUser], truncated = capReplayMessage(messages[firstUser], budget.MaxMessageBytes)
+		sizes[firstUser] = replayMessageBytes(capped[firstUser])
 	}
-	start := 0
+	tailBytes := 0
+	for index := start; index < len(messages); index++ {
+		var cut bool
+		capped[index], cut = capReplayMessage(messages[index], budget.MaxMessageBytes)
+		truncated = truncated || cut
+		sizes[index] = replayMessageBytes(capped[index])
+		tailBytes += sizes[index]
+	}
 	for start < len(capped)-1 && replaySuffixBytes(capped, sizes, tailBytes, firstUser, start) > budget.MaxBytes {
 		tailBytes -= sizes[start]
 		start++
