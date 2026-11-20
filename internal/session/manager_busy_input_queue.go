@@ -32,6 +32,7 @@ func (m *Manager) enqueueBusyPrompt(
 			SkillInvocations: req.skillInvocations,
 			Mentions:         req.mentions,
 			HumanIngress:     req.humanIngress,
+			AppIngress:       req.appIngress,
 			Attachments:      storeAttachments(req.attachments),
 		},
 	)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
@@ -144,35 +146,24 @@ func (r *InstanceRepo) Resume(
 			if row.ArchivedAt.Valid {
 				return agentinstance.ErrNotFound
 			}
-			if !operator && row.State == "paused" && agentinstance.OperatorOnlyResume(row.PauseReason) {
+			if !operator && row.State == goalStatusPaused && agentinstance.OperatorOnlyResume(row.PauseReason) {
+				return agentinstance.ErrForbidden
+			}
+			latched, err := q.CountLatchedAgentInstanceBudgetPauses(ctx, id)
+			if err != nil {
+				return err
+			}
+			budgetPaused := latched > 0 || row.PauseReason == dailyBudgetPauseReason ||
+				row.PauseReason == dailyBudgetRecoveryPauseReason
+			if budgetPaused && !agentinstance.HasDailyBudgetResumeAuthority(ctx, operator) {
 				return agentinstance.ErrForbidden
 			}
 			if row.State == "starting" {
 				return agentinstance.ErrStarting
 			}
-			if row.State == "paused" {
-				count, err := q.CountActiveAgentInstances(ctx, row.ProfileID)
-				if err != nil {
-					return err
-				}
-				if count >= int64(limit) {
-					return agentinstance.ErrLimit
-				}
-				if _, err := q.ResumeAgentInstance(
-					ctx,
-					sqlcgen.ResumeAgentInstanceParams{ID: id, UpdatedAt: store.FormatTimestamp(r.now())},
-				); err != nil {
-					return err
-				}
-				if err := q.ResetInstanceUnattended(ctx, sqlcgen.ResetInstanceUnattendedParams{
-					InstanceID: id, Now: store.FormatTimestamp(r.now()),
-				}); err != nil {
-					return err
-				}
-				if err := q.ResetInstanceWakeStreaks(ctx, id); err != nil {
-					return err
-				}
-				row, err = q.GetAgentInstance(ctx, id)
+
+			if row.State == goalStatusPaused {
+				row, err = resumePausedInstance(ctx, q, row, limit, latched, r.now)
 				if err != nil {
 					return err
 				}
@@ -183,6 +174,85 @@ func (r *InstanceRepo) Resume(
 	)
 	return result, err
 }
+func resumePausedInstance(
+	ctx context.Context, q *sqlcgen.Queries, row sqlcgen.AgentInstance,
+	limit int, latched int64, clock func() time.Time,
+) (sqlcgen.AgentInstance, error) {
+	if err := checkDailyBudgetResume(ctx, q, row, clock()); err != nil {
+		return sqlcgen.AgentInstance{}, err
+	}
+	id := row.ID
+	count, err := q.CountActiveAgentInstances(ctx, row.ProfileID)
+	if err != nil {
+		return sqlcgen.AgentInstance{}, err
+	}
+	if count >= int64(limit) {
+		return sqlcgen.AgentInstance{}, agentinstance.ErrLimit
+	}
+	if _, err := q.ResumeAgentInstance(
+		ctx,
+		sqlcgen.ResumeAgentInstanceParams{ID: id, UpdatedAt: store.FormatTimestamp(clock())},
+	); err != nil {
+		return sqlcgen.AgentInstance{}, err
+	}
+	if latched > 0 {
+		if err := q.ClearLatchedAgentInstanceBudgetPause(ctx, id); err != nil {
+			return sqlcgen.AgentInstance{}, err
+		}
+	}
+	if err := q.ResetInstanceUnattended(ctx, sqlcgen.ResetInstanceUnattendedParams{
+		InstanceID: id, Now: store.FormatTimestamp(clock()),
+	}); err != nil {
+		return sqlcgen.AgentInstance{}, err
+	}
+	if err := q.ResetInstanceWakeStreaks(ctx, id); err != nil {
+		return sqlcgen.AgentInstance{}, err
+	}
+	return q.GetAgentInstance(ctx, id)
+}
+
+func checkDailyBudgetResume(
+	ctx context.Context, q *sqlcgen.Queries, row sqlcgen.AgentInstance, now time.Time,
+) error {
+	configured, err := q.GetAgentInstanceDailyBudgetLimits(ctx, row.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("store: read budget on resume: %w", err)
+	}
+	limits, err := decodeInstanceDailyBudgetLimits(configured)
+	if err != nil || (limits.Tokens == nil && limits.USD == nil) {
+		return err
+	}
+	generation, err := dailyBudgetRecoveryGeneration(ctx, q, row.ID)
+	if err != nil {
+		return err
+	}
+	if generation != 0 || row.PauseReason == dailyBudgetRecoveryPauseReason {
+		return fmt.Errorf("%w: instance daily budget ledger recovery is incomplete", agentinstance.ErrPaused)
+	}
+	uncertain, err := countUncertainBudgetDay(ctx, q, row.ID, now)
+	if err != nil {
+		return err
+	}
+	if uncertain {
+		return fmt.Errorf("%w: %w", agentinstance.ErrPaused, agentinstance.ErrBudgetHistoryUncertain)
+	}
+	usage, err := readDailyBudgetUsage(ctx, q, row.ProfileID, row.ID, store.LocalDay(now))
+	if err != nil {
+		return err
+	}
+	assessment, err := agentinstance.EvaluateDailyBudget(limits, usage, false)
+	if err != nil {
+		return err
+	}
+	if assessment.Exhausted {
+		return fmt.Errorf("%w: daily budget remains exhausted", agentinstance.ErrPaused)
+	}
+	return nil
+}
+
 func (r *InstanceRepo) Archive(ctx context.Context, id string) (agentinstance.Instance, error) {
 	if err := r.checkReady(ctx, "archive instance"); err != nil {
 		return agentinstance.Instance{}, err
@@ -286,7 +356,7 @@ func (r *InstanceRepo) HeldWakes(ctx context.Context, instanceID string) (int64,
 	if err := r.checkReady(ctx, "count held instance wakes"); err != nil {
 		return 0, err
 	}
-	return r.readQueries.CountInstanceHeldWakes(ctx, instanceID)
+	return r.readQueries.CountHeldInstanceInputs(ctx, sqlcgen.CountHeldInstanceInputsParams{InstanceID: instanceID})
 }
 
 func (r *InstanceRepo) NeedsAttention(ctx context.Context, instanceID string) (bool, error) {

@@ -1005,6 +1005,63 @@
         ],
         "type": "object"
       },
+      "AgentInstanceDailyBudgetInput": {
+        "additionalProperties": false,
+        "properties": {
+          "tokens": {
+            "format": "int64",
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "usd": {
+            "format": "double",
+            "minimum": 0,
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "AgentInstanceDailyBudgetLimits": {
+        "properties": {
+          "tokens": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
+          "usd": {
+            "format": "double",
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "AgentInstanceDailyBudgetUsage": {
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "has_unpriced_usage": {
+            "type": "boolean"
+          },
+          "known_usd": {
+            "type": "string"
+          },
+          "tokens": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "has_unpriced_usage",
+          "known_usd",
+          "tokens"
+        ],
+        "type": "object"
+      },
       "AgentInstanceListResponse": {
         "properties": {
           "active_count": {
@@ -1099,6 +1156,32 @@
           "created_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "daily_budget": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentInstanceDailyBudgetLimits"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "daily_budget_usage": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentInstanceDailyBudgetUsage"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "failure_streak": {
             "format": "int64",
@@ -1564,15 +1647,62 @@
         "type": "object"
       },
       "AgentInstanceUpdateRequest": {
+        "description": "Set either checks_enabled or daily_budget. An empty daily_budget object removes both caps.",
+        "oneOf": [
+          {
+            "properties": {
+              "checks_enabled": {
+                "type": "boolean"
+              },
+              "daily_budget": {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            },
+            "required": [
+              "checks_enabled"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "checks_enabled": {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              },
+              "daily_budget": {
+                "$ref": "#/components/schemas/AgentInstanceDailyBudgetInput"
+              }
+            },
+            "required": [
+              "daily_budget"
+            ],
+            "type": "object"
+          }
+        ],
         "properties": {
           "checks_enabled": {
             "nullable": true,
             "type": "boolean"
+          },
+          "daily_budget": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentInstanceDailyBudgetInput"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           }
         },
-        "required": [
-          "checks_enabled"
-        ],
         "type": "object"
       },
       "AgentLimitsPayload": {
@@ -52248,7 +52378,7 @@
             "description": "Request failed"
           }
         },
-        "summary": "Update instance checks",
+        "summary": "Update instance checks or operator-owned daily spend limits",
         "tags": [
           "agents"
         ],

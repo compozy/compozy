@@ -54,3 +54,25 @@ type AgentEvent struct {
 	Runtime          *RuntimeActivity
 	Raw              json.RawMessage
 }
+
+// HasCanonicalUsageProjection reports that the terminal row can repair both usage totals on replay.
+func (e AgentEvent) HasCanonicalUsageProjection() bool {
+	return e.payload != nil && e.payload.canonicalUsageProjection
+}
+
+// HasProviderUsageMissing reports a real provider completion without usage telemetry.
+func (e AgentEvent) HasProviderUsageMissing() bool {
+	return e.payload != nil && e.payload.providerUsageMissing
+}
+
+// WithDailyBudgetUsageEvidence preserves the metering provenance of a terminal event.
+func (e AgentEvent) WithDailyBudgetUsageEvidence(canonical, missing bool) AgentEvent {
+	if e.HasCanonicalUsageProjection() == canonical && e.HasProviderUsageMissing() == missing {
+		return e
+	}
+	payload := e.clonePayload()
+	payload.canonicalUsageProjection = canonical
+	payload.providerUsageMissing = missing
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}

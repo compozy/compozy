@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
@@ -435,6 +437,180 @@ func TestAgentInstanceCheckSettings(t *testing.T) {
 		}
 		if response.Code != 422 || !strings.Contains(body.Error, "checks_enabled") {
 			t.Fatalf("response=%d %s", response.Code, response.Body.String())
+		}
+	})
+}
+
+func TestAgentInstanceDailyBudgetSettings(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "budget-api.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			t.Errorf("close agent instance budget DB: %v", err)
+		}
+	})
+	instance, _, err := db.Instances().AdmitCreate(ctx, agentinstance.Instance{
+		AgentName: "coder", ProfileID: store.DefaultProfileID,
+		CreatedByKind: "human", PermissionCeiling: "{}",
+	}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := newHandlerFixture(
+		t,
+		&testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		testutil.StubWorkspaceService{},
+	)
+	fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+		Store: db.Instances(), Authority: agentinstance.Authority{Callers: db.Instances()},
+	}
+	fixture.Engine.PATCH("/instances/:id", fixture.Handlers.UpdateAgentInstance)
+	fixture.Engine.GET("/instances/:id", fixture.Handlers.GetAgentInstance)
+	url := "/instances/" + instance.ID
+	for _, tc := range []struct {
+		name, body string
+		wantStatus int
+		wantTokens *int64
+		wantUSD    *float64
+	}{
+		{"reject both mutations", `{"checks_enabled":false,"daily_budget":{"tokens":100}}`, 422, nil, nil},
+		{"reject invalid cap", `{"daily_budget":{"tokens":-1}}`, 422, nil, nil},
+		{"reject typo without clearing caps", `{"daily_budget":{"token":100}}`, 422, nil, nil},
+		{"set both caps", `{"daily_budget":{"tokens":100,"usd":1.25}}`, 200, new(int64(100)), new(float64(1.25))},
+		{"clear USD but keep tokens", `{"daily_budget":{"tokens":0}}`, 200, new(int64(0)), nil},
+		{"clear all caps", `{"daily_budget":{}}`, 200, nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := performRequest(t, fixture.Engine, "PATCH", url, []byte(tc.body))
+			if resp.Code != tc.wantStatus {
+				t.Fatalf("PATCH status=%d body=%s", resp.Code, resp.Body.String())
+			}
+			if resp.Code != 200 {
+				return
+			}
+			get := performRequest(t, fixture.Engine, "GET", url, nil)
+			if get.Code != 200 {
+				t.Fatalf("GET status=%d body=%s", get.Code, get.Body.String())
+			}
+			var payload contract.AgentInstanceResponse
+			decodeJSON(t, get.Body.Bytes(), &payload)
+			if strings.Contains(get.Body.String(), `"Tokens"`) || strings.Contains(get.Body.String(), `"USD"`) {
+				t.Fatalf("noncanonical daily budget JSON keys: %s", get.Body.String())
+			}
+			limits := payload.Instance.DailyBudget
+			if limits == nil {
+				if tc.wantTokens != nil || tc.wantUSD != nil {
+					t.Fatal("configured budget missing from GET")
+				}
+				return
+			}
+			if (tc.wantTokens == nil) != (limits.Tokens == nil) ||
+				(tc.wantUSD == nil) != (limits.USD == nil) ||
+				(tc.wantTokens != nil && *tc.wantTokens != *limits.Tokens) ||
+				(tc.wantUSD != nil && *tc.wantUSD != *limits.USD) {
+				t.Fatalf("limits=%+v, want tokens=%v usd=%v", limits, tc.wantTokens, tc.wantUSD)
+			}
+		})
+	}
+	t.Run("Should keep paired app credentials from replacing operator limits", func(t *testing.T) {
+		request := httptest.NewRequestWithContext(t.Context(), "PATCH", url,
+			strings.NewReader(`{"daily_budget":{"tokens":0}}`))
+		request.Header.Set("Content-Type", "application/json")
+		request = request.WithContext(core.ContextWithAppToken(request.Context(), gateway.AppToken{}))
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, request)
+		var failure contract.ErrorPayload
+		decodeJSON(t, response.Body.Bytes(), &failure)
+		if response.Code != http.StatusForbidden || failure.Error == "" {
+			t.Fatalf("paired app budget update status=%d response=%s", response.Code, response.Body.String())
+		}
+	})
+	fixture.Handlers.AgentInstances.WithDailyBudgetUpdate = func(context.Context, string, bool, func(context.Context) error) error {
+		return errors.New("ledger requires recovery")
+	}
+	blocked := performRequest(t, fixture.Engine, "PATCH", url,
+		[]byte(`{"daily_budget":{"tokens":250}}`))
+	if blocked.Code != http.StatusInternalServerError {
+		t.Fatalf("unsafe budget enable status=%d body=%s", blocked.Code, blocked.Body.String())
+	}
+	limits, err := db.Instances().DailyBudgetLimits(ctx, instance.ID)
+	if err != nil || limits.Tokens != nil || limits.USD != nil {
+		t.Fatalf("failed pre-enable reconciliation altered limits: %+v err=%v", limits, err)
+	}
+	fixture.Handlers.AgentInstances.WithDailyBudgetUpdate = nil
+	t.Run(
+		"Should keep usage errors local while preserving successful mutations and instance reads",
+		func(t *testing.T) {
+			now := time.Now()
+			fixture.Handlers.AgentInstances.Clock = func() time.Time { return now }
+			if _, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instance_daily_budget_usage
+			(instance_id, profile_id, day, total_tokens, has_unpriced_usage, invalid)
+			VALUES (?, ?, ?, 0, 0, 1)`, instance.ID, instance.ProfileID, store.LocalDay(now)); err != nil {
+				t.Fatal(err)
+			}
+			peer, _, err := db.Instances().AdmitCreate(ctx, agentinstance.Instance{
+				AgentName: "peer", ProfileID: instance.ProfileID,
+				CreatedByKind: "human", PermissionCeiling: "{}",
+			}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, method := range []string{"PATCH", "GET"} {
+				var body []byte
+				if method == "PATCH" {
+					body = []byte(`{"daily_budget":{"tokens":250}}`)
+				}
+				response := performRequest(t, fixture.Engine, method, url, body)
+				var payload contract.AgentInstanceResponse
+				decodeJSON(t, response.Body.Bytes(), &payload)
+				configured := payload.Instance.DailyBudget
+				if response.Code != 200 || configured == nil || configured.Tokens == nil ||
+					*configured.Tokens != 250 || payload.Instance.DailyBudgetUsage != nil {
+					t.Fatalf("%s status=%d response=%s", method, response.Code, response.Body.String())
+				}
+			}
+			page, err := fixture.Handlers.AgentInstances.ListPage(
+				ctx,
+				agentinstance.ListQuery{
+					ProfileID: instance.ProfileID,
+					Limit:     10,
+				},
+				workspaceaccess.ActorRef{Operator: true},
+			)
+			if err != nil || len(page.Instances) != 2 {
+				t.Fatalf("instance page=%+v err=%v", page, err)
+			}
+			for _, item := range page.Instances {
+				if item.ID == peer.ID && item.DailyBudget != nil {
+					t.Fatalf("peer unexpectedly acquired a budget: %+v", item)
+				}
+			}
+		},
+	)
+	t.Run("Should return committed caps even when the instance projection cannot reload", func(t *testing.T) {
+		api := fixture.Handlers.AgentInstances
+		api.ReadPayload = func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error) {
+			return contract.AgentInstancePayload{}, errors.New("instance projection unavailable")
+		}
+		t.Cleanup(func() { api.ReadPayload = nil })
+		response := performRequest(t, fixture.Engine, "PATCH", url, []byte(`{"daily_budget":{"tokens":125}}`))
+		var payload contract.AgentInstanceResponse
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		configured := payload.Instance.DailyBudget
+		if response.Code != http.StatusOK || payload.Instance.ID != instance.ID ||
+			configured == nil || configured.Tokens == nil || *configured.Tokens != 125 ||
+			payload.Instance.DailyBudgetUsage != nil || payload.Instance.Sources == nil ||
+			payload.Instance.ResolvedAppearance == nil {
+			t.Fatalf("budget update status=%d body=%s", response.Code, response.Body.String())
+		}
+		persisted, err := db.Instances().DailyBudgetLimits(ctx, instance.ID)
+		if err != nil || persisted.Tokens == nil || *persisted.Tokens != 125 {
+			t.Fatalf("persisted caps=%+v err=%v, want 125 tokens", persisted, err)
 		}
 	})
 }

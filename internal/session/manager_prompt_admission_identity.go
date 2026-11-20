@@ -123,6 +123,7 @@ func (m *Manager) newPromptAdmissionRequest(
 		SkillInvocations:         append([]commandpkg.Invocation(nil), req.skillInvocations...),
 		MentionsJSON:             mentionsJSON,
 		HumanIngress:             req.humanIngress,
+		AppIngress:               req.appIngress,
 		Attachments:              storeAttachments(req.attachments),
 		TurnID:                   req.turnID,
 		EventID:                  eventID,
@@ -238,6 +239,7 @@ func bindPromptAdmissionRequest(req promptRequest, admission store.SessionPrompt
 	}
 	req.mentions = mentions
 	req.humanIngress = admission.HumanIngress
+	req.appIngress = admission.AppIngress
 	req.attachments = attachmentMetaFromStore(admission.Attachments)
 	return req, nil
 }

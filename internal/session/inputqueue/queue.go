@@ -45,6 +45,7 @@ type InputRequest struct {
 	Mentions         []mention.Mention
 	// HumanIngress records human operator authorship; it selects the session-references form at dispatch.
 	HumanIngress bool
+	AppIngress   bool
 	Attachments  []store.SessionInputAttachment
 	// Coalesce merges a synthetic wake into the session's open row of its key.
 	Coalesce *store.SessionInputCoalesce
@@ -75,6 +76,7 @@ type insertSpec struct {
 	// mentionsJSON carries an admission's persisted mentions verbatim; it wins over mentions.
 	mentionsJSON string
 	humanIngress bool
+	appIngress   bool
 	attachments  []store.SessionInputAttachment
 }
 
@@ -162,6 +164,7 @@ func (s *Service) PrepareQueue(req InputRequest) (store.SessionInputQueueInsert,
 		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
 		mentions:         cloneMentions(req.Mentions),
 		humanIngress:     req.HumanIngress,
+		appIngress:       req.AppIngress,
 		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
 	})
 	insert.MessageID = req.MessageID
@@ -219,6 +222,7 @@ func (s *Service) EnqueueInterrupt(
 		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
 		mentions:         cloneMentions(req.Mentions),
 		humanIngress:     req.HumanIngress,
+		appIngress:       req.AppIngress,
 		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
 	})
 	if err != nil {
@@ -261,6 +265,7 @@ func (s *Service) StageSteer(
 		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
 		mentions:         cloneMentions(req.Mentions),
 		humanIngress:     req.HumanIngress,
+		appIngress:       req.AppIngress,
 		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
 	})
 	if err != nil {
@@ -298,6 +303,18 @@ func (s *Service) ClaimNext(
 	sessionID string,
 ) (store.SessionInputQueueEntry, bool, error) {
 	return s.store.ClaimNextSessionInput(ctx, strings.TrimSpace(sessionID), s.now())
+}
+
+// ClaimSelected preserves the eligibility of the row inspected by the dispatcher.
+func (s *Service) ClaimSelected(
+	ctx context.Context, sessionID, expectedID string,
+) (store.SessionInputQueueEntry, bool, error) {
+	if selector, ok := s.store.(interface {
+		ClaimSelectedSessionInput(context.Context, string, string, time.Time) (store.SessionInputQueueEntry, bool, error)
+	}); ok {
+		return selector.ClaimSelectedSessionInput(ctx, sessionID, expectedID, s.now())
+	}
+	return s.ClaimNext(ctx, sessionID)
 }
 
 // PeekNext returns the next eligible input without mutating its queue state.
@@ -422,6 +439,7 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 		SkillInvocations:  append([]commandpkg.Invocation(nil), spec.skillInvocations...),
 		MentionsJSON:      mentionsJSON,
 		HumanIngress:      spec.humanIngress,
+		AppIngress:        spec.appIngress,
 		Attachments:       append([]store.SessionInputAttachment(nil), spec.attachments...),
 		SessionGeneration: spec.generation,
 		QueueCap:          s.cfg.QueueCap,

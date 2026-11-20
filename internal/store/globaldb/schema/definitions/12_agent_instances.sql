@@ -22,6 +22,54 @@ CREATE UNIQUE INDEX idx_agent_instances_live_identity
 CREATE INDEX idx_agent_instances_main_session ON agent_instances(main_session_id);
 CREATE INDEX idx_agent_instances_workspace ON agent_instances(workspace_id);
 
+-- Operator-configured, optional per-instance budgets. Decimal-text USD avoids
+-- SQLite REAL rounding when the day is assessed against the exact cap.
+CREATE TABLE agent_instance_daily_budget_limits (
+    instance_id TEXT NOT NULL PRIMARY KEY REFERENCES agent_instances(id) ON DELETE CASCADE,
+    token_cap INTEGER CHECK (token_cap IS NULL OR token_cap >= 0),
+    usd_cap TEXT CHECK (usd_cap IS NULL OR length(trim(usd_cap)) > 0),
+    updated_at TEXT NOT NULL
+);
+
+-- A warning is reserved once per local-day window independently of whether
+-- the instance later pauses or the daemon restarts.
+CREATE TABLE agent_instance_daily_budget_notices (
+    instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,
+    day TEXT NOT NULL CHECK (length(day) = 10),
+    issued_at TEXT NOT NULL,
+    PRIMARY KEY (instance_id, day)
+);
+
+-- Catalog-only deletion of an unreadable unbudgeted history must not break
+-- ordinary cleanup, but a limit enabled later that day cannot claim the old
+-- receipts are complete. This durable tombstone rejects retroactive caps.
+CREATE TABLE agent_instance_daily_budget_uncertain_days (
+    instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,
+    day TEXT NOT NULL CHECK (length(day) = 10),
+    source_session_id TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    PRIMARY KEY (instance_id, day)
+);
+
+CREATE TABLE agent_instance_daily_budget_recovery (
+    instance_id TEXT PRIMARY KEY REFERENCES agent_instances(id) ON DELETE CASCADE,
+    generation INTEGER NOT NULL CHECK (generation > 0),
+    pending INTEGER NOT NULL CHECK (pending IN (0, 1)),
+    latched INTEGER NOT NULL DEFAULT 0 CHECK (latched IN (0, 1))
+);
+
+-- The sum advances atomically with each accepted immutable receipt.
+CREATE TABLE agent_instance_daily_budget_usage (
+    instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,
+    profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    day TEXT NOT NULL CHECK (length(day) = 10),
+    total_tokens INTEGER NOT NULL CHECK (total_tokens >= 0),
+    usd_total TEXT,
+    has_unpriced_usage INTEGER NOT NULL CHECK (has_unpriced_usage IN (0, 1)),
+    invalid INTEGER NOT NULL CHECK (invalid IN (0, 1)),
+    PRIMARY KEY (instance_id, profile_id, day)
+);
+
 CREATE TABLE agent_instance_reports (
     id TEXT PRIMARY KEY,
     instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,

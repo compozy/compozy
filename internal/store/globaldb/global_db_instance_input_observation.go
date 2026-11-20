@@ -4,21 +4,48 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 // Observe only committed rows. Claim eligibility remains entirely in the queue transaction.
 func (g *SessionRepo) observeHeldInstanceInput(ctx context.Context, entry *store.SessionInputQueueEntry) {
-	if entry.OriginClass == store.SessionInputOriginClassHuman {
-		return
-	}
 	hold, err := g.readQueries.GetSessionInputHold(ctx, entry.SessionID)
-	if err == nil {
+	if err == nil && queueEntryHeldByPause(entry, hold.PauseReason) {
 		slog.InfoContext(ctx, "input.held", "instance_id", hold.ID, "reason", hold.PauseReason,
 			"session_id", entry.SessionID, "input_id", entry.ID)
 	}
+}
+
+func queueEntryHeldByPause(entry *store.SessionInputQueueEntry, reason string) bool {
+	switch reason {
+	case "daily_budget", "daily_budget_recovery":
+		return !entry.HumanIngress || entry.AppIngress
+	default:
+		return !store.IsHumanSessionInputOriginClass(entry.OriginClass)
+	}
+}
+
+func sessionInputHoldReasonInTransaction(
+	ctx context.Context, queries *sqlcgen.Queries, entry *store.SessionInputQueueEntry,
+) (string, error) {
+	if store.IsHumanSessionInputOriginClass(entry.OriginClass) && entry.HumanIngress && !entry.AppIngress {
+		return "", nil
+	}
+	hold, err := queries.GetSessionInputHold(ctx, entry.SessionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("store: read session input hold for %q: %w", entry.SessionID, err)
+	}
+	if !queueEntryHeldByPause(entry, hold.PauseReason) {
+		return "", nil
+	}
+	return hold.PauseReason, nil
 }
 
 func observeReleasedInstanceInput(ctx context.Context, entry *store.SessionInputQueueEntry) {

@@ -193,6 +193,7 @@ func (m *Manager) prepareSendPrompt(
 	}
 	req.humanSpawnOrigin = opts.humanSpawnOrigin
 	req.humanIngress = humanPromptCaller(opts.Caller)
+	req.appIngress = opts.Caller.AppIngress
 	m.prepareMentions(ctx, &req)
 	if err := req.validatePromptAdmissionIdentity(); err != nil {
 		return sendPromptPreparation{}, nil, err
@@ -336,6 +337,7 @@ func (m *Manager) stageSteerPrompt(
 			SkillInvocations: req.skillInvocations,
 			Mentions:         req.mentions,
 			HumanIngress:     req.humanIngress,
+			AppIngress:       req.appIngress,
 			Attachments:      storeAttachments(req.attachments),
 		},
 	)
@@ -375,6 +377,7 @@ func (m *Manager) interruptAndSubmitPrompt(
 			SkillInvocations: req.skillInvocations,
 			Mentions:         req.mentions,
 			HumanIngress:     req.humanIngress,
+			AppIngress:       req.appIngress,
 			Attachments:      storeAttachments(req.attachments),
 		},
 	)

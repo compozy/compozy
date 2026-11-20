@@ -59,6 +59,7 @@ func isDaemonTestHelperProcess() bool {
 		"COMPOZY_TEST_DAEMON_EXTENSION_HELPER",
 		"COMPOZY_TEST_DAEMON_SESSION_STOP_HELPER",
 		deadEntityMCPHelperEnv,
+		settingsMCPStdioCrashHelperEnv,
 		"COMPOZY_TEST_NIGHTLY_COMBINED_HELPER",
 		settingsMCPStdioCrashHelperEnv,
 	} {

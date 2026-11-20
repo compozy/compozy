@@ -32,6 +32,7 @@ func (m *Manager) SteerPrompt(ctx context.Context, id string, opts SteerPromptOp
 		}
 	}
 	req.humanIngress = humanPromptCaller(opts.Caller)
+	req.appIngress = opts.Caller.AppIngress
 	m.prepareMentions(ctx, &req)
 	if err := req.validatePromptAdmissionIdentity(); err != nil {
 		return SendPromptResult{}, err

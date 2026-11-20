@@ -46,9 +46,17 @@ func (o *Observer) observeAgentEvent(ctx context.Context, sessionID string, payl
 		o.logger.Warn("observe: skipped unsupported agent event payload", "session_id", strings.TrimSpace(sessionID))
 		return
 	}
+	tracksUsage := hasBudgetUsageEvidence(event)
+	if tracksUsage {
+		o.budgetAdmissionMu.Lock()
+		defer o.budgetAdmissionMu.Unlock()
+	}
 
 	id, snapshot, ok := o.validateObservedEvent(ctx, sessionID, event)
 	if !ok {
+		if tracksUsage {
+			o.markDailyBudgetReceiptPending()
+		}
 		return
 	}
 
@@ -58,6 +66,9 @@ func (o *Observer) observeAgentEvent(ctx context.Context, sessionID string, payl
 		o.logObservedEventFailure("observe: write event summary failed", id, snapshot, event, err)
 	}
 	if err := o.aggregateObservedUsage(ctx, id, snapshot, event, timestamp); err != nil {
+		if tracksUsage {
+			o.markDailyBudgetReceiptPending()
+		}
 		o.logger.Warn(
 			"observe: update token stats failed",
 			"session_id",
@@ -86,6 +97,12 @@ func (o *Observer) observeAgentEvent(ctx context.Context, sessionID string, payl
 		)
 	}
 	o.recordObservedEvent(ctx, snapshot, event)
+}
+
+func (o *Observer) markDailyBudgetReceiptPending() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.dailyBudgetDirtyGeneration++
 }
 
 func (o *Observer) validateObservedEvent(

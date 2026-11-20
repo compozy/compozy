@@ -14,6 +14,7 @@ import (
 type MentionAdmission struct {
 	Mentions     []mention.Mention
 	HumanIngress bool
+	AppIngress   bool
 }
 
 func (a MentionAdmission) clone() MentionAdmission {

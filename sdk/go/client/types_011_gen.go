@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+// LoopEnvironment is a daemon API value.
+type LoopEnvironment struct {
+	Mode        LoopEnvironmentMode `json:"mode"`
+	WorktreeRef string              `json:"worktree_ref,omitempty"`
+	Directory   string              `json:"directory,omitempty"`
+}
+
+// LoopEnvironmentMode is a daemon API value.
+type LoopEnvironmentMode string
+
+// LoopForkRef is a daemon API value.
+type LoopForkRef struct {
+	RunID      string `json:"run_id"`
+	Generation int64  `json:"generation"`
+}
+
+// LoopGateBlockingIssuePayload is a daemon API value.
+type LoopGateBlockingIssuePayload struct {
+	ID   string `json:"id"`
+	Note string `json:"note"`
+}
+
 // LoopGateCriterion is a daemon API value.
 type LoopGateCriterion struct {
 	ID       string          `json:"id"`
@@ -424,18 +446,4 @@ type LoopRequestPayload struct {
 	AnsweredAt       *time.Time      `json:"answered_at,omitempty"`
 	ResolvedAt       *time.Time      `json:"resolved_at,omitempty"`
 	ExpiresAt        *time.Time      `json:"expires_at,omitempty"`
-}
-
-// LoopRequestProvenance is a daemon API value.
-type LoopRequestProvenance struct {
-	ActorKind  string    `json:"actor_kind"`
-	ActorID    string    `json:"actor_id"`
-	AnsweredAt time.Time `json:"answered_at"`
-}
-
-// LoopRequestsResponse is a daemon API value.
-type LoopRequestsResponse struct {
-	Items      []LoopRequestPayload  `json:"items"`
-	Aggregates LoopRequestAggregates `json:"aggregates"`
-	NextCursor string                `json:"next_cursor"`
 }

@@ -36,6 +36,7 @@ func sessionPromptAdmissionFromGenerated(
 		IndeterminateReason: strings.TrimSpace(row.IndeterminateReason),
 		MentionsJSON:        store.NormalizeMentionsJSON(row.MentionsJson),
 		HumanIngress:        row.HumanIngress != 0,
+		AppIngress:          row.AppIngress != 0,
 	}
 	if err := json.Unmarshal([]byte(row.SkillInvocationsJson), &admission.SkillInvocations); err != nil {
 		return store.SessionPromptAdmission{}, fmt.Errorf(
@@ -61,16 +62,25 @@ func sessionPromptAdmissionFromGenerated(
 		}
 		admission.Result = &result
 	}
+	if err := setSessionPromptAdmissionTimes(row, &admission); err != nil {
+		return store.SessionPromptAdmission{}, err
+	}
+	return admission, nil
+}
+
+func setSessionPromptAdmissionTimes(
+	row *sqlcgen.SessionPromptAdmission, admission *store.SessionPromptAdmission,
+) error {
 	createdAt, err := store.ParseTimestamp(row.CreatedAt)
 	if err != nil {
-		return store.SessionPromptAdmission{}, fmt.Errorf(
+		return fmt.Errorf(
 			"store: parse session prompt admission created_at: %w",
 			err,
 		)
 	}
 	updatedAt, err := store.ParseTimestamp(row.UpdatedAt)
 	if err != nil {
-		return store.SessionPromptAdmission{}, fmt.Errorf(
+		return fmt.Errorf(
 			"store: parse session prompt admission updated_at: %w",
 			err,
 		)
@@ -79,19 +89,19 @@ func sessionPromptAdmissionFromGenerated(
 	admission.UpdatedAt = updatedAt
 	admission.DispatchCommittedAt, err = parsePromptAdmissionTime(row.DispatchCommittedAt)
 	if err != nil {
-		return store.SessionPromptAdmission{}, fmt.Errorf(
+		return fmt.Errorf(
 			"store: parse session prompt admission dispatch_committed_at: %w",
 			err,
 		)
 	}
 	admission.CompletedAt, err = parsePromptAdmissionTime(row.CompletedAt)
 	if err != nil {
-		return store.SessionPromptAdmission{}, fmt.Errorf(
+		return fmt.Errorf(
 			"store: parse session prompt admission completed_at: %w",
 			err,
 		)
 	}
-	return admission, nil
+	return nil
 }
 
 func sessionPromptAdmissionRuntimeFromGenerated(

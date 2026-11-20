@@ -24,15 +24,19 @@ func (g *GoalRepo) ClaimPreparedWorkPrompt(
 	if err := validateClaimPreparedWorkRequest(req); err != nil {
 		return goal.ClaimedPrompt{}, err
 	}
-	now := g.now().UTC()
 	var claimed goal.ClaimedPrompt
+	var budgetBlocked *store.DailyBudgetTurnBlockedError
 	err := g.withTaskImmediateTransaction(ctx, "claim prepared Goal work prompt", func(exec taskSQLExecutor) error {
 		var err error
-		claimed, err = g.claimPreparedWorkPromptWithExecutor(ctx, exec, req, now)
+		budgetBlocked = nil
+		claimed, err = g.claimPreparedWorkPromptWithExecutor(ctx, exec, req, g.now().UTC(), &budgetBlocked)
 		return err
 	})
 	if err != nil {
 		return claimed, err
+	}
+	if budgetBlocked != nil {
+		return goal.ClaimedPrompt{}, budgetBlocked
 	}
 	return claimed, nil
 }
@@ -42,6 +46,7 @@ func (g *GoalRepo) claimPreparedWorkPromptWithExecutor(
 	exec taskSQLExecutor,
 	req goal.ClaimPreparedWorkPromptRequest,
 	now time.Time,
+	budgetBlocked **store.DailyBudgetTurnBlockedError,
 ) (goal.ClaimedPrompt, error) {
 	checkpoint, row, err := validatePreparedGoalClaim(
 		ctx,
@@ -63,6 +68,14 @@ func (g *GoalRepo) claimPreparedWorkPromptWithExecutor(
 	turn := checkpoint.TurnsUsed + 1
 	if err := validateGoalDecisionGrant(checkpoint, req.BudgetDecision, turn, true); err != nil {
 		return goal.ClaimedPrompt{}, err
+	}
+	allowed, trip, err := admitDailyBudgetTurnTx(ctx, sqlcgen.New(exec), req.SessionID, now)
+	if err != nil {
+		return goal.ClaimedPrompt{}, err
+	}
+	if !allowed {
+		*budgetBlocked = &store.DailyBudgetTurnBlockedError{PausedInstance: trip}
+		return goal.ClaimedPrompt{}, nil
 	}
 	dispatchToken, tokenHash, err := newGoalDispatchToken()
 	if err != nil {
@@ -189,15 +202,19 @@ func (g *GoalRepo) ClaimPreparedCompaction(
 	if err := validateClaimPreparedCompactionRequest(req); err != nil {
 		return goal.ClaimedPrompt{}, err
 	}
-	now := g.now().UTC()
 	var claimed goal.ClaimedPrompt
+	var budgetBlocked *store.DailyBudgetTurnBlockedError
 	err := g.withTaskImmediateTransaction(ctx, "claim prepared Goal compaction", func(exec taskSQLExecutor) error {
 		var claimErr error
-		claimed, claimErr = claimPreparedGoalCompactionWithExecutor(ctx, exec, req, now)
+		budgetBlocked = nil
+		claimed, claimErr = claimPreparedGoalCompactionWithExecutor(ctx, exec, req, g.now().UTC(), &budgetBlocked)
 		return claimErr
 	})
 	if err != nil {
 		return claimed, err
+	}
+	if budgetBlocked != nil {
+		return goal.ClaimedPrompt{}, budgetBlocked
 	}
 	return claimed, nil
 }
@@ -207,6 +224,7 @@ func claimPreparedGoalCompactionWithExecutor(
 	exec taskSQLExecutor,
 	req goal.ClaimPreparedCompactionRequest,
 	now time.Time,
+	budgetBlocked **store.DailyBudgetTurnBlockedError,
 ) (goal.ClaimedPrompt, error) {
 	checkpoint, row, err := validatePreparedGoalClaim(
 		ctx,
@@ -232,6 +250,14 @@ func claimPreparedGoalCompactionWithExecutor(
 	}
 	if !goalUsageSequenceMatches(checkpoint.UsageSequence, req.UsageSequence) {
 		return goal.ClaimedPrompt{}, goalControlStaleError("Goal compaction usage sequence changed")
+	}
+	allowed, trip, err := admitDailyBudgetTurnTx(ctx, sqlcgen.New(exec), req.SessionID, now)
+	if err != nil {
+		return goal.ClaimedPrompt{}, err
+	}
+	if !allowed {
+		*budgetBlocked = &store.DailyBudgetTurnBlockedError{PausedInstance: trip}
+		return goal.ClaimedPrompt{}, nil
 	}
 	dispatchToken, tokenHash, err := newGoalDispatchToken()
 	if err != nil {

@@ -60,14 +60,20 @@ func WithStateEffects(effects func(context.Context, Instance) error) Option {
 
 func (s *Service) AfterPause(ctx context.Context, trip store.InstancePauseTrip) error {
 	return s.ApplyPause(ctx, Instance{
-		ID: trip.InstanceID, ProfileID: trip.ProfileID, WorkspaceID: trip.WorkspaceID,
-		AgentName: trip.AgentName, MainSessionID: trip.MainSessionID, State: "paused", PauseReason: trip.Reason,
-		CreatedAt: trip.CreatedAt, UpdatedAt: trip.PausedAt,
+		ID:            trip.InstanceID,
+		ProfileID:     trip.ProfileID,
+		WorkspaceID:   trip.WorkspaceID,
+		AgentName:     trip.AgentName,
+		MainSessionID: trip.MainSessionID,
+		State:         instanceStatePaused,
+		PauseReason:   trip.Reason,
+		CreatedAt:     trip.CreatedAt,
+		UpdatedAt:     trip.PausedAt,
 	})
 }
 
 func (s *Service) ApplyPause(ctx context.Context, instance Instance) error {
-	if instance.State != "paused" || instance.ArchivedAt != nil {
+	if instance.State != instanceStatePaused || instance.ArchivedAt != nil {
 		return nil
 	}
 	// Hooks describe the committed transition. Effects reconcile current state so a concurrent

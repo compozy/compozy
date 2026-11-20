@@ -1458,6 +1458,15 @@ lineage. Live sessions' requests still need an answer. New failures raise attent
 Reports retain their provider delivery state and history; acknowledgement does not deliver them
 to the provider. The catalog stream updates open avatars without a reload.
 
+### Instance daily budgets
+
+The instance list and show results include `daily_budget` and
+`daily_budget_usage` when the operator configured caps. `has_unpriced_usage`
+identifies an incomplete estimated USD subtotal. `daily_budget` and
+`daily_budget_recovery` pause reasons require an eligible operator to resume.
+The operator configures the optional caps with `compozy agent instance budget`
+or the instance PATCH endpoint. Native tools can inspect the caps and usage.
+
 ### Instance list capacity and missing targets
 
 Instance lists return authorized rows after agent, workspace, state and pagination filters.

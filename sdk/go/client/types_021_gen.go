@@ -4,6 +4,53 @@ package client
 
 import "time"
 
+// SessionRepairResponse is a daemon API value.
+type SessionRepairResponse struct {
+	Repair SessionRepairPayload `json:"repair"`
+}
+
+// SessionResponse is a daemon API value.
+type SessionResponse struct {
+	Session SessionPayload `json:"session"`
+}
+
+// SessionReviewDecision is a daemon API value.
+type SessionReviewDecision string
+
+// SessionRuntimePayload is a daemon API value.
+type SessionRuntimePayload struct {
+	Status            SessionRuntimeStatus           `json:"status"`
+	Transition        SessionRuntimeTransition       `json:"transition,omitempty"`
+	Failure           string                         `json:"failure,omitempty"`
+	Generation        int64                          `json:"generation,omitempty"`
+	Recovery          *SessionRuntimeRecoveryPayload `json:"recovery,omitempty"`
+	Selected          *PromptRuntimeSelectionPayload `json:"selected,omitempty"`
+	SelectionRevision int64                          `json:"selection_revision"`
+	Effective         *RuntimeSelectionPayload       `json:"effective,omitempty"`
+	Requested         *PromptRuntimeSelectionPayload `json:"requested,omitempty"`
+	LastKnown         *RuntimeSelectionPayload       `json:"last_known,omitempty"`
+	ACPSessionID      string                         `json:"acp_session_id,omitempty"`
+	ACPCaps           *ACPCapsPayload                `json:"acp_caps,omitempty"`
+}
+
+// SessionRuntimeRecoveryPayload is a daemon API value.
+type SessionRuntimeRecoveryPayload struct {
+	Reason        SessionRuntimeRecoveryReason `json:"reason,omitempty"`
+	Attempt       int                          `json:"attempt"`
+	MaxAttempts   int                          `json:"max_attempts"`
+	Generation    int64                        `json:"generation"`
+	StartedAt     time.Time                    `json:"started_at"`
+	LastAttemptAt time.Time                    `json:"last_attempt_at"`
+	NextAttemptAt *time.Time                   `json:"next_attempt_at,omitempty"`
+	LastError     string                       `json:"last_error,omitempty"`
+}
+
+// SessionRuntimeRecoveryReason is a daemon API value.
+type SessionRuntimeRecoveryReason string
+
+// SessionRuntimeStatus is a daemon API value.
+type SessionRuntimeStatus string
+
 // SessionRuntimeTransition is a daemon API value.
 type SessionRuntimeTransition string
 
@@ -399,48 +446,4 @@ type SettingsDaemonRuntimePayload struct {
 	ActiveAgents   int        `json:"active_agents"`
 	TotalSessions  int        `json:"total_sessions"`
 	Version        string     `json:"version,omitempty"`
-}
-
-// SettingsDefaultsPayload is a daemon API value.
-type SettingsDefaultsPayload struct {
-	Agent           string `json:"agent"`
-	Provider        string `json:"provider,omitempty"`
-	Model           string `json:"model,omitempty"`
-	ReasoningEffort string `json:"reasoning_effort,omitempty"`
-}
-
-// SettingsDesktopPayload is a daemon API value.
-type SettingsDesktopPayload struct {
-	EditorCommand string `json:"editor_command"`
-}
-
-// SettingsExtensionDevPayload is a daemon API value.
-type SettingsExtensionDevPayload struct {
-	WatchInterval string `json:"watch_interval"`
-}
-
-// SettingsExtensionGitHubSourcePayload is a daemon API value.
-type SettingsExtensionGitHubSourcePayload struct {
-	Enabled bool   `json:"enabled"`
-	BaseURL string `json:"base_url"`
-}
-
-// SettingsExtensionGitSourcePayload is a daemon API value.
-type SettingsExtensionGitSourcePayload struct {
-	Enabled bool `json:"enabled"`
-}
-
-// SettingsExtensionRateLimitPayload is a daemon API value.
-type SettingsExtensionRateLimitPayload struct {
-	Requests int    `json:"requests"`
-	Window   string `json:"window"`
-	Queue    int    `json:"queue"`
-}
-
-// SettingsExtensionResourcesPayload is a daemon API value.
-type SettingsExtensionResourcesPayload struct {
-	AllowedKinds           []string                          `json:"allowed_kinds,omitempty"`
-	MaxScope               ResourceScopeKind                 `json:"max_scope,omitempty"`
-	SnapshotRateLimit      SettingsExtensionRateLimitPayload `json:"snapshot_rate_limit"`
-	OperatorWriteRateLimit SettingsExtensionRateLimitPayload `json:"operator_write_rate_limit"`
 }

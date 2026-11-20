@@ -15,7 +15,10 @@ import (
 const schemaStabilityExperimental = "experimental"
 
 var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
-	reflect.TypeFor[contract.PromptStreamChunk](): func(schema *openapi3.Schema) { schema.WithAnyAdditionalProperties() },
+	reflect.TypeFor[contract.AgentInstanceDailyBudgetInput](): customizeAgentInstanceDailyBudgetInputSchema,
+	reflect.TypeFor[contract.PromptStreamChunk](): func(schema *openapi3.Schema) {
+		schema.WithAnyAdditionalProperties()
+	},
 	reflect.TypeFor[contract.SessionCompactionContextAfterPayload](): func(schema *openapi3.Schema) {
 		schema.Extensions = map[string]any{"x-stability": schemaStabilityExperimental}
 		schema.Description = "Experimental: first occupancy observation after this compaction's first terminal snapshot " +

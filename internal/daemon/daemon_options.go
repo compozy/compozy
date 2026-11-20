@@ -183,6 +183,7 @@ func (d *Daemon) applyCoreDefaults() {
 			return globaldb.OpenGlobalDB(
 				ctx,
 				path,
+				globaldb.WithClock(d.now),
 				globaldb.WithOperatorHomeDir(operatorHome),
 				globaldb.WithMigrationProgress(d.migrationProgressReporter()),
 				globaldb.WithSessionEventMetadataOpener(

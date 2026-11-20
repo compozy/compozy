@@ -165,6 +165,11 @@ func (m *Manager) prepareManagedInputPrompt(
 	session *Session,
 	entry managedInput,
 ) *managedInputPromptSetup {
+	if err := m.ensureDailyBudgetObserverReady(m.fallbackLifecycleContext(), session.ID); err != nil {
+		m.sessionLogger(session).Error("session: hold managed input until budget receipts recover", "error", err)
+		m.scheduleQueuedInputReselect(session.ID)
+		return nil
+	}
 	lifecycle := m.currentManagedInputLifecycle()
 	if lifecycle == nil {
 		m.sessionLogger(session).Error(
@@ -182,19 +187,8 @@ func (m *Manager) prepareManagedInputPrompt(
 		)
 		return nil
 	}
-	leaseCtx, cancelLease := context.WithCancel(m.fallbackLifecycleContext())
-	if err := m.registerManagedInputLease(owner, cancelLease); err != nil {
-		cancelLease()
-		m.sessionLogger(session).Warn("session: register managed input lease failed", "error", err)
-		return nil
-	}
-	if err := m.checkNewWorkAdmission(admission.WithBackgroundWork(leaseCtx)); err != nil {
-		retry := leaseCtx.Err() == nil
-		m.releaseManagedInputLease(owner)
-		if retry {
-			m.sessionLogger(session).Warn("session: managed prompt admission deferred", "error", err)
-			m.scheduleQueuedInputReselect(session.ID)
-		}
+	leaseCtx := m.admitManagedInputLease(session, owner)
+	if leaseCtx == nil {
 		return nil
 	}
 	proc, err := session.beginExclusivePromptSetup()
@@ -211,11 +205,17 @@ func (m *Manager) prepareManagedInputPrompt(
 			session.finishPromptSetup()
 		}
 	}()
-	submission, err := lifecycle.BeginSubmission(leaseCtx, ManagedInputClaim{
-		Owner:       owner,
-		RequestedAt: m.now().UTC(),
+	var submission ManagedInputSubmission
+	err = m.withDailyBudgetAdmission(leaseCtx, session.ID, func(ctx context.Context) error {
+		var beginErr error
+		submission, beginErr = lifecycle.BeginSubmission(ctx, ManagedInputClaim{
+			Owner:       owner,
+			RequestedAt: m.now().UTC(),
+		})
+		return beginErr
 	})
 	if err != nil {
+		m.handleManagedBudgetAdmissionError(session, err)
 		m.handleManagedInputBeginError(leaseCtx, lifecycle, owner, err)
 		m.releaseManagedInputLease(owner)
 		return nil
@@ -240,6 +240,38 @@ func (m *Manager) prepareManagedInputPrompt(
 		request:  request,
 		process:  proc,
 		leaseCtx: leaseCtx,
+	}
+}
+
+func (m *Manager) admitManagedInputLease(session *Session, owner ManagedInputOwner) context.Context {
+	leaseCtx, cancelLease := context.WithCancel(m.fallbackLifecycleContext())
+	if err := m.registerManagedInputLease(owner, cancelLease); err != nil {
+		cancelLease()
+		m.sessionLogger(session).Warn("session: register managed input lease failed", "error", err)
+		return nil
+	}
+	if err := m.checkNewWorkAdmission(admission.WithBackgroundWork(leaseCtx)); err != nil {
+		retry := leaseCtx.Err() == nil
+		m.releaseManagedInputLease(owner)
+		if retry {
+			m.sessionLogger(session).Warn("session: managed prompt admission deferred", "error", err)
+			m.scheduleQueuedInputReselect(session.ID)
+		}
+		return nil
+	}
+	return leaseCtx
+}
+
+func (m *Manager) handleManagedBudgetAdmissionError(session *Session, err error) {
+	if blocked, ok := errors.AsType[*store.DailyBudgetTurnBlockedError](err); ok &&
+		blocked.PausedInstance != nil && m.instancePaused != nil {
+		if effectErr := m.instancePaused(m.fallbackLifecycleContext(), *blocked.PausedInstance); effectErr != nil {
+			m.sessionLogger(session).Error("session: apply Goal daily budget pause effects",
+				"instance_id", blocked.PausedInstance.InstanceID, "error", effectErr)
+		}
+	}
+	if errors.Is(err, store.ErrDailyBudgetRecoveryPending) {
+		m.scheduleQueuedInputReselect(session.ID)
 	}
 }
 

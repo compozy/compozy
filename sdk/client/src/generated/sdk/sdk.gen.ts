@@ -1903,7 +1903,7 @@ export class agents extends HeyApiClient {
   }
 
   /**
-   * Update instance checks
+   * Update instance checks or operator-owned daily spend limits
    */
   public updateAgentInstance<ThrowOnError extends boolean = true>(
     options: Options<UpdateAgentInstanceData, ThrowOnError>

@@ -4,6 +4,50 @@ package client
 
 import "time"
 
+// SettingsDefaultsPayload is a daemon API value.
+type SettingsDefaultsPayload struct {
+	Agent           string `json:"agent"`
+	Provider        string `json:"provider,omitempty"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+}
+
+// SettingsDesktopPayload is a daemon API value.
+type SettingsDesktopPayload struct {
+	EditorCommand string `json:"editor_command"`
+}
+
+// SettingsExtensionDevPayload is a daemon API value.
+type SettingsExtensionDevPayload struct {
+	WatchInterval string `json:"watch_interval"`
+}
+
+// SettingsExtensionGitHubSourcePayload is a daemon API value.
+type SettingsExtensionGitHubSourcePayload struct {
+	Enabled bool   `json:"enabled"`
+	BaseURL string `json:"base_url"`
+}
+
+// SettingsExtensionGitSourcePayload is a daemon API value.
+type SettingsExtensionGitSourcePayload struct {
+	Enabled bool `json:"enabled"`
+}
+
+// SettingsExtensionRateLimitPayload is a daemon API value.
+type SettingsExtensionRateLimitPayload struct {
+	Requests int    `json:"requests"`
+	Window   string `json:"window"`
+	Queue    int    `json:"queue"`
+}
+
+// SettingsExtensionResourcesPayload is a daemon API value.
+type SettingsExtensionResourcesPayload struct {
+	AllowedKinds           []string                          `json:"allowed_kinds,omitempty"`
+	MaxScope               ResourceScopeKind                 `json:"max_scope,omitempty"`
+	SnapshotRateLimit      SettingsExtensionRateLimitPayload `json:"snapshot_rate_limit"`
+	OperatorWriteRateLimit SettingsExtensionRateLimitPayload `json:"operator_write_rate_limit"`
+}
+
 // SettingsExtensionSourcesPayload is a daemon API value.
 type SettingsExtensionSourcesPayload struct {
 	GitHub SettingsExtensionGitHubSourcePayload `json:"github"`
@@ -399,46 +443,4 @@ type SettingsObservabilityResponse struct {
 	Config          SettingsObservabilityConfigPayload  `json:"config"`
 	Runtime         SettingsObservabilityRuntimePayload `json:"runtime"`
 	LogTail         SettingsLogTailCapabilityPayload    `json:"log_tail"`
-}
-
-// SettingsObservabilityRuntimePayload is a daemon API value.
-type SettingsObservabilityRuntimePayload struct {
-	Available          bool   `json:"available"`
-	Status             string `json:"status,omitempty"`
-	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
-	ActiveSessions     int    `json:"active_sessions"`
-	ActiveAgents       int    `json:"active_agents"`
-	UptimeSeconds      int64  `json:"uptime_seconds"`
-}
-
-// SettingsObservabilityTranscriptPayload is a daemon API value.
-type SettingsObservabilityTranscriptPayload struct {
-	Enabled            bool  `json:"enabled"`
-	SegmentBytes       int   `json:"segment_bytes"`
-	MaxBytesPerSession int64 `json:"max_bytes_per_session"`
-}
-
-// SettingsOperationalLinkPayload is a daemon API value.
-type SettingsOperationalLinkPayload struct {
-	Label string `json:"label"`
-	Path  string `json:"path"`
-}
-
-// SettingsPermissionMode is a daemon API value.
-type SettingsPermissionMode string
-
-// SettingsPermissionsPayload is a daemon API value.
-type SettingsPermissionsPayload struct {
-	Mode SettingsPermissionMode `json:"mode"`
-}
-
-// SettingsPersonaResponse is a daemon API value.
-type SettingsPersonaResponse struct {
-	Section         SettingsSectionName        `json:"section"`
-	Scope           SettingsLayeredScopeKind   `json:"scope"`
-	WorkspaceID     string                     `json:"workspace_id,omitempty"`
-	Profile         string                     `json:"profile,omitempty"`
-	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
-	Config          SettingsDefaultsPayload    `json:"config"`
 }

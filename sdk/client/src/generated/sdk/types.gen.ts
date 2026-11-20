@@ -295,6 +295,23 @@ export type AgentInstanceCreateRequest = {
   workspace: string;
 };
 
+export type AgentInstanceDailyBudgetInput = {
+  tokens?: number | null;
+  usd?: number | null;
+};
+
+export type AgentInstanceDailyBudgetLimits = {
+  tokens?: number | null;
+  usd?: number | null;
+};
+
+export type AgentInstanceDailyBudgetUsage = {
+  day: string;
+  has_unpriced_usage: boolean;
+  known_usd: string;
+  tokens: number;
+};
+
 export type AgentInstanceListResponse = {
   active_count: number;
   instances: Array<AgentInstancePayload>;
@@ -324,6 +341,8 @@ export type AgentInstancePayload = {
   checks_enabled: boolean;
   created: boolean;
   created_at: string;
+  daily_budget?: AgentInstanceDailyBudgetLimits | null;
+  daily_budget_usage?: AgentInstanceDailyBudgetUsage | null;
   failure_streak: number;
   fatigue_limit: number;
   held_wakes: number;
@@ -450,8 +469,18 @@ export type AgentInstanceSeenResponse = {
   last_seen_at: string;
 };
 
-export type AgentInstanceUpdateRequest = {
-  checks_enabled: boolean | null;
+export type AgentInstanceUpdateRequest = (
+  | {
+      checks_enabled: boolean;
+      daily_budget?: null;
+    }
+  | {
+      checks_enabled?: null;
+      daily_budget: AgentInstanceDailyBudgetInput;
+    }
+) & {
+  checks_enabled?: boolean | null;
+  daily_budget?: AgentInstanceDailyBudgetInput | null;
 };
 
 export type AgentLimitsPayload = {

@@ -73,6 +73,9 @@ type CountedReason = "" | "fatigue" | "unattended";
 
 const PAUSE_PLAIN: Record<Exclude<AgentInstancePauseReason, CountedReason>, string> = {
   manual: "You paused it.",
+  daily_budget:
+    "Its daily budget is holding the next automatic turn. Review today's usage and limits.",
+  daily_budget_recovery: "Its daily usage ledger could not be verified. It needs your review.",
   definition_not_always_on: "It was changed to on-demand, so it can't be always-on here anymore.",
   definition_missing: "Its setup was deleted, so it can't come back. Its memory is kept.",
 };
@@ -80,6 +83,8 @@ const PAUSE_PLAIN: Record<Exclude<AgentInstancePauseReason, CountedReason>, stri
 /** The same reason, short enough for a card. */
 const PAUSE_SHORT: Record<Exclude<AgentInstancePauseReason, CountedReason>, string> = {
   manual: "You paused it",
+  daily_budget: "Daily budget needs review",
+  daily_budget_recovery: "Daily spend record needs review",
   definition_not_always_on: "Now on-demand, so it can't be always-on",
   definition_missing: "Its setup was deleted",
 };

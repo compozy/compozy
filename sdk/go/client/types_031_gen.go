@@ -7,6 +7,93 @@ import (
 	"time"
 )
 
+// WindowManagerClientRegistration is a daemon API value.
+type WindowManagerClientRegistration struct {
+	WorkspaceID     WindowmanagerWorkspaceID        `json:"workspace_id"`
+	ClientID        WindowmanagerClientID           `json:"client_id,omitempty"`
+	Kind            ClientKind                      `json:"kind,omitempty"`
+	ActiveDesktopID DesktopID                       `json:"active_desktop_id,omitempty"`
+	Context         WindowManagerClientContextInput `json:"context"`
+}
+
+// WindowManagerClientView is a daemon API value.
+type WindowManagerClientView struct {
+	WorkspaceID          WindowmanagerWorkspaceID     `json:"workspace_id"`
+	ClientID             WindowmanagerClientID        `json:"client_id"`
+	Kind                 ClientKind                   `json:"kind"`
+	PresentationRevision WindowManagerRevision        `json:"presentation_revision"`
+	ContextRevision      WindowManagerRevision        `json:"context_revision"`
+	ActiveDesktopID      DesktopID                    `json:"active_desktop_id"`
+	FocusedWindowID      *WindowID                    `json:"focused_window_id,omitzero"`
+	FocusOrder           []WindowID                   `json:"focus_order"`
+	ActiveTab            map[string]string            `json:"active_tab"`
+	StackActive          map[string]string            `json:"stack_active"`
+	PaletteContext       WindowManagerPaletteContext  `json:"palette_context"`
+	GlobalShortcuts      []GlobalShortcutRegistration `json:"global_shortcuts"`
+	ConnectedAt          time.Time                    `json:"connected_at"`
+	AttachmentToken      string                       `json:"attachment_token,omitempty"`
+}
+
+// WindowManagerClientsResponse is a daemon API value.
+type WindowManagerClientsResponse struct {
+	WorkspaceID WindowmanagerWorkspaceID  `json:"workspace_id"`
+	Clients     []WindowManagerClientView `json:"clients"`
+}
+
+// WindowManagerCommandID is a daemon API value.
+type WindowManagerCommandID string
+
+// WindowManagerCommandRequest is a daemon API value.
+type WindowManagerCommandRequest struct {
+	WorkspaceID      WindowmanagerWorkspaceID  `json:"workspace_id"`
+	CommandID        WindowManagerCommandID    `json:"command_id"`
+	ExpectedRevision *WindowManagerRevision    `json:"expected_revision"`
+	ClientID         *WindowmanagerClientID    `json:"client_id,omitzero"`
+	Actor            WindowManagerActor        `json:"actor"`
+	Origin           string                    `json:"origin"`
+	Rebase           *WindowManagerRebaseGuard `json:"rebase,omitzero"`
+	Payload          json.RawMessage           `json:"payload"`
+}
+
+// WindowManagerDesktop is a daemon API value.
+type WindowManagerDesktop struct {
+	ID          DesktopID          `json:"id"`
+	Name        string             `json:"name"`
+	Order       int                `json:"order"`
+	Tabs        []WindowManagerTab `json:"tabs"`
+	ActiveTabID TabID              `json:"active_tab_id"`
+}
+
+// WindowManagerLayoutDocument is a daemon API value.
+// WindowManagerLayoutDocument preserves its custom JSON wire representation.
+type WindowManagerLayoutDocument = json.RawMessage
+
+// WindowManagerLayoutNode is a daemon API value.
+type WindowManagerLayoutNode struct {
+	ID       WindowmanagerNodeID       `json:"id"`
+	Kind     NodeKind                  `json:"kind"`
+	WindowID *WindowID                 `json:"window_id,omitzero"`
+	Axis     *Axis                     `json:"axis,omitzero"`
+	Children []WindowManagerLayoutNode `json:"children,omitempty"`
+	Weights  []float64                 `json:"weights,omitempty"`
+}
+
+// WindowManagerLayoutReplaceRequest is a daemon API value.
+type WindowManagerLayoutReplaceRequest struct {
+	WorkspaceID      WindowmanagerWorkspaceID    `json:"workspace_id"`
+	ExpectedRevision *WindowManagerRevision      `json:"expected_revision"`
+	ClientID         *WindowmanagerClientID      `json:"client_id,omitzero"`
+	Actor            WindowManagerActor          `json:"actor"`
+	Origin           string                      `json:"origin"`
+	Document         WindowManagerLayoutDocument `json:"document"`
+}
+
+// WindowManagerLayoutValidationRequest is a daemon API value.
+type WindowManagerLayoutValidationRequest struct {
+	WorkspaceID WindowmanagerWorkspaceID    `json:"workspace_id"`
+	Document    WindowManagerLayoutDocument `json:"document"`
+}
+
 // WindowManagerLayoutValidationResponse is a daemon API value.
 type WindowManagerLayoutValidationResponse struct {
 	Document    *WindowManagerLayoutDocument `json:"document,omitzero"`
@@ -360,85 +447,4 @@ type WorktreeExitForgeCapabilities struct {
 // WorktreeExitOperationResponse is a daemon API value.
 type WorktreeExitOperationResponse struct {
 	OperationID string `json:"op_id"`
-}
-
-// WorktreeExitPRPrefill is a daemon API value.
-type WorktreeExitPRPrefill struct {
-	Title string `json:"title,omitempty"`
-	Body  string `json:"body,omitempty"`
-}
-
-// WorktreeExitPlanResponse is a daemon API value.
-type WorktreeExitPlanResponse struct {
-	WorktreeID       string                         `json:"worktree_id"`
-	Primary          WorktreeExitAction             `json:"primary,omitempty"`
-	Actions          []WorktreeExitActionPlan       `json:"actions"`
-	GlobalPauseCause string                         `json:"global_pause_cause,omitempty"`
-	CommitScope      WorktreeExitCommitScope        `json:"commit_scope"`
-	BrowserURL       string                         `json:"browser_url,omitempty"`
-	Forge            *WorktreeExitForgeCapabilities `json:"forge,omitzero"`
-	ForgeStatus      *WorktreeForgeStatusPayload    `json:"forge_status,omitzero"`
-	PRPrefill        *WorktreeExitPRPrefill         `json:"pr_prefill,omitzero"`
-	Cleanup          WorktreeExitCleanupEvidence    `json:"cleanup"`
-	Base             string                         `json:"base,omitempty"`
-}
-
-// WorktreeForgeStatusPayload is a daemon API value.
-type WorktreeForgeStatusPayload struct {
-	Provider  string     `json:"provider"`
-	PRNumber  *int       `json:"pr_number"`
-	PRState   *string    `json:"pr_state"`
-	PRURL     string     `json:"pr_url,omitempty"`
-	Merged    *bool      `json:"merged"`
-	FetchedAt *time.Time `json:"fetched_at"`
-}
-
-// WorktreeInspectionResponse is a daemon API value.
-type WorktreeInspectionResponse struct {
-	Worktree WorktreePayload             `json:"worktree"`
-	Status   *WorktreeStatusPayload      `json:"status"`
-	Forge    *WorktreeForgeStatusPayload `json:"forge"`
-	Repo     WorktreeRepoPayload         `json:"repo"`
-	Bindings WorktreeBindingsPayload     `json:"bindings"`
-}
-
-// WorktreeMode is a daemon API value.
-type WorktreeMode string
-
-// WorktreePayload is a daemon API value.
-type WorktreePayload struct {
-	ID              string    `json:"id"`
-	ProfileID       string    `json:"profile_id"`
-	ProfileName     string    `json:"profile_name"`
-	ProfileColor    string    `json:"profile_color,omitempty"`
-	ProfileIcon     string    `json:"profile_icon,omitempty"`
-	ProfileEmoji    string    `json:"profile_emoji,omitempty"`
-	ProfileArchived bool      `json:"profile_archived"`
-	WorkspaceID     string    `json:"workspace_id"`
-	Name            string    `json:"name"`
-	Branch          string    `json:"branch"`
-	Path            string    `json:"path"`
-	State           string    `json:"state"`
-	PendingPhase    string    `json:"pending_phase,omitempty"`
-	Origin          string    `json:"origin"`
-	SetupState      string    `json:"setup_state"`
-	SetupError      string    `json:"setup_error,omitempty"`
-	CreateError     string    `json:"create_error,omitempty"`
-	BaseRef         string    `json:"base_ref,omitempty"`
-	CreatedBranch   bool      `json:"created_branch"`
-	RunNamespace    string    `json:"run_namespace,omitempty"`
-	CreatedHead     string    `json:"created_head,omitempty"`
-	RunID           string    `json:"run_id,omitempty"`
-	Dirty           *bool     `json:"dirty"`
-	Ahead           *int      `json:"ahead"`
-	Behind          *int      `json:"behind"`
-	AgentActivity   string    `json:"agent_activity"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-}
-
-// WorktreePolicy is a daemon API value.
-type WorktreePolicy struct {
-	Mode        WorktreeMode `json:"mode"`
-	WorktreeRef string       `json:"worktree_ref,omitempty"`
 }

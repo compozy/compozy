@@ -1,6 +1,24 @@
 package store
 
-import "fmt"
+import (
+	"context"
+	"errors"
+	"fmt"
+)
+
+var ErrSessionInputSelectionChanged = errors.New("store: selected session input is no longer the queue head")
+
+type promptControlOnlyKey struct{}
+
+// WithPromptControlOnly records that the parsed command cannot invoke an ACP provider.
+func WithPromptControlOnly(ctx context.Context) context.Context {
+	return context.WithValue(ctx, promptControlOnlyKey{}, true)
+}
+
+func PromptControlOnly(ctx context.Context) bool {
+	control, ok := ctx.Value(promptControlOnlyKey{}).(bool)
+	return ok && control
+}
 
 type SessionInputQueueFullError struct {
 	SessionID string

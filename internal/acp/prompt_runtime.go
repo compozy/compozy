@@ -5,11 +5,12 @@ import speedpkg "github.com/compozy/compozy/internal/speed"
 // PromptRuntime is the immutable effective runtime attached to every event in
 // one prompt turn.
 type PromptRuntime struct {
-	Provider        string                         `json:"provider"`
-	Model           string                         `json:"model,omitempty"`
-	ReasoningEffort string                         `json:"reasoning_effort,omitempty"`
-	Speed           speedpkg.Speed                 `json:"speed,omitempty"`
-	ACPOptions      []SessionConfigOptionSelection `json:"acp_options,omitempty"`
+	Provider         string                         `json:"provider"`
+	MeteringAuthMode string                         `json:"metering_auth_mode,omitempty"`
+	Model            string                         `json:"model,omitempty"`
+	ReasoningEffort  string                         `json:"reasoning_effort,omitempty"`
+	Speed            speedpkg.Speed                 `json:"speed,omitempty"`
+	ACPOptions       []SessionConfigOptionSelection `json:"acp_options,omitempty"`
 }
 
 // ClonePromptRuntime returns an isolated prompt-runtime snapshot.

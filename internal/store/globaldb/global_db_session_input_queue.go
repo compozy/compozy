@@ -144,71 +144,6 @@ func validateCallerOwnedQueueIdentity(req store.SessionInputQueueInsert) error {
 	return nil
 }
 
-// ClaimNextSessionInput atomically leases the next eligible input for dispatch.
-func (g *SessionRepo) ClaimNextSessionInput(
-	ctx context.Context,
-	sessionID string,
-	now time.Time,
-) (entry store.SessionInputQueueEntry, ok bool, err error) {
-	if err := g.checkReady(ctx, "claim session input"); err != nil {
-		return store.SessionInputQueueEntry{}, false, err
-	}
-	target := strings.TrimSpace(sessionID)
-	if target == "" {
-		return store.SessionInputQueueEntry{}, false, errors.New("store: session id is required")
-	}
-	if now.IsZero() {
-		now = g.now()
-	}
-	now = now.UTC()
-
-	err = g.withImmediateTransaction(ctx, "claim session input", func(exec globalSQLExecutor) error {
-		queries := sqlcgen.New(exec)
-		if err := queries.FreezePreparedGoalInputBatch(ctx, sqlcgen.FreezePreparedGoalInputBatchParams{
-			SessionID: target, QueuedStatus: store.SessionInputQueueStatusQueued,
-		}); err != nil {
-			return fmt.Errorf("store: freeze prepared Goal input batch: %w", err)
-		}
-		row, scanErr := queries.GetNextDispatchableSessionInput(
-			ctx,
-			sqlcgen.GetNextDispatchableSessionInputParams{
-				SessionID: target, QueuedStatus: store.SessionInputQueueStatusQueued,
-			},
-		)
-		if errors.Is(scanErr, sql.ErrNoRows) {
-			return nil
-		}
-		if scanErr != nil {
-			return scanErr
-		}
-		claimed, scanErr := sessionInputQueueFromGenerated(&row)
-		if scanErr != nil {
-			return scanErr
-		}
-		refreshed, claimErr := claimSessionInputInTransaction(
-			ctx, exec, target, &claimed, now, store.FormatTimestamp(now),
-		)
-		if claimErr != nil {
-			return claimErr
-		}
-		pauseTrip, countErr := advanceLineageUnattended(ctx, exec, &refreshed, g.unattendedTurnLimit.Load(), now)
-		if countErr != nil {
-			return countErr
-		}
-		refreshed.PausedInstance = pauseTrip
-		entry = refreshed
-		ok = true
-		return nil
-	})
-	if err != nil {
-		return store.SessionInputQueueEntry{}, false, err
-	}
-	if ok {
-		observeReleasedInstanceInput(ctx, &entry)
-	}
-	return entry, ok, nil
-}
-
 // PeekNextSessionInput returns the oldest eligible human or managed row without claiming it.
 func (g *SessionRepo) PeekNextSessionInput(
 	ctx context.Context,
@@ -411,6 +346,7 @@ func insertSessionInputQueueEntry(
 		SkillInvocationsJson:   string(skillInvocationsJSON),
 		MentionsJson:           store.NormalizeMentionsJSON(normalized.MentionsJSON),
 		HumanIngress:           boolToInt64(normalized.HumanIngress),
+		AppIngress:             boolToInt64(normalized.AppIngress),
 		OriginJson:             sql.NullString{String: string(normalized.Origin), Valid: len(normalized.Origin) > 0},
 		AttachmentsJson:        attachmentsJSON,
 		RuntimeProvider:        normalized.Runtime.Provider,

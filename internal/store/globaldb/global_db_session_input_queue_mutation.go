@@ -104,7 +104,7 @@ func (g *SessionRepo) ListPendingSessionInputs(
 		}
 		for i := range entries {
 			if hold.ID != "" && entries[i].Status == store.SessionInputQueueStatusQueued &&
-				!store.IsHumanSessionInputOriginClass(entries[i].OriginClass) {
+				queueEntryHeldByPause(&entries[i], hold.PauseReason) {
 				entries[i].Held = true
 				entries[i].HeldReason = hold.PauseReason
 				entries[i].HeldInstanceID = hold.ID
@@ -244,7 +244,7 @@ func sameSessionInputMutation(
 		entry.IdempotencyKey == replacement.IdempotencyKey &&
 		entry.TargetTurnID == replacement.TargetTurnID &&
 		entry.Mode == replacement.Mode &&
-		entry.Delivery == replacement.Delivery &&
+		entry.MatchesRequestedDelivery(replacement.Delivery) &&
 		entry.Text == replacement.Text &&
 		slices.Equal(entry.SkillInvocations, replacement.SkillInvocations) &&
 		slices.Equal(entry.Attachments, replacement.Attachments)

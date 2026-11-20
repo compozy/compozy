@@ -209,7 +209,7 @@ type UpdateAgentInstanceParams struct {
 	Profile *string `url:"profile"`
 }
 
-// UpdateAgentInstance Update instance checks
+// UpdateAgentInstance Update instance checks or operator-owned daily spend limits
 func (c *Client) UpdateAgentInstance(ctx context.Context, params UpdateAgentInstanceParams, body AgentInstanceUpdateRequest) (*AgentInstanceResponse, error) {
 	path := "/api/agent-instances/{id}"
 	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))

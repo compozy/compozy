@@ -66,7 +66,7 @@ func reserveReplayPromptReports(
 	req *store.SessionPromptAdmissionRequest,
 ) error {
 	if admission.State != store.SessionPromptAdmissionReserved || !req.HumanIngress ||
-		req.Operation != store.SessionPromptOperationPrompt {
+		req.Operation != store.SessionPromptOperationPrompt || store.PromptControlOnly(ctx) {
 		return nil
 	}
 	reports, err := queries.ListPromptReports(ctx, admission.ID)

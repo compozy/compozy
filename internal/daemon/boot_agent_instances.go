@@ -35,23 +35,13 @@ func (d *Daemon) bootAgentInstances(_ context.Context, state *bootState) error {
 	}
 	repo := provider.Instances()
 	manager.SetInstanceCeilingReader(instanceCeilingReader(repo))
-	catalog := agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
-		soul: state.soulCatalog, heartbeat: state.heartbeatCatalog,
-	})
-	definitions := instanceDefinitions{
-		sourceDeclarations: &instanceSourceDeclarations{},
-		monitors:           state.sessionMonitors,
-		workspaces:         state.workspaceResolver,
-		profiles:           state.profiles,
-		agents:             catalog,
-		sessions:           manager,
-		mainRecoveryReady:  func() bool { return d.readiness.snapshot().phase == contract.DaemonReadinessReady },
-		scriptsEnabled:     state.cfg.Agents.Heartbeat.Sources.ScriptsEnabled,
-	}
+	definitions := d.bootInstanceDefinitions(state, manager)
 	admission := instanceServiceAdmission(definitions, repo, manager, state)
 	mainSessions := instanceMainSessions{sessions: manager, attempts: repo, workAdmission: &d.admission}
 	service, err := agentinstance.NewService(
-		agentinstance.WithStore(repo), agentinstance.WithAdmission(admission),
+		agentinstance.WithStore(repo),
+		agentinstance.WithAdmission(admission),
+		agentinstance.WithResumeCommit(instanceBudgetResumeCommit(state, repo)),
 		agentinstance.WithMainSessionRotator(&instanceMainRotator{
 			sessions:   manager,
 			store:      repo,
@@ -80,13 +70,15 @@ func (d *Daemon) bootAgentInstances(_ context.Context, state *bootState) error {
 	}
 	manager.SetInstancePauseHandler(service.AfterPause)
 	state.agentInstances = &core.AgentInstanceAPI{
-		AfterSeen:     instanceSeenPublisher(manager),
-		QueueCap:      state.cfg.Session.BusyInput.QueueCap,
-		AfterPicks:    instancePickEffects(state, repo, manager, definitions),
-		ReadPeer:      definitions.instancePeer,
-		ReadAttention: repo.NeedsAttention,
-		Metrics:       repo.Metrics,
-		Service:       service, Store: repo, Reports: provider.InstanceReports(),
+		Clock:                 d.now,
+		WithDailyBudgetUpdate: instanceBudgetUpdateCommit(state),
+		AfterSeen:             instanceSeenPublisher(manager),
+		QueueCap:              state.cfg.Session.BusyInput.QueueCap,
+		AfterPicks:            instancePickEffects(state, repo, manager, definitions),
+		ReadPeer:              definitions.instancePeer,
+		ReadAttention:         repo.NeedsAttention,
+		Metrics:               repo.Metrics,
+		Service:               service, Store: repo, Reports: provider.InstanceReports(),
 		WakeState: repo.WakeState, CountActive: repo.CountActive,
 		HeldWakes: repo.HeldWakes, UnattendedTurnLimit: state.cfg.Agents.AlwaysOn.UnattendedTurnLimit,
 		MaxActiveInstances: state.cfg.Agents.AlwaysOn.MaxActiveInstances,
@@ -100,6 +92,84 @@ func (d *Daemon) bootAgentInstances(_ context.Context, state *bootState) error {
 	d.bindInstanceSkillReviews(state, provider, definitions)
 	state.deps.AgentInstances = state.agentInstances
 	return nil
+}
+
+func (d *Daemon) bootInstanceDefinitions(state *bootState, manager *session.Manager) instanceDefinitions {
+	catalog := agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
+		soul: state.soulCatalog, heartbeat: state.heartbeatCatalog,
+	})
+	return instanceDefinitions{
+		sourceDeclarations: &instanceSourceDeclarations{},
+		monitors:           state.sessionMonitors,
+		workspaces:         state.workspaceResolver,
+		profiles:           state.profiles,
+		agents:             catalog,
+		sessions:           manager,
+		mainRecoveryReady:  func() bool { return d.readiness.snapshot().phase == contract.DaemonReadinessReady },
+		scriptsEnabled:     state.cfg.Agents.Heartbeat.Sources.ScriptsEnabled,
+	}
+}
+
+func instanceBudgetResumeCommit(state *bootState, repo interface {
+	DailyBudgetLimits(context.Context, string) (agentinstance.DailyBudgetLimits, error)
+}) func(context.Context, string, func(context.Context) error) error {
+	return func(ctx context.Context, instanceID string, commit func(context.Context) error) error {
+		resume := func(ctx context.Context) error {
+			if err := reconcileInstanceBudgetBeforeResume(ctx, instanceID, repo, state.observer); err != nil {
+				return err
+			}
+			return commit(ctx)
+		}
+		if fenced, ok := state.observer.(interface {
+			WithDailyBudgetMutation(context.Context, func(context.Context) error) error
+		}); ok {
+			return fenced.WithDailyBudgetMutation(ctx, resume)
+		}
+		return resume(ctx)
+	}
+}
+
+func instanceBudgetUpdateCommit(
+	state *bootState,
+) func(context.Context, string, bool, func(context.Context) error) error {
+	return func(ctx context.Context, instanceID string, configured bool, commit func(context.Context) error) error {
+		guarded, ok := state.observer.(interface {
+			WithDailyBudgetUpdate(context.Context, string, func(context.Context) error) error
+			WithDailyBudgetMutation(context.Context, func(context.Context) error) error
+		})
+		if !ok {
+			return errors.New("daemon: instance budget recovery unavailable")
+		}
+		if !configured {
+			return guarded.WithDailyBudgetMutation(ctx, commit)
+		}
+		return guarded.WithDailyBudgetUpdate(ctx, instanceID, commit)
+	}
+}
+
+// Resume must not turn an opt-in safety feature into a requirement for old
+// unbudgeted sessions to have readable history. Only configured limits need
+// their current-day Done events recovered before the operator's state change.
+func reconcileInstanceBudgetBeforeResume(
+	ctx context.Context, instanceID string,
+	reader interface {
+		DailyBudgetLimits(context.Context, string) (agentinstance.DailyBudgetLimits, error)
+	},
+	observer any,
+) error {
+	limits, err := reader.DailyBudgetLimits(ctx, instanceID)
+	if err != nil {
+		return fmt.Errorf("daemon: read limits before instance resume: %w", err)
+	}
+	if limits.Tokens == nil && limits.USD == nil {
+		return nil
+	}
+	if reconciler, ok := observer.(interface {
+		ReconcileDailyBudgetInstance(context.Context, string) error
+	}); ok {
+		return reconciler.ReconcileDailyBudgetInstance(ctx, instanceID)
+	}
+	return errors.New("daemon: instance budget resume recovery unavailable")
 }
 
 func reconcileBootInstances(ctx context.Context, state *bootState) error {

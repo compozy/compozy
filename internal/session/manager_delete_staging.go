@@ -148,6 +148,9 @@ func (m *Manager) stageWorkspaceRemoval(
 				info.ID,
 			))
 		}
+		if err := m.reconcileBudgetSessionBeforeDeletion(ctx, info.ID); err != nil {
+			return rollback(err)
+		}
 		entry, stageErr := m.stageWorkspaceSessionDelete(ctx, info)
 		if stageErr != nil {
 			return rollback(stageErr)

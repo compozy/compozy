@@ -7,29 +7,31 @@ import (
 )
 
 type compactAgentInstanceRecord struct {
-	ID                   string                          `json:"id"`
-	AgentName            string                          `json:"agent_name"`
-	Label                string                          `json:"label"`
-	WorkspaceID          string                          `json:"workspace_id"`
-	Scope                string                          `json:"scope"`
-	ProfileID            string                          `json:"profile_id"`
-	ProfileName          string                          `json:"profile_name"`
-	MainSessionID        string                          `json:"main_session_id"`
-	State                string                          `json:"state"`
-	PauseReason          string                          `json:"pause_reason"`
-	Activity             string                          `json:"activity"`
-	NeedsAttention       bool                            `json:"needs_attention"`
-	AttentionDismissible bool                            `json:"attention_dismissible"`
-	AuthorityStatus      string                          `json:"authority_status"`
-	ChecksEnabled        bool                            `json:"checks_enabled"`
-	Created              bool                            `json:"created"`
-	NextWake             *contract.AgentInstanceNextWake `json:"next_wake,omitempty"`
-	HeldWakes            int64                           `json:"held_wakes"`
-	FailureStreak        int64                           `json:"failure_streak"`
-	UnattendedTurns      int64                           `json:"unattended_turns"`
-	UnattendedTurnLimit  int64                           `json:"unattended_turn_limit"`
-	FatigueLimit         int                             `json:"fatigue_limit"`
-	Sources              []compactAgentInstanceSource    `json:"sources"`
+	ID                   string                                   `json:"id"`
+	AgentName            string                                   `json:"agent_name"`
+	Label                string                                   `json:"label"`
+	WorkspaceID          string                                   `json:"workspace_id"`
+	Scope                string                                   `json:"scope"`
+	ProfileID            string                                   `json:"profile_id"`
+	ProfileName          string                                   `json:"profile_name"`
+	MainSessionID        string                                   `json:"main_session_id"`
+	State                string                                   `json:"state"`
+	PauseReason          string                                   `json:"pause_reason"`
+	Activity             string                                   `json:"activity"`
+	NeedsAttention       bool                                     `json:"needs_attention"`
+	AttentionDismissible bool                                     `json:"attention_dismissible"`
+	AuthorityStatus      string                                   `json:"authority_status"`
+	ChecksEnabled        bool                                     `json:"checks_enabled"`
+	DailyBudget          *contract.AgentInstanceDailyBudgetLimits `json:"daily_budget,omitempty"`
+	DailyBudgetUsage     *contract.AgentInstanceDailyBudgetUsage  `json:"daily_budget_usage,omitempty"`
+	Created              bool                                     `json:"created"`
+	NextWake             *contract.AgentInstanceNextWake          `json:"next_wake,omitempty"`
+	HeldWakes            int64                                    `json:"held_wakes"`
+	FailureStreak        int64                                    `json:"failure_streak"`
+	UnattendedTurns      int64                                    `json:"unattended_turns"`
+	UnattendedTurnLimit  int64                                    `json:"unattended_turn_limit"`
+	FatigueLimit         int                                      `json:"fatigue_limit"`
+	Sources              []compactAgentInstanceSource             `json:"sources"`
 }
 
 func compactAgentInstance(p contract.AgentInstancePayload) compactAgentInstanceRecord {
@@ -49,6 +51,8 @@ func compactAgentInstance(p contract.AgentInstancePayload) compactAgentInstanceR
 		AttentionDismissible: p.AttentionDismissible,
 		AuthorityStatus:      p.AuthorityStatus,
 		ChecksEnabled:        p.ChecksEnabled,
+		DailyBudget:          p.DailyBudget,
+		DailyBudgetUsage:     p.DailyBudgetUsage,
 		Created:              p.Created,
 		NextWake:             p.NextWake,
 		HeldWakes:            p.HeldWakes,

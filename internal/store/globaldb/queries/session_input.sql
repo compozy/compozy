@@ -7,54 +7,6 @@ WHERE session_id = sqlc.arg(session_id)
   AND origin_session_id = sqlc.arg(origin_session_id)
 RETURNING id;
 
--- name: GetNextDispatchableSessionInput :one
-WITH prepared_goal AS (
-  SELECT CASE WHEN EXISTS (
-    SELECT 1 FROM sessions target
-    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-    JOIN agent_instances instance ON instance.id = root.instance_id
-    WHERE target.id = sqlc.arg(session_id) AND target.instance_id IS NULL
-      AND instance.state = 'paused' AND instance.archived_at IS NULL
-      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
-  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
-  WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
-    AND status = sqlc.arg(queued_status) AND dispatchable = 0
-    AND terminal_at IS NULL AND fence_kind IS NULL
-    AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
-  ORDER BY enqueued_at, id LIMIT 1
-)
-SELECT queued.* FROM session_input_queue AS queued
-WHERE queued.session_id = sqlc.arg(session_id)
-  AND (queued.origin_class = 'human' OR NOT EXISTS (
-    SELECT 1 FROM sessions AS target
-    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-    JOIN agent_instances AS instance ON instance.id = root.instance_id
-    WHERE target.id = queued.session_id AND instance.state = 'paused'
-      AND (target.instance_id = instance.id
-        OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
-  ))
-  AND queued.status = sqlc.arg(queued_status)
-  AND queued.dispatchable = 1
-  AND (queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic')
-  AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
-  AND ((SELECT cutoff FROM prepared_goal) IS NULL
-       OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
-       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human')
-       OR (queued.origin_class = 'human' AND EXISTS (
-         SELECT 1 FROM sessions target JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-         JOIN agent_instances i ON i.id = root.instance_id WHERE target.id = queued.session_id AND i.state = 'paused'
-       )))
-ORDER BY CASE
-           WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
-           WHEN queued.owner_kind = 'goal' THEN 2
-           WHEN (SELECT cutoff FROM prepared_goal) IS NULL
-             OR queued.rowid <= (SELECT cutoff FROM prepared_goal) THEN 1
-           ELSE 3
-         END,
-         CASE queued.origin_class WHEN 'human' THEN 0 WHEN 'agent' THEN 1 ELSE 2 END,
-         queued.delivery DESC, queued.priority DESC, queued.enqueued_at ASC, queued.id ASC
-LIMIT 1;
-
 -- name: FreezePreparedGoalInputBatch :exec
 UPDATE session_input_queue
 SET goal_input_batch_max_rowid = (
@@ -80,48 +32,6 @@ SET status = sqlc.arg(dispatching_status), dispatch_started_at = sqlc.narg(now),
     attempt_count = attempt_count + 1, updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id) AND session_id = sqlc.arg(session_id)
   AND status = sqlc.arg(queued_status) AND dispatchable = 1 AND (owner_kind IS NULL OR owner_kind = 'synthetic');
-
--- name: PeekNextSessionInput :one
-WITH prepared_goal AS (
-  SELECT CASE WHEN EXISTS (
-    SELECT 1 FROM sessions target
-    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-    JOIN agent_instances instance ON instance.id = root.instance_id
-    WHERE target.id = sqlc.arg(session_id) AND target.instance_id IS NULL
-      AND instance.state = 'paused' AND instance.archived_at IS NULL
-      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
-  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
-  WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
-    AND status = sqlc.arg(queued_status) AND dispatchable = 0
-    AND terminal_at IS NULL AND fence_kind IS NULL
-    AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
-  ORDER BY enqueued_at, id LIMIT 1
-)
-SELECT queued.* FROM session_input_queue AS queued
-WHERE queued.session_id = sqlc.arg(session_id)
-  AND (queued.origin_class = 'human' OR NOT EXISTS (
-    SELECT 1 FROM sessions AS target
-    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-    JOIN agent_instances AS instance ON instance.id = root.instance_id
-    WHERE target.id = queued.session_id AND instance.state = 'paused'
-      AND (target.instance_id = instance.id OR queued.owner_kind = 'goal'
-        OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
-  ))
-  AND queued.status = sqlc.arg(queued_status)
-  AND queued.terminal_at IS NULL
-  AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
-  AND (((queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic') AND queued.dispatchable = 1)
-       OR (owner_kind = 'goal' AND queued.dispatchable = 0 AND queued.fence_kind IS NULL))
-ORDER BY CASE
-           WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
-           WHEN queued.owner_kind = 'goal' THEN 2
-           WHEN (SELECT cutoff FROM prepared_goal) IS NULL
-             OR queued.rowid <= (SELECT cutoff FROM prepared_goal) THEN 1
-           ELSE 3
-         END,
-         CASE queued.origin_class WHEN 'human' THEN 0 WHEN 'agent' THEN 1 ELSE 2 END,
-         queued.delivery DESC, queued.priority DESC, queued.enqueued_at ASC, queued.id ASC
-LIMIT 1;
 
 -- name: ListPendingSessionInputs :many
 WITH prepared_goal AS (
@@ -167,16 +77,16 @@ SELECT * FROM session_input_queue WHERE id = sqlc.arg(id);
 UPDATE session_input_queue
 SET status = 'dispatching', dispatch_started_at = sqlc.arg(now), updated_at = sqlc.arg(now)
 WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
-  AND (session_input_queue.origin_class = 'human' OR NOT EXISTS (
-    SELECT 1 FROM sessions AS target
-    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-    JOIN agent_instances AS instance ON instance.id = root.instance_id
-    WHERE target.id = session_input_queue.session_id AND instance.state = 'paused'
-      AND (target.instance_id = instance.id
-        OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
-  ))
   AND mode = 'steer' AND status = 'queued' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id));
+
+-- name: DeferBudgetHeldSteer :execrows
+UPDATE session_input_queue
+SET delivery = 'after_turn', steer_delivery = 'after_turn', dispatchable = 1, updated_at = sqlc.arg(now)
+WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
+  AND status = 'queued' AND mode = 'steer' AND steer_delivery IS NULL AND dispatchable = 0
+  AND (owner_kind IS NULL OR owner_kind = 'synthetic')
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = session_input_queue.session_id);
 
 -- name: ResolveSessionSteer :execrows
 UPDATE session_input_queue
@@ -233,7 +143,7 @@ INSERT INTO session_input_queue (
   status, mode, delivery, steer_delivery, text, owner_kind, synthetic_prompt_json, skill_invocations_json, mentions_json, attachments_json, origin_json,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json,
   session_generation, task_run_id, run_generation,
-  attempt_count, enqueued_at, updated_at, dispatchable, origin_class, origin_session_id, human_ingress
+  attempt_count, enqueued_at, updated_at, dispatchable, origin_class, origin_session_id, human_ingress, app_ingress
 ) VALUES (
   sqlc.arg(priority), sqlc.arg(id), sqlc.arg(session_id), sqlc.narg(prompt_admission_id),
   sqlc.arg(message_id), sqlc.arg(idempotency_key), sqlc.arg(turn_id), sqlc.arg(target_turn_id), sqlc.arg(event_id),
@@ -244,7 +154,7 @@ INSERT INTO session_input_queue (
   sqlc.arg(session_generation), sqlc.arg(task_run_id), sqlc.narg(run_generation),
   0, sqlc.arg(enqueued_at), sqlc.arg(updated_at),
   CASE WHEN sqlc.arg(mode) = 'steer' AND sqlc.narg(steer_delivery) IS NULL THEN 0 ELSE 1 END,
-  sqlc.arg(origin_class), sqlc.arg(origin_session_id), sqlc.arg(human_ingress)
+  sqlc.arg(origin_class), sqlc.arg(origin_session_id), sqlc.arg(human_ingress), sqlc.arg(app_ingress)
 );
 
 -- name: CountPendingSessionInputs :one
@@ -366,55 +276,6 @@ WHERE session_id = sqlc.arg(session_id)
   AND delivery = 'after_turn'
 RETURNING id;
 
--- name: ListDispatchableSessionInputs :many
--- Dispatch-ordered candidates for batching behind an already claimed head; same filter as
--- GetNextDispatchableSessionInput, so the Goal cutoff still bounds the batch.
-WITH prepared_goal AS (
-  SELECT CASE WHEN EXISTS (
-    SELECT 1 FROM sessions target
-    JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-    JOIN agent_instances instance ON instance.id = root.instance_id
-    WHERE target.id = sqlc.arg(session_id) AND target.instance_id IS NULL
-      AND instance.state = 'paused' AND instance.archived_at IS NULL
-      AND instance.pause_reason IN ('definition_missing', 'definition_not_always_on')
-  ) THEN NULL ELSE goal_input_batch_max_rowid END AS cutoff FROM session_input_queue
-  WHERE session_id = sqlc.arg(session_id) AND owner_kind = 'goal'
-    AND status = 'queued' AND dispatchable = 0
-    AND terminal_at IS NULL AND fence_kind IS NULL
-    AND session_generation = (SELECT input_generation FROM sessions WHERE id = sqlc.arg(session_id))
-  ORDER BY enqueued_at, id LIMIT 1
-)
-SELECT queued.* FROM session_input_queue AS queued
-WHERE queued.session_id = sqlc.arg(session_id)
-  AND (queued.origin_class = 'human' OR NOT EXISTS (
-    SELECT 1 FROM sessions AS target
-    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-    JOIN agent_instances AS instance ON instance.id = root.instance_id
-    WHERE target.id = queued.session_id AND instance.state = 'paused'
-      AND (target.instance_id = instance.id
-        OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
-  ))
-  AND queued.status = 'queued'
-  AND queued.dispatchable = 1
-  AND (queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic')
-  AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
-  AND ((SELECT cutoff FROM prepared_goal) IS NULL
-       OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
-       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human')
-       OR (queued.origin_class = 'human' AND EXISTS (
-         SELECT 1 FROM sessions target JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-         JOIN agent_instances i ON i.id = root.instance_id WHERE target.id = queued.session_id AND i.state = 'paused'
-       )))
-ORDER BY CASE
-           WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
-           WHEN (SELECT cutoff FROM prepared_goal) IS NULL
-             OR queued.rowid <= (SELECT cutoff FROM prepared_goal) THEN 1
-           ELSE 3
-         END,
-         CASE queued.origin_class WHEN 'human' THEN 0 WHEN 'agent' THEN 1 ELSE 2 END,
-         queued.delivery DESC, queued.priority DESC, queued.enqueued_at ASC, queued.id ASC
-LIMIT sqlc.arg(row_limit);
-
 -- name: MarkSessionInputSentInTurn :execrows
 UPDATE session_input_queue
 SET status = 'sent', sent_at = sqlc.arg(now), failure_summary = '', updated_at = sqlc.arg(now),
@@ -429,14 +290,6 @@ UPDATE session_input_queue
 SET mode = 'steer', delivery = 'interrupt_then_prompt', steer_delivery = NULL, dispatchable = 0,
     target_turn_id = sqlc.arg(target_turn_id), updated_at = sqlc.arg(now)
 WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
-  AND (session_input_queue.origin_class = 'human' OR NOT EXISTS (
-    SELECT 1 FROM sessions AS target
-    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
-    JOIN agent_instances AS instance ON instance.id = root.instance_id
-    WHERE target.id = session_input_queue.session_id AND instance.state = 'paused'
-      AND (target.instance_id = instance.id
-        OR instance.archived_at IS NOT NULL OR instance.pause_reason NOT IN ('definition_missing', 'definition_not_always_on'))
-  ))
   AND session_input_queue.status = 'queued' AND session_input_queue.mode = 'queue'
   AND ((session_input_queue.origin_class = 'agent' AND session_input_queue.owner_kind IS NULL)
     OR (session_input_queue.owner_kind = 'synthetic'

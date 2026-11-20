@@ -23,10 +23,18 @@ type CompactionRequestResult struct {
 const sessionCompactionRequestedEvent = "session.compaction.requested"
 
 type compactionRequestedByKey struct{}
+type operatorCompactionKey struct{}
 
 // WithCompactionRequestedBy records the transport initiating a compaction request.
 func WithCompactionRequestedBy(ctx context.Context, source string) context.Context {
 	return context.WithValue(ctx, compactionRequestedByKey{}, source)
+}
+
+// WithOperatorCompaction marks the operator-authorized maintenance path.
+// Unlike RequestedBy's audit label, this provenance is explicitly supplied
+// by the authenticated API handler, never from client headers or tool input.
+func WithOperatorCompaction(ctx context.Context) context.Context {
+	return context.WithValue(ctx, operatorCompactionKey{}, true)
 }
 
 // RequestCompaction submits the advertised native command through exclusive prompt admission.
@@ -72,6 +80,11 @@ func (m *Manager) RequestCompaction(
 		return CompactionRequestResult{}, nil, err
 	}
 	req.resumeStopped = false
+	if operator, ok := ctx.Value(operatorCompactionKey{}).(bool); ok && operator {
+		req.humanIngress = true
+	} else {
+		m.attachDaemonLocalBudgetAdmission(ctx, &req)
+	}
 	events, err := m.submitPromptRequest(ctx, req)
 	if err != nil {
 		return CompactionRequestResult{}, nil, err

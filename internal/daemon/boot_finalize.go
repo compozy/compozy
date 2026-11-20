@@ -20,22 +20,6 @@ import (
 func (d *Daemon) bootFinalize(ctx context.Context, state *bootState) error {
 	// Boot is past its discovery-heavy steps: workspace snapshots go back to their normal age bound.
 	defer state.workspaceResolver.ReleaseSnapshots()
-	if state.resourceReconcile != nil {
-		if err := state.resourceReconcile.RunBoot(ctx); err != nil {
-			return fmt.Errorf("daemon: boot resource reconcile: %w", err)
-		}
-	}
-
-	reconcileResult, err := state.observer.Reconcile(ctx)
-	if err != nil {
-		return fmt.Errorf("daemon: reconcile sessions: %w", err)
-	}
-	state.logger.Info(
-		"daemon: boot reconciliation complete",
-		"indexed_sessions", len(reconcileResult.Indexed),
-		"orphaned_sessions", len(reconcileResult.Orphaned),
-	)
-
 	if d.shouldVerifyBoundaries() {
 		if boundaryErr := d.Boundaries(ctx); boundaryErr != nil {
 			state.logger.Warn("daemon: boundary verification warning", "error", boundaryErr)

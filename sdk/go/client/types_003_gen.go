@@ -7,6 +7,35 @@ import (
 	"time"
 )
 
+// AgentSoulPayload is a daemon API value.
+type AgentSoulPayload struct {
+	AgentName        string                             `json:"agent_name,omitempty"`
+	Enabled          bool                               `json:"enabled"`
+	Present          bool                               `json:"present"`
+	Active           bool                               `json:"active"`
+	Valid            bool                               `json:"valid"`
+	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
+	SnapshotID       string                             `json:"snapshot_id,omitempty"`
+	RevisionID       string                             `json:"revision_id,omitempty"`
+	Digest           string                             `json:"digest,omitempty"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Frontmatter      AgentSoulFrontmatterPayload        `json:"frontmatter"`
+	Body             string                             `json:"body,omitempty"`
+	Truncated        bool                               `json:"truncated,omitempty"`
+	Limits           AuthoredContextLimitsPayload       `json:"limits"`
+	ConfigProvenance AgentSoulConfigProvenancePayload   `json:"config_provenance"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	CreatedAt        *time.Time                         `json:"created_at,omitempty"`
+}
+
+// AgentSoulPutByPathRequest is a daemon API value.
+type AgentSoulPutByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	Body           string `json:"body"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
 // AgentSoulRevisionAction is a daemon API value.
 type AgentSoulRevisionAction string
 
@@ -419,32 +448,3 @@ type AutomationSuggestionPayload struct {
 	CreatedAt   time.Time        `json:"created_at"`
 	ResolvedAt  *time.Time       `json:"resolved_at,omitempty"`
 }
-
-// AutomationSuggestionResponse is a daemon API value.
-type AutomationSuggestionResponse struct {
-	Suggestion AutomationSuggestionPayload `json:"suggestion"`
-}
-
-// AutomationSuggestionsResponse is a daemon API value.
-type AutomationSuggestionsResponse struct {
-	Suggestions []AutomationSuggestionPayload `json:"suggestions"`
-}
-
-// AutonomyMatcher is a daemon API value.
-type AutonomyMatcher struct {
-	TaskID               string `json:"task_id,omitempty"`
-	RunID                string `json:"run_id,omitempty"`
-	LoopRunID            string `json:"loop_run_id,omitempty"`
-	LoopName             string `json:"loop_name,omitempty"`
-	NodeID               string `json:"node_id,omitempty"`
-	WorkflowID           string `json:"workflow_id,omitempty"`
-	CoordinatorSessionID string `json:"coordinator_session_id,omitempty"`
-	ParentSessionID      string `json:"parent_session_id,omitempty"`
-	RootSessionID        string `json:"root_session_id,omitempty"`
-	ChildSessionID       string `json:"child_session_id,omitempty"`
-	SpawnRole            string `json:"spawn_role,omitempty"`
-	ReleaseReason        string `json:"release_reason,omitempty"`
-}
-
-// Axis is a daemon API value.
-type Axis string

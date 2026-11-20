@@ -271,3 +271,23 @@ func assertContractKeys(t *testing.T, object map[string]any, keys ...string) {
 		}
 	}
 }
+
+func TestAgentInstanceDailyBudgetInputReplacement(t *testing.T) {
+	t.Run("Should replace caps atomically on decode", func(t *testing.T) {
+		t.Parallel()
+		input := AgentInstanceDailyBudgetInput{Tokens: new(int64(100))}
+		if err := json.Unmarshal([]byte(`{"usd":1.25}`), &input); err != nil {
+			t.Fatal(err)
+		}
+		if input.Tokens != nil || input.USD == nil || *input.USD != 1.25 {
+			t.Fatalf("decoded budget=%+v; want only a USD cap of 1.25", input)
+		}
+		if err := json.Unmarshal([]byte(`{"tokens":50,"usdd":1}`), &input); err == nil ||
+			!strings.Contains(err.Error(), `unknown field "usdd"`) {
+			t.Fatalf("decode error=%v; want unknown field usdd", err)
+		}
+		if input.Tokens != nil || input.USD == nil || *input.USD != 1.25 {
+			t.Fatalf("failed decode mutated budget=%+v", input)
+		}
+	})
+}

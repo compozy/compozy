@@ -59,9 +59,10 @@ const (
 
 // PromptCaller is the authenticated operator identity admitted by an external prompt ingress.
 type PromptCaller struct {
-	Kind   string
-	ID     string
-	Source string
+	Kind       string
+	ID         string
+	Source     string
+	AppIngress bool
 }
 
 // Validate rejects incomplete caller provenance.

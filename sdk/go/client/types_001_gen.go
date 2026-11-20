@@ -2,7 +2,10 @@
 
 package client
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // ACPAvailableCommandInputPayload is a daemon API value.
 type ACPAvailableCommandInputPayload struct {
@@ -345,6 +348,24 @@ type AgentInstanceCreateRequest struct {
 	Workspace string `json:"workspace"`
 }
 
+// AgentInstanceDailyBudgetInput is a daemon API value.
+// AgentInstanceDailyBudgetInput preserves its custom JSON wire representation.
+type AgentInstanceDailyBudgetInput = json.RawMessage
+
+// AgentInstanceDailyBudgetLimits is a daemon API value.
+type AgentInstanceDailyBudgetLimits struct {
+	Tokens *int64   `json:"tokens,omitempty"`
+	USD    *float64 `json:"usd,omitempty"`
+}
+
+// AgentInstanceDailyBudgetUsage is a daemon API value.
+type AgentInstanceDailyBudgetUsage struct {
+	Day              string `json:"day"`
+	Tokens           int64  `json:"tokens"`
+	KnownUSD         string `json:"known_usd"`
+	HasUnpricedUsage bool   `json:"has_unpriced_usage"`
+}
+
 // AgentInstanceListResponse is a daemon API value.
 type AgentInstanceListResponse struct {
 	Peers              []AgentInstancePeer    `json:"peers,omitempty"`
@@ -371,37 +392,39 @@ type AgentInstanceOccurrenceResponse struct {
 
 // AgentInstancePayload is a daemon API value.
 type AgentInstancePayload struct {
-	AuthorityStatus      string                  `json:"authority_status"`
-	Sources              []HeartbeatSourceStatus `json:"sources"`
-	UnattendedTurns      int64                   `json:"unattended_turns"`
-	UnattendedTurnLimit  int64                   `json:"unattended_turn_limit"`
-	HeldWakes            int64                   `json:"held_wakes"`
-	NextWake             *AgentInstanceNextWake  `json:"next_wake,omitempty"`
-	Created              bool                    `json:"created"`
-	ChecksEnabled        bool                    `json:"checks_enabled"`
-	LastWakeAt           string                  `json:"last_wake_at"`
-	NextWakeAt           string                  `json:"next_wake_at"`
-	QuietStreak          int64                   `json:"quiet_streak"`
-	FailureStreak        int64                   `json:"failure_streak"`
-	FatigueLimit         int                     `json:"fatigue_limit"`
-	Label                string                  `json:"label"`
-	Provider             string                  `json:"provider"`
-	ResolvedAppearance   map[string]any          `json:"resolved_appearance"`
-	Scope                string                  `json:"scope"`
-	Activity             string                  `json:"activity"`
-	Now                  string                  `json:"now"`
-	AttentionDismissible bool                    `json:"attention_dismissible"`
-	NeedsAttention       bool                    `json:"needs_attention"`
-	ID                   string                  `json:"id"`
-	ProfileID            string                  `json:"profile_id"`
-	ProfileName          string                  `json:"profile_name"`
-	AgentName            string                  `json:"agent_name"`
-	WorkspaceID          string                  `json:"workspace_id"`
-	State                string                  `json:"state"`
-	PauseReason          string                  `json:"pause_reason"`
-	MainSessionID        string                  `json:"main_session_id"`
-	CreatedAt            time.Time               `json:"created_at"`
-	UpdatedAt            time.Time               `json:"updated_at"`
+	DailyBudget          *AgentInstanceDailyBudgetLimits `json:"daily_budget,omitempty"`
+	DailyBudgetUsage     *AgentInstanceDailyBudgetUsage  `json:"daily_budget_usage,omitempty"`
+	AuthorityStatus      string                          `json:"authority_status"`
+	Sources              []HeartbeatSourceStatus         `json:"sources"`
+	UnattendedTurns      int64                           `json:"unattended_turns"`
+	UnattendedTurnLimit  int64                           `json:"unattended_turn_limit"`
+	HeldWakes            int64                           `json:"held_wakes"`
+	NextWake             *AgentInstanceNextWake          `json:"next_wake,omitempty"`
+	Created              bool                            `json:"created"`
+	ChecksEnabled        bool                            `json:"checks_enabled"`
+	LastWakeAt           string                          `json:"last_wake_at"`
+	NextWakeAt           string                          `json:"next_wake_at"`
+	QuietStreak          int64                           `json:"quiet_streak"`
+	FailureStreak        int64                           `json:"failure_streak"`
+	FatigueLimit         int                             `json:"fatigue_limit"`
+	Label                string                          `json:"label"`
+	Provider             string                          `json:"provider"`
+	ResolvedAppearance   map[string]any                  `json:"resolved_appearance"`
+	Scope                string                          `json:"scope"`
+	Activity             string                          `json:"activity"`
+	Now                  string                          `json:"now"`
+	AttentionDismissible bool                            `json:"attention_dismissible"`
+	NeedsAttention       bool                            `json:"needs_attention"`
+	ID                   string                          `json:"id"`
+	ProfileID            string                          `json:"profile_id"`
+	ProfileName          string                          `json:"profile_name"`
+	AgentName            string                          `json:"agent_name"`
+	WorkspaceID          string                          `json:"workspace_id"`
+	State                string                          `json:"state"`
+	PauseReason          string                          `json:"pause_reason"`
+	MainSessionID        string                          `json:"main_session_id"`
+	CreatedAt            time.Time                       `json:"created_at"`
+	UpdatedAt            time.Time                       `json:"updated_at"`
 }
 
 // AgentInstancePeer is a daemon API value.
@@ -421,21 +444,4 @@ type AgentInstancePickRequest struct {
 // AgentInstancePickResponse is a daemon API value.
 type AgentInstancePickResponse struct {
 	Pick Pick `json:"pick"`
-}
-
-// AgentInstanceProposal is a daemon API value.
-type AgentInstanceProposal struct {
-	Action           *AgentInstanceProposalAction  `json:"action,omitempty"`
-	AutoAcceptStatus AutoAcceptStatus              `json:"auto_accept_status"`
-	Sources          []AgentInstanceProposalSource `json:"sources,omitempty"`
-	Title            string                        `json:"title"`
-	Body             string                        `json:"body"`
-	ItemKeys         []string                      `json:"item_keys"`
-}
-
-// AgentInstanceProposalAction is a daemon API value.
-type AgentInstanceProposalAction struct {
-	ID         string `json:"id"`
-	Title      string `json:"title"`
-	AutoAccept bool   `json:"auto_accept"`
 }

@@ -7,6 +7,45 @@ import (
 	"time"
 )
 
+// RoleDiagnostic is a daemon API value.
+type RoleDiagnostic struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Agent   string `json:"agent,omitempty"`
+}
+
+// RoleFallbackStatus is a daemon API value.
+type RoleFallbackStatus struct {
+	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider           string                              `json:"provider"`
+	Model              string                              `json:"model"`
+	ReasoningEffort    string                              `json:"reasoning_effort,omitempty"`
+	Speed              Speed                               `json:"speed,omitempty"`
+	ACPOptions         []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Command            string                              `json:"command,omitempty"`
+	CommandFingerprint string                              `json:"command_fingerprint,omitempty"`
+}
+
+// RoleResolutionMode is a daemon API value.
+type RoleResolutionMode string
+
+// RoleStatus is a daemon API value.
+type RoleStatus struct {
+	Role            string                    `json:"role"`
+	Enabled         bool                      `json:"enabled"`
+	ResolutionMode  RoleResolutionMode        `json:"resolution_mode"`
+	Agent           *string                   `json:"agent"`
+	Provider        *string                   `json:"provider"`
+	Model           *string                   `json:"model"`
+	ReasoningEffort *string                   `json:"reasoning_effort"`
+	Speed           *Speed                    `json:"speed"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options"`
+	Timeout         *string                   `json:"timeout,omitzero"`
+	FallbackChain   []RoleFallbackStatus      `json:"fallback_chain"`
+	Provenance      map[string]string         `json:"provenance"`
+	Diagnostics     []RoleDiagnostic          `json:"diagnostics"`
+}
+
 // RoleStatusResponse is a daemon API value.
 type RoleStatusResponse struct {
 	Role RoleStatus `json:"role"`
@@ -407,42 +446,4 @@ type SchedulerBacklogPayload struct {
 // SchedulerBacklogResponse is a daemon API value.
 type SchedulerBacklogResponse struct {
 	Backlog SchedulerBacklogPayload `json:"backlog"`
-}
-
-// SchedulerBacklogRunPayload is a daemon API value.
-type SchedulerBacklogRunPayload struct {
-	Task TaskSummaryPayload `json:"task"`
-	Run  TaskRunPayload     `json:"run"`
-}
-
-// SchedulerCatchUpPolicy is a daemon API value.
-type SchedulerCatchUpPolicy string
-
-// SchedulerCountersPayload is a daemon API value.
-type SchedulerCountersPayload struct {
-	Cycles              int        `json:"cycles"`
-	WakeAttempts        int        `json:"wake_attempts"`
-	WakeSkipped         int        `json:"wake_skipped"`
-	WakeSucceeded       int        `json:"wake_succeeded"`
-	WakeFailed          int        `json:"wake_failed"`
-	CapacityWaitingRuns int        `json:"capacity_waiting_runs"`
-	SpawnRequested      int        `json:"spawn_requested"`
-	NeedsAttention      int        `json:"needs_attention"`
-	LastCycleAt         *time.Time `json:"last_cycle_at,omitempty"`
-}
-
-// SchedulerDrainRequest is a daemon API value.
-type SchedulerDrainRequest struct {
-	Reason         string `json:"reason,omitempty"`
-	TimeoutSeconds *int64 `json:"timeout_seconds,omitzero"`
-}
-
-// SchedulerDrainResponse is a daemon API value.
-type SchedulerDrainResponse struct {
-	Scheduler       SchedulerStatusPayload `json:"scheduler"`
-	Completed       bool                   `json:"completed"`
-	TimedOut        bool                   `json:"timed_out,omitzero"`
-	RemainingClaims int                    `json:"remaining_claims"`
-	StartedAt       time.Time              `json:"started_at"`
-	CompletedAt     time.Time              `json:"completed_at"`
 }

@@ -7,6 +7,41 @@ import (
 	"time"
 )
 
+// RecapSnapshotPayload is a daemon API value.
+type RecapSnapshotPayload struct {
+	GeneratedAt      time.Time `json:"generated_at"`
+	EventCursor      int64     `json:"event_cursor"`
+	TranscriptCursor int64     `json:"transcript_cursor"`
+	QueueGeneration  int64     `json:"queue_generation"`
+	Consistency      string    `json:"consistency"`
+}
+
+// RecoverTaskRequest is a daemon API value.
+type RecoverTaskRequest struct {
+	Note string `json:"note,omitempty"`
+}
+
+// RecoverTaskRunRequest is a daemon API value.
+type RecoverTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// Redaction is a daemon API value.
+type Redaction struct {
+	Path   string     `json:"path"`
+	Reason ReasonCode `json:"reason"`
+	Bytes  int64      `json:"bytes,omitempty"`
+}
+
+// Ref is a daemon API value.
+type Ref struct {
+	ID     string          `json:"id"`
+	Kind   string          `json:"kind,omitempty"`
+	Script string          `json:"script,omitempty"`
+	With   json.RawMessage `json:"with,omitempty"`
+}
+
 // Reference is a daemon API value.
 type Reference struct {
 	ID              string     `json:"id"`
@@ -407,42 +442,3 @@ type Revision uint64
 
 // RiskClass is a daemon API value.
 type RiskClass string
-
-// RoleDiagnostic is a daemon API value.
-type RoleDiagnostic struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Agent   string `json:"agent,omitempty"`
-}
-
-// RoleFallbackStatus is a daemon API value.
-type RoleFallbackStatus struct {
-	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Provider           string                              `json:"provider"`
-	Model              string                              `json:"model"`
-	ReasoningEffort    string                              `json:"reasoning_effort,omitempty"`
-	Speed              Speed                               `json:"speed,omitempty"`
-	ACPOptions         []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	Command            string                              `json:"command,omitempty"`
-	CommandFingerprint string                              `json:"command_fingerprint,omitempty"`
-}
-
-// RoleResolutionMode is a daemon API value.
-type RoleResolutionMode string
-
-// RoleStatus is a daemon API value.
-type RoleStatus struct {
-	Role            string                    `json:"role"`
-	Enabled         bool                      `json:"enabled"`
-	ResolutionMode  RoleResolutionMode        `json:"resolution_mode"`
-	Agent           *string                   `json:"agent"`
-	Provider        *string                   `json:"provider"`
-	Model           *string                   `json:"model"`
-	ReasoningEffort *string                   `json:"reasoning_effort"`
-	Speed           *Speed                    `json:"speed"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options"`
-	Timeout         *string                   `json:"timeout,omitzero"`
-	FallbackChain   []RoleFallbackStatus      `json:"fallback_chain"`
-	Provenance      map[string]string         `json:"provenance"`
-	Diagnostics     []RoleDiagnostic          `json:"diagnostics"`
-}

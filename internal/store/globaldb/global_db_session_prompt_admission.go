@@ -77,46 +77,6 @@ func (g *SessionRepo) ClaimSessionPromptAdmission(
 	return admission, created, nil
 }
 
-// CommitSessionPromptDispatch crosses the at-most-once boundary before any non-idempotent effect.
-func (g *SessionRepo) CommitSessionPromptDispatch(
-	ctx context.Context,
-	workspaceID string,
-	sessionID string,
-	idempotencyKey string,
-	now time.Time,
-) error {
-	if err := g.checkReady(ctx, "commit session prompt dispatch"); err != nil {
-		return err
-	}
-	workspaceID, sessionID, idempotencyKey, now, err := normalizePromptAdmissionScope(
-		workspaceID,
-		sessionID,
-		idempotencyKey,
-		now,
-	)
-	if err != nil {
-		return err
-	}
-	return g.withImmediateTransaction(ctx, "commit session prompt dispatch", func(exec globalSQLExecutor) error {
-		affected, commitErr := sqlcgen.New(exec).CommitSessionPromptDispatch(
-			ctx,
-			sqlcgen.CommitSessionPromptDispatchParams{
-				DispatchCommittedState: store.SessionPromptAdmissionDispatchCommitted,
-				DispatchCommittedAt:    nullableSessionTime(now), UpdatedAt: store.FormatTimestamp(now),
-				WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,
-				ReservedState: store.SessionPromptAdmissionReserved,
-			},
-		)
-		if commitErr != nil {
-			return fmt.Errorf("store: commit session prompt dispatch: %w", commitErr)
-		}
-		if affected != 1 {
-			return promptAdmissionCASFailure(ctx, exec, workspaceID, sessionID, idempotencyKey)
-		}
-		return nil
-	})
-}
-
 // CompleteSessionPromptAdmission stores the stable replay result for one command.
 func (g *SessionRepo) CompleteSessionPromptAdmission(
 	ctx context.Context,
@@ -270,7 +230,7 @@ func claimSessionPromptAdmission(
 	if err := resetHumanPromptInstanceState(ctx, queries, &req); err != nil {
 		return store.SessionPromptAdmission{}, false, err
 	}
-	if req.HumanIngress && req.Operation == store.SessionPromptOperationPrompt &&
+	if req.HumanIngress && req.Operation == store.SessionPromptOperationPrompt && !store.PromptControlOnly(ctx) &&
 		(req.DirectDispatch || req.Mode != store.SessionInputQueueModeSteer) {
 		if err := queries.ReservePromptReports(
 			ctx,
@@ -327,7 +287,12 @@ func classifyPromptAdmissionReplay(
 		fingerprintMatches = req.LegacyRequestFingerprint != "" &&
 			admission.RequestFingerprint == req.LegacyRequestFingerprint
 	}
-	if admission.MessageID != req.MessageID || !fingerprintMatches || admission.Operation != req.Operation {
+	// A retry can adopt the original turn identity, but cannot inherit a
+	// human operator's budget exemption from a still-reserved command.
+	wouldInheritOperatorExemption := admission.State == store.SessionPromptAdmissionReserved &&
+		admission.HumanIngress && !admission.AppIngress && (!req.HumanIngress || req.AppIngress)
+	if admission.MessageID != req.MessageID || !fingerprintMatches ||
+		admission.Operation != req.Operation || wouldInheritOperatorExemption {
 		return store.SessionPromptAdmission{}, fmt.Errorf(
 			"%w: idempotency_key %q is already bound to another request",
 			store.ErrSessionPromptIdempotencyConflict,
@@ -470,6 +435,7 @@ func insertPromptAdmissionClaim(
 		SkillInvocationsJson: string(skillInvocationsJSON),
 		MentionsJson:         store.NormalizeMentionsJSON(req.MentionsJSON),
 		HumanIngress:         boolToInt64(req.HumanIngress),
+		AppIngress:           boolToInt64(req.AppIngress),
 		OriginJson:           sql.NullString{String: string(req.Origin), Valid: len(req.Origin) > 0},
 		AttachmentsJson:      attachmentsJSON,
 		RuntimeProvider:      req.Runtime.Provider, RuntimeModel: req.Runtime.Model,

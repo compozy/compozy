@@ -238,6 +238,11 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 	if got := statusForSessionError(session.ErrPendingPermissionConflict); got != http.StatusConflict {
 		t.Fatalf("statusForSessionError(conflict) = %d, want %d", got, http.StatusConflict)
 	}
+	if got := statusForSessionError(
+		fmt.Errorf("budget refused: %w", store.ErrDailyBudgetTurnBlocked),
+	); got != http.StatusConflict {
+		t.Fatalf("statusForSessionError(daily budget) = %d, want %d", got, http.StatusConflict)
+	}
 	t.Run("Should map archive errors to conflict", func(t *testing.T) {
 		t.Parallel()
 

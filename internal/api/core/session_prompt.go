@@ -205,10 +205,12 @@ func (h *BaseHandlers) PromptCallerForWorkspace(
 	if err != nil {
 		return session.PromptCaller{}, err
 	}
+	_, appIngress := AppTokenFromContext(c.Request.Context())
 	caller := session.PromptCaller{
-		Kind:   string(actor.Actor.Kind.Normalize()),
-		ID:     strings.TrimSpace(actor.Actor.Ref),
-		Source: string(actor.Origin.Kind),
+		AppIngress: appIngress,
+		Kind:       string(actor.Actor.Kind.Normalize()),
+		ID:         strings.TrimSpace(actor.Actor.Ref),
+		Source:     string(actor.Origin.Kind),
 	}
 	if err := caller.Validate(); err != nil {
 		return session.PromptCaller{}, err

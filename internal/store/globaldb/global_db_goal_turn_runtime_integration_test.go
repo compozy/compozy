@@ -210,6 +210,60 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 
 	// Invariant (IT-032, rule 10): a pause that commits after selection peeked a Goal row still wins; the
 	// claim refuses in its own transaction, the row stays queued and untokened, and resume re-admits it.
+	t.Run(
+		"Should defer Goal claim on exhausted instance daily budget without claiming its queue row",
+		func(t *testing.T) {
+			globalDB, key, taskRunID, at := seedGoalTurnRuntime(t, "run-goal-daily-budget")
+			ctx := t.Context()
+			globalDB.now = func() time.Time { return at }
+			instance, err := globalDB.Instances().Adopt(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "codex", WorkspaceID: "ws-goal-runtime",
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, "session-goal-runtime", 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := globalDB.Instances().SetDailyBudgetLimits(ctx, instance.ID,
+				agentinstance.DailyBudgetLimits{Tokens: new(int64(100))}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := globalDB.DB().ExecContext(ctx, `INSERT INTO token_usage_receipts (
+			profile_id, session_id, turn_id, instance_id, day, total_tokens, cost_status, created_at
+		) VALUES (?, 'session-goal-runtime', 'prior-goal-budget-usage', ?, ?, 100, 'unknown', ?)`,
+				store.DefaultProfileID, instance.ID, store.LocalDay(at), store.FormatTimestamp(at)); err != nil {
+				t.Fatal(err)
+			}
+			promptID := "goal-prompt-daily-budget"
+			ticket := prepareGoalRuntimePrompt(t, globalDB, key, taskRunID, promptID, at)
+			decision := flushGoalRuntimeBudget(t, globalDB, key, taskRunID, goal.BudgetBeforeWork, promptID, 0)
+			claim := goal.ClaimPreparedWorkPromptRequest{
+				Key: key, ExpectedControlEpoch: 1, TaskRunID: taskRunID,
+				QueueEntryID: ticket.QueueEntryID, PromptID: promptID,
+				SessionID: "session-goal-runtime", BindingHandle: "goal:runtime", BindingEpoch: 1,
+				BudgetDecision: decision, ActorKind: "daemon", ActorID: "loop-action",
+			}
+			_, err = globalDB.ClaimPreparedWorkPrompt(ctx, claim)
+			if !errors.Is(err, store.ErrDailyBudgetTurnBlocked) {
+				t.Fatalf("exhausted Goal claim error = %v, want budget blocked", err)
+			}
+			queued, err := globalDB.GetSessionInputQueueEntryByID(ctx, ticket.QueueEntryID)
+			if err != nil || queued.Status != store.SessionInputQueueStatusQueued || queued.DispatchTokenHash != "" {
+				t.Fatalf("claimed Goal row despite cap: %+v err=%v", queued, err)
+			}
+			paused, err := globalDB.Instances().Get(ctx, instance.ID)
+			if err != nil || paused.State != "paused" || paused.PauseReason != "daily_budget" {
+				t.Fatalf("Goal budget pause: %+v err=%v", paused, err)
+			}
+			at = at.AddDate(0, 0, 1)
+			if _, err := globalDB.Instances().Resume(ctx, instance.ID, 10, true); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := globalDB.ClaimPreparedWorkPrompt(ctx, claim); err != nil {
+				t.Fatalf("resumed Goal claim: %v", err)
+			}
+		},
+	)
+
 	for _, reason := range []string{"manual", "definition_missing", "definition_not_always_on"} {
 		t.Run("Should refuse a Goal claim that races an instance pause "+reason, func(t *testing.T) {
 			t.Parallel()

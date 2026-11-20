@@ -7,6 +7,35 @@ import (
 	"time"
 )
 
+// AutomationSuggestionResponse is a daemon API value.
+type AutomationSuggestionResponse struct {
+	Suggestion AutomationSuggestionPayload `json:"suggestion"`
+}
+
+// AutomationSuggestionsResponse is a daemon API value.
+type AutomationSuggestionsResponse struct {
+	Suggestions []AutomationSuggestionPayload `json:"suggestions"`
+}
+
+// AutonomyMatcher is a daemon API value.
+type AutonomyMatcher struct {
+	TaskID               string `json:"task_id,omitempty"`
+	RunID                string `json:"run_id,omitempty"`
+	LoopRunID            string `json:"loop_run_id,omitempty"`
+	LoopName             string `json:"loop_name,omitempty"`
+	NodeID               string `json:"node_id,omitempty"`
+	WorkflowID           string `json:"workflow_id,omitempty"`
+	CoordinatorSessionID string `json:"coordinator_session_id,omitempty"`
+	ParentSessionID      string `json:"parent_session_id,omitempty"`
+	RootSessionID        string `json:"root_session_id,omitempty"`
+	ChildSessionID       string `json:"child_session_id,omitempty"`
+	SpawnRole            string `json:"spawn_role,omitempty"`
+	ReleaseReason        string `json:"release_reason,omitempty"`
+}
+
+// Axis is a daemon API value.
+type Axis string
+
 // BackendKind is a daemon API value.
 type BackendKind string
 
@@ -414,28 +443,4 @@ type CmdPaletteViewSessionAccepted struct {
 // CmdPaletteViewSessionClosed is a daemon API value.
 type CmdPaletteViewSessionClosed struct {
 	Closed bool `json:"closed"`
-}
-
-// CmdPaletteViewSessionEventRequest is a daemon API value.
-type CmdPaletteViewSessionEventRequest struct {
-	Handler      string        `json:"handler"`
-	Args         []any         `json:"args,omitempty"`
-	Revision     string        `json:"revision"`
-	Seq          int64         `json:"seq"`
-	AckEffects   []string      `json:"ack_effects,omitempty"`
-	EffectResult *EffectResult `json:"effect_result,omitzero"`
-}
-
-// CmdPaletteViewSessionOpenRequest is a daemon API value.
-type CmdPaletteViewSessionOpenRequest struct {
-	Workspace string         `json:"workspace"`
-	Args      map[string]any `json:"args,omitempty"`
-}
-
-// CmdPaletteViewSessionOpenResponse is a daemon API value.
-type CmdPaletteViewSessionOpenResponse struct {
-	ProfileLens ProfileLens `json:"profile_lens"`
-	ViewSession string      `json:"view_session"`
-	StreamToken string      `json:"stream_token"`
-	FirstFrame  ViewFrame   `json:"first_frame"`
 }

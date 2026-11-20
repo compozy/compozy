@@ -111,6 +111,43 @@ type AgentInstanceCheckToolCall struct {
 	UpdatedAt    string         `json:"updated_at"`
 }
 
+type AgentInstanceDailyBudgetLimit struct {
+	InstanceID string         `json:"instance_id"`
+	TokenCap   sql.NullInt64  `json:"token_cap"`
+	UsdCap     sql.NullString `json:"usd_cap"`
+	UpdatedAt  string         `json:"updated_at"`
+}
+
+type AgentInstanceDailyBudgetNotice struct {
+	InstanceID string `json:"instance_id"`
+	Day        string `json:"day"`
+	IssuedAt   string `json:"issued_at"`
+}
+
+type AgentInstanceDailyBudgetRecovery struct {
+	InstanceID string `json:"instance_id"`
+	Generation int64  `json:"generation"`
+	Pending    int64  `json:"pending"`
+	Latched    int64  `json:"latched"`
+}
+
+type AgentInstanceDailyBudgetUncertainDay struct {
+	InstanceID      string `json:"instance_id"`
+	Day             string `json:"day"`
+	SourceSessionID string `json:"source_session_id"`
+	RecordedAt      string `json:"recorded_at"`
+}
+
+type AgentInstanceDailyBudgetUsage struct {
+	InstanceID       string         `json:"instance_id"`
+	ProfileID        string         `json:"profile_id"`
+	Day              string         `json:"day"`
+	TotalTokens      int64          `json:"total_tokens"`
+	UsdTotal         sql.NullString `json:"usd_total"`
+	HasUnpricedUsage int64          `json:"has_unpriced_usage"`
+	Invalid          int64          `json:"invalid"`
+}
+
 type AgentInstanceEvent struct {
 	ID           string         `json:"id"`
 	InstanceID   string         `json:"instance_id"`
@@ -502,6 +539,12 @@ type ConfigApplyRecord struct {
 	UpdatedAt         string         `json:"updated_at"`
 }
 
+type DailyBudgetRecoveryCursor struct {
+	SessionID     string `json:"session_id"`
+	AfterSequence int64  `json:"after_sequence"`
+	UpdatedAt     string `json:"updated_at"`
+}
+
 type DeadEntity struct {
 	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
@@ -509,6 +552,14 @@ type DeadEntity struct {
 	EntityID    string `json:"entity_id"`
 	Reason      string `json:"reason"`
 	MarkedAt    string `json:"marked_at"`
+}
+
+type DeletedSessionBudgetLineage struct {
+	ID              string         `json:"id"`
+	ProfileID       string         `json:"profile_id"`
+	ParentSessionID sql.NullString `json:"parent_session_id"`
+	InstanceID      sql.NullString `json:"instance_id"`
+	LineageKind     string         `json:"lineage_kind"`
 }
 
 type EventSummaryOutbox struct {
@@ -1803,6 +1854,7 @@ type SessionInputQueue struct {
 	OriginSessionID          string         `json:"origin_session_id"`
 	MentionsJson             string         `json:"mentions_json"`
 	HumanIngress             int64          `json:"human_ingress"`
+	AppIngress               int64          `json:"app_ingress"`
 	UnattendedCounted        int64          `json:"unattended_counted"`
 }
 
@@ -1921,6 +1973,7 @@ type SessionPromptAdmission struct {
 	UpdatedAt              string         `json:"updated_at"`
 	MentionsJson           string         `json:"mentions_json"`
 	HumanIngress           int64          `json:"human_ingress"`
+	AppIngress             int64          `json:"app_ingress"`
 }
 
 type SessionPromptReplyWatch struct {
@@ -2355,6 +2408,19 @@ type TokenUsageDaily struct {
 	CostSource   string          `json:"cost_source"`
 	TurnCount    int64           `json:"turn_count"`
 	UpdatedAt    string          `json:"updated_at"`
+}
+
+type TokenUsageReceipt struct {
+	ProfileID           string         `json:"profile_id"`
+	SessionID           string         `json:"session_id"`
+	TurnID              string         `json:"turn_id"`
+	InstanceID          string         `json:"instance_id"`
+	Day                 string         `json:"day"`
+	TotalTokens         int64          `json:"total_tokens"`
+	UsdAmount           sql.NullString `json:"usd_amount"`
+	CostStatus          string         `json:"cost_status"`
+	CreatedAt           string         `json:"created_at"`
+	OwnershipUnresolved int64          `json:"ownership_unresolved"`
 }
 
 type ToolApprovalGrant struct {

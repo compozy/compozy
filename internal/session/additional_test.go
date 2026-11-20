@@ -1471,6 +1471,32 @@ func TestSideLifecycle(t *testing.T) {
 		)
 	}
 
+	t.Run("Should preserve side history when source budget reconciliation refuses deletion", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t)
+		source := h.newDeriveSource(t)
+		side := h.openSide(t, source, "budget-delete-refused")
+		for _, id := range []string{side.ID, source.ID} {
+			if err := h.manager.Stop(t.Context(), id); err != nil {
+				t.Fatal(err)
+			}
+		}
+		ledgerLost := errors.New("source budget ledger could not be reconciled")
+		h.manager.notifier = &budgetDeleteSafetyNotifier{
+			fakeNotifier: h.notifier,
+			denied:       ledgerLost,
+			sessionID:    source.ID,
+		}
+		if err := h.manager.Delete(t.Context(), source.ID); !errors.Is(err, ledgerLost) {
+			t.Fatalf("source delete error = %v, want budget ledger refusal", err)
+		}
+		for _, id := range []string{side.ID, source.ID} {
+			if _, err := h.manager.Status(t.Context(), id); err != nil {
+				t.Fatalf("refused source deletion lost session %s: %v", id, err)
+			}
+		}
+	})
+
 	// Invariant B-002: lifecycle deletion includes real internal side descendants; public lists still omit them.
 	t.Run("Should delete a stopped side title helper before its side and source", func(t *testing.T) {
 		t.Parallel()

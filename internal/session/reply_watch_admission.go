@@ -158,6 +158,9 @@ func (m *Manager) replyWatchSessionDeleted(ctx context.Context, sessionID string
 }
 
 func (s *replyWatchService) OnSendResult(ctx context.Context, id string, sendErr error) {
+	if errors.Is(sendErr, store.ErrDailyBudgetTurnBlocked) || errors.Is(sendErr, store.ErrDailyBudgetRecoveryPending) {
+		return // The reserved send can still finish after the budget hold clears.
+	}
 	w, err := s.store.GetReplyWatch(ctx, id)
 	if err != nil {
 		w.ID = id

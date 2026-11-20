@@ -5,19 +5,23 @@ import (
 	"time"
 )
 
+const instanceStatePaused = "paused"
+
 var (
-	ErrWorkspaceAccessDenied = errors.New("workspace_access_denied")
-	ErrSessionNotRoot        = errors.New("session_not_root")
-	ErrPaused                = errors.New("agent_instance_paused")
-	ErrLimit                 = errors.New("agent_instance_limit")
-	ErrExists                = errors.New("agent_instance_exists")
-	ErrStarting              = errors.New("agent_instance_starting")
-	ErrForbidden             = errors.New("agent_instance_forbidden")
-	ErrDepth                 = errors.New("agent_instance_depth")
-	ErrNotAlwaysOn           = errors.New("agent_not_always_on")
-	ErrDefinitionMissing     = errors.New("agent_definition_missing")
-	ErrNotFound              = errors.New("agent_instance_not_found")
-	ErrScopeMismatch         = errors.New("session_scope_mismatch")
+	ErrWorkspaceAccessDenied       = errors.New("workspace_access_denied")
+	ErrSessionNotRoot              = errors.New("session_not_root")
+	ErrPaused                      = errors.New("agent_instance_paused")
+	ErrLimit                       = errors.New("agent_instance_limit")
+	ErrExists                      = errors.New("agent_instance_exists")
+	ErrStarting                    = errors.New("agent_instance_starting")
+	ErrForbidden                   = errors.New("agent_instance_forbidden")
+	ErrDepth                       = errors.New("agent_instance_depth")
+	ErrNotAlwaysOn                 = errors.New("agent_not_always_on")
+	ErrDefinitionMissing           = errors.New("agent_definition_missing")
+	ErrNotFound                    = errors.New("agent_instance_not_found")
+	ErrScopeMismatch               = errors.New("session_scope_mismatch")
+	ErrBudgetHistoryUncertain      = errors.New("agent_instance_budget_history_uncertain")
+	ErrDailyBudgetUsageUnavailable = errors.New("cannot establish an accurate daily budget total")
 )
 
 type Instance struct {

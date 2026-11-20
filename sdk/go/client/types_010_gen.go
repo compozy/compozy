@@ -7,6 +7,34 @@ import (
 	"time"
 )
 
+// Image is a daemon API value.
+type Image struct {
+	URL   string `json:"url,omitempty"`
+	Token string `json:"token,omitempty"`
+	Emoji string `json:"emoji,omitempty"`
+}
+
+// Input is a daemon API value.
+type Input struct {
+	Type        InputType `json:"type"`
+	Required    bool      `json:"required,omitzero"`
+	Description string    `json:"description,omitempty"`
+	Ref         *InputRef `json:"ref,omitzero"`
+	Enum        []string  `json:"enum,omitempty"`
+	Default     any       `json:"default,omitempty"`
+}
+
+// InputRef is a daemon API value.
+type InputRef struct {
+	Kind InputRefKind `json:"kind"`
+}
+
+// InputRefKind is a daemon API value.
+type InputRefKind string
+
+// InputType is a daemon API value.
+type InputType string
+
 // InstallExtensionRequest is a daemon API value.
 type InstallExtensionRequest struct {
 	Enable               bool                   `json:"enable,omitzero"`
@@ -418,26 +446,4 @@ type LoopEffectiveConfig struct {
 type LoopEmitSpec struct {
 	Kind    string         `json:"kind"`
 	Payload map[string]any `json:"payload,omitempty"`
-}
-
-// LoopEnvironment is a daemon API value.
-type LoopEnvironment struct {
-	Mode        LoopEnvironmentMode `json:"mode"`
-	WorktreeRef string              `json:"worktree_ref,omitempty"`
-	Directory   string              `json:"directory,omitempty"`
-}
-
-// LoopEnvironmentMode is a daemon API value.
-type LoopEnvironmentMode string
-
-// LoopForkRef is a daemon API value.
-type LoopForkRef struct {
-	RunID      string `json:"run_id"`
-	Generation int64  `json:"generation"`
-}
-
-// LoopGateBlockingIssuePayload is a daemon API value.
-type LoopGateBlockingIssuePayload struct {
-	ID   string `json:"id"`
-	Note string `json:"note"`
 }

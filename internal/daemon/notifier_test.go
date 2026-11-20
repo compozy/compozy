@@ -1841,3 +1841,41 @@ func (r heartbeatCancelTestRuntime) DispatchAgentHeartbeatWakeBefore(
 ) (hookspkg.AgentHeartbeatWakeBeforePayload, error) {
 	return payload, r.failure
 }
+
+type dailyBudgetNotifierProbe struct {
+	session.Notifier
+	inFence bool
+}
+
+func (p *dailyBudgetNotifierProbe) WithDailyBudgetAdmission(
+	ctx context.Context, _ string, commit func(context.Context) error,
+) error {
+	p.inFence = true
+	defer func() { p.inFence = false }()
+	return commit(ctx)
+}
+
+func TestHooksNotifierDailyBudgetAdmission(t *testing.T) {
+	t.Run("Should run the durable claim inside the observer fence", func(t *testing.T) {
+		t.Parallel()
+		probe := &dailyBudgetNotifierProbe{}
+		notifier := newHooksNotifier(discardLogger(), nil)
+		notifier.setRuntime(nil, probe)
+		guard, ok := any(notifier).(interface {
+			WithDailyBudgetAdmission(context.Context, string, func(context.Context) error) error
+		})
+		if !ok {
+			t.Fatal("the daemon notifier has no observer admission fence")
+		}
+		sentinel := errors.New("claim outcome")
+		err := guard.WithDailyBudgetAdmission(t.Context(), "budget-session", func(context.Context) error {
+			if !probe.inFence {
+				t.Fatal("durable claim ran outside the observer admission fence")
+			}
+			return sentinel
+		})
+		if !errors.Is(err, sentinel) || probe.inFence {
+			t.Fatalf("claim result=%v fence held=%t, want original error and released fence", err, probe.inFence)
+		}
+	})
+}

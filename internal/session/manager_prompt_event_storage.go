@@ -126,6 +126,7 @@ func (m *Manager) recordEventWithWriter(
 	write func(context.Context, EventRecorder, store.SessionEvent) (store.SessionEvent, error),
 ) error {
 	event = m.enrichRecordedAgentEvent(session, event)
+	event, hasUsageEvidence := prepareRecordedBudgetUsage(session, event)
 	if event.Type == acp.EventTypeCompaction || event.Type == acp.EventTypeSystem {
 		event = transcript.RedactAgentEvent(event)
 	}
@@ -158,14 +159,7 @@ func (m *Manager) recordEventWithWriter(
 
 	m.dispatchEventPreRecord(ctx, session, event, payload)
 
-	persisted, err := write(ctx, recorder, store.SessionEvent{
-		ID:        strings.TrimSpace(event.EventIDValue()),
-		TurnID:    event.TurnID,
-		Type:      event.Type,
-		AgentName: session.Info().AgentName,
-		Content:   payload,
-		Timestamp: event.Timestamp,
-	})
+	persisted, err := m.commitRecordedAgentEvent(ctx, session, event, payload, recorder, write, hasUsageEvidence)
 	if errors.Is(err, errIdentifiedEventRecorded) {
 		return nil
 	}
@@ -190,6 +184,56 @@ func (m *Manager) recordEventWithWriter(
 	}
 
 	return m.dispatchObservedCompaction(ctx, session, event, compaction)
+}
+
+func (m *Manager) commitRecordedAgentEvent(
+	ctx context.Context,
+	session *Session,
+	event acp.AgentEvent,
+	payload string,
+	recorder EventRecorder,
+	write func(context.Context, EventRecorder, store.SessionEvent) (store.SessionEvent, error),
+	hasUsageEvidence bool,
+) (store.SessionEvent, error) {
+	var err error
+	var persisted store.SessionEvent
+	commit := func(writeCtx context.Context) error {
+		var writeErr error
+		persisted, writeErr = write(writeCtx, recorder, store.SessionEvent{
+			ID:        strings.TrimSpace(event.EventIDValue()),
+			TurnID:    event.TurnID,
+			Type:      event.Type,
+			AgentName: session.Info().AgentName,
+			Content:   payload,
+			Timestamp: event.Timestamp,
+		})
+		return writeErr
+	}
+	if usage, ok := m.notifier.(interface {
+		CommitDurableTurnUsage(context.Context, *Session, acp.AgentEvent, func(context.Context) error) error
+	}); ok && hasUsageEvidence {
+		err = usage.CommitDurableTurnUsage(ctx, session, event, commit)
+	} else {
+		err = commit(ctx)
+	}
+	return persisted, err
+}
+
+func prepareRecordedBudgetUsage(session *Session, event acp.AgentEvent) (acp.AgentEvent, bool) {
+	// A missing receipt proves missing aggregate writes only after cutover.
+	canonical := event.Type == acp.EventTypeDone && event.Usage != nil && !event.Usage.IsZero()
+	missing := event.HasProviderUsageMissing()
+	event = event.WithDailyBudgetUsageEvidence(canonical, missing)
+	if !canonical && !missing {
+		return event, false
+	}
+	if runtime := event.PromptRuntimeSnapshot(); runtime != nil {
+		session.mu.RLock()
+		runtime.MeteringAuthMode = string(session.effectiveProviderAuthMode)
+		session.mu.RUnlock()
+		event = event.WithPromptRuntime(runtime)
+	}
+	return event, true
 }
 
 func (m *Manager) handleAttentionTranscriptFailure(

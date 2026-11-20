@@ -7,6 +7,37 @@ import (
 	"time"
 )
 
+// GridSection is a daemon API value.
+type GridSection struct {
+	Title string     `json:"title,omitempty"`
+	Tiles []GridTile `json:"tiles"`
+}
+
+// GridTile is a daemon API value.
+type GridTile struct {
+	ID       string            `json:"id"`
+	Title    string            `json:"title"`
+	Image    Image             `json:"image"`
+	Badge    *ViewBadge        `json:"badge,omitempty"`
+	Actions  []RowAction       `json:"actions,omitempty"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
+}
+
+// GroupID is a daemon API value.
+type GroupID string
+
+// GroupedAgentCatalogItemPayload is a daemon API value.
+type GroupedAgentCatalogItemPayload struct {
+	Name             string       `json:"name"`
+	Label            string       `json:"label"`
+	Kind             string       `json:"kind"`
+	DefinitionDigest string       `json:"definition_digest"`
+	Scopes           []string     `json:"scopes"`
+	Active           int          `json:"active"`
+	Agent            AgentPayload `json:"agent"`
+}
+
 // HarvestSpec is a daemon API value.
 type HarvestSpec struct {
 	Kind string `json:"kind,omitempty"`
@@ -417,31 +448,3 @@ type HookRunPayload struct {
 type HookRunsResponse struct {
 	Runs []HookRunPayload `json:"runs"`
 }
-
-// Image is a daemon API value.
-type Image struct {
-	URL   string `json:"url,omitempty"`
-	Token string `json:"token,omitempty"`
-	Emoji string `json:"emoji,omitempty"`
-}
-
-// Input is a daemon API value.
-type Input struct {
-	Type        InputType `json:"type"`
-	Required    bool      `json:"required,omitzero"`
-	Description string    `json:"description,omitempty"`
-	Ref         *InputRef `json:"ref,omitzero"`
-	Enum        []string  `json:"enum,omitempty"`
-	Default     any       `json:"default,omitempty"`
-}
-
-// InputRef is a daemon API value.
-type InputRef struct {
-	Kind InputRefKind `json:"kind"`
-}
-
-// InputRefKind is a daemon API value.
-type InputRefKind string
-
-// InputType is a daemon API value.
-type InputType string

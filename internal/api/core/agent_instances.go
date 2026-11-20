@@ -22,31 +22,33 @@ import (
 )
 
 type AgentInstanceAPI struct {
-	AfterSeen           func(context.Context, agentinstance.Instance, []store.SessionAttentionCommit)
-	PickActions         func(context.Context, string) ([]agentinstance.ActionSnapshot, error)
-	ProjectReport       func(context.Context, string, *agentinstance.Report) error
-	QueueCap            int
-	AfterPicks          func(context.Context, string, []agentinstance.Pick) error
-	SourceExtensions    source.ExtensionPoller
-	Metrics             func(context.Context, string, string) (agentinstance.Metrics, error)
-	ReadPeer            func(context.Context, agentinstance.Instance) (contract.AgentInstancePeer, error)
-	SkillPublished      func(context.Context) error
-	SkillProposals      *agentinstance.SkillProposalService
-	SkillTarget         func(context.Context, agentinstance.Instance) (string, []string, error)
-	HeldWakes           func(context.Context, string) (int64, error)
-	UnattendedTurnLimit int64
-	WakeState           func(context.Context, string) (heartbeat.InstanceWakeState, error)
-	CountActive         func(context.Context, string) (int64, error)
-	MaxActiveInstances  int
-	FatigueLimit        int
-	ReadAttention       func(context.Context, string) (bool, error)
-	ReadPayload         func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
-	CheckSettings       AgentInstanceCheckSettings
-	Checks              AgentInstanceChecker
-	Service             *agentinstance.Service
-	Store               agentinstance.InstanceStore
-	Reports             agentinstance.ReportStore
-	Authority           agentinstance.Authority
+	WithDailyBudgetUpdate func(context.Context, string, bool, func(context.Context) error) error
+	Clock                 func() time.Time
+	AfterSeen             func(context.Context, agentinstance.Instance, []store.SessionAttentionCommit)
+	PickActions           func(context.Context, string) ([]agentinstance.ActionSnapshot, error)
+	ProjectReport         func(context.Context, string, *agentinstance.Report) error
+	QueueCap              int
+	AfterPicks            func(context.Context, string, []agentinstance.Pick) error
+	SourceExtensions      source.ExtensionPoller
+	Metrics               func(context.Context, string, string) (agentinstance.Metrics, error)
+	ReadPeer              func(context.Context, agentinstance.Instance) (contract.AgentInstancePeer, error)
+	SkillPublished        func(context.Context) error
+	SkillProposals        *agentinstance.SkillProposalService
+	SkillTarget           func(context.Context, agentinstance.Instance) (string, []string, error)
+	HeldWakes             func(context.Context, string) (int64, error)
+	UnattendedTurnLimit   int64
+	WakeState             func(context.Context, string) (heartbeat.InstanceWakeState, error)
+	CountActive           func(context.Context, string) (int64, error)
+	MaxActiveInstances    int
+	FatigueLimit          int
+	ReadAttention         func(context.Context, string) (bool, error)
+	ReadPayload           func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
+	CheckSettings         AgentInstanceCheckSettings
+	Checks                AgentInstanceChecker
+	Service               *agentinstance.Service
+	Store                 agentinstance.InstanceStore
+	Reports               agentinstance.ReportStore
+	Authority             agentinstance.Authority
 	// Profiles labels each instance with its owner's profile_name.
 	Profiles ProfileOwnerReader
 }
@@ -172,7 +174,15 @@ func (h *BaseHandlers) mutateAgentInstance(c *gin.Context, verb string) {
 		if !ok {
 			return
 		}
-		instance, err = h.AgentInstances.Service.Resume(c.Request.Context(), instance.ID, actor)
+		ctx := c.Request.Context()
+		if _, app := AppTokenFromContext(ctx); app {
+			if instance.PauseReason == "daily_budget" || instance.PauseReason == "daily_budget_recovery" {
+				h.instanceError(c, agentinstance.ErrForbidden)
+				return
+			}
+			ctx = agentinstance.WithAppBudgetResume(ctx)
+		}
+		instance, err = h.AgentInstances.Service.Resume(ctx, instance.ID, actor)
 	case "ensure_main":
 		instance, err = h.AgentInstances.Service.EnsureMain(c.Request.Context(), instance.ID)
 	case "archive":
@@ -272,6 +282,9 @@ func (api *AgentInstanceAPI) payloadWithOwners(
 		}
 	}
 	payload.ProfileName = owners[i.ProfileID].Name
+	if err := api.populateDailyBudget(ctx, i, &payload); err != nil {
+		return payload, err
+	}
 	if reader, ok := api.Checks.(interface {
 		SourceStatuses(context.Context, string) ([]heartbeat.HeartbeatSourceStatus, error)
 	}); ok && payload.Sources == nil {
@@ -298,28 +311,65 @@ func (api *AgentInstanceAPI) payloadWithOwners(
 		payload.LastWakeAt, payload.NextWakeAt = state.LastWakeAt, state.NextWakeAt
 		payload.QuietStreak, payload.FailureStreak = state.QuietStreak, state.FailureStreak
 		payload.UnattendedTurns = state.UnattendedTurns
-		if i.ChecksEnabled && i.State == "active" && i.ArchivedAt == nil {
-			checkAt, err := time.Parse(time.RFC3339Nano, state.NextWakeAt)
-			if err == nil {
-				current := payload.NextWake
-				var monitorAt time.Time
-				if current != nil {
-					parsed, parseErr := time.Parse(time.RFC3339Nano, current.At)
-					if parseErr == nil {
-						monitorAt = parsed
-					}
-				}
-				if current == nil || monitorAt.IsZero() || checkAt.Before(monitorAt) {
-					payload.NextWake = &contract.AgentInstanceNextWake{Kind: "check", At: state.NextWakeAt}
-					if state.LastReason == heartbeat.ReasonTriageConfigUnavailable {
-						payload.NextWake.Description = "Last check rejected the heartbeat runtime configuration. " +
-							"Correct it or run agent_instance_check to retry manually."
-					}
+		populateNextCheckWake(i, &payload, state.NextWakeAt, state.LastReason)
+	}
+	return payload, nil
+}
+
+func (api *AgentInstanceAPI) populateDailyBudget(
+	ctx context.Context, i agentinstance.Instance, payload *contract.AgentInstancePayload,
+) error {
+	if budget, ok := api.Store.(AgentInstanceDailyBudgetStore); ok && i.ArchivedAt == nil {
+		at := time.Now()
+		if api.Clock != nil {
+			at = api.Clock()
+		}
+		limits, err := budget.DailyBudgetLimits(ctx, i.ID)
+		if err != nil {
+			return err
+		}
+		if limits.Tokens != nil || limits.USD != nil {
+			payload.DailyBudget = &contract.AgentInstanceDailyBudgetLimits{
+				Tokens: limits.Tokens, USD: limits.USD,
+			}
+			usage, usageErr := budget.ReadDailyBudgetUsage(ctx, i.ID, at)
+			if usageErr != nil && !errors.Is(usageErr, agentinstance.ErrDailyBudgetUsageUnavailable) {
+				return usageErr
+			}
+			if usageErr == nil {
+				payload.DailyBudgetUsage = &contract.AgentInstanceDailyBudgetUsage{
+					Day: store.LocalDay(at), Tokens: usage.Tokens,
+					KnownUSD: decimalBudgetUSD(usage.USD), HasUnpricedUsage: usage.HasUnpricedUsage,
 				}
 			}
 		}
 	}
-	return payload, nil
+	return nil
+}
+
+func populateNextCheckWake(
+	i agentinstance.Instance, payload *contract.AgentInstancePayload, nextWakeAt, lastReason string,
+) {
+	if i.ChecksEnabled && i.State == "active" && i.ArchivedAt == nil {
+		checkAt, err := time.Parse(time.RFC3339Nano, nextWakeAt)
+		if err == nil {
+			current := payload.NextWake
+			var monitorAt time.Time
+			if current != nil {
+				parsed, parseErr := time.Parse(time.RFC3339Nano, current.At)
+				if parseErr == nil {
+					monitorAt = parsed
+				}
+			}
+			if current == nil || monitorAt.IsZero() || checkAt.Before(monitorAt) {
+				payload.NextWake = &contract.AgentInstanceNextWake{Kind: "check", At: nextWakeAt}
+				if lastReason == heartbeat.ReasonTriageConfigUnavailable {
+					payload.NextWake.Description = "Last check rejected the heartbeat runtime configuration. " +
+						"Correct it or run agent_instance_check to retry manually."
+				}
+			}
+		}
+	}
 }
 
 func AgentInstancePayload(i agentinstance.Instance) contract.AgentInstancePayload {
@@ -366,6 +416,7 @@ func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
 		{agentinstance.ErrSessionNotRoot, http.StatusUnprocessableEntity},
 		{agentinstance.ErrScopeMismatch, http.StatusUnprocessableEntity},
 		{agentinstance.ErrPaused, http.StatusConflict},
+		{agentinstance.ErrBudgetHistoryUncertain, http.StatusConflict},
 		{agentinstance.ErrDepth, http.StatusForbidden},
 		{agentinstance.ErrNotFound, http.StatusNotFound},
 		{agentinstance.ErrDefinitionMissing, http.StatusNotFound},
