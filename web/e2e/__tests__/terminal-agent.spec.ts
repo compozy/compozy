@@ -144,6 +144,19 @@ async function stopHoldingTurn(harness: AgentHarness, appPage: Page): Promise<vo
         new URL(response.url()).pathname === `${sessionBase}/stop`)
   );
   await harness.sessionUI.stopButton.click();
+  // The background process scan may already count the agent's terminal shell, which turns
+  // Stop into a confirm dialog. Keep the shell: the test still reads that terminal afterwards.
+  const keepProcesses = appPage.getByTestId("stop-session-keep-processes");
+  const settled = await Promise.race([
+    stopped.then(() => "stopped" as const),
+    keepProcesses.waitFor({ state: "visible" }).then(
+      () => "dialog" as const,
+      () => "no-dialog" as const
+    ),
+  ]);
+  if (settled === "dialog") {
+    await keepProcesses.click();
+  }
   expect((await stopped).ok()).toBe(true);
   await harness.sessionUI.sessionRowActions(harness.sessionId).click();
   await expect(

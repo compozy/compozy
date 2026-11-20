@@ -18,6 +18,9 @@ func (m *Manager) logDeriveTiming(
 	timing *deriveTiming,
 	err error,
 ) {
+	if m == nil || m.logger == nil || timing == nil {
+		return
+	}
 	m.logger.InfoContext(
 		ctx,
 		"session.derive.timing",

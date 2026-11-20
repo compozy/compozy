@@ -229,7 +229,12 @@ func prepareRecordedBudgetUsage(session *Session, event acp.AgentEvent) (acp.Age
 	}
 	if runtime := event.PromptRuntimeSnapshot(); runtime != nil {
 		session.mu.RLock()
-		runtime.MeteringAuthMode = string(session.effectiveProviderAuthMode)
+		// First-prompt binding can replace the provider chosen at session creation.
+		if route := session.acceptedRoute; route == nil {
+			runtime.MeteringAuthMode = string(session.effectiveProviderAuthMode)
+		} else if route.Provider == runtime.Provider {
+			runtime.MeteringAuthMode = route.AuthMode
+		}
 		session.mu.RUnlock()
 		event = event.WithPromptRuntime(runtime)
 	}

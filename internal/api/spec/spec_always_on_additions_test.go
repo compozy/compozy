@@ -314,9 +314,14 @@ func (w approvedAdditionWalker) copy(oldValue, nextValue any, pointer string) {
 		for key := range approvedAdditionKeys(newRef) {
 			approved[key] = true
 		}
+		childPointer := pointer
+		if newRef != "" {
+			childPointer = newRef
+		}
 		oldProperties, hasOld := expected["properties"].(map[string]any)
 		newProperties, hasNew := actual["properties"].(map[string]any)
 		if hasOld && hasNew {
+			addApprovedSessionDeriveFields(childPointer, oldProperties)
 			added := []string{}
 			for key, schema := range newProperties {
 				if _, exists := oldProperties[key]; !exists && approved[key] {
@@ -326,10 +331,6 @@ func (w approvedAdditionWalker) copy(oldValue, nextValue any, pointer string) {
 				}
 			}
 			copyApprovedRequired(expected, actual, added)
-		}
-		childPointer := pointer
-		if newRef != "" {
-			childPointer = newRef
 		}
 		for key, value := range expected {
 			w.copy(value, actual[key], childPointer+"/"+escapePointerToken(key))
@@ -342,6 +343,18 @@ func (w approvedAdditionWalker) copy(oldValue, nextValue any, pointer string) {
 		for index := range expected {
 			w.copy(expected[index], actual[index], pointer)
 		}
+	}
+}
+
+// #1892 adds these optional fields to the two session derivation schemas.
+func addApprovedSessionDeriveFields(schema string, properties map[string]any) {
+	switch schema {
+	case "#/components/schemas/SessionDerivationPayload":
+		for _, field := range []string{"inherited_message_count", "replay_message_count", "replay_omitted_count"} {
+			properties[field] = map[string]any{"type": "integer", "nullable": true}
+		}
+	case "#/components/schemas/SessionDerivePreviewResponse":
+		properties["native_fork_refusal_reason"] = map[string]any{"type": "string"}
 	}
 }
 
