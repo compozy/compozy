@@ -52,11 +52,11 @@ export function SessionWindowView({
   const currentSessionId = instance?.main_session_id;
   const superseded = Boolean(currentSessionId && currentSessionId !== session?.id);
   useMarkSeenOnLeave(instance, Boolean(session) && currentSessionId === session?.id);
-  const sessionWorkspaceId = session ? (session.workspace_id?.trim() ?? "") : undefined;
+  const sessionWorkspaceId = session?.workspace_id?.trim() ?? "";
 
   const placeholder = sessionWindowPlaceholder({
     isLoading,
-    shown: Boolean(session) && sessionWorkspaceId === workspaceId,
+    shown: session !== undefined && sessionWorkspaceId === workspaceId,
     error,
     onRetry,
     retrying,
