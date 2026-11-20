@@ -8,6 +8,7 @@ func providerConfigFromResolvedAgent(resolved compozyconfig.ResolvedAgent) compo
 		AutoCompactWindow:   resolved.AutoCompactWindowValue(),
 		Command:             resolved.Command,
 		CommandIsBuiltin:    resolved.CommandIsBuiltin,
+		DisableACPClientFS:  resolved.DisableACPClientFS,
 		DisplayName:         resolved.DisplayName,
 		Harness:             resolved.Harness,
 		RuntimeProvider:     resolved.RuntimeProvider,

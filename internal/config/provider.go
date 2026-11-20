@@ -153,6 +153,8 @@ type ProviderConfig struct {
 	SessionMCP        *bool                `toml:"session_mcp,omitempty"`
 	// Enabled gates selection and new launches; nil means enabled (see EffectiveEnabled).
 	Enabled *bool `toml:"enabled,omitempty"`
+	// DisableACPClientFS leaves file operations to the provider's own tools.
+	DisableACPClientFS bool `toml:"-" json:"-" yaml:"-"`
 	// SessionMCPTransport chooses how per-session stdio MCP servers reach the
 	// agent. "http" serves them through a loopback HTTP bridge for agents that
 	// accept only remote MCP servers over ACP; empty or "stdio" passes them as-is.
@@ -219,6 +221,7 @@ type ResolvedAgent struct {
 	AuthACPMethod      string
 	ToolPolicyEnforced bool `json:"-"`
 	CommandIsBuiltin   bool `json:"-" toml:"-" yaml:"-"`
+	DisableACPClientFS bool `json:"-" toml:"-" yaml:"-"`
 	SessionMCP         bool
 	// SessionMCPOverHTTP bridges stdio session MCP servers through loopback HTTP.
 	SessionMCPOverHTTP bool

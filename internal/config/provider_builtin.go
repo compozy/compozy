@@ -31,6 +31,8 @@ var builtinProviders = map[string]ProviderConfig{
 		HomePolicy:    ProviderHomePolicyOperator,
 		AuthACPMethod: "oauth-personal",
 		Models:        ProviderModelsConfig{Reasoning: ProviderReasoningConfig{Apply: ReasoningApplyACPOption}},
+		// Antigravity reports client filesystem tool completion only at turn end.
+		DisableACPClientFS: true,
 	},
 	providerClaudeKey: {
 		ReviewerMode:  acpModeAuto,
