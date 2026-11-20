@@ -6199,6 +6199,27 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 			t.Fatalf("catalog with a deleted parent = %v, want %v", got, want)
 		}
 	})
+	// Invariant: an ancestor whose metadata identity mismatches its directory fails the walk closed.
+	// Owner: catalog visibility; canonical suite: TestSideVisibilityAndNotifications.
+	t.Run("Should fail side ancestry closed when a parent's metadata identity mismatches", func(t *testing.T) {
+		t.Parallel()
+		const corruptParent = "corrupt-parent"
+		h := newDeriveHarness(t, func(*globaldb.GlobalDB) Option {
+			return func(m *Manager) {
+				m.readSessionMeta = func(path string) (store.SessionMeta, error) {
+					if filepath.Base(filepath.Dir(path)) == corruptParent {
+						return store.SessionMeta{ID: "someone-else"}, nil
+					}
+					return store.ReadSessionMeta(path)
+				}
+			}
+		})
+		lineage := &store.SessionLineage{ParentSessionID: corruptParent}
+		hidden, err := h.manager.sideFamilyMembership(t.Context(), "orphan-child", lineage)
+		if !errors.Is(err, errSessionMetaIdentityMismatch) || hidden {
+			t.Fatalf("side ancestry with a mismatched parent = %v, %v; want a mismatch error", hidden, err)
+		}
+	})
 	// Invariant: the root's durable, scoped lineage controls descendant visibility when metadata is unreadable.
 	// Owner: public hierarchy reads; canonical suite: TestSideVisibilityAndNotifications.
 	t.Run("Should classify unreadable descendant roots from the scoped catalog", func(t *testing.T) {

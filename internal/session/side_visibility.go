@@ -22,7 +22,8 @@ func (m *Manager) sideFamilyMember(ctx context.Context, sessionID string, lineag
 // sideFamilyMembership distinguishes unreadable ancestry from a proven public family.
 // A deleted ancestor ends the walk like a root, as the durable filter's join does:
 // deletion keeps a parent's ordinary children and their parent_session_id, so the
-// edge is expected history, not a read failure. Any other read error still fails.
+// edge is expected history, not a read failure. Any other read error still fails,
+// including metadata whose identity does not match its directory.
 func (m *Manager) sideFamilyMembership(
 	ctx context.Context, sessionID string, lineage *store.SessionLineage,
 ) (bool, error) {
@@ -41,6 +42,11 @@ func (m *Manager) sideFamilyMembership(
 		}
 		seen[parent] = true
 		meta, err := m.readSessionMetaReadOnly(ctx, parent)
+		// Mismatched metadata is corrupt, not absent: fail closed so it cannot expose
+		// a side descendant.
+		if errors.Is(err, errSessionMetaIdentityMismatch) {
+			return false, fmt.Errorf("session: read side ancestry %s: %w", parent, err)
+		}
 		// A deleted parent keeps its ordinary children, so a missing ancestor is
 		// expected state: treat the edge as absent, as the visibility SQL filter does.
 		// The child cannot tell whether that parent was a side session; keeping such
