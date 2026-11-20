@@ -26,7 +26,7 @@ make web-dev    # run the web UI locally
 - `make gate-full` — optional local full verification when you want extra pre-push certainty.
 - Lint is zero-tolerance: `make lint` (Go) and `bun run lint` (JS/TS) must pass with no warnings.
 - A pre-commit hook formats staged files for you (oxfmt for JS/TS/YAML/Markdown, `make fmt` for Go).
-- A pre-push hook checks format and lint on the files your branch changes, including type-aware Go lint on the changed packages. `COMPOZY_SKIP_PRE_PUSH=1` or `git push --no-verify` skips it.
+- A pre-push hook checks format and lint on the files your branch changes, including type-aware Go lint on the changed packages. `COMPOZY_SKIP_PRE_PUSH=1` or `git push --no-verify` skips it, and it skips itself in CompozyOS agent sessions, whose checks run in CI.
 
 CI retries failed Go tests once (at most five failures per invocation) and failed Playwright
 scenarios once. A recovery emits a `FLAKY` annotation and a JSON receipt; a second failure

@@ -27,7 +27,7 @@ Use `eng-design` for design-system/redesign work, `eng-ui-screenshot` for named-
 
 ## Validation
 
-Run from the repository root; CI owns delivery lanes. During iteration:
+CI runs these from the repository root on the pushed head. Agents do not run them locally (root `CLAUDE.md`):
 
 ```bash
 bunx turbo run typecheck --filter=./web

@@ -475,11 +475,11 @@ The translation that implements a deprecation window or an auto-migration: a con
 
 ### `make gate`
 
-Required local pre-push gate. It maps the branch diff to affected lint, test, codegen, and tooling lanes; it never runs the full monorepo gate implicitly.
+Local gate for human contributors. It maps the branch diff to affected lint, test, codegen, and tooling lanes; it never runs the full monorepo gate implicitly. Agents do not run it: their checks run in PR CI.
 
 ### PR CI / `make gate-full`
 
-PR CI is the required full delivery gate at the exact head SHA. `make gate-full` is the optional local form and retains the machine-wide capacity lock.
+PR CI is the required full delivery gate at the exact head SHA, and the only verifier of agent work. `make gate-full` is the optional local form for human contributors and retains the machine-wide capacity lock.
 
 ### `make codegen` / `make codegen-check`
 
