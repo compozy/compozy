@@ -20,6 +20,7 @@ import { RoutingEntryLedger } from "../routing-entry-ledger";
 import { routeReplacesWindowContent } from "../window-navigation-guard";
 import type { WindowManagerClientView } from "../window-manager-types";
 import { createDeferred } from "@/test/event-recorder";
+import { sessionComposerFocusStore, withoutSessionComposerFocus } from "@/systems/session";
 
 function route(pathname: string, search: Record<string, unknown> = {}): OsWindowRoute {
   return { pathname, search };
@@ -1653,6 +1654,31 @@ describe("RoutingCoordinator", () => {
       expect(router.navigate).toHaveBeenCalledExactlyOnceWith(created.route);
     });
 
+    // Invariant (#1868): the fallback open after a refused landing reuses the launcher's one
+    // composer request, so a pointer press meanwhile is never overridden by a renewed one.
+    it("Should not renew a cancelled composer request when a refused landing falls back", async () => {
+      const session = sessionWindow("sess-a");
+      const tasks = windowFixture("tasks", "/tasks");
+      const { coordinator, store } = createCoordinator([session, tasks]);
+      coordinator.completeHydration();
+      let refuse: ((applied: boolean) => void) | undefined;
+      store.retargetWindow.mockImplementationOnce(() => ({
+        accepted: true,
+        completion: new Promise<boolean>(resolve => {
+          refuse = resolve;
+        }),
+      }));
+
+      const landing = coordinator.userOpenCreatedSession(created);
+      expect(sessionComposerFocusStore.getSnapshot().context.request?.sessionId).toBe("sess-new");
+      document.dispatchEvent(new Event("pointerdown"));
+      refuse?.(false);
+      await landing;
+
+      expect(store.spies.openOrFocus).toHaveBeenCalledExactlyOnceWith(created);
+      expect(sessionComposerFocusStore.getSnapshot().context.request).toBeNull();
+    });
+
     it("Should open the session the ordinary way when a surviving host refuses the landing", async () => {
       const session = sessionWindow("sess-a");
       const tasks = windowFixture("tasks", "/tasks");
@@ -2420,5 +2446,71 @@ describe("RoutingCoordinator", () => {
       expect(router.navigate).not.toHaveBeenCalled();
       expect(router.replace).not.toHaveBeenCalled();
     });
+  });
+});
+
+// Invariant (#1868): an explicit session activation through this bridge (an open, an in-place
+// retarget, a deep link) asks for that session's composer; other apps and passive walks ask
+// nothing. Owning layer: the coordinator is the one session activation path.
+describe("RoutingCoordinator composer focus requests", () => {
+  const requested = () => sessionComposerFocusStore.getSnapshot().context.request?.sessionId;
+  const settle = () => {
+    const request = sessionComposerFocusStore.getSnapshot().context.request;
+    if (request !== null) sessionComposerFocusStore.trigger.settled({ key: request.key });
+  };
+
+  it("Should ask for the composer of the session an explicit activation lands on", async () => {
+    const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
+    const { coordinator } = createCoordinator([current]);
+    coordinator.completeHydration();
+    settle();
+
+    await coordinator.userRetarget(current.id, {
+      app: "session",
+      instanceKey: "sess-b",
+      route: route("/agents/coder/sessions/sess-b"),
+    });
+    expect(requested()).toBe("sess-b");
+
+    settle();
+    coordinator.reportRouteMatch(route("/agents/coder/sessions/sess-c"));
+    expect(requested()).toBe("sess-c");
+
+    settle();
+    const other = windowFixture("session", "/agents/coder/sessions/sess-d", "sess-d");
+    const activated = createCoordinator([current, other]);
+    activated.coordinator.completeHydration();
+    settle();
+    // Palette "Go to tab" on a session window activates that session.
+    await activated.coordinator.userActivateWindow(other.id);
+    expect(requested()).toBe("sess-d");
+
+    settle();
+    await coordinator.userOpen({ app: "settings", route: route("/settings/layouts") });
+    expect(requested()).toBeUndefined();
+  });
+
+  it("Should ask nothing for a passive walk or a search-only retarget", async () => {
+    const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
+    const { coordinator } = createCoordinator([current]);
+    coordinator.completeHydration();
+    settle();
+
+    await withoutSessionComposerFocus(() =>
+      coordinator.userRetarget(current.id, {
+        app: "session",
+        instanceKey: "sess-b",
+        route: route("/agents/coder/sessions/sess-b"),
+      })
+    );
+    expect(requested()).toBeUndefined();
+
+    // Toggling the board drawer changes only the search: not an activation either.
+    await coordinator.userRetarget(current.id, {
+      app: "session",
+      instanceKey: "sess-b",
+      route: route("/agents/coder/sessions/sess-b", { drawer: "open" }),
+    });
+    expect(requested()).toBeUndefined();
   });
 });

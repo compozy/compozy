@@ -1482,7 +1482,11 @@ func TestSideLifecycle(t *testing.T) {
 			}
 		}
 		ledgerLost := errors.New("source budget ledger could not be reconciled")
-		h.manager.notifier = &budgetDeleteSafetyNotifier{fakeNotifier: h.notifier, denied: ledgerLost, sessionID: source.ID}
+		h.manager.notifier = &budgetDeleteSafetyNotifier{
+			fakeNotifier: h.notifier,
+			denied:       ledgerLost,
+			sessionID:    source.ID,
+		}
 		if err := h.manager.Delete(t.Context(), source.ID); !errors.Is(err, ledgerLost) {
 			t.Fatalf("source delete error = %v, want budget ledger refusal", err)
 		}

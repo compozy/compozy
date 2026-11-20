@@ -23,6 +23,10 @@ import { agentKeys } from "@/systems/agent";
 import { AgentIdentityProvider } from "@/systems/agent/components/agent-identity-provider";
 import { SessionMentionChip } from "../session-composer-mention-chip";
 import {
+  requestSessionComposerFocus,
+  sessionComposerFocusStore,
+} from "@/systems/session/lib/session-composer-focus";
+import {
   $getRoot,
   $getSelection,
   $isRangeSelection,
@@ -7217,6 +7221,71 @@ describe("SessionThread composer running semantics", () => {
     expect(sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]?.text).toBe(
       "Not yet"
     );
+  });
+});
+
+// Invariant (#1868): an explicit session activation lands the caret in that session's composer
+// once it can prompt, and never takes focus an overlay or another field holds.
+// Owning layer: the composer's focus claim; canonical suite: SessionThread composer.
+describe("SessionThread composer activation focus", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", createFetchMock());
+  });
+
+  afterEach(() => {
+    const request = sessionComposerFocusStore.getSnapshot().context.request;
+    if (request !== null) sessionComposerFocusStore.trigger.settled({ key: request.key });
+    vi.unstubAllGlobals();
+    resetGatewayStreamAuth();
+  });
+
+  it("focuses the composer of the session an explicit activation opened", async () => {
+    requestSessionComposerFocus(primarySessionFixture.id);
+    renderComposer({ isSessionRunning: false });
+
+    const editable = await findComposerEditable();
+    await waitFor(() => expect(editable).toHaveFocus());
+    expect(sessionComposerFocusStore.getSnapshot().context.request).toBeNull();
+  });
+
+  it("leaves focus alone without an activation, or while the session cannot prompt", async () => {
+    renderComposer({ canPrompt: false, isSessionRunning: false });
+    const editable = await findComposerEditable();
+    act(() => requestSessionComposerFocus("sess-other"));
+    act(() => requestSessionComposerFocus(primarySessionFixture.id));
+
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+    expect(editable).not.toHaveFocus();
+  });
+
+  it("drops the activation when a pointer press places focus before the composer renders", async () => {
+    requestSessionComposerFocus(primarySessionFixture.id);
+    fireEvent.pointerDown(document.body);
+    expect(sessionComposerFocusStore.getSnapshot().context.request).toBeNull();
+
+    renderComposer({ isSessionRunning: false });
+    const editable = await findComposerEditable();
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+    expect(editable).not.toHaveFocus();
+  });
+
+  it("waits while a dialog holds focus and lands once it closes", async () => {
+    renderComposer({ isSessionRunning: false });
+    const editable = await findComposerEditable();
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    const dialogButton = document.createElement("button");
+    dialog.append(dialogButton);
+    document.body.append(dialog);
+    onTestFinished(() => dialog.remove());
+    dialogButton.focus();
+
+    act(() => requestSessionComposerFocus(primarySessionFixture.id));
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)));
+    expect(dialogButton).toHaveFocus();
+
+    dialog.remove();
+    await waitFor(() => expect(editable).toHaveFocus());
   });
 });
 

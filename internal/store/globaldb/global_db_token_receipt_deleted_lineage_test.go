@@ -137,28 +137,45 @@ func assertBudgetSideQueueIsolation(t *testing.T, db *GlobalDB, instanceID, leaf
 	if held, err := db.Instances().HeldWakes(ctx, instanceID); err != nil || held != 2 {
 		t.Fatalf("held wakes = %d, %v; want the owned leaf's agent and app inputs", held, err)
 	}
-	if metrics, err := db.Instances().Metrics(ctx, store.DefaultProfileID, ""); err != nil || metrics.HeldInputCount != 2 {
+	if metrics, err := db.Instances().
+		Metrics(ctx, store.DefaultProfileID, ""); err != nil ||
+		metrics.HeldInputCount != 2 {
 		t.Fatalf("held input metrics = %+v, %v; want the owned leaf's agent and app inputs", metrics, err)
 	}
-	if _, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(ctx, side, side+"-input", "live-turn", at); err != nil || !promoted {
+	if _, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(
+		ctx,
+		side,
+		side+"-input",
+		"live-turn",
+		at,
+	); err != nil ||
+		!promoted {
 		t.Fatalf("side promotion = %t, %v; want allowed", promoted, err)
 	}
 	if _, reserved, err := db.ReserveSessionSteer(ctx, side, side+"-input", at); err != nil || !reserved {
 		t.Fatalf("side reservation = %t, %v; want allowed", reserved, err)
 	}
-	if err := db.Instances().SetDailyBudgetLimits(ctx, instanceID, agentinstance.DailyBudgetLimits{Tokens: new(int64(8))}); err != nil {
+	if err := db.Instances().
+		SetDailyBudgetLimits(ctx, instanceID, agentinstance.DailyBudgetLimits{Tokens: new(int64(8))}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Instances().Resume(ctx, instanceID, 10, true); err != nil {
 		t.Fatal(err)
 	}
-	if sessions, err := db.Instances().QueuedSessions(ctx, instanceID, ""); err != nil || len(sessions) != 1 || sessions[0] != leaf {
+	if sessions, err := db.Instances().
+		QueuedSessions(ctx, instanceID, ""); err != nil || len(sessions) != 1 ||
+		sessions[0] != leaf {
 		t.Fatalf("post-resume queues = %v, %v; want the owned leaf behind the deleted parent", sessions, err)
 	}
 	assertBudgetRecoveryPreservesManualSideHold(t, db, instanceID, leaf, side, at)
 }
 
-func assertBudgetRecoveryPreservesManualSideHold(t *testing.T, db *GlobalDB, instanceID, leaf, side string, at time.Time) {
+func assertBudgetRecoveryPreservesManualSideHold(
+	t *testing.T,
+	db *GlobalDB,
+	instanceID, leaf, side string,
+	at time.Time,
+) {
 	t.Helper()
 	ctx := t.Context()
 	if _, err := db.Instances().Pause(ctx, instanceID, "manual"); err != nil {
@@ -180,6 +197,10 @@ func assertBudgetRecoveryPreservesManualSideHold(t *testing.T, db *GlobalDB, ins
 		t.Fatalf("side manual hold = %+v, %v; want the preexisting pause", hold, err)
 	}
 	if held, err := db.Instances().HeldWakes(ctx, instanceID); err != nil || held != 3 {
-		t.Fatalf("held wakes with manual and recovery fences = %d, %v; want the two leaf inputs and the side input", held, err)
+		t.Fatalf(
+			"held wakes with manual and recovery fences = %d, %v; want the two leaf inputs and the side input",
+			held,
+			err,
+		)
 	}
 }

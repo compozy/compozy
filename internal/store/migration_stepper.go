@@ -6,13 +6,16 @@ import (
 	"fmt"
 
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/database"
 )
 
 // MigrationStepper applies a validated migration stream to explicit version
 // boundaries without rebuilding its migration plan between steps.
 type MigrationStepper struct {
+	db         *sql.DB
 	provider   *goose.Provider
-	streamName string
+	plan       *migrationPlan
+	stream     MigrationStream
 	maxVersion int64
 }
 
@@ -40,27 +43,26 @@ func newMigrationStepperFromInspection(
 	if err != nil {
 		return nil, fmt.Errorf("store: prepare migration stream %q: %w", stream.Name, err)
 	}
-	if plan.requiresIndependentConnection() && db.Stats().MaxOpenConnections == 1 {
-		return nil, fmt.Errorf(
-			"%w: stream %q contains a non-transactional migration and requires at least two open connections",
-			ErrMigrationConnectionCapacity,
-			stream.Name,
-		)
+	versions, err := database.NewStore(database.DialectSQLite3, stream.VersionTable)
+	if err != nil {
+		return nil, fmt.Errorf("store: create migration version store for stream %q: %w", stream.Name, err)
 	}
 	provider, err := goose.NewProvider(
-		goose.DialectSQLite3,
+		goose.DialectCustom,
 		db,
 		plan.gooseFS,
-		goose.WithTableName(stream.VersionTable),
+		goose.WithStore(migrationVersionStore{Store: versions, plan: plan}),
 		goose.WithDisableGlobalRegistry(true),
-		goose.WithGoMigrations(plan.gooseMigrations()...),
+		goose.WithGoMigrations(plan.gooseMigrations(versions)...),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: create migration provider for stream %q: %w", stream.Name, err)
 	}
 	return &MigrationStepper{
+		db:         db,
 		provider:   provider,
-		streamName: stream.Name,
+		plan:       plan,
+		stream:     stream,
 		maxVersion: inspection.directory.maxVersion,
 	}, nil
 }
@@ -74,16 +76,29 @@ func (s *MigrationStepper) UpTo(ctx context.Context, version int64) (int, error)
 	if version < 1 || version > s.maxVersion {
 		return 0, fmt.Errorf(
 			"store: migration stream %q step version %d is outside 1..%d",
-			s.streamName,
+			s.stream.Name,
 			version,
 			s.maxVersion,
 		)
+	}
+	if s.db.Stats().MaxOpenConnections == 1 {
+		status, err := readStreamStatus(ctx, s.db, s.stream, "")
+		if err != nil {
+			return 0, err
+		}
+		if s.plan.requiresIndependentConnection(status.Version, version) {
+			return 0, fmt.Errorf(
+				"%w: stream %q contains a pending migration that requires at least two open connections",
+				ErrMigrationConnectionCapacity,
+				s.stream.Name,
+			)
+		}
 	}
 	results, err := s.provider.UpTo(ctx, version)
 	if err != nil {
 		return 0, fmt.Errorf(
 			"store: apply migration stream %q through version %d: %w",
-			s.streamName,
+			s.stream.Name,
 			version,
 			err,
 		)

@@ -4,10 +4,13 @@
 // order, skipping everything else, wrapping both ways and entering at the edge
 // when nothing is current. A header lands with keyboard focus; a row lands the
 // way a click lands, keeping focus that sits outside the rail where it is,
-// and only takes focus while a bulk selection is open.
+// and only takes focus while a bulk selection is open. The walk is a passive
+// activation: a row it lands never moves the caret into the composer (#1868),
+// and it ends a request still waiting, while a real click on the same row asks.
 // Owning layer: unit (systems/session/lib)
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { requestSessionComposerFocus, sessionComposerFocusStore } from "../session-composer-focus";
 import { walkSessionList } from "../session-list-stops";
 
 const RAIL = `
@@ -43,6 +46,8 @@ function byId(id: string) {
 
 afterEach(() => {
   document.body.innerHTML = "";
+  const request = sessionComposerFocusStore.getSnapshot().context.request;
+  if (request !== null) sessionComposerFocusStore.trigger.settled({ key: request.key });
 });
 
 describe("walkSessionList", () => {
@@ -162,5 +167,24 @@ describe("walkSessionList", () => {
     expect(walkSessionList(rail, "next", null)).toBe(true);
     expect(document.activeElement).toBe(byId("only-group"));
     expect(walkSessionList(rail, "next", null)).toBe(false);
+  });
+
+  it("lands a row without asking for the composer, which a real click does", () => {
+    const { rail } = mountRail();
+    // The row's activation path, as the session window wires it.
+    rail.addEventListener("click", event => {
+      if (event.target instanceof HTMLElement && event.target.dataset.sessionId) {
+        requestSessionComposerFocus(event.target.dataset.sessionId);
+      }
+    });
+    const request = () => sessionComposerFocusStore.getSnapshot().context.request;
+    // An earlier activation still waiting ends too: walking back to it never lands it later.
+    requestSessionComposerFocus("s2");
+
+    expect(walkSessionList(rail, "next", "s1")).toBe(true);
+    expect(request()).toBeNull();
+
+    byId("s1").click();
+    expect(request()?.sessionId).toBe("s1");
   });
 });

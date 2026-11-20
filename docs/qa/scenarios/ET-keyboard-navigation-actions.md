@@ -37,3 +37,11 @@ it. A header reached with Control+Option+↓ after a mouse click shows the focus
 full-height window beside a stacked pair (Split right, then Split down on the right), Option+J
 from the top pane focuses the pane under it and Option+K comes back; neither jumps to the tall
 window, which only Option+H reaches.
+
+qa-impact: 2026-11-20 composer focus on session open (#1868). Clicking a session row, pressing
+Enter on it, opening a session from the command palette or a notification, or following a deep
+link puts the caret in that session's prompt composer, so typing goes straight into the prompt
+(only when the session can take a prompt). Walking the rail with Previous/Next session, or
+stepping a board drawer, does not: focus stays on the row (or in the composer if it was already
+there). A focused dialog, find bar, decision or clarify dock, permission prompt, inline message
+edit, or a terminal or Files window keeps focus. Clicking anywhere right after opening also wins.

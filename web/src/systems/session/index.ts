@@ -89,7 +89,6 @@ export type {
 } from "./types";
 export type { SessionPromptRuntimeSnapshot } from "./contexts/session-prompt-runtime-context-value";
 export { isEditableTarget } from "./lib/editable-target";
-
 export {
   SessionPromptRuntimeProvider,
   type SessionPromptRuntimeProviderProps,
@@ -137,7 +136,6 @@ export {
   unarchiveSession,
 } from "./adapters/session-api";
 export type { SessionRewindRequest, SessionRewindResult } from "./adapters/session-api";
-
 export { sessionPromptCapability } from "./lib/session-prompt-capability";
 export { resetSessionPromptRecovery, sessionPromptRecovery } from "./lib/session-prompt-recovery";
 export type { SessionPromptCapability } from "./lib/session-prompt-capability";
@@ -414,6 +412,12 @@ export { SessionSidebarLayout } from "./components/session-sidebar-layout";
 export { sessionThreadFolds } from "./lib/session-sidebar-scope";
 export { walkSessionList } from "./lib/session-list-stops";
 export {
+  claimSessionComposerFocus,
+  requestSessionComposerFocus,
+  sessionComposerFocusStore,
+  withoutSessionComposerFocus,
+} from "./lib/session-composer-focus";
+export {
   buildSessionTree,
   childSessionSignalState,
   collectThreadSessions,
@@ -470,7 +474,6 @@ export {
   type InspectorUsage,
   type SessionInspectorProps,
 } from "./components/session-inspector";
-
 // Environment surface — worktree binding, fork, target selection (./environment).
 export * from "./environment";
 // Derive surface — continue (and fork) plus origin display (./derive).
@@ -484,10 +487,8 @@ export type { SessionSendAction } from "./lib/session-busy-input";
 export * from "./hooks";
 // Context surface — context meter, usage turns, and activity (./context).
 export * from "./context";
-
 export { SessionComposerMonitors } from "./components/session-composer-monitors";
 export { SessionComposerMCP } from "./components/session-composer-mcp";
-
 export { SessionDraftRuntimeProvider } from "./contexts/session-draft-runtime-provider";
 export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";
 export type { SessionThreadBranchChange, SessionThreadSegment } from "./lib/session-thread-branch";

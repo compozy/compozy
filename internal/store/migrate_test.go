@@ -122,14 +122,23 @@ func TestApplyMigrationStream(t *testing.T) {
 		}
 	})
 
-	t.Run("Should apply a no-transaction table rebuild and preserve rows", func(t *testing.T) {
+	t.Run("Should preserve rebuilt rows and reopen with one connection", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
 		db := openEngineTestDB(t, "no-transaction.db")
+		db.SetMaxOpenConns(2)
 		stream := fixtureMigrationStream("goose_db_version_workspace", "testdata/migrations/no_transaction")
 		if err := Apply(ctx, db, stream); err != nil {
 			t.Fatalf("Apply() error = %v", err)
+		}
+		db.SetMaxOpenConns(1)
+		if err := Apply(ctx, db, stream); err != nil {
+			t.Fatalf("Apply() after rebuild with one connection error = %v", err)
+		}
+		status, err := Status(ctx, db, stream)
+		if err != nil || status.Version != 1 || status.AppliedCount != 1 {
+			t.Fatalf("Status() = %+v, %v, want version 1 recorded once", status, err)
 		}
 		var value string
 		var enabled int
@@ -144,43 +153,160 @@ func TestApplyMigrationStream(t *testing.T) {
 		}
 	})
 
-	t.Run("Should honor foreign key disabling in immutable migration history", func(t *testing.T) {
+	t.Run("Should preserve child rows and allow a pre-existing orphan", func(t *testing.T) {
 		t.Parallel()
-
-		ctx := testutil.Context(t)
-		db := openEngineTestDB(t, "historical-foreign-key-rebuild.db")
-		files := signedMigrationMapFS(t, map[string][]byte{
-			"00001_rebuild.sql": []byte(`-- +goose Up
+		for _, rebuild := range []struct {
+			name   string
+			before string
+			after  string
+		}{
+			{
+				name: "Should apply a generated rebuild with comments in the pragma",
+				before: `-- +goose Up
+-- disable enforcement during the rebuild
+/* connection-scoped setting */ PRAGMA /* temporarily disable enforcement */ -- rebuild follows
+  foreign_keys = OFF; -- rebuild follows
+`,
+			},
+			{
+				name: "Should apply a historical rebuild with explicit transaction control",
+				before: `-- +goose NO TRANSACTION
+-- +goose Up
 PRAGMA foreign_keys = OFF;
-CREATE TABLE parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
-CREATE TABLE children (
-  id INTEGER PRIMARY KEY,
-  parent_id INTEGER NOT NULL REFERENCES parents(id) ON DELETE CASCADE
-);
-INSERT INTO parents (id, value) VALUES (1, 'before');
-INSERT INTO children (id, parent_id) VALUES (1, 1);
-CREATE TABLE new_parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1);
+BEGIN IMMEDIATE;
+`,
+				after: `COMMIT;
+PRAGMA foreign_key_check;
+`,
+			},
+		} {
+			t.Run(rebuild.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t)
+				db := openMigrationRebuildTestDB(t)
+				seedMigrationOrphan(t, db)
+				body := rebuild.before + `CREATE TABLE new_parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
 INSERT INTO new_parents (id, value) SELECT id, value FROM parents;
 DROP TABLE parents;
 ALTER TABLE new_parents RENAME TO parents;
-PRAGMA foreign_keys = ON;
+CREATE TABLE new_children (id TEXT PRIMARY KEY, parent_id INTEGER REFERENCES parents(id) ON DELETE CASCADE);
+INSERT INTO new_children (id, parent_id) SELECT id, parent_id FROM children ORDER BY rowid;
+DROP TABLE children;
+ALTER TABLE new_children RENAME TO children;
+-- +goose StatementBegin
+CREATE TRIGGER keep_existing_orphan BEFORE DELETE ON children WHEN OLD.id = 'orphan'
+BEGIN
+  SELECT RAISE(ABORT, 'cannot delete; COMMIT; protected row');
+END;
+-- +goose StatementEnd
+` + rebuild.after + "PRAGMA foreign_keys = ON;\n"
+				stream := MigrationStream{
+					Name:         "historical-foreign-key-rebuild",
+					FS:           signedMigrationMapFS(t, map[string][]byte{"00001_rebuild.sql": []byte(body)}),
+					Dir:          ".",
+					VersionTable: "goose_db_version_global",
+				}
+				if err := Apply(ctx, db, stream); err != nil {
+					t.Fatalf("Apply() error = %v", err)
+				}
+				var childParentID, orphanParentID, orphanRowID int
+				if err := db.QueryRowContext(ctx, `SELECT child.parent_id, orphan.parent_id, orphan.rowid
+FROM children AS child CROSS JOIN children AS orphan WHERE child.id = 'child' AND orphan.id = 'orphan'`).
+					Scan(&childParentID, &orphanParentID, &orphanRowID); err != nil {
+					t.Fatalf("read preserved rows: %v", err)
+				}
+				if childParentID != 1 || orphanParentID != 99 {
+					t.Fatalf(
+						"preserved child and orphan parent IDs = (%d, %d), want (1, 99)",
+						childParentID,
+						orphanParentID,
+					)
+				}
+				if orphanRowID != 2 {
+					t.Fatalf("orphan rowid = %d, want 2 after copying the row from rowid 3", orphanRowID)
+				}
+				status, err := Status(ctx, db, stream)
+				if err != nil || status.Version != 1 || status.AppliedCount != 1 {
+					t.Fatalf("Status() = %+v, %v, want version 1 recorded once", status, err)
+				}
+				assertMigrationPoolPragma(t, db, "PRAGMA foreign_keys", 1)
+			})
+		}
+	})
+
+	t.Run("Should roll back a rebuild when validation or version recording fails", func(t *testing.T) {
+		t.Parallel()
+		for _, failure := range []struct {
+			name         string
+			copyID       string
+			afterDrop    string
+			versionGuard string
+			wantErr      string
+		}{
+			{
+				name:    "Should reject an orphan created by the rebuild",
+				copyID:  "id + 1",
+				wantErr: "foreign key violation",
+			},
+			{
+				name:      "Should reject a commit written beside a drop",
+				copyID:    "id",
+				afterDrop: " COMMIT;",
+				wantErr:   "unsupported transaction control in rebuild",
+			},
+			{
+				name:   "Should preserve the original schema if Goose cannot record the version",
+				copyID: "id",
+				versionGuard: `CREATE TRIGGER reject_migration_version BEFORE INSERT ON goose_db_version_global
+WHEN NEW.version_id = 2 BEGIN SELECT RAISE(ABORT, 'reject migration version'); END`,
+				wantErr: "reject migration version",
+			},
+		} {
+			t.Run(failure.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t)
+				db := openMigrationRebuildTestDB(t)
+				files := map[string][]byte{
+					"00001_seed.sql": []byte(`-- +goose Up
+CREATE TABLE parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE children (parent_id INTEGER REFERENCES parents(id) ON DELETE CASCADE);
+INSERT INTO parents (id, value) VALUES (1, 'before');
+INSERT INTO children (parent_id) VALUES (1);
 `),
-		})
-		stream := MigrationStream{
-			Name:         "historical-foreign-key-rebuild",
-			FS:           files,
-			Dir:          ".",
-			VersionTable: "goose_db_version_global",
-		}
-		if err := Apply(ctx, db, stream); err != nil {
-			t.Fatalf("Apply() error = %v", err)
-		}
-		var parentID int
-		if err := db.QueryRowContext(ctx, `SELECT parent_id FROM children WHERE id = 1`).Scan(&parentID); err != nil {
-			t.Fatalf("query preserved child: %v", err)
-		}
-		if parentID != 1 {
-			t.Fatalf("preserved child parent_id = %d, want 1", parentID)
+				}
+				stream := MigrationStream{
+					Name:         "atomic-rebuild",
+					Dir:          ".",
+					VersionTable: "goose_db_version_global",
+					FS:           signedMigrationMapFS(t, files),
+				}
+				if err := Apply(ctx, db, stream); err != nil {
+					t.Fatal(err)
+				}
+				files["00002_rebuild.sql"] = []byte(fmt.Sprintf(`-- +goose Up
+PRAGMA foreign_keys = OFF;
+CREATE TABLE new_parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
+INSERT INTO new_parents SELECT %s, 'after' FROM parents;
+DROP TABLE parents;%s
+ALTER TABLE new_parents RENAME TO parents;
+PRAGMA foreign_keys = ON;
+`, failure.copyID, failure.afterDrop))
+				stream.FS = signedMigrationMapFS(t, files)
+				if failure.versionGuard != "" {
+					if _, err := db.ExecContext(ctx, failure.versionGuard); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := Apply(ctx, db, stream); err == nil || !strings.Contains(err.Error(), failure.wantErr) {
+					t.Fatalf("Apply() error = %v, want %q", err, failure.wantErr)
+				}
+				status, err := Status(ctx, db, stream)
+				if err != nil || status.Version != 1 || status.AppliedCount != 1 {
+					t.Fatalf("Status() = %+v, %v, want version 1 with one applied migration", status, err)
+				}
+				assertMigrationRebuildRolledBack(t, db)
+				assertMigrationPoolPragma(t, db, "PRAGMA foreign_keys", 1)
+			})
 		}
 	})
 
@@ -188,22 +314,11 @@ PRAGMA foreign_keys = ON;
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), "failed-no-transaction.db")
-		db, err := OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := db.Close(); closeErr != nil {
-				t.Errorf("Close() error = %v", closeErr)
-			}
-		})
-		db.SetMaxOpenConns(2)
-		db.SetMaxIdleConns(2)
+		db := openMigrationRebuildTestDB(t)
 		files := signedMigrationMapFS(t, map[string][]byte{
 			"00001_fail.sql": []byte(`-- +goose Up
 -- +goose NO TRANSACTION
-PRAGMA foreign_keys = OFF;
+PRAGMA busy_timeout = 1234;
 BEGIN IMMEDIATE;
 THIS IS NOT VALID SQL;
 `),
@@ -214,33 +329,14 @@ THIS IS NOT VALID SQL;
 			Dir:          ".",
 			VersionTable: "goose_db_version_failed_no_transaction",
 		}
-		if err := Apply(ctx, db, stream); err == nil {
-			t.Fatal("Apply() error = nil, want failed migration")
+		if err := Apply(ctx, db, stream); err == nil || !strings.Contains(err.Error(), "statement 3:") {
+			t.Fatalf("Apply() error = %v, want failure after changing the pragma and starting a transaction", err)
 		}
 
-		connections := make([]*sql.Conn, 0, 2)
-		for range 2 {
-			conn, connErr := db.Conn(ctx)
-			if connErr != nil {
-				t.Fatalf("db.Conn() error = %v", connErr)
-			}
-			connections = append(connections, conn)
-		}
-		for index, conn := range connections {
-			var foreignKeys int
-			if err := conn.QueryRowContext(ctx, `PRAGMA foreign_keys`).Scan(&foreignKeys); err != nil {
-				t.Fatalf("query foreign_keys on connection %d: %v", index+1, err)
-			}
-			if foreignKeys != 1 {
-				t.Errorf("foreign_keys on connection %d = %d, want 1", index+1, foreignKeys)
-			}
-			if err := conn.Close(); err != nil {
-				t.Errorf("close connection %d: %v", index+1, err)
-			}
-		}
+		assertMigrationPoolPragma(t, db, "PRAGMA busy_timeout", DefaultSQLiteBusyTimeoutMS)
 	})
 
-	t.Run("Should reject a no-transaction migration when the pool has one connection", func(t *testing.T) {
+	t.Run("Should reject a rebuild that requires a second connection when the pool has one", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -252,7 +348,39 @@ THIS IS NOT VALID SQL;
 			t.Fatalf("Apply() error = %v, want ErrMigrationConnectionCapacity", err)
 		}
 		if tableExistsForTest(t, db, stream.VersionTable) || tableExistsForTest(t, db, "rebuild_items") {
-			t.Fatal("non-transaction migration changed the database after connection-capacity refusal")
+			t.Fatal("rebuild changed the database after connection-capacity refusal")
+		}
+	})
+
+	t.Run("Should apply a transactional Up with one connection even when Down rebuilds", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openEngineTestDB(t, "transactional-up.db")
+		db.SetMaxOpenConns(1)
+		stream := MigrationStream{
+			Name:         "transactional-up",
+			Dir:          ".",
+			VersionTable: "goose_db_version_global",
+			FS: signedMigrationMapFS(t, map[string][]byte{
+				"00001_upgrade.sql": []byte(`-- +goose Up
+CREATE TABLE migration_items (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
+INSERT INTO migration_items (value) VALUES ('first');
+-- +goose Down
+PRAGMA foreign_keys = OFF;
+CREATE TABLE new_migration_items (id INTEGER PRIMARY KEY);
+INSERT INTO new_migration_items (id) SELECT id FROM migration_items;
+DROP TABLE migration_items;
+ALTER TABLE new_migration_items RENAME TO migration_items;
+PRAGMA foreign_keys = ON;
+`),
+			}),
+		}
+		if err := Apply(ctx, db, stream); err != nil {
+			t.Fatalf("Apply() error = %v", err)
+		}
+		if got := migrationItemValues(t, db); got != "first" {
+			t.Fatalf("migration item values = %q, want first", got)
 		}
 	})
 
@@ -278,6 +406,84 @@ THIS IS NOT VALID SQL;
 			t.Fatal("migration_items exists after ahead-version refusal")
 		}
 	})
+}
+
+func openMigrationRebuildTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	db, err := OpenSQLiteDatabase(testutil.Context(t), filepath.Join(t.TempDir(), "rebuild.db"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	db.SetMaxOpenConns(2)
+	db.SetMaxIdleConns(2)
+	return db
+}
+
+func seedMigrationOrphan(t *testing.T, db *sql.DB) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF;
+CREATE TABLE parents (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE children (id TEXT PRIMARY KEY, parent_id INTEGER REFERENCES parents(id) ON DELETE CASCADE);
+INSERT INTO parents (id, value) VALUES (1, 'before');
+INSERT INTO children (id, parent_id) VALUES ('deleted', 1), ('child', 1), ('orphan', 99);
+DELETE FROM children WHERE id = 'deleted';
+PRAGMA foreign_keys = ON;`); err != nil {
+		t.Fatalf("seed a foreign key violation from before the migration: %v", err)
+	}
+}
+
+func assertMigrationPoolPragma(t *testing.T, db *sql.DB, pragma string, want int) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	for index := range 2 {
+		conn, err := db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := conn.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		var got int
+		if err := conn.QueryRowContext(ctx, pragma).Scan(&got); err != nil {
+			t.Fatalf("query %s on connection %d: %v", pragma, index+1, err)
+		}
+		if got != want {
+			t.Errorf("%s on connection %d = %d, want %d", pragma, index+1, got, want)
+		}
+	}
+}
+
+func assertMigrationRebuildRolledBack(t *testing.T, db *sql.DB) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	if tableExistsForTest(t, db, "new_parents") {
+		t.Fatal("replacement table survived failed rebuild")
+	}
+	var value string
+	if err := db.QueryRowContext(ctx, `SELECT value FROM parents JOIN children ON parent_id = id WHERE id = 1`).
+		Scan(&value); err != nil {
+		t.Fatalf("read original parent and child: %v", err)
+	}
+	if value != "before" {
+		t.Fatalf("parent value after failed rebuild = %q, want before", value)
+	}
 }
 
 func TestApplyRejectsAtlasSumDrift(t *testing.T) {

@@ -5,6 +5,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -12,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/testutil"
+	"modernc.org/sqlite"
 )
 
 // TestGlobalDBSessionLineageMigration owns IT-017: migration 00122 adds the lineage
@@ -158,17 +163,27 @@ func assertMigratedLineageKinds(t *testing.T, db *GlobalDB, want map[string]stor
 	}
 }
 
+const sideMigrationCrashPathEnv = "COMPOZY_TEST_SIDE_MIGRATION_CRASH_PATH"
+const sideMigrationCrashMarker = "crashing before renaming new_sessions"
+
 func TestSideLineageMigration(t *testing.T) {
+	if path := os.Getenv(sideMigrationCrashPathEnv); path != "" {
+		crashSideLineageUpgrade(t, path)
+		return
+	}
 	t.Parallel()
-	t.Run("Should preserve existing sessions and receipts while admitting only the new side kind", func(t *testing.T) {
+	t.Run("Should preserve sessions and receipts across a crash and admit only the new side kind", func(t *testing.T) {
 		t.Parallel()
 		// IT-005
+		ctx := globalMigrationTestContext(t)
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00210_schema.sql"))
+		prefix := globalMigrationPrefixBefore(t, "00210_schema.sql")
+		db, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+			return store.Apply(ctx, db, prefix)
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx := globalMigrationTestContext(t)
 		at := store.FormatTimestamp(time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC))
 		if _, err := db.ExecContext(
 			ctx,
@@ -225,6 +240,15 @@ func TestSideLineageMigration(t *testing.T) {
 		if err := db.Close(); err != nil {
 			t.Fatal(err)
 		}
+		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestSideLineageMigration$")
+		cmd.Env = append(cmd.Environ(), sideMigrationCrashPathEnv+"="+path)
+		output, err := cmd.CombinedOutput()
+		if _, exited := errors.AsType[*exec.ExitError](err); !exited || ctx.Err() != nil ||
+			!bytes.Contains(output, []byte(sideMigrationCrashMarker)) || bytes.Contains(output, []byte("FAIL")) {
+			t.Fatalf("expected migration subprocess to be killed before rename, got %v\n%s", err, output)
+		}
+		checkInterruptedSideLineageUpgrade(ctx, t, path, beforeSessions, beforeReceipts)
+
 		upgraded, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
 			t.Fatal(err)
@@ -237,6 +261,9 @@ func TestSideLineageMigration(t *testing.T) {
 		if !bytes.Equal(beforeSessions, sideMigrationRows(ctx, t, upgraded.db, "sessions")) ||
 			!bytes.Equal(beforeReceipts, sideMigrationRows(ctx, t, upgraded.db, "session_derivations")) {
 			t.Fatal("migration changed persisted session or receipt bytes")
+		}
+		if err := store.RequireCurrent(ctx, upgraded.db, MigrationStream()); err != nil {
+			t.Fatalf("migration did not reach the current version: %v", err)
 		}
 		insertSession := `INSERT INTO sessions(id,profile_id,agent_name,workspace_id,session_type,state,lineage_kind,parent_session_id,root_session_id,spawn_depth,origin_agent_name,created_at,updated_at) VALUES(?,?,'coder','ws-side-upgrade','user','stopped',?,'source','source',1,'coder',?,?)`
 		if _, err := upgraded.db.ExecContext(
@@ -283,6 +310,69 @@ func TestSideLineageMigration(t *testing.T) {
 			t.Fatal("unknown receipt kind accepted")
 		}
 	})
+}
+
+func crashSideLineageUpgrade(t *testing.T, path string) {
+	t.Helper()
+	process, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := process.Release(); err != nil {
+			t.Error(err)
+		}
+	}()
+	sqlite.RegisterConnectionHook(func(conn sqlite.ExecQuerierContext, _ string) error {
+		registerer, ok := conn.(sqlite.AuthorizerRegisterer)
+		if !ok {
+			return errors.New("SQLite connection does not support the crash authorizer")
+		}
+		return registerer.RegisterAuthorizer(
+			func(action sqlite.AuthorizerActionCode, _, table, _, _ string) sqlite.AuthorizerReturnCode {
+				if action != sqlite.AuthAlterTable || table != "new_sessions" {
+					return sqlite.AuthorizerOK
+				}
+				// Authorization runs before RENAME executes and after the preceding DROP.
+				if _, err := fmt.Fprintln(os.Stdout, sideMigrationCrashMarker); err != nil {
+					return sqlite.AuthorizerDeny
+				}
+				if err := process.Kill(); err != nil {
+					return sqlite.AuthorizerDeny
+				}
+				return sqlite.AuthorizerDeny
+			},
+		)
+	})
+	upgraded, err := openGlobalMigrationUpgrade(t, path)
+	if err != nil {
+		t.Fatalf("migration subprocess exited without being killed: %v", err)
+	}
+	if err := upgraded.Close(t.Context()); err != nil {
+		t.Error(err)
+	}
+	t.Fatal("migration subprocess finished without reaching the crash hook")
+}
+
+func checkInterruptedSideLineageUpgrade(ctx context.Context, t *testing.T, path string, sessions, receipts []byte) {
+	t.Helper()
+	db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	status, err := store.Status(ctx, db, MigrationStream())
+	if err != nil || status.Version != 209 || status.AppliedCount != 209 {
+		t.Fatalf("interrupted migration status = %+v, %v, want version 209 with 209 applied migrations", status, err)
+	}
+	if !bytes.Equal(sessions, sideMigrationRows(ctx, t, db, "sessions")) ||
+		!bytes.Equal(receipts, sideMigrationRows(ctx, t, db, "session_derivations")) {
+		t.Fatal("interrupted migration changed persisted session or receipt bytes")
+	}
 }
 
 func sideMigrationRows(ctx context.Context, t *testing.T, db *sql.DB, table string) []byte {
