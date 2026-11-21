@@ -27,6 +27,16 @@ func (m *Manager) activeBoardSessionCatalogRows(
 	query ListQuery,
 ) (map[string]*Info, []string, []store.SessionInfo, error) {
 	infos, excludedIDs := m.activeCatalogSnapshots(ctx, query)
+	return m.projectActiveCatalogRows(ctx, query, infos, excludedIDs, nil)
+}
+
+func (m *Manager) projectActiveCatalogRows(
+	ctx context.Context,
+	query ListQuery,
+	infos []*Info,
+	excludedIDs []string,
+	decorate func(*Info) bool,
+) (map[string]*Info, []string, []store.SessionInfo, error) {
 	if err := m.overlayPinnedAt(ctx, infos); err != nil {
 		return nil, nil, nil, err
 	}
@@ -37,7 +47,7 @@ func (m *Manager) activeBoardSessionCatalogRows(
 	}
 	visible := make([]*Info, 0, len(infos))
 	for _, info := range infos {
-		if catalogRelationVisible(info, query) {
+		if catalogRelationVisible(info, query) && (decorate == nil || decorate(info)) {
 			visible = append(visible, info)
 		}
 	}

@@ -328,6 +328,7 @@ describe("useSessionListGroups", () => {
 });
 
 describe("useSessionListView", () => {
+  let moveResponse: Promise<Response> | undefined;
   let sessionFolders: unknown[];
   const shell = { sort: "created", group_by: "none" };
   let fetcher: ReturnType<typeof vi.spyOn<typeof globalThis, "fetch">>;
@@ -342,6 +343,7 @@ describe("useSessionListView", () => {
     workspaceOrders = [];
     layoutReads = 0;
     sessionFolders = [];
+    moveResponse = undefined;
 
     vi.clearAllMocks();
     vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
@@ -369,6 +371,9 @@ describe("useSessionListView", () => {
             updated_at: "2026-10-01T00:00:00Z",
           })),
         });
+      }
+      if (path === "/api/workspaces/ws-alpha/sessions/moving/move" && moveResponse) {
+        return moveResponse;
       }
       if (path === "/api/workspaces/ws-alpha/session-folders" && sessionFolders.length > 0) {
         return json({ folders: sessionFolders });
@@ -587,6 +592,29 @@ describe("useSessionListView", () => {
     act(() => manual.result.current.setShelf("active"));
     expect(settingsWrites()).toEqual([]);
   });
+  it("Should project a pending move across partitions and restore the old folder if it fails", async () => {
+    sessionFolders = [{ id: "sfold-alpha", name: "Alpha", position: 0, session_count: 0 }];
+    const response = Promise.withResolvers<Response>();
+    moveResponse = response.promise;
+    const row = { id: "moving" };
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(
+      async query =>
+        ({
+          sessions: query?.folder === "@root" ? [row] : [],
+          page: { limit: 100, has_more: false, total: query?.folder === "@root" ? 1 : 0 },
+        }) as never
+    );
+    const { result } = renderHook(() => useSessionListView(), { wrapper });
+    await waitFor(() => expect(result.current.folderOf?.get(row.id)).toBeNull());
+
+    act(() => result.current.layout?.moveSession(row.id, "sfold-alpha"));
+    await waitFor(() => expect(result.current.folderOf?.get(row.id)).toBe("sfold-alpha"));
+    expect(result.current.partitions?.get("@root")).toMatchObject({ total: 1, sessions: [row] });
+
+    response.resolve(new Response("unavailable", { status: 503 }));
+    await waitFor(() => expect(result.current.folderOf?.get(row.id)).toBeNull());
+  });
+
   // #1085: with empty projects hidden, a reorder of the projects on screen writes the hidden
   // ones back into their slots instead of letting the daemon move them after the listed ones.
   it("Should keep a hidden empty project in its slot when the shown projects reorder", async () => {

@@ -182,27 +182,15 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		return ListPage{}, err
 	}
 
-	activeByID, activeIDs, activeMatches, err := m.activeBoardSessionCatalogRows(ctx, normalized)
+	repositoryKeys := m.catalogRepositoryKeys(ctx, normalized)
+	defaultBranches := m.catalogDefaultBranches(ctx, normalized)
+	durableQuery := sessionCatalogPageQuery(normalized, after, nil)
+	durableQuery.RepositoryKeys = repositoryKeys
+	durableQuery.DefaultBranches = defaultBranches
+	durable, activeByID, activeMatches, err := m.readCatalogPageRows(ctx, pager, normalized, durableQuery)
 	if err != nil {
 		return ListPage{}, err
 	}
-	repositoryKeys := m.catalogRepositoryKeys(ctx, normalized)
-	defaultBranches := m.catalogDefaultBranches(ctx, normalized)
-	if normalized.ExcludeInstanceMain {
-		activeMatches = slices.DeleteFunc(activeMatches, func(info store.SessionInfo) bool {
-			return slices.Contains(normalized.InstanceMainIDs, info.ID)
-		})
-		activeIDs = append(activeIDs, normalized.InstanceMainIDs...)
-	}
-	durableQuery := sessionCatalogPageQuery(normalized, after, activeIDs)
-	durableQuery.RepositoryKeys = repositoryKeys
-	durableQuery.DefaultBranches = defaultBranches
-
-	durable, err := pager.PageSessions(ctx, durableQuery)
-	if err != nil {
-		return ListPage{}, fmt.Errorf("session: page durable catalog: %w", err)
-	}
-	activeMatches = filterCatalogFolderOverlay(activeMatches, normalized.Folder, durable.FolderMemberIDs)
 
 	placements, err := m.sessionCatalogPlacements(ctx, durable.Sessions, activeMatches)
 	if err != nil {

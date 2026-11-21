@@ -1,5 +1,6 @@
 import {
   useMutation,
+  useMutationState,
   useQuery,
   useQueryClient,
   type InfiniteData,
@@ -52,8 +53,16 @@ export interface SessionListLayout {
 export interface SessionFoldersState {
   layout?: SessionListLayout;
   loading?: boolean;
+  pendingEdits?: readonly PendingSessionLayoutEdit[];
   /** Set when the folder list could not be read; the list stays flat until a retry loads it. */
   loadError?: { retry: () => void };
+}
+
+type UpdateLayoutRows = (sessions: readonly SessionPayload[], manual: boolean) => SessionPayload[];
+
+export interface PendingSessionLayoutEdit {
+  update: UpdateLayoutRows;
+  removedFolder?: SessionFolderPayload;
 }
 
 type CatalogEnvelope = InfiniteData<SessionCatalogPageResponse>;
@@ -108,7 +117,14 @@ export function useSessionFolders(options: {
     );
   };
 
+  const mutationKey = ["session-layout", workspaceId, options.profile.trim()];
+  const pendingEdits = useMutationState({
+    filters: { mutationKey, exact: true, status: "pending" },
+    select: entry => (entry.state.variables as LayoutWrite | undefined)?.partitionEdit,
+  }).flatMap(edit => (edit ? [edit] : []));
+
   const mutation = useMutation({
+    mutationKey,
     // One scope per workspace and profile runs layout writes one at a time, so
     // rapid reorders reach the daemon in the order the operator made them.
     scope: { id: `session-layout:${workspaceId}:${options.profile.trim()}` },
@@ -169,15 +185,19 @@ export function useSessionFolders(options: {
             current.map(folder => (folder.id === folderId ? { ...folder, name } : folder))
           ),
       }),
-    deleteFolder: folderId =>
-      write({
+    deleteFolder: folderId => {
+      const update = (sessions: readonly SessionPayload[]) =>
+        applyFolderRemoval(sessions, folderId);
+      return write({
         failure: "Couldn't delete the folder.",
         request: () => deleteSessionFolder(scope, folderId),
         optimistic: () => {
           patchFolders(current => current.filter(folder => folder.id !== folderId));
-          patchSessions(sessions => applyFolderRemoval(sessions, folderId));
+          patchSessions(update);
         },
-      }),
+        partitionEdit: { update, removedFolder: folders.find(folder => folder.id === folderId) },
+      });
+    },
     moveFolder: (folderId, delta) => {
       const next = shiftId(
         folders.map(folder => folder.id),
@@ -187,37 +207,45 @@ export function useSessionFolders(options: {
       if (next) fireAndForget(folderOrderWrite(next));
     },
     reorderFolders: folderIds => fireAndForget(folderOrderWrite(folderIds)),
-    moveSession: (sessionId, folderId) =>
+    moveSession: (sessionId, folderId) => {
+      const update = (sessions: readonly SessionPayload[]) =>
+        applySessionMove(sessions, sessionId, folderId);
       fireAndForget({
         failure: "Couldn't move the session.",
         request: () => moveSessionToFolder(scope, sessionId, folderId),
-        optimistic: () =>
-          patchSessions(sessions => applySessionMove(sessions, sessionId, folderId)),
-      }),
-    moveSessions: (sessionIds, folderId) =>
-      write({
+        optimistic: () => patchSessions(update),
+        partitionEdit: { update },
+      });
+    },
+    moveSessions: (sessionIds, folderId) => {
+      const update = (sessions: readonly SessionPayload[], manual: boolean) =>
+        manual
+          ? applySessionsMovedFirst(sessions, folderId, sessionIds)
+          : applySessionOrder(sessions, folderId, sessionIds);
+      return write({
         failure: "Couldn't move the sessions.",
         request: () => reorderSessions(scope, folderId, sessionIds),
-        optimistic: () =>
-          patchSessions((sessions, manual) =>
-            manual
-              ? applySessionsMovedFirst(sessions, folderId, sessionIds)
-              : applySessionOrder(sessions, folderId, sessionIds)
-          ),
-      }),
-    reorderSessions: (folderId, sessionIds) =>
+        optimistic: () => patchSessions(update),
+        partitionEdit: { update },
+      });
+    },
+    reorderSessions: (folderId, sessionIds) => {
+      const update = (sessions: readonly SessionPayload[]) =>
+        applySessionOrder(sessions, folderId, sessionIds);
       fireAndForget({
         failure: "Couldn't reorder the sessions.",
         request: () => reorderSessions(scope, folderId, sessionIds),
-        optimistic: () =>
-          patchSessions(sessions => applySessionOrder(sessions, folderId, sessionIds)),
-      }),
+        optimistic: () => patchSessions(update),
+        partitionEdit: { update },
+      });
+    },
   };
-  return { layout };
+  return { layout, pendingEdits };
 }
 
 interface LayoutWrite {
   failure: string;
   request: () => Promise<unknown>;
   optimistic?: () => void;
+  partitionEdit?: PendingSessionLayoutEdit;
 }

@@ -324,7 +324,10 @@ func TestSessionLayoutCatalogPartitions(t *testing.T) {
 			query.Folder = tc.folder
 			page, err := db.PageSessions(ctx, query)
 			if err != nil || page.Total != tc.total || len(page.Sessions) != 1 || page.Sessions[0].ID != tc.first {
-				t.Fatalf("PageSessions(folder=%q) = %+v, %v; want %q and total %d", tc.folder, page, err, tc.first, tc.total)
+				t.Fatalf(
+					"PageSessions(folder=%q) = %+v, %v; want %q and total %d",
+					tc.folder, page, err, tc.first, tc.total,
+				)
 			}
 		}
 
@@ -335,7 +338,10 @@ func TestSessionLayoutCatalogPartitions(t *testing.T) {
 			t.Fatalf("PageSessions(overlay): %v", err)
 		}
 		if _, ok := page.FolderMemberIDs["child"]; !ok || len(page.FolderMemberIDs) != 1 || page.Total != 2 {
-			t.Fatalf("PageSessions(overlay) = %+v; want child to be the only folder overlay, with two durable rows", page)
+			t.Fatalf(
+				"PageSessions(overlay) = %+v; want child to be the only folder overlay, with two durable rows",
+				page,
+			)
 		}
 	})
 }

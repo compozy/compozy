@@ -8,6 +8,8 @@ import {
   sessionListPartitionOptions,
 } from "../lib/session-list-partitions";
 import type { SessionFolderPayload, SessionListFilters } from "../types";
+import type { PendingSessionLayoutEdit } from "./use-session-folders";
+import { sessionFolderId } from "../lib/session-folders";
 import type { SessionFoldSet } from "../lib/session-sidebar-scope";
 import { sessionCatalogPageView } from "./use-session-catalog";
 
@@ -19,7 +21,8 @@ export function useSessionListPartitions(
   folders: readonly SessionFolderPayload[] | undefined,
   folds: SessionFoldSet,
   enabled: boolean,
-  filtering: boolean
+  debouncing: boolean,
+  edits: readonly PendingSessionLayoutEdit[] | undefined
 ) {
   const client = useQueryClient();
   const filterKey = JSON.stringify(normalizeSessionListFilters(filters));
@@ -27,7 +30,7 @@ export function useSessionListPartitions(
     folders?.length
       ? [
           [SESSION_LIST_ROOT_FOLDER, false],
-          ...folders.map(folder => [folder.id, !filtering && folds.has(folder.id)]),
+          ...folders.map(folder => [folder.id, !filters.q && folds.has(folder.id)]),
         ]
       : []
   );
@@ -46,6 +49,9 @@ export function useSessionListPartitions(
         folder,
         {
           ...page,
+          paging: page.paging || debouncing,
+          next: page.next && !debouncing,
+          previous: page.previous && !debouncing,
           loading: enabled && result.isPending && !result.isError,
           sessions: countOnly ? [] : page.sessions,
         },
@@ -53,7 +59,7 @@ export function useSessionListPartitions(
     })
   );
   const root = pages.get(SESSION_LIST_ROOT_FOLDER)!;
-  const { sessions, folderOf } = partitionSessionRows(pages);
+  const { sessions, folderOf } = projectPartitionRows(pages, edits, filters.sort === "manual");
   return {
     pages,
     folderOf,
@@ -80,6 +86,9 @@ function createPartitionSource(
     observer: new InfiniteQueryObserver(client, {
       ...sessionListPartitionOptions(scoped, folder, countOnly),
       enabled,
+      // A fold changes one request. Other containers already refresh on
+      // catalog invalidation and need not refetch just because they remount.
+      refetchOnMount: query => query.state.isInvalidated,
     }),
   }));
   const read = () => entries.map(({ observer }) => observer.getCurrentResult());
@@ -96,4 +105,23 @@ function createPartitionSource(
       return snapshot;
     },
   };
+}
+
+/** Pending layout writes change the projection while cursors and totals stay server-owned. */
+function projectPartitionRows(
+  pages: ReadonlyMap<string, SessionListPartitionPage>,
+  edits: readonly PendingSessionLayoutEdit[] | undefined,
+  manual: boolean
+) {
+  const { sessions, folderOf } = partitionSessionRows(pages);
+  if (!edits?.length) return { sessions, folderOf };
+  const byId = new Map(sessions.map(row => [row.id, row]));
+  const projected = edits.reduce((rows, edit) => edit.update(rows, manual), sessions);
+  for (const row of projected) {
+    const previous = byId.get(row.id);
+    if (previous && sessionFolderId(previous) !== sessionFolderId(row)) {
+      folderOf.set(row.id, sessionFolderId(row));
+    }
+  }
+  return { sessions: projected, folderOf };
 }
