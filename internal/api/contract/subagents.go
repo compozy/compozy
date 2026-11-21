@@ -25,7 +25,7 @@ type SubagentRuntimePayload struct {
 	Speed           string `json:"speed"`
 }
 
-// SubagentUsagePayload is what the provider reports a subagent has spent so far.
+// SubagentUsagePayload is the reported usage for a provider-native subagent's current run.
 type SubagentUsagePayload struct {
 	TotalTokens int64 `json:"total_tokens"`
 	ToolUses    int64 `json:"tool_uses"`

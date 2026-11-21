@@ -2053,6 +2053,7 @@ type SessionSubagent struct {
 	ChildActivity          string         `json:"child_activity"`
 	UsageTotalTokens       sql.NullInt64  `json:"usage_total_tokens"`
 	UsageToolUses          sql.NullInt64  `json:"usage_tool_uses"`
+	UsageRunID             string         `json:"usage_run_id"`
 }
 
 type SessionSubagentWake struct {

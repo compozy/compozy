@@ -233,12 +233,17 @@ WHERE id = @id AND origin = 'provider_native'
  AND ((@runtime_model <> '' AND runtime_model <> @runtime_model) OR (@role <> '' AND role <> @role));
 
 -- name: UpdateSubagentUsage :execrows
+-- An unbound row can contain historical usage. First binding preserves its figures.
 UPDATE session_subagents SET
- usage_total_tokens = MAX(COALESCE(usage_total_tokens, 0), @total_tokens),
- usage_tool_uses = MAX(COALESCE(usage_tool_uses, 0), @tool_uses),
+ usage_total_tokens = CASE WHEN usage_run_id <> '' AND @run_id > usage_run_id THEN @total_tokens
+  ELSE MAX(COALESCE(usage_total_tokens, 0), @total_tokens) END,
+ usage_tool_uses = CASE WHEN usage_run_id <> '' AND @run_id > usage_run_id THEN @tool_uses
+  ELSE MAX(COALESCE(usage_tool_uses, 0), @tool_uses) END,
+ usage_run_id = @run_id,
  updated_at = MAX(updated_at, @updated_at)
 WHERE id = @id AND origin = 'provider_native'
- AND (usage_total_tokens IS NULL OR usage_total_tokens < @total_tokens
+ AND @run_id >= usage_run_id
+ AND (@run_id > usage_run_id OR usage_total_tokens IS NULL OR usage_total_tokens < @total_tokens
   OR usage_tool_uses IS NULL OR usage_tool_uses < @tool_uses);
 
 -- name: ListSubagentWakesByParent :many
@@ -302,7 +307,11 @@ SELECT EXISTS (
 -- name: ResumeNativeSubagent :execrows
 UPDATE session_subagents SET status = 'running', work_state = 'working',
  parent_turn_id = sqlc.arg(turn), result = NULL, error = NULL, result_truncated = 0,
+ usage_total_tokens = CASE WHEN @run_id > usage_run_id THEN NULL ELSE usage_total_tokens END,
+ usage_tool_uses = CASE WHEN @run_id > usage_run_id THEN NULL ELSE usage_tool_uses END,
+ usage_run_id = MAX(usage_run_id, @run_id),
  progress = '', settled_at = NULL, updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id) AND origin = 'provider_native'
  AND status IN ('completed','failed','canceled','interrupted')
+ AND (@run_id = '' OR @run_id >= usage_run_id)
  AND settled_at < sqlc.arg(now);

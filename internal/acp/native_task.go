@@ -45,8 +45,7 @@ const (
 	NativeTaskNameMaxBytes    = 256
 )
 
-// NativeTaskUsage is the provider's running usage for one task. It is
-// informational: the parent's billed usage already includes it.
+// NativeTaskUsage is the provider's usage snapshot for a task run, for display only.
 type NativeTaskUsage struct {
 	TotalTokens int64
 	ToolUses    int64

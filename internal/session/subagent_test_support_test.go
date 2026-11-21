@@ -20,6 +20,7 @@ import (
 type memorySubagents struct {
 	mu                   sync.Mutex
 	rows                 map[string]store.SessionSubagent
+	usageRuns            map[string]string
 	wakes                map[string]store.SessionSubagentWake
 	writes               int
 	worktreeCleanupErr   error
@@ -691,9 +692,10 @@ func (r *subagentTestRuntime) SettleParent(context.Context, string) error {
 func newSubagentTestService(t *testing.T) (*subagentService, *memorySubagents, *subagentTestRuntime) {
 	t.Helper()
 	db := &memorySubagents{
-		rows:     make(map[string]store.SessionSubagent),
-		wakes:    make(map[string]store.SessionSubagentWake),
-		rewrites: make(map[string]string),
+		rows:      make(map[string]store.SessionSubagent),
+		usageRuns: make(map[string]string),
+		wakes:     make(map[string]store.SessionSubagentWake),
+		rewrites:  make(map[string]string),
 	}
 	runtime := &subagentTestRuntime{
 		snapshots: map[string]subagentSnapshot{
@@ -810,24 +812,28 @@ func (d *memorySubagents) UpdateNativeSubagentRuntime(
 
 func (d *memorySubagents) UpdateSubagentUsage(
 	_ context.Context,
-	id string,
+	id, runID string,
 	usage store.SubagentUsage,
 	at time.Time,
 ) (store.SessionSubagent, bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	row := d.rows[id]
-	changed := row.Origin == store.SubagentOriginProviderNative &&
-		(row.Usage == nil || usage.TotalTokens > row.Usage.TotalTokens || usage.ToolUses > row.Usage.ToolUses)
-	if changed {
-		if row.Usage != nil {
-			usage.TotalTokens = max(usage.TotalTokens, row.Usage.TotalTokens)
-			usage.ToolUses = max(usage.ToolUses, row.Usage.ToolUses)
-		}
-		row.Usage, row.UpdatedAt = &usage, at
-		d.rows[id] = row
+	currentRun := d.usageRuns[id]
+	if row.Origin != store.SubagentOriginProviderNative || runID < currentRun {
+		return row, false, nil
 	}
-	return row, changed, nil
+	if row.Usage != nil && (currentRun == "" || currentRun == runID) {
+		usage.TotalTokens = max(usage.TotalTokens, row.Usage.TotalTokens)
+		usage.ToolUses = max(usage.ToolUses, row.Usage.ToolUses)
+		if *row.Usage == usage && currentRun == runID {
+			return row, false, nil
+		}
+	}
+	d.usageRuns[id] = runID
+	row.Usage, row.UpdatedAt = &usage, at
+	d.rows[id] = row
+	return row, true, nil
 }
 
 func (d *memorySubagents) GetSubagentByID(ctx context.Context, id string) (store.SessionSubagent, error) {
@@ -1058,16 +1064,21 @@ func (w *subagentWorktreeStub) Observe(context.Context, string, string, string) 
 
 func (d *memorySubagents) ResumeNativeSubagent(
 	_ context.Context,
-	id, turn string,
+	id, turn, runID string,
 	at time.Time,
 ) (store.SessionSubagent, bool, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	row := d.rows[id]
+	currentRun := d.usageRuns[id]
 	changed := row.Origin == store.SubagentOriginProviderNative && store.IsSubagentStatusTerminal(row.Status) &&
-		row.SettledAt != nil &&
+		(runID == "" || runID >= currentRun) && row.SettledAt != nil &&
 		at.After(*row.SettledAt)
 	if changed {
+		if runID > currentRun {
+			row.Usage = nil
+			d.usageRuns[id] = runID
+		}
 		row.Status, row.WorkState, row.ParentTurnID = store.SubagentStatusRunning, store.SubagentWorkStateWorking, turn
 		row.Result, row.Error, row.SettledAt = nil, nil, nil
 		row.ResultTruncated, row.Progress, row.UpdatedAt = false, "", at

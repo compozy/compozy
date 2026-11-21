@@ -2579,7 +2579,7 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 		if observation, reason := tracker.observe(
 			stale,
 		); observation == nil || reason != "" ||
-			observation.ToolCallID != "launch" {
+			observation.ToolCallID != "launch" || observation.RunID != "0002" {
 			t.Fatal(observation, reason)
 		}
 	})

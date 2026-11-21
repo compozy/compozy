@@ -279,7 +279,7 @@ func (g *SessionRepo) UpdateNativeSubagentRuntime(
 
 func (g *SessionRepo) UpdateSubagentUsage(
 	ctx context.Context,
-	id string,
+	id, runID string,
 	usage store.SubagentUsage,
 	at time.Time,
 ) (out store.SessionSubagent, changed bool, err error) {
@@ -287,8 +287,9 @@ func (g *SessionRepo) UpdateSubagentUsage(
 		q := sqlcgen.New(exec)
 		n, e := q.UpdateSubagentUsage(ctx, sqlcgen.UpdateSubagentUsageParams{
 			ID:          id,
-			TotalTokens: usage.TotalTokens,
-			ToolUses:    usage.ToolUses,
+			RunID:       runID,
+			TotalTokens: sql.NullInt64{Int64: usage.TotalTokens, Valid: true},
+			ToolUses:    sql.NullInt64{Int64: usage.ToolUses, Valid: true},
 			UpdatedAt:   store.FormatTimestamp(at),
 		})
 		if e != nil {
@@ -373,12 +374,12 @@ func (g *SessionRepo) EnrichNativeSubagentResult(
 }
 
 func (g *SessionRepo) ResumeNativeSubagent(
-	ctx context.Context, id, turn string, at time.Time,
+	ctx context.Context, id, turn, runID string, at time.Time,
 ) (out store.SessionSubagent, changed bool, err error) {
 	err = g.withImmediateTransaction(ctx, "resume native subagent", func(exec globalSQLExecutor) error {
 		q := sqlcgen.New(exec)
 		n, e := q.ResumeNativeSubagent(ctx, sqlcgen.ResumeNativeSubagentParams{
-			ID: id, Turn: turn, Now: store.FormatTimestamp(at),
+			ID: id, Turn: turn, RunID: runID, Now: store.FormatTimestamp(at),
 		})
 		if e != nil {
 			return e

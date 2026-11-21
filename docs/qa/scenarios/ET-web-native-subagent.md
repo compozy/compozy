@@ -128,3 +128,9 @@ the new result and settlement time; reload and verify the persisted state.
 Automated owners: `TestSubagentNativeLifecycle`, `TestGlobalDBSubagentNativeRecovery`,
 and `TestSubagentNativeDaemonIntegration` (isolated daemon, SQLite, ACP subprocess
 lifecycle frames). Real Claude/visual walk remains pending; no Web rendering code changes.
+
+QA impact (#1545): after the same background subagent resumes, check the drawer's token and
+tool counts and the CLI row's `usage`. When the SDK reports a smaller figure for the new run,
+both show that run's figure. Reload and confirm the reading survives. Usage is absent until an
+identified new run reports it. `TestSubagentNativeLifecycle`, `TestSubagentNativeRecoveryEdges`, and
+`TestGlobalDBSubagentNativeRecovery` cover the projection and replay with a deterministic two-run fixture.

@@ -206,7 +206,7 @@ func (t *claudeTaskTracker) observe(message wireClaudeTaskMessage) (*NativeTaskO
 	observation := &NativeTaskObservation{
 		Source:     NativeTaskSourceClaudeSDK,
 		TaskID:     message.TaskID,
-		RunID:      message.RunID,
+		RunID:      cmp.Or(message.RunID, tracked.runID),
 		ToolCallID: callID,
 		EventUUID:  message.UUID,
 	}

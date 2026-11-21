@@ -98,32 +98,6 @@ func (s *subagentService) applyNativeTask(ctx context.Context, parent string, ev
 	}
 }
 
-// recordNativeUsage keeps the provider's running total, including the final
-// figure a notification reports after the row has settled.
-func (s *subagentService) recordNativeUsage(
-	ctx context.Context, row *store.SessionSubagent, ev *NativeSubagentEvent,
-) error {
-	usage := ev.Task.Usage
-	if usage == nil {
-		return nil
-	}
-	at := ev.At
-	if at.IsZero() {
-		at = s.now().UTC()
-	}
-	updated, changed, err := s.store.UpdateSubagentUsage(
-		ctx, row.ID, store.SubagentUsage{TotalTokens: usage.TotalTokens, ToolUses: usage.ToolUses}, at,
-	)
-	if err != nil {
-		return err
-	}
-	*row = updated
-	if changed {
-		s.publish(ctx, updated)
-	}
-	return nil
-}
-
 // observeNativeTaskCall reports the known call, recording a backgrounding the
 // task observation reports (task_started or a moved-to-background patch).
 func (s *subagentService) observeNativeTaskCall(parent string, ev NativeSubagentEvent) (nativeCall, bool) {
@@ -330,7 +304,7 @@ func (s *subagentService) dropNativeTasks(ctx context.Context, parent, turn stri
 
 // nativeReplayCall is what one parent turn's committed events show about a
 // native call: whether it ran in the background, its launching call's terminal
-// tool result, and its terminal task observations in sequence order.
+// tool result, and its compacted task observations in sequence order.
 type nativeReplayCall struct {
 	terminalAt time.Time
 	background bool
@@ -415,21 +389,31 @@ func (s *subagentService) replayNativeCall(
 		if err != nil {
 			return err
 		}
-		if nativeTaskActive(ev.Task) {
-			updated, changed, err := s.store.ResumeNativeSubagent(ctx, current.ID, ev.ParentTurnID, ev.At)
+		active := nativeTaskActive(ev.Task)
+		if active {
+			var changed bool
+			current, changed, err = s.store.ResumeNativeSubagent(
+				ctx,
+				current.ID,
+				ev.ParentTurnID,
+				ev.Task.RunID,
+				ev.At,
+			)
 			if err != nil {
 				return err
 			}
 			if changed {
-				s.publish(ctx, updated)
+				s.publish(ctx, current)
 			}
-			continue
 		}
 		if current.ParentTurnID != ev.ParentTurnID {
 			continue
 		}
 		if err := s.recordNativeUsage(ctx, &current, &ev); err != nil {
 			return err
+		}
+		if active {
+			continue
 		}
 		if store.IsSubagentStatusTerminal(current.Status) {
 			err = s.enrichNativeResult(ctx, current, status, ev.Task, ev.At)

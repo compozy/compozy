@@ -680,6 +680,73 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	t.Run("Should preserve native subagent usage through the run identity migration", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00218_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		const at = "2026-11-21T00:00:00Z"
+		for _, statement := range []string{
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('usage-ws','/usage-ws','Usage',?,?)`,
+			`INSERT INTO sessions(id,profile_id,agent_name,workspace_id,state,created_at,updated_at)
+			 VALUES ('usage-parent','00000000000000000000000000','coder','usage-ws','active',?,?)`,
+			`INSERT INTO session_subagents(id,workspace_id,parent_session_id,parent_turn_id,origin,provider_tool_call_id,
+			 idempotency_key,request_fingerprint,title,task_chars,depth,status,work_state,wake_policy,usage_total_tokens,
+			 usage_tool_uses,created_at,updated_at)
+			 VALUES ('usage-row','usage-ws','usage-parent','turn','provider_native','call','call','native:call',
+			 'Task',0,1,'completed','result_available','settled_only',1200,5,?,?)`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement, at, at); err != nil {
+				t.Fatal(err)
+			}
+		}
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := target.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := bindTelemetryDestination(ctx, prior, target.DB()); err != nil {
+			t.Fatal(err)
+		}
+		if err := target.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		row, err := upgraded.SessionRepo.GetSubagent(ctx, "usage-ws", "usage-row")
+		want := store.SubagentUsage{TotalTokens: 1200, ToolUses: 5}
+		if err != nil || row.Usage == nil || *row.Usage != want || row.Status != store.SubagentStatusCompleted {
+			t.Fatalf("upgraded subagent = %#v, error = %v, want usage %#v", row, err, want)
+		}
+		status, err := store.Status(ctx, upgraded.db, MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
+
 	t.Run("Should preserve queued guidance through the boundary delivery migration", func(t *testing.T) {
 		t.Parallel()
 		ctx := globalMigrationTestContext(t)
