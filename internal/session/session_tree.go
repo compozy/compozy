@@ -55,7 +55,7 @@ func (m *Manager) Descendants(ctx context.Context, workspaceID string, sessionID
 	if root.WorkspaceID != strings.TrimSpace(workspaceID) {
 		return nil, ErrSessionNotFound
 	}
-	rootHidden, err := m.sideFamilyMembership(ctx, root.ID, root.Lineage)
+	rootHidden, err := m.sideFamilyMembership(ctx, root.ID, root.WorkspaceID, root.ProfileID, root.Lineage)
 	if err != nil {
 		return nil, err
 	}

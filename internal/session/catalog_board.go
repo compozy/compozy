@@ -163,7 +163,13 @@ func (m *Manager) activeCatalogSnapshotsWithSides(
 		var hidden bool
 		var ancestryErr error
 		if !includeSides {
-			hidden, ancestryErr = m.sideFamilyMembership(readCtx, info.ID, info.Lineage)
+			hidden, ancestryErr = m.sideFamilyMembership(
+				readCtx,
+				info.ID,
+				info.WorkspaceID,
+				info.ProfileID,
+				info.Lineage,
+			)
 		}
 		cancel()
 		if hidden || ancestryErr != nil {
