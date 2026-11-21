@@ -288,4 +288,4 @@ a collapsed session folder show the running glyph where the chevron rests. Walk:
 running child (leading glyph spins, toggle shows no glyph), a needs-you parent with live subagents
 (attention glyph stays), a parent waiting on sessions with a running child (running glyph leads, "Waiting on sessions" word stays), a collapsed project group with working sessions and one needing you (running
 glyph leading, amber dot right), a collapsed folder holding a running session (running glyph leading,
-chevron back on hover). Owning suite: `web/src/systems/session/components/__tests__/session-list.test.tsx`.
+chevron back on hover). With paged session folders (#1935) a collapsed session folder loads count-only, so it shows no leading running glyph; rows, open folders, project folders and project groups still show it (known limit, daemon facet or read-model change needed). Owning suite: `web/src/systems/session/components/__tests__/session-list.test.tsx`.
