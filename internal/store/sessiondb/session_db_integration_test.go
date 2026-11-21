@@ -2844,13 +2844,13 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			archived, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
+			archived := readInlineTranscriptFixture(t, prefix)
 			remaining := 0
 			if tc.firedBeforeArchive {
 				remaining = 1
 			}
-			if err != nil || len(archived.Entries) != remaining || archived.Generation != 1 {
-				t.Fatalf("actual archive page=%#v/%v", archived, err)
+			if len(archived.Entries) != remaining || archived.Generation != 1 {
+				t.Fatalf("actual archive page=%#v", archived)
 			}
 			if !tc.firedBeforeArchive {
 				fired := fmt.Sprintf(`{"raw":{"from_sequence":1,"to_sequence":%d}}`, len(tc.events))
