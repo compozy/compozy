@@ -26,7 +26,7 @@ export type SessionFolderDialogState<
 /** What one folder-capable query contributes: its layout (if one pair), order, and page. */
 export type SessionListFolderSource = Pick<
   SessionListViewModel,
-  "layout" | "sort" | "shelf" | "worktreeId" | "catalog"
+  "layout" | "sort" | "shelf" | "worktreeId" | "catalog" | "partitions" | "folderOf"
 >;
 
 /**
@@ -46,21 +46,24 @@ export function useSessionListFolderLayout(
     ? buildSessionListSections(threads, layout.folders, {
         filtering,
         shelved: view.shelf !== "active",
+        folderOf: view.folderOf,
+        showFolder: folder => {
+          const page = view.partitions?.get(folder);
+          return page !== undefined && (page.loading || page.failed || (page.total ?? 0) > 0);
+        },
       })
     : null;
   // A reorder pins the listed rows ahead of every container member the request
   // omits. Rows hidden by a filter, a worktree scope, or a page boundary would be
   // pushed behind the visible ones, so manual reorder needs the whole container on
-  // screen: unfiltered, unscoped, and the first settled catalog page. The archive
-  // and Later are served in activity order rather than manual order (#1716), so
-  // their rows carry no order verbs.
+  // screen. Shelves and other filtered populations can still use Manual to read.
   const orderable =
     view.sort === "manual" &&
     view.shelf === "active" &&
     !filtering &&
     !view.worktreeId &&
-    !view.catalog?.previous &&
-    !view.catalog?.paging;
+    (view.partitions !== undefined ||
+      (!view.catalog?.previous && !view.catalog?.next && !view.catalog?.paging));
   const dnd = useSessionListDnd(layout, {
     manual: view.sort === "manual",
     reorderable: orderable,

@@ -1899,6 +1899,12 @@ need cursor continuation may use `skip_total=true`; that response omits `page.to
 a loaded count, and retains `has_more`, `next_cursor`, and `limit`. Attention/badge filtering happens
 before the SQL page cut. Paged reads do not sweep expired attach leases or acquire the writer.
 
+For one workspace and profile, pass `folder=<folder-id>` for a session folder or `folder=@root`
+for the unfoldered root. A folder carries its thread descendants within the same scope. Each
+partition has its own exact total and cursor chain. Keep the same folder and filters while
+following its cursor. Omit `folder` for the whole catalog. This selector is on the HTTP/UDS
+catalog read. The CLI and the native session list retain their existing filters.
+
 `GET /api/sessions/facets` returns exact `all`, `needs_you`, `working`, `finished`, and `idle`
 population counts plus `by_workspace` counts. `terminal_approvals` counts pending permission
 interactions whose tool ID starts with `compozy__terminal_`, including active sessions exactly once,

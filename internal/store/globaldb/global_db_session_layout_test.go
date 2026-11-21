@@ -283,6 +283,63 @@ func TestSessionLayoutPlacements(t *testing.T) {
 	})
 }
 
+func TestSessionLayoutCatalogPartitions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should cut and count the folder and unfoldered pages independently", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db, scope := openSessionLayoutTestDB(t, "folder-pages")
+		older := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
+		for index, id := range []string{"root", "folder-first", "folder-second", "child"} {
+			info := sessionInfoForWorkspaceStateIndexTest(
+				id, scope.WorkspaceID, globalDBSessionStateStopped, older.Add(time.Duration(index)*time.Minute),
+			)
+			if id == "child" {
+				info.Lineage = &store.SessionLineage{
+					ParentSessionID: "folder-first", RootSessionID: "folder-first",
+					SpawnDepth: 1, Kind: store.LineageKindSpawn,
+				}
+			}
+			if err := db.RegisterSession(ctx, &info); err != nil {
+				t.Fatalf("RegisterSession(%q): %v", id, err)
+			}
+		}
+		createLayoutFolder(ctx, t, db, scope, "sfold-a", "Alpha")
+		if err := db.ReorderSessions(ctx, scope, "sfold-a", []string{"folder-first", "folder-second"}); err != nil {
+			t.Fatalf("ReorderSessions(): %v", err)
+		}
+		query := store.SessionCatalogPageQuery{
+			ReadScope: store.ReadScope{ProfileID: scope.ProfileID}, WorkspaceID: scope.WorkspaceID,
+			Sort: sessionCatalogSortCreated, Limit: 1,
+		}
+		for _, tc := range []struct {
+			folder, first string
+			total         int
+		}{
+			{"", "child", 4},
+			{store.SessionCatalogRootFolder, "root", 1},
+			{"sfold-a", "child", 3},
+		} {
+			query.Folder = tc.folder
+			page, err := db.PageSessions(ctx, query)
+			if err != nil || page.Total != tc.total || len(page.Sessions) != 1 || page.Sessions[0].ID != tc.first {
+				t.Fatalf("PageSessions(folder=%q) = %+v, %v; want %q and total %d", tc.folder, page, err, tc.first, tc.total)
+			}
+		}
+
+		// An active snapshot replaces its durable row, but keeps the same partition.
+		query.ExcludeIDs = []string{"child", "root"}
+		page, err := db.PageSessions(ctx, query)
+		if err != nil {
+			t.Fatalf("PageSessions(overlay): %v", err)
+		}
+		if _, ok := page.FolderMemberIDs["child"]; !ok || len(page.FolderMemberIDs) != 1 || page.Total != 2 {
+			t.Fatalf("PageSessions(overlay) = %+v; want child to be the only folder overlay, with two durable rows", page)
+		}
+	})
+}
+
 func openSessionLayoutTestDB(t *testing.T, name string) (*GlobalDB, store.SessionLayoutScope) {
 	t.Helper()
 	db := openTestGlobalDB(t)

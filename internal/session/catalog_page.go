@@ -71,6 +71,7 @@ type ListQuery struct {
 	WorkspaceIDs      []string
 	AllWorkspaces     bool
 	WorktreeID        string
+	Folder            string
 	State             string
 	SessionType       Type
 	AgentName         string
@@ -114,6 +115,7 @@ type sessionListFingerprint struct {
 	WorkspaceIDs    []string                   `json:"workspace_ids,omitempty"`
 	AllWorkspaces   bool                       `json:"all_workspaces"`
 	WorktreeID      string                     `json:"worktree_id"`
+	Folder          string                     `json:"folder,omitempty"`
 	State           string                     `json:"state"`
 	SessionType     Type                       `json:"type"`
 	AgentName       string                     `json:"agent"`
@@ -200,6 +202,7 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	if err != nil {
 		return ListPage{}, fmt.Errorf("session: page durable catalog: %w", err)
 	}
+	activeMatches = filterCatalogFolderOverlay(activeMatches, normalized.Folder, durable.FolderMemberIDs)
 
 	placements, err := m.sessionCatalogPlacements(ctx, durable.Sessions, activeMatches)
 	if err != nil {
@@ -286,6 +289,7 @@ func sessionCatalogPageQuery(
 		WorkspaceID:          normalized.WorkspaceID,
 		WorkspaceIDs:         normalized.WorkspaceIDs,
 		WorktreeID:           normalized.WorktreeID,
+		Folder:               normalized.Folder,
 		State:                normalized.State,
 		SessionType:          string(normalized.SessionType),
 		AgentName:            normalized.AgentName,
@@ -354,6 +358,7 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		WorkspaceIDs:    query.WorkspaceIDs,
 		AllWorkspaces:   query.AllWorkspaces,
 		WorktreeID:      query.WorktreeID,
+		Folder:          query.Folder,
 		State:           query.State,
 		SessionType:     query.SessionType,
 		AgentName:       query.AgentName,

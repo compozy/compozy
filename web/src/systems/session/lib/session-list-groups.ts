@@ -172,13 +172,14 @@ export function profileSessionGroups(
 /** A group's own page query: the list's shared filters in the order its pair allows. */
 export function sessionListGroupFilters(
   view: { groupFilters: SessionListFilters; sort: SessionListSort; shelf: SessionListShelf },
-  group: Pick<SessionListGroupSpec, "pair">
+  group: Pick<SessionListGroupSpec, "pair">,
+  foldersLoaded = false
 ): SessionListFilters {
   return {
     ...view.groupFilters,
     sort: sessionListSortParam(view.sort, {
       singlePair: group.pair !== null,
-      shelved: view.shelf !== "active",
+      shelved: !foldersLoaded && view.shelf !== "active",
     }),
   };
 }

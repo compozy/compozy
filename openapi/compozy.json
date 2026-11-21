@@ -75978,6 +75978,14 @@
             }
           },
           {
+            "description": "Filter by session folder id or @root for unfoldered sessions; descendants follow their thread's folder. Requires one workspace and profile",
+            "in": "query",
+            "name": "folder",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Search session id, name, agent, or provider; title_agent searches visible title and agent",
             "in": "query",
             "name": "q",
@@ -99595,6 +99603,14 @@
             "description": "Filter by exact bound worktree id",
             "in": "query",
             "name": "worktree",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by session folder id or @root for unfoldered sessions; descendants follow their thread's folder. Requires one workspace and profile",
+            "in": "query",
+            "name": "folder",
             "schema": {
               "type": "string"
             }

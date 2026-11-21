@@ -51,6 +51,7 @@ export interface SessionListLayout {
 /** The folder layout once loaded, or the failed first read and its retry. */
 export interface SessionFoldersState {
   layout?: SessionListLayout;
+  loading?: boolean;
   /** Set when the folder list could not be read; the list stays flat until a retry loads it. */
   loadError?: { retry: () => void };
 }
@@ -90,7 +91,11 @@ export function useSessionFolders(options: {
       queryKey: catalogPrefix,
     })) {
       if (!envelope) continue;
-      const manual = (key.at(-1) as { sort?: string } | undefined)?.sort === "manual";
+      const filters = key.at(-1) as { folder?: string; sort?: string } | undefined;
+      // A membership edit changes two independent cursor chains and their totals.
+      // Keep their envelopes intact until the authoritative reread.
+      if (filters?.folder) continue;
+      const manual = filters?.sort === "manual";
       queryClient.setQueryData<CatalogEnvelope>(key, {
         ...envelope,
         pages: envelope.pages.map(page => ({ ...page, sessions: update(page.sessions, manual) })),
@@ -128,7 +133,9 @@ export function useSessionFolders(options: {
   // root reorder would unfile them, so the list stays flat until it loads.
   if (!enabled) return {};
   if (foldersQuery.data === undefined) {
-    return foldersQuery.isError ? { loadError: { retry: () => void foldersQuery.refetch() } } : {};
+    return foldersQuery.isError
+      ? { loadError: { retry: () => void foldersQuery.refetch() } }
+      : { loading: true };
   }
   const folders = foldersQuery.data;
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"slices"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -88,4 +89,19 @@ func pageSessionPlacements(
 		}
 	}
 	return selected
+}
+
+func filterCatalogFolderOverlay(
+	active []store.SessionInfo,
+	folder string,
+	folderMembers map[string]struct{},
+) []store.SessionInfo {
+	if folder == "" {
+		return active
+	}
+	root := folder == store.SessionCatalogRootFolder
+	return slices.DeleteFunc(active, func(info store.SessionInfo) bool {
+		_, member := folderMembers[info.ID]
+		return member == root
+	})
 }

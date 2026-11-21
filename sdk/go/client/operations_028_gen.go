@@ -10,6 +10,25 @@ import (
 	"strings"
 )
 
+// PinSession Pin a session above the session list; pinning a pinned session changes nothing
+func (c *Client) PinSession(ctx context.Context, params PinSessionParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/pin"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PlanSessionHistoryCleanupParams carries the path, query, and header parameters.
 type PlanSessionHistoryCleanupParams struct {
 	Profile *string `url:"profile"`
@@ -422,11 +441,4 @@ func (c *Client) PutLoopAnnotations(ctx context.Context, params PutLoopAnnotatio
 		return nil, err
 	}
 	return &out, nil
-}
-
-// PutLoopConfigParams carries the path, query, and header parameters.
-type PutLoopConfigParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
 }

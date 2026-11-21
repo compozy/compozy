@@ -39,11 +39,7 @@ import { fetchSessions } from "../../adapters/session-api";
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
 import { sessionCatalogOptions, sessionFacetsOptions } from "../../lib/session-catalog-options";
 import { useSessionListGroups, type SessionListGroupsInput } from "../use-session-list-groups";
-import {
-  SESSION_LIST_MANUAL_SORT_NOTE,
-  SESSION_LIST_SHELF_SORT_NOTE,
-  useSessionListView,
-} from "../use-session-list-view";
+import { SESSION_LIST_MANUAL_SORT_NOTE, useSessionListView } from "../use-session-list-view";
 import { useWorkspaceWorkingSessions } from "../use-workspace-working-sessions";
 
 // The instance row isn't under test here, and these suites count catalog reads.
@@ -332,6 +328,7 @@ describe("useSessionListGroups", () => {
 });
 
 describe("useSessionListView", () => {
+  let sessionFolders: unknown[];
   const shell = { sort: "created", group_by: "none" };
   let fetcher: ReturnType<typeof vi.spyOn<typeof globalThis, "fetch">>;
   let registered: Array<[string, string]> = [];
@@ -344,6 +341,8 @@ describe("useSessionListView", () => {
     layout = { folders: [], placements: [] };
     workspaceOrders = [];
     layoutReads = 0;
+    sessionFolders = [];
+
     vi.clearAllMocks();
     vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
       sessions: [],
@@ -370,6 +369,9 @@ describe("useSessionListView", () => {
             updated_at: "2026-10-01T00:00:00Z",
           })),
         });
+      }
+      if (path === "/api/workspaces/ws-alpha/session-folders" && sessionFolders.length > 0) {
+        return json({ folders: sessionFolders });
       }
       if (path === "/api/workspace-folders") {
         layoutReads += 1;
@@ -507,37 +509,82 @@ describe("useSessionListView", () => {
     expect(settingsWrites()).toEqual([]);
   });
 
-  // #1716: manual order serves every folder member before the root, so a folder longer than a
-  // page hid the unfoldered archived sessions. Archived and Later project lists read activity
-  // order, which lists unfoldered sessions next to folders on every page.
-  it("Should serve a stored manual sort as last activity in the Archived and Later shelves", async () => {
-    shell.sort = "manual";
-    act(() => setActiveWorkspaceId("ws-alpha"));
+  it("Should page and count the root and folder independently and keep Manual on both shelves", async () => {
+    sessionFolders = [{ id: "sfold-alpha", name: "Alpha", position: 0, session_count: 101 }];
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => {
+      if (query?.folder === "@root") {
+        return {
+          sessions: [{ id: "older-root" }],
+          page: { total: 1, has_more: false, limit: 100 },
+        } as never;
+      }
+      if (query?.folder === "sfold-alpha") {
+        return (
+          query.cursor
+            ? {
+                sessions: [{ id: "folder-tail" }],
+                page: { total: 101, has_more: false, limit: 100 },
+              }
+            : {
+                sessions: Array.from({ length: 100 }, (_, i) => ({ id: `newer-${i}` })),
+                page: { total: 101, has_more: true, next_cursor: "folder-cursor", limit: 100 },
+              }
+        ) as never;
+      }
+      return { sessions: [], page: { has_more: false, limit: 100 } } as never;
+    });
     const { result } = renderHook(() => useSessionListView(), { wrapper });
-    await waitFor(() =>
-      expect(fetchSessionCatalogPage).toHaveBeenCalledWith(
-        expect.objectContaining({ workspace_id: "ws-alpha", sort: "manual" }),
-        expect.any(AbortSignal)
-      )
-    );
+    await waitFor(() => expect(result.current.catalog?.sessions).toHaveLength(101));
+    expect(result.current.partitions?.get("@root")).toMatchObject({
+      sessions: [{ id: "older-root" }],
+      total: 1,
+      next: false,
+    });
+    expect(result.current.partitions?.get("sfold-alpha")).toMatchObject({ total: 101, next: true });
 
+    act(() => result.current.partitions?.get("sfold-alpha")?.nextPage());
+    await waitFor(() =>
+      expect(result.current.catalog?.sessions).toEqual([
+        { id: "older-root" },
+        { id: "folder-tail" },
+      ])
+    );
+    expect(result.current.partitions?.get("sfold-alpha")).toMatchObject({
+      total: 101,
+      previous: true,
+      next: false,
+    });
+    expect(result.current.partitions?.get("@root")).toMatchObject({
+      total: 1,
+      previous: false,
+      next: false,
+    });
+
+    act(() => result.current.partitions?.get("sfold-alpha")?.previousPage());
+    await waitFor(() => expect(result.current.catalog?.sessions).toHaveLength(101));
+    expect(result.current.partitions?.get("@root")?.sessions).toEqual([{ id: "older-root" }]);
+
+    shell.sort = "manual";
+    const manual = renderHook(() => useSessionListView(), { wrapper: clientWrapper() });
     for (const shelf of ["archive", "later"] as const) {
-      act(() => result.current.setShelf(shelf));
-      await waitFor(() =>
-        expect(fetchSessionCatalogPage).toHaveBeenCalledWith(
-          expect.objectContaining({
-            workspace_id: "ws-alpha",
-            sort: "last_activity",
-            ...(shelf === "archive" ? { archive: "only" } : { later: "only" }),
-          }),
-          expect.any(AbortSignal)
-        )
-      );
-      expect(result.current.sort).toBe("manual");
-      expect(result.current.sortNote).toBe(SESSION_LIST_SHELF_SORT_NOTE);
+      act(() => manual.result.current.setShelf(shelf));
+      for (const folder of ["@root", "sfold-alpha"]) {
+        await waitFor(() =>
+          expect(fetchSessionCatalogPage).toHaveBeenCalledWith(
+            expect.objectContaining({
+              workspace_id: "ws-alpha",
+              folder,
+              sort: "manual",
+              ...(shelf === "archive" ? { archive: "only" } : { later: "only" }),
+            }),
+            expect.any(AbortSignal)
+          )
+        );
+      }
+      expect(manual.result.current.sort).toBe("manual");
+      expect(manual.result.current.sortNote).toBeNull();
     }
-    act(() => result.current.setShelf("active"));
-    expect(result.current.sortNote).toBeNull();
+    act(() => manual.result.current.setShelf("active"));
     expect(settingsWrites()).toEqual([]);
   });
   // #1085: with empty projects hidden, a reorder of the projects on screen writes the hidden

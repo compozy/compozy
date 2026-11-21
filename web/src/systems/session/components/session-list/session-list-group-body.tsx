@@ -184,12 +184,12 @@ function SessionListPairGroupBody({
 }: GroupRowProps & { group: SessionListGroupSpec; path: readonly number[]; nested?: boolean }) {
   const { view } = props;
   const groupSelection = use(SessionListGroupSelectionContext);
-  const catalog = useSessionListGroupCatalog(group, view);
   const folders = useSessionFolders({
     workspaceId: group.pair?.workspaceId ?? null,
     profile: group.pair?.profile ?? "",
     enabled: group.pair !== null,
   });
+  const { catalog, partitions } = useSessionListGroupCatalog(group, view, folders, props.filtering);
   const threads = buildSessionListThreads(catalog.sessions, "");
   const layout = useSessionListFolderLayout(
     {
@@ -198,6 +198,8 @@ function SessionListPairGroupBody({
       shelf: view.shelf,
       worktreeId: view.worktreeId,
       catalog,
+      partitions: partitions?.pages,
+      folderOf: partitions?.folderOf,
     },
     threads,
     props.filtering
@@ -209,7 +211,7 @@ function SessionListPairGroupBody({
     pair: group.pair,
   });
   const select = (session: SessionListTarget) => {
-    if (!catalog.paging) props.onSelectSession(session);
+    if (partitions || !catalog.paging) props.onSelectSession(session);
   };
   const pair = group.pair;
   const newSessionInFolder = (folderId: string) =>
@@ -224,7 +226,7 @@ function SessionListPairGroupBody({
   // A split subgroup's own header and its parent's name both axes already.
   const ownerOf = !nested && group.kind === "project" && view.aggregate ? view.ownerOf : undefined;
 
-  if (catalog.failed && catalog.sessions.length === 0) {
+  if (!partitions && catalog.failed && catalog.sessions.length === 0) {
     // One unreachable group never blanks the list: it states what happened in
     // its own place and offers the one useful action.
     return (
@@ -234,15 +236,16 @@ function SessionListPairGroupBody({
       />
     );
   }
-  if (catalog.loading) return <SessionGroupRowsSkeleton />;
+  if (!partitions && catalog.loading) return <SessionGroupRowsSkeleton />;
   const sections = sectionsWithContent(layout.sections);
   return (
     <div className="flex flex-col gap-0.5 pl-2.5">
-      {layout.layout && sections ? (
+      {layout.layout && (partitions || sections) && layout.sections ? (
         <>
           <SessionListSections
             ownerOf={ownerOf}
-            sections={sections}
+            sections={layout.sections}
+            partitions={partitions?.pages}
             layout={layout.layout}
             dnd={layout.dnd}
             selectionDrag={selectionDrag}
@@ -260,7 +263,7 @@ function SessionListPairGroupBody({
             selection={groupSelection?.selection}
             sessionActions={props.sessionActions}
             testIdPrefix={props.testIdPrefix}
-            emptyMessage={empty}
+            emptyMessage={sections ? empty : null}
           />
           <SessionFolderDialogs
             state={layout.dialog}
@@ -279,7 +282,10 @@ function SessionListPairGroupBody({
           onSelectSession={select}
         />
       )}
-      <GroupPager catalog={catalog} />
+      {!sections && partitions && !catalog.loading && !catalog.failed ? (
+        <GroupNote>{empty}</GroupNote>
+      ) : null}
+      {!partitions ? <GroupPager catalog={catalog} /> : null}
     </div>
   );
 }

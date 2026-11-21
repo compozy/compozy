@@ -1,5 +1,10 @@
 import { sessionListGroupFilters, type SessionListGroupSpec } from "../lib/session-list-groups";
 
+import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
+import type { SessionFoldersState } from "./use-session-folders";
+import { useSessionListPartitions } from "./use-session-list-partitions";
+import { useSessionSidebarState } from "./use-session-sidebar-state";
+
 import { useSessionCatalog } from "./use-session-catalog";
 import type { SessionListViewModel } from "./use-session-list-view";
 
@@ -12,14 +17,33 @@ type GroupCatalog = ReturnType<typeof useSessionCatalog>;
  */
 export function useSessionListGroupCatalog(
   group: Pick<SessionListGroupSpec, "scope" | "lens" | "pair" | "total">,
-  view: Pick<SessionListViewModel, "groupFilters" | "sort" | "shelf">
-): GroupCatalog {
+  view: Pick<SessionListViewModel, "groupFilters" | "sort" | "shelf">,
+  folders: SessionFoldersState,
+  filtering: boolean
+) {
   const listed = group.total > 0;
-  const read = useSessionCatalog(group.scope, sessionListGroupFilters(view, group), listed, {
-    facets: false,
-    lens: group.lens,
-  });
-  return listed ? read : settledEmptyCatalog(read);
+  const { folderFolds } = useSessionSidebarState();
+  const partitions = useSessionListPartitions(
+    sessionCatalogScopedFilters(
+      group.scope,
+      sessionListGroupFilters(view, group, true),
+      group.lens
+    ),
+    folders.layout?.folders,
+    folderFolds,
+    listed,
+    filtering
+  );
+  const read = useSessionCatalog(
+    group.scope,
+    sessionListGroupFilters(view, group, folders.layout !== undefined),
+    listed && !partitions && !folders.loading,
+    { facets: false, lens: group.lens }
+  );
+  const fallback = listed
+    ? { ...read, loading: read.loading || folders.loading === true }
+    : settledEmptyCatalog(read);
+  return { catalog: partitions?.catalog ?? fallback, partitions };
 }
 
 /** A group catalog with nothing in view: no rows, nothing loading, failed, or paging. */
