@@ -171,11 +171,10 @@ function SessionListRowBody({
         selected={selected}
         selection={selection}
         badgeMark={
-          <SessionBadgeMark
-            badge={session.badge}
-            waitingOn={sessionWaitingOn(session)}
-            descendantsRunning={descendantsRunning ?? hasRunningDescendant(session, [])}
-            className={badgeMarkClass(selection)}
+          <SessionRowBadgeMark
+            session={session}
+            selection={selection}
+            descendantsRunning={descendantsRunning}
           />
         }
         testId={`${testIdPrefix}-session-${session.id}`}
@@ -219,9 +218,7 @@ function SessionListRowBody({
             />
           </>
         }
-        trailing={
-          trailing !== undefined ? <SessionRowTrailing>{trailing}</SessionRowTrailing> : null
-        }
+        trailing={<SessionRowTrailing>{trailing}</SessionRowTrailing>}
       />
       <SessionLaterDetails className={SESSION_ROW_LATER_FRAME} session={session} />
     </>
@@ -378,9 +375,30 @@ function SessionRowEndSlot({ session, actions }: { session: SessionPayload; acti
   );
 }
 
-/** The meta line's trailing cluster, lifted above the row target. */
+/** The meta line's trailing cluster, lifted above the row target; none without controls. */
 function SessionRowTrailing({ children }: { children: React.ReactNode }) {
+  if (children === undefined) return null;
   return <span className={SESSION_ROW_TRAILING_FRAME}>{children}</span>;
+}
+
+/** Line 1's status mark; running work below lifts it (#1926), the row's own subagents by default. */
+function SessionRowBadgeMark({
+  session,
+  selection,
+  descendantsRunning = hasRunningDescendant(session, []),
+}: {
+  session: SessionPayload;
+  selection: SessionRowSelection | undefined;
+  descendantsRunning?: boolean;
+}) {
+  return (
+    <SessionBadgeMark
+      badge={session.badge}
+      waitingOn={sessionWaitingOn(session)}
+      descendantsRunning={descendantsRunning}
+      className={badgeMarkClass(selection)}
+    />
+  );
 }
 
 /** With a selection available, the badge gives way to the checkbox on hover or focus. */
