@@ -686,6 +686,12 @@
             "nullable": true,
             "type": "integer"
           },
+          "fallback_chain": {
+            "items": {
+              "$ref": "#/components/schemas/RoleFallbackStatus"
+            },
+            "type": "array"
+          },
           "lean_environment": {
             "nullable": true,
             "type": "boolean"
@@ -739,6 +745,9 @@
       },
       "AgentEffectiveRuntimeSources": {
         "properties": {
+          "fallback_chain": {
+            "type": "string"
+          },
           "model": {
             "type": "string"
           },

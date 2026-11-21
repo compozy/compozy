@@ -164,7 +164,10 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	claudeConfig := compozyconfig.Config{
 		Defaults: compozyconfig.DefaultsConfig{Provider: "claude"},
 		Agents: compozyconfig.AgentsConfig{Overrides: map[string]compozyconfig.AgentOverride{
-			"reviewer": {Permissions: string(compozyconfig.PermissionModeApproveAll)},
+			"reviewer": {
+				Permissions:   string(compozyconfig.PermissionModeApproveAll),
+				FallbackChain: []compozyconfig.RoleFallback{{Provider: "codex", Model: "override-route"}},
+			},
 		}},
 	}
 
@@ -184,6 +187,16 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 		claudePayload.Permissions != "" {
 		t.Fatalf("claude permissions = effective %q (%q) authored %q, want operator override only in effective",
 			got, claudePayload.EffectiveRuntime.Sources.Permissions, claudePayload.Permissions)
+	}
+	if chain := claudePayload.EffectiveRuntime.FallbackChain; len(chain) != 1 || chain[0].Model != "override-route" ||
+		claudePayload.EffectiveRuntime.Sources.FallbackChain != contract.AgentRuntimeValueSourceConfigOverride ||
+		len(claudePayload.FallbackChain) != 0 {
+		t.Fatalf("claude fallback chain = effective %#v (%q) authored %#v, want operator override only in effective",
+			chain, claudePayload.EffectiveRuntime.Sources.FallbackChain, claudePayload.FallbackChain)
+	}
+	if codexPayload.EffectiveRuntime.FallbackChain != nil || codexPayload.EffectiveRuntime.Sources.FallbackChain != "" {
+		t.Fatalf("codex fallback chain = %#v, want none without an authored chain or override",
+			codexPayload.EffectiveRuntime.FallbackChain)
 	}
 	if got := codexPayload.EffectiveRuntime.Sources.Permissions; got != contract.AgentRuntimeValueSourceProjectDefault {
 		t.Fatalf("codex permissions source = %q, want project_default", got)

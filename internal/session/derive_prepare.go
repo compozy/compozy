@@ -41,7 +41,7 @@ func (m *Manager) prepareDerive(
 	if err := validateDeriveTranscript(spec.fences, snapshot); err != nil {
 		return preparedDerive{}, err
 	}
-	pendingRoute, routeSelection, err := derivePendingRoute(agentName, agentDef, spec.route)
+	pendingRoute, routeSelection, err := derivePendingRoute(&workspace.Config, agentName, agentDef, spec.route)
 	if err != nil {
 		return preparedDerive{}, err
 	}
@@ -190,6 +190,7 @@ func applyDeriveRuntime(
 // derivePendingRoute resolves a 1-based declared route through the fallback-account
 // resolver; the chosen route is recorded on the child and applied at its first bind.
 func derivePendingRoute(
+	cfg *compozyconfig.Config,
 	agentName string,
 	agentDef compozyconfig.AgentDef,
 	index int,
@@ -197,7 +198,7 @@ func derivePendingRoute(
 	if index <= 0 {
 		return nil, nil, nil
 	}
-	routes := fallbackRoutesForAgent(agentDef)
+	routes := fallbackRoutesForAgent(cfg, agentDef)
 	if index > len(routes) {
 		return nil, nil, deriveErr(
 			ErrDeriveRouteNotFound,

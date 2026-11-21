@@ -1575,8 +1575,8 @@ snapshots; managed authoring keeps working so operators can repair a broken file
 ## `[agents.overrides.<agent>]`
 
 `[agents.overrides.<agent>]` changes the permission level, and optionally the provider, model,
-reasoning effort, or speed, of the effective agent definition named `<agent>` without copying its
-`AGENT.md`. The prompt body, appearance, tools, skills, MCP servers, and every other field keep
+reasoning effort, speed, or fallback chain, of the effective agent definition named `<agent>` without
+copying its `AGENT.md`. The prompt body, appearance, tools, skills, MCP servers, and every other field keep
 tracking the source, so a bundled or extension agent still receives package updates.
 
 ```toml
@@ -1586,6 +1586,12 @@ permissions = "approve-all"
 # model = "gpt-5.5"
 # reasoning_effort = "high"
 # speed = "fast"
+
+# Optional: replaces the definition's whole fallback_chain.
+# [[agents.overrides.orchestrator.fallback_chain]]
+# provider = "claude"
+# model = "opus-4-8"
+# command = "CLAUDE_CONFIG_DIR=/Users/ada/.claude-work claude --acp"
 ```
 
 | Field              | Type   | Default | Valid values                                                        | Description                                                                                                                                         |
@@ -1595,18 +1601,24 @@ permissions = "approve-all"
 | `model`            | string | unset   | A model the provider accepts.                                       | Replaces the model. A different model drops the definition's `reasoning_effort` unless this table sets one.                                         |
 | `reasoning_effort` | string | unset   | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra` | Replaces the reasoning effort.                                                                                                                      |
 | `speed`            | string | unset   | `normal`, `fast`                                                    | Replaces the speed.                                                                                                                                 |
+| `fallback_chain`   | array of route tables | unset | Same route shape and validation as the `AGENT.md` [`fallback_chain`](/docs/agents/definitions#fallback-chain). | Replaces the whole chain; routes are not merged. `fallback_chain = []` clears the definition's chain.                       |
 
 Precedence and scope:
 
 - The override applies to whichever definition wins for that name (workspace, global, extension,
   or builtin); it is keyed by agent name, not by origin. Unset fields keep the definition's value.
 - Global, profile, and workspace `config.toml` layers merge per agent and per field, so a workspace
-  can change one field of a global override.
+  can change one field of a global override. `fallback_chain` is one field: the narrowest layer that
+  sets it replaces the whole chain, and `fallback_chain = []` clears an inherited or authored chain
+  (an empty string in a string field instead restores the definition's own value). To restore the
+  authored chain, remove `fallback_chain` from every layer.
 - A session's runtime selection (provider, model, or effort chosen at prompt or start) and a
   `[roles.<role>]` route still win over the override for the fields they set.
 - Agent reads keep the authored values and report the result in `effective_runtime`, with
   `sources.<field> = "config_override"`. `compozy agent info <name>` prints the effective
-  permissions and their source. An always-on definition with no level anywhere reports
+  permissions and their source, plus a `fallback_chain_override` block (TOON) or a
+  `Fallback Chain (config override)` table when the override replaced or cleared the chain; reads
+  report it in `effective_runtime.fallback_chain` with `sources.fallback_chain`. An always-on definition with no level anywhere reports
   `approve-edits` with source `always_on_default`, the level its main instance session runs at;
   its sessions outside the instance still use `[permissions].mode`.
 

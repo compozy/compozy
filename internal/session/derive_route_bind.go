@@ -28,7 +28,7 @@ func (m *Manager) bindPendingRoute(
 		return nil, false, nil
 	}
 	agentName := session.Info().AgentName
-	routes := fallbackRoutesForAgent(plan.runtime.agentDef)
+	routes := fallbackRoutesForAgent(&plan.spec.workspace.Config, plan.runtime.agentDef)
 	if pending.Index > len(routes) {
 		return nil, true, m.restorePromptRuntime(
 			session, snapshot, newDeriveRouteError(agentName, len(routes), pending.Index),
