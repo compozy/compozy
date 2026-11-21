@@ -123,10 +123,10 @@ jobs:
       - name: Build identical reader probes against both commits
         run: |
           cp internal/store/sqlite_reader_contention_test.go baseline/internal/store/
-          go test -c -p 2 -tags=sqlite_reader_probe -o "$RUNNER_TEMP/reader-head" ./internal/store
+          go test -c -p 2 -o "$RUNNER_TEMP/reader-head" ./internal/store
           (
             cd baseline
-            go test -c -p 2 -tags=sqlite_reader_probe -o "$RUNNER_TEMP/reader-base" ./internal/store
+            go test -c -p 2 -o "$RUNNER_TEMP/reader-base" ./internal/store
           )
       - name: Measure reader latency and driver mutexes
         shell: bash
@@ -139,29 +139,32 @@ jobs:
           for trial in 1 2 3; do
             if (( trial % 2 )); then
               versions=(base head)
-              modes=(false true)
+              modes=(indexed scan)
             else
               versions=(head base)
-              modes=(true false)
+              modes=(scan indexed)
             fi
             for version in "${versions[@]}"; do
-              for scan in "${modes[@]}"; do
+              for mode in "${modes[@]}"; do
                 "$RUNNER_TEMP/reader-$version" -test.v -test.run '^TestSQLiteReaderContention$' \
-                  -sqlite-reader-scan="$scan" | tee "$out/$version-scan-$scan-$trial.txt"
+                  -sqlite-reader-mode="$mode" | tee "$out/$version-$mode-$trial.txt"
               done
             done
           done
           for version in base head; do
-            for scan in false true; do
+            for mode in indexed scan; do
               binary="$RUNNER_TEMP/reader-$version"
-              label="$version-scan-$scan"
-              profile="$out/$label.mutex.pb.gz"
+              label="$version-$mode"
+              prefix="$out/$label"
               "$binary" -test.v -test.run '^TestSQLiteReaderContention$' \
-                -sqlite-reader-scan="$scan" -sqlite-reader-mutex-profile="$profile" | tee "$out/$label-profile.txt"
-              go tool pprof -top -nodecount=10 "$binary" "$profile" > "$out/$label-top.txt"
-              go tool pprof -top -nodecount=10 -focus='pcache1' "$binary" "$profile" > "$out/$label-pcache.txt"
-              go tool pprof -top -nodecount=10 -focus='modernc.org/libc.X(malloc|free)$' \
-                "$binary" "$profile" > "$out/$label-allocator.txt"
+                -sqlite-reader-mode="$mode" -sqlite-reader-profile-prefix="$prefix" | tee "$prefix-profile.txt"
+              go tool pprof -top -nodecount=10 "$binary" "$prefix.mutex.pb.gz" > "$prefix-top.txt"
+              go tool pprof -top -cum -nodecount=10 -focus='pcache1' -show='pcache1|lib.mutexLeave$' \
+                "$binary" "$prefix.mutex.pb.gz" > "$prefix-pcache.txt"
+              go tool pprof -top -cum -nodecount=10 -show='modernc.org/libc.X(malloc|free)$' \
+                "$binary" "$prefix.mutex.pb.gz" > "$prefix-allocator.txt"
+              go tool pprof -top -cum -nodecount=15 -focus='measureReaderProbeOtherFiles' \
+                -show='pcache1|libc.X(malloc|free)$' "$binary" "$prefix.block.pb.gz" > "$prefix-other-file-waits.txt"
             done
           done
       - name: Publish reader probe samples

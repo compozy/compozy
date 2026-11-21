@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -13,11 +14,12 @@ const (
 	// DefaultSQLiteBusyTimeoutMS is the shared SQLite busy timeout in milliseconds.
 	DefaultSQLiteBusyTimeoutMS = defaultBusyTimeoutMS
 
-	sqliteDriverName     = "sqlite"
-	sqliteFileScheme     = "file"
-	defaultBusyTimeoutMS = 5000
-	defaultMaxOpenConns  = 8
-	defaultMaxIdleConns  = 8
+	sqliteDriverName      = "sqlite"
+	sqliteFileScheme      = "file"
+	defaultBusyTimeoutMS  = 5000
+	defaultMaxOpenConns   = 8
+	defaultMaxIdleConns   = 8
+	maxSQLiteReadMapBytes = 64 << 20
 )
 
 func sqliteDSN(path string, extraPragmas ...string) string {
@@ -56,12 +58,19 @@ func sqliteReadOnlyDSN(path string) string {
 	return u.String()
 }
 
-func sqliteQueryOnlyDSN(path string) string {
+func sqliteReadPoolDSN(path string, queryOnly bool) string {
 	u := url.URL{Scheme: sqliteFileScheme, Path: SqliteFilePath(path)}
 	query := u.Query()
 	query.Set("mode", "ro")
-	query.Add("_pragma", "query_only(ON)")
 	query.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", defaultBusyTimeoutMS))
+	if runtime.GOOS == "linux" {
+		// SQLite can fetch mapped database pages without taking its global page-cache
+		// mutex. WAL frames and pages beyond this per-file limit still use the pager.
+		query.Add("_pragma", fmt.Sprintf("mmap_size(%d)", maxSQLiteReadMapBytes))
+	}
+	if queryOnly {
+		query.Add("_pragma", "query_only(ON)")
+	}
 	u.RawQuery = query.Encode()
 	return u.String()
 }

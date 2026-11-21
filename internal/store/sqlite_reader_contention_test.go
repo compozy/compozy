@@ -1,5 +1,3 @@
-//go:build sqlite_reader_probe
-
 package store
 
 import (
@@ -32,8 +30,8 @@ const (
 )
 
 var (
-	readerProbeScan    = flag.Bool("sqlite-reader-scan", false, "run one continuous scan worker")
-	readerProbeProfile = flag.String("sqlite-reader-mutex-profile", "", "write a profile of the measured phase")
+	readerProbeMode    = flag.String("sqlite-reader-mode", "", "reader probe arm: indexed or scan")
+	readerProbeProfile = flag.String("sqlite-reader-profile-prefix", "", "output prefix for mutex and block profiles")
 )
 
 type readerProbeLookup struct {
@@ -41,9 +39,22 @@ type readerProbeLookup struct {
 	rows int
 }
 
+type readerProbeLatencies struct {
+	service   []time.Duration
+	scheduled []time.Duration
+}
+
 // TestSQLiteReaderContention owns the store-level independent readers probe.
 // CI runs each arm in a separate process for a clean runtime mutex profile.
 func TestSQLiteReaderContention(t *testing.T) {
+	switch *readerProbeMode {
+	case "":
+		t.Skip("set -sqlite-reader-mode to run the SQLite reader probe")
+	case "indexed", "scan":
+	default:
+		t.Fatalf("unknown reader probe mode %q", *readerProbeMode)
+	}
+
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 	dir := t.TempDir()
@@ -73,13 +84,13 @@ func TestSQLiteReaderContention(t *testing.T) {
 	}
 	if *readerProbeProfile != "" {
 		runtime.SetMutexProfileFraction(1)
-		defer runtime.SetMutexProfileFraction(0)
+		runtime.SetBlockProfileRate(1)
 	}
 	stopScan := make(chan struct{})
 	var scanner errgroup.Group
 	var scans int
 	var scanTime time.Duration
-	if *readerProbeScan {
+	if *readerProbeMode == "scan" {
 		scanning := make(chan struct{})
 		scanner.Go(func() error {
 			close(scanning)
@@ -102,11 +113,15 @@ func TestSQLiteReaderContention(t *testing.T) {
 
 	readers, readCtx := errgroup.WithContext(ctx)
 	workers := append(sameFile, otherFiles...)
-	samples := make([][]time.Duration, len(workers))
+	samples := make([]readerProbeLatencies, len(workers))
 	start := time.Now()
 	for worker, lookups := range workers {
 		readers.Go(func() error {
-			durations, err := measureReaderProbeLookups(readCtx, lookups, worker)
+			measure := measureReaderProbeLookups
+			if worker >= len(sameFile) {
+				measure = measureReaderProbeOtherFiles
+			}
+			durations, err := measure(readCtx, lookups, worker, start)
 			samples[worker] = durations
 			return err
 		})
@@ -117,14 +132,17 @@ func TestSQLiteReaderContention(t *testing.T) {
 	scanErr := scanner.Wait()
 	if *readerProbeProfile != "" {
 		runtime.SetMutexProfileFraction(0)
-		if err := writeReaderProbeProfile(*readerProbeProfile); err != nil {
-			t.Error(err)
+		runtime.SetBlockProfileRate(0)
+		for _, kind := range []string{"mutex", "block"} {
+			if err := writeReaderProbeProfile(*readerProbeProfile+"."+kind+".pb.gz", kind); err != nil {
+				t.Error(err)
+			}
 		}
 	}
 	if err := errors.Join(readErr, scanErr); err != nil {
 		t.Fatal(err)
 	}
-	if *readerProbeScan && scans == 0 {
+	if *readerProbeMode == "scan" && scans == 0 {
 		t.Fatal("the scan worker completed no reads")
 	}
 	t.Logf("reader-probe elapsed=%v scans=%d scan_time=%v", elapsed, scans, scanTime)
@@ -211,52 +229,71 @@ func runReaderProbeScan(ctx context.Context, scan *sql.Stmt) error {
 }
 
 func measureReaderProbeLookups(
-	ctx context.Context, lookups []readerProbeLookup, worker int,
-) ([]time.Duration, error) {
-	samples := make([]time.Duration, 0, readerProbeSamples)
-	ticker := time.NewTicker(readerProbeInterval)
-	defer ticker.Stop()
+	ctx context.Context, lookups []readerProbeLookup, worker int, start time.Time,
+) (readerProbeLatencies, error) {
+	samples := readerProbeLatencies{
+		service:   make([]time.Duration, 0, readerProbeSamples),
+		scheduled: make([]time.Duration, 0, readerProbeSamples),
+	}
+	timer := time.NewTimer(readerProbeInterval)
+	defer timer.Stop()
 	for sample := range readerProbeSamples {
+		due := start.Add(time.Duration(sample+1) * readerProbeInterval)
+		timer.Reset(time.Until(due))
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-ticker.C:
+			return samples, ctx.Err()
+		case <-timer.C:
 		}
 		lookup := lookups[sample%len(lookups)]
 		id := (sample*4_099+worker*29)%lookup.rows + 1
 		var bytes int
-		start := time.Now()
+		started := time.Now()
 		err := lookup.stmt.QueryRowContext(ctx, id).Scan(&bytes)
-		elapsed := time.Since(start)
+		ended := time.Now()
 		if err != nil {
-			return nil, fmt.Errorf("indexed read for row %d: %w", id, err)
+			return samples, fmt.Errorf("indexed read for row %d: %w", id, err)
 		}
 		want := readerProbePayload
 		if id > lookup.rows-lookup.rows/16 {
 			want++
 		}
 		if bytes != want {
-			return nil, fmt.Errorf("row %d payload bytes = %d, want %d", id, bytes, want)
+			return samples, fmt.Errorf("row %d payload bytes = %d, want %d", id, bytes, want)
 		}
-		samples = append(samples, elapsed)
+		samples.service = append(samples.service, ended.Sub(started))
+		samples.scheduled = append(samples.scheduled, ended.Sub(due))
 	}
 	return samples, nil
 }
 
-func logReaderProbeLatencies(t *testing.T, cohort string, batches [][]time.Duration, elapsed time.Duration) {
-	t.Helper()
-	samples := slices.Concat(batches...)
-	slices.Sort(samples)
-	percentile := func(p int) time.Duration { return samples[(len(samples)*p+99)/100-1] }
-	t.Logf("reader-probe cohort=%s n=%d reads/sec=%.1f p50=%v p95=%v p99=%v max=%v",
-		cohort, len(samples), float64(len(samples))/elapsed.Seconds(),
-		percentile(50), percentile(95), percentile(99), percentile(100))
+// Keep a named frame so the block profile can identify readers on other files.
+func measureReaderProbeOtherFiles(
+	ctx context.Context, lookups []readerProbeLookup, worker int, start time.Time,
+) (readerProbeLatencies, error) {
+	return measureReaderProbeLookups(ctx, lookups, worker, start)
 }
 
-func writeReaderProbeProfile(path string) error {
+func logReaderProbeLatencies(t *testing.T, cohort string, batches []readerProbeLatencies, elapsed time.Duration) {
+	t.Helper()
+	var samples, scheduled []time.Duration
+	for _, batch := range batches {
+		samples = append(samples, batch.service...)
+		scheduled = append(scheduled, batch.scheduled...)
+	}
+	slices.Sort(samples)
+	slices.Sort(scheduled)
+	percentile := func(p int) int { return (len(samples)*p+99)/100 - 1 }
+	t.Logf("reader-probe cohort=%s n=%d reads/sec=%.1f p50=%v p95=%v p99=%v max=%v scheduled_p99=%v scheduled_max=%v",
+		cohort, len(samples), float64(len(samples))/elapsed.Seconds(),
+		samples[percentile(50)], samples[percentile(95)], samples[percentile(99)], samples[percentile(100)],
+		scheduled[percentile(99)], scheduled[percentile(100)])
+}
+
+func writeReaderProbeProfile(path string, kind string) error {
 	file, err := os.Create(path)
 	if err != nil {
-		return fmt.Errorf("create mutex profile: %w", err)
+		return fmt.Errorf("create %s profile: %w", kind, err)
 	}
-	return errors.Join(pprof.Lookup("mutex").WriteTo(file, 0), file.Close())
+	return errors.Join(pprof.Lookup(kind).WriteTo(file, 0), file.Close())
 }

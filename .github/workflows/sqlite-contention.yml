@@ -16,12 +16,17 @@ on:
       - "go.mod"
       - "go.sum"
   workflow_dispatch:
+    inputs:
+      mutex_profile:
+        description: "Capture a daemon mutex profile during the thirty-session exercise (#1630)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: sqlite-contention-${{ github.ref }}
+  group: sqlite-contention-${{ github.ref }}-${{ inputs.mutex_profile && 'profile' || 'acceptance' }}
   cancel-in-progress: true
 
 env:
@@ -30,7 +35,7 @@ env:
 
 jobs:
   daemon-load:
-    name: SQLite real daemon thirty-session exercise
+    name: ${{ inputs.mutex_profile && 'SQLite profiled daemon thirty-session exercise' || 'SQLite real daemon thirty-session exercise' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -46,11 +51,29 @@ jobs:
           go build -p 2 -o "$RUNNER_TEMP/sqlite-bin/compozy" ./cmd/compozy
           go build -p 2 -o "$RUNNER_TEMP/sqlite-bin/acpmock-driver" ./internal/testutil/acpmock/cmd/acpmock-driver
       - name: Exercise the isolated public surfaces and clean restart
+        env:
+          MUTEX_PROFILE: ${{ inputs.mutex_profile || false }}
         run: |
+          profile_args=()
+          if test "$MUTEX_PROFILE" = true; then
+            profile_args+=(--mutex-profile)
+          fi
           python3 scripts/sqlite-contention/qa.py \
             --binary "$RUNNER_TEMP/sqlite-bin/compozy" \
             --driver "$RUNNER_TEMP/sqlite-bin/acpmock-driver" \
-            --output "$RUNNER_TEMP/sqlite-daemon-qa"
+            --output "$RUNNER_TEMP/sqlite-daemon-qa" "${profile_args[@]}"
+      - name: Summarize daemon mutex delay
+        if: inputs.mutex_profile
+        run: |
+          binary="$RUNNER_TEMP/sqlite-bin/compozy"
+          profile="$RUNNER_TEMP/sqlite-daemon-qa/daemon-mutex.pprof"
+          {
+            printf '```text\n'
+            go tool pprof -top -nodecount=15 "$binary" "$profile"
+            go tool pprof -top -nodecount=10 -focus='pcache1' "$binary" "$profile"
+            go tool pprof -top -nodecount=10 -focus='modernc.org/libc.X(malloc|free)$' "$binary" "$profile"
+            printf '\n```\n'
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -58,6 +81,7 @@ jobs:
           path: |
             ${{ runner.temp }}/sqlite-daemon-qa/*.json
             ${{ runner.temp }}/sqlite-daemon-qa/*.log
+            ${{ runner.temp }}/sqlite-daemon-qa/*.pprof
             ${{ runner.temp }}/sqlite-daemon-qa/manifest-path.txt
             ${{ runner.temp }}/sqlite-daemon-qa/labs/**/qa-artifacts/**
           retention-days: 14

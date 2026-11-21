@@ -28,9 +28,6 @@ func (c *sqliteReadConnector) Connect(ctx context.Context) (driver.Conn, error) 
 	if !ok {
 		return nil, errors.Join(errors.New("store: SQLite read connection lacks context execution"), conn.Close())
 	}
-	if _, err := exec.ExecContext(ctx, "PRAGMA busy_timeout = 5000", nil); err != nil {
-		return nil, errors.Join(err, conn.Close())
-	}
 	for _, initialize := range c.initializers {
 		if err := initialize(ctx, exec); err != nil {
 			return nil, errors.Join(err, conn.Close())
@@ -50,7 +47,7 @@ func openInitializedSQLiteReadPool(
 	if err := sqliteUnicodeSearchRegistrationErr; err != nil {
 		return nil, err
 	}
-	connector, err := sqlite.NewConnector(sqliteReadOnlyDSN(path))
+	connector, err := sqlite.NewConnector(sqliteReadPoolDSN(path, false))
 	if err != nil {
 		return nil, fmt.Errorf("store: initialize read connector: %w", err)
 	}

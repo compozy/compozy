@@ -273,7 +273,21 @@ func exerciseContentionStreams(t *testing.T, h *RuntimeHarness, ids []string, ou
 		t.Fatal("streams did not overlap for the required 20-second read window")
 	}
 	samples := &contentionRouteSamples{values: make(map[string][]float64)}
+	var profile sync.WaitGroup
+	var profileErr error
+	if path := os.Getenv("COMPOZY_SQLITE_CONTENTION_MUTEX_PROFILE"); path != "" {
+		profile.Go(func() {
+			_, stderr, err := h.CLI.Run(ctx, "daemon", "profile", "mutex", "--seconds", "15", "--file", path)
+			if err != nil {
+				profileErr = fmt.Errorf("capture mutex profile during concurrent routes: %w: %s", err, stderr)
+			}
+		})
+	}
 	readContentionRoutes(h, ids, samples, 20*time.Second)
+	profile.Wait()
+	if profileErr != nil {
+		t.Error(profileErr)
+	}
 	prompts.Wait()
 	close(errorsCh)
 	for err := range errorsCh {

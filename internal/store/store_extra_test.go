@@ -648,7 +648,16 @@ INSERT INTO items SELECT i%10 FROM fixture`); err != nil {
 				t.Error(err)
 			}
 		})
-		reader, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+		readPool, err := OpenSQLiteReadPool(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := readPool.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		reader, err := readPool.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 		if err != nil {
 			t.Fatal(err)
 		}
