@@ -7,7 +7,6 @@ import { useDocumentActive } from "@/hooks/use-document-active";
 import { notifyUser } from "@/lib/user-feedback";
 import { cachedSessionOpenPullRequestNumber, isNeedsYouBadge } from "@/systems/session";
 
-import { AttentionToast, AttentionToastOverflowLedge } from "../components/attention-toast";
 import {
   createAttentionDeliveryEngine,
   type AttentionDelivery,
@@ -16,6 +15,7 @@ import {
   type AttentionDeliveryTarget,
 } from "../lib/attention-delivery";
 import { subscribeAttentionEdges, subscribeOperatorNotifications } from "../lib/attention-edge-bus";
+import type { PresentAttentionToast } from "../lib/attention-toast-request";
 import { systemNotificationContent } from "../lib/attention-notification-content";
 import { createAttentionSoundPlayer } from "../lib/attention-sound";
 import {
@@ -32,7 +32,6 @@ import { useAttentionPolicy } from "./use-attention-policy";
 import { useLayoutUpgradeToast } from "./use-layout-upgrade-toast";
 import { useAgentIdentityResolverView } from "@/systems/agent/hooks/use-agent-identity-view";
 
-const TOAST_DURATION_MS = 8_000;
 export const MAX_VISIBLE_NEEDS_YOU_TOASTS = 4;
 
 export interface AttentionToastPlan {
@@ -117,6 +116,8 @@ export interface UseAttentionNotifierOptions {
   focusedSessionId: string | null;
   onOpenBell: () => void;
   bellOpen: boolean;
+  /** The components layer's toast entry; this hook hands it plain toast requests. */
+  presentToast: PresentAttentionToast;
 }
 
 /**
@@ -136,6 +137,7 @@ export function useAttentionNotifier({
   focusedSessionId,
   onOpenBell,
   bellOpen,
+  presentToast,
 }: UseAttentionNotifierOptions): void {
   const policy = useAttentionPolicy();
   const queryClient = useQueryClient();
@@ -188,6 +190,7 @@ export function useAttentionNotifier({
     toasts: policy.toasts,
     mutedWorkspaceIds: policy.mutedWorkspaceIds,
     onOpenBell,
+    presentToast,
   });
 
   const render = (batch: AttentionDelivery[]) => {
@@ -195,34 +198,19 @@ export function useAttentionNotifier({
     if (policy.toasts && !bellOpen) {
       const plan = planAttentionToasts(batch);
       if (plan.overflowNeedsYou > 0) {
-        toast.custom(
-          id => (
-            <AttentionToastOverflowLedge
-              count={plan.overflowNeedsYou}
-              onActivate={() => {
-                toast.dismiss(id);
-                onOpenBell();
-              }}
-            />
-          ),
-          {
-            id: `attention-overflow:${batch.map(delivery => delivery.key).join(",")}`,
-            duration: TOAST_DURATION_MS,
-            closeButton: false,
-            dismissible: false,
-          }
-        );
+        presentToast({
+          kind: "overflow",
+          id: `attention-overflow:${batch.map(delivery => delivery.key).join(",")}`,
+          count: plan.overflowNeedsYou,
+          onActivate: onOpenBell,
+        });
       }
       for (const delivery of plan.deliveries) {
-        toast.custom(
-          () => (
-            <AttentionToast
-              delivery={delivery}
-              onActivate={() => activate(delivery, jump, onOpenBell, contextRef.current.resolve)}
-            />
-          ),
-          { id: delivery.key, duration: TOAST_DURATION_MS }
-        );
+        presentToast({
+          kind: "delivery",
+          delivery,
+          onActivate: () => activate(delivery, jump, onOpenBell, contextRef.current.resolve),
+        });
       }
     }
     // System alerts escalate only while the app cannot show a toast the
