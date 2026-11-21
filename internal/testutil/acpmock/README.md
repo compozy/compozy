@@ -114,6 +114,11 @@ model; without it every model keeps one shared value list.
   must stay possible.
 - Nested `when_selected` entries are honored, so switching back can restore the first
   model's values.
+- Replacements are indexed by option id and value across the whole tree, so every
+  `when_selected` for the same value must be identical; validation rejects a conflicting
+  repeat and names both paths.
+- `reject_set` inside a replacement applies while that replacement is the active set, and
+  the rejected selection leaves the current value unchanged.
 - Validation rejects a replacement whose `current` is not listed in its `values`, reporting
   `...config_options[i].values[j].when_selected[k]`.
 - Sessions stay isolated: another session keeps the advertised template.

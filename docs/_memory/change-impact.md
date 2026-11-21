@@ -2382,6 +2382,13 @@ is `docs/qa/reports/2026-11-17-agy-native-acp-consented.md` with persistent evid
 exclusions recorded there (provisioning a new Google account, native execution outside Linux);
 `RT-agy-acp-provider` stays `untested` until its remaining `missing_cli`/no-fallback and
 hosted-MCP switch legs are walked.
+PR #1913 review remediation (2026-11-21): the native boundary also refuses `deny` permission rules
+under approve-all and recognizes the `antigravity` executable name; `interaction_*` permission
+requests are Antigravity questions routed to the operator through the existing clarify broker, never
+auto-answered; every AGY session sends `_meta.antigravity.disabledTools = ["run_workflow"]`; explicit
+provider config refusals classify as `session_config_option_rejected`, and a refusal caused only by
+agent-definition options gets agent-definition guidance under the same public code. No new route,
+DTO, key, tool ID, or schema.
 
 Owner: PR #773. The additive `agy` built-in launches the supplied `agy_acp_server`, uses
 protocol-owned native login, and discovers exact model/configuration options through ACP. Provider

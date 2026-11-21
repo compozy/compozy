@@ -238,17 +238,12 @@ func (m *Manager) startResumedSession(
 		spec.resumeReplay = true
 	}
 
+	optionSource := captureResumeOptionSource(spec)
 	session, err := m.startSession(ctx, spec)
 	if err == nil {
 		return session, nil
 	}
-	if errors.Is(err, acp.ErrSessionConfigOptionRejected) && resumeUsesRetainedOptions(spec) {
-		err = fmt.Errorf(
-			"%w: reselect this session's runtime to confirm its ACP options for the current route",
-			err,
-		)
-	}
-	return m.recoverFailedResumeStart(ctx, target, meta, err)
+	return m.recoverFailedResumeStart(ctx, target, meta, optionSource.guide(err))
 }
 
 func (m *Manager) recoverFailedResumeStart(
@@ -300,9 +295,10 @@ func (m *Manager) resumeWithContextReplay(
 	fallbackSpec.resumeReplay = true
 	fallbackSpec.resumeReplayReason = resumeFallbackReason(startErr)
 
+	optionSource := captureResumeOptionSource(&fallbackSpec)
 	session, err := m.startSession(ctx, &fallbackSpec)
 	if err != nil {
-		return nil, errors.Join(startErr, err)
+		return nil, errors.Join(startErr, optionSource.guide(err))
 	}
 	return session, nil
 }

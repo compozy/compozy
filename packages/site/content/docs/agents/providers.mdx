@@ -188,7 +188,16 @@ A native `agy acp` session requires **Full access**. The CLI runs its own tool w
 the host even in its `plan` mode, so CompozyOS refuses to start that route under `deny-all`,
 `approve-reads`, `approve-edits`, or `auto` before any prompt rather than claim an approval boundary
 it cannot enforce. Keep a narrower policy on a route you configure yourself whose tool calls return
-through CompozyOS, and never raise an agent's own policy to work around the refusal.
+through CompozyOS, and never raise an agent's own policy to work around the refusal. The same
+reasoning refuses a `deny` entry in `permission_rules` on that route even under **Full access**;
+`allow` entries are accepted because they never narrow what runs. The check recognizes the CLI
+under either executable name Google ships, `agy` or `antigravity`.
+
+When Antigravity asks a question, it sends a permission request whose options are the possible
+answers. CompozyOS routes that question to you as a choice prompt under every policy, including
+**Full access**, and cancels it when no one can answer instead of picking an answer for you.
+Every Antigravity session also turns off the CLI's `run_workflow` tool, which would otherwise write
+`skills/system/run-workflow/SKILL.md` into your workspace.
 
 ### GitHub Copilot CLI
 

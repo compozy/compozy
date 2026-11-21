@@ -465,6 +465,73 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 		}
 	})
 
+	// A reannounced set carries its own reject_set rules: the scripted failure applies once
+	// the replacement that advertises the value is active, and the selection stays unchanged.
+	t.Run("Should reject a reannounced value scripted with reject_set", func(t *testing.T) {
+		t.Parallel()
+
+		models := []acpmock.SessionConfigOptionValueFixture{{Value: "qa-argon"}, {Value: "qa-hydrogen"}}
+		models[1].WhenSelected = []acpmock.SessionConfigOptionFixture{
+			{ID: "model", Name: "Model", Current: "qa-hydrogen", Values: []acpmock.SessionConfigOptionValueFixture{
+				{Value: "qa-argon"}, {Value: "qa-hydrogen"},
+			}},
+			{ID: "thought_level", Name: "Thinking", Current: "medium", Values: []acpmock.SessionConfigOptionValueFixture{
+				{Value: "low"}, {Value: "medium"}, {Value: "xhigh", RejectSet: true},
+			}},
+		}
+		base := []acpmock.SessionConfigOptionFixture{
+			{ID: "model", Name: "Model", Current: "qa-argon", Values: models},
+			{ID: "thought_level", Name: "Thinking", Current: "medium", Values: []acpmock.SessionConfigOptionValueFixture{
+				{Value: "low"}, {Value: "medium"},
+			}},
+		}
+		agent := &mockAgent{
+			agent:            acpmock.AgentFixture{Name: "nested-reject", ConfigOptions: base},
+			configTemplate:   sessionConfigOptionsFromFixture(base),
+			configReannounce: sessionConfigReannouncements(base),
+			diagnosticsPath:  filepath.Join(t.TempDir(), "config-options.jsonl"),
+			sessions:         map[string]*sessionState{},
+		}
+		session, err := agent.NewSession(t.Context(), acpsdk.NewSessionRequest{})
+		if err != nil {
+			t.Fatalf("NewSession() error = %v", err)
+		}
+		selectValue := func(configID string, value string) (acpsdk.SetSessionConfigOptionResponse, error) {
+			return agent.SetSessionConfigOption(
+				t.Context(),
+				acpsdk.SetSessionConfigOptionRequest{
+					ValueId: &acpsdk.SetSessionConfigOptionValueId{
+						SessionId: session.SessionId,
+						ConfigId:  acpsdk.SessionConfigId(configID),
+						Value:     acpsdk.SessionConfigValueId(value),
+					},
+				},
+			)
+		}
+
+		hydrogen, err := selectValue("model", "qa-hydrogen")
+		if err != nil {
+			t.Fatalf("SetSessionConfigOption(model=qa-hydrogen) error = %v", err)
+		}
+		if got := thoughtLevelValues(hydrogen.ConfigOptions); !slices.Equal(got, []string{"low", "medium", "xhigh"}) {
+			t.Fatalf("Hydrogen thought_level values = %#v, want the reannounced xhigh", got)
+		}
+		if _, err := selectValue("thought_level", "xhigh"); err == nil ||
+			!strings.Contains(err.Error(), "rejected by fixture") {
+			t.Fatalf("SetSessionConfigOption(thought_level=xhigh) error = %v, want the scripted rejection", err)
+		}
+		for _, option := range agent.sessionConfigOptions(string(session.SessionId)) {
+			if option.Select != nil && string(option.Select.Id) == "thought_level" &&
+				option.Select.CurrentValue != acpsdk.SessionConfigValueId("medium") {
+				t.Fatalf("thought_level current = %q, want medium kept after the rejection",
+					option.Select.CurrentValue)
+			}
+		}
+		if _, err := selectValue("thought_level", "low"); err != nil {
+			t.Fatalf("SetSessionConfigOption(thought_level=low) error = %v, want accepted", err)
+		}
+	})
+
 	// The AGY browser journey runs under the AGY agent's approve-all policy, so startup
 	// selects the advertised unrestricted `auto` mode before the model; each model
 	// replacement set must keep it instead of resetting to the advertised default.

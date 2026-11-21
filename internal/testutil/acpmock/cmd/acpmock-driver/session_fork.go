@@ -38,7 +38,7 @@ func (a *mockAgent) UnstableForkSession(
 	a.mu.Lock()
 	a.nextSession++
 	cloneID := fmt.Sprintf("%s-fork-%d", a.agent.Name, a.nextSession)
-	a.sessions[cloneID] = &sessionState{ConfigOptions: cloneSessionConfigOptions(a.configTemplate)}
+	a.sessions[cloneID] = a.newSessionState()
 	a.mu.Unlock()
 	clone := acpsdk.SessionId(cloneID)
 	for _, update := range []acpsdk.SessionUpdate{

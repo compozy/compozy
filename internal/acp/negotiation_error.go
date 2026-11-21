@@ -105,8 +105,17 @@ func IsConfigurationRejection(err error) bool {
 	if !ok || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return false
 	}
-	cause := negotiationErr.Cause
-	if cause == nil || errors.Is(cause, errConfigOptionUnconfirmed) ||
+	return negotiationErr.Cause == nil || isConfigRejectionCause(negotiationErr.Cause)
+}
+
+// isConfigRejectionCause reports a provider refusal of a config value: an unconfirmed or
+// read-only selection or an invalid-params response. Cancellation, deadlines, and other
+// transport failures are not refusals.
+func isConfigRejectionCause(cause error) bool {
+	if errors.Is(cause, context.DeadlineExceeded) || errors.Is(cause, context.Canceled) {
+		return false
+	}
+	if errors.Is(cause, errConfigOptionUnconfirmed) ||
 		errors.Is(cause, errModelConfigOptionRequired) || errors.Is(cause, errModelConfigOptionReadOnly) {
 		return true
 	}

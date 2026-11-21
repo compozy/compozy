@@ -246,6 +246,20 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 				payload, sessionConfigOptionRejectedCode)
 		}
 	})
+	t.Run("Should point an agent-definition option refusal at the agent definition", func(t *testing.T) {
+		t.Parallel()
+
+		err := fmt.Errorf("session: resume: %w: %w: config option rejected",
+			session.ErrAgentACPOptionRejected, acp.ErrSessionConfigOptionRejected)
+		if got := statusForSessionError(err); got != http.StatusUnprocessableEntity {
+			t.Fatalf("statusForSessionError(agent option refusal) = %d, want %d",
+				got, http.StatusUnprocessableEntity)
+		}
+		payload := ErrorPayloadForStatus(http.StatusUnprocessableEntity, err, true)
+		if payload.Code != sessionConfigOptionRejectedCode || payload.Error != agentOptionGuidance {
+			t.Fatalf("ErrorPayloadForStatus(agent option refusal) = %#v, want agent-definition guidance", payload)
+		}
+	})
 	t.Run("Should keep a classified failure over a joined config refusal", func(t *testing.T) {
 		t.Parallel()
 

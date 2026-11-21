@@ -588,6 +588,7 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 		{name: "Should start without selecting an ambiguous mode option", scenario: "full_access_mode_duplicate", value: "bypassPermissions"},
 		{name: "Should select a uniquely advertised unrestricted mode", scenario: "full_access_mode_available", value: "bypassPermissions", wantSelection: true},
 		{name: "Should reject an unavailable value on a unique mode option", scenario: "full_access_mode_unavailable", value: "bypassPermissions", wantError: "does not allow value"},
+		{name: "Should classify a provider refusal of an advertised mode", scenario: "full_access_mode_rejected", value: "bypassPermissions", wantError: "provider refused the mode"},
 		{name: "Should reject a missing narrower mode option", scenario: "config_options", value: "plan", wantError: "not uniquely advertised"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -3717,8 +3718,21 @@ func TestStartNativeAgyRefusesUnenforceablePolicies(t *testing.T) {
 		permissions compozyconfig.PermissionMode
 		gateway     bool
 		options     []SessionConfigOptionSelection
+		rules       []compozyconfig.PermissionRule
 	}{
 		{name: "Should refuse deny-all", permissions: compozyconfig.PermissionModeDenyAll},
+		{
+			name: "Should refuse a deny rule under approve-all", permissions: compozyconfig.PermissionModeApproveAll,
+			rules: []compozyconfig.PermissionRule{{Kind: "execute", Decision: "deny"}},
+		},
+		{
+			name:        "Should refuse a deny rule beside allow rules under approve-all",
+			permissions: compozyconfig.PermissionModeApproveAll,
+			rules: []compozyconfig.PermissionRule{
+				{Kind: "read", Decision: "allow"},
+				{Kind: "edit", Decision: "deny"},
+			},
+		},
 		{name: "Should refuse deny-all with a tool gateway", permissions: compozyconfig.PermissionModeDenyAll, gateway: true},
 		{name: "Should refuse approve-reads", permissions: compozyconfig.PermissionModeApproveReads},
 		{name: "Should refuse approve-reads with a tool gateway", permissions: compozyconfig.PermissionModeApproveReads, gateway: true},
@@ -3762,14 +3776,15 @@ func TestStartNativeAgyRefusesUnenforceablePolicies(t *testing.T) {
 				command = "agy acp"
 			}
 			proc, err := driver.Start(t.Context(), StartOpts{
-				AgentName:    "helper",
-				ProviderName: provider,
-				Command:      command,
-				Cwd:          t.TempDir(),
-				Env:          helperEnvWithCapture("agy_native_modes", "", captureFile),
-				Permissions:  tc.permissions,
-				ACPOptions:   tc.options,
-				ToolGateway:  gatewayOpt,
+				AgentName:        "helper",
+				ProviderName:     provider,
+				Command:          command,
+				Cwd:              t.TempDir(),
+				Env:              helperEnvWithCapture("agy_native_modes", "", captureFile),
+				Permissions:      tc.permissions,
+				ACPOptions:       tc.options,
+				ToolGateway:      gatewayOpt,
+				PermissionPolicy: &StartPermissionPolicy{Rules: tc.rules},
 			})
 			if proc != nil {
 				t.Fatalf("Start() process = %+v, want no process for an unenforceable policy", proc)
@@ -3797,10 +3812,16 @@ func TestNativeAgyPolicyGateAllowsSupportedStarts(t *testing.T) {
 		command     string
 		permissions compozyconfig.PermissionMode
 		inspection  bool
+		rules       []compozyconfig.PermissionRule
 	}{
 		{
 			name: "Should allow approve-all for the native CLI", command: "agy acp",
 			permissions: compozyconfig.PermissionModeApproveAll,
+		},
+		{
+			name: "Should allow approve-all with allow-only rules for the native CLI", command: "agy acp",
+			permissions: compozyconfig.PermissionModeApproveAll,
+			rules:       []compozyconfig.PermissionRule{{Kind: "execute", Decision: "allow"}},
 		},
 		{
 			name: "Should allow promptless inspection for the native CLI", command: "agy acp",
@@ -3819,11 +3840,12 @@ func TestNativeAgyPolicyGateAllowsSupportedStarts(t *testing.T) {
 			t.Parallel()
 
 			opts := StartOpts{
-				AgentName:   "helper",
-				Command:     tc.command,
-				Cwd:         t.TempDir(),
-				Permissions: tc.permissions,
-				Inspection:  tc.inspection,
+				AgentName:        "helper",
+				Command:          tc.command,
+				Cwd:              t.TempDir(),
+				Permissions:      tc.permissions,
+				Inspection:       tc.inspection,
+				PermissionPolicy: &StartPermissionPolicy{Rules: tc.rules},
 			}
 			if _, err := normalizeStartOpts(opts); err != nil {
 				t.Fatalf("normalizeStartOpts() error = %v, want an allowed start", err)
@@ -4019,4 +4041,40 @@ func TestClaudeRuntimeMCPIsolationMeta(t *testing.T) {
 			)
 		}
 	}
+}
+
+// Invariant: every Antigravity session setup disables run_workflow, which writes its own skill
+// file into the workspace, and other runtimes keep their own `_meta`.
+// Owner: ACP metadata; canonical suite: client start contract.
+func TestAgySessionSetupMeta(t *testing.T) {
+	t.Parallel()
+
+	for _, opts := range []StartOpts{
+		{ProviderName: "agy", Command: "agy acp"},
+		{ProviderName: "agy", Command: "agy_acp_server.par --uid="},
+		{ProviderName: "google", Command: "antigravity acp"},
+		{ProviderName: "custom", ProviderConfig: &compozyconfig.ProviderConfig{Command: "agy acp"}},
+	} {
+		t.Run("Should disable run_workflow for "+opts.ProviderName+" "+opts.Command, func(t *testing.T) {
+			t.Parallel()
+			meta, ok := sessionSetupMeta(opts).(map[string]any)
+			if !ok {
+				t.Fatalf("sessionSetupMeta(%+v) = %#v, want Antigravity meta", opts, sessionSetupMeta(opts))
+			}
+			disabled, _ := meta["antigravity"].(map[string]any)["disabledTools"].([]string)
+			if !slices.Equal(disabled, []string{"run_workflow"}) {
+				t.Fatalf("disabledTools = %#v, want [run_workflow]", disabled)
+			}
+		})
+	}
+	t.Run("Should keep Claude meta and leave other runtimes without Antigravity meta", func(t *testing.T) {
+		t.Parallel()
+		claude, ok := sessionSetupMeta(StartOpts{ProviderName: "claude", Command: "claude-agent-acp"}).(map[string]any)
+		if !ok || claude["claudeCode"] == nil || claude["antigravity"] != nil {
+			t.Fatalf("claude meta = %#v, want only claudeCode", claude)
+		}
+		if meta := sessionSetupMeta(StartOpts{ProviderName: "codex", Command: "codex-acp"}); meta != nil {
+			t.Fatalf("codex meta = %#v, want nil", meta)
+		}
+	})
 }

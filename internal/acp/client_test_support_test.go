@@ -1283,6 +1283,9 @@ func (a *helperACPAgent) SetSessionConfigOption(
 		}()
 		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
 	}
+	if a.scenario == "full_access_mode_rejected" {
+		return acpsdk.SetSessionConfigOptionResponse{}, acpsdk.NewInvalidParams("provider refused the mode")
+	}
 	if a.scenario == "config_options_unconfirmed" || a.scenario == "triage_config_unconfirmed" {
 		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
 	}

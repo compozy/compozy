@@ -93,9 +93,7 @@ func (a *mockAgent) ensurePromptSession(sessionID string) {
 
 	session := a.sessions[sessionID]
 	if session == nil {
-		session = &sessionState{
-			ConfigOptions: cloneSessionConfigOptions(a.configTemplate),
-		}
+		session = a.newSessionState()
 		a.sessions[sessionID] = session
 	}
 }
@@ -130,9 +128,7 @@ func (a *mockAgent) registerPromptCancel(sessionID string, cancel context.Cancel
 
 	session := a.sessions[sessionID]
 	if session == nil {
-		session = &sessionState{
-			ConfigOptions: cloneSessionConfigOptions(a.configTemplate),
-		}
+		session = a.newSessionState()
 		a.sessions[sessionID] = session
 	}
 	a.nextCancel++
@@ -162,7 +158,7 @@ func (a *mockAgent) selectTurn(
 
 	session := a.sessions[sessionID]
 	if session == nil {
-		session = &sessionState{}
+		session = a.newSessionState()
 		a.sessions[sessionID] = session
 	}
 	promptIndex := session.PromptCount + 1

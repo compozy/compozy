@@ -293,6 +293,9 @@ func TestNativeAgyACPCommand(t *testing.T) {
 		"agy --flag=value acp",
 		"C:/tools/agy.exe acp",
 		"agy.cmd acp",
+		"antigravity acp",
+		"/opt/antigravity/bin/antigravity --gemini-dir=/tmp/g acp",
+		"C:/tools/antigravity.exe acp",
 	}
 	for _, command := range native {
 		t.Run("Should recognize native command "+command, func(t *testing.T) {
@@ -312,6 +315,8 @@ func TestNativeAgyACPCommand(t *testing.T) {
 		"agy_acp_server.par",
 		"/opt/agy/bin/agy_acp_server.par --uid=1",
 		"agy-wrapper acp",
+		"antigravity",
+		"antigravity-ide acp",
 		"npx agy acp",
 		"env AGY_HOME=/tmp agy acp",
 		"bash -c 'agy acp'",

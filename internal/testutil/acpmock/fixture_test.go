@@ -529,6 +529,11 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","config_options":[{"id":"model","name":"Model","current":"argon","values":[{"value":"argon"},{"value":"hydrogen","when_selected":[{"id":"thought_level","name":"Thinking","current":"xhigh","values":[{"value":"low"}]}]}]}],"turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
 			want: "when_selected[0].current",
 		},
+		{
+			name: "Should reject conflicting reannouncements for one option value",
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"agy","config_options":[{"id":"mode","name":"Mode","current":"a","values":[{"value":"a","when_selected":[{"id":"model","name":"Model","current":"hydrogen","values":[{"value":"hydrogen","when_selected":[{"id":"thought_level","name":"Thinking","current":"low","values":[{"value":"low"},{"value":"high"}]}]}]}]},{"value":"b","when_selected":[{"id":"model","name":"Model","current":"hydrogen","values":[{"value":"hydrogen","when_selected":[{"id":"thought_level","name":"Thinking","current":"low","values":[{"value":"low"},{"value":"high"},{"value":"xhigh"}]}]}]}]}]}],"turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
+			want: `conflicts with agents[0].config_options[0].values[0].when_selected[0].values[0].when_selected for model="hydrogen"`,
+		},
 	}
 
 	for _, tc := range cases {
@@ -570,6 +575,14 @@ func TestParseFixtureAcceptsPerModelConfigOptions(t *testing.T) {
 		if thoughtLevel.ID != "thought_level" || thoughtLevel.Category != "thought_level" ||
 			len(thoughtLevel.Values) != 4 {
 			t.Fatalf("thought_level reannouncement = %#v, want four model-specific levels", thoughtLevel)
+		}
+	})
+
+	t.Run("Should accept identical reannouncements repeated across branches", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := ParseFixture([]byte(`{"version":2,"agents":[{"name":"alpha","provider":"agy","config_options":[{"id":"mode","name":"Mode","current":"a","values":[{"value":"a","when_selected":[{"id":"model","name":"Model","current":"hydrogen","values":[{"value":"hydrogen","when_selected":[{"id":"thought_level","name":"Thinking","current":"low","values":[{"value":"low"},{"value":"high"}]}]}]}]},{"value":"b","when_selected":[{"id":"model","name":"Model","current":"hydrogen","values":[{"value":"hydrogen","when_selected":[{"id":"thought_level","name":"Thinking","current":"low","values":[{"value":"low"},{"value":"high"}]}]}]}]}]}],"turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`)); err != nil {
+			t.Fatalf("ParseFixture(identical repeated reannouncements) error = %v", err)
 		}
 	})
 }

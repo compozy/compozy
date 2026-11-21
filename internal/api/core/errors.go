@@ -38,6 +38,8 @@ const (
 		"then retry."
 	nativeAgyPolicyGuidance = "Antigravity CLI cannot enforce the selected host permission policy. " +
 		"Ask the operator to choose a runtime that enforces the intended policy; permissions were not widened."
+	agentOptionGuidance = "The current route rejected ACP options from this session's agent definition. " +
+		"Change the agent definition's ACP options for this route, then retry; reselecting the runtime cannot remove them."
 	nativeToolPolicyUnsupportedCode = "native_tool_policy_unsupported"
 	sessionConfigOptionRejectedCode = "session_config_option_rejected"
 )
@@ -46,6 +48,8 @@ func runtimeRefusalGuidance(err error) (code, message string, ok bool) {
 	switch {
 	case errors.Is(err, acp.ErrNativeAgyToolPolicyUnsupported):
 		return nativeToolPolicyUnsupportedCode, nativeAgyPolicyGuidance, true
+	case errors.Is(err, session.ErrAgentACPOptionRejected):
+		return sessionConfigOptionRejectedCode, agentOptionGuidance, true
 	case errors.Is(err, acp.ErrSessionConfigOptionRejected):
 		return sessionConfigOptionRejectedCode, runtimeReselectionGuidance, true
 	default:

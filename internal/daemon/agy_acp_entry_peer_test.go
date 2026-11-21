@@ -5,7 +5,9 @@ package daemon
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/providerauth"
+	shellquote "github.com/kballard/go-shellquote"
 )
 
 // Fixture for the agy native-entry integration test: the helper peer stands in
@@ -170,8 +173,12 @@ func (p *agyEntryPeer) authed() bool {
 func (p *agyEntryPeer) serve() {
 	for {
 		line, err := p.reader.ReadBytes('\n')
-		if err != nil {
+		if errors.Is(err, io.EOF) {
+			// Clean shutdown: the client closed stdin.
 			return
+		}
+		if err != nil {
+			p.abort(fmt.Errorf("read frame: %w", err))
 		}
 		if strings.TrimSpace(string(line)) == "" {
 			continue
@@ -259,6 +266,7 @@ func (p *agyEntryPeer) dispatch(frame agyEntryEnvelope) {
 			return
 		}
 		if p.phase != agyEntryPhaseSession {
+			p.logLine("prompt auth-phase-rejected")
 			p.respondError(frame.ID, -32603, "prompt is not served during the auth phase")
 			return
 		}
@@ -404,15 +412,17 @@ func setupAgyEntryFixture(t *testing.T) *agyEntryFixture {
 	}
 	// The PATH shim must be named `agy` and accept exactly the single `acp`
 	// argument, so a standalone server, an extra flag, or a planted `--acp`
-	// spelling cannot pass as the native entry.
+	// spelling cannot pass as the native entry. Every invocation is recorded in
+	// launch.log before validation, so a rejected launch never reads as no launch.
 	shim := strings.Join([]string{
 		"#!/bin/sh",
+		`printf 'argc=%s argv=%s\n' "$#" "$*" >> ` + shellquote.Join(filepath.Join(stateDir, "launch.log")),
 		`if [ "$#" -ne 1 ] || [ "$1" != "acp" ]; then`,
 		`  echo "agy shim: unexpected argv: $*" >&2`,
 		"  exit 64",
 		"fi",
-		fmt.Sprintf(`printf '%%s\n' "$*" >> %q`, filepath.Join(stateDir, "argv.log")),
-		fmt.Sprintf(`exec %q -test.run=^TestAgyACPEntryPeer$`, peerBin),
+		`printf '%s\n' "$*" >> ` + shellquote.Join(filepath.Join(stateDir, "argv.log")),
+		"exec " + shellquote.Join(peerBin, "-test.run=^TestAgyACPEntryPeer$"),
 		"",
 	}, "\n")
 	if err := os.WriteFile(filepath.Join(binDir, "agy"), []byte(shim), 0o755); err != nil {

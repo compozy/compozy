@@ -85,6 +85,20 @@ Replacement contract (final rejection rewalk observed on `8d501bba2`):
 3. An authored standalone or custom command keeps its route and its own approval behavior.
 4. The refusal is never a silent widening, and an agent is never advised to raise its own policy;
    the operator chooses a trusted runtime and policy for constrained work.
+5. Under `approve-all`, a native `agy acp` start whose `permission_rules` contains a `deny` entry is
+   refused the same way; `allow`-only rules start normally. `antigravity acp` is treated as the same
+   native CLI.
+6. When Antigravity asks a question (a `session/request_permission` whose tool call id starts with
+   `interaction_`), the operator receives a choice prompt listing the provider's answers even under
+   `approve-all`; the chosen answer is returned, and an unanswered or expired prompt cancels the
+   request instead of approving the first answer.
+7. Every Antigravity session sends `_meta.antigravity.disabledTools = ["run_workflow"]` on
+   `session/new` and `session/load`, so no `skills/system/run-workflow/SKILL.md` appears in the
+   session workspace.
+
+Items 5–7 (added 2026-11-21) are pinned by unit/contract coverage in `internal/acp`
+(`TestStartNativeAgyRefusesUnenforceablePolicies`, `TestAgyInteractionPermissionAsksOperator`,
+`TestAgySessionSetupMeta`) and remain unwalked against a live CLI.
 
 The final live rewalk returned HTTP 422 with `approve-reads` unchanged, runtime `unbound`, no
 processes, and fresh target `agy-denied-before-launch-7434.txt` absent. The earlier failed targets

@@ -1,9 +1,6 @@
 package acpmock
 
-import (
-	"encoding/json"
-	"strings"
-)
+import "encoding/json"
 
 const FixtureVersion = 2
 
@@ -75,21 +72,6 @@ type SessionConfigOptionValueFixture struct {
 	// accepted. It scripts providers that reannounce their controls per selection:
 	// selecting one model returns that model's own thought levels.
 	WhenSelected []SessionConfigOptionFixture `json:"when_selected,omitempty"`
-}
-
-// RejectsConfigValue reports whether the fixture scripts a set_config_option failure.
-func (a AgentFixture) RejectsConfigValue(configID string, value string) bool {
-	for _, option := range a.ConfigOptions {
-		if strings.TrimSpace(option.ID) != strings.TrimSpace(configID) {
-			continue
-		}
-		for _, candidate := range option.Values {
-			if candidate.RejectSet && strings.TrimSpace(candidate.Value) == strings.TrimSpace(value) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // TurnFixture describes one deterministic prompt turn for an agent.

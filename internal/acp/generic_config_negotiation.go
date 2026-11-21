@@ -62,6 +62,9 @@ func (d *Driver) applySessionConfigSelections(
 		// applySessionConfigOption returns only after the provider confirmed the value,
 		// including a late config_option_update.
 		if err := d.applySessionConfigOption(ctx, process, selection); err != nil {
+			if isConfigRejectionCause(err) {
+				return fmt.Errorf("%w: apply config option %q: %w", ErrSessionConfigOptionRejected, selection.ID, err)
+			}
 			return fmt.Errorf("acp: apply config option %q: %w", selection.ID, err)
 		}
 	}

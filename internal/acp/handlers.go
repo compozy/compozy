@@ -240,6 +240,10 @@ func (p *AgentProcess) resolvePermissionRequest(
 	if p.executionPolicy == ExecutionPolicyTriage {
 		return p.triagePermission(ctx, request)
 	}
+	if p.isAgyInteractionQuestion(request) {
+		// An Antigravity question is not a tool approval: only the operator picks its answer.
+		return p.answerAgyInteractionQuestion(ctx, request), nil
+	}
 	turnID, turnSpan := p.activeTraceContext()
 	resource, title := permissionRequestDisplay(request)
 	sessionID := string(request.SessionId)

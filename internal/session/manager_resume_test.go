@@ -2741,12 +2741,12 @@ func TestResumeRouteChangeRebuildsEffectiveOptions(t *testing.T) {
 		if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
 			t.Fatalf("Stop(resumed) error = %v", err)
 		}
+		newID := derefString(readMeta(t, created.MetaPath()).ACPSessionID)
 		restored, err := h.manager.Resume(testutil.Context(t), created.ID)
 		if err != nil {
 			t.Fatalf("Resume(new route) error = %v", err)
 		}
 		t.Cleanup(func() { reportSessionStop(t, h, restored.ID) })
-		newID := derefString(readMeta(t, created.MetaPath()).ACPSessionID)
 		if got := lastStartCall(h).ResumeSessionID; newID == "" || got != newID {
 			t.Fatalf("second resume native id = %q, want the accepted %q", got, newID)
 		}
@@ -3124,6 +3124,107 @@ func TestResumeRouteChangeRebuildsEffectiveOptions(t *testing.T) {
 		}
 		assertTranscriptMessage(t, h.manager, created.ID, "keep the legacy transcript")
 	})
+
+	t.Run("Should point an agent-definition option refusal at the agent definition", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		installAgyAgent(t, h, legacyRoute, "gemini-4-hydrogen", "xhigh",
+			[]compozyconfig.ACPOptionSelection{{ID: "mode", ValueID: "plan"}})
+		created := createStoppedPromptSession(t, h, &CreateOpts{
+			AgentName: agyResumeAgentName, Permissions: compozyconfig.PermissionModeApproveAll,
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+		})
+		// A confirmed empty selection cannot remove the agent's own mode, so reselection is no repair.
+		if _, err := h.manager.SetRuntimeSelection(testutil.Context(t), created.ID, RuntimeSelection{
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+		}, 0); err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		setResumeAgentCommand(t, h, agyResumeAgentName, nativeRoute)
+		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+			return nil, fmt.Errorf("%w: config option %q does not allow value %q",
+				acp.ErrSessionConfigOptionRejected, "mode", "plan")
+		}
+
+		_, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if !errors.Is(err, ErrAgentACPOptionRejected) || !errors.Is(err, acp.ErrSessionConfigOptionRejected) ||
+			strings.Contains(err.Error(), "reselect this session's runtime") {
+			t.Fatalf("Resume(agent option refused) error = %v, want agent-definition guidance", err)
+		}
+		if got := acpOptionValue(lastStartCall(h).ACPOptions, "mode"); got != "plan" {
+			t.Fatalf("refused start ACP options = %+v, want the agent's plan mode", lastStartCall(h).ACPOptions)
+		}
+	})
+
+	t.Run("Should apply a confirmed AGY selection when no native session was bound", func(t *testing.T) {
+		t.Parallel()
+		spec := &sessionStartSpec{
+			startAction:     sessionStartActionResume,
+			provider:        agyProviderName,
+			acpOptions:      []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}},
+			selectedRuntime: &RuntimeSelection{Provider: agyProviderName},
+		}
+		(&Manager{}).applyResumeRouteAffinity(testutil.Context(t), spec, compozyconfig.AgentDef{})
+		if len(spec.acpOptions) != 0 || spec.resumeReplay {
+			t.Fatalf("resume spec = options %+v replay %v, want the confirmed empty selection without replay",
+				spec.acpOptions, spec.resumeReplay)
+		}
+	})
+}
+
+// TestResumeOptionSourceGuidance proves an AGY option refusal names the repair that can clear
+// it for every resume attempt, including the context-replay retry. Owner: session resume.
+func TestResumeOptionSourceGuidance(t *testing.T) {
+	t.Parallel()
+
+	refusal := fmt.Errorf("%w: config option %q does not allow value %q",
+		acp.ErrSessionConfigOptionRejected, "mode", "plan")
+	plan := []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}}
+	for _, tc := range []struct {
+		name         string
+		spec         *sessionStartSpec
+		wantReselect bool
+		wantAgent    bool
+	}{
+		{
+			name:         "Should guide reselection for retained options without a selection witness",
+			spec:         &sessionStartSpec{provider: agyProviderName, acpOptions: plan},
+			wantReselect: true,
+		},
+		{
+			name: "Should guide the agent definition when the session supplies no options",
+			spec: &sessionStartSpec{
+				provider: agyProviderName, acpOptions: plan,
+				selectedRuntime: &RuntimeSelection{Provider: agyProviderName},
+			},
+			wantAgent: true,
+		},
+		{
+			name: "Should keep the raw refusal for confirmed session options",
+			spec: &sessionStartSpec{
+				provider:        agyProviderName,
+				selectedRuntime: &RuntimeSelection{Provider: agyProviderName, ACPOptions: plan},
+			},
+		},
+		{
+			name: "Should leave other providers unchanged",
+			spec: &sessionStartSpec{provider: "codex", acpOptions: plan},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := captureResumeOptionSource(tc.spec).guide(refusal)
+			if !errors.Is(err, acp.ErrSessionConfigOptionRejected) {
+				t.Fatalf("guide() error = %v, want the original refusal kept", err)
+			}
+			if got := strings.Contains(err.Error(), "reselect this session's runtime"); got != tc.wantReselect {
+				t.Fatalf("guide() reselection guidance = %v, want %v: %v", got, tc.wantReselect, err)
+			}
+			if got := errors.Is(err, ErrAgentACPOptionRejected); got != tc.wantAgent {
+				t.Fatalf("guide() agent-definition guidance = %v, want %v: %v", got, tc.wantAgent, err)
+			}
+		})
+	}
 }
 
 const agyResumeAgentName = "agy-coder"
@@ -3150,16 +3251,7 @@ func installAgyAgent(
 
 func setResumeAgentCommand(t *testing.T, h *harness, agentName, command string) {
 	t.Helper()
-	workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
-	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
-	}
-	for index := range workspace.Agents {
-		if workspace.Agents[index].Name == agentName {
-			workspace.Agents[index].Command = command
-		}
-	}
-	h.resolver.upsert(&workspace)
+	editResumeAgent(t, h, agentName, func(agent *compozyconfig.AgentDef) { agent.Command = command })
 }
 
 func setResumeAgentPermissions(
@@ -3169,15 +3261,26 @@ func setResumeAgentPermissions(
 	permissions compozyconfig.PermissionMode,
 ) {
 	t.Helper()
+	editResumeAgent(t, h, agentName, func(agent *compozyconfig.AgentDef) {
+		agent.Permissions = string(permissions)
+	})
+}
+
+// editResumeAgent applies one fixture edit to the named workspace agent and fails at the
+// mutation site when no agent matches, so a renamed fixture cannot silently skip its setup.
+func editResumeAgent(t *testing.T, h *harness, agentName string, edit func(*compozyconfig.AgentDef)) {
+	t.Helper()
 	workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	for index := range workspace.Agents {
-		if workspace.Agents[index].Name == agentName {
-			workspace.Agents[index].Permissions = string(permissions)
-		}
+	index := slices.IndexFunc(workspace.Agents, func(agent compozyconfig.AgentDef) bool {
+		return agent.Name == agentName
+	})
+	if index < 0 {
+		t.Fatalf("workspace agent %q not found for fixture edit", agentName)
 	}
+	edit(&workspace.Agents[index])
 	h.resolver.upsert(&workspace)
 }
 
@@ -3216,7 +3319,9 @@ func writeLegacyEffectiveOptions(t *testing.T, session *Session, options ...stor
 }
 
 func creationRecordsUnchanged(before, after *store.SessionMeta) bool {
-	if (before.CreationProfile == nil) != (after.CreationProfile == nil) {
+	if (before.CreationProfile == nil) != (after.CreationProfile == nil) ||
+		before.PolicySpecDigest != after.PolicySpecDigest ||
+		before.CreationDigest != after.CreationDigest {
 		return false
 	}
 	if before.CreationProfile == nil {
@@ -3230,10 +3335,7 @@ func creationRecordsUnchanged(before, after *store.SessionMeta) bool {
 	if err != nil {
 		return false
 	}
-	return beforeRef == afterRef &&
-		before.CreationProfileRef == after.CreationProfileRef &&
-		before.PolicySpecDigest == after.PolicySpecDigest &&
-		before.CreationDigest == after.CreationDigest
+	return beforeRef == afterRef && before.CreationProfileRef == after.CreationProfileRef
 }
 
 func assertTranscriptMessage(t *testing.T, manager *Manager, sessionID, want string) {

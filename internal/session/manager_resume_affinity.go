@@ -2,12 +2,18 @@ package session
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 )
+
+// ErrAgentACPOptionRejected marks a resume refusal caused by ACP options that only the agent
+// definition supplies, which a session runtime reselection cannot remove.
+var ErrAgentACPOptionRejected = errors.New("session: agent definition ACP option rejected")
 
 const (
 	acceptedRouteMissingReason  = "accepted_route_missing"
@@ -85,15 +91,19 @@ func (m *Manager) applyResumeRouteAffinity(
 // replay: its native id proves no membership in the CLI's store. Other providers keep the
 // existing restore path, so this repair stays scoped to the affected route.
 func (m *Manager) applyUnverifiedNativeRoute(spec *sessionStartSpec) {
-	if strings.TrimSpace(spec.acpSessionID) == "" ||
-		compozyconfig.CanonicalProviderName(spec.provider) != agyProviderName {
+	if compozyconfig.CanonicalProviderName(spec.provider) != agyProviderName {
+		return
+	}
+	// A confirmed runtime selection replaces retained options on every AGY resume, including
+	// one that never bound a native session.
+	applyResumeRuntimeOptions(spec)
+	if strings.TrimSpace(spec.acpSessionID) == "" {
 		return
 	}
 	spec.startLogger(m).Info(
 		"session.resume.native_route_unverified",
 		"provider", agyProviderName,
 	)
-	applyResumeRuntimeOptions(spec)
 	clearResumeNativeRoute(spec, unverifiedNativeRouteReason)
 }
 
@@ -113,15 +123,50 @@ func applyResumeRuntimeOptions(spec *sessionStartSpec) {
 	}
 }
 
-// resumeUsesRetainedOptions reports that the resumed AGY route replays recorded ACP options
-// with no selected-runtime witness to reconstruct them from.
-func resumeUsesRetainedOptions(spec *sessionStartSpec) bool {
-	if spec == nil || compozyconfig.CanonicalProviderName(spec.provider) != agyProviderName ||
-		len(spec.acpOptions) == 0 {
-		return false
+// resumeOptionSource records, before the start merges agent-definition options into the
+// spec, whether the AGY session itself supplies the ACP options a resume replays.
+type resumeOptionSource struct {
+	agy bool
+	// retained marks recorded options with no selected-runtime witness to rebuild them from.
+	retained bool
+	// session marks options the session supplies, retained or confirmed by a selection.
+	session bool
+}
+
+// captureResumeOptionSource must run before startSession merges the agent's options.
+func captureResumeOptionSource(spec *sessionStartSpec) resumeOptionSource {
+	if spec == nil || compozyconfig.CanonicalProviderName(spec.provider) != agyProviderName {
+		return resumeOptionSource{}
 	}
 	selected := spec.selectedRuntime
-	return selected == nil || !resumeSelectionAppliesToProvider(selected.Provider, spec.provider)
+	if selected != nil && resumeSelectionAppliesToProvider(selected.Provider, spec.provider) {
+		return resumeOptionSource{agy: true, session: len(selected.ACPOptions) > 0}
+	}
+	retained := len(spec.acpOptions) > 0
+	return resumeOptionSource{agy: true, retained: retained, session: retained}
+}
+
+// guide adds the repair that can actually clear an AGY option rejection. Retained session
+// options need a runtime reselection; options only the agent definition supplies survive any
+// reselection, so the guidance points at the agent definition instead.
+func (s resumeOptionSource) guide(err error) error {
+	if err == nil || !s.agy || !errors.Is(err, acp.ErrSessionConfigOptionRejected) {
+		return err
+	}
+	switch {
+	case s.retained:
+		return fmt.Errorf(
+			"%w: reselect this session's runtime to confirm its ACP options for the current route", err,
+		)
+	case !s.session:
+		return fmt.Errorf(
+			"%w: %w: change the agent definition's ACP options for the current route; "+
+				"reselecting the session runtime cannot remove them",
+			ErrAgentACPOptionRejected, err,
+		)
+	default:
+		return err
+	}
 }
 
 // resumeSelectionAppliesToProvider keeps another provider's selected options off this route.

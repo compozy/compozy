@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	shellquote "github.com/kballard/go-shellquote"
 )
 
 // Public-entry coverage for the agy built-in: the installed CLI is launched as
@@ -52,7 +53,7 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 		if !errors.Is(err, acp.ErrNativeAgyToolPolicyUnsupported) {
 			t.Fatalf("Create() error = %v, want the native policy refusal", err)
 		}
-		for _, name := range []string{"argv.log", "peer.log"} {
+		for _, name := range []string{"launch.log", "argv.log", "peer.log"} {
 			if _, err := os.Stat(filepath.Join(isolated.stateDir, name)); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("%s exists (%v), want no CLI launch or probe", name, err)
 			}
@@ -97,13 +98,14 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 	})
 
 	t.Run("Should verify signed-in readiness without authenticating", func(t *testing.T) {
-		before := countAgyEntryLog(readAgyEntryLog(t, fixture.stateDir, "peer.log"), "authenticate")
-		if err := acp.ProbeAuthentication(ctx, fixture.inspection()); err != nil {
+		isolated := setupAgyEntryFixture(t)
+		setAgyEntryAuthed(t, isolated.stateDir, true)
+		if err := acp.ProbeAuthentication(testutil.Context(t), isolated.inspection()); err != nil {
 			t.Fatalf("ProbeAuthentication() error = %v", err)
 		}
-		lines := readAgyEntryLog(t, fixture.stateDir, "peer.log")
-		if got := countAgyEntryLog(lines, "authenticate"); got != before {
-			t.Fatalf("probe sent authenticate (before=%d after=%d), want none", before, got)
+		lines := readAgyEntryLog(t, isolated.stateDir, "peer.log")
+		if got := countAgyEntryLog(lines, "authenticate"); got != 0 {
+			t.Fatalf("peer log = %q, want no authenticate during probe", lines)
 		}
 		if got := countAgyEntryLog(lines, "prompt"); got != 0 {
 			t.Fatalf("peer log = %q, want no prompt during probe", lines)
@@ -137,21 +139,7 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Prompt() error = %v", err)
 		}
-		var text strings.Builder
-		timeout := time.After(60 * time.Second)
-	collect:
-		for {
-			select {
-			case event, ok := <-events:
-				if !ok {
-					break collect
-				}
-				text.WriteString(event.Text)
-			case <-timeout:
-				t.Fatal("Prompt() events did not complete")
-			}
-		}
-		if got := text.String(); !strings.Contains(got, agyEntryPeerReply) {
+		if got := collectAgyEntryPromptText(t, events); !strings.Contains(got, agyEntryPeerReply) {
 			t.Fatalf("prompt text = %q, want peer reply", got)
 		}
 		lines := readAgyEntryLog(t, fixture.stateDir, "peer.log")
@@ -167,8 +155,8 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 		if got := countAgyEntryLog(lines, "prompt-unconfirmed"); got != 0 {
 			t.Fatalf("peer log = %q, want Hydrogen xhigh confirmed before execution", lines)
 		}
-		if got := countAgyEntryLog(lines, "mode=yolo"); got != 0 {
-			t.Fatalf("peer log = %q, want no obsolete yolo selection", lines)
+		if got := countAgyEntryLog(lines, "mode=yolo") + countAgyEntryLog(lines, "mode-rejected yolo"); got != 0 {
+			t.Fatalf("peer log = %q, want no obsolete yolo request", lines)
 		}
 		modeIndex := agyEntryLogIndex(t, lines, "mode=")
 		modeLine := strings.TrimPrefix(lines[modeIndex], "mode=")
@@ -225,7 +213,9 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Prompt(legacy command) error = %v", err)
 		}
-		drainHarnessIntegrationEvents(events)
+		if got := collectAgyEntryPromptText(t, events); !strings.Contains(got, agyEntryPeerReply) {
+			t.Fatalf("legacy prompt text = %q, want peer reply", got)
+		}
 		if err := manager.Stop(testutil.Context(t), created.ID); err != nil {
 			t.Fatalf("Stop(legacy command) error = %v", err)
 		}
@@ -243,6 +233,11 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Events(before) error = %v", err)
 		}
+		if !agyEntryEventsContain(beforeEvents, acp.EventTypeUserMessage, "retained legacy conversation") ||
+			!agyEntryEventsContain(beforeEvents, acp.EventTypeAgentMessage, agyEntryPeerReply) {
+			t.Fatalf("legacy transcript = %+v, want the user message and the peer reply", beforeEvents)
+		}
+		beforeLaunch := readAgyEntryLog(t, isolated.stateDir, "launch.log")
 		beforeArgv := readAgyEntryLog(t, isolated.stateDir, "argv.log")
 		beforePeer := readAgyEntryLog(t, isolated.stateDir, "peer.log")
 		_, err = manager.Resume(testutil.Context(t), created.ID)
@@ -265,11 +260,39 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 			!reflect.DeepEqual(beforeEvents, afterEvents[:len(beforeEvents)]) {
 			t.Fatal("refused resume changed the retained transcript")
 		}
-		if !slices.Equal(beforeArgv, readAgyEntryLog(t, isolated.stateDir, "argv.log")) ||
+		if !slices.Equal(beforeLaunch, readAgyEntryLog(t, isolated.stateDir, "launch.log")) ||
+			!slices.Equal(beforeArgv, readAgyEntryLog(t, isolated.stateDir, "argv.log")) ||
 			!slices.Equal(beforePeer, readAgyEntryLog(t, isolated.stateDir, "peer.log")) {
 			t.Fatal("refused resume launched the replacement CLI")
 		}
 	})
+}
+
+func collectAgyEntryPromptText(t *testing.T, events <-chan acp.AgentEvent) string {
+	t.Helper()
+
+	var text strings.Builder
+	timeout := time.After(60 * time.Second)
+	for {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				return text.String()
+			}
+			text.WriteString(event.Text)
+		case <-timeout:
+			t.Fatal("Prompt() events did not complete")
+		}
+	}
+}
+
+func agyEntryEventsContain(events []store.SessionEvent, eventType string, text string) bool {
+	for _, event := range events {
+		if event.Type == eventType && strings.Contains(event.Content, text) {
+			return true
+		}
+	}
+	return false
 }
 
 func newAgyEntryManager(t *testing.T, fixture *agyEntryFixture) (*session.Manager, workspacepkg.ResolvedWorkspace) {
@@ -308,11 +331,11 @@ func TestAgyACPBuiltInEntryMissingCLI(t *testing.T) {
 		}
 		standaloneDir := t.TempDir()
 		marker := filepath.Join(standaloneDir, "par-ran")
-		par := "#!/bin/sh\n: > " + marker + "\nexit 0\n"
+		par := "#!/bin/sh\n: > " + shellquote.Join(marker) + "\n"
 		if err := os.WriteFile(filepath.Join(standaloneDir, "agy_acp_server.par"), []byte(par), 0o755); err != nil {
 			t.Fatalf("write standalone fixture error = %v", err)
 		}
-		t.Setenv("PATH", strings.Join([]string{standaloneDir, "/usr/bin", "/bin"}, string(os.PathListSeparator)))
+		t.Setenv("PATH", standaloneDir)
 		env, err := providerauth.CommandEnv(homePaths, "agy", provider, os.Environ())
 		if err != nil {
 			t.Fatalf("CommandEnv(agy) error = %v", err)

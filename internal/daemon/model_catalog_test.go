@@ -1363,21 +1363,22 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListModels(native agy) error = %v", err)
 		}
-		// The native context may only ever expose its own logical rows: the
-		// previous server's three suffixed aliases must not surface here, fresh
-		// or stale, after the command identity changed.
+		// The native context exposes exactly its own logical rows: the previous
+		// server's three suffixed aliases must not surface here, fresh or stale,
+		// after the command identity changed, and no native row may be lost.
 		legacyIDs := []string{
 			"gemini-4-argon-medium",
 			"gemini-4-argon-high",
 			"gemini-3.8-flash-medium",
 		}
-		for _, modelID := range catalogModelIDs(isolatedNative, "agy") {
+		nativeIDs := catalogModelIDs(isolatedNative, "agy")
+		for _, modelID := range nativeIDs {
 			if slices.Contains(legacyIDs, modelID) {
 				t.Fatalf("native agy context published legacy row %q after the route change", modelID)
 			}
-			if !slices.Contains(wantIDs, modelID) {
-				t.Fatalf("native agy context published unknown row %q", modelID)
-			}
+		}
+		if !slices.Equal(nativeIDs, wantIDs) {
+			t.Fatalf("native agy models after the legacy refresh = %#v, want its own %#v", nativeIDs, wantIDs)
 		}
 		retainedLegacy, err := oldService.ListModels(ctx, modelcatalog.ListOptions{
 			ProviderID:         "agy",
