@@ -467,7 +467,7 @@ by another agent, provider, or model while you keep working:
    the rest through `compozy__session_history` on `child_session_id` with `type: "agent_message"`
    and `limit: 1`), `error`, `delivery`, and `child_activity` (`working`, `idle`, or `stopped`: the
    child session's own liveness, which can change after the status is terminal), plus `usage`
-   (`total_tokens`, `tool_uses`) on provider-native rows once reported. Reading a
+   (`total_tokens`, `tool_uses`) for the current provider-native run once reported. Reading a
    terminal result acknowledges it and removes it from a queued wake, so the tool is idempotent but not
    read-only.
 

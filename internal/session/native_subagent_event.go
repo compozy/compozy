@@ -109,6 +109,7 @@ func nativeTaskEventFromStored(
 		ProviderToolCallID: event.ToolCallID,
 		Task: &NativeSubagentTask{
 			Kind:             task.Kind,
+			RunID:            task.RunID,
 			Status:           task.Status,
 			Summary:          task.Summary,
 			SummaryTruncated: task.SummaryTruncated,

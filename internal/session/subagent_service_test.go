@@ -1346,8 +1346,7 @@ func TestSubagentNativeLifecycle(t *testing.T) {
 			}
 		})
 	})
-	// Invariant: usage is the provider's running total: it rises with progress, a stale frame
-	// never lowers it, and the final figure lands even after the row settled.
+	// Invariant: each run keeps its own usage even when a resumed run reports smaller figures.
 	t.Run("Should keep a native subagent's running usage", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
@@ -1359,17 +1358,18 @@ func TestSubagentNativeLifecycle(t *testing.T) {
 			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
 				t.Fatal(err)
 			}
-			frame := func(tokens, tools int64) NativeSubagentEvent {
+			frame := func(runID string, tokens, tools int64) NativeSubagentEvent {
 				return NativeSubagentEvent{
 					WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "usage",
 					Task: &NativeSubagentTask{
 						Kind:  acp.NativeTaskKindProgress,
+						RunID: runID,
 						Usage: &acp.NativeTaskUsage{TotalTokens: tokens, ToolUses: tools},
 					},
 				}
 			}
 			id := subagentID("parent", launch.ProviderToolCallID)
-			for _, ev := range []NativeSubagentEvent{frame(900, 4), frame(100, 1)} {
+			for _, ev := range []NativeSubagentEvent{frame("0001", 900, 4), frame("0001", 100, 1)} {
 				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
 					t.Fatal(err)
 				}
@@ -1382,11 +1382,20 @@ func TestSubagentNativeLifecycle(t *testing.T) {
 			if err := s.OnNativeToolEvent(t.Context(), "parent", done); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.OnNativeToolEvent(t.Context(), "parent", frame(1200, 3)); err != nil {
+			if err := s.OnNativeToolEvent(t.Context(), "parent", frame("0001", 1200, 3)); err != nil {
 				t.Fatal(err)
 			}
 			if usage := db.rows[id].Usage; usage == nil || usage.TotalTokens != 1200 || usage.ToolUses != 4 {
 				t.Fatal(usage)
+			}
+			resumed := frame("0002", 300, 2)
+			resumed.At = s.now().Add(time.Second)
+			if err := s.OnNativeToolEvent(t.Context(), "parent", resumed); err != nil {
+				t.Fatal(err)
+			}
+			if row := db.rows[id]; row.Status != store.SubagentStatusRunning || row.Usage == nil ||
+				*row.Usage != (store.SubagentUsage{TotalTokens: 300, ToolUses: 2}) {
+				t.Fatalf("resumed row = %#v, want 300 tokens and two tool uses", row)
 			}
 		})
 	})
@@ -2452,13 +2461,18 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 				new("old answer"),
 			)
 			done.At = at.Add(time.Second)
+			done.Task.RunID = "0001"
+			done.Task.Usage = &acp.NativeTaskUsage{TotalTokens: 1200, ToolUses: 5}
 			if err := s.OnNativeToolEvent(t.Context(), "parent", done); err != nil {
 				t.Fatal(err)
 			}
 			for i, task := range []*acp.NativeTaskObservation{
-				{Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusRunning, TaskID: "saved-resume", ToolCallID: launch.ProviderToolCallID},
-				{Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusCompleted, Summary: new("new answer"), TaskID: "saved-resume", ToolCallID: launch.ProviderToolCallID},
+				{RunID: "0002", Kind: acp.NativeTaskKindProgress, Usage: &acp.NativeTaskUsage{TotalTokens: 300, ToolUses: 2}},
+				{RunID: "0002", Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusRunning},
+				{RunID: "0001", Kind: acp.NativeTaskKindProgress, Usage: &acp.NativeTaskUsage{TotalTokens: 2000, ToolUses: 8}},
+				{RunID: "0002", Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusCompleted, Summary: new("new answer")},
 			} {
+				task.TaskID, task.ToolCallID = "saved-resume", launch.ProviderToolCallID
 				content, err := transcript.MarshalAgentEvent(
 					acp.AgentEvent{
 						Type:       acp.EventTypeNativeTask,
@@ -2486,6 +2500,9 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 				t.Fatal(err)
 			}
 			row := db.rows[subagentID("parent", launch.ProviderToolCallID)]
+			if row.Usage == nil || *row.Usage != (store.SubagentUsage{TotalTokens: 300, ToolUses: 2}) {
+				t.Fatalf("replayed usage = %#v, want 300 tokens and two tool uses", row.Usage)
+			}
 			if row.Result == nil || *row.Result != "new answer" || row.ParentTurnID != turn ||
 				row.Status != store.SubagentStatusCompleted {
 				t.Fatal(row)

@@ -111,17 +111,17 @@ var (
 	ErrSubagentIdempotencyConflict = errors.New("store: subagent idempotency key reused with a different request")
 )
 
-// SessionSubagent is the durable parent-side record of one subagent.
-// SubagentUsage is what the provider reports a native subagent has spent so far.
+// SubagentUsage is the provider's reported usage for a native subagent's current run.
 type SubagentUsage struct {
 	TotalTokens int64
 	ToolUses    int64
 }
 
+// SessionSubagent is the durable parent-side record of one subagent.
 type SessionSubagent struct {
 	Isolation string
 	Worktree  *SubagentWorktreeState
-	// Usage is the provider's running total; nil until it reports one.
+	// Usage is nil until the provider reports usage for the run.
 	Usage *SubagentUsage
 
 	ID                 string
@@ -336,12 +336,12 @@ type SubagentStore interface {
 	UpdateNativeSubagentRuntime(
 		ctx context.Context, id, model, role string, at time.Time,
 	) (SessionSubagent, bool, error)
-	// UpdateSubagentUsage raises a native row's usage; totals never move backwards.
+	// UpdateSubagentUsage raises usage within one run and fences older SDK runs.
 	UpdateSubagentUsage(
-		ctx context.Context, id string, usage SubagentUsage, at time.Time,
+		ctx context.Context, id, runID string, usage SubagentUsage, at time.Time,
 	) (SessionSubagent, bool, error)
 	UpdateSubagentState(ctx context.Context, id, status, workState string, at time.Time) (SessionSubagent, bool, error)
-	ResumeNativeSubagent(ctx context.Context, id, turn string, at time.Time) (SessionSubagent, bool, error)
+	ResumeNativeSubagent(ctx context.Context, id, turn, runID string, at time.Time) (SessionSubagent, bool, error)
 	FinalizeSubagent(ctx context.Context, in SubagentFinalize) (SessionSubagent, bool, error)
 	// UpdateSubagentChildActivity records a delegated child's liveness; it never changes status.
 	UpdateSubagentChildActivity(

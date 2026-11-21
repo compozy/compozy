@@ -1137,7 +1137,7 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 			}
 		},
 	)
-	// Invariant: a later event fills the runtime without blanking it, usage only rises, and
+	// Invariant: a later event fills the runtime without blanking it, usage only rises within a run, and
 	// neither write reaches a delegated row.
 	t.Run("Should fill native runtime and raise usage on native rows only", func(t *testing.T) {
 		t.Parallel()
@@ -1171,26 +1171,31 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 			t.Fatal(updated.Usage)
 		}
 		raised, changed, err := db.UpdateSubagentUsage(
-			t.Context(), row.ID, store.SubagentUsage{TotalTokens: 900, ToolUses: 4}, at,
+			t.Context(), row.ID, "0001", store.SubagentUsage{TotalTokens: 900, ToolUses: 4}, at,
 		)
 		if err != nil || !changed || raised.Usage == nil || raised.Usage.TotalTokens != 900 {
 			t.Fatal(raised, changed, err)
 		}
 		stale, changed, err := db.UpdateSubagentUsage(
-			t.Context(), row.ID, store.SubagentUsage{TotalTokens: 100, ToolUses: 1}, at,
+			t.Context(), row.ID, "0001", store.SubagentUsage{TotalTokens: 100, ToolUses: 1}, at,
 		)
-		if err != nil || changed || stale.Usage.TotalTokens != 900 || stale.Usage.ToolUses != 4 {
+		if err != nil || changed || stale.Usage == nil || stale.Usage.TotalTokens != 900 || stale.Usage.ToolUses != 4 {
 			t.Fatal(stale, changed, err)
 		}
 		mixed, changed, err := db.UpdateSubagentUsage(
-			t.Context(), row.ID, store.SubagentUsage{TotalTokens: 1000, ToolUses: 3}, at,
+			t.Context(), row.ID, "0001", store.SubagentUsage{TotalTokens: 1000, ToolUses: 3}, at,
 		)
 		if err != nil || !changed || mixed.Usage.TotalTokens != 1000 || mixed.Usage.ToolUses != 4 {
 			t.Fatal(mixed, changed, err)
 		}
+		reported := store.SubagentUsage{TotalTokens: 50, ToolUses: 1}
+		newRun, changed, err := db.UpdateSubagentUsage(t.Context(), row.ID, "0002", reported, at.Add(time.Second))
+		if err != nil || !changed || newRun.Usage == nil || *newRun.Usage != reported {
+			t.Fatal(newRun, changed, err)
+		}
 		delegated := reserveSubagent(t, db.SessionRepo, workspace, parent, "delegated-usage", now)
 		untouched, changed, err := db.UpdateSubagentUsage(
-			t.Context(), delegated.ID, store.SubagentUsage{TotalTokens: 1, ToolUses: 1}, at,
+			t.Context(), delegated.ID, "0001", store.SubagentUsage{TotalTokens: 1, ToolUses: 1}, at,
 		)
 		if err != nil || changed || untouched.Usage != nil {
 			t.Fatal(untouched, changed, err)
@@ -1594,6 +1599,11 @@ func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
 		if _, _, err := s.ReserveSubagent(t.Context(), row); err != nil {
 			t.Fatal(err)
 		}
+		if _, _, err := s.UpdateSubagentUsage(
+			t.Context(), row.ID, "0001", store.SubagentUsage{TotalTokens: 1200, ToolUses: 5}, now,
+		); err != nil {
+			t.Fatal(err)
+		}
 		end := now.Add(time.Second)
 		if _, _, err := s.FinalizeSubagent(
 			t.Context(),
@@ -1601,18 +1611,26 @@ func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		if _, changed, err := s.ResumeNativeSubagent(t.Context(), row.ID, "second", now); err != nil || changed {
+		if _, changed, err := s.ResumeNativeSubagent(
+			t.Context(),
+			row.ID,
+			"second",
+			"0002",
+			now,
+		); err != nil ||
+			changed {
 			t.Fatal(changed, err)
 		}
-		got, changed, err := s.ResumeNativeSubagent(t.Context(), row.ID, "second", end.Add(time.Second))
+		got, changed, err := s.ResumeNativeSubagent(t.Context(), row.ID, "second", "0002", end.Add(time.Second))
 		if err != nil || !changed || got.Status != "running" || got.Result != nil || got.SettledAt != nil ||
-			got.ParentTurnID != "second" {
+			got.ParentTurnID != "second" || got.Usage != nil {
 			t.Fatal(got, changed, err)
 		}
 		if _, changed, err := s.ResumeNativeSubagent(
 			t.Context(),
 			row.ID,
 			"second",
+			"0002",
 			end.Add(2*time.Second),
 		); err != nil ||
 			changed {
@@ -1624,10 +1642,35 @@ func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
 			t.Context(),
 			delegated.ID,
 			"second",
+			"0002",
 			end.Add(time.Second),
 		); err != nil ||
 			changed {
 			t.Fatal(changed, err)
+		}
+		reported := store.SubagentUsage{TotalTokens: 300, ToolUses: 2}
+		got, changed, err = s.UpdateSubagentUsage(t.Context(), row.ID, "0002", reported, end.Add(2*time.Second))
+		if err != nil || !changed || got.Usage == nil || *got.Usage != reported {
+			t.Fatal(got, changed, err)
+		}
+		for _, late := range []struct {
+			runID string
+			usage store.SubagentUsage
+		}{
+			{"0001", store.SubagentUsage{TotalTokens: 2000, ToolUses: 8}},
+			{"", store.SubagentUsage{TotalTokens: 2000, ToolUses: 8}},
+			{"0002", reported},
+		} {
+			got, changed, err = s.UpdateSubagentUsage(
+				t.Context(),
+				row.ID,
+				late.runID,
+				late.usage,
+				end.Add(3*time.Second),
+			)
+			if err != nil || changed || got.Usage == nil || *got.Usage != reported {
+				t.Fatal(got, changed, err)
+			}
 		}
 	})
 

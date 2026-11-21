@@ -192,6 +192,7 @@ type NativeSubagentEvent struct {
 type NativeSubagentTask struct {
 	Kind   acp.NativeTaskKind
 	Status string // provider status: pending|running|paused|completed|failed|killed|stopped
+	RunID  string
 	// Summary is nil when the provider supplied none.
 	Summary *string
 	// SummaryTruncated records that Summary was cut before it was stored.
@@ -201,7 +202,7 @@ type NativeSubagentTask struct {
 	Progress string
 	// Background is nil unless the observation reports the task's backgrounding.
 	Background *bool
-	// Usage is the provider's running total for the task; nil when absent.
+	// Usage is the provider's reported figure for the run; nil when absent.
 	Usage *acp.NativeTaskUsage
 }
 
