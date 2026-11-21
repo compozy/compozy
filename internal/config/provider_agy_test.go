@@ -289,6 +289,8 @@ func TestNativeAgyACPCommand(t *testing.T) {
 		"/usr/local/share/antigravity/bin/agy acp",
 		"AGY_HOME=/tmp agy acp",
 		"agy acp --process-per-session",
+		"agy --sandbox acp",
+		"agy --flag=value acp",
 		"C:/tools/agy.exe acp",
 		"agy.cmd acp",
 	}
@@ -305,6 +307,8 @@ func TestNativeAgyACPCommand(t *testing.T) {
 		"",
 		"agy",
 		"agy --acp",
+		"agy run acp",
+		"agy run --sandbox acp",
 		"agy_acp_server.par",
 		"/opt/agy/bin/agy_acp_server.par --uid=1",
 		"agy-wrapper acp",

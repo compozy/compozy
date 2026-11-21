@@ -9,7 +9,7 @@ entry_points: web Settings window → Providers → New provider / provider card
 qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status: blocked-verify
+retest_status:
 fix_commits:
 evidence: .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-04;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
 last_report: docs/qa/reports/2026-11-17-agy-native-acp-consented.md

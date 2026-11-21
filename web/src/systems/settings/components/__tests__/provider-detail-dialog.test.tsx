@@ -582,7 +582,7 @@ describe("ProviderDetailDialog", () => {
     const descriptor = screen.getByTestId("settings-providers-editor-auth-login-descriptor");
     expect(
       within(descriptor).getByTestId("settings-providers-editor-auth-login-descriptor-executable")
-    ).toHaveTextContent("agy");
+    ).toHaveTextContent(/^agy$/);
     expect(within(descriptor).queryByText("write-only config")).not.toBeInTheDocument();
 
     await user.clear(method);

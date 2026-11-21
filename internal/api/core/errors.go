@@ -38,7 +38,20 @@ const (
 		"then retry."
 	nativeAgyPolicyGuidance = "Antigravity CLI cannot enforce the selected host permission policy. " +
 		"Ask the operator to choose a runtime that enforces the intended policy; permissions were not widened."
+	nativeToolPolicyUnsupportedCode = "native_tool_policy_unsupported"
+	sessionConfigOptionRejectedCode = "session_config_option_rejected"
 )
+
+func runtimeRefusalGuidance(err error) (code, message string, ok bool) {
+	switch {
+	case errors.Is(err, acp.ErrNativeAgyToolPolicyUnsupported):
+		return nativeToolPolicyUnsupportedCode, nativeAgyPolicyGuidance, true
+	case errors.Is(err, acp.ErrSessionConfigOptionRejected):
+		return sessionConfigOptionRejectedCode, runtimeReselectionGuidance, true
+	default:
+		return "", "", false
+	}
+}
 
 type normalizedErrorStatus struct {
 	status             int
@@ -140,13 +153,10 @@ func errorPayloadForNormalizedStatus(
 	maskInternalErrors bool,
 ) contract.ErrorPayload {
 	message := http.StatusText(status)
+	refusalCode, refusalMessage, isRuntimeRefusal := runtimeRefusalGuidance(err)
 	switch {
-	case status == http.StatusUnprocessableEntity &&
-		errors.Is(err, acp.ErrNativeAgyToolPolicyUnsupported):
-		message = nativeAgyPolicyGuidance
-	case status == http.StatusUnprocessableEntity &&
-		errors.Is(err, acp.ErrSessionConfigOptionRejected):
-		message = runtimeReselectionGuidance
+	case status == http.StatusUnprocessableEntity && isRuntimeRefusal:
+		message = refusalMessage
 	case status >= http.StatusInternalServerError && WorktreeErrorCode(err) != "":
 		message = WorktreeErrorCode(err)
 	case maskInternalErrors && status >= http.StatusInternalServerError:
@@ -159,7 +169,11 @@ func errorPayloadForNormalizedStatus(
 		message = errorsUnknownErrorValue
 	}
 
-	return errorPayloadForMessage(message, err)
+	payload := errorPayloadForMessage(message, err)
+	if status == http.StatusUnprocessableEntity && isRuntimeRefusal {
+		payload.Code = refusalCode
+	}
+	return payload
 }
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.

@@ -9,7 +9,7 @@ entry_points: config.toml permissions; compozy agent info; compozy session promp
 qa_status: blocked-verify
 bug_ids:
 fix_status: fixed
-retest_status: blocked-verify
+retest_status: pending
 fix_commits: issue #1473
 evidence: internal/config/provider_test.go;internal/config/provider_agy_test.go;internal/acp/types_test.go;internal/session/manager_start_test.go;internal/session/manager_transition_test.go;internal/daemon/loop_runtime_adapters_test.go;docs/qa/reports/2026-11-10-issue-1473-full-access.md
 last_report: docs/qa/reports/2026-11-17-agy-native-acp-consented.md

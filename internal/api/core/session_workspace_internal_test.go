@@ -241,8 +241,9 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 				got, http.StatusUnprocessableEntity)
 		}
 		payload := ErrorPayloadForStatus(http.StatusUnprocessableEntity, err, true)
-		if payload.Error != runtimeReselectionGuidance {
-			t.Fatalf("ErrorPayloadForStatus(config refusal) = %#v, want bounded guidance", payload)
+		if payload.Code != sessionConfigOptionRejectedCode || payload.Error != runtimeReselectionGuidance {
+			t.Fatalf("ErrorPayloadForStatus(config refusal) = %#v, want %s and bounded guidance",
+				payload, sessionConfigOptionRejectedCode)
 		}
 	})
 	t.Run("Should keep a classified failure over a joined config refusal", func(t *testing.T) {
@@ -261,8 +262,10 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 		if status != http.StatusUnprocessableEntity {
 			t.Fatalf("statusForSessionError(native policy) = %d, want %d", status, http.StatusUnprocessableEntity)
 		}
-		if payload := ErrorPayloadForStatus(status, err, true); payload.Error != nativeAgyPolicyGuidance {
-			t.Fatalf("ErrorPayloadForStatus(native policy) = %#v, want bounded policy guidance", payload)
+		if payload := ErrorPayloadForStatus(status, err, true); payload.Code != nativeToolPolicyUnsupportedCode ||
+			payload.Error != nativeAgyPolicyGuidance {
+			t.Fatalf("ErrorPayloadForStatus(native policy) = %#v, want %s and bounded policy guidance",
+				payload, nativeToolPolicyUnsupportedCode)
 		}
 		joined := errors.Join(err, session.ErrPendingPermissionConflict)
 		if got := statusForSessionError(joined); got != http.StatusConflict {

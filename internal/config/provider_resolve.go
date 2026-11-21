@@ -394,8 +394,17 @@ func IsNativeAgyACPCommand(command string) bool {
 	for _, suffix := range []string{".exe", ".cmd", ".bat"} {
 		name = strings.TrimSuffix(name, suffix)
 	}
-	return name == providerAgyKey && len(parsed.Args) > 0 &&
-		strings.EqualFold(strings.TrimSpace(parsed.Args[0]), "acp")
+	if name != providerAgyKey {
+		return false
+	}
+	for _, arg := range parsed.Args {
+		trimmed := strings.TrimSpace(arg)
+		if strings.HasPrefix(trimmed, "-") {
+			continue
+		}
+		return strings.EqualFold(trimmed, "acp")
+	}
+	return false
 }
 
 // ResolveSessionAgent resolves a parsed agent definition for one session.

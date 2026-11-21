@@ -3286,19 +3286,19 @@ func TestPromptSessionHandlerSurfacesRuntimeReselectionGuidance(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name string
-		err  error
-		want string
+		name     string
+		err      error
+		wantCode string
 	}{
 		{
-			name: "Should explain runtime option reselection",
-			err:  acp.ErrSessionConfigOptionRejected,
-			want: "Reselect this session's runtime",
+			name:     "Should explain runtime option reselection",
+			err:      acp.ErrSessionConfigOptionRejected,
+			wantCode: "session_config_option_rejected",
 		},
 		{
-			name: "Should explain unsupported native host permissions",
-			err:  acp.ErrNativeAgyToolPolicyUnsupported,
-			want: "Antigravity CLI cannot enforce",
+			name:     "Should explain unsupported native host permissions",
+			err:      acp.ErrNativeAgyToolPolicyUnsupported,
+			wantCode: "native_tool_policy_unsupported",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -3325,11 +3325,12 @@ func TestPromptSessionHandlerSurfacesRuntimeReselectionGuidance(t *testing.T) {
 			}
 			var payload contract.ErrorPayload
 			decodeJSONResponse(t, recorder, &payload)
-			if !strings.Contains(payload.Error, tc.want) ||
+			if payload.Code != tc.wantCode ||
+				strings.TrimSpace(payload.Error) == "" ||
 				strings.Contains(payload.Error, "acp:") ||
 				strings.Contains(payload.Error, "/private/") ||
 				strings.Contains(payload.Error, "session: start") {
-				t.Fatalf("error payload = %#v, want bounded runtime guidance", payload)
+				t.Fatalf("error payload = %#v, want code %q and bounded runtime guidance", payload, tc.wantCode)
 			}
 		})
 	}

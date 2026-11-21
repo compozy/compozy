@@ -407,10 +407,11 @@ func TestProviderAGYProbeCarriesWorkingDirectory(t *testing.T) {
 		// The production-built request must pass the real ACP base
 		// validation that rejected D-001 before launch.
 		if err := (acp.StartOpts{
-			AgentName: seen.AgentName,
-			Command:   seen.Command,
-			Cwd:       seen.Cwd,
-			Env:       seen.Env,
+			AgentName:  seen.AgentName,
+			Command:    seen.Command,
+			Cwd:        seen.Cwd,
+			Env:        seen.Env,
+			Inspection: true,
 		}).Validate(); err != nil {
 			t.Fatalf("production probe request Validate() error = %v", err)
 		}
@@ -455,10 +456,11 @@ func TestProviderAGYProbeCarriesWorkingDirectory(t *testing.T) {
 			t.Fatalf("login Cwd = %q, want an existing directory (%v)", seenLogin.Cwd, err)
 		}
 		if err := (acp.StartOpts{
-			AgentName: seenLogin.AgentName,
-			Command:   seenLogin.Command,
-			Cwd:       seenLogin.Cwd,
-			Env:       seenLogin.Env,
+			AgentName:  seenLogin.AgentName,
+			Command:    seenLogin.Command,
+			Cwd:        seenLogin.Cwd,
+			Env:        seenLogin.Env,
+			Inspection: true,
 		}).Validate(); err != nil {
 			t.Fatalf("production login request Validate() error = %v", err)
 		}

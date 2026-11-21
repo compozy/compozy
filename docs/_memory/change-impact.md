@@ -2373,10 +2373,15 @@ extension contracts, or schema change. Command/home-scoped discovery, readiness,
 and default MCP transport remain unchanged; inventory recognizes `agy`. Existing Web fixtures,
 site documentation, official skill references, QA scenarios, and
 `.release-notes/agy-native-acp.md` co-ship the native CLI and upgrade guidance. Verification and
-external acceptance limits are recorded in `docs/qa/reports/2026-11-16-agy-native-acp.md`.
-The final live refusal, replay and later native restoration were observed on `8d501bba2`; the
-2026-11-17 environment restart removed the lab before strict audit, sanitization and verified
-teardown. Those missing receipts remain an acceptance blocker, not an inferred PASS.
+external acceptance limits for the lost 2026-11-16 lab are recorded in
+`docs/qa/reports/2026-11-16-agy-native-acp.md`; those receipts are permanently missing and are
+never inferred as PASS. The separately authorized 2026-11-17 consented re-walk closed that
+acceptance gap for the executable scope with strict audit and `clean: true` teardown; its record
+is `docs/qa/reports/2026-11-17-agy-native-acp-consented.md` with persistent evidence under
+`.compozy/tasks/agy-native-acp/evidence/qa-20261117-consented/`, subject to the operator
+exclusions recorded there (provisioning a new Google account, native execution outside Linux);
+`RT-agy-acp-provider` stays `untested` until its remaining `missing_cli`/no-fallback and
+hosted-MCP switch legs are walked.
 
 Owner: PR #773. The additive `agy` built-in launches the supplied `agy_acp_server`, uses
 protocol-owned native login, and discovers exact model/configuration options through ACP. Provider

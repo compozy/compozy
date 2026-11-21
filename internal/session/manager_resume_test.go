@@ -2831,6 +2831,36 @@ func TestResumeRouteChangeRebuildsEffectiveOptions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should apply a confirmed selection over ambiguous options on an unverified route", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createAgySession(t, h, compozyconfig.PermissionModeApproveAll, nil)
+		meta := readMeta(t, created.MetaPath())
+		meta.AcceptedRoute = nil
+		meta.SetACPOptions([]store.SessionACPOptionSelection{{ID: "mode", ValueID: "yolo"}})
+		if err := store.WriteSessionMeta(created.MetaPath(), &meta); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
+		if _, err := h.manager.SetRuntimeSelection(testutil.Context(t), created.ID, RuntimeSelection{
+			Provider:        agyProviderName,
+			Model:           "gemini-4-hydrogen",
+			ReasoningEffort: "xhigh",
+			ACPOptions:      []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}},
+		}, 0); err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.ResumeSessionID != "" || acpOptionValue(call.ACPOptions, "mode") != "plan" {
+			t.Fatalf("resume start = %q/%+v, want replay with the confirmed plan over the retained yolo",
+				call.ResumeSessionID, call.ACPOptions)
+		}
+	})
+
 	t.Run("Should retain all state when the new route reports missing auth before retry", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

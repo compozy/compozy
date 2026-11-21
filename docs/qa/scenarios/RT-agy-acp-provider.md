@@ -6,7 +6,7 @@ persona: Ada
 journey: J-15
 expected: With the official Antigravity CLI on PATH (command agy, argument acp), no [providers.agy] block, and operator-selected approve-all for execution, explicit local login reuses the CLI's shared sign-in and updates the daemon's sign-in verdict, a remote probe reports readiness, and the first prompt persists under agy with an advertised logical model and its own thought_level effort (Hydrogen xhigh on the verified fixture). Narrower host policies refuse native execution before launch without widening permissions. A standalone-only installation is missing_cli with no fallback, logged-out or missing-CLI states give actionable guidance, and nothing triggers automatic login. Under approve-all, provider-native file tools complete individually during the turn; gateway-routed edits in Ask before changes wait for operator approval.
 entry_points: compozy provider auth login agy; compozy provider list; compozy provider auth status agy --remote; compozy session new --agent agy-example
-qa_status: pass
+qa_status: untested
 bug_ids: "#1881"
 fix_status: fixed
 retest_status: pending
@@ -105,7 +105,9 @@ provider-owned Google consent through the native CLI's documented headless login
 probe reported `authenticated`, and `compozy provider auth login` reused the store without a
 second consent. A second pending login was interrupted with `SIGINT`, stayed `needs_login`, and
 left no process. Persistent receipts and the complete acceptance boundary are in the linked
-2026-11-17 report.
+2026-11-17 report. Scenario-level `qa_status` is reset to `untested` because steps 7–8
+(`missing_cli`/no-fallback/dual-token-store) and step 6's Hydrogen → Argon → Hydrogen
+hosted-MCP switch sequence remain unwalked on native CLI 1.5.9.
 
 The built-in now launches the official Antigravity CLI as `agy acp`, so the 1.4.0 standalone-server
 receipts above are historical evidence for a superseded runtime, not native-CLI acceptance. The

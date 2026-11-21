@@ -2136,10 +2136,15 @@ opencode/provider-managed
 				efforts: []string{"low", "medium", "high"}, current: "medium"},
 		}
 		modelOption := func(current string) acp.SessionConfigOption {
-			values := make([]acp.SessionConfigOptionValue, 0, len(logicalModels))
+			values := make([]acp.SessionConfigOptionValue, 0, len(logicalModels)+2)
 			for _, model := range logicalModels {
 				values = append(values, acp.SessionConfigOptionValue{Value: model.id, Label: model.label})
 			}
+			// Picker noise real providers repeat: the row set must stay deduplicated and blank-free.
+			values = append(values,
+				acp.SessionConfigOptionValue{Value: logicalModels[0].id, Label: logicalModels[0].label},
+				acp.SessionConfigOptionValue{Value: "  ", Label: "Blank"},
+			)
 			return acp.SessionConfigOption{
 				ID: "model", Label: "Model", Category: "model",
 				Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: current, Values: values,

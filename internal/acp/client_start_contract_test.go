@@ -3713,6 +3713,7 @@ func TestStartNativeAgyRefusesUnenforceablePolicies(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		provider    string
+		command     string
 		permissions compozyconfig.PermissionMode
 		gateway     bool
 		options     []SessionConfigOptionSelection
@@ -3734,6 +3735,14 @@ func TestStartNativeAgyRefusesUnenforceablePolicies(t *testing.T) {
 			name: "Should refuse the native CLI under a custom provider label", provider: "custom",
 			permissions: compozyconfig.PermissionModeApproveReads,
 		},
+		{
+			name: "Should refuse native CLI with leading flags under approve-reads", command: "agy --sandbox acp",
+			permissions: compozyconfig.PermissionModeApproveReads,
+		},
+		{
+			name: "Should refuse native CLI with leading flags under deny-all", command: "agy --flag=value acp",
+			permissions: compozyconfig.PermissionModeDenyAll,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -3748,10 +3757,14 @@ func TestStartNativeAgyRefusesUnenforceablePolicies(t *testing.T) {
 			if provider == "" {
 				provider = "agy"
 			}
+			command := tc.command
+			if command == "" {
+				command = "agy acp"
+			}
 			proc, err := driver.Start(t.Context(), StartOpts{
 				AgentName:    "helper",
 				ProviderName: provider,
-				Command:      "agy acp",
+				Command:      command,
 				Cwd:          t.TempDir(),
 				Env:          helperEnvWithCapture("agy_native_modes", "", captureFile),
 				Permissions:  tc.permissions,
