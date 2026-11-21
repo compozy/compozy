@@ -99,7 +99,7 @@ func TestTranscriptProjectionUpgrade(t *testing.T) {
 			}
 		})
 		status, err := store.Status(ctx, db.db, MigrationStream())
-		if err != nil || status.Version != 12 {
+		if err != nil || status.Version != testSessionMigrationHead || status.AppliedCount != testSessionMigrationHead {
 			t.Fatalf("migration status = %#v, %v", status, err)
 		}
 		page, err := db.TranscriptPage(ctx, transcript.PageQuery{})

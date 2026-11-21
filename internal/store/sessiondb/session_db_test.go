@@ -41,6 +41,7 @@ type EventQuery = store.EventQuery
 const SessionDatabaseName = store.SessionDatabaseName
 
 const testSessionDBWorkspaceID = "ws-sessiondb-test"
+const testSessionMigrationHead = 12
 
 const testSessionDBOwnerTableDDL = `CREATE TABLE session_db_owner (
 	singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
@@ -1667,7 +1668,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 					t.Fatalf("migrated page = %#v, %v, want %#v", page, err, wantPage)
 				}
 				status, err := store.Status(ctx, opened.db, MigrationStream())
-				if err != nil || status.Version != 12 || status.AppliedCount != 12 ||
+				if err != nil || status.Version != testSessionMigrationHead ||
+					status.AppliedCount != testSessionMigrationHead ||
 					(attempt > 0 && status != previousStatus) {
 					t.Fatalf("upgraded status = %#v, %v, previous %#v", status, err, previousStatus)
 				}
@@ -1692,8 +1694,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 12 || firstStatus.AppliedCount != 12 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 12", firstStatus)
+		if firstStatus.Version != testSessionMigrationHead || firstStatus.AppliedCount != testSessionMigrationHead {
+			t.Fatalf("Status(first) = %#v, want version/applied count %d", firstStatus, testSessionMigrationHead)
 		}
 		if err := verifySessionDBOwner(ctx, first.db, testSessionDBOwner("sess-idempotent")); err != nil {
 			t.Fatalf("verifySessionDBOwner() error = %v", err)
@@ -1841,8 +1843,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(engine-migrated) error = %v", err)
 		}
-		if status.Version != 12 || status.AppliedCount != 12 {
-			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 12", status)
+		if status.Version != testSessionMigrationHead || status.AppliedCount != testSessionMigrationHead {
+			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count %d", status, testSessionMigrationHead)
 		}
 		migratedOwner := testSessionDBOwner("sess-prefix-upgrade")
 		if _, err := migrationDB.ExecContext(
@@ -2916,6 +2918,8 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 			`{"type":"agent_message","turn_id":"turn-stream","text":"hel"}`,
 			`{"type":"agent_message","turn_id":"turn-stream","text":"lo"}`,
 			" " + string([]byte{0xff, 0xfe}),
+			"\xe2\x82",
+			"\xac",
 		} {
 			if err := sessionDB.Record(ctx, SessionEvent{
 				TurnID:    "turn-stream",
@@ -2938,10 +2942,10 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		if got, want := entry.StartSequence, int64(1); got != want {
 			t.Fatalf("StartSequence = %d, want %d", got, want)
 		}
-		if got, want := entry.Sequence, int64(3); got != want {
+		if got, want := entry.Sequence, int64(5); got != want {
 			t.Fatalf("Sequence = %d, want %d", got, want)
 		}
-		if got, want := transcript.UIMessageText(entry.Message), "hello \ufffd\ufffd"; got != want {
+		if got, want := transcript.UIMessageText(entry.Message), "hello \ufffd\ufffd€"; got != want {
 			t.Fatalf("streamed text = %q, want %q", got, want)
 		}
 	})
@@ -5551,10 +5555,10 @@ func TestSessionDBConcurrentMigrationApply(t *testing.T) {
 				continue
 			}
 			status, err := store.Status(ctx, result.db.db, MigrationStream())
-			if err != nil || status.Version != usageCostMigrationVersion ||
-				status.AppliedCount != usageCostMigrationVersion {
+			if err != nil || status.Version != testSessionMigrationHead ||
+				status.AppliedCount != testSessionMigrationHead {
 				t.Errorf("migration history = %+v, %v; want every version through %d",
-					status, err, usageCostMigrationVersion)
+					status, err, testSessionMigrationHead)
 			}
 			rows, err := result.db.ListTokenUsage(ctx)
 			if err != nil || len(rows) != 1 || rows[0].CostAmount == nil || *rows[0].CostAmount != 3 ||
@@ -5754,8 +5758,8 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if status.Version != usageCostMigrationVersion || status.AppliedCount != usageCostMigrationVersion {
-					t.Fatalf("migration history=%+v, want every version through %d", status, usageCostMigrationVersion)
+				if status.Version != testSessionMigrationHead || status.AppliedCount != testSessionMigrationHead {
+					t.Fatalf("migration history=%+v, want every version through %d", status, testSessionMigrationHead)
 				}
 				rows, err := ledger.ListTokenUsage(ctx)
 				if err != nil {
