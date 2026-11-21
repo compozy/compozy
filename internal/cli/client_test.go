@@ -2353,17 +2353,19 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 				client := &daemonClient{
 					target:               LocalClientTarget("/tmp/compozy.sock"),
 					hostedMCPCallTimeout: time.Minute,
-					streamClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-						if want, hasDeadline := ctx.Deadline(); hasDeadline {
-							if got, ok := req.Context().Deadline(); !ok || !got.Equal(want) {
-								t.Errorf("request deadline = %v (set %v), want %v", got, ok, want)
+					streamClient: &http.Client{
+						Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+							if want, hasDeadline := ctx.Deadline(); hasDeadline {
+								if got, ok := req.Context().Deadline(); !ok || !got.Equal(want) {
+									t.Errorf("request deadline = %v (set %v), want %v", got, ok, want)
+								}
+							} else {
+								cancelParent()
 							}
-						} else {
-							cancelParent()
-						}
-						<-req.Context().Done()
-						return nil, req.Context().Err()
-					})},
+							<-req.Context().Done()
+							return nil, req.Context().Err()
+						}),
+					},
 				}
 				_, err := client.CallHostedMCP(ctx, mcppkg.HostedCallRequest{BindID: "bind-1"})
 				if !errors.Is(err, tc.want) {
@@ -2399,7 +2401,11 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 			started := time.Now()
 			_, err := client.CallHostedMCP(t.Context(), mcppkg.HostedCallRequest{BindID: "bind-1"})
 			if !errors.Is(err, context.DeadlineExceeded) || time.Since(started) != 5*timeout/2 {
-				t.Fatalf("CallHostedMCP() = %v after %v, want timeout one budget after the last pulse", err, time.Since(started))
+				t.Fatalf(
+					"CallHostedMCP() = %v after %v, want timeout one budget after the last pulse",
+					err,
+					time.Since(started),
+				)
 			}
 		})
 	})

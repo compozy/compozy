@@ -307,7 +307,7 @@ func TestCLIHostedMCPCallLifetimeIntegration(t *testing.T) {
 		withProgress bool
 	}{
 		{"Should return a tool error and close a silent hosted call", false},
-		{"Should keep an intentional wait alive and return the final result", true},
+		{"Should deliver a progress frame before the final tool result", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

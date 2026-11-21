@@ -28,7 +28,15 @@ func TestManagerCallToolTracksInvocationForExactCallLifetime(t *testing.T) {
 		},
 	}
 
+	var progressActive bool
+	ctx := toolspkg.WithHostedWaitProgress(t.Context(), func() func() {
+		progressActive = true
+		return func() { progressActive = false }
+	})
 	process.callFn = func(_ context.Context, method string, params any, result any) error {
+		if !progressActive {
+			t.Fatal("hosted progress is inactive during the extension RPC")
+		}
 		if method != string(extensionprotocol.ExtensionServiceMethodToolsCall) {
 			t.Fatalf("process method = %q, want tools/call", method)
 		}
@@ -44,7 +52,7 @@ func TestManagerCallToolTracksInvocationForExactCallLifetime(t *testing.T) {
 		return nil
 	}
 
-	result, err := manager.CallTool(t.Context(), "question-tool", toolspkg.ExtensionToolCallRequest{
+	result, err := manager.CallTool(ctx, "question-tool", toolspkg.ExtensionToolCallRequest{
 		ToolID:    toolspkg.ToolID("ext__question_tool__ask"),
 		Handler:   "ask",
 		SessionID: "sess-1",
@@ -59,11 +67,17 @@ func TestManagerCallToolTracksInvocationForExactCallLifetime(t *testing.T) {
 	if tracker.finished != 1 {
 		t.Fatalf("tracker cleanup count = %d, want 1", tracker.finished)
 	}
+	if progressActive {
+		t.Fatal("hosted progress continued after the successful extension RPC")
+	}
 
 	process.callFn = func(context.Context, string, any, any) error {
+		if !progressActive {
+			t.Fatal("hosted progress is inactive during the extension RPC")
+		}
 		return errors.New("extension failed")
 	}
-	_, err = manager.CallTool(t.Context(), "question-tool", toolspkg.ExtensionToolCallRequest{
+	_, err = manager.CallTool(ctx, "question-tool", toolspkg.ExtensionToolCallRequest{
 		ToolID:    toolspkg.ToolID("ext__question_tool__ask"),
 		Handler:   "ask",
 		SessionID: "sess-1",
@@ -74,6 +88,9 @@ func TestManagerCallToolTracksInvocationForExactCallLifetime(t *testing.T) {
 	}
 	if tracker.finished != 2 {
 		t.Fatalf("tracker cleanup count after error = %d, want 2", tracker.finished)
+	}
+	if progressActive {
+		t.Fatal("hosted progress continued after the failed extension RPC")
 	}
 }
 
