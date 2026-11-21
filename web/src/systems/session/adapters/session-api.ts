@@ -39,7 +39,11 @@ export {
   promoteSessionInputToSteer,
   replaceSessionInput,
 } from "./session-input-api";
-export { buildSessionStreamUrl, fetchSessionTranscript } from "./session-transcript-api";
+export {
+  buildSessionStreamUrl,
+  fetchSessionInheritedTranscript,
+  fetchSessionTranscript,
+} from "./session-transcript-api";
 export type { SessionStreamCursor } from "./session-transcript-api";
 export { rewindSession } from "./session-rewind-api";
 export type { SessionRewindRequest, SessionRewindResult } from "./session-rewind-api";

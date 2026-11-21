@@ -7,14 +7,16 @@ import {
   FIND_MATCH_HIGHLIGHT,
   useSessionFindHighlights,
 } from "../hooks/use-session-find-highlights";
-import { locateFindTarget } from "../session-find-ranges";
+import { collectFindRanges, locateFindTarget } from "../session-find-ranges";
 
 // Suite: in-transcript find marks (task_08, S8).
 // Invariant: the document-global highlight registry holds the union of every mounted
 // viewport's ranges under the two shared names, so one conversation closing never erases
 // another's marks; ranges are cut in the original text with the daemon's per-code-point folding
 // (İ, final sigma, astral characters keep their UTF-16 offsets); the active mark is the first
-// occurrence in the active row; a jump target is located inside the matched part.
+// occurrence in the active row; a jump target is located inside the matched part; content a
+// row hosts but does not own (`data-find-skip`, a derived child's inherited conversation) is
+// never a match nor a jump target (#1885 C4).
 // Owning layer: assistant-ui highlight hook + find ranges. Canonical suite: this file.
 // Boundary IN: rendered rows + query. Boundary OUT: `CSS.highlights` (stubbed) and DOM ranges.
 
@@ -124,5 +126,20 @@ describe("useSessionFindHighlights", () => {
     expect(locateFindTarget(row, null, "lifecycle")?.toString()).toBe("lifecycle");
     expect(locateFindTarget(row, 1, "missing")?.toString()).toBe("tool Lifecycle output");
     expect(locateFindTarget(row, null, "missing")).toBeNull();
+  });
+
+  it("Should never match or land inside content the row does not own", () => {
+    const root = document.createElement("div");
+    root.innerHTML =
+      '<div data-message-id="child-1"><section data-find-skip=""><p>lifecycle from the source</p>' +
+      '<div data-part-index="0">inherited lifecycle part</div></section>' +
+      '<div data-part-index="0">own lifecycle part</div></div>';
+    const { matches, active } = collectFindRanges(root, "lifecycle", "child-1");
+    expect(matches.map(range => range.toString())).toEqual(["lifecycle"]);
+    expect(active?.startContainer.textContent).toBe("own lifecycle part");
+    const row = root.querySelector<HTMLElement>("[data-message-id]")!;
+    expect(locateFindTarget(row, 0, "lifecycle")?.startContainer.textContent).toBe(
+      "own lifecycle part"
+    );
   });
 });

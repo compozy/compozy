@@ -10,9 +10,9 @@ export interface SessionContinueDividerProps {
 }
 
 /**
- * The boundary before a derived child's own first message. The carried context
- * travels inside the first prompt and is never drawn as messages, so one
- * hairline with the pill's words marks where this session starts.
+ * The boundary before a derived child's own first message: one hairline with
+ * the pill's words. What the child inherited is drawn above it as a collapsed,
+ * read-only block read from the source (#1885); everything below is its own.
  */
 export function SessionContinueDivider({ origin, onOpenSource }: SessionContinueDividerProps) {
   const Glyph = origin.kind === "fork" ? GitFork : ArrowRightLeft;
@@ -60,13 +60,30 @@ const EMPTY_CHILD_DESCRIPTION = {
   fork: "The conversation up to the fork point is carried into your first message.",
 } as const;
 
-/** A derived child before its first message: the divider alone, then a compact empty state. */
-export function SessionContinueEmptyChild({ origin, onOpenSource }: SessionContinueDividerProps) {
+/** A native clone already holds the source's conversation in the agent's own session. */
+const NATIVE_CLONE_DESCRIPTION =
+  "The agent already holds the conversation up to the fork point. Your first message continues it.";
+
+export interface SessionContinueEmptyChildProps extends SessionContinueDividerProps {
+  /** The child was seeded by a native clone rather than the carried replay. */
+  nativeClone?: boolean;
+}
+
+/** A derived child before its first message: the divider, then a compact empty state. */
+export function SessionContinueEmptyChild({
+  origin,
+  onOpenSource,
+  nativeClone = false,
+}: SessionContinueEmptyChildProps) {
   return (
     <div className="flex flex-col" data-testid="session-thread-empty">
       <SessionContinueDivider onOpenSource={onOpenSource} origin={origin} />
       <Empty
-        description={EMPTY_CHILD_DESCRIPTION[origin.kind]}
+        description={
+          nativeClone && origin.kind === "fork"
+            ? NATIVE_CLONE_DESCRIPTION
+            : EMPTY_CHILD_DESCRIPTION[origin.kind]
+        }
         fill={false}
         icon={origin.kind === "fork" ? GitFork : ArrowRightLeft}
         size="compact"

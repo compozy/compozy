@@ -1,6 +1,7 @@
 import {
   type SessionOriginContextValue,
   type SessionPayload,
+  sessionInheritedView,
   useSessionDeriveHost,
   useSessionOrigin,
 } from "@/systems/session";
@@ -38,7 +39,11 @@ export function useSessionWindowDerive({
     });
   const onOpenOriginSource = (sessionId: string) => jump({ sessionId, workspaceId });
   const originContext: SessionOriginContextValue | null = origin
-    ? { origin, onOpenSource: onOpenOriginSource }
+    ? {
+        origin,
+        onOpenSource: onOpenOriginSource,
+        inherited: sessionInheritedView(session, workspaceId),
+      }
     : null;
 
   return {

@@ -35,7 +35,15 @@ export {
   type SessionDerivePlacementHandlers,
 } from "./hooks/use-session-derive";
 export { useSessionOrigin } from "./hooks/use-session-origin";
+export {
+  useSessionInheritedTranscript,
+  type SessionInheritedTranscriptState,
+} from "./hooks/use-session-inherited-transcript";
 export type { SessionOriginView } from "./lib/session-origin";
+export {
+  sessionInheritedView,
+  type SessionInheritedView,
+} from "./lib/session-inherited-transcript";
 export {
   continueSession,
   fetchSessionDerivePreview,

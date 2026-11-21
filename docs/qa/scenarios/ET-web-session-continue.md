@@ -54,6 +54,14 @@ commands:
 14. The child's window opens on its transcript without the loading skeleton (the by-id read is
     seeded). Make the daemon fail a by-id read with a 5xx: the window reads "Couldn't load this
     session" with "Try again", never "Couldn't find this session".
+15. Inherited conversation (#1885 C): above the divider the child shows a collapsed row
+    "Earlier conversation · {n} messages" and requests nothing until it is expanded. Expanded, it
+    reads the source through the derive cut, newest 50 rows first, with "Show earlier messages"
+    paging older rows; the rows have no Edit message or Fork from here and do not appear in the
+    child's find, outline or message totals. The panel reads "The agent gets the last {k} of {n}
+    messages." (or "all {n} messages") from the child's derivation. Delete, archive or rewind the
+    source, then expand on a fresh window: "The source conversation is no longer available. The
+    agent's carried context is unaffected."; the child still sends and answers normally.
 
 Automated evidence at authoring time: `session-continue-dialog.test.tsx`, `use-session-derive.test.ts`,
 `runtime-activity-notice.test.tsx`, `session-status-line.test.tsx`, `session-thread.test.tsx`,
