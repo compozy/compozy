@@ -1,6 +1,6 @@
 import { ReadonlyThreadProvider, ThreadPrimitive, useAuiState } from "@assistant-ui/react";
 import type { VirtualItem } from "@tanstack/react-virtual";
-import { type ComponentProps, type ContextType, use, useEffect } from "react";
+import { type ComponentProps, type ContextType, use, useEffect, useState } from "react";
 
 import {
   SessionContinueDivider,
@@ -25,6 +25,7 @@ import { AssistantMessage } from "./session-assistant-message";
 import { deriveSessionRows } from "./session-timeline.logic";
 import { ThreadStatePane } from "./session-thread-states";
 import { UserMessage } from "./session-user-message";
+import { SessionInheritedConversation } from "./session-inherited-conversation";
 import {
   SessionAgentMessage,
   SessionMonitorWakeMessage,
@@ -66,6 +67,47 @@ type MessageComponents = ComponentProps<typeof ThreadPrimitive.Unstable_MessageB
 
 const MESSAGE_COMPONENTS: MessageComponents = { Message: SessionThreadMessage };
 
+interface InheritedDisclosure {
+  expanded: boolean;
+  toggle: () => void;
+}
+
+/** The collapsed inherited conversation, when the derive carried something. */
+function InheritedBlock({
+  origin,
+  inherited,
+}: {
+  origin: NonNullable<ContextType<typeof SessionOriginContext>>;
+  inherited: InheritedDisclosure;
+}) {
+  if (!origin.inherited) return null;
+  return (
+    <SessionInheritedConversation
+      expanded={inherited.expanded}
+      inherited={origin.inherited}
+      messageComponents={MESSAGE_COMPONENTS}
+      onToggle={inherited.toggle}
+      sourceSessionId={origin.origin.parentSessionId}
+    />
+  );
+}
+
+/** Where a derived child came from: what it inherited, then the divider opening its own turns. */
+function DerivedChildOrigin({
+  origin,
+  inherited,
+}: {
+  origin: NonNullable<ContextType<typeof SessionOriginContext>>;
+  inherited: InheritedDisclosure;
+}) {
+  return (
+    <>
+      <InheritedBlock inherited={inherited} origin={origin} />
+      <SessionContinueDivider onOpenSource={origin.onOpenSource} origin={origin.origin} />
+    </>
+  );
+}
+
 function ThreadMessageRows({
   messageIds,
   measureVirtualElement,
@@ -74,6 +116,7 @@ function ThreadMessageRows({
   leadingItemCount,
   isFetchingOlder,
   loadOlder,
+  inherited,
 }: {
   messageIds: readonly string[];
   measureVirtualElement: (element: HTMLDivElement | null) => void;
@@ -82,6 +125,7 @@ function ThreadMessageRows({
   leadingItemCount: number;
   isFetchingOlder: boolean;
   loadOlder: () => void;
+  inherited: InheritedDisclosure;
 }) {
   const origin = use(SessionOriginContext);
   const subagentOrigin = use(SubagentOriginContext);
@@ -121,9 +165,9 @@ function ThreadMessageRows({
             data-testid="thread-message-row"
             className="w-full"
           >
-            {/* The derived child's own transcript starts here; nothing older is its own. */}
+            {/* The derived child's own transcript starts here; what it inherited sits above. */}
             {origin && messageIndex === 0 && leadingItemCount === 0 ? (
-              <SessionContinueDivider onOpenSource={origin.onOpenSource} origin={origin.origin} />
+              <DerivedChildOrigin inherited={inherited} origin={origin} />
             ) : null}
             {/* A delegated subagent's transcript opens with its parent (S4). */}
             {subagentOrigin && messageIndex === 0 && leadingItemCount === 0 ? (
@@ -187,14 +231,22 @@ function isDerivedChildReady({
 function DerivedChildPlaceholder({
   origin,
   isSessionRunning,
+  inherited,
 }: {
   origin: NonNullable<ContextType<typeof SessionOriginContext>>;
   isSessionRunning: boolean;
+  inherited: InheritedDisclosure;
 }) {
-  return isSessionRunning ? (
-    <SessionContinueDivider onOpenSource={origin.onOpenSource} origin={origin.origin} />
-  ) : (
-    <SessionContinueEmptyChild onOpenSource={origin.onOpenSource} origin={origin.origin} />
+  if (isSessionRunning) return <DerivedChildOrigin inherited={inherited} origin={origin} />;
+  return (
+    <>
+      <InheritedBlock inherited={inherited} origin={origin} />
+      <SessionContinueEmptyChild
+        nativeClone={origin.inherited?.nativeClone ?? false}
+        onOpenSource={origin.onOpenSource}
+        origin={origin.origin}
+      />
+    </>
   );
 }
 
@@ -242,6 +294,13 @@ export function ThreadMessages({
 }) {
   const transport = useSessionTransportState();
   const origin = use(SessionOriginContext);
+  // Held here, not in the virtualized first row, so the block stays open while
+  // that row scrolls out of the window and back.
+  const [inheritedExpanded, setInheritedExpanded] = useState(false);
+  const inherited: InheritedDisclosure = {
+    expanded: inheritedExpanded,
+    toggle: () => setInheritedExpanded(expanded => !expanded),
+  };
   const syncFailure =
     transport.phase === "failed" && transport.failure !== null
       ? { attempts: transport.failure.attempts, retry: transport.retry }
@@ -268,7 +327,13 @@ export function ThreadMessages({
     saidNothing &&
     isDerivedChildReady({ transcriptStatus, syncFailure, sessionState, startupFailed, failure })
   ) {
-    return <DerivedChildPlaceholder origin={origin} isSessionRunning={isSessionRunning} />;
+    return (
+      <DerivedChildPlaceholder
+        inherited={inherited}
+        isSessionRunning={isSessionRunning}
+        origin={origin}
+      />
+    );
   }
 
   if (saidNothing) {
@@ -303,6 +368,7 @@ export function ThreadMessages({
           leadingItemCount={leadingItemCount}
           isFetchingOlder={isFetchingOlder}
           loadOlder={loadOlder}
+          inherited={inherited}
         />
       </SessionInboundGroupsProvider>
     </ReadonlyThreadProvider>

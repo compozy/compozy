@@ -1,5 +1,6 @@
 import { createContext } from "react";
 
+import type { SessionInheritedView } from "../lib/session-inherited-transcript";
 import type { SessionOriginView } from "../lib/session-origin";
 
 /**
@@ -10,6 +11,8 @@ import type { SessionOriginView } from "../lib/session-origin";
 export interface SessionOriginContextValue {
   origin: SessionOriginView;
   onOpenSource?: (sessionId: string) => void;
+  /** The collapsed inherited conversation above the divider; absent when nothing was carried. */
+  inherited?: SessionInheritedView | null;
 }
 
 export const SessionOriginContext = createContext<SessionOriginContextValue | null>(null);

@@ -65,7 +65,12 @@ import {
 } from "@/systems/session/lib/session-observability";
 import { normalizeTranscriptMessages } from "@/systems/session/lib/message-schemas";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
-import type { SessionFailurePayload, SessionMessage, SessionState } from "@/systems/session/types";
+import type {
+  SessionFailurePayload,
+  SessionMessage,
+  SessionPayload,
+  SessionState,
+} from "@/systems/session/types";
 import { SESSION_TRANSPORT_LIVE } from "@/systems/session/lib/session-transport";
 import type { SessionTransportState } from "@/systems/session/lib/session-transcript-thread-context-value";
 import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/session-transcript-thread-context-value";
@@ -86,6 +91,7 @@ import {
   steeredWakesTranscript,
 } from "@/systems/session/components/stories/sessions-stability-steer-fixtures";
 import { sessionOriginView } from "@/systems/session/lib/session-origin";
+import { sessionInheritedView } from "@/systems/session/lib/session-inherited-transcript";
 import { SessionThread } from "../session-thread";
 import { readCursorSnapshot } from "../session-composer-cursor-snapshot";
 import { formatDataPreview } from "../session-message-parts.logic";
@@ -1154,6 +1160,211 @@ describe("SessionThread transcript states", () => {
     const empty = await screen.findByTestId("session-thread-empty");
     expect(empty).toHaveTextContent("Nothing said here yet");
     expect(screen.getAllByTestId("session-origin-divider")).toHaveLength(1);
+  });
+
+  // Invariant (#1885 C1–C6): a derived child shows what it inherited as a collapsed,
+  // read-only block above its divider, read from the source tail first and paged on
+  // demand, worded apart from what the agent received, and degraded once the source
+  // is gone. Owning layer: the thread message list. Canonical suite: this file.
+  describe("inherited conversation", () => {
+    function inheritedChild(derivation: Partial<NonNullable<SessionPayload["derivation"]>> = {}) {
+      const base = continuedSessionFixture();
+      const child: SessionPayload = {
+        ...base,
+        derivation: {
+          ...base.derivation!,
+          inherited_message_count: 3,
+          replay_message_count: 2,
+          replay_omitted_count: 1,
+          ...derivation,
+        },
+      };
+      return {
+        child,
+        origin: {
+          origin: sessionOriginView(child, { title: "Refactor flaky manager tests" })!,
+          inherited: sessionInheritedView(child, fixtureWorkspaceId()),
+        } satisfies SessionOriginContextValue,
+      };
+    }
+
+    function inheritedEntry(sequence: number, role: "user" | "assistant", text: string) {
+      return {
+        start_sequence: sequence,
+        sequence,
+        message: { id: `source-${sequence}`, role, parts: [{ type: "text", text, state: "done" }] },
+      };
+    }
+
+    function inheritedPage(entries: unknown[], older: number | null) {
+      return {
+        entries,
+        epoch: 1,
+        generation: 1,
+        max_sequence: 30,
+        has_older: older !== null,
+        ...(older === null ? {} : { next_before_sequence: older }),
+        limit: 50,
+      };
+    }
+
+    function stubInheritedFetch(
+      childId: string,
+      respond: (url: URL) => Response
+    ): ReturnType<typeof vi.fn> {
+      const base = createFetchMock();
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const pathname = getPathname(input);
+        if (pathname.endsWith(`/sessions/${childId}/transcript/inherited`)) {
+          const raw =
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          return respond(new URL(raw, "http://localhost"));
+        }
+        return base(input, init);
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    function inheritedCalls(fetchMock: ReturnType<typeof vi.fn>): URL[] {
+      return fetchMock.mock.calls
+        .map(([input]) => {
+          const raw =
+            typeof input === "string"
+              ? input
+              : input instanceof URL
+                ? input.href
+                : (input as Request).url;
+          return new URL(raw, "http://localhost");
+        })
+        .filter(url => url.pathname.endsWith("/transcript/inherited"));
+    }
+
+    it("Should read the inherited conversation tail first only once expanded, then page older rows", async () => {
+      const user = userEvent.setup();
+      const { child, origin } = inheritedChild();
+      const fetchMock = stubInheritedFetch(child.id, url =>
+        url.searchParams.has("before_sequence")
+          ? jsonResponse(
+              inheritedPage([inheritedEntry(4, "user", "Where do the flakes start?")], null)
+            )
+          : jsonResponse(
+              inheritedPage(
+                [
+                  inheritedEntry(10, "user", "Retry the manager suite."),
+                  inheritedEntry(12, "assistant", "The manager suite passes now."),
+                ],
+                10
+              )
+            )
+      );
+      const transcript = [
+        { id: "child-first", role: "user", parts: [{ type: "text", text: "Pick up the tests." }] },
+      ] as SessionMessage[];
+      renderThreadState({
+        status: "success",
+        messages: toReadonlyThreadMessages(transcript),
+        origin,
+      });
+
+      const block = await screen.findByTestId("session-inherited-conversation");
+      const divider = screen.getByTestId("session-origin-divider");
+      expect(
+        block.compareDocumentPosition(divider) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+      const toggle = within(block).getByTestId("session-inherited-toggle");
+      expect(toggle).toHaveTextContent("Earlier conversation · 3 messages");
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(inheritedCalls(fetchMock)).toHaveLength(0);
+
+      await user.click(toggle);
+      const panel = await within(block).findByTestId("session-inherited-panel");
+      expect(within(panel).getByTestId("session-inherited-agent-line")).toHaveTextContent(
+        "The agent gets the last 2 of 3 messages."
+      );
+      expect(await within(panel).findByText("The manager suite passes now.")).toBeInTheDocument();
+      expect(within(panel).getByText("Retry the manager suite.")).toBeInTheDocument();
+      expect(within(panel).queryByText("Where do the flakes start?")).not.toBeInTheDocument();
+      const [head] = inheritedCalls(fetchMock);
+      expect(head?.searchParams.get("limit")).toBe("50");
+      expect(head?.searchParams.has("before_sequence")).toBe(false);
+      // Inherited rows are the source's: no rewind on them, and they are not the child's rows.
+      expect(within(panel).queryByTestId("user-message-rewind")).not.toBeInTheDocument();
+      expect(panel.closest('[data-testid="thread-message-row"]')).not.toBeNull();
+      expect(screen.getAllByTestId("thread-message-row")).toHaveLength(1);
+
+      await user.click(within(panel).getByTestId("session-inherited-load-older"));
+      expect(await within(panel).findByText("Where do the flakes start?")).toBeInTheDocument();
+      expect(inheritedCalls(fetchMock).at(-1)?.searchParams.get("before_sequence")).toBe("10");
+      const order = within(panel).getByTestId("session-inherited-messages").textContent ?? "";
+      expect(order.indexOf("Where do the flakes start?")).toBeLessThan(
+        order.indexOf("Retry the manager suite.")
+      );
+      expect(order.indexOf("Retry the manager suite.")).toBeLessThan(
+        order.indexOf("The manager suite passes now.")
+      );
+      expect(within(panel).queryByTestId("session-inherited-load-older")).not.toBeInTheDocument();
+    });
+
+    it("Should stop paging and say the source is gone when an older page finds it unavailable", async () => {
+      const user = userEvent.setup();
+      const { child, origin } = inheritedChild();
+      stubInheritedFetch(child.id, url =>
+        url.searchParams.has("before_sequence")
+          ? jsonResponse(
+              { code: "inherited_transcript_unavailable", error: "source transcript unavailable" },
+              { status: 404 }
+            )
+          : jsonResponse(
+              inheritedPage([inheritedEntry(10, "user", "Retry the manager suite.")], 10)
+            )
+      );
+      const transcript = [
+        { id: "child-first", role: "user", parts: [{ type: "text", text: "Pick up the tests." }] },
+      ] as SessionMessage[];
+      renderThreadState({
+        status: "success",
+        messages: toReadonlyThreadMessages(transcript),
+        origin,
+      });
+
+      await user.click(await screen.findByTestId("session-inherited-toggle"));
+      const panel = await screen.findByTestId("session-inherited-panel");
+      await user.click(await within(panel).findByTestId("session-inherited-load-older"));
+      expect(await within(panel).findByTestId("session-inherited-unavailable")).toBeInTheDocument();
+      expect(within(panel).getByText("Retry the manager suite.")).toBeInTheDocument();
+      expect(within(panel).queryByTestId("session-inherited-load-older")).not.toBeInTheDocument();
+    });
+
+    it("Should say the source is no longer available while the unprompted child keeps its carried context", async () => {
+      const user = userEvent.setup();
+      const { child, origin } = inheritedChild();
+      stubInheritedFetch(child.id, () =>
+        jsonResponse(
+          { code: "inherited_transcript_unavailable", error: "source transcript unavailable" },
+          { status: 404 }
+        )
+      );
+      renderThreadState({ status: "success", origin });
+
+      const empty = await screen.findByTestId("session-thread-empty");
+      expect(empty).toHaveTextContent(
+        "The conversation carried over is sent with your first message."
+      );
+      await user.click(screen.getByTestId("session-inherited-toggle"));
+      expect(await screen.findByTestId("session-inherited-unavailable")).toHaveTextContent(
+        "The source conversation is no longer available. The agent's carried context is unaffected."
+      );
+      expect(screen.getAllByTestId("session-origin-divider")).toHaveLength(1);
+    });
+
+    it("Should omit the block when the derive carried nothing", async () => {
+      const { origin } = inheritedChild({ inherited_message_count: 0 });
+      renderThreadState({ status: "success", origin });
+
+      expect(await screen.findByTestId("session-thread-empty")).toBeInTheDocument();
+      expect(screen.queryByTestId("session-inherited-conversation")).not.toBeInTheDocument();
+    });
   });
 
   // Invariant: a dead live stream never poses as an empty session (US-018.AC-2).

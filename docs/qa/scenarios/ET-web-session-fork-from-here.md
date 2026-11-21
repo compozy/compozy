@@ -101,3 +101,18 @@ clicked message, and the source kept `max_sequence` 14. The sidebar row menu →
 ("Carries over 6 messages") landed the child in that same window too. Steps 5–8 are unchanged by this
 change. Regressions: `session-fork-dialog.test.tsx`, `session-thread.test.tsx`, E2E-002 in
 `web/e2e/__tests__/session-derive.spec.ts`. Evidence: the PR for #1024.
+
+## Inherited conversation (#1885 C)
+
+1. Fork a prompted session at a message ("Fork from here"). Above the child's divider the collapsed
+   row "Earlier conversation · {n} messages" counts only the messages through the cut.
+2. Expand it: the newest rows through the cut load first and "Show earlier messages" pages older ones;
+   nothing after the cut appears, even after the source receives new turns.
+3. A whole-session fork that used the native clone reads "The agent continues from its own copy of this
+   conversation." and, before the first message, "The agent already holds the conversation up to the fork
+   point. Your first message continues it."
+4. Fork the fork: the grandchild's block shows its direct source through its own cut, not a nested block.
+5. Rewind or clear the source past the cut, then expand on a fresh window: "The source conversation is no
+   longer available. The agent's carried context is unaffected."
+
+Automated evidence: `session-thread.test.tsx` "inherited conversation".

@@ -302,6 +302,7 @@ export {
 } from "./session-catalog-stream-coverage";
 
 export { sessionTranscriptOptions } from "./session-transcript-options";
+export { sessionInheritedTranscriptOptions } from "./session-inherited-transcript";
 
 // Navigation reads (S8/S9) sit under the detail key: mutation invalidation
 // rereads them; the live-tail surface refresh (`exact` on detail) does not, so

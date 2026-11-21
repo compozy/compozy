@@ -15,8 +15,22 @@ function textNodeRanges(node: Text, needle: string): Range[] {
   });
 }
 
+/**
+ * Content a row hosts but does not own: a derived child's inherited
+ * conversation sits in its first row and is the source's text, never a match
+ * of the child's find (#1885 C4).
+ */
+const FIND_SKIP_SELECTOR = "[data-find-skip]";
+
+function insideSkipped(node: Node): boolean {
+  const element = node instanceof Element ? node : node.parentElement;
+  return element?.closest(FIND_SKIP_SELECTOR) != null;
+}
+
 function* textNodes(scope: Node): Generator<Text> {
-  const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+  const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, {
+    acceptNode: node => (insideSkipped(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     yield node as Text;
   }
@@ -69,9 +83,11 @@ export function locateFindTarget(
   const part =
     partIndex === null
       ? null
-      : row.querySelector<HTMLElement>(
-          `[data-part-index="${partIndex}"], [data-part-indices~="${partIndex}"]`
-        );
+      : (Array.from(
+          row.querySelectorAll<HTMLElement>(
+            `[data-part-index="${partIndex}"], [data-part-indices~="${partIndex}"]`
+          )
+        ).find(candidate => !insideSkipped(candidate)) ?? null);
   if (part) {
     const inPart = firstFindRange(part, needle);
     if (inPart) return inPart;

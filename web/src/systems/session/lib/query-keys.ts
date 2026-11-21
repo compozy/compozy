@@ -91,6 +91,9 @@ export const sessionKeys = {
     [...sessionKeys.workspace(workspace), "rewind-conversation"] as const,
   transcript: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "transcript"] as const,
+  /** A derived child's source transcript through the derive cut (#1885). */
+  inheritedTranscript: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "inherited-transcript"] as const,
   /** Operator-message outline over full retained history (S9). */
   transcriptOutline: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "transcript-outline"] as const,

@@ -81,6 +81,7 @@ Signal colour marks state only. Nothing in this feature is danger-toned except p
 - Submit timeout: **Starting the new session took too long. Try again; if it was created, it opens.**
 - Refusals: **That turn hasn't settled yet.** · **Transcript changed — reopen to fork from the current state.** · daemon messages verbatim for `agent_not_found`, `session_archived`, `route_not_found`, `new_work_admission_unavailable`.
 - Origin: pill **Continued from {origin_agent_name}** / **Forked from {parent title}**; divider **Continued from {parent title}** / **Forked from {parent title}**; ledger **continue · from {agent}** / **fork · through {message_id}** / **fork**; empty child **Nothing said here yet** + **The conversation carried over is sent with your first message.** (continue) / **The conversation up to the fork point is carried into your first message.** (fork).
+- Inherited conversation (#1885 C, supersedes "the carried context is never drawn"): above the divider a collapsed turn-fold row **Earlier conversation · {n} messages** (**Earlier conversation** for a derive recorded before the count; no row when nothing was carried). Expanded it reads the source through the derive cut, newest first, on a hairline left gutter, with **Show earlier messages** / **Couldn't load earlier messages.** + **Try again**; loading **Loading the earlier conversation…**; failure **Couldn't load the earlier conversation.** + **Try again**; source gone **The source conversation is no longer available. The agent's carried context is unaffected.** The agent line keeps display and delivery apart: **The agent gets the last {k} of {n} messages.** · **The agent gets all {n} messages.** · native clone **The agent continues from its own copy of this conversation.** Inherited rows are read-only (no Edit message, no Fork from here) and do not count toward the child's find, outline or totals.
 - Never in product copy: *branch* (git, worktree, Loops), *chat*, *Handoff from X*, *Continued from chat*, a *Badge*.
 
 ## VC matrix
@@ -124,7 +125,6 @@ Evidence for each row lands at `.compozy/tasks/session-continue-fork/evidence/vi
 ## Open questions for the design pass
 
 - Whether the Route row should also show the account fingerprint label once Spec A ships (today: `{provider} · {model}` only).
-- Whether the empty-child copy needs an explicit "sent with your first message" for the native-fork path, where the child's transcript is replayed by the agent instead (ADR-003 of the spec).
 - Palette / menubar `session.continue` / `session.fork` commands are not drawn; they are optional in `_uiux.md` and would reuse the same dialogs.
 
 ## Revision log
@@ -132,3 +132,4 @@ Evidence for each row lands at `.compozy/tasks/session-continue-fork/evidence/vi
 - 2026-09-11 · authored after the spec, the task graph and DECISIONS.md D6/D7.
 - 2026-09-11 · peer review round 1 (N-004): VC owners aligned to the task tables (VC-04/05 → task_06); VC-18 viewport stated as 1440×900 with a 640px session window; sessions-stability css path follows its archive location.
 - 2026-11-20 · #1885: measurement and submit are bounded with Try again, a failed measurement no longer blocks the primary, Cancel and close stay available while a submit runs; Fork's placement and missing first message confirmed deliberate (#1024).
+- 2026-11-21 · #1885 C: the derived child draws its inherited conversation as a collapsed, read-only block read from the source. The native-clone empty child reads **The agent already holds the conversation up to the fork point. Your first message continues it.**; the replay copy is unchanged (settles the former open question).

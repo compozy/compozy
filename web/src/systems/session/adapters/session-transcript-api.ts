@@ -60,3 +60,40 @@ export async function fetchSessionTranscript(
   const payload = requireResponseData(data, response, `Failed to fetch session transcript "${id}"`);
   return { ...payload, entries: await normalizeTranscriptEntries(payload.entries) };
 }
+
+/**
+ * A bounded page of a derived child's source transcript through the derive cut,
+ * tail first (#1885). `id` is the child; the daemon resolves the source, its
+ * scope and the cut, and answers 404 `inherited_transcript_unavailable` once the
+ * source is gone, archived, moved, rewound or cleared.
+ */
+export async function fetchSessionInheritedTranscript(
+  workspaceId: string,
+  id: string,
+  query: SessionTranscriptQuery = {},
+  signal?: AbortSignal
+): Promise<NormalizedSessionTranscriptResponse> {
+  const fallback = `Failed to fetch the inherited transcript of session "${id}"`;
+  const { data, error, response } =
+    workspaceId === ""
+      ? await apiClient.GET("/api/sessions/{session_id}/transcript/inherited", {
+          params: { path: { session_id: id }, query: { ...query, all_profiles: true } },
+          signal,
+        })
+      : await apiClient.GET(
+          "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/inherited",
+          {
+            params: {
+              path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
+              query: Object.keys(query).length > 0 ? query : undefined,
+            },
+            signal,
+          }
+        );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, fallback, id);
+  }
+
+  const payload = requireResponseData(data, response, fallback);
+  return { ...payload, entries: await normalizeTranscriptEntries(payload.entries) };
+}
