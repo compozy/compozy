@@ -16,68 +16,54 @@ import (
 // Match escaped backslashes first so literal escape text remains part of the JSON string.
 var jsonSeparators = strings.NewReplacer(`\\`, `\\`, `\u2028`, "\u2028", `\u2029`, "\u2029")
 
-// CanonicalJSON returns canonical JSON with literal Unicode separators, as in the TypeScript SDK.
+// CanonicalJSON returns the daemon's identity encoding, which escapes U+2028 and U+2029.
 func CanonicalJSON(raw json.RawMessage) ([]byte, error) {
-	canonical, err := canonicalIdentityJSON(raw)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(jsonSeparators.Replace(canonical)), nil
-}
-
-// CanonicalIdentityJSON retains the escaped separators used by existing daemon identities.
-func CanonicalIdentityJSON(raw json.RawMessage) ([]byte, error) {
-	canonical, err := canonicalIdentityJSON(raw)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(canonical), nil
-}
-
-func canonicalIdentityJSON(raw json.RawMessage) (string, error) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 {
-		return "", NewValidationError("json", ReasonSchemaInvalid, "json value is required")
+		return nil, NewValidationError("json", ReasonSchemaInvalid, "json value is required")
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(trimmed))
 	decoder.UseNumber()
 	var value any
 	if err := decoder.Decode(&value); err != nil {
-		return "", NewValidationError("json", ReasonSchemaInvalid, err.Error())
+		return nil, NewValidationError("json", ReasonSchemaInvalid, err.Error())
 	}
 	var extra any
 	if err := decoder.Decode(&extra); err != io.EOF {
 		if err != nil {
-			return "", NewValidationError("json", ReasonSchemaInvalid, err.Error())
+			return nil, NewValidationError("json", ReasonSchemaInvalid, err.Error())
 		}
-		return "", NewValidationError("json", ReasonSchemaInvalid, "multiple JSON values are not allowed")
+		return nil, NewValidationError("json", ReasonSchemaInvalid, "multiple JSON values are not allowed")
 	}
 
 	var builder strings.Builder
 	if err := appendCanonicalValue(&builder, value); err != nil {
-		return "", err
+		return nil, err
 	}
-	return builder.String(), nil
+	return []byte(builder.String()), nil
 }
 
-// SchemaDigest hashes the canonical schema with the TypeScript SDK's separator encoding.
+// SchemaDigest returns the daemon's published SHA-256 identity for a JSON Schema subtree.
 func SchemaDigest(raw json.RawMessage) (string, error) {
-	return schemaDigest(raw, CanonicalJSON)
+	return schemaDigest(raw, false)
 }
 
-// SchemaIdentityDigest retains the digest published by the daemon and Go SDK.
-func SchemaIdentityDigest(raw json.RawMessage) (string, error) {
-	return schemaDigest(raw, CanonicalIdentityJSON)
+// SchemaDigestWithLiteralSeparators matches the TypeScript SDK's U+2028 and U+2029 encoding.
+func SchemaDigestWithLiteralSeparators(raw json.RawMessage) (string, error) {
+	return schemaDigest(raw, true)
 }
 
-func schemaDigest(raw json.RawMessage, canonicalize func(json.RawMessage) ([]byte, error)) (string, error) {
+func schemaDigest(raw json.RawMessage, literalSeparators bool) (string, error) {
 	if err := ValidateJSONObject("schema", raw, true); err != nil {
 		return "", err
 	}
-	canonical, err := canonicalize(raw)
+	canonical, err := CanonicalJSON(raw)
 	if err != nil {
 		return "", err
+	}
+	if literalSeparators {
+		canonical = []byte(jsonSeparators.Replace(string(canonical)))
 	}
 	sum := sha256.Sum256(canonical)
 	return hex.EncodeToString(sum[:]), nil
@@ -87,7 +73,7 @@ func schemaDigest(raw json.RawMessage, canonicalize func(json.RawMessage) ([]byt
 func DescriptorWithSchemaDigests(descriptor Descriptor) (Descriptor, error) {
 	descriptor.ToolPresentation = CloneToolPresentation(descriptor.ToolPresentation)
 	descriptor.ToolExecutionMetadata = CloneToolExecutionMetadata(descriptor.ToolExecutionMetadata)
-	inputDigest, err := SchemaIdentityDigest(descriptor.InputSchema)
+	inputDigest, err := SchemaDigest(descriptor.InputSchema)
 	if err != nil {
 		return Descriptor{}, wrapField(err, "input_schema")
 	}
@@ -104,7 +90,7 @@ func DescriptorWithSchemaDigests(descriptor Descriptor) (Descriptor, error) {
 		descriptor.OutputSchemaDigest = ""
 		return descriptor, nil
 	}
-	outputDigest, err := SchemaIdentityDigest(descriptor.OutputSchema)
+	outputDigest, err := SchemaDigest(descriptor.OutputSchema)
 	if err != nil {
 		return Descriptor{}, wrapField(err, "output_schema")
 	}

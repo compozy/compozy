@@ -368,7 +368,7 @@ func manifestRuntimeDescriptor(
 	command *toolspkg.ExtensionCommandSpec,
 ) (toolspkg.ExtensionToolRuntimeDescriptor, error) {
 	presentation := tool.Presentation()
-	inputDigest, err := toolspkg.SchemaIdentityDigest(tool.InputSchema)
+	inputDigest, err := toolspkg.SchemaDigest(tool.InputSchema)
 	if err != nil {
 		return toolspkg.ExtensionToolRuntimeDescriptor{}, fmt.Errorf(
 			"extension: tool %q input schema digest: %w",
@@ -378,7 +378,7 @@ func manifestRuntimeDescriptor(
 	}
 	var outputDigest string
 	if len(tool.OutputSchema) > 0 {
-		outputDigest, err = toolspkg.SchemaIdentityDigest(tool.OutputSchema)
+		outputDigest, err = toolspkg.SchemaDigest(tool.OutputSchema)
 		if err != nil {
 			return toolspkg.ExtensionToolRuntimeDescriptor{}, fmt.Errorf(
 				"extension: tool %q output schema digest: %w",

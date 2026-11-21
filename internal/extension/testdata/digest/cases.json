@@ -55,9 +55,7 @@
         "name": "unicode_separators",
         "schema": {
             "type": "object",
-            "required": [
-                "query"
-            ],
+            "required": ["query"],
             "properties": {
                 "query": {
                     "type": "string"

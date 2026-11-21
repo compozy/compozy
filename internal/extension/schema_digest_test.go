@@ -32,7 +32,7 @@ func TestSchemaDigestFixturesMatchSDKsAndPublishedIdentities(t *testing.T) {
 			if err != nil {
 				t.Fatalf("CanonicalJSON(%s) error = %v", fixture.Name, err)
 			}
-			if got, want := string(canonical), fixture.Canonical; got != want {
+			if got, want := string(canonical), cmp.Or(fixture.IdentityCanonical, fixture.Canonical); got != want {
 				t.Fatalf("CanonicalJSON(%s) = %q, want %q", fixture.Name, got, want)
 			}
 
@@ -40,23 +40,21 @@ func TestSchemaDigestFixturesMatchSDKsAndPublishedIdentities(t *testing.T) {
 			if err != nil {
 				t.Fatalf("SchemaDigest(%s) error = %v", fixture.Name, err)
 			}
-			if digest != fixture.SHA256 {
-				t.Fatalf("SchemaDigest(%s) = %q, want %q", fixture.Name, digest, fixture.SHA256)
+			if want := cmp.Or(fixture.IdentitySHA256, fixture.SHA256); digest != want {
+				t.Fatalf("SchemaDigest(%s) = %q, want %q", fixture.Name, digest, want)
 			}
 
-			identityJSON, err := toolspkg.CanonicalIdentityJSON(fixture.Schema)
+			literalDigest, err := toolspkg.SchemaDigestWithLiteralSeparators(fixture.Schema)
 			if err != nil {
-				t.Fatalf("CanonicalIdentityJSON(%s) error = %v", fixture.Name, err)
+				t.Fatalf("SchemaDigestWithLiteralSeparators(%s) error = %v", fixture.Name, err)
 			}
-			if got, want := string(identityJSON), cmp.Or(fixture.IdentityCanonical, fixture.Canonical); got != want {
-				t.Fatalf("CanonicalIdentityJSON(%s) = %q, want %q", fixture.Name, got, want)
-			}
-			identityDigest, err := toolspkg.SchemaIdentityDigest(fixture.Schema)
-			if err != nil {
-				t.Fatalf("SchemaIdentityDigest(%s) error = %v", fixture.Name, err)
-			}
-			if got, want := identityDigest, cmp.Or(fixture.IdentitySHA256, fixture.SHA256); got != want {
-				t.Fatalf("SchemaIdentityDigest(%s) = %q, want %q", fixture.Name, got, want)
+			if literalDigest != fixture.SHA256 {
+				t.Fatalf(
+					"SchemaDigestWithLiteralSeparators(%s) = %q, want %q",
+					fixture.Name,
+					literalDigest,
+					fixture.SHA256,
+				)
 			}
 		})
 	}

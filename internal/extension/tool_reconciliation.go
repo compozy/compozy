@@ -103,7 +103,7 @@ func extensionSchemaDigestMatches(schema json.RawMessage, identity, supplied str
 		return false
 	}
 	// Recompute against the authoritative schema before accepting the SDK's separator encoding.
-	digest, err := toolspkg.SchemaDigest(schema)
+	digest, err := toolspkg.SchemaDigestWithLiteralSeparators(schema)
 	return err == nil && supplied == digest
 }
 

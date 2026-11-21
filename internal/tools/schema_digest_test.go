@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestCanonicalIdentityJSONShouldProduceStableBytes(t *testing.T) {
+func TestCanonicalJSONShouldProduceStableIdentityBytes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -46,12 +46,12 @@ func TestCanonicalIdentityJSONShouldProduceStableBytes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := CanonicalIdentityJSON(tt.raw)
+			got, err := CanonicalJSON(tt.raw)
 			if err != nil {
-				t.Fatalf("CanonicalIdentityJSON() error = %v", err)
+				t.Fatalf("CanonicalJSON() error = %v", err)
 			}
 			if string(got) != tt.want {
-				t.Fatalf("CanonicalIdentityJSON() = %q, want %q", string(got), tt.want)
+				t.Fatalf("CanonicalJSON() = %q, want %q", string(got), tt.want)
 			}
 		})
 	}

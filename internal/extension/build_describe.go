@@ -260,7 +260,7 @@ func manifestToolsFromDescribe(
 }
 
 func validateDescribeToolSchemas(descriptor toolspkg.ExtensionToolRuntimeDescriptor) error {
-	inputDigest, err := toolspkg.SchemaIdentityDigest(descriptor.InputSchema)
+	inputDigest, err := toolspkg.SchemaDigest(descriptor.InputSchema)
 	if err != nil {
 		return fmt.Errorf("input_schema: %w", err)
 	}
@@ -273,7 +273,7 @@ func validateDescribeToolSchemas(descriptor toolspkg.ExtensionToolRuntimeDescrip
 		}
 		return nil
 	}
-	outputDigest, err := toolspkg.SchemaIdentityDigest(descriptor.OutputSchema)
+	outputDigest, err := toolspkg.SchemaDigest(descriptor.OutputSchema)
 	if err != nil {
 		return fmt.Errorf("output_schema: %w", err)
 	}

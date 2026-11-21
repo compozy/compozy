@@ -137,7 +137,7 @@ func populateResultViewDigests(d *Descriptor) error {
 		digest := d.OutputSchemaDigest
 		if digest == "" || !bytes.Equal(contract.Schema, d.OutputSchema) {
 			var err error
-			digest, err = SchemaIdentityDigest(contract.Schema)
+			digest, err = SchemaDigest(contract.Schema)
 			if err != nil {
 				return wrapField(err, "output_views."+name+".schema")
 			}
