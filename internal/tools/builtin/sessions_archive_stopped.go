@@ -35,7 +35,7 @@ const sessionArchiveStoppedInputSchema = `{
 		},
 		"all_workspaces":{
 			"type":"boolean",
-			"description":"Archive stopped threads in every project; needs unrestricted workspace access. When true, workspace is ignored."
+			"description":"Archive stopped threads in every project, ignoring workspace; needs unrestricted access."
 		},
 		"dry_run":{
 			"type":"boolean",
