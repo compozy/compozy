@@ -96,7 +96,8 @@ export function archiveStoppedUndoOutcome(
   report: SessionArchiveStoppedResponse,
   results: readonly SessionBatchResult[]
 ): { ok: boolean; title: string; description?: string } {
-  const failedIds = new Set(results.filter(result => result.status === "failed").map(r => r.id));
+  const failedIds = new Set<string>();
+  for (const result of results) if (result.status === "failed") failedIds.add(result.id);
   const failedThreads = report.archived.filter(thread =>
     thread.session_ids.some(id => failedIds.has(id))
   );
