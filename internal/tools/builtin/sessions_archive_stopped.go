@@ -13,7 +13,8 @@ func sessionArchiveStoppedDescriptor() toolspkg.Descriptor {
 			"and every child; threads that are running, waiting on you, have queued input, are pinned, in "+
 			"Later, an always-on instance's main session, or contain the calling session are skipped and "+
 			"counted by reason. dry_run=true previews without archiving. The result lists every archived "+
-			"thread with its session_ids, root first, which compozy__session_unarchive restores.",
+			"thread with its session_ids, root first; to undo, call compozy__session_unarchive on each of "+
+			"its restore_ids in order (subagents restore with their parent).",
 		sessionArchiveStoppedInputSchema,
 		toolspkg.RiskMutating,
 		false,

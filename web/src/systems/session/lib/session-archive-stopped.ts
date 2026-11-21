@@ -30,17 +30,20 @@ export function threadCount(count: number): string {
 export function archiveStoppedSkipSummary(
   skipCounts: Readonly<Record<string, number>>
 ): string | undefined {
-  const reasons = Object.entries(skipCounts).filter(([, count]) => count > 0);
+  // Largest count first, then by reason, as the CLI prints it.
+  const reasons = Object.entries(skipCounts)
+    .filter(([, count]) => count > 0)
+    .sort(([a, countA], [b, countB]) => countB - countA || a.localeCompare(b));
   const total = reasons.reduce((sum, [, count]) => sum + count, 0);
   if (total === 0) return undefined;
   const parts = reasons.map(([reason, count]) => `${count} ${SKIP_REASONS[reason] ?? reason}`);
   return `${total} skipped: ${parts.join(", ")}`;
 }
 
-/** "Alpha, Beta, Gamma and 2 more". */
-export function listedTitles(titles: readonly string[]): string {
+/** "Alpha, Beta, Gamma and 2 more"; `total` counts titles the capped list left out. */
+export function listedTitles(titles: readonly string[], total = titles.length): string {
   const shown = titles.slice(0, LISTED_FAILURES).join(", ");
-  const rest = titles.length - LISTED_FAILURES;
+  const rest = Math.max(total, titles.length) - Math.min(titles.length, LISTED_FAILURES);
   return rest > 0 ? `${shown} and ${rest} more` : shown;
 }
 
@@ -55,9 +58,13 @@ export function archiveStoppedOutcome(
 ): ArchiveStoppedOutcome {
   const skipped = archiveStoppedSkipSummary(report.skip_counts);
   const archived = report.archived.length;
-  const failed = report.failures.length;
+  // `failures` lists at most 100 threads; `failure_count` counts them all.
+  const failed = report.failure_count;
   if (failed > 0) {
-    const titles = listedTitles(report.failures.map(failure => failure.title || failure.root_id));
+    const titles = listedTitles(
+      report.failures.map(failure => failure.title || failure.root_id),
+      failed
+    );
     return {
       kind: "failed",
       title:
@@ -74,7 +81,8 @@ export function archiveStoppedOutcome(
 
 /**
  * The session ids Undo restores, root first within each thread, and the thread each belongs to.
- * Only ids the run reported as archived appear (Rule 6): nothing skipped is touched.
+ * Only the run's `restore_ids` appear (Rule 6): nothing skipped is touched, and subagents are left
+ * to their parent's unarchive, which restores them.
  */
 export function archiveStoppedUndoPlan(report: SessionArchiveStoppedResponse): {
   ids: string[];
@@ -83,7 +91,7 @@ export function archiveStoppedUndoPlan(report: SessionArchiveStoppedResponse): {
   const ids: string[] = [];
   const threadOf = new Map<string, string>();
   for (const thread of report.archived) {
-    for (const id of thread.session_ids) {
+    for (const id of thread.restore_ids) {
       ids.push(id);
       threadOf.set(id, thread.root_id);
     }
@@ -99,7 +107,7 @@ export function archiveStoppedUndoOutcome(
   const failedIds = new Set<string>();
   for (const result of results) if (result.status === "failed") failedIds.add(result.id);
   const failedThreads = report.archived.filter(thread =>
-    thread.session_ids.some(id => failedIds.has(id))
+    thread.restore_ids.some(id => failedIds.has(id))
   );
   const restored = report.archived.length - failedThreads.length;
   if (failedThreads.length === 0) return { ok: true, title: `Restored ${threadCount(restored)}` };

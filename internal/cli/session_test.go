@@ -1150,9 +1150,14 @@ func TestSessionArchiveStoppedCommand(t *testing.T) {
 		})
 	}
 	report := contract.SessionArchiveStoppedResponse{
-		Archived: []contract.SessionArchiveStoppedThread{{
-			RootID: "sess-root", WorkspaceID: "ws-platform", Title: "Fix", SessionIDs: []string{"sess-root", "sess-child"},
-		}},
+		Archived: []contract.SessionArchiveStoppedThread{
+			{
+				RootID:      "sess-root",
+				WorkspaceID: "ws-platform",
+				Title:       "Fix",
+				SessionIDs:  []string{"sess-root", "sess-child"},
+			},
+		},
 		ArchivedThreadCount:  1,
 		ArchivedSessionCount: 2,
 		SkipCounts:           map[string]int{"running": 1, "waiting_on_you": 2},

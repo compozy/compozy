@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -55,7 +57,7 @@ func (n *daemonNativeTools) sessionArchiveStopped(
 		}
 		request.AllWorkspaces = true
 	} else {
-		workspaceID, err := n.workspaceID(ctx, nativeCallerWorkspaceInput(input.Workspace, scope))
+		workspaceID, err := n.archiveStoppedWorkspaceID(ctx, nativeCallerWorkspaceInput(input.Workspace, scope))
 		if err != nil {
 			return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 		}
@@ -81,5 +83,22 @@ func (n *daemonNativeTools) sessionArchiveStopped(
 		skipped += count
 	}
 	return structuredResult(payload, fmt.Sprintf("%s %d threads (%d sessions); skipped %d; failed %d",
-		verb, payload.ArchivedThreadCount, payload.ArchivedSessionCount, skipped, len(payload.Failures)))
+		verb, payload.ArchivedThreadCount, payload.ArchivedSessionCount, skipped, payload.FailureCount))
+}
+
+// archiveStoppedWorkspaceID resolves an unarchived workspace: an archived one
+// is not found, as on HTTP and UDS and as All projects leaves it out.
+func (n *daemonNativeTools) archiveStoppedWorkspaceID(ctx context.Context, ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" || n.deps.Workspaces == nil {
+		return n.workspaceID(ctx, ref)
+	}
+	workspace, err := n.deps.Workspaces.Get(ctx, ref)
+	if err != nil {
+		return "", err
+	}
+	if workspace.ArchivedAt != nil {
+		return "", fmt.Errorf("%w: %s is archived", workspacepkg.ErrWorkspaceNotFound, ref)
+	}
+	return strings.TrimSpace(workspace.ID), nil
 }

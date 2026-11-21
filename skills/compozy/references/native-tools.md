@@ -624,8 +624,9 @@ queued input, are pinned, in Later, or hold an always-on main session are skippe
 `{workspace?, all_workspaces?, dry_run?}`; it defaults to the caller's workspace, `dry_run: true`
 previews and runs without approval, and `all_workspaces` needs operator authority or unrestricted
 workspace access (otherwise `capability_denied` with reason `needs_grant`). The result's
-`archived[].session_ids` lists the archived sessions root first; restore them with
-`compozy__session_unarchive`. The CLI fallback is
+`archived[].session_ids` lists the archived sessions root first. To undo, call
+`compozy__session_unarchive` on each of `archived[].restore_ids` in order: the same list without
+subagents, which restore with their parent. The CLI fallback is
 `compozy session archive --stopped [--workspace <ref> | --all-workspaces] [--dry-run]`.
 `compozy__session_cleanup` deletes the profile's archived history in bulk. Its default
 `action: "plan"` with `dry_run` true only previews and runs without approval: every count is a

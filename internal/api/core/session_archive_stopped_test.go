@@ -142,6 +142,7 @@ func TestBaseHandlersArchiveStoppedSessions(t *testing.T) {
 			SkipCounts:       map[session.ArchiveStoppedSkipReason]int{session.ArchiveStoppedSkipRunning: 150},
 			Skipped:          skipped,
 			SkippedTruncated: true,
+			FailureCount:     120,
 		}}
 		recorder := performArchiveStopped(t, manager, `{"all_workspaces":true}`, false)
 		if recorder.Code != http.StatusOK {
@@ -155,7 +156,7 @@ func TestBaseHandlersArchiveStoppedSessions(t *testing.T) {
 			t.Fatal(err)
 		}
 		if response.SkipCounts["running"] != 150 || len(response.Skipped) != 100 || !response.SkippedTruncated ||
-			response.Archived == nil || response.ArchivedThreadCount != 0 {
+			response.Archived == nil || response.ArchivedThreadCount != 0 || response.FailureCount != 120 {
 			t.Fatalf("response = %+v, want complete counts and a truncated list", response)
 		}
 	})

@@ -49,9 +49,11 @@ type ArchiveStoppedThread struct {
 	RootID      string
 	WorkspaceID string
 	Title       string
-	// SessionIDs are the members this operation archived, root first; Undo
-	// unarchives exactly these.
+	// SessionIDs are the members this operation archived, root first.
 	SessionIDs []string
+	// RestoreIDs are SessionIDs without subagents, root first: unarchiving
+	// them in order undoes the archive, as each subagent restores with its parent.
+	RestoreIDs []string
 }
 
 // ArchiveStoppedSkip is one thread the operation left alone.
@@ -97,7 +99,10 @@ func (r *ArchiveStoppedReport) ArchivedSessionCount() int {
 // all stopped and none needs the operator; it never stops a session. Each
 // thread archives in its own transaction that re-checks every rule, so one
 // thread's failure leaves the others archived. A dry run archives nothing.
+// A request that ends early, such as a client disconnect, does not stop it
+// partway: the archived ids the report returns are the only Undo there is.
 func (m *Manager) ArchiveStopped(ctx context.Context, req ArchiveStoppedRequest) (ArchiveStoppedReport, error) {
+	ctx = context.WithoutCancel(ctx)
 	req.ProfileID = strings.TrimSpace(req.ProfileID)
 	req.WorkspaceID = strings.TrimSpace(req.WorkspaceID)
 	req.CallerSessionID = strings.TrimSpace(req.CallerSessionID)
@@ -116,9 +121,6 @@ func (m *Manager) ArchiveStopped(ctx context.Context, req ArchiveStoppedRequest)
 	}
 	report := ArchiveStoppedReport{DryRun: req.DryRun, SkipCounts: map[ArchiveStoppedSkipReason]int{}}
 	for _, thread := range archiveStoppedThreads(members) {
-		if err := ctx.Err(); err != nil {
-			return report, err
-		}
 		m.archiveStoppedThread(ctx, req, thread, &report)
 	}
 	m.logger.Info("session: archive stopped",
@@ -156,15 +158,17 @@ func (m *Manager) archiveStoppedThread(
 ) {
 	root := &members[0]
 	ids := make([]string, 0, len(members))
+	subagents := map[string]bool{}
 	for i := range members {
 		ids = append(ids, members[i].SessionID)
+		subagents[members[i].SessionID] = members[i].Subagent
 	}
 	if reason := m.archiveStoppedSkipReason(req.CallerSessionID, members, ids); reason != "" {
 		report.skip(root, reason)
 		return
 	}
 	if req.DryRun {
-		report.archive(root, ids)
+		report.archive(root, ids, subagents)
 		return
 	}
 	tree, err := m.ArchiveWithChildren(ctx, root.WorkspaceID, root.SessionID, ArchiveTreeOptions{
@@ -172,7 +176,12 @@ func (m *Manager) archiveStoppedThread(
 		StoppedOnly:  true,
 	})
 	if err == nil {
-		report.archive(root, archivedTreeIDs(ids, tree))
+		for _, member := range tree.Descendants {
+			if member.Lineage != nil && member.Lineage.SpawnRole == store.SubagentSpawnRole {
+				subagents[member.ID] = true
+			}
+		}
+		report.archive(root, archivedTreeIDs(ids, tree), subagents)
 		return
 	}
 	if reason := archiveStoppedRefusalReason(err); reason != "" {
@@ -258,9 +267,15 @@ func archiveStoppedRefusalReason(err error) ArchiveStoppedSkipReason {
 	}
 }
 
-func (r *ArchiveStoppedReport) archive(root *store.ArchiveStoppedMember, ids []string) {
+func (r *ArchiveStoppedReport) archive(root *store.ArchiveStoppedMember, ids []string, subagents map[string]bool) {
+	restore := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if !subagents[id] {
+			restore = append(restore, id)
+		}
+	}
 	r.Archived = append(r.Archived, ArchiveStoppedThread{
-		RootID: root.SessionID, WorkspaceID: root.WorkspaceID, Title: root.Name, SessionIDs: ids,
+		RootID: root.SessionID, WorkspaceID: root.WorkspaceID, Title: root.Name, SessionIDs: ids, RestoreIDs: restore,
 	})
 }
 

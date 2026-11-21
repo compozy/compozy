@@ -235,6 +235,7 @@ type SessionArchiveStoppedResponse struct {
 	SkippedTruncated     bool                           `json:"skipped_truncated"`
 	Failures             []SessionArchiveStoppedFailure `json:"failures"`
 	FailuresTruncated    bool                           `json:"failures_truncated"`
+	FailureCount         int                            `json:"failure_count"`
 }
 
 // SessionArchiveStoppedSkip is a daemon API value.
@@ -251,6 +252,7 @@ type SessionArchiveStoppedThread struct {
 	WorkspaceID string   `json:"workspace_id"`
 	Title       string   `json:"title"`
 	SessionIDs  []string `json:"session_ids"`
+	RestoreIDs  []string `json:"restore_ids"`
 }
 
 // SessionAttachPayload is a daemon API value.

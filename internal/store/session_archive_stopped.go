@@ -54,6 +54,8 @@ type ArchiveStoppedMember struct {
 	QueuedInput  bool
 	Pinned       bool
 	Later        bool
+	// Subagent members restore with their parent's unarchive, never on their own.
+	Subagent bool
 }
 
 // SessionArchiveStoppedStore lists Archive stopped candidates and archives one

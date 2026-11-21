@@ -125,6 +125,7 @@ func ArchiveStoppedPayload(report *session.ArchiveStoppedReport) contract.Sessio
 		SkippedTruncated:     report.SkippedTruncated,
 		Failures:             make([]contract.SessionArchiveStoppedFailure, 0, len(report.Failures)),
 		FailuresTruncated:    report.FailuresTruncated,
+		FailureCount:         report.FailureCount,
 	}
 	for _, thread := range report.Archived {
 		response.Archived = append(response.Archived, contract.SessionArchiveStoppedThread{
@@ -132,6 +133,7 @@ func ArchiveStoppedPayload(report *session.ArchiveStoppedReport) contract.Sessio
 			WorkspaceID: thread.WorkspaceID,
 			Title:       thread.Title,
 			SessionIDs:  append([]string{}, thread.SessionIDs...),
+			RestoreIDs:  append([]string{}, thread.RestoreIDs...),
 		})
 	}
 	for reason, count := range report.SkipCounts {

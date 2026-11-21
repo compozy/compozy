@@ -26625,6 +26625,9 @@
           "dry_run": {
             "type": "boolean"
           },
+          "failure_count": {
+            "type": "integer"
+          },
           "failures": {
             "items": {
               "$ref": "#/components/schemas/SessionArchiveStoppedFailure"
@@ -26655,6 +26658,7 @@
           "archived_session_count",
           "archived_thread_count",
           "dry_run",
+          "failure_count",
           "failures",
           "failures_truncated",
           "skip_counts",
@@ -26688,6 +26692,12 @@
       },
       "SessionArchiveStoppedThread": {
         "properties": {
+          "restore_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "root_id": {
             "type": "string"
           },
@@ -26705,6 +26715,7 @@
           }
         },
         "required": [
+          "restore_ids",
           "root_id",
           "session_ids",
           "title",

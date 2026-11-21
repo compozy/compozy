@@ -15,9 +15,11 @@ type SessionArchiveStoppedThread struct {
 	RootID      string `json:"root_id"`
 	WorkspaceID string `json:"workspace_id"`
 	Title       string `json:"title"`
-	// SessionIDs are every session archived with the thread, root first;
-	// unarchiving them in this order undoes the action.
+	// SessionIDs are every session archived with the thread, root first.
 	SessionIDs []string `json:"session_ids"`
+	// RestoreIDs are SessionIDs without subagents, root first; unarchiving them
+	// one by one in this order undoes the action, as subagents restore with their parent.
+	RestoreIDs []string `json:"restore_ids"`
 }
 
 // SessionArchiveStoppedSkip is one thread the action left alone. Reason is one of
@@ -39,8 +41,8 @@ type SessionArchiveStoppedFailure struct {
 }
 
 // SessionArchiveStoppedResponse reports one Archive stopped action. Archived is
-// complete; skipped and failures list the first 100 threads, and skip_counts
-// counts every skipped thread by reason.
+// complete; skipped and failures list the first 100 threads, while skip_counts
+// and failure_count count every skipped and failed thread.
 type SessionArchiveStoppedResponse struct {
 	DryRun               bool                           `json:"dry_run"`
 	Archived             []SessionArchiveStoppedThread  `json:"archived"`
@@ -51,4 +53,6 @@ type SessionArchiveStoppedResponse struct {
 	SkippedTruncated     bool                           `json:"skipped_truncated"`
 	Failures             []SessionArchiveStoppedFailure `json:"failures"`
 	FailuresTruncated    bool                           `json:"failures_truncated"`
+	// FailureCount counts every failed thread, listed in failures or not.
+	FailureCount int `json:"failure_count"`
 }

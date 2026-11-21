@@ -103,7 +103,14 @@ func (m *Manager) ArchiveWithChildren(
 	var archived store.SessionTreeArchive
 	archiveOnce := func() error {
 		var err error
-		archived, err = m.archiveTreeWithResumeGuard(ctx, treeStore, archiveTree, workspaceID, sessionID, opts.RefuseMember)
+		archived, err = m.archiveTreeWithResumeGuard(
+			ctx,
+			treeStore,
+			archiveTree,
+			workspaceID,
+			sessionID,
+			opts.RefuseMember,
+		)
 		return err
 	}
 	attempt := func() error {

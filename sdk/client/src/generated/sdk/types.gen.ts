@@ -7478,6 +7478,7 @@ export type SessionArchiveStoppedResponse = {
   archived_session_count: number;
   archived_thread_count: number;
   dry_run: boolean;
+  failure_count: number;
   failures: Array<SessionArchiveStoppedFailure>;
   failures_truncated: boolean;
   skip_counts: {
@@ -7495,6 +7496,7 @@ export type SessionArchiveStoppedSkip = {
 };
 
 export type SessionArchiveStoppedThread = {
+  restore_ids: Array<string>;
   root_id: string;
   session_ids: Array<string>;
   title: string;

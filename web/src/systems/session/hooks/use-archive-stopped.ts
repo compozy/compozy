@@ -47,7 +47,7 @@ export function useArchiveStopped(profile: string): ArchiveStoppedModel {
     const { ids, threadOf } = archiveStoppedUndoPlan(report);
     const workspaceOf = new Map(
       report.archived.flatMap(thread =>
-        thread.session_ids.map(id => [id, thread.workspace_id] as const)
+        thread.restore_ids.map(id => [id, thread.workspace_id] as const)
       )
     );
     // One lane per thread runs its ids in order, root first; threads run side by side.

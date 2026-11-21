@@ -15986,6 +15986,7 @@ export interface components {
       archived_session_count: number;
       archived_thread_count: number;
       dry_run: boolean;
+      failure_count: number;
       failures: components["schemas"]["SessionArchiveStoppedFailure"][];
       failures_truncated: boolean;
       skip_counts: {
@@ -16001,6 +16002,7 @@ export interface components {
       workspace_id: string;
     };
     SessionArchiveStoppedThread: {
+      restore_ids: string[];
       root_id: string;
       session_ids: string[];
       title: string;

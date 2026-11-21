@@ -100,7 +100,7 @@ func runSessionArchiveStopped(cmd *cobra.Command, deps commandDeps, flags sessio
 	if err := writeCommandOutput(cmd, sessionArchiveStoppedBundle(response, scope)); err != nil {
 		return err
 	}
-	if len(response.Failures) > 0 {
+	if sessionArchiveStoppedFailureCount(response) > 0 {
 		return withCommandExitCode(1, errors.New("cli: some threads failed to archive"))
 	}
 	return nil
@@ -131,7 +131,7 @@ func sessionArchiveStoppedBundle(response contract.SessionArchiveStoppedResponse
 					strconv.Itoa(response.ArchivedThreadCount),
 					strconv.Itoa(response.ArchivedSessionCount),
 					strconv.Itoa(skipped),
-					strconv.Itoa(len(response.Failures)),
+					strconv.Itoa(sessionArchiveStoppedFailureCount(response)),
 				},
 			), nil
 		},
@@ -153,7 +153,8 @@ func renderSessionArchiveStoppedHuman(response contract.SessionArchiveStoppedRes
 		lines = append(lines, skips)
 	}
 	if len(response.Failures) > 0 {
-		lines = append(lines, fmt.Sprintf("Failed %d %s:", len(response.Failures), threadNoun(len(response.Failures))))
+		failed := sessionArchiveStoppedFailureCount(response)
+		lines = append(lines, fmt.Sprintf("Failed %d %s:", failed, threadNoun(failed)))
 		for _, failure := range response.Failures {
 			lines = append(
 				lines,
@@ -200,4 +201,9 @@ func threadNoun(count int) string {
 		return "thread"
 	}
 	return "threads"
+}
+
+// sessionArchiveStoppedFailureCount counts every failed thread; failures lists at most 100.
+func sessionArchiveStoppedFailureCount(response contract.SessionArchiveStoppedResponse) int {
+	return max(response.FailureCount, len(response.Failures))
 }

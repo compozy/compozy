@@ -2,8 +2,8 @@
 // Invariant: one action sends its scope (one project or every project) to the daemon for the
 // acting profile; the toast reports the count, the skip summary, failures by title, and offers
 // Undo only when something was archived; a scope's action is refused while its run is in flight.
-// Undo unarchives exactly the reported session ids, root first within each thread, and names the
-// threads it could not restore.
+// Undo unarchives exactly the reported restore ids, root first within each thread, never a
+// subagent (it restores with its parent), and names the threads it could not restore.
 // Boundary IN: useArchiveStopped, the session archive adapter and TanStack Query.
 // Boundary OUT: the network seam (fetch) and the toast.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -35,6 +35,7 @@ function report(overrides: Partial<SessionArchiveStoppedResponse> = {}) {
     skipped_truncated: false,
     failures: [],
     failures_truncated: false,
+    failure_count: 0,
     ...overrides,
   } satisfies SessionArchiveStoppedResponse;
 }
@@ -45,13 +46,22 @@ const TWO_THREADS = report({
       root_id: "root-a",
       workspace_id: "ws-alpha",
       title: "Alpha",
-      session_ids: ["root-a", "child-a1", "child-a2"],
+      // sub-a is a subagent: the daemon refuses its own unarchive and restores it with root-a.
+      session_ids: ["root-a", "child-a1", "sub-a", "child-a2"],
+      restore_ids: ["root-a", "child-a1", "child-a2"],
     },
-    { root_id: "root-b", workspace_id: "ws-beta", title: "Beta", session_ids: ["root-b"] },
+    {
+      root_id: "root-b",
+      workspace_id: "ws-beta",
+      title: "Beta",
+      session_ids: ["root-b"],
+      restore_ids: ["root-b"],
+    },
   ],
   archived_thread_count: 2,
-  archived_session_count: 4,
-  skip_counts: { waiting_on_you: 2, running: 1 },
+  archived_session_count: 5,
+  // Go marshals map keys sorted, so the larger count arrives second.
+  skip_counts: { running: 1, waiting_on_you: 2 },
 });
 
 interface Recorded {
@@ -65,7 +75,7 @@ let failingUnarchive: Set<string>;
 
 beforeEach(() => {
   recorded = [];
-  failingUnarchive = new Set();
+  failingUnarchive = new Set(["sub-a"]);
   archiveAnswer = async () => Response.json(TWO_THREADS);
   vi.mocked(toast.success).mockClear();
   vi.mocked(toast.message).mockClear();
@@ -155,7 +165,7 @@ describe("useArchiveStopped", () => {
     expect(options).toEqual({ description: "1 skipped: 1 pinned" });
   });
 
-  it("Should list up to three failed titles and keep Undo for what was archived", async () => {
+  it("Should count every failure, list up to three titles and keep Undo for what was archived", async () => {
     const failure = (title: string) => ({
       root_id: `root-${title}`,
       workspace_id: "ws-alpha",
@@ -168,6 +178,9 @@ describe("useArchiveStopped", () => {
         ...TWO_THREADS,
         skip_counts: {},
         failures: ["One", "Two", "Three", "Four", "Five"].map(failure),
+        // More threads failed than the capped list holds.
+        failures_truncated: true,
+        failure_count: 105,
       });
     const { result } = renderArchiveStopped();
 
@@ -175,8 +188,8 @@ describe("useArchiveStopped", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     const call = vi.mocked(toast.error).mock.calls[0];
-    expect(call?.[0]).toBe("Archived 2 threads, 5 failed");
-    expect(call?.[1]).toMatchObject({ description: "One, Two, Three and 2 more" });
+    expect(call?.[0]).toBe("Archived 2 threads, 105 failed");
+    expect(call?.[1]).toMatchObject({ description: "One, Two, Three and 102 more" });
     undoAction(call);
   });
 
@@ -207,7 +220,7 @@ describe("useArchiveStopped", () => {
     await waitFor(() => expect(result.current.running(project)).toBe(false));
   });
 
-  it("Should undo exactly the archived ids, root first within each thread", async () => {
+  it("Should undo exactly the restore ids, root first within each thread", async () => {
     const { result } = renderArchiveStopped();
     act(() => result.current.archiveStopped({ kind: "all" }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
@@ -218,6 +231,7 @@ describe("useArchiveStopped", () => {
     expect(vi.mocked(toast.success).mock.calls[1]?.[0]).toBe("Restored 2 threads");
     const order = unarchived();
     expect([...order].sort()).toEqual(["child-a1", "child-a2", "root-a", "root-b"]);
+    expect(order).not.toContain("sub-a");
     expect(order.indexOf("root-a")).toBeLessThan(order.indexOf("child-a1"));
     expect(order.indexOf("child-a1")).toBeLessThan(order.indexOf("child-a2"));
     expect(recorded.find(entry => entry.path.includes("/root-b/unarchive"))?.path).toContain(

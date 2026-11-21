@@ -1,22 +1,27 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
 
-// archiveStoppedFixture is one stopped thread (source, side chat, child) and
-// one thread whose stopped root still has a running child.
+// archiveStoppedFixture is one stopped thread (source, side chat, child,
+// subagent) and one thread whose stopped root still has a running child.
 type archiveStoppedFixture struct {
 	h         *deriveHarness
 	profileID string
 	source    string
 	side      string
 	child     string
+	subagent  string
 	busy      string
 }
 
@@ -52,8 +57,23 @@ func newArchiveStoppedFixture(t *testing.T) archiveStoppedFixture {
 	if profileID == "" {
 		profileID = store.DefaultProfileID
 	}
+	// A finished subagent of the source, durable only: it restores with its parent.
+	now := time.Now().UTC()
+	subagent := store.SessionInfo{
+		ID: "sess-archive-stopped-subagent", ProfileID: profileID, AgentName: "coder", Provider: "claude",
+		WorkspaceID: h.workspaceID, RuntimeStatus: store.SessionRuntimeUnbound, SessionType: "user",
+		State: string(StateStopped), CreatedAt: now, UpdatedAt: now,
+		Lineage: &store.SessionLineage{
+			Kind: store.LineageKindSpawn, ParentSessionID: source.ID, RootSessionID: source.ID,
+			SpawnDepth: 1, SpawnRole: store.SubagentSpawnRole,
+		},
+	}
+	if err := h.db.RegisterSession(ctx, &subagent); err != nil {
+		t.Fatal(err)
+	}
 	return archiveStoppedFixture{
-		h: h, profileID: profileID, source: source.ID, side: side.ID, child: child.ID, busy: busy.ID,
+		h: h, profileID: profileID, source: source.ID, side: side.ID, child: child.ID,
+		subagent: subagent.ID, busy: busy.ID,
 	}
 }
 
@@ -91,8 +111,14 @@ func TestArchiveStopped(t *testing.T) {
 			t.Fatalf("Archived = %+v, want the source thread only", report.Archived)
 		}
 		ids := report.Archived[0].SessionIDs
-		if len(ids) == 0 || ids[0] != f.source || !slices.Contains(ids, f.side) || !slices.Contains(ids, f.child) {
-			t.Fatalf("SessionIDs = %v, want source first with side and child", ids)
+		if len(ids) == 0 || ids[0] != f.source || !slices.Contains(ids, f.side) || !slices.Contains(ids, f.child) ||
+			!slices.Contains(ids, f.subagent) {
+			t.Fatalf("SessionIDs = %v, want source first with side, child and subagent", ids)
+		}
+		restore := report.Archived[0].RestoreIDs
+		want := slices.DeleteFunc(slices.Clone(ids), func(id string) bool { return id == f.subagent })
+		if !slices.Equal(restore, want) {
+			t.Fatalf("RestoreIDs = %v, want %v: SessionIDs without the subagent", restore, want)
 		}
 		for _, id := range ids {
 			if !f.archivedAt(t, id) {
@@ -109,6 +135,17 @@ func TestArchiveStopped(t *testing.T) {
 		}
 		if len(report.Failures) != 0 {
 			t.Fatalf("Failures = %+v, want none", report.Failures)
+		}
+		// Undo: unarchiving restore_ids one by one, in order, restores the whole thread.
+		for _, id := range restore {
+			if _, err := f.h.manager.Unarchive(t.Context(), f.h.workspaceID, id); err != nil {
+				t.Fatalf("Unarchive(%s) error = %v", id, err)
+			}
+		}
+		for _, id := range ids {
+			if f.archivedAt(t, id) {
+				t.Fatalf("member %s stayed archived after undo", id)
+			}
 		}
 	})
 
@@ -145,6 +182,27 @@ func TestArchiveStopped(t *testing.T) {
 		}
 	})
 
+	// Invariant: a request that ends early does not stop the run partway, so the
+	// report keeps every archived id Undo needs.
+	t.Run("Should finish the run when the request context is canceled", func(t *testing.T) {
+		t.Parallel()
+		f := newArchiveStoppedFixture(t)
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		report, err := f.h.manager.ArchiveStopped(ctx, ArchiveStoppedRequest{
+			ProfileID: f.profileID, WorkspaceID: f.h.workspaceID,
+		})
+		if err != nil || len(report.Archived) != 1 || report.Archived[0].RootID != f.source {
+			t.Fatalf("ArchiveStopped(canceled) = %+v, %v, want the source thread archived", report, err)
+		}
+		for _, id := range report.Archived[0].SessionIDs {
+			if !f.archivedAt(t, id) {
+				t.Fatalf("member %s stayed unarchived", id)
+			}
+		}
+	})
+
 	// Invariant: the operation never archives the calling session's thread.
 	t.Run("Should skip the caller's own thread", func(t *testing.T) {
 		t.Parallel()
@@ -156,6 +214,50 @@ func TestArchiveStopped(t *testing.T) {
 		}
 		if f.archivedAt(t, f.source) || f.archivedAt(t, f.child) {
 			t.Fatal("the caller's thread was archived")
+		}
+	})
+
+	// Invariant: skipped and failures list the first ArchiveStoppedListLimit threads
+	// and flag the rest, while skip_counts and FailureCount stay complete.
+	t.Run("Should cap the skipped and failed lists and keep the counts complete", func(t *testing.T) {
+		t.Parallel()
+		const over = ArchiveStoppedListLimit + 1
+		members := make([]store.ArchiveStoppedMember, 0, 2*over)
+		for i := range over {
+			members = append(members,
+				store.ArchiveStoppedMember{RootID: "a-pinned-" + strconv.Itoa(1000+i),
+					SessionID: "a-pinned-" + strconv.Itoa(1000+i), WorkspaceID: "ws", State: "stopped", Pinned: true},
+				store.ArchiveStoppedMember{RootID: "b-eligible-" + strconv.Itoa(1000+i),
+					SessionID: "b-eligible-" + strconv.Itoa(1000+i), WorkspaceID: "ws", State: "stopped"})
+		}
+		slices.SortFunc(
+			members,
+			func(a, b store.ArchiveStoppedMember) int { return strings.Compare(a.RootID, b.RootID) },
+		)
+		// The catalog has no tree archive, so every eligible thread fails as archive_failed.
+		catalog := &archiveStoppedMembersCatalog{
+			recordingSessionCatalog: newRecordingSessionCatalog(),
+			members:                 members,
+		}
+		h := newHarness(t, WithSessionCatalog(catalog))
+
+		report, err := h.manager.ArchiveStopped(t.Context(), ArchiveStoppedRequest{
+			ProfileID: store.DefaultProfileID, WorkspaceID: "ws",
+		})
+		if err != nil {
+			t.Fatalf("ArchiveStopped() error = %v", err)
+		}
+		if len(report.Skipped) != ArchiveStoppedListLimit || !report.SkippedTruncated ||
+			report.SkipCounts[ArchiveStoppedSkipPinned] != over {
+			t.Fatalf("skipped = %d (truncated %t), count %d; want %d listed, truncated, %d counted",
+				len(report.Skipped), report.SkippedTruncated, report.SkipCounts[ArchiveStoppedSkipPinned],
+				ArchiveStoppedListLimit, over)
+		}
+		if len(report.Failures) != ArchiveStoppedListLimit || !report.FailuresTruncated ||
+			report.FailureCount != over ||
+			report.Failures[0].Code != ArchiveStoppedFailureCode {
+			t.Fatalf("failures = %d (truncated %t), count %d; want %d listed, truncated, %d counted",
+				len(report.Failures), report.FailuresTruncated, report.FailureCount, ArchiveStoppedListLimit, over)
 		}
 	})
 
@@ -172,4 +274,26 @@ func TestArchiveStopped(t *testing.T) {
 			}
 		}
 	})
+}
+
+// archiveStoppedMembersCatalog serves a fixed candidate list over a catalog
+// without a tree archive.
+type archiveStoppedMembersCatalog struct {
+	*recordingSessionCatalog
+	members []store.ArchiveStoppedMember
+}
+
+func (c *archiveStoppedMembersCatalog) ListArchiveStoppedMembers(
+	context.Context,
+	store.ArchiveStoppedQuery,
+) ([]store.ArchiveStoppedMember, error) {
+	return c.members, nil
+}
+
+func (c *archiveStoppedMembersCatalog) ArchiveStoppedSessionTree(
+	context.Context,
+	string,
+	string,
+) (store.SessionTreeArchive, error) {
+	return store.SessionTreeArchive{}, errors.New("archive stopped tree is not served by this catalog")
 }

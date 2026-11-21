@@ -17009,9 +17009,19 @@ func TestNativeSessionArchiveStoppedTool(t *testing.T) {
 				EffectiveWorkspaceAccess: access,
 			}, nil
 		}
+		workspaces := nativeTestWorkspaceService(t)
+		get := workspaces.GetFn
+		workspaces.GetFn = func(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+			workspace, err := get(ctx, ref)
+			if err == nil && workspace.ID == "ws-closed" {
+				archivedAt := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+				workspace.ArchivedAt = &archivedAt
+			}
+			return workspace, err
+		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions:   sessions,
-			Workspaces: nativeTestWorkspaceService(t),
+			Workspaces: workspaces,
 		}, nativeApproveAllPolicyInputs())
 		return sessions, registry
 	}
@@ -17058,6 +17068,18 @@ func TestNativeSessionArchiveStoppedTool(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		if len(sessions.requests) != 0 {
 			t.Fatalf("requests after denial = %+v, want none", sessions.requests)
+		}
+	})
+
+	t.Run("Should refuse an archived workspace as not found", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		_, err := call(t, registry, toolspkg.Scope{Operator: true}, `{"workspace":"ws-closed","dry_run":true}`)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) || !strings.Contains(err.Error(), "archived") {
+			t.Fatalf("session_archive_stopped(archived workspace) error = %v, want an invalid input", err)
+		}
+		if len(sessions.requests) != 0 {
+			t.Fatalf("requests for an archived workspace = %+v, want none", sessions.requests)
 		}
 	})
 

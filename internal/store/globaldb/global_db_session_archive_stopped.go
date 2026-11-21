@@ -88,6 +88,7 @@ func listArchiveStoppedMembers(
 			QueuedInput:  row.QueuedInput,
 			Pinned:       row.Pinned,
 			Later:        row.Later,
+			Subagent:     row.Subagent,
 		})
 	}
 	return members, nil

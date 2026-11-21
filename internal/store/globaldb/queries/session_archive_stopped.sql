@@ -29,7 +29,8 @@ SELECT CAST(thread.root_id AS TEXT) AS root_id,member.id,member.workspace_id,
   SELECT 1 FROM session_pending_interactions i WHERE i.session_id = member.id AND i.status IN ('pending','orphaned')) AS BOOLEAN) AS waiting_on_you,
  CAST(EXISTS(SELECT 1 FROM session_input_queue q WHERE q.session_id = member.id AND q.status IN ('queued','dispatching')) AS BOOLEAN) AS queued_input,
  CAST(member.pinned_at IS NOT NULL AS BOOLEAN) AS pinned,
- CAST(member.parked_at IS NOT NULL AS BOOLEAN) AS later
+ CAST(member.parked_at IS NOT NULL AS BOOLEAN) AS later,
+ CAST(COALESCE(member.spawn_role,'') = 'subagent' AS BOOLEAN) AS subagent
 FROM thread JOIN sessions member ON member.id = thread.id
 WHERE member.archived_at IS NULL
 ORDER BY thread.root_id,thread.depth,member.id;
