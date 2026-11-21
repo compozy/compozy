@@ -38,7 +38,7 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	instances, err := h.instanceFacets(c, query)
+	instances, err := h.instanceFacets(c, query, true)
 	if err != nil {
 		h.instanceError(c, err)
 		return

@@ -19,6 +19,7 @@ type instanceFacetData struct {
 func (h *BaseHandlers) instanceFacets(
 	c *gin.Context,
 	query session.ListQuery,
+	includeAttention bool,
 ) (instanceFacetData, error) {
 	if h.AgentInstances == nil {
 		return instanceFacetData{}, nil
@@ -54,6 +55,9 @@ func (h *BaseHandlers) instanceFacets(
 				// Main IDs narrow the authorized session population. Instance attention requires list authority.
 				if query.ExcludeInstanceMain && row.MainSessionID != "" {
 					result.mainIDs = append(result.mainIDs, row.MainSessionID)
+				}
+				if !includeAttention {
+					continue
 				}
 				if err := h.AgentInstances.Authority.Authorize(c.Request.Context(), actor, row, "list"); err != nil {
 					if errors.Is(err, agentinstance.ErrForbidden) {

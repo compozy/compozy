@@ -1320,7 +1320,12 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 				query := tc.query
 				if tc.flag {
 					query += "&exclude_instance_main=true"
+					readAttention := fixture.Handlers.AgentInstances.ReadAttention
+					fixture.Handlers.AgentInstances.ReadAttention = func(context.Context, string) (bool, error) {
+						return false, errors.New("instance attention unavailable")
+					}
 					listed := read("/list?" + query)
+					fixture.Handlers.AgentInstances.ReadAttention = readAttention
 					var page contract.SessionCatalogResponse
 					decodeJSON(t, listed.Body.Bytes(), &page)
 					if listed.Code != http.StatusOK || page.Page.Limit != 1 {

@@ -10,7 +10,8 @@
   their existing counts. The generated API reference describes the corrected filter.
 - **State and isolation.** No persisted data changes. Project and Global mains are resolved
   within the authorized workspace and profile scope of the session catalog read. Counting
-  instance attention still requires list authority for each instance.
+  instance attention still requires list authority for each instance. Flagged session
+  pages resolve main IDs without loading instance attention.
 - **Web and QA.** Group totals and Kanban columns use the corrected counts through the
   existing Web request. `MS-web-stays-on-placement` covers scoped and aggregate reads.
 - **CLI, native tools, hooks, configuration, extensions and official skill.** No contracts
