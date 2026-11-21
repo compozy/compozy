@@ -735,7 +735,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		row, err := upgraded.SessionRepo.GetSubagent(ctx, "usage-ws", "usage-row")
+		row, err := upgraded.GetSubagent(ctx, "usage-ws", "usage-row")
 		want := store.SubagentUsage{TotalTokens: 1200, ToolUses: 5}
 		if err != nil || row.Usage == nil || *row.Usage != want || row.Status != store.SubagentStatusCompleted {
 			t.Fatalf("upgraded subagent = %#v, error = %v, want usage %#v", row, err, want)
