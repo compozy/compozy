@@ -102,6 +102,7 @@ vi.mock("../use-session-window-controller", async () => {
         sessionActions: {},
         sessions: [],
         toggle: vi.fn(),
+        view: {},
       },
     }),
   };

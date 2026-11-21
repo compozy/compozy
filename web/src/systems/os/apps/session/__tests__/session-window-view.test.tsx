@@ -23,10 +23,13 @@ vi.mock("@/systems/agent", () => ({ useAgentInstances: () => instances.current }
 const runtimeProviderSpy = vi.hoisted(() => vi.fn());
 const readOnlyTranscriptSpy = vi.hoisted(() => vi.fn());
 
+const rail = vi.hoisted(() => ({ listLoading: false }));
+
 vi.mock("../use-session-window-sidebar", () => ({
   useSessionWindowSidebar: () => ({
     open: true,
     sessions: [],
+    view: { catalog: { loading: rail.listLoading } },
     rowProcessDialog: { open: false },
     rowRenameDialog: { open: false },
     rowLaterDialog: { open: false },
@@ -37,13 +40,21 @@ vi.mock("@/systems/session", () => ({
   canPromptSession: () => true,
   useSessionWindowPresentation: () => "window",
   // The rail's list scroll container, as `SessionList` marks it, naming the row on screen.
-  SessionSidebar: ({ currentSessionId }: { currentSessionId?: string }) => (
+  SessionSidebar: ({
+    currentSessionId,
+    view,
+  }: {
+    currentSessionId?: string;
+    view: { catalog: { loading: boolean } };
+  }) => (
     <aside data-testid="session-sidebar">
-      <div
-        data-session-list-scroll
-        data-testid="session-list-scroll"
-        data-current={currentSessionId}
-      />
+      {view.catalog.loading ? null : (
+        <div
+          data-session-list-scroll
+          data-testid="session-list-scroll"
+          data-current={currentSessionId}
+        />
+      )}
     </aside>
   ),
   useMarkSeenOnLeave: () => undefined,
@@ -110,6 +121,7 @@ describe("SessionWindowView", () => {
 
   beforeEach(() => {
     instances.current = [];
+    rail.listLoading = false;
     runtimeProviderSpy.mockClear();
     readOnlyTranscriptSpy.mockClear();
   });
@@ -202,6 +214,32 @@ describe("SessionWindowView", () => {
       expect(resumed).not.toBe(list);
       expect(resumed.scrollTop).toBe(480);
       expect(resumed).toHaveAttribute("data-current", "sess-2");
+    });
+
+    it("Should resume the rail scroll once its list replaces the placeholder rows", () => {
+      const first = renderView(undefined, true, { windowId: "session:late-list" });
+      const list = screen.getByTestId("session-list-scroll");
+      list.scrollTop = 480;
+      fireEvent.scroll(list);
+      first.unmount();
+
+      rail.listLoading = true;
+      const next = renderView(undefined, true, { id: "sess-2", windowId: "session:late-list" });
+      expect(screen.queryByTestId("session-list-scroll")).toBeNull();
+      rail.listLoading = false;
+      next.rerender(
+        <SessionWindowView
+          windowId="session:late-list"
+          name="general"
+          id="sess-2"
+          workspaceId=""
+          session={undefined}
+          liveTailEnabled
+          isLoading
+          error={null}
+        />
+      );
+      expect(screen.getByTestId("session-list-scroll").scrollTop).toBe(480);
     });
 
     it("Should start another window's rail at the top", () => {
