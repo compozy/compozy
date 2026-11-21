@@ -17083,18 +17083,6 @@ func TestNativeSessionArchiveStoppedTool(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refuse a workspace together with all workspaces", func(t *testing.T) {
-		t.Parallel()
-		sessions, registry := newRegistry(t, "")
-		_, err := call(t, registry, toolspkg.Scope{Operator: true}, `{"workspace":"ws-1","all_workspaces":true}`)
-		if !errors.Is(err, toolspkg.ErrToolInvalidInput) || !strings.Contains(err.Error(), "not both") {
-			t.Fatalf("session_archive_stopped(workspace and all_workspaces) error = %v, want an invalid input", err)
-		}
-		if len(sessions.requests) != 0 {
-			t.Fatalf("requests for both scopes = %+v, want none", sessions.requests)
-		}
-	})
-
 	for _, tc := range []struct {
 		name   string
 		access string

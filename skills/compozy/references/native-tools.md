@@ -623,7 +623,8 @@ queued input, are pinned, in Later, or hold an always-on main session are skippe
 `skip_counts`; the thread containing the calling session is always skipped as `caller`. Input is
 `{workspace?, all_workspaces?, dry_run?}`; it defaults to the caller's workspace, `dry_run: true`
 previews and runs without approval, and `all_workspaces` needs operator authority or unrestricted
-workspace access (otherwise `capability_denied` with reason `needs_grant`). The result's
+workspace access (otherwise `capability_denied` with reason `needs_grant`) and takes precedence
+over `workspace`, as on `compozy__session_cleanup`. The result's
 `archived[].session_ids` lists the archived sessions root first. To undo, call
 `compozy__session_unarchive` on each of `archived[].restore_ids` in order: the same list without
 subagents, which restore with their parent. The CLI fallback is

@@ -45,11 +45,6 @@ func (n *daemonNativeTools) sessionArchiveStopped(
 		DryRun:          input.DryRun,
 		CallerSessionID: scope.SessionID,
 	}
-	if input.AllWorkspaces && strings.TrimSpace(input.Workspace) != "" {
-		return toolspkg.ToolResult{}, nativeInputError(
-			req.ToolID, errors.New("choose either workspace or all_workspaces, not both"),
-		)
-	}
 	if input.AllWorkspaces {
 		allowed, err := n.sessionCleanupReachesAllWorkspaces(ctx, scope)
 		if err != nil {
