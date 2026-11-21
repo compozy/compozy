@@ -43,14 +43,16 @@ type GlobalDB struct {
 	*CmdPaletteRepo
 	Worktrees *WorktreeRepo
 
-	db           *sql.DB
-	readDB       *sql.DB
-	background   *store.BackgroundWriter
-	checkpoint   *store.PassiveCheckpointer
-	telemetry    *telemetrydb.Store
-	healthBuffer *sessionHealthBuffer
-	summaryRetry *eventSummaryRetry
-	path         string
-	now          func() time.Time
-	closed       atomic.Int32
+	db     *sql.DB
+	readDB *sql.DB
+	// readStatements shadows the promoted repoBase field so GlobalDB owns its close.
+	readStatements *readStatementCache
+	background     *store.BackgroundWriter
+	checkpoint     *store.PassiveCheckpointer
+	telemetry      *telemetrydb.Store
+	healthBuffer   *sessionHealthBuffer
+	summaryRetry   *eventSummaryRetry
+	path           string
+	now            func() time.Time
+	closed         atomic.Int32
 }

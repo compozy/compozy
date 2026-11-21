@@ -113,6 +113,7 @@ func (m *Manager) publishCommittedSessionDelete(entry *stagedSessionDelete) {
 	m.publishWaitSessionGone(entry.info)
 	m.remove(entry.info.ID)
 	m.forgetInventoryMetadata(entry.info.ID)
+	m.settledStatus.forget(entry.info.ID)
 	m.mu.Lock()
 	delete(m.stopRuns, entry.info.ID)
 	delete(m.turnStopRuns, entry.info.ID)

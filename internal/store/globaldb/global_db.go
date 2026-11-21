@@ -48,12 +48,13 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 	}
 
 	globalDB := &GlobalDB{
-		db:         db,
-		readDB:     readDB,
-		background: store.NewBackgroundWriter(db),
-		checkpoint: checkpoint,
-		telemetry:  telemetry,
-		path:       strings.TrimSpace(path),
+		db:             db,
+		readDB:         readDB,
+		readStatements: newReadStatementCache(readDB, config.readStatementCacheLimit),
+		background:     store.NewBackgroundWriter(db),
+		checkpoint:     checkpoint,
+		telemetry:      telemetry,
+		path:           strings.TrimSpace(path),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -150,11 +151,10 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 	if g.background != nil {
 		backgroundErr = g.background.Close(ctx)
 	}
-	readCloseErr := g.readDB.Close()
+	readCloseErr := closeReadPool(g.readDB, g.readStatements)
 	telemetryErr := g.telemetry.Close(ctx)
 	closeErr := store.CloseCheckpointedDatabase(ctx, g.db, g.checkpoint)
-	return errors.Join(healthErr, summaryErr, backgroundErr, readCloseErr, telemetryErr,
-		closeErr)
+	return errors.Join(healthErr, summaryErr, backgroundErr, readCloseErr, telemetryErr, closeErr)
 }
 
 func openGlobalSQLite(

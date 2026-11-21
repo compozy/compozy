@@ -3,7 +3,9 @@ package daemon
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -109,6 +111,96 @@ func assertNoChildWork(t *testing.T, agent string, typ session.Type, lineage sto
 	if len(work) != 0 {
 		t.Fatalf("children() = %#v, want no child work", work)
 	}
+}
+
+// Invariant: a stopped child stays out of active-child work across passes without its
+// metadata being re-decoded, and a metadata rewrite to an active state counts it again.
+func TestSessionWorkSourcesChildrenSettledMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should skip an unchanged stopped child and count it after its metadata turns active", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		registry, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(t.TempDir(), "compozy.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := registry.Close(context.Background()); err != nil {
+				t.Errorf("close work store: %v", err)
+			}
+		})
+		now := time.Now().UTC()
+		if err := registry.InsertWorkspace(ctx, workspace.Workspace{
+			ID: "ws-work", Name: "ws-work", RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		homePaths := testHomePaths(t)
+		writeMeta := func(id string, state session.State, lineage *store.SessionLineage) {
+			t.Helper()
+			if err := store.WriteSessionMeta(
+				store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, id)),
+				&store.SessionMeta{
+					ID: id, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-work",
+					AgentName: "coder", Provider: "mock", State: string(state), Lineage: lineage,
+					RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now,
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		lineage := store.SessionLineage{
+			ParentSessionID: "sess-parent", RootSessionID: "sess-parent", SpawnDepth: 1,
+			Kind: store.LineageKindSpawn,
+		}
+		writeMeta("sess-parent", session.StateStopped, nil)
+		writeMeta("sess-child", session.StateStopped, &lineage)
+		if err := registry.RegisterSession(ctx, new(store.SessionInfo{
+			ProfileID: store.DefaultProfileID, ID: "sess-child", AgentName: "coder",
+			WorkspaceID: "ws-work", SessionType: string(session.SessionTypeSpawned),
+			State: string(session.StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
+			Lineage: &lineage, CreatedAt: now, UpdatedAt: now,
+		})); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+		manager, err := session.NewManager(session.WithHomePaths(homePaths), session.WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Errorf("shutdown work manager: %v", err)
+			}
+		})
+		sources := sessionWorkSources{state: &bootState{registry: registry}, manager: manager, now: time.Now}
+
+		work, err := sources.children(ctx, "sess-parent")
+		if err != nil || len(work) != 0 {
+			t.Fatalf("first children() = %#v, %v; want no work for a stopped child", work, err)
+		}
+		// An unreadable but unchanged file proves the second pass never reads it again:
+		// chmod changes neither size, modification time nor inode.
+		childMeta := store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, "sess-child"))
+		if runtime.GOOS != "windows" && os.Geteuid() != 0 {
+			if err := os.Chmod(childMeta, 0); err != nil {
+				t.Fatal(err)
+			}
+		}
+		work, err = sources.children(ctx, "sess-parent")
+		if err != nil || len(work) != 0 {
+			t.Fatalf("second children() = %#v, %v; want the settled child skipped unread", work, err)
+		}
+		if err := os.Chmod(childMeta, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		writeMeta("sess-child", session.StateActive, &lineage)
+		work, err = sources.children(ctx, "sess-parent")
+		if err != nil || len(work) != 1 || work[0].Ref != "sess-child" ||
+			work[0].Kind != session.WorkSignalActiveChild {
+			t.Fatalf("children() after activation = %#v, %v; want the active child", work, err)
+		}
+	})
 }
 
 func TestSessionWorkSourcesMonitors(t *testing.T) {
