@@ -59,7 +59,7 @@ export function SessionInheritedConversation({
       />
       {expanded ? (
         <div
-          className="mt-2 flex flex-col gap-2 border-l border-line-soft pl-4"
+          className="mt-2 flex flex-col gap-2 border-s border-line-soft ps-4"
           data-testid="session-inherited-panel"
           id={panelId}
         >
@@ -105,11 +105,7 @@ function InheritedBody({
     transcript.status === "unavailable" ||
     (transcript.status === "ready" && transcript.messages.length === 0)
   ) {
-    return (
-      <p className={META_CLASS} data-testid="session-inherited-unavailable" role="status">
-        The source conversation is no longer available. The agent's carried context is unaffected.
-      </p>
-    );
+    return <InheritedUnavailable />;
   }
   if (transcript.status !== "ready") {
     return (
@@ -145,7 +141,17 @@ function InheritedBody({
   );
 }
 
+function InheritedUnavailable() {
+  return (
+    <p className={META_CLASS} data-testid="session-inherited-unavailable" role="status">
+      The source conversation is no longer available. The agent's carried context is unaffected.
+    </p>
+  );
+}
+
 function InheritedOlderControl({ transcript }: { transcript: SessionInheritedTranscriptState }) {
+  // The source went away after the tail loaded: the rows already read stay, paging stops.
+  if (transcript.olderUnavailable) return <InheritedUnavailable />;
   if (!transcript.hasOlder) return null;
   return (
     <div className="flex items-center gap-2">

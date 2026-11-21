@@ -22,8 +22,10 @@ export interface SessionInheritedTranscriptState {
   messages: readonly ThreadMessage[];
   hasOlder: boolean;
   isFetchingOlder: boolean;
-  /** An older page failed; the loaded rows stay and the older control retries. */
+  /** An older page failed transiently; the loaded rows stay and the older control retries. */
   olderFailed: boolean;
+  /** An older page found the source gone; the loaded rows stay and paging stops. */
+  olderUnavailable: boolean;
   loadOlder: () => void;
   retry: () => void;
 }
@@ -48,6 +50,8 @@ export function useSessionInheritedTranscript(
   else if (query.isError) {
     status = isInheritedTranscriptUnavailable(query.error) ? "unavailable" : "error";
   } else if (expanded) status = "pending";
+  const olderError = loaded && query.isFetchNextPageError;
+  const olderUnavailable = olderError && isInheritedTranscriptUnavailable(query.error);
   const messages = loaded
     ? toReadonlyThreadMessages(flattenTranscriptMessages(query.data))
     : NO_MESSAGES;
@@ -56,7 +60,8 @@ export function useSessionInheritedTranscript(
     messages,
     hasOlder: query.hasNextPage,
     isFetchingOlder: query.isFetchingNextPage,
-    olderFailed: loaded && query.isFetchNextPageError,
+    olderFailed: olderError && !olderUnavailable,
+    olderUnavailable,
     loadOlder: () => void query.fetchNextPage(),
     retry: () => void query.refetch(),
   };

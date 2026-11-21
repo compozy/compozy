@@ -1306,6 +1306,36 @@ describe("SessionThread transcript states", () => {
       expect(within(panel).queryByTestId("session-inherited-load-older")).not.toBeInTheDocument();
     });
 
+    it("Should stop paging and say the source is gone when an older page finds it unavailable", async () => {
+      const user = userEvent.setup();
+      const { child, origin } = inheritedChild();
+      stubInheritedFetch(child.id, url =>
+        url.searchParams.has("before_sequence")
+          ? jsonResponse(
+              { code: "inherited_transcript_unavailable", error: "source transcript unavailable" },
+              { status: 404 }
+            )
+          : jsonResponse(
+              inheritedPage([inheritedEntry(10, "user", "Retry the manager suite.")], 10)
+            )
+      );
+      const transcript = [
+        { id: "child-first", role: "user", parts: [{ type: "text", text: "Pick up the tests." }] },
+      ] as SessionMessage[];
+      renderThreadState({
+        status: "success",
+        messages: toReadonlyThreadMessages(transcript),
+        origin,
+      });
+
+      await user.click(await screen.findByTestId("session-inherited-toggle"));
+      const panel = await screen.findByTestId("session-inherited-panel");
+      await user.click(await within(panel).findByTestId("session-inherited-load-older"));
+      expect(await within(panel).findByTestId("session-inherited-unavailable")).toBeInTheDocument();
+      expect(within(panel).getByText("Retry the manager suite.")).toBeInTheDocument();
+      expect(within(panel).queryByTestId("session-inherited-load-older")).not.toBeInTheDocument();
+    });
+
     it("Should say the source is no longer available while the unprompted child keeps its carried context", async () => {
       const user = userEvent.setup();
       const { child, origin } = inheritedChild();
