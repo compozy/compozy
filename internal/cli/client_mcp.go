@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,10 +9,16 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 )
+
+// Reserve the longest supported tool wait plus a preceding approval.
+const hostedMCPToolLifetime = compozyconfig.MaxToolsClarifyTimeout +
+	time.Duration(compozyconfig.MaxToolsApprovalTimeoutSeconds)*time.Second
 
 // SettingsMCPAuthTarget selects one exact daemon-owned MCP credential set.
 type SettingsMCPAuthTarget struct {
@@ -267,6 +274,12 @@ func (c *daemonClient) CallHostedMCP(
 	ctx context.Context,
 	request mcppkg.HostedCallRequest,
 ) (mcppkg.HostedCallResponse, error) {
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		timeout := cmp.Or(c.hostedMCPCallTimeout, hostedMCPToolLifetime+defaultUnixSocketClientTimeout)
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 	var response mcppkg.HostedCallResponse
 	if err := c.doJSONWithClient(
 		ctx,

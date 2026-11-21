@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/iotest"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/session"
@@ -2286,33 +2288,83 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 	t.Run("Should keep hosted tool calls on the long-lived client", func(t *testing.T) {
 		t.Parallel()
 
-		client := &daemonClient{
-			target: LocalClientTarget("/tmp/compozy.sock"),
-			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
-				t.Fatal("CallHostedMCP() used the bounded JSON client")
-				return nil, nil
-			})},
-			streamClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				if req.Method != http.MethodPost || req.URL.Path != "/api/internal/hosted-mcp/tools/call" {
-					t.Fatalf("hosted call request = %s %s", req.Method, req.URL.Path)
-				}
-				return newHTTPResponse(
-					http.StatusOK,
-					`{"result":{"structured":{"ok":true},"preview":"ok","bytes":2,"duration_ms":1}}`,
-				), nil
-			})},
-		}
+		synctest.Test(t, func(t *testing.T) {
+			client := &daemonClient{
+				target:     LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{Timeout: time.Second},
+				streamClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != http.MethodPost || req.URL.Path != "/api/internal/hosted-mcp/tools/call" {
+						t.Fatalf("hosted call request = %s %s", req.Method, req.URL.Path)
+					}
+					timer := time.NewTimer(24*time.Hour + 10*time.Minute)
+					defer timer.Stop()
+					select {
+					case <-req.Context().Done():
+						return nil, req.Context().Err()
+					case <-timer.C:
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"result":{"structured":{"ok":true},"preview":"ok","bytes":2,"duration_ms":1}}`,
+						), nil
+					}
+				})},
+			}
 
-		call, err := client.CallHostedMCP(t.Context(), mcppkg.HostedCallRequest{
-			BindID: "bind-1", ToolName: "skill_view", Input: json.RawMessage(`{"ok":true}`),
+			call, err := client.CallHostedMCP(t.Context(), mcppkg.HostedCallRequest{
+				BindID: "bind-1", ToolName: toolspkg.ToolIDClarify.String(),
+			})
+			if err != nil {
+				t.Fatalf("CallHostedMCP() error = %v", err)
+			}
+			if compactJSON(call.Result.Structured) != `{"ok":true}` {
+				t.Fatalf("CallHostedMCP() structured = %s, want ok", call.Result.Structured)
+			}
 		})
-		if err != nil {
-			t.Fatalf("CallHostedMCP() error = %v", err)
-		}
-		if compactJSON(call.Result.Structured) != `{"ok":true}` {
-			t.Fatalf("CallHostedMCP() structured = %s, want ok", call.Result.Structured)
-		}
 	})
+
+	t.Run("Should preserve caller deadlines and cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			for _, timeout := range []time.Duration{0, time.Second, time.Hour} {
+				parent, cancelParent := context.WithCancel(t.Context())
+				ctx := parent
+				cancelDeadline := func() {}
+				if timeout > 0 {
+					ctx, cancelDeadline = context.WithTimeout(parent, timeout)
+				}
+				client := &daemonClient{
+					target:               LocalClientTarget("/tmp/compozy.sock"),
+					hostedMCPCallTimeout: time.Minute,
+					streamClient: &http.Client{
+						Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+							if want, hasDeadline := ctx.Deadline(); hasDeadline {
+								if got, ok := req.Context().Deadline(); !ok || !got.Equal(want) {
+									t.Errorf("request deadline = %v (set %v), want %v", got, ok, want)
+								}
+							} else {
+								cancelParent()
+							}
+							<-req.Context().Done()
+							return nil, req.Context().Err()
+						}),
+					},
+				}
+				_, err := client.CallHostedMCP(ctx, mcppkg.HostedCallRequest{BindID: "bind-1"})
+				want := context.DeadlineExceeded
+				if timeout == 0 {
+					want = context.Canceled
+				}
+				cancelDeadline()
+				cancelParent()
+				if !errors.Is(err, want) {
+					t.Errorf("CallHostedMCP() with caller timeout %v = %v, want %v", timeout, err, want)
+				}
+			}
+		})
+	})
+
+	t.Run("Should close the socket when the daemon never responds", testHostedMCPStalledSocket)
 
 	for _, testCase := range []struct {
 		code string
@@ -2360,6 +2412,99 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 			t.Fatalf("StreamHostedMCPProjection(error event) error = %q, want redacted claim token", err.Error())
 		}
 	})
+}
+
+func testHostedMCPStalledSocket(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+
+	// AF_UNIX paths are shorter than the temporary path for this named subtest on macOS.
+	dir, err := os.MkdirTemp(os.TempDir(), "cz-mcp-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Error(err)
+		}
+	})
+	socket := filepath.Join(dir, "m.sock")
+	listen := net.ListenConfig{}
+	listener, err := listen.Listen(t.Context(), clientUnixNetwork, socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requestRead := make(chan struct{})
+	handlerDone := make(chan struct{})
+	connectionClosed := make(chan struct{}, 1)
+	server := &http.Server{
+		ReadHeaderTimeout: 5 * time.Second,
+		Handler: http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+			defer close(handlerDone)
+			if req.Method != http.MethodPost || req.URL.Path != "/api/internal/hosted-mcp/tools/call" {
+				t.Errorf("hosted request = %s %s", req.Method, req.URL.Path)
+				return
+			}
+			if _, err := io.Copy(io.Discard, req.Body); err != nil {
+				t.Errorf("read hosted request: %v", err)
+				return
+			}
+			close(requestRead)
+			<-req.Context().Done()
+		}),
+		ConnState: func(_ net.Conn, state http.ConnState) {
+			if state == http.StateClosed {
+				connectionClosed <- struct{}{}
+			}
+		},
+	}
+	serveErr := make(chan error, 1)
+	go func() {
+		serveErr <- server.Serve(listener)
+	}()
+	t.Cleanup(func() {
+		if err := server.Close(); err != nil {
+			t.Error(err)
+		}
+		if err := <-serveErr; !errors.Is(err, http.ErrServerClosed) {
+			t.Errorf("serve hosted socket: %v", err)
+		}
+	})
+
+	daemon, err := NewClient(LocalClientTarget(socket))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, ok := daemon.(*daemonClient)
+	if !ok {
+		t.Fatalf("daemon client = %T, want *daemonClient", daemon)
+	}
+	client.hostedMCPCallTimeout = time.Second
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	watchdog := time.AfterFunc(5*time.Second, cancel)
+	defer watchdog.Stop()
+	_, err = client.CallHostedMCP(ctx, mcppkg.HostedCallRequest{BindID: "bind-1"})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("CallHostedMCP() = %v, want fallback deadline", err)
+	}
+	select {
+	case <-requestRead:
+	default:
+		t.Error("daemon did not read the hosted call before the timeout")
+	}
+	select {
+	case <-handlerDone:
+	case <-ctx.Done():
+		t.Error("daemon handler did not exit after the deadline")
+	}
+	select {
+	case <-connectionClosed:
+	case <-ctx.Done():
+		t.Error("hosted transport left the daemon connection open")
+	}
 }
 
 func TestUnixSocketClientStreamsSessionEvents(t *testing.T) {

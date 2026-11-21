@@ -64,6 +64,12 @@ In a managed session, resolve canonical `compozy__skill_search`/`compozy__skill_
 Hosted MCP includes structured results as JSON text as well as `structuredContent`, so clients that
 consume text can read the complete bounded result. A preview may precede that JSON.
 
+When a hosted tool request has no caller deadline, the proxy gives the daemon up
+to the maximum clarification wait (24 hours), the maximum tool approval wait
+(10 minutes), and the configured `client.request_timeout` for transport and
+response handling. Caller deadlines and cancellation still apply. Individual
+tools and approval flows can return sooner under their own timeout policies.
+
 ## Operator Profile Scope
 
 For operator tool and toolset commands, use `--profile <name>` with `--workspace <id>` to select
