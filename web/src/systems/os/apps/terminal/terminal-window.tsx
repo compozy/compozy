@@ -167,7 +167,12 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
         route: { pathname: "/terminal", search: { ...retargetSearch, new: "1" } },
       });
     },
-    close: terminalId => close.mutate(terminalId),
+    // The mutation's own onError still toasts the refusal; the window only needs the outcome.
+    close: terminalId =>
+      close.mutateAsync(terminalId).then(
+        () => true,
+        () => false
+      ),
     closePending: close.isPending,
     stop: terminalId => stop.mutate(terminalId),
     wait: terminalId => wait.mutate(terminalId),

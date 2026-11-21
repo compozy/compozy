@@ -203,7 +203,7 @@ export function stubWindowActions(
   return {
     onOpenTerminal: vi.fn(),
     retargetTerminal: vi.fn(),
-    onCloseTerminal: vi.fn(),
+    onCloseTerminal: vi.fn(async () => true),
     onStop: vi.fn(),
     onWait: vi.fn(),
     onStopRecording: vi.fn(),

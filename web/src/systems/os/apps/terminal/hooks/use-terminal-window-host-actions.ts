@@ -19,7 +19,8 @@ export interface TerminalWindowHostActionInput {
   openTerminalRefusal: number | null;
   retargetTerminal: (terminalId: string) => void;
   openTerminalTab: () => void;
-  close: (terminalId: string) => void;
+  /** Resolves whether the daemon closed the terminal. */
+  close: (terminalId: string) => Promise<boolean>;
   closePending: boolean;
   stop: (terminalId: string) => void;
   wait: (terminalId: string) => void;

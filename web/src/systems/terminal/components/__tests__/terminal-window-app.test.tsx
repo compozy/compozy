@@ -1053,6 +1053,9 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
     await screen.findByTestId("terminal-limit-dialog");
     await userEvent.click(screen.getByTestId("terminal-limit-close"));
     expect(actions.onCloseTerminal).toHaveBeenCalledWith(TERMINAL_FIXTURES_AT_CAP[0].id);
+    // The daemon accepted the Close; its answer settles without bringing the dialog back.
+    await act(async () => {});
+    expect(screen.queryByTestId("terminal-limit-dialog")).not.toBeInTheDocument();
     // Still waiting for the catalog to show the slot free — no create refused at the cap.
     expect(actions.onOpenTerminal).not.toHaveBeenCalled();
     expect(screen.getByRole("status")).toHaveTextContent("Opening a terminal");
@@ -1064,6 +1067,27 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
     // The next catalog push on the same arrival must not open a second one.
     rerender(<TerminalWindowApp {...waitingAtCapProps(actions, freed.slice(1))} />);
     expect(actions.onOpenTerminal).toHaveBeenCalledOnce();
+  });
+
+  // Invariant: a limit-dialog Close the daemon refuses frees no slot, so the waiting
+  // window returns to the dialog instead of staying on "Opening a terminal".
+  it("Should return to the cap dialog when the daemon refuses the dialog's Close", async () => {
+    const actions = stubWindowActions({ onCloseTerminal: vi.fn(async () => false) });
+    const { rerender } = renderWindow(waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP));
+
+    await screen.findByTestId("terminal-limit-dialog");
+    await userEvent.click(screen.getByTestId("terminal-limit-close"));
+    expect(actions.onCloseTerminal).toHaveBeenCalledWith(TERMINAL_FIXTURES_AT_CAP[0].id);
+
+    expect(await screen.findByTestId("terminal-limit-dialog")).toBeInTheDocument();
+    expect(screen.queryByText(/Opening a terminal/)).not.toBeInTheDocument();
+    expect(actions.onOpenTerminal).not.toHaveBeenCalled();
+
+    // The reopened dialog is the same wait: a slot freed now still opens the terminal.
+    rerender(
+      <TerminalWindowApp {...waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP.slice(1))} />
+    );
+    await waitFor(() => expect(actions.onOpenTerminal).toHaveBeenCalledOnce());
   });
 
   it("Should open the waiting terminal when another window or the CLI frees a slot", async () => {

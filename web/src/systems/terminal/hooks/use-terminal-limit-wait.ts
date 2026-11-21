@@ -13,6 +13,8 @@ interface LimitWait {
   status: "waiting" | "claimed" | "dismissed";
   /** The limit dialog's own Close was used: the dismissal that follows keeps the wait. */
   closeRequested: boolean;
+  /** The daemon refused that Close: the slot never frees, so the dialog comes back. */
+  closeRefused?: boolean;
   /** The host's refusal when the slot was claimed; only a later one belongs to this claim. */
   refusalAtClaim?: number | null;
 }
@@ -27,7 +29,8 @@ export interface UseTerminalLimitWaitOptions {
   onOpenTerminal: (() => void) | undefined;
   /** Identifies the host's last refused create for this window; `null` while none is refused. */
   openRefusal: number | null;
-  onCloseTerminal: (terminalId: string) => void;
+  /** Resolves whether the daemon closed the terminal. */
+  onCloseTerminal: (terminalId: string) => Promise<boolean>;
 }
 
 export interface TerminalLimitWait {
@@ -63,6 +66,10 @@ export function useTerminalLimitWait({
   if (current?.status === "waiting" && !atLimit) {
     setLimitWait({ ...current, status: "claimed", refusalAtClaim: openRefusal });
     setLimitOpen(false);
+  } else if (current?.status === "waiting" && current.closeRefused) {
+    // Still at the cap: the way out is the dialog again, not a spinner.
+    setLimitWait({ ...current, closeRefused: false, closeRequested: false });
+    setLimitOpen(true);
   }
   const claimed = current?.status === "claimed" ? current : null;
 
@@ -101,7 +108,14 @@ export function useTerminalLimitWait({
     },
     closeLimitTerminal: terminalId => {
       setLimitWait(wait => (wait?.status === "waiting" ? { ...wait, closeRequested: true } : wait));
-      onCloseTerminal(terminalId);
+      const key = resolutionKey;
+      void onCloseTerminal(terminalId).then(closed => {
+        if (closed) return;
+        // Only the wait this Close was made for falls back; a later arrival or claim is not its answer.
+        setLimitWait(wait =>
+          wait?.status === "waiting" && wait.key === key ? { ...wait, closeRefused: true } : wait
+        );
+      });
     },
   };
 }
