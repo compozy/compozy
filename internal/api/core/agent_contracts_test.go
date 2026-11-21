@@ -145,6 +145,63 @@ func TestAgentPayloadEffectiveRuntimeUsesRequestedWorkspaceConfig(t *testing.T) 
 		"Should project every effective runtime field and provenance from the requested workspace",
 		testAgentPayloadEffectiveRuntime,
 	)
+
+	authoredChain := []compozyconfig.RoleFallback{{Provider: "claude", Model: "authored-route"}}
+	for _, tc := range []struct {
+		name       string
+		override   []compozyconfig.RoleFallback
+		wantModels []string
+		wantSource contract.AgentRuntimeValueSource
+	}{
+		{
+			name:       "Should keep the authored chain with agent provenance without an override",
+			wantModels: []string{"authored-route"},
+			wantSource: contract.AgentRuntimeValueSourceAgent,
+		},
+		{
+			name:       "Should replace the authored chain with the override chain",
+			override:   []compozyconfig.RoleFallback{{Provider: "codex", Model: "override-route"}},
+			wantModels: []string{"override-route"},
+			wantSource: contract.AgentRuntimeValueSourceConfigOverride,
+		},
+		{
+			name:       "Should clear the authored chain with an explicit empty override",
+			override:   []compozyconfig.RoleFallback{},
+			wantSource: contract.AgentRuntimeValueSourceConfigOverride,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			entry := core.AgentCatalogEntry{
+				Def: compozyconfig.AgentDef{
+					Name: "reviewer", Prompt: "Review changes.", FallbackChain: authoredChain,
+				},
+				Origin: contract.AgentOriginGlobal,
+			}
+			cfg := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}}
+			if tc.override != nil {
+				cfg.Agents.Overrides = map[string]compozyconfig.AgentOverride{
+					"reviewer": {FallbackChain: tc.override},
+				}
+			}
+			payload := core.AgentPayloadFromEntryWithConfig(&entry, &cfg)
+			if payload.EffectiveRuntime == nil {
+				t.Fatal("EffectiveRuntime = nil, want a projection")
+			}
+			models := make([]string, 0, len(payload.EffectiveRuntime.FallbackChain))
+			for _, route := range payload.EffectiveRuntime.FallbackChain {
+				models = append(models, route.Model)
+			}
+			if !slices.Equal(models, tc.wantModels) ||
+				payload.EffectiveRuntime.Sources.FallbackChain != tc.wantSource {
+				t.Fatalf("effective fallback chain = %v (%q), want %v (%q)", models,
+					payload.EffectiveRuntime.Sources.FallbackChain, tc.wantModels, tc.wantSource)
+			}
+			if len(payload.FallbackChain) != 1 || payload.FallbackChain[0].Model != "authored-route" {
+				t.Fatalf("authored fallback chain = %#v, want the unchanged authored route", payload.FallbackChain)
+			}
+		})
+	}
 }
 
 func testAgentPayloadEffectiveRuntime(t *testing.T) {

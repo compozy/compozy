@@ -334,14 +334,20 @@ func placeDeriveChild(opts *CreateOpts, spec deriveSpec, scope workspacepkg.Scop
 	}
 }
 
-// deriveResolutionMeta is the source as seen from the child's profile: a relocated copy
-// resolves its agent, route, and context budget from the target profile's layers.
+// deriveResolutionMeta is the source as seen from the child's profile: the child resolves its
+// agent, declared route, and context budget from the layers of the profile it binds in (a
+// relocated copy's target profile, else the requested profile), so a route index selected
+// here names the same route the child's first bind resolves.
 func deriveResolutionMeta(spec deriveSpec, meta *store.SessionMeta) *store.SessionMeta {
-	if spec.relocation == nil || meta == nil {
+	if meta == nil {
+		return meta
+	}
+	profileID := deriveChildProfileID(spec.childProfileID(), meta)
+	if profileID == normalizeCreateProfileID(meta.ProfileID) {
 		return meta
 	}
 	resolved := *meta
-	resolved.ProfileID = spec.relocation.profileID
+	resolved.ProfileID = profileID
 	return &resolved
 }
 
