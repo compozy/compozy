@@ -2641,7 +2641,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "5fb30aba88f74ecc5be76bf1752f3ac448a4f0f7d819ea66c99e61c85486dce6",
+    "input_schema_digest": "1fc208c5bfd1ba8ed48d4688be84584b7a10a6a3dd621cbdad9aa4870e476e39",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "result_contract": "single",
     "single_result_reason": "minimal"
