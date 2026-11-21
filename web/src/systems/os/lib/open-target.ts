@@ -20,8 +20,11 @@ export interface OpenTarget {
   route: OsWindowRoute;
   placement?: OsOpenTarget["placement"];
   desktopId?: string;
-  /** A session this launcher just created lands in an existing Session window (#825). */
-  created?: boolean;
+  /**
+   * The session lands in an existing Session window when one qualifies (#825): a just-created
+   * session, or a notification jump to a session that has no window yet (#1927).
+   */
+  reuseSessionWindow?: boolean;
 }
 
 export interface OpenContext {
@@ -40,7 +43,7 @@ export interface OpenContext {
 export interface PendingOpen {
   partition: string;
   target: OsOpenTarget & { route: OsWindowRoute };
-  created: boolean;
+  reuseSessionWindow: boolean;
 }
 
 function partitionOf(scope: FocusedDataScope): string {
@@ -71,10 +74,10 @@ function osTarget(target: OpenTarget, route: OsWindowRoute): PendingOpen["target
 /** Runs an open the window manager can accept now. */
 export function runOpen(
   coordinator: OpenContext["coordinator"],
-  pending: Pick<PendingOpen, "target" | "created">
+  pending: Pick<PendingOpen, "target" | "reuseSessionWindow">
 ): Promise<unknown> {
   const { instanceKey } = pending.target;
-  return pending.created && instanceKey
+  return pending.reuseSessionWindow && instanceKey
     ? coordinator.userOpenCreatedSession({ ...pending.target, instanceKey })
     : coordinator.userOpen(pending.target);
 }
@@ -88,7 +91,7 @@ export function runOpen(
  */
 export function openTarget(target: OpenTarget, ctx: OpenContext): Promise<void> {
   const scope = ctx.dataScope;
-  const created = target.created === true;
+  const reuseSessionWindow = target.reuseSessionWindow === true;
   let partition: string;
   let route = target.route;
   if (scope?.kind === "all") {
@@ -97,12 +100,12 @@ export function openTarget(target: OpenTarget, ctx: OpenContext): Promise<void> 
   } else {
     partition = partitionOf(target.binding);
     if (scope === null || !sameDataScope(scope, target.binding)) {
-      ctx.defer({ partition, target: osTarget(target, route), created });
+      ctx.defer({ partition, target: osTarget(target, route), reuseSessionWindow });
       ctx.focusDestination(target.binding);
       return Promise.resolve();
     }
   }
-  const pending = { partition, target: osTarget(target, route), created };
+  const pending = { partition, target: osTarget(target, route), reuseSessionWindow };
   if (ctx.commandPartition !== partition) {
     ctx.defer(pending);
     return Promise.resolve();

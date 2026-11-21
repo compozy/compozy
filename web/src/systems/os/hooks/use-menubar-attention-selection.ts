@@ -32,10 +32,15 @@ export function useMenubarAttentionSelection(
           sessionId: row.id,
           agentName: row.agentName,
           workspaceId: row.workspaceId,
+          reuseSessionWindow: true,
         });
         return;
       case "operator-notice":
-        jumpToSession({ sessionId: row.sessionId, workspaceId: row.workspaceId });
+        jumpToSession({
+          sessionId: row.sessionId,
+          workspaceId: row.workspaceId,
+          reuseSessionWindow: true,
+        });
         return;
       // Loop rows open in place under All projects, bound to their own scope.
       case "loop-node": {

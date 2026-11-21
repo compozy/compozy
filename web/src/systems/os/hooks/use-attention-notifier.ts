@@ -67,12 +67,17 @@ function targetsFromSections(sections: OsAttentionSections): Map<string, Attenti
   return targets;
 }
 
+/**
+ * The jump a toast or system notification activates. It shows the session where the operator
+ * already reads sessions: an existing Session window when one qualifies, not a new tab (#1927).
+ */
 export function attentionJumpTargetFor(delivery: AttentionDelivery): AttentionJumpTarget | null {
   if (delivery.kind === "agent") {
     return {
       sessionId: delivery.notification.session_id,
       workspaceId: delivery.notification.workspace_id,
       ...(delivery.target ? { agentName: delivery.target.agentName } : {}),
+      reuseSessionWindow: true,
     };
   }
   const target =
@@ -86,6 +91,7 @@ export function attentionJumpTargetFor(delivery: AttentionDelivery): AttentionJu
         sessionId: target.id,
         agentName: target.agentName,
         workspaceId: target.workspaceId,
+        reuseSessionWindow: true,
       }
     : null;
 }

@@ -286,8 +286,21 @@ function renderList(
     onBranch,
     actions,
     queryClient,
-    update: (nextSessions: SessionPayload[], nextView = view) =>
-      rendered.rerender(tree(<BranchHost {...props} sessions={nextSessions} view={nextView} />)),
+    update: (
+      nextSessions: SessionPayload[],
+      nextView = view,
+      nextCurrentSessionId = props.currentSessionId
+    ) =>
+      rendered.rerender(
+        tree(
+          <BranchHost
+            {...props}
+            sessions={nextSessions}
+            view={nextView}
+            currentSessionId={nextCurrentSessionId}
+          />
+        )
+      ),
   };
 }
 
@@ -566,6 +579,70 @@ describe("SessionList unrestricted grant", () => {
 });
 
 describe("SessionList selection", () => {
+  // Invariant: when the window's session changes (a notification jump landing in this window,
+  // #1927) the rail reveals that session's own row only as far as needed, once per change, also
+  // when the row mounts later (the Pinned section loading); a refresh of the same session never
+  // scrolls the list back.
+  function recordRowScrolls() {
+    const scrolled: { id: string; options: unknown }[] = [];
+    const spy = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (
+      this: Element,
+      options?: boolean | ScrollIntoViewOptions
+    ) {
+      const id = this.getAttribute("data-session-id");
+      if (id !== null) scrolled.push({ id, options });
+    });
+    return { scrolled, restore: () => spy.mockRestore() };
+  }
+  const nearest = (id: string) => ({ id, options: { block: "nearest" } });
+
+  it("Should reveal the current row once each time the current session changes", () => {
+    const { scrolled, restore } = recordRowScrolls();
+    const { update } = renderList({ currentSessionId: "running" });
+    expect(scrolled).toEqual([nearest("running")]);
+
+    update([...sessions]);
+    expect(scrolled).toHaveLength(1);
+
+    update(sessions, view, "stopped");
+    expect(scrolled).toEqual([nearest("running"), nearest("stopped")]);
+
+    // A session with no row yet, then back: the earlier session is revealed again.
+    update(sessions, view, "unlisted");
+    update(sessions, view, "running");
+    expect(scrolled).toEqual([nearest("running"), nearest("stopped"), nearest("running")]);
+    restore();
+  });
+
+  it("Should reveal the current row when it mounts after the session became current", async () => {
+    const { scrolled, restore } = recordRowScrolls();
+    const pinned: SessionPayload = {
+      ...primarySessionFixture,
+      id: "pinned",
+      name: "Launch plan",
+      archived_at: null,
+      state: "stopped",
+      pinned_at: "2026-11-18T09:00:00Z",
+    };
+    const pinnedRead = (rows: SessionPayload[]) => ({
+      sessions: rows,
+      loading: false,
+      failed: false,
+      more: false,
+      retry: vi.fn(),
+    });
+    const { update } = renderList({
+      currentSessionId: "pinned",
+      view: { ...view, pinned: pinnedRead([]) },
+    });
+    expect(scrolled).toEqual([]);
+
+    // Same sessions array and current session: only the Pinned read delivers the row.
+    update(sessions, { ...view, pinned: pinnedRead([pinned]) }, "pinned");
+    await waitFor(() => expect(scrolled).toEqual([nearest("pinned")]));
+    restore();
+  });
+
   // Invariant: hovering a row swaps its compact time for the actions, so the row
   // target itself still reveals the full timestamp to mouse users.
   it("keeps the full timestamp on the row target while hover hides the compact time", () => {

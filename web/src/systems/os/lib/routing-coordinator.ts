@@ -295,7 +295,7 @@ export class RoutingCoordinator {
     return landed;
   }
 
-  /** Launchers that open a just-created session directly: prefer an existing Session window. */
+  /** Just-created sessions and notification jumps (#1927): prefer an existing Session window. */
   async userOpenCreatedSession(
     target: OsOpenTarget & { instanceKey: string; route: OsWindowRoute }
   ): Promise<string | null> {
@@ -311,14 +311,17 @@ export class RoutingCoordinator {
     const intentToken = ++this.nextUserIntentToken;
     const keyboardSince = this.keyboardFocus.begin();
     const isCurrent = () => intentToken === this.nextUserIntentToken;
+    // Reports defer to the landing as to an open (#1655), and replay when it settles unwritten.
+    const start = this.activations.begin(this.manager.getState(), host.id, intentToken);
     const outcome = landCreatedSession(this.manager, host, target, isCurrent);
-    if (await outcome.completion) {
-      if (isCurrent()) {
-        this.pushRoute(target.route);
-        this.handOffKeyboard(host.id, keyboardSince);
-      }
+    const landed = await outcome.completion.finally(() => this.activations.finish(start));
+    if (landed && isCurrent() && this.activations.isLive(start)) {
+      this.pushRoute(target.route);
+      this.handOffKeyboard(host.id, keyboardSince);
       return host.id;
     }
+    if (!this.activations.settling) this.reportAuthoritativeState();
+    if (landed) return host.id;
     // Unless a newer gesture owns focus: a host another client closed means choose again (a new
     // window when none is left); a surviving host that refused the landing opens it the usual way.
     if (!isCurrent()) return null;

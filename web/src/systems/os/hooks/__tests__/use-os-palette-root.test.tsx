@@ -1105,7 +1105,7 @@ describe("useOsPaletteRoot", () => {
       sessionId: "session:new",
       agentName: "codex",
       workspaceId: "workspace:alpha",
-      created: true,
+      reuseSessionWindow: true,
     });
   });
 
