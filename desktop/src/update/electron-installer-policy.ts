@@ -6,11 +6,16 @@ function normalizedVersion(version: string): string {
   return version.trim().replace(/^v/u, "");
 }
 
+/** Reports whether a feed version is the release the daemon recorded for this operation. */
+export function isRecordedVersion(version: string, operation: AppOperationState): boolean {
+  return normalizedVersion(version) === normalizedVersion(operation.to_version);
+}
+
 export function recordedUpdateAsset(
   updateInfo: { readonly version: string; readonly files: readonly { readonly url: string }[] },
   operation: AppOperationState
 ): string {
-  if (normalizedVersion(updateInfo.version) !== normalizedVersion(operation.to_version)) {
+  if (!isRecordedVersion(updateInfo.version, operation)) {
     throw new Error("The update feed does not match the recorded app release.");
   }
   const recordedAsset = operation.asset.trim();
