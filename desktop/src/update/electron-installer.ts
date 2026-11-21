@@ -95,6 +95,10 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
         });
     };
     this.#updater.on("download-progress", handleProgress);
+    // The recorded provider carries only the sha256, so a blockmap differential, verified by
+    // sha512, can never pass; it would download changed ranges, fail, then fall back anyway.
+    this.#updater.disableDifferentialDownload =
+      app.runningUnderARM64Translation || feedError !== null;
     let paths: string[];
     try {
       signal.throwIfAborted();
@@ -240,7 +244,7 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
 function bothSourcesFailed(feedError: Error, releaseError: unknown): AggregateError {
   return new AggregateError(
     [feedError, releaseError],
-    "The update feed and the recorded app release could not be reached " +
+    "The update feed was not usable and the recorded app release failed " +
       `(${feedError.message}; ${asError(releaseError).message}).`
   );
 }

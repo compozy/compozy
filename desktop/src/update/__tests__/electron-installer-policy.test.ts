@@ -54,6 +54,7 @@ interface FeedAnswers {
 /** Stands in for electron-updater's feed selection: app-update.yml unless setFeedURL overrides it. */
 class FeedUpdater extends EventEmitter {
   feed: RecordedReleaseFeed | null = null;
+  disableDifferentialDownload = false;
   resolved: ResolvedUpdateFileInfo[] = [];
   #checkedRelease = false;
   #failStalledCheck: ((error: Error) => void) | null = null;
@@ -113,7 +114,7 @@ class FeedUpdater extends EventEmitter {
     const payload = this.#failures.payloadSha256;
     const expected = (this.resolved[0]?.info as { sha2?: string } | undefined)?.sha2;
     if (this.#checkedRelease && payload !== undefined && payload !== expected) {
-      throw new Error(`sha2 checksum mismatch, expected ${expected}, got: ${payload}`);
+      throw new Error(`sha256 checksum mismatch, expected ${expected}, got ${payload}`);
     }
     return [...this.#files];
   }
@@ -221,6 +222,8 @@ describe("electron installer feed policy", () => {
     const controller = new AbortController();
     const downloading = installer.download(operation, async () => {}, controller.signal);
     await vi.waitFor(() => expect(token).toBeDefined());
+    // The channel feed carries sha512 blockmaps, so native downloads keep the differential.
+    expect(updater.disableDifferentialDownload).toBe(false);
     controller.abort(new Error("download deadline exceeded"));
     expect(token?.cancelled).toBe(true);
     finish();
@@ -270,6 +273,8 @@ describe("electron installer feed policy", () => {
     ]);
     // The next attempt reads the channel feed again.
     expect(updater.feed).toBeNull();
+    // The sha256-only recorded download never tries a sha512 blockmap differential.
+    expect(updater.disableDifferentialDownload).toBe(true);
   });
 
   it("Should report both sources when the recorded release download fails too", async () => {
@@ -293,7 +298,7 @@ describe("electron installer feed policy", () => {
         new AbortController().signal
       )
     ).rejects.toThrow(
-      "The update feed and the recorded app release could not be reached " +
+      "The update feed was not usable and the recorded app release failed " +
         "(net::ERR_CONNECTION_CLOSED; net::ERR_NAME_NOT_RESOLVED)."
     );
     expect(updater.feed).toBeNull();
@@ -333,6 +338,8 @@ describe("electron installer feed policy", () => {
       },
     ]);
     expect(updater.feed).toBeNull();
+    // The sha256-only recorded download never tries a sha512 blockmap differential.
+    expect(updater.disableDifferentialDownload).toBe(true);
   });
 
   it("Should fail the stale-feed fallback when the release payload digest differs", async () => {
@@ -349,7 +356,7 @@ describe("electron installer feed policy", () => {
 
     await expect(
       installer.download(recorded, async () => {}, new AbortController().signal)
-    ).rejects.toThrow("sha2 checksum mismatch");
+    ).rejects.toThrow("checksum mismatch");
     expect(updater.feed).toBeNull();
   });
 });
