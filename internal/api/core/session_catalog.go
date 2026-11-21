@@ -43,12 +43,12 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 		return
 	}
 	if query.ExcludeInstanceMain {
-		instances, err := h.instanceFacetRows(c, query)
+		instances, err := h.instanceFacets(c, query)
 		if err != nil {
 			h.instanceError(c, err)
 			return
 		}
-		query.InstanceMainIDs = instanceMainIDs(instances)
+		query.InstanceMainIDs = instances.mainIDs
 	}
 	page, err := pager.ListPage(c.Request.Context(), query)
 	if err != nil {

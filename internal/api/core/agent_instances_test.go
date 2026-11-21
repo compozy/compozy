@@ -1162,20 +1162,39 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		for _, name := range []string{"attention", "quiet"} {
-			if _, _, err := db.Instances().
-				AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: name, PermissionCeiling: "{}", CreatedByKind: "human"}, 10); err != nil {
+		const foreignProfile = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		if _, err := db.DB().ExecContext(
+			t.Context(),
+			`INSERT INTO profiles (id, name, color, icon, state, created_at) VALUES (?, 'foreign', '#8E8EB5', 'circle', 'active', ?)`,
+			foreignProfile,
+			store.FormatTimestamp(time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)),
+		); err != nil {
+			t.Fatal(err)
+		}
+		var callerInstance agentinstance.Instance
+		for _, seed := range []struct{ name, profileID string }{
+			{"attention", store.DefaultProfileID},
+			{"quiet", store.DefaultProfileID},
+			{"foreign", foreignProfile},
+		} {
+			instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+				ProfileID: seed.profileID, AgentName: seed.name, PermissionCeiling: "{}", CreatedByKind: "human",
+			}, 10)
+			if err != nil {
 				t.Fatal(err)
 			}
+			if seed.name == "quiet" {
+				callerInstance = instance
+			}
 			if err := db.RegisterSession(t.Context(), new(store.SessionInfo{
-				ProfileID: store.DefaultProfileID, ID: "main-" + name,
-				AgentName: name, Provider: "claude", RuntimeStatus: store.SessionRuntimeUnbound,
+				ProfileID: seed.profileID, ID: "main-" + seed.name,
+				AgentName: seed.name, Provider: "claude", RuntimeStatus: store.SessionRuntimeUnbound,
 				State: "active",
 			})); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := db.DB().ExecContext(t.Context(),
-				"UPDATE agent_instances SET main_session_id=? WHERE agent_name=?", "main-"+name, name); err != nil {
+				"UPDATE agent_instances SET main_session_id=? WHERE id=?", "main-"+seed.name, instance.ID); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -1184,6 +1203,7 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 			query       string
 			flag        bool
 			archived    bool
+			agentCaller bool
 			wantMainIDs []string
 			attention   int
 		}{
@@ -1217,6 +1237,13 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 				name:  "Should preserve the narrowed aggregate when exclusion is false",
 				query: "all_workspaces=true&workspace_ids=@user&exclude_instance_main=false",
 			},
+			{
+				name:        "Should exclude in-scope mains even when a granted agent cannot list their instances",
+				query:       "all_workspaces=true&all_profiles=true",
+				flag:        true,
+				agentCaller: true,
+				wantMainIDs: []string{"main-attention", "main-foreign", "main-quiet"},
+			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -1227,6 +1254,12 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 					}
 				}
 				fixture := newHandlerFixture(t, &testutil.StubSessionManager{
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						return &session.Info{
+							ID: id, AgentName: callerInstance.AgentName, ProfileID: callerInstance.ProfileID,
+							State: session.StateActive, EffectiveWorkspaceAccess: workspaceaccess.Unrestricted,
+						}, nil
+					},
 					ListPageFn: func(_ context.Context, q session.ListQuery) (session.ListPage, error) {
 						mainIDs := slices.Sorted(slices.Values(q.InstanceMainIDs))
 						if !q.ExcludeInstanceMain || !slices.Equal(mainIDs, tc.wantMainIDs) {
@@ -1243,29 +1276,58 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 					},
 				}, testutil.StubObserver{}, workspaces)
 				fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
-					Store: db.Instances(),
+					Store:     db.Instances(),
+					Authority: agentinstance.Authority{Callers: instanceAPIInputs{instance: callerInstance}},
 					ReadPayload: func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error) {
 						t.Fatal("facets hydrated the full instance payload")
 						return contract.AgentInstancePayload{}, nil
 					},
 					ReadAttention: func(ctx context.Context, id string) (bool, error) {
 						row, err := db.Instances().Get(ctx, id)
-						return row.AgentName == "attention", err
+						return row.AgentName != callerInstance.AgentName, err
 					},
+				}
+				if tc.agentCaller {
+					fixture.Handlers.Profiles = &workspaceHintProfileServiceStub{
+						ProfileService: sessionProfileServiceStub{},
+						profiles: []profilepkg.WithCounts{
+							{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+							{ID: foreignProfile, Name: "foreign", State: profilepkg.StateActive},
+						},
+					}
+					fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{
+						AuthorizeFn: func(context.Context, workspaceaccess.Request) (workspaceaccess.Decision, error) {
+							return workspaceaccess.Decision{
+								Allowed: true,
+								Source:  workspaceaccess.SourceAgentGrant,
+							}, nil
+						},
+					}
 				}
 				fixture.Engine.GET("/facets", fixture.Handlers.ListSessionFacets)
 				fixture.Engine.GET("/list", fixture.Handlers.ListSessions)
+				read := func(path string) *httptest.ResponseRecorder {
+					t.Helper()
+					request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
+					if tc.agentCaller {
+						request.Header.Set(agentidentity.HeaderSessionID, "main-quiet")
+						request.Header.Set(agentidentity.HeaderAgent, callerInstance.AgentName)
+					}
+					response := httptest.NewRecorder()
+					fixture.Engine.ServeHTTP(response, request)
+					return response
+				}
 				query := tc.query
 				if tc.flag {
 					query += "&exclude_instance_main=true"
-					listed := performRequest(t, fixture.Engine, http.MethodGet, "/list?"+query, nil)
+					listed := read("/list?" + query)
 					var page contract.SessionCatalogResponse
 					decodeJSON(t, listed.Body.Bytes(), &page)
 					if listed.Code != http.StatusOK || page.Page.Limit != 1 {
 						t.Fatalf("list: %d %s", listed.Code, listed.Body.String())
 					}
 				}
-				response := performRequest(t, fixture.Engine, http.MethodGet, "/facets?"+query, nil)
+				response := read("/facets?" + query)
 				var body contract.SessionCatalogFacetsResponse
 				decodeJSON(t, response.Body.Bytes(), &body)
 				if response.Code != http.StatusOK || body.Facets.All != 7 ||

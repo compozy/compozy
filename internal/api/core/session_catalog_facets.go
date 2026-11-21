@@ -38,14 +38,12 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	instances, err := h.instanceFacetRows(c, query)
+	instances, err := h.instanceFacets(c, query)
 	if err != nil {
 		h.instanceError(c, err)
 		return
 	}
-	if query.ExcludeInstanceMain {
-		query.InstanceMainIDs = instanceMainIDs(instances)
-	}
+	query.InstanceMainIDs = instances.mainIDs
 	facets, err := manager.CatalogFacets(c.Request.Context(), query)
 	if err != nil {
 		status := http.StatusInternalServerError
@@ -79,7 +77,7 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 			},
 		)
 	}
-	addInstanceFacets(&response, instances)
+	addInstanceFacets(&response, instances.rows)
 	c.JSON(http.StatusOK, response)
 }
 

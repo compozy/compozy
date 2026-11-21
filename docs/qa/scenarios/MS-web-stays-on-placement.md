@@ -28,6 +28,8 @@ a project instance and an ordinary session in that project. The project total an
 column counts reflect only the ordinary session, and the instance still appears as an
 avatar. With the exclusion flag set, facets report the same session counts for scoped
 and aggregate reads. CI coverage lives in the catalog and instance-facets API suites.
+For a granted agent reading All projects and All profiles, mains in its session
+catalog scope are excluded and instance attention counts only its own instance.
 
 2026-11-01 (D-5) provider boundary evidence: isolated live ACP triage completed
 with Claude `plan`, Codex `read-only`, and OpenCode's config-only `plan`. Each
