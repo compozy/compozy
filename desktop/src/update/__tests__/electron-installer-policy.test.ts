@@ -40,22 +40,31 @@ const operation: AppOperationState = {
   consecutive_failures: 0,
 };
 
+/**
+ * How each source answers: the channel feed fails, stalls or names a version; the recorded
+ * release download can fail, or serve a payload whose sha256 electron-updater compares with
+ * the expected `sha2`.
+ */
+interface FeedAnswers {
+  readonly channel: Error | "stall" | { readonly version: string };
+  readonly release?: Error;
+  readonly payloadSha256?: string;
+}
+
 /** Stands in for electron-updater's feed selection: app-update.yml unless setFeedURL overrides it. */
 class FeedUpdater extends EventEmitter {
   feed: RecordedReleaseFeed | null = null;
+  disableDifferentialDownload = false;
   resolved: ResolvedUpdateFileInfo[] = [];
   #checkedRelease = false;
   #failStalledCheck: ((error: Error) => void) | null = null;
-  readonly #failures: { readonly channel: Error | "stall"; readonly release?: Error };
+  readonly #failures: FeedAnswers;
   readonly #files: readonly string[];
   readonly netSession = {
     closeAllConnections: async () => this.#failStalledCheck?.(new Error("net::ERR_ABORTED")),
   };
 
-  constructor(
-    failures: { readonly channel: Error | "stall"; readonly release?: Error },
-    files: readonly string[]
-  ) {
+  constructor(failures: FeedAnswers, files: readonly string[]) {
     super();
     this.#failures = failures;
     this.#files = files;
@@ -71,7 +80,18 @@ class FeedUpdater extends EventEmitter {
 
   async checkForUpdates(): Promise<UpdateCheckResult> {
     if (!this.feed) {
-      if (this.#failures.channel !== "stall") throw this.#failures.channel;
+      const channel = this.#failures.channel;
+      if (channel instanceof Error) throw channel;
+      if (channel !== "stall") {
+        // electron-updater reports no update for a feed that is not newer than the running app.
+        const files = [{ url: `CompozyOS-${channel.version}-arm64.zip` }];
+        const updateInfo = { version: channel.version, files };
+        return {
+          isUpdateAvailable: channel.version !== "1.0.0",
+          updateInfo,
+          versionInfo: updateInfo,
+        } as unknown as UpdateCheckResult;
+      }
       return await new Promise<never>((_resolve, reject) => {
         this.#failStalledCheck = reject;
       });
@@ -91,6 +111,11 @@ class FeedUpdater extends EventEmitter {
   async downloadUpdate(): Promise<string[]> {
     // The recorded provider resolves locally; its release host is first contacted here.
     if (this.#checkedRelease && this.#failures.release) throw this.#failures.release;
+    const payload = this.#failures.payloadSha256;
+    const expected = (this.resolved[0]?.info as { sha2?: string } | undefined)?.sha2;
+    if (this.#checkedRelease && payload !== undefined && payload !== expected) {
+      throw new Error(`sha256 checksum mismatch, expected ${expected}, got ${payload}`);
+    }
     return [...this.#files];
   }
 }
@@ -197,6 +222,8 @@ describe("electron installer feed policy", () => {
     const controller = new AbortController();
     const downloading = installer.download(operation, async () => {}, controller.signal);
     await vi.waitFor(() => expect(token).toBeDefined());
+    // The channel feed carries sha512 blockmaps, so native downloads keep the differential.
+    expect(updater.disableDifferentialDownload).toBe(false);
     controller.abort(new Error("download deadline exceeded"));
     expect(token?.cancelled).toBe(true);
     finish();
@@ -246,6 +273,8 @@ describe("electron installer feed policy", () => {
     ]);
     // The next attempt reads the channel feed again.
     expect(updater.feed).toBeNull();
+    // The sha256-only recorded download never tries a sha512 blockmap differential.
+    expect(updater.disableDifferentialDownload).toBe(true);
   });
 
   it("Should report both sources when the recorded release download fails too", async () => {
@@ -269,9 +298,65 @@ describe("electron installer feed policy", () => {
         new AbortController().signal
       )
     ).rejects.toThrow(
-      "The update feed and the recorded app release could not be reached " +
+      "The update feed was not usable and the recorded app release failed " +
         "(net::ERR_CONNECTION_CLOSED; net::ERR_NAME_NOT_RESOLVED)."
     );
+    expect(updater.feed).toBeNull();
+  });
+
+  // Invariant: a reachable channel feed that names another version never blocks or replaces the
+  // recorded release; the installed version is always the recorded one, verified against the
+  // daemon's signed sha256.
+  // Owner: Electron installer adapter. Canonical suite: electron-installer-policy.test.ts.
+  it.each([
+    { feed: "still names the previous release", version: "1.0.0" },
+    { feed: "already names a newer release", version: "1.2.0" },
+  ])("Should install the recorded release when the feed $feed", async ({ version }) => {
+    const sha256 = "ef".repeat(32);
+    const recorded = { ...operation, digest: `sha256:${sha256}` };
+    const updater = new FeedUpdater({ channel: { version }, payloadSha256: sha256 }, [
+      `/tmp/${recorded.asset}`,
+    ]);
+    const feedFailures: Error[] = [];
+    const installer = new ElectronUpdateInstaller({
+      updater: updater as unknown as AppUpdater,
+      nativeUpdater: null,
+      prepareForRestart: async () => {},
+      onFeedFallback: error => feedFailures.push(error),
+    });
+
+    await expect(
+      installer.download(recorded, async () => {}, new AbortController().signal)
+    ).resolves.toEqual({ artifactPath: `/tmp/${recorded.asset}`, version: "1.1.0" });
+    expect(feedFailures.map(error => error.message)).toEqual([
+      `The update feed names version ${version}, not the recorded 1.1.0.`,
+    ]);
+    expect(updater.resolved.map(file => ({ url: file.url.href, info: file.info }))).toEqual([
+      {
+        url: "https://github.com/compozy/compozy/releases/download/v1.1.0/CompozyOS-1.1.0-arm64.zip",
+        info: { url: recorded.asset, sha2: sha256 },
+      },
+    ]);
+    expect(updater.feed).toBeNull();
+    // The sha256-only recorded download never tries a sha512 blockmap differential.
+    expect(updater.disableDifferentialDownload).toBe(true);
+  });
+
+  it("Should fail the stale-feed fallback when the release payload digest differs", async () => {
+    const recorded = { ...operation, digest: `sha256:${"ef".repeat(32)}` };
+    const updater = new FeedUpdater(
+      { channel: { version: "1.0.0" }, payloadSha256: "00".repeat(32) },
+      [`/tmp/${recorded.asset}`]
+    );
+    const installer = new ElectronUpdateInstaller({
+      updater: updater as unknown as AppUpdater,
+      nativeUpdater: null,
+      prepareForRestart: async () => {},
+    });
+
+    await expect(
+      installer.download(recorded, async () => {}, new AbortController().signal)
+    ).rejects.toThrow("checksum mismatch");
     expect(updater.feed).toBeNull();
   });
 });

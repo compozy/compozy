@@ -443,7 +443,7 @@ describe("app update consumer", () => {
       "the feed and the recorded release",
       new AggregateError(
         [new Error("net::ERR_CONNECTION_CLOSED"), new Error("net::ERR_NAME_NOT_RESOLVED")],
-        "The update feed and the recorded app release could not be reached " +
+        "The update feed was not usable and the recorded app release failed " +
           "(net::ERR_CONNECTION_CLOSED; net::ERR_NAME_NOT_RESOLVED)."
       ),
       "The app update could not be downloaded. The connection failed with " +
@@ -453,7 +453,7 @@ describe("app update consumer", () => {
       "the recorded release after the feed",
       new AggregateError(
         [new Error("net::ERR_CONNECTION_CLOSED"), new Error("ENOSPC: no space left on device")],
-        "The update feed and the recorded app release could not be reached " +
+        "The update feed was not usable and the recorded app release failed " +
           "(net::ERR_CONNECTION_CLOSED; ENOSPC: no space left on device)."
       ),
       "The app update could not be installed.",

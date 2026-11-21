@@ -11,7 +11,7 @@ import {
 } from "electron-updater";
 
 import type { AppOperationState } from "./operation-contract";
-import { recordedUpdateAsset } from "./electron-installer-policy";
+import { isRecordedVersion, recordedUpdateAsset } from "./electron-installer-policy";
 import { recordedReleaseFeed } from "./recorded-release-provider";
 
 export interface DownloadedAppUpdate {
@@ -95,6 +95,10 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
         });
     };
     this.#updater.on("download-progress", handleProgress);
+    // The recorded provider carries only the sha256, so a blockmap differential, verified by
+    // sha512, can never pass; it would download changed ranges, fail, then fall back anyway.
+    this.#updater.disableDifferentialDownload =
+      app.runningUnderARM64Translation || feedError !== null;
     let paths: string[];
     try {
       signal.throwIfAborted();
@@ -118,11 +122,15 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
   }
 
   /**
-   * Reads the channel feed, or the recorded release when the feed host is unreachable.
+   * Reads the channel feed, or the recorded release when the feed is unreachable or names
+   * another version.
    *
    * The channel manifest is served from raw.githubusercontent.com, a host the daemon never
-   * contacts and that some networks block. The daemon already reached the recorded GitHub
-   * release while planning, so that release is the fallback source for the same asset.
+   * contacts and that some networks block. It is also published minutes after the GitHub
+   * release the daemon plans from, so right after a release it still names the previous
+   * version, and a later release can make it name a newer one. The daemon already reached the
+   * recorded GitHub release while planning, so that release is the fallback source for the
+   * recorded asset and digest; no other version is ever installed under this operation.
    */
   async #checkRecordedRelease(
     operation: AppOperationState,
@@ -132,7 +140,13 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
     try {
       const checked = await this.#checkChannelFeed();
       signal.throwIfAborted();
-      return { checked, feedError: null };
+      const feedVersion = checked?.updateInfo.version;
+      if (feedVersion === undefined || isRecordedVersion(feedVersion, operation)) {
+        return { checked, feedError: null };
+      }
+      feedError = new Error(
+        `The update feed names version ${feedVersion}, not the recorded ${operation.to_version}.`
+      );
     } catch (error) {
       signal.throwIfAborted();
       feedError = asError(error);
@@ -230,7 +244,7 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
 function bothSourcesFailed(feedError: Error, releaseError: unknown): AggregateError {
   return new AggregateError(
     [feedError, releaseError],
-    "The update feed and the recorded app release could not be reached " +
+    "The update feed was not usable and the recorded app release failed " +
       `(${feedError.message}; ${asError(releaseError).message}).`
   );
 }

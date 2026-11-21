@@ -60,3 +60,12 @@ recorded asset from the GitHub release, verifies its digest, and restarts on the
 GitHub release downloads blocked too, the failed operation's `last_error` names the network error
 (`net::ERR_…`) instead of "The app update could not be installed."; Retry update works once the
 network allows it. Unit coverage: `electron-installer-policy.test.ts`, `app-update-consumer.test.ts`.
+
+2026-11-20 stale-feed regression (issue #1898): publish release N while the desktop channel
+feed still names N-1 (the window between `Publish GitHub Release` and `Publish Desktop Channel`,
+plus CDN cache), then click Update. The shell logs `read app update feed` with "The update feed
+names version N-1, not the recorded N.", downloads the recorded asset from the GitHub release,
+verifies the daemon-recorded sha256, and restarts on N with no failed phase or red Retry update
+pill. A feed that already names a version newer than the recorded one takes the same recorded
+path and installs the recorded version, never the newer one. A payload whose digest differs
+still fails the operation. Unit coverage: `electron-installer-policy.test.ts`.
