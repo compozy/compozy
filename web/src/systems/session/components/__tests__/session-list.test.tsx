@@ -1848,9 +1848,7 @@ describe("SessionList subagents", () => {
     const glyph = (id: string) => mark(id).querySelector("[data-state]");
 
     for (const id of ["idle-parent", "sub-parent"]) {
-      expect(mark(id)).toHaveAccessibleName(
-        "Session badge: done, child sessions or subagents working"
-      );
+      expect(mark(id)).toHaveAccessibleName("Session badge: done, working below");
       expect(mark(id)).toHaveAttribute("data-badge", "done");
       expect(glyph(id)).toHaveAttribute("data-state", "running");
     }

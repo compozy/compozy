@@ -47,7 +47,7 @@ export function SessionBadgeMark({
   return (
     <span
       role="img"
-      aria-label={`Session badge: ${signal.label}${lifted ? ", child sessions or subagents working" : ""}`}
+      aria-label={`Session badge: ${signal.label}${lifted ? ", working below" : ""}`}
       data-badge={signal.label}
       data-waiting-on={signal.label === "waiting" ? (waitingOn ?? "sessions") : undefined}
       data-descendants={lifted ? "running" : undefined}
