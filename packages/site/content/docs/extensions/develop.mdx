@@ -93,8 +93,9 @@ Registering a tool adds `tool.provider` to `capabilities.provides` automatically
 
 The daemon checks input and output schema digests in both `__describe` and `provide_tools`. For
 U+2028 (line separator) and U+2029 (paragraph separator) in schema keys or values, it accepts the
-TypeScript SDK's literal UTF-8 encoding and the Go SDK's escaped encoding. Each digest must match
-the same schema. Published tool and stored Loop identities continue to use the escaped encoding.
+TypeScript SDK's literal UTF-8 encoding and the Go SDK's escaped encoding. The TypeScript encoding
+must preserve the exact numeric values in the schema. Published tool and stored Loop identities
+continue to use the escaped encoding.
 Use the SDK helpers to calculate digests for extension descriptors.
 
 ## Start from a resource-only manifest

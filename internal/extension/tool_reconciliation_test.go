@@ -139,6 +139,36 @@ func TestReconcileManifestToolRuntimeReportsAvailabilityReasons(t *testing.T) {
 			}
 		})
 	}
+
+	for _, tc := range []struct {
+		name    string
+		exact   string
+		rounded string
+	}{
+		{name: "Should reject a digest that rounds a large integer", exact: "9007199254740993", rounded: "9007199254740992"},
+		{name: "Should reject a digest that rounds a fractional number", exact: "0.10000000000000001", rounded: "0.1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			const schemaPrefix = `{"description":"\u2028","type":"object","properties":{"amount":{"maximum":`
+			const schemaSuffix = `}}}`
+			manifest := mustManifestToolDescriptor(t, json.RawMessage(schemaPrefix+tc.exact+schemaSuffix))
+			runtime := manifest.RuntimeDescriptor
+			runtime.InputSchema = json.RawMessage(schemaPrefix + tc.rounded + schemaSuffix)
+			digest, err := toolspkg.TypeScriptSeparatorSchemaDigest(runtime.InputSchema)
+			if err != nil || digest == "" {
+				t.Fatalf("TypeScriptSeparatorSchemaDigest() = (%q, %v), want a digest", digest, err)
+			}
+			runtime.InputSchemaDigest = digest
+
+			got := ReconcileManifestToolRuntime(&manifest, &runtime, healthyState)
+			if got.Available || got.Executable ||
+				!slices.Contains(got.ReasonCodes, toolspkg.ReasonRuntimeDescriptorMismatch) {
+				t.Fatalf("ReconcileManifestToolRuntime() = %#v, want schema digest mismatch", got)
+			}
+		})
+	}
 }
 
 func mustManifestToolDescriptor(t *testing.T, schema json.RawMessage) ManifestToolDescriptor {

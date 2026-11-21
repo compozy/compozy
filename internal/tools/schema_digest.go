@@ -9,14 +9,15 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math/big"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 )
 
-// Match complete strings so removing an exponent sign cannot change a schema string.
-var sdkExponentPlus = regexp.MustCompile(`"([^"\\]|\\.)*"|e\+`)
+// Match complete strings so numeric formatting only touches JSON numbers.
+var sdkSchemaNumberToken = regexp.MustCompile(`"([^"\\]|\\.)*"|-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?`)
 
 // CanonicalJSON returns the daemon's identity encoding, which escapes U+2028 and U+2029.
 func CanonicalJSON(raw json.RawMessage) ([]byte, error) {
@@ -58,27 +59,51 @@ func SchemaDigest(raw json.RawMessage) (string, error) {
 	return hashCanonicalSchema(canonical), nil
 }
 
-// TypeScriptSeparatorSchemaDigest returns the SDK digest for schemas containing U+2028 or U+2029, or empty otherwise.
+// TypeScriptSeparatorSchemaDigest returns an SDK digest when the schema has separators and each number round-trips.
 func TypeScriptSeparatorSchemaDigest(raw json.RawMessage) (string, error) {
 	if err := ValidateJSONObject("schema", raw, true); err != nil {
 		return "", err
 	}
 	canonical := jsontext.Value(bytes.Clone(raw))
-	if err := canonical.Canonicalize(); err != nil {
+	if err := canonical.Format(jsontext.ReorderRawObjects(true)); err != nil {
 		return "", fmt.Errorf("canonicalize TypeScript schema: %w", err)
 	}
 	if !bytes.ContainsAny(canonical, "\u2028\u2029") {
 		return "", nil
 	}
-	if bytes.Contains(canonical, []byte("e+")) {
-		canonical = sdkExponentPlus.ReplaceAllFunc(canonical, func(token []byte) []byte {
-			if token[0] == 'e' {
-				return token[:1]
-			}
+	lossless := true
+	canonical = sdkSchemaNumberToken.ReplaceAllFunc(canonical, func(token []byte) []byte {
+		if !lossless || token[0] == '"' {
 			return token
-		})
+		}
+		formatted := typeScriptSchemaNumber(token)
+		lossless = formatted != nil
+		return formatted
+	})
+	if !lossless {
+		return "", nil
 	}
 	return hashCanonicalSchema(canonical), nil
+}
+
+func typeScriptSchemaNumber(token []byte) []byte {
+	original := string(token)
+	value, err := strconv.ParseFloat(original, 64)
+	if err != nil {
+		return nil
+	}
+	if value == 0 {
+		value = 0 // The SDK serializes both signs of zero as 0.
+	}
+	formatted := jsontext.Float(value).String()
+	if original != formatted {
+		exact, exactOK := new(big.Rat).SetString(original)
+		roundTrip, roundTripOK := new(big.Rat).SetString(formatted)
+		if !exactOK || !roundTripOK || exact.Cmp(roundTrip) != 0 {
+			return nil
+		}
+	}
+	return []byte(strings.Replace(formatted, "e+", "e", 1))
 }
 
 func hashCanonicalSchema(canonical []byte) string {
