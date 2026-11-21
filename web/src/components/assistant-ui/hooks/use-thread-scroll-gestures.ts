@@ -1,6 +1,6 @@
 import { type RefObject, useEffect } from "react";
 
-import { isRenderedElement } from "@/lib/scroll-owner";
+import { isRenderedAtScroll, trackRenderedOnScroll } from "@/lib/scroll-owner";
 
 import {
   FOLLOW_REARM_BAND_PX,
@@ -83,7 +83,7 @@ export function useThreadScrollGestures(
     const handleScroll = () => {
       // A viewport that is not rendered reads as scrolled to its end (every box is 0): it says
       // nothing about the reader, so following neither arms nor re-pins from it.
-      if (!isRenderedElement(viewport)) return;
+      if (!isRenderedAtScroll(viewport)) return;
       if (heldPointerScrollTop !== null) {
         // A shrinking layout clamps the viewport without a reader gesture.
         const clamped = viewport.scrollHeight < heldPointerScrollHeight;
@@ -103,6 +103,7 @@ export function useThreadScrollGestures(
         pinToEnd(viewport, store);
       }
     };
+    const releaseRenderTracking = trackRenderedOnScroll(viewport);
     viewport.addEventListener("wheel", handleWheel, { passive: true });
     viewport.addEventListener("touchstart", handleTouchStart, { passive: true });
     viewport.addEventListener("touchmove", handleTouchMove, { passive: true });
@@ -120,6 +121,7 @@ export function useThreadScrollGestures(
       pointerEvents.removeEventListener("pointercancel", handlePointerRelease);
       viewport.removeEventListener("keydown", handleKeyDown);
       viewport.removeEventListener("scroll", handleScroll);
+      releaseRenderTracking();
     };
   }, [store, viewportRef]);
 }
