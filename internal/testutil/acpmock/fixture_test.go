@@ -524,6 +524,16 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 			),
 			want: "delay_ms exceeds duration capacity",
 		},
+		{
+			name: "Should reject invalid per-model reannouncement",
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","config_options":[{"id":"model","name":"Model","current":"argon","values":[{"value":"argon"},{"value":"hydrogen","when_selected":[{"id":"thought_level","name":"Thinking","current":"xhigh","values":[{"value":"low"}]}]}]}],"turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
+			want: "when_selected[0].current",
+		},
+		{
+			name: "Should reject a fallback reannouncement scripted differently by two branches",
+			raw:  branchReannouncementFixture(twoThoughtLevelsJSON, threeThoughtLevelsJSON, topLevelHydrogenJSON),
+			want: `agents[0].config_options[1].values[0] advertises model="hydrogen" without when_selected`,
+		},
 	}
 
 	for _, tc := range cases {
@@ -535,6 +545,105 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseFixtureAcceptsPerModelConfigOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept per-model config option reannouncements", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, err := ParseFixture([]byte(`{"version":2,"agents":[{"name":"alpha","provider":"agy",
+"config_options":[{"id":"model","name":"Model","category":"model","current":"argon","values":[
+{"value":"argon"},{"value":"hydrogen","when_selected":[
+{"id":"model","name":"Model","category":"model","current":"hydrogen","values":[{"value":"argon"},{"value":"hydrogen"}]},
+{"id":"thought_level","name":"Thinking","category":"thought_level","current":"medium","values":[
+{"value":"low"},{"value":"medium"},{"value":"high"},{"value":"xhigh"}]}]}]}],
+"turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`))
+		if err != nil {
+			t.Fatalf("ParseFixture(per-model options) error = %v", err)
+		}
+		agent, err := fixture.Agent("alpha")
+		if err != nil {
+			t.Fatalf("fixture.Agent(alpha) error = %v", err)
+		}
+		hydrogen := agent.ConfigOptions[0].Values[1]
+		if len(hydrogen.WhenSelected) != 2 {
+			t.Fatalf("hydrogen when_selected = %#v, want model and thought_level", hydrogen.WhenSelected)
+		}
+		thoughtLevel := hydrogen.WhenSelected[1]
+		if thoughtLevel.ID != "thought_level" || thoughtLevel.Category != "thought_level" ||
+			len(thoughtLevel.Values) != 4 {
+			t.Fatalf("thought_level reannouncement = %#v, want four model-specific levels", thoughtLevel)
+		}
+	})
+
+	t.Run("Should accept equivalent reannouncements repeated across branches", func(t *testing.T) {
+		t.Parallel()
+
+		labeled := `{"value":"low","label":"low"},{"value":"high"}`
+		raw := branchReannouncementFixture(twoThoughtLevelsJSON, labeled, topLevelHydrogenJSON)
+		if _, err := ParseFixture([]byte(raw)); err != nil {
+			t.Fatalf("ParseFixture(equivalent repeated reannouncements) error = %v", err)
+		}
+	})
+
+	t.Run("Should accept different reannouncements scoped to their own branches", func(t *testing.T) {
+		t.Parallel()
+
+		raw := branchReannouncementFixture(twoThoughtLevelsJSON, threeThoughtLevelsJSON, "")
+		if _, err := ParseFixture([]byte(raw)); err != nil {
+			t.Fatalf("ParseFixture(branch-scoped reannouncements) error = %v", err)
+		}
+	})
+
+	t.Run("Should keep an explicit empty reannouncement distinct from an omitted one", func(t *testing.T) {
+		t.Parallel()
+
+		raw := `{"version":2,"agents":[{"name":"alpha","provider":"agy",` +
+			`"config_options":[{"id":"model","name":"Model","current":"argon","values":[` +
+			`{"value":"argon"},{"value":"bare","when_selected":[]}]}],` +
+			`"turns":[{"match":{"turn_source":"user","user_text":"hi"},` +
+			`"steps":[{"kind":"assistant","text":"hi"}]}]}]}`
+		fixture, err := ParseFixture([]byte(raw))
+		if err != nil {
+			t.Fatalf("ParseFixture(explicit empty reannouncement) error = %v", err)
+		}
+		values := fixture.Agents[0].ConfigOptions[0].Values
+		if values[0].WhenSelected != nil || values[1].WhenSelected == nil || len(values[1].WhenSelected) != 0 {
+			t.Fatalf("when_selected = %#v / %#v, want omitted then explicit empty", values[0].WhenSelected,
+				values[1].WhenSelected)
+		}
+		encoded, err := json.Marshal(fixture.Agents[0].ConfigOptions)
+		if err != nil {
+			t.Fatalf("json.Marshal(config options) error = %v", err)
+		}
+		if got := strings.Count(string(encoded), `"when_selected"`); got != 1 ||
+			!strings.Contains(string(encoded), `"when_selected":[]`) {
+			t.Fatalf("encoded config options = %s, want only the explicit empty when_selected", encoded)
+		}
+	})
+}
+
+const (
+	twoThoughtLevelsJSON   = `{"value":"low"},{"value":"high"}`
+	threeThoughtLevelsJSON = `{"value":"low"},{"value":"high"},{"value":"xhigh"}`
+	topLevelHydrogenJSON   = `,{"id":"model","name":"Model","current":"hydrogen","values":[{"value":"hydrogen"}]}`
+)
+
+// branchReannouncementFixture scripts two mode branches that each advertise model=hydrogen
+// with its own thought-level replacement; extraOptions appends advertised top-level options.
+func branchReannouncementFixture(branchA string, branchB string, extraOptions string) string {
+	branch := func(levels string) string {
+		return `{"id":"model","name":"Model","current":"hydrogen","values":[{"value":"hydrogen","when_selected":[` +
+			`{"id":"thought_level","name":"Thinking","current":"low","values":[` + levels + `]}]}]}`
+	}
+	return `{"version":2,"agents":[{"name":"alpha","provider":"agy","config_options":[` +
+		`{"id":"mode","name":"Mode","current":"a","values":[` +
+		`{"value":"a","when_selected":[` + branch(branchA) + `]},` +
+		`{"value":"b","when_selected":[` + branch(branchB) + `]}]}` + extraOptions + `],` +
+		`"turns":[{"match":{"turn_source":"user","user_text":"hi"},` +
+		`"steps":[{"kind":"assistant","text":"hi"}]}]}]}`
 }
 
 func TestParseFixtureAcceptsScriptedUsage(t *testing.T) {

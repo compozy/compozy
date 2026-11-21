@@ -10,8 +10,8 @@ CompozyOS applies permissions in two layers:
 
 Both layers are scoped to the session workspace. The ACP provider also chooses an operating mode,
 and `approve-all` (**Full access**) selects the provider's unrestricted mode for new sessions,
-including Loop roles: `agent-full-access` for Codex, `bypassPermissions` for Claude Code, `yolo` for
-Google Antigravity, and the `allow_all = on` option for GitHub Copilot CLI. Copilot's Autopilot mode
+including Loop roles: `agent-full-access` for Codex, `bypassPermissions` for Claude Code, the
+advertised `auto` mode for Google Antigravity, and the `allow_all = on` option for GitHub Copilot CLI. Copilot's Autopilot mode
 also approves everything, so it counts as an unrestricted mode. Other providers keep their own
 `approve-all` mode negotiation. If the provider does not uniquely advertise a `mode` config option,
 startup skips the unrestricted-mode selection and keeps the provider's negotiated mode. Later model
@@ -31,7 +31,12 @@ When provider-native tool interception is active, CompozyOS may keep the upstrea
 approval-mediated mode so provider-native tool calls return through the CompozyOS execution gateway
 before any real side effect. That does not change the configured policy outcome:
 `approve-all` still auto-allows, `approve-reads` still auto-allows reads only, and `deny-all`
-still auto-rejects at the execution boundary.
+still auto-rejects at the execution boundary. A runtime that performs its own writes without asking
+the host cannot be contained that way. The native Google Antigravity CLI does this even in its
+`plan` mode, so CompozyOS refuses to start a native Antigravity session under any level below
+**Full access** instead of promising an approval boundary it cannot enforce. Use **Full access**
+there, or keep the narrower level on a runtime whose tool calls return through the gateway.
+CompozyOS never raises the level on your behalf.
 
 ## Permission modes
 

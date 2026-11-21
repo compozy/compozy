@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,21 +17,20 @@ import (
 	authproviders "github.com/compozy/compozy/internal/providers"
 )
 
-func agyTestExecutable() string {
-	if runtime.GOOS == "windows" {
-		return "agy_acp_server.exe"
-	}
-	return "agy_acp_server.par"
-}
+const (
+	agyTestExecutable = "agy"
+	agyTestCommand    = "agy acp"
+)
 
 func agyTestResolver(t *testing.T) func(context.Context, string, []string, string) (string, error) {
 	t.Helper()
 
-	return func(_ context.Context, command string, _ []string, _ string) (string, error) {
-		if command != agyTestExecutable() {
-			t.Fatalf("resolve command = %q, want %q", command, agyTestExecutable())
+	return func(_ context.Context, command string, env []string, _ string) (string, error) {
+		if command != agyTestExecutable ||
+			!slices.Contains(env, "COMPOZY_PROVIDER=agy") {
+			t.Fatalf("resolve command = %q env = %#v, want %q with the agy scope", command, env, agyTestExecutable)
 		}
-		return "/test/bin/" + agyTestExecutable(), nil
+		return "/test/bin/" + agyTestExecutable, nil
 	}
 }
 
@@ -78,7 +77,7 @@ func TestProviderAGYCheapReads(t *testing.T) {
 			t.Fatalf("State = %q, want %q", got, want)
 		}
 		if !record.Login.Configured || record.Login.Source != "auth_acp_method" ||
-			record.Login.Executable != agyTestExecutable() ||
+			record.Login.Executable != agyTestExecutable ||
 			record.Login.Presence != authproviders.ProviderLoginPresencePresent {
 			t.Fatalf("Login = %#v, want present auth_acp_method descriptor", record.Login)
 		}
@@ -126,8 +125,8 @@ func TestProviderAGYAuthOperations(t *testing.T) {
 		deps := newTestDeps(t, nil)
 		deps.resolveProviderAuthCommand = agyTestResolver(t)
 		deps.runACPProbe = func(_ context.Context, req acp.SessionInspectionRequest) error {
-			if !strings.HasPrefix(strings.TrimSpace(req.Command), agyTestExecutable()) {
-				t.Fatalf("Command = %q, want builtin server command", req.Command)
+			if got := strings.TrimSpace(req.Command); got != agyTestCommand {
+				t.Fatalf("Command = %q, want %q", got, agyTestCommand)
 			}
 			return nil
 		}
@@ -150,7 +149,7 @@ func TestProviderAGYAuthOperations(t *testing.T) {
 		if !record.Login.Configured || record.Login.Source != "auth_acp_method" {
 			t.Fatalf("Login = %#v, want auth_acp_method source", record.Login)
 		}
-		if strings.Contains(stdout, "/test/bin/"+agyTestExecutable()) {
+		if strings.Contains(stdout, "/test/bin/"+agyTestExecutable) {
 			t.Fatalf("stdout leaked resolved server path: %s", stdout)
 		}
 	})
@@ -201,8 +200,8 @@ func TestProviderAGYAuthOperations(t *testing.T) {
 			if got, want := req.MethodID, "oauth-personal"; got != want {
 				t.Fatalf("MethodID = %q, want %q", got, want)
 			}
-			if !strings.HasPrefix(strings.TrimSpace(req.Command), agyTestExecutable()) {
-				t.Fatalf("Command = %q, want builtin server command", req.Command)
+			if got := strings.TrimSpace(req.Command); got != agyTestCommand {
+				t.Fatalf("Command = %q, want %q", got, agyTestCommand)
 			}
 			if req.InteractiveOutput == nil {
 				t.Fatal("InteractiveOutput = nil, want operator stderr sink")
@@ -286,7 +285,7 @@ func TestProviderAGYAuthOperations(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refuse login when the server executable is missing", func(t *testing.T) {
+	t.Run("Should refuse login when the native CLI is missing", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
@@ -302,8 +301,8 @@ func TestProviderAGYAuthOperations(t *testing.T) {
 		if err == nil {
 			t.Fatal("provider auth login agy error = nil, want missing CLI error")
 		}
-		if !strings.Contains(err.Error(), fmt.Sprintf("native CLI %q was not found on PATH", agyTestExecutable())) {
-			t.Fatalf("error = %v, want missing server guidance", err)
+		if !strings.Contains(err.Error(), fmt.Sprintf("native CLI %q was not found on PATH", agyTestExecutable)) {
+			t.Fatalf("error = %v, want missing CLI guidance", err)
 		}
 	})
 
@@ -408,10 +407,11 @@ func TestProviderAGYProbeCarriesWorkingDirectory(t *testing.T) {
 		// The production-built request must pass the real ACP base
 		// validation that rejected D-001 before launch.
 		if err := (acp.StartOpts{
-			AgentName: seen.AgentName,
-			Command:   seen.Command,
-			Cwd:       seen.Cwd,
-			Env:       seen.Env,
+			AgentName:  seen.AgentName,
+			Command:    seen.Command,
+			Cwd:        seen.Cwd,
+			Env:        seen.Env,
+			Inspection: true,
 		}).Validate(); err != nil {
 			t.Fatalf("production probe request Validate() error = %v", err)
 		}
@@ -456,10 +456,11 @@ func TestProviderAGYProbeCarriesWorkingDirectory(t *testing.T) {
 			t.Fatalf("login Cwd = %q, want an existing directory (%v)", seenLogin.Cwd, err)
 		}
 		if err := (acp.StartOpts{
-			AgentName: seenLogin.AgentName,
-			Command:   seenLogin.Command,
-			Cwd:       seenLogin.Cwd,
-			Env:       seenLogin.Env,
+			AgentName:  seenLogin.AgentName,
+			Command:    seenLogin.Command,
+			Cwd:        seenLogin.Cwd,
+			Env:        seenLogin.Env,
+			Inspection: true,
 		}).Validate(); err != nil {
 			t.Fatalf("production login request Validate() error = %v", err)
 		}

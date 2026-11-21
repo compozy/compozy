@@ -596,6 +596,12 @@ workspace provider option's `runtime_live_apply` says whether a running turn hon
 `next_step` or from the `next_turn`. Provider changes and launch-argument providers apply at the next
 prompt. A refused live change sets `runtime.failure`, keeps the stored selection, and the next prompt
 retries it; if the provider rollback also failed, the next prompt reconfigures before dispatch. `session runtime clear` returns resolution to the effective/agent default.
+Clear is not confirmation of ambiguous stored intent. A session from an earlier release can carry an
+effective provider mode without separately recorded selection intent, so an automatic and an explicit
+mode are indistinguishable; `session runtime set` with the complete provider/model/effort snapshot
+replaces that selection, and the next prompt replays the same logical session on a fresh native ACP
+session ID. If the runtime refuses a preserved mode, the start keeps the session and transcript and
+reports the existing repair guidance instead of dropping or remapping the mode.
 Both commands use `runtime.selection_revision` as a compare-and-swap fence; omit
 `--expected-revision` to let the CLI read the current value, or pass it for an explicitly fenced write.
 
@@ -1548,20 +1554,35 @@ When a session behaves unexpectedly:
 
 Do not treat stale UI state or chat messages as runtime authority.
 
-For the `agy` built-in, authentication is protocol-owned: sign in explicitly with
-`compozy provider auth login agy`, verify with `compozy provider list`,
+For the `agy` built-in, the runtime is the official Antigravity CLI launched as `agy acp`, and
+authentication is protocol-owned: sign in explicitly with
+`compozy provider auth login agy`, verify with `compozy provider list` (or `compozy provider auth status agy --remote`),
 and retry the failed session without a daemon restart. `needs_login` means run the explicit
-login; `missing_cli` means install `agy_acp_server` for the OS — never substitute the
-interactive `agy` CLI and never collect a secret. A successful daemon probe clears a cached
-startup failure; failed or canceled probes change nothing. Agy models come only from live
-`provider_live:agy` discovery: select an exact currently advertised ID, use `view=all` before
-concluding a new model is absent, and treat a missing-login diagnostic as a prompt to run the explicit operator sign-in, not a
-secret-binding or shell workaround. In Settings the provider shows `Sign-in unverified` until a
-live probe succeeds (the daemon keeps each native_cli provider's last live verdict from explicit
-probes, session pre-start checks and the startup check, invalidated by a provider config change or daemon restart; a successful Usage
-collection drops a stale `needs_login` and re-checks once, and
-Settings, `provider list`, and `auth_status.last_probe_at` report it), and the runtime picker plus session attribution carry the exact selected
-model ID (on the verified 1.4.0 server the bare `gemini-4-argon` / `gemini-3.8-flash` IDs; effort is the first-class `thinking_level` option, not an ID suffix).
+login; `missing_cli` means install Antigravity CLI and confirm `agy acp --help` — a standalone
+`agy_acp_server` archive is neither required nor used, and never collect a secret. For headless/SSH
+setup Google's `agy acp --login` performs terminal sign-in; it is never a background probe. A
+successful daemon probe clears a cached startup failure; failed or canceled probes change nothing.
+Agy models come only from live `provider_live:agy` discovery: select an exact currently advertised
+logical ID, use `view=all` before concluding a new model is absent, and treat a missing-login
+diagnostic as a prompt to run the explicit operator sign-in, not a secret-binding or shell
+workaround. Availability depends on the account, CLI version, and client identity. In Settings the
+provider shows `Sign-in unverified` until a live probe succeeds (the daemon keeps each native_cli
+provider's last live verdict from explicit probes, session pre-start checks and the startup check,
+invalidated by a provider config change or daemon restart; a successful Usage collection drops a
+stale `needs_login` and re-checks once, and Settings, `provider list`, and `auth_status.last_probe_at`
+report it), and the runtime picker plus session attribution carry the exact selected model ID.
+Effort is the model's own `thought_level` option, not an ID suffix: on the verified 1.5.9 CLI,
+Argon advertises `low`/`medium`/`high` while Hydrogen adds `xhigh` after selection; `max` is
+unsupported and fails as `reasoning_effort_unsupported` without a lower-effort prompt. A session
+upgraded from the standalone server can also carry a preserved, provenance-ambiguous mode; the
+runtime-selection rules above govern its repair and confirmation, and the mode is never silently
+dropped. Native narrow policies are refused: the CLI performs its own tool writes without asking the
+host even in `plan` (a live `approve-reads` session acknowledged `plan` and still created a file), so
+a native `agy acp` start under `deny-all`, `approve-reads`, `approve-edits`, or `auto` fails before
+any prompt. Use `approve-all` for that route, keep the narrow policy on a route you author whose tool
+calls return through the gateway, and never tell an agent to raise its own policy to get around the
+refusal. The default transport stays stdio; an authored HTTP MCP configuration must satisfy Google's
+`--process-per-session` prerequisite.
 
 For the `copilot` built-in (GitHub Copilot CLI, ACP in public preview upstream), sign in with
 `compozy provider auth login copilot`, which runs `copilot login` (browser or device code; token in

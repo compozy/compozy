@@ -320,6 +320,83 @@ describe("toRuntimeModelOptions", () => {
     expect(JSON.stringify(option)).not.toContain("transport");
   });
 
+  it("Should project native Antigravity logical rows with per-model thought_level efforts", () => {
+    const [argon, hydrogen] = toRuntimeModelOptions([
+      payload({
+        provider_id: "agy",
+        model_id: "gemini-4-argon",
+        reasoning_apply: "acp_option",
+        reasoning_efforts: ["low", "medium", "high"],
+        default_reasoning_effort: "medium",
+        config_options: [
+          {
+            id: "thought_level",
+            category: "thought_level",
+            kind: "select",
+            current_value_id: "medium",
+            values: [
+              { value: "low", label: "Low" },
+              { value: "medium", label: "Medium" },
+              { value: "high", label: "High" },
+            ],
+          },
+        ],
+      }),
+      payload({
+        provider_id: "agy",
+        model_id: "gemini-4-hydrogen",
+        reasoning_apply: "acp_option",
+        reasoning_efforts: ["low", "medium", "high", "xhigh"],
+        default_reasoning_effort: "medium",
+        config_options: [
+          {
+            id: "thought_level",
+            category: "thought_level",
+            kind: "select",
+            current_value_id: "medium",
+            values: [
+              { value: "low", label: "Low" },
+              { value: "medium", label: "Medium" },
+              { value: "high", label: "High" },
+              { value: "xhigh", label: "Extra" },
+            ],
+          },
+        ],
+      }),
+    ]);
+
+    // Hydrogen observed four levels after model selection; Argon kept three and
+    // must not borrow Hydrogen's fourth. `max` is unsupported on both.
+    expect(argon).toMatchObject({
+      provider: "agy",
+      id: "gemini-4-argon",
+      reasoning_apply: "acp_option",
+      efforts: ["low", "medium", "high"],
+    });
+    expect(hydrogen).toMatchObject({
+      provider: "agy",
+      id: "gemini-4-hydrogen",
+      reasoning_apply: "acp_option",
+      efforts: ["low", "medium", "high", "xhigh"],
+    });
+    expect(argon.default_effort).toBe("medium");
+    expect(hydrogen.efforts).not.toContain("max");
+    expect(argon.efforts).not.toContain("xhigh");
+    // The advertised option stays an exact descriptor; the selector consumes it
+    // as the thought_level control instead of a model-derived transport alias.
+    expect(hydrogen.acp_options?.[0]).toMatchObject({
+      id: "thought_level",
+      category: "thought_level",
+      kind: "select",
+    });
+    expect(hydrogen.acp_options?.[0]?.values?.map(value => value.value)).toEqual([
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+    ]);
+  });
+
   it("Should pass through cost, context window, and capability flags", () => {
     const [option] = toRuntimeModelOptions([
       payload({

@@ -9,12 +9,13 @@ entry_points: web session-composer runtime selector; agent create/settings runti
 qa_status: blocked-verify
 bug_ids: BUG-20260906-runtime-selector-closing-focus
 fix_status: fixed
-retest_status: blocked
+retest_status: partial
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/05-session-runtime-selector.png;docs/qa/evidence/2026-07-30-session-runtime-selector/12-claude-max-selected.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-hover.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-keyboard-focus.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-needs-signin.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-model-glyph.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-disabled-search.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/verification-report.md;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/teardown.json;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-cursor-grok-catalog.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-first-prompt-grok45-fast-pass.png;/Users/pedronauck/dev/qa-labs/compozy-cursor-onboarding-runtime-defaults-retest-20260828-171621-219738-lab/qa-artifacts/qa/screenshots/cursor-grok-reasoning-fast.png
-last_report: docs/qa/reports/2026-09-16-claude-fable-reasoning.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/05-session-runtime-selector.png;docs/qa/evidence/2026-07-30-session-runtime-selector/12-claude-max-selected.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-hover.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-keyboard-focus.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-needs-signin.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-model-glyph.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/provider-tooltip-disabled-search.png;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/verification-report.md;/Users/pedronauck/dev/qa-labs/compozy-eng-143-runtime-selector-20260825-004835-671661-lab/qa-artifacts/qa/teardown.json;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-cursor-grok-catalog.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-first-prompt-grok45-fast-pass.png;/Users/pedronauck/dev/qa-labs/compozy-cursor-onboarding-runtime-defaults-retest-20260828-171621-219738-lab/qa-artifacts/qa/screenshots/cursor-grok-reasoning-fast.png;docs/qa/evidence/2026-11-21-agy-native-acp-open-qa/live-agy-selector-hydrogen.png;docs/qa/evidence/2026-11-21-agy-native-acp-open-qa/live-agy-selector-argon.png;docs/qa/evidence/2026-11-21-agy-native-acp-open-qa/live-agy-session-submitted.png
+last_report: docs/qa/reports/2026-11-21-agy-native-acp-open-qa.md
 overlaps: RT-068; RT-072; RT-071; RT-064; RT-061
 ---
+
 
 Added by the 2026-07-22 runtime-selector redesign (reference: docs/design/opendesign/_done/agents/provider-model-reasoning-selector.html). Trigger segments, deep-link focus routing, and the component-scoped ⌘J shortcut are deleted; the reasoning strip is replaced by the slider; `none` is no longer a selectable effort from the web UI.
 
@@ -85,3 +86,43 @@ catalog or favorites, reopen, and exercise browse, search, exact-ID entry, keybo
 Escape focus restoration against the latest data. The existing runtime-selector component suite
 owns focused coverage; the new check includes catalog updates while closed. This note does not
 claim a fresh live-provider/browser walk; integrated runtime evidence belongs to the audit QA tail.
+
+QA impact 2026-11-16 (Antigravity native CLI): the `agy` runtime now launches `agy acp`, whose live
+catalog advertises logical model IDs with a per-model `thought_level` option. Selecting Hydrogen
+exposes four stops and the highest is `xhigh` (aria-valuemax 3); Argon exposes three and must not
+inherit `xhigh`; `max` is unsupported and absent. The advertised `thought_level` descriptor drives
+the existing reasoning slider and is not duplicated in Advanced. Automated coverage:
+`to-runtime-selector-options` (native logical rows, four versus three levels, exact option values)
+and the `runtime-selector` renderer (End → `xhigh` on Hydrogen, cleared/`high` on Argon). The
+browser fixture update is CI-owned and was not executed for this change; no new control or artboard.
+
+QA 2026-11-16 (native CLI, headed Chromium): keyboard Hydrogen/xhigh and Argon/high selection,
+four versus three slider stops, no duplicate thought control, narrow layout, and an actual
+Hydrogen/xhigh submission with persisted reply were observed. Unknown/stale-source browser legs
+and CI E2E remain unexecuted. The environment restart removed screenshots/receipts before strict
+audit; this is a historical scoped observation, not a new full PASS. See
+`docs/qa/reports/2026-11-16-agy-native-acp.md`.
+
+QA 2026-11-17 (consented native re-walk): headed Chromium passed keyboard selection of the
+advertised Hydrogen row and End → Extra high (four slider stops), Argon and End → High
+(three stops), then Hydrogen again. No duplicate raw thought-level control was mounted.
+The 375 px selector capture, actual browser prompt request, independent public session read,
+and persisted `Browser saved WILLOW-5138` reply are retained under the current report's
+persistent evidence root (`browser-native-verdict.json`). The driver's final exact-punctuation
+wait expired after the model omitted the requested terminal period; the rendered marker and
+public history independently confirm submission, so no second paid prompt was needed.
+Unknown/stale catalog coverage and the overall acceptance boundary are recorded separately
+in `docs/qa/reports/2026-11-17-agy-native-acp-consented.md`.
+
+The same re-walk then verified actual stale discovery and recovery for built-in AGY by temporarily
+withholding only a lab-owned link to the real CLI. A fresh lab-only native AGY alias with no prior
+live success independently exposed `availability_state=unknown`; selecting its configured,
+previously observed Hydrogen ID showed unconfirmed reasoning with no slider. The alias's fresh
+configuration badge is not proof of live discovery. Public source/row receipts and both browser
+states are retained under `catalog-native-verdict.json`; no service/protocol mocks were used.
+
+## QA 2026-11-21 (AGY native selector & Playwright E2E PASS; post-rebase verification)
+
+- Playwright E2E `web/e2e/__tests__/session-provider-override.spec.ts -g "exact AGY catalog model"` (7.6s) and unit suites (`to-runtime-selector-options.test.ts` 20 tests, `runtime-selector.test.tsx` 128 tests) passed on rebased `3bf59ba3a`.
+- Live Chromium against isolated daemon (`:37835`) verified `gemini-4-hydrogen` (`aria-valuemax=3`, `End -> Extra high`, 0 duplicate `thought_level`, 0 advanced toggle), switching to `gemini-4-argon` (`aria-valuemax=2`, `End -> High`, 0 `Max`), and live session creation/submission (`sess-e363ed9db99c6ee7`) persisting `agy` / `gemini-4-hydrogen` / `xhigh` across Web, `/api`, CLI `session status`, and transcript (`LIVE_WEB_QA_OK`).
+- Scenario remains `blocked-verify` overall only for unrelated historical OpenCode/Claude/Fable legs.

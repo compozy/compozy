@@ -116,7 +116,7 @@ func Descriptors() []Descriptor {
 		{runtimeQwenCode, "Qwen Code", []string{runtimeQwen}, true, false},
 		{runtimeCopilot, "GitHub Copilot CLI", []string{runtimeCopilot}, true, true},
 		{runtimeCursor, "Cursor Agent", []string{"cursor-agent", "agent"}, false, false},
-		{runtimeAntigravity, "Antigravity", []string{runtimeAntigravity, "agy_acp_server.par"}, false, false},
+		{runtimeAntigravity, "Antigravity", []string{runtimeAntigravity}, false, false},
 		{"pi", "Pi", []string{"pi"}, false, false},
 	}
 }

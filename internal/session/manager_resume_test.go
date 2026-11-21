@@ -2653,6 +2653,771 @@ func TestResumeAcceptedRouteAffinity(t *testing.T) {
 	})
 }
 
+// Invariant: a resume whose accepted route no longer matches keeps the logical session,
+// transcript, and retained intent. A genuine selected runtime reconstructs the ACP options;
+// without one, recorded options are retained verbatim because the old derived approval mode
+// and an explicit selection of the same option are indistinguishable in storage. The native
+// bind validates them and refuses an incompatible value with reselection guidance (IT-002).
+func TestResumeRouteChangeRebuildsEffectiveOptions(t *testing.T) {
+	t.Parallel()
+
+	const (
+		legacyRoute = "agy_acp_server.par --uid="
+		nativeRoute = "agy acp"
+	)
+	createAgySession := func(
+		t *testing.T,
+		h *harness,
+		permissions compozyconfig.PermissionMode,
+		options []compozyconfig.ACPOptionSelection,
+	) *Session {
+		t.Helper()
+		installAgyAgent(t, h, legacyRoute, "gemini-4-hydrogen", "xhigh", options)
+		return createStoppedPromptSession(t, h, &CreateOpts{
+			AgentName: agyResumeAgentName, Permissions: permissions,
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+			Speed: speedpkg.SpeedFast,
+		})
+	}
+
+	t.Run("Should retain recorded options and keep authored options on a changed command", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createAgySession(
+			t, h, compozyconfig.PermissionModeApproveAll,
+			[]compozyconfig.ACPOptionSelection{{ID: "sandbox", ValueID: "strict"}},
+		)
+		before := readMeta(t, created.MetaPath())
+		writeLegacyEffectiveOptions(t, created,
+			store.SessionACPOptionSelection{ID: "mode", ValueID: "plan"},
+			store.SessionACPOptionSelection{ID: "thought_level", ValueID: "xhigh"},
+		)
+		setResumeAgentCommand(t, h, agyResumeAgentName, nativeRoute)
+
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.Command != nativeRoute || call.ResumeSessionID != "" {
+			t.Fatalf("resume start = %q/%q, want the new route without a native id",
+				call.Command, call.ResumeSessionID)
+		}
+		if acpOptionValue(call.ACPOptions, "mode") != "plan" {
+			t.Fatalf("resume ACP options = %+v, want the recorded mode retained", call.ACPOptions)
+		}
+		if acpOptionValue(call.ACPOptions, "thought_level") != "xhigh" {
+			t.Fatalf("resume ACP options = %+v, want the recorded option retained", call.ACPOptions)
+		}
+		if acpOptionValue(call.ACPOptions, "sandbox") != "strict" {
+			t.Fatalf("resume ACP options = %+v, want the authored agent option", call.ACPOptions)
+		}
+		if call.ReasoningEffort != "xhigh" || call.Speed != speedpkg.SpeedFast {
+			t.Fatalf("resume effort/speed = %q/%q, want xhigh/fast", call.ReasoningEffort, call.Speed)
+		}
+		assertTranscriptMessage(t, h.manager, created.ID, "keep the legacy transcript")
+		marker := requireTranscriptMarker(t, h.manager, created.ID, transcript.MarkerSessionRecovered)
+		if got := marker.Evidence["fallback_reason"]; got != acceptedRouteMissingReason {
+			t.Fatalf("context rebuilt reason = %v, want %s", got, acceptedRouteMissingReason)
+		}
+		after := readMeta(t, created.MetaPath())
+		if after.ID != before.ID || after.Model != "gemini-4-hydrogen" ||
+			after.ReasoningEffort != "xhigh" || after.Speed != speedpkg.SpeedFast {
+			t.Fatalf("resume metadata = %#v, want the logical session and typed intent", after)
+		}
+		if !creationRecordsUnchanged(&before, &after) {
+			t.Fatalf(
+				"creation records changed: before %#v after %#v",
+				before.CreationProfileRef,
+				after.CreationProfileRef,
+			)
+		}
+		if after.AcceptedRoute == nil ||
+			after.AcceptedRoute.CommandFingerprint != providerCommandFingerprint(nativeRoute) {
+			t.Fatalf("accepted route after replay = %#v, want the new command", after.AcceptedRoute)
+		}
+
+		if err := h.manager.Stop(testutil.Context(t), resumed.ID); err != nil {
+			t.Fatalf("Stop(resumed) error = %v", err)
+		}
+		newID := derefString(readMeta(t, created.MetaPath()).ACPSessionID)
+		restored, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume(new route) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, restored.ID) })
+		if got := lastStartCall(h).ResumeSessionID; newID == "" || got != newID {
+			t.Fatalf("second resume native id = %q, want the accepted %q", got, newID)
+		}
+	})
+
+	t.Run("Should preserve an explicitly selected yolo for exact validation", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createAgySession(t, h, compozyconfig.PermissionModeApproveAll, nil)
+		before := readMeta(t, created.MetaPath())
+		writeLegacyEffectiveOptions(t, created,
+			store.SessionACPOptionSelection{ID: "mode", ValueID: "yolo"},
+		)
+		selection := RuntimeSelection{
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+			Speed: speedpkg.SpeedFast,
+			ACPOptions: []acp.SessionConfigOptionSelection{
+				{ID: "mode", ValueID: "yolo"},
+				{ID: "sandbox", ValueID: "explicit"},
+			},
+		}
+		if _, err := h.manager.SetRuntimeSelection(testutil.Context(t), created.ID, selection, 0); err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		setResumeAgentCommand(t, h, agyResumeAgentName, nativeRoute)
+
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.ResumeSessionID != "" {
+			t.Fatalf("resume native id = %q, want replay on the new route", call.ResumeSessionID)
+		}
+		if acpOptionValue(call.ACPOptions, "mode") != "yolo" ||
+			acpOptionValue(call.ACPOptions, "sandbox") != "explicit" {
+			t.Fatalf("resume ACP options = %+v, want the explicit selection intact", call.ACPOptions)
+		}
+		if call.ReasoningEffort != "xhigh" {
+			t.Fatalf("resume effort = %q, want xhigh without a lower-effort fallback", call.ReasoningEffort)
+		}
+		after := readMeta(t, created.MetaPath())
+		selected, revision := store.SessionRuntimeSelectionStateValues(after.RuntimeSelectionValue())
+		if revision != 1 || selected == nil || storeOptionValue(selected.ACPOptions, "mode") != "yolo" {
+			t.Fatalf("persisted selection = %#v revision %d, want the explicit yolo retained", selected, revision)
+		}
+		if !creationRecordsUnchanged(&before, &after) {
+			t.Fatal("an explicit option changed the creation records")
+		}
+	})
+
+	t.Run("Should replay an AGY session that has no verifiable accepted route", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createAgySession(t, h, compozyconfig.PermissionModeApproveReads, nil)
+		meta := readMeta(t, created.MetaPath())
+		originalACP := derefString(meta.ACPSessionID)
+		meta.AcceptedRoute = nil
+		meta.SetACPOptions([]store.SessionACPOptionSelection{{ID: "sandbox", ValueID: "kept"}})
+		if err := store.WriteSessionMeta(created.MetaPath(), &meta); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.ResumeSessionID != "" || originalACP == "" {
+			t.Fatalf("resume native id = %q, want replay instead of the unverified %q",
+				call.ResumeSessionID, originalACP)
+		}
+		if got := acpOptionValue(call.ACPOptions, "sandbox"); got != "kept" {
+			t.Fatalf("resume ACP options = %+v, want the recorded explicit option kept", call.ACPOptions)
+		}
+		assertTranscriptMessage(t, h.manager, created.ID, "keep the legacy transcript")
+		marker := requireTranscriptMarker(t, h.manager, created.ID, transcript.MarkerSessionRecovered)
+		if got := marker.Evidence["fallback_reason"]; got != unverifiedNativeRouteReason {
+			t.Fatalf("context rebuilt reason = %v, want %s", got, unverifiedNativeRouteReason)
+		}
+	})
+
+	t.Run("Should apply a confirmed selection over ambiguous options on an unverified route", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createAgySession(t, h, compozyconfig.PermissionModeApproveAll, nil)
+		meta := readMeta(t, created.MetaPath())
+		meta.AcceptedRoute = nil
+		meta.SetACPOptions([]store.SessionACPOptionSelection{{ID: "mode", ValueID: "yolo"}})
+		if err := store.WriteSessionMeta(created.MetaPath(), &meta); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
+		if _, err := h.manager.SetRuntimeSelection(testutil.Context(t), created.ID, RuntimeSelection{
+			Provider:        agyProviderName,
+			Model:           "gemini-4-hydrogen",
+			ReasoningEffort: "xhigh",
+			ACPOptions:      []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}},
+		}, 0); err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.ResumeSessionID != "" || acpOptionValue(call.ACPOptions, "mode") != "plan" {
+			t.Fatalf("resume start = %q/%+v, want replay with the confirmed plan over the retained yolo",
+				call.ResumeSessionID, call.ACPOptions)
+		}
+	})
+
+	t.Run("Should retain all state when the new route reports missing auth before retry", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createAgySession(t, h, compozyconfig.PermissionModeApproveReads, nil)
+		before := readMeta(t, created.MetaPath())
+		setResumeAgentCommand(t, h, agyResumeAgentName, nativeRoute)
+		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+			// ACP reserves -32000 for auth_required.
+			return nil, &acpsdk.RequestError{Code: -32000, Message: "authentication required"}
+		}
+		if _, err := h.manager.Resume(testutil.Context(t), created.ID); err == nil || !acp.IsAuthRequiredError(err) {
+			t.Fatalf("Resume(missing auth) error = %v, want the auth-required failure", err)
+		}
+		after := readMeta(t, created.MetaPath())
+		if derefString(after.ACPSessionID) != derefString(before.ACPSessionID) ||
+			after.AcceptedRoute == nil || after.AcceptedRoute.CommandFingerprint != before.AcceptedRoute.CommandFingerprint {
+			t.Fatalf("failed resume changed the binding: %#v", after.AcceptedRoute)
+		}
+		if after.Model != before.Model || after.ReasoningEffort != before.ReasoningEffort ||
+			after.Speed != before.Speed || !creationRecordsUnchanged(&before, &after) {
+			t.Fatal("failed resume changed the retained runtime intent")
+		}
+		assertTranscriptMessage(t, h.manager, created.ID, "keep the legacy transcript")
+
+		h.driver.startHook = nil
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume(retry) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		if got := lastStartCall(h).ResumeSessionID; got != "" {
+			t.Fatalf("retry native id = %q, want replay on the new route", got)
+		}
+		assertTranscriptMessage(t, h.manager, created.ID, "keep the legacy transcript")
+	})
+
+	t.Run("Should keep a matching explicit standalone route eligible for native restore", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		created := createAgySession(t, h, compozyconfig.PermissionModeApproveReads, nil)
+		original := derefString(readMeta(t, created.MetaPath()).ACPSessionID)
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if original == "" || call.ResumeSessionID != original || call.Command != legacyRoute {
+			t.Fatalf("resume start = %q/%q, want the accepted standalone route %q",
+				call.Command, call.ResumeSessionID, original)
+		}
+	})
+
+	t.Run("Should retain a first-prompt user mode when no selected runtime was recorded", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		installAgyAgent(t, h, legacyRoute, "gemini-4-hydrogen", "xhigh", nil)
+		accepted, err := h.manager.CreateAccepted(testutil.Context(t), &CreateAcceptedOpts{Session: CreateOpts{
+			AgentName: agyResumeAgentName, Workspace: h.workspaceID,
+		}})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		result, err := h.manager.SendPrompt(testutil.Context(t), accepted.ID, SendPromptOpts{
+			Message: "keep the legacy transcript",
+			Runtime: &RuntimeSelection{
+				Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+				Speed: speedpkg.SpeedNormal,
+				ACPOptions: []acp.SessionConfigOptionSelection{
+					{ID: "mode", ValueID: "plan"},
+				},
+			},
+			Caller: PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt() error = %v", err)
+		}
+		collectEvents(t, result.Events)
+		session, ok := h.manager.Get(accepted.ID)
+		if !ok {
+			t.Fatalf("Get(%q) = missing after the first prompt", accepted.ID)
+		}
+		if err := h.manager.Stop(testutil.Context(t), accepted.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		meta := readMeta(t, session.MetaPath())
+		selected, revision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
+		if selected != nil || revision != 0 {
+			t.Fatalf("first-prompt selection = %#v revision %d, want no recorded selection", selected, revision)
+		}
+		if meta.Model != "gemini-4-hydrogen" || meta.ReasoningEffort != "xhigh" {
+			t.Fatalf("first-prompt intent = %q/%q, want hydrogen/xhigh", meta.Model, meta.ReasoningEffort)
+		}
+		if got := storeOptionValue(meta.ACPOptionsValue(), "mode"); got != "plan" {
+			t.Fatalf("first-prompt options = %+v, want the user mode recorded", meta.ACPOptionsValue())
+		}
+		setResumeAgentCommand(t, h, agyResumeAgentName, nativeRoute)
+
+		resumed, err := h.manager.Resume(testutil.Context(t), accepted.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.Command != nativeRoute || call.ResumeSessionID != "" {
+			t.Fatalf("resume start = %q/%q, want replay on the new route",
+				call.Command, call.ResumeSessionID)
+		}
+		if got := acpOptionValue(call.ACPOptions, "mode"); got != "plan" {
+			t.Fatalf("resume ACP options = %+v, want the first-prompt mode retained", call.ACPOptions)
+		}
+		if call.ReasoningEffort != "xhigh" || call.Speed != speedpkg.SpeedNormal {
+			t.Fatalf("resume effort/speed = %q/%q, want xhigh/normal", call.ReasoningEffort, call.Speed)
+		}
+		assertTranscriptMessage(t, h.manager, accepted.ID, "keep the legacy transcript")
+		after := readMeta(t, session.MetaPath())
+		if after.Model != "gemini-4-hydrogen" || after.ReasoningEffort != "xhigh" {
+			t.Fatalf("resume metadata = %q/%q, want the typed prompt intent",
+				after.Model, after.ReasoningEffort)
+		}
+	})
+
+	t.Run("Should keep a non-AGY recorded option across its own route change", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		setResumeAgentCommand(t, h, "coder", "claude-legacy --acp")
+		created := createStoppedPromptSession(t, h, &CreateOpts{
+			AgentName: "coder", Permissions: compozyconfig.PermissionModeApproveAll,
+		})
+		writeLegacyEffectiveOptions(t, created, store.SessionACPOptionSelection{ID: "sandbox", ValueID: "legacy"})
+		setResumeAgentCommand(t, h, "coder", "claude --acp")
+
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.Command != "claude --acp" || call.ResumeSessionID != "" {
+			t.Fatalf("resume start = %q/%q, want the new non-AGY route without a native id",
+				call.Command, call.ResumeSessionID)
+		}
+		if got := acpOptionValue(call.ACPOptions, "sandbox"); got != "legacy" {
+			t.Fatalf("non-AGY resume ACP options = %+v, want the recorded option untouched", call.ACPOptions)
+		}
+	})
+
+	t.Run("Should retain an explicit CreateOpts mode when no selected runtime was recorded", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		installAgyAgent(t, h, legacyRoute, "gemini-4-hydrogen", "xhigh", nil)
+		created := createStoppedPromptSession(t, h, &CreateOpts{
+			AgentName: agyResumeAgentName, Permissions: compozyconfig.PermissionModeApproveAll,
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+			Speed:      speedpkg.SpeedFast,
+			ACPOptions: []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}},
+		})
+		before := readMeta(t, created.MetaPath())
+		if selected, _ := store.SessionRuntimeSelectionStateValues(before.RuntimeSelectionValue()); selected != nil {
+			t.Fatalf("fixture selected runtime = %#v, want no selection witness", selected)
+		}
+		if got := storeOptionValue(before.ACPOptionsValue(), "mode"); got != "plan" {
+			t.Fatalf("persisted options = %+v, want the create request mode", before.ACPOptionsValue())
+		}
+		setResumeAgentCommand(t, h, agyResumeAgentName, nativeRoute)
+
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		if got := acpOptionValue(lastStartCall(h).ACPOptions, "mode"); got != "plan" {
+			t.Fatalf("resume ACP options = %+v, want the create request mode retained",
+				lastStartCall(h).ACPOptions)
+		}
+		after := readMeta(t, created.MetaPath())
+		if !creationRecordsUnchanged(&before, &after) {
+			t.Fatal("the route change rewrote the creation record")
+		}
+	})
+
+	t.Run("Should refuse incompatible retained options and guide runtime reselection", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		installAgyAgent(t, h, legacyRoute, "gemini-4-hydrogen", "xhigh", nil)
+		// The agent's own level stays below the session's approve-all so the pre-native provider
+		// mapping, removed by the co-shipped launch-policy change, cannot re-add the mode.
+		setResumeAgentPermissions(t, h, agyResumeAgentName, compozyconfig.PermissionModeApproveReads)
+		created := createStoppedPromptSession(t, h, &CreateOpts{
+			AgentName: agyResumeAgentName, Permissions: compozyconfig.PermissionModeApproveAll,
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+			Speed:      speedpkg.SpeedFast,
+			ACPOptions: []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}},
+		})
+		before := readMeta(t, created.MetaPath())
+		if selected, _ := store.SessionRuntimeSelectionStateValues(before.RuntimeSelectionValue()); selected != nil {
+			t.Fatalf("fixture selected runtime = %#v, want no selection witness", selected)
+		}
+		setResumeAgentCommand(t, h, agyResumeAgentName, nativeRoute)
+		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+			// The current route refuses a retained mode it does not advertise.
+			return nil, fmt.Errorf("%w: config option %q does not allow value %q",
+				acp.ErrSessionConfigOptionRejected, "mode", "plan")
+		}
+
+		_, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if !errors.Is(err, acp.ErrSessionConfigOptionRejected) ||
+			!strings.Contains(err.Error(), "reselect this session's runtime") {
+			t.Fatalf("Resume(refused) error = %v, want the reselection guidance", err)
+		}
+		call := lastStartCall(h)
+		if call.Command != nativeRoute || acpOptionValue(call.ACPOptions, "mode") != "plan" {
+			t.Fatalf("refused start = %q/%+v, want the recorded option retained",
+				call.Command, call.ACPOptions)
+		}
+		after := readMeta(t, created.MetaPath())
+		if derefString(after.ACPSessionID) != derefString(before.ACPSessionID) ||
+			after.AcceptedRoute == nil || before.AcceptedRoute == nil ||
+			after.AcceptedRoute.CommandFingerprint != before.AcceptedRoute.CommandFingerprint ||
+			storeOptionValue(after.ACPOptionsValue(), "mode") != "plan" ||
+			!creationRecordsUnchanged(&before, &after) {
+			t.Fatalf("refused resume changed retained state: %#v", after)
+		}
+		selected, revision := store.SessionRuntimeSelectionStateValues(after.RuntimeSelectionValue())
+		if selected != nil || revision != 0 {
+			t.Fatalf("refused resume recorded a selection = %#v revision %d", selected, revision)
+		}
+		assertTranscriptMessage(t, h.manager, created.ID, "keep the legacy transcript")
+
+		if _, err := h.manager.SetRuntimeSelection(testutil.Context(t), created.ID, RuntimeSelection{
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+			ACPOptions: nil,
+		}, 0); err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		h.driver.startHook = nil
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume(reselected) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call = lastStartCall(h)
+		if call.Command != nativeRoute || call.ResumeSessionID != "" {
+			t.Fatalf("reselected start = %q/%q, want a fresh native bind",
+				call.Command, call.ResumeSessionID)
+		}
+		if acpOptionValue(call.ACPOptions, "mode") != "" {
+			t.Fatalf("reselected ACP options = %+v, want the confirmed empty selection", call.ACPOptions)
+		}
+		if call.ReasoningEffort != "xhigh" {
+			t.Fatalf("reselected effort = %q, want the confirmed xhigh", call.ReasoningEffort)
+		}
+		after = readMeta(t, created.MetaPath())
+		confirmed, confirmedRevision := store.SessionRuntimeSelectionStateValues(after.RuntimeSelectionValue())
+		if confirmedRevision != 1 || confirmed == nil || len(confirmed.ACPOptions) != 0 {
+			t.Fatalf("confirmed selection = %#v revision %d, want the empty confirmed intent",
+				confirmed, confirmedRevision)
+		}
+		if !creationRecordsUnchanged(&before, &after) {
+			t.Fatal("the confirmed reselection rewrote the creation record")
+		}
+		assertTranscriptMessage(t, h.manager, created.ID, "keep the legacy transcript")
+	})
+
+	t.Run("Should point an agent-definition option refusal at the agent definition", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		installAgyAgent(t, h, legacyRoute, "gemini-4-hydrogen", "xhigh",
+			[]compozyconfig.ACPOptionSelection{{ID: "mode", ValueID: "plan"}})
+		created := createStoppedPromptSession(t, h, &CreateOpts{
+			AgentName: agyResumeAgentName, Permissions: compozyconfig.PermissionModeApproveAll,
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+		})
+		// A confirmed empty selection cannot remove the agent's own mode, so reselection is no repair.
+		if _, err := h.manager.SetRuntimeSelection(testutil.Context(t), created.ID, RuntimeSelection{
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+		}, 0); err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		setResumeAgentCommand(t, h, agyResumeAgentName, nativeRoute)
+		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+			return nil, fmt.Errorf("%w: config option %q does not allow value %q",
+				acp.ErrSessionConfigOptionRejected, "mode", "plan")
+		}
+
+		_, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if !errors.Is(err, ErrAgentACPOptionRejected) || !errors.Is(err, acp.ErrSessionConfigOptionRejected) ||
+			strings.Contains(err.Error(), "reselect this session's runtime") {
+			t.Fatalf("Resume(agent option refused) error = %v, want agent-definition guidance", err)
+		}
+		if got := acpOptionValue(lastStartCall(h).ACPOptions, "mode"); got != "plan" {
+			t.Fatalf("refused start ACP options = %+v, want the agent's plan mode", lastStartCall(h).ACPOptions)
+		}
+	})
+
+	t.Run("Should apply a confirmed AGY selection when the accepted route still matches", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		installAgyAgent(t, h, nativeRoute, "gemini-4-hydrogen", "xhigh", nil)
+		created := createStoppedPromptSession(t, h, &CreateOpts{
+			AgentName: agyResumeAgentName, Permissions: compozyconfig.PermissionModeApproveAll,
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+			ACPOptions: []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}},
+		})
+		if _, err := h.manager.SetRuntimeSelection(testutil.Context(t), created.ID, RuntimeSelection{
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+		}, 0); err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.Command != nativeRoute {
+			t.Fatalf("resume command = %q, want the unchanged native route", call.Command)
+		}
+		if got := acpOptionValue(call.ACPOptions, "mode"); got != "" {
+			t.Fatalf("resume ACP options = %+v, want the confirmed empty selection", call.ACPOptions)
+		}
+	})
+
+	t.Run("Should apply a confirmed AGY selection when no native session was bound", func(t *testing.T) {
+		t.Parallel()
+		spec := &sessionStartSpec{
+			startAction:     sessionStartActionResume,
+			provider:        agyProviderName,
+			acpOptions:      []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}},
+			selectedRuntime: &RuntimeSelection{Provider: agyProviderName},
+		}
+		(&Manager{}).applyResumeRouteAffinity(testutil.Context(t), spec, compozyconfig.AgentDef{})
+		if len(spec.acpOptions) != 0 || spec.resumeReplay {
+			t.Fatalf("resume spec = options %+v replay %v, want the confirmed empty selection without replay",
+				spec.acpOptions, spec.resumeReplay)
+		}
+	})
+}
+
+// TestResumeOptionSourceGuidance proves an AGY option refusal names the repair that can clear
+// it for every resume attempt, including the context-replay retry. Owner: session resume.
+func TestResumeOptionSourceGuidance(t *testing.T) {
+	t.Parallel()
+
+	refusal := fmt.Errorf("%w: config option %q does not allow value %q",
+		acp.ErrSessionConfigOptionRejected, "mode", "plan")
+	modeRefusal := fmt.Errorf("%w: %w: apply session mode %q",
+		acp.ErrSessionConfigOptionRejected, acp.ErrSessionModeRejected, "auto")
+	plan := []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}}
+	for _, tc := range []struct {
+		name         string
+		spec         *sessionStartSpec
+		refusal      error
+		wantReselect bool
+		wantAgent    bool
+	}{
+		{
+			name:         "Should guide reselection for retained options without a selection witness",
+			spec:         &sessionStartSpec{provider: agyProviderName, acpOptions: plan},
+			wantReselect: true,
+		},
+		{
+			name: "Should guide the agent definition when the session supplies no options",
+			spec: &sessionStartSpec{
+				provider: agyProviderName, acpOptions: plan,
+				selectedRuntime: &RuntimeSelection{Provider: agyProviderName},
+			},
+			wantAgent: true,
+		},
+		{
+			name: "Should keep the raw refusal for confirmed session options",
+			spec: &sessionStartSpec{
+				provider:        agyProviderName,
+				selectedRuntime: &RuntimeSelection{Provider: agyProviderName, ACPOptions: plan},
+			},
+		},
+		{
+			name: "Should leave other providers unchanged",
+			spec: &sessionStartSpec{provider: "codex", acpOptions: plan},
+		},
+		{
+			name: "Should not blame the agent definition for a refused policy mode",
+			spec: &sessionStartSpec{
+				provider:        agyProviderName,
+				selectedRuntime: &RuntimeSelection{Provider: agyProviderName},
+			},
+			refusal: modeRefusal,
+		},
+		{
+			name:    "Should not ask for reselection for a refused policy mode",
+			spec:    &sessionStartSpec{provider: agyProviderName, acpOptions: plan},
+			refusal: modeRefusal,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			input := tc.refusal
+			if input == nil {
+				input = refusal
+			}
+			err := captureResumeOptionSource(tc.spec).guide(input)
+			if !errors.Is(err, acp.ErrSessionConfigOptionRejected) {
+				t.Fatalf("guide() error = %v, want the original refusal kept", err)
+			}
+			if got := strings.Contains(err.Error(), "reselect this session's runtime"); got != tc.wantReselect {
+				t.Fatalf("guide() reselection guidance = %v, want %v: %v", got, tc.wantReselect, err)
+			}
+			if got := errors.Is(err, ErrAgentACPOptionRejected); got != tc.wantAgent {
+				t.Fatalf("guide() agent-definition guidance = %v, want %v: %v", got, tc.wantAgent, err)
+			}
+		})
+	}
+}
+
+const agyResumeAgentName = "agy-coder"
+
+func installAgyAgent(
+	t *testing.T,
+	h *harness,
+	command, model, reasoningEffort string,
+	options []compozyconfig.ACPOptionSelection,
+) {
+	t.Helper()
+	workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	agent := compozyconfig.AgentDef{
+		Name: agyResumeAgentName, Provider: agyProviderName, Model: model,
+		ReasoningEffort: reasoningEffort, Command: command, Prompt: "Follow the user's response format.",
+	}
+	agent.SetACPOptions(options)
+	workspace.Agents = append(workspace.Agents, agent)
+	h.resolver.upsert(&workspace)
+}
+
+func setResumeAgentCommand(t *testing.T, h *harness, agentName, command string) {
+	t.Helper()
+	editResumeAgent(t, h, agentName, func(agent *compozyconfig.AgentDef) { agent.Command = command })
+}
+
+func setResumeAgentPermissions(
+	t *testing.T,
+	h *harness,
+	agentName string,
+	permissions compozyconfig.PermissionMode,
+) {
+	t.Helper()
+	editResumeAgent(t, h, agentName, func(agent *compozyconfig.AgentDef) {
+		agent.Permissions = string(permissions)
+	})
+}
+
+// editResumeAgent applies one fixture edit to the named workspace agent and fails at the
+// mutation site when no agent matches, so a renamed fixture cannot silently skip its setup.
+func editResumeAgent(t *testing.T, h *harness, agentName string, edit func(*compozyconfig.AgentDef)) {
+	t.Helper()
+	workspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	index := slices.IndexFunc(workspace.Agents, func(agent compozyconfig.AgentDef) bool {
+		return agent.Name == agentName
+	})
+	if index < 0 {
+		t.Fatalf("workspace agent %q not found for fixture edit", agentName)
+	}
+	edit(&workspace.Agents[index])
+	h.resolver.upsert(&workspace)
+}
+
+// createStoppedPromptSession persists one prompt's transcript and stops the session, so a
+// resume fixture starts from the same durable state the upgrade finds.
+func createStoppedPromptSession(t *testing.T, h *harness, opts *CreateOpts) *Session {
+	t.Helper()
+	opts.Workspace = h.workspaceID
+	created, err := h.manager.Create(testutil.Context(t), opts)
+	if err != nil {
+		t.Fatalf("Create(%s) error = %v", opts.AgentName, err)
+	}
+	events, err := h.manager.Prompt(testutil.Context(t), created.ID, "keep the legacy transcript")
+	if err != nil {
+		t.Fatalf("Prompt(%s) error = %v", opts.AgentName, err)
+	}
+	collectEvents(t, events)
+	if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+		t.Fatalf("Stop(%s) error = %v", opts.AgentName, err)
+	}
+	return created
+}
+
+// writeLegacyEffectiveOptions records the effective options a previous resolver persisted for
+// an already-bound session; only automatic defaults lived outside the explicit selection.
+func writeLegacyEffectiveOptions(t *testing.T, session *Session, options ...store.SessionACPOptionSelection) {
+	t.Helper()
+	meta := readMeta(t, session.MetaPath())
+	if derefString(meta.ACPSessionID) == "" {
+		t.Fatal("legacy effective options require a bound session")
+	}
+	meta.SetACPOptions(options)
+	if err := store.WriteSessionMeta(session.MetaPath(), &meta); err != nil {
+		t.Fatalf("WriteSessionMeta() error = %v", err)
+	}
+}
+
+func creationRecordsUnchanged(before, after *store.SessionMeta) bool {
+	if (before.CreationProfile == nil) != (after.CreationProfile == nil) ||
+		before.PolicySpecDigest != after.PolicySpecDigest ||
+		before.CreationDigest != after.CreationDigest {
+		return false
+	}
+	if before.CreationProfile == nil {
+		return before.CreationProfileRef == "" && after.CreationProfileRef == ""
+	}
+	beforeRef, err := before.CreationProfile.Ref()
+	if err != nil {
+		return false
+	}
+	afterRef, err := after.CreationProfile.Ref()
+	if err != nil {
+		return false
+	}
+	return beforeRef == afterRef && before.CreationProfileRef == after.CreationProfileRef
+}
+
+func assertTranscriptMessage(t *testing.T, manager *Manager, sessionID, want string) {
+	t.Helper()
+	page, err := manager.TranscriptPage(testutil.Context(t), sessionID, transcript.PageQuery{Limit: 50})
+	if err != nil {
+		t.Fatalf("TranscriptPage() error = %v", err)
+	}
+	if !slices.ContainsFunc(page.Entries, func(entry transcript.Entry) bool {
+		return transcript.UIMessageText(entry.Message) == want
+	}) {
+		t.Fatalf("transcript = %#v, want the persisted message %q", page.Entries, want)
+	}
+}
+
+func acpOptionValue(options []acp.SessionConfigOptionSelection, id string) string {
+	for _, option := range options {
+		if option.ID == id {
+			return option.ValueID
+		}
+	}
+	return ""
+}
+
+func storeOptionValue(options []store.SessionACPOptionSelection, id string) string {
+	for _, option := range options {
+		if option.ID == id {
+			return option.ValueID
+		}
+	}
+	return ""
+}
+
 func hasACPOption(options []acp.SessionConfigOptionSelection, id string) bool {
 	for _, option := range options {
 		if option.ID == id {

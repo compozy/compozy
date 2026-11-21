@@ -8,7 +8,6 @@ import (
 	"io"
 
 	"os"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -151,6 +150,9 @@ func (a AgentFixture) Validate(path string) error {
 			return err
 		}
 	}
+	if err := validateConfigReannouncements(a.ConfigOptions, path+".config_options"); err != nil {
+		return err
+	}
 	for idx, turn := range a.Turns {
 		if err := turn.Validate(fmt.Sprintf("%s.turns[%d]", path, idx)); err != nil {
 			return err
@@ -189,6 +191,12 @@ func (o SessionConfigOptionFixture) Validate(path string) error {
 		seen[trimmed] = struct{}{}
 		if trimmed == current {
 			currentFound = true
+		}
+		for nestedIdx, nested := range value.WhenSelected {
+			nestedPath := fmt.Sprintf("%s.values[%d].when_selected[%d]", path, idx, nestedIdx)
+			if err := nested.Validate(nestedPath); err != nil {
+				return err
+			}
 		}
 	}
 	if !currentFound {

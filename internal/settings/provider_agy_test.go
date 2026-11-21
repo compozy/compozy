@@ -2,7 +2,6 @@ package settings
 
 import (
 	"context"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -52,11 +51,7 @@ func TestAgyProviderSettingsUpgradeBoundary(t *testing.T) {
 		if !login.Configured || login.Source != "auth_acp_method" {
 			t.Fatalf("AuthStatus.Login = %#v, want configured auth_acp_method source", login)
 		}
-		executable := "agy_acp_server.par"
-		if runtime.GOOS == "windows" {
-			executable = "agy_acp_server.exe"
-		}
-		if got, want := login.Executable, executable; got != want {
+		if got, want := login.Executable, "agy"; got != want {
 			t.Fatalf("AuthStatus.Login.Executable = %q, want %q", got, want)
 		}
 		if got, want := login.Presence, authproviders.ProviderLoginPresencePresent; got != want {
@@ -76,7 +71,7 @@ func TestAgyProviderSettingsUpgradeBoundary(t *testing.T) {
 		homePaths := testHomePaths(t)
 		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+
 			"\n[providers.agy]\n"+
-			"command = \"/opt/agy/test-server --uid=\"\n")
+			"command = \"/opt/agy/bin/agy acp --process-per-session\"\n")
 		service := testService(t, homePaths, Dependencies{
 			ProviderAuthCommandResolver: func(
 				_ context.Context,
@@ -93,7 +88,7 @@ func TestAgyProviderSettingsUpgradeBoundary(t *testing.T) {
 			t.Fatalf("ListCollection(providers) error = %v", err)
 		}
 		agy := mustFindProviderItem(t, envelope.Providers, "agy")
-		if got, want := agy.Settings.Command, "/opt/agy/test-server --uid="; got != want {
+		if got, want := agy.Settings.Command, "/opt/agy/bin/agy acp --process-per-session"; got != want {
 			t.Fatalf("Settings.Command = %q, want %q", got, want)
 		}
 		if got, want := agy.Settings.AuthACPMethod, "oauth-personal"; got != want {

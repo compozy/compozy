@@ -2,19 +2,31 @@ package acp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
+// ErrSessionConfigOptionRejected reports that the provider's advertised session config options
+// refused a selection, so a caller can offer reselection guidance instead of guessing.
+var ErrSessionConfigOptionRejected = errors.New("acp: session config option rejected")
+
+// ErrSessionModeRejected marks an ErrSessionConfigOptionRejected caused by the session mode
+// CompozyOS derives from the permission policy rather than by an authored ACP option.
+var ErrSessionModeRejected = errors.New("acp: session mode rejected")
+
 func (d *Driver) applyStartupConfigSelections(
 	ctx context.Context,
 	process *AgentProcess,
 	selections []SessionConfigOptionSelection,
 ) error {
+	// Only a derived approve-all mode may be skipped when the provider offers no
+	// mode control; an authored mode the runtime does not advertise stays a failure.
 	if _, ok := findConfigOptionByID(process.CapsSnapshot().ConfigOptions, sessionConfigModeKey); !ok &&
-		process.permissions.mode == compozyconfig.PermissionModeApproveAll {
+		process.permissions.mode == compozyconfig.PermissionModeApproveAll &&
+		!compozyconfig.RequiresAdvertisedACPMode(process.permissionModeProvider()) {
 		for _, selection := range selections {
 			if selection.ID == sessionConfigModeKey &&
 				compozyconfig.IsUnrestrictedACPMode(process.permissionModeProvider(), selection.ValueID) {
@@ -42,10 +54,11 @@ func (d *Driver) applySessionConfigSelections(
 				selection.ValueID != "" && selection.ValueID == process.unadvertisedStartupMode {
 				continue
 			}
-			return fmt.Errorf("acp: config option %q is not uniquely advertised", selection.ID)
+			return fmt.Errorf("%w: config option %q is not uniquely advertised",
+				ErrSessionConfigOptionRejected, selection.ID)
 		}
 		if err := validateSessionConfigOptionSelection(selection, option); err != nil {
-			return err
+			return fmt.Errorf("%w: %w", ErrSessionConfigOptionRejected, err)
 		}
 		if selection.matches(option) {
 			continue
@@ -53,6 +66,9 @@ func (d *Driver) applySessionConfigSelections(
 		// applySessionConfigOption returns only after the provider confirmed the value,
 		// including a late config_option_update.
 		if err := d.applySessionConfigOption(ctx, process, selection); err != nil {
+			if isConfigRejectionCause(err) {
+				return fmt.Errorf("%w: apply config option %q: %w", ErrSessionConfigOptionRejected, selection.ID, err)
+			}
 			return fmt.Errorf("acp: apply config option %q: %w", selection.ID, err)
 		}
 	}

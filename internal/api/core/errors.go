@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -31,7 +32,35 @@ import (
 const (
 	errorsInternalServerErrorValue = "internal server error"
 	errorsUnknownErrorValue        = "unknown error"
+	// Public repairs never echo the internal error chain or provider command.
+	runtimeReselectionGuidance = "The current route rejected this session's runtime options. " +
+		"Reselect this session's runtime to confirm its provider, model, reasoning effort, and ACP options, " +
+		"then retry."
+	nativeAgyPolicyGuidance = "Antigravity CLI cannot enforce the selected host permission policy. " +
+		"Ask the operator to choose a runtime that enforces the intended policy; permissions were not widened."
+	agentOptionGuidance = "The current route rejected ACP options from this session's agent definition. " +
+		"Change the agent definition's ACP options for this route, then retry; reselecting the runtime cannot remove them."
+	sessionModeGuidance = "The current route rejected the session mode chosen for this session's permission policy. " +
+		"Choose a different permission policy or runtime for this session, then retry."
+	nativeToolPolicyUnsupportedCode = "native_tool_policy_unsupported"
+	sessionConfigOptionRejectedCode = "session_config_option_rejected"
 )
+
+func runtimeRefusalGuidance(err error) (code, message string, ok bool) {
+	switch {
+	case errors.Is(err, acp.ErrNativeAgyToolPolicyUnsupported):
+		return nativeToolPolicyUnsupportedCode, nativeAgyPolicyGuidance, true
+	case errors.Is(err, session.ErrAgentACPOptionRejected):
+		return sessionConfigOptionRejectedCode, agentOptionGuidance, true
+	case errors.Is(err, acp.ErrSessionModeRejected):
+		// The policy chose the refused mode, so neither option repair applies.
+		return sessionConfigOptionRejectedCode, sessionModeGuidance, true
+	case errors.Is(err, acp.ErrSessionConfigOptionRejected):
+		return sessionConfigOptionRejectedCode, runtimeReselectionGuidance, true
+	default:
+		return "", "", false
+	}
+}
 
 type normalizedErrorStatus struct {
 	status             int
@@ -133,7 +162,10 @@ func errorPayloadForNormalizedStatus(
 	maskInternalErrors bool,
 ) contract.ErrorPayload {
 	message := http.StatusText(status)
+	refusalCode, refusalMessage, isRuntimeRefusal := runtimeRefusalGuidance(err)
 	switch {
+	case status == http.StatusUnprocessableEntity && isRuntimeRefusal:
+		message = refusalMessage
 	case status >= http.StatusInternalServerError && WorktreeErrorCode(err) != "":
 		message = WorktreeErrorCode(err)
 	case maskInternalErrors && status >= http.StatusInternalServerError:
@@ -146,7 +178,11 @@ func errorPayloadForNormalizedStatus(
 		message = errorsUnknownErrorValue
 	}
 
-	return errorPayloadForMessage(message, err)
+	payload := errorPayloadForMessage(message, err)
+	if status == http.StatusUnprocessableEntity && isRuntimeRefusal {
+		payload.Code = refusalCode
+	}
+	return payload
 }
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.

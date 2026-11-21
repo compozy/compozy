@@ -29,23 +29,23 @@ provider = "claude"
 
 The built-in registry lives in `internal/config/provider.go`.
 
-| Provider ID         | Harness  | Runtime provider    | Command                                                                                           | `models.default`            | Auth mode      | Credential target    |
-| ------------------- | -------- | ------------------- | ------------------------------------------------------------------------------------------------- | --------------------------- | -------------- | -------------------- |
-| `claude`            | `acp`    | `claude`            | `npx -y @agentclientprotocol/claude-agent-acp@latest`                                             | `claude-sonnet-5`           | `native_cli`   | provider login       |
-| `codex`             | `acp`    | `codex`             | `npx -y @agentclientprotocol/codex-acp@latest`                                                    | `gpt-5.6-sol`               | `native_cli`   | provider login       |
-| `gemini`            | `acp`    | `gemini`            | `gemini --acp`                                                                                    | `gemini-3.1-pro-preview`    | `native_cli`   | provider login       |
-| `opencode`          | `acp`    | `opencode`          | `opencode acp`                                                                                    | none                        | `native_cli`   | provider login       |
-| `copilot`           | `acp`    | `copilot`           | `copilot --acp --stdio`                                                                           | none                        | `native_cli`   | provider login       |
-| `cursor`            | `acp`    | `cursor`            | `cursor-agent acp`                                                                                | none                        | `native_cli`   | provider login       |
-| `kimi-cli`          | `acp`    | `kimi-cli`          | `kimi acp`                                                                                        | none                        | `native_cli`   | provider login       |
-| `qwen-code`         | `acp`    | `qwen-code`         | `npx -y @qwen-code/qwen-code@latest --acp --experimental-skills`                                  | `qwen3.6-plus`              | `native_cli`   | provider login       |
-| `agy`               | `acp`    | `agy`               | `agy_acp_server.par --uid=` (Linux), `agy_acp_server.par` (macOS), `agy_acp_server.exe` (Windows) | none                        | `native_cli`   | protocol login       |
-| `pi`                | `pi_acp` | `anthropic`         | `npx -y pi-acp@latest`                                                                            | `claude-opus-4-7`           | `native_cli`   | Pi `/login`          |
-| `openrouter`        | `pi_acp` | `openrouter`        | `npx -y pi-acp@latest`                                                                            | `openai/gpt-5.4`            | `bound_secret` | `OPENROUTER_API_KEY` |
-| `zai`               | `pi_acp` | `zai`               | `npx -y pi-acp@latest`                                                                            | `glm-4.6`                   | `bound_secret` | `ZAI_API_KEY`        |
-| `moonshot`          | `pi_acp` | `kimi-coding`       | `npx -y pi-acp@latest`                                                                            | `kimi-k2-thinking`          | `bound_secret` | `KIMI_API_KEY`       |
-| `vercel-ai-gateway` | `pi_acp` | `vercel-ai-gateway` | `npx -y pi-acp@latest`                                                                            | `anthropic/claude-opus-4-7` | `bound_secret` | `AI_GATEWAY_API_KEY` |
-| `xai`               | `pi_acp` | `xai`               | `npx -y pi-acp@latest`                                                                            | `grok-4-fast-non-reasoning` | `bound_secret` | `XAI_API_KEY`        |
+| Provider ID         | Harness  | Runtime provider    | Command                                                          | `models.default`            | Auth mode      | Credential target    |
+| ------------------- | -------- | ------------------- | ---------------------------------------------------------------- | --------------------------- | -------------- | -------------------- |
+| `claude`            | `acp`    | `claude`            | `npx -y @agentclientprotocol/claude-agent-acp@latest`            | `claude-sonnet-5`           | `native_cli`   | provider login       |
+| `codex`             | `acp`    | `codex`             | `npx -y @agentclientprotocol/codex-acp@latest`                   | `gpt-5.6-sol`               | `native_cli`   | provider login       |
+| `gemini`            | `acp`    | `gemini`            | `gemini --acp`                                                   | `gemini-3.1-pro-preview`    | `native_cli`   | provider login       |
+| `opencode`          | `acp`    | `opencode`          | `opencode acp`                                                   | none                        | `native_cli`   | provider login       |
+| `copilot`           | `acp`    | `copilot`           | `copilot --acp --stdio`                                          | none                        | `native_cli`   | provider login       |
+| `cursor`            | `acp`    | `cursor`            | `cursor-agent acp`                                               | none                        | `native_cli`   | provider login       |
+| `kimi-cli`          | `acp`    | `kimi-cli`          | `kimi acp`                                                       | none                        | `native_cli`   | provider login       |
+| `qwen-code`         | `acp`    | `qwen-code`         | `npx -y @qwen-code/qwen-code@latest --acp --experimental-skills` | `qwen3.6-plus`              | `native_cli`   | provider login       |
+| `agy`               | `acp`    | `agy`               | `agy acp`                                                        | none                        | `native_cli`   | protocol login       |
+| `pi`                | `pi_acp` | `anthropic`         | `npx -y pi-acp@latest`                                           | `claude-opus-4-7`           | `native_cli`   | Pi `/login`          |
+| `openrouter`        | `pi_acp` | `openrouter`        | `npx -y pi-acp@latest`                                           | `openai/gpt-5.4`            | `bound_secret` | `OPENROUTER_API_KEY` |
+| `zai`               | `pi_acp` | `zai`               | `npx -y pi-acp@latest`                                           | `glm-4.6`                   | `bound_secret` | `ZAI_API_KEY`        |
+| `moonshot`          | `pi_acp` | `kimi-coding`       | `npx -y pi-acp@latest`                                           | `kimi-k2-thinking`          | `bound_secret` | `KIMI_API_KEY`       |
+| `vercel-ai-gateway` | `pi_acp` | `vercel-ai-gateway` | `npx -y pi-acp@latest`                                           | `anthropic/claude-opus-4-7` | `bound_secret` | `AI_GATEWAY_API_KEY` |
+| `xai`               | `pi_acp` | `xai`               | `npx -y pi-acp@latest`                                           | `grok-4-fast-non-reasoning` | `bound_secret` | `XAI_API_KEY`        |
 
 <OperatorNote>
   `pi` is the direct Pi provider and owns authentication through Pi `/login` and Pi's auth file.
@@ -150,9 +150,11 @@ not treat the descriptor as a command you can copy or execute.
 
 ### Protocol-owned login (Google Antigravity)
 
-The `agy` built-in needs no `[providers.agy]` block. Install the official `agy_acp_server`
-executable for your OS on `PATH` (the interactive `agy` CLI is a different binary and is not
-substituted), then sign in explicitly:
+The `agy` built-in needs no `[providers.agy]` block. It launches the official Antigravity CLI as
+`agy acp`; install that CLI with
+[Google's instructions](https://antigravity.google/docs/install?tab=cli) and confirm
+`agy acp --help` succeeds. A separately downloaded standalone ACP server is neither required nor
+used. An existing interactive `agy` login is reused; otherwise sign in explicitly:
 
 ```bash
 compozy provider auth login agy --timeout 5m -o json
@@ -162,17 +164,40 @@ compozy provider list -o json
 Login runs the exact advertised `oauth-personal` agent method and verifies readiness with a
 promptless session. The running local daemon then performs its own promptless check for Settings and
 the model picker. The remote status command never sends `authenticate` or launches a browser.
-There is no automatic login on failure: a logged-out probe reports `needs_login`, a missing
-server reports `missing_cli` with an `install_cli` recommendation naming only the executable
-basename, and sessions keep the server-default model. Operator-home login state is shared across
-profiles by design; a different home or context must authenticate separately.
+For headless or SSH setup, Google's `agy acp --login` performs the interactive terminal sign-in and
+exits; CompozyOS never runs it as a background probe. There is no automatic login on failure: a
+logged-out probe reports `needs_login`, a missing CLI reports `missing_cli` with an `install_cli`
+recommendation naming only `agy`, and sessions keep the provider-default model. A standalone-server
+login alone is not reuse: it reports `needs_login` and neither Google token store is copied or
+deleted. Operator-home login state is shared across profiles by design; a different home or context
+must authenticate separately.
 
 In Settings → Providers, `Google Antigravity` reports `Sign-in unverified` (never `Ready`) until
 a live probe succeeds — an installed executable is not evidence of an authenticated account. Its
 native-auth editor offers an optional `Sign-in method` field and no key, secret, or rotation
 controls: leaving the field empty uses the built-in `oauth-personal` default, and clearing a
 custom value removes the local override to reveal that default. Editing any other field preserves
-the stored method.
+the stored method. The login descriptor names the `agy` executable basename; presence stays distinct
+from readiness and entitlement.
+
+Google's optional HTTP MCP transport requires `--process-per-session` in the CLI configuration.
+CompozyOS keeps its default stdio transport, so hosted native tools need no extra flag; document
+that prerequisite yourself if you author an HTTP MCP configuration.
+
+A native `agy acp` session requires **Full access**. The CLI runs its own tool writes without asking
+the host even in its `plan` mode, so CompozyOS refuses to start that route under `deny-all`,
+`approve-reads`, `approve-edits`, or `auto` before any prompt rather than claim an approval boundary
+it cannot enforce. Keep a narrower policy on a route you configure yourself whose tool calls return
+through CompozyOS, and never raise an agent's own policy to work around the refusal. The same
+reasoning refuses a `deny` entry in `permission_rules` on that route even under **Full access**;
+`allow` entries are accepted because they never narrow what runs. The check recognizes the CLI
+under either executable name Google ships, `agy` or `antigravity`.
+
+When Antigravity asks a question, it sends a permission request whose options are the possible
+answers. CompozyOS routes that question to you as a choice prompt under every policy, including
+**Full access**, and cancels it when no one can answer instead of picking an answer for you.
+Every Antigravity session also turns off the CLI's `run_workflow` tool, which would otherwise write
+`skills/system/run-workflow/SKILL.md` into your workspace.
 
 ### GitHub Copilot CLI
 
@@ -381,7 +406,7 @@ deltas, including the five pricing fields, without copying unchanged catalog enr
 change is limited to `hidden`, `featured`, `deprecated`, a default reasoning effort, or a default speed.
 
 Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, Agy, and Copilot
-inspect a short-lived ACP session. Agy publishes the exact advertised model IDs and model-specific reasoning levels; unobserved pricing, context, and speed stay unknown. Its `thinking_level` option drives the session picker's reasoning slider without adding effort suffixes to model IDs; see [Provider Model Catalog](/docs/agents/model-catalog) for the verified inventory. Cursor runs `cursor-agent models`, converts the returned transport aliases into
+inspect a short-lived ACP session. Agy publishes the exact advertised logical model IDs and each model's own reasoning levels; unobserved pricing, context, and speed stay unknown. Its `thought_level` option drives the session picker's reasoning slider without adding effort suffixes to model IDs, and the highest offered level is model-specific (`xhigh` on Hydrogen, `max` unsupported); see [Provider Model Catalog](/docs/agents/model-catalog) for the verified inventory. Cursor runs `cursor-agent models`, converts the returned transport aliases into
 logical model IDs, and keeps the alias bindings private. Models without a declared default effort
 prefer the lowest supported normal, non-Thinking effort when no bare transport exists; see the
 [selection rule](/docs/agents/model-catalog). The selector displays that catalog default before
@@ -498,6 +523,16 @@ Once ACP accepts a route, CompozyOS never switches to another route, even when a
 start fails. The accepted route is saved with the session, so a restarted session resumes on the same
 account. If that route is no longer configured, CompozyOS starts a fresh ACP session on the primary route
 and rebuilds context from the transcript (reason `accepted_route_missing`).
+
+Sessions recorded by earlier releases can carry an effective provider mode without separately recorded
+selection intent, so an automatic and an explicit mode are indistinguishable. CompozyOS preserves that
+mode instead of deleting or remapping it: when the runtime no longer offers it, the start fails with the
+existing unsupported-option repair guidance and keeps the session and transcript, rather than dropping the
+mode or continuing at another one. Confirm current intent by selecting the session's provider, model, and
+effort again through [Selecting the session runtime](/docs/sessions/lifecycle#selecting-the-session-runtime);
+the next prompt replays the same logical session on a fresh ACP session ID. `compozy session runtime clear`
+returns to the effective/agent default and is not that confirmation. A session whose accepted route still
+matches an authored command keeps that route.
 
 ### Recover from a provider error during a turn
 

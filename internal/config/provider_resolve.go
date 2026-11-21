@@ -345,9 +345,10 @@ func resolvedAgentFromProvider(
 }
 
 // applyApproveAllProviderMode makes approve-all run the provider unrestricted: Codex
-// agent-full-access, Claude Code bypassPermissions, agy yolo, and Copilot allow_all=on. An agent's
-// explicit selection of the same ACP option wins, narrower levels never reach this mapping, and
-// runtimes without a mapping keep their own approve-all mode negotiation.
+// agent-full-access, Claude Code bypassPermissions, and Copilot allow_all=on. An agent's
+// explicit selection of the same ACP option wins, narrower levels never reach this mapping,
+// and runtimes without a mapping keep their own approved-mode negotiation. The mapping names
+// modes of the runtime the provider launches, not of its configured name.
 func applyApproveAllProviderMode(resolved *ResolvedAgent, providerName string, provider ProviderConfig) {
 	if resolved.Permissions != string(PermissionModeApproveAll) ||
 		provider.EffectiveHarness() != ProviderHarnessACP {
@@ -355,14 +356,11 @@ func applyApproveAllProviderMode(resolved *ResolvedAgent, providerName string, p
 	}
 	optionID := "mode"
 	var valueID string
-	// The mapping names modes of the runtime the provider launches, not of its configured name.
 	switch strings.ToLower(provider.RuntimeProviderName(providerName)) {
 	case providerCodexKey:
 		valueID = "agent-full-access"
 	case "claude":
 		valueID = "bypassPermissions"
-	case providerAgyKey:
-		valueID = "yolo"
 	case providerCopilotKey:
 		// Copilot keeps approvals in its own allow_all option; its modes are task modes.
 		optionID, valueID = CopilotAllowAllOptionID, CopilotAllowAllOn

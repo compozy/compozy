@@ -391,7 +391,7 @@ On-demand children resolve their own definition or settings level.
 | `auto`                      | Declared and advertised `auto` reviewer | Declared and advertised `agent` reviewer |
 | `approve-all`               | `bypassPermissions`                     | `agent-full-access`                      |
 
-`approve-all` alone selects the unrestricted mode, also Copilot `allow_all = on` and `agy` `yolo`; an agent's explicit
+`approve-all` alone selects the unrestricted mode, also Copilot `allow_all = on` and the `auto` mode advertised by Google Antigravity's CLI; an agent's explicit
 `mode` or `allow_all` selection wins, and a narrower session level drops it. The retired
 `permissions.provider_full_access` key is ignored and removed from config files on load (backup:
 `config.toml.retired-keys.bak`) until v0.7.0; use `permissions.mode`.

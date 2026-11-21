@@ -229,6 +229,77 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 			t.Fatalf("statusForSessionError(negotiation) = %d, want %d", got, http.StatusUnprocessableEntity)
 		}
 	})
+	t.Run("Should publish safe guidance for a refused retained runtime option", func(t *testing.T) {
+		t.Parallel()
+
+		err := fmt.Errorf(
+			"session: start resume agent process: %w: config option rejected",
+			acp.ErrSessionConfigOptionRejected,
+		)
+		if got := statusForSessionError(fmt.Errorf("wrapped: %w", err)); got != http.StatusUnprocessableEntity {
+			t.Fatalf("statusForSessionError(config refusal) = %d, want %d",
+				got, http.StatusUnprocessableEntity)
+		}
+		payload := ErrorPayloadForStatus(http.StatusUnprocessableEntity, err, true)
+		if payload.Code != sessionConfigOptionRejectedCode || payload.Error != runtimeReselectionGuidance {
+			t.Fatalf("ErrorPayloadForStatus(config refusal) = %#v, want %s and bounded guidance",
+				payload, sessionConfigOptionRejectedCode)
+		}
+	})
+	t.Run("Should point an agent-definition option refusal at the agent definition", func(t *testing.T) {
+		t.Parallel()
+
+		err := fmt.Errorf("session: resume: %w: %w: config option rejected",
+			session.ErrAgentACPOptionRejected, acp.ErrSessionConfigOptionRejected)
+		if got := statusForSessionError(err); got != http.StatusUnprocessableEntity {
+			t.Fatalf("statusForSessionError(agent option refusal) = %d, want %d",
+				got, http.StatusUnprocessableEntity)
+		}
+		payload := ErrorPayloadForStatus(http.StatusUnprocessableEntity, err, true)
+		if payload.Code != sessionConfigOptionRejectedCode || payload.Error != agentOptionGuidance {
+			t.Fatalf("ErrorPayloadForStatus(agent option refusal) = %#v, want agent-definition guidance", payload)
+		}
+	})
+	t.Run("Should point a refused policy mode at the permission policy", func(t *testing.T) {
+		t.Parallel()
+
+		err := fmt.Errorf("session: resume: %w: %w: apply session mode %q",
+			acp.ErrSessionConfigOptionRejected, acp.ErrSessionModeRejected, "auto")
+		if got := statusForSessionError(err); got != http.StatusUnprocessableEntity {
+			t.Fatalf("statusForSessionError(policy mode refusal) = %d, want %d",
+				got, http.StatusUnprocessableEntity)
+		}
+		payload := ErrorPayloadForStatus(http.StatusUnprocessableEntity, err, true)
+		if payload.Code != sessionConfigOptionRejectedCode || payload.Error != sessionModeGuidance {
+			t.Fatalf("ErrorPayloadForStatus(policy mode refusal) = %#v, want permission-policy guidance", payload)
+		}
+	})
+	t.Run("Should keep a classified failure over a joined config refusal", func(t *testing.T) {
+		t.Parallel()
+
+		err := errors.Join(acp.ErrSessionConfigOptionRejected, session.ErrPendingPermissionConflict)
+		if got := statusForSessionError(err); got != http.StatusConflict {
+			t.Fatalf("statusForSessionError(joined) = %d, want %d", got, http.StatusConflict)
+		}
+	})
+	t.Run("Should publish safe guidance for an unenforceable native policy", func(t *testing.T) {
+		t.Parallel()
+
+		err := fmt.Errorf("session: start /private/native-command: %w", acp.ErrNativeAgyToolPolicyUnsupported)
+		status := statusForSessionError(err)
+		if status != http.StatusUnprocessableEntity {
+			t.Fatalf("statusForSessionError(native policy) = %d, want %d", status, http.StatusUnprocessableEntity)
+		}
+		if payload := ErrorPayloadForStatus(status, err, true); payload.Code != nativeToolPolicyUnsupportedCode ||
+			payload.Error != nativeAgyPolicyGuidance {
+			t.Fatalf("ErrorPayloadForStatus(native policy) = %#v, want %s and bounded policy guidance",
+				payload, nativeToolPolicyUnsupportedCode)
+		}
+		joined := errors.Join(err, session.ErrPendingPermissionConflict)
+		if got := statusForSessionError(joined); got != http.StatusConflict {
+			t.Fatalf("statusForSessionError(joined native policy) = %d, want %d", got, http.StatusConflict)
+		}
+	})
 	if got := statusForSessionError(session.ErrInvalidRuntimeOverride); got != http.StatusBadRequest {
 		t.Fatalf("statusForSessionError(invalid runtime override) = %d, want %d", got, http.StatusBadRequest)
 	}

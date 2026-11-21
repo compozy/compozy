@@ -14,7 +14,7 @@ function nativeACPEntry(overrides: Record<string, unknown> = {}): SettingsProvid
     default: false,
     command_available: true,
     settings: {
-      command: "agy_acp_server.par --uid=",
+      command: "agy acp",
       display_name: "Google Antigravity",
       harness: "acp",
       auth_mode: "native_cli",
@@ -30,7 +30,7 @@ function nativeACPEntry(overrides: Record<string, unknown> = {}): SettingsProvid
       state: "unknown",
       login: {
         configured: true,
-        executable: "agy_acp_server.par",
+        executable: "agy",
         presence: "present",
         recommended_action: "inspect",
         source: "auth_acp_method",
@@ -136,7 +136,7 @@ describe("providerDraft command authorship", () => {
 
   it("keeps an untouched authored command through an unrelated save", () => {
     const draft = { ...providerDraftFromEntry(nativeACPEntry()), display_name: "Renamed" };
-    expect(providerDraftToRequest(draft).settings?.command).toBe("agy_acp_server.par --uid=");
+    expect(providerDraftToRequest(draft).settings?.command).toBe("agy acp");
   });
 
   it("omits a cleared authored command so the daemon returns to the default", () => {
