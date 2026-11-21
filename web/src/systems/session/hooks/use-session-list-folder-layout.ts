@@ -5,6 +5,7 @@ import {
   sectionsVisibleThreads,
   type SessionListSections,
 } from "../lib/session-folders";
+import type { SessionFoldSet } from "../lib/session-sidebar-scope";
 import type { SessionThreadModel } from "../lib/session-list-threads";
 import type { SessionListViewModel } from "./use-session-list-view";
 import { useSessionListDnd } from "./use-session-list-dnd";
