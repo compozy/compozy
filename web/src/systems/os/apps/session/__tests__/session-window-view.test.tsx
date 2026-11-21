@@ -23,7 +23,8 @@ vi.mock("@/systems/agent", () => ({ useAgentInstances: () => instances.current }
 const runtimeProviderSpy = vi.hoisted(() => vi.fn());
 const readOnlyTranscriptSpy = vi.hoisted(() => vi.fn());
 
-const rail = vi.hoisted(() => ({ listLoading: false }));
+// `listLoading` swaps the list for placeholder rows; a new `listLayout` replaces its container.
+const rail = vi.hoisted(() => ({ listLoading: false, listLayout: "flat" }));
 
 vi.mock("../use-session-window-sidebar", () => ({
   useSessionWindowSidebar: () => ({
@@ -50,6 +51,7 @@ vi.mock("@/systems/session", () => ({
     <aside data-testid="session-sidebar">
       {view.catalog.loading ? null : (
         <div
+          key={rail.listLayout}
           data-session-list-scroll
           data-testid="session-list-scroll"
           data-current={currentSessionId}
@@ -122,6 +124,7 @@ describe("SessionWindowView", () => {
   beforeEach(() => {
     instances.current = [];
     rail.listLoading = false;
+    rail.listLayout = "flat";
     runtimeProviderSpy.mockClear();
     readOnlyTranscriptSpy.mockClear();
   });
@@ -242,19 +245,18 @@ describe("SessionWindowView", () => {
       expect(screen.getByTestId("session-list-scroll").scrollTop).toBe(480);
     });
 
-    it("Should leave the operator's later scrolling alone once the rail resumed", () => {
-      const first = renderView(undefined, true, { windowId: "session:settled" });
+    function renderSettlingRail(windowId: string) {
+      const first = renderView(undefined, true, { windowId });
       const list = screen.getByTestId("session-list-scroll");
       list.scrollTop = 480;
       fireEvent.scroll(list);
       first.unmount();
 
-      rail.listLoading = true;
-      const next = renderView(undefined, true, { id: "sess-2", windowId: "session:settled" });
-      const rerender = () =>
+      const next = renderView(undefined, true, { id: "sess-2", windowId });
+      return () =>
         next.rerender(
           <SessionWindowView
-            windowId="session:settled"
+            windowId={windowId}
             name="general"
             id="sess-2"
             workspaceId=""
@@ -264,18 +266,34 @@ describe("SessionWindowView", () => {
             error={null}
           />
         );
-      rail.listLoading = false;
+    }
+
+    it("Should resume the rail scroll again when a later layout replaces the list", () => {
+      const rerender = renderSettlingRail("session:folders");
+      const flat = screen.getByTestId("session-list-scroll");
+      expect(flat.scrollTop).toBe(480);
+
+      // The folder layout arrives after the catalog and mounts its own container.
+      rail.listLayout = "folders";
       rerender();
+      const folders = screen.getByTestId("session-list-scroll");
+      expect(folders).not.toBe(flat);
+      expect(folders.scrollTop).toBe(480);
+    });
+
+    it("Should leave the operator's later scrolling alone once they handle the rail", () => {
+      const rerender = renderSettlingRail("session:settled");
       const resumed = screen.getByTestId("session-list-scroll");
       expect(resumed.scrollTop).toBe(480);
 
       // The operator scrolls; a re-render keeps their position.
+      fireEvent.wheel(resumed);
       resumed.scrollTop = 120;
       fireEvent.scroll(resumed);
       rerender();
       expect(screen.getByTestId("session-list-scroll").scrollTop).toBe(120);
 
-      // A later reload (a breadth or search change) brings a fresh list that starts at the top.
+      // A list they reload (a breadth or search change) starts at the top.
       rail.listLoading = true;
       rerender();
       rail.listLoading = false;

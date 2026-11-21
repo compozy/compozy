@@ -24,6 +24,16 @@ const LIST_SCROLL_SELECTOR = "[data-session-list-scroll]";
  */
 const railScrollTops = new Map<string, number>();
 
+/** The operator's own hand on the rail: a wheel, touch, pointer or key in it. */
+const OPERATOR_GESTURES = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
+
+/** The rail's pending restore: the container it last resumed, until the operator takes over. */
+interface RailRestore {
+  windowId: string;
+  list: HTMLElement | null;
+  settled: boolean;
+}
+
 /** The sessions rail beside the session pane; over the board the board is the list, so no rail. */
 export function SessionWindowRailLayout({
   sidebar,
@@ -56,22 +66,28 @@ export function SessionWindowSidebarRail({
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
 
-  // Before paint, so the list never shows at the top first. Once per window, when the list
-  // itself is in place: a rail that mounts while its catalog still loads shows placeholder rows
-  // first, so the restore waits for the list to replace them. After that the operator's own
-  // scrolling, and any later reload of the list, is never moved again.
-  const restoredForRef = useRef<string | null>(null);
-  const listLoading = Boolean(sidebar.view.catalog?.loading);
+  // Before paint, so the list never shows at the top first. The list's container can appear after
+  // the rail mounts (placeholder rows while the catalog loads) or be replaced (the folder layout
+  // arriving after the catalog), so each new container resumes the saved scroll, until the
+  // operator handles the list. From then on nothing moves it: their own scrolling stays, and a
+  // list they reload (breadth, search) starts at the top.
+  const restoreRef = useRef<RailRestore | null>(null);
   useLayoutEffect(() => {
-    if (restoredForRef.current === windowId) return;
-    const list = hostRef.current?.querySelector<HTMLElement>(LIST_SCROLL_SELECTOR);
-    if (!list) return;
-    restoredForRef.current = windowId;
+    let restore = restoreRef.current;
+    if (restore?.windowId !== windowId) {
+      restore = { windowId, list: null, settled: false };
+      restoreRef.current = restore;
+    }
+    if (restore.settled) return;
+    const list = hostRef.current?.querySelector<HTMLElement>(LIST_SCROLL_SELECTOR) ?? null;
+    if (list === null || list === restore.list) return;
+    restore.list = list;
     const top = railScrollTops.get(windowId);
     if (top) list.scrollTop = top;
-  }, [windowId, listLoading]);
+  });
 
-  // Scroll does not bubble; the capture phase sees the list's scroll from this host.
+  // Scroll does not bubble; the capture phase sees the list's scroll from this host. The
+  // operator's first gesture in the rail ends the restore above.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -81,8 +97,19 @@ export function SessionWindowSidebarRail({
         railScrollTops.set(windowId, target.scrollTop);
       }
     };
+    const settle = () => {
+      if (restoreRef.current?.windowId === windowId) restoreRef.current.settled = true;
+    };
     host.addEventListener("scroll", remember, { capture: true, passive: true });
-    return () => host.removeEventListener("scroll", remember, { capture: true });
+    for (const type of OPERATOR_GESTURES) {
+      host.addEventListener(type, settle, { capture: true, passive: true });
+    }
+    return () => {
+      host.removeEventListener("scroll", remember, { capture: true });
+      for (const type of OPERATOR_GESTURES) {
+        host.removeEventListener(type, settle, { capture: true });
+      }
+    };
   }, [windowId]);
 
   return (
