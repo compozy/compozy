@@ -3327,6 +3327,10 @@ describe("SessionList folders and manual order", () => {
     expect(
       within(alpha.firstElementChild as HTMLElement).getByRole("img", working)
     ).toBeInTheDocument();
+    // Keyboard focus brings the chevron back; the running name stays announced on the toggle.
+    act(() => alpha.focus());
+    expect(alpha).toHaveFocus();
+    expect(alpha).toHaveAccessibleName(/1 session working/);
     await user.click(screen.getByTestId("session-sidebar-folder-fb-toggle"));
     expect(
       within(screen.getByTestId("session-sidebar-folder-fb-toggle")).queryByRole("img")

@@ -10,7 +10,7 @@ import { workspaceWorkingLabel } from "@/systems/workspace";
  * a collapsed header with work running yields at rest to its running signal: the
  * sidebar's one "work is running" column (#1926). Hovering the toggle, or focusing
  * it from the keyboard (it carries the `group/disclosure` class), shows the chevron
- * instead; only one of the two is ever displayed.
+ * instead; the glyph only fades, so its name stays announced.
  */
 export function SessionListDisclosureMark({
   open,
@@ -32,11 +32,13 @@ export function SessionListDisclosureMark({
     return <span className="grid size-3 shrink-0 place-items-center">{chevron}</span>;
   }
   return (
-    <span className="grid size-3 shrink-0 place-items-center">
-      <span className="hidden group-hover/disclosure:grid group-focus-visible/disclosure:grid">
+    // Both layers share one cell; opacity, not display, swaps them so the glyph's
+    // "N sessions working" name stays in the accessibility tree while the chevron shows.
+    <span className="grid size-3 shrink-0 place-items-center *:col-start-1 *:row-start-1">
+      <span className="grid opacity-0 transition-opacity duration-fast group-hover/disclosure:opacity-100 group-focus-visible/disclosure:opacity-100 motion-reduce:transition-none">
         {chevron}
       </span>
-      <span className="grid group-hover/disclosure:hidden group-focus-visible/disclosure:hidden">
+      <span className="grid transition-opacity duration-fast group-hover/disclosure:opacity-0 group-focus-visible/disclosure:opacity-0 motion-reduce:transition-none">
         {signal}
       </span>
     </span>
