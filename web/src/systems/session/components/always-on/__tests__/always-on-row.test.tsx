@@ -19,9 +19,8 @@ const { mockNavigate, mockApi, mockLineage } = vi.hoisted(() => ({
 
 vi.mock("../../../hooks/use-sessions", async importOriginal => ({
   ...(await importOriginal<typeof import("../../../hooks/use-sessions")>()),
-  useSession: (id: string) => ({
-    data: mockLineage.has(id) ? { id, lineage: mockLineage.get(id) } : undefined,
-  }),
+  useSessionLineage: (id: string, enabled: boolean) =>
+    enabled && mockLineage.has(id) ? { id, lineage: mockLineage.get(id) } : undefined,
 }));
 
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({

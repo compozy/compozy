@@ -54,9 +54,9 @@ function CrewRow({
     <Item
       aria-current={current ? "page" : undefined}
       as="button"
-      className="w-full gap-3 px-2 py-1.5 text-left"
+      // Navigation, not a toggle: aria-current and the selected plate, without Item's aria-pressed.
+      className={cn("w-full gap-3 px-2 py-1.5 text-left", current && "bg-selected")}
       onClick={() => onOpen(instance)}
-      selected={current}
     >
       <AgentMark
         appearance={agentAvatarAppearance(instance.resolved_appearance, instance.agent_name)}

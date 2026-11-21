@@ -138,6 +138,35 @@ describe("alwaysOnOwnerOf", () => {
     ).toBe(review);
   });
 
+  it("Should leave a fork or continuation of a main to itself, unless it is the main", () => {
+    for (const kind of ["fork", "continue"]) {
+      const source = {
+        kind,
+        parent_session_id: "sess-main-triage",
+        root_session_id: "sess-main-triage",
+      };
+      expect(
+        alwaysOnOwnerOf([triage], { id: "sess-copy", lineage: source as never })
+      ).toBeUndefined();
+      expect(
+        alwaysOnOwnerOf([{ ...triage, main_session_id: "sess-copy" }], {
+          id: "sess-copy",
+          lineage: source as never,
+        })?.id
+      ).toBe(triage.id);
+    }
+  });
+
+  it("Should not find a grandchild whose root moved with a reparent of the main", () => {
+    // ponytail limit: the payload carries parent and root only, no ancestor list.
+    expect(
+      alwaysOnOwnerOf([triage], {
+        id: "sess-grandchild",
+        lineage: lineage("sess-side", "sess-new-root"),
+      })
+    ).toBeUndefined();
+  });
+
   it("Should find no owner for an ordinary session", () => {
     expect(
       alwaysOnOwnerOf([triage], { id: "sess-x", lineage: lineage("sess-y", "sess-y") })
