@@ -2382,12 +2382,8 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 				if !errors.Is(err, tc.want) {
 					t.Errorf("CallHostedMCP() = %v, want %v", err, tc.want)
 				}
-				if tc.timeout > 0 && time.Since(started) != tc.timeout {
-					t.Errorf(
-						"CallHostedMCP() returned after %s, want caller deadline %s",
-						time.Since(started),
-						tc.timeout,
-					)
+				if elapsed := time.Since(started); elapsed != tc.timeout {
+					t.Errorf("CallHostedMCP() returned after %s, want %s", elapsed, tc.timeout)
 				}
 			})
 		})
