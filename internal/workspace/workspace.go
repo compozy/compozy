@@ -15,6 +15,8 @@ var (
 	ErrWorkspaceNotFound = errors.New("workspace not found")
 	// ErrWorkspaceRootMissing reports that the registered workspace root no longer exists on disk.
 	ErrWorkspaceRootMissing = errors.New("workspace root directory no longer exists")
+	// ErrWorkspaceRootPermissionDenied reports that the workspace root cannot be accessed.
+	ErrWorkspaceRootPermissionDenied = errors.New("workspace root permission denied")
 	// ErrAgentNotAvailable reports that the requested agent cannot be resolved in the workspace.
 	ErrAgentNotAvailable = errors.New("agent not available in workspace")
 	// ErrWorkspaceResolverUnavailable reports that workspace resolution cannot run because its dependency is absent.

@@ -43,7 +43,7 @@ func (r *Resolver) WatchAgentConfigs(ctx context.Context, scopes []AgentConfigSc
 		if ParseRef(scope.WorkspaceRef).Kind != RefUser {
 			var err error
 			ws, _, err = r.resolveRegistration(ctx, scope.WorkspaceRef)
-			if errors.Is(err, ErrWorkspaceNotFound) || errors.Is(err, ErrWorkspaceRootMissing) {
+			if errors.Is(err, ErrWorkspaceNotFound) || IsRootUnavailable(err) {
 				continue
 			}
 			if err != nil {

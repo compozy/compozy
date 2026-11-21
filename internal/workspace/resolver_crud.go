@@ -386,10 +386,7 @@ func (r *Resolver) refreshRootDir(ctx context.Context, ws Workspace) (Workspace,
 
 	info, err := os.Stat(rootDir)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return Workspace{}, ErrWorkspaceRootMissing
-		}
-		return Workspace{}, fmt.Errorf("workspace: stat workspace root %q: %w", rootDir, err)
+		return Workspace{}, wrapRootAccessError("stat", rootDir, err)
 	}
 	if !info.IsDir() {
 		return Workspace{}, fmt.Errorf("workspace: workspace root %q is not a directory", rootDir)
@@ -397,10 +394,7 @@ func (r *Resolver) refreshRootDir(ctx context.Context, ws Workspace) (Workspace,
 
 	canonicalDir, err := filepath.EvalSymlinks(rootDir)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return Workspace{}, ErrWorkspaceRootMissing
-		}
-		return Workspace{}, fmt.Errorf("workspace: evaluate workspace root %q: %w", rootDir, err)
+		return Workspace{}, wrapRootAccessError("evaluate", rootDir, err)
 	}
 	canonicalDir, err = filepath.Abs(canonicalDir)
 	if err != nil {

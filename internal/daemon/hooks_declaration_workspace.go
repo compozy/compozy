@@ -69,7 +69,7 @@ func registeredWorkspaces(
 		switch {
 		case err == nil:
 			resolvedWorkspaces = append(resolvedWorkspaces, resolved)
-		case errors.Is(err, workspacepkg.ErrWorkspaceNotFound), errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
+		case errors.Is(err, workspacepkg.ErrWorkspaceNotFound), workspacepkg.IsRootUnavailable(err):
 			if logger != nil {
 				logger.Warn(
 					"daemon: skipped workspace while rebuilding hooks",

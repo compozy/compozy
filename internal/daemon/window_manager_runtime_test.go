@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -1416,27 +1417,7 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 			t.Fatal(err)
 		}
 		engine = nil
-		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
-			return &fakeSessionManager{}, nil
-		}
-		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
-		var runtime RuntimeDeps
-		d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
-			runtime = deps
-			return &fakeServer{name: "http"}, nil
-		}
-		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "uds"}, nil }
-		if err := d.boot(ctx); err != nil {
-			t.Fatalf("boot with a future partition: %v", err)
-		}
-		t.Cleanup(func() {
-			if err := d.Shutdown(context.WithoutCancel(ctx)); err != nil {
-				t.Error(err)
-			}
-		})
-		if !d.serving.Load() || runtime.WindowManagers == nil {
-			t.Fatal("daemon did not enter serving phase")
-		}
+		runtime := bootDaemonWithWindowManager(t, d)
 		handlers := core.NewBaseHandlers(
 			&core.BaseHandlerConfig{WindowManager: runtime.WindowManagers, Profiles: runtime.Profiles},
 		)
@@ -1478,6 +1459,88 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 			!strings.Contains(string(logBytes), store.DefaultProfileID) ||
 			!strings.Contains(string(logBytes), string(windowmanager.GlobalDesktopWorkspaceID)) {
 			t.Fatalf("future bytes=%s error=%v logs=%s", stored.Value, err, string(logBytes))
+		}
+	})
+
+	for _, tc := range []struct {
+		name        string
+		makeOffline func(*testing.T, string)
+	}{
+		{"Should boot with a missing workspace root", renameBootTestWorkspace},
+		{"Should boot with an unreadable workspace root", denyBootTestWorkspaceAccess},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			homePaths := testHomePaths(t)
+			d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
+			logs, err := os.CreateTemp(t.TempDir(), "boot.log")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := logs.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			d.logger = slog.New(slog.NewJSONHandler(logs, nil))
+			offline, healthy, before := seedWorkspaceLayoutsForBoot(t, homePaths)
+			tc.makeOffline(t, offline.RootDir)
+
+			runtime := bootDaemonWithWindowManager(t, d)
+			info, err := ReadInfo(homePaths.DaemonInfo)
+			if err != nil || info.ReadinessPhase != string(contract.DaemonReadinessReady) {
+				t.Fatalf("daemon readiness = %q, error = %v", info.ReadinessPhase, err)
+			}
+			after, err := runtime.WindowManagers.engine.Get(ctx, clientstate.WorkspaceID(offline.ID),
+				windowManagerStateDomain, windowManagerSnapshotKey(store.DefaultProfileID))
+			if err != nil || after.Rev != before.Rev || !bytes.Equal(after.Value, before.Value) {
+				t.Fatalf("unavailable workspace layout changed: revision = %d, want %d, error = %v",
+					after.Rev, before.Rev, err)
+			}
+			assertBootPartitionWarning(t, logs.Name(), offline.ID)
+
+			manager, err := runtime.WindowManagers.For(store.DefaultProfileID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			snapshot, err := manager.Snapshot(ctx, windowmanager.WorkspaceID(healthy.ID))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, exists := snapshot.Windows["terminal-stale"]; exists {
+				t.Fatal("stale terminal survived in healthy workspace")
+			}
+			bound, exists := snapshot.Windows["session-bound"]
+			if !exists || bound.InstanceKey != nil || bound.Route.Pathname != "/sessions" ||
+				len(bound.Route.Search) != 0 {
+				t.Fatalf("healthy workspace session window still bound: %+v", bound)
+			}
+		})
+	}
+
+	t.Run("Should fail the boot hook phase when the partition store is closed", func(t *testing.T) {
+		t.Parallel()
+		f := newDaemonWindowManagerFixture(t)
+		closeDaemonWindowManagerEngine(t, f.engine)
+		cfg := testConfig(t, f.homePaths)
+		d := newTestDaemon(t, f.homePaths, &cfg)
+		state := &bootState{
+			cfg:            cfg,
+			logger:         discardLogger(),
+			notifier:       newHooksNotifier(discardLogger(), d.now),
+			windowManagers: f.registry,
+		}
+		cleanup := &bootCleanup{}
+		t.Cleanup(func() {
+			for i, fn := range slices.Backward(cleanup.fns) {
+				if err := fn(context.WithoutCancel(t.Context())); err != nil {
+					t.Errorf("cleanup[%d]() error = %v", i, err)
+				}
+			}
+		})
+		if err := d.bootHooks(t.Context(), state, cleanup); !errors.Is(err, clientstate.ErrClosed) {
+			t.Fatalf("bootHooks() error = %v, want clientstate.ErrClosed", err)
 		}
 	})
 
