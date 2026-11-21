@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useAtom } from "@xstate/store-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import { useSession } from "@/systems/session";
@@ -82,8 +82,6 @@ export function useDesktopChrome(
   // same partition rather than drifting apart (ADR-005, US-026).
   const profileId = useProfileReadScope().destination;
   const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? "", profileId));
-  const client = useWindowManagerClient(activeWorkspaceId, profileId);
-  useWindowScopePruning(profileId, query);
   // Scoped to the active workspace: a rebind stored in the workspace overlay has
   // to reach the shell's own keymap, or the chord would not dispatch until a
   // reload (US-022.AC-3). Reserved partitions (`global`, `user`) have no
@@ -91,8 +89,19 @@ export function useDesktopChrome(
   const configWorkspaceId = isReservedDesktopPartition(activeWorkspaceId)
     ? null
     : activeWorkspaceId;
-  // The read names this client, so it waits until the client is attached to
-  // the workspace it is about to present (a switch re-registers it).
+  // Start the client-scoped read as soon as the registration is accepted. The
+  // observer below shares this request without putting another render between
+  // registration and the configuration needed to restore the tabs.
+  const prefetchConfig = useCallback(
+    (clientId: string) => {
+      void queryClient.prefetchQuery(
+        windowManagerConfigOptions(configWorkspaceId, clientId, profileId)
+      );
+    },
+    [configWorkspaceId, profileId, queryClient]
+  );
+  const client = useWindowManagerClient(activeWorkspaceId, profileId, prefetchConfig);
+  useWindowScopePruning(profileId, query);
   const configQuery = useQuery({
     ...windowManagerConfigOptions(configWorkspaceId, client.clientId, profileId),
     enabled: client.status === "registered",

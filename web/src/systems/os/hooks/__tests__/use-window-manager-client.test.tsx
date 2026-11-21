@@ -5,7 +5,10 @@
 // registration with bounded backoff.
 // Owning layer: the browser-client registration lifecycle.
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { createDeferred } from "@/test/event-recorder";
 
 import {
   registerWindowManagerClient,
@@ -148,6 +151,34 @@ describe("useWindowManagerClient", () => {
       "research",
     ]);
     expect(unregisterWindowManagerClient).not.toHaveBeenCalled();
+  });
+
+  it("Should notify dependent reads before React observes the current registration", async () => {
+    const previous = createDeferred<WindowManagerRegisteredClientView>();
+    const current = createDeferred<WindowManagerRegisteredClientView>();
+    vi.mocked(registerWindowManagerClient)
+      .mockReturnValueOnce(previous.promise)
+      .mockReturnValueOnce(current.promise);
+    const events: string[] = [];
+    const onRegistered = (clientId: string) => {
+      events.push(`accepted:${clientId}`);
+    };
+    const { rerender } = renderHook(
+      ({ profileId }: { profileId: string }) => {
+        const registration = useWindowManagerClient("workspace:test", profileId, onRegistered);
+        useEffect(() => {
+          if (registration.client) events.push(`rendered:${registration.client.activeDesktopId}`);
+        }, [registration.client]);
+      },
+      { initialProps: { profileId: "marketing" } }
+    );
+
+    rerender({ profileId: "research" });
+    await act(async () => previous.resolve({ ...client(), activeDesktopId: "marketing" }));
+    expect(events).toEqual([]);
+
+    await act(async () => current.resolve({ ...client(), activeDesktopId: "research" }));
+    expect(events).toEqual(["accepted:client:stable", "rendered:research"]);
   });
 
   it("Should survive a rapid switch back without deleting the current attachment", async () => {

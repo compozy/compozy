@@ -67,7 +67,8 @@ export interface WindowManagerClientRegistrationState {
 
 export function useWindowManagerClient(
   workspaceId: string | null,
-  profileId: string | null
+  profileId: string | null,
+  onRegistered?: (clientId: string) => void
 ): WindowManagerClientRegistrationState {
   const [clientId] = useState(stableWindowManagerClientId);
   const documentVisible = useDocumentVisible();
@@ -116,6 +117,7 @@ export function useWindowManagerClient(
           throw new Error("CompozyOS registered a different window-manager client.");
         }
         store.trigger.registrationSucceeded({ client: view, epoch });
+        if (store.getSnapshot().context.client === view) onRegistered?.(view.clientId);
       })
       .catch(cause => {
         if (controller.signal.aborted) return;
@@ -131,7 +133,7 @@ export function useWindowManagerClient(
         });
       });
     return () => controller.abort();
-  }, [clientId, desktopHint, epoch, phase, profileId, selectedWorkspaceId, store]);
+  }, [clientId, desktopHint, epoch, onRegistered, phase, profileId, selectedWorkspaceId, store]);
 
   useEffect(() => {
     if (phase !== "waiting-retry") return undefined;

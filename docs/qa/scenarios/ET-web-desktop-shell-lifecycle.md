@@ -29,6 +29,12 @@ merge/release browser lanes exclude `@perf`; nightly and explicit `ci:full` PRs
 exercise the dedicated census. Validation receipts belong to the delivery PR; no local E2E
 walk is claimed under the overloaded-host restriction.
 
+qa-impact: 2026-11-21 (#1790). On cold reload of the eleven-tab desktop, the
+registered client's layout configuration read starts as soon as registration
+is accepted. Restore still measures from the snapshot response to the tab
+bar, with the existing 500 ms limit. The E2E-023 census verifies the reload,
+switching and peer convergence in CI.
+
 qa-impact: 2026-11-15 accepted window-manager commands retain workspace authorization and
 finish their durable commit within a separate 30-second lifetime after a browser disconnect.
 Pin a tab and immediately reload; its pin and leftmost position must survive. Repeat with
