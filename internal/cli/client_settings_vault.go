@@ -81,7 +81,7 @@ func newClientWithTimeout(target ClientTarget, requestTimeout time.Duration) (Da
 			Transport: transport, Timeout: requestTimeout, CheckRedirect: checkRedirect,
 		},
 		streamClient:         &http.Client{Transport: transport, CheckRedirect: checkRedirect},
-		hostedMCPCallTimeout: hostedMCPToolLifetime + requestTimeout,
+		hostedMCPCallTimeout: hostedMCPLongestFiniteWait + requestTimeout,
 	}, nil
 }
 

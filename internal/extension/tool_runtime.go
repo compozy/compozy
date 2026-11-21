@@ -100,6 +100,7 @@ func (m *Manager) CallToolForInstance(
 		}
 	}
 	defer finishTracking()
+	defer toolspkg.BeginHostedWaitProgress(ctx)()
 	var response toolspkg.ExtensionToolCallResponse
 	if err := process.Call(ctx, string(extensionprotocol.ExtensionServiceMethodToolsCall), req, &response); err != nil {
 		return toolspkg.ToolResult{}, fmt.Errorf(

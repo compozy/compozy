@@ -247,6 +247,8 @@ func (b *clarifyBridge) awaitClarifyResolution(
 		timer := time.NewTimer(time.Until(handle.pending.Deadline))
 		defer timer.Stop()
 		timerC = timer.C
+	} else {
+		defer toolspkg.BeginHostedWaitProgress(ctx)()
 	}
 	done := make(chan struct{})
 	if b.keepalive != nil {
