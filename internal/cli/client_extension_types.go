@@ -2,6 +2,7 @@ package cli
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 
@@ -117,7 +118,8 @@ type SSEEvent = sse.Event
 type SSEHandler = sse.Handler
 
 type daemonClient struct {
-	target       ClientTarget
-	httpClient   *http.Client
-	streamClient *http.Client
+	target               ClientTarget
+	httpClient           *http.Client
+	streamClient         *http.Client
+	hostedMCPCallTimeout time.Duration
 }

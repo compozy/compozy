@@ -267,6 +267,15 @@ func (c *daemonClient) CallHostedMCP(
 	ctx context.Context,
 	request mcppkg.HostedCallRequest,
 ) (mcppkg.HostedCallResponse, error) {
+	if ctx == nil {
+		return mcppkg.HostedCallResponse{}, errors.New("cli: context is required")
+	}
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel func()
+		ctx, cancel = withHostedMCPCallFallback(ctx, c.hostedMCPCallTimeout)
+		defer cancel()
+		request.ReportWaitProgress = true
+	}
 	var response mcppkg.HostedCallResponse
 	if err := c.doJSONWithClient(
 		ctx,
@@ -277,6 +286,9 @@ func (c *daemonClient) CallHostedMCP(
 		&response,
 		c.streamHTTPClient(),
 	); err != nil {
+		if errors.Is(err, context.Canceled) && errors.Is(context.Cause(ctx), errHostedMCPCallFallback) {
+			err = errors.Join(errHostedMCPCallFallback, err)
+		}
 		return mcppkg.HostedCallResponse{}, err
 	}
 	return response, nil
