@@ -242,6 +242,49 @@ describe("SessionWindowView", () => {
       expect(screen.getByTestId("session-list-scroll").scrollTop).toBe(480);
     });
 
+    it("Should leave the operator's later scrolling alone once the rail resumed", () => {
+      const first = renderView(undefined, true, { windowId: "session:settled" });
+      const list = screen.getByTestId("session-list-scroll");
+      list.scrollTop = 480;
+      fireEvent.scroll(list);
+      first.unmount();
+
+      rail.listLoading = true;
+      const next = renderView(undefined, true, { id: "sess-2", windowId: "session:settled" });
+      const rerender = () =>
+        next.rerender(
+          <SessionWindowView
+            windowId="session:settled"
+            name="general"
+            id="sess-2"
+            workspaceId=""
+            session={undefined}
+            liveTailEnabled
+            isLoading
+            error={null}
+          />
+        );
+      rail.listLoading = false;
+      rerender();
+      const resumed = screen.getByTestId("session-list-scroll");
+      expect(resumed.scrollTop).toBe(480);
+
+      // The operator scrolls; a re-render keeps their position.
+      resumed.scrollTop = 120;
+      fireEvent.scroll(resumed);
+      rerender();
+      expect(screen.getByTestId("session-list-scroll").scrollTop).toBe(120);
+
+      // A later reload (a breadth or search change) brings a fresh list that starts at the top.
+      rail.listLoading = true;
+      rerender();
+      rail.listLoading = false;
+      rerender();
+      const reloaded = screen.getByTestId("session-list-scroll");
+      expect(reloaded).not.toBe(resumed);
+      expect(reloaded.scrollTop).toBe(0);
+    });
+
     it("Should start another window's rail at the top", () => {
       const first = renderView(undefined, true, { windowId: "session:scrolled" });
       const list = screen.getByTestId("session-list-scroll");

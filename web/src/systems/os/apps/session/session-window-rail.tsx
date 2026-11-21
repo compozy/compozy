@@ -56,16 +56,17 @@ export function SessionWindowSidebarRail({
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
 
-  // Before paint, so the list never shows at the top first.
-  // Once, when the list itself is in place: a rail that mounts while its catalog still loads
-  // shows placeholder rows first, so the restore waits for the list to replace them.
-  const restoredRef = useRef(false);
+  // Before paint, so the list never shows at the top first. Once per window, when the list
+  // itself is in place: a rail that mounts while its catalog still loads shows placeholder rows
+  // first, so the restore waits for the list to replace them. After that the operator's own
+  // scrolling, and any later reload of the list, is never moved again.
+  const restoredForRef = useRef<string | null>(null);
   const listLoading = Boolean(sidebar.view.catalog?.loading);
   useLayoutEffect(() => {
-    if (restoredRef.current) return;
+    if (restoredForRef.current === windowId) return;
     const list = hostRef.current?.querySelector<HTMLElement>(LIST_SCROLL_SELECTOR);
     if (!list) return;
-    restoredRef.current = true;
+    restoredForRef.current = windowId;
     const top = railScrollTops.get(windowId);
     if (top) list.scrollTop = top;
   }, [windowId, listLoading]);
