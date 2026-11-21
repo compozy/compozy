@@ -83,16 +83,9 @@ func (api *AgentInstanceAPI) PeersPage(
 				result.NextCursor = base64.RawURLEncoding.EncodeToString(encoded)
 				return result, nil
 			}
-			peer := contract.AgentInstancePeer{
-				Name:  row.AgentName,
-				Scope: row.WorkspaceID,
-				State: row.State,
-			}
-			if api.ReadPeer != nil {
-				peer, err = api.ReadPeer(ctx, row)
-				if err != nil {
-					return result, err
-				}
+			peer, err := api.peerPayload(ctx, row)
+			if err != nil {
+				return result, err
 			}
 			result.Peers = append(result.Peers, peer)
 			last = row.ID
@@ -105,6 +98,20 @@ func (api *AgentInstanceAPI) PeersPage(
 		}
 		query.AfterID = rows[len(rows)-1].ID
 	}
+}
+
+func (api *AgentInstanceAPI) peerPayload(
+	ctx context.Context,
+	row agentinstance.Instance,
+) (contract.AgentInstancePeer, error) {
+	if api.ReadPeer != nil {
+		return api.ReadPeer(ctx, row)
+	}
+	return contract.AgentInstancePeer{
+		Name:  row.AgentName,
+		Scope: row.WorkspaceID,
+		State: row.State,
+	}, nil
 }
 
 func (filter instancePeersCursor) decodeAfter(encoded string) (string, error) {
