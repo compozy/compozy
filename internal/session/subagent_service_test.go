@@ -2467,11 +2467,12 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 				t.Fatal(err)
 			}
 			for i, task := range []*acp.NativeTaskObservation{
-				{Kind: acp.NativeTaskKindProgress, Usage: &acp.NativeTaskUsage{TotalTokens: 300, ToolUses: 2}},
-				{Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusRunning},
-				{Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusCompleted, Summary: new("new answer")},
+				{RunID: "0002", Kind: acp.NativeTaskKindProgress, Usage: &acp.NativeTaskUsage{TotalTokens: 300, ToolUses: 2}},
+				{RunID: "0002", Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusRunning},
+				{RunID: "0001", Kind: acp.NativeTaskKindProgress, Usage: &acp.NativeTaskUsage{TotalTokens: 2000, ToolUses: 8}},
+				{RunID: "0002", Kind: acp.NativeTaskKindState, Status: acp.NativeTaskStatusCompleted, Summary: new("new answer")},
 			} {
-				task.RunID, task.TaskID, task.ToolCallID = "0002", "saved-resume", launch.ProviderToolCallID
+				task.TaskID, task.ToolCallID = "saved-resume", launch.ProviderToolCallID
 				content, err := transcript.MarshalAgentEvent(
 					acp.AgentEvent{
 						Type:       acp.EventTypeNativeTask,

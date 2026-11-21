@@ -308,6 +308,7 @@ func (s *subagentService) dropNativeTasks(ctx context.Context, parent, turn stri
 type nativeReplayCall struct {
 	terminalAt time.Time
 	background bool
+	runID      string
 	result     *NativeSubagentEvent
 	tasks      []NativeSubagentEvent
 }

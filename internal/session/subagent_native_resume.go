@@ -48,6 +48,9 @@ func (s *subagentService) resumeNativeTask(
 
 func (c *nativeReplayCall) observe(ev NativeSubagentEvent) {
 	if ev.Task != nil {
+		if ev.Task.RunID != "" && ev.Task.RunID < c.runID {
+			return
+		}
 		if ev.Task.Background != nil && *ev.Task.Background {
 			c.background = true
 		}
@@ -63,6 +66,7 @@ func (c *nativeReplayCall) observe(ev NativeSubagentEvent) {
 			c.terminalAt = ev.At
 		}
 		if _, terminal := nativeTaskOutcome(ev.Task); terminal || nativeTaskActive(ev.Task) {
+			c.runID = max(c.runID, ev.Task.RunID)
 			c.tasks = append(c.tasks, ev)
 		}
 		return
