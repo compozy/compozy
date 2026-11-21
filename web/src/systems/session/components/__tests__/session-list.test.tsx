@@ -3418,6 +3418,7 @@ describe("SessionList folders and manual order", () => {
       sessions: layoutRows,
       facets: undefined,
       total: undefined,
+      working: undefined,
       loading: false,
       placeholder: false,
       failed: false,
