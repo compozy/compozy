@@ -523,8 +523,10 @@ provider drops the definition's `command`, `model`, and `reasoning_effort`; a ch
 `reasoning_effort`, unless the table restates them. `[[agents.overrides.<name>.fallback_chain]]` uses the
 AGENT.md route shape and replaces the whole chain; the narrowest layer that sets it wins and
 `fallback_chain = []` clears it. It is a trust root for native config tools
-(`config_trust_root_forbidden`), and `compozy config set` refuses it from an agent session
-(`agent_override_operator_only`); only the operator writes it. See `references/agent-definitions.md`.
+(`config_trust_root_forbidden`), and `compozy config set` refuses the scalar fields from an agent
+session (`agent_override_operator_only`). `compozy config set` rejects
+`agents.overrides.<name>.fallback_chain` for every caller as an unsupported config path, so the chain
+is set only by editing `config.toml`; only the operator writes it. See `references/agent-definitions.md`.
 
 ## Retired Memory And Compaction Settings
 

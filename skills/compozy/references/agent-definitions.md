@@ -28,11 +28,14 @@ The override applies to whichever definition wins for that name, layers merge pe
 runtime selections and `[roles.<role>]` routes still win for the fields they set. Reads keep the
 authored values and report the result in `effective_runtime` with source `config_override`. An override
 `fallback_chain` replaces the whole authored chain (`fallback_chain = []` clears it) and is the chain
-session starts, `--route` continuations, forks, and resumes use; reads report it in
+session starts, the first prompt bind of an unbound session, `--route` continuations, forks, and
+resumes use; reads report it in
 `effective_runtime.fallback_chain` with `sources.fallback_chain`. The table
 is operator-only: `compozy__config_set`/`compozy__config_unset` refuse it with
-`config_trust_root_forbidden`, and `compozy config set` inside an agent session refuses it with
-`agent_override_operator_only`. Never ask an agent to raise its own level.
+`config_trust_root_forbidden`, and `compozy config set` inside an agent session refuses the scalar
+fields with `agent_override_operator_only`. `compozy config set` does not accept
+`agents.overrides.<name>.fallback_chain` for any caller (unsupported config path), so the chain is set
+only by editing `config.toml`. Never ask an agent to raise its own level.
 
 ## Minimal AGENT.md
 
