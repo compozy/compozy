@@ -1465,6 +1465,36 @@ func TestNormalizeListQueryFinishedAutomationScope(t *testing.T) {
 		})
 	}
 
+	t.Run("Should keep folder cursors within their partition", func(t *testing.T) {
+		t.Parallel()
+		query := ListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: "ws-one",
+			Sort:        ListSortCreated,
+			Folder:      "sfold-one",
+		}
+		fingerprint, err := sessionListFingerprintForQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		query.Cursor, err = encodeSessionListCursor(
+			fingerprint, store.SessionCatalogPosition{
+				ID: "last", CreatedAt: benchmarkSessionTime, PrimaryAt: benchmarkSessionTime,
+				SecondaryAt: benchmarkSessionTime,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := sessionListPageCursor(query); err != nil {
+			t.Fatalf("cursor rejected by its own folder: %v", err)
+		}
+		query.Folder = store.SessionCatalogRootFolder
+		if _, _, err := sessionListPageCursor(query); !errors.Is(err, ErrListCursorInvalid) {
+			t.Fatalf("cursor in a different folder = %v, want ErrListCursorInvalid", err)
+		}
+	})
+
 	t.Run("Should keep facets on the default population while searching", func(t *testing.T) {
 		t.Parallel()
 		query := base

@@ -17,7 +17,6 @@ import type { ProjectGroupTree } from "../lib/workspace-folders";
 import {
   availableSessionListGroupBys,
   effectiveSessionListGroupBy,
-  sessionListSortParam,
   sessionListSubagentsParam,
   type SessionListGroupBy,
   type SessionListSort,
@@ -25,11 +24,8 @@ import {
 import type { SessionListFilters, SessionPayload } from "../types";
 
 import { useSessionCatalog } from "./use-session-catalog";
-import {
-  useSessionListPartitions,
-  type SessionListPartitions,
-} from "./use-session-list-partitions";
-import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
+import type { SessionListPartitions } from "./use-session-list-partitions";
+import { useSessionListContainerCatalog } from "./use-session-list-group-catalog";
 import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import {
   useSessionListGroups,
@@ -247,35 +243,13 @@ export function useSessionListView(
     profile: pair?.profile ?? profile.destination,
     enabled: enabled && flat && pair !== null,
   });
-  const partitions = useSessionListPartitions(
-    sessionCatalogScopedFilters(
-      scope,
-      {
-        ...groupFilters,
-        sort: sessionListSortParam(preferences.sort, { singlePair: pair !== null }),
-      },
-      profile.params
-    ),
-    folders.layout?.folders,
-    sidebar.folderFolds,
+  const { catalog, partitions } = useSessionListContainerCatalog(
+    { scope, pair, lens: profile.params },
+    { groupFilters, sort: preferences.sort, shelf },
+    folders,
     enabled && flat,
-    search.trim() !== ""
+    search
   );
-  const fallback = useSessionCatalog(
-    scope,
-    {
-      ...groupFilters,
-      sort: sessionListSortParam(preferences.sort, {
-        singlePair: pair !== null,
-        shelved: shelf !== "active" && folders.layout === undefined,
-      }),
-    },
-    enabled && flat && !partitions && !folders.loading
-  );
-  const catalog = partitions?.catalog ?? {
-    ...fallback,
-    loading: fallback.loading || folders.loading === true,
-  };
   const totals = useSessionListTotals({
     scope,
     lens: profile.params,

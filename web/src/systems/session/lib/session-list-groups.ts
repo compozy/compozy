@@ -177,6 +177,7 @@ export function sessionListGroupFilters(
 ): SessionListFilters {
   return {
     ...view.groupFilters,
+    ...(foldersLoaded ? { skip_total: false } : {}),
     sort: sessionListSortParam(view.sort, {
       singlePair: group.pair !== null,
       shelved: !foldersLoaded && view.shelf !== "active",

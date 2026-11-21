@@ -31,34 +31,10 @@ export function useSessionListPartitions(
         ]
       : []
   );
-  // An observer per container keeps cursor state in the same infinite-query
-  // envelope as the flat catalog, even when the number of folders changes.
-  const source = useMemo(() => {
-    const scoped: SessionListFilters = JSON.parse(filterKey);
-    const containers: [string, boolean][] = JSON.parse(containerKey);
-    const entries = containers.map(([folder, countOnly]) => ({
-      folder,
-      countOnly,
-      observer: new InfiniteQueryObserver(client, {
-        ...sessionListPartitionOptions(scoped, folder, countOnly),
-        enabled,
-      }),
-    }));
-    const read = () => entries.map(({ observer }) => observer.getCurrentResult());
-    let snapshot = read();
-    return {
-      entries,
-      subscribe: (notify: () => void) => {
-        const subscriptions = entries.map(({ observer }) => observer.subscribe(notify));
-        return () => subscriptions.forEach(unsubscribe => unsubscribe());
-      },
-      getSnapshot: () => {
-        const next = read();
-        if (next.some((entry, index) => entry !== snapshot[index])) snapshot = next;
-        return snapshot;
-      },
-    };
-  }, [client, containerKey, enabled, filterKey]);
+  const source = useMemo(
+    () => createPartitionSource(client, JSON.parse(filterKey), JSON.parse(containerKey), enabled),
+    [client, containerKey, enabled, filterKey]
+  );
   const results = useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
   if (!folders?.length) return undefined;
 
@@ -86,6 +62,38 @@ export function useSessionListPartitions(
       sessions,
       loading: [...pages.values()].some(page => page.loading),
       facets: undefined,
+    },
+  };
+}
+
+// One observer per container keeps its cursor in an infinite-query envelope,
+// while the external-store snapshot stays stable between query notifications.
+function createPartitionSource(
+  client: ReturnType<typeof useQueryClient>,
+  scoped: SessionListFilters,
+  containers: [string, boolean][],
+  enabled: boolean
+) {
+  const entries = containers.map(([folder, countOnly]) => ({
+    folder,
+    countOnly,
+    observer: new InfiniteQueryObserver(client, {
+      ...sessionListPartitionOptions(scoped, folder, countOnly),
+      enabled,
+    }),
+  }));
+  const read = () => entries.map(({ observer }) => observer.getCurrentResult());
+  let snapshot = read();
+  return {
+    entries,
+    subscribe: (notify: () => void) => {
+      const subscriptions = entries.map(({ observer }) => observer.subscribe(notify));
+      return () => subscriptions.forEach(unsubscribe => unsubscribe());
+    },
+    getSnapshot: () => {
+      const next = read();
+      if (next.some((entry, index) => entry !== snapshot[index])) snapshot = next;
+      return snapshot;
     },
   };
 }

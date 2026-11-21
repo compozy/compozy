@@ -50,6 +50,7 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 		}
 		query.InstanceMainIDs = instances.mainIDs
 	}
+	query.Folder = strings.TrimSpace(c.Query("folder"))
 	page, err := pager.ListPage(c.Request.Context(), query)
 	if err != nil {
 		status := http.StatusInternalServerError
@@ -136,7 +137,6 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		AllWorkspaces:   allWorkspaces,
 		WorkspaceIDs:    workspaceIDs,
 		WorktreeID:      strings.TrimSpace(c.Query("worktree")),
-		Folder:          strings.TrimSpace(c.Query("folder")),
 		State:           strings.TrimSpace(c.Query("state")),
 		SessionType:     sessionType,
 		AgentName:       strings.TrimSpace(c.Query("agent")),

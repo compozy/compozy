@@ -164,7 +164,9 @@ export function SessionListSections({
           <SessionListFolder
             key={folder.id}
             folder={folder}
-            count={partitions?.get(folder.id)?.total ?? countThreadSessions(section.threads)}
+            count={
+              partitions ? partitions.get(folder.id)?.total : countThreadSessions(section.threads)
+            }
             expanded={filtering || !collapsedFolders.has(folder.id)}
             onToggle={() => onToggleFolder(folder.id)}
             onNewSession={onNewSessionInFolder ? () => onNewSessionInFolder(folder.id) : undefined}

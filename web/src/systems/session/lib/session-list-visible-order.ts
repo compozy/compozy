@@ -95,9 +95,9 @@ function readGroupPages(
     return { key: group.key, folders, sessions: page?.sessions ?? [] };
   }
   const filtering = (view.search ?? "").trim() !== "";
-  const folderIds = folders
-    .filter(folder => filtering || !input.collapsedFolderIds.has(folder.id))
-    .map(folder => folder.id);
+  const folderIds = folders.flatMap(folder =>
+    filtering || !input.collapsedFolderIds.has(folder.id) ? [folder.id] : []
+  );
   const entries = [SESSION_LIST_ROOT_FOLDER, ...folderIds].map(folder => {
     const options = sessionListPartitionOptions(filters, folder, false);
     const page = input.queryClient.getQueryData(options.queryKey)?.pages[0];
