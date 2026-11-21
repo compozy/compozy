@@ -24,9 +24,6 @@ const LIST_SCROLL_SELECTOR = "[data-session-list-scroll]";
  */
 const railScrollTops = new Map<string, number>();
 
-/** The operator's own hand on the rail: a wheel, touch, pointer or key in it. */
-const OPERATOR_GESTURES = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
-
 /** The rail's pending restore: the container it last resumed, until the operator takes over. */
 interface RailRestore {
   windowId: string;
@@ -100,15 +97,18 @@ export function SessionWindowSidebarRail({
     const settle = () => {
       if (restoreRef.current?.windowId === windowId) restoreRef.current.settled = true;
     };
+    // The operator's own hand on the rail: a wheel, touch, pointer or key in it.
     host.addEventListener("scroll", remember, { capture: true, passive: true });
-    for (const type of OPERATOR_GESTURES) {
-      host.addEventListener(type, settle, { capture: true, passive: true });
-    }
+    host.addEventListener("wheel", settle, { capture: true, passive: true });
+    host.addEventListener("touchstart", settle, { capture: true, passive: true });
+    host.addEventListener("pointerdown", settle, { capture: true, passive: true });
+    host.addEventListener("keydown", settle, { capture: true, passive: true });
     return () => {
       host.removeEventListener("scroll", remember, { capture: true });
-      for (const type of OPERATOR_GESTURES) {
-        host.removeEventListener(type, settle, { capture: true });
-      }
+      host.removeEventListener("wheel", settle, { capture: true });
+      host.removeEventListener("touchstart", settle, { capture: true });
+      host.removeEventListener("pointerdown", settle, { capture: true });
+      host.removeEventListener("keydown", settle, { capture: true });
     };
   }, [windowId]);
 
