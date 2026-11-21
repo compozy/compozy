@@ -16,10 +16,7 @@ import { openContextMenuFromKeyboard } from "@/systems/os/lib/context-menu-keybo
 
 import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
 import { onDisclosureArrowKey } from "../../lib/session-list-stops";
-import {
-  SessionListDisclosureMark,
-  SessionListRunningGlyph,
-} from "./session-list-disclosure-mark";
+import { SessionListDisclosureMark, SessionListRunningGlyph } from "./session-list-disclosure-mark";
 
 export interface SessionListFolderProps {
   folder: { id: string; name: string };

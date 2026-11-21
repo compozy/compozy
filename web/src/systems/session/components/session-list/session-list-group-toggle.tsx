@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-
 import { onDisclosureArrowKey } from "../../lib/session-list-stops";
 import { SessionListDisclosureMark } from "./session-list-disclosure-mark";
 
