@@ -29,12 +29,19 @@ func canonicalRoot(path string) (string, error) {
 
 	canonicalPath, err := fileutil.CanonicalExistingDirectory(trimmed)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", ErrWorkspaceRootMissing
-		}
-		return "", fmt.Errorf("workspace: canonicalize workspace root %q: %w", trimmed, err)
+		return "", wrapRootAccessError("canonicalize", trimmed, err)
 	}
 	return canonicalPath, nil
+}
+
+func wrapRootAccessError(operation, root string, err error) error {
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return ErrWorkspaceRootMissing
+	case errors.Is(err, os.ErrPermission):
+		err = fmt.Errorf("%w: %w", ErrWorkspaceRootPermissionDenied, err)
+	}
+	return fmt.Errorf("workspace: %s workspace root %q: %w", operation, root, err)
 }
 
 func normalizeAdditionalDirs(rootDir string, dirs []string) ([]string, error) {

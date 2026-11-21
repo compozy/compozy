@@ -2,15 +2,19 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/clientstate"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -124,6 +128,185 @@ func newDaemonWindowManagerFixture(t *testing.T) daemonWindowManagerFixture {
 		engine: engine, registry: registry, repository: repository, manager: manager,
 		workspace: workspace, homePaths: homePaths, storePath: storePath,
 	}
+}
+
+func bootDaemonWithWindowManager(t *testing.T, d *Daemon) RuntimeDeps {
+	t.Helper()
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return &fakeSessionManager{}, nil
+	}
+	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+	var runtime RuntimeDeps
+	d.httpFactory = func(_ context.Context, deps RuntimeDeps) (Server, error) {
+		runtime = deps
+		return &fakeServer{name: "http"}, nil
+	}
+	d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "uds"}, nil }
+	if err := d.boot(t.Context()); err != nil {
+		t.Fatalf("boot daemon: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+			t.Error(err)
+		}
+	})
+	if !d.serving.Load() || runtime.WindowManagers == nil {
+		t.Fatal("daemon did not enter serving phase")
+	}
+	return runtime
+}
+
+func seedWorkspaceLayoutsForBoot(t *testing.T, home compozyconfig.HomePaths) (
+	offline, healthy workspacepkg.Workspace, retained clientstate.Entry,
+) {
+	t.Helper()
+	ctx := t.Context()
+	db, err := openDaemonTestGlobalDBAtPath(ctx, home.DatabaseFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(ctx); err != nil {
+			t.Error(err)
+		}
+	}()
+	resolver, err := workspacepkg.NewResolver(
+		db,
+		workspacepkg.WithHomePaths(home),
+		workspacepkg.WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := t.TempDir()
+	for _, registration := range []struct {
+		name      string
+		directory string
+		workspace *workspacepkg.Workspace
+	}{
+		{"offline", filepath.Join(parent, "offline-parent", "project"), &offline},
+		{"healthy", filepath.Join(parent, "healthy"), &healthy},
+	} {
+		if err := os.MkdirAll(registration.directory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		*registration.workspace, err = resolver.Register(ctx, workspacepkg.RegisterOptions{
+			RootDir: registration.directory, Name: registration.name,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	storeResolver, err := newWindowManagerStoreWorkspaceResolver(resolver, discardLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine, err := clientstate.Open(
+		ctx,
+		clientstate.DatabasePath(home.HomeDir),
+		storeResolver,
+		clientstate.DefaultLimits(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeDaemonWindowManagerEngine(t, engine)
+	authorizer := windowManagerWorkspaceAuthorizer{resolver: storeResolver}
+	repository, err := newWindowManagerRepository(engine, store.DefaultProfileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager, err := windowmanager.NewService(repository, authorizer, nil, windowmanager.DefaultConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := manager.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	seedStaleBootWindows(t, manager, windowmanager.WorkspaceID(offline.ID))
+	seedStaleBootWindows(t, manager, windowmanager.WorkspaceID(healthy.ID))
+	retained, err = engine.Get(ctx, clientstate.WorkspaceID(offline.ID), windowManagerStateDomain,
+		windowManagerSnapshotKey(store.DefaultProfileID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return offline, healthy, retained
+}
+
+func seedStaleBootWindows(t *testing.T, manager *windowmanager.Manager, partition windowmanager.WorkspaceID) {
+	t.Helper()
+	const terminalID = "term-0000000000ab"
+	for _, spec := range []windowmanager.WindowSpec{
+		{
+			ID: "terminal-stale", App: "terminal", InstanceKey: new(terminalID),
+			Route: windowmanager.RouteIntent{Pathname: "/terminal/" + terminalID},
+		},
+		{
+			ID: "session-bound", App: "session", InstanceKey: new("deleted-session"),
+			Route: windowmanager.RouteIntent{
+				Pathname: "/sessions/deleted-session",
+				Search:   windowmanager.RouteSearch{"workspace": json.RawMessage(`"ws_0000000000000000"`)},
+			},
+		},
+	} {
+		snapshot, err := manager.Snapshot(t.Context(), partition)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.Execute(t.Context(), windowmanager.CommandRequest{
+			WorkspaceID:      partition,
+			ExpectedRevision: snapshot.Revision,
+			Actor:            windowmanager.Actor{Kind: "system", ID: "test"},
+			Payload:          windowmanager.OpenWindowCommand{Window: spec},
+		}); err != nil {
+			t.Fatalf("persist %s in %s: %v", spec.ID, partition, err)
+		}
+	}
+}
+
+func renameBootTestWorkspace(t *testing.T, root string) {
+	t.Helper()
+	if err := os.Rename(root, root+"-renamed"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func denyBootTestWorkspaceAccess(t *testing.T, root string) {
+	t.Helper()
+	parent := filepath.Dir(root)
+	if err := os.Chmod(parent, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(parent, 0o755); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := os.Stat(root); !errors.Is(err, os.ErrPermission) {
+		t.Skipf("fixture cannot deny access to the workspace root: %v", err)
+	}
+}
+
+func assertBootPartitionWarning(t *testing.T, logPath, workspaceID string) {
+	t.Helper()
+	logBytes, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for line := range strings.SplitSeq(string(logBytes), "\n") {
+		var record struct {
+			Level       string `json:"level"`
+			Message     string `json:"msg"`
+			WorkspaceID string `json:"workspace_id"`
+		}
+		if json.Unmarshal([]byte(line), &record) == nil && record.Level == "WARN" &&
+			record.Message == "window_manager.partition_reconciliation_skipped" && record.WorkspaceID == workspaceID {
+			return
+		}
+	}
+	t.Fatalf("missing partition reconciliation warning for workspace %s", workspaceID)
 }
 
 func writeDaemonWindowManagerConfig(t *testing.T, path string, contents string) {

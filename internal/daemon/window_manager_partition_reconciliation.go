@@ -55,7 +55,7 @@ func (r *windowManagerRegistry) reconcilePartitions(
 		if errors.Is(err, windowmanager.ErrWorkspaceNotFound) {
 			continue
 		}
-		if skipUnavailable && errors.Is(err, windowmanager.ErrUnavailable) {
+		if skipUnavailable && (errors.Is(err, windowmanager.ErrUnavailable) || isWorkspaceRootUnavailable(err)) {
 			r.logger.WarnContext(ctx, "window_manager.partition_reconciliation_skipped",
 				"workspace_id", partition.workspaceID, "profile_id", partition.profileID, "error", err)
 			continue

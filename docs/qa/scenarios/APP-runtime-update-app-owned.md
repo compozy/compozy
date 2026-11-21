@@ -63,3 +63,20 @@ evidence (300k rows, ~700 MB, replacement boot with a restart journal): progress
 ~1s from 0 to 300000 rows over ~28s, then the journal turned `ready` with progress cleared.
 
 2026-11-12 boot window redesign (#1549): the bundled-runtime replacement now reads "Updating CompozyOS" with the `0.5.4 → 0.6.0` pill and a working "What's new" link to the target release notes. The step list includes Upgrade data while the replacement migrates. Migrate events carry `completed`, `total` and `migration` (`telemetry_relocation`, `usage_cost_repair`, `session_history_upgrade`). The window shows `N of M sessions` or records, a percentage, and an estimate once the rate is known; it no longer shows the old "Upgrading data…" label. Owning suites: `TestDesktopRuntimeBootstrapReplacement` (counts and versions), `TestBootSessionRepair`, `TestGlobalDBUsageCostRepair`, desktop `boot-journey`. The long walk lives in APP-boot-long-data-upgrade. Status reset to untested.
+
+## Runtime replacement with a missing workspace root (#1900)
+
+Use an isolated home with two registered, disposable projects. Open a terminal window in each
+project and let both layouts persist. Also retain a healthy-project window with a route bound to
+an unregistered workspace, using a pre-reconciliation layout fixture.
+
+1. Stop the disposable daemon and rename one project's root before launching the app update.
+2. Confirm the replacement daemon reaches `ready` and the app opens. Find
+   `window_manager.partition_reconciliation_skipped` at warning level with the renamed project's
+   workspace ID.
+3. Open the healthy project. Its stale terminal window is gone and its other window has returned
+   to the app landing route. Confirm the renamed project remains registered and its saved layout
+   and revision match the fixture.
+
+Owning suite `TestWindowManagerBootTerminals` covers daemon readiness, warning attribution, durable
+layout preservation, healthy-project reconciliation and partition-store failure in CI.

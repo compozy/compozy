@@ -69,7 +69,7 @@ func registeredWorkspaces(
 		switch {
 		case err == nil:
 			resolvedWorkspaces = append(resolvedWorkspaces, resolved)
-		case errors.Is(err, workspacepkg.ErrWorkspaceNotFound), errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
+		case errors.Is(err, workspacepkg.ErrWorkspaceNotFound), isWorkspaceRootUnavailable(err):
 			if logger != nil {
 				logger.Warn(
 					"daemon: skipped workspace while rebuilding hooks",
@@ -84,6 +84,12 @@ func registeredWorkspaces(
 	}
 
 	return resolvedWorkspaces, nil
+}
+
+func isWorkspaceRootUnavailable(err error) bool {
+	return errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) ||
+		errors.Is(err, workspacepkg.ErrWorkspaceRootPermissionDenied) ||
+		errors.Is(err, workspacepkg.ErrWorkspaceIdentityPermissionDenied)
 }
 
 func filterHookDeclsBySource(decls []hookspkg.HookDecl, source hookspkg.HookSource) []hookspkg.HookDecl {
