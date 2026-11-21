@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -1518,12 +1519,28 @@ func TestWindowManagerBootTerminals(t *testing.T) {
 		})
 	}
 
-	t.Run("Should fail boot reconciliation when the partition store is closed", func(t *testing.T) {
+	t.Run("Should fail the boot hook phase when the partition store is closed", func(t *testing.T) {
 		t.Parallel()
 		f := newDaemonWindowManagerFixture(t)
 		closeDaemonWindowManagerEngine(t, f.engine)
-		if err := f.registry.reconcileBootTerminals(t.Context()); !errors.Is(err, clientstate.ErrClosed) {
-			t.Fatalf("boot reconciliation error = %v, want clientstate.ErrClosed", err)
+		cfg := testConfig(t, f.homePaths)
+		d := newTestDaemon(t, f.homePaths, &cfg)
+		state := &bootState{
+			cfg:            cfg,
+			logger:         discardLogger(),
+			notifier:       newHooksNotifier(discardLogger(), d.now),
+			windowManagers: f.registry,
+		}
+		cleanup := &bootCleanup{}
+		t.Cleanup(func() {
+			for i, fn := range slices.Backward(cleanup.fns) {
+				if err := fn(context.WithoutCancel(t.Context())); err != nil {
+					t.Errorf("cleanup[%d]() error = %v", i, err)
+				}
+			}
+		})
+		if err := d.bootHooks(t.Context(), state, cleanup); !errors.Is(err, clientstate.ErrClosed) {
+			t.Fatalf("bootHooks() error = %v, want clientstate.ErrClosed", err)
 		}
 	})
 
