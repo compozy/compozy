@@ -86,7 +86,7 @@ const TINY_TILE_SOCKET = scriptedSocketFactory({
 
 const ACTIONS: TerminalWindowAppProps["actions"] = {
   onOpenTerminal: fn(),
-  onCloseTerminal: fn(),
+  onCloseTerminal: fn(async () => true),
   onStop: fn(),
   onWait: fn(),
   onStopRecording: fn(),

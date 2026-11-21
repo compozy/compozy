@@ -36,3 +36,10 @@ closes and the window opens a live terminal without a reload. Dismissing the dia
 click) without closing a terminal ends the wait and shows the "No terminals yet" empty state with
 its Open a terminal control instead of an endless "Opening a terminal". Walk both branches at the
 cap with the next pass; covered meanwhile by the terminal window component suite.
+
+QA impact 2026-11-21 (issue #1546): when the daemon refuses the cap dialog's Close (the error
+toast shows), a window waiting for a slot reopens the same project-cap dialog instead of staying on
+"Opening a terminal"; a slot freed afterwards still opens the terminal, and dismissing the reopened
+dialog shows the "No terminals yet" empty state. A Close the daemon accepts behaves as before. Walk
+the refused branch at the cap with the next pass; covered meanwhile by the terminal window
+component suite.

@@ -26,7 +26,12 @@ export interface TerminalWindowActions {
    * which retargets the current window.
    */
   onOpenTerminalTab?: () => void;
-  onCloseTerminal: (terminalId: string) => void;
+  /**
+   * Closes a terminal from the limit dialog. Resolves `true` once the daemon
+   * closed it and `false` when it refused, so a window waiting on that slot
+   * can return to the dialog instead of waiting for a slot that never frees.
+   */
+  onCloseTerminal: (terminalId: string) => Promise<boolean>;
   /** True while a close is already on its way to the daemon. */
   closePending?: boolean;
   onStop: (terminalId: string) => void;
