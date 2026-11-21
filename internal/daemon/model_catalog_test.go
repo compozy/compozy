@@ -1363,22 +1363,11 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListModels(native agy) error = %v", err)
 		}
-		// The native context exposes exactly its own logical rows: the previous
-		// server's three suffixed aliases must not surface here, fresh or stale,
-		// after the command identity changed, and no native row may be lost.
-		legacyIDs := []string{
-			"gemini-4-argon-medium",
-			"gemini-4-argon-high",
-			"gemini-3.8-flash-medium",
-		}
-		nativeIDs := catalogModelIDs(isolatedNative, "agy")
-		for _, modelID := range nativeIDs {
-			if slices.Contains(legacyIDs, modelID) {
-				t.Fatalf("native agy context published legacy row %q after the route change", modelID)
-			}
-		}
-		if !slices.Equal(nativeIDs, wantIDs) {
-			t.Fatalf("native agy models after the legacy refresh = %#v, want its own %#v", nativeIDs, wantIDs)
+		// The provider keeps one live slot, so the legacy refresh owns the stored rows.
+		// The native context must not surface them, fresh or stale, after the command
+		// identity changed: it lists nothing until its own refresh restores it below.
+		if nativeIDs := catalogModelIDs(isolatedNative, "agy"); len(nativeIDs) != 0 {
+			t.Fatalf("native agy context after the legacy refresh = %#v, want none of the legacy rows", nativeIDs)
 		}
 		retainedLegacy, err := oldService.ListModels(ctx, modelcatalog.ListOptions{
 			ProviderID:         "agy",
@@ -1399,6 +1388,18 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 		if _, err := service.Refresh(ctx, refresh); err != nil {
 			t.Fatalf("Refresh(native agy restore) error = %v", err)
+		}
+		restoredNative, err := service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:         "agy",
+			View:               modelcatalog.CatalogViewAll,
+			ExecutionContext:   executionContext,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(native agy restore) error = %v", err)
+		}
+		if got := catalogModelIDs(restoredNative, "agy"); !slices.Equal(got, wantIDs) {
+			t.Fatalf("native agy models after the restore = %#v, want exactly its own %#v", got, wantIDs)
 		}
 
 		cfg.Providers["agy"] = compozyconfig.ProviderConfig{Models: compozyconfig.ProviderModelsConfig{
