@@ -12,7 +12,10 @@ import type { SessionFolderPayload, SessionListFilters } from "../types";
 import type { SessionFoldSet } from "../lib/session-sidebar-scope";
 import { sessionCatalogPageView } from "./use-session-catalog";
 
-export type SessionListPartitionPage = ReturnType<typeof sessionCatalogPageView>;
+export type SessionListPartitionPage = ReturnType<typeof sessionCatalogPageView> & {
+  countOnly: boolean;
+  showNavigation: boolean;
+};
 export type SessionListPartitions = ReadonlyMap<string, SessionListPartitionPage>;
 
 export function useSessionListPartitions(
@@ -48,6 +51,10 @@ export function useSessionListPartitions(
         folder,
         {
           ...page,
+          countOnly,
+          // Debouncing blocks actions but only actual page activity gets a pager.
+          showNavigation:
+            page.paging || page.next || page.previous || (page.failed && page.sessions.length > 0),
           paging: page.paging || debouncing,
           next: page.next && !debouncing,
           previous: page.previous && !debouncing,

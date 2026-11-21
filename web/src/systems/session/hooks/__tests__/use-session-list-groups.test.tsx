@@ -570,6 +570,18 @@ describe("useSessionListView", () => {
     await waitFor(() => expect(result.current.catalog?.sessions).toHaveLength(101));
     expect(result.current.partitions?.get("@root")?.sessions).toEqual([{ id: "older-root" }]);
 
+    // A draft search pauses navigation without adding a pager to the one-page root.
+    act(() => result.current.setSearch?.("older"));
+    expect(result.current.partitions?.get("@root")).toMatchObject({
+      paging: true,
+      showNavigation: false,
+    });
+    expect(result.current.partitions?.get("sfold-alpha")).toMatchObject({
+      paging: true,
+      next: false,
+      showNavigation: true,
+    });
+
     shell.sort = "manual";
     const manual = renderHook(() => useSessionListView(), { wrapper: clientWrapper() });
     for (const shelf of ["archive", "later"] as const) {

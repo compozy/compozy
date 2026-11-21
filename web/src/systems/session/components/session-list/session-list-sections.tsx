@@ -3,7 +3,7 @@ import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
 
 import { MessagesSquare } from "@compozy/ui/icons";
 
-import { Button, Empty } from "@compozy/ui";
+import { Empty } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -35,6 +35,7 @@ import type {
   SessionListPartitions,
 } from "../../hooks/use-session-list-partitions";
 import { SessionGroupRowsSkeleton } from "./session-list-skeleton";
+import { GroupLoadFailure } from "./session-list-group-note";
 import { SessionListThread, type SessionThreadRootLayout } from "./session-list-thread";
 import type { SessionFoldSet, SessionSubagentFolds } from "../../lib/session-sidebar-scope";
 
@@ -108,7 +109,10 @@ export function SessionListSections({
     const page = partitions?.get(folderId ?? SESSION_LIST_ROOT_FOLDER);
     return (
       <>
-        <PartitionStatus page={page} />
+        <PartitionStatus
+          page={page}
+          retryTestId={`${testIdPrefix}-${folderId ? `folder-${folderId}` : "root"}-retry`}
+        />
 
         <SectionThreads
           threads={threads}
@@ -139,10 +143,7 @@ export function SessionListSections({
           sessionActions={sessionActions}
           testIdPrefix={testIdPrefix}
         />
-        {page &&
-        (page.previous || page.next || page.paging || (page.failed && page.sessions.length > 0)) ? (
-          <SessionListCatalogNavigation catalog={page} />
-        ) : null}
+        {page?.showNavigation ? <SessionListCatalogNavigation catalog={page} /> : null}
       </>
     );
   };
@@ -160,14 +161,13 @@ export function SessionListSections({
     <>
       {sections.folders.map(section => {
         const { folder } = section;
+        const page = partitions?.get(folder.id);
         return (
           <SessionListFolder
             key={folder.id}
             folder={folder}
-            count={
-              partitions ? partitions.get(folder.id)?.total : countThreadSessions(section.threads)
-            }
-            expanded={filtering || !collapsedFolders.has(folder.id)}
+            count={partitions ? page?.total : countThreadSessions(section.threads)}
+            expanded={page ? !page.countOnly : filtering || !collapsedFolders.has(folder.id)}
             onToggle={() => onToggleFolder(folder.id)}
             onNewSession={onNewSessionInFolder ? () => onNewSessionInFolder(folder.id) : undefined}
             onRename={() => onFolderDialog({ kind: "rename", folder })}
@@ -210,17 +210,16 @@ export function SessionListSections({
   );
 }
 
-function PartitionStatus({ page }: { page: SessionListPartitionPage | undefined }) {
+function PartitionStatus({
+  page,
+  retryTestId,
+}: {
+  page: SessionListPartitionPage | undefined;
+  retryTestId: string;
+}) {
   if (page?.loading) return <SessionGroupRowsSkeleton />;
   if (!page?.failed || page.sessions.length > 0) return null;
-  return (
-    <div className="flex items-center gap-2 px-3 text-micro text-subtle" role="status">
-      Couldn&rsquo;t load sessions
-      <Button variant="ghost" size="sm" onClick={page.retry}>
-        Retry
-      </Button>
-    </div>
-  );
+  return <GroupLoadFailure retryTestId={retryTestId} onRetry={page.retry} />;
 }
 
 /**

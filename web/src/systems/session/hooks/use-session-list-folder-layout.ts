@@ -42,6 +42,9 @@ export function useSessionListFolderLayout(
 ) {
   const layout = view.layout;
   const { folderFolds: collapsedFolders, toggleFolder } = useSessionSidebarState();
+  const loadedFolderFolds: SessionFoldSet = {
+    has: id => view.partitions?.get(id)?.countOnly ?? (!filtering && collapsedFolders.has(id)),
+  };
   const sections: SessionListSections | null = layout
     ? buildSessionListSections(threads, layout.folders, {
         filtering,
@@ -77,9 +80,7 @@ export function useSessionListFolderLayout(
     /** Drag reorder and Move up/down: only when every member of a container is listed. */
     orderable,
     /** Threads on screen in order; bulk selection and range picks follow it. */
-    visibleThreads: sections
-      ? sectionsVisibleThreads(sections, collapsedFolders, filtering)
-      : threads,
+    visibleThreads: sections ? sectionsVisibleThreads(sections, loadedFolderFolds, false) : threads,
     dnd,
     dialog,
     setDialog,

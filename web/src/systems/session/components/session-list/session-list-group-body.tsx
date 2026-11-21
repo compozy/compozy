@@ -1,9 +1,7 @@
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import { use } from "react";
 
-import { TriangleAlert } from "@compozy/ui/icons";
-
-import { Button, Icon } from "@compozy/ui";
+import { Button } from "@compozy/ui";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -26,6 +24,7 @@ import {
 import { buildSessionListThreads, threadVisibleOrder } from "../../lib/session-list-threads";
 import type { SessionListTarget } from "../../types";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
+import { GroupLoadFailure, GroupNote } from "./session-list-group-note";
 import { SessionListSections } from "./session-list-sections";
 import { SessionGroupRowsSkeleton } from "./session-list-skeleton";
 import { SessionListThreadList } from "./session-list-thread-list";
@@ -45,38 +44,6 @@ export interface GroupRowProps {
   onNewSession: (options?: SessionCreateOpenOptions) => void;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
-}
-
-export function GroupNote({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-6 items-center gap-2 px-3 py-1 text-micro text-subtle">
-      {children}
-    </div>
-  );
-}
-
-export function GroupLoadFailure({
-  retryTestId,
-  onRetry,
-}: {
-  retryTestId: string;
-  onRetry: () => void;
-}) {
-  return (
-    <GroupNote>
-      <Icon as={TriangleAlert} size="sm" className="text-warning" />
-      Couldn&rsquo;t load sessions
-      <Button
-        variant="ghost"
-        size="sm"
-        className="ml-auto"
-        data-testid={retryTestId}
-        onClick={onRetry}
-      >
-        Retry
-      </Button>
-    </GroupNote>
-  );
 }
 
 /**
