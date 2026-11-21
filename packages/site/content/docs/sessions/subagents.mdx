@@ -363,7 +363,9 @@ that no PR exists.
 
 An agent can address `compozy__session_prompt` by `agent` and `workspace`, instead of a session ID.
 CompozyOS resolves the current main when it admits the message, so rotation does not leave an old
-address behind. Use `agent instance list --peers` to discover reachable names and scopes.
+address behind. Use `compozy agent instance list --peers` to discover reachable names and scopes.
+An initial, unfiltered list can include a note when access rules hid all candidates. In the
+structured result, the optional `peers_note` gives the reason without identifying hidden peers.
 
 Instance list `active_count` measures occupied capacity across every workspace in the selected
 profiles, independently of row filters and pagination. `max_active_instances` is the per-profile

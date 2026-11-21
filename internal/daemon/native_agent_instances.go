@@ -281,7 +281,7 @@ func (n *daemonNativeTools) listNativeInstances(ctx context.Context, api *core.A
 	query agentinstance.ListQuery, view toolspkg.ResultView) (toolspkg.ToolResult, error) {
 	if input.Peers {
 		query.AllWorkspaces = input.AllWorkspaces || input.Workspace == ""
-		page, err := api.PeersPage(ctx, query, actor, n.deps.WorkspaceAccess)
+		page, err := api.PeersPage(ctx, query, actor, n.deps.WorkspaceAccess, "")
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}

@@ -318,6 +318,7 @@ export type AgentInstanceListResponse = {
   max_active_instances: number;
   next_cursor: string;
   peers?: Array<AgentInstancePeer>;
+  peers_note?: string;
 };
 
 export type AgentInstanceNextWake = {
@@ -14207,7 +14208,7 @@ export type ListAgentInstancesError = ListAgentInstancesErrors[keyof ListAgentIn
 
 export type ListAgentInstancesResponses = {
   /**
-   * OK
+   * Instance list or reachable peers. An authorization-filtered empty peer list may include peers_note.
    */
   200: AgentInstanceListResponse;
 };

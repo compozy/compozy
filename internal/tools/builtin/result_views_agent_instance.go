@@ -25,6 +25,7 @@ const agentInstanceListCompactOutputSchema = `{
     },
     "additionalProperties":false
   }},
+  "peers_note":{"type":"string"},
   "max_active_instances":{"type":"integer"},
   "active_count":{"type":"integer"},
   "next_cursor":{"type":"string"}

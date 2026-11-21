@@ -81,6 +81,7 @@ type AgentInstancePeer struct {
 
 type AgentInstanceListResponse struct {
 	Peers              []AgentInstancePeer    `json:"peers,omitempty"`
+	PeersNote          string                 `json:"peers_note,omitempty"`
 	MaxActiveInstances int                    `json:"max_active_instances"`
 	ActiveCount        int64                  `json:"active_count"`
 	Instances          []AgentInstancePayload `json:"instances"`

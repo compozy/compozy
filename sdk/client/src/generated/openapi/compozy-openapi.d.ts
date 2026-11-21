@@ -8729,6 +8729,7 @@ export interface components {
       max_active_instances: number;
       next_cursor: string;
       peers?: components["schemas"]["AgentInstancePeer"][];
+      peers_note?: string;
     };
     AgentInstanceNextWake: {
       at?: string;
@@ -23341,7 +23342,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description OK */
+      /** @description Instance list or reachable peers. An authorization-filtered empty peer list may include peers_note. */
       200: {
         headers: {
           [name: string]: unknown;

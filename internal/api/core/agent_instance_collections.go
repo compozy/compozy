@@ -159,7 +159,7 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 	}
 	var result contract.AgentInstanceListResponse
 	if peers {
-		result, err = h.AgentInstances.PeersPage(c.Request.Context(), query, actor, h.WorkspaceAccess)
+		result, err = h.AgentInstances.PeersPage(c.Request.Context(), query, actor, h.WorkspaceAccess, "")
 	} else {
 		result, err = h.AgentInstances.ListPage(c.Request.Context(), query, actor)
 	}

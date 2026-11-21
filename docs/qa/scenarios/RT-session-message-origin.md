@@ -110,7 +110,10 @@ Busy-target policy regression (#760)
 ## Always-on peer addressing and pause
 
 1. List reachable peers with `agent instance list --peers`; a denied workspace contributes neither a
-   row nor a private count. Keep the cursor bound to the same caller and filters.
+   row nor a private count. Keep the cursor bound to the same caller and filters. With an unfiltered
+   initial peer list that contains only denied candidates, expect a text note or an optional
+   `peers_note` in structured output. With visible peers or no candidates, expect no note. Reads
+   filtered by agent, state, another workspace or a cursor never return the note.
 2. Rotate a peer and send from an active work turn using its agent name and workspace. The receipt's
    `target_session_id` names the successor; the original session receives no new input.
 3. Pause that peer, send again with `wait:true`, and inspect `delivery: held` and queue `held: true`.

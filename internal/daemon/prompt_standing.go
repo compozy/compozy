@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -95,6 +94,7 @@ type standingRoster struct {
 	expires  time.Time
 	peers    []contract.AgentInstancePeer
 	more     bool
+	note     string
 }
 
 // standingView is everything one block renders.
@@ -104,6 +104,7 @@ type standingView struct {
 	peers            []contract.AgentInstancePeer
 	more             bool
 	peersUnavailable bool
+	peersNote        string
 	// compaction is the session's last completed compaction boundary. It is part of
 	// the block, so the block differs from the one delivered before a compaction and
 	// is resent in full until a send succeeds, however many attempts fail first.
@@ -124,7 +125,7 @@ func (a *standingContextAugmenter) Augment(
 		return message, nil
 	}
 	view := standingView{compaction: a.boundary(ctx, info.ID)}
-	scope, rules, err := a.rules(ctx, info, &agent)
+	rules, err := a.rules(ctx, info, &agent)
 	if err != nil {
 		if isContextError(err) {
 			return "", err
@@ -133,7 +134,9 @@ func (a *standingContextAugmenter) Augment(
 		view.rulesUnavailable = true
 	}
 	view.rules = rules
-	view.peers, view.more, view.peersUnavailable = a.peers(ctx, info, scope)
+	roster, unavailable := a.peers(ctx, info)
+	view.peers, view.more = roster.peers, roster.more
+	view.peersNote, view.peersUnavailable = roster.note, unavailable
 	content := renderStandingContext(view)
 	acp.RegisterPromptSection(ctx, acp.PromptSection{
 		Key: string(HarnessAugmenterStanding), Content: content, UnchangedContent: standingContextUnchanged,
@@ -157,34 +160,29 @@ func (a *standingContextAugmenter) boundary(ctx context.Context, sessionID strin
 	return *cleared
 }
 
-// rules returns the session's workspace name with the operator rules of its agent.
 func (a *standingContextAugmenter) rules(
 	ctx context.Context,
 	info *session.Info,
 	agent *compozyconfig.AgentDef,
-) (string, []string, error) {
+) ([]string, error) {
 	workspace, err := resolvePromptSkillsWorkspace(
 		ctx, a.workspaceResolver, a.profileNames, info.ProfileID, info.WorkspaceID, info.Workspace,
 	)
 	if err != nil {
-		return "", nil, fmt.Errorf("daemon: resolve standing context workspace: %w", err)
-	}
-	scope := ""
-	if workspace != nil {
-		scope = workspace.Name
+		return nil, fmt.Errorf("daemon: resolve standing context workspace: %w", err)
 	}
 	if a.memory == nil || a.catalog == nil {
-		return scope, nil, nil
+		return nil, nil
 	}
 	key, err := agentMemoryKey(a.catalog(), info.ProfileID, *agent, workspace)
 	if err != nil {
-		return scope, nil, err
+		return nil, err
 	}
 	rules, err := a.memory.Rules(key)
 	if err != nil {
-		return scope, nil, fmt.Errorf("daemon: load operator rules: %w", err)
+		return nil, fmt.Errorf("daemon: load operator rules: %w", err)
 	}
-	return scope, rules, nil
+	return rules, nil
 }
 
 // peers reuses the peers read of compozy__agent_instance_list, so the roster
@@ -194,14 +192,13 @@ func (a *standingContextAugmenter) rules(
 func (a *standingContextAugmenter) peers(
 	ctx context.Context,
 	info *session.Info,
-	scope string,
-) (peers []contract.AgentInstancePeer, more, unavailable bool) {
+) (standingRoster, bool) {
 	if a.instances == nil || info.InstanceID == "" {
-		return nil, false, false
+		return standingRoster{}, false
 	}
 	api := a.instances()
 	if api == nil {
-		return nil, false, false
+		return standingRoster{}, false
 	}
 	var revision int64
 	if a.catalog != nil {
@@ -216,7 +213,7 @@ func (a *standingContextAugmenter) peers(
 	generation := a.generation
 	a.mu.Unlock()
 	if ok && cached.revision == revision && now.Before(cached.expires) {
-		return cached.peers, cached.more, false
+		return cached, false
 	}
 	var access workspaceaccess.Policy
 	if a.access != nil {
@@ -226,18 +223,16 @@ func (a *standingContextAugmenter) peers(
 		Kind: workspaceaccess.ActorAgentSession, SessionID: info.ID,
 		WorkspaceID: info.WorkspaceID, AgentName: info.AgentName,
 	}
-	// One extra row tells apart "exactly the limit" from "more exist" after dropping self.
 	page, err := api.PeersPage(ctx, agentinstance.ListQuery{
-		ProfileID: info.ProfileID, AllWorkspaces: true, Limit: standingRosterLimit + 1,
-	}, actor, access)
+		ProfileID: info.ProfileID, AllWorkspaces: true, Limit: standingRosterLimit,
+	}, actor, access, info.InstanceID)
 	if err != nil {
 		// With no earlier roster the block says so; it never reads as "no peers".
-		return cached.peers, cached.more, !ok
+		return cached, !ok
 	}
-	peers = standingPeersWithoutSelf(page.Peers, info, scope)
-	more = page.NextCursor != "" || len(peers) > standingRosterLimit
-	if len(peers) > standingRosterLimit {
-		peers = peers[:standingRosterLimit]
+	roster := standingRoster{
+		revision: revision, expires: now.Add(standingRosterTTL),
+		peers: page.Peers, more: page.NextCursor != "", note: page.PeersNote,
 	}
 	a.mu.Lock()
 	// A roster read before an instance change must not outlive that change.
@@ -245,31 +240,10 @@ func (a *standingContextAugmenter) peers(
 		if a.rosters == nil || len(a.rosters) >= standingStateMaxSessions {
 			a.rosters = make(map[string]standingRoster)
 		}
-		a.rosters[info.ID] = standingRoster{
-			revision: revision, expires: now.Add(standingRosterTTL), peers: peers, more: more,
-		}
+		a.rosters[info.ID] = roster
 	}
 	a.mu.Unlock()
-	return peers, more, false
-}
-
-// standingPeersWithoutSelf drops the calling placement. The same agent placed in
-// another workspace is a peer.
-func standingPeersWithoutSelf(
-	page []contract.AgentInstancePeer, info *session.Info, scope string,
-) []contract.AgentInstancePeer {
-	own := []string{info.WorkspaceID, scope}
-	if info.WorkspaceID == "" {
-		own = append(own, extensionInstallationScopeGlobal)
-	}
-	peers := make([]contract.AgentInstancePeer, 0, len(page))
-	for _, peer := range page {
-		if peer.Name == info.AgentName && slices.Contains(own, peer.Scope) {
-			continue
-		}
-		peers = append(peers, peer)
-	}
-	return peers
+	return roster, false
 }
 
 // forgetRosters drops every cached roster after an instance is created, paused,
@@ -309,6 +283,10 @@ func renderStandingContext(view standingView) string {
 	if len(view.peers) > 0 {
 		peersReserve = utf8.RuneCountInString(standingPeersOverflow)
 	}
+	peersNotice := view.peerNotice()
+	if peersNotice != "" {
+		peersReserve = 1 + utf8.RuneCountInString(peersNotice)
+	}
 	switch {
 	case view.rulesUnavailable:
 		write(standingRulesUnavailable, 0)
@@ -317,21 +295,22 @@ func renderStandingContext(view standingView) string {
 		overflow := utf8.RuneCountInString(standingRulesOverflow)
 		for index, rule := range view.rules {
 			reserve := peersReserve
-			if index < len(view.rules)-1 {
+			if index < len(view.rules)-1 || peersNotice != "" {
 				reserve += overflow
 			}
 			if !write(fmt.Sprintf("%d. %s\n", index+1, escape(rule)), reserve) {
-				write(standingRulesOverflow, 0)
+				write(standingRulesOverflow, peersReserve)
 				break
 			}
 		}
 	}
-	if len(view.peers) > 0 {
+	separator := ""
+	if body.Len() > 0 {
+		separator = "\n"
+	}
+	switch {
+	case len(view.peers) > 0:
 		more := view.more
-		separator := ""
-		if body.Len() > 0 {
-			separator = "\n"
-		}
 		if write(separator+standingPeersIntro, peersReserve) {
 			for _, peer := range view.peers {
 				if !write(standingPeerLine(peer, escape), peersReserve) {
@@ -345,18 +324,24 @@ func renderStandingContext(view standingView) string {
 		if more {
 			write(standingPeersOverflow, 0)
 		}
-	}
-	if view.peersUnavailable {
-		separator := ""
-		if body.Len() > 0 {
-			separator = "\n"
-		}
-		write(separator+standingPeersUnavailable, 0)
+	case peersNotice != "":
+		write(separator+peersNotice, 0)
 	}
 	if body.Len() == 0 {
 		body.WriteString(standingEmpty)
 	}
 	return open + "\n" + strings.TrimRight(body.String(), "\n") + "\n" + standingContextClose
+}
+
+func (view standingView) peerNotice() string {
+	switch {
+	case view.peersUnavailable:
+		return standingPeersUnavailable
+	case view.peersNote != "":
+		return "# Peer agents\n\n" + view.peersNote + "\n"
+	default:
+		return ""
+	}
 }
 
 func standingPeerLine(peer contract.AgentInstancePeer, escape func(string) string) string {

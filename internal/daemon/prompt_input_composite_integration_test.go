@@ -831,24 +831,25 @@ func TestPromptInputCompositeIntegrationStandingContext(t *testing.T) {
 			}
 		}
 		repo := db.Instances()
-		admit := func(workspace, agent string) {
+		admit := func(workspace, agent string) string {
 			t.Helper()
-			if _, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{
+			instance, _, err := repo.AdmitCreate(t.Context(), agentinstance.Instance{
 				ProfileID: store.DefaultProfileID, WorkspaceID: workspace, AgentName: agent,
 				PermissionCeiling: "{}", CreatedByKind: "human",
-			}, 10); err != nil {
+			}, 10)
+			if err != nil {
 				t.Fatal(err)
 			}
+			return instance.ID
 		}
-		admit("allowed", "lead")
-		admit("allowed", "writer")
+		leadID := admit("allowed", "lead")
 		admit("denied", "hidden")
 		reads := 0
 		api := &core.AgentInstanceAPI{
 			Store: repo,
 			Authority: agentinstance.Authority{Callers: &instanceAdmissionInputs{
 				caller: agentinstance.Caller{
-					InstanceID: "lead-instance", AgentName: "lead", ProfileID: store.DefaultProfileID,
+					InstanceID: leadID, AgentName: "lead", ProfileID: store.DefaultProfileID,
 				},
 			}},
 			ReadPeer: func(_ context.Context, row agentinstance.Instance) (contract.AgentInstancePeer, error) {
@@ -865,42 +866,50 @@ func TestPromptInputCompositeIntegrationStandingContext(t *testing.T) {
 			now:       func() time.Time { return now },
 		}
 		info := &session.Info{
-			ID: "sess-lead", InstanceID: "lead-instance", AgentName: "lead",
+			ID: "sess-lead", InstanceID: leadID, AgentName: "lead",
 			ProfileID: store.DefaultProfileID, WorkspaceID: "allowed",
 		}
-		peers, more, _ := standing.peers(t.Context(), info, "")
-		if more || len(peers) != 1 || peers[0].Name != "writer" || peers[0].Accepts[0] != "intake: <text>" {
-			t.Fatalf("roster = %+v more=%t", peers, more)
+		filtered, unavailable := standing.peers(t.Context(), info)
+		rendered := renderStandingContext(standingView{peers: filtered.peers, peersNote: filtered.note})
+		if unavailable || len(filtered.peers) != 0 || !strings.Contains(rendered, "Access restrictions") ||
+			strings.Contains(rendered, "(denied)") || strings.Contains(rendered, "- hidden") {
+			t.Fatalf("filtered roster = %q", rendered)
+		}
+		admit("allowed", "writer")
+		if cached, _ := standing.peers(t.Context(), info); cached.note != filtered.note || len(cached.peers) != 0 {
+			t.Fatalf("filtered roster note lost before refresh: %+v", cached)
+		}
+		now = now.Add(standingRosterTTL)
+		roster, _ := standing.peers(t.Context(), info)
+		if roster.more || roster.note != "" || len(roster.peers) != 1 ||
+			roster.peers[0].Name != "writer" || roster.peers[0].Accepts[0] != "intake: <text>" {
+			t.Fatalf("roster = %+v", roster)
 		}
 		admit("allowed", "cleaner")
 		firstReads := reads
-		if peers, _, _ = standing.peers(t.Context(), info, ""); len(peers) != 1 || reads != firstReads {
-			t.Fatalf("cached roster = %+v reads=%d->%d", peers, firstReads, reads)
+		if roster, _ = standing.peers(t.Context(), info); len(roster.peers) != 1 || reads != firstReads {
+			t.Fatalf("cached roster = %+v reads=%d->%d", roster.peers, firstReads, reads)
 		}
 		now = now.Add(standingRosterTTL)
-		if peers, _, _ = standing.peers(t.Context(), info, ""); len(peers) != 2 {
-			t.Fatalf("refreshed roster = %+v", peers)
+		if roster, _ = standing.peers(t.Context(), info); len(roster.peers) != 2 {
+			t.Fatalf("refreshed roster = %+v", roster.peers)
 		}
 		admit("allowed", "watcher")
 		standing.forgetRosters()
-		if peers, _, _ = standing.peers(t.Context(), info, ""); len(peers) != 3 {
-			t.Fatalf("roster after an instance change = %+v", peers)
-		}
-		standing.forgetRosters()
-		if peers, _, _ = standing.peers(t.Context(), info, "other-placement"); len(peers) != 3 {
-			t.Fatalf("own placement listed as a peer: %+v", peers)
+		if roster, _ = standing.peers(t.Context(), info); len(roster.peers) != 3 {
+			t.Fatalf("roster after an instance change = %+v", roster.peers)
 		}
 		standing.forgetRosters()
 		canceled, cancel := context.WithCancel(t.Context())
 		cancel()
-		_, _, unavailable := standing.peers(canceled, info, "")
+		_, unavailable = standing.peers(canceled, info)
 		failed := renderStandingContext(standingView{peersUnavailable: unavailable})
 		if !unavailable || !strings.Contains(failed, "could not be read") || strings.Contains(failed, "withdrawn") {
 			t.Fatalf("failed roster read rendered as %q", failed)
 		}
 		outsider := &session.Info{ID: "sess-plain", AgentName: "lead", ProfileID: store.DefaultProfileID}
-		if peers, _, _ = standing.peers(t.Context(), outsider, ""); len(peers) != 0 {
-			t.Fatalf("session outside an instance got a roster: %+v", peers)
+		if roster, _ = standing.peers(t.Context(), outsider); len(roster.peers) != 0 || roster.note != "" {
+			t.Fatalf("session outside an instance got a roster: %+v", roster)
 		}
 	})
 
