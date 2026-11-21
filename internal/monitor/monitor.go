@@ -239,11 +239,13 @@ func normalizeSpec(spec Spec) (Spec, error) {
 }
 
 func normalizePullRequestSpec(spec Spec) (Spec, error) {
+	if strings.ContainsFunc(spec.Branch, unicode.IsSpace) {
+		return Spec{}, invalid("pull_request branch must not contain internal whitespace")
+	}
 	if owner, branch, qualified := strings.Cut(spec.Branch, ":"); qualified {
-		if !validPullRequestOwner(owner) || strings.TrimSpace(branch) == "" ||
-			strings.Contains(branch, ":") || strings.ContainsFunc(branch, unicode.IsSpace) {
+		if !validPullRequestOwner(owner) || branch == "" || strings.Contains(branch, ":") {
 			return Spec{}, invalid(
-				"qualified pull_request branch must use owner:branch with a non-empty owner and branch",
+				"qualified pull_request branch must use owner:branch with a GitHub account name and a non-empty branch",
 			)
 		}
 	}
