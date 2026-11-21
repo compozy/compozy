@@ -1,7 +1,12 @@
 import { observeElementOffset, type VirtualItem, type Virtualizer } from "@tanstack/react-virtual";
 import { type RefObject, useEffect, useRef } from "react";
 
-import { isRenderedElement, SCROLL_RESTORE_EVENT } from "@/lib/scroll-owner";
+import {
+  isRenderedAtScroll,
+  isRenderedElement,
+  SCROLL_RESTORE_EVENT,
+  trackRenderedOnScroll,
+} from "@/lib/scroll-owner";
 
 import type { ThreadScrollStore } from "./thread-scroll-context";
 import { threadScrollMode } from "./thread-scroll-store";
@@ -93,11 +98,21 @@ export function observeRenderedElementOffset(
   instance: Virtualizer<HTMLDivElement, HTMLDivElement>,
   publish: (offset: number, isScrolling: boolean) => void
 ): (() => void) | undefined {
-  return observeElementOffset(instance, (offset, isScrolling) => {
-    const viewport = instance.scrollElement;
-    if (viewport !== null && !isRenderedElement(viewport)) return;
+  const viewport = instance.scrollElement;
+  // Scroll events (`isScrolling`) share the transcript's one walk per event; the settle reports
+  // that follow them walk on their own.
+  const releaseRenderTracking = viewport === null ? undefined : trackRenderedOnScroll(viewport);
+  const stopObserving = observeElementOffset(instance, (offset, isScrolling) => {
+    if (viewport !== null) {
+      const rendered = isScrolling ? isRenderedAtScroll(viewport) : isRenderedElement(viewport);
+      if (!rendered) return;
+    }
     publish(offset, isScrolling);
   });
+  return () => {
+    stopObserving?.();
+    releaseRenderTracking?.();
+  };
 }
 
 /**
@@ -134,8 +149,7 @@ export function useThreadScrollResume(
       holding = false;
       cancelAnimationFrame(frame);
     };
-    const read = () => {
-      if (!isRenderedElement(viewport)) return;
+    const readAnchor = () => {
       if (holding) {
         // The hold's own writes and the virtualizer's compensation for re-measured rows are not
         // the reader's; any other move (autoscroll, assistive tech, a scrollbar drag) is.
@@ -159,6 +173,12 @@ export function useThreadScrollResume(
         top,
         text: textAnchorAt(viewport),
       };
+    };
+    const read = () => {
+      if (isRenderedElement(viewport)) readAnchor();
+    };
+    const readOnScroll = () => {
+      if (isRenderedAtScroll(viewport)) readAnchor();
     };
     /** Where the anchored row puts the viewport now, by its current measurement. */
     const targetOf = (reading: ReadingAnchor): number => {
@@ -229,8 +249,9 @@ export function useThreadScrollResume(
       hold(() => void place(reading));
     };
     endHold.current = release;
+    const releaseRenderTracking = trackRenderedOnScroll(viewport);
     read();
-    viewport.addEventListener("scroll", read, { passive: true });
+    viewport.addEventListener("scroll", readOnScroll, { passive: true });
     viewport.addEventListener(SCROLL_RESTORE_EVENT, resume);
     // The reader's input ends a hold still settling.
     viewport.addEventListener("wheel", release, { passive: true });
@@ -240,12 +261,13 @@ export function useThreadScrollResume(
     return () => {
       release();
       endHold.current = () => undefined;
-      viewport.removeEventListener("scroll", read);
+      viewport.removeEventListener("scroll", readOnScroll);
       viewport.removeEventListener(SCROLL_RESTORE_EVENT, resume);
       viewport.removeEventListener("wheel", release);
       viewport.removeEventListener("pointerdown", release);
       viewport.removeEventListener("keydown", release);
       viewport.removeEventListener("touchstart", release);
+      releaseRenderTracking();
     };
   }, [placeTurn, store, viewportRef, virtualizer]);
   return endHold;

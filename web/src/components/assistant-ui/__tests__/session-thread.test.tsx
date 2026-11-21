@@ -4758,6 +4758,28 @@ describe("SessionThread transcript states", () => {
     expect(pill).toHaveAttribute("data-visible", "true");
   });
 
+  // Invariant (#1546): the transcript's scroll listeners (gestures, resume anchor, virtualizer
+  // offset) share one ancestor walk per scroll event. A call count is the only observable here.
+  it("Should walk the viewport's ancestors once per scroll event", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("walk") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+    const viewport = screen.getByTestId("chat-view");
+    const closest = Element.prototype.closest;
+    let walks = 0;
+    const spy = vi.spyOn(Element.prototype, "closest").mockImplementation(function (
+      this: Element,
+      selector: string
+    ) {
+      if (this === viewport && selector === "[hidden]") walks += 1;
+      return closest.call(this, selector);
+    });
+    onTestFinished(() => spy.mockRestore());
+
+    fireEvent.scroll(viewport);
+
+    expect(walks).toBe(1);
+  });
+
   function settlingTranscript(prefix: string, length = 40) {
     return toReadonlyThreadMessages(
       Array.from({ length }, (_, index) => ({

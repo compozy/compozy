@@ -20,3 +20,55 @@ export const SCROLL_RESTORE_EVENT = "compozy:scroll-restore";
 export function isRenderedElement(element: Element): boolean {
   return element.isConnected && element.closest("[hidden]") === null;
 }
+
+interface ScrollRenderTracker {
+  /** Whether the element was rendered when its latest scroll event was dispatched. */
+  rendered: boolean;
+  /** The listeners that read {@link isRenderedAtScroll} for this element. */
+  readers: number;
+  readonly handleScroll: () => void;
+}
+
+const scrollRenderTrackers = new WeakMap<Element, ScrollRenderTracker>();
+
+/**
+ * Walks the element's ancestors once per scroll event for every listener that reads
+ * {@link isRenderedAtScroll}. The walk runs in the capture phase, which on the target precedes
+ * every listener registered without `capture`, so the result is current for each of them whatever
+ * order they registered in. Returns the release; the last release removes the walk.
+ */
+export function trackRenderedOnScroll(element: Element): () => void {
+  let tracker = scrollRenderTrackers.get(element);
+  if (tracker === undefined) {
+    const created: ScrollRenderTracker = {
+      rendered: isRenderedElement(element),
+      readers: 0,
+      handleScroll: () => {
+        created.rendered = isRenderedElement(element);
+      },
+    };
+    element.addEventListener("scroll", created.handleScroll, { capture: true, passive: true });
+    scrollRenderTrackers.set(element, created);
+    tracker = created;
+  }
+  const tracked = tracker;
+  tracked.readers += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    tracked.readers -= 1;
+    if (tracked.readers > 0) return;
+    element.removeEventListener("scroll", tracked.handleScroll, { capture: true });
+    scrollRenderTrackers.delete(element);
+  };
+}
+
+/**
+ * {@link isRenderedElement} for a scroll listener on an element {@link trackRenderedOnScroll}
+ * tracks: the answer the one walk for the scroll event being dispatched gave. Only valid while that
+ * event is dispatched; an untracked element walks its ancestors.
+ */
+export function isRenderedAtScroll(element: Element): boolean {
+  return scrollRenderTrackers.get(element)?.rendered ?? isRenderedElement(element);
+}

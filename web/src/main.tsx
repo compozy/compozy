@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 
 import { TooltipProvider, UIProvider } from "@compozy/ui";
 
+import { restoreScrollOutsideShell } from "@/lib/router-scroll-restoration";
 import { ThemeToaster, installThemeRuntime } from "@/systems/theme";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { routeTree } from "./routeTree.gen";
@@ -14,13 +15,6 @@ import { Provider as TanStackQueryProvider } from "./integrations/tanstack-query
 import "./styles.css";
 
 const TanStackQueryProviderContext = getContext();
-/**
- * The router restores scroll by an element's DOM path on every navigation, and in the desktop shell
- * every focus change is a navigation: it wrote offsets recorded while a pane was hidden (0), or
- * another pane's offset after a move, into whatever window content sat at that path. Window panes
- * keep their own offsets (`WindowPaneHosts`); only the page outside the shell keeps the router's.
- */
-const ROUTES_OUTSIDE_SHELL = new Set(["/design-system"]);
 // No `defaultViewTransition`: the router cannot tell an in-window drill from a
 // window focus change, and its callback resolves before React commits. The OS
 // window-manager runtime owns view transitions (`runViewTransition`).
@@ -30,10 +24,11 @@ const router = createRouter({
     ...TanStackQueryProviderContext,
   },
   defaultPreload: "intent",
-  scrollRestoration: ({ location }) => ROUTES_OUTSIDE_SHELL.has(location.pathname),
   defaultStructuralSharing: true,
   defaultPreloadStaleTime: 0,
 });
+// Not a `createRouter` option: there it would track scroll on shell routes, which never restore.
+restoreScrollOutsideShell(router);
 
 declare module "@tanstack/react-router" {
   interface Register {
