@@ -16,7 +16,8 @@ import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/
 import { SessionThread } from "./session-thread-lazy";
 import { SessionWindowRightRegion } from "./session-window-right-panel";
 import { SessionPullRequestExitSurface } from "./session-pull-request-exit-surface";
-import { SessionWindowRowDialogs } from "./session-window-row-dialogs";
+import { SessionWindowRailLayout, SessionWindowSidebarRail } from "./session-window-rail";
+import { SessionWindowClearDialog, SessionWindowRowDialogs } from "./session-window-row-dialogs";
 import { useForkDeadSession } from "./use-fork-dead-session";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { useSessionWindowDerivedSessions } from "./hooks/use-session-window-derived-sessions";
@@ -36,12 +37,9 @@ import {
   SessionReportSendContext,
   SessionResumeFailure,
   SessionRuntimeRecoveryNotice,
-  SessionSidebar,
-  SessionSidebarLayout,
   SessionStopAttentionNotice,
   SupersededNotice,
   hasUnrecoverableRuntime,
-  useSessionWindowPresentation,
 } from "@/systems/session";
 
 type SessionWindowControls = ReturnType<typeof useSessionWindowController>["controls"];
@@ -127,20 +125,6 @@ function SessionWindowNoticeContent({
     );
   }
   return null;
-}
-
-/** The sessions rail beside the session pane; over the board the board is the list, so no rail. */
-function SessionWindowRailLayout({
-  sidebar,
-  children,
-}: {
-  sidebar: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  if (useSessionWindowPresentation() === "board-drawer") {
-    return <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>;
-  }
-  return <SessionSidebarLayout sidebar={sidebar}>{children}</SessionSidebarLayout>;
 }
 
 type SessionWindowPage = ReturnType<typeof useSessionWindowController>;
@@ -270,19 +254,11 @@ export function SessionWindowContent({
                 >
                   <SessionWindowRailLayout
                     sidebar={
-                      <SessionSidebar
-                        open={sidebar.open}
-                        sessions={sidebar.sessions}
-                        disconnected={sidebar.disconnected}
-                        collapsedThreadIds={sidebar.collapsedThreadIds}
-                        subagentThreadIds={sidebar.subagentThreadIds}
-                        view={sidebar.view}
+                      <SessionWindowSidebarRail
+                        windowId={windowId}
+                        sidebar={sidebar}
                         currentSessionId={sessionId}
                         revealedSession={session}
-                        onThreadBranchChange={sidebar.onThreadBranchChange}
-                        onSelectSession={sidebar.onSelectSession}
-                        onNewSession={sidebar.onNewSession}
-                        sessionActions={sidebar.sessionActions}
                       />
                     }
                   >
@@ -397,11 +373,8 @@ export function SessionWindowContent({
                   workspaceId={workspaceId}
                   workspaceName={session.workspace_path ?? workspaceId}
                 />
-                <SessionWindowRowDialogs
-                  clearDialog={clearDialog}
-                  controls={controls}
-                  sidebar={sidebar}
-                />
+                <SessionWindowRowDialogs sidebar={sidebar} />
+                <SessionWindowClearDialog clearDialog={clearDialog} controls={controls} />
               </div>
             </SessionSideDrawer>
           </SessionSubagentDrawer>

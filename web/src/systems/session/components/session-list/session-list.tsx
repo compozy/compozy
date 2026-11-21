@@ -193,6 +193,7 @@ export function SessionList({
           {grouped ? (
             <div
               className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
+              data-session-list-scroll
               data-group-by={view.groupBy}
             >
               {pinnedSection}
@@ -330,6 +331,7 @@ function SessionListFolderBody({
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
+      data-session-list-scroll
       aria-busy={view.catalog?.paging || undefined}
     >
       {pinnedSection}
@@ -396,6 +398,7 @@ function SessionListBody({
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
+      data-session-list-scroll
       aria-busy={view.catalog?.paging || undefined}
     >
       {pinnedSection}

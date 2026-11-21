@@ -1429,6 +1429,58 @@ test("Issue 836: the sessions rail resizes by drag and keyboard, persists, and r
     .toBe(true);
 });
 
+// Invariant (#1923): the sessions rail is the window's, not the shown session's. Picking a row
+// below the fold swaps only the conversation: the list stays scrolled, and the picked row stays
+// on screen marked current.
+test("Issue 1923: picking a rail row keeps the sessions list where it was", async ({
+  appPage,
+  runtime,
+}) => {
+  await appPage.setViewportSize({ width: 1280, height: 640 });
+  const workspace = await prepareShell(appPage, runtime);
+  const sessions = [];
+  for (let index = 1; index <= 24; index += 1) {
+    sessions.push(
+      await createNamedSession(
+        runtime,
+        workspace.id,
+        `Rail scroll ${String(index).padStart(2, "0")}`
+      )
+    );
+  }
+  const shown = sessions.at(-1)!;
+  const target = sessions[0]!;
+  const windowId = await openSessionWindowInAuthority(runtime, workspace.id, shown);
+  await showTab(appPage, runtime, workspace.id, windowId);
+  const shownWin = sessionWindow(appPage, shown.id);
+  await expect(shownWin).toBeVisible();
+
+  const targetRow = shownWin
+    .getByTestId("session-sidebar")
+    .getByTestId(`session-sidebar-session-${target.id}`);
+  await targetRow.scrollIntoViewIfNeeded();
+  await expect(targetRow).toBeInViewport();
+  // The list's own scroll container: the nearest ancestor that scrolls vertically.
+  const listScrollTop = (row: Locator) =>
+    row.evaluate(element => {
+      let node = element.parentElement;
+      while (node && getComputedStyle(node).overflowY !== "auto") node = node.parentElement;
+      return node?.scrollTop ?? 0;
+    });
+  expect(await listScrollTop(targetRow)).toBeGreaterThan(0);
+
+  await targetRow.click();
+  const targetWin = sessionWindow(appPage, target.id);
+  await expect(targetWin).toBeVisible();
+  const pickedRow = targetWin
+    .getByTestId("session-sidebar")
+    .getByTestId(`session-sidebar-session-${target.id}`);
+  await expect(pickedRow).toHaveAttribute("aria-current", "true");
+  await expect(pickedRow).toBeInViewport();
+  // A remounted rail would land back at the top; the list stays scrolled down to the pick.
+  expect(await listScrollTop(pickedRow)).toBeGreaterThan(0);
+});
+
 test("E2E-009: the pager and overview keep desktop arrangements independent", async ({
   appPage,
   runtime,

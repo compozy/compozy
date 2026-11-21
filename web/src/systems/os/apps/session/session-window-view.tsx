@@ -6,7 +6,7 @@ import { Button, Empty, Spinner, VIEW_TRANSITION_CLASS } from "@compozy/ui";
 
 import { loadSessionWindowContent } from "./session-window-module-loader";
 import { SessionReadOnlyTranscript } from "./session-read-only-transcript";
-import { SessionWindowSkeleton } from "./session-window-skeleton";
+import { SessionWindowLoadingFrame } from "./session-window-rail";
 import {
   useMarkSeenOnLeave,
   canPromptSession,
@@ -54,8 +54,9 @@ export function SessionWindowView({
   useMarkSeenOnLeave(instance, Boolean(session) && currentSessionId === session?.id);
   const sessionWorkspaceId = session?.workspace_id?.trim() ?? "";
 
+  // A row pick keeps the live rail on screen while the picked session loads (#1923).
+  if (isLoading) return <SessionWindowLoadingFrame windowId={windowId} sessionId={id} />;
   const placeholder = sessionWindowPlaceholder({
-    isLoading,
     shown: session !== undefined && sessionWorkspaceId === workspaceId,
     error,
     onRetry,
@@ -113,7 +114,7 @@ export function SessionWindowView({
       enter={VIEW_TRANSITION_CLASS.fade}
       exit={VIEW_TRANSITION_CLASS.fade}
     >
-      <Suspense fallback={<SessionWindowSkeleton />}>
+      <Suspense fallback={<SessionWindowLoadingFrame windowId={windowId} sessionId={id} />}>
         <SessionPromptRuntimeProvider canPrompt={canPromptSession(session)} session={session}>
           <SessionChatRuntimeProvider
             sessionId={id}
@@ -137,25 +138,22 @@ export function SessionWindowView({
 }
 
 /**
- * What the window shows instead of the session: the skeleton while it loads, a
- * retryable notice when the read failed for any reason but not-found, and
- * "Couldn't find this session" only for a session that is not there (or not in
- * this workspace). `null` once the session can be shown.
+ * What the window shows instead of a loaded session: a retryable notice when the
+ * read failed for any reason but not-found, and "Couldn't find this session" only
+ * for a session that is not there (or not in this workspace). `null` once the session
+ * can be shown.
  */
 function sessionWindowPlaceholder({
-  isLoading,
   shown,
   error,
   onRetry,
   retrying,
 }: {
-  isLoading: boolean;
   shown: boolean;
   error: Error | null;
   onRetry?: () => void;
   retrying: boolean;
 }): React.ReactNode {
-  if (isLoading) return <SessionWindowSkeleton />;
   if (shown) return null;
   if (error && !isSessionUnavailable(error)) {
     return (

@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 
 import type { useSessionWindowController } from "./use-session-window-controller";
+import type { SessionWindowSidebarModel } from "./use-session-window-sidebar";
 
 const SessionClearDialog = lazy(() =>
   import("./session-window-dialogs").then(module => ({ default: module.SessionClearDialog }))
@@ -21,12 +22,8 @@ const SessionRenameDialog = lazy(() =>
   }))
 );
 
-/** The lifecycle dialogs the rail and the clear command raise over the window. */
-export function SessionWindowRowDialogs({
-  sidebar,
-  clearDialog,
-  controls,
-}: Pick<ReturnType<typeof useSessionWindowController>, "sidebar" | "clearDialog" | "controls">) {
+/** The lifecycle dialogs the rail's rows raise over the window. */
+export function SessionWindowRowDialogs({ sidebar }: { sidebar: SessionWindowSidebarModel }) {
   return (
     <>
       {sidebar.rowProcessDialog.open ? (
@@ -50,6 +47,17 @@ export function SessionWindowRowDialogs({
           />
         </Suspense>
       ) : null}
+    </>
+  );
+}
+
+/** The clear command's confirmation over the window. */
+export function SessionWindowClearDialog({
+  clearDialog,
+  controls,
+}: Pick<ReturnType<typeof useSessionWindowController>, "clearDialog" | "controls">) {
+  return (
+    <>
       {clearDialog.open ? (
         <Suspense fallback={null}>
           <SessionClearDialog

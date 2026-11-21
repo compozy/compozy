@@ -1,15 +1,17 @@
 // Suite: OS session-window view runtime selection
 // Invariant: a User-scope session (no workspace, scope "user") is live work and binds the chat
 // runtime to the `@user` selector; only a legacy session without any scope falls back to the
-// read-only history. A window whose session has not loaded holds the frames the loaded window
-// fills (rail, transcript, composer) under one busy status, never a bare spinner. Only a
+// read-only history. A window whose session has not loaded keeps the live sessions rail, marking
+// that session current, beside the frames the loaded pane fills (transcript, composer) under one
+// busy status, never a bare spinner. The rail list resumes its window's scroll when a session
+// switch remounts it (#1923). Only a
 // not-found read says "Couldn't find this session"; any other failure says the read failed and
 // offers Try again.
 // Owning layer: the OS session-window view.
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionApiError } from "@/systems/session/adapters/session-api-errors";
 
@@ -21,8 +23,29 @@ vi.mock("@/systems/agent", () => ({ useAgentInstances: () => instances.current }
 const runtimeProviderSpy = vi.hoisted(() => vi.fn());
 const readOnlyTranscriptSpy = vi.hoisted(() => vi.fn());
 
+vi.mock("../use-session-window-sidebar", () => ({
+  useSessionWindowSidebar: () => ({
+    open: true,
+    sessions: [],
+    rowProcessDialog: { open: false },
+    rowRenameDialog: { open: false },
+    rowLaterDialog: { open: false },
+  }),
+}));
+
 vi.mock("@/systems/session", () => ({
   canPromptSession: () => true,
+  useSessionWindowPresentation: () => "window",
+  // The rail's list scroll container, as `SessionList` marks it, naming the row on screen.
+  SessionSidebar: ({ currentSessionId }: { currentSessionId?: string }) => (
+    <aside data-testid="session-sidebar">
+      <div
+        data-session-list-scroll
+        data-testid="session-list-scroll"
+        data-current={currentSessionId}
+      />
+    </aside>
+  ),
   useMarkSeenOnLeave: () => undefined,
   SessionSidebarLayout: ({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) => (
     <>
@@ -30,7 +53,6 @@ vi.mock("@/systems/session", () => ({
       {children}
     </>
   ),
-  SessionSidebarSkeleton: () => <aside data-testid="session-sidebar-skeleton" />,
   SessionPromptRuntimeProvider: ({ children }: { children: ReactNode }) => children,
   SessionChatRuntimeProvider: (props: { workspaceId: string; children: ReactNode }) => {
     runtimeProviderSpy(props.workspaceId);
@@ -52,13 +74,18 @@ vi.mock("../session-window-module-loader", () => ({
 function renderView(
   session: Record<string, unknown> | undefined,
   isLoading = false,
-  { error = null, onRetry }: { error?: Error | null; onRetry?: () => void } = {}
+  {
+    error = null,
+    onRetry,
+    id = "sess-1",
+    windowId = "session:sess-1",
+  }: { error?: Error | null; onRetry?: () => void; id?: string; windowId?: string } = {}
 ) {
   return render(
     <SessionWindowView
-      windowId="session:sess-1"
+      windowId={windowId}
       name="general"
-      id="sess-1"
+      id={id}
       workspaceId=""
       session={session as never}
       liveTailEnabled
@@ -108,8 +135,11 @@ describe("SessionWindowView", () => {
     expect(region).toHaveAttribute("role", "status");
     expect(region).toHaveAttribute("aria-busy", "true");
     expect(region).toHaveTextContent("Loading session");
-    // The rail, the transcript rows and the composer card are each in the place they will fill.
-    expect(screen.getByTestId("session-sidebar-skeleton")).toBeInTheDocument();
+    // The live rail stays beside the pane's placeholder, outside its busy region; the transcript
+    // rows and the composer card are each in the place they will fill.
+    expect(screen.getByTestId("session-sidebar")).toBeInTheDocument();
+    expect(region).not.toContainElement(screen.getByTestId("session-sidebar"));
+    expect(screen.getByTestId("session-list-scroll")).toHaveAttribute("data-current", "sess-1");
     expect(region.querySelector('[data-slot="skeleton-text"]')).not.toBeNull();
     expect(screen.getByTestId("composer-skeleton")).toBeInTheDocument();
     // One announcement for the whole window: the placeholders are never statuses of their own.
@@ -138,5 +168,51 @@ describe("SessionWindowView", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't find this session");
     expect(screen.queryByTestId("session-window-retry")).not.toBeInTheDocument();
+  });
+
+  describe("rail scroll across a session switch (#1923)", () => {
+    // jsdom has no scroll layout; keep each element's scrollTop as the browser would.
+    const scrollTops = new WeakMap<Element, number>();
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+    beforeEach(() => {
+      Object.defineProperty(Element.prototype, "scrollTop", {
+        configurable: true,
+        get(this: Element) {
+          return scrollTops.get(this) ?? 0;
+        },
+        set(this: Element, value: number) {
+          scrollTops.set(this, value);
+        },
+      });
+    });
+    afterEach(() => {
+      if (original) Object.defineProperty(Element.prototype, "scrollTop", original);
+      else Reflect.deleteProperty(Element.prototype, "scrollTop");
+    });
+
+    it("Should resume the window's rail scroll when a session switch remounts it", () => {
+      const first = renderView(undefined, true, { windowId: "session:switch" });
+      const list = screen.getByTestId("session-list-scroll");
+      list.scrollTop = 480;
+      fireEvent.scroll(list);
+      first.unmount();
+
+      renderView(undefined, true, { id: "sess-2", windowId: "session:switch" });
+      const resumed = screen.getByTestId("session-list-scroll");
+      expect(resumed).not.toBe(list);
+      expect(resumed.scrollTop).toBe(480);
+      expect(resumed).toHaveAttribute("data-current", "sess-2");
+    });
+
+    it("Should start another window's rail at the top", () => {
+      const first = renderView(undefined, true, { windowId: "session:scrolled" });
+      const list = screen.getByTestId("session-list-scroll");
+      list.scrollTop = 480;
+      fireEvent.scroll(list);
+      first.unmount();
+
+      renderView(undefined, true, { windowId: "session:other" });
+      expect(screen.getByTestId("session-list-scroll").scrollTop).toBe(0);
+    });
   });
 });
