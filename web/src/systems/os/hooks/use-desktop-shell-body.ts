@@ -20,6 +20,7 @@ import { useWorktreeListings } from "@/systems/workspace";
 import { filesRouteProject } from "../lib/files-open-target";
 import { desktopShellBridge, type DesktopShellEventMap } from "../lib/desktop-shell-bridge";
 import type { OsAttentionSections, OsSessionAttentionRow } from "../lib/attention-model";
+import type { PresentAttentionToast } from "../lib/attention-toast-request";
 import type { PaletteShellHandlers } from "../lib/cmd-palette-client-ops";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
 import type { OsDesktopRuntimeStore, OsOpenTarget, OsSplitEdge } from "../lib/os-types";
@@ -68,6 +69,8 @@ export interface DesktopShellBodyOptions {
   clientCommandChannel: ClientCommandChannel;
   /** The attached shell identity the palette invoke header must prove. */
   client: WindowManagerRegisteredClientView | null;
+  /** The components layer's attention toast entry; the notifier hands it plain toast requests. */
+  presentAttentionToast: PresentAttentionToast;
 }
 
 /** Threads the live registered client into the one dispatch invoke. */
@@ -186,6 +189,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     focusedSessionId: useFocusedSessionId(),
     onOpenBell: () => overlays.setOverlayOpen("bell", true),
     bellOpen: overlays.activeOverlay === "bell",
+    presentToast: options.presentAttentionToast,
   });
   const reducedMotion = useOsDocumentReducedMotion();
   const transition = useDesktopTransitionIntent();

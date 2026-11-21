@@ -6,11 +6,8 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ReactElement } from "react";
-
-import { toast } from "@compozy/ui";
-
 import type { OsAttentionRow, OsLayoutUpgradeAttentionRow } from "../../lib/attention-model";
+import type { PresentAttentionToast } from "../../lib/attention-toast-request";
 import {
   takeUntoldLayoutUpgrades,
   TOLD_LAYOUT_UPGRADES_CAP,
@@ -175,19 +172,20 @@ describe("useLayoutUpgradeToast", () => {
     finished: OsLayoutUpgradeAttentionRow[],
     options: Partial<Omit<LayoutUpgradeToastOptions, "sections">> = {}
   ) {
-    const custom = vi.spyOn(toast, "custom").mockReturnValue("toast");
+    const present = vi.fn<PresentAttentionToast>();
     const initial: LayoutUpgradeToastOptions = {
       sections: { needsYou: [], finished },
       bellOpen: false,
       toasts: true,
       mutedWorkspaceIds: new Set(),
       onOpenBell: () => undefined,
+      presentToast: present,
       ...options,
     };
     const hook = renderHook((props: LayoutUpgradeToastOptions) => useLayoutUpgradeToast(props), {
       initialProps: initial,
     });
-    return { custom, hook, initial };
+    return { present, hook, initial };
   }
 
   it.each([
@@ -196,8 +194,8 @@ describe("useLayoutUpgradeToast", () => {
     ["the workspace is muted", { mutedWorkspaceIds: new Set(["ws-atlas"]) }],
   ])("Should count an occurrence as told without a toast when %s", (_, suppression) => {
     const row = layoutUpgrade("occ-1");
-    const { custom, hook, initial } = render([row], suppression);
-    expect(custom).not.toHaveBeenCalled();
+    const { present, hook, initial } = render([row], suppression);
+    expect(present).not.toHaveBeenCalled();
 
     hook.rerender({
       ...initial,
@@ -206,7 +204,7 @@ describe("useLayoutUpgradeToast", () => {
       mutedWorkspaceIds: new Set(),
       sections: { needsYou: [], finished: [{ ...row }] },
     });
-    expect(custom).not.toHaveBeenCalled();
+    expect(present).not.toHaveBeenCalled();
   });
 
   it("Should raise one toast for occurrences that arrive together, skipping muted ones", () => {
@@ -215,15 +213,14 @@ describe("useLayoutUpgradeToast", () => {
       layoutUpgrade("occ-2", { id: "ws-beta", workspaceId: "ws-beta", workspaceLabel: "beta" }),
       layoutUpgrade("occ-3", { id: "ws-gamma", workspaceId: "ws-gamma", workspaceLabel: "gamma" }),
     ];
-    const { custom } = render(rows, { mutedWorkspaceIds: new Set(["ws-gamma"]) });
+    const { present } = render(rows, { mutedWorkspaceIds: new Set(["ws-gamma"]) });
 
-    expect(custom).toHaveBeenCalledOnce();
-    expect(custom.mock.calls[0]?.[1]).toMatchObject({ id: "layout-upgrade:occ-1,occ-2" });
-    const frame = custom.mock.calls[0]?.[0]("toast") as ReactElement<{
-      body?: string;
-      meta: string;
-    }>;
-    expect(frame.props.body).toBe("Floating and minimized windows are tabs now.");
-    expect(frame.props.meta).toBe("atlas · beta");
+    expect(present).toHaveBeenCalledOnce();
+    expect(present.mock.calls[0]?.[0]).toMatchObject({
+      kind: "layout-upgrade",
+      id: "layout-upgrade:occ-1,occ-2",
+      body: "Floating and minimized windows are tabs now.",
+      meta: "atlas · beta",
+    });
   });
 });

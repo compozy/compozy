@@ -24,6 +24,7 @@ import type { WorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets
 import type { ClientCommandChannel } from "../lib/client-command-channel";
 import { createWindowNavigationGuard } from "../lib/window-navigation-guard";
 import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
+import { presentAttentionToast } from "./attention-toast-presenter";
 import { DesktopGate } from "./desktop-gate";
 import { DesktopWorktreeDialogs } from "./desktop-worktree-dialogs";
 import { DesktopMenubar } from "./desktop-menubar";
@@ -244,6 +245,7 @@ function DesktopShellScopedBody({
     sessionControls,
     clientCommandChannel,
     client,
+    presentAttentionToast,
   });
   return (
     <div
