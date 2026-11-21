@@ -122,7 +122,7 @@ func TestSQLiteReaderContention(t *testing.T) {
 	}
 
 	readers, readCtx := errgroup.WithContext(ctx)
-	workers := append(sameFile, otherFiles...)
+	workers := slices.Concat(sameFile, otherFiles)
 	samples := make([]readerProbeLatencies, len(workers))
 	start := time.Now()
 	for worker, lookups := range workers {
