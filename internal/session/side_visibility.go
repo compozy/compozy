@@ -9,23 +9,20 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-// sideFamilyMember mirrors the durable recursive visibility filter for live overlays.
-// Parent reads are non-repairing; legacy descendants remain hidden even while resumed.
-func (m *Manager) sideFamilyMember(ctx context.Context, sessionID string, lineage *store.SessionLineage) bool {
-	hidden, err := m.sideFamilyMembership(ctx, sessionID, lineage)
-	if err != nil {
-		return false
-	}
-	return hidden
+type sideFamilyReader interface {
+	SessionSideAncestry(context.Context, string, string, string) (*store.SessionLineage, error)
 }
 
-// sideFamilyMembership distinguishes unreadable ancestry from a proven public family.
-// A deleted ancestor ends the walk like a root, as the durable filter's join does:
-// deletion keeps a parent's ordinary children and their parent_session_id, so the
-// edge is expected history, not a read failure. Any other read error still fails,
-// including metadata whose identity does not match its directory.
+func (m *Manager) sideFamilyMember(
+	ctx context.Context, sessionID, workspaceID, profileID string, lineage *store.SessionLineage,
+) bool {
+	hidden, err := m.sideFamilyMembership(ctx, sessionID, workspaceID, profileID, lineage)
+	return err == nil && hidden
+}
+
+// sideFamilyMembership uses durable ancestry when a parent's metadata is missing.
 func (m *Manager) sideFamilyMembership(
-	ctx context.Context, sessionID string, lineage *store.SessionLineage,
+	ctx context.Context, sessionID, workspaceID, profileID string, lineage *store.SessionLineage,
 ) (bool, error) {
 	child := strings.TrimSpace(sessionID)
 	seen := map[string]bool{}
@@ -47,16 +44,26 @@ func (m *Manager) sideFamilyMembership(
 		if errors.Is(err, errSessionMetaIdentityMismatch) {
 			return false, fmt.Errorf("session: read side ancestry %s: %w", parent, err)
 		}
-		// A deleted parent keeps its ordinary children, so a missing ancestor is
-		// expected state: treat the edge as absent, as the visibility SQL filter does.
-		// The child cannot tell whether that parent was a side session; keeping such
-		// orphans hidden needs side deletion to detach them (tracked in #1546).
 		if errors.Is(err, ErrSessionNotFound) || errors.Is(err, store.ErrSessionNotFound) {
-			m.warnMissingAncestor(ctx, child, parent, err)
-			return false, nil
+			lineage = nil
+			if reader, ok := m.sessionCatalog.(sideFamilyReader); ok {
+				var readErr error
+				lineage, readErr = reader.SessionSideAncestry(ctx, parent, workspaceID, profileID)
+				if readErr != nil {
+					return false, fmt.Errorf("session: read durable side ancestry %s: %w", parent, readErr)
+				}
+			}
+			if lineage == nil {
+				m.warnMissingAncestor(ctx, child, parent, err)
+			}
+			child = parent
+			continue
 		}
 		if err != nil {
 			return false, fmt.Errorf("session: read side ancestry %s: %w", parent, err)
+		}
+		if meta.WorkspaceID != workspaceID || meta.ProfileID != profileID {
+			return false, nil
 		}
 		lineage = meta.Lineage
 		child = parent

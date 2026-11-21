@@ -6288,6 +6288,72 @@ func TestManagerStatusSummary(t *testing.T) {
 
 func TestSideVisibilityAndNotifications(t *testing.T) {
 	t.Parallel()
+	// Invariant: deleting a side chat preserves its child's status by ID and its exclusion from both lists.
+	// Owner: session Manager visibility; canonical suite: TestSideVisibilityAndNotifications.
+	for _, tc := range []struct {
+		name           string
+		deletedEarlier bool
+	}{
+		{name: "Should keep a live child hidden after its side parent is deleted"},
+		{name: "Should keep a stored child hidden when its side parent was already deleted", deletedEarlier: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			ctx := t.Context()
+			source := h.newDeriveSource(t)
+			side := h.openSide(t, source, "deleted-side-parent")
+			waitForDeriveConsumption(t, h, side.ID)
+			child := createSession(t, h.harness)
+			// Older and internal writers could attach a non-derived child to a side.
+			child.mu.Lock()
+			child.Lineage = &store.SessionLineage{Kind: store.LineageKindProvenance, ParentSessionID: side.ID,
+				RootSessionID: source.ID, SpawnDepth: 2}
+			child.mu.Unlock()
+			if err := h.manager.persistSessionMetadataOnly(child); err != nil {
+				t.Fatal(err)
+			}
+			row := sessionCatalogInfoFromRuntime(child.Info())
+			if err := h.db.RegisterSession(ctx, &row); err != nil {
+				t.Fatal(err)
+			}
+
+			wantState := StateActive
+			if tc.deletedEarlier {
+				wantState = StateStopped
+				for _, id := range []string{child.ID, side.ID} {
+					if err := h.manager.Stop(ctx, id); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := h.db.DeleteSession(ctx, side.ID); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.RemoveAll(filepath.Join(h.manager.homePaths.SessionsDir, side.ID)); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := h.manager.Delete(ctx, side.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.manager.Status(ctx, side.ID); !errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("deleted side status error = %v", err)
+			}
+			info, err := h.manager.Status(ctx, child.ID)
+			if err != nil || info.ID != child.ID || info.State != wantState {
+				t.Fatalf("child status = %+v, %v; want %s in %s", info, err, child.ID, wantState)
+			}
+			workspace, err := h.manager.ListForWorkspace(ctx, h.workspaceID)
+			if err != nil || len(workspace) != 1 || workspace[0].ID != source.ID {
+				t.Fatalf("workspace list after side delete = %+v, %v; want only %s", workspace, err, source.ID)
+			}
+			page, err := h.manager.ListPage(ctx, ListQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID,
+			})
+			if err != nil || len(page.Sessions) != 1 || page.Sessions[0].ID != source.ID {
+				t.Fatalf("catalog after side delete = %+v, %v; want only %s", page.Sessions, err, source.ID)
+			}
+		})
+	}
 	// Invariant: fork provenance does not make a live fork depend on its deleted source's metadata.
 	// Owner: catalog visibility; canonical suite: TestSideVisibilityAndNotifications.
 	t.Run("Should keep a live fork visible after deleting its source", func(t *testing.T) {
@@ -6377,7 +6443,13 @@ func TestSideVisibilityAndNotifications(t *testing.T) {
 			}
 		})
 		lineage := &store.SessionLineage{ParentSessionID: corruptParent}
-		hidden, err := h.manager.sideFamilyMembership(t.Context(), "orphan-child", lineage)
+		hidden, err := h.manager.sideFamilyMembership(
+			t.Context(),
+			"orphan-child",
+			h.workspaceID,
+			store.DefaultProfileID,
+			lineage,
+		)
 		if !errors.Is(err, errSessionMetaIdentityMismatch) || hidden {
 			t.Fatalf("side ancestry with a mismatched parent = %v, %v; want a mismatch error", hidden, err)
 		}

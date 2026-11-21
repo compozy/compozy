@@ -22,3 +22,19 @@ UPDATE session_derivations
 SET child_deleted_at = sqlc.arg(child_deleted_at)
 WHERE child_session_id = sqlc.arg(child_session_id)
   AND child_deleted_at IS NULL;
+
+-- name: GetSessionSideAncestry :one
+SELECT s.lineage_kind, s.parent_session_id
+FROM sessions s
+WHERE s.id = sqlc.arg(session_id)
+  AND s.workspace_id = sqlc.arg(workspace_id)
+  AND s.profile_id = sqlc.arg(profile_id)
+UNION ALL
+SELECT receipt.kind, NULL
+FROM session_derivations receipt
+WHERE receipt.child_session_id = sqlc.arg(session_id)
+  AND receipt.workspace_id = sqlc.arg(workspace_id)
+  AND receipt.profile_id = sqlc.arg(profile_id)
+  AND receipt.kind = 'side'
+  AND NOT EXISTS (SELECT 1 FROM sessions existing WHERE existing.id = receipt.child_session_id)
+LIMIT 1;

@@ -50,7 +50,7 @@ func (m *Manager) archiveStoppingSideMembers(ctx context.Context, rootID string,
 			return false
 		}
 		meta, err := m.readSessionMetaReadOnly(ctx, member)
-		return err == nil && m.sideFamilyMember(ctx, meta.ID, meta.Lineage)
+		return err == nil && m.sideFamilyMember(ctx, meta.ID, meta.WorkspaceID, meta.ProfileID, meta.Lineage)
 	})
 }
 

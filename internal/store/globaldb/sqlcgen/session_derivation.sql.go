@@ -43,6 +43,41 @@ func (q *Queries) GetSessionDerivation(ctx context.Context, arg GetSessionDeriva
 	return i, err
 }
 
+const getSessionSideAncestry = `-- name: GetSessionSideAncestry :one
+SELECT s.lineage_kind, s.parent_session_id
+FROM sessions s
+WHERE s.id = ?1
+  AND s.workspace_id = ?2
+  AND s.profile_id = ?3
+UNION ALL
+SELECT receipt.kind, NULL
+FROM session_derivations receipt
+WHERE receipt.child_session_id = ?1
+  AND receipt.workspace_id = ?2
+  AND receipt.profile_id = ?3
+  AND receipt.kind = 'side'
+  AND NOT EXISTS (SELECT 1 FROM sessions existing WHERE existing.id = receipt.child_session_id)
+LIMIT 1
+`
+
+type GetSessionSideAncestryParams struct {
+	SessionID   string `json:"session_id"`
+	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
+}
+
+type GetSessionSideAncestryRow struct {
+	LineageKind     string         `json:"lineage_kind"`
+	ParentSessionID sql.NullString `json:"parent_session_id"`
+}
+
+func (q *Queries) GetSessionSideAncestry(ctx context.Context, arg GetSessionSideAncestryParams) (GetSessionSideAncestryRow, error) {
+	row := q.db.QueryRowContext(ctx, getSessionSideAncestry, arg.SessionID, arg.WorkspaceID, arg.ProfileID)
+	var i GetSessionSideAncestryRow
+	err := row.Scan(&i.LineageKind, &i.ParentSessionID)
+	return i, err
+}
+
 const insertSessionDerivation = `-- name: InsertSessionDerivation :execrows
 INSERT INTO session_derivations (
   workspace_id, idempotency_key, profile_id, request_fingerprint,

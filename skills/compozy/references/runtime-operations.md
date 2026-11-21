@@ -2240,8 +2240,9 @@ the creation overlay retains the side-chat instructions. The side inherits effec
 permission mode/policy, cwd, and worktree. It starts unnamed unless `name` is supplied.
 
 Sides and their descendants are hidden from catalog/board/subagent/attention/history-cleanup
-populations; their usage remains in agent metrics. GET sides returns a complete newest-updated-first
-list with state, prompting, permission/clarify counts, and timestamps. Observe
+populations; their usage remains in agent metrics. A surviving child stays out of workspace lists and
+catalogs after its side chat is deleted and remains accessible by ID. GET sides returns a complete
+newest-updated-first list with state, prompting, permission/clarify counts, and timestamps. Observe
 `session_side_changed` on the catalog stream (`session_id` is the main, `side_session_id` is the side)
 and reread the parent-owned list. Hook context adds optional `lineage_kind` and `parent_session_id`.
 

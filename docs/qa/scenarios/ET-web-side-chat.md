@@ -39,3 +39,7 @@ the authorized local validation is generation and `go build ./...`; integration 
    open side returns. Record source, copy, and side ids with profile ownership.
 9. Delete a source with an archived side and verify all its sides disappear. Record API responses,
    screenshots, provider versions, and the integrated commit in the eventual QA report.
+10. In a workspace with a legacy non-derived child of a side chat, delete the side chat by itself.
+    Verify the workspace list and catalog still load and omit the child. Open the child by its ID
+    and confirm its runtime is still active. Repeat the list and ID reads with an upgraded fixture
+    whose side chat was already deleted.
