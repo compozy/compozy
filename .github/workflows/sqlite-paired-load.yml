@@ -9,12 +9,16 @@ on:
         description: "Record the original trials for syscall/scheduling diagnosis (not final acceptance evidence)"
         type: boolean
         default: false
+      reader_baseline:
+        description: "Base commit SHA for the isolated reader probe (#1630). Leave empty to run the original paired load."
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 concurrency:
-  group: sqlite-paired-load-${{ github.ref }}-${{ inputs.runtime_trace_trials && 'traced' || 'acceptance' }}
+  group: sqlite-paired-load-${{ github.ref }}-${{ inputs.reader_baseline != '' && 'readers' || inputs.runtime_trace_trials && 'traced' || 'acceptance' }}
   cancel-in-progress: true
 
 env:
@@ -24,6 +28,7 @@ env:
 
 jobs:
   paired-load:
+    if: inputs.reader_baseline == ''
     name: ${{ inputs.runtime_trace_trials && 'SQLite traced diagnostic (not acceptance)' || 'SQLite paired load and 1 GB upgrade' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -90,5 +95,89 @@ jobs:
             ${{ runner.temp }}/sqlite-contention/*.md
             ${{ runner.temp }}/sqlite-contention/*.strace
             ${{ runner.temp }}/sqlite-contention/*.trace
+          retention-days: 14
+          if-no-files-found: error
+
+  reader-contention:
+    if: inputs.reader_baseline != ''
+    name: SQLite reader contention probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GOMAXPROCS: 4
+      READER_BASE_SHA: ${{ inputs.reader_baseline }}
+      READER_HEAD_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+      - name: Check out the comparison baseline
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.reader_baseline }}
+          path: baseline
+          persist-credentials: false
+      - name: Build identical reader probes against both commits
+        run: |
+          cp internal/store/sqlite_reader_contention_test.go baseline/internal/store/
+          go test -c -p 2 -tags=sqlite_reader_probe -o "$RUNNER_TEMP/reader-head" ./internal/store
+          (
+            cd baseline
+            go test -c -p 2 -tags=sqlite_reader_probe -o "$RUNNER_TEMP/reader-base" ./internal/store
+          )
+      - name: Measure reader latency and driver mutexes
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/sqlite-reader-contention"
+          mkdir -p "$out"
+          printf 'base=%s\nhead=%s\nlogical_cpus=%s\nGOMAXPROCS=%s\n' \
+            "$READER_BASE_SHA" "$READER_HEAD_SHA" "$(nproc)" "$GOMAXPROCS" > "$out/commits.txt"
+          for trial in 1 2 3; do
+            if (( trial % 2 )); then
+              versions=(base head)
+              modes=(false true)
+            else
+              versions=(head base)
+              modes=(true false)
+            fi
+            for version in "${versions[@]}"; do
+              for scan in "${modes[@]}"; do
+                "$RUNNER_TEMP/reader-$version" -test.v -test.run '^TestSQLiteReaderContention$' \
+                  -sqlite-reader-scan="$scan" | tee "$out/$version-scan-$scan-$trial.txt"
+              done
+            done
+          done
+          for version in base head; do
+            for scan in false true; do
+              binary="$RUNNER_TEMP/reader-$version"
+              label="$version-scan-$scan"
+              profile="$out/$label.mutex.pb.gz"
+              "$binary" -test.v -test.run '^TestSQLiteReaderContention$' \
+                -sqlite-reader-scan="$scan" -sqlite-reader-mutex-profile="$profile" | tee "$out/$label-profile.txt"
+              go tool pprof -top -nodecount=10 "$binary" "$profile" > "$out/$label-top.txt"
+              go tool pprof -top -nodecount=10 -focus='pcache1' "$binary" "$profile" > "$out/$label-pcache.txt"
+              go tool pprof -top -nodecount=10 -focus='modernc.org/libc.X(malloc|free)$' \
+                "$binary" "$profile" > "$out/$label-allocator.txt"
+            done
+          done
+      - name: Publish reader probe samples
+        if: always()
+        shell: bash
+        run: |
+          for report in "$RUNNER_TEMP"/sqlite-reader-contention/*.txt; do
+            test -f "$report" || continue
+            printf '\n### %s\n\n```text\n' "$(basename "$report")" >> "$GITHUB_STEP_SUMMARY"
+            cat "$report" >> "$GITHUB_STEP_SUMMARY"
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          done
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sqlite-reader-contention-${{ github.sha }}
+          path: ${{ runner.temp }}/sqlite-reader-contention/
           retention-days: 14
           if-no-files-found: error

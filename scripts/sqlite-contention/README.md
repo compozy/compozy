@@ -1,5 +1,30 @@
 # SQLite contention acceptance experiment
 
+## Independent SQLite readers (#1630)
+
+Dispatch the existing `SQLite paired load` workflow on the candidate branch
+with `reader_baseline` set to the full commit SHA of the comparison baseline.
+This selects the `SQLite reader contention probe` job. It builds the same
+opt-in `TestSQLiteReaderContention` against both commits and runs the
+pure-Go binaries sequentially on one Linux runner.
+
+The store fixture uses 22 WAL databases: a core file with roughly 64 MiB of
+table pages, a telemetry file, and 20 small session files. Every file retains
+an uncheckpointed WAL tail. Two pinned connections do primary-key reads on
+the core file and two workers do the same across the telemetry and session
+files. The loaded arm also loops a full table scan on a third core connection.
+Both arms warm filesystem pages before measurement and use the same paced
+requests and result checks. Only reads occur in the measured phase.
+
+Compare each cohort's indexed-read p50, p95, p99, maximum and completion rate
+across three unprofiled trials. A separate process per arm records the full
+mutex delay profile plus focused page-cache and allocator reports. The
+focused reports can overlap when an allocator call sits beneath a page-cache
+frame. Treat the experiment as a diagnostic comparison on one runner.
+The `sqlite-reader-contention-<sha>` artifact retains every trial and profile.
+
+## Write contention and upgrade
+
 This harness owns issue #1227's reproducible store-level measurements. The
 manual `SQLite paired load` workflow runs the heavy experiment in CI.
 It builds the **same harness source** against baseline
