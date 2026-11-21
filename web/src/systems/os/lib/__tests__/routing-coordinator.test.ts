@@ -1557,6 +1557,27 @@ describe("RoutingCoordinator", () => {
       expect(router.navigate).toHaveBeenCalledExactlyOnceWith(created.route);
     });
 
+    it("Should replay a report deferred to a landing a newer focus superseded [#1655]", async () => {
+      const focused = sessionWindow("sess-a");
+      const { coordinator, router, store, history } = createCoordinator([focused]);
+      coordinator.completeHydration();
+      coordinator.reportRouteMatch(focused.route, history.current());
+      vi.mocked(router.replace).mockClear();
+      store.deferLifecycle();
+
+      const landing = coordinator.userOpenCreatedSession(created);
+      // The operator clicks the already active host: a newer intent, but no activation.
+      await coordinator.userFocus(focused.id);
+      store.setAuthoritativeFocus(focused.id, created.route);
+      coordinator.reportAuthoritativeState();
+      expect(router.replace).not.toHaveBeenCalled();
+      store.settleLifecycle(true);
+      await expect(landing).resolves.toBe(focused.id);
+
+      expect(router.navigate).not.toHaveBeenCalledWith(created.route);
+      expect(router.replace).toHaveBeenCalledExactlyOnceWith(created.route);
+    });
+
     it("Should focus the session's own window instead of retargeting the focused one", async () => {
       const owner = sessionWindow("sess-new", { id: "w-session-owner" });
       const focused = sessionWindow("sess-b", { id: "w-session-focused" });

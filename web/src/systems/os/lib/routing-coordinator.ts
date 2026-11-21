@@ -311,17 +311,17 @@ export class RoutingCoordinator {
     const intentToken = ++this.nextUserIntentToken;
     const keyboardSince = this.keyboardFocus.begin();
     const isCurrent = () => intentToken === this.nextUserIntentToken;
-    // Reports defer to the landing as to an open, so none replaces the entry being left (#1655).
+    // Reports defer to the landing as to an open (#1655), and replay when it settles unwritten.
     const start = this.activations.begin(this.manager.getState(), host.id, intentToken);
     const outcome = landCreatedSession(this.manager, host, target, isCurrent);
     const landed = await outcome.completion.finally(() => this.activations.finish(start));
-    if (landed) {
-      if (isCurrent() && this.activations.isLive(start)) {
-        this.pushRoute(target.route);
-        this.handOffKeyboard(host.id, keyboardSince);
-      }
+    if (landed && isCurrent() && this.activations.isLive(start)) {
+      this.pushRoute(target.route);
+      this.handOffKeyboard(host.id, keyboardSince);
       return host.id;
     }
+    if (!this.activations.settling) this.reportAuthoritativeState();
+    if (landed) return host.id;
     // Unless a newer gesture owns focus: a host another client closed means choose again (a new
     // window when none is left); a surviving host that refused the landing opens it the usual way.
     if (!isCurrent()) return null;
