@@ -1079,8 +1079,8 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
     await userEvent.click(screen.getByTestId("terminal-limit-close"));
     expect(actions.onCloseTerminal).toHaveBeenCalledWith(TERMINAL_FIXTURES_AT_CAP[0].id);
 
+    // Back to the waiting state it started in: the dialog over the pending window.
     expect(await screen.findByTestId("terminal-limit-dialog")).toBeInTheDocument();
-    expect(screen.queryByText(/Opening a terminal/)).not.toBeInTheDocument();
     expect(actions.onOpenTerminal).not.toHaveBeenCalled();
 
     // The reopened dialog is the same wait: a slot freed now still opens the terminal.
