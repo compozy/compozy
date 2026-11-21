@@ -3344,6 +3344,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addAgentPolicyExcludedACPOptions(baseline) == 0 {
 			t.Fatal("approved policy_excluded_acp_options addition: no historical agent runtime schema found")
 		}
+		// #1928: agent effective runtime reports the effective fallback chain and its source.
+		if addAgentEffectiveFallbackChain(baseline) == 0 {
+			t.Fatal("approved effective_runtime fallback_chain addition: no historical agent runtime schema found")
+		}
 		// #1251: restart status reports a replacement daemon's data-migration progress.
 		addRestartProgressComponent(baseline)
 		if addRestartMigrationProgress(baseline) == 0 {
@@ -6524,6 +6528,43 @@ func addAgentPolicyExcludedACPOptions(value any) int {
 			return count
 		}
 		properties["policy_excluded_acp_options"] = maps.Clone(acpOptions)
+		count++
+	}
+	return count
+}
+
+// addAgentEffectiveFallbackChain adds the authored fallback_chain schema of an agent payload to
+// its effective_runtime, and a string fallback_chain source to effective_runtime.sources.
+func addAgentEffectiveFallbackChain(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAgentEffectiveFallbackChain(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAgentEffectiveFallbackChain(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			return count
+		}
+		authored, hasChain := properties["fallback_chain"].(map[string]any)
+		runtime, hasRuntime := properties["effective_runtime"].(map[string]any)
+		if !hasChain || !hasRuntime {
+			return count
+		}
+		runtimeProperties, ok := runtime["properties"].(map[string]any)
+		if !ok || runtimeProperties["fallback_chain"] != nil {
+			return count
+		}
+		runtimeProperties["fallback_chain"] = maps.Clone(authored)
+		if sources, ok := runtimeProperties["sources"].(map[string]any); ok {
+			if sourceProperties, ok := sources["properties"].(map[string]any); ok {
+				sourceProperties["fallback_chain"] = map[string]any{"type": "string"}
+			}
+		}
 		count++
 	}
 	return count
