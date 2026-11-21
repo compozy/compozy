@@ -5,7 +5,9 @@
 - **HTTP/UDS and compatibility.** On `GET /api/sessions/facets`, the existing
   opt-in `exclude_instance_main=true` excludes current mains from every session count.
   The route, parameters, defaults, and response fields are unchanged. Instance attention
-  remains an independent count. The generated API reference describes the corrected filter.
+  is a separate count. When the flag is set, aggregate User narrowing includes Global
+  instances in that count as well. Requests that omit the flag or pass `false` retain
+  their existing counts. The generated API reference describes the corrected filter.
 - **State and isolation.** No persisted data changes. Project and Global mains are resolved
   within the selected workspace and profile scopes using the existing instance authorization.
 - **Web and QA.** Group totals and Kanban columns use the corrected counts through the
