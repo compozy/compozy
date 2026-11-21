@@ -1,0 +1,37 @@
+name: Process scan benchmarks
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/process-scan-benchmarks.yml"
+      - "internal/procutil/scan*.go"
+      - "internal/procutil/process_group_unix_test.go"
+      - "internal/sessionprocess/service.go"
+
+permissions:
+  contents: read
+
+jobs:
+  linux-process-scan:
+    name: Linux process scan comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GOMAXPROCS: 2
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-go
+      - name: Measure host-wide and scoped scans on the same process table
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test ./internal/procutil -run '^$' -bench '^BenchmarkProcessScan$/^tree(-scoped)?$' \
+            -benchmem -benchtime=200x -count=6 | tee "$RUNNER_TEMP/process-scan.txt"
+          {
+            printf '```text\n'
+            cat "$RUNNER_TEMP/process-scan.txt"
+            printf '```\n'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -29,6 +29,7 @@ func (s *Service) reconcile(
 	ctx context.Context,
 	snap procutil.ProcessSnapshot,
 	owners []Owner,
+	terminals []Terminal,
 	full bool,
 ) (map[Identity]Observation, []Process, error) {
 	scan := newAttributionScan(snap, owners)
@@ -41,10 +42,6 @@ func (s *Service) reconcile(
 		}
 	}
 	scan.linkGroups()
-	terminals, err := s.source.Terminals(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
 	terminalGroups := scan.addTerminals(terminals, snap.ScannedAt)
 	return scan.next, scan.processes(terminalGroups), nil
 }

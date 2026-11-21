@@ -15,6 +15,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func scanProcessDescendants(ctx context.Context, _, _ []int) ([]ScannedProcess, bool, error) {
+	return scanProcesses(ctx, false)
+}
+
 func scanProcesses(ctx context.Context, environment bool) ([]ScannedProcess, bool, error) {
 	rows, err := unix.SysctlKinfoProcSlice("kern.proc.all")
 	if err != nil {

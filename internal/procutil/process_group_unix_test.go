@@ -579,7 +579,7 @@ func TestScannedGroupMembershipFence(t *testing.T) {
 	})
 }
 
-func startScannedGroupHelper(t *testing.T, pgid int) int {
+func startScannedGroupHelper(t testing.TB, pgid int) int {
 	t.Helper()
 	executable, err := os.Executable()
 	if err != nil {
@@ -615,27 +615,32 @@ func startScannedGroupHelper(t *testing.T, pgid int) int {
 	return command.Process.Pid
 }
 
-// Measures both cadences on the actual host table; no fake process enumeration.
+// Measures both cadences against the actual host table and one real process tree.
 func BenchmarkProcessScan(b *testing.B) {
-	for _, full := range []bool{false, true} {
-		name := "tree"
-		if full {
-			name = "environment"
-		}
-		b.Run(name, func(b *testing.B) {
+	type scanCase struct {
+		name string
+		scan func(context.Context) (ProcessSnapshot, error)
+	}
+	scans := []scanCase{
+		{"tree", ScanProcessTree},
+		{"environment", ScanProcesses},
+	}
+	if runtime.GOOS == "linux" {
+		startScannedGroupHelper(b, 0)
+		roots := []int{os.Getpid()}
+		scans = append(scans, scanCase{"tree-scoped", func(ctx context.Context) (ProcessSnapshot, error) {
+			return ScanProcessDescendants(ctx, roots, nil)
+		}})
+	}
+	for _, scenario := range scans {
+		b.Run(scenario.name, func(b *testing.B) {
 			var before, after syscall.Rusage
 			if err := syscall.Getrusage(syscall.RUSAGE_SELF, &before); err != nil {
 				b.Fatal(err)
 			}
 			count := 0
 			for b.Loop() {
-				var snap ProcessSnapshot
-				var err error
-				if full {
-					snap, err = ScanProcesses(b.Context())
-				} else {
-					snap, err = ScanProcessTree(b.Context())
-				}
+				snap, err := scenario.scan(b.Context())
 				if err != nil {
 					b.Fatal(err)
 				}

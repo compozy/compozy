@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"os"
+	"runtime"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -170,13 +172,7 @@ func (s *Service) refresh(ctx context.Context, owners []Owner, force bool) (Snap
 
 func (s *Service) scan(ctx context.Context, owners []Owner, force bool) (Snapshot, []string, error) {
 	full := force || time.Since(s.lastFull) >= normalInterval
-	var raw procutil.ProcessSnapshot
-	var err error
-	if full {
-		raw, err = procutil.ScanProcesses(ctx)
-	} else {
-		raw, err = procutil.ScanProcessTree(ctx)
-	}
+	raw, terminals, err := s.scanInputs(ctx, owners, full)
 	if err != nil {
 		return Snapshot{}, nil, err
 	}
@@ -187,7 +183,7 @@ func (s *Service) scan(ctx context.Context, owners []Owner, force bool) (Snapsho
 		s.mu.Unlock()
 		return snapshot, nil, nil
 	}
-	next, rows, err := s.reconcile(ctx, raw, owners, full)
+	next, rows, err := s.reconcile(ctx, raw, owners, terminals, full)
 	if err != nil {
 		return Snapshot{}, nil, err
 	}
@@ -213,6 +209,56 @@ func (s *Service) scan(ctx context.Context, owners []Owner, force bool) (Snapsho
 	s.summaries = summaries
 	s.mu.Unlock()
 	return snapshot, changed, nil
+}
+
+func (s *Service) scanInputs(
+	ctx context.Context, owners []Owner, full bool,
+) (procutil.ProcessSnapshot, []Terminal, error) {
+	if !full && runtime.GOOS == "linux" && !s.hasGroupContinuity() {
+		terminals, err := s.source.Terminals(ctx)
+		if err != nil {
+			return procutil.ProcessSnapshot{}, nil, err
+		}
+		roots := make([]int, 0, len(owners))
+		for _, owner := range owners {
+			if owner.LeaderPID > 1 {
+				roots = append(roots, owner.LeaderPID)
+			}
+		}
+		watched := make([]int, 0, 1+len(s.observations)+len(terminals))
+		watched = append(watched, os.Getpid())
+		for id := range s.observations {
+			watched = append(watched, id.PID)
+		}
+		for _, terminal := range terminals {
+			watched = append(watched, terminal.PID)
+		}
+		raw, err := procutil.ScanProcessDescendants(ctx, roots, watched)
+		return raw, terminals, err
+	}
+
+	var raw procutil.ProcessSnapshot
+	var err error
+	if full {
+		raw, err = procutil.ScanProcesses(ctx)
+	} else {
+		raw, err = procutil.ScanProcessTree(ctx)
+	}
+	if err != nil || !raw.Supported {
+		return raw, nil, err
+	}
+	terminals, err := s.source.Terminals(ctx)
+	return raw, terminals, err
+}
+
+func (s *Service) hasGroupContinuity() bool {
+	// An unobserved group member may already have been reparented outside every known tree.
+	for _, o := range s.observations {
+		if !o.GroupObservedAt.IsZero() {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) enrich(ctx context.Context, rows []Process, full bool) {

@@ -55,10 +55,22 @@ func processMarkers(p *ScannedProcess, env []byte) {
 	}
 }
 
-// ScanProcessTree is the inexpensive lineage pass used during active tool calls.
+// ScanProcessTree reads host-wide lineage without loading process environments.
 func ScanProcessTree(ctx context.Context) (ProcessSnapshot, error) {
 	start := time.Now()
 	rows, supported, err := scanProcesses(ctx, false)
+	return ProcessSnapshot{
+		Supported: supported,
+		ScannedAt: start.UTC(),
+		Duration:  time.Since(start),
+		Processes: rows,
+	}, err
+}
+
+// ScanProcessDescendants reads the roots, their descendants, and individually watched PIDs.
+func ScanProcessDescendants(ctx context.Context, roots, watched []int) (ProcessSnapshot, error) {
+	start := time.Now()
+	rows, supported, err := scanProcessDescendants(ctx, roots, watched)
 	return ProcessSnapshot{
 		Supported: supported,
 		ScannedAt: start.UTC(),
