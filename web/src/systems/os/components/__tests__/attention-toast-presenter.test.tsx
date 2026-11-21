@@ -13,7 +13,7 @@ import type { ReactElement } from "react";
 
 import { toast } from "@compozy/ui";
 
-import { presentAttentionToast } from "../attention-toast";
+import { presentAttentionToast } from "../attention-toast-presenter";
 
 describe("presentAttentionToast", () => {
   beforeEach(() => {
@@ -28,7 +28,9 @@ describe("presentAttentionToast", () => {
     const call = custom.mock.calls[0];
     if (!call) throw new Error("expected one toast");
     const [renderToast, options] = call;
-    render(renderToast(request.kind === "delivery" ? request.delivery.key : request.id) as ReactElement);
+    render(
+      renderToast(request.kind === "delivery" ? request.delivery.key : request.id) as ReactElement
+    );
     return { dismiss, options };
   }
 

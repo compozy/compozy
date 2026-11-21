@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import type { OsAttentionSections, OsLayoutUpgradeAttentionRow } from "../lib/attention-model";
 import type { PresentAttentionToast } from "../lib/attention-toast-request";
@@ -37,20 +37,27 @@ export function useLayoutUpgradeToast({
   presentToast,
 }: LayoutUpgradeToastOptions): void {
   const [told] = useState(() => new Set<string>());
+  // Raising a toast is an imperative side effect, not state handed back up; the effect event
+  // reads the latest presenter and bell opener without re-running the effect for them.
+  const announce = useEffectEvent(
+    (shown: [OsLayoutUpgradeAttentionRow, ...OsLayoutUpgradeAttentionRow[]]) => {
+      const [first] = shown;
+      presentToast({
+        kind: "layout-upgrade",
+        id: `layout-upgrade:${shown.map(occurrenceOf).join(",")}`,
+        title: first.title,
+        body: shown.length === 1 ? first.reason : COALESCED_BODY,
+        meta: [...new Set(shown.map(row => row.workspaceLabel))].join(" · "),
+        onActivate: onOpenBell,
+      });
+    }
+  );
   useEffect(() => {
     const untold = takeUntoldLayoutUpgrades([...sections.needsYou, ...sections.finished], told);
     if (!toasts || bellOpen) return;
     const shown = untold.filter(row => !mutedWorkspaceIds.has(row.workspaceId));
-    const [first] = shown;
+    const [first, ...rest] = shown;
     if (!first) return;
-    const single = shown.length === 1;
-    presentToast({
-      kind: "layout-upgrade",
-      id: `layout-upgrade:${shown.map(occurrenceOf).join(",")}`,
-      title: first.title,
-      body: single ? first.reason : COALESCED_BODY,
-      meta: [...new Set(shown.map(row => row.workspaceLabel))].join(" · "),
-      onActivate: onOpenBell,
-    });
+    announce([first, ...rest]);
   });
 }
