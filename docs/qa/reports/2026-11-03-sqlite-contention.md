@@ -936,3 +936,48 @@ the narrowly proved correction above. No such final-head results are claimed
 by this section. The existing decision suite owns coverage; validation runs
 only in CI. User data, schema, migration, public surfaces, Web and scenario
 contracts remain unchanged.
+
+## Current-main acceptance follow-up for #1433 (2026-11-21)
+
+The paired experiment now runs in the manual **SQLite paired load** workflow.
+**SQLite contention acceptance** continues to run the separate thirty-session
+daemon exercise on pull requests. Use the paired job conclusion when counting
+paired acceptance outcomes. [Workflow split](https://github.com/compozy/compozy/pull/1890)
+
+The last 24 pull-request workflow runs started before the split produced 9
+paired passes and 5 failures in their latest attempts (64% pass, 36% fail).
+Seven jobs were canceled and three runs had no paired job. Including the failed
+first attempt of the one rerun gives 9 passes and 6 failures. The pre-split
+workflow had no `main` runs. [Rerun and attempt history](https://github.com/compozy/compozy/actions/runs/44771745725/attempts/1)
+
+The retained failures show three distinct reasons for rejection.
+
+- A core `update session state` COMMIT recurred on November 20. The rejected
+  trial recorded 1,026 ms elapsed, 1 ms callback and 1,025 ms COMMIT, in a
+  cluster of session and telemetry COMMIT holds. The separate replay had no
+  long-hold warning. The log measures wall time within the COMMIT call. The
+  rejected trial has no contemporaneous syscall or scheduler recording to
+  attribute that time. [Job](https://github.com/compozy/compozy/actions/runs/44740096682/job/136301299816) · [Artifact](https://github.com/compozy/compozy/actions/runs/44740096682/artifacts/14630938241)
+- Baseline transcript writes can expire waiting for the session writer's
+  completion. In the failed `44757938804` run all four controls were incomplete
+  and two head maxima exceeded the absolute 1,000 ms budget. A passing rerun
+  on another unchanged head had one incomplete control and a 942.371 ms head
+  maximum in that pair. An incomplete control cannot calibrate a warning.
+  [Failed job](https://github.com/compozy/compozy/actions/runs/44757938804/job/136362510161) · [Passing rerun](https://github.com/compozy/compozy/actions/runs/44771745725/job/136424105606)
+- Background callback holds and checkpoint or admission failures invalidate a
+  head trial. Only a session transcript or coalesced telemetry COMMIT of at
+  least 1,000 ms, with a sub-second callback and total hold within its own
+  complete paired budget, can pass. A telemetry transaction with a 1,117 ms
+  callback and 14 ms COMMIT was rejected even with a complete control.
+  [Job and summary](https://github.com/compozy/compozy/actions/runs/44767446098/job/136395761644) · [Artifact](https://github.com/compozy/compozy/actions/runs/44767446098/artifacts/14647206749)
+
+The first manual uninstrumented `main` run passed on
+`810f309eb1bc2e756961f3f9955ed934da99112a`. All four transcript controls were
+complete despite 682 baseline failures in other operations. The head had zero
+operation errors and warnings, no invalid trials, no throughput regression,
+and a median transcript tail ratio of 0.609. Head transcript maxima were
+795.145, 953.201, 917.638 and 989.695 ms. Each sweep removed 43,169 rows in
+5.28–6.43 seconds. The upgrade retained 830,020 rows and the all-column SHA-256
+`e127f4cd408ae5bf01b7119d4d98108543a517cdc2c73547301befaeb742f944`.
+The historical core hold did not recur in this sample. Its cause remains open
+in #1433. [Main job and summary](https://github.com/compozy/compozy/actions/runs/44901986429/job/136839617838) · [Artifact](https://github.com/compozy/compozy/actions/runs/44901986429/artifacts/14707200091)
