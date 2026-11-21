@@ -16,7 +16,7 @@ import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/
 import { SessionThread } from "./session-thread-lazy";
 import { SessionWindowRightRegion } from "./session-window-right-panel";
 import { SessionPullRequestExitSurface } from "./session-pull-request-exit-surface";
-import { SessionWindowRowDialogs } from "./session-window-row-dialogs";
+import { SessionWindowClearDialog } from "./session-window-row-dialogs";
 import { useForkDeadSession } from "./use-fork-dead-session";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { useSessionWindowDerivedSessions } from "./hooks/use-session-window-derived-sessions";
@@ -36,12 +36,9 @@ import {
   SessionReportSendContext,
   SessionResumeFailure,
   SessionRuntimeRecoveryNotice,
-  SessionSidebar,
-  SessionSidebarLayout,
   SessionStopAttentionNotice,
   SupersededNotice,
   hasUnrecoverableRuntime,
-  useSessionWindowPresentation,
 } from "@/systems/session";
 
 type SessionWindowControls = ReturnType<typeof useSessionWindowController>["controls"];
@@ -129,20 +126,6 @@ function SessionWindowNoticeContent({
   return null;
 }
 
-/** The sessions rail beside the session pane; over the board the board is the list, so no rail. */
-function SessionWindowRailLayout({
-  sidebar,
-  children,
-}: {
-  sidebar: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  if (useSessionWindowPresentation() === "board-drawer") {
-    return <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>;
-  }
-  return <SessionSidebarLayout sidebar={sidebar}>{children}</SessionSidebarLayout>;
-}
-
 type SessionWindowPage = ReturnType<typeof useSessionWindowController>;
 type SessionWindowDerive = ReturnType<typeof useSessionWindowDerive>;
 
@@ -166,7 +149,10 @@ function subagentOriginProps(
   };
 }
 
-/** Compose the active session window and the sidebar-owned single or batch lifecycle dialogs. */
+/**
+ * Compose the session pane: transcript, composer and the panels beside them. The window's
+ * sessions rail frames it from outside the per-session boundary (`SessionWindowRail`).
+ */
 export function SessionWindowContent({
   windowId,
   agentName,
@@ -187,7 +173,6 @@ export function SessionWindowContent({
   const worktreeDialogs = use(WorktreeDialogActionsContext);
   const { derive, sideChat } = useSessionWindowDerivedSessions({ windowId, session, workspaceId });
   const page = useSessionWindowController({
-    windowId,
     sessionId,
     workspaceId,
     session,
@@ -268,126 +253,107 @@ export function SessionWindowContent({
                     usage: inspectorUsage,
                   }}
                 >
-                  <SessionWindowRailLayout
-                    sidebar={
-                      <SessionSidebar
-                        open={sidebar.open}
-                        sessions={sidebar.sessions}
-                        disconnected={sidebar.disconnected}
-                        collapsedThreadIds={sidebar.collapsedThreadIds}
-                        subagentThreadIds={sidebar.subagentThreadIds}
-                        view={sidebar.view}
-                        currentSessionId={sessionId}
-                        revealedSession={session}
-                        onThreadBranchChange={sidebar.onThreadBranchChange}
-                        onSelectSession={sidebar.onSelectSession}
-                        onNewSession={sidebar.onNewSession}
-                        sessionActions={sidebar.sessionActions}
-                      />
-                    }
-                  >
-                    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                      <SessionWindowNotice
-                        agentName={agentName}
-                        controls={controls}
-                        isForking={deadSession.isForking}
-                        onFork={deadSession.fork}
-                        session={session}
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                    <SessionWindowNotice
+                      agentName={agentName}
+                      controls={controls}
+                      isForking={deadSession.isForking}
+                      onFork={deadSession.fork}
+                      session={session}
+                      sessionId={sessionId}
+                    />
+                    <SessionReportSendContext value={successorId ? null : onSendPrompt}>
+                      <SessionThread
+                        liveDataEnabled={liveDataEnabled}
+                        readOnly={successorId !== null}
                         sessionId={sessionId}
-                      />
-                      <SessionReportSendContext value={successorId ? null : onSendPrompt}>
-                        <SessionThread
-                          liveDataEnabled={liveDataEnabled}
-                          readOnly={successorId !== null}
-                          sessionId={sessionId}
-                          workspaceId={workspaceId}
-                          agentName={agentName}
-                          acpSessionId={session.runtime.acp_session_id}
-                          sessionState={session.state}
-                          failure={session.failure}
-                          statusSession={session}
-                          stopCompletionNote={controls.stopCompletionNote}
-                          canPrompt={controls.canPrompt}
-                          onCancelPrompt={controls.handleCancelPrompt}
-                          onQueuePrompt={controls.handleQueuePrompt}
-                          onSteerPrompt={controls.handleSteerPrompt}
-                          isBusyInputPending={controls.isBusyInputPending}
-                          isSessionRunning={controls.isSessionRunning}
-                          stopPhase={controls.stopPhase}
-                          allowBusyInput={controls.allowBusyInput}
-                          busyInputDefaultMode={controls.busyInputDefaultMode}
-                          queuedPrompts={controls.queuedPrompts}
-                          onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
-                          onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}
-                          onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
-                          onClearQueue={controls.handleClearQueue}
-                          queueCap={controls.queueCap}
-                          unconfirmedSends={controls.unconfirmedSends}
-                          onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
-                          onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
-                          messageTrail={!alwaysOnMain}
-                          contextControl={
-                            // The daemon rotates an always-on main when its context runs out and files a report.
-                            alwaysOnMain ? undefined : (
-                              <SessionContextControl
-                                context={sessionContext.context}
-                                open={inspector.open}
-                                onToggle={inspector.toggle}
-                              />
-                            )
-                          }
-                          mcpControl={<SessionComposerMCP session={session} />}
-                          subagentControl={
-                            <SessionComposerSubagents session={session} onOpen={openSubagent} />
-                          }
-                          monitorControl={<SessionComposerMonitors session={session} />}
-                          processControl={<SessionComposerProcesses session={session} />}
-                          runtimeControl={
-                            <SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />
-                          }
-                          environmentControl={
-                            <SessionEnvironmentControl
-                              ref={environmentControl}
-                              binding={worktreeBinding}
-                              sessionId={sessionId}
-                              sessionTitle={session.name ?? sessionId}
-                              workspaceId={workspaceId}
-                              workspaceName={session.workspace_path ?? workspaceId}
+                        workspaceId={workspaceId}
+                        agentName={agentName}
+                        acpSessionId={session.runtime.acp_session_id}
+                        sessionState={session.state}
+                        failure={session.failure}
+                        statusSession={session}
+                        stopCompletionNote={controls.stopCompletionNote}
+                        canPrompt={controls.canPrompt}
+                        onCancelPrompt={controls.handleCancelPrompt}
+                        onQueuePrompt={controls.handleQueuePrompt}
+                        onSteerPrompt={controls.handleSteerPrompt}
+                        isBusyInputPending={controls.isBusyInputPending}
+                        isSessionRunning={controls.isSessionRunning}
+                        stopPhase={controls.stopPhase}
+                        allowBusyInput={controls.allowBusyInput}
+                        busyInputDefaultMode={controls.busyInputDefaultMode}
+                        queuedPrompts={controls.queuedPrompts}
+                        onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
+                        onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}
+                        onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
+                        onClearQueue={controls.handleClearQueue}
+                        queueCap={controls.queueCap}
+                        unconfirmedSends={controls.unconfirmedSends}
+                        onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
+                        onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
+                        messageTrail={!alwaysOnMain}
+                        contextControl={
+                          // The daemon rotates an always-on main when its context runs out and files a report.
+                          alwaysOnMain ? undefined : (
+                            <SessionContextControl
+                              context={sessionContext.context}
+                              open={inspector.open}
+                              onToggle={inspector.toggle}
                             />
-                          }
-                          commandCatalog={commandCatalog}
-                          commandCatalogStatus={commandCatalogStatus}
-                          onCommandCatalogOpen={refreshCommandCatalog}
-                          onCommandAction={token => {
-                            if (token !== "/worktree") return sideChat.onCommandAction(token);
-                            environmentControl.current?.openFork();
-                            return true;
-                          }}
-                          submitInterceptor={sideChat.submitInterceptor}
-                          promptImageCapability={promptImageCapability}
-                          promptEmbeddedContextCapability={promptEmbeddedContextCapability}
-                          subagentNavigation={{
-                            openSession: sidebar.openSession,
-                            // "and N more" lands on the inspector's Subagents section, as the chip does.
-                            showSubagents: () =>
-                              requestSessionInspectorSection(sessionId, "subagents"),
-                          }}
-                          subagentOrigin={subagentOriginProps(
-                            derive.subagentOrigin,
-                            sidebar,
-                            workspaceId
-                          )}
-                        />
-                      </SessionReportSendContext>
-                      {successorId ? (
-                        <SupersededNotice
-                          onOpenCurrent={() =>
-                            sidebar.onSelectSession({ ...session, id: successorId })
-                          }
-                        />
-                      ) : null}
-                    </div>
-                  </SessionWindowRailLayout>
+                          )
+                        }
+                        mcpControl={<SessionComposerMCP session={session} />}
+                        subagentControl={
+                          <SessionComposerSubagents session={session} onOpen={openSubagent} />
+                        }
+                        monitorControl={<SessionComposerMonitors session={session} />}
+                        processControl={<SessionComposerProcesses session={session} />}
+                        runtimeControl={
+                          <SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />
+                        }
+                        environmentControl={
+                          <SessionEnvironmentControl
+                            ref={environmentControl}
+                            binding={worktreeBinding}
+                            sessionId={sessionId}
+                            sessionTitle={session.name ?? sessionId}
+                            workspaceId={workspaceId}
+                            workspaceName={session.workspace_path ?? workspaceId}
+                          />
+                        }
+                        commandCatalog={commandCatalog}
+                        commandCatalogStatus={commandCatalogStatus}
+                        onCommandCatalogOpen={refreshCommandCatalog}
+                        onCommandAction={token => {
+                          if (token !== "/worktree") return sideChat.onCommandAction(token);
+                          environmentControl.current?.openFork();
+                          return true;
+                        }}
+                        submitInterceptor={sideChat.submitInterceptor}
+                        promptImageCapability={promptImageCapability}
+                        promptEmbeddedContextCapability={promptEmbeddedContextCapability}
+                        subagentNavigation={{
+                          openSession: sidebar.openSession,
+                          // "and N more" lands on the inspector's Subagents section, as the chip does.
+                          showSubagents: () =>
+                            requestSessionInspectorSection(sessionId, "subagents"),
+                        }}
+                        subagentOrigin={subagentOriginProps(
+                          derive.subagentOrigin,
+                          sidebar,
+                          workspaceId
+                        )}
+                      />
+                    </SessionReportSendContext>
+                    {successorId ? (
+                      <SupersededNotice
+                        onOpenCurrent={() =>
+                          sidebar.onSelectSession({ ...session, id: successorId })
+                        }
+                      />
+                    ) : null}
+                  </div>
                 </SessionWindowRightRegion>
                 <SessionPullRequestExitSurface model={pullRequestExitSurface} />
                 <SessionLinkDialogHost
@@ -397,11 +363,7 @@ export function SessionWindowContent({
                   workspaceId={workspaceId}
                   workspaceName={session.workspace_path ?? workspaceId}
                 />
-                <SessionWindowRowDialogs
-                  clearDialog={clearDialog}
-                  controls={controls}
-                  sidebar={sidebar}
-                />
+                <SessionWindowClearDialog clearDialog={clearDialog} controls={controls} />
               </div>
             </SessionSideDrawer>
           </SessionSubagentDrawer>

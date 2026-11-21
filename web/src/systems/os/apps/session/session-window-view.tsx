@@ -6,6 +6,7 @@ import { Button, Empty, Spinner, VIEW_TRANSITION_CLASS } from "@compozy/ui";
 
 import { loadSessionWindowContent } from "./session-window-module-loader";
 import { SessionReadOnlyTranscript } from "./session-read-only-transcript";
+import { SessionWindowRail } from "./session-window-rail";
 import { SessionWindowSkeleton } from "./session-window-skeleton";
 import {
   useMarkSeenOnLeave,
@@ -54,8 +55,16 @@ export function SessionWindowView({
   useMarkSeenOnLeave(instance, Boolean(session) && currentSessionId === session?.id);
   const sessionWorkspaceId = session?.workspace_id?.trim() ?? "";
 
+  // The rail is the window's: it frames the next session's loading state and its loaded pane
+  // alike, so a row pick never remounts the list or resets its scroll (#1923).
+  if (isLoading) {
+    return (
+      <SessionWindowRail windowId={windowId} sessionId={id} session={undefined}>
+        <SessionWindowSkeleton />
+      </SessionWindowRail>
+    );
+  }
   const placeholder = sessionWindowPlaceholder({
-    isLoading,
     shown: session !== undefined && sessionWorkspaceId === workspaceId,
     error,
     onRetry,
@@ -102,60 +111,59 @@ export function SessionWindowView({
       />
     );
   }
-  // The keyed boundary replaces the departing session's providers and composer together.
-  // Route identity is urgent: the next session or its loading state must replace the old
-  // conversation without waiting for an animation. The boundary can still animate an
-  // eligible transition; live updates and unrelated tab swaps never snapshot it.
+  // The keyed boundary replaces the departing session's providers and composer together; the
+  // window's rail stays outside it (#1923). Route identity is urgent: the next session or its
+  // loading state must replace the old conversation without waiting for an animation. The
+  // boundary can still animate an eligible transition; live updates and unrelated tab swaps
+  // never snapshot it.
   return (
-    <ViewTransition
-      key={id}
-      default="none"
-      enter={VIEW_TRANSITION_CLASS.fade}
-      exit={VIEW_TRANSITION_CLASS.fade}
-    >
-      <Suspense fallback={<SessionWindowSkeleton />}>
-        <SessionPromptRuntimeProvider canPrompt={canPromptSession(session)} session={session}>
-          <SessionChatRuntimeProvider
-            sessionId={id}
-            workspaceId={runtimeWorkspaceId}
-            liveTailEnabled={liveTailEnabled}
-          >
-            <SessionWindowContent
-              focused={focused}
-              liveDataEnabled={liveTailEnabled}
-              windowId={windowId}
-              agentName={resolvedAgentName}
+    <SessionWindowRail windowId={windowId} sessionId={id} session={session}>
+      <ViewTransition
+        key={id}
+        default="none"
+        enter={VIEW_TRANSITION_CLASS.fade}
+        exit={VIEW_TRANSITION_CLASS.fade}
+      >
+        <Suspense fallback={<SessionWindowSkeleton />}>
+          <SessionPromptRuntimeProvider canPrompt={canPromptSession(session)} session={session}>
+            <SessionChatRuntimeProvider
               sessionId={id}
-              session={session}
               workspaceId={runtimeWorkspaceId}
-            />
-          </SessionChatRuntimeProvider>
-        </SessionPromptRuntimeProvider>
-      </Suspense>
-    </ViewTransition>
+              liveTailEnabled={liveTailEnabled}
+            >
+              <SessionWindowContent
+                focused={focused}
+                liveDataEnabled={liveTailEnabled}
+                windowId={windowId}
+                agentName={resolvedAgentName}
+                sessionId={id}
+                session={session}
+                workspaceId={runtimeWorkspaceId}
+              />
+            </SessionChatRuntimeProvider>
+          </SessionPromptRuntimeProvider>
+        </Suspense>
+      </ViewTransition>
+    </SessionWindowRail>
   );
 }
 
 /**
- * What the window shows instead of the session: the skeleton while it loads, a
- * retryable notice when the read failed for any reason but not-found, and
- * "Couldn't find this session" only for a session that is not there (or not in
- * this workspace). `null` once the session can be shown.
+ * What the window shows instead of a loaded session: a retryable notice when the
+ * read failed for any reason but not-found, and "Couldn't find this session" only
+ * for a session that is not there (or not in this workspace). `null` once the session can be shown.
  */
 function sessionWindowPlaceholder({
-  isLoading,
   shown,
   error,
   onRetry,
   retrying,
 }: {
-  isLoading: boolean;
   shown: boolean;
   error: Error | null;
   onRetry?: () => void;
   retrying: boolean;
 }): React.ReactNode {
-  if (isLoading) return <SessionWindowSkeleton />;
   if (shown) return null;
   if (error && !isSessionUnavailable(error)) {
     return (

@@ -2,8 +2,7 @@
 // Invariant: recovery preserves durable lineage, composer cancellation never
 // stops the session, and the window's notice slot surfaces the daemon's
 // runtime and stop truth with the one action that exists for each — a quiet
-// supervision episode is never a window notice. Shown in the Kanban board's drawer (#1052) the
-// content omits the sessions rail: the board beside it is the list. An always-on agent's main
+// supervision episode is never a window notice. An always-on agent's main
 // session (#1303) drops the transcript's message trail and the composer's context meter. The
 // composer's context meter is the one toggle for the Context rail (#1487): pressed while open.
 // Owning layer: the session-window recovery and stop-attention actions.
@@ -13,7 +12,7 @@ import { act, fireEvent, render as renderUI, screen, waitFor } from "@testing-li
 import { createContext, type ReactNode, Suspense, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SessionWindowPresentationContext, type SessionPayload } from "@/systems/session";
+import type { SessionPayload } from "@/systems/session";
 
 // The real drawer consumes the application query/UI providers even when closed.
 // Keep the recovery/stop invariants in this canonical suite with its normal host boundaries.
@@ -146,10 +145,6 @@ vi.mock("@/systems/session", async importOriginal => ({
     <div data-reason={reason} role="status">
       Reconnecting to the agent… · Attempt {attempt} of {maxAttempts}
     </div>
-  ),
-  SessionSidebar: () => null,
-  SessionSidebarLayout: ({ children }: { children: ReactNode }) => (
-    <div data-testid="session-rail-layout">{children}</div>
   ),
   SessionDeriveHost: ({ children }: { children: ReactNode }) => children,
   SessionOriginContext: createContext(null),
@@ -442,20 +437,6 @@ describe("SessionWindowContent", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByRole("button", { name: "Stop now" })).toBeNull();
     expect(mocks.controls.handleStop).not.toHaveBeenCalled();
-  });
-
-  it("Should lay the rail beside the session in a window but never in the board drawer", async () => {
-    const { unmount } = render(renderContent(quietSession));
-    expect(await screen.findByTestId("session-rail-layout")).toBeInTheDocument();
-    unmount();
-
-    render(
-      <SessionWindowPresentationContext value="board-drawer">
-        {renderContent(quietSession)}
-      </SessionWindowPresentationContext>
-    );
-    await waitFor(() => expect(mocks.sessionThreadProps).toHaveBeenCalled());
-    expect(screen.queryByTestId("session-rail-layout")).toBeNull();
   });
 
   it("Should drop the message trail and context meter only for an always-on main (#1303)", async () => {
