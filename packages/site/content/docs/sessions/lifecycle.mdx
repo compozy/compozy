@@ -938,9 +938,11 @@ A thread is skipped, with the first matching reason, when:
 Sessions already archived inside a thread do not block it and are not archived again. Each thread
 archives in its own transaction that checks every rule again, so a thread that changed after the
 read is skipped with its current reason, and one failed thread (`archive_failed`) leaves the others
-archived. `archived[].session_ids` lists every session the request archived, top-level session
-first. `archived[].restore_ids` is the same list without subagents, which restore with their
-parent; unarchive those one by one, in order, to undo it. `skip_counts` and `failure_count` count
+archived. A thread that stopped being a top-level thread after the read (archived, deleted or moved
+under another session meanwhile) has nothing left to archive and is left out of the report.
+`archived[].session_ids` lists every session the request archived, top-level session first.
+`archived[].restore_ids` is the same list without subagents, which restore with their parent;
+unarchive those one by one, in order, to undo it. `skip_counts` and `failure_count` count
 every skipped and failed thread, while `skipped` and `failures` list the first 100 and set
 `skipped_truncated` or `failures_truncated` past that.
 

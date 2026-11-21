@@ -191,9 +191,10 @@ pinned stopped session. Add a second project with one stopped thread.
 
 1. Open the first project's menu (session list group header, overview tile, or menubar row):
    "Archive stopped" sits above "Archive project". Choose it: no dialog opens; while the request
-   runs the item reads disabled. The toast reads "Archived 2 threads" with "3 skipped: 1 running,
-   1 waiting on you, 1 pinned" (order follows the daemon's counts) and an "Undo" action. Both threads,
-   children included, leave the active list; the running, waiting and pinned rows stay.
+   runs the item reads disabled. The toast reads "Archived 2 threads" with "3 skipped: 1 pinned,
+   1 running, 1 waiting on you" (largest count first; equal counts follow the reason code) and an
+   "Undo" action. Both threads, children included, leave the active list; the running, waiting and
+   pinned rows stay.
 2. Choose "Undo" before the toast closes: the toast reads "Restored 2 threads", every archived
    session returns (roots before their children), and nothing that was skipped changes.
 3. Choose "Archive stopped" again right away on a project whose stopped threads are already

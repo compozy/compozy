@@ -149,7 +149,8 @@ second project.
    `Skipped K threads: …` with one count per reason, largest first. Nothing is archived afterwards.
 2. Without `--dry-run` the same counts print with `Archived`; every member of each archived thread
    is archived, and the skipped threads are untouched. `-o json` prints the HTTP response unchanged;
-   unarchiving its `archived[].session_ids` in order restores every thread.
+   unarchiving its `archived[].restore_ids` in order restores every thread, subagents included
+   (each restores with its parent; unarchiving a subagent directly is refused).
 3. Run it from the project directory without `--workspace`: it targets that project.
    `--all-workspaces` covers both projects and prints `in all projects.`; archived projects are left
    out.
