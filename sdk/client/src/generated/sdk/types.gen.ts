@@ -26722,6 +26722,10 @@ export type ListSessionsData = {
      */
     worktree?: string;
     /**
+     * Filter by session folder id or @root for unfoldered sessions; descendants follow their thread's folder. Requires one workspace and profile
+     */
+    folder?: string;
+    /**
      * Search session id, name, agent, or provider; title_agent searches visible title and agent
      */
     q?: string;
@@ -38918,6 +38922,10 @@ export type ListWorkspaceSessionsData = {
      * Filter by exact bound worktree id
      */
     worktree?: string;
+    /**
+     * Filter by session folder id or @root for unfoldered sessions; descendants follow their thread's folder. Requires one workspace and profile
+     */
+    folder?: string;
     /**
      * Search session id, name, agent, or provider; title_agent searches visible title and agent
      */

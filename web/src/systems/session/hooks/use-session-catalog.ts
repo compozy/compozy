@@ -1,9 +1,15 @@
-import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  type InfiniteQueryObserverResult,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
 import type { DataScope } from "@/systems/workspace";
 import { sessionCatalogOptions, sessionFacetsOptions } from "../lib/session-catalog-options";
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
-import type { SessionListFilters } from "../types";
+import type { SessionCatalogPageResponse, SessionListFilters } from "../types";
 
 /**
  * One session catalog page for a data scope: a project, User (`@user`), or
@@ -40,14 +46,29 @@ export function useSessionCatalog(
     ...sessionFacetsOptions(scoped),
     enabled: active && withFacets,
   });
+  const catalog = sessionCatalogPageView(page);
+  return {
+    ...catalog,
+    facets: facets.data?.facets,
+    total: facets.data?.facets.all ?? catalog.total,
+    failed: page.isError || (withFacets && facets.isError),
+    retry: () => {
+      void page.refetch();
+      if (withFacets) void facets.refetch();
+    },
+  };
+}
+
+export function sessionCatalogPageView(
+  page: InfiniteQueryObserverResult<InfiniteData<SessionCatalogPageResponse>>
+) {
   return {
     sessions: page.data?.pages[0]?.sessions ?? [],
-    facets: facets.data?.facets,
-    total: facets.data?.facets.all,
+    total: page.data?.pages[0]?.page.total ?? undefined,
     loading: page.isLoading,
     /** The page shown belongs to a previous search while the current one loads. */
     placeholder: page.isPlaceholderData,
-    failed: page.isError || (withFacets && facets.isError),
+    failed: page.isError,
     next: !page.isPlaceholderData && page.hasNextPage,
     previous: !page.isPlaceholderData && page.hasPreviousPage,
     paging: page.isPlaceholderData || page.isFetchingNextPage || page.isFetchingPreviousPage,
@@ -61,7 +82,6 @@ export function useSessionCatalog(
     },
     retry: () => {
       void page.refetch();
-      if (withFacets) void facets.refetch();
     },
   };
 }

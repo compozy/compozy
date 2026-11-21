@@ -327,7 +327,7 @@ function SessionListFolderBody({
 }) {
   const { dnd } = folders;
   // Nothing has answered yet: placeholder rows, never the empty state.
-  if (view.catalog?.loading) return <SessionListSkeleton />;
+  if (view.catalog?.loading && !view.partitions) return <SessionListSkeleton />;
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
@@ -337,6 +337,7 @@ function SessionListFolderBody({
       {pinnedSection}
       <SessionListSections
         sections={sections}
+        partitions={view.partitions}
         layout={layout}
         dnd={dnd}
         selectionDrag={bulk.drag}
@@ -349,7 +350,7 @@ function SessionListFolderBody({
         onThreadBranchChange={onThreadBranchChange}
         onToggleFolder={folders.toggleFolder}
         onSelectSession={session => {
-          if (!view.catalog?.paging) onSelectSession(session);
+          if (view.partitions || !view.catalog?.paging) onSelectSession(session);
         }}
         onNewSessionInFolder={folderId => onNewSession({ folderId })}
         onFolderDialog={folders.setDialog}
@@ -358,7 +359,9 @@ function SessionListFolderBody({
         testIdPrefix={testIdPrefix}
         emptyMessage={emptySessionListMessage(filtering, view)}
       />
-      {view.catalog ? <SessionListCatalogNavigation catalog={view.catalog} /> : null}
+      {view.catalog && !view.partitions ? (
+        <SessionListCatalogNavigation catalog={view.catalog} />
+      ) : null}
     </div>
   );
 }

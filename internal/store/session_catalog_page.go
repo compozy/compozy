@@ -86,6 +86,7 @@ type SessionCatalogPageQuery struct {
 	WorkspaceIDs    []string
 	WorkspaceID     string
 	WorktreeID      string
+	Folder          string
 	State           string
 	SessionType     string
 	AgentName       string
@@ -124,6 +125,9 @@ func (q SessionCatalogPageQuery) Validate() error {
 	}
 	if err := q.ReadScope.Validate(); err != nil {
 		return err
+	}
+	if q.Folder != "" && (q.WorkspaceID == "" || q.ReadScope.AllProfiles) {
+		return fmt.Errorf("store: session catalog folder requires one workspace and profile")
 	}
 	if q.SearchFields != "" && q.SearchFields != "title_agent" {
 		return fmt.Errorf("store: unsupported session catalog search_fields %q", q.SearchFields)
@@ -180,6 +184,9 @@ type SessionCatalogPage struct {
 	Total    int
 	// PinnedRootIDs lists every pin a pinned-sort read counts in Total; it is empty for other sorts.
 	PinnedRootIDs []string
+	// FolderMemberIDs identifies excluded overlay rows carried by the selected folder,
+	// or by any folder for a root request. The overlay applies the same partition.
+	FolderMemberIDs map[string]struct{}
 }
 
 // SessionCatalogPager exposes the bounded catalog read used by public session lists.

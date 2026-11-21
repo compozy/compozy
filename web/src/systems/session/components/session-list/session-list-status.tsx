@@ -22,7 +22,7 @@ export function SessionListStatus({
           </AlertDescription>
         </Alert>
       ) : null}
-      {view.catalog?.failed && (view.catalog.sessions.length ?? 0) === 0 ? (
+      {!view.partitions && view.catalog?.failed && (view.catalog.sessions.length ?? 0) === 0 ? (
         <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
           <TriangleAlert aria-hidden="true" />
           <AlertDescription>Couldn&rsquo;t load sessions.</AlertDescription>

@@ -26,7 +26,7 @@ import type { SessionThreadBranchChange } from "../../lib/session-thread-branch"
 import type { SessionListTarget, SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionListCatalogNavigation } from "./session-list-controls";
-import { GroupLoadFailure } from "./session-list-group-body";
+import { GroupLoadFailure } from "./session-list-group-note";
 import { SessionListGroupToggle } from "./session-list-group-toggle";
 import { SessionListThread, type SessionThreadRootLayout } from "./session-list-thread";
 

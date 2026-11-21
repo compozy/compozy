@@ -93,6 +93,12 @@ func (g *SessionRepo) PageSessions(
 		joinCleanupError(&err, rollbackTx(tx, "session catalog page"))
 	}()
 
+	if query.Folder != "" && len(query.ExcludeIDs) != 0 {
+		page.FolderMemberIDs, err = readSessionCatalogFolderOverlay(ctx, tx, query)
+		if err != nil {
+			return store.SessionCatalogPage{}, err
+		}
+	}
 	if !query.SkipTotal {
 		source, sourceArgs, sourceErr := sessionCatalogPageSource(query)
 		if sourceErr != nil {
@@ -249,6 +255,7 @@ func sessionCatalogPageFilters(
 		store.StringClause("lineage_kind", string(query.LineageKind)),
 	)
 	where, args = appendSessionExcludeRootFilter(where, args, query.ExcludeRootSessionID)
+	where, args = appendSessionCatalogFolderFilter(where, args, query)
 	where, args, err := appendSessionWorkspaceIDsFilter(where, args, query.WorkspaceIDs)
 	if err != nil {
 		return nil, nil, err

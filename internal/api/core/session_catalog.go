@@ -50,6 +50,7 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 		}
 		query.InstanceMainIDs = instances.mainIDs
 	}
+	query.Folder = strings.TrimSpace(c.Query("folder"))
 	page, err := pager.ListPage(c.Request.Context(), query)
 	if err != nil {
 		status := http.StatusInternalServerError

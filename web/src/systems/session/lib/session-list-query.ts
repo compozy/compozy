@@ -23,6 +23,8 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   const worktree = normalizedText(filters.worktree);
 
   if (worktree) normalized.worktree = worktree;
+  const folder = normalizedText(filters.folder);
+  if (folder) normalized.folder = folder;
   if (filters.search_fields !== undefined) normalized.search_fields = filters.search_fields;
   if (filters.skip_total !== undefined) normalized.skip_total = filters.skip_total;
   if (filters.include_health !== undefined) {

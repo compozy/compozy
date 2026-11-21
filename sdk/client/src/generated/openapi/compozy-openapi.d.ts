@@ -40086,6 +40086,8 @@ export interface operations {
         exclude_root?: string;
         /** @description Filter by exact bound worktree id */
         worktree?: string;
+        /** @description Filter by session folder id or @root for unfoldered sessions; descendants follow their thread's folder. Requires one workspace and profile */
+        folder?: string;
         /** @description Search session id, name, agent, or provider; title_agent searches visible title and agent */
         q?: string;
         /** @description Select visible title/agent search instead of the default catalog fields */
@@ -55960,6 +55962,8 @@ export interface operations {
         exclude_root?: string;
         /** @description Filter by exact bound worktree id */
         worktree?: string;
+        /** @description Filter by session folder id or @root for unfoldered sessions; descendants follow their thread's folder. Requires one workspace and profile */
+        folder?: string;
         /** @description Search session id, name, agent, or provider; title_agent searches visible title and agent */
         q?: string;
         /** @description Select visible title/agent search instead of the default catalog fields */

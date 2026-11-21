@@ -28,12 +28,21 @@ import { countThreadSessions, type SessionThreadModel } from "../../lib/session-
 import type { SessionFolderPayload, SessionListTarget, SessionPayload } from "../../types";
 import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
 import { SessionListFolder } from "./session-list-folder";
+import { SessionListCatalogNavigation } from "./session-list-controls";
+import { SESSION_LIST_ROOT_FOLDER } from "../../lib/session-list-partitions";
+import type {
+  SessionListPartitionPage,
+  SessionListPartitions,
+} from "../../hooks/use-session-list-partitions";
+import { SessionGroupRowsSkeleton } from "./session-list-skeleton";
+import { GroupLoadFailure } from "./session-list-group-note";
 import { SessionListThread, type SessionThreadRootLayout } from "./session-list-thread";
 import type { SessionFoldSet, SessionSubagentFolds } from "../../lib/session-sidebar-scope";
 
 export interface SessionListSectionsProps {
   ownerOf?: (session: ProfileOwnerLabel) => ProfileOwner;
   sections: Sections;
+  partitions?: SessionListPartitions;
   layout: SessionListLayout;
   dnd?: SessionListDnd;
   /** What dragging a selected row carries; selected rows drag alone without it. */
@@ -67,6 +76,7 @@ export interface SessionListSectionsProps {
  */
 export function SessionListSections({
   sections,
+  partitions,
   ownerOf,
   layout,
   dnd,
@@ -95,42 +105,69 @@ export function SessionListSections({
     ])
   );
   const allFolderIds = layout.folders.map(folder => folder.id);
-  const renderThreads = (threads: readonly SessionThreadModel[], folderId: string | null) => (
-    <SectionThreads
-      threads={threads}
-      folderId={folderId}
-      layout={layout}
-      dnd={dnd}
-      selectionDrag={selectionDrag}
-      orderable={orderable}
-      roots={roots}
-      ownerOf={ownerOf}
-      currentSessionId={currentSessionId}
-      collapsedThreads={collapsedThreads}
-      subagentThreads={subagentThreads}
-      onThreadBranchChange={onThreadBranchChange}
-      onSelectSession={onSelectSession}
-      selection={selection}
-      sessionActions={sessionActions}
-      testIdPrefix={testIdPrefix}
-    />
-  );
+  const renderThreads = (threads: readonly SessionThreadModel[], folderId: string | null) => {
+    const page = partitions?.get(folderId ?? SESSION_LIST_ROOT_FOLDER);
+    return (
+      <>
+        <PartitionStatus
+          page={page}
+          retryTestId={`${testIdPrefix}-${folderId ? `folder-${folderId}` : "root"}-retry`}
+        />
+
+        <SectionThreads
+          threads={threads}
+          folderId={folderId}
+          layout={layout}
+          dnd={dnd}
+          selectionDrag={selectionDrag}
+          orderable={
+            orderable &&
+            (!page ||
+              (page.total === page.sessions.length &&
+                !page.loading &&
+                !page.failed &&
+                !page.previous &&
+                !page.next &&
+                !page.paging))
+          }
+          roots={roots}
+          ownerOf={ownerOf}
+          currentSessionId={currentSessionId}
+          collapsedThreads={collapsedThreads}
+          subagentThreads={subagentThreads}
+          onThreadBranchChange={onThreadBranchChange}
+          onSelectSession={session => {
+            if (!page?.paging) onSelectSession(session);
+          }}
+          selection={selection}
+          sessionActions={sessionActions}
+          testIdPrefix={testIdPrefix}
+        />
+        {page?.showNavigation ? <SessionListCatalogNavigation catalog={page} /> : null}
+      </>
+    );
+  };
   const moveFolder = (folder: SessionFolderPayload, delta: -1 | 1) =>
     shiftId(allFolderIds, folder.id, delta) ? () => layout.moveFolder(folder.id, delta) : undefined;
   const rootZone = dnd?.rootZone(selectionDrag);
   const rootTarget = dnd?.indicator?.kind === "root";
-  const empty = sections.folders.length === 0 && sections.root.length === 0;
+  const empty =
+    sections.folders.length === 0 &&
+    sections.root.length === 0 &&
+    !partitions?.get(SESSION_LIST_ROOT_FOLDER)?.loading &&
+    !partitions?.get(SESSION_LIST_ROOT_FOLDER)?.failed;
 
   return (
     <>
       {sections.folders.map(section => {
         const { folder } = section;
+        const page = partitions?.get(folder.id);
         return (
           <SessionListFolder
             key={folder.id}
             folder={folder}
-            count={countThreadSessions(section.threads)}
-            expanded={filtering || !collapsedFolders.has(folder.id)}
+            count={partitions ? page?.total : countThreadSessions(section.threads)}
+            expanded={page ? !page.countOnly : filtering || !collapsedFolders.has(folder.id)}
             onToggle={() => onToggleFolder(folder.id)}
             onNewSession={onNewSessionInFolder ? () => onNewSessionInFolder(folder.id) : undefined}
             onRename={() => onFolderDialog({ kind: "rename", folder })}
@@ -171,6 +208,18 @@ export function SessionListSections({
       ) : null}
     </>
   );
+}
+
+function PartitionStatus({
+  page,
+  retryTestId,
+}: {
+  page: SessionListPartitionPage | undefined;
+  retryTestId: string;
+}) {
+  if (page?.loading) return <SessionGroupRowsSkeleton />;
+  if (!page?.failed || page.sessions.length > 0) return null;
+  return <GroupLoadFailure retryTestId={retryTestId} onRetry={page.retry} />;
 }
 
 /**
@@ -217,6 +266,7 @@ function SectionThreads({
 }) {
   const container: SessionDropContainer = {
     folderId,
+    orderable,
     ids: threads.flatMap(thread =>
       sessionHasOwnPlacement(thread.session) ? [thread.session.id] : []
     ),

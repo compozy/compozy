@@ -380,6 +380,54 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		})
 	}
 
+	t.Run("Should merge live and durable sessions inside their folder partition only", func(t *testing.T) {
+		t.Parallel()
+		h, db := newMentionHarness(t)
+		ctx := testutil.Context(t)
+		parent := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		child, err := h.manager.Create(ctx, new(CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeUser,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: parent.ID, RootSessionID: parent.ID, SpawnDepth: 1, Kind: store.LineageKindProvenance,
+			},
+		}))
+		if err != nil {
+			t.Fatalf("create active child: %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+		stopped := createSession(t, h)
+		reportSessionStop(t, h, stopped.ID)
+		scope := store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID}
+		folder, err := h.manager.CreateSessionFolder(ctx, scope, "Alpha")
+		if err != nil {
+			t.Fatalf("create folder: %v", err)
+		}
+		if err := db.MoveSession(ctx, scope, parent.ID, folder.ID); err != nil {
+			t.Fatalf("move live parent: %v", err)
+		}
+		query := ListQuery{
+			ReadScope: store.ReadScope{ProfileID: scope.ProfileID}, WorkspaceID: scope.WorkspaceID,
+			Folder: store.SessionCatalogRootFolder,
+		}
+		root, err := h.manager.ListPage(ctx, query)
+		if err != nil || root.Total != 1 || len(root.Sessions) != 1 || root.Sessions[0].ID != stopped.ID {
+			t.Fatalf("root page = %#v, %v; want only the stopped session", root, err)
+		}
+		query.Folder = folder.ID
+		filed, err := h.manager.ListPage(ctx, query)
+		if err != nil || filed.Total != 2 || len(filed.Sessions) != 2 {
+			t.Fatalf("folder page = %#v, %v; want the two live sessions", filed, err)
+		}
+		got := map[string]State{}
+		for _, row := range filed.Sessions {
+			got[row.ID] = row.State
+		}
+		if got[parent.ID] != StateActive || got[child.ID] != StateActive {
+			t.Fatalf("folder states = %v; want the live parent and child", got)
+		}
+	})
+
 	t.Run("Should split live and stopped pinned sessions out of the page in Pinned order", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
@@ -1464,6 +1512,36 @@ func TestNormalizeListQueryFinishedAutomationScope(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should keep folder cursors within their partition", func(t *testing.T) {
+		t.Parallel()
+		query := ListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: "ws-one",
+			Sort:        ListSortCreated,
+			Folder:      "sfold-one",
+		}
+		fingerprint, err := sessionListFingerprintForQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		query.Cursor, err = encodeSessionListCursor(
+			fingerprint, store.SessionCatalogPosition{
+				ID: "last", CreatedAt: benchmarkSessionTime, PrimaryAt: benchmarkSessionTime,
+				SecondaryAt: benchmarkSessionTime,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := sessionListPageCursor(query); err != nil {
+			t.Fatalf("cursor rejected by its own folder: %v", err)
+		}
+		query.Folder = store.SessionCatalogRootFolder
+		if _, _, err := sessionListPageCursor(query); !errors.Is(err, ErrListCursorInvalid) {
+			t.Fatalf("cursor in a different folder = %v, want ErrListCursorInvalid", err)
+		}
+	})
 
 	t.Run("Should keep facets on the default population while searching", func(t *testing.T) {
 		t.Parallel()

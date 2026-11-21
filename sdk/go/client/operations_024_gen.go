@@ -298,6 +298,7 @@ type ListSessionsParams struct {
 	Root                      *string   `url:"root"`
 	ExcludeRoot               *string   `url:"exclude_root"`
 	Worktree                  *string   `url:"worktree"`
+	Folder                    *string   `url:"folder"`
 	Q                         *string   `url:"q"`
 	SearchFields              *string   `url:"search_fields"`
 	Resumable                 *bool     `url:"resumable"`
@@ -370,6 +371,9 @@ func (c *Client) ListSessions(ctx context.Context, params ListSessionsParams) (*
 	}
 	if params.Worktree != nil {
 		query.Set("worktree", *params.Worktree)
+	}
+	if params.Folder != nil {
+		query.Set("folder", *params.Folder)
 	}
 	if params.Q != nil {
 		query.Set("q", *params.Q)

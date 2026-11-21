@@ -10,6 +10,8 @@ import (
 )
 
 const (
+	// SessionCatalogRootFolder selects sessions outside every folder.
+	SessionCatalogRootFolder = "@root"
 	// MaxSessionFolders bounds one profile's folders inside one workspace.
 	MaxSessionFolders = 200
 	// MaxSessionFolderNameLength bounds a folder display name in characters,
