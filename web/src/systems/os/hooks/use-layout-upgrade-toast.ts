@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { OsAttentionSections, OsLayoutUpgradeAttentionRow } from "../lib/attention-model";
 import type { PresentAttentionToast } from "../lib/attention-toast-request";
@@ -37,27 +37,21 @@ export function useLayoutUpgradeToast({
   presentToast,
 }: LayoutUpgradeToastOptions): void {
   const [told] = useState(() => new Set<string>());
-  // Raising a toast is an imperative side effect, not state handed back up; the effect event
-  // reads the latest presenter and bell opener without re-running the effect for them.
-  const announce = useEffectEvent(
-    (shown: [OsLayoutUpgradeAttentionRow, ...OsLayoutUpgradeAttentionRow[]]) => {
-      const [first] = shown;
-      presentToast({
-        kind: "layout-upgrade",
-        id: `layout-upgrade:${shown.map(occurrenceOf).join(",")}`,
-        title: first.title,
-        body: shown.length === 1 ? first.reason : COALESCED_BODY,
-        meta: [...new Set(shown.map(row => row.workspaceLabel))].join(" · "),
-        onActivate: onOpenBell,
-      });
-    }
-  );
   useEffect(() => {
     const untold = takeUntoldLayoutUpgrades([...sections.needsYou, ...sections.finished], told);
     if (!toasts || bellOpen) return;
     const shown = untold.filter(row => !mutedWorkspaceIds.has(row.workspaceId));
-    const [first, ...rest] = shown;
+    const [first] = shown;
     if (!first) return;
-    announce([first, ...rest]);
+    const single = shown.length === 1;
+    // react-doctor-disable-next-line react-doctor/no-pass-data-to-parent, react-doctor/no-pass-live-state-to-parent -- presentToast is the components layer's imperative toast sink, not parent state: raising a toast once per untold occurrence is this effect's side effect, and nothing re-renders from it.
+    presentToast({
+      kind: "layout-upgrade",
+      id: `layout-upgrade:${shown.map(occurrenceOf).join(",")}`,
+      title: first.title,
+      body: single ? first.reason : COALESCED_BODY,
+      meta: [...new Set(shown.map(row => row.workspaceLabel))].join(" · "),
+      onActivate: onOpenBell,
+    });
   });
 }
