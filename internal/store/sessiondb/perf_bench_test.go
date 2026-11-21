@@ -208,6 +208,8 @@ func benchmarkAppendLongAssistantTurn(b *testing.B, history int, appendEvent fun
 		if err != nil {
 			b.Fatalf("OpenSessionDB(copy) error = %v", err)
 		}
+		// The two appends stay below the periodic checkpoint threshold. Keep idle maintenance out of the sample too.
+		sessionDB.walMaintenanceDelayOverride.Store(int64(time.Hour))
 		appendEvent(b, sessionDB, history)
 		before, err := os.Stat(path + "-wal")
 		if err != nil {

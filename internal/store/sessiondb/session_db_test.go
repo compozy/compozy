@@ -3527,8 +3527,12 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 			t.Fatal(err)
 		}
 		second := chunk("second", " second")
-		if err := db.Record(ctx, second); err == nil {
-			t.Fatal("Record() succeeded despite the rejected part write")
+		if err := db.Record(ctx, second); err == nil ||
+			!strings.Contains(
+				err.Error(),
+				"write part of transcript entry",
+			) || !strings.Contains(err.Error(), "part rejected") {
+			t.Fatalf("Record() = %v, want the injected part write rejection", err)
 		}
 		events, err := db.Query(ctx, store.EventQuery{})
 		if err != nil || len(events) != 1 || events[0].ID != "first" {
