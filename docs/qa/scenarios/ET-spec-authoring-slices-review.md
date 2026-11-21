@@ -26,3 +26,10 @@ Run one clean round and confirm no later round starts. Run a second spec with a 
 allowed: the later round covers changed blockers only, and a blocker that needs an operator decision is
 escalated. Interrupt a reviewer and confirm its findings file keeps what it wrote. Decline review once
 and confirm no review artifact appears.
+
+QA impact 2026-11-21 (#1612): after the spec and `_slices.md` are approved and any review is settled,
+`cy-create-spec` asks one `Q1 - a` question: start a `spec_conductor` session now, or not now. Answer
+`a` and confirm a new `spec_conductor` session exists, received `Deliver .compozy/tasks/<slug>`, and
+its ID is reported. Answer `b` and confirm no session starts and the reply names the Web UI path and
+`compozy session new --agent spec_conductor`. Without session-create permission, `a` falls back to `b`.
+Planning flag only; the next QA cycle owns execution.
