@@ -944,8 +944,9 @@ The paired experiment now runs in the manual **SQLite paired load** workflow.
 daemon exercise on pull requests. Use the paired job conclusion when counting
 paired acceptance outcomes. [Workflow split](https://github.com/compozy/compozy/pull/1890)
 
-The last 24 pull-request workflow runs started before the split produced 9
-paired passes and 5 failures in their latest attempts (64% pass, 36% fail).
+The last 24 pull-request workflow runs started before the split (November 20,
+12:25–16:30 UTC) produced 9 paired passes and 5 failures in their latest
+attempts (64% pass, 36% fail).
 Seven jobs were canceled and three runs had no paired job. Including the failed
 first attempt of the one rerun gives 9 passes and 6 failures. The pre-split
 workflow had no `main` runs. [Rerun and attempt history](https://github.com/compozy/compozy/actions/runs/44771745725/attempts/1)
@@ -981,3 +982,9 @@ and a median transcript tail ratio of 0.609. Head transcript maxima were
 `e127f4cd408ae5bf01b7119d4d98108543a517cdc2c73547301befaeb742f944`.
 The historical core hold did not recur in this sample. Its cause remains open
 in #1433. [Main job and summary](https://github.com/compozy/compozy/actions/runs/44901986429/job/136839617838) · [Artifact](https://github.com/compozy/compozy/actions/runs/44901986429/artifacts/14707200091)
+
+The separate `runtime_trace_trials=true` run on the same `main` SHA also
+completed without a core warning that rejected a trial. Its artifact contains
+original-trial runtime recordings. Use them to attribute events within that
+run. The instrumented workload does not count as a second acceptance pass or
+attribute the earlier untraced holds. [Traced job](https://github.com/compozy/compozy/actions/runs/44902062663/job/136839843214) · [Artifact](https://github.com/compozy/compozy/actions/runs/44902062663/artifacts/14706658453)
