@@ -207,7 +207,9 @@ func normalizeSpec(spec Spec) (Spec, error) {
 	spec.Description = strings.TrimSpace(spec.Description)
 	spec.TerminalID = strings.TrimSpace(spec.TerminalID)
 	spec.Until = strings.TrimSpace(spec.Until)
-	spec.Branch = strings.TrimSpace(spec.Branch)
+	if spec.Kind != KindPullRequest {
+		spec.Branch = strings.TrimSpace(spec.Branch)
+	}
 	if spec.Kind != KindSession && (len(spec.Targets) != 0 || len(spec.States) != 0) {
 		return Spec{}, invalid("target_session_ids and states require kind session")
 	}
@@ -239,11 +241,13 @@ func normalizeSpec(spec Spec) (Spec, error) {
 }
 
 func normalizePullRequestSpec(spec Spec) (Spec, error) {
+	if strings.ContainsFunc(spec.Branch, unicode.IsSpace) {
+		return Spec{}, invalid("pull_request branch must not contain whitespace")
+	}
 	if owner, branch, qualified := strings.Cut(spec.Branch, ":"); qualified {
-		if !validPullRequestOwner(owner) || strings.TrimSpace(branch) == "" ||
-			strings.Contains(branch, ":") || strings.ContainsFunc(branch, unicode.IsSpace) {
+		if !validPullRequestOwner(owner) || branch == "" || strings.Contains(branch, ":") {
 			return Spec{}, invalid(
-				"qualified pull_request branch must use owner:branch with a non-empty owner and branch",
+				"qualified pull_request branch must use owner:branch with a GitHub account name and a non-empty branch",
 			)
 		}
 	}
