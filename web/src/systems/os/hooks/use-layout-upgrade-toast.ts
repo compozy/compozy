@@ -44,7 +44,7 @@ export function useLayoutUpgradeToast({
     const [first] = shown;
     if (!first) return;
     const single = shown.length === 1;
-    // react-doctor-disable-next-line react-doctor/no-pass-data-to-parent, react-doctor/no-pass-live-state-to-parent -- presentToast is the components layer's imperative toast sink, not parent state: raising a toast once per untold occurrence is this effect's side effect, and nothing re-renders from it.
+    // oxlint-disable-next-line react-doctor/no-pass-data-to-parent, react-doctor/no-pass-live-state-to-parent -- presentToast is the components layer's imperative toast sink, not parent state: raising a toast once per untold occurrence is this effect's side effect, and nothing re-renders from it.
     presentToast({
       kind: "layout-upgrade",
       id: `layout-upgrade:${shown.map(occurrenceOf).join(",")}`,
