@@ -28,7 +28,7 @@ func scanProcesses(ctx context.Context, environment bool) ([]ScannedProcess, boo
 func readLinuxProcesses(ctx context.Context, proc fs.FS, clock linuxClock, environment bool) ([]ScannedProcess, error) {
 	entries, err := fs.ReadDir(proc, ".")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read process directory: %w", err)
 	}
 	rows := make([]ScannedProcess, 0, len(entries))
 	for _, entry := range entries {
@@ -39,7 +39,7 @@ func readLinuxProcesses(ctx context.Context, proc fs.FS, clock linuxClock, envir
 		if err != nil {
 			continue
 		}
-		p, err := readLinuxProcess(proc, pid, clock)
+		p, err := readLinuxProcess(ctx, proc, pid, clock)
 		if err != nil {
 			continue
 		}
@@ -51,7 +51,7 @@ func readLinuxProcesses(ctx context.Context, proc fs.FS, clock linuxClock, envir
 
 		rows = append(rows, p)
 	}
-	return rows, nil
+	return rows, ctx.Err()
 }
 
 type linuxClock struct {
@@ -138,18 +138,22 @@ func readLinuxProcessClock() (int64, int64, error) {
 	return 0, 0, errors.New("process clock unavailable")
 }
 
-func linuxProcess(pid int, clock linuxClock) (ScannedProcess, error) {
-	return readLinuxProcess(os.DirFS("/proc"), pid, clock)
+func readLinuxProcess(ctx context.Context, proc fs.FS, pid int, clock linuxClock) (ScannedProcess, error) {
+	if err := ctx.Err(); err != nil {
+		return ScannedProcess{}, err
+	}
+	return readLinuxProcessStat(proc, pid, clock)
 }
 
-func readLinuxProcess(proc fs.FS, pid int, clock linuxClock) (ScannedProcess, error) {
+// A single procfs stat read is synchronous and also serves context-free identity checks.
+func readLinuxProcessStat(proc fs.FS, pid int, clock linuxClock) (ScannedProcess, error) {
 	boot, ticks := clock.boot, clock.ticks
 	data, err := fs.ReadFile(proc, strconv.Itoa(pid)+"/stat")
-	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
-		return ScannedProcess{}, ErrProcessIdentityGone
-	}
 	if err != nil {
-		return ScannedProcess{}, err
+		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
+			err = errors.Join(ErrProcessIdentityGone, err)
+		}
+		return ScannedProcess{}, fmt.Errorf("read stat for PID %d: %w", pid, err)
 	}
 	_, rest, ok := strings.CutLast(string(data), ")")
 	if !ok {
@@ -161,15 +165,15 @@ func readLinuxProcess(proc fs.FS, pid int, clock linuxClock) (ScannedProcess, er
 	}
 	ppid, err := strconv.Atoi(fields[1])
 	if err != nil {
-		return ScannedProcess{}, err
+		return ScannedProcess{}, fmt.Errorf("parse parent for PID %d: %w", pid, err)
 	}
 	pgid, err := strconv.Atoi(fields[2])
 	if err != nil {
-		return ScannedProcess{}, err
+		return ScannedProcess{}, fmt.Errorf("parse process group for PID %d: %w", pid, err)
 	}
 	start, err := strconv.ParseInt(fields[19], 10, 64)
 	if err != nil {
-		return ScannedProcess{}, err
+		return ScannedProcess{}, fmt.Errorf("parse start ticks for PID %d: %w", pid, err)
 	}
 	return ScannedProcess{
 		PID:         pid,
@@ -187,7 +191,7 @@ func scanProcessIdentity(pid int) (ScannedProcess, error) {
 	if err != nil {
 		return ScannedProcess{}, err
 	}
-	return linuxProcess(pid, clock)
+	return readLinuxProcessStat(os.DirFS("/proc"), pid, clock)
 }
 
 func linuxListeners() map[string]int {

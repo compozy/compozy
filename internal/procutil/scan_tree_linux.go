@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"strconv"
@@ -50,7 +51,7 @@ func readLinuxDescendants(
 			continue
 		}
 		seen[child.pid] = true
-		p, err := readLinuxProcess(proc, child.pid, clock)
+		p, err := readLinuxProcess(ctx, proc, child.pid, clock)
 		if child.parent == 0 && errors.Is(err, ErrProcessIdentityGone) {
 			continue
 		}
@@ -77,7 +78,7 @@ func readLinuxDescendants(
 			continue
 		}
 		seen[pid] = true
-		if p, err := readLinuxProcess(proc, pid, clock); err == nil {
+		if p, err := readLinuxProcess(ctx, proc, pid, clock); err == nil {
 			rows = append(rows, p)
 		}
 	}
@@ -88,7 +89,7 @@ func appendLinuxChildren(ctx context.Context, proc fs.FS, parent int, queue []li
 	taskDir := strconv.Itoa(parent) + "/task"
 	threads, err := fs.ReadDir(proc, taskDir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read threads for PID %d: %w", parent, err)
 	}
 	for _, thread := range threads {
 		if err := ctx.Err(); err != nil {
@@ -96,12 +97,12 @@ func appendLinuxChildren(ctx context.Context, proc fs.FS, parent int, queue []li
 		}
 		data, err := fs.ReadFile(proc, taskDir+"/"+thread.Name()+"/children")
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read children for thread %s: %w", thread.Name(), err)
 		}
 		for value := range bytes.FieldsSeq(data) {
 			pid, err := strconv.Atoi(string(value))
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("parse child PID for thread %s: %w", thread.Name(), err)
 			}
 			queue = append(queue, linuxChild{pid: pid, parent: parent})
 		}

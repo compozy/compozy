@@ -134,7 +134,7 @@ func TestScannedKernelToken(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original, err := linuxProcess(os.Getpid(), clock)
+		original, err := readLinuxProcess(t.Context(), os.DirFS("/proc"), os.Getpid(), clock)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -143,7 +143,7 @@ func TestScannedKernelToken(t *testing.T) {
 			t.Fatal(err)
 		}
 		clock.boot += 3600
-		shifted, err := linuxProcess(os.Getpid(), clock)
+		shifted, err := readLinuxProcess(t.Context(), os.DirFS("/proc"), os.Getpid(), clock)
 		if err != nil {
 			t.Fatal(err)
 		}
