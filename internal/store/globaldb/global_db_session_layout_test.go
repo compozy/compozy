@@ -314,26 +314,32 @@ func TestSessionLayoutCatalogPartitions(t *testing.T) {
 			Sort: sessionCatalogSortCreated, Limit: 1,
 		}
 		for _, tc := range []struct {
-			folder, first string
-			total         int
+			name, folder, first string
+			total               int
 		}{
-			{"", "child", 4},
-			{store.SessionCatalogRootFolder, "root", 1},
-			{"sfold-a", "child", 3},
+			{"Should keep the full-catalog default", "", "child", 4},
+			{"Should keep the older unfoldered row on page one", store.SessionCatalogRootFolder, "root", 1},
+			{"Should count and serve only folder members", "sfold-a", "child", 3},
 		} {
-			query.Folder = tc.folder
-			page, err := db.PageSessions(ctx, query)
-			if err != nil || page.Total != tc.total || len(page.Sessions) != 1 || page.Sessions[0].ID != tc.first {
-				t.Fatalf(
-					"PageSessions(folder=%q) = %+v, %v; want %q and total %d",
-					tc.folder, page, err, tc.first, tc.total,
-				)
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				scoped := query
+				scoped.Folder = tc.folder
+				page, err := db.PageSessions(t.Context(), scoped)
+				if err != nil || page.Total != tc.total || len(page.Sessions) != 1 || page.Sessions[0].ID != tc.first {
+					t.Fatalf(
+						"PageSessions(folder=%q) = %+v, %v; want %q and total %d",
+						tc.folder, page, err, tc.first, tc.total,
+					)
+				}
+			})
 		}
 
 		// An active snapshot replaces its durable row, but keeps the same partition.
-		query.ExcludeIDs = []string{"child", "root"}
-		page, err := db.PageSessions(ctx, query)
+		overlay := query
+		overlay.Folder = "sfold-a"
+		overlay.ExcludeIDs = []string{"child", "root"}
+		page, err := db.PageSessions(ctx, overlay)
 		if err != nil {
 			t.Fatalf("PageSessions(overlay): %v", err)
 		}

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -13,10 +14,11 @@ import (
 // Folder members carry children within their workspace and profile. As in the
 // list tree, continuing a carried child keeps it there, while continuing a
 // foldered root or forking any member opens new top-level work.
-const sessionCatalogFolderWalk = `WITH RECURSIVE folder_walk(member, carried) AS (
+const sessionCatalogFolderSeed = `WITH RECURSIVE folder_walk(member, carried) AS (
  SELECT p.session_id, 0 FROM session_placements AS p
- WHERE p.workspace_id = ? AND p.profile_id = ? AND p.folder_id IS NOT NULL AND p.session_id IS NOT NULL
- AND (? = '@root' OR p.folder_id = ?)
+ WHERE p.profile_id = ? AND p.workspace_id = ? AND p.folder_id IS NOT NULL AND p.session_id IS NOT NULL`
+
+const sessionCatalogFolderChildren = `
  UNION
  SELECT child.id, 1 FROM sessions AS child
  JOIN folder_walk AS parent ON child.parent_session_id = parent.member
@@ -26,46 +28,56 @@ const sessionCatalogFolderWalk = `WITH RECURSIVE folder_walk(member, carried) AS
  OR (child.lineage_kind = 'continue' AND parent.carried = 1))
 ) SELECT member FROM folder_walk`
 
-func sessionCatalogFolderArgs(query store.SessionCatalogPageQuery) []any {
-	workspaceID := query.WorkspaceID
+func sessionCatalogFolderWalk(query store.SessionCatalogPageQuery) (string, []any) {
+	workspaceID := strings.TrimSpace(query.WorkspaceID)
 	if workspaceID == workspaceaccess.UserSelector {
 		workspaceID = ""
 	}
-	profileID := query.ReadScope.ProfileID
-	return []any{workspaceID, profileID, query.Folder, query.Folder, workspaceID, profileID}
+	profileID := strings.TrimSpace(query.ReadScope.ProfileID)
+	seed := sessionCatalogFolderSeed
+	args := []any{profileID, workspaceID}
+	if query.Folder != store.SessionCatalogRootFolder {
+		seed += " AND p.folder_id = ?"
+		args = append(args, query.Folder)
+	}
+	return seed + sessionCatalogFolderChildren, append(args, workspaceID, profileID)
 }
 
 func appendSessionCatalogFolderFilter(
 	where []string, args []any, query store.SessionCatalogPageQuery,
 ) ([]string, []any) {
-	switch query.Folder {
-	case "":
+	if query.Folder == "" {
 		return where, args
-	case store.SessionCatalogRootFolder:
-		where = append(where, "id NOT IN ("+sessionCatalogFolderWalk+")")
-	default:
-		where = append(where, "id IN ("+sessionCatalogFolderWalk+")")
 	}
-	return where, append(args, sessionCatalogFolderArgs(query)...)
+	walk, folderArgs := sessionCatalogFolderWalk(query)
+	predicate := "id IN ("
+	if query.Folder == store.SessionCatalogRootFolder {
+		predicate = "id NOT IN ("
+	}
+	return append(where, predicate+walk+")"), append(args, folderArgs...)
 }
 
 // The same transaction and membership query partition both SQLite rows and
 // active sessions whose runtime snapshots will replace their durable rows.
 func readSessionCatalogFolderOverlay(
 	ctx context.Context, tx *sql.Tx, query store.SessionCatalogPageQuery,
-) (map[string]struct{}, error) {
+) (members map[string]struct{}, err error) {
 	ids, err := json.Marshal(query.ExcludeIDs)
 	if err != nil {
 		return nil, fmt.Errorf("store: encode session folder overlay IDs: %w", err)
 	}
-	rows, err := tx.QueryContext(ctx, sessionCatalogFolderWalk+
-		" WHERE member IN (SELECT CAST(value AS TEXT) FROM json_each(?))",
-		append(sessionCatalogFolderArgs(query), string(ids))...)
+	walk, args := sessionCatalogFolderWalk(query)
+	rows, err := tx.QueryContext(ctx, walk+" WHERE member IN (SELECT CAST(value AS TEXT) FROM json_each(?))",
+		append(args, string(ids))...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query session folder overlay: %w", err)
 	}
-	defer rows.Close()
-	members := make(map[string]struct{})
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			joinCleanupError(&err, fmt.Errorf("store: close session folder overlay: %w", closeErr))
+		}
+	}()
+	members = make(map[string]struct{})
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
