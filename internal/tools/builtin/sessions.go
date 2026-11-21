@@ -30,6 +30,7 @@ var sessionTools = []toolspkg.Descriptor{
 	sessionChangesDescriptor(),
 	sessionArchiveDescriptor(true),
 	sessionArchiveDescriptor(false),
+	sessionArchiveStoppedDescriptor(),
 	sessionCleanupDescriptor(),
 	sessionLaterDescriptor(),
 	sessionResumeLaterDescriptor(),

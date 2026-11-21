@@ -16991,6 +16991,128 @@ func TestNativeSessionCleanupTool(t *testing.T) {
 	})
 }
 
+// Invariant (#1924): compozy__session_archive_stopped defaults to the caller's
+// workspace, hands the caller session to the manager so its thread is skipped
+// as caller, returns the report as the HTTP response DTO, and reaches every
+// workspace only for the operator or a session with unrestricted workspace
+// access, as compozy__session_cleanup does. Owner: the daemon native tool binding.
+func TestNativeSessionArchiveStoppedTool(t *testing.T) {
+	t.Parallel()
+
+	agent := toolspkg.Scope{WorkspaceID: "ws-1", SessionID: "sess-agent", AgentName: "coder"}
+	newRegistry := func(t *testing.T, access string) (*nativeArchiveStoppedSessions, *toolspkg.RuntimeRegistry) {
+		t.Helper()
+		sessions := &nativeArchiveStoppedSessions{}
+		sessions.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID: id, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", State: session.StateActive,
+				EffectiveWorkspaceAccess: access,
+			}, nil
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   sessions,
+			Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		return sessions, registry
+	}
+	call := func(
+		t *testing.T,
+		registry *toolspkg.RuntimeRegistry,
+		scope toolspkg.Scope,
+		input string,
+	) (toolspkg.ToolResult, error) {
+		t.Helper()
+		return registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionArchiveStopped, Input: json.RawMessage(input),
+		})
+	}
+
+	t.Run("Should archive the caller's workspace and skip the caller's thread", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		result, err := call(t, registry, agent, `{"dry_run":true}`)
+		if err != nil {
+			t.Fatalf("session_archive_stopped error = %v", err)
+		}
+		want := session.ArchiveStoppedRequest{
+			ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", DryRun: true, CallerSessionID: "sess-agent",
+		}
+		if len(sessions.requests) != 1 || sessions.requests[0] != want {
+			t.Fatalf("requests = %+v, want %+v", sessions.requests, want)
+		}
+		var payload contract.SessionArchiveStoppedResponse
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(structured) error = %v", err)
+		}
+		if !payload.DryRun || payload.ArchivedThreadCount != 1 || payload.ArchivedSessionCount != 2 ||
+			payload.SkipCounts["caller"] != 1 || len(payload.Skipped) != 1 ||
+			payload.Skipped[0].RootID != "sess-agent" || payload.Skipped[0].Reason != "caller" {
+			t.Fatalf("payload = %+v, want one archived thread and the caller's thread skipped", payload)
+		}
+	})
+
+	t.Run("Should deny all workspaces to an agent session without unrestricted access", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		_, err := call(t, registry, agent, `{"all_workspaces":true,"dry_run":true}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if len(sessions.requests) != 0 {
+			t.Fatalf("requests after denial = %+v, want none", sessions.requests)
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		access string
+		scope  toolspkg.Scope
+	}{
+		{name: "an unrestricted agent session", access: workspaceaccess.Unrestricted, scope: agent},
+		{name: "the operator", scope: toolspkg.Scope{Operator: true}},
+	} {
+		t.Run("Should reach all workspaces for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			sessions, registry := newRegistry(t, tc.access)
+			if _, err := call(t, registry, tc.scope, `{"all_workspaces":true}`); err != nil {
+				t.Fatalf("session_archive_stopped all_workspaces error = %v", err)
+			}
+			if len(sessions.requests) != 1 || !sessions.requests[0].AllWorkspaces ||
+				sessions.requests[0].WorkspaceID != "" || sessions.requests[0].DryRun {
+				t.Fatalf("requests = %+v, want one archive across all workspaces", sessions.requests)
+			}
+		})
+	}
+}
+
+// nativeArchiveStoppedSessions records the Archive stopped requests the native
+// tool hands the session manager and skips the caller's thread like it does.
+type nativeArchiveStoppedSessions struct {
+	apitest.StubSessionManager
+	requests []session.ArchiveStoppedRequest
+}
+
+var _ core.SessionArchiveStoppedManager = (*nativeArchiveStoppedSessions)(nil)
+
+func (s *nativeArchiveStoppedSessions) ArchiveStopped(
+	_ context.Context,
+	request session.ArchiveStoppedRequest,
+) (session.ArchiveStoppedReport, error) {
+	s.requests = append(s.requests, request)
+	report := session.ArchiveStoppedReport{
+		DryRun: request.DryRun,
+		Archived: []session.ArchiveStoppedThread{{
+			RootID: "sess-root", WorkspaceID: "ws-1", SessionIDs: []string{"sess-root", "sess-child"},
+		}},
+		SkipCounts: map[session.ArchiveStoppedSkipReason]int{},
+	}
+	if request.CallerSessionID != "" {
+		report.SkipCounts[session.ArchiveStoppedSkipCaller] = 1
+		report.Skipped = []session.ArchiveStoppedSkip{{
+			RootID: request.CallerSessionID, WorkspaceID: "ws-1", Reason: session.ArchiveStoppedSkipCaller,
+		}}
+	}
+	return report, nil
+}
+
 func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Parallel()
 

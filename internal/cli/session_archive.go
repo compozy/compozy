@@ -19,11 +19,24 @@ func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Comm
 	}
 	var stop, withChildren bool
 	flags := processPolicyFlags{}
+	stoppedFlags := sessionArchiveStoppedFlags{}
+	args := exactOneNonBlankArg()
+	if archived {
+		args = sessionArchiveArgs(&stoppedFlags)
+	}
 	command := &cobra.Command{
 		Use:   action + " <id>",
 		Short: short,
-		Args:  exactOneNonBlankArg(),
+		Args:  args,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if archived {
+				if stoppedFlags.stopped {
+					return runSessionArchiveStopped(cmd, deps, stoppedFlags)
+				}
+				if err := sessionArchiveStoppedOnlyFlagError(cmd); err != nil {
+					return err
+				}
+			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
@@ -41,6 +54,13 @@ func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Comm
 		},
 	}
 	if archived {
+		command.Use = action + " (<id> | --stopped)"
+		command.Long = "Archive one session by ID, or with --stopped archive every stopped thread of a project " +
+			"(or of every project with --all-workspaces). Archiving is reversible with `compozy session unarchive`."
+		command.Example = `  # Preview, then archive, every stopped thread of a project
+  compozy session archive --stopped --workspace platform --dry-run
+  compozy session archive --stopped --workspace platform`
+		bindSessionArchiveStoppedFlags(command, &stoppedFlags)
 		flags.bind(command)
 		command.Flags().BoolVar(
 			&stop,

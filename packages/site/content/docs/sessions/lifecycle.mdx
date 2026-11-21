@@ -943,6 +943,18 @@ first; unarchive them in that order to undo it. `skip_counts` counts every skipp
 `skipped` and `failures` list the first 100 and set `skipped_truncated` or `failures_truncated`
 past that.
 
+From the CLI, `compozy session archive --stopped` does the same for the current project, or for
+`--workspace <ref>` or `--all-workspaces`; `--dry-run` previews. It prints a summary such as
+`Archived 14 threads (31 sessions) in platform.` followed by `Skipped 3 threads: 2 waiting_on_you,
+1 running.`, prints the response unchanged with `-o json`, and exits `1` when any thread failed.
+`--stopped` takes no session ID and cannot be combined with `--stop`, `--with-children`, or the
+process flags (exit `2`).
+
+Agents call `compozy__session_archive_stopped` with `{workspace?, all_workspaces?, dry_run?}`. It
+defaults to the caller's workspace and always skips the caller's own thread as `caller`;
+`dry_run: true` runs without approval, and `all_workspaces` needs operator authority or unrestricted
+workspace access.
+
 ## Stop reasons
 
 The session manager currently emits these persisted stop classifications:

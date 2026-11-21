@@ -136,3 +136,27 @@ owner receipt. A wrong-profile/workspace cleanup request still cannot remove it.
 sets any retained subagent child activity to stopped without changing its outcome. Stall one accepted
 delete: its 30-second deadline fails that thread while the run can continue with other roots.
 CI owns this verification; the manual walk is pending.
+
+## Archive every stopped thread (#1924)
+
+Fill one project with stopped threads (some with child sessions and subagents) plus one thread of
+each skip kind: a running session, a pending permission request (waiting on you), queued input, a
+pinned session, a session in Later, and an always-on agent's main session. Repeat a smaller set in a
+second project.
+
+1. `compozy session archive --stopped --workspace <project> --dry-run` prints
+   `Would archive N threads (M sessions) in <project>.` and
+   `Skipped K threads: …` with one count per reason, largest first. Nothing is archived afterwards.
+2. Without `--dry-run` the same counts print with `Archived`; every member of each archived thread
+   is archived, and the skipped threads are untouched. `-o json` prints the HTTP response unchanged;
+   unarchiving its `archived[].session_ids` in order restores every thread.
+3. Run it from the project directory without `--workspace`: it targets that project.
+   `--all-workspaces` covers both projects and prints `in all projects.`; archived projects are left
+   out.
+4. `--stopped` with a session ID, or with `--stop`, `--with-children`, `--terminate-processes`, or
+   `--keep-processes`, exits `2` without a request. Make one thread's archive fail: the summary lists
+   it under `Failed`, the others archive, and the command exits `1`.
+5. From an agent session, `compozy__session_archive_stopped` with `dry_run: true` runs without
+   approval and reports the caller's own thread as skipped `caller`; without `dry_run` it archives
+   and never archives the caller's thread. `all_workspaces: true` from a restricted agent returns
+   `capability_denied` with reason `needs_grant`.
