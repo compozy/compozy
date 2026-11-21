@@ -9,7 +9,9 @@ import {
 } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
-import { restoreScrollOutsideShell, useRouterScrollTracking } from "../router-scroll-restoration";
+import { useRouterScrollTracking } from "@/hooks/use-router-scroll-tracking";
+
+import { restoreScrollOutsideShell } from "../router-scroll-restoration";
 
 // Invariant (#1546): the router keeps scroll bookkeeping only for the pages outside the shell,
 // the only ones it restores. Shell routes leave no recorded offsets; `/design-system` gets its

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { DesignSystemShowcase } from "@/components/design-system-showcase";
-import { useRouterScrollTracking } from "@/lib/router-scroll-restoration";
+import { useRouterScrollTracking } from "@/hooks/use-router-scroll-tracking";
 
 export const Route = createFileRoute("/design-system")({
   component: DesignSystemPage,
