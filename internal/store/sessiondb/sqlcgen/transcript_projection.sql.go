@@ -42,6 +42,15 @@ func (q *Queries) CountTranscriptMessageIDConflicts(ctx context.Context, arg Cou
 	return count, err
 }
 
+const deleteTranscriptEntryParts = `-- name: DeleteTranscriptEntryParts :exec
+DELETE FROM transcript_entry_parts WHERE entry_key = ?1
+`
+
+func (q *Queries) DeleteTranscriptEntryParts(ctx context.Context, entryKey string) error {
+	_, err := q.db.ExecContext(ctx, deleteTranscriptEntryParts, entryKey)
+	return err
+}
+
 const getLatestAssistantTranscriptIdentity = `-- name: GetLatestAssistantTranscriptIdentity :one
 SELECT entry_key, kind, logical_id, turn_id, base_message_id,
        COALESCE(message_id, '') AS message_id,
@@ -86,29 +95,6 @@ func (q *Queries) GetLatestAssistantTranscriptIdentity(ctx context.Context, arg 
 	return i, err
 }
 
-const getTranscriptEntryEventBounds = `-- name: GetTranscriptEntryEventBounds :one
-SELECT COUNT(*) AS event_count, CAST(COALESCE(MAX(sequence), 0) AS INTEGER) AS max_sequence
-FROM events
-WHERE transcript_entry_key = ?1 AND sequence <= ?2
-`
-
-type GetTranscriptEntryEventBoundsParams struct {
-	TranscriptEntryKey string `json:"transcript_entry_key"`
-	ThroughSequence    int64  `json:"through_sequence"`
-}
-
-type GetTranscriptEntryEventBoundsRow struct {
-	EventCount  int64 `json:"event_count"`
-	MaxSequence int64 `json:"max_sequence"`
-}
-
-func (q *Queries) GetTranscriptEntryEventBounds(ctx context.Context, arg GetTranscriptEntryEventBoundsParams) (GetTranscriptEntryEventBoundsRow, error) {
-	row := q.db.QueryRowContext(ctx, getTranscriptEntryEventBounds, arg.TranscriptEntryKey, arg.ThroughSequence)
-	var i GetTranscriptEntryEventBoundsRow
-	err := row.Scan(&i.EventCount, &i.MaxSequence)
-	return i, err
-}
-
 const getTranscriptEntryIdentity = `-- name: GetTranscriptEntryIdentity :one
 SELECT entry_key, kind, logical_id, turn_id, base_message_id,
        COALESCE(message_id, '') AS message_id,
@@ -144,6 +130,17 @@ func (q *Queries) GetTranscriptEntryIdentity(ctx context.Context, entryKey strin
 		&i.Complete,
 	)
 	return i, err
+}
+
+const getTranscriptEntryPartCount = `-- name: GetTranscriptEntryPartCount :one
+SELECT part_count FROM transcript_entries WHERE entry_key = ?1
+`
+
+func (q *Queries) GetTranscriptEntryPartCount(ctx context.Context, entryKey string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTranscriptEntryPartCount, entryKey)
+	var part_count int64
+	err := row.Scan(&part_count)
+	return part_count, err
 }
 
 const getTranscriptProjectionState = `-- name: GetTranscriptProjectionState :one
@@ -309,7 +306,7 @@ func (q *Queries) ListEventsForTranscriptEntryAfter(ctx context.Context, arg Lis
 }
 
 const listLatestTranscriptEntries = `-- name: ListLatestTranscriptEntries :many
-SELECT message_json, start_sequence, updated_sequence, event_type, marker_json
+SELECT entry_key, part_count, complete, message_json, start_sequence, updated_sequence, event_type, marker_json
 FROM transcript_entries
 WHERE message_json IS NOT NULL
 ORDER BY start_sequence DESC
@@ -317,6 +314,9 @@ LIMIT ?1
 `
 
 type ListLatestTranscriptEntriesRow struct {
+	EntryKey        string         `json:"entry_key"`
+	PartCount       int64          `json:"part_count"`
+	Complete        int64          `json:"complete"`
 	MessageJson     sql.NullString `json:"message_json"`
 	StartSequence   int64          `json:"start_sequence"`
 	UpdatedSequence int64          `json:"updated_sequence"`
@@ -334,6 +334,9 @@ func (q *Queries) ListLatestTranscriptEntries(ctx context.Context, rowLimit int6
 	for rows.Next() {
 		var i ListLatestTranscriptEntriesRow
 		if err := rows.Scan(
+			&i.EntryKey,
+			&i.PartCount,
+			&i.Complete,
 			&i.MessageJson,
 			&i.StartSequence,
 			&i.UpdatedSequence,
@@ -354,7 +357,7 @@ func (q *Queries) ListLatestTranscriptEntries(ctx context.Context, rowLimit int6
 }
 
 const listTranscriptChanges = `-- name: ListTranscriptChanges :many
-SELECT e.message_json, e.start_sequence, e.updated_sequence, e.event_type, e.marker_json
+SELECT e.entry_key, e.part_count, e.complete, e.message_json, e.start_sequence, e.updated_sequence, e.event_type, e.marker_json
 FROM transcript_entries AS e
 WHERE e.message_json IS NOT NULL
   AND e.updated_sequence IN (
@@ -373,6 +376,9 @@ type ListTranscriptChangesParams struct {
 }
 
 type ListTranscriptChangesRow struct {
+	EntryKey        string         `json:"entry_key"`
+	PartCount       int64          `json:"part_count"`
+	Complete        int64          `json:"complete"`
 	MessageJson     sql.NullString `json:"message_json"`
 	StartSequence   int64          `json:"start_sequence"`
 	UpdatedSequence int64          `json:"updated_sequence"`
@@ -390,6 +396,9 @@ func (q *Queries) ListTranscriptChanges(ctx context.Context, arg ListTranscriptC
 	for rows.Next() {
 		var i ListTranscriptChangesRow
 		if err := rows.Scan(
+			&i.EntryKey,
+			&i.PartCount,
+			&i.Complete,
 			&i.MessageJson,
 			&i.StartSequence,
 			&i.UpdatedSequence,
@@ -439,7 +448,7 @@ func (q *Queries) ListTranscriptCostEntryKeysForUpgrade(ctx context.Context) ([]
 }
 
 const listTranscriptEntriesBefore = `-- name: ListTranscriptEntriesBefore :many
-SELECT message_json, start_sequence, updated_sequence, event_type, marker_json
+SELECT entry_key, part_count, complete, message_json, start_sequence, updated_sequence, event_type, marker_json
 FROM transcript_entries
 WHERE message_json IS NOT NULL AND start_sequence < ?1
 ORDER BY start_sequence DESC
@@ -452,6 +461,9 @@ type ListTranscriptEntriesBeforeParams struct {
 }
 
 type ListTranscriptEntriesBeforeRow struct {
+	EntryKey        string         `json:"entry_key"`
+	PartCount       int64          `json:"part_count"`
+	Complete        int64          `json:"complete"`
 	MessageJson     sql.NullString `json:"message_json"`
 	StartSequence   int64          `json:"start_sequence"`
 	UpdatedSequence int64          `json:"updated_sequence"`
@@ -469,6 +481,9 @@ func (q *Queries) ListTranscriptEntriesBefore(ctx context.Context, arg ListTrans
 	for rows.Next() {
 		var i ListTranscriptEntriesBeforeRow
 		if err := rows.Scan(
+			&i.EntryKey,
+			&i.PartCount,
+			&i.Complete,
 			&i.MessageJson,
 			&i.StartSequence,
 			&i.UpdatedSequence,
@@ -490,7 +505,7 @@ func (q *Queries) ListTranscriptEntriesBefore(ctx context.Context, arg ListTrans
 
 const listTranscriptEntriesThrough = `-- name: ListTranscriptEntriesThrough :many
 SELECT entry_key, kind, logical_id, turn_id, base_message_id, message_id,
-       message_json, start_sequence, updated_sequence, event_type, marker_json
+       part_count, complete, message_json, start_sequence, updated_sequence, event_type, marker_json
 FROM transcript_entries
 WHERE message_json IS NOT NULL
   AND start_sequence <= ?1
@@ -510,6 +525,8 @@ type ListTranscriptEntriesThroughRow struct {
 	TurnID          string         `json:"turn_id"`
 	BaseMessageID   string         `json:"base_message_id"`
 	MessageID       sql.NullString `json:"message_id"`
+	PartCount       int64          `json:"part_count"`
+	Complete        int64          `json:"complete"`
 	MessageJson     sql.NullString `json:"message_json"`
 	StartSequence   int64          `json:"start_sequence"`
 	UpdatedSequence int64          `json:"updated_sequence"`
@@ -533,6 +550,8 @@ func (q *Queries) ListTranscriptEntriesThrough(ctx context.Context, arg ListTran
 			&i.TurnID,
 			&i.BaseMessageID,
 			&i.MessageID,
+			&i.PartCount,
+			&i.Complete,
 			&i.MessageJson,
 			&i.StartSequence,
 			&i.UpdatedSequence,
@@ -607,13 +626,53 @@ func (q *Queries) ListTranscriptEntryEventsThrough(ctx context.Context, arg List
 	return items, nil
 }
 
+const listTranscriptEntryParts = `-- name: ListTranscriptEntryParts :many
+SELECT part_index, field, content FROM transcript_entry_parts
+WHERE entry_key = ?1
+ORDER BY part_index, field, sequence
+`
+
+type ListTranscriptEntryPartsRow struct {
+	PartIndex int64  `json:"part_index"`
+	Field     int64  `json:"field"`
+	Content   string `json:"content"`
+}
+
+func (q *Queries) ListTranscriptEntryParts(ctx context.Context, entryKey string) ([]ListTranscriptEntryPartsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTranscriptEntryParts, entryKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTranscriptEntryPartsRow{}
+	for rows.Next() {
+		var i ListTranscriptEntryPartsRow
+		if err := rows.Scan(&i.PartIndex, &i.Field, &i.Content); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTranscriptOutlineCandidates = `-- name: ListTranscriptOutlineCandidates :many
 SELECT e.message_json, e.start_sequence, e.turn_id,
-       (SELECT r.message_json FROM transcript_entries AS r
-        WHERE r.kind = 'assistant' AND r.turn_id = e.turn_id AND r.message_json IS NOT NULL
-        ORDER BY r.start_sequence DESC LIMIT 1) AS reply_json,
+       r.message_json AS reply_json, CAST(COALESCE(r.entry_key, '') AS TEXT) AS reply_entry_key,
+       CAST(COALESCE(r.part_count, 0) AS INTEGER) AS reply_part_count,
+       CAST(COALESCE(r.complete, 0) AS INTEGER) AS reply_complete,
        CAST(COALESCE((SELECT v.timestamp FROM events AS v WHERE v.sequence = e.start_sequence), '') AS TEXT) AS at
 FROM transcript_entries AS e
+LEFT JOIN transcript_entries AS r ON r.entry_key = (
+    SELECT candidate.entry_key FROM transcript_entries AS candidate
+    WHERE candidate.kind = 'assistant' AND candidate.turn_id = e.turn_id AND candidate.message_json IS NOT NULL
+    ORDER BY candidate.start_sequence DESC LIMIT 1
+)
 WHERE e.kind = 'user' AND e.message_json IS NOT NULL AND e.start_sequence > ?1
 ORDER BY e.start_sequence ASC
 LIMIT ?2
@@ -625,11 +684,14 @@ type ListTranscriptOutlineCandidatesParams struct {
 }
 
 type ListTranscriptOutlineCandidatesRow struct {
-	MessageJson   sql.NullString `json:"message_json"`
-	StartSequence int64          `json:"start_sequence"`
-	TurnID        string         `json:"turn_id"`
-	ReplyJson     sql.NullString `json:"reply_json"`
-	At            string         `json:"at"`
+	MessageJson    sql.NullString `json:"message_json"`
+	StartSequence  int64          `json:"start_sequence"`
+	TurnID         string         `json:"turn_id"`
+	ReplyJson      sql.NullString `json:"reply_json"`
+	ReplyEntryKey  string         `json:"reply_entry_key"`
+	ReplyPartCount int64          `json:"reply_part_count"`
+	ReplyComplete  int64          `json:"reply_complete"`
+	At             string         `json:"at"`
 }
 
 func (q *Queries) ListTranscriptOutlineCandidates(ctx context.Context, arg ListTranscriptOutlineCandidatesParams) ([]ListTranscriptOutlineCandidatesRow, error) {
@@ -646,6 +708,9 @@ func (q *Queries) ListTranscriptOutlineCandidates(ctx context.Context, arg ListT
 			&i.StartSequence,
 			&i.TurnID,
 			&i.ReplyJson,
+			&i.ReplyEntryKey,
+			&i.ReplyPartCount,
+			&i.ReplyComplete,
 			&i.At,
 		); err != nil {
 			return nil, err
@@ -662,7 +727,7 @@ func (q *Queries) ListTranscriptOutlineCandidates(ctx context.Context, arg ListT
 }
 
 const listTranscriptSearchCandidates = `-- name: ListTranscriptSearchCandidates :many
-SELECT message_json, start_sequence, turn_id
+SELECT entry_key, part_count, complete, message_json, start_sequence, turn_id
 FROM transcript_entries
 WHERE message_json IS NOT NULL AND start_sequence > ?1
 ORDER BY start_sequence ASC
@@ -675,6 +740,9 @@ type ListTranscriptSearchCandidatesParams struct {
 }
 
 type ListTranscriptSearchCandidatesRow struct {
+	EntryKey      string         `json:"entry_key"`
+	PartCount     int64          `json:"part_count"`
+	Complete      int64          `json:"complete"`
 	MessageJson   sql.NullString `json:"message_json"`
 	StartSequence int64          `json:"start_sequence"`
 	TurnID        string         `json:"turn_id"`
@@ -689,7 +757,14 @@ func (q *Queries) ListTranscriptSearchCandidates(ctx context.Context, arg ListTr
 	items := []ListTranscriptSearchCandidatesRow{}
 	for rows.Next() {
 		var i ListTranscriptSearchCandidatesRow
-		if err := rows.Scan(&i.MessageJson, &i.StartSequence, &i.TurnID); err != nil {
+		if err := rows.Scan(
+			&i.EntryKey,
+			&i.PartCount,
+			&i.Complete,
+			&i.MessageJson,
+			&i.StartSequence,
+			&i.TurnID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -814,12 +889,12 @@ func (q *Queries) UpdateTranscriptProjectionState(ctx context.Context, arg Updat
 const upsertTranscriptEntry = `-- name: UpsertTranscriptEntry :exec
 INSERT INTO transcript_entries (
     entry_key, kind, logical_id, turn_id, base_message_id, message_id,
-    start_sequence, updated_sequence, complete, message_json, event_type, marker_json
+    start_sequence, updated_sequence, complete, message_json, event_type, marker_json, part_count
 ) VALUES (
     ?1, ?2, ?3, ?4,
     ?5, NULLIF(CAST(?6 AS TEXT), ''),
     ?7, ?8, ?9,
-    ?10, ?11, ?12
+    ?10, ?11, ?12, ?13
 )
 ON CONFLICT(entry_key) DO UPDATE SET
     logical_id = excluded.logical_id,
@@ -830,7 +905,8 @@ ON CONFLICT(entry_key) DO UPDATE SET
     complete = excluded.complete,
     message_json = excluded.message_json,
     event_type = excluded.event_type,
-    marker_json = excluded.marker_json
+    marker_json = excluded.marker_json,
+    part_count = excluded.part_count
 `
 
 type UpsertTranscriptEntryParams struct {
@@ -846,6 +922,7 @@ type UpsertTranscriptEntryParams struct {
 	MessageJson     sql.NullString `json:"message_json"`
 	EventType       string         `json:"event_type"`
 	MarkerJson      sql.NullString `json:"marker_json"`
+	PartCount       int64          `json:"part_count"`
 }
 
 func (q *Queries) UpsertTranscriptEntry(ctx context.Context, arg UpsertTranscriptEntryParams) error {
@@ -862,6 +939,32 @@ func (q *Queries) UpsertTranscriptEntry(ctx context.Context, arg UpsertTranscrip
 		arg.MessageJson,
 		arg.EventType,
 		arg.MarkerJson,
+		arg.PartCount,
+	)
+	return err
+}
+
+const upsertTranscriptEntryPart = `-- name: UpsertTranscriptEntryPart :exec
+INSERT INTO transcript_entry_parts (entry_key, part_index, field, sequence, content)
+VALUES (?1, ?2, ?3, ?4, ?5)
+ON CONFLICT(entry_key, part_index, field, sequence) DO UPDATE SET content = excluded.content
+`
+
+type UpsertTranscriptEntryPartParams struct {
+	EntryKey  string `json:"entry_key"`
+	PartIndex int64  `json:"part_index"`
+	Field     int64  `json:"field"`
+	Sequence  int64  `json:"sequence"`
+	Content   string `json:"content"`
+}
+
+func (q *Queries) UpsertTranscriptEntryPart(ctx context.Context, arg UpsertTranscriptEntryPartParams) error {
+	_, err := q.db.ExecContext(ctx, upsertTranscriptEntryPart,
+		arg.EntryKey,
+		arg.PartIndex,
+		arg.Field,
+		arg.Sequence,
+		arg.Content,
 	)
 	return err
 }

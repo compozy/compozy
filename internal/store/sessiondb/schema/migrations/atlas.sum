@@ -1,4 +1,4 @@
-h1:cwNfFtGhMUgvp7yXPXZyrmX98K4Grbn/qk16vbMrdog=
+h1:Tqpq9PKlOttIrf9PNgNQEXG6hDZ1PD4VPodQeafQNK4=
 00001_baseline.sql h1:bXOy48LeBzy7PLWzCXQW/1CdBi+3LQtUySjgT8uUN0E=
 00002_schema.sql h1:ROugExdfsKSTgcLoFHvFdIALygvM7xEEUpS8llYFXpw=
 00003_schema.sql h1:pcqLU9sZ4pSnV0/pjOapcAUKqJuCHHc3AzdMv5ez6Ik=
@@ -10,3 +10,4 @@ h1:cwNfFtGhMUgvp7yXPXZyrmX98K4Grbn/qk16vbMrdog=
 00009_unarchive_compaction_spans.sql h1:dk+9XxJ7Ih/yvs3ksTQSyuF2tppaFNNhDdyIEU0UCOo=
 00010_schema.sql h1:mpHB1oazjmi+a9tRilpD2LA/ablCoZ6jlL9mmCtJLpg=
 00011_schema.sql h1:Oe71yb8fkCcCcruqpFtuB4NjIKU3PHfctW1G1SbxESE=
+00012_schema.sql h1:H9LsRSy1AioIsBqyO0+7jTDNZl17UKvDZpYxaYL/6Cc=

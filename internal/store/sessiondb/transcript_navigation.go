@@ -3,7 +3,6 @@ package sessiondb
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -87,7 +86,8 @@ func queryTranscriptSearch(
 				return readErr
 			}
 			for _, row := range rows {
-				message, decodeErr := decodeNavigationMessage(row.MessageJson)
+				stored := projectedMessage{row.EntryKey, row.MessageJson, row.PartCount, row.Complete != 0}
+				message, decodeErr := stored.decode(ctx, queries)
 				if decodeErr != nil {
 					return decodeErr
 				}
@@ -124,7 +124,7 @@ func queryTranscriptOutline(ctx context.Context, db *sql.DB) (transcript.Outline
 				return readErr
 			}
 			for _, row := range rows {
-				entry, mapErr := navigationOutlineEntry(row)
+				entry, mapErr := navigationOutlineEntry(ctx, queries, row)
 				if mapErr != nil {
 					return mapErr
 				}
@@ -142,8 +142,10 @@ func queryTranscriptOutline(ctx context.Context, db *sql.DB) (transcript.Outline
 	return result, nil
 }
 
-func navigationOutlineEntry(row sqlcgen.ListTranscriptOutlineCandidatesRow) (transcript.OutlineEntry, error) {
-	message, err := decodeNavigationMessage(row.MessageJson)
+func navigationOutlineEntry(
+	ctx context.Context, queries *sqlcgen.Queries, row sqlcgen.ListTranscriptOutlineCandidatesRow,
+) (transcript.OutlineEntry, error) {
+	message, err := (projectedMessage{raw: row.MessageJson}).decode(ctx, queries)
 	if err != nil {
 		return transcript.OutlineEntry{}, err
 	}
@@ -152,7 +154,8 @@ func navigationOutlineEntry(row sqlcgen.ListTranscriptOutlineCandidatesRow) (tra
 		Preview: navigationPreview(transcript.UIMessageText(message), 160),
 	}
 	if row.ReplyJson.Valid {
-		reply, decodeErr := decodeNavigationMessage(row.ReplyJson)
+		stored := projectedMessage{row.ReplyEntryKey, row.ReplyJson, row.ReplyPartCount, row.ReplyComplete != 0}
+		reply, decodeErr := stored.decode(ctx, queries)
 		if decodeErr != nil {
 			return transcript.OutlineEntry{}, decodeErr
 		}
@@ -189,17 +192,6 @@ func readTranscriptNavigation(ctx context.Context, db *sql.DB, read func(*sqlcge
 		return fmt.Errorf("store: commit transcript navigation: %w", err)
 	}
 	return nil
-}
-
-func decodeNavigationMessage(raw sql.NullString) (transcript.UIMessage, error) {
-	var message transcript.UIMessage
-	if !raw.Valid {
-		return message, fmt.Errorf("%w: navigation message is absent", transcript.ErrProjectionCorrupt)
-	}
-	if err := json.Unmarshal([]byte(raw.String), &message); err != nil {
-		return message, fmt.Errorf("%w: decode navigation message: %v", transcript.ErrProjectionCorrupt, err)
-	}
-	return message, nil
 }
 
 func navigationMatch(message transcript.UIMessage, query string) (transcript.SearchMatch, bool) {

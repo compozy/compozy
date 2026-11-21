@@ -98,6 +98,15 @@ type TranscriptEntry struct {
 	MessageJson     sql.NullString `json:"message_json"`
 	EventType       string         `json:"event_type"`
 	MarkerJson      sql.NullString `json:"marker_json"`
+	PartCount       int64          `json:"part_count"`
+}
+
+type TranscriptEntryPart struct {
+	EntryKey  string `json:"entry_key"`
+	PartIndex int64  `json:"part_index"`
+	Field     int64  `json:"field"`
+	Sequence  int64  `json:"sequence"`
+	Content   string `json:"content"`
 }
 
 type TranscriptProjectionState struct {

@@ -2,6 +2,8 @@ package sessiondb
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -19,8 +21,7 @@ const maxCachedTranscriptFolds = 2
 // appends. It is owned by the session writer goroutine and needs no lock.
 // Folds touched by a write attempt are staged and published only after that
 // transaction commits; a fold taken by a failed attempt is discarded. Reuse is
-// also validated against the durable assigned-event prefix, so an archive or a
-// rewind can only cause a full replay, never a stale entry.
+// also fenced by generation, which changes atomically on archive, clear, and rewind.
 type transcriptFoldCache struct {
 	generation int64
 	folds      []*transcript.EntryFold
@@ -73,30 +74,34 @@ func takeMatchingFold(folds *[]*transcript.EntryFold, identity transcript.EntryI
 	return nil
 }
 
-// projectAssistantEntry reduces one assistant entry, replaying only events the
-// cached fold has not applied when its durable prefix is unchanged.
-func (s *SessionDB) projectAssistantEntry(
+func (s *SessionDB) prepareAssistantEntry(
 	ctx context.Context,
 	tx projectionDB,
 	generation int64,
 	identity transcript.EntryIdentity,
 	added []store.SessionEvent,
-) (*transcript.Entry, error) {
+) (*transcript.Entry, int, []sqlcgen.UpsertTranscriptEntryPartParams, error) {
 	fold, err := s.extendCachedFold(ctx, tx, generation, identity)
 	if err != nil {
-		return nil, err
+		return nil, 0, nil, err
 	}
 	if fold == nil {
-		fold, err = s.replayFold(ctx, tx, identity)
+		fold, added, err = s.restorePartFold(ctx, tx, identity, added)
 		if err != nil {
-			return nil, err
+			return nil, 0, nil, err
 		}
 	}
-	if err := fold.Append(added); err != nil {
-		return nil, fmt.Errorf("store: extend prepared transcript entry %q: %w", identity.Key, err)
+	changes, err := fold.AppendPartChanges(added)
+	if err != nil {
+		return nil, 0, nil, fmt.Errorf("store: extend prepared transcript entry %q: %w", identity.Key, err)
 	}
 	s.transcriptFolds.stage(fold)
-	return fold.Entry(identity), nil
+	message, count := fold.PartHeader()
+	if count == 0 {
+		return nil, 0, nil, nil
+	}
+	parts, err := prepareProjectionParts(identity.Key, identity.UpdatedSequence, changes)
+	return &transcript.Entry{Message: message}, count, parts, err
 }
 
 func (s *SessionDB) extendCachedFold(
@@ -110,16 +115,6 @@ func (s *SessionDB) extendCachedFold(
 		return nil, nil
 	}
 	queries := sqlcgen.New(tx)
-	bounds, err := queries.GetTranscriptEntryEventBounds(ctx, sqlcgen.GetTranscriptEntryEventBoundsParams{
-		TranscriptEntryKey: identity.Key,
-		ThroughSequence:    fold.LastSequence(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("store: read transcript entry %q bounds: %w", identity.Key, err)
-	}
-	if bounds.EventCount != int64(fold.Applied()) || bounds.MaxSequence != fold.LastSequence() {
-		return nil, nil
-	}
 	rows, err := queries.ListEventsForTranscriptEntryAfter(ctx, sqlcgen.ListEventsForTranscriptEntryAfterParams{
 		TranscriptEntryKey: identity.Key,
 		AfterSequence:      fold.LastSequence(),
@@ -144,21 +139,33 @@ func (s *SessionDB) extendCachedFold(
 	return fold, nil
 }
 
-func (s *SessionDB) replayFold(
+func (s *SessionDB) restorePartFold(
 	ctx context.Context,
 	tx projectionDB,
 	identity transcript.EntryIdentity,
-) (*transcript.EntryFold, error) {
+	added []store.SessionEvent,
+) (*transcript.EntryFold, []store.SessionEvent, error) {
+	fold, err := transcript.NewEntryPartFold(identity)
+	if err != nil {
+		return nil, nil, fmt.Errorf("store: start transcript entry %q: %w", identity.Key, err)
+	}
+	count, err := sqlcgen.New(tx).GetTranscriptEntryPartCount(ctx, identity.Key)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fold, added, nil
+	}
+	if err != nil {
+		return nil, nil, fmt.Errorf("store: read transcript entry %q part count: %w", identity.Key, err)
+	}
 	events, err := loadAssignedEvents(ctx, tx, s.owner.SessionID, identity.Key)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	fold, err := transcript.NewEntryFold(identity)
-	if err != nil {
-		return nil, fmt.Errorf("store: project transcript entry %q: %w", identity.Key, err)
+	// An inline snapshot needs its full set of part rows on the first new write.
+	if count == 0 {
+		return fold, append(events, added...), nil
 	}
 	if err := fold.Append(events); err != nil {
-		return nil, fmt.Errorf("store: project transcript entry %q: %w", identity.Key, err)
+		return nil, nil, fmt.Errorf("store: restore transcript entry %q: %w", identity.Key, err)
 	}
-	return fold, nil
+	return fold, added, nil
 }

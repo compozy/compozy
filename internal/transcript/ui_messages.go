@@ -100,7 +100,12 @@ type uiMessageBuilder struct {
 	reasoningPartSeq int
 	toolIndices      map[string]int
 	toolLifecycles   map[string]*uiToolLifecycle
+	dataIndices      map[dataPartKey]int
+	projectParts     bool
+	partChanges      *partChanges
 }
+
+type dataPartKey struct{ kind, id string }
 
 type uiToolLifecycle struct {
 	input json.RawMessage
@@ -177,21 +182,31 @@ func (b *uiMessageBuilder) build(complete bool) *UIMessage {
 
 	parts := cloneUIMessageParts(b.parts)
 	for index := range parts {
-		switch parts[index].Type {
-		case uiPartText, uiPartReasoning:
-			if complete {
-				parts[index].State = uiPartStateDone
-			} else if parts[index].State == "" {
-				parts[index].State = uiPartStateStreaming
-			}
-		}
+		SetProjectedStreamState(&parts[index], complete)
 	}
 
-	return &UIMessage{
+	message := b.messageHeader()
+	message.Parts = parts
+	return &message
+}
+
+func (b *uiMessageBuilder) messageHeader() UIMessage {
+	return UIMessage{
 		ID:       b.id,
 		Role:     b.role,
-		Parts:    parts,
 		Metadata: b.continuationMetadata(),
+	}
+}
+
+// SetProjectedStreamState applies the entry completion fence to a projected stream part.
+func SetProjectedStreamState(part *UIMessagePart, complete bool) {
+	switch part.Type {
+	case uiPartText, uiPartReasoning:
+		if complete {
+			part.State = uiPartStateDone
+		} else if part.State == "" {
+			part.State = uiPartStateStreaming
+		}
 	}
 }
 
@@ -272,11 +287,7 @@ func (b *uiMessageBuilder) appendText(text string) {
 	if trimmed == "" && b.activePartType != uiPartText {
 		return
 	}
-	index := b.ensureTextPart()
-	b.parts[index].Text += text
-	if b.parts[index].State == "" {
-		b.parts[index].State = uiPartStateStreaming
-	}
+	b.appendStreamText(b.ensureTextPart(), text)
 }
 
 func (b *uiMessageBuilder) appendReasoning(text string) {
@@ -284,10 +295,15 @@ func (b *uiMessageBuilder) appendReasoning(text string) {
 	if trimmed == "" && b.activePartType != uiPartReasoning {
 		return
 	}
-	index := b.ensureReasoningPart()
-	b.parts[index].Text += text
-	if b.parts[index].State == "" {
-		b.parts[index].State = uiPartStateStreaming
+	b.appendStreamText(b.ensureReasoningPart(), text)
+}
+
+func (b *uiMessageBuilder) appendStreamText(index int, text string) {
+	if !b.projectParts {
+		b.parts[index].Text += text
+	} else if b.partChanges != nil && text != "" {
+		b.partForUpdate(index)
+		b.partChanges.text[index] = append(b.partChanges.text[index], text)
 	}
 }
 
@@ -329,31 +345,35 @@ func (b *uiMessageBuilder) closeActiveStreamPart() {
 	}
 	switch b.activePartType {
 	case uiPartText, uiPartReasoning:
-		b.parts[b.activePartIndex].State = uiPartStateDone
+		b.partForUpdate(b.activePartIndex).State = uiPartStateDone
 	}
 	b.activePartType = ""
 	b.activePartIndex = -1
 }
 
-func (b *uiMessageBuilder) appendDataPart(partType string, partID string, payload json.RawMessage) {
+func (b *uiMessageBuilder) appendDataPart(partType string, partID string, payload json.RawMessage) int {
 	if len(payload) == 0 {
-		return
+		return -1
 	}
 	b.closeActiveStreamPart()
+	key := dataPartKey{kind: partType, id: partID}
+	index := len(b.parts)
 	if partID != "" {
-		for index := range b.parts {
-			if b.parts[index].Type != partType || b.parts[index].ID != partID {
-				continue
-			}
-			b.parts[index].Data = acp.CloneRawMessage(payload)
-			return
+		if existing, ok := b.dataIndices[key]; ok {
+			b.partForUpdate(existing).Data = acp.CloneRawMessage(payload)
+			return existing
 		}
+		if b.dataIndices == nil {
+			b.dataIndices = make(map[dataPartKey]int)
+		}
+		b.dataIndices[key] = index
 	}
 	b.parts = append(b.parts, UIMessagePart{
 		Type: partType,
 		ID:   partID,
 		Data: acp.CloneRawMessage(payload),
 	})
+	return index
 }
 
 func uiPermissionDataPartID(event acp.AgentEvent) string {

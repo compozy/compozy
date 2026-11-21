@@ -163,8 +163,12 @@ func persistProjectionEntry(
 	if err != nil {
 		return err
 	}
-	if err := sqlcgen.New(db).UpsertTranscriptEntry(ctx, params); err != nil {
+	queries := sqlcgen.New(db)
+	if err := queries.UpsertTranscriptEntry(ctx, params); err != nil {
 		return fmt.Errorf("store: upsert transcript entry %q: %w", identity.Key, err)
+	}
+	if err := queries.DeleteTranscriptEntryParts(ctx, identity.Key); err != nil {
+		return fmt.Errorf("store: replace parts of transcript entry %q: %w", identity.Key, err)
 	}
 	return nil
 }
@@ -175,8 +179,6 @@ func persistProjectionEntry(
 const maxRetainedProjectionBuffer = 4 << 20
 
 // projectionMessageEncoder encodes transcript messages into a reused buffer.
-// Every append rewrites the whole active assistant message, so a fresh
-// encoder buffer per append would regrow to the full message size each time.
 // The zero value is ready to use; it is not safe for concurrent use.
 type projectionMessageEncoder struct {
 	buf bytes.Buffer

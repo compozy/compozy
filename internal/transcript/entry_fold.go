@@ -21,7 +21,6 @@ type EntryFold struct {
 	messageID    string
 	builder      *uiMessageBuilder
 	lastSequence int64
-	applied      int
 }
 
 // NewEntryFold starts an empty fold for an assistant entry identity.
@@ -56,11 +55,6 @@ func (f *EntryFold) LastSequence() int64 {
 	return f.lastSequence
 }
 
-// Applied returns the number of applied events.
-func (f *EntryFold) Applied() int {
-	return f.applied
-}
-
 // Append applies events whose sequences extend the fold in ascending order.
 // It rejects the whole batch before mutating the fold when any event would
 // reorder the reduction.
@@ -82,7 +76,6 @@ func (f *EntryFold) applySorted(sorted []store.SessionEvent) {
 		applyDecodedEvent(f.builder, decodeStoredEvent(stored))
 		f.lastSequence = max(f.lastSequence, stored.Sequence)
 	}
-	f.applied += len(sorted)
 }
 
 // Entry materializes the folded entry without mutating the fold.

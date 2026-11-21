@@ -53,8 +53,18 @@ CREATE TABLE transcript_entries (
 		message_json TEXT,
 		event_type TEXT NOT NULL DEFAULT '',
 		marker_json TEXT,
+		part_count INTEGER NOT NULL DEFAULT 0,
 		CHECK(updated_sequence >= start_sequence)
 	);
+
+CREATE TABLE transcript_entry_parts (
+		entry_key TEXT NOT NULL REFERENCES transcript_entries(entry_key) ON DELETE CASCADE,
+		part_index INTEGER NOT NULL,
+		field INTEGER NOT NULL,
+		sequence INTEGER NOT NULL,
+		content TEXT NOT NULL,
+		PRIMARY KEY (entry_key, part_index, field, sequence)
+	) WITHOUT ROWID;
 
 CREATE TABLE transcript_projection_state (
 		singleton INTEGER PRIMARY KEY CHECK(singleton = 1),

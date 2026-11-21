@@ -161,14 +161,22 @@ func benchmarkSessionAgentName(idx int) string {
 // turn of a fixed history size. Every iteration reopens a copy of the same
 // seeded database and warms its writer with one untimed append.
 func BenchmarkSessionDBAppendLongAssistantTurn(b *testing.B) {
-	for _, history := range []int{200, 800} {
-		b.Run(fmt.Sprintf("history=%d", history), func(b *testing.B) {
-			benchmarkAppendLongAssistantTurn(b, history)
-		})
+	for _, workload := range []struct {
+		name   string
+		append func(*testing.B, *SessionDB, int)
+	}{
+		{"tools", recordLongTurnStep},
+		{"text", recordLongTurnTextChunk},
+	} {
+		for _, history := range []int{200, 800} {
+			b.Run(fmt.Sprintf("%s/history=%d", workload.name, history), func(b *testing.B) {
+				benchmarkAppendLongAssistantTurn(b, history, workload.append)
+			})
+		}
 	}
 }
 
-func benchmarkAppendLongAssistantTurn(b *testing.B, history int) {
+func benchmarkAppendLongAssistantTurn(b *testing.B, history int, appendEvent func(*testing.B, *SessionDB, int)) {
 	b.ReportAllocs()
 
 	ctx := b.Context()
@@ -179,7 +187,7 @@ func benchmarkAppendLongAssistantTurn(b *testing.B, history int) {
 		b.Fatalf("OpenSessionDB(seed) error = %v", err)
 	}
 	for index := range history {
-		recordLongTurnStep(b, seed, index)
+		appendEvent(b, seed, index)
 	}
 	if err := seed.Close(ctx); err != nil {
 		b.Fatalf("Close(seed) error = %v", err)
@@ -189,6 +197,7 @@ func benchmarkAppendLongAssistantTurn(b *testing.B, history int) {
 		b.Fatalf("read seed database: %v", err)
 	}
 
+	var walBytes int64
 	for b.Loop() {
 		b.StopTimer()
 		path := filepath.Join(b.TempDir(), store.SessionDatabaseName)
@@ -199,14 +208,39 @@ func benchmarkAppendLongAssistantTurn(b *testing.B, history int) {
 		if err != nil {
 			b.Fatalf("OpenSessionDB(copy) error = %v", err)
 		}
-		recordLongTurnStep(b, sessionDB, history)
+		// The two appends stay below the periodic checkpoint threshold. Keep idle maintenance out of the sample too.
+		sessionDB.walMaintenanceDelayOverride.Store(int64(time.Hour))
+		appendEvent(b, sessionDB, history)
+		before, err := os.Stat(path + "-wal")
+		if err != nil {
+			b.Fatal(err)
+		}
 		b.StartTimer()
-		recordLongTurnStep(b, sessionDB, history+1)
+		appendEvent(b, sessionDB, history+1)
 		b.StopTimer()
+		after, err := os.Stat(path + "-wal")
+		if err != nil {
+			b.Fatal(err)
+		}
+		if after.Size() <= before.Size() {
+			b.Fatal("WAL did not grow during the measured write")
+		}
+		walBytes += after.Size() - before.Size()
 		if err := sessionDB.Close(ctx); err != nil {
 			b.Fatalf("Close(copy) error = %v", err)
 		}
 		b.StartTimer()
+	}
+	b.ReportMetric(float64(walBytes)/float64(b.N), "wal-B/op")
+}
+
+func recordLongTurnTextChunk(b *testing.B, db *SessionDB, index int) {
+	b.Helper()
+	chunk := fmt.Sprintf(`{"type":"agent_message","text":%q}`, strings.Repeat("streamed text\n", 144))
+	if err := db.Record(b.Context(), store.SessionEvent{
+		TurnID: "turn-long", Type: "agent_message", AgentName: "coder", Content: chunk,
+	}); err != nil {
+		b.Fatalf("Record(text %d) error = %v", index, err)
 	}
 }
 

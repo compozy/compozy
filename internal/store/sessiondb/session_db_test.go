@@ -41,6 +41,7 @@ type EventQuery = store.EventQuery
 const SessionDatabaseName = store.SessionDatabaseName
 
 const testSessionDBWorkspaceID = "ws-sessiondb-test"
+const testSessionMigrationHead = 12
 
 const testSessionDBOwnerTableDDL = `CREATE TABLE session_db_owner (
 	singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
@@ -1639,19 +1640,13 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 			}
 			at := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
 			seed := &SessionDB{db: prefix, readDB: prefix, owner: owner, now: func() time.Time { return at }}
-			wantEvents, err := seed.writeEventBatch(ctx, []SessionEvent{
+			wantEvents := writeInlineTranscriptFixture(t, seed, []SessionEvent{
 				{ID: "archived", SessionID: owner.SessionID, TurnID: "old", Type: "user_message",
 					AgentName: "user", Content: `{"text":"retained archived bytes"}`, Archived: true, Timestamp: at},
 				{ID: "active", SessionID: owner.SessionID, TurnID: "active", Type: "user_message",
 					AgentName: "user", Content: `{"text":"visible active bytes"}`, Timestamp: at.Add(time.Second)},
 			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			wantPage, err := queryTranscriptPage(ctx, prefix, transcript.PageQuery{})
-			if err != nil {
-				t.Fatal(err)
-			}
+			wantPage := readInlineTranscriptFixture(t, prefix)
 			if err := prefix.Close(); err != nil {
 				t.Fatal(err)
 			}
@@ -1673,7 +1668,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 					t.Fatalf("migrated page = %#v, %v, want %#v", page, err, wantPage)
 				}
 				status, err := store.Status(ctx, opened.db, MigrationStream())
-				if err != nil || status.Version != 11 || status.AppliedCount != 11 ||
+				if err != nil || status.Version != testSessionMigrationHead ||
+					status.AppliedCount != testSessionMigrationHead ||
 					(attempt > 0 && status != previousStatus) {
 					t.Fatalf("upgraded status = %#v, %v, previous %#v", status, err, previousStatus)
 				}
@@ -1698,8 +1694,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 11 || firstStatus.AppliedCount != 11 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 11", firstStatus)
+		if firstStatus.Version != testSessionMigrationHead || firstStatus.AppliedCount != testSessionMigrationHead {
+			t.Fatalf("Status(first) = %#v, want version/applied count %d", firstStatus, testSessionMigrationHead)
 		}
 		if err := verifySessionDBOwner(ctx, first.db, testSessionDBOwner("sess-idempotent")); err != nil {
 			t.Fatalf("verifySessionDBOwner() error = %v", err)
@@ -1847,8 +1843,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(engine-migrated) error = %v", err)
 		}
-		if status.Version != 11 || status.AppliedCount != 11 {
-			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 11", status)
+		if status.Version != testSessionMigrationHead || status.AppliedCount != testSessionMigrationHead {
+			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count %d", status, testSessionMigrationHead)
 		}
 		migratedOwner := testSessionDBOwner("sess-prefix-upgrade")
 		if _, err := migrationDB.ExecContext(
@@ -2259,6 +2255,159 @@ func sessionMigrationPrefixBefore(t *testing.T, excludedMigration string) store.
 	stream.FS = files
 	stream.Bootstrap = nil
 	return stream
+}
+
+// writeInlineTranscriptFixture seeds rows using the schema that the previous release wrote.
+func writeInlineTranscriptFixture(t *testing.T, db *SessionDB, events []SessionEvent) []SessionEvent {
+	t.Helper()
+	ctx := t.Context()
+	before, err := loadProjectionState(ctx, db.db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next, err := nextEventSequence(ctx, db.db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projector, err := transcript.NewProjector(before, projectionSQLResolver{db: db.db})
+	if err != nil {
+		t.Fatal(err)
+	}
+	affected := make(map[string]struct{})
+	for i := range events {
+		event := &events[i]
+		event.Sequence, event.SessionID = next+int64(i), db.owner.SessionID
+		if event.ID == "" {
+			event.ID = fmt.Sprintf("fixture-event-%d", event.Sequence)
+		}
+		if event.Timestamp.IsZero() {
+			event.Timestamp = db.now()
+		}
+		var key string
+		if !event.Archived {
+			assignment, err := projector.Assign(ctx, *event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			key = assignment.Entry.Key
+			affected[key] = struct{}{}
+			for _, completed := range assignment.CompletedKeys {
+				affected[completed] = struct{}{}
+			}
+		}
+		if err := sqlcgen.New(db.db).InsertEvent(ctx, sqlcgen.InsertEventParams{
+			ID:                 event.ID,
+			Sequence:           event.Sequence,
+			TurnID:             event.TurnID,
+			Type:               event.Type,
+			AgentName:          event.AgentName,
+			Content:            event.Content,
+			Archived:           boolToSQLite(event.Archived),
+			Timestamp:          store.FormatTimestamp(event.Timestamp),
+			TranscriptEntryKey: key,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, key := range slices.Sorted(maps.Keys(affected)) {
+		identity, found := projector.Identity(key)
+		if !found {
+			t.Fatalf("missing fixture identity %q", key)
+		}
+		assigned, err := loadAssignedEvents(ctx, db.db, db.owner.SessionID, key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		entry, err := transcript.ProjectAssignedEntry(assigned, identity)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if entry != nil && identity.MessageID == "" {
+			identity.MessageID, err = allocateProjectionMessageID(ctx, db.db, key, identity.BaseMessageID, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			entry, err = transcript.ProjectAssignedEntry(assigned, identity)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		var encoder projectionMessageEncoder
+		row, err := prepareProjectionEntry(&encoder, identity, entry)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO transcript_entries
+			(entry_key,kind,logical_id,turn_id,base_message_id,message_id,start_sequence,updated_sequence,
+			 complete,message_json,event_type,marker_json) VALUES (?,?,?,?,?,NULLIF(?,''),?,?,?,?,?,?)
+			ON CONFLICT(entry_key) DO UPDATE SET message_id=excluded.message_id,updated_sequence=excluded.updated_sequence,
+			 complete=excluded.complete,message_json=excluded.message_json,event_type=excluded.event_type,marker_json=excluded.marker_json`,
+			row.EntryKey, row.Kind, row.LogicalID, row.TurnID, row.BaseMessageID, row.MessageID, row.StartSequence,
+			row.UpdatedSequence, row.Complete, row.MessageJson, row.EventType, row.MarkerJson); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for toolKey, entryKey := range projector.ToolRoutes() {
+		if err := sqlcgen.New(db.db).UpsertTranscriptToolRoute(ctx, sqlcgen.UpsertTranscriptToolRouteParams{
+			ToolKey: toolKey, EntryKey: entryKey,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := persistProjectionState(ctx, db.db, projector.State()); err != nil {
+		t.Fatal(err)
+	}
+	return events
+}
+
+func readInlineTranscriptFixture(t *testing.T, db *sql.DB) transcript.Page {
+	t.Helper()
+	ctx := t.Context()
+	state, err := loadProjectionState(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries := sqlcgen.New(db)
+	maxSequence, err := queries.MaxActiveEventSequence(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := transcript.Page{Generation: state.Generation, MaxSequence: maxSequence}
+	rows, err := db.QueryContext(ctx, `SELECT message_json,start_sequence,updated_sequence,event_type,marker_json
+		FROM transcript_entries WHERE message_json IS NOT NULL ORDER BY start_sequence`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	for rows.Next() {
+		var message, marker sql.NullString
+		var start, updated int64
+		var eventType string
+		if err := rows.Scan(&message, &start, &updated, &eventType, &marker); err != nil {
+			t.Fatal(err)
+		}
+		entry, err := materializedTranscriptEntry(
+			ctx,
+			queries,
+			projectedMessage{raw: message},
+			start,
+			updated,
+			eventType,
+			marker,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		page.Entries = append(page.Entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return page
 }
 
 func TestSessionDBTranscriptProjection(t *testing.T) {
@@ -2765,12 +2914,18 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		sessionDB := openTestSessionDB(t, "sess-transcript-stream")
-		for index, text := range []string{"hel", "lo"} {
+		for index, content := range []string{
+			`{"type":"agent_message","turn_id":"turn-stream","text":"hel"}`,
+			`{"type":"agent_message","turn_id":"turn-stream","text":"lo"}`,
+			" " + string([]byte{0xff, 0xfe}),
+			"\xe2\x82",
+			"\xac",
+		} {
 			if err := sessionDB.Record(ctx, SessionEvent{
 				TurnID:    "turn-stream",
 				Type:      acp.EventTypeAgentMessage,
 				AgentName: "coder",
-				Content:   fmt.Sprintf(`{"type":"agent_message","turn_id":"turn-stream","text":%q}`, text),
+				Content:   content,
 			}); err != nil {
 				t.Fatalf("Record(%d) error = %v", index, err)
 			}
@@ -2787,10 +2942,10 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		if got, want := entry.StartSequence, int64(1); got != want {
 			t.Fatalf("StartSequence = %d, want %d", got, want)
 		}
-		if got, want := entry.Sequence, int64(2); got != want {
+		if got, want := entry.Sequence, int64(5); got != want {
 			t.Fatalf("Sequence = %d, want %d", got, want)
 		}
-		if got, want := transcript.UIMessageText(entry.Message), "hello"; got != want {
+		if got, want := transcript.UIMessageText(entry.Message), "hello \ufffd\ufffd€"; got != want {
 			t.Fatalf("streamed text = %q, want %q", got, want)
 		}
 	})
@@ -2808,6 +2963,7 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 			call := fmt.Sprintf("call-%02d", i)
 			stream = append(stream,
 				acp.AgentEvent{Type: acp.EventTypeThought, TurnID: "turn-long", Text: fmt.Sprintf("plan %d", i)},
+				acp.AgentEvent{Type: acp.EventTypeThought, TurnID: "turn-long", Text: "\n"},
 				acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "turn-long", Text: "step "},
 				acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "turn-long", Text: fmt.Sprintf("%d", i)},
 				acp.AgentEvent{Type: acp.EventTypeToolCall, TurnID: "turn-long", ToolCallID: call, Title: "Bash",
@@ -2827,79 +2983,52 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 				Raw: json.RawMessage(`{"status":"completed","rawOutput":{"stdout":"late"}}`)},
 			acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "turn-next", Text: "resumed"},
 		)
+		var events []store.SessionEvent
+		assertReplay := func(reader transcript.Reader) transcript.Page {
+			t.Helper()
+			page, err := reader.TranscriptPage(ctx, transcript.PageQuery{Limit: 100})
+			if err != nil {
+				t.Fatalf("TranscriptPage() after %d events: %v", len(events), err)
+			}
+			replay, err := transcript.BuildProjection(events, page.Generation)
+			if err != nil {
+				t.Fatalf("BuildProjection(): %v", err)
+			}
+			var want []transcript.Entry
+			for _, segment := range replay.Segments {
+				if segment.Entry != nil {
+					want = append(want, *segment.Entry)
+				}
+			}
+			assertTranscriptEntriesEqual(t, page.Entries, want)
+			if page.MaxSequence != events[len(events)-1].Sequence {
+				t.Fatalf("page fence = %d, want %d", page.MaxSequence, events[len(events)-1].Sequence)
+			}
+			return page
+		}
 		for i, event := range stream {
 			event.SessionID, event.Timestamp = sessionID, at.Add(time.Duration(i)*time.Millisecond)
-			if err := sessionDB.Record(ctx, canonicalStoreEvent(t, event, "coder")); err != nil {
+			stored, err := sessionDB.RecordPersistedBatch(ctx, []SessionEvent{canonicalStoreEvent(t, event, "coder")})
+			if err != nil {
 				t.Fatalf("Record(%d %s) error = %v", i, event.Type, err)
 			}
+			events = append(events, stored...)
+			assertReplay(sessionDB)
 		}
 
-		events, err := sessionDB.Query(ctx, store.EventQuery{})
+		reader, err := OpenSessionDBReadOnly(ctx, sessionDB.owner, sessionDB.path)
 		if err != nil {
-			t.Fatalf("Query() error = %v", err)
+			t.Fatal(err)
 		}
-		page, err := sessionDB.TranscriptPage(ctx, transcript.PageQuery{Limit: 100})
-		if err != nil {
-			t.Fatalf("TranscriptPage() error = %v", err)
-		}
-		replay, err := transcript.BuildProjection(events, page.Generation)
-		if err != nil {
-			t.Fatalf("BuildProjection() error = %v", err)
-		}
-		encode := func(message transcript.UIMessage) string {
-			t.Helper()
-			raw, err := json.Marshal(message)
-			if err != nil {
-				t.Fatalf("marshal message: %v", err)
+		t.Cleanup(func() {
+			if err := reader.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
 			}
-			return string(raw)
-		}
-		var want []transcript.Entry
-		for _, segment := range replay.Segments {
-			if segment.Entry != nil {
-				want = append(want, *segment.Entry)
-			}
-		}
-		if len(page.Entries) != len(want) {
-			t.Fatalf("len(page.Entries) = %d, want full replay %d", len(page.Entries), len(want))
-		}
-		for i := range want {
-			got, wantJSON := encode(page.Entries[i].Message), encode(want[i].Message)
-			if got != wantJSON || page.Entries[i].StartSequence != want[i].StartSequence ||
-				page.Entries[i].Sequence != want[i].Sequence {
-				t.Fatalf("entry %d diverged from full replay:\n got %d/%d %s\nwant %d/%d %s", i,
-					page.Entries[i].StartSequence, page.Entries[i].Sequence, got,
-					want[i].StartSequence, want[i].Sequence, wantJSON)
-			}
-		}
-		if !strings.Contains(encode(page.Entries[1].Message), "late") {
-			t.Fatalf("late tool result missing from its routed entry: %s", encode(page.Entries[1].Message))
-		}
-		// Persisted rows, not only decoded pages, must be the json.Marshal bytes
-		// of the replayed message after the writer reused its encode buffer.
-		rows, err := sessionDB.readDB.QueryContext(ctx,
-			`SELECT message_json FROM transcript_entries WHERE message_json IS NOT NULL ORDER BY start_sequence`)
-		if err != nil {
-			t.Fatalf("query stored message_json: %v", err)
-		}
-		var stored []string
-		for rows.Next() {
-			var messageJSON string
-			if err := rows.Scan(&messageJSON); err != nil {
-				t.Fatalf("scan stored message_json: %v", err)
-			}
-			stored = append(stored, messageJSON)
-		}
-		if err := errors.Join(rows.Err(), rows.Close()); err != nil {
-			t.Fatalf("read stored message_json: %v", err)
-		}
-		if len(stored) != len(want) {
-			t.Fatalf("stored rows = %d, want full replay %d", len(stored), len(want))
-		}
-		for i := range want {
-			if wantJSON := encode(want[i].Message); stored[i] != wantJSON {
-				t.Fatalf("stored message_json %d differs from json.Marshal:\n got %s\nwant %s", i, stored[i], wantJSON)
-			}
+		})
+		page := assertReplay(reader)
+		raw, err := json.Marshal(page.Entries[1].Message)
+		if err != nil || !strings.Contains(string(raw), "late") {
+			t.Fatalf("late tool result missing from its routed entry: %s, %v", raw, err)
 		}
 	})
 
@@ -3378,6 +3507,56 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		}
 		if len(events) != 0 {
 			t.Fatalf("len(events) = %d, want raw event rollback", len(events))
+		}
+	})
+
+	t.Run("Should roll back the ledger and transcript when an incremental part write fails", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestSessionDB(t, "sess-transcript-part-rollback")
+		at := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
+		chunk := func(id string, text string) store.SessionEvent {
+			stored := canonicalStoreEvent(t, acp.AgentEvent{
+				SessionID: db.SessionID(), TurnID: "turn-parts", Type: acp.EventTypeAgentMessage,
+				Text: text, Timestamp: at,
+			}, "coder")
+			stored.ID = id
+			return stored
+		}
+		if err := db.Record(ctx, chunk("first", "First")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `CREATE TRIGGER reject_part BEFORE INSERT ON transcript_entry_parts
+			BEGIN SELECT RAISE(ABORT, 'part rejected'); END`); err != nil {
+			t.Fatal(err)
+		}
+		second := chunk("second", " second")
+		if err := db.Record(ctx, second); err == nil ||
+			!strings.Contains(
+				err.Error(),
+				"write part of transcript entry",
+			) || !strings.Contains(err.Error(), "part rejected") {
+			t.Fatalf("Record() = %v, want the injected part write rejection", err)
+		}
+		events, err := db.Query(ctx, store.EventQuery{})
+		if err != nil || len(events) != 1 || events[0].ID != "first" {
+			t.Fatalf("ledger after part failure = %#v, %v", events, err)
+		}
+		page, err := db.TranscriptPage(ctx, transcript.PageQuery{})
+		if err != nil || len(page.Entries) != 1 || page.MaxSequence != 1 || page.Entries[0].Sequence != 1 ||
+			transcript.UIMessageText(page.Entries[0].Message) != "First" {
+			t.Fatalf("projection after part failure = %#v, %v", page, err)
+		}
+		if _, err := db.db.ExecContext(ctx, `DROP TRIGGER reject_part`); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Record(ctx, second); err != nil {
+			t.Fatal(err)
+		}
+		page, err = db.TranscriptPage(ctx, transcript.PageQuery{})
+		if err != nil || len(page.Entries) != 1 || page.MaxSequence != 2 || page.Entries[0].Sequence != 2 ||
+			transcript.UIMessageText(page.Entries[0].Message) != "First second" {
+			t.Fatalf("projection after retry = %#v, %v", page, err)
 		}
 	})
 
@@ -5376,10 +5555,10 @@ func TestSessionDBConcurrentMigrationApply(t *testing.T) {
 				continue
 			}
 			status, err := store.Status(ctx, result.db.db, MigrationStream())
-			if err != nil || status.Version != usageCostMigrationVersion ||
-				status.AppliedCount != usageCostMigrationVersion {
+			if err != nil || status.Version != testSessionMigrationHead ||
+				status.AppliedCount != testSessionMigrationHead {
 				t.Errorf("migration history = %+v, %v; want every version through %d",
-					status, err, usageCostMigrationVersion)
+					status, err, testSessionMigrationHead)
 			}
 			rows, err := result.db.ListTokenUsage(ctx)
 			if err != nil || len(rows) != 1 || rows[0].CostAmount == nil || *rows[0].CostAmount != 3 ||
@@ -5579,8 +5758,8 @@ func TestSessionDBUsageCostMigration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if status.Version != usageCostMigrationVersion || status.AppliedCount != usageCostMigrationVersion {
-					t.Fatalf("migration history=%+v, want every version through %d", status, usageCostMigrationVersion)
+				if status.Version != testSessionMigrationHead || status.AppliedCount != testSessionMigrationHead {
+					t.Fatalf("migration history=%+v, want every version through %d", status, testSessionMigrationHead)
 				}
 				rows, err := ledger.ListTokenUsage(ctx)
 				if err != nil {
