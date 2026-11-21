@@ -18,6 +18,124 @@ import (
 
 func TestTranscriptProjectionUpgrade(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve an older active snapshot and extend it after reopening", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		owner := testSessionDBOwner("sess-parts-upgrade")
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		old, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+			return store.Apply(ctx, db, sessionMigrationPrefixBefore(t, "00012_schema.sql"))
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		closeOld := registerTestSQLDBCleanup(t, "previous transcript schema", old)
+		at := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
+		event := canonicalStoreEvent(t, acp.AgentEvent{
+			SessionID: owner.SessionID, TurnID: "turn-parts", Type: acp.EventTypeAgentMessage,
+			Text: "Keep\n", Timestamp: at,
+		}, "coder")
+		event.ID, event.Sequence = "initial", 1
+		replay, err := transcript.BuildProjection([]store.SessionEvent{event}, 3)
+		if err != nil || len(replay.Segments) != 1 || replay.Segments[0].Entry == nil {
+			t.Fatalf("initial replay = %#v, %v", replay, err)
+		}
+		segment := replay.Segments[0]
+		identity := segment.Identity
+		encoded, err := json.Marshal(segment.Entry.Message)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := old.ExecContext(
+			ctx,
+			`INSERT INTO session_db_owner VALUES (1,?,?)`,
+			owner.SessionID,
+			owner.WorkspaceID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := old.ExecContext(ctx, `INSERT INTO transcript_projection_state VALUES (1,?,?,?)`,
+			transcript.ProjectionVersion, replay.State.Generation, identity.Key); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := old.ExecContext(
+			ctx,
+			`INSERT INTO events (id,sequence,turn_id,type,agent_name,content,timestamp,transcript_entry_key)
+			VALUES (?,1,?,?,?,?,?,?)`,
+			event.ID,
+			event.TurnID,
+			event.Type,
+			event.AgentName,
+			event.Content,
+			store.FormatTimestamp(at),
+			identity.Key,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := old.ExecContext(
+			ctx,
+			`INSERT INTO transcript_entries (entry_key,kind,logical_id,turn_id,base_message_id,
+			message_id,start_sequence,updated_sequence,complete,message_json) VALUES (?,?,?,?,?,?,1,1,0,?)`,
+			identity.Key,
+			string(identity.Kind),
+			identity.LogicalID,
+			identity.TurnID,
+			identity.BaseMessageID,
+			identity.MessageID,
+			string(encoded),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := closeOld(); err != nil {
+			t.Fatal(err)
+		}
+		db, err := OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		status, err := store.Status(ctx, db.db, MigrationStream())
+		if err != nil || status.Version != 12 {
+			t.Fatalf("migration status = %#v, %v", status, err)
+		}
+		page, err := db.TranscriptPage(ctx, transcript.PageQuery{})
+		if err != nil || page.Generation != 3 || page.MaxSequence != 1 {
+			t.Fatalf("upgraded page = %#v, %v", page, err)
+		}
+		assertTranscriptEntriesEqual(t, page.Entries, []transcript.Entry{*segment.Entry})
+		if err := db.Record(ctx, canonicalStoreEvent(t, acp.AgentEvent{
+			SessionID: owner.SessionID, TurnID: event.TurnID, Type: acp.EventTypeAgentMessage,
+			Text: "  going", Timestamp: at.Add(time.Second),
+		}, "coder")); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reader, err := OpenSessionDBReadOnly(ctx, owner, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reader.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		page, err = reader.TranscriptPage(ctx, transcript.PageQuery{})
+		if err != nil || page.Generation != 3 || page.MaxSequence != 2 || len(page.Entries) != 1 {
+			t.Fatalf("reopened page = %#v, %v", page, err)
+		}
+		entry := page.Entries[0]
+		if entry.Message.ID != identity.MessageID || entry.StartSequence != 1 || entry.Sequence != 2 ||
+			transcript.UIMessageText(entry.Message) != "Keep\n  going" {
+			t.Fatalf("reopened entry = %#v", entry)
+		}
+	})
+
 	// Owner: persisted transcript upgrade. Cost metadata may accompany any entry;
 	// upgrading must preserve user identity and replay assistant monetary evidence.
 	t.Run("Should reopen cost-bearing user entries without changing their identity", func(t *testing.T) {

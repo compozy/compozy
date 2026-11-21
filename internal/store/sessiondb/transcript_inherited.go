@@ -47,7 +47,8 @@ func inheritedTranscriptEntry(
 ) (*transcript.Entry, error) {
 	if row.UpdatedSequence <= through {
 		entry, err := materializedTranscriptEntry(
-			row.MessageJson, row.StartSequence, row.UpdatedSequence, row.EventType, row.MarkerJson,
+			ctx, queries, projectedMessage{row.EntryKey, row.MessageJson, row.PartCount, row.Complete != 0},
+			row.StartSequence, row.UpdatedSequence, row.EventType, row.MarkerJson,
 		)
 		return &entry, err
 	}

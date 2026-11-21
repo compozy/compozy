@@ -189,6 +189,7 @@ func benchmarkAppendLongAssistantTurn(b *testing.B, history int) {
 		b.Fatalf("read seed database: %v", err)
 	}
 
+	var walBytes int64
 	for b.Loop() {
 		b.StopTimer()
 		path := filepath.Join(b.TempDir(), store.SessionDatabaseName)
@@ -200,14 +201,27 @@ func benchmarkAppendLongAssistantTurn(b *testing.B, history int) {
 			b.Fatalf("OpenSessionDB(copy) error = %v", err)
 		}
 		recordLongTurnStep(b, sessionDB, history)
+		before, err := os.Stat(path + "-wal")
+		if err != nil {
+			b.Fatal(err)
+		}
 		b.StartTimer()
 		recordLongTurnStep(b, sessionDB, history+1)
 		b.StopTimer()
+		after, err := os.Stat(path + "-wal")
+		if err != nil {
+			b.Fatal(err)
+		}
+		if after.Size() <= before.Size() {
+			b.Fatal("WAL did not grow during the measured write")
+		}
+		walBytes += after.Size() - before.Size()
 		if err := sessionDB.Close(ctx); err != nil {
 			b.Fatalf("Close(copy) error = %v", err)
 		}
 		b.StartTimer()
 	}
+	b.ReportMetric(float64(walBytes)/float64(b.N), "wal-B/op")
 }
 
 func recordLongTurnStep(b *testing.B, sessionDB *SessionDB, index int) {

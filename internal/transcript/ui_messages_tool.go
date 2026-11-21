@@ -33,7 +33,7 @@ func (b *uiMessageBuilder) applyToolResult(decoded *decodedStoredEvent) {
 	if title := strings.TrimSpace(decoded.agent.Title); title != "" {
 		part.Title = title
 	}
-	input := acp.CloneRawMessage(part.Input)
+	input := part.Input
 	if len(input) == 0 {
 		if next, ok := b.rememberedToolInput(decoded); ok {
 			input = next
@@ -112,7 +112,7 @@ func (b *uiMessageBuilder) ensureToolPart(decoded *decodedStoredEvent) (*UIMessa
 		key = fallbackMessageID(decoded.stored.ID, assistantMessageID(decoded), "tool")
 	}
 	if index, ok := b.toolIndices[key]; ok {
-		part := &b.parts[index]
+		part := b.partForUpdate(index)
 		if decoded.agent.ParentToolCallID() != "" {
 			part.ParentToolCallID = decoded.agent.ParentToolCallID()
 		}

@@ -156,7 +156,8 @@ func queryMaterializedTranscriptPage(
 		entries := make([]transcript.Entry, 0, len(rows))
 		for _, row := range rows {
 			entry, mapErr := materializedTranscriptEntry(
-				row.MessageJson,
+				ctx, queries,
+				projectedMessage{row.EntryKey, row.MessageJson, row.PartCount, row.Complete != 0},
 				row.StartSequence,
 				row.UpdatedSequence,
 				row.EventType,
@@ -179,7 +180,8 @@ func queryMaterializedTranscriptPage(
 	entries := make([]transcript.Entry, 0, len(rows))
 	for _, row := range rows {
 		entry, mapErr := materializedTranscriptEntry(
-			row.MessageJson,
+			ctx, queries,
+			projectedMessage{row.EntryKey, row.MessageJson, row.PartCount, row.Complete != 0},
 			row.StartSequence,
 			row.UpdatedSequence,
 			row.EventType,
@@ -231,7 +233,7 @@ func queryTranscriptChanges(
 	if err != nil {
 		return transcript.ChangePage{}, fmt.Errorf("store: query transcript changes: %w", err)
 	}
-	entries, hasMore, err := materializedChangeEntries(rows, query.Limit)
+	entries, hasMore, err := materializedChangeEntries(ctx, sqlcgen.New(tx), rows, query.Limit)
 	if err != nil {
 		return transcript.ChangePage{}, err
 	}
@@ -257,6 +259,8 @@ func commitTranscriptRead(ctx context.Context, tx *sql.Tx) error {
 }
 
 func materializedChangeEntries(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
 	rows []sqlcgen.ListTranscriptChangesRow,
 	limit int,
 ) ([]transcript.Entry, bool, error) {
@@ -270,7 +274,8 @@ func materializedChangeEntries(
 			previousSequence = row.UpdatedSequence
 		}
 		entry, err := materializedTranscriptEntry(
-			row.MessageJson, row.StartSequence, row.UpdatedSequence, row.EventType, row.MarkerJson,
+			ctx, queries, projectedMessage{row.EntryKey, row.MessageJson, row.PartCount, row.Complete != 0},
+			row.StartSequence, row.UpdatedSequence, row.EventType, row.MarkerJson,
 		)
 		if err != nil {
 			return nil, false, err
@@ -284,51 +289,33 @@ func materializedChangeEntries(
 	return entries, hasMore, nil
 }
 
-func decodeMaterializedEntry(entry *transcript.Entry, messageJSON string, markerJSON sql.NullString) error {
-	if err := json.Unmarshal([]byte(messageJSON), &entry.Message); err != nil {
-		return fmt.Errorf(
-			"%w: decode message at sequence %d: %v",
-			transcript.ErrProjectionCorrupt,
-			entry.StartSequence,
-			err,
-		)
-	}
-	if markerJSON.Valid {
-		var marker transcript.Marker
-		if err := json.Unmarshal([]byte(markerJSON.String), &marker); err != nil {
-			return fmt.Errorf(
-				"%w: decode marker at sequence %d: %v",
-				transcript.ErrProjectionCorrupt,
-				entry.StartSequence,
-				err,
-			)
-		}
-		entry.Marker = &marker
-	}
-	return nil
-}
-
 func materializedTranscriptEntry(
-	messageJSON sql.NullString,
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	stored projectedMessage,
 	startSequence int64,
 	updatedSequence int64,
 	eventType string,
 	markerJSON sql.NullString,
 ) (transcript.Entry, error) {
+	message, err := stored.decode(ctx, queries)
+	if err != nil {
+		return transcript.Entry{}, err
+	}
 	entry := transcript.Entry{
+		Message:       message,
 		StartSequence: startSequence,
 		Sequence:      updatedSequence,
 		EventType:     eventType,
 	}
-	if !messageJSON.Valid {
-		return transcript.Entry{}, fmt.Errorf(
-			"%w: missing message at sequence %d",
-			transcript.ErrProjectionCorrupt,
-			startSequence,
-		)
-	}
-	if err := decodeMaterializedEntry(&entry, messageJSON.String, markerJSON); err != nil {
-		return transcript.Entry{}, err
+	if markerJSON.Valid {
+		var marker transcript.Marker
+		if err := json.Unmarshal([]byte(markerJSON.String), &marker); err != nil {
+			return transcript.Entry{}, fmt.Errorf(
+				"%w: decode marker at sequence %d: %v", transcript.ErrProjectionCorrupt, startSequence, err,
+			)
+		}
+		entry.Marker = &marker
 	}
 	return entry, nil
 }

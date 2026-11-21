@@ -23,9 +23,14 @@ type transcriptWritePlan struct {
 	nextSequence int64
 	events       []store.SessionEvent
 	entryKeys    []string
-	entries      []sqlcgen.UpsertTranscriptEntryParams
+	entries      []preparedTranscriptEntry
 	toolRoutes   map[string]string
 	existing     bool
+}
+
+type preparedTranscriptEntry struct {
+	row   sqlcgen.UpsertTranscriptEntryParams
+	parts []sqlcgen.UpsertTranscriptEntryPartParams
 }
 
 func (s *SessionDB) writeProjectedEvents(
@@ -139,7 +144,7 @@ func (s *SessionDB) findIdenticalEvent(
 func (s *SessionDB) prepareTranscriptEntries(
 	ctx context.Context, db projectionDB, projector *transcript.Projector,
 	affected map[string]struct{}, assigned map[string][]store.SessionEvent,
-) ([]sqlcgen.UpsertTranscriptEntryParams, error) {
+) ([]preparedTranscriptEntry, error) {
 	identities := make([]transcript.EntryIdentity, 0, len(affected))
 	for key := range affected {
 		identity, ok := projector.Identity(key)
@@ -151,7 +156,7 @@ func (s *SessionDB) prepareTranscriptEntries(
 	slices.SortFunc(identities, func(a, b transcript.EntryIdentity) int {
 		return cmp.Compare(a.StartSequence, b.StartSequence)
 	})
-	entries := make([]sqlcgen.UpsertTranscriptEntryParams, 0, len(identities))
+	entries := make([]preparedTranscriptEntry, 0, len(identities))
 	reserved := make(map[string]struct{})
 	for _, identity := range identities {
 		candidate := identity
@@ -162,7 +167,7 @@ func (s *SessionDB) prepareTranscriptEntries(
 		if err != nil {
 			return nil, err
 		}
-		if entry != nil && identity.MessageID == "" {
+		if entry.row.MessageJson.Valid && identity.MessageID == "" {
 			identity.MessageID, err = allocateProjectionMessageID(
 				ctx,
 				db,
@@ -189,11 +194,8 @@ func (s *SessionDB) prepareTranscriptEntries(
 		if identity.MessageID != "" {
 			reserved[identity.MessageID] = struct{}{}
 		}
-		params, err := prepareProjectionEntry(&s.projectionEncoder, identity, entry)
-		if err != nil {
-			return nil, err
-		}
-		entries = append(entries, params)
+		entry.row.MessageID = identity.MessageID
+		entries = append(entries, entry)
 	}
 	return entries, nil
 }
@@ -201,19 +203,26 @@ func (s *SessionDB) prepareTranscriptEntries(
 func (s *SessionDB) prepareAssignedEntry(
 	ctx context.Context, db projectionDB, generation int64,
 	identity transcript.EntryIdentity, added []store.SessionEvent,
-) (*transcript.Entry, error) {
+) (preparedTranscriptEntry, error) {
 	if identity.Kind == transcript.EntryKindAssistant {
-		return s.projectAssistantEntry(ctx, db, generation, identity, added)
+		entry, count, parts, err := s.prepareAssistantEntry(ctx, db, generation, identity, added)
+		if err != nil {
+			return preparedTranscriptEntry{}, err
+		}
+		row, err := prepareProjectionEntry(&s.projectionEncoder, identity, entry)
+		row.PartCount = int64(count)
+		return preparedTranscriptEntry{row: row, parts: parts}, err
 	}
 	events, err := loadAssignedEvents(ctx, db, s.owner.SessionID, identity.Key)
 	if err != nil {
-		return nil, err
+		return preparedTranscriptEntry{}, err
 	}
 	entry, err := transcript.ProjectAssignedEntry(append(events, added...), identity)
 	if err != nil {
-		return nil, fmt.Errorf("store: prepare transcript entry %q: %w", identity.Key, err)
+		return preparedTranscriptEntry{}, fmt.Errorf("store: prepare transcript entry %q: %w", identity.Key, err)
 	}
-	return entry, nil
+	row, err := prepareProjectionEntry(&s.projectionEncoder, identity, entry)
+	return preparedTranscriptEntry{row: row}, err
 }
 
 func (s *SessionDB) commitTranscriptWrite(ctx context.Context, plan transcriptWritePlan) error {
@@ -240,8 +249,13 @@ func (s *SessionDB) commitTranscriptWrite(ctx context.Context, plan transcriptWr
 			}
 			queries := sqlcgen.New(tx)
 			for _, entry := range plan.entries {
-				if err := queries.UpsertTranscriptEntry(ctx, entry); err != nil {
-					return fmt.Errorf("store: upsert prepared transcript entry %q: %w", entry.EntryKey, err)
+				if err := queries.UpsertTranscriptEntry(ctx, entry.row); err != nil {
+					return fmt.Errorf("store: upsert prepared transcript entry %q: %w", entry.row.EntryKey, err)
+				}
+				for _, part := range entry.parts {
+					if err := queries.UpsertTranscriptEntryPart(ctx, part); err != nil {
+						return fmt.Errorf("store: write part of transcript entry %q: %w", entry.row.EntryKey, err)
+					}
 				}
 			}
 			for toolKey, entryKey := range plan.toolRoutes {

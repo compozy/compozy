@@ -37,12 +37,12 @@ WHERE singleton = 1;
 -- name: UpsertTranscriptEntry :exec
 INSERT INTO transcript_entries (
     entry_key, kind, logical_id, turn_id, base_message_id, message_id,
-    start_sequence, updated_sequence, complete, message_json, event_type, marker_json
+    start_sequence, updated_sequence, complete, message_json, event_type, marker_json, part_count
 ) VALUES (
     sqlc.arg(entry_key), sqlc.arg(kind), sqlc.arg(logical_id), sqlc.arg(turn_id),
     sqlc.arg(base_message_id), NULLIF(CAST(sqlc.arg(message_id) AS TEXT), ''),
     sqlc.arg(start_sequence), sqlc.arg(updated_sequence), sqlc.arg(complete),
-    sqlc.narg(message_json), sqlc.arg(event_type), sqlc.narg(marker_json)
+    sqlc.narg(message_json), sqlc.arg(event_type), sqlc.narg(marker_json), sqlc.arg(part_count)
 )
 ON CONFLICT(entry_key) DO UPDATE SET
     logical_id = excluded.logical_id,
@@ -53,7 +53,24 @@ ON CONFLICT(entry_key) DO UPDATE SET
     complete = excluded.complete,
     message_json = excluded.message_json,
     event_type = excluded.event_type,
-    marker_json = excluded.marker_json;
+    marker_json = excluded.marker_json,
+    part_count = excluded.part_count;
+
+-- name: GetTranscriptEntryPartCount :one
+SELECT part_count FROM transcript_entries WHERE entry_key = sqlc.arg(entry_key);
+
+-- name: UpsertTranscriptEntryPart :exec
+INSERT INTO transcript_entry_parts (entry_key, part_index, field, sequence, content)
+VALUES (sqlc.arg(entry_key), sqlc.arg(part_index), sqlc.arg(field), sqlc.arg(sequence), sqlc.arg(content))
+ON CONFLICT(entry_key, part_index, field, sequence) DO UPDATE SET content = excluded.content;
+
+-- name: ListTranscriptEntryParts :many
+SELECT part_index, field, content FROM transcript_entry_parts
+WHERE entry_key = sqlc.arg(entry_key)
+ORDER BY part_index, field, sequence;
+
+-- name: DeleteTranscriptEntryParts :exec
+DELETE FROM transcript_entry_parts WHERE entry_key = sqlc.arg(entry_key);
 
 -- name: CountTranscriptMessageIDConflicts :one
 SELECT COUNT(*)
@@ -71,11 +88,6 @@ SELECT id, sequence, turn_id, type, agent_name, content, archived, timestamp
 FROM events
 WHERE transcript_entry_key = sqlc.arg(transcript_entry_key) AND sequence > sqlc.arg(after_sequence)
 ORDER BY sequence ASC;
-
--- name: GetTranscriptEntryEventBounds :one
-SELECT COUNT(*) AS event_count, CAST(COALESCE(MAX(sequence), 0) AS INTEGER) AS max_sequence
-FROM events
-WHERE transcript_entry_key = sqlc.arg(transcript_entry_key) AND sequence <= sqlc.arg(through_sequence);
 
 -- name: ListTranscriptTextEventsForUpgrade :many
 SELECT sequence, transcript_entry_key, content
@@ -102,14 +114,14 @@ VALUES (sqlc.arg(tool_key), sqlc.arg(entry_key))
 ON CONFLICT(tool_key) DO UPDATE SET entry_key = excluded.entry_key;
 
 -- name: ListLatestTranscriptEntries :many
-SELECT message_json, start_sequence, updated_sequence, event_type, marker_json
+SELECT entry_key, part_count, complete, message_json, start_sequence, updated_sequence, event_type, marker_json
 FROM transcript_entries
 WHERE message_json IS NOT NULL
 ORDER BY start_sequence DESC
 LIMIT sqlc.arg(row_limit);
 
 -- name: ListTranscriptSearchCandidates :many
-SELECT message_json, start_sequence, turn_id
+SELECT entry_key, part_count, complete, message_json, start_sequence, turn_id
 FROM transcript_entries
 WHERE message_json IS NOT NULL AND start_sequence > sqlc.arg(after_sequence)
 ORDER BY start_sequence ASC
@@ -117,17 +129,22 @@ LIMIT sqlc.arg(row_limit);
 
 -- name: ListTranscriptOutlineCandidates :many
 SELECT e.message_json, e.start_sequence, e.turn_id,
-       (SELECT r.message_json FROM transcript_entries AS r
-        WHERE r.kind = 'assistant' AND r.turn_id = e.turn_id AND r.message_json IS NOT NULL
-        ORDER BY r.start_sequence DESC LIMIT 1) AS reply_json,
+       r.message_json AS reply_json, CAST(COALESCE(r.entry_key, '') AS TEXT) AS reply_entry_key,
+       CAST(COALESCE(r.part_count, 0) AS INTEGER) AS reply_part_count,
+       CAST(COALESCE(r.complete, 0) AS INTEGER) AS reply_complete,
        CAST(COALESCE((SELECT v.timestamp FROM events AS v WHERE v.sequence = e.start_sequence), '') AS TEXT) AS at
 FROM transcript_entries AS e
+LEFT JOIN transcript_entries AS r ON r.entry_key = (
+    SELECT candidate.entry_key FROM transcript_entries AS candidate
+    WHERE candidate.kind = 'assistant' AND candidate.turn_id = e.turn_id AND candidate.message_json IS NOT NULL
+    ORDER BY candidate.start_sequence DESC LIMIT 1
+)
 WHERE e.kind = 'user' AND e.message_json IS NOT NULL AND e.start_sequence > sqlc.arg(after_sequence)
 ORDER BY e.start_sequence ASC
 LIMIT sqlc.arg(row_limit);
 
 -- name: ListTranscriptEntriesBefore :many
-SELECT message_json, start_sequence, updated_sequence, event_type, marker_json
+SELECT entry_key, part_count, complete, message_json, start_sequence, updated_sequence, event_type, marker_json
 FROM transcript_entries
 WHERE message_json IS NOT NULL AND start_sequence < sqlc.arg(before_sequence)
 ORDER BY start_sequence DESC
@@ -135,7 +152,7 @@ LIMIT sqlc.arg(row_limit);
 
 -- name: ListTranscriptEntriesThrough :many
 SELECT entry_key, kind, logical_id, turn_id, base_message_id, message_id,
-       message_json, start_sequence, updated_sequence, event_type, marker_json
+       part_count, complete, message_json, start_sequence, updated_sequence, event_type, marker_json
 FROM transcript_entries
 WHERE message_json IS NOT NULL
   AND start_sequence <= sqlc.arg(through_start)
@@ -155,7 +172,7 @@ WHERE message_json IS NOT NULL AND start_sequence <= sqlc.arg(through_sequence)
   AND updated_sequence <= sqlc.arg(through_sequence);
 
 -- name: ListTranscriptChanges :many
-SELECT e.message_json, e.start_sequence, e.updated_sequence, e.event_type, e.marker_json
+SELECT e.entry_key, e.part_count, e.complete, e.message_json, e.start_sequence, e.updated_sequence, e.event_type, e.marker_json
 FROM transcript_entries AS e
 WHERE e.message_json IS NOT NULL
   AND e.updated_sequence IN (

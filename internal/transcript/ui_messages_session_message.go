@@ -36,28 +36,18 @@ func (b *uiMessageBuilder) appendSessionMessagePart(decoded *decodedStoredEvent)
 	if err != nil {
 		return
 	}
-	b.appendDataPart(sessionMessagePartType, payload.ToolCallID, data)
+	index := b.appendDataPart(sessionMessagePartType, payload.ToolCallID, data)
 	// A send made inside a provider-native subagent stays attributed to it, like the call's tool part.
-	if parent := decoded.agent.ParentToolCallID(); parent != "" {
-		for index := range b.parts {
-			if b.parts[index].Type == sessionMessagePartType && b.parts[index].ID == payload.ToolCallID {
-				b.parts[index].ParentToolCallID = parent
-			}
-		}
+	if parent := decoded.agent.ParentToolCallID(); parent != "" && index >= 0 {
+		b.partForUpdate(index).ParentToolCallID = parent
 	}
 }
 
 // sessionMessagePart returns the card this entry already projected for a call.
 func (b *uiMessageBuilder) sessionMessagePart(toolCallID string) (UISessionMessagePayload, bool) {
-	if toolCallID == "" {
-		return UISessionMessagePayload{}, false
-	}
-	for _, part := range b.parts {
-		if part.Type != sessionMessagePartType || part.ID != toolCallID {
-			continue
-		}
+	if index, ok := b.dataIndices[dataPartKey{kind: sessionMessagePartType, id: toolCallID}]; ok {
 		var prior UISessionMessagePayload
-		if json.Unmarshal(part.Data, &prior) == nil {
+		if json.Unmarshal(b.parts[index].Data, &prior) == nil {
 			return prior, true
 		}
 	}

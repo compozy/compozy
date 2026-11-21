@@ -2802,23 +2802,23 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 			for _, event := range tc.events {
 				input = append(input, canonicalStoreEvent(t, event, "coder"))
 			}
-			persisted, err := previous.writeEventBatch(ctx, input)
-			if err != nil || len(persisted) != len(tc.events) {
-				t.Fatalf("previous ledger=%#v/%v", persisted, err)
+			persisted := writeInlineTranscriptFixture(t, previous, input)
+			if len(persisted) != len(tc.events) {
+				t.Fatalf("previous ledger=%#v", persisted)
 			}
 			if tc.firedBeforeArchive {
 				fired := canonicalStoreEvent(t, acp.AgentEvent{
 					Type: "session.compaction_fired", TurnID: "successful",
 					Raw: json.RawMessage(`{"from_sequence":1,"to_sequence":7}`),
 				}, "coder")
-				persisted, err := previous.writeEventBatch(ctx, []SessionEvent{fired})
-				if err != nil || len(persisted) != 1 || persisted[0].Sequence != 8 {
-					t.Fatalf("successful fired ledger=%#v/%v", persisted, err)
+				persisted := writeInlineTranscriptFixture(t, previous, []SessionEvent{fired})
+				if len(persisted) != 1 || persisted[0].Sequence != 8 {
+					t.Fatalf("successful fired ledger=%#v", persisted)
 				}
 			}
-			before, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
-			if err != nil || len(before.Entries) != tc.entries {
-				t.Fatalf("previous page=%#v/%v", before, err)
+			before := readInlineTranscriptFixture(t, prefix)
+			if len(before.Entries) != tc.entries {
+				t.Fatalf("previous page=%#v", before)
 			}
 			identities := make(map[string]transcript.EntryIdentity, len(before.Entries))
 			for _, entry := range before.Entries {
@@ -2962,9 +2962,7 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 			for _, event := range events {
 				input = append(input, canonicalStoreEvent(t, event, "coder"))
 			}
-			if _, err := previous.writeEventBatch(ctx, input); err != nil {
-				t.Fatal(err)
-			}
+			writeInlineTranscriptFixture(t, previous, input)
 		}
 		write(
 			acp.AgentEvent{Type: acp.EventTypeUserMessage, TurnID: "first", Text: "First question"},
@@ -2976,10 +2974,7 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 			acp.AgentEvent{Type: acp.EventTypeAgentMessage, TurnID: "second", Text: "Second answer"},
 			acp.AgentEvent{Type: acp.EventTypeDone, TurnID: "second"},
 		)
-		before, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
-		if err != nil {
-			t.Fatal(err)
-		}
+		before := readInlineTranscriptFixture(t, prefix)
 		identities := make(map[string]transcript.EntryIdentity, len(before.Entries))
 		for _, entry := range before.Entries {
 			key := fmt.Sprintf("g0:s%d", entry.StartSequence)
@@ -2997,10 +2992,7 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		archived, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
-		if err != nil {
-			t.Fatal(err)
-		}
+		archived := readInlineTranscriptFixture(t, prefix)
 		for _, entry := range archived.Entries {
 			if _, tracked := identities[fmt.Sprintf("g0:s%d", entry.StartSequence)]; tracked &&
 				entry.StartSequence != 4 {
@@ -3100,12 +3092,10 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 		} {
 			input = append(input, canonicalStoreEvent(t, event, "coder"))
 		}
-		if _, err := previous.writeEventBatch(ctx, input); err != nil {
-			t.Fatal(err)
-		}
-		before, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
-		if err != nil || len(before.Entries) != 8 {
-			t.Fatalf("previous page=%#v/%v", before, err)
+		writeInlineTranscriptFixture(t, previous, input)
+		before := readInlineTranscriptFixture(t, prefix)
+		if len(before.Entries) != 8 {
+			t.Fatalf("previous page=%#v", before)
 		}
 		oldIdentity, found, err := (projectionSQLResolver{db: prefix}).ToolEntryIdentity(ctx, "historic-tool")
 		if err != nil || !found {
@@ -3117,9 +3107,9 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		cut, err := previous.TranscriptPage(ctx, transcript.PageQuery{Limit: 20})
-		if err != nil || len(cut.Entries) != 2 || cut.Generation != 2 {
-			t.Fatalf("actual archive page=%#v/%v", cut, err)
+		cut := readInlineTranscriptFixture(t, prefix)
+		if len(cut.Entries) != 2 || cut.Generation != 2 {
+			t.Fatalf("actual archive page=%#v", cut)
 		}
 		if _, found, err := (projectionSQLResolver{db: prefix}).ToolEntryIdentity(
 			ctx,
