@@ -40,7 +40,7 @@ func OpenSQLiteReadPool(ctx context.Context, path string, initializers ...SQLite
 	if len(initializers) > 0 {
 		return openInitializedSQLiteReadPool(ctx, cleanPath, initializers)
 	}
-	return openSQLiteHandle(ctx, cleanPath, sqliteQueryOnlyDSN(cleanPath))
+	return openSQLiteHandle(ctx, cleanPath, sqliteReadPoolDSN(cleanPath, true))
 }
 
 func openSQLiteDatabaseWithPragmas(

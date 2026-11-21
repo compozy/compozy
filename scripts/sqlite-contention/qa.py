@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--driver", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--mutex-profile", action="store_true")
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[2]
     args.output = args.output.resolve()
@@ -52,6 +53,8 @@ def main():
         process_env = dict(os.environ, COMPOZY_QA_BOOTSTRAP_MANIFEST=str(manifest_path),
                            COMPOZY_TEST_DAEMON_BIN=str(args.binary.resolve()),
                            COMPOZY_TEST_ACPMOCK_DRIVER_BIN=str(args.driver.resolve()))
+        if args.mutex_profile:
+            process_env["COMPOZY_SQLITE_CONTENTION_MUTEX_PROFILE"] = str(args.output / "daemon-mutex.pprof")
         verify_log = scratch / "daemon-verify.log"
         with verify_log.open("w") as log:
             completed = subprocess.run(["go", "test", "-p", "2", "-parallel", "1", "-tags", "contentionload",

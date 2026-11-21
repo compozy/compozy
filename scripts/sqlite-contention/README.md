@@ -1,5 +1,52 @@
 # SQLite contention acceptance experiment
 
+## Independent SQLite readers (#1630)
+
+Dispatch the existing `SQLite paired load` workflow on the candidate branch
+with `reader_baseline` set to the full commit SHA of the comparison baseline.
+This selects the `SQLite reader contention probe` job. It builds the same
+opt-in `TestSQLiteReaderContention` against both commits and runs the
+pure-Go binaries sequentially on one Linux runner.
+
+The store fixture uses 22 WAL databases: a core file, a telemetry file, and
+20 small session files. CI repeats the experiment with roughly 64 MiB and
+256 MiB of core table pages to measure files near the Linux read mapping
+limit and files that mostly exceed it. Each receipt records the actual core
+file size. Every file retains an uncheckpointed WAL tail. Two pinned
+connections do primary-key reads on the core file and two workers do the
+same across the telemetry and session files. The loaded arm also loops a
+full table scan on a third core connection.
+Both arms warm filesystem pages before measurement and use the same paced
+requests and result checks. Only reads occur in the measured phase.
+
+Compare each cohort's indexed-read p50, p95, p99, maximum and completion rate
+across three unprofiled trials. Scheduled-start p99 and maximum include queueing
+and scheduler delay. A separate process per arm records mutex delay at lock
+release and a block profile with waiter stacks. The other-file block report
+isolates the indexed readers on separate files. The page-cache and allocator
+reports can overlap when an allocator call sits beneath a page-cache frame.
+Compare block delays in milliseconds because the profile total also includes
+the benchmark's pacing and synchronization waits.
+The shared cache can also evict another connection's pages, so reader latency
+includes subsequent cache misses. The `sqlite-reader-contention-<sha>` artifact
+retains every trial and profile from the same-runner comparison.
+
+For runtime context after #1625, separately dispatch `SQLite contention
+acceptance` with `mutex_profile=true`. It captures 15 seconds of mutex delay
+from the real daemon while 30 scripted sessions stream and the existing
+HTTP readers run. That replay still checks clean restart and transcript
+integrity. Its mutex profile includes writes and maintenance, so use it to
+interpret the read-only experiment alongside the ordinary daemon workload.
+
+On Linux, the shared read-only pools can map up to 64 MiB of each database
+file per connection. Mapped file pages can increase reported RSS. A storage
+fault accessing a mapped page or an external truncation of an open database
+can terminate the daemon rather than returning a SQLite I/O error. The cap
+limits mapped addresses. WAL frames and pages beyond the cap use the pager.
+The read mapping is Linux-only because the paired evidence is from Linux.
+
+## Write contention and upgrade
+
 This harness owns issue #1227's reproducible store-level measurements. The
 manual `SQLite paired load` workflow runs the heavy experiment in CI.
 It builds the **same harness source** against baseline
