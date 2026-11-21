@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	readerProbeScanRows    = 16_384
 	readerProbeSessionRows = 512
 	readerProbePayload     = 3_500
 	readerProbeSamples     = 2_048
@@ -31,6 +30,7 @@ const (
 
 var (
 	readerProbeMode    = flag.String("sqlite-reader-mode", "", "reader probe arm: indexed or scan")
+	readerProbeCoreMiB = flag.Int("sqlite-reader-core-mib", 64, "approximate core fixture size in MiB (64 or 256)")
 	readerProbeProfile = flag.String("sqlite-reader-profile-prefix", "", "output prefix for mutex and block profiles")
 )
 
@@ -54,15 +54,25 @@ func TestSQLiteReaderContention(t *testing.T) {
 	default:
 		t.Fatalf("unknown reader probe mode %q", *readerProbeMode)
 	}
+	if *readerProbeCoreMiB != 64 && *readerProbeCoreMiB != 256 {
+		t.Fatalf("unknown reader probe core size %d MiB", *readerProbeCoreMiB)
+	}
+	// The 3500-byte payload leaves one row per 4 KiB database page.
+	coreRows := *readerProbeCoreMiB * 256
 
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 	dir := t.TempDir()
-	core := openReaderProbePool(ctx, t, filepath.Join(dir, "core.db"), readerProbeScanRows)
+	corePath := filepath.Join(dir, "core.db")
+	core := openReaderProbePool(ctx, t, corePath, coreRows)
+	coreFile, err := os.Stat(corePath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	scan := prepareReaderProbeQuery(ctx, t, core, readerProbeScanSQL)
 	sameFile := [][]readerProbeLookup{
-		{{stmt: prepareReaderProbeQuery(ctx, t, core, readerProbeLookupSQL), rows: readerProbeScanRows}},
-		{{stmt: prepareReaderProbeQuery(ctx, t, core, readerProbeLookupSQL), rows: readerProbeScanRows}},
+		{{stmt: prepareReaderProbeQuery(ctx, t, core, readerProbeLookupSQL), rows: coreRows}},
+		{{stmt: prepareReaderProbeQuery(ctx, t, core, readerProbeLookupSQL), rows: coreRows}},
 	}
 	otherFiles := make([][]readerProbeLookup, 2)
 	for index := range readerProbeSessions + 1 {
@@ -79,7 +89,7 @@ func TestSQLiteReaderContention(t *testing.T) {
 
 	// Warm the database file in both arms. It still exceeds SQLite's per-connection
 	// page cache, so repeated scans must fetch pages without relying on cold disk I/O.
-	if err := runReaderProbeScan(ctx, scan); err != nil {
+	if err := runReaderProbeScan(ctx, scan, coreRows); err != nil {
 		t.Fatal(err)
 	}
 	if *readerProbeProfile != "" {
@@ -101,7 +111,7 @@ func TestSQLiteReaderContention(t *testing.T) {
 				default:
 				}
 				start := time.Now()
-				if err := runReaderProbeScan(ctx, scan); err != nil {
+				if err := runReaderProbeScan(ctx, scan, coreRows); err != nil {
 					return err
 				}
 				scanTime += time.Since(start)
@@ -145,7 +155,7 @@ func TestSQLiteReaderContention(t *testing.T) {
 	if *readerProbeMode == "scan" && scans == 0 {
 		t.Fatal("the scan worker completed no reads")
 	}
-	t.Logf("reader-probe elapsed=%v scans=%d scan_time=%v", elapsed, scans, scanTime)
+	t.Logf("reader-probe core_bytes=%d elapsed=%v scans=%d scan_time=%v", coreFile.Size(), elapsed, scans, scanTime)
 	logReaderProbeLatencies(t, "same-file", samples[:len(sameFile)], elapsed)
 	logReaderProbeLatencies(t, "other-files", samples[len(sameFile):], elapsed)
 }
@@ -217,12 +227,12 @@ func prepareReaderProbeQuery(ctx context.Context, t *testing.T, pool *sql.DB, qu
 	return stmt
 }
 
-func runReaderProbeScan(ctx context.Context, scan *sql.Stmt) error {
+func runReaderProbeScan(ctx context.Context, scan *sql.Stmt, rows int) error {
 	var bytes int
 	if err := scan.QueryRowContext(ctx).Scan(&bytes); err != nil {
 		return fmt.Errorf("scan reader events: %w", err)
 	}
-	if want := readerProbeScanRows*readerProbePayload + readerProbeScanRows/16; bytes != want {
+	if want := rows*readerProbePayload + rows/16; bytes != want {
 		return fmt.Errorf("scan payload bytes = %d, want %d", bytes, want)
 	}
 	return nil

@@ -136,36 +136,41 @@ jobs:
           mkdir -p "$out"
           printf 'base=%s\nhead=%s\nlogical_cpus=%s\nGOMAXPROCS=%s\n' \
             "$READER_BASE_SHA" "$READER_HEAD_SHA" "$(nproc)" "$GOMAXPROCS" > "$out/commits.txt"
-          for trial in 1 2 3; do
-            if (( trial % 2 )); then
-              versions=(base head)
-              modes=(indexed scan)
-            else
-              versions=(head base)
-              modes=(scan indexed)
-            fi
-            for version in "${versions[@]}"; do
-              for mode in "${modes[@]}"; do
-                "$RUNNER_TEMP/reader-$version" -test.v -test.run '^TestSQLiteReaderContention$' \
-                  -sqlite-reader-mode="$mode" | tee "$out/$version-$mode-$trial.txt"
+          for core_mib in 64 256; do
+            for trial in 1 2 3 profile; do
+              if test "$trial" = 2; then
+                versions=(head base)
+                modes=(scan indexed)
+              else
+                versions=(base head)
+                modes=(indexed scan)
+              fi
+              for version in "${versions[@]}"; do
+                for mode in "${modes[@]}"; do
+                  binary="$RUNNER_TEMP/reader-$version"
+                  prefix="$out/$core_mib-$version-$mode"
+                  workload=(-test.v -test.run '^TestSQLiteReaderContention$'
+                    -sqlite-reader-mode="$mode" -sqlite-reader-core-mib="$core_mib")
+                  if test "$trial" = profile; then
+                    workload+=(-sqlite-reader-profile-prefix="$prefix")
+                  fi
+                  "$binary" "${workload[@]}" | tee "$prefix-$trial.txt"
+                done
               done
             done
           done
-          for version in base head; do
-            for mode in indexed scan; do
-              binary="$RUNNER_TEMP/reader-$version"
-              label="$version-$mode"
-              prefix="$out/$label"
-              "$binary" -test.v -test.run '^TestSQLiteReaderContention$' \
-                -sqlite-reader-mode="$mode" -sqlite-reader-profile-prefix="$prefix" | tee "$prefix-profile.txt"
-              go tool pprof -top -nodecount=10 "$binary" "$prefix.mutex.pb.gz" > "$prefix-top.txt"
-              go tool pprof -top -cum -nodecount=10 -focus='pcache1' -show='pcache1|lib.mutexLeave$' \
-                "$binary" "$prefix.mutex.pb.gz" > "$prefix-pcache.txt"
-              go tool pprof -top -cum -nodecount=10 -show='modernc.org/libc.X(malloc|free)$' \
-                "$binary" "$prefix.mutex.pb.gz" > "$prefix-allocator.txt"
-              go tool pprof -top -cum -nodecount=15 -focus='measureReaderProbeOtherFiles' \
-                -show='pcache1|libc.X(malloc|free)$' "$binary" "$prefix.block.pb.gz" > "$prefix-other-file-waits.txt"
-            done
+          for profile in "$out"/*.mutex.pb.gz; do
+            prefix="${profile%.mutex.pb.gz}"
+            label="${prefix##*/}"
+            version="${label#*-}"
+            binary="$RUNNER_TEMP/reader-${version%%-*}"
+            go tool pprof -top -nodecount=10 "$binary" "$profile" > "$prefix-top.txt"
+            go tool pprof -top -cum -nodecount=10 -focus='pcache1' -show='pcache1|lib.mutexLeave$' \
+              "$binary" "$profile" > "$prefix-pcache.txt"
+            go tool pprof -top -cum -nodecount=10 -show='modernc.org/libc.X(malloc|free)$' \
+              "$binary" "$profile" > "$prefix-allocator.txt"
+            go tool pprof -top -cum -nodecount=15 -focus='measureReaderProbeOtherFiles' \
+              -show='pcache1|libc.X(malloc|free)$' "$binary" "$prefix.block.pb.gz" > "$prefix-other-file-waits.txt"
           done
       - name: Publish reader probe samples
         if: always()
