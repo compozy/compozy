@@ -42,3 +42,12 @@ with the child's own response timeout and confirm a cooldown, a named server and
 and no restart before the cooldown ends. A tool call that reaches the executor's deadline counts
 when at least half of its configured time budget was available after pool admission. Check a call
 whose admission used most of the time budget and confirm it leaves the child reusable.
+
+QA impact 2026-11-21 ([#1824](https://github.com/compozy/compozy/issues/1824))
+
+With an isolated daemon and a local Unix socket fixture, configure a stdio server that defaults to
+discovering the socket under `HOME`. Keep the listener under the fixture's operator home. Check
+that discovery fails with the default arguments. Add the fixture's `--socket` argument and the
+literal absolute path to that server, check that discovery succeeds, and invoke one of its tools.
+Confirm a server without the override still uses an isolated home. The Go unit CI lane exercises
+the socket failure and successful tool invocation in `TestStdioSessionPool`.

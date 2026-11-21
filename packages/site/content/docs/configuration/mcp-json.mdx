@@ -141,6 +141,31 @@ request. Each process gets an isolated `HOME` while `npx` and `uvx` reuse persis
 under `$COMPOZY_HOME/cache/mcp/`. See [`[mcp.stdio]`](/docs/configuration/config-toml#mcpstdio) for
 the bounds.
 
+### Connect a stdio server to a local socket
+
+A CompozyOS-managed stdio server that looks for a socket under `HOME` searches its isolated home.
+If the server supports a socket-path argument, add the socket's absolute path to that server's
+`args` or its **Arguments** in **Settings → MCP servers**. The server keeps its isolated home
+and connects to the specified socket. CompozyOS passes arguments literally, so use the full
+path in place of `~` or `$HOME`.
+
+For example, with CuaDriver.app running on macOS, add this entry to your personal `mcp.json`.
+Replace `/Users/you` with your home directory.
+
+```json
+{
+  "mcpServers": {
+    "cua-driver": {
+      "command": "cua-driver",
+      "args": ["mcp", "--socket", "/Users/you/Library/Caches/cua-driver/cua-driver.sock"]
+    }
+  }
+}
+```
+
+Run `compozy mcp check cua-driver --scope user` to confirm the server is ready. For other servers,
+use the socket argument or socket-path environment variable documented by the server.
+
 ### Management read and write projection
 
 `GET /api/settings/mcp-servers` does not return literal environment values or binding refs. Each

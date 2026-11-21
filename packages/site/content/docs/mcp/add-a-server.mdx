@@ -135,6 +135,7 @@ If the extension's server uses OAuth, sign in to it once.
 | The transcript says **conversation continued from history**.                                  | Nothing to fix. The runtime couldn't resume its own conversation, so CompozyOS continued it from the transcript with the new tools.                                      |
 | The agent says the tool doesn't exist, but the row is **Ready**.                              | The change applies at the start of a message. Send a new message instead of continuing the same turn.                                                                    |
 | A server is **Failed** (Couldn't connect).                                                    | Open it in Settings → MCP servers to read the probe error, fix the command or URL, and send another message.                                                             |
+| A local stdio server cannot find its service's socket.                                          | Give that server the [absolute socket path](/docs/configuration/mcp-json#connect-a-stdio-server-to-a-local-socket) in **Arguments**.                                       |
 
 ## Next steps
 

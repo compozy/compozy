@@ -7,11 +7,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"maps"
+	"net"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -33,6 +37,9 @@ const (
 	stdioPoolSecretSource    = "COMPOZY_MCP_STDIO_POOL_SECRET_SOURCE"
 	stdioPoolSecretValue     = "pool-secret-value-7f3a"
 	stdioPoolCrashMessage    = "crash"
+	stdioPoolSocketEnv       = "COMPOZY_MCP_STDIO_POOL_SOCKET"
+	stdioPoolSocketName      = "service.sock"
+	stdioPoolSocketFailure   = "fixture could not connect to its socket"
 )
 
 func TestStdioSessionPool(t *testing.T) {
@@ -349,6 +356,49 @@ func TestStdioSessionPool(t *testing.T) {
 		}
 	})
 
+	t.Run("Should connect to an explicit socket outside the isolated home", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("the fixture models Unix socket discovery under HOME")
+		}
+		// Keep the fixture path short enough for macOS Unix sockets.
+		home, err := os.MkdirTemp("/tmp", "compozy-mcp-test-")
+		if err != nil {
+			t.Fatalf("create fixture home: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := os.RemoveAll(home); err != nil {
+				t.Errorf("remove fixture home: %v", err)
+			}
+		})
+		t.Setenv("HOME", home)
+		socket := filepath.Join(home, stdioPoolSocketName)
+		listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: socket, Net: "unix"})
+		if err != nil {
+			t.Fatalf("listen on fixture socket: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := listener.Close(); err != nil {
+				t.Errorf("close fixture socket: %v", err)
+			}
+		})
+
+		fixture := newStdioPoolFixture(t, StdioPoolConfig{}, map[string]string{stdioPoolSocketEnv: "1"})
+		_, err = fixture.executor.ListTools(testContext(t), fixture.source())
+		requireReason(t, err, toolspkg.ReasonMCPUnreachable)
+		if tail := fixture.pool.StderrTail(fixture.target()); !strings.Contains(tail, stdioPoolSocketFailure) {
+			t.Fatalf("StderrTail() = %q, want the child socket failure", tail)
+		}
+
+		configured := fixture.server
+		configured.Args = append(slices.Clone(configured.Args), "--", "--socket", socket)
+		executor := fixture.executorFor(t, configured)
+		descriptor := requireMCPDescriptor(t, executor, configured.Name, "mcp__pooled__echo")
+		result := callMCPTool(t, executor, descriptor, json.RawMessage(`{"message":"connected"}`))
+		if result.Preview != "echo: connected" {
+			t.Fatalf("CallTool().Preview = %q, want echo: connected", result.Preview)
+		}
+	})
+
 	t.Run("Should replace the child when the server definition changes", func(t *testing.T) {
 		t.Parallel()
 
@@ -477,7 +527,7 @@ func TestStdioStderrRing(t *testing.T) {
 }
 
 func TestMCPStdioPoolHelperProcess(t *testing.T) {
-	t.Run("Should serve the pooled stdio fixture when requested", func(_ *testing.T) {
+	t.Run("Should serve the pooled stdio fixture when requested", func(t *testing.T) {
 		if os.Getenv(stdioPoolHelperEnv) != "1" {
 			return
 		}
@@ -501,6 +551,23 @@ func TestMCPStdioPoolHelperProcess(t *testing.T) {
 		if os.Getenv(stdioPoolCrashOnStartEnv) == "1" {
 			_, _ = fmt.Fprintln(os.Stderr, "fixture crashed on start")
 			os.Exit(23)
+		}
+		if os.Getenv(stdioPoolSocketEnv) == "1" {
+			socket := filepath.Join(os.Getenv("HOME"), stdioPoolSocketName)
+			if flag.Arg(0) == "--socket" {
+				socket = flag.Arg(1)
+			}
+			dialer := net.Dialer{Timeout: time.Second}
+			conn, err := dialer.DialContext(t.Context(), "unix", socket)
+			if err != nil {
+				if _, err := fmt.Fprintln(os.Stderr, stdioPoolSocketFailure); err != nil {
+					os.Exit(4)
+				}
+				os.Exit(25)
+			}
+			if err := conn.Close(); err != nil {
+				os.Exit(4)
+			}
 		}
 		server := newFakeSDKServer(
 			func(_ context.Context, req *mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
