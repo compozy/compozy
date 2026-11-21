@@ -48,6 +48,11 @@ const claudeProvider: RuntimeProviderOption = {
   name: "Claude",
   runtime_provider: "claude",
 };
+const agyProvider: RuntimeProviderOption = {
+  id: "agy",
+  name: "Google Antigravity",
+  runtime_provider: "agy",
+};
 
 const advancedACPOptions: RuntimeACPOption[] = [
   {
@@ -648,6 +653,76 @@ describe("RuntimeSelector ACP advanced options", () => {
       model: "without-context",
       reasoning_effort: "",
       acp_options: undefined,
+    });
+  });
+
+  it("Should expose native Antigravity Hydrogen xhigh without borrowing it for Argon", async () => {
+    const user = userEvent.setup();
+    const thoughtLevel = (values: string[]): RuntimeACPOption[] => [
+      {
+        id: "thought_level",
+        label: "Thinking",
+        category: "thought_level",
+        kind: "select",
+        current_value_id: "medium",
+        values: values.map(value => ({ value })),
+      },
+    ];
+    const argon = model("gemini-4-argon", {
+      provider: "agy",
+      name: "Gemini 4 Argon",
+      efforts: ["low", "medium", "high"],
+      acp_options: thoughtLevel(["low", "medium", "high"]),
+    });
+    const hydrogen = model("gemini-4-hydrogen", {
+      provider: "agy",
+      name: "Gemini 4 Hydrogen",
+      efforts: ["low", "medium", "high", "xhigh"],
+      acp_options: thoughtLevel(["low", "medium", "high", "xhigh"]),
+    });
+    const { onChange } = renderSelector({
+      value: { provider: "agy", model: "gemini-4-argon", reasoning_effort: "" },
+      providers: [agyProvider],
+      models: [argon, hydrogen],
+    });
+
+    await openSelector(user);
+    const track = screen.getByTestId("runtime-selector-reasoning-track");
+    expect(track).toHaveAttribute("aria-valuemax", "2");
+
+    await user.click(row("gemini-4-hydrogen"));
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "agy",
+      model: "gemini-4-hydrogen",
+      reasoning_effort: "",
+    });
+    // Four advertised levels: the fourth stop is Hydrogen's xhigh, and the highest
+    // offered level is not a universal `max`.
+    expect(track).toHaveAttribute("aria-valuemax", "3");
+    fireEvent.keyDown(track, { key: "End" });
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "agy",
+      model: "gemini-4-hydrogen",
+      reasoning_effort: "xhigh",
+    });
+
+    // The advertised thought_level descriptor stays the reasoning control; with no
+    // other controls there is no duplicate advanced select.
+    expect(screen.queryByTestId("runtime-selector-advanced-toggle")).toBeNull();
+    expect(screen.queryByTestId("runtime-selector-option-thought_level")).toBeNull();
+
+    await user.click(row("gemini-4-argon"));
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "agy",
+      model: "gemini-4-argon",
+      reasoning_effort: "",
+    });
+    expect(track).toHaveAttribute("aria-valuemax", "2");
+    fireEvent.keyDown(track, { key: "End" });
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "agy",
+      model: "gemini-4-argon",
+      reasoning_effort: "high",
     });
   });
 });

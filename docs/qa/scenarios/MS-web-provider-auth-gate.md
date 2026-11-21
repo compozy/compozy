@@ -9,12 +9,13 @@ entry_points: web Settings window → Providers → New provider / provider card
 qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status:
+retest_status: partial
 fix_commits:
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-04;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-11-05-usage-backoff-signin-boot.md
+evidence: .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-03;.compozy/tasks/modals-redesign/evidence/visual/task_04/VC-04;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa;docs/qa/evidence/2026-11-21-agy-native-acp-open-qa/live-agy-settings-card.png;docs/qa/evidence/2026-11-21-agy-native-acp-open-qa/live-agy-settings-editor.png;docs/qa/evidence/2026-11-21-agy-native-acp-open-qa/live-agy-settings-375px.png
+last_report: docs/qa/reports/2026-11-21-agy-native-acp-open-qa.md
 overlaps: MS-provider-detail-modal; MS-web-settings-providers-redesign; MS-web-entity-modal-shell
 ---
+
 
 story: As a person running agent work I decide who owns provider authentication, and Compozy asks me for a key only when it is the one that has to hold it.
 
@@ -50,7 +51,7 @@ The adjacent editor canary passed: Native CLI exposes no credential slot; switch
 The `agy` built-in (Native CLI with `auth_acp_method = "oauth-personal"`, no native login
 command) must render the same Native CLI card with provider-owned login only: no credential slot,
 key field, or secret ref anywhere, and the login descriptor shows `source: auth_acp_method` with
-the server executable basename and `presence: present`.
+the `agy` executable basename and `presence: present`.
 
 2026-10-16 Task 04 browser check (E2E-003 Test A, deterministic Settings seed,
 no Google account): `web/e2e/__tests__/settings.spec.ts` → "operator can inspect and edit the
@@ -62,6 +63,30 @@ to the card; the 375px viewport keeps the method input reachable with no horizon
 Captures: `.compozy/tasks/agy-acp/evidence/task_04/captures/agy-settings-{card-unverified,method-preserved,method-narrow}.png`.
 Unit/integration ownership stays UT-003/IT-005/IT-006, and the deterministic peer-backed
 public-entry walk lives in `internal/daemon/agy_acp_entry_integration_test.go`.
+
+QA impact 2026-11-16: the built-in now launches the Antigravity CLI as `agy acp`, so the Settings
+fixture and login descriptor basename use `agy`; no credential controls were added or removed. The
+2026-10-16 browser receipt covers the same surfaces under the superseded server name, and the
+re-based deterministic browser walk remains CI-owned and was not executed for this change.
+
+QA 2026-11-16 (native CLI, headed Chromium): Settings exposed provider-owned authentication and
+no credential inputs, including at 375 px. Remote readiness reused existing CLI login; a clean-HOME
+local probe returned `needs_login` without consent. A fresh Google consent/cancellation was not
+performed. The environment restart removed the lab receipts before final audit; see
+`docs/qa/reports/2026-11-16-agy-native-acp.md` for the scoped observations and acceptance blocker.
+
+## Consented native CLI re-walk
+
+QA 2026-11-17 (consented native re-walk): real Settings inspection passed in headed Chromium.
+Enter opened the Antigravity card; Configure retained `oauth-personal`, named the available
+`agy` app, and mounted no credential-slot/value controls. At 375 px the method remained reachable
+without inspector-body horizontal overflow. No provider edit was saved.
+Round 2 completed the provider-owned authentication boundary in a separate clean HOME:
+real Google consent through the native CLI's documented headless login, product probe
+`authenticated`, and `compozy provider auth login` reusing the store without a second consent.
+A genuinely pending login was interrupted and stayed `needs_login`. This closes the AGY
+native-CLI branch, not the unrelated bound-secret/rotation branches.
+See `docs/qa/reports/2026-11-17-agy-native-acp-consented.md` and its persistent screenshot receipts.
 
 ## Harness switches preserve authentication ownership
 
@@ -141,3 +166,8 @@ A plain missing binary yields `missing_cli` and does not exercise this branch. A
 QA 2026-11-04 (#1267, build df98dd0b6): PASS in an isolated lab with a synthetic native CLI —
 steps 1–3 verified on `compozy provider list --json`, `GET /api/providers`, and
 `GET /api/settings/providers`. Report: `docs/qa/reports/2026-11-04-provider-auth-verdict-cache.md`.
+
+## QA 2026-11-21 (AGY Settings & Playwright E2E PASS)
+
+- Playwright E2E `web/e2e/__tests__/settings.spec.ts -g "Antigravity"` (4.3s) and unit suites (`provider-detail-dialog.test.tsx` 20 tests, `use-provider-detail-body.test.tsx` 4 tests) passed on rebased `3bf59ba3a`.
+- Live Chromium Settings walkthrough verified `Google Antigravity` (`Ready · 9 models`), keyboard `Enter` inspector opening, `oauth-personal` + `agy Available` with zero credential slots/inputs, and `375px` viewport horizontal overflow `<= 1px`.

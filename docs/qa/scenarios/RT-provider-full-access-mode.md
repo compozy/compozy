@@ -4,17 +4,18 @@ area: RT
 title: Full access runs the ACP provider in its unrestricted mode
 persona: Ada
 journey: J-15
-expected: With effective approve-all permissions alone, new Codex sessions select agent-full-access, new Claude Code sessions select bypassPermissions, agy selects yolo, and Copilot selects allow_all=on; under auto, Codex keeps its reviewer mode. An explicit narrower agent mode wins; narrower session permissions drop inherited unrestricted agent modes during start and later runtime changes while explicit unrestricted session selections are refused; providers without a mapping keep their own approve-all negotiation. A config that still carries the retired permissions.provider_full_access key starts normally: the key is ignored, removed from writable config files after a backup, and permissions.mode remains the canonical control.
+expected: With effective approve-all permissions alone, new Codex sessions select agent-full-access, new Claude Code sessions select bypassPermissions, agy negotiates its advertised unrestricted mode (auto on the verified CLI, never an injected yolo), and Copilot selects allow_all=on; under auto, Codex keeps its reviewer mode. An explicit narrower agent mode wins; narrower session permissions drop inherited unrestricted agent modes during start and later runtime changes while explicit unrestricted session selections are refused; providers without a mapping keep their own approve-all negotiation. Native agy acp refuses all narrower host policies before launch without widening them. A config that still carries the retired permissions.provider_full_access key starts normally: the key is ignored, removed from writable config files after a backup, and permissions.mode remains the canonical control.
 entry_points: config.toml permissions; compozy agent info; compozy session prompt; Loop run-agent
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status: fixed
-retest_status: untested
+retest_status: partial
 fix_commits: issue #1473
-evidence: internal/config/provider_test.go;internal/config/provider_agy_test.go;internal/acp/types_test.go;internal/session/manager_start_test.go;internal/session/manager_transition_test.go;internal/daemon/loop_runtime_adapters_test.go;docs/qa/reports/2026-11-10-issue-1473-full-access.md
-last_report: docs/qa/reports/2026-11-10-issue-1473-full-access.md
+evidence: internal/config/provider_test.go;internal/config/provider_agy_test.go;internal/acp/types_test.go;internal/session/manager_start_test.go;internal/session/manager_transition_test.go;internal/daemon/loop_runtime_adapters_test.go;docs/qa/reports/2026-11-10-issue-1473-full-access.md;docs/qa/reports/2026-11-21-agy-native-acp-open-qa.md
+last_report: docs/qa/reports/2026-11-21-agy-native-acp-open-qa.md
 overlaps: RT-cursor-agent-mode
 ---
+
 
 In an owned disposable workspace, set `[permissions] mode = "approve-all"` with no other permission
 key. Inspect fresh Codex and Claude Code agents without authored ACP mode options; their effective
@@ -46,13 +47,31 @@ and PostgreSQL fixture on the provider-neutral build. Narrower agent and session
 of an explicit unrestricted override, and unsupported-provider failure were verified through the
 CLI. See the dated run report and its isolated lab receipts.
 
-## agy prefers yolo under approve-all
+## agy negotiates its advertised mode under approve-all
 
-With effective `approve-all`, a new `agy` session
-prefers mode `yolo`; an explicit narrower agent mode wins, and narrower session permissions reject
-`yolo`. `agy` is never added to generic automatic mode candidates. Unit ownership is UT-004
-(config negotiation cases); the live `agy` walk is unexecuted and the historical Codex/Claude branches remain previously verified;
-this scenario is untested for the retired-key upgrade behavior.
+With effective `approve-all`, a new `agy` session selects a mode the CLI actually advertises: the
+verified 1.5.9 runtime lists `default`, `accept-edits`, `auto`, and `plan`, so approve-all negotiates
+`auto` and no `yolo` selection or permission-bypass launch argument is injected. An explicit narrower
+agent mode wins under that host policy. Native `agy acp` refuses all narrower host policies before
+launch because live default and acknowledged plan both bypassed host write approval. Authored
+standalone/custom commands retain their own approval behavior. `agy` is never added to generic
+automatic mode candidates. Unit ownership is UT-002; `TestAgyACPBuiltInEntry` covers effective-command
+refusal and retained legacy metadata/transcript through the real ACP driver.
+
+The 2026-11-16 live walk observed `auto`, an allowed write and hosted native read, then final HTTP 422
+refusal with an absent fresh target and unchanged `approve-reads`. Turn cancellation and explicit
+detached-task termination were verified as separate operations. See
+`docs/qa/reports/2026-11-16-agy-native-acp.md`; its raw lab evidence was lost on environment restart
+before the strict audit/teardown. These observations do not establish a full scenario pass.
+The historical Codex/Claude branches remain previously verified; retired-key upgrade is untested.
+
+QA 2026-11-17 (AGY-only consented re-walk): independent durable receipts confirm native
+`approve-all` acknowledged `auto`, completed an authorized write and hosted workspace-info read,
+and subsequently remained usable after canceling observed active work. A fresh `approve-reads`
+session refused before launch with unchanged permissions, no processes, and no forbidden file.
+This is refusal, not a claim that `plan` enforces read-only behavior. Explicit cleanup found no
+remaining task. See the current report and `native-authority-cancellation-verdict.json`.
+No Codex/Claude/retired-key or whole-scenario PASS is claimed by this targeted run.
 
 ## Providers without a unique mode option
 
@@ -85,3 +104,8 @@ Focused verification 2026-11-11: action/precedence regressions and scoped Loop l
 `go test -tags=integration ./internal/daemon -run '^TestLoopRuntimeSelectionIntegration$' -count=1`
 passes with an isolated daemon, SQLite and subprocess ACP peer, including restart/read/replay.
 This is automated integration evidence, not a new live-provider or browser walk.
+
+## QA 2026-11-21 (`agy` `auto` precedence & `#1618` retired key upgrade PASS)
+
+- Under `approve-all`, `agy` selected `mode=auto` (never `yolo`); narrower agent `agy-mode-narrow` (`--acp-option mode=accept-edits`, `sess-6d6879957cfbf2a4`) took precedence; explicit `auto`/`yolo` under `approve-reads` was refused.
+- `#1618`: global and workspace `permissions.provider_full_access` (`false` with comments and `true`) stripped only the retired line after creating exact `.retired-keys.bak` backups, emitted one `WARN config.retired_keys_removed` per file, and remained idempotent on restart. Pre-registered workspace `.compozy` (`0555`) + `config.toml` (`0444`) started safely unchanged (`chmod 0555` on `$COMPOZY_HOME` itself fails daemon startup at `mkdir gateway`).

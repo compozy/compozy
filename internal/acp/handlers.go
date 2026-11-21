@@ -227,6 +227,11 @@ func (p *AgentProcess) handleRequestPermission(
 	if !p.permissionRequestIsBound(request.SessionId) {
 		return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
 	}
+	if p.isAgyInteractionQuestion(request) {
+		// An Antigravity question is not a tool approval: under every policy, triage included,
+		// only the operator picks its answer.
+		return p.answerAgyInteractionQuestion(ctx, request), nil
+	}
 	return p.resolvePermissionRequest(ctx, request, permissionActorProvider)
 }
 

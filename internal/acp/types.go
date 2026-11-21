@@ -231,7 +231,7 @@ func (o StartOpts) validateBase() error {
 	}
 	switch o.SystemPromptDelivery {
 	case "", SystemPromptDeliveryFirstTurnPrefix, SystemPromptDeliveryNative:
-		return nil
+		return validateNativeAgyToolPolicy(o)
 	default:
 		return fmt.Errorf("acp: invalid system prompt delivery %q", o.SystemPromptDelivery)
 	}

@@ -204,6 +204,10 @@ func statusForSessionError(err error) int {
 	if status, ok := statusForSessionAvailabilityError(err); ok {
 		return status
 	}
+	// Runtime refusals are actionable; classified failures above keep their own status.
+	if _, _, ok := runtimeRefusalGuidance(err); ok {
+		return http.StatusUnprocessableEntity
+	}
 	return http.StatusInternalServerError
 }
 

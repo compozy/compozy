@@ -2369,6 +2369,44 @@ extension SDKs are unchanged. Official skill `references/runtime-operations.md`,
 
 ## Google Antigravity ACP provider — 2026-10-18
 
+Native CLI replacement (2026-11-16), owner: `agy-native-acp`, branch `feat/agy-native-acp`.
+The single replacement audit and SD-013 delete inventory are
+`.compozy/tasks/agy-native-acp/analysis/change-impact.md` in the workspace root.
+It supersedes the standalone executable choice below, not the historical evidence or native-auth
+contract. The built-in now uses `agy acp`, negotiates advertised modes instead of injecting `yolo`,
+and preserves authored overrides. Route changes rebuild options only from genuine retained runtime
+intent; unknown-provenance options stay verbatim and incompatible values require public reselection
+guidance. Runtime-clear is not confirmation. The existing transcript replay avoids loading a foreign
+native session ID; unverified AGY routes also replay safely. Live native default and plan both bypassed
+host write approval, so advertised mode names cannot establish constrained-policy safety; the native
+execution boundary must refuse policies it cannot enforce, without silently granting approve-all.
+Replay markers distinguish an absent verifiable binding (`native_route_unverified`) from a removed
+configured route (`accepted_route_missing`), without changing the event shape or historical rows.
+Local review `9f12f850e` co-ships those distinct assertions and real daemon-boundary coverage for
+resolved-command refusal and lossless legacy-resume refusal; no new runtime surface is introduced.
+Authored standalone/custom routes and promptless inspection retain their separate behavior.
+No user data, public keys, routes, DTOs, tool IDs, hooks,
+extension contracts, or schema change. Command/home-scoped discovery, readiness, host authority,
+and default MCP transport remain unchanged; inventory recognizes `agy`. Existing Web fixtures,
+site documentation, official skill references, QA scenarios, and
+`.release-notes/agy-native-acp.md` co-ship the native CLI and upgrade guidance. Verification and
+external acceptance limits for the lost 2026-11-16 lab are recorded in
+`docs/qa/reports/2026-11-16-agy-native-acp.md`; those receipts are permanently missing and are
+never inferred as PASS. The separately authorized 2026-11-17 consented re-walk closed that
+acceptance gap for the executable scope with strict audit and `clean: true` teardown; its record
+is `docs/qa/reports/2026-11-17-agy-native-acp-consented.md` with persistent evidence under
+`.compozy/tasks/agy-native-acp/evidence/qa-20261117-consented/`, subject to the operator
+exclusions recorded there (provisioning a new Google account, native execution outside Linux);
+`RT-agy-acp-provider` stays `untested` until its remaining `missing_cli`/no-fallback and
+hosted-MCP switch legs are walked.
+PR #1913 review remediation (2026-11-21): the native boundary also refuses `deny` permission rules
+under approve-all and recognizes the `antigravity` executable name; `interaction_*` permission
+requests are Antigravity questions routed to the operator through the existing clarify broker, never
+auto-answered; every AGY session sends `_meta.antigravity.disabledTools = ["run_workflow"]`; explicit
+provider config refusals classify as `session_config_option_rejected`, and a refusal caused only by
+agent-definition options gets agent-definition guidance under the same public code. No new route,
+DTO, key, tool ID, or schema.
+
 Owner: PR #773. The additive `agy` built-in launches the supplied `agy_acp_server`, uses
 protocol-owned native login, and discovers exact model/configuration options through ACP. Provider
 configuration and Settings gain the optional `auth_acp_method` field; source DTOs and generated

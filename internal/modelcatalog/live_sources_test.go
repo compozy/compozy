@@ -2097,37 +2097,89 @@ opencode/provider-managed
 		}
 	})
 
-	t.Run("Should discover Agy models with exact identities and no borrowed metadata", func(t *testing.T) {
+	t.Run("Should publish native Agy logical models with per-model ACP efforts", func(t *testing.T) {
 		t.Parallel()
 
-		// Synthetic parser/dedup input seeded from the superseded 1.3.0 shape.
-		// The live 1.4.0 server advertises 2 bare IDs (gemini-4-argon,
-		// gemini-3.8-flash) plus a thinking_level option; test logic unchanged.
-		historical := []acp.SessionConfigOptionValue{
-			{Value: "gemini-4-argon-medium", Label: "Argon Medium"},
-			{Value: "gemini-4-argon-high", Label: "Argon High"},
-			{Value: "gemini-4-argon-low", Label: "Argon Low"},
-			{Value: "gemini-3.8-flash-high", Label: "Flash High"},
-			{Value: "gemini-3.8-flash-medium", Label: "Flash Medium"},
-			{Value: "gemini-3.8-flash-low", Label: "Flash Low"},
+		// Shape recorded from Antigravity CLI 1.5.9: the `model` config option
+		// advertises seven logical IDs while the legacy `models.availableModels`
+		// list repeated 18 effort-suffixed transport aliases. Those aliases are
+		// not picker entries. Selecting a model re-announces its own thought
+		// levels: Argon offers three, Hydrogen four including `xhigh`, and `max`
+		// is not offered. The counts are fixture data, not a catalog requirement.
+		legacyAvailableModels := []string{
+			"gemini-4-argon-low", "gemini-4-argon-medium", "gemini-4-argon-high",
+			"gemini-4-hydrogen-low", "gemini-4-hydrogen-medium", "gemini-4-hydrogen-high",
+			"gemini-3.8-flash-low", "gemini-3.8-flash-medium", "gemini-3.8-flash-high",
+			"gemini-pro-orchestrator-g1-pro-low", "gemini-pro-orchestrator-g1-pro-medium",
+			"gemini-pro-orchestrator-g1-pro-high",
+			"claude-opus-5-5-low", "claude-opus-5-5-medium", "claude-opus-5-5-high",
+			"claude-sonnet-5-5-low", "claude-sonnet-5-5-medium", "claude-sonnet-5-5-high",
 		}
-		values := append([]acp.SessionConfigOptionValue(nil), historical...)
-		values = append(values,
-			acp.SessionConfigOptionValue{Value: "gemini-3.8-flash-high", Label: "Flash High"},
-			acp.SessionConfigOptionValue{Value: "gemini-4-argon-low", Label: "Argon Low"},
-			acp.SessionConfigOptionValue{Value: "  ", Label: "Blank"},
-		)
-		for index := range 50 {
-			values = append(values, acp.SessionConfigOptionValue{
-				Value: fmt.Sprintf("agy-scale-%03d", index),
-				Label: fmt.Sprintf("Scale %03d", index),
-			})
+		logicalModels := []struct {
+			id, label  string
+			efforts    []string
+			current    string
+			unobserved bool
+		}{
+			{id: "gemini-4-argon", label: "Gemini 4 Argon",
+				efforts: []string{"low", "medium", "high"}, current: "medium"},
+			{id: "gemini-4-hydrogen", label: "Gemini 4 Hydrogen",
+				efforts: []string{"low", "medium", "high", "xhigh"}, current: "medium"},
+			{id: "gemini-pro-orchestrator-g1-pro", label: "Gemini Pro Orchestrator", unobserved: true},
+			{id: "gemini-3.8-flash", label: "Gemini 3.8 Flash",
+				efforts: []string{"low", "medium", "high"}, current: "high"},
+			{id: "claude-opus-5-5", label: "Claude Opus 5.5",
+				efforts: []string{"low", "medium", "high"}, current: "medium"},
+			{id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5",
+				efforts: []string{"low", "high"}, current: "high"},
+			{id: "gpt-oss-120b-medium", label: "GPT-OSS 120B",
+				efforts: []string{"low", "medium", "high"}, current: "medium"},
 		}
-		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
-			ID:     "model",
-			Kind:   acp.SessionConfigOptionKindSelect,
-			Values: values,
-		}}}
+		modelOption := func(current string) acp.SessionConfigOption {
+			values := make([]acp.SessionConfigOptionValue, 0, len(logicalModels)+2)
+			for _, model := range logicalModels {
+				values = append(values, acp.SessionConfigOptionValue{Value: model.id, Label: model.label})
+			}
+			// Picker noise real providers repeat: the row set must stay deduplicated and blank-free.
+			values = append(values,
+				acp.SessionConfigOptionValue{Value: logicalModels[0].id, Label: logicalModels[0].label},
+				acp.SessionConfigOptionValue{Value: "  ", Label: "Blank"},
+			)
+			return acp.SessionConfigOption{
+				ID: "model", Label: "Model", Category: "model",
+				Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: current, Values: values,
+			}
+		}
+		thoughtLevel := func(current string, efforts []string) acp.SessionConfigOption {
+			values := make([]acp.SessionConfigOptionValue, 0, len(efforts))
+			for _, effort := range efforts {
+				values = append(values, acp.SessionConfigOptionValue{Value: effort})
+			}
+			return acp.SessionConfigOption{
+				ID: "thought_level", Label: "Thinking", Category: "thought_level",
+				Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: current, Values: values,
+			}
+		}
+		probe := &fakeACPModelProbe{
+			options: []acp.SessionConfigOption{
+				modelOption("gemini-4-argon"),
+				thoughtLevel("medium", logicalModels[0].efforts),
+			},
+			models: make(map[string][]acp.SessionConfigOption, len(logicalModels)),
+			modelErrors: map[string]error{
+				"gemini-pro-orchestrator-g1-pro": errors.New("thinking levels unavailable"),
+			},
+		}
+		for _, model := range logicalModels {
+			if model.unobserved {
+				continue
+			}
+			options := []acp.SessionConfigOption{modelOption(model.id)}
+			if len(model.efforts) > 0 {
+				options = append(options, thoughtLevel(model.current, model.efforts))
+			}
+			probe.models[model.id] = options
+		}
 		builtin := compozyconfig.BuiltinProviders()[liveSourcesAgyKey]
 		if builtin.Models.Default != "" || len(builtin.Models.Curated) != 0 {
 			t.Fatalf("builtin agy models = %#v, want no static seed", builtin.Models)
@@ -2152,20 +2204,17 @@ opencode/provider-managed
 		if err != nil {
 			t.Fatalf("ListModels(Agy ACP) error = %v", err)
 		}
-		wantIDs := []string{
-			"gemini-3.8-flash-high",
-			"gemini-3.8-flash-low",
-			"gemini-3.8-flash-medium",
-			"gemini-4-argon-high",
-			"gemini-4-argon-low",
-			"gemini-4-argon-medium",
-		}
-		for index := range 50 {
-			wantIDs = append(wantIDs, fmt.Sprintf("agy-scale-%03d", index))
+		wantIDs := make([]string, 0, len(logicalModels))
+		for _, model := range logicalModels {
+			wantIDs = append(wantIDs, model.id)
 		}
 		slices.Sort(wantIDs)
 		if got := rowModelIDs(rows); !slices.Equal(got, wantIDs) {
-			t.Fatalf("row ids = %#v, want exact deduplicated %#v", got, wantIDs)
+			t.Fatalf("row ids = %#v, want the logical native config values %#v", got, wantIDs)
+		}
+		legacyIDs := make(map[string]struct{}, len(legacyAvailableModels))
+		for _, alias := range legacyAvailableModels {
+			legacyIDs[alias] = struct{}{}
 		}
 		for _, row := range rows {
 			if row.ProviderID != liveSourcesAgyKey || row.SourceID != SourceKindProviderLiveID(liveSourcesAgyKey) {
@@ -2174,18 +2223,66 @@ opencode/provider-managed
 			if row.Available == nil || !*row.Available {
 				t.Fatalf("row %q Available = %v, want true", row.ModelID, row.Available)
 			}
+			if _, duplicate := legacyIDs[row.ModelID]; duplicate {
+				t.Fatalf("row %q duplicates a legacy effort-suffixed transport alias", row.ModelID)
+			}
 			if row.CostInputPerMillion != nil || row.CostOutputPerMillion != nil ||
 				row.CostCacheReadPerMillion != nil || row.CostCacheWritePerMillion != nil ||
 				row.CostReasoningPerMillion != nil || row.ContextWindow != nil ||
-				row.MaxInputTokens != nil || row.MaxOutputTokens != nil ||
-				row.SupportsReasoning != nil || len(row.ReasoningEfforts) != 0 ||
-				row.DefaultReasoningEffort != nil || row.SupportsTools != nil ||
-				len(row.ConfigOptions) != 0 || len(row.TransportBindings) != 0 {
+				row.MaxInputTokens != nil || row.MaxOutputTokens != nil || row.SupportsTools != nil ||
+				len(row.TransportBindings) != 0 {
 				t.Fatalf("row %q carries inferred capability metadata: %#v", row.ModelID, row)
 			}
 		}
-		if got := requireModelRow(t, rows, "gemini-3.8-flash-high").DisplayName; got != "Flash High" {
-			t.Fatalf("Flash High display name = %q, want live label", got)
+		for _, model := range logicalModels {
+			row := requireModelRow(t, rows, model.id)
+			if model.unobserved {
+				if len(row.ReasoningEfforts) != 0 || row.SupportsReasoning != nil ||
+					row.DefaultReasoningEffort != nil || row.LastError == "" {
+					t.Fatalf(
+						"unobserved row %q = %#v, want reported unavailable options instead of borrowed levels",
+						model.id,
+						row,
+					)
+				}
+				continue
+			}
+			wantEfforts := make([]ReasoningEffort, 0, len(model.efforts))
+			for _, effort := range model.efforts {
+				wantEfforts = append(wantEfforts, ReasoningEffort(effort))
+			}
+			if row.SupportsReasoning == nil || !*row.SupportsReasoning ||
+				!slices.Equal(row.ReasoningEfforts, wantEfforts) ||
+				row.DefaultReasoningEffort == nil ||
+				*row.DefaultReasoningEffort != ReasoningEffort(model.current) {
+				t.Fatalf(
+					"row %q reasoning = %#v, want its own advertised levels %v and %q default",
+					model.id,
+					row,
+					wantEfforts,
+					model.current,
+				)
+			}
+			option, ok := modelOptionByID(row.ConfigOptions, "thought_level")
+			if !ok || option.Category != "thought_level" {
+				t.Fatalf("row %q thought_level option = %#v, want the advertised category", model.id, row.ConfigOptions)
+			}
+			if got := modelOptionValueIDs(option); !slices.Equal(got, model.efforts) {
+				t.Fatalf("row %q thought_level values = %#v, want %v", model.id, got, model.efforts)
+			}
+			if slices.Contains(model.efforts, "max") {
+				t.Fatalf("row %q offers unsupported max", model.id)
+			}
+		}
+		if got := requireModelRow(t, rows, "gemini-4-hydrogen").DisplayName; got != "Gemini 4 Hydrogen" {
+			t.Fatalf("Hydrogen display name = %q, want live label", got)
+		}
+		merged := MergeRows(rows, MergeOptions{ReasoningApply: map[string]bool{liveSourcesAgyKey: true}})
+		hydrogen := requireMergedModel(t, merged, liveSourcesAgyKey, "gemini-4-hydrogen")
+		if hydrogen.ReasoningApply != string(compozyconfig.ReasoningApplyACPOption) ||
+			!hydrogen.ReasoningKnown ||
+			!slices.Equal(hydrogen.ReasoningEfforts, []ReasoningEffort{"low", "medium", "high", "xhigh"}) {
+			t.Fatalf("merged Hydrogen = %#v, want acp_option with its four advertised levels", hydrogen)
 		}
 		if !source.BootstrapOnList() {
 			t.Fatal("BootstrapOnList() = false, want true")
@@ -3251,6 +3348,35 @@ func requireModelRow(t *testing.T, rows []ModelRow, modelID string) ModelRow {
 	}
 	t.Fatalf("model rows = %#v, want model %q", rowModelIDs(rows), modelID)
 	return ModelRow{}
+}
+
+func requireMergedModel(t *testing.T, models []Model, providerID string, modelID string) Model {
+	t.Helper()
+
+	for _, model := range models {
+		if model.ProviderID == providerID && model.ModelID == modelID {
+			return model
+		}
+	}
+	t.Fatalf("merged models = %#v, want %s/%s", models, providerID, modelID)
+	return Model{}
+}
+
+func modelOptionByID(options []ModelOptionDescriptor, id string) (ModelOptionDescriptor, bool) {
+	for _, option := range options {
+		if option.ID == id {
+			return option, true
+		}
+	}
+	return ModelOptionDescriptor{}, false
+}
+
+func modelOptionValueIDs(option ModelOptionDescriptor) []string {
+	values := make([]string, 0, len(option.Values))
+	for _, value := range option.Values {
+		values = append(values, value.ValueID)
+	}
+	return values
 }
 
 func assertClaudeTransportBinding(t *testing.T, row ModelRow, transportModelID string) {

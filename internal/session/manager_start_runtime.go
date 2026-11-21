@@ -33,7 +33,7 @@ func (m *Manager) resolveSessionRuntimeWithDefinition(
 	dropInheritedUnrestricted bool,
 	agentDef compozyconfig.AgentDef,
 ) (sessionStartRuntime, error) {
-	if spec.startAction == sessionStartActionResume && spec.acceptedRoute != nil {
+	if spec.startAction == sessionStartActionResume {
 		m.applyResumeRouteAffinity(ctx, spec, agentDef)
 	}
 	runtimeConfig := spec.workspace.Config

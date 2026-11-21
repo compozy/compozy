@@ -524,10 +524,14 @@ shows unconfirmed options until authoritative metadata is available.
 Saved selections and favorites retain their provider and exact model IDs. After upgrading, refresh
 the affected live source to replace older discovery results. A distinct version that the account
 does not advertise remains unavailable for negotiation; CompozyOS does not silently upgrade it.
-The runtime picker lists the exact advertised Antigravity IDs — on the verified 1.4.0 server the 2 bare
-IDs (`gemini-4-argon`, `gemini-3.8-flash`) with effort selected through the first-class
-`thinking_level` option (`low`/`medium`/`high`), not an ID suffix; the superseded 1.3.0 suffixed IDs
-are no longer advertised and prompt as `model_unavailable` — and the resulting session is attributed to provider `agy` with that exact model.
+The runtime picker lists the exact advertised Antigravity logical IDs. The verified 1.5.9 CLI
+advertises seven, including `gemini-4-argon` and `gemini-4-hydrogen`, while its legacy
+`availableModels` list also carries effort-suffixed transport aliases that do not become extra
+picker rows. Effort is the first-class `thought_level` option, not an ID suffix: Argon offers
+`low`/`medium`/`high`, and selecting Hydrogen re-announces a fourth `xhigh` level; `max` is rejected
+as unsupported. The list, entitlement, and availability depend on the account, CLI version, and
+client identity, so these seven are an observation rather than a built-in seed. The resulting
+session is attributed to provider `agy` with that exact model.
 Cursor uses `cursor-agent models`; advertised reasoning, thinking, and Fast variants remain
 selectable through their exact launch bindings. Reasoning support alone does not imply an adjustable
 effort. Effort IDs are provider-owned strings: known values such as `ultra` receive friendly labels,

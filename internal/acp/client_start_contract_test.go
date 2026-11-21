@@ -584,10 +584,11 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 	}{
 		{name: "Should start Claude without a mode option", scenario: "config_options", provider: "claude", value: "bypassPermissions"},
 		{name: "Should start Codex without a mode option", scenario: "config_options", provider: "codex", value: "agent-full-access"},
-		{name: "Should start agy without a mode option", scenario: "config_options", provider: "agy", value: "yolo"},
+		{name: "Should keep a custom runtime without a mode control", scenario: "config_options", provider: "custom", value: "bypassPermissions"},
 		{name: "Should start without selecting an ambiguous mode option", scenario: "full_access_mode_duplicate", value: "bypassPermissions"},
 		{name: "Should select a uniquely advertised unrestricted mode", scenario: "full_access_mode_available", value: "bypassPermissions", wantSelection: true},
 		{name: "Should reject an unavailable value on a unique mode option", scenario: "full_access_mode_unavailable", value: "bypassPermissions", wantError: "does not allow value"},
+		{name: "Should classify a provider refusal of an advertised mode", scenario: "full_access_mode_rejected", value: "bypassPermissions", wantError: "provider refused the mode"},
 		{name: "Should reject a missing narrower mode option", scenario: "config_options", value: "plan", wantError: "not uniquely advertised"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -606,7 +607,8 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 				defer stopProcess(t, driver, proc)
 			}
 			if tc.wantError != "" {
-				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+				if err == nil || !errors.Is(err, ErrSessionConfigOptionRejected) ||
+					!strings.Contains(err.Error(), tc.wantError) {
 					t.Fatalf("Start() error = %v, want %q", err, tc.wantError)
 				}
 				return
@@ -643,7 +645,8 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 				err := driver.ConfigureRuntime(t.Context(), proc, RuntimeConfig{
 					ACPOptions: []SessionConfigOptionSelection{{ID: "mode", ValueID: "full-access"}},
 				})
-				if err == nil || !strings.Contains(err.Error(), "not uniquely advertised") {
+				if err == nil || !errors.Is(err, ErrSessionConfigOptionRejected) ||
+					!strings.Contains(err.Error(), "not uniquely advertised") {
 					t.Fatalf("new live mode error = %v, want missing mode rejection", err)
 				}
 				if runtime.Model != "" {
@@ -670,6 +673,170 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 						"max",
 						"ultra",
 					)
+				}
+			}
+		})
+	}
+}
+
+// Invariant: an Antigravity ACP command that is not the native CLI keeps its
+// advertised-mode negotiation (approve-all selects auto, approve-edits accepts
+// edits, read-only policies select plan, and no policy or custom provider
+// receives a hardcoded yolo/auto selection). The native `agy acp` command is
+// covered by TestStartNativeAgyRefusesUnenforceablePolicies, which refuses every
+// policy except approve-all before launch. Owner: ACP startup negotiation with
+// the native mode fixture (UT-002).
+func TestStartAgyNativeModeNegotiation(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name           string
+		provider       string
+		scenario       string
+		permissions    compozyconfig.PermissionMode
+		options        []SessionConfigOptionSelection
+		wantMode       string
+		wantConfigMode string
+		wantErr        string
+	}{
+		{
+			name:        "Should negotiate auto for approve-all",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeApproveAll,
+			wantMode:    "auto",
+		},
+		{
+			name:        "Should negotiate accept-edits for approve-edits",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeApproveEdits,
+			wantMode:    "accept-edits",
+		},
+		{
+			name:        "Should negotiate plan for approve-reads",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeApproveReads,
+			wantMode:    "plan",
+		},
+		{
+			name:        "Should negotiate plan for deny-all",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeDenyAll,
+			wantMode:    "plan",
+		},
+		{
+			name:        "Should reject an explicit wider auto under approve-reads",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeApproveReads,
+			options:     []SessionConfigOptionSelection{{ID: "mode", ValueID: "auto"}},
+			wantErr:     "requires approve-all",
+		},
+		{
+			name:        "Should reject an explicit mode agy does not advertise",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeApproveAll,
+			options:     []SessionConfigOptionSelection{{ID: "mode", ValueID: "acceptEdits"}},
+			wantErr:     `config option "mode" is not uniquely advertised`,
+		},
+		{
+			name:        "Should reject an authored yolo the native CLI does not offer",
+			provider:    "agy",
+			scenario:    "agy_native_modes",
+			permissions: compozyconfig.PermissionModeApproveAll,
+			options:     []SessionConfigOptionSelection{{ID: "mode", ValueID: "yolo"}},
+			wantErr:     `config option "mode" is not uniquely advertised`,
+		},
+		{
+			name:           "Should apply an explicit narrower mode over the approve-all default",
+			provider:       "agy",
+			scenario:       "agy_advertised_mode_control",
+			permissions:    compozyconfig.PermissionModeApproveAll,
+			options:        []SessionConfigOptionSelection{{ID: "mode", ValueID: "accept-edits"}},
+			wantConfigMode: "accept-edits",
+		},
+		{
+			name:           "Should apply an explicit yolo when the override advertises it",
+			provider:       "agy",
+			scenario:       "agy_advertised_mode_control",
+			permissions:    compozyconfig.PermissionModeApproveAll,
+			options:        []SessionConfigOptionSelection{{ID: "mode", ValueID: "yolo"}},
+			wantConfigMode: "yolo",
+		},
+		{
+			name:        "Should not hardcode auto for a provider offering different modes",
+			provider:    "custom-modes",
+			scenario:    "custom_native_modes",
+			permissions: compozyconfig.PermissionModeApproveAll,
+			wantMode:    "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+			captureFile := filepath.Join(t.TempDir(), "agy-native-modes.jsonl")
+			proc, err := driver.Start(t.Context(), StartOpts{
+				ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
+				AgentName:      "helper",
+				ProviderName:   tc.provider,
+				Command:        helperCommand(t),
+				Cwd:            t.TempDir(),
+				Env:            helperEnvWithCapture(tc.scenario, "", captureFile),
+				Permissions:    tc.permissions,
+				ACPOptions:     tc.options,
+			})
+			if proc != nil {
+				defer stopProcess(t, driver, proc)
+			}
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("Start() error = %v, want %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Start() error = %v", err)
+			}
+			sent := captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetMode)
+			if sent != (tc.wantMode != "") {
+				t.Fatalf("session/set_mode sent = %v, want %v", sent, tc.wantMode != "")
+			}
+			if tc.wantMode != "" {
+				request := decodeCapturedSetSessionModeRequest(
+					t,
+					captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode),
+				)
+				if request.ModeID != tc.wantMode {
+					t.Fatalf("set-mode mode id = %q, want %q", request.ModeID, tc.wantMode)
+				}
+				if got := proc.CapsSnapshot().SupportedModes; !slices.Equal(
+					got,
+					[]string{"default", "accept-edits", "auto", "plan"},
+				) {
+					t.Fatalf("supported modes = %#v, want the native advertised set", got)
+				}
+			}
+			if tc.wantConfigMode != "" {
+				requests := captureRequestParamsForMethod(
+					t,
+					captureFile,
+					acpsdk.AgentMethodSessionSetConfigOption,
+				)
+				if len(requests) == 0 {
+					t.Fatal("no set_config_option request for the authored mode")
+				}
+				last := decodeCapturedSetSessionConfigOptionRequest(t, requests[len(requests)-1])
+				if last.ConfigID != "mode" || last.Value != tc.wantConfigMode {
+					t.Fatalf("set_config_option = %+v, want mode=%s", last, tc.wantConfigMode)
+				}
+				option, ok := findSelectConfigOption(proc.CapsSnapshot().ConfigOptions, "mode")
+				if !ok || option.CurrentValueID != tc.wantConfigMode {
+					t.Fatalf("mode control = %+v, want current %q", option, tc.wantConfigMode)
 				}
 			}
 		})
@@ -3531,6 +3698,165 @@ func TestPermissionLevelModeSelection(t *testing.T) {
 	}
 }
 
+// Invariant: the native Antigravity CLI executes its own tools without host
+// permission requests, so any policy that must approve or deny a tool is
+// unenforceable and the start fails before a process exists. Advertised modes,
+// including plan, and the tool gateway cannot change that. Owner: ACP startup
+// policy boundary for US-003.
+func TestStartNativeAgyRefusesUnenforceablePolicies(t *testing.T) {
+	t.Parallel()
+	gateway := toolExecutionGatewayFunc(
+		func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+			return req, nil
+		},
+	)
+
+	for _, tc := range []struct {
+		name        string
+		provider    string
+		command     string
+		permissions compozyconfig.PermissionMode
+		gateway     bool
+		options     []SessionConfigOptionSelection
+		rules       []compozyconfig.PermissionRule
+	}{
+		{name: "Should refuse deny-all", permissions: compozyconfig.PermissionModeDenyAll},
+		{
+			name: "Should refuse a deny rule under approve-all", permissions: compozyconfig.PermissionModeApproveAll,
+			rules: []compozyconfig.PermissionRule{{Kind: "execute", Decision: "deny"}},
+		},
+		{
+			name:        "Should refuse a deny rule beside allow rules under approve-all",
+			permissions: compozyconfig.PermissionModeApproveAll,
+			rules: []compozyconfig.PermissionRule{
+				{Kind: "read", Decision: "allow"},
+				{Kind: "edit", Decision: "deny"},
+			},
+		},
+		{name: "Should refuse deny-all with a tool gateway", permissions: compozyconfig.PermissionModeDenyAll, gateway: true},
+		{name: "Should refuse approve-reads", permissions: compozyconfig.PermissionModeApproveReads},
+		{name: "Should refuse approve-reads with a tool gateway", permissions: compozyconfig.PermissionModeApproveReads, gateway: true},
+		{
+			name:        "Should refuse approve-reads with an explicit plan option",
+			permissions: compozyconfig.PermissionModeApproveReads,
+			options:     []SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}},
+		},
+		{name: "Should refuse approve-edits", permissions: compozyconfig.PermissionModeApproveEdits},
+		{name: "Should refuse approve-edits with a tool gateway", permissions: compozyconfig.PermissionModeApproveEdits, gateway: true},
+		{name: "Should refuse auto", permissions: compozyconfig.PermissionModeAuto},
+		{name: "Should refuse auto with a tool gateway", permissions: compozyconfig.PermissionModeAuto, gateway: true},
+		{
+			name: "Should refuse the native CLI under a custom provider label", provider: "custom",
+			permissions: compozyconfig.PermissionModeApproveReads,
+		},
+		{
+			name: "Should refuse native CLI with leading flags under approve-reads", command: "agy --sandbox acp",
+			permissions: compozyconfig.PermissionModeApproveReads,
+		},
+		{
+			name: "Should refuse native CLI with leading flags under deny-all", command: "agy --flag=value acp",
+			permissions: compozyconfig.PermissionModeDenyAll,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			driver := New()
+			captureFile := filepath.Join(t.TempDir(), "native-policy.jsonl")
+			var gatewayOpt ToolExecutionGateway
+			if tc.gateway {
+				gatewayOpt = gateway
+			}
+			provider := tc.provider
+			if provider == "" {
+				provider = "agy"
+			}
+			command := tc.command
+			if command == "" {
+				command = "agy acp"
+			}
+			proc, err := driver.Start(t.Context(), StartOpts{
+				AgentName:        "helper",
+				ProviderName:     provider,
+				Command:          command,
+				Cwd:              t.TempDir(),
+				Env:              helperEnvWithCapture("agy_native_modes", "", captureFile),
+				Permissions:      tc.permissions,
+				ACPOptions:       tc.options,
+				ToolGateway:      gatewayOpt,
+				PermissionPolicy: &StartPermissionPolicy{Rules: tc.rules},
+			})
+			if proc != nil {
+				t.Fatalf("Start() process = %+v, want no process for an unenforceable policy", proc)
+			}
+			if !errors.Is(err, ErrNativeAgyToolPolicyUnsupported) ||
+				!strings.Contains(err.Error(), "cannot be enforced") {
+				t.Fatalf("Start() error = %v, want the native Antigravity policy refusal", err)
+			}
+			if _, statErr := os.Stat(captureFile); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("capture file exists (%v), want no prompt or tool call emitted", statErr)
+			}
+		})
+	}
+}
+
+// Invariant: approve-all keeps the native CLI usable, promptless inspection and
+// authentication stay allowed, and an authored standalone or custom Antigravity
+// ACP command keeps its previous policy behavior. Owner: ACP startup policy
+// boundary for US-003.
+func TestNativeAgyPolicyGateAllowsSupportedStarts(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		command     string
+		permissions compozyconfig.PermissionMode
+		inspection  bool
+		rules       []compozyconfig.PermissionRule
+	}{
+		{
+			name: "Should allow approve-all for the native CLI", command: "agy acp",
+			permissions: compozyconfig.PermissionModeApproveAll,
+		},
+		{
+			name: "Should allow approve-all with allow-only rules for the native CLI", command: "agy acp",
+			permissions: compozyconfig.PermissionModeApproveAll,
+			rules:       []compozyconfig.PermissionRule{{Kind: "execute", Decision: "allow"}},
+		},
+		{
+			name: "Should allow promptless inspection for the native CLI", command: "agy acp",
+			permissions: compozyconfig.PermissionModeApproveReads, inspection: true,
+		},
+		{
+			name: "Should keep a standalone Antigravity ACP server command", command: "agy_acp_server.par",
+			permissions: compozyconfig.PermissionModeApproveReads,
+		},
+		{
+			name: "Should keep a custom Antigravity wrapper command", command: "/opt/agy-wrapper acp",
+			permissions: compozyconfig.PermissionModeDenyAll,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			opts := StartOpts{
+				AgentName:        "helper",
+				Command:          tc.command,
+				Cwd:              t.TempDir(),
+				Permissions:      tc.permissions,
+				Inspection:       tc.inspection,
+				PermissionPolicy: &StartPermissionPolicy{Rules: tc.rules},
+			}
+			if _, err := normalizeStartOpts(opts); err != nil {
+				t.Fatalf("normalizeStartOpts() error = %v, want an allowed start", err)
+			}
+			if err := opts.Validate(); err != nil {
+				t.Fatalf("Validate() error = %v, want an allowed start", err)
+			}
+		})
+	}
+}
+
 func TestCheckInHostedStartup(t *testing.T) {
 	t.Run("Should retain only the daemon hosted server when enabled [UT-021]", func(t *testing.T) {
 		t.Parallel()
@@ -3715,4 +4041,40 @@ func TestClaudeRuntimeMCPIsolationMeta(t *testing.T) {
 			)
 		}
 	}
+}
+
+// Invariant: every Antigravity session setup disables run_workflow, which writes its own skill
+// file into the workspace, and other runtimes keep their own `_meta`.
+// Owner: ACP metadata; canonical suite: client start contract.
+func TestAgySessionSetupMeta(t *testing.T) {
+	t.Parallel()
+
+	for _, opts := range []StartOpts{
+		{ProviderName: "agy", Command: "agy acp"},
+		{ProviderName: "agy", Command: "agy_acp_server.par --uid="},
+		{ProviderName: "google", Command: "antigravity acp"},
+		{ProviderName: "custom", ProviderConfig: &compozyconfig.ProviderConfig{Command: "agy acp"}},
+	} {
+		t.Run("Should disable run_workflow for "+opts.ProviderName+" "+opts.Command, func(t *testing.T) {
+			t.Parallel()
+			meta, ok := sessionSetupMeta(opts).(map[string]any)
+			if !ok {
+				t.Fatalf("sessionSetupMeta(%+v) = %#v, want Antigravity meta", opts, sessionSetupMeta(opts))
+			}
+			disabled, _ := meta["antigravity"].(map[string]any)["disabledTools"].([]string)
+			if !slices.Equal(disabled, []string{"run_workflow"}) {
+				t.Fatalf("disabledTools = %#v, want [run_workflow]", disabled)
+			}
+		})
+	}
+	t.Run("Should keep Claude meta and leave other runtimes without Antigravity meta", func(t *testing.T) {
+		t.Parallel()
+		claude, ok := sessionSetupMeta(StartOpts{ProviderName: "claude", Command: "claude-agent-acp"}).(map[string]any)
+		if !ok || claude["claudeCode"] == nil || claude["antigravity"] != nil {
+			t.Fatalf("claude meta = %#v, want only claudeCode", claude)
+		}
+		if meta := sessionSetupMeta(StartOpts{ProviderName: "codex", Command: "codex-acp"}); meta != nil {
+			t.Fatalf("codex meta = %#v, want nil", meta)
+		}
+	})
 }

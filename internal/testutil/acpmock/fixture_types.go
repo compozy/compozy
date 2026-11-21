@@ -1,9 +1,6 @@
 package acpmock
 
-import (
-	"encoding/json"
-	"strings"
-)
+import "encoding/json"
 
 const FixtureVersion = 2
 
@@ -71,21 +68,12 @@ type SessionConfigOptionValueFixture struct {
 	// RejectSet makes session/set_config_option to this advertised value fail, which
 	// scripts a start that ACP accepted (session/new returned) and then failed.
 	RejectSet bool `json:"reject_set,omitzero"`
-}
-
-// RejectsConfigValue reports whether the fixture scripts a set_config_option failure.
-func (a AgentFixture) RejectsConfigValue(configID string, value string) bool {
-	for _, option := range a.ConfigOptions {
-		if strings.TrimSpace(option.ID) != strings.TrimSpace(configID) {
-			continue
-		}
-		for _, candidate := range option.Values {
-			if candidate.RejectSet && strings.TrimSpace(candidate.Value) == strings.TrimSpace(value) {
-				return true
-			}
-		}
-	}
-	return false
+	// WhenSelected replaces the session's whole config option set after this value is
+	// accepted. It scripts providers that reannounce their controls per selection:
+	// selecting one model returns that model's own thought levels. An explicit empty list
+	// replaces the controls with none; omitting it reuses the value's tree-wide definition.
+	// omitzero keeps an explicit empty list distinct from an omitted one when encoded.
+	WhenSelected []SessionConfigOptionFixture `json:"when_selected,omitzero"`
 }
 
 // TurnFixture describes one deterministic prompt turn for an agent.

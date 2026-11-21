@@ -41,6 +41,7 @@ const browserLifecycleFixture = path.resolve(
 );
 
 const browserLifecycleAgent = "browser-lifecycle-agent";
+const agyNativeAgent = "browser-agy-native-agent";
 const mockAgentProvider = "acpmock";
 const catalogModel = "qa-browser-model-alt";
 const catalogModelLabel = "QA Browser Model Alt";
@@ -49,6 +50,10 @@ const driftedDefaultProvider = "gemini";
 
 function browserLifecycleSessionPath(sessionId: string): string {
   return `/agents/${browserLifecycleAgent}/sessions/${sessionId}`;
+}
+
+function agyNativeSessionPath(sessionId: string): string {
+  return `/agents/${agyNativeAgent}/sessions/${sessionId}`;
 }
 
 interface SessionPayload {
@@ -142,6 +147,10 @@ test.use({
         {
           fixturePath: browserLifecycleFixture,
           fixtureAgent: browserLifecycleAgent,
+        },
+        {
+          fixturePath: browserLifecycleFixture,
+          fixtureAgent: agyNativeAgent,
         },
       ],
     },
@@ -331,20 +340,25 @@ test("operator selects an exact AGY catalog model and keeps agy session attribut
     throw new Error("provider override browser test requires launch-mode runtime paths");
   }
 
-  const agyModel = "qa-browser-model-alt";
-  // The overlay points the built-in `agy` at the deterministic peer and curates
-  // one exact peer-advertised ID. Provider overlays apply on restart, so the
-  // test restarts the daemon once, then drives the real picker-to-session path
-  // with no Google account.
+  const agyModel = "gemini-4-hydrogen";
+  const agyArgonModel = "gemini-4-argon";
+  // The overlay points the built-in `agy` at the deterministic peer agent that
+  // reannounces per-model thought levels, and curates both advertised logical
+  // IDs. Provider overlays apply on restart, so the test restarts the daemon
+  // once, then drives the real picker-to-session path with no Google account.
+  const agyNativeCommand = await readAgentCommand(runtime.paths.homeDir, agyNativeAgent);
   const agySeed = await seedBrowserSettingsFixtures(runtime, {
     providers: [
       {
         name: "agy",
         settings: {
-          command: providerCatalog.overrideCommand,
+          command: agyNativeCommand,
           auth_acp_method: "oauth-personal",
           models: {
-            curated: [{ id: agyModel, display_name: "QA Browser Model Alt" }],
+            curated: [
+              { id: agyModel, display_name: "Gemini 4 Hydrogen" },
+              { id: agyArgonModel, display_name: "Gemini 4 Argon" },
+            ],
           },
         },
       },
@@ -376,16 +390,24 @@ test("operator selects an exact AGY catalog model and keeps agy session attribut
       .poll(
         async () => {
           const catalog = await runtime.requestJSON<{
-            models: Array<{ provider_id: string; model_id: string }>;
+            models: Array<{
+              provider_id: string;
+              model_id: string;
+              availability_state?: string;
+              reasoning_efforts?: string[];
+            }>;
           }>("/api/model-catalog/models?view=all&include_stale=true");
-          return catalog.models
-            .filter(row => row.provider_id === "agy")
-            .map(row => row.model_id)
+          const agyRows = catalog.models.filter(
+            row => row.provider_id === "agy" && row.availability_state === "available_live"
+          );
+          return agyRows
+            .map(row => `${row.model_id}:${(row.reasoning_efforts ?? []).join("|")}`)
+            .sort()
             .join(",");
         },
         { timeout: 60_000 }
       )
-      .toContain(agyModel);
+      .toBe(`${agyArgonModel}:low|medium|high,${agyModel}:low|medium|high|xhigh`);
 
     const ui = sessionLifecycleSelectors(appPage);
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "compozy-agy-override-workspace-"));
@@ -405,12 +427,12 @@ test("operator selects an exact AGY catalog model and keeps agy session attribut
     const agentsWin = await openAppWindow(appPage, "Agents", "agents");
     const fleet = sessionLifecycleSelectors(agentsWin);
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
-    await expect(fleet.agentRow(browserLifecycleAgent)).toBeVisible();
+    await expect(fleet.agentRow(agyNativeAgent)).toBeVisible();
 
-    await fleet.agentRow(browserLifecycleAgent).click();
-    await expect
-      .poll(() => new URL(appPage.url()).pathname)
-      .toBe(`/agents/${browserLifecycleAgent}`);
+    // The AGY journey verifies the picker and attribution, not permission
+    // enforcement, so it runs under the AGY agent's approve-all policy.
+    await fleet.agentRow(agyNativeAgent).click();
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${agyNativeAgent}`);
     await fleet.agentPageNewSession.click();
     await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
     const createResponsePromise = appPage.waitForResponse(
@@ -423,7 +445,7 @@ test("operator selects an exact AGY catalog model and keeps agy session attribut
     expect(createdSession.session.runtime.status).toBe("unbound");
     await expect
       .poll(() => new URL(appPage.url()).pathname)
-      .toBe(browserLifecycleSessionPath(createdSession.session.id));
+      .toBe(agyNativeSessionPath(createdSession.session.id));
     const sessionWin = sessionWindow(appPage, createdSession.session.id);
     const sessionUi = sessionWindowSelectors(sessionWin, appPage);
     await expect(sessionWin).toBeVisible();
@@ -439,8 +461,30 @@ test("operator selects an exact AGY catalog model and keeps agy session attribut
     await expect(reasoningStrip).toHaveAttribute("data-reasoning-mode", "levels");
     const reasoningSlider = reasoningStrip.getByRole("slider");
     await expect(reasoningSlider).toBeEnabled();
-    await reasoningSlider.press("Home");
-    await expect(reasoningSlider).toHaveAttribute("aria-valuetext", "Low");
+    // Hydrogen reannounces four levels; the fourth stop is its own xhigh and the
+    // highest offered level is not a universal `max`.
+    await expect(reasoningSlider).toHaveAttribute("aria-valuemax", "3");
+    await reasoningSlider.press("End");
+    await expect(reasoningSlider).toHaveAttribute("aria-valuetext", "Extra high");
+
+    // Argon reannounces three levels only: switching models re-evaluates the new
+    // model's supported set instead of borrowing Hydrogen's fourth.
+    await appPage.locator(`[data-provider="agy"][data-model="${agyArgonModel}"]`).click();
+    await expect(reasoningSlider).toHaveAttribute("aria-valuemax", "2");
+    await reasoningSlider.press("End");
+    await expect(reasoningSlider).toHaveAttribute("aria-valuetext", "High");
+    await expect(reasoningStrip.getByText("Max", { exact: true })).toHaveCount(0);
+    await expect(reasoningStrip.getByText("Extra high", { exact: true })).toHaveCount(0);
+
+    // The advertised thought_level option stays the reasoning slider rather than a
+    // duplicate raw advanced control.
+    await expect(appPage.getByTestId("runtime-selector-option-thought_level")).toHaveCount(0);
+    await expect(appPage.getByTestId("runtime-selector-advanced-toggle")).toHaveCount(0);
+
+    await agyRow.click();
+    await expect(reasoningSlider).toHaveAttribute("aria-valuemax", "3");
+    await reasoningSlider.press("End");
+    await expect(reasoningSlider).toHaveAttribute("aria-valuetext", "Extra high");
     await appPage.keyboard.press("Escape");
     await expect(appPage.getByTestId("runtime-selector-popup")).toBeHidden();
 
@@ -451,7 +495,7 @@ test("operator selects an exact AGY catalog model and keeps agy session attribut
     await sessionUi.composerTextarea.press("Enter");
     expect((await promptRequestPromise).postDataJSON()).toMatchObject({
       message: SESSION_CREATE_FIRST_MESSAGE,
-      runtime: { model: agyModel, provider: "agy", reasoning_effort: "low" },
+      runtime: { model: agyModel, provider: "agy", reasoning_effort: "xhigh" },
     });
 
     await waitForSeedSessionActive(runtime, createdSession.session.id);
@@ -462,8 +506,8 @@ test("operator selects an exact AGY catalog model and keeps agy session attribut
         );
         return rehydrated.session.runtime.effective;
       })
-      .toMatchObject({ provider: "agy", model: agyModel, reasoning_effort: "low" });
-    await expect(runtimeTrigger).toContainText("QA Browser Model Alt");
+      .toMatchObject({ provider: "agy", model: agyModel, reasoning_effort: "xhigh" });
+    await expect(runtimeTrigger).toContainText("Gemini 4 Hydrogen");
     await expect(
       sessionWin.getByTestId(`session-provider-mark-${createdSession.session.id}`)
     ).toHaveAttribute("data-kind", "agy");

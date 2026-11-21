@@ -54,11 +54,13 @@ func (d *Driver) applySessionMode(
 	// of the advertised session modes.
 	if configurable && (process.executionPolicy == ExecutionPolicyTriage ||
 		!advertisesSessionMode(caps.SupportedModes, modeID)) {
-		return true, d.applySessionConfigOption(
-			ctx,
-			process,
-			SessionConfigOptionSelection{ID: option.ID, ValueID: modeID},
-		)
+		err := d.applySessionConfigOption(ctx, process, SessionConfigOptionSelection{ID: option.ID, ValueID: modeID})
+		if err != nil && isConfigRejectionCause(err) {
+			// A provider refusal of its own advertised mode is the same structured rejection
+			// as any other config option, so callers can map it to actionable guidance.
+			err = fmt.Errorf("%w: apply config option %q: %w", ErrSessionConfigOptionRejected, option.ID, err)
+		}
+		return true, err
 	}
 
 	_, err := process.sendControlRequest[acpsdk.SetSessionModeResponse](ctx,
@@ -399,7 +401,7 @@ func sessionModeCandidates(permissions compozyconfig.PermissionMode) []string {
 			"acceptEdits",
 		}
 	case compozyconfig.PermissionModeApproveEdits, compozyconfig.PermissionModeAuto:
-		return []string{"acceptEdits", "workspace-write", "accept_edits", "auto_edit"}
+		return []string{"acceptEdits", "accept-edits", "workspace-write", "accept_edits", "auto_edit"}
 	case compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeDenyAll:
 		return []string{
 			"read-only",
