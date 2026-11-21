@@ -695,16 +695,16 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 		})
 		const at = "2026-11-21T00:00:00Z"
 		for _, statement := range []string{
-			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('usage-ws','/usage-ws','Usage',?,?)`,
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('usage-ws','/usage-ws','Usage',:at,:at)`,
 			`INSERT INTO sessions(id,profile_id,agent_name,workspace_id,state,created_at,updated_at)
-			 VALUES ('usage-parent','00000000000000000000000000','coder','usage-ws','active',?,?)`,
+			 VALUES ('usage-parent','00000000000000000000000000','coder','usage-ws','active',:at,:at)`,
 			`INSERT INTO session_subagents(id,workspace_id,parent_session_id,parent_turn_id,origin,provider_tool_call_id,
 			 idempotency_key,request_fingerprint,title,task_chars,depth,status,work_state,wake_policy,usage_total_tokens,
-			 usage_tool_uses,created_at,updated_at)
+			 usage_tool_uses,settled_at,created_at,updated_at)
 			 VALUES ('usage-row','usage-ws','usage-parent','turn','provider_native','call','call','native:call',
-			 'Task',0,1,'completed','result_available','settled_only',1200,5,?,?)`,
+			 'Task',0,1,'completed','result_available','settled_only',1200,5,:at,:at,:at)`,
 		} {
-			if _, err := prior.ExecContext(ctx, statement, at, at); err != nil {
+			if _, err := prior.ExecContext(ctx, statement, sql.Named("at", at)); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -739,6 +739,25 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 		want := store.SubagentUsage{TotalTokens: 1200, ToolUses: 5}
 		if err != nil || row.Usage == nil || *row.Usage != want || row.Status != store.SubagentStatusCompleted {
 			t.Fatalf("upgraded subagent = %#v, error = %v, want usage %#v", row, err, want)
+		}
+		observedAt := row.UpdatedAt.Add(time.Second)
+		bound, changed, err := upgraded.UpdateSubagentUsage(
+			ctx, row.ID, "0002", store.SubagentUsage{TotalTokens: 300, ToolUses: 2}, observedAt,
+		)
+		if err != nil || !changed || bound.Usage == nil || *bound.Usage != want {
+			t.Fatalf("first identified observation = %#v, changed = %t, error = %v, want usage %#v",
+				bound, changed, err, want)
+		}
+		resumed, changed, err := upgraded.ResumeNativeSubagent(
+			ctx, row.ID, row.ParentTurnID, "0003", observedAt.Add(time.Second),
+		)
+		if err != nil || !changed || resumed.Usage != nil || resumed.Status != store.SubagentStatusRunning {
+			t.Fatalf(
+				"resumed subagent = %#v, changed = %t, error = %v, want running without usage",
+				resumed,
+				changed,
+				err,
+			)
 		}
 		status, err := store.Status(ctx, upgraded.db, MigrationStream())
 		if err != nil {

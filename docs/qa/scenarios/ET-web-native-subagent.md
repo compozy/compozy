@@ -134,3 +134,4 @@ tool counts and the CLI row's `usage`. When the SDK reports a smaller figure for
 both show that run's figure. Reload and confirm the reading survives. Usage is absent until an
 identified new run reports it. `TestSubagentNativeLifecycle`, `TestSubagentNativeRecoveryEdges`, and
 `TestGlobalDBSubagentNativeRecovery` cover the projection and replay with a deterministic two-run fixture.
+Validation for this change runs in CI. The real Claude and browser walkthrough remains pending.

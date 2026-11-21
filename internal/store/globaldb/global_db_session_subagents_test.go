@@ -1137,7 +1137,7 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 			}
 		},
 	)
-	// Invariant: a later event fills the runtime without blanking it, usage only rises, and
+	// Invariant: a later event fills the runtime without blanking it, usage only rises within a run, and
 	// neither write reaches a delegated row.
 	t.Run("Should fill native runtime and raise usage on native rows only", func(t *testing.T) {
 		t.Parallel()
@@ -1187,6 +1187,11 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 		)
 		if err != nil || !changed || mixed.Usage.TotalTokens != 1000 || mixed.Usage.ToolUses != 4 {
 			t.Fatal(mixed, changed, err)
+		}
+		reported := store.SubagentUsage{TotalTokens: 50, ToolUses: 1}
+		newRun, changed, err := db.UpdateSubagentUsage(t.Context(), row.ID, "0002", reported, at.Add(time.Second))
+		if err != nil || !changed || newRun.Usage == nil || *newRun.Usage != reported {
+			t.Fatal(newRun, changed, err)
 		}
 		delegated := reserveSubagent(t, db.SessionRepo, workspace, parent, "delegated-usage", now)
 		untouched, changed, err := db.UpdateSubagentUsage(
