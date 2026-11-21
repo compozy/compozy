@@ -1,6 +1,7 @@
 import { sessionListGroupFilters, type SessionListGroupSpec } from "../lib/session-list-groups";
 
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
+import { sessionListPartitionFolders } from "../lib/session-list-partitions";
 import type { SessionFoldersState } from "./use-session-folders";
 import { useSessionListPartitions } from "./use-session-list-partitions";
 import { useSessionSidebarState } from "./use-session-sidebar-state";
@@ -41,7 +42,7 @@ export function useSessionListContainerCatalog(
   const filters = sessionListGroupFilters(view, group, folders.layout !== undefined);
   const partitions = useSessionListPartitions(
     sessionCatalogScopedFilters(group.scope, filters, group.lens),
-    catalogFolders(folders),
+    sessionListPartitionFolders(folders.layout?.folders, folders.pendingEdits),
     folderFolds,
     enabled,
     search.trim() !== (filters.q ?? "").trim(),
@@ -70,16 +71,4 @@ function settledEmptyCatalog(catalog: GroupCatalog): GroupCatalog {
     previous: false,
     paging: false,
   };
-}
-
-// Keep an open folder's page available while its pending deletion projects
-// those sessions into the root. The settled read then owns the new membership.
-function catalogFolders(folders: SessionFoldersState) {
-  const current = folders.layout?.folders;
-  if (!current || !folders.pendingEdits?.length) return current;
-  const ids = new Set(current.map(folder => folder.id));
-  const removed = folders.pendingEdits.flatMap(edit =>
-    edit.removedFolder && !ids.has(edit.removedFolder.id) ? [edit.removedFolder] : []
-  );
-  return [...current, ...removed];
 }

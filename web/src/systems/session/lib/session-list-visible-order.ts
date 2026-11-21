@@ -3,8 +3,11 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { SessionFolderPayload, SessionListFilters, SessionPayload } from "../types";
 import { sessionCatalogOptions, sessionFoldersOptions } from "./session-catalog-options";
 import {
-  partitionSessionRows,
+  pendingSessionLayoutEdit,
+  pendingSessionLayoutFilter,
+  projectPartitionRows,
   SESSION_LIST_ROOT_FOLDER,
+  sessionListPartitionFolders,
   sessionListPartitionOptions,
 } from "./session-list-partitions";
 import { visibleSessionOrder } from "./session-folders";
@@ -82,20 +85,28 @@ function readGroupPages(
   group: SessionListGroupSpec,
   input: Parameters<typeof sessionListVisibleOrder>[1]
 ) {
-  const folders = group.pair
-    ? input.queryClient.getQueryData(sessionFoldersOptions(group.pair).queryKey)
-    : undefined;
+  if (group.total === 0) return { key: group.key, sessions: [] };
+  const { queryClient } = input;
+  const pair = group.pair;
+  const folders = pair ? queryClient.getQueryData(sessionFoldersOptions(pair).queryKey) : undefined;
+  const edits = pair
+    ? queryClient
+        .getMutationCache()
+        .findAll(pendingSessionLayoutFilter(pair.workspaceId, pair.profile))
+        .flatMap(write => pendingSessionLayoutEdit(write.state.variables))
+    : [];
+  const readFolders = sessionListPartitionFolders(folders, edits);
   const filters = sessionCatalogScopedFilters(
     group.scope,
     sessionListGroupFilters(view, group, folders !== undefined),
     group.lens
   );
-  if (!folders?.length) {
+  if (!readFolders?.length) {
     const page = input.queryClient.getQueryData(sessionCatalogOptions(filters).queryKey)?.pages[0];
     return { key: group.key, folders, sessions: page?.sessions ?? [] };
   }
-  const filtering = (view.search ?? "").trim() !== "";
-  const folderIds = folders.flatMap(folder =>
+  const filtering = Boolean(filters.q?.trim());
+  const folderIds = readFolders.flatMap(folder =>
     filtering || !input.collapsedFolderIds.has(folder.id) ? [folder.id] : []
   );
   const entries = [SESSION_LIST_ROOT_FOLDER, ...folderIds].map(folder => {
@@ -103,5 +114,9 @@ function readGroupPages(
     const page = input.queryClient.getQueryData(options.queryKey)?.pages[0];
     return [folder, { sessions: page?.sessions ?? [] }] as const;
   });
-  return { key: group.key, folders, ...partitionSessionRows(entries) };
+  return {
+    key: group.key,
+    folders,
+    ...projectPartitionRows(entries, edits, filters.sort === "manual"),
+  };
 }

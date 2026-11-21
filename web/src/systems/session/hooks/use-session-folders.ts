@@ -26,6 +26,12 @@ import {
   applySessionsMovedFirst,
   shiftId,
 } from "../lib/session-folders";
+import {
+  pendingSessionLayoutEdit,
+  pendingSessionLayoutFilter,
+  sessionLayoutMutationKey,
+  type PendingSessionLayoutEdit,
+} from "../lib/session-list-partitions";
 import type { SessionCatalogPageResponse, SessionFolderPayload, SessionPayload } from "../types";
 
 /** Folder layout of the workspace list plus the operator's layout verbs. */
@@ -56,13 +62,6 @@ export interface SessionFoldersState {
   pendingEdits?: readonly PendingSessionLayoutEdit[];
   /** Set when the folder list could not be read; the list stays flat until a retry loads it. */
   loadError?: { retry: () => void };
-}
-
-type UpdateLayoutRows = (sessions: readonly SessionPayload[], manual: boolean) => SessionPayload[];
-
-export interface PendingSessionLayoutEdit {
-  update: UpdateLayoutRows;
-  removedFolder?: SessionFolderPayload;
 }
 
 type CatalogEnvelope = InfiniteData<SessionCatalogPageResponse>;
@@ -117,11 +116,11 @@ export function useSessionFolders(options: {
     );
   };
 
-  const mutationKey = ["session-layout", workspaceId, options.profile.trim()];
+  const mutationKey = sessionLayoutMutationKey(workspaceId, options.profile);
   const pendingEdits = useMutationState({
-    filters: { mutationKey, exact: true, status: "pending" },
-    select: entry => (entry.state.variables as LayoutWrite | undefined)?.partitionEdit,
-  }).flatMap(edit => (edit ? [edit] : []));
+    filters: pendingSessionLayoutFilter(workspaceId, options.profile),
+    select: entry => pendingSessionLayoutEdit(entry.state.variables),
+  }).flat();
 
   const mutation = useMutation({
     mutationKey,

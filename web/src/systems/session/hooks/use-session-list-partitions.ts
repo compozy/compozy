@@ -3,13 +3,12 @@ import { useMemo, useSyncExternalStore } from "react";
 
 import { normalizeSessionListFilters } from "../lib/session-list-query";
 import {
-  partitionSessionRows,
+  projectPartitionRows,
+  type PendingSessionLayoutEdit,
   SESSION_LIST_ROOT_FOLDER,
   sessionListPartitionOptions,
 } from "../lib/session-list-partitions";
 import type { SessionFolderPayload, SessionListFilters } from "../types";
-import type { PendingSessionLayoutEdit } from "./use-session-folders";
-import { sessionFolderId } from "../lib/session-folders";
 import type { SessionFoldSet } from "../lib/session-sidebar-scope";
 import { sessionCatalogPageView } from "./use-session-catalog";
 
@@ -105,23 +104,4 @@ function createPartitionSource(
       return snapshot;
     },
   };
-}
-
-/** Pending layout writes change the projection while cursors and totals stay server-owned. */
-function projectPartitionRows(
-  pages: ReadonlyMap<string, SessionListPartitionPage>,
-  edits: readonly PendingSessionLayoutEdit[] | undefined,
-  manual: boolean
-) {
-  const { sessions, folderOf } = partitionSessionRows(pages);
-  if (!edits?.length) return { sessions, folderOf };
-  const byId = new Map(sessions.map(row => [row.id, row]));
-  const projected = edits.reduce((rows, edit) => edit.update(rows, manual), sessions);
-  for (const row of projected) {
-    const previous = byId.get(row.id);
-    if (previous && sessionFolderId(previous) !== sessionFolderId(row)) {
-      folderOf.set(row.id, sessionFolderId(row));
-    }
-  }
-  return { sessions: projected, folderOf };
 }
