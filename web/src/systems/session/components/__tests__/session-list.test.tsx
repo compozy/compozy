@@ -1820,12 +1820,49 @@ describe("SessionList subagents", () => {
     expect(waiting.closest("li") ?? waiting.parentElement!).toHaveTextContent(
       "Waiting on sessions"
     );
-    expect(screen.getAllByRole("button", { name: "2 of 2 subagents running" })[0]).toHaveAttribute(
-      "data-state",
-      "delegated"
-    );
+    // The row's own mark carries the delegated ring; the branch draws escalations only (#1926).
+    expect(
+      screen.getAllByRole("button", { name: "2 of 2 subagents running" })[0]
+    ).not.toHaveAttribute("data-state");
     const working = screen.getByTestId("session-sidebar-session-working-parent");
     expect(within(working).getByRole("img")).toHaveAttribute("data-badge", "running");
+  });
+
+  // Invariant (#1926): running work sits in the row's leading mark column. A resting row
+  // with a running child session or live subagent draws the running glyph there, its own
+  // badge token unchanged; an escalation keeps its tone; the branch toggle draws no running.
+  it("Should lead a resting parent's mark with running work below it", () => {
+    renderList({
+      sessions: [
+        row("idle-parent"),
+        row("kid", { badge: "running", lineage: lineage("idle-parent") }),
+        row("sub-parent", summary(1, 2)),
+        row("asking-parent", { badge: "waiting-for-input", ...summary(1, 1) }),
+        row("quiet-parent", summary(0, 2)),
+      ],
+    });
+    const mark = (id: string) =>
+      within(screen.getByTestId(`session-sidebar-session-${id}`)).getByRole("img", {
+        name: /^Session badge:/,
+      });
+    const glyph = (id: string) => mark(id).querySelector("[data-state]");
+
+    for (const id of ["idle-parent", "sub-parent"]) {
+      expect(mark(id)).toHaveAccessibleName(
+        "Session badge: done, child sessions or subagents working"
+      );
+      expect(mark(id)).toHaveAttribute("data-badge", "done");
+      expect(glyph(id)).toHaveAttribute("data-state", "running");
+    }
+    expect(glyph("asking-parent")).toHaveAttribute("data-state", "attention");
+    expect(mark("asking-parent")).not.toHaveAttribute("data-descendants");
+    expect(glyph("quiet-parent")).toHaveAttribute("data-state", "done");
+    expect(screen.getByTestId("session-sidebar-thread-toggle-idle-parent")).not.toHaveAttribute(
+      "data-state"
+    );
+    expect(screen.getByRole("button", { name: "1 of 2 subagents running" })).not.toHaveAttribute(
+      "data-state"
+    );
   });
 
   it("UT-075: reads the daemon's waiting reason, never a client guess from monitors or subagents", () => {
@@ -3270,6 +3307,31 @@ describe("SessionList folders and manual order", () => {
     expect(screen.getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
   });
 
+  // Invariant (#1926): a collapsed folder shows its members' running work in the leading
+  // column, where the chevron sits at rest; an open folder shows its rows instead.
+  it("Should lead a collapsed folder with its running signal", async () => {
+    const user = userEvent.setup();
+    const rows = layoutRows.map(session => ({
+      ...session,
+      state: "active" as const,
+      badge: session.id === "f1" ? "running" : "done",
+    }));
+    renderList({ sessions: rows, view: { ...view, sort: "manual", layout: fakeLayout() } });
+    const alpha = screen.getByTestId("session-sidebar-folder-fa-toggle");
+    const working = { name: "1 session working" };
+    expect(within(alpha).queryByRole("img", working)).not.toBeInTheDocument();
+
+    await user.click(alpha);
+    expect(alpha).toHaveAttribute("aria-expanded", "false");
+    expect(
+      within(alpha.firstElementChild as HTMLElement).getByRole("img", working)
+    ).toBeInTheDocument();
+    await user.click(screen.getByTestId("session-sidebar-folder-fb-toggle"));
+    expect(
+      within(screen.getByTestId("session-sidebar-folder-fb-toggle")).queryByRole("img")
+    ).not.toBeInTheDocument();
+  });
+
   // Invariant: a header toggle takes tree disclosure keys — ArrowLeft collapses,
   // ArrowRight expands, each a no-op in its own state — and is a session-walk stop.
   it("Should collapse and expand a folder from its header with the arrow keys", async () => {
@@ -4375,6 +4437,31 @@ describe("SessionList breadth and Group by", () => {
 
     await user.click(beta);
     expect(toggleGroup).toHaveBeenCalledWith("project:ws-beta");
+  });
+
+  // Invariant (#1926): a collapsed group's running work leads its header, in the column the
+  // session rows' marks use; needs-you stays on the right; an open group shows its rows instead.
+  it("Should lead a collapsed group with its running signal and keep needs-you on the right", async () => {
+    const groups = projectSessionGroups(
+      {
+        by_workspace: [
+          { workspace_id: "ws-alpha", facets: { ...facet(1), working: 1 } },
+          { workspace_id: "ws-beta", facets: { ...facet(4, 2), working: 3 } },
+        ],
+      },
+      { workspaces: WORKSPACES, lens: { profile: "default" } }
+    );
+    renderList({
+      sessions: [],
+      view: grouped({ groups, collapsedGroupKeys: new Set(["project:ws-beta"]) }),
+    });
+
+    const beta = await screen.findByTestId("session-sidebar-group-project:ws-beta");
+    const leading = beta.firstElementChild as HTMLElement;
+    expect(within(leading).getByRole("img", { name: "3 sessions working" })).toBeInTheDocument();
+    expect(leading).not.toContainElement(within(beta).getByRole("img", { name: "2 need you" }));
+    const alpha = screen.getByTestId("session-sidebar-group-project:ws-alpha");
+    expect(within(alpha).queryByRole("img", { name: "1 session working" })).not.toBeInTheDocument();
   });
 
   // Invariant: group headers take the same disclosure keys as folder headers.

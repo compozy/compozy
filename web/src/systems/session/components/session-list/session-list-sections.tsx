@@ -24,7 +24,11 @@ import {
   shiftId,
   type SessionListSections as Sections,
 } from "../../lib/session-folders";
-import { countThreadSessions, type SessionThreadModel } from "../../lib/session-list-threads";
+import {
+  countRunningThreadSessions,
+  countThreadSessions,
+  type SessionThreadModel,
+} from "../../lib/session-list-threads";
 import type { SessionFolderPayload, SessionListTarget, SessionPayload } from "../../types";
 import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
 import { SessionListFolder } from "./session-list-folder";
@@ -167,6 +171,7 @@ export function SessionListSections({
             key={folder.id}
             folder={folder}
             count={partitions ? page?.total : countThreadSessions(section.threads)}
+            running={countRunningThreadSessions(section.threads)}
             expanded={page ? !page.countOnly : filtering || !collapsedFolders.has(folder.id)}
             onToggle={() => onToggleFolder(folder.id)}
             onNewSession={onNewSessionInFolder ? () => onNewSessionInFolder(folder.id) : undefined}

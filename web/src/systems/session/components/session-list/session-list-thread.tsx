@@ -5,6 +5,7 @@ import { TreeBranch, TreeBranchNode } from "@compozy/ui";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 
 import { childSessionSignalState, isSubagentSession } from "../../lib/session-hierarchy";
+import { hasRunningDescendant } from "../../lib/session-running";
 import { sessionSubagentCounts } from "../../lib/session-subagent-summary";
 import {
   sessionThreadSegment,
@@ -90,6 +91,8 @@ function SessionListThreadView({
           session={session}
           // Context rules make a subagent a root only when its ancestry was deleted.
           orphanedSubagent={isSubagentSession(session)}
+          // Running work anywhere below shows in the root's own mark column (#1926).
+          descendantsRunning={hasRunningDescendant(session, childSessions)}
           owner={owner}
           current={session.id === currentSessionId}
           onSelect={() => onSelectSession(session)}

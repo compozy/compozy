@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-import { StateGlyph } from "@compozy/ui";
+import { StateGlyph, type StateGlyphState } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -19,21 +19,42 @@ export interface SessionBadgeMarkProps extends Omit<React.ComponentProps<"span">
   badge: string | null | undefined;
   /** Why a `waiting` session waits (the daemon's `waiting_on`); picks the parked glyph. */
   waitingOn?: SessionWaitingOn | null;
+  /** A child session or subagent below the row is running (#1926). */
+  descendantsRunning?: boolean;
 }
 
-/** Row-scale mark: the state glyph + an accessible state token. */
-export function SessionBadgeMark({ badge, waitingOn, className, ...props }: SessionBadgeMarkProps) {
+/**
+ * Resting states a running descendant lifts to `running`. Escalations (needs you,
+ * failed, stuck) keep their tone, and the parked glyphs (waiting on sessions,
+ * monitoring) already say the session waits on work elsewhere.
+ */
+const RESTING_STATES: ReadonlySet<StateGlyphState> = new Set(["done", "idle", "stopped"]);
+
+/**
+ * Row-scale mark: the state glyph + an accessible state token. The sidebar's one
+ * "work is running" column, so a resting session with running descendants draws
+ * the running glyph while its badge token stays its own.
+ */
+export function SessionBadgeMark({
+  badge,
+  waitingOn,
+  descendantsRunning = false,
+  className,
+  ...props
+}: SessionBadgeMarkProps) {
   const signal = sessionBadgeSignal(badge, waitingOn);
+  const lifted = descendantsRunning && RESTING_STATES.has(signal.state);
   return (
     <span
       role="img"
-      aria-label={`Session badge: ${signal.label}`}
+      aria-label={`Session badge: ${signal.label}${lifted ? ", child sessions or subagents working" : ""}`}
       data-badge={signal.label}
       data-waiting-on={signal.label === "waiting" ? (waitingOn ?? "sessions") : undefined}
+      data-descendants={lifted ? "running" : undefined}
       className={cn("grid size-3 shrink-0 place-items-center", className)}
       {...props}
     >
-      <StateGlyph size="sm" state={signal.state} />
+      <StateGlyph size="sm" state={lifted ? "running" : signal.state} />
     </span>
   );
 }
