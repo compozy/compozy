@@ -207,9 +207,7 @@ func normalizeSpec(spec Spec) (Spec, error) {
 	spec.Description = strings.TrimSpace(spec.Description)
 	spec.TerminalID = strings.TrimSpace(spec.TerminalID)
 	spec.Until = strings.TrimSpace(spec.Until)
-	if spec.Kind != KindPullRequest {
-		spec.Branch = strings.TrimSpace(spec.Branch)
-	}
+	spec.Branch = strings.TrimSpace(spec.Branch)
 	if spec.Kind != KindSession && (len(spec.Targets) != 0 || len(spec.States) != 0) {
 		return Spec{}, invalid("target_session_ids and states require kind session")
 	}
@@ -242,7 +240,7 @@ func normalizeSpec(spec Spec) (Spec, error) {
 
 func normalizePullRequestSpec(spec Spec) (Spec, error) {
 	if strings.ContainsFunc(spec.Branch, unicode.IsSpace) {
-		return Spec{}, invalid("pull_request branch must not contain whitespace")
+		return Spec{}, invalid("pull_request branch must not contain internal whitespace")
 	}
 	if owner, branch, qualified := strings.Cut(spec.Branch, ":"); qualified {
 		if !validPullRequestOwner(owner) || branch == "" || strings.Contains(branch, ":") {

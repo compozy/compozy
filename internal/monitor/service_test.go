@@ -3113,10 +3113,7 @@ func TestServicePullRequestMonitorSpec(t *testing.T) {
 		{"Should refuse whitespace in a qualified branch", func(s *Spec) { s.Branch = "contributor: topic" }},
 		{"Should refuse a repository as owner", func(s *Spec) { s.Branch = "acme/repo:topic" }},
 		{"Should refuse whitespace in the owner", func(s *Spec) { s.Branch = "acme corp:topic" }},
-		{"Should refuse whitespace in an unqualified branch", func(s *Spec) { s.Branch = "fix/two words" }},
-		{"Should refuse leading whitespace", func(s *Spec) { s.Branch = " contributor:topic" }},
-		{"Should refuse trailing whitespace", func(s *Spec) { s.Branch = "contributor:topic\t" }},
-		{"Should refuse a whitespace-only branch", func(s *Spec) { s.Branch = " " }},
+		{"Should refuse whitespace in an unqualified branch", func(s *Spec) { s.Branch = "fix /foo" }},
 		{"Should refuse multiple owner separators", func(s *Spec) { s.Branch = "contributor:topic:other" }},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -3132,28 +3129,35 @@ func TestServicePullRequestMonitorSpec(t *testing.T) {
 			}
 		})
 	}
-	// Invariant: qualified selectors retain GitHub owner names and slash-separated branches.
-	t.Run("Should preserve valid owners and branch slashes", func(t *testing.T) {
-		t.Parallel()
-		for _, branch := range []string{
-			"fix/foo", "contributor:topic", "contributor:feat/topic", "Acme-123:fix/one/two", "a:topic",
-			"octocat_acme:feature/topic", "legacy--owner:topic", "legacy-:topic",
-		} {
-			t.Run("Should register "+branch, func(t *testing.T) {
-				t.Parallel()
-				service := newPullRequestService(t, forge, &recordingWaker{})
-				spec := pullRequestSpec("sess-1")
-				spec.Branch = branch
-				created, err := service.Create(t.Context(), spec)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if created.Branch != branch {
-					t.Fatalf("created monitor branch = %q, want %q", created.Branch, branch)
-				}
-			})
-		}
-	})
+	for _, testCase := range []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"Should accept an unqualified branch with a slash", "fix/foo", "fix/foo"},
+		{"Should trim surrounding whitespace", " fix/foo ", "fix/foo"},
+		{"Should accept a qualified fork branch", "contributor:topic", "contributor:topic"},
+		{"Should accept a slash in a qualified branch", "contributor:feat/topic", "contributor:feat/topic"},
+		{"Should accept an owner with hyphens and digits", "Acme-123:fix/one/two", "Acme-123:fix/one/two"},
+		{"Should accept a single-letter owner", "a:topic", "a:topic"},
+		{"Should accept an owner with an underscore", "octocat_acme:feature/topic", "octocat_acme:feature/topic"},
+		{"Should accept an owner with adjacent hyphens", "legacy--owner:topic", "legacy--owner:topic"},
+		{"Should accept an owner with a trailing hyphen", "legacy-:topic", "legacy-:topic"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			service := newPullRequestService(t, forge, &recordingWaker{})
+			spec := pullRequestSpec("sess-1")
+			spec.Branch = testCase.input
+			created, err := service.Create(t.Context(), spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if created.Branch != testCase.want {
+				t.Fatalf("created monitor branch = %q, want %q", created.Branch, testCase.want)
+			}
+		})
+	}
 	t.Run("Should refuse branch on other kinds", func(t *testing.T) {
 		t.Parallel()
 		service := newPullRequestService(t, forge, &recordingWaker{})

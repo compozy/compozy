@@ -209,8 +209,9 @@ its name. Cross-scope names are secret-redacted. Re-register after the operator 
 `kind="pull_request"` is the wait for a pull request's checks and reviews. The daemon reads the forge about
 once a minute, with the forge extension's own credential, and runs no command or URL of yours. `branch`
 defaults to the session's branch. For GitHub forks, use `owner:branch` with the GitHub account name
-alone. An unqualified branch selects the base repository. A selector containing whitespace, a default
-branch, or a session with no branch is refused. A missing pull
+alone. An unqualified branch selects the base repository. The daemon trims surrounding whitespace and
+rejects whitespace within the resulting selector. A default branch or a session with no branch is
+refused. A missing pull
 request is a wait, so you can register before opening it, and so is one that had already merged or closed
 when the monitor first read it: a reused branch's old pull request is history, and only a pull request this
 monitor saw open can end it. `timeout_seconds` defaults to 21,600 and caps at

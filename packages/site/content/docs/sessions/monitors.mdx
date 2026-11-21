@@ -258,7 +258,8 @@ Canceled monitors omit `fired_at`; cancellation does not represent a wake. For r
 pull request monitors, `last_fired_at` still records any earlier wakes.
 
 Qualified pull-request branches use `owner:branch`, for example `acme:fix/native-tools`. Use the
-GitHub account name alone for the owner. Any whitespace in `branch` causes a validation error.
+GitHub account name alone for the owner. CompozyOS trims surrounding whitespace and rejects whitespace
+within the resulting selector.
 
 A session monitor that has already matched a child's early-stop occurrence continues covering it
 when the operator views the child. A newer child turn creates a different occurrence. With several
