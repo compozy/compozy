@@ -677,7 +677,7 @@ func (a *helperACPAgent) NewSession(
 		a.setHelperConfigOptions(options)
 		return acpsdk.NewSessionResponse{SessionId: "sess-new", ConfigOptions: options}, nil
 	}
-	if a.scenario == "mode_mapping" || a.scenario == "stall_mode" {
+	if a.scenario == "mode_mapping" || a.scenario == "stall_mode" || a.scenario == "mode_mapping_rejected" {
 		return acpsdk.NewSessionResponse{
 			SessionId: "sess-new",
 			Modes:     helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
@@ -1240,6 +1240,9 @@ func (a *helperACPAgent) SetSessionMode(
 	if a.scenario == "stall_mode" {
 		<-ctx.Done()
 		return acpsdk.SetSessionModeResponse{}, ctx.Err()
+	}
+	if a.scenario == "mode_mapping_rejected" {
+		return acpsdk.SetSessionModeResponse{}, acpsdk.NewInvalidParams("provider refused the session mode")
 	}
 	return acpsdk.SetSessionModeResponse{}, nil
 }

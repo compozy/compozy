@@ -13,6 +13,10 @@ import (
 // refused a selection, so a caller can offer reselection guidance instead of guessing.
 var ErrSessionConfigOptionRejected = errors.New("acp: session config option rejected")
 
+// ErrSessionModeRejected marks an ErrSessionConfigOptionRejected caused by the session mode
+// CompozyOS derives from the permission policy rather than by an authored ACP option.
+var ErrSessionModeRejected = errors.New("acp: session mode rejected")
+
 func (d *Driver) applyStartupConfigSelections(
 	ctx context.Context,
 	process *AgentProcess,

@@ -3208,10 +3208,13 @@ func TestResumeOptionSourceGuidance(t *testing.T) {
 
 	refusal := fmt.Errorf("%w: config option %q does not allow value %q",
 		acp.ErrSessionConfigOptionRejected, "mode", "plan")
+	modeRefusal := fmt.Errorf("%w: %w: apply session mode %q",
+		acp.ErrSessionConfigOptionRejected, acp.ErrSessionModeRejected, "auto")
 	plan := []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}}
 	for _, tc := range []struct {
 		name         string
 		spec         *sessionStartSpec
+		refusal      error
 		wantReselect bool
 		wantAgent    bool
 	}{
@@ -3239,10 +3242,27 @@ func TestResumeOptionSourceGuidance(t *testing.T) {
 			name: "Should leave other providers unchanged",
 			spec: &sessionStartSpec{provider: "codex", acpOptions: plan},
 		},
+		{
+			name: "Should not blame the agent definition for a refused policy mode",
+			spec: &sessionStartSpec{
+				provider:        agyProviderName,
+				selectedRuntime: &RuntimeSelection{Provider: agyProviderName},
+			},
+			refusal: modeRefusal,
+		},
+		{
+			name:    "Should not ask for reselection for a refused policy mode",
+			spec:    &sessionStartSpec{provider: agyProviderName, acpOptions: plan},
+			refusal: modeRefusal,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := captureResumeOptionSource(tc.spec).guide(refusal)
+			input := tc.refusal
+			if input == nil {
+				input = refusal
+			}
+			err := captureResumeOptionSource(tc.spec).guide(input)
 			if !errors.Is(err, acp.ErrSessionConfigOptionRejected) {
 				t.Fatalf("guide() error = %v, want the original refusal kept", err)
 			}

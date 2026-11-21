@@ -55,12 +55,7 @@ func (d *Driver) applySessionMode(
 	if configurable && (process.executionPolicy == ExecutionPolicyTriage ||
 		!advertisesSessionMode(caps.SupportedModes, modeID)) {
 		err := d.applySessionConfigOption(ctx, process, SessionConfigOptionSelection{ID: option.ID, ValueID: modeID})
-		if err != nil && isConfigRejectionCause(err) {
-			// A provider refusal of its own advertised mode is the same structured rejection
-			// as any other config option, so callers can map it to actionable guidance.
-			err = fmt.Errorf("%w: apply config option %q: %w", ErrSessionConfigOptionRejected, option.ID, err)
-		}
-		return true, err
+		return true, classifySessionModeRejection(modeID, err)
 	}
 
 	_, err := process.sendControlRequest[acpsdk.SetSessionModeResponse](ctx,
@@ -70,10 +65,22 @@ func (d *Driver) applySessionMode(
 			ModeId:    acpsdk.SessionModeId(modeID),
 		},
 	)
-	if err == nil {
-		process.setConfigOptionCurrent(sessionConfigModeKey, modeID)
+	if err != nil {
+		return true, classifySessionModeRejection(modeID, err)
 	}
-	return true, err
+	process.setConfigOptionCurrent(sessionConfigModeKey, modeID)
+	return true, nil
+}
+
+// classifySessionModeRejection marks a provider refusal of the policy-derived mode, on either
+// transport, as a structured config rejection that callers can map to actionable guidance.
+// ErrSessionModeRejected keeps it distinguishable from a refused authored ACP option.
+func classifySessionModeRejection(modeID string, err error) error {
+	if err == nil || !isConfigRejectionCause(err) {
+		return err
+	}
+	return fmt.Errorf("%w: %w: apply session mode %q: %w",
+		ErrSessionConfigOptionRejected, ErrSessionModeRejected, modeID, err)
 }
 
 func advertisesSessionMode(modes []string, modeID string) bool {

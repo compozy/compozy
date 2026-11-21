@@ -153,7 +153,9 @@ func captureResumeOptionSource(spec *sessionStartSpec) resumeOptionSource {
 // options need a runtime reselection; options only the agent definition supplies survive any
 // reselection, so the guidance points at the agent definition instead.
 func (s resumeOptionSource) guide(err error) error {
-	if err == nil || !s.agy || !errors.Is(err, acp.ErrSessionConfigOptionRejected) {
+	// A refused policy-derived mode is not an authored option, so neither repair applies.
+	if err == nil || !s.agy || !errors.Is(err, acp.ErrSessionConfigOptionRejected) ||
+		errors.Is(err, acp.ErrSessionModeRejected) {
 		return err
 	}
 	switch {

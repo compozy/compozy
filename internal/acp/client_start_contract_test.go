@@ -589,6 +589,7 @@ func TestStartUnrestrictedModeAdvertisement(t *testing.T) {
 		{name: "Should select a uniquely advertised unrestricted mode", scenario: "full_access_mode_available", value: "bypassPermissions", wantSelection: true},
 		{name: "Should reject an unavailable value on a unique mode option", scenario: "full_access_mode_unavailable", value: "bypassPermissions", wantError: "does not allow value"},
 		{name: "Should classify a provider refusal of an advertised mode", scenario: "full_access_mode_rejected", value: "bypassPermissions", wantError: "provider refused the mode"},
+		{name: "Should classify a provider refusal of an advertised session mode", scenario: "mode_mapping_rejected", value: "bypassPermissions", wantError: "provider refused the session mode"},
 		{name: "Should reject a missing narrower mode option", scenario: "config_options", value: "plan", wantError: "not uniquely advertised"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
