@@ -993,7 +993,9 @@ zero core warnings and one telemetry hold. The 1,393 ms hold included a 132 ms
 callback and a 1,261 ms COMMIT, which passed against its complete 1,947 ms
 paired budget. Aligning the trial trace clock with the warning timestamp shows
 roughly 1,255 ms in the telemetry COMMIT's `fsync` interval, overlapping
-`fsync` calls from several session checkpoints. This attributes the sampled
-telemetry delay to time in the syscall. The earlier core holds have no
-contemporaneous recording, and the traced run is diagnostic only.
+`fsync` calls from session checkpoints, the telemetry database's TRUNCATE
+checkpoint (1,319 ms), and the core WAL restart checkpoint (719 ms). The trace
+locates the sampled telemetry delay within the syscall. The cause of the
+overlap remains unassigned. The earlier core COMMIT holds have no contemporaneous
+recording, and the traced run is diagnostic only.
 [Traced job](https://github.com/compozy/compozy/actions/runs/44902062663/job/136839843214) · [Artifact](https://github.com/compozy/compozy/actions/runs/44902062663/artifacts/14706658453)
