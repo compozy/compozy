@@ -1256,6 +1256,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		ctx, db := t.Context(), openTestGlobalDB(t)
 		workspace := registerWorkspaceForGlobalTests(t, db, "pin-subtree", filepath.Join(t.TempDir(), "workspace"))
 		base := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+		db.now = func() time.Time { return base.Add(time.Minute) }
 		// A conductor's child continued twice; a fork of the child and its continuation; a
 		// continuation of the conductor itself; and an unrelated top-level session.
 		lineage := map[string][2]string{
@@ -1270,11 +1271,10 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		ids := []string{
 			"conductor", "worker", "worker-2", "worker-3", "helper", "conductor-2", "worker-fork", "fork-2", "other",
 		}
-		for _, id := range ids {
-			if err := db.RegisterSession(
-				ctx,
-				new(sessionInfoForWorkspaceStateIndexTest(id, workspace, globalDBSessionStateStopped, base)),
-			); err != nil {
+		for i, id := range ids {
+			info := sessionInfoForWorkspaceStateIndexTest(id, workspace, globalDBSessionStateStopped, base)
+			info.UpdatedAt = base.Add(time.Duration(i) * time.Second)
+			if err := db.RegisterSession(ctx, &info); err != nil {
 				t.Fatal(err)
 			}
 			relation, ok := lineage[id]
@@ -1325,19 +1325,14 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 				t.Fatalf("PinSession(%s) error = %v", id, err)
 			}
 		}
-		carried := []string{"conductor", "worker", "worker-2", "worker-3", "helper"}
+		// The conductor starts with the oldest activity but leads its pinned subtree.
+		carried := []string{"conductor", "helper", "worker-3", "worker-2", "worker"}
 		pinned, total := read(store.SessionPinnedOnly, sessionCatalogSortPinned)
-		if total != 1 || len(pinned) != len(carried) || pinned[0] != "conductor" {
-			t.Fatalf("pinned page = %#v total=%d, want the conductor first with its whole subtree", pinned, total)
-		}
-		for _, id := range carried {
-			if !slices.Contains(pinned, id) {
-				t.Fatalf("pinned page = %#v, want %s carried", pinned, id)
-			}
+		if total != 1 || !slices.Equal(pinned, carried) {
+			t.Fatalf("pinned page = %#v total=%d, want %#v total=1", pinned, total, carried)
 		}
 		rest, _ := read(store.SessionPinnedExclude, sessionCatalogSortRecent)
-		slices.Sort(rest)
-		if want := []string{"conductor-2", "fork-2", "other", "worker-fork"}; !slices.Equal(rest, want) {
+		if want := []string{"other", "fork-2", "worker-fork", "conductor-2"}; !slices.Equal(rest, want) {
 			t.Fatalf("unpinned rows = %#v, want %#v (forks and continuations of the pin stay)", rest, want)
 		}
 		scopes, err := db.SessionPinScopes(ctx, ids)
@@ -1374,10 +1369,8 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 		secondPage, err := db.PageSessions(ctx, pageQuery)
 		second := sessionIDsForWorkspaceStateIndexTest(secondPage.Sessions)
-		if err != nil || secondPage.Total != 2 || len(second) != len(carried) || second[0] != "conductor" ||
-			slices.Contains(second, "other") {
-			t.Fatalf("pinned second page = %#v total=%d, %v, want the conductor's whole subtree", second,
-				secondPage.Total, err)
+		if err != nil || secondPage.Total != 2 || !slices.Equal(second, carried) {
+			t.Fatalf("pinned second page = %#v total=%d, %v, want %#v total=2", second, secondPage.Total, err, carried)
 		}
 		// With the conductor first, the cursor taken from its last carried row still anchors the
 		// pin, so the next page is the other pin alone.
@@ -1388,8 +1381,8 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		pageQuery.After = nil
 		firstPage, err = db.PageSessions(ctx, pageQuery)
 		first := sessionIDsForWorkspaceStateIndexTest(firstPage.Sessions)
-		if err != nil || len(first) != len(carried) || first[0] != "conductor" || slices.Contains(first, "other") {
-			t.Fatalf("reordered first page = %#v, %v, want the conductor's whole subtree", first, err)
+		if err != nil || !slices.Equal(first, carried) {
+			t.Fatalf("reordered first page = %#v, %v, want %#v", first, err, carried)
 		}
 		last = firstPage.Sessions[len(firstPage.Sessions)-1]
 		if last.ID == "conductor" || last.PinScope == nil || last.PinScope.RootID != "conductor" {
@@ -1465,11 +1458,19 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if want := []string{"worker-2"}; total != 1 || !slices.Equal(pinned, want) {
 			t.Fatalf("pinned page after unpin = %#v total=%d, want %#v", pinned, total, want)
 		}
+		// Restoring the conductor advanced its timestamp, so it leads the recent list too.
+		want := []string{"conductor", "other", "fork-2", "worker-fork", "conductor-2", "helper", "worker-3", "worker"}
+		if rest, _ := read(store.SessionPinnedExclude, sessionCatalogSortRecent); !slices.Equal(rest, want) {
+			t.Fatalf("unpinned rows after unpinning the conductor = %#v, want %#v", rest, want)
+		}
 		if _, _, err := db.UnpinSession(ctx, workspace, "worker-2"); err != nil {
 			t.Fatal(err)
 		}
-		if rest, _ := read(store.SessionPinnedExclude, sessionCatalogSortRecent); len(rest) != len(ids) {
-			t.Fatalf("unpinned rows after every unpin = %#v, want all %d sessions back", rest, len(ids))
+		want = []string{
+			"conductor", "other", "fork-2", "worker-fork", "conductor-2", "helper", "worker-3", "worker-2", "worker",
+		}
+		if rest, _ := read(store.SessionPinnedExclude, sessionCatalogSortRecent); !slices.Equal(rest, want) {
+			t.Fatalf("unpinned rows after every unpin = %#v, want %#v", rest, want)
 		}
 	})
 
