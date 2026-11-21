@@ -1090,6 +1090,23 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
     await waitFor(() => expect(actions.onOpenTerminal).toHaveBeenCalledOnce());
   });
 
+  it("Should end the wait on the empty state when the reopened cap dialog is dismissed", async () => {
+    const actions = stubWindowActions({ onCloseTerminal: vi.fn(async () => false) });
+    renderWindow(waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP));
+
+    await screen.findByTestId("terminal-limit-dialog");
+    await userEvent.click(screen.getByTestId("terminal-limit-close"));
+    await screen.findByTestId("terminal-limit-dialog");
+    await userEvent.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("terminal-limit-dialog")).not.toBeInTheDocument()
+    );
+    expect(screen.getByTestId("terminal-empty-open")).toBeInTheDocument();
+    expect(screen.queryByText(/Opening a terminal/)).not.toBeInTheDocument();
+    expect(actions.onOpenTerminal).not.toHaveBeenCalled();
+  });
+
   it("Should open the waiting terminal when another window or the CLI frees a slot", async () => {
     const actions = stubWindowActions();
     const { rerender } = renderWindow(waitingAtCapProps(actions, TERMINAL_FIXTURES_AT_CAP));
