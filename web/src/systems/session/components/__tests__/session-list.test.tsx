@@ -286,8 +286,21 @@ function renderList(
     onBranch,
     actions,
     queryClient,
-    update: (nextSessions: SessionPayload[], nextView = view) =>
-      rendered.rerender(tree(<BranchHost {...props} sessions={nextSessions} view={nextView} />)),
+    update: (
+      nextSessions: SessionPayload[],
+      nextView = view,
+      nextCurrentSessionId = props.currentSessionId
+    ) =>
+      rendered.rerender(
+        tree(
+          <BranchHost
+            {...props}
+            sessions={nextSessions}
+            view={nextView}
+            currentSessionId={nextCurrentSessionId}
+          />
+        )
+      ),
   };
 }
 
@@ -566,6 +579,32 @@ describe("SessionList unrestricted grant", () => {
 });
 
 describe("SessionList selection", () => {
+  // Invariant: when the window's session changes (a notification jump landing in this window,
+  // #1927) the rail reveals the current row only as far as needed, once per change; a refresh of
+  // the same session never scrolls the list back.
+  it("Should reveal the current row once each time the current session changes", () => {
+    const scrolled: { id: string | undefined; options: unknown }[] = [];
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (
+      this: Element,
+      options?: boolean | ScrollIntoViewOptions
+    ) {
+      const id = this.getAttribute("data-session-id");
+      if (id !== null) scrolled.push({ id, options });
+    });
+    const { update } = renderList({ currentSessionId: "running" });
+    expect(scrolled).toEqual([{ id: "running", options: { block: "nearest" } }]);
+
+    update([...sessions]);
+    expect(scrolled).toHaveLength(1);
+
+    update(sessions, view, "stopped");
+    expect(scrolled).toEqual([
+      { id: "running", options: { block: "nearest" } },
+      { id: "stopped", options: { block: "nearest" } },
+    ]);
+    scroll.mockRestore();
+  });
+
   // Invariant: hovering a row swaps its compact time for the actions, so the row
   // target itself still reveals the full timestamp to mouse users.
   it("keeps the full timestamp on the row target while hover hides the compact time", () => {

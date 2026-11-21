@@ -295,7 +295,10 @@ export class RoutingCoordinator {
     return landed;
   }
 
-  /** Launchers that open a just-created session directly: prefer an existing Session window. */
+  /**
+   * Launchers that open a just-created session directly, and notification jumps (#1927): prefer an
+   * existing Session window.
+   */
   async userOpenCreatedSession(
     target: OsOpenTarget & { instanceKey: string; route: OsWindowRoute }
   ): Promise<string | null> {

@@ -2,15 +2,17 @@
 // Invariant: under All projects a bell task, Loop, or terminal row opens in place in the `global`
 // desktop, bound to its own scope (a project, or `@user` for an item without one), and the
 // destination never changes. With a project focused, a foreign item focuses its destination first
-// and opens only once that partition's window manager is live.
+// and opens only once that partition's window manager is live. A session or operator-notice row
+// jumps through the shared attention jump asking to reuse a Session window (#1927).
 // Owning layer: OS navigation hook. No prior suite owned bell row selection.
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OsAttentionRow } from "../../lib/attention-model";
 
-const { focusDestination, setActiveWorkspaceId, notifyUser } = vi.hoisted(() => ({
+const { focusDestination, setActiveWorkspaceId, notifyUser, jumpToSession } = vi.hoisted(() => ({
   focusDestination: vi.fn(),
+  jumpToSession: vi.fn(),
   setActiveWorkspaceId: vi.fn(),
   notifyUser: vi.fn(),
 }));
@@ -67,7 +69,7 @@ vi.mock("../use-os-shell", () => ({
   useOsShell: () => ({ coordinator: { userOpen, userOpenCreatedSession: userOpen } }),
 }));
 
-vi.mock("../use-attention-jump", () => ({ useAttentionJump: () => vi.fn() }));
+vi.mock("../use-attention-jump", () => ({ useAttentionJump: () => jumpToSession }));
 
 import { useMenubarAttentionSelection } from "../use-menubar-attention-selection";
 
@@ -250,5 +252,56 @@ describe("useMenubarAttentionSelection (Loop rows)", () => {
       workspaceId: "ws-beta",
     });
     expect(userOpen).not.toHaveBeenCalled();
+  });
+
+  it("Should jump to a session row's session reusing a Session window", () => {
+    const { result } = renderHook(() => useMenubarAttentionSelection(vi.fn()));
+
+    act(() =>
+      result.current({
+        kind: "session",
+        id: "sess-beta",
+        title: "Fix the build",
+        agentName: "claude",
+        workspaceId: "ws-beta",
+        workspaceLabel: "Beta",
+        badge: "waiting-for-input",
+        reason: "Waiting for approval",
+        changedAt: "2026-11-21T12:00:00Z",
+        muted: false,
+        stale: false,
+      })
+    );
+
+    expect(jumpToSession).toHaveBeenCalledExactlyOnceWith({
+      sessionId: "sess-beta",
+      agentName: "claude",
+      workspaceId: "ws-beta",
+      reuseSessionWindow: true,
+    });
+  });
+
+  it("Should jump to an operator notice's session reusing a Session window", () => {
+    const { result } = renderHook(() => useMenubarAttentionSelection(vi.fn()));
+
+    act(() =>
+      result.current({
+        kind: "operator-notice",
+        id: "notice-1",
+        sessionId: "sess-beta",
+        title: "Build finished",
+        workspaceId: "ws-beta",
+        workspaceLabel: "Beta",
+        reason: "Finished",
+        occurredAt: "2026-11-21T12:00:00Z",
+        stale: false,
+      })
+    );
+
+    expect(jumpToSession).toHaveBeenCalledExactlyOnceWith({
+      sessionId: "sess-beta",
+      workspaceId: "ws-beta",
+      reuseSessionWindow: true,
+    });
   });
 });

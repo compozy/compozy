@@ -1,6 +1,7 @@
 // Suite: attention notifier activation target
 // Invariant: an agent notification keeps its session and workspace identity
-// even before the attention catalog resolves the sending session.
+// even before the attention catalog resolves the sending session, and every notification jump
+// asks to reuse an existing Session window instead of opening a tab per session (#1927).
 // A layout upgrade is offered to the toast once per occurrence per client, across reloads.
 // Owning layer: OS notifier. No prior suite owned this delivery-to-jump mapping.
 import { renderHook } from "@testing-library/react";
@@ -49,7 +50,16 @@ describe("attentionJumpTargetFor", () => {
         },
         target: null,
       })
-    ).toEqual({ sessionId: "sess-alpha", workspaceId: "ws-alpha" });
+    ).toEqual({ sessionId: "sess-alpha", workspaceId: "ws-alpha", reuseSessionWindow: true });
+  });
+
+  it("Should jump from a needs-you notification reusing a Session window", () => {
+    expect(attentionJumpTargetFor(needsYouDelivery("sess-beta"))).toEqual({
+      sessionId: "sess-beta",
+      agentName: "claude",
+      workspaceId: "ws-alpha",
+      reuseSessionWindow: true,
+    });
   });
 
   it("Should keep the four newest needs-you toasts and fold older ones into a ledge", () => {

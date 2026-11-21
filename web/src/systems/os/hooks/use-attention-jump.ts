@@ -26,10 +26,11 @@ export interface AttentionJumpTarget {
    */
   desktopId?: string;
   /**
-   * The session was just created by this launcher: it lands in an existing Session window
-   * when one qualifies instead of opening another (#825).
+   * The session lands in an existing Session window when one qualifies instead of opening
+   * another: a session this launcher just created (#825) and a notification jump (#1927).
+   * A session that already has a window is focused there either way.
    */
-  created?: boolean;
+  reuseSessionWindow?: boolean;
 }
 
 export type AttentionJump = (target: AttentionJumpTarget) => void;
@@ -73,7 +74,7 @@ export function useAttentionJump(): AttentionJump {
           route: sessionRoute(agentName, sessionId),
           ...(target.placement ? { placement: target.placement } : {}),
           ...(target.desktopId?.trim() ? { desktopId: target.desktopId.trim() } : {}),
-          ...(target.created ? { created: true } : {}),
+          ...(target.reuseSessionWindow ? { reuseSessionWindow: true } : {}),
         },
         OPEN_FAILURE
       );

@@ -3,6 +3,8 @@
 // own scope, and the destination never changes. With a project or User focused, a foreign
 // session focuses its destination first — its project, or User for a session without one — and
 // opens only after that partition's window manager is live. A User session resolves via `@user`.
+// A jump that asks to reuse a Session window (a created session #825, a notification #1927)
+// goes through the coordinator's Session-window reuse rule under every scope rule above.
 // Owning layer: OS navigation hook. No prior suite owned this coordination.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -194,7 +196,7 @@ describe("useAttentionJump", () => {
     expect(focusDestination).not.toHaveBeenCalled();
   });
 
-  it("Should land a just-created session through the created-session policy", async () => {
+  it("Should land a reusing jump through the Session-window reuse rule", async () => {
     const { result } = renderHook(() => useAttentionJump());
 
     act(() => {
@@ -203,7 +205,7 @@ describe("useAttentionJump", () => {
         agentName: "claude",
         workspaceId: "ws-alpha",
         desktopId: "desktop-origin",
-        created: true,
+        reuseSessionWindow: true,
       });
     });
 
@@ -213,6 +215,61 @@ describe("useAttentionJump", () => {
         instanceKey: "sess-new",
         route: { pathname: "/agents/claude/sessions/sess-new", search: {} },
         desktopId: "desktop-origin",
+      });
+    });
+    expect(userOpen).not.toHaveBeenCalled();
+  });
+
+  it("Should keep a reusing notification jump in All projects", async () => {
+    dataScope = { kind: "all" };
+    commandWorkspaceId = "global";
+    const { result } = renderHook(() => useAttentionJump());
+
+    act(() => {
+      result.current({ sessionId: "sess-beta", workspaceId: "ws-beta", reuseSessionWindow: true });
+    });
+
+    await waitFor(() => {
+      expect(userOpenCreatedSession).toHaveBeenCalledExactlyOnceWith({
+        app: "session",
+        instanceKey: "sess-beta",
+        route: {
+          pathname: "/agents/claude/sessions/sess-beta",
+          search: { workspace: "ws-beta" },
+        },
+      });
+    });
+    expect(focusDestination).not.toHaveBeenCalled();
+    expect(userOpen).not.toHaveBeenCalled();
+  });
+
+  it("Should switch project before a reusing jump lands a foreign session", async () => {
+    const { result, rerender } = renderHook(() => useAttentionJump());
+
+    act(() => {
+      result.current({
+        sessionId: "sess-beta",
+        agentName: "claude",
+        workspaceId: "ws-beta",
+        reuseSessionWindow: true,
+      });
+    });
+
+    expect(focusDestination).toHaveBeenCalledExactlyOnceWith({
+      kind: "project",
+      workspaceId: "ws-beta",
+    });
+    expect(userOpenCreatedSession).not.toHaveBeenCalled();
+
+    dataScope = { kind: "project", workspaceId: "ws-beta" };
+    commandWorkspaceId = "ws-beta";
+    rerender();
+
+    await waitFor(() => {
+      expect(userOpenCreatedSession).toHaveBeenCalledExactlyOnceWith({
+        app: "session",
+        instanceKey: "sess-beta",
+        route: { pathname: "/agents/claude/sessions/sess-beta", search: {} },
       });
     });
     expect(userOpen).not.toHaveBeenCalled();

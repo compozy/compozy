@@ -18,8 +18,8 @@ function showsEmptyState(win: OsWindow): boolean {
 }
 
 /**
- * New sessions land in a Session window the operator already has (#825) instead of spawning
- * another one. The host is, in order:
+ * New sessions (#825) and notification jumps (#1927) land in a Session window the operator
+ * already has instead of spawning another one. The host is, in order:
  *
  * 1. the focused Session window, which keeps focus;
  * 2. the most recently focused Session window showing the empty state, so no conversation

@@ -24,7 +24,8 @@ only the delivered notification with its workspace and sender-session ownership 
 Start a session monitor, close every operator catalog client, and send a notice. Verify the
 result is `no-client`, then restart the daemon. Open the attention bell
 in the sender's profile and check that the queued title and body are sanitized. Open the sender's
-session from the row. Mark the row read and reopen the shell; the notice must stay read. Repeat
+session from the row: it lands in an existing Session window by the reuse rule in
+ET-web-new-session-reuses-session-window (steps 9–11) rather than opening a new tab. Mark the row read and reopen the shell; the notice must stay read. Repeat
 with a User-scope session and verify that a different profile cannot read the queued notice.
 
 QA impact 2026-08-16: Task 02 added the notify service and all agent-managed transports. Flag only;

@@ -1459,7 +1459,8 @@ describe("RoutingCoordinator", () => {
     expect(store.getState().windows[current.id]?.instanceKey).toBe("");
   });
 
-  describe("new session landing (#825)", () => {
+  // Shared by session creation (#825) and notification jumps (#1927).
+  describe("Session window reuse landing (#825, #1927)", () => {
     const created = {
       app: "session" as const,
       instanceKey: "sess-new",
@@ -1534,6 +1535,19 @@ describe("RoutingCoordinator", () => {
         older.id
       );
       expect(withoutEmpty.store.getState().windows[recent.id]?.instanceKey).toBe("sess-b");
+    });
+
+    it("Should focus the session's own window instead of retargeting the focused one", async () => {
+      const owner = sessionWindow("sess-new", { id: "w-session-owner" });
+      const focused = sessionWindow("sess-b", { id: "w-session-focused" });
+      const { coordinator, store } = createCoordinator([owner, focused]);
+      coordinator.completeHydration();
+
+      await expect(coordinator.userOpenCreatedSession(created)).resolves.toBe(owner.id);
+
+      expect(store.spies.retargetWindow).not.toHaveBeenCalled();
+      expect(store.getState().focusedId).toBe(owner.id);
+      expect(store.getState().windows[focused.id]?.instanceKey).toBe("sess-b");
     });
 
     it.each([
