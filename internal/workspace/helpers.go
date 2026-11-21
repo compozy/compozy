@@ -44,6 +44,13 @@ func wrapRootAccessError(operation, root string, err error) error {
 	return fmt.Errorf("workspace: %s workspace root %q: %w", operation, root, err)
 }
 
+// IsRootUnavailable reports that the workspace root or its identity cannot be accessed.
+func IsRootUnavailable(err error) bool {
+	return errors.Is(err, ErrWorkspaceRootMissing) ||
+		errors.Is(err, ErrWorkspaceRootPermissionDenied) ||
+		errors.Is(err, ErrWorkspaceIdentityPermissionDenied)
+}
+
 func normalizeAdditionalDirs(rootDir string, dirs []string) ([]string, error) {
 	if len(dirs) == 0 {
 		return nil, nil

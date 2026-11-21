@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/windowmanager"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (r *windowManagerRegistry) partitionWorkspaceIDs(ctx context.Context) ([]clientstate.WorkspaceID, error) {
@@ -55,7 +56,7 @@ func (r *windowManagerRegistry) reconcilePartitions(
 		if errors.Is(err, windowmanager.ErrWorkspaceNotFound) {
 			continue
 		}
-		if skipUnavailable && (errors.Is(err, windowmanager.ErrUnavailable) || isWorkspaceRootUnavailable(err)) {
+		if skipUnavailable && (errors.Is(err, windowmanager.ErrUnavailable) || workspacepkg.IsRootUnavailable(err)) {
 			r.logger.WarnContext(ctx, "window_manager.partition_reconciliation_skipped",
 				"workspace_id", partition.workspaceID, "profile_id", partition.profileID, "error", err)
 			continue
