@@ -260,6 +260,20 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 			t.Fatalf("ErrorPayloadForStatus(agent option refusal) = %#v, want agent-definition guidance", payload)
 		}
 	})
+	t.Run("Should point a refused policy mode at the permission policy", func(t *testing.T) {
+		t.Parallel()
+
+		err := fmt.Errorf("session: resume: %w: %w: apply session mode %q",
+			acp.ErrSessionConfigOptionRejected, acp.ErrSessionModeRejected, "auto")
+		if got := statusForSessionError(err); got != http.StatusUnprocessableEntity {
+			t.Fatalf("statusForSessionError(policy mode refusal) = %d, want %d",
+				got, http.StatusUnprocessableEntity)
+		}
+		payload := ErrorPayloadForStatus(http.StatusUnprocessableEntity, err, true)
+		if payload.Code != sessionConfigOptionRejectedCode || payload.Error != sessionModeGuidance {
+			t.Fatalf("ErrorPayloadForStatus(policy mode refusal) = %#v, want permission-policy guidance", payload)
+		}
+	})
 	t.Run("Should keep a classified failure over a joined config refusal", func(t *testing.T) {
 		t.Parallel()
 

@@ -40,6 +40,8 @@ const (
 		"Ask the operator to choose a runtime that enforces the intended policy; permissions were not widened."
 	agentOptionGuidance = "The current route rejected ACP options from this session's agent definition. " +
 		"Change the agent definition's ACP options for this route, then retry; reselecting the runtime cannot remove them."
+	sessionModeGuidance = "The current route rejected the session mode chosen for this session's permission policy. " +
+		"Choose a different permission policy or runtime for this session, then retry."
 	nativeToolPolicyUnsupportedCode = "native_tool_policy_unsupported"
 	sessionConfigOptionRejectedCode = "session_config_option_rejected"
 )
@@ -50,6 +52,9 @@ func runtimeRefusalGuidance(err error) (code, message string, ok bool) {
 		return nativeToolPolicyUnsupportedCode, nativeAgyPolicyGuidance, true
 	case errors.Is(err, session.ErrAgentACPOptionRejected):
 		return sessionConfigOptionRejectedCode, agentOptionGuidance, true
+	case errors.Is(err, acp.ErrSessionModeRejected):
+		// The policy chose the refused mode, so neither option repair applies.
+		return sessionConfigOptionRejectedCode, sessionModeGuidance, true
 	case errors.Is(err, acp.ErrSessionConfigOptionRejected):
 		return sessionConfigOptionRejectedCode, runtimeReselectionGuidance, true
 	default:
