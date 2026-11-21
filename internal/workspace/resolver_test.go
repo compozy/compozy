@@ -459,6 +459,30 @@ func TestWorkspaceHelperFunctions(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name       string
+		cause      error
+		wantDenied bool
+	}{
+		{"Should classify a wrapped root permission failure", os.ErrPermission, true},
+		{"Should preserve an unrelated root error", os.ErrInvalid, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := "project"
+			failure := &os.PathError{Op: "stat", Path: root, Err: tc.cause}
+			got := wrapRootAccessError("inspect", root, failure)
+			if !errors.Is(got, failure) || errors.Is(got, ErrWorkspaceRootPermissionDenied) != tc.wantDenied {
+				t.Fatalf(
+					"root error = %v, want original %v and permission classification %t",
+					got,
+					failure,
+					tc.wantDenied,
+				)
+			}
+		})
+	}
+
 	t.Run("Should snapshots and overrides", func(t *testing.T) {
 		t.Parallel()
 

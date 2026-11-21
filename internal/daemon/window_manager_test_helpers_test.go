@@ -241,7 +241,7 @@ func seedStaleBootWindows(t *testing.T, manager *windowmanager.Manager, partitio
 	for _, spec := range []windowmanager.WindowSpec{
 		{
 			ID: "terminal-stale", App: "terminal", InstanceKey: new(terminalID),
-			Route: windowmanager.RouteIntent{Pathname: "/terminal/" + terminalID},
+			Route: windowmanager.RouteIntent{Pathname: "/terminal/" + terminalID, Search: windowmanager.RouteSearch{}},
 		},
 		{
 			ID: "session-bound", App: "session", InstanceKey: new("deleted-session"),
