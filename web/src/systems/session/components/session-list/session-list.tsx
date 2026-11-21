@@ -14,9 +14,8 @@ import { emptyForScope } from "@/systems/profiles";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
 import { sessionListShelfNoun } from "../../lib/session-list-shelf";
 import { sessionListHasPinnedRows } from "../../lib/session-list-pinned";
-import { useSessionListPin } from "../../hooks/use-session-pin-actions";
 import { useSessionListLocalState } from "../../hooks/use-session-list-local-state";
-import { useSessionListRevealCurrent } from "../../hooks/use-session-list-reveal-current";
+import { useSessionListContent } from "../../hooks/use-session-list-reveal-current";
 import { SessionListCatalogNavigation, SessionListControls } from "./session-list-controls";
 import { SessionListPinned } from "./session-list-pinned";
 
@@ -97,8 +96,12 @@ export function SessionList({
   header,
 }: SessionListProps) {
   // The list owns its Pinned section, so it owns Pin to top and Unpin: a board card has neither.
-  const { contentRef, sessionActions, announcement } = useSessionListPin(hostActions, testIdPrefix);
-  useSessionListRevealCurrent(contentRef, currentSessionId, sessions);
+  const { contentRef, sessionActions, announcement } = useSessionListContent(
+    hostActions,
+    testIdPrefix,
+    currentSessionId,
+    sessions
+  );
   const { filter, setFilter, projectFolderDialog, setProjectFolderDialog } =
     useSessionListLocalState(view.selectionKey);
   const projectLayout = view.projectFolders?.layout;

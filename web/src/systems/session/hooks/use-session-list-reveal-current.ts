@@ -1,6 +1,8 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 import type { SessionPayload } from "../types";
+import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
+import { useSessionListPin } from "./use-session-pin-actions";
 
 /**
  * Scrolls the current session's row into view once each time the current session changes —
@@ -27,4 +29,16 @@ export function useSessionListRevealCurrent(
     revealedRef.current = id;
     row.scrollIntoView({ block: "nearest" });
   }, [contentRef, currentSessionId, sessions]);
+}
+
+/** The list's content root: its Pin to top actions and the current row's reveal share one ref. */
+export function useSessionListContent(
+  hostActions: SessionLifecycleActionHandlers,
+  testIdPrefix: string,
+  currentSessionId: string | undefined,
+  sessions: readonly SessionPayload[]
+) {
+  const content = useSessionListPin(hostActions, testIdPrefix);
+  useSessionListRevealCurrent(content.contentRef, currentSessionId, sessions);
+  return content;
 }
