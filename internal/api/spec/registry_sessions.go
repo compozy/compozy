@@ -26,6 +26,7 @@ func registrySessionOperations() []OperationSpec {
 		deleteSessionOperationSpec(),
 		stopSessionOperationSpec(),
 		archiveSessionOperationSpec(),
+		archiveStoppedSessionsOperationSpec(),
 		sessionDescendantsOperationSpec(),
 		unarchiveSessionOperationSpec(),
 		moveSessionToLaterOperationSpec(),

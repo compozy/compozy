@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// WindowManagerActor is a daemon API value.
+type WindowManagerActor struct {
+	Kind string `json:"kind,omitempty"`
+	ID   string `json:"id,omitempty"`
+}
+
+// WindowManagerClientContextInput is a daemon API value.
+type WindowManagerClientContextInput struct {
+	ScopeGlobal         bool                         `json:"scope_global"`
+	FocusedSessionState string                       `json:"focused_session_state,omitempty"`
+	WorkspaceTrusted    bool                         `json:"workspace_trusted"`
+	DestinationIntent   *RouteIntent                 `json:"destination_intent,omitzero"`
+	GlobalShortcuts     []GlobalShortcutRegistration `json:"global_shortcuts"`
+}
+
 // WindowManagerClientRegistration is a daemon API value.
 type WindowManagerClientRegistration struct {
 	WorkspaceID     WindowmanagerWorkspaceID        `json:"workspace_id"`
@@ -429,22 +444,4 @@ type WorktreeExitCommitScope struct {
 	UntrackedFiles     []string `json:"untracked_files"`
 	UntrackedTotal     int      `json:"untracked_total"`
 	UntrackedTruncated bool     `json:"untracked_truncated,omitzero"`
-}
-
-// WorktreeExitForgeCapabilities is a daemon API value.
-type WorktreeExitForgeCapabilities struct {
-	Provider           string   `json:"provider"`
-	RequestNoun        string   `json:"request_noun"`
-	OpenActionLabel    string   `json:"open_action_label"`
-	ViewActionLabel    string   `json:"view_action_label"`
-	SupportsDraft      bool     `json:"supports_draft"`
-	CompareURLTemplate string   `json:"compare_url_template,omitempty"`
-	CredentialSource   string   `json:"credential_source,omitempty"`
-	DefaultBranch      string   `json:"default_branch,omitempty"`
-	TemplatePaths      []string `json:"template_paths,omitempty"`
-}
-
-// WorktreeExitOperationResponse is a daemon API value.
-type WorktreeExitOperationResponse struct {
-	OperationID string `json:"op_id"`
 }

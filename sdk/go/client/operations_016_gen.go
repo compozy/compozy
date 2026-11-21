@@ -9,6 +9,45 @@ import (
 	"strings"
 )
 
+// GetSupportBundle Get support bundle operation status
+func (c *Client) GetSupportBundle(ctx context.Context, params GetSupportBundleParams) (*SupportBundleOperationResponse, error) {
+	path := "/api/support/bundles/{operation_id}"
+	path = strings.ReplaceAll(path, "{operation_id}", url.PathEscape(params.OperationID))
+	var out SupportBundleOperationResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetTaskParams carries the path, query, and header parameters.
+type GetTaskParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetTask Get one task with detail
+func (c *Client) GetTask(ctx context.Context, params GetTaskParams) (*TaskDetailResponse, error) {
+	path := "/api/tasks/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskDetailResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetTaskDashboardParams carries the path, query, and header parameters.
 type GetTaskDashboardParams struct {
 	AllWorkspaces *bool     `url:"all_workspaces"`
@@ -378,61 +417,5 @@ type GetToolsetParams struct {
 	Workspace   *string `url:"workspace"`
 	SessionID   *string `url:"session_id"`
 	AgentName   *string `url:"agent_name"`
-	Profile     *string `url:"profile"`
-}
-
-// GetToolset Inspect one named toolset expansion
-func (c *Client) GetToolset(ctx context.Context, params GetToolsetParams) (*ToolsetResponse, error) {
-	path := "/api/toolsets/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.SessionID != nil {
-		query.Set("session_id", *params.SessionID)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolsetResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetVaultSecretMetadataParams carries the path, query, and header parameters.
-type GetVaultSecretMetadataParams struct {
-	Ref string `url:"ref"`
-}
-
-// GetVaultSecretMetadata Read redacted vault secret metadata
-func (c *Client) GetVaultSecretMetadata(ctx context.Context, params GetVaultSecretMetadataParams) (*VaultSecretResponse, error) {
-	path := "/api/vault/secrets/metadata"
-	query := url.Values{}
-	query.Set("ref", params.Ref)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out VaultSecretResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetWindowManagerMigrationParams carries the path, query, and header parameters.
-type GetWindowManagerMigrationParams struct {
-	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
 }

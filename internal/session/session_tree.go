@@ -29,6 +29,9 @@ type ArchiveTreeOptions struct {
 	// RefuseMember fails the archive, before anything stops, when this session
 	// is in the tree at the moment the tree is fenced against adoption.
 	RefuseMember string
+	// StoppedOnly archives only a tree Archive stopped may take: nothing stops,
+	// and the store re-checks every Archive stopped rule inside the transaction.
+	StoppedOnly bool
 }
 
 // Tree is a session with its hierarchy descendants, shallowest first.
@@ -89,18 +92,29 @@ func (m *Manager) ArchiveWithChildren(
 	if err != nil {
 		return nil, err
 	}
-	var archived store.SessionTreeArchive
-	attempt := func() error {
-		archiveErr := m.archiveStoppingSideMembers(ctx, sessionID, func() error {
-			var err error
-			archived, err = m.archiveTreeWithResumeGuard(ctx, treeStore, workspaceID, sessionID, opts.RefuseMember)
-			return err
-		})
-		return archiveErr
+	archiveTree := treeStore.ArchiveSessionTree
+	if opts.StoppedOnly {
+		stoppedStore, ok := m.sessionCatalog.(store.SessionArchiveStoppedStore)
+		if !ok || stoppedStore == nil {
+			return nil, ErrSessionArchiveUnavailable
+		}
+		archiveTree = stoppedStore.ArchiveStoppedSessionTree
 	}
-	if opts.Stop {
+	var archived store.SessionTreeArchive
+	archiveOnce := func() error {
+		var err error
+		archived, err = m.archiveTreeWithResumeGuard(ctx, treeStore, archiveTree, workspaceID, sessionID, opts.RefuseMember)
+		return err
+	}
+	attempt := func() error {
+		return m.archiveStoppingSideMembers(ctx, sessionID, archiveOnce)
+	}
+	switch {
+	case opts.StoppedOnly:
+		err = archiveOnce()
+	case opts.Stop:
 		err = m.archiveStoppingLiveMembers(ctx, sessionID, attempt, nil)
-	} else {
+	default:
 		err = attempt()
 	}
 	if err != nil {
@@ -125,6 +139,7 @@ func (m *Manager) ArchiveWithChildren(
 func (m *Manager) archiveTreeWithResumeGuard(
 	ctx context.Context,
 	treeStore store.SessionTreeStore,
+	archiveTree func(context.Context, string, string) (store.SessionTreeArchive, error),
 	workspaceID string,
 	sessionID string,
 	refuseMember string,
@@ -166,7 +181,7 @@ func (m *Manager) archiveTreeWithResumeGuard(
 			}
 		}
 	}
-	archived, err := treeStore.ArchiveSessionTree(ctx, workspaceID, sessionID)
+	archived, err := archiveTree(ctx, workspaceID, sessionID)
 	if err != nil {
 		return store.SessionTreeArchive{}, archiveStoreError(sessionID, err)
 	}
