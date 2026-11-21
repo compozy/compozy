@@ -5,16 +5,18 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"fmt"
 	"io"
 	"maps"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 )
 
-// Match escaped backslashes first so literal escape text remains part of the JSON string.
-var jsonSeparators = strings.NewReplacer(`\\`, `\\`, `\u2028`, "\u2028", `\u2029`, "\u2029")
+// Match complete strings so removing an exponent sign cannot change a schema string.
+var sdkExponentPlus = regexp.MustCompile(`"([^"\\]|\\.)*"|e\+`)
 
 // CanonicalJSON returns the daemon's identity encoding, which escapes U+2028 and U+2029.
 func CanonicalJSON(raw json.RawMessage) ([]byte, error) {
@@ -46,15 +48,6 @@ func CanonicalJSON(raw json.RawMessage) ([]byte, error) {
 
 // SchemaDigest returns the daemon's published SHA-256 identity for a JSON Schema subtree.
 func SchemaDigest(raw json.RawMessage) (string, error) {
-	return schemaDigest(raw, false)
-}
-
-// SchemaDigestWithLiteralSeparators matches the TypeScript SDK's U+2028 and U+2029 encoding.
-func SchemaDigestWithLiteralSeparators(raw json.RawMessage) (string, error) {
-	return schemaDigest(raw, true)
-}
-
-func schemaDigest(raw json.RawMessage, literalSeparators bool) (string, error) {
 	if err := ValidateJSONObject("schema", raw, true); err != nil {
 		return "", err
 	}
@@ -62,11 +55,35 @@ func schemaDigest(raw json.RawMessage, literalSeparators bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if literalSeparators {
-		canonical = []byte(jsonSeparators.Replace(string(canonical)))
+	return hashCanonicalSchema(canonical), nil
+}
+
+// TypeScriptSeparatorSchemaDigest returns the SDK digest for schemas containing U+2028 or U+2029, or empty otherwise.
+func TypeScriptSeparatorSchemaDigest(raw json.RawMessage) (string, error) {
+	if err := ValidateJSONObject("schema", raw, true); err != nil {
+		return "", err
 	}
+	canonical := jsontext.Value(bytes.Clone(raw))
+	if err := canonical.Canonicalize(); err != nil {
+		return "", fmt.Errorf("canonicalize TypeScript schema: %w", err)
+	}
+	if !bytes.ContainsAny(canonical, "\u2028\u2029") {
+		return "", nil
+	}
+	if bytes.Contains(canonical, []byte("e+")) {
+		canonical = sdkExponentPlus.ReplaceAllFunc(canonical, func(token []byte) []byte {
+			if token[0] == 'e' {
+				return token[:1]
+			}
+			return token
+		})
+	}
+	return hashCanonicalSchema(canonical), nil
+}
+
+func hashCanonicalSchema(canonical []byte) string {
 	sum := sha256.Sum256(canonical)
-	return hex.EncodeToString(sum[:]), nil
+	return hex.EncodeToString(sum[:])
 }
 
 // DescriptorWithSchemaDigests returns a descriptor with canonical schema digests populated.

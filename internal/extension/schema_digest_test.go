@@ -44,16 +44,20 @@ func TestSchemaDigestFixturesMatchSDKsAndPublishedIdentities(t *testing.T) {
 				t.Fatalf("SchemaDigest(%s) = %q, want %q", fixture.Name, digest, want)
 			}
 
-			literalDigest, err := toolspkg.SchemaDigestWithLiteralSeparators(fixture.Schema)
+			literalDigest, err := toolspkg.TypeScriptSeparatorSchemaDigest(fixture.Schema)
 			if err != nil {
-				t.Fatalf("SchemaDigestWithLiteralSeparators(%s) error = %v", fixture.Name, err)
+				t.Fatalf("TypeScriptSeparatorSchemaDigest(%s) error = %v", fixture.Name, err)
 			}
-			if literalDigest != fixture.SHA256 {
+			var wantLiteral string
+			if fixture.IdentitySHA256 != "" {
+				wantLiteral = fixture.SHA256
+			}
+			if literalDigest != wantLiteral {
 				t.Fatalf(
-					"SchemaDigestWithLiteralSeparators(%s) = %q, want %q",
+					"TypeScriptSeparatorSchemaDigest(%s) = %q, want %q",
 					fixture.Name,
 					literalDigest,
-					fixture.SHA256,
+					wantLiteral,
 				)
 			}
 		})
