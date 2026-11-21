@@ -3059,15 +3059,20 @@ describe("SessionList folders and manual order", () => {
 
   // Invariant (#1923): the plain and folder bodies each mark their one scroll container, the
   // element whose scroll the session window rail resumes after a session switch remounts it.
-  it.each([
-    ["plain", () => renderList({}), () => `session-sidebar-session-${sessions[0]!.id}`],
-    ["folder", () => renderLayout(), () => "session-sidebar-session-f1"],
-  ])("Should mark the %s list's one scroll container for the rail", (_body, mount, rowId) => {
-    mount();
-    const scroll = document.querySelectorAll("[data-session-list-scroll]");
-    expect(scroll).toHaveLength(1);
-    expect(scroll[0]).toContainElement(screen.getByTestId(rowId()));
-  });
+  it.each(["plain", "folder"] as const)(
+    "Should mark the %s list's one scroll container for the rail",
+    body => {
+      if (body === "plain") renderList({});
+      else renderLayout();
+      const rowId =
+        body === "plain"
+          ? `session-sidebar-session-${sessions[0]!.id}`
+          : "session-sidebar-session-f1";
+      const scroll = document.querySelectorAll("[data-session-list-scroll]");
+      expect(scroll).toHaveLength(1);
+      expect(scroll[0]).toContainElement(screen.getByTestId(rowId));
+    }
+  );
 
   // BR-11: folders and manual order live in one (workspace, profile) pair; a list
   // spanning pairs has no layout, so filed sessions render as plain rows.
