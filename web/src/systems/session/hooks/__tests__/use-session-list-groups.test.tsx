@@ -21,6 +21,7 @@ vi.mock("../../adapters/session-catalog-api", () => ({
 }));
 
 import { WindowScopeContext } from "@/hooks/use-window-scope";
+import { createDeferred } from "@/test/event-recorder";
 import {
   profilesListOptions,
   resetProfileViews,
@@ -594,7 +595,7 @@ describe("useSessionListView", () => {
   });
   it("Should project a pending move across partitions and restore the old folder if it fails", async () => {
     sessionFolders = [{ id: "sfold-alpha", name: "Alpha", position: 0, session_count: 0 }];
-    const response = Promise.withResolvers<Response>();
+    const response = createDeferred<Response>();
     moveResponse = response.promise;
     const row = { id: "moving" };
     vi.mocked(fetchSessionCatalogPage).mockImplementation(

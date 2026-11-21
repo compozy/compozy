@@ -46,10 +46,11 @@ export function useSessionCatalog(
     ...sessionFacetsOptions(scoped),
     enabled: active && withFacets,
   });
+  const catalog = sessionCatalogPageView(page);
   return {
-    ...sessionCatalogPageView(page),
+    ...catalog,
     facets: facets.data?.facets,
-    total: facets.data?.facets.all ?? page.data?.pages[0]?.page.total,
+    total: facets.data?.facets.all ?? catalog.total,
     failed: page.isError || (withFacets && facets.isError),
     retry: () => {
       void page.refetch();
@@ -63,7 +64,7 @@ export function sessionCatalogPageView(
 ) {
   return {
     sessions: page.data?.pages[0]?.sessions ?? [],
-    total: page.data?.pages[0]?.page.total,
+    total: page.data?.pages[0]?.page.total ?? undefined,
     loading: page.isLoading,
     /** The page shown belongs to a previous search while the current one loads. */
     placeholder: page.isPlaceholderData,
