@@ -6,15 +6,16 @@ persona: Ada
 journey: J-15
 expected: With the official Antigravity CLI on PATH (command agy, argument acp), no [providers.agy] block, and operator-selected approve-all for execution, explicit local login reuses the CLI's shared sign-in and updates the daemon's sign-in verdict, a remote probe reports readiness, and the first prompt persists under agy with an advertised logical model and its own thought_level effort (Hydrogen xhigh on the verified fixture). Narrower host policies refuse native execution before launch without widening permissions. A standalone-only installation is missing_cli with no fallback, logged-out or missing-CLI states give actionable guidance, and nothing triggers automatic login. Under approve-all, provider-native file tools complete individually during the turn; gateway-routed edits in Ask before changes wait for operator approval.
 entry_points: compozy provider auth login agy; compozy provider list; compozy provider auth status agy --remote; compozy session new --agent agy-example
-qa_status: untested
+qa_status: pass
 bug_ids: "#1881"
 fix_status: fixed
-retest_status: pending
+retest_status: verified
 fix_commits:
-evidence: internal/daemon/agy_acp_entry_integration_test.go
-last_report: docs/qa/reports/2026-11-17-agy-native-acp-consented.md
+evidence: internal/daemon/agy_acp_entry_integration_test.go;docs/qa/reports/2026-11-21-agy-native-acp-open-qa.md
+last_report: docs/qa/reports/2026-11-21-agy-native-acp-open-qa.md
 overlaps: MS-web-provider-auth-gate; RT-provider-full-access-mode; ET-048
 ---
+
 
 story: As an operator with a Google Antigravity account I sign in once explicitly, verify readiness in the provider list and picker, and run ordinary sessions without re-consenting.
 
@@ -334,3 +335,12 @@ account-backed CLI/API walk completes Flash → Argon → Flash with `compozy__w
 each bind and the same ACP session ID. See `docs/qa/reports/2026-10-19-hosted-mcp-reconnect.md`.
 This closes only the reconnect slice, not every historical scenario leg. The original operator
 session is left untouched at the operator's request.
+
+## Follow-up open QA walk — 2026-11-21 (`feat/agy-native-acp` @ `3bf59ba3a`)
+
+Closed the remaining unwalked native CLI legs from `2026-11-17` against `agy` CLI 1.5.13 in an isolated lab (`clean: true`, strict audit `0` blockers / `0` warnings):
+
+- Step 6 (`Hydrogen -> Argon -> Hydrogen` hosted MCP switch): session `sess-6f0d7f96cc0d11a4` started on provider default `gemini-4-neon` (`high`, ACP `mode=auto`, ACP session `ed918dae-e878-482d-95c2-46e6142b2ca6`) and ran `compozy__workspace_info` after each switch (`Hydrogen` `xhigh` -> `Argon` `high` -> `Hydrogen` `xhigh`) under the same logical and ACP session IDs with zero `hosted_mcp_nonce_invalid`.
+- `#1889` native file tools: session `sess-31d991eea6e2afc8` completed 6 individual mid-turn `tool_call`/`tool_result` pairs (`read`/`edit` `alpha.txt` & `beta.txt`, `create` `gamma.txt`, terminal `printf QA_TERMINAL`) with `client_calls_count: 0`.
+- Narrow policies & refusals: built-in `agy` and flag-bearing `agy --disable-telemetry acp` refused `approve-reads` pre-launch with `native_tool_policy_unsupported`; `Hydrogen --reasoning-effort max` exited 71 with `reasoning_effort_unsupported` preserving `xhigh`.
+- Steps 7–8 & `#1883`: removing `agy` with `agy_acp_server.par` on `PATH` reported `missing_cli` / `provider_cli_missing` on both `--local` and `--remote` (`par_never_executed=true`); clean `HOME` reported `needs_login` / `provider_not_authenticated`, refused session start, and kept both dummy `.gemini/antigravity` & `.antigravity` sentinels byte-identical; `compozy provider auth login agy --timeout 30s` reused operator sign-in with immediate `authenticated` + `last_probe_at`. (Clean-HOME interactive consent remains covered by `2026-11-17` Round 2; gateway-routed ACP client FS edit approval was not separately re-walked.)

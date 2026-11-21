@@ -9,12 +9,13 @@ entry_points: config.toml permissions; compozy agent info; compozy session promp
 qa_status: blocked-verify
 bug_ids:
 fix_status: fixed
-retest_status: pending
+retest_status: partial
 fix_commits: issue #1473
-evidence: internal/config/provider_test.go;internal/config/provider_agy_test.go;internal/acp/types_test.go;internal/session/manager_start_test.go;internal/session/manager_transition_test.go;internal/daemon/loop_runtime_adapters_test.go;docs/qa/reports/2026-11-10-issue-1473-full-access.md
-last_report: docs/qa/reports/2026-11-17-agy-native-acp-consented.md
+evidence: internal/config/provider_test.go;internal/config/provider_agy_test.go;internal/acp/types_test.go;internal/session/manager_start_test.go;internal/session/manager_transition_test.go;internal/daemon/loop_runtime_adapters_test.go;docs/qa/reports/2026-11-10-issue-1473-full-access.md;docs/qa/reports/2026-11-21-agy-native-acp-open-qa.md
+last_report: docs/qa/reports/2026-11-21-agy-native-acp-open-qa.md
 overlaps: RT-cursor-agent-mode
 ---
+
 
 In an owned disposable workspace, set `[permissions] mode = "approve-all"` with no other permission
 key. Inspect fresh Codex and Claude Code agents without authored ACP mode options; their effective
@@ -103,3 +104,8 @@ Focused verification 2026-11-11: action/precedence regressions and scoped Loop l
 `go test -tags=integration ./internal/daemon -run '^TestLoopRuntimeSelectionIntegration$' -count=1`
 passes with an isolated daemon, SQLite and subprocess ACP peer, including restart/read/replay.
 This is automated integration evidence, not a new live-provider or browser walk.
+
+## QA 2026-11-21 (`agy` `auto` precedence & `#1618` retired key upgrade PASS)
+
+- Under `approve-all`, `agy` selected `mode=auto` (never `yolo`); narrower agent `agy-mode-narrow` (`--acp-option mode=accept-edits`, `sess-6d6879957cfbf2a4`) took precedence; explicit `auto`/`yolo` under `approve-reads` was refused.
+- `#1618`: global and workspace `permissions.provider_full_access` (`false` with comments and `true`) stripped only the retired line after creating exact `.retired-keys.bak` backups, emitted one `WARN config.retired_keys_removed` per file, and remained idempotent on restart. Pre-registered workspace `.compozy` (`0555`) + `config.toml` (`0444`) started safely unchanged (`chmod 0555` on `$COMPOZY_HOME` itself fails daemon startup at `mkdir gateway`).

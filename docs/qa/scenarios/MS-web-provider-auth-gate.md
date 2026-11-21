@@ -9,12 +9,13 @@ entry_points: web Settings window → Providers → New provider / provider card
 qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status:
+retest_status: partial
 fix_commits:
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-04;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-11-17-agy-native-acp-consented.md
+evidence: .compozy/tasks/modals-redesign/evidence/visual/task_04/VC-03;.compozy/tasks/modals-redesign/evidence/visual/task_04/VC-04;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-artifacts/qa;docs/qa/evidence/2026-11-21-agy-native-acp-open-qa/live-agy-settings-card.png;docs/qa/evidence/2026-11-21-agy-native-acp-open-qa/live-agy-settings-editor.png;docs/qa/evidence/2026-11-21-agy-native-acp-open-qa/live-agy-settings-375px.png
+last_report: docs/qa/reports/2026-11-21-agy-native-acp-open-qa.md
 overlaps: MS-provider-detail-modal; MS-web-settings-providers-redesign; MS-web-entity-modal-shell
 ---
+
 
 story: As a person running agent work I decide who owns provider authentication, and Compozy asks me for a key only when it is the one that has to hold it.
 
@@ -165,3 +166,8 @@ A plain missing binary yields `missing_cli` and does not exercise this branch. A
 QA 2026-11-04 (#1267, build df98dd0b6): PASS in an isolated lab with a synthetic native CLI —
 steps 1–3 verified on `compozy provider list --json`, `GET /api/providers`, and
 `GET /api/settings/providers`. Report: `docs/qa/reports/2026-11-04-provider-auth-verdict-cache.md`.
+
+## QA 2026-11-21 (AGY Settings & Playwright E2E PASS)
+
+- Playwright E2E `web/e2e/__tests__/settings.spec.ts -g "Antigravity"` (4.3s) and unit suites (`provider-detail-dialog.test.tsx` 20 tests, `use-provider-detail-body.test.tsx` 4 tests) passed on rebased `3bf59ba3a`.
+- Live Chromium Settings walkthrough verified `Google Antigravity` (`Ready · 9 models`), keyboard `Enter` inspector opening, `oauth-personal` + `agy Available` with zero credential slots/inputs, and `375px` viewport horizontal overflow `<= 1px`.

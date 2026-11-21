@@ -188,10 +188,11 @@ func TestProviderAGYACPProbe(t *testing.T) {
 		// The production-built request must pass the real ACP base
 		// validation that rejected D-001 before launch.
 		if err := (acp.StartOpts{
-			AgentName: seen.AgentName,
-			Command:   seen.Command,
-			Cwd:       seen.Cwd,
-			Env:       seen.Env,
+			AgentName:  seen.AgentName,
+			Command:    seen.Command,
+			Cwd:        seen.Cwd,
+			Env:        seen.Env,
+			Inspection: true,
 		}).Validate(); err != nil {
 			t.Fatalf("production probe request Validate() error = %v", err)
 		}
