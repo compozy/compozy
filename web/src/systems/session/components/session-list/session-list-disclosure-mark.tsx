@@ -5,13 +5,12 @@ import { Icon, StateGlyph, cn } from "@compozy/ui";
 
 import { workspaceWorkingLabel } from "@/systems/workspace";
 
-const SWAP = "transition-opacity duration-fast motion-reduce:transition-none";
-
 /**
  * A group or folder header's leading 12 px slot. It holds the fold chevron, which
  * a collapsed header with work running yields at rest to its running signal: the
- * sidebar's one "work is running" column (#1926). Hover or keyboard focus on the
- * toggle, which carries the `group/disclosure` class, brings the chevron back, as a session row's badge gives way to its checkbox.
+ * sidebar's one "work is running" column (#1926). Hovering the toggle, or focusing
+ * it from the keyboard (it carries the `group/disclosure` class), shows the chevron
+ * instead; only one of the two is ever displayed.
  */
 export function SessionListDisclosureMark({
   open,
@@ -21,36 +20,25 @@ export function SessionListDisclosureMark({
   /** Drawn only while the header is collapsed; an open header shows its rows instead. */
   signal?: ReactNode;
 }) {
-  const resting = open ? null : (signal ?? null);
+  const chevron = (
+    <Icon
+      as={ChevronRight}
+      size="sm"
+      aria-hidden="true"
+      className={cn("text-faint transition-transform", open && "rotate-90")}
+    />
+  );
+  if (open || signal === undefined || signal === null) {
+    return <span className="grid size-3 shrink-0 place-items-center">{chevron}</span>;
+  }
   return (
-    <span className="grid size-3 shrink-0 place-items-center *:col-start-1 *:row-start-1">
-      <span
-        className={cn(
-          "grid place-items-center",
-          resting !== null &&
-            cn(
-              SWAP,
-              "opacity-0 group-hover/disclosure:opacity-100 group-focus-visible/disclosure:opacity-100"
-            )
-        )}
-      >
-        <Icon
-          as={ChevronRight}
-          size="sm"
-          aria-hidden="true"
-          className={cn("text-faint transition-transform", open && "rotate-90")}
-        />
+    <span className="grid size-3 shrink-0 place-items-center">
+      <span className="hidden group-hover/disclosure:grid group-focus-visible/disclosure:grid">
+        {chevron}
       </span>
-      {resting !== null ? (
-        <span
-          className={cn(
-            SWAP,
-            "grid place-items-center group-hover/disclosure:opacity-0 group-focus-visible/disclosure:opacity-0"
-          )}
-        >
-          {resting}
-        </span>
-      ) : null}
+      <span className="grid group-hover/disclosure:hidden group-focus-visible/disclosure:hidden">
+        {signal}
+      </span>
     </span>
   );
 }

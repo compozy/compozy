@@ -24,16 +24,17 @@ export interface SessionBadgeMarkProps extends Omit<React.ComponentProps<"span">
 }
 
 /**
- * Resting states a running descendant lifts to `running`. Escalations (needs you,
- * failed, stuck) keep their tone, and the parked glyphs (waiting on sessions,
- * monitoring) already say the session waits on work elsewhere.
+ * Escalations a running descendant never covers: needs you, failed and stuck keep
+ * their tone. Every other own state (done, idle, stopped, waiting on sessions,
+ * monitoring) lifts to `running`, so running work below always shows here; the
+ * state word on line 2 still names the row's own state.
  */
-const RESTING_STATES: ReadonlySet<StateGlyphState> = new Set(["done", "idle", "stopped"]);
+const ESCALATION_STATES: ReadonlySet<StateGlyphState> = new Set(["attention", "failed"]);
 
 /**
  * Row-scale mark: the state glyph + an accessible state token. The sidebar's one
- * "work is running" column, so a resting session with running descendants draws
- * the running glyph while its badge token stays its own.
+ * "work is running" column, so a session with running descendants draws the running
+ * glyph unless its own state escalates; its badge token stays its own.
  */
 export function SessionBadgeMark({
   badge,
@@ -43,7 +44,8 @@ export function SessionBadgeMark({
   ...props
 }: SessionBadgeMarkProps) {
   const signal = sessionBadgeSignal(badge, waitingOn);
-  const lifted = descendantsRunning && RESTING_STATES.has(signal.state);
+  const lifted =
+    descendantsRunning && signal.state !== "running" && !ESCALATION_STATES.has(signal.state);
   return (
     <span
       role="img"

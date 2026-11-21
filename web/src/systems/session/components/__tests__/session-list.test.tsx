@@ -1805,7 +1805,7 @@ describe("SessionList subagents", () => {
     expect(clean).not.toHaveAttribute("data-state");
   });
 
-  it("UT-W14: a parent the daemon reports waiting on sessions reads delegated, a running one does not", () => {
+  it("UT-W14: a parent the daemon reports waiting on sessions with live subagents leads with running", () => {
     renderList({
       sessions: [
         row("waiting-parent", { badge: "waiting", waiting_on: "sessions", ...summary(2, 2) }),
@@ -1814,9 +1814,12 @@ describe("SessionList subagents", () => {
     });
 
     const waiting = screen.getByTestId("session-sidebar-session-waiting-parent");
-    const mark = within(waiting).getByRole("img", { name: "Session badge: waiting" });
+    // Its live subagents lift the waiting mark to running (#1926); the word still names its state.
+    const mark = within(waiting).getByRole("img", {
+      name: "Session badge: waiting, working below",
+    });
     expect(mark).toHaveAttribute("data-waiting-on", "sessions");
-    expect(mark.querySelector("[data-state]")).toHaveAttribute("data-state", "delegated");
+    expect(mark.querySelector("[data-state]")).toHaveAttribute("data-state", "running");
     expect(waiting.closest("li") ?? waiting.parentElement!).toHaveTextContent(
       "Waiting on sessions"
     );
