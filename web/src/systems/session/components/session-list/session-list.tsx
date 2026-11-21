@@ -99,8 +99,7 @@ export function SessionList({
   const { contentRef, sessionActions, announcement } = useSessionListContent(
     hostActions,
     testIdPrefix,
-    currentSessionId,
-    sessions
+    currentSessionId
   );
   const { filter, setFilter, projectFolderDialog, setProjectFolderDialog } =
     useSessionListLocalState(view.selectionKey);

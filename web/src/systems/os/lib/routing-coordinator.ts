@@ -295,10 +295,7 @@ export class RoutingCoordinator {
     return landed;
   }
 
-  /**
-   * Launchers that open a just-created session directly, and notification jumps (#1927): prefer an
-   * existing Session window.
-   */
+  /** Just-created sessions and notification jumps (#1927): prefer an existing Session window. */
   async userOpenCreatedSession(
     target: OsOpenTarget & { instanceKey: string; route: OsWindowRoute }
   ): Promise<string | null> {
@@ -314,9 +311,12 @@ export class RoutingCoordinator {
     const intentToken = ++this.nextUserIntentToken;
     const keyboardSince = this.keyboardFocus.begin();
     const isCurrent = () => intentToken === this.nextUserIntentToken;
+    // Reports defer to the landing as to an open, so none replaces the entry being left (#1655).
+    const start = this.activations.begin(this.manager.getState(), host.id, intentToken);
     const outcome = landCreatedSession(this.manager, host, target, isCurrent);
-    if (await outcome.completion) {
-      if (isCurrent()) {
+    const landed = await outcome.completion.finally(() => this.activations.finish(start));
+    if (landed) {
+      if (isCurrent() && this.activations.isLive(start)) {
         this.pushRoute(target.route);
         this.handOffKeyboard(host.id, keyboardSince);
       }

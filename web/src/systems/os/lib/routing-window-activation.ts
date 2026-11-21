@@ -64,9 +64,17 @@ export class WindowActivations {
     return windowOpenEntry(start, state, currentRoute, newestIntent, outcome);
   }
 
-  /** Counts one activation or open out; whether it still belongs to the current workspace cycle. */
-  private finish(start: WindowActivationStart): boolean {
+  /**
+   * Counts one activation or open out; whether it still belongs to the current workspace cycle.
+   * A caller that writes its own entry (a Session-window reuse landing) ends it here directly.
+   */
+  finish(start: WindowActivationStart): boolean {
     this.inFlight -= 1;
+    return this.isLive(start);
+  }
+
+  /** Whether the activation began in the current workspace cycle (no switch abandoned it). */
+  isLive(start: WindowActivationStart): boolean {
     return start.generation === this.generation;
   }
 

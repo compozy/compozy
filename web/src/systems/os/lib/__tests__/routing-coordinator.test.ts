@@ -1537,6 +1537,26 @@ describe("RoutingCoordinator", () => {
       expect(withoutEmpty.store.getState().windows[recent.id]?.instanceKey).toBe("sess-b");
     });
 
+    it("Should not replace the entry being left while the landing settles [#1655]", async () => {
+      const focused = sessionWindow("sess-a");
+      const { coordinator, router, store, history } = createCoordinator([focused]);
+      coordinator.completeHydration();
+      coordinator.reportRouteMatch(focused.route, history.current());
+      vi.mocked(router.replace).mockClear();
+      store.deferLifecycle();
+
+      const landing = coordinator.userOpenCreatedSession(created);
+      // The stream shows the retargeted window before the command's answer.
+      store.setAuthoritativeFocus(focused.id, created.route);
+      coordinator.reportAuthoritativeState();
+      expect(router.replace).not.toHaveBeenCalled();
+      store.settleLifecycle(true);
+      await expect(landing).resolves.toBe(focused.id);
+
+      expect(router.replace).not.toHaveBeenCalled();
+      expect(router.navigate).toHaveBeenCalledExactlyOnceWith(created.route);
+    });
+
     it("Should focus the session's own window instead of retargeting the focused one", async () => {
       const owner = sessionWindow("sess-new", { id: "w-session-owner" });
       const focused = sessionWindow("sess-b", { id: "w-session-focused" });
