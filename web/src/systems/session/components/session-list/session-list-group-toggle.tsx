@@ -1,12 +1,8 @@
 import type { ReactNode } from "react";
 
-import { cn } from "@compozy/ui";
 
 import { onDisclosureArrowKey } from "../../lib/session-list-stops";
-import {
-  SESSION_LIST_DISCLOSURE_GROUP,
-  SessionListDisclosureMark,
-} from "./session-list-disclosure-mark";
+import { SessionListDisclosureMark } from "./session-list-disclosure-mark";
 
 export interface SessionListGroupToggleProps {
   collapsed: boolean;
@@ -37,10 +33,7 @@ export function SessionListGroupToggle({
       aria-expanded={!collapsed}
       data-testid={testId}
       data-sidebar-stop="group"
-      className={cn(
-        SESSION_LIST_DISCLOSURE_GROUP,
-        "flex min-h-7 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none"
-      )}
+      className="group/disclosure flex min-h-7 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none"
       onClick={onToggle}
       onKeyDown={event => onDisclosureArrowKey(event, !collapsed, onToggle)}
     >

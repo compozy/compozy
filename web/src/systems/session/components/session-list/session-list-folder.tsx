@@ -17,7 +17,6 @@ import { openContextMenuFromKeyboard } from "@/systems/os/lib/context-menu-keybo
 import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
 import { onDisclosureArrowKey } from "../../lib/session-list-stops";
 import {
-  SESSION_LIST_DISCLOSURE_GROUP,
   SessionListDisclosureMark,
   SessionListRunningGlyph,
 } from "./session-list-disclosure-mark";
@@ -101,10 +100,7 @@ export function SessionListFolder({
         data-sidebar-stop={holds === "projects" ? "project-folder" : "folder"}
         onClick={onToggle}
         onKeyDown={event => onDisclosureArrowKey(event, expanded, onToggle)}
-        className={cn(
-          SESSION_LIST_DISCLOSURE_GROUP,
-          "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left text-small-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
-        )}
+        className="group/disclosure flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left text-small-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
       >
         <SessionListDisclosureMark
           open={expanded}

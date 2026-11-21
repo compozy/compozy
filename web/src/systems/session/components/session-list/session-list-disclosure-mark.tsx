@@ -5,16 +5,13 @@ import { Icon, StateGlyph, cn } from "@compozy/ui";
 
 import { workspaceWorkingLabel } from "@/systems/workspace";
 
-/** The hover/focus group a header's toggle names so its leading slot can swap. */
-export const SESSION_LIST_DISCLOSURE_GROUP = "group/disclosure";
-
 const SWAP = "transition-opacity duration-fast motion-reduce:transition-none";
 
 /**
  * A group or folder header's leading 12 px slot. It holds the fold chevron, which
  * a collapsed header with work running yields at rest to its running signal: the
  * sidebar's one "work is running" column (#1926). Hover or keyboard focus on the
- * toggle brings the chevron back, as a session row's badge gives way to its checkbox.
+ * toggle, which carries the `group/disclosure` class, brings the chevron back, as a session row's badge gives way to its checkbox.
  */
 export function SessionListDisclosureMark({
   open,

@@ -3314,7 +3314,7 @@ describe("SessionList folders and manual order", () => {
     const rows = layoutRows.map(session => ({
       ...session,
       state: "active" as const,
-      badge: session.id === "f1" ? "running" : "done",
+      badge: session.id === "f1" ? ("running" as const) : ("done" as const),
     }));
     renderList({ sessions: rows, view: { ...view, sort: "manual", layout: fakeLayout() } });
     const alpha = screen.getByTestId("session-sidebar-folder-fa-toggle");
