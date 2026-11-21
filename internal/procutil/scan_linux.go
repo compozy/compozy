@@ -5,46 +5,53 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
 func scanProcesses(ctx context.Context, environment bool) ([]ScannedProcess, bool, error) {
-	entries, err := os.ReadDir("/proc")
-	if err != nil {
-		return nil, true, err
-	}
 	clock, err := linuxProcessClock()
 	if err != nil {
 		return nil, true, err
 	}
+	rows, err := readLinuxProcesses(ctx, os.DirFS("/proc"), clock, environment)
+	return rows, true, err
+}
+
+func readLinuxProcesses(ctx context.Context, proc fs.FS, clock linuxClock, environment bool) ([]ScannedProcess, error) {
+	entries, err := fs.ReadDir(proc, ".")
+	if err != nil {
+		return nil, err
+	}
 	rows := make([]ScannedProcess, 0, len(entries))
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
-			return nil, true, err
+			return nil, err
 		}
 		pid, err := strconv.Atoi(entry.Name())
 		if err != nil {
 			continue
 		}
-		p, err := linuxProcess(pid, clock)
+		p, err := readLinuxProcess(proc, pid, clock)
 		if err != nil {
 			continue
 		}
 		if environment {
-			if env, e := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid)); e == nil {
+			if env, e := fs.ReadFile(proc, entry.Name()+"/environ"); e == nil {
 				processMarkers(&p, env)
 			}
 		}
 
 		rows = append(rows, p)
 	}
-	return rows, true, nil
+	return rows, nil
 }
 
 type linuxClock struct {
@@ -132,19 +139,23 @@ func readLinuxProcessClock() (int64, int64, error) {
 }
 
 func linuxProcess(pid int, clock linuxClock) (ScannedProcess, error) {
+	return readLinuxProcess(os.DirFS("/proc"), pid, clock)
+}
+
+func readLinuxProcess(proc fs.FS, pid int, clock linuxClock) (ScannedProcess, error) {
 	boot, ticks := clock.boot, clock.ticks
-	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
-	if errors.Is(err, os.ErrNotExist) {
+	data, err := fs.ReadFile(proc, strconv.Itoa(pid)+"/stat")
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
 		return ScannedProcess{}, ErrProcessIdentityGone
 	}
 	if err != nil {
 		return ScannedProcess{}, err
 	}
-	end := strings.LastIndexByte(string(data), ')')
-	if end < 0 {
+	_, rest, ok := strings.CutLast(string(data), ")")
+	if !ok {
 		return ScannedProcess{}, errors.New("invalid process stat")
 	}
-	fields := strings.Fields(string(data[end+1:]))
+	fields := strings.Fields(rest)
 	if len(fields) < 20 {
 		return ScannedProcess{}, errors.New("incomplete process stat")
 	}

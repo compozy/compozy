@@ -82,6 +82,7 @@ func TestGroupContinuity(t *testing.T) {
 				t.Context(),
 				procutil.ProcessSnapshot{Supported: true, ScannedAt: start.Add(time.Hour), Processes: tc.rows},
 				[]Owner{owner},
+				nil,
 				true,
 			)
 			if err != nil {
@@ -121,13 +122,13 @@ func TestAgentStartupProtection(t *testing.T) {
 				ScannedAt: start,
 				Processes: []procutil.ScannedProcess{process},
 			}
-			_, rows, err := service.reconcile(t.Context(), snapshot, []Owner{owner}, true)
+			_, rows, err := service.reconcile(t.Context(), snapshot, []Owner{owner}, nil, true)
 			if err != nil || len(rows) != 0 {
 				t.Fatalf("starting agent exposed: rows=%+v err=%v", rows, err)
 			}
 			published := owner
 			published.Starting, published.LeaderPID, published.LeaderStartedAt = false, process.PID, start
-			_, rows, err = service.reconcile(t.Context(), snapshot, []Owner{published}, true)
+			_, rows, err = service.reconcile(t.Context(), snapshot, []Owner{published}, nil, true)
 			if err != nil || len(rows) != 0 {
 				t.Fatalf("published agent exposed: rows=%+v err=%v", rows, err)
 			}
@@ -155,7 +156,7 @@ func TestAgentStartupProtection(t *testing.T) {
 			service := &Service{source: attributionSource{}, observations: make(map[Identity]Observation)}
 			_, rows, err := service.reconcile(t.Context(), procutil.ProcessSnapshot{
 				Supported: true, ScannedAt: start.Add(time.Hour), Processes: []procutil.ScannedProcess{leader, child},
-			}, []Owner{published}, true)
+			}, []Owner{published}, nil, true)
 			if err != nil || len(rows) != tc.want {
 				t.Fatalf("rows=%+v error=%v", rows, err)
 			}
@@ -315,7 +316,7 @@ func TestRetainedKernelIdentity(t *testing.T) {
 			service := &Service{source: attributionSource{}, observations: map[Identity]Observation{old.Identity: old}}
 			next, rows, err := service.reconcile(t.Context(), procutil.ProcessSnapshot{
 				Supported: true, ScannedAt: start.Add(2 * time.Hour), Processes: []procutil.ScannedProcess{current},
-			}, nil, true)
+			}, nil, nil, true)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -331,6 +332,68 @@ func TestRetainedKernelIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: a busy refresh retains an independently parented identity until the process exits.
+// Owning layer and canonical suite: sessionprocess observed-process attribution, using a real process.
+func TestBusyRefreshRetainsObservedProcess(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep a detached observation and remove it after exit", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("scoped process scans require Linux")
+		}
+		child := exec.CommandContext(t.Context(), "/bin/sh", "-c", "read release")
+		procutil.ConfigureCommandSession(child)
+		input, err := child.StdinPipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := child.Start(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if child.ProcessState != nil {
+				return
+			}
+			if err := child.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				t.Errorf("kill child: %v", err)
+			}
+			if err := child.Wait(); err != nil {
+				if _, expected := errors.AsType[*exec.ExitError](err); !expected {
+					t.Errorf("reap child: %v", err)
+				}
+			}
+		})
+		p, err := procutil.InspectProcess(child.Process.Pid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		owner := Owner{SessionID: "sess-retained", ProfileID: "default", Live: true, ToolBusy: true}
+		id := identity(p)
+		service := &Service{
+			source: attributionSource{}, store: discardObservations{}, lastFull: time.Now(),
+			observations: map[Identity]Observation{
+				id: {Identity: id, KernelToken: p.KernelToken, Owner: owner, PGID: p.PGID, Attribution: "lineage"},
+			},
+		}
+		owners := []Owner{owner}
+		snap, err := service.refresh(t.Context(), owners, false)
+		if err != nil || len(snap.Processes) != 1 || identity(snap.Processes[0].ScannedProcess) != id ||
+			snap.Processes[0].Kind != kindBackground {
+			t.Fatalf("detached process not retained: snapshot=%+v err=%v", snap, err)
+		}
+		if _, err := io.WriteString(input, "release\n"); err != nil {
+			t.Fatal(err)
+		}
+		if err := child.Wait(); err != nil {
+			t.Fatal(err)
+		}
+		snap, err = service.refresh(t.Context(), owners, false)
+		if err != nil || len(snap.Processes) != 0 || len(service.observations) != 0 {
+			t.Fatalf("exited process retained: snapshot=%+v observations=%+v err=%v", snap, service.observations, err)
+		}
+	})
 }
 
 // Invariant: a configured long stop gets its own wait budget and cleanup starts with a fresh bounded context.

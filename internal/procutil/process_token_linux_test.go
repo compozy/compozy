@@ -2,10 +2,14 @@ package procutil
 
 import (
 	"errors"
+	"fmt"
+	"io/fs"
 	"os"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
+	"testing/fstest"
 )
 
 func TestProcessToken(t *testing.T) {
@@ -44,6 +48,81 @@ func TestProcessToken(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariants: the Linux proc reader discovers descendants without reading unrelated processes,
+// and a child disappearing during enumeration cannot hide a surviving sibling.
+// Owning layer and canonical suite: procutil Linux process inspection at the filesystem boundary.
+func TestLinuxProcessTree(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should read grandchildren across threads and keep watched PIDs without scanning the host",
+		func(t *testing.T) {
+			t.Parallel()
+			proc := scopedProcFixture("101")
+			rows, err := readLinuxProcessTree(
+				t.Context(),
+				proc,
+				linuxClock{boot: 100, ticks: 100},
+				[]int{100},
+				[]int{200},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := scannedPIDs(rows); !slices.Equal(got, []int{100, 101, 102, 200}) {
+				t.Fatalf("PIDs = %v, want leader, child, grandchild and detached observation", got)
+			}
+			if slices.Contains(proc.reads, "900/stat") {
+				t.Fatalf("read unrelated process: %v", proc.reads)
+			}
+		},
+	)
+	t.Run("Should find a surviving descendant when a listed sibling exits before its stat read", func(t *testing.T) {
+		t.Parallel()
+		proc := scopedProcFixture("103") // 103 disappeared and 101 was omitted from the children file.
+		rows, err := readLinuxProcessTree(t.Context(), proc, linuxClock{boot: 100, ticks: 100}, []int{100}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := scannedPIDs(rows)
+		if !slices.Contains(got, 102) || slices.Contains(got, 103) {
+			t.Fatalf("PIDs = %v, want the surviving grandchild and no vanished process", got)
+		}
+	})
+}
+
+type recordedProcFS struct {
+	fs.FS
+	reads []string
+}
+
+func (p *recordedProcFS) ReadFile(name string) ([]byte, error) {
+	p.reads = append(p.reads, name)
+	return fs.ReadFile(p.FS, name)
+}
+
+func scopedProcFixture(children string) *recordedProcFS {
+	files := fstest.MapFS{
+		"100/task/100/children": {},
+		"100/task/110/children": {Data: []byte(children)},
+		"101/task/101/children": {Data: []byte("102")},
+		"102/task/102/children": {},
+	}
+	for pid, parent := range map[int]int{100: 1, 101: 100, 102: 101, 200: 1, 900: 1} {
+		stat := fmt.Sprintf("%d (task) S %d 100 %s100", pid, parent, strings.Repeat("0 ", 16))
+		files[fmt.Sprintf("%d/stat", pid)] = &fstest.MapFile{Data: []byte(stat)}
+	}
+	return &recordedProcFS{FS: files}
+}
+
+func scannedPIDs(rows []ScannedProcess) []int {
+	pids := make([]int, 0, len(rows))
+	for _, row := range rows {
+		pids = append(pids, row.PID)
+	}
+	slices.Sort(pids)
+	return pids
 }
 
 // Invariant: scanner and durable token reads identify the same live kernel process.
