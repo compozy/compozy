@@ -59,11 +59,8 @@ vi.mock("@/hooks/routes/use-session-page-controls", () => ({
   }),
 }));
 
-vi.mock("../use-session-window-rail", () => ({
-  useSessionWindowRail: () => ({
-    sidebar: { open: false, toggle: vi.fn() },
-    reportTransport: vi.fn(),
-  }),
+vi.mock("../use-session-window-sidebar", () => ({
+  useSessionWindowSidebar: () => ({ open: false, toggle: vi.fn() }),
 }));
 
 vi.mock("@/systems/session", () => ({
@@ -158,6 +155,7 @@ describe("useSessionWindowController", () => {
 
   it("Should admit context reads while live or open and never read vault", () => {
     const input = {
+      windowId: "window:sess-1",
       sessionId: "sess-1",
       workspaceId: "ws-1",
       session,
@@ -194,6 +192,7 @@ describe("useSessionWindowController", () => {
       mocks.hasLiveGoal = hasLiveGoal;
       renderHook(() =>
         useSessionWindowController({
+          windowId: "window:sess-1",
           sessionId: "sess-1",
           workspaceId: "ws-1",
           session,
@@ -216,6 +215,7 @@ describe("useSessionWindowController", () => {
 
     renderHook(() =>
       useSessionWindowController({
+        windowId: "window:sess-1",
         sessionId: "sess-1",
         workspaceId: "ws-1",
         session,
@@ -238,6 +238,7 @@ describe("useSessionWindowController", () => {
   it("Should derive a stable runtime snapshot without re-rendering indefinitely", () => {
     const { result } = renderHook(() =>
       useSessionWindowController({
+        windowId: "window:sess-1",
         sessionId: "sess-1",
         workspaceId: "ws-1",
         session,

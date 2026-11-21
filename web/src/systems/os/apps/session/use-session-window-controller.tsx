@@ -2,10 +2,9 @@ import { useSessionClearDialog } from "@/hooks/routes/use-session-clear-dialog";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
 import { shallowEqual } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
-import { useEffect } from "react";
 
 import { useSessionWindowPullRequest } from "./use-session-window-pull-request";
-import { useSessionWindowRail } from "./use-session-window-rail";
+import { useSessionWindowSidebar } from "./use-session-window-sidebar";
 import {
   getSessionPromptRuntimeSnapshot,
   type InspectorUsage,
@@ -51,6 +50,7 @@ function toInspectorUsage(
 
 /** Coordinates session window reads and projects query state into inspector view models. */
 export function useSessionWindowController(input: {
+  windowId: string;
   sessionId: string;
   workspaceId: string;
   session: SessionPayload;
@@ -64,6 +64,7 @@ export function useSessionWindowController(input: {
   sideChatsControl?: React.ReactNode;
 }) {
   const {
+    windowId,
     sessionId,
     workspaceId,
     session,
@@ -98,16 +99,13 @@ export function useSessionWindowController(input: {
   const inspectorUsage = toInspectorUsage(sessionContext.usage);
   const clearDialog = useSessionClearDialog(controls.handleClear);
   const transport = useSessionTransportState();
-  // The rail is the window's and outlives this session (#1923); this session's stream tells it
-  // when the list must not read "connected" (US-018.AC-1).
-  const { sidebar, reportTransport } = useSessionWindowRail();
-  const transportDisconnected =
-    transport.phase === "failed" || isSessionTransportDisconnected(transport);
-  const transportDegradedAt = transport.degradedAt;
-  useEffect(() => {
-    reportTransport({ disconnected: transportDisconnected, degradedAt: transportDegradedAt });
-    return () => reportTransport(null);
-  }, [reportTransport, transportDisconnected, transportDegradedAt]);
+  const sidebar = useSessionWindowSidebar({
+    sessionId,
+    // The list never reads "connected" under a dead stream (US-018.AC-1).
+    transportDisconnected:
+      transport.phase === "failed" || isSessionTransportDisconnected(transport),
+    windowId,
+  });
   // The strip owns Goal controls and stream reconciliation. This reader only
   // supplies activity and the session-stop consequence from the shared cache.
   const goal = useSessionGoalHeader(workspaceId, sessionId, {

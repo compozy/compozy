@@ -1,18 +1,17 @@
 // Suite: OS session-window view runtime selection
 // Invariant: a User-scope session (no workspace, scope "user") is live work and binds the chat
 // runtime to the `@user` selector; only a legacy session without any scope falls back to the
-// read-only history. A window whose session has not loaded holds the frames the loaded pane
-// fills (transcript, composer) under one busy status, never a bare spinner. The sessions rail is
-// the window's (#1923): a session switch, through the next session's loading state, keeps the
-// same rail and list mounted with their scroll, and marks the picked row current. In the Kanban
-// board's drawer (#1052) there is no rail: the board beside it is the list. Only a
+// read-only history. A window whose session has not loaded keeps the live sessions rail, marking
+// that session current, beside the frames the loaded pane fills (transcript, composer) under one
+// busy status, never a bare spinner. The rail list resumes its window's scroll when a session
+// switch remounts it (#1923). Only a
 // not-found read says "Couldn't find this session"; any other failure says the read failed and
 // offers Try again.
 // Owning layer: the OS session-window view.
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionApiError } from "@/systems/session/adapters/session-api-errors";
 
@@ -22,7 +21,6 @@ const instances = vi.hoisted(() => ({ current: [] as { id: string; main_session_
 vi.mock("@/systems/agent", () => ({ useAgentInstances: () => instances.current }));
 
 const runtimeProviderSpy = vi.hoisted(() => vi.fn());
-const presentation = vi.hoisted(() => ({ current: "window" as "window" | "board-drawer" }));
 const readOnlyTranscriptSpy = vi.hoisted(() => vi.fn());
 
 vi.mock("../use-session-window-sidebar", () => ({
@@ -37,11 +35,15 @@ vi.mock("../use-session-window-sidebar", () => ({
 
 vi.mock("@/systems/session", () => ({
   canPromptSession: () => true,
-  useSessionWindowPresentation: () => presentation.current,
-  // The list's scroll container, as the real rail hosts it, marking the row on screen.
+  useSessionWindowPresentation: () => "window",
+  // The rail's list scroll container, as `SessionList` marks it, naming the row on screen.
   SessionSidebar: ({ currentSessionId }: { currentSessionId?: string }) => (
     <aside data-testid="session-sidebar">
-      <div data-testid="session-sidebar-scroll" data-current={currentSessionId} />
+      <div
+        data-session-list-scroll
+        data-testid="session-list-scroll"
+        data-current={currentSessionId}
+      />
     </aside>
   ),
   useMarkSeenOnLeave: () => undefined,
@@ -69,18 +71,19 @@ vi.mock("../session-window-module-loader", () => ({
   loadSessionWindowContent: () => new Promise(() => {}),
 }));
 
-function viewElement(
+function renderView(
   session: Record<string, unknown> | undefined,
   isLoading = false,
   {
     error = null,
     onRetry,
     id = "sess-1",
-  }: { error?: Error | null; onRetry?: () => void; id?: string } = {}
+    windowId = "session:sess-1",
+  }: { error?: Error | null; onRetry?: () => void; id?: string; windowId?: string } = {}
 ) {
-  return (
+  return render(
     <SessionWindowView
-      windowId="session:sess-1"
+      windowId={windowId}
       name="general"
       id={id}
       workspaceId=""
@@ -91,10 +94,6 @@ function viewElement(
       onRetry={onRetry}
     />
   );
-}
-
-function renderView(...args: Parameters<typeof viewElement>) {
-  return render(viewElement(...args));
 }
 
 describe("SessionWindowView", () => {
@@ -111,7 +110,6 @@ describe("SessionWindowView", () => {
 
   beforeEach(() => {
     instances.current = [];
-    presentation.current = "window";
     runtimeProviderSpy.mockClear();
     readOnlyTranscriptSpy.mockClear();
   });
@@ -137,10 +135,11 @@ describe("SessionWindowView", () => {
     expect(region).toHaveAttribute("role", "status");
     expect(region).toHaveAttribute("aria-busy", "true");
     expect(region).toHaveTextContent("Loading session");
-    // The window's live rail frames the pane; the transcript rows and the composer card are each
-    // in the place they will fill.
+    // The live rail stays beside the pane's placeholder, outside its busy region; the transcript
+    // rows and the composer card are each in the place they will fill.
     expect(screen.getByTestId("session-sidebar")).toBeInTheDocument();
     expect(region).not.toContainElement(screen.getByTestId("session-sidebar"));
+    expect(screen.getByTestId("session-list-scroll")).toHaveAttribute("data-current", "sess-1");
     expect(region.querySelector('[data-slot="skeleton-text"]')).not.toBeNull();
     expect(screen.getByTestId("composer-skeleton")).toBeInTheDocument();
     // One announcement for the whole window: the placeholders are never statuses of their own.
@@ -171,33 +170,49 @@ describe("SessionWindowView", () => {
     expect(screen.queryByTestId("session-window-retry")).not.toBeInTheDocument();
   });
 
-  it("Should keep the rail and its list scroll mounted across a session switch (#1923)", () => {
-    const sessionFor = (id: string) => ({ id, agent_name: "general", scope: "user" });
-    const { rerender } = renderView(sessionFor("sess-1"));
-    const scroll = screen.getByTestId("session-sidebar-scroll");
-    scroll.scrollTop = 480;
+  describe("rail scroll across a session switch (#1923)", () => {
+    // jsdom has no scroll layout; keep each element's scrollTop as the browser would.
+    const scrollTops = new WeakMap<Element, number>();
+    const original = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+    beforeEach(() => {
+      Object.defineProperty(Element.prototype, "scrollTop", {
+        configurable: true,
+        get(this: Element) {
+          return scrollTops.get(this) ?? 0;
+        },
+        set(this: Element, value: number) {
+          scrollTops.set(this, value);
+        },
+      });
+    });
+    afterEach(() => {
+      if (original) Object.defineProperty(Element.prototype, "scrollTop", original);
+      else Reflect.deleteProperty(Element.prototype, "scrollTop");
+    });
 
-    // The picked session loads, then shows: the pane swaps, the rail never remounts.
-    rerender(viewElement(undefined, true, { id: "sess-2" }));
-    expect(screen.getByTestId("session-route-loading")).toBeInTheDocument();
-    expect(screen.getByTestId("session-sidebar-scroll")).toBe(scroll);
-    expect(scroll).toHaveAttribute("data-current", "sess-2");
+    it("Should resume the window's rail scroll when a session switch remounts it", () => {
+      const first = renderView(undefined, true, { windowId: "session:switch" });
+      const list = screen.getByTestId("session-list-scroll");
+      list.scrollTop = 480;
+      fireEvent.scroll(list);
+      first.unmount();
 
-    rerender(viewElement(sessionFor("sess-2"), false, { id: "sess-2" }));
-    expect(screen.getByTestId("session-sidebar-scroll")).toBe(scroll);
-    expect(scroll.scrollTop).toBe(480);
-    expect(scroll).toHaveAttribute("data-current", "sess-2");
-  });
+      renderView(undefined, true, { id: "sess-2", windowId: "session:switch" });
+      const resumed = screen.getByTestId("session-list-scroll");
+      expect(resumed).not.toBe(list);
+      expect(resumed.scrollTop).toBe(480);
+      expect(resumed).toHaveAttribute("data-current", "sess-2");
+    });
 
-  it("Should lay the rail beside the session in a window but never in the board drawer", () => {
-    const loaded = { id: "sess-1", agent_name: "general", scope: "user" };
-    const { unmount } = renderView(loaded);
-    expect(screen.getByTestId("session-sidebar")).toBeInTheDocument();
-    unmount();
+    it("Should start another window's rail at the top", () => {
+      const first = renderView(undefined, true, { windowId: "session:scrolled" });
+      const list = screen.getByTestId("session-list-scroll");
+      list.scrollTop = 480;
+      fireEvent.scroll(list);
+      first.unmount();
 
-    presentation.current = "board-drawer";
-    renderView(loaded);
-    expect(screen.queryByTestId("session-sidebar")).toBeNull();
-    expect(runtimeProviderSpy).toHaveBeenCalledWith("@user");
+      renderView(undefined, true, { windowId: "session:other" });
+      expect(screen.getByTestId("session-list-scroll").scrollTop).toBe(0);
+    });
   });
 });

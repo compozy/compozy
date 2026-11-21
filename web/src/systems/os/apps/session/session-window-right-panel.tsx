@@ -59,7 +59,7 @@ export function SessionWindowRightRegion({
   review: UseSessionReviewPanelStateResult;
   inspector: UseSessionInspectorStateResult;
   inspectorProps: SessionWindowInspectorInput;
-  /** The session pane: transcript and composer. The window's rail frames the whole region. */
+  /** The session pane (rail and transcript). */
   children: ReactNode;
 }) {
   // A session without a file root has no toggle and no viewer links, so it never opens.

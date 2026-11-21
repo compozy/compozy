@@ -23,6 +23,7 @@ const {
   getState,
   setSessionWindowView,
   userRetarget,
+  transport,
   useSessionListView,
   useScopedWorktreeFilter,
   scopes,
@@ -33,6 +34,7 @@ const {
     destination: { kind: "project", workspaceId: "workspace-1" } as unknown,
     window: { kind: "project", workspaceId: "workspace-1" } as unknown,
   },
+  transport: { degradedAt: null as number | null },
   getState: vi.fn<
     () => {
       windows: Record<
@@ -77,6 +79,7 @@ vi.mock("@/systems/session", async () => ({
   sessionHasUnsentInput: () => false,
   subagentRevealStore: (await import("@/systems/session/lib/subagent-navigation"))
     .subagentRevealStore,
+  useSessionTransportState: () => transport,
   useTransportGraceElapsed: (await import("@/systems/session/hooks/use-transport-grace-elapsed"))
     .useTransportGraceElapsed,
   sessionListSortParam: (sort: string) => sort,
@@ -136,6 +139,7 @@ function session(workspaceId: string): SessionPayload {
 describe("useSessionWindowSidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    transport.degradedAt = null;
     scopes.destination = { kind: "project", workspaceId: "workspace-1" };
     scopes.window = { kind: "project", workspaceId: "workspace-1" };
     presentation.value = "window";
@@ -148,27 +152,31 @@ describe("useSessionWindowSidebar", () => {
   it("Should wait for transport grace and clear the warning immediately on recovery", () => {
     vi.useFakeTimers();
     vi.setSystemTime(100_000);
-    let reported: { disconnected: boolean; degradedAt: number | null } | null = null;
+    let disconnected = false;
     const { result, rerender, unmount } = renderHook(() =>
       useSessionWindowSidebar({
         windowId: "window-session",
-        transport: reported,
+        transportDisconnected: disconnected,
       })
     );
-    reported = { disconnected: true, degradedAt: Date.now() };
+    transport.degradedAt = Date.now();
+    disconnected = true;
     rerender();
     expect(result.current.disconnected).toBe(false);
     act(() => vi.advanceTimersByTime(1_999));
     expect(result.current.disconnected).toBe(false);
-    reported = { disconnected: false, degradedAt: null };
+    transport.degradedAt = null;
+    disconnected = false;
     rerender();
     act(() => vi.advanceTimersByTime(2_000));
     expect(result.current.disconnected).toBe(false);
-    reported = { disconnected: true, degradedAt: Date.now() };
+    transport.degradedAt = Date.now();
+    disconnected = true;
     rerender();
     act(() => vi.advanceTimersByTime(2_000));
     expect(result.current.disconnected).toBe(true);
-    reported = null;
+    transport.degradedAt = null;
+    disconnected = false;
     rerender();
     expect(result.current.disconnected).toBe(false);
     unmount();

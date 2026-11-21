@@ -12,7 +12,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "A session pane whose session has not loaded: a transcript over a composer card, in the frame the loaded pane fills, so the swap moves nothing. It mounts inside the window's live sessions rail, which stays put across a session switch. One busy status for the pane; no queries, so hidden windows load cheaply.",
+          "A session pane whose session has not loaded: a transcript over a composer card, in the frame the loaded pane fills, so the swap moves nothing. It sits beside the window's live sessions rail, so a session switch never trades the rail for placeholder rows. One busy status for the pane; no queries, so hidden windows load cheaply.",
       },
     },
   },

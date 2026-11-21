@@ -22,7 +22,7 @@ const SessionRenameDialog = lazy(() =>
   }))
 );
 
-/** The lifecycle dialogs the rail's rows raise over the window; they outlive the session pane. */
+/** The lifecycle dialogs the rail's rows raise over the window. */
 export function SessionWindowRowDialogs({ sidebar }: { sidebar: SessionWindowSidebarModel }) {
   return (
     <>
@@ -51,7 +51,7 @@ export function SessionWindowRowDialogs({ sidebar }: { sidebar: SessionWindowSid
   );
 }
 
-/** The clear command's confirmation over the session pane. */
+/** The clear command's confirmation over the window. */
 export function SessionWindowClearDialog({
   clearDialog,
   controls,

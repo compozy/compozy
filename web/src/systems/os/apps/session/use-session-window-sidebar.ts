@@ -15,6 +15,7 @@ import {
   useSessionCreateActions,
   useSessionListView,
   useSessionSidebarState,
+  useSessionTransportState,
   useSessionWindowPresentation,
   useTransportGraceElapsed,
   type SessionListViewModel,
@@ -22,12 +23,6 @@ import {
 } from "@/systems/session";
 
 export type { SessionWindowSidebarTarget };
-
-/** The shown session's live stream, as the rail reads it: down or not, and since when. */
-export interface SessionWindowRailTransport {
-  disconnected: boolean;
-  degradedAt: number | null;
-}
 
 export interface SessionWindowSidebarModel {
   open: boolean;
@@ -57,15 +52,12 @@ export interface SessionWindowSidebarModel {
  * belongs elsewhere or already owns a window — that window wins focus instead.
  */
 export function useSessionWindowSidebar({
-  transport,
+  transportDisconnected = false,
   windowId,
   sessionId,
 }: {
-  /**
-   * The shown session's live stream. The rail lives outside the session's runtime providers,
-   * so the session pane reports it; down, the rail must not read "connected" (US-018.AC-1).
-   */
-  transport?: SessionWindowRailTransport | null;
+  /** The window's live stream is down; the rail must not read "connected" (US-018.AC-1). */
+  transportDisconnected?: boolean;
   windowId: string;
   sessionId?: string;
 }): SessionWindowSidebarModel {
@@ -74,7 +66,8 @@ export function useSessionWindowSidebar({
   const presentation = useSessionWindowPresentation();
   // Over its board the window shows no rail, so the rail's list is never read there.
   const railShown = sidebar.open && presentation === "window";
-  const transportGraceElapsed = useTransportGraceElapsed(transport?.degradedAt ?? null);
+  const transport = useSessionTransportState();
+  const transportGraceElapsed = useTransportGraceElapsed(transport.degradedAt);
   const { openForAgent } = useSessionCreateActions();
   const lifecycle = useSessionListLifecycleActions({ windowId });
   // Only a project narrows to a worktree.
@@ -111,7 +104,7 @@ export function useSessionWindowSidebar({
     disconnected:
       sidebar.open &&
       worktree.resolved &&
-      (view.catalog?.failed || (Boolean(transport?.disconnected) && transportGraceElapsed)),
+      (view.catalog?.failed || (transportDisconnected && transportGraceElapsed)),
     collapsedThreadIds: sidebar.collapsedThreadIds,
     subagentThreadIds: sidebar.subagentThreadIds,
     view,
