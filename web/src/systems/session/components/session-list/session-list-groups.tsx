@@ -7,11 +7,8 @@ import { sessionListGroupTarget, type SessionListGroupSpec } from "../../lib/ses
 import { sessionListShelfNoun } from "../../lib/session-list-shelf";
 import { sessionListHasPinnedRows } from "../../lib/session-list-pinned";
 import { AlwaysOnProjectRow } from "../always-on/always-on-signals";
-import {
-  GroupLoadFailure,
-  SessionListGroupBody,
-  type GroupRowProps,
-} from "./session-list-group-body";
+import { SessionListGroupBody, type GroupRowProps } from "./session-list-group-body";
+import { GroupLoadFailure } from "./session-list-group-note";
 import { SessionListGroupHeader, type SessionListGroupArrange } from "./session-list-group-header";
 import { SessionListProjectFolders } from "./session-list-project-folders";
 import { SessionGroupsSkeleton } from "./session-list-skeleton";

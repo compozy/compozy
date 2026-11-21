@@ -2,6 +2,14 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import type { SessionFolderPayload, SessionListFilters, SessionPayload } from "../types";
 import { sessionCatalogOptions, sessionFoldersOptions } from "./session-catalog-options";
+import {
+  pendingSessionLayoutEdit,
+  pendingSessionLayoutFilter,
+  projectPartitionRows,
+  SESSION_LIST_ROOT_FOLDER,
+  sessionListPartitionFolders,
+  sessionListPartitionOptions,
+} from "./session-list-partitions";
 import { visibleSessionOrder } from "./session-folders";
 import { sessionListGroupFilters, type SessionListGroupSpec } from "./session-list-groups";
 import { SESSION_LIST_PINNED_FOLD_KEY } from "./session-list-pinned";
@@ -14,6 +22,7 @@ import type { SessionFoldSet } from "./session-sidebar-scope";
 export interface SessionListOrderSource {
   catalog?: { sessions: readonly SessionPayload[] };
   layout?: { folders: readonly SessionFolderPayload[] };
+  folderOf?: ReadonlyMap<string, string | null>;
   groups: readonly SessionListGroupSpec[];
   groupBy: string;
   groupFilters: SessionListFilters;
@@ -63,26 +72,51 @@ function listedSessionOrder(
     collapsedThreadIds: input.collapsedThreadIds,
     collapsedFolderIds: input.collapsedFolderIds,
     folders: view.layout?.folders,
+    folderOf: view.folderOf,
     shelved: view.shelf !== "active",
     filtering: (view.search ?? "").trim() !== "",
     collapsedGroupKeys: view.collapsedGroupKeys,
-    groups: grouped
-      ? view.groups.map(group => {
-          const filters = sessionCatalogScopedFilters(
-            group.scope,
-            sessionListGroupFilters(view, group),
-            group.lens
-          );
-          return {
-            key: group.key,
-            sessions:
-              input.queryClient.getQueryData(sessionCatalogOptions(filters).queryKey)?.pages[0]
-                ?.sessions ?? [],
-            folders: group.pair
-              ? input.queryClient.getQueryData(sessionFoldersOptions(group.pair).queryKey)
-              : undefined,
-          };
-        })
-      : undefined,
+    groups: grouped ? view.groups.map(group => readGroupPages(view, group, input)) : undefined,
   });
+}
+
+function readGroupPages(
+  view: SessionListOrderSource,
+  group: SessionListGroupSpec,
+  input: Parameters<typeof sessionListVisibleOrder>[1]
+) {
+  if (group.total === 0) return { key: group.key, sessions: [] };
+  const { queryClient } = input;
+  const pair = group.pair;
+  const folders = pair ? queryClient.getQueryData(sessionFoldersOptions(pair).queryKey) : undefined;
+  const edits = pair
+    ? queryClient
+        .getMutationCache()
+        .findAll(pendingSessionLayoutFilter(pair.workspaceId, pair.profile))
+        .flatMap(write => pendingSessionLayoutEdit(write.state.variables))
+    : [];
+  const readFolders = sessionListPartitionFolders(folders, edits);
+  const filters = sessionCatalogScopedFilters(
+    group.scope,
+    sessionListGroupFilters(view, group, folders !== undefined),
+    group.lens
+  );
+  if (!readFolders?.length) {
+    const page = input.queryClient.getQueryData(sessionCatalogOptions(filters).queryKey)?.pages[0];
+    return { key: group.key, folders, sessions: page?.sessions ?? [] };
+  }
+  const filtering = Boolean(filters.q?.trim());
+  const folderIds = readFolders.flatMap(folder =>
+    filtering || !input.collapsedFolderIds.has(folder.id) ? [folder.id] : []
+  );
+  const entries = [SESSION_LIST_ROOT_FOLDER, ...folderIds].map(folder => {
+    const options = sessionListPartitionOptions(filters, folder, false);
+    const page = input.queryClient.getQueryData(options.queryKey)?.pages[0];
+    return [folder, { sessions: page?.sessions ?? [] }] as const;
+  });
+  return {
+    key: group.key,
+    folders,
+    ...projectPartitionRows(entries, edits, filters.sort === "manual"),
+  };
 }

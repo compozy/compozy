@@ -1,14 +1,13 @@
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import { use } from "react";
 
-import { TriangleAlert } from "@compozy/ui/icons";
-
-import { Button, Icon } from "@compozy/ui";
+import { Button } from "@compozy/ui";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
 import { useSessionCatalog } from "../../hooks/use-session-catalog";
+import type { SessionListPartitions } from "../../hooks/use-session-list-partitions";
 import { useSessionListGroupCatalog } from "../../hooks/use-session-list-group-catalog";
 import { useSessionFolders } from "../../hooks/use-session-folders";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
@@ -25,6 +24,7 @@ import {
 import { buildSessionListThreads, threadVisibleOrder } from "../../lib/session-list-threads";
 import type { SessionListTarget } from "../../types";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
+import { GroupLoadFailure, GroupNote } from "./session-list-group-note";
 import { SessionListSections } from "./session-list-sections";
 import { SessionGroupRowsSkeleton } from "./session-list-skeleton";
 import { SessionListThreadList } from "./session-list-thread-list";
@@ -44,38 +44,6 @@ export interface GroupRowProps {
   onNewSession: (options?: SessionCreateOpenOptions) => void;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
-}
-
-export function GroupNote({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-6 items-center gap-2 px-3 py-1 text-micro text-subtle">
-      {children}
-    </div>
-  );
-}
-
-export function GroupLoadFailure({
-  retryTestId,
-  onRetry,
-}: {
-  retryTestId: string;
-  onRetry: () => void;
-}) {
-  return (
-    <GroupNote>
-      <Icon as={TriangleAlert} size="sm" className="text-warning" />
-      Couldn&rsquo;t load sessions
-      <Button
-        variant="ghost"
-        size="sm"
-        className="ml-auto"
-        data-testid={retryTestId}
-        onClick={onRetry}
-      >
-        Retry
-      </Button>
-    </GroupNote>
-  );
 }
 
 /**
@@ -184,12 +152,17 @@ function SessionListPairGroupBody({
 }: GroupRowProps & { group: SessionListGroupSpec; path: readonly number[]; nested?: boolean }) {
   const { view } = props;
   const groupSelection = use(SessionListGroupSelectionContext);
-  const catalog = useSessionListGroupCatalog(group, view);
   const folders = useSessionFolders({
     workspaceId: group.pair?.workspaceId ?? null,
     profile: group.pair?.profile ?? "",
     enabled: group.pair !== null,
   });
+  const { catalog, partitions } = useSessionListGroupCatalog(
+    group,
+    view,
+    folders,
+    view.search ?? ""
+  );
   const threads = buildSessionListThreads(catalog.sessions, "");
   const layout = useSessionListFolderLayout(
     {
@@ -198,6 +171,8 @@ function SessionListPairGroupBody({
       shelf: view.shelf,
       worktreeId: view.worktreeId,
       catalog,
+      partitions: partitions?.pages,
+      folderOf: partitions?.folderOf,
     },
     threads,
     props.filtering
@@ -208,8 +183,50 @@ function SessionListPairGroupBody({
     visibleOrder: threadVisibleOrder(layout.visibleThreads, props.collapsedThreads),
     pair: group.pair,
   });
+  if (!partitions && catalog.failed && catalog.sessions.length === 0) {
+    // One unreachable group never blanks the list: it states what happened in
+    // its own place and offers the one useful action.
+    return (
+      <GroupLoadFailure
+        retryTestId={`${props.testIdPrefix}-group-${group.key}-retry`}
+        onRetry={catalog.retry}
+      />
+    );
+  }
+  if (!partitions && catalog.loading) return <SessionGroupRowsSkeleton />;
+  return (
+    <SessionListPairGroupContent
+      {...props}
+      group={group}
+      nested={nested}
+      threads={threads}
+      folderLayout={layout}
+      catalog={catalog}
+      partitions={partitions?.pages}
+    />
+  );
+}
+
+function SessionListPairGroupContent({
+  group,
+  nested,
+  threads,
+  folderLayout: layout,
+  catalog,
+  partitions,
+  ...props
+}: GroupRowProps & {
+  group: SessionListGroupSpec;
+  nested: boolean;
+  threads: ReturnType<typeof buildSessionListThreads>;
+  folderLayout: ReturnType<typeof useSessionListFolderLayout>;
+  catalog: GroupCatalog;
+  partitions?: SessionListPartitions;
+}) {
+  const { view } = props;
+  const groupSelection = use(SessionListGroupSelectionContext);
   const select = (session: SessionListTarget) => {
-    if (!catalog.paging) props.onSelectSession(session);
+    if (partitions || !catalog.paging) props.onSelectSession(session);
   };
   const pair = group.pair;
   const newSessionInFolder = (folderId: string) =>
@@ -224,25 +241,16 @@ function SessionListPairGroupBody({
   // A split subgroup's own header and its parent's name both axes already.
   const ownerOf = !nested && group.kind === "project" && view.aggregate ? view.ownerOf : undefined;
 
-  if (catalog.failed && catalog.sessions.length === 0) {
-    // One unreachable group never blanks the list: it states what happened in
-    // its own place and offers the one useful action.
-    return (
-      <GroupLoadFailure
-        retryTestId={`${props.testIdPrefix}-group-${group.key}-retry`}
-        onRetry={catalog.retry}
-      />
-    );
-  }
-  if (catalog.loading) return <SessionGroupRowsSkeleton />;
-  const sections = sectionsWithContent(layout.sections);
+  const sections = layout.sections;
+  const hasSections = groupHasSessionSections(sections);
   return (
     <div className="flex flex-col gap-0.5 pl-2.5">
-      {layout.layout && sections ? (
+      {layout.layout && sections && (partitions || hasSections) ? (
         <>
           <SessionListSections
             ownerOf={ownerOf}
             sections={sections}
+            partitions={partitions}
             layout={layout.layout}
             dnd={layout.dnd}
             selectionDrag={selectionDrag}
@@ -260,7 +268,7 @@ function SessionListPairGroupBody({
             selection={groupSelection?.selection}
             sessionActions={props.sessionActions}
             testIdPrefix={props.testIdPrefix}
-            emptyMessage={empty}
+            emptyMessage={hasSections ? empty : null}
           />
           <SessionFolderDialogs
             state={layout.dialog}
@@ -279,9 +287,18 @@ function SessionListPairGroupBody({
           onSelectSession={select}
         />
       )}
-      <GroupPager catalog={catalog} />
+      {!hasSections && partitions && !catalog.loading && !catalog.failed ? (
+        <GroupNote>{empty}</GroupNote>
+      ) : null}
+      {!partitions ? <GroupPager catalog={catalog} /> : null}
     </div>
   );
+}
+
+function groupHasSessionSections(
+  sections: ReturnType<typeof useSessionListFolderLayout>["sections"]
+) {
+  return Boolean(sections && (sections.folders.length || sections.root.length));
 }
 
 type GroupCatalog = ReturnType<typeof useSessionCatalog>;
@@ -313,15 +330,6 @@ function GroupThreads({
 }
 
 /** A failed refresh over loaded rows, and the group's own previous/next paging. */
-/** Folder sections worth rendering; a group with none keeps the quiet one-line note (#1085). */
-function sectionsWithContent<T extends { folders: readonly unknown[]; root: readonly unknown[] }>(
-  sections: T | null | undefined
-): T | undefined {
-  return sections && (sections.folders.length > 0 || sections.root.length > 0)
-    ? sections
-    : undefined;
-}
-
 function GroupPager({ catalog }: { catalog: GroupCatalog }) {
   return (
     <>

@@ -19,8 +19,8 @@ import { onDisclosureArrowKey } from "../../lib/session-list-stops";
 
 export interface SessionListFolderProps {
   folder: { id: string; name: string };
-  /** Rows the folder shows on this page, children included; projects for a project folder. */
-  count: number;
+  /** Matching sessions or projects, once counted. */
+  count?: number;
   /**
    * What the folder holds. A project folder (issue #1044) starts no sessions and
    * hangs its projects on a tree rail; a session folder indents its threads.

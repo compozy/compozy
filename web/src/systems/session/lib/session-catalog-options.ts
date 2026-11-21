@@ -12,7 +12,10 @@ export interface SessionCatalogCursor {
 }
 
 export function sessionCatalogOptions(filters: SessionListFilters = {}) {
-  const normalized = normalizeSessionListFilters({ ...filters, skip_total: true });
+  const normalized = normalizeSessionListFilters({
+    ...filters,
+    skip_total: filters.skip_total ?? true,
+  });
   return infiniteQueryOptions({
     queryKey: sessionKeys.catalogPage(normalized),
     queryFn: ({ pageParam, signal }) =>
@@ -55,6 +58,7 @@ export function sessionFacetsOptions(filters: SessionListFilters = {}) {
     include_health: _health,
     search_fields: _fields,
     board_column: _column,
+    folder: _folder,
     ...scope
   } = normalizeSessionListFilters(filters);
   return queryOptions({

@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+// PutLoopConfigParams carries the path, query, and header parameters.
+type PutLoopConfigParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+}
+
 // PutLoopConfig Replace Loop config override
 func (c *Client) PutLoopConfig(ctx context.Context, params PutLoopConfigParams, body PutLoopConfigRequest) (*LoopConfigResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loops/{name}/config"

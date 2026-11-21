@@ -101,6 +101,7 @@ type ListWorkspaceSessionsParams struct {
 	Root                      *string   `url:"root"`
 	ExcludeRoot               *string   `url:"exclude_root"`
 	Worktree                  *string   `url:"worktree"`
+	Folder                    *string   `url:"folder"`
 	Q                         *string   `url:"q"`
 	SearchFields              *string   `url:"search_fields"`
 	Resumable                 *bool     `url:"resumable"`
@@ -168,6 +169,9 @@ func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspace
 	}
 	if params.Worktree != nil {
 		query.Set("worktree", *params.Worktree)
+	}
+	if params.Folder != nil {
+		query.Set("folder", *params.Folder)
 	}
 	if params.Q != nil {
 		query.Set("q", *params.Q)
@@ -436,13 +440,4 @@ func (c *Client) MintGatewayStreamTicket(ctx context.Context) (*GatewayStreamTic
 		return nil, err
 	}
 	return &out, nil
-}
-
-// MintTerminalAttachTicketParams carries the path, query, and header parameters.
-type MintTerminalAttachTicketParams struct {
-	WorkspaceID             string  `url:"workspace_id"`
-	ID                      string  `url:"id"`
-	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
-	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
-	Profile                 *string `url:"profile"`
 }

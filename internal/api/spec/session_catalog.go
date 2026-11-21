@@ -123,6 +123,8 @@ func sessionCatalogListParameters() []ParameterSpec {
 			false,
 		),
 		queryParam("worktree", "Filter by exact bound worktree id", false),
+		queryParam("folder", "Filter by session folder id or @root for unfoldered sessions; "+
+			"descendants follow their thread's folder. Requires one workspace and profile", false),
 		queryParam(
 			"q",
 			"Search session id, name, agent, or provider; title_agent searches visible title and agent",

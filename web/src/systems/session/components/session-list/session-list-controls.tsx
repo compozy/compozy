@@ -73,7 +73,10 @@ export function SessionListControls({
 export function SessionListCatalogNavigation({
   catalog,
 }: {
-  catalog: NonNullable<SessionListViewModel["catalog"]>;
+  catalog: Pick<
+    NonNullable<SessionListViewModel["catalog"]>,
+    "paging" | "previous" | "next" | "previousPage" | "nextPage" | "failed" | "sessions" | "retry"
+  >;
 }) {
   return (
     <div className="flex items-center justify-between px-2 py-2">

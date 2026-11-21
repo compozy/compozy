@@ -30,12 +30,19 @@ export interface SessionListSections {
 export function buildSessionListSections(
   threads: readonly SessionThreadModel[],
   folders: readonly SessionFolderPayload[],
-  options: { filtering: boolean; shelved: boolean }
+  options: {
+    filtering: boolean;
+    shelved: boolean;
+    folderOf?: ReadonlyMap<string, string | null>;
+    showFolder?: (folder: string) => boolean;
+  }
 ): SessionListSections {
   const byFolder = new Map<string, SessionThreadModel[]>(folders.map(folder => [folder.id, []]));
   const root: SessionThreadModel[] = [];
   for (const thread of threads) {
-    const folderId = sessionFolderId(thread.session);
+    const folderId = options.folderOf?.has(thread.session.id)
+      ? (options.folderOf.get(thread.session.id) ?? null)
+      : sessionFolderId(thread.session);
     const members = folderId === null ? undefined : byFolder.get(folderId);
     if (members) members.push(thread);
     else root.push(thread);
@@ -43,7 +50,9 @@ export function buildSessionListSections(
   const hideEmpty = options.filtering || options.shelved;
   const sections = folders.flatMap(folder => {
     const members = byFolder.get(folder.id) ?? [];
-    return hideEmpty && members.length === 0 ? [] : [{ folder, threads: members }];
+    return hideEmpty && members.length === 0 && !options.showFolder?.(folder.id)
+      ? []
+      : [{ folder, threads: members }];
   });
   return { folders: sections, root };
 }
@@ -90,6 +99,7 @@ export interface VisibleSessionOrderOptions {
   collapsedThreadIds: SessionFoldSet;
   /** The flat list's folders once loaded; without them the list renders flat. */
   folders?: readonly SessionFolderPayload[];
+  folderOf?: ReadonlyMap<string, string | null>;
   /**
    * A grouped list: each group's loaded page in group order, with that group's
    * folders when its own query is one (workspace, profile) pair.
@@ -98,6 +108,7 @@ export interface VisibleSessionOrderOptions {
     key: string;
     sessions: readonly SessionPayload[];
     folders?: readonly SessionFolderPayload[];
+    folderOf?: ReadonlyMap<string, string | null>;
   }>;
   collapsedGroupKeys?: SessionFoldSet;
   collapsedFolderIds?: SessionFoldSet;
@@ -122,13 +133,15 @@ export function visibleSessionOrder(
   const filtering = options.filtering ?? false;
   const ordered = (
     served: readonly SessionPayload[],
-    folders: readonly SessionFolderPayload[] | undefined
+    folders: readonly SessionFolderPayload[] | undefined,
+    folderOf: ReadonlyMap<string, string | null> | undefined
   ): SessionPayload[] => {
     const threads = buildSessionListThreads(served, "");
     const visibleThreads = folders
       ? sectionsVisibleThreads(
           buildSessionListSections(threads, folders, {
             filtering,
+            folderOf,
             shelved: options.shelved ?? false,
           }),
           options.collapsedFolderIds ?? new Set(),
@@ -143,10 +156,12 @@ export function visibleSessionOrder(
   };
   if (options.groups) {
     return options.groups.flatMap(group =>
-      options.collapsedGroupKeys?.has(group.key) ? [] : ordered(group.sessions, group.folders)
+      options.collapsedGroupKeys?.has(group.key)
+        ? []
+        : ordered(group.sessions, group.folders, group.folderOf)
     );
   }
-  return ordered(sessions, options.folders);
+  return ordered(sessions, options.folders, options.folderOf);
 }
 
 /** Moves `id` one step up (-1) or down (+1); returns null at the edge or when absent. */

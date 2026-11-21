@@ -79,10 +79,9 @@ export function effectiveSessionListGroupBy(
 
 /**
  * The order a query is served: manual order lives in one (workspace, profile)
- * pair's folders, so any wider query reads `last_activity` instead. The archive
- * and Later read `last_activity` too: manual order serves every folder member
- * before the root, so a folder longer than a page would hide the unfoldered
- * sessions behind it (#1716). The stored sort is never rewritten.
+ * pair's folders, so any wider query reads `last_activity` instead. Unpartitioned
+ * shelf readers use `last_activity` so manual folder-first order does not
+ * starve the root. Partitioned list readers keep Manual on every shelf.
  */
 export function sessionListSortParam(
   sort: SessionListSort,

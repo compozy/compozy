@@ -55,6 +55,7 @@ export type SessionDropIndicator =
 
 /** One container's served order: a folder, or the workspace root when `folderId` is null. */
 export interface SessionDropContainer {
+  orderable?: boolean;
   folderId: string | null;
   ids: readonly string[];
 }
@@ -168,7 +169,11 @@ export function useSessionListDnd(
     sessionRow: (sessionId, container, selection, nest, targetOnly = false) => {
       const edge = (event: DragEvent<HTMLElement>): SessionRowDropEdge | null => {
         if (dragging?.kind !== "session" || dragging.id === sessionId) return null;
-        return rowDropZone(event, rowReorder && !targetOnly, nest?.accepts(dragging.id) ?? false);
+        return rowDropZone(
+          event,
+          rowReorder && container.orderable !== false && !targetOnly,
+          nest?.accepts(dragging.id) ?? false
+        );
       };
       return {
         draggable: !targetOnly,

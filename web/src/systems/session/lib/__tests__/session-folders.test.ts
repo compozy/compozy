@@ -11,6 +11,7 @@
 // while the operator shows empty projects (#1085).
 // Owning layer: unit (systems/session/lib)
 import { QueryClient } from "@tanstack/react-query";
+import { createDeferred } from "@/test/event-recorder";
 import { describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
@@ -35,7 +36,18 @@ import {
   sessionListVisibleOrder,
   type SessionListOrderSource,
 } from "../session-list-visible-order";
-import { projectSessionGroups } from "../session-list-groups";
+import {
+  projectSessionGroup,
+  projectSessionGroups,
+  sessionListGroupFilters,
+} from "../session-list-groups";
+import { sessionFoldersOptions } from "../session-catalog-options";
+import { sessionCatalogScopedFilters } from "../session-catalog-scope";
+import {
+  SESSION_LIST_ROOT_FOLDER,
+  sessionLayoutMutationKey,
+  sessionListPartitionOptions,
+} from "../session-list-partitions";
 import {
   buildProjectGroupTree,
   projectGroupContainerIds,
@@ -268,6 +280,61 @@ describe("visibleSessionOrder", () => {
 
     expect(order(sessionListVisibleOrder(source([]), input))).toEqual(["pinned", "listed"]);
     expect(order(sessionListVisibleOrder(source(["pinned"]), input))).toEqual(["listed"]);
+  });
+
+  it("Should skip a grouped row optimistically moved into a collapsed folder", async () => {
+    const queryClient = new QueryClient();
+    const group = projectSessionGroup(
+      "ws",
+      { all: 1, working: 0, needs_you: 0 },
+      { workspaces: [{ id: "ws", name: "Project" }], lens: { profile: "default" } }
+    );
+    const view: SessionListOrderSource = {
+      groups: [group],
+      groupBy: "project",
+      groupFilters: { limit: 100 },
+      sort: "created",
+      collapsedGroupKeys: new Set(),
+      shelf: "active",
+    };
+    const input = {
+      queryClient,
+      sessions: [],
+      ...base,
+      collapsedFolderIds: new Set(["f"]),
+    };
+    queryClient.setQueryData(
+      sessionFoldersOptions({ workspaceId: "ws", profile: "default" }).queryKey,
+      [folder("f")]
+    );
+    const filters = sessionCatalogScopedFilters(
+      group.scope,
+      sessionListGroupFilters(view, group, true),
+      group.lens
+    );
+    const root = sessionListPartitionOptions(filters, SESSION_LIST_ROOT_FOLDER, false);
+    queryClient.setQueryData(root.queryKey, {
+      pages: [{ sessions: [session("moving")], page: { has_more: false, limit: 100, total: 1 } }],
+      pageParams: [{ previous: [] }],
+    });
+    expect(order(sessionListVisibleOrder(view, input))).toEqual(["moving"]);
+
+    const response = createDeferred<void>();
+    const write = queryClient
+      .getMutationCache()
+      .build(queryClient, {
+        mutationKey: sessionLayoutMutationKey("ws", "default"),
+        mutationFn: () => response.promise,
+      })
+      .execute({
+        partitionEdit: {
+          update: (rows: readonly SessionPayload[]) => applySessionMove(rows, "moving", "f"),
+        },
+      });
+    expect(order(sessionListVisibleOrder(view, input))).toEqual([]);
+    expect(queryClient.getQueryData(root.queryKey)?.pages[0]?.page.total).toBe(1);
+    response.resolve();
+    await write;
   });
 
   // Invariant (#1732): the cycle walks a thread's children in the rows' order, active work first.

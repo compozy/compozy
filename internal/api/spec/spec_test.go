@@ -3471,6 +3471,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 
 		addCheckInToolSchemaFields(baseline)
 		addSessionCatalogExcludeRootParameter(baseline, current)
+		addSessionCatalogFolderParameter(t, baseline)
 		addDaemonReadinessSchema(t, baseline, current)
 		addSubagentRemovedStreamEvent(t, baseline, current)
 		// #1644: session payloads name the parent a continued child is listed under.
@@ -6305,6 +6306,29 @@ func addSessionCatalogExcludeRootParameter(baseline, current map[string]any) {
 			}
 			oldGet["parameters"] = slices.Insert(oldParameters, index, parameter)
 		}
+	}
+}
+
+// The two list operations gained one optional string parameter after worktree.
+// Keep the historical baseline and the full comparison for all other parameters.
+func addSessionCatalogFolderParameter(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	folder := map[string]any{
+		"name":   "folder",
+		"in":     "query",
+		"schema": map[string]any{"type": "string"},
+	}
+	paths := baseline["paths"].(map[string]any)
+	for _, path := range []string{"/api/sessions", "/api/workspaces/{workspace_id}/sessions"} {
+		get := paths[path].(map[string]any)["get"].(map[string]any)
+		params := get["parameters"].([]any)
+		worktree := slices.IndexFunc(params, func(param any) bool {
+			return param.(map[string]any)["name"] == "worktree"
+		})
+		if worktree == -1 {
+			t.Fatalf("%s: historical list parameters are missing worktree", path)
+		}
+		get["parameters"] = slices.Insert(params, worktree+1, any(folder))
 	}
 }
 

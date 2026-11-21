@@ -14,8 +14,12 @@ import (
 // normalizeListBreadth requires exactly one workspace or the All projects read with its narrowing.
 func normalizeListBreadth(query *ListQuery) error {
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
+	query.Folder = strings.TrimSpace(query.Folder)
 	if (query.WorkspaceID != "") == query.AllWorkspaces {
 		return fmt.Errorf("%w: choose exactly one workspace or all workspaces", ErrListQueryInvalid)
+	}
+	if query.Folder != "" && (query.AllWorkspaces || query.ReadScope.AllProfiles) {
+		return fmt.Errorf("%w: folder requires one workspace and profile", ErrListQueryInvalid)
 	}
 	ids, err := NormalizeWorkspaceIDs(query.WorkspaceIDs, query.AllWorkspaces)
 	if err != nil {

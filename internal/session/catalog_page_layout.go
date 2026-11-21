@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"slices"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -88,4 +89,68 @@ func pageSessionPlacements(
 		}
 	}
 	return selected
+}
+
+// readCatalogPageRows excludes live identities from the durable count, then
+// decorates the active rows that the requested partition can return or summarize.
+func (m *Manager) readCatalogPageRows(
+	ctx context.Context,
+	pager store.SessionCatalogPager,
+	query ListQuery,
+	durableQuery store.SessionCatalogPageQuery,
+) (store.SessionCatalogPage, map[string]*Info, []store.SessionInfo, error) {
+	infos, excluded := m.activeCatalogSnapshots(ctx, query)
+	activeIDs := make([]string, 0, len(excluded)+len(infos)+len(query.InstanceMainIDs))
+	activeIDs = append(activeIDs, excluded...)
+	for _, info := range infos {
+		activeIDs = append(activeIDs, info.ID)
+	}
+	if query.ExcludeInstanceMain {
+		activeIDs = append(activeIDs, query.InstanceMainIDs...)
+	}
+	durableQuery.ExcludeIDs = activeIDs
+	durable, err := pager.PageSessions(ctx, durableQuery)
+	if err != nil {
+		return store.SessionCatalogPage{}, nil, nil, fmt.Errorf("session: page durable catalog: %w", err)
+	}
+	belongs := catalogFolderMembership(query.Folder, durable.FolderMemberIDs)
+	var decorate func(*Info) bool
+	if query.Folder != "" {
+		decorate = catalogFolderDecoration(infos, durable.Sessions, belongs)
+	}
+	activeByID, _, activeMatches, err := m.projectActiveCatalogRows(ctx, query, infos, excluded, decorate)
+	if err != nil {
+		return store.SessionCatalogPage{}, nil, nil, err
+	}
+	activeMatches = slices.DeleteFunc(activeMatches, func(info store.SessionInfo) bool {
+		return !belongs(info.ID) || query.ExcludeInstanceMain && slices.Contains(query.InstanceMainIDs, info.ID)
+	})
+	return durable, activeByID, activeMatches, nil
+}
+
+func catalogFolderMembership(folder string, members map[string]struct{}) func(string) bool {
+	return func(id string) bool {
+		_, member := members[id]
+		return folder == "" || member != (folder == store.SessionCatalogRootFolder)
+	}
+}
+
+// An active child outside the partition can still contribute to a visible
+// parent's child counts, for example when the child has its own placement.
+func catalogFolderDecoration(
+	active []*Info, durable []store.SessionInfo, belongs func(string) bool,
+) func(*Info) bool {
+	relevantParents := make(map[string]struct{}, len(active)+len(durable))
+	for _, info := range active {
+		if belongs(info.ID) {
+			relevantParents[info.ID] = struct{}{}
+		}
+	}
+	for i := range durable {
+		relevantParents[durable[i].ID] = struct{}{}
+	}
+	return func(info *Info) bool {
+		_, countsForParent := relevantParents[store.HierarchyParentSessionID(info.Lineage)]
+		return belongs(info.ID) || countsForParent
+	}
 }

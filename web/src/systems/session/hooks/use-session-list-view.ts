@@ -17,7 +17,6 @@ import type { ProjectGroupTree } from "../lib/workspace-folders";
 import {
   availableSessionListGroupBys,
   effectiveSessionListGroupBy,
-  sessionListSortParam,
   sessionListSubagentsParam,
   type SessionListGroupBy,
   type SessionListSort,
@@ -25,6 +24,8 @@ import {
 import type { SessionListFilters, SessionPayload } from "../types";
 
 import { useSessionCatalog } from "./use-session-catalog";
+import type { SessionListPartitions } from "./use-session-list-partitions";
+import { useSessionListContainerCatalog } from "./use-session-list-group-catalog";
 import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import {
   useSessionListGroups,
@@ -47,10 +48,6 @@ import { useProjectFolderGroups, type WorkspaceLayout } from "./use-workspace-la
 export const SESSION_LIST_MANUAL_SORT_NOTE =
   "Manual order applies inside one project and profile. Group the list to use it.";
 
-/** The archive and Later list by last activity whatever the stored sort (#1716). */
-export const SESSION_LIST_SHELF_SORT_NOTE =
-  "Archived and Later sessions list by last activity. Manual order applies to the active list.";
-
 const SESSION_LIST_PAGE_SIZE = 100;
 
 export type { SessionListTotals } from "./use-session-list-groups";
@@ -58,6 +55,8 @@ export type { SessionListTotals } from "./use-session-list-groups";
 export interface SessionListViewModel {
   /** The flat catalog; absent while the list is grouped (each group owns its page). */
   catalog?: ReturnType<typeof useSessionCatalog>;
+  partitions?: SessionListPartitions;
+  folderOf?: ReadonlyMap<string, string | null>;
   search?: string;
   setSearch?: (search: string) => void;
   /** The stored sort, kept even where `manual` cannot apply. */
@@ -149,6 +148,8 @@ export interface SessionListPinnedRead {
   retry: () => void;
   /** The read's own paging (by pin), independent of the list's pages. */
   catalog?: ReturnType<typeof useSessionCatalog>;
+  partitions?: SessionListPartitions;
+  folderOf?: ReadonlyMap<string, string | null>;
   /**
    * Gives the listed pins their order among the Pinned slots they hold; present where the list
    * reads one (workspace, profile) pair, the scope a reorder is authorized in.
@@ -213,17 +214,6 @@ export function useSessionListView(
     shelf,
     showAutomation
   );
-  const catalog = useSessionCatalog(
-    scope,
-    {
-      ...groupFilters,
-      sort: sessionListSortParam(preferences.sort, {
-        singlePair: pair !== null,
-        shelved: shelf !== "active",
-      }),
-    },
-    enabled && flat
-  );
   const grouping = useSessionListGroups({
     groupBy,
     scope,
@@ -253,6 +243,13 @@ export function useSessionListView(
     profile: pair?.profile ?? profile.destination,
     enabled: enabled && flat && pair !== null,
   });
+  const { catalog, partitions } = useSessionListContainerCatalog(
+    { scope, pair, lens: profile.params },
+    { groupFilters, sort: preferences.sort, shelf },
+    folders,
+    enabled && flat,
+    search
+  );
   const totals = useSessionListTotals({
     scope,
     lens: profile.params,
@@ -297,13 +294,15 @@ export function useSessionListView(
     projectFolders: arranged.projectFolders,
     worktreeId: options.worktreeId,
     catalog: awaiting.catalog,
+    partitions: partitions?.pages,
+    folderOf: partitions?.folderOf,
     search,
     setSearch,
     sort: preferences.sort,
     storedGroupBy: preferences.groupBy,
     groupBy,
     groupByOptions: availableSessionListGroupBys(breadth),
-    sortNote: manualSortNote(preferences.sort, manualBlocked, shelf),
+    sortNote: manualSortNote(preferences.sort, manualBlocked),
     newFolderUnavailable: newFolderUnavailableReason(flat, pair !== null, breadth, groupBy),
     shelf,
     laterCount,
@@ -444,14 +443,8 @@ function settledSearchCatalog<C extends { paging: boolean; next: boolean; previo
   };
 }
 
-function manualSortNote(
-  sort: string,
-  manualBlocked: boolean,
-  shelf: SessionListShelf
-): string | null {
-  if (sort !== "manual") return null;
-  if (shelf !== "active") return SESSION_LIST_SHELF_SORT_NOTE;
-  return manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null;
+function manualSortNote(sort: string, manualBlocked: boolean): string | null {
+  return sort === "manual" && manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null;
 }
 
 function newFolderUnavailableReason(

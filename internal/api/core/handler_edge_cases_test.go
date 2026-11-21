@@ -1161,6 +1161,29 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should pass the folder partition and cursor to the catalog owner", func(t *testing.T) {
+		t.Parallel()
+		manager := &testutil.StubSessionManager{
+			ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
+				if query.Folder != store.SessionCatalogRootFolder || query.Cursor != "root-cursor" {
+					t.Fatalf("query = %#v", query)
+				}
+				return session.ListPage{Total: 3, Limit: 1, HasMore: true, NextCursor: "next-root"}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		resp := performRequest(
+			t, fixture.Engine, http.MethodGet,
+			"/sessions?workspace_id=%40user&folder=%40root&cursor=root-cursor&limit=1", nil,
+		)
+		var payload contract.SessionCatalogResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if resp.Code != http.StatusOK || payload.Page.Total == nil || *payload.Page.Total != 3 ||
+			!payload.Page.HasMore || payload.Page.NextCursor != "next-root" {
+			t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
+		}
+	})
+
 	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	updatedAt := createdAt.Add(time.Minute)
 	workerLineage := &store.SessionLineage{
