@@ -6,6 +6,7 @@ import {
   SessionSidebarLayout,
   useSessionWindowPresentation,
 } from "@/systems/session";
+import { SessionSidebarStaticLayout } from "@/systems/session/skeleton";
 
 import { SessionWindowRowDialogs } from "./session-window-row-dialogs";
 import { SessionWindowSkeleton } from "./session-window-skeleton";
@@ -31,18 +32,26 @@ interface RailRestore {
   settled: boolean;
 }
 
-/** The sessions rail beside the session pane; over the board the board is the list, so no rail. */
+/**
+ * The sessions rail beside the session pane; over the board the board is the list, so no rail.
+ * A split that will not outlive its frame (the window while its session loads) holds the rail at
+ * its saved width with no handle: the loaded window mounts its own resizable split, which would
+ * drop a drag or keyboard step begun on the loading one.
+ */
 export function SessionWindowRailLayout({
   sidebar,
   children,
+  resizable = true,
 }: {
   sidebar: ReactNode;
   children: ReactNode;
+  resizable?: boolean;
 }) {
   if (useSessionWindowPresentation() === "board-drawer") {
     return <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>;
   }
-  return <SessionSidebarLayout sidebar={sidebar}>{children}</SessionSidebarLayout>;
+  const Split = resizable ? SessionSidebarLayout : SessionSidebarStaticLayout;
+  return <Split sidebar={sidebar}>{children}</Split>;
 }
 
 /**
@@ -135,7 +144,8 @@ export function SessionWindowSidebarRail({
 /**
  * The session window while the session it now names loads: the live rail, already marking that
  * session current at its kept scroll, beside the pane's placeholder. A row pick never trades the
- * rail for placeholder rows (#1923).
+ * rail for placeholder rows (#1923). The rail is resizable once the session loads, in the split
+ * that keeps the new width.
  */
 export function SessionWindowLoadingFrame({
   windowId,
@@ -148,6 +158,7 @@ export function SessionWindowLoadingFrame({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
       <SessionWindowRailLayout
+        resizable={false}
         sidebar={
           <SessionWindowSidebarRail
             windowId={windowId}
