@@ -104,7 +104,7 @@ is_no_lane() {
     *.test) [ ! -e "$1" ] && return 0; return 1 ;;
     imgs/*.svg) return 0 ;;
 		docs/* | infra/* | packages/site/content/* | .claude/* | .codex/* | .cursor/* | .agents/* | .compozy/* | .github/* | .vscode/* | .deep-review/*) return 0 ;;
-		*.md | *.mdc | LICENSE* | .gitignore | .ignore | .gitattributes | .editorconfig | .repoclone.rc | skills-lock.json | skeeper.lock) return 0 ;;
+		*.md | *.mdc | LICENSE* | .gitignore | .ignore | .gitattributes | .editorconfig | .repoclone.rc | skills-lock.json) return 0 ;;
     *) return 1 ;;
   esac
 }

@@ -31,7 +31,7 @@ classify() {
       CHANGELOG.md | COPY.md | DESIGN.md | MIGRATION_GUIDE.md | PRODUCT.md | SECURITY.md | LICENSE | imgs/* | \
       .air.toml | .claudeignore | .coderabbit.yaml | .commitlintrc.yaml | .deep-review.yaml | .demo-video.yaml | \
       .editorconfig | .env.example | .gitattributes | .gitignore | .ignore | .repoclone.rc | mise.toml | \
-      skills-lock.json | skeeper.lock)
+      skills-lock.json)
       echo "meta"
       return
       ;;

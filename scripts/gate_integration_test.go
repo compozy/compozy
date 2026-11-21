@@ -352,7 +352,6 @@ exit 0
 			{path: ".vscode/tasks.json", want: "no-lane"},
 			{path: ".repoclone.rc", want: "no-lane"},
 			{path: "skills-lock.json", want: "no-lane"},
-			{path: "skeeper.lock", want: "no-lane"},
 			{path: "imgs/how-it-works-flow.svg", want: "would run: nothing (docs/instructions only)"},
 		}
 		for _, tc := range cases {

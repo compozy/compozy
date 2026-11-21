@@ -44,4 +44,4 @@ publish:
   social:
     max_seconds: 140
     fps: 60
-  evidence_dir: docs/qa/evidence # skeeper-managed sidecar; cite by repo-relative path
+  evidence_dir: docs/qa/evidence # gitignored; cite by repo-relative path

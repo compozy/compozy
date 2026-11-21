@@ -10,7 +10,7 @@ Canonical QA tree for Compozy. Owned by the `qa-report` (planning) + `qa-executi
 - `journeys/J-<slug>.md` — journey maps + Mermaid flows. Existing `J-01..J-32` ids are grandfathered.
 - `charters/CH-<slug>.md` — immutable session missions. Existing `CH-001..CH-052` ids are grandfathered; debriefs belong only in run reports.
 - `reports/<YYYY-MM-DD>-<scope>.md` — one per run, never overwritten
-- `evidence/<date>-<scope>/` — checkpoint/failure screenshots + cited run artifacts only (lean). **Skeeper-managed** (`git@github.com:compozy/specs.git`, namespace `compozy`, pattern `docs/qa/evidence/**`): gitignored from the main repo, mirrored to the sidecar, restored via `skeeper restore --all`. Reports reference evidence by repo-relative path, which resolves after restore. Uncited bulk dumps are pruned before sync.
+- `evidence/<date>-<scope>/` — checkpoint/failure screenshots + cited run artifacts only (lean). Gitignored and kept local; reports reference evidence by repo-relative path. Uncited bulk dumps are pruned.
 - `automation-backlog/<slug>.md` — one conflict-resistant automation intent per file.
 - `templates/` — project copies of scenario, bug, charter, and report templates.
 

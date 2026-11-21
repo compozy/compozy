@@ -71,10 +71,6 @@ ai-docs/
 .husky/_/
 .DS_Store
 
-# ─── Skeeper sidecar internals (128 MB) ──────────────────────────────────────
-# .skeeper.yml at root IS readable (config), the sidecar storage is not.
-.skeeper/
-
 # ─── Compozy runtime artifacts ────────────────────────────────────────────────
 # Keep PRD/TechSpec/task markdown readable — exclude only the heavy ephemera.
 .compozy/runs/
