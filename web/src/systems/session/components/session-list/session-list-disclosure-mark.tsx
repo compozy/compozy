@@ -58,9 +58,8 @@ export function SessionListDisclosureMark({
   );
 }
 
-/** The leading running signal for `count` sessions working; none while nothing runs. */
-export function sessionListRunningSignal(count: number, slot: string): ReactNode {
-  if (count <= 0) return undefined;
+/** The leading running glyph for `count` sessions working; render it only while one runs. */
+export function SessionListRunningGlyph({ count, slot }: { count: number; slot: string }) {
   return (
     <span data-slot={slot} className="grid place-items-center">
       <StateGlyph size="sm" state="running" label={workspaceWorkingLabel(count)} />

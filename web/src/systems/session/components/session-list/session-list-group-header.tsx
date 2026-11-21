@@ -18,7 +18,7 @@ import {
 import { AlwaysOnCreateMenu } from "../always-on/always-on-create-menu";
 import { AlwaysOnCollapsedSignal } from "../always-on/always-on-signals";
 import { SessionListCreateMenu } from "./session-list-create-menu";
-import { sessionListRunningSignal } from "./session-list-disclosure-mark";
+import { SessionListRunningGlyph } from "./session-list-disclosure-mark";
 import { SessionListGroupFolderDialog } from "./session-list-group-folder-dialog";
 import { SessionListGroupProjectMenu } from "./session-list-group-project-menu";
 import { SessionListGroupToggle } from "./session-list-group-toggle";
@@ -176,7 +176,11 @@ export function SessionListGroupHeader({
             identity={<SessionListGroupIdentity group={group} />}
             onToggle={onToggle}
             signal={<SessionListGroupSignal group={group} working={false} />}
-            running={sessionListRunningSignal(group.working, "session-group-working")}
+            running={
+              group.working > 0 ? (
+                <SessionListRunningGlyph count={group.working} slot="session-group-working" />
+              ) : undefined
+            }
             testId={testId}
           />
           {alwaysOn ? (

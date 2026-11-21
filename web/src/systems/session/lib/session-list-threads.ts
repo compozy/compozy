@@ -74,9 +74,8 @@ export function countThreadSessions(threads: readonly SessionThreadModel[]): num
 export function countRunningThreadSessions(threads: readonly SessionThreadModel[]): number {
   let running = 0;
   for (const thread of threads) {
-    for (const session of [thread.session, ...thread.childSessions]) {
-      if (isSessionWorkRunning(session)) running += 1;
-    }
+    if (isSessionWorkRunning(thread.session)) running += 1;
+    for (const child of thread.childSessions) if (isSessionWorkRunning(child)) running += 1;
   }
   return running;
 }

@@ -143,7 +143,7 @@ function SessionListRowBody({
   runtime,
   preloadHandlers,
   rowActions,
-  descendantsRunning = hasRunningDescendant(session, []),
+  descendantsRunning,
 }: SessionListRowViewProps) {
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
@@ -170,7 +170,14 @@ function SessionListRowBody({
         current={current}
         selected={selected}
         selection={selection}
-        descendantsRunning={descendantsRunning}
+        badgeMark={
+          <SessionBadgeMark
+            badge={session.badge}
+            waitingOn={sessionWaitingOn(session)}
+            descendantsRunning={descendantsRunning ?? hasRunningDescendant(session, [])}
+            className={badgeMarkClass(selection)}
+          />
+        }
         testId={`${testIdPrefix}-session-${session.id}`}
         onClick={activate}
         focusHandlers={focusHandlers}
@@ -230,7 +237,7 @@ function SessionRowTarget({
   current,
   selected,
   selection,
-  descendantsRunning,
+  badgeMark,
   testId,
   onClick,
   focusHandlers,
@@ -243,7 +250,8 @@ function SessionRowTarget({
   current: boolean;
   selected: boolean;
   selection: SessionRowSelection | undefined;
-  descendantsRunning: boolean;
+  /** Line 1's leading status mark. */
+  badgeMark: ReactNode;
   testId: string;
   onClick: (event: React.MouseEvent<HTMLElement>) => void;
   focusHandlers: ReturnType<typeof useKeyboardFocusToken>["focusHandlers"];
@@ -286,12 +294,7 @@ function SessionRowTarget({
         preloadHandlers.onBlur();
       }}
     >
-      <SessionBadgeMark
-        badge={session.badge}
-        waitingOn={sessionWaitingOn(session)}
-        descendantsRunning={descendantsRunning}
-        className={badgeMarkClass(selection)}
-      />
+      {badgeMark}
       {pinnedMark ? (
         <span className="flex min-w-0 items-center gap-1">
           <span className="min-w-0 truncate">{title}</span>

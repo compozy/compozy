@@ -19,7 +19,7 @@ import { onDisclosureArrowKey } from "../../lib/session-list-stops";
 import {
   SESSION_LIST_DISCLOSURE_GROUP,
   SessionListDisclosureMark,
-  sessionListRunningSignal,
+  SessionListRunningGlyph,
 } from "./session-list-disclosure-mark";
 
 export interface SessionListFolderProps {
@@ -108,7 +108,11 @@ export function SessionListFolder({
       >
         <SessionListDisclosureMark
           open={expanded}
-          signal={sessionListRunningSignal(running, "session-folder-working")}
+          signal={
+            running > 0 ? (
+              <SessionListRunningGlyph count={running} slot="session-folder-working" />
+            ) : undefined
+          }
         />
         <Icon as={Folder} size="sm" className="shrink-0 text-faint" />
         <span className="min-w-0 flex-1 truncate font-medium text-fg">{folder.name}</span>
