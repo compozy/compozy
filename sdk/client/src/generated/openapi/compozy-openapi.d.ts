@@ -40314,7 +40314,7 @@ export interface operations {
   listSessionFacets: {
     parameters: {
       query?: {
-        /** @description Exclude instance main sessions from board counts */
+        /** @description Exclude always-on main sessions from all session counts */
         exclude_instance_main?: boolean;
         /** @description Exclude settled automation-run sessions; search, type, parent, root, archive=only and later=only reads ignore it */
         exclude_finished_automation?: boolean;

@@ -33,7 +33,7 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session catalog facets are required"))
 		return
 	}
-	excludeMain, err := parseBoolQuery(c, "exclude_instance_main")
+	query.ExcludeInstanceMain, err = parseBoolQuery(c, "exclude_instance_main")
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -43,8 +43,8 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 		h.instanceError(c, err)
 		return
 	}
-	if excludeMain {
-		query.BoardExcludedIDs = instanceMainIDs(instances)
+	if query.ExcludeInstanceMain {
+		query.InstanceMainIDs = instanceMainIDs(instances)
 	}
 	facets, err := manager.CatalogFacets(c.Request.Context(), query)
 	if err != nil {

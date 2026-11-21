@@ -76462,7 +76462,7 @@
         "operationId": "listSessionFacets",
         "parameters": [
           {
-            "description": "Exclude instance main sessions from board counts",
+            "description": "Exclude always-on main sessions from all session counts",
             "in": "query",
             "name": "exclude_instance_main",
             "schema": {

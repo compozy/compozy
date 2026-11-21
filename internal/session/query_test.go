@@ -2093,7 +2093,7 @@ func (c *multiPagedRecordingSessionCatalog) SessionCatalogFacets(
 	workspaces := map[string]store.SessionCatalogFacets{}
 	for index := range c.durable {
 		info := &c.durable[index]
-		if slices.Contains(query.ExcludeIDs, info.ID) {
+		if slices.Contains(query.ExcludeIDs, info.ID) || slices.Contains(query.FacetOverlayIDs, info.ID) {
 			continue
 		}
 		if query.Archive == store.SessionArchiveExclude && info.ArchivedAt != nil ||
@@ -5155,6 +5155,50 @@ func TestManagerBoardCatalog(t *testing.T) {
 		}
 		if len(reader.requested) != 0 {
 			t.Fatalf("facets refreshed %v", reader.requested)
+		}
+	})
+
+	t.Run("Should omit an active instance main without dropping a visible session", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		h := newHarness(t)
+		if err := h.manager.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+
+		main, err := h.manager.Create(ctx, new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, err := h.manager.Create(ctx, new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		query := ListQuery{
+			ReadScope:       store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID:     h.workspaceID,
+			InstanceMainIDs: []string{main.ID},
+		}
+		before, err := h.manager.CatalogFacets(ctx, query)
+		if err != nil || before.Facets.All != 2 {
+			t.Fatalf("unfiltered facets = %+v, %v", before, err)
+		}
+		query.ExcludeInstanceMain = true
+		after, err := h.manager.CatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want store.SessionCatalogFacets
+		badge := BadgeForInfo(child.Info())
+		addSessionFacet(&want, badge)
+		want.Board.Add(string(BoardColumnFor(badge, "")), 1)
+		if after.Facets != want || len(after.ByWorkspace) != 1 || len(after.ByProfile) != 1 ||
+			after.ByWorkspace[0].Facets != want || after.ByProfile[0].Facets != want {
+			t.Fatalf("filtered facets = %+v, want %+v in every aggregate", after, want)
 		}
 	})
 

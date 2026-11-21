@@ -6625,7 +6625,7 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 			map[string]any{
 				"name":        "exclude_instance_main",
 				"in":          "query",
-				"description": "Exclude instance main sessions from board counts",
+				"description": "Exclude always-on main sessions from all session counts",
 				"schema":      map[string]any{"type": "boolean"},
 			},
 			finishedAutomationParameter(),

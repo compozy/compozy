@@ -54,8 +54,7 @@ var (
 
 // ListQuery describes one public session catalog page.
 type ListQuery struct {
-	BoardExcludedIDs []string
-	// ExcludeInstanceMain hides InstanceMainIDs from the page and its total.
+	// ExcludeInstanceMain hides InstanceMainIDs from pages and facets.
 	ExcludeInstanceMain bool
 	InstanceMainIDs     []string
 	// ExcludeFinishedAutomation hides settled automation-run sessions from a
@@ -276,7 +275,7 @@ func mergeSessionCatalogCandidates(
 func sessionCatalogPageQuery(
 	normalized ListQuery,
 	after *store.SessionCatalogPosition,
-	activeIDs []string,
+	excludedIDs []string,
 ) store.SessionCatalogPageQuery {
 	query := store.SessionCatalogPageQuery{
 		Columns:              normalized.Columns,
@@ -304,7 +303,7 @@ func sessionCatalogPageQuery(
 		Sort:                 normalized.Sort,
 		Limit:                normalized.Limit + 1,
 		After:                after,
-		ExcludeIDs:           activeIDs,
+		ExcludeIDs:           excludedIDs,
 		ExcludeSpawnRoles:    []string{SpawnRoleAutoTitle},
 
 		ExcludeFinishedAutomation: normalized.ExcludeFinishedAutomation,

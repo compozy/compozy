@@ -128,7 +128,12 @@ func instanceMatchesSessionQuery(row *agentinstance.Instance, query session.List
 	if !query.AllWorkspaces && row.WorkspaceID != workspace {
 		return false
 	}
-	if len(query.WorkspaceIDs) > 0 && !slices.Contains(query.WorkspaceIDs, row.WorkspaceID) {
+	instanceWorkspace := row.WorkspaceID
+	// Apply the catalog's User selector to main exclusions while preserving unflagged instance facets.
+	if query.ExcludeInstanceMain && instanceWorkspace == "" {
+		instanceWorkspace = userScopeWorkspaceRef
+	}
+	if len(query.WorkspaceIDs) > 0 && !slices.Contains(query.WorkspaceIDs, instanceWorkspace) {
 		return false
 	}
 	return query.AgentName == "" || row.AgentName == query.AgentName

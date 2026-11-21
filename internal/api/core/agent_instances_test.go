@@ -1151,7 +1151,7 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 			t.Fatalf("caller=%+v error=%v", caller, err)
 		}
 	})
-	t.Run("Should count attention per instance and exclude main sessions from board counts", func(t *testing.T) {
+	t.Run("Should resolve Global instance mains for session facet exclusions", func(t *testing.T) {
 		t.Parallel()
 		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "facets.db"))
 		if err != nil {
@@ -1179,59 +1179,108 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		fixture := newHandlerFixture(
-			t,
-			&testutil.StubSessionManager{
-				ListPageFn: func(_ context.Context, q session.ListQuery) (session.ListPage, error) {
-					if !q.ExcludeInstanceMain || len(q.InstanceMainIDs) != 2 {
-						t.Fatalf("listed main exclusions: %+v", q)
+		for _, tc := range []struct {
+			name        string
+			query       string
+			flag        bool
+			archived    bool
+			wantMainIDs []string
+			attention   int
+		}{
+			{
+				name: "Should exclude Global mains in User scope", query: "workspace_id=@user",
+				flag: true, wantMainIDs: []string{"main-attention", "main-quiet"}, attention: 1,
+			},
+			{
+				name: "Should exclude Global mains in All projects", query: "all_workspaces=true",
+				flag: true, wantMainIDs: []string{"main-attention", "main-quiet"}, attention: 1,
+			},
+			{
+				name:  "Should exclude Global mains in an explicit User aggregate",
+				query: "all_workspaces=true&workspace_ids=@user", flag: true,
+				wantMainIDs: []string{"main-attention", "main-quiet"}, attention: 1,
+			},
+			{
+				name:  "Should exclude Global mains when All projects omits archived projects",
+				query: "all_workspaces=true", flag: true, archived: true,
+				wantMainIDs: []string{"main-attention", "main-quiet"}, attention: 1,
+			},
+			{
+				name:  "Should keep Global instances outside a project-only aggregate",
+				query: "all_workspaces=true&workspace_ids=ws-project", flag: true,
+			},
+			{
+				name:  "Should preserve the default aggregate when the flag is omitted",
+				query: "all_workspaces=true", attention: 1,
+			},
+			{
+				name:  "Should preserve the narrowed aggregate when exclusion is false",
+				query: "all_workspaces=true&workspace_ids=@user&exclude_instance_main=false",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				workspaces := testutil.StubWorkspaceService{}
+				if tc.archived {
+					workspaces.ListFn = func(context.Context) ([]workspacepkg.Workspace, error) {
+						return []workspacepkg.Workspace{{ID: "ws-archived", ArchivedAt: new(time.Time{})}}, nil
 					}
-					return session.ListPage{Limit: 1}, nil
-				},
-				CatalogFacetsFn: func(_ context.Context, q session.ListQuery) (store.SessionCatalogFacetResult, error) {
-					if len(q.BoardExcludedIDs) != 2 {
-						t.Fatalf("main exclusions: %v", q.BoardExcludedIDs)
+				}
+				fixture := newHandlerFixture(t, &testutil.StubSessionManager{
+					ListPageFn: func(_ context.Context, q session.ListQuery) (session.ListPage, error) {
+						mainIDs := slices.Sorted(slices.Values(q.InstanceMainIDs))
+						if !q.ExcludeInstanceMain || !slices.Equal(mainIDs, tc.wantMainIDs) {
+							t.Fatalf("listed main exclusions: %+v", q)
+						}
+						return session.ListPage{Limit: 1}, nil
+					},
+					CatalogFacetsFn: func(_ context.Context, q session.ListQuery) (store.SessionCatalogFacetResult, error) {
+						mainIDs := slices.Sorted(slices.Values(q.InstanceMainIDs))
+						if q.ExcludeInstanceMain != tc.flag || !slices.Equal(mainIDs, tc.wantMainIDs) {
+							t.Fatalf("facet main exclusions: %+v", q)
+						}
+						return store.SessionCatalogFacetResult{Facets: store.SessionCatalogFacets{All: 7}}, nil
+					},
+				}, testutil.StubObserver{}, workspaces)
+				fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+					Store: db.Instances(),
+					ReadPayload: func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error) {
+						t.Fatal("facets hydrated the full instance payload")
+						return contract.AgentInstancePayload{}, nil
+					},
+					ReadAttention: func(ctx context.Context, id string) (bool, error) {
+						row, err := db.Instances().Get(ctx, id)
+						return row.AgentName == "attention", err
+					},
+				}
+				fixture.Engine.GET("/facets", fixture.Handlers.ListSessionFacets)
+				fixture.Engine.GET("/list", fixture.Handlers.ListSessions)
+				query := tc.query
+				if tc.flag {
+					query += "&exclude_instance_main=true"
+					listed := performRequest(t, fixture.Engine, http.MethodGet, "/list?"+query, nil)
+					var page contract.SessionCatalogResponse
+					decodeJSON(t, listed.Body.Bytes(), &page)
+					if listed.Code != http.StatusOK || page.Page.Limit != 1 {
+						t.Fatalf("list: %d %s", listed.Code, listed.Body.String())
 					}
-					return store.SessionCatalogFacetResult{Facets: store.SessionCatalogFacets{All: 7}}, nil
-				},
-			},
-			testutil.StubObserver{},
-			testutil.StubWorkspaceService{},
-		)
-		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
-			Store: db.Instances(),
-			ReadPayload: func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error) {
-				t.Fatal("facets hydrated the full instance payload")
-				return contract.AgentInstancePayload{}, nil
-			},
-			ReadAttention: func(_ context.Context, id string) (bool, error) {
-				row, err := db.Instances().Get(t.Context(), id)
-				return row.AgentName == "attention", err
-			},
-		}
-		fixture.Engine.GET("/facets", fixture.Handlers.ListSessionFacets)
-		fixture.Engine.GET("/list", fixture.Handlers.ListSessions)
-		listed := performRequest(t, fixture.Engine, "GET", "/list?all_workspaces=true&exclude_instance_main=true", nil)
-		if listed.Code != 200 {
-			t.Fatalf("list: %d %s", listed.Code, listed.Body.String())
-		}
-		response := performRequest(
-			t,
-			fixture.Engine,
-			"GET",
-			"/facets?all_workspaces=true&exclude_instance_main=true",
-			nil,
-		)
-		var body contract.SessionCatalogFacetsResponse
-		decodeJSON(t, response.Body.Bytes(), &body)
-		if response.Code != 200 || body.Facets.All != 7 || body.Facets.InstancesNeedingAttention != 1 ||
-			len(body.ByWorkspace) != 1 ||
-			body.ByWorkspace[0].WorkspaceID != "" ||
-			body.ByWorkspace[0].Facets.InstancesNeedingAttention != 1 ||
-			len(body.ByProfile) != 1 ||
-			body.ByProfile[0].ProfileID != store.DefaultProfileID ||
-			body.ByProfile[0].Facets.InstancesNeedingAttention != 1 {
-			t.Fatalf("facets: %d %+v", response.Code, body)
+				}
+				response := performRequest(t, fixture.Engine, http.MethodGet, "/facets?"+query, nil)
+				var body contract.SessionCatalogFacetsResponse
+				decodeJSON(t, response.Body.Bytes(), &body)
+				if response.Code != http.StatusOK || body.Facets.All != 7 ||
+					body.Facets.InstancesNeedingAttention != tc.attention ||
+					len(body.ByWorkspace) != tc.attention || len(body.ByProfile) != tc.attention {
+					t.Fatalf("facets: %d %+v", response.Code, body)
+				}
+				if tc.attention > 0 &&
+					(body.ByWorkspace[0].WorkspaceID != "" ||
+						body.ByWorkspace[0].Facets.InstancesNeedingAttention != 1 ||
+						body.ByProfile[0].ProfileID != store.DefaultProfileID ||
+						body.ByProfile[0].Facets.InstancesNeedingAttention != 1) {
+					t.Fatalf("instance attention groups: %+v", body)
+				}
+			})
 		}
 	})
 }

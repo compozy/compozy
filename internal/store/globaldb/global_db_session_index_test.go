@@ -86,7 +86,7 @@ func TestListSessionsWorkspaceStateIndex(t *testing.T) {
 }
 
 func TestPageSessionsVisibilityExclusion(t *testing.T) {
-	t.Run("Should exclude instance main sessions only from board counts", func(t *testing.T) {
+	t.Run("Should exclude durable instance mains from all session facets", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		db := openTestGlobalDB(t)
@@ -108,16 +108,36 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		query.BoardExcludedIDs = []string{"instance-main"}
+		query.ExcludeIDs = []string{"instance-main"}
 		after, err := db.SessionCatalogFacets(ctx, query)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if before.Facets.All != 2 || after.Facets.All != 2 || before.Facets.Board.Done != 2 ||
-			after.Facets.Board.Done != 1 ||
-			after.ByWorkspace[0].Facets.Board.Done != 1 ||
-			after.ByProfile[0].Facets.Board.Done != 1 {
+		if before.Facets.All != 2 || before.Facets.Board.Done != 2 || after.Facets.All != 1 ||
+			after.Facets.Board.Done != 1 || len(after.ByWorkspace) != 1 || len(after.ByProfile) != 1 ||
+			after.ByWorkspace[0].Facets != after.Facets || after.ByProfile[0].Facets != after.Facets {
 			t.Fatalf("before=%+v after=%+v", before, after)
+		}
+		query.ExcludeIDs = append(query.ExcludeIDs, "instance-child")
+		empty, err := db.SessionCatalogFacets(ctx, query)
+		if err != nil || empty.Facets != (store.SessionCatalogFacets{}) ||
+			len(empty.ByWorkspace) != 0 || len(empty.ByProfile) != 0 {
+			t.Fatalf("empty facets = %+v, %v", empty, err)
+		}
+		if _, err := db.ParkSession(
+			ctx,
+			store.SessionLaterPark{WorkspaceID: workspaceID, SessionID: "instance-main"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		parked, err := db.SessionCatalogFacets(ctx, query)
+		if err != nil || parked.Later != 0 {
+			t.Fatalf("excluded Later count = %d, %v", parked.Later, err)
+		}
+		query.ExcludeIDs = nil
+		parked, err = db.SessionCatalogFacets(ctx, query)
+		if err != nil || parked.Later != 1 {
+			t.Fatalf("unfiltered Later count = %d, %v", parked.Later, err)
 		}
 	})
 
@@ -622,7 +642,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			Limit:               1,
 			Sort:                sessionCatalogSortRecent,
 			ExcludeSessionTypes: []string{"dream"},
-			ExcludeIDs:          []string{"terminal-count-000"},
+			FacetOverlayIDs:     []string{"terminal-count-000"},
 		}
 		facets, err := db.SessionCatalogFacets(ctx, query)
 		if err != nil || facets.Facets.TerminalApprovals != 110 || len(facets.ByWorkspace) != 1 ||
@@ -635,6 +655,14 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}) {
 			t.Fatalf("scoped terminal approval groups = %#v", facets.TerminalApprovals)
 		}
+		query.ExcludeIDs = []string{"terminal-count-000"}
+		facets, err = db.SessionCatalogFacets(ctx, query)
+		if err != nil || facets.Facets.TerminalApprovals != 109 ||
+			len(facets.ByWorkspace) != 1 || facets.ByWorkspace[0].Facets.TerminalApprovals != 109 ||
+			len(facets.ByProfile) != 1 || facets.ByProfile[0].Facets.TerminalApprovals != 109 {
+			t.Fatalf("facets with a population exclusion = %+v, %v", facets, err)
+		}
+		query.ExcludeIDs = nil
 		if _, err := db.TransitionPendingInteraction(
 			ctx,
 			store.PendingInteractionTransition{
@@ -662,7 +690,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if err != nil || facets.Facets.TerminalApprovals != 108 {
 			t.Fatalf("orphaned approval facets=%#v error=%v", facets, err)
 		}
-		query.ExcludeIDs = nil
+		query.FacetOverlayIDs = nil
 		where, args, err := sessionCatalogPageFilters(query, store.FormatTimestamp(base))
 		if err != nil {
 			t.Fatal(err)

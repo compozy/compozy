@@ -21,6 +21,14 @@ one Global, then walk the row, its card and menu, the picker, Kanban and the col
 and resume from the menu, archive and confirm the session returns to history, and watch
 `agent_instance.updated` move a pose without a reload.
 
+Session-count regression (#1897): with a quiet Global instance and no other User sessions,
+open the project-grouped list and Kanban in All projects. The main adds no User session
+group, total, or column count. Repeat with All projects narrowed to User, then with
+a project instance and an ordinary session in that project. The project total and
+column counts reflect only the ordinary session, and the instance still appears as an
+avatar. With the exclusion flag set, facets report the same session counts for scoped
+and aggregate reads. CI coverage lives in the catalog and instance-facets API suites.
+
 2026-11-01 (D-5) provider boundary evidence: isolated live ACP triage completed
 with Claude `plan`, Codex `read-only`, and OpenCode's config-only `plan`. Each
 returned `NOTHING_TO_REPORT`; Claude also refused a requested scratch-file write.

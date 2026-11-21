@@ -16,7 +16,6 @@ func (g *SessionRepo) addTerminalApprovalFacets(
 	query store.SessionCatalogPageQuery,
 	result *store.SessionCatalogFacetResult,
 ) (err error) {
-	query.ExcludeIDs = nil
 	where, args, err := sessionCatalogPageFilters(query, store.FormatTimestamp(g.now()))
 	if err != nil {
 		return err
