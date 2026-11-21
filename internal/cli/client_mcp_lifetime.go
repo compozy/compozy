@@ -20,13 +20,22 @@ var errHostedMCPCallFallback = fmt.Errorf("cli: hosted MCP call: %w", context.De
 
 func withHostedMCPCallFallback(ctx context.Context, timeout time.Duration) (context.Context, func()) {
 	ctx, cancel := context.WithCancelCause(ctx)
-	timer := time.AfterFunc(timeout, func() { cancel(errHostedMCPCallFallback) })
 	var mu sync.Mutex
+	deadline := time.Now().Add(timeout)
+	timer := time.AfterFunc(timeout, func() {
+		mu.Lock()
+		defer mu.Unlock()
+		// Reset can leave a superseded callback already running.
+		if !time.Now().Before(deadline) {
+			cancel(errHostedMCPCallFallback)
+		}
+	})
 	trace := &httptrace.ClientTrace{Got1xxResponse: func(status int, _ textproto.MIMEHeader) error {
 		if status == http.StatusProcessing {
 			mu.Lock()
-			if ctx.Err() == nil {
-				timer.Reset(timeout)
+			if now := time.Now(); ctx.Err() == nil && now.Before(deadline) {
+				deadline = now.Add(timeout)
+				timer.Reset(time.Until(deadline))
 			}
 			mu.Unlock()
 		}

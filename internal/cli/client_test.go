@@ -58,6 +58,16 @@ func (b *responseBodyProbe) Close() error {
 	return b.closeErr
 }
 
+type closeWaitingResponseBody struct {
+	io.Reader
+	done <-chan struct{}
+}
+
+func (b closeWaitingResponseBody) Close() error {
+	<-b.done
+	return nil
+}
+
 type contextBoundReader struct {
 	ctx         context.Context
 	readStarted chan struct{}
@@ -2367,13 +2377,45 @@ func TestUnixSocketClientHostedMCPMethods(t *testing.T) {
 						}),
 					},
 				}
+				started := time.Now()
 				_, err := client.CallHostedMCP(ctx, mcppkg.HostedCallRequest{BindID: "bind-1"})
 				if !errors.Is(err, tc.want) {
 					t.Errorf("CallHostedMCP() = %v, want %v", err, tc.want)
 				}
+				if tc.timeout > 0 && time.Since(started) != tc.timeout {
+					t.Errorf(
+						"CallHostedMCP() returned after %s, want caller deadline %s",
+						time.Since(started),
+						tc.timeout,
+					)
+				}
 			})
 		})
 	}
+
+	t.Run("Should preserve a decoded daemon rejection when the fallback expires during cleanup", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				response := newHTTPResponse(http.StatusForbidden, `{"error":{
+					"code":"tool_denied","tool_id":"compozy__skill_view","message":"denied by fixture policy"
+				}}`)
+				response.Body = closeWaitingResponseBody{Reader: response.Body, done: req.Context().Done()}
+				return response, nil
+			})
+			client := &daemonClient{
+				target:               LocalClientTarget("/tmp/compozy.sock"),
+				hostedMCPCallTimeout: time.Second,
+				streamClient:         &http.Client{Transport: transport},
+			}
+			_, err := client.CallHostedMCP(t.Context(), mcppkg.HostedCallRequest{BindID: "bind-1"})
+			toolErr, ok := errors.AsType[*toolAPIError](err)
+			if !ok || toolErr.Response().Error.Code != toolspkg.ErrorCodeDenied {
+				t.Fatalf("CallHostedMCP() error = %v, want structured tool denial", err)
+			}
+		})
+	})
 
 	t.Run("Should expire a silent hosted call after the last progress response", func(t *testing.T) {
 		t.Parallel()

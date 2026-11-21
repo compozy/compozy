@@ -5,9 +5,12 @@ import (
 	"net/http"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
+
+const hostedWaitProgressWriteTimeout = compozyconfig.DefaultClientRequestTimeout
 
 func withHostedWaitProgress(ctx context.Context, writer http.ResponseWriter) context.Context {
 	return toolspkg.WithHostedWaitProgress(ctx, func() func() {
@@ -29,7 +32,7 @@ func reportHostedWaitProgress(ctx context.Context, writer http.ResponseWriter) {
 	defer ticker.Stop()
 	controller := http.NewResponseController(writer)
 	for ctx.Err() == nil {
-		if err := controller.SetWriteDeadline(time.Now().Add(mcppkg.HostedToolProgressInterval)); err != nil {
+		if err := controller.SetWriteDeadline(time.Now().Add(hostedWaitProgressWriteTimeout)); err != nil {
 			return
 		}
 		writer.WriteHeader(http.StatusProcessing)

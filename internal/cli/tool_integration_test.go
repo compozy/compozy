@@ -307,7 +307,7 @@ func TestCLIHostedMCPCallLifetimeIntegration(t *testing.T) {
 		withProgress bool
 	}{
 		{"Should return a tool error and close a silent hosted call", false},
-		{"Should deliver a progress frame before the final tool result", true},
+		{"Should return the result after progress renews the original budget", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -318,11 +318,14 @@ func TestCLIHostedMCPCallLifetimeIntegration(t *testing.T) {
 				cliToolIntegrationRegistry: newCLIToolIntegrationRegistry(),
 				canceled:                   canceled,
 			}
+			timeout := 2 * time.Second
 			if tc.withProgress {
 				registry.release = received
+				timeout = 4 * time.Second
+				registry.phaseDuration = 2500 * time.Millisecond
 			}
 			client, nonce := startCLIHostedWaitDaemon(t, registry)
-			client.hostedMCPCallTimeout = 2 * time.Second
+			client.hostedMCPCallTimeout = timeout
 			transport := client.streamClient.Transport
 			progress := sync.OnceFunc(func() { close(received) })
 			client.streamClient.Transport = roundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -340,9 +343,10 @@ func TestCLIHostedMCPCallLifetimeIntegration(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
-			watchdog := time.AfterFunc(10*time.Second, cancel)
+			watchdog := time.AfterFunc(15*time.Second, cancel)
 			defer watchdog.Stop()
 			session := startCLIHostedWaitProxy(t, ctx, client, nonce)
+			started := time.Now()
 			result, err := session.CallTool(ctx, &sdkmcp.CallToolParams{
 				Name: toolspkg.ToolIDSkillView.String(), Arguments: map[string]any{},
 			})
@@ -356,6 +360,9 @@ func TestCLIHostedMCPCallLifetimeIntegration(t *testing.T) {
 			if tc.withProgress {
 				if result.IsError || !ok || message.Text != "ok" {
 					t.Fatalf("CallTool() = %#v, want successful result after progress", result)
+				}
+				if elapsed := time.Since(started); elapsed <= timeout {
+					t.Fatalf("call completed in %s, want longer than the original %s budget", elapsed, timeout)
 				}
 				return
 			}
@@ -373,22 +380,40 @@ func TestCLIHostedMCPCallLifetimeIntegration(t *testing.T) {
 
 type cliHostedWaitRegistry struct {
 	*cliToolIntegrationRegistry
-	release  <-chan struct{}
-	canceled chan<- struct{}
+	release       <-chan struct{}
+	canceled      chan<- struct{}
+	phaseDuration time.Duration
 }
 
 func (r *cliHostedWaitRegistry) Call(
 	ctx context.Context, scope toolspkg.Scope, request toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	if r.release != nil {
+		if err := waitHostedMCPTestPhase(ctx, r.phaseDuration); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 		defer toolspkg.BeginHostedWaitProgress(ctx)()
 	}
 	select {
 	case <-r.release:
+		if err := waitHostedMCPTestPhase(ctx, r.phaseDuration); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 		return r.cliToolIntegrationRegistry.Call(ctx, scope, request)
 	case <-ctx.Done():
 		close(r.canceled)
 		return toolspkg.ToolResult{}, ctx.Err()
+	}
+}
+
+func waitHostedMCPTestPhase(ctx context.Context, duration time.Duration) error {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }
 

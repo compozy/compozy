@@ -286,8 +286,8 @@ func (c *daemonClient) CallHostedMCP(
 		&response,
 		c.streamHTTPClient(),
 	); err != nil {
-		if errors.Is(context.Cause(ctx), errHostedMCPCallFallback) {
-			err = errHostedMCPCallFallback
+		if errors.Is(err, context.Canceled) && errors.Is(context.Cause(ctx), errHostedMCPCallFallback) {
+			err = errors.Join(errHostedMCPCallFallback, err)
 		}
 		return mcppkg.HostedCallResponse{}, err
 	}
