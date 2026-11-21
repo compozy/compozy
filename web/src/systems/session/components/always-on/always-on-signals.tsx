@@ -9,7 +9,7 @@ import {
   type AgentInstancePayload,
 } from "@/systems/agent";
 
-import { instancesInScope } from "../../lib/always-on-scope";
+import { instancesInScope, projectGroupInstances } from "../../lib/always-on-scope";
 import { AlwaysOnRow, type AlwaysOnRowProps } from "./always-on-row";
 
 type ScopedRowProps = Omit<AlwaysOnRowProps, "instances" | "scopeName">;
@@ -36,7 +36,7 @@ export function AlwaysOnProjectRow({
   return (
     <AlwaysOnRow
       {...props}
-      instances={instancesInScope(useAgentInstances(), workspaceId)}
+      instances={projectGroupInstances(useAgentInstances(), workspaceId)}
       scopeName={name}
     />
   );
@@ -44,7 +44,7 @@ export function AlwaysOnProjectRow({
 
 /** A closed project still shows who wants you, by face rather than a dot. */
 export function AlwaysOnCollapsedSignal({ workspaceId }: { workspaceId: string }) {
-  const waiting = instancesInScope(useAgentInstances(), workspaceId).filter(
+  const waiting = projectGroupInstances(useAgentInstances(), workspaceId).filter(
     instance => agentInstanceAvatarState(instance) === "needs-you"
   );
   const lead = waiting[0];

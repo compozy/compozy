@@ -6,13 +6,13 @@ import { describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@compozy/ui";
 
 import { agentInstanceFixture } from "@/systems/agent/mocks";
-import type { AgentInstancePayload } from "@/systems/agent";
+import { GLOBAL_SCOPE, type AgentInstancePayload } from "@/systems/agent";
 
 import { useSessionCreator } from "../../../hooks/use-session-creator";
 import { sessionListShelfFilters } from "../../../lib/session-list-shelf";
 import { normalizeSessionListFilters } from "../../../lib/session-list-query";
 import { withInstanceProjectGroups } from "../../../lib/session-list-groups";
-import { AlwaysOnCollapsedSignal } from "../always-on-signals";
+import { AlwaysOnCollapsedSignal, AlwaysOnProjectRow } from "../always-on-signals";
 
 const mockInstances = vi.hoisted(() => vi.fn(async () => [] as AgentInstancePayload[]));
 
@@ -51,6 +51,33 @@ describe("AlwaysOnCollapsedSignal", () => {
 
     await waitFor(() => expect(mockInstances).toHaveBeenCalled());
     expect(container.querySelector('[data-testid="always-on-collapsed-signal"]')).toBeNull();
+  });
+});
+
+describe("User group", () => {
+  it("Should leave Global agents to the Global row instead of repeating them in the User group", async () => {
+    mockInstances.mockResolvedValue([
+      agentInstanceFixture({
+        id: "global",
+        workspace_id: "",
+        label: "Secretary",
+        needs_attention: true,
+      }),
+      agentInstanceFixture({ id: "project", needs_attention: true }),
+    ]);
+    render(
+      <>
+        <AlwaysOnProjectRow name="User" onOpenSession={vi.fn()} workspaceId={GLOBAL_SCOPE} />
+        <AlwaysOnCollapsedSignal workspaceId={GLOBAL_SCOPE} />
+        <AlwaysOnCollapsedSignal workspaceId="ws-compozy" />
+      </>,
+      { wrapper }
+    );
+
+    expect(await screen.findByRole("img", { name: /Triage Lead needs you/ })).toBeInTheDocument();
+    expect(screen.getAllByTestId("always-on-collapsed-signal")).toHaveLength(1);
+    expect(screen.queryByRole("img", { name: /Secretary/ })).toBeNull();
+    expect(screen.queryByRole("toolbar", { name: "Always-on agents" })).toBeNull();
   });
 });
 
