@@ -4,6 +4,12 @@ package client
 
 import "time"
 
+// SessionInputListResponse is a daemon API value.
+type SessionInputListResponse struct {
+	Inputs []SessionInputPayload       `json:"inputs"`
+	Queue  *SessionQueueSummaryPayload `json:"queue,omitzero"`
+}
+
 // SessionInputMentionPayload is a daemon API value.
 type SessionInputMentionPayload struct {
 	Kind   SessionMentionKind `json:"kind"`
@@ -436,12 +442,4 @@ type SessionRepairIssuePayload struct {
 	TurnID   string `json:"turn_id,omitempty"`
 	EventID  string `json:"event_id,omitempty"`
 	Detail   string `json:"detail,omitempty"`
-}
-
-// SessionRepairPayload is a daemon API value.
-type SessionRepairPayload struct {
-	SessionID string                       `json:"session_id"`
-	Issues    []SessionRepairIssuePayload  `json:"issues"`
-	Actions   []SessionRepairActionPayload `json:"actions"`
-	Persisted bool                         `json:"persisted"`
 }

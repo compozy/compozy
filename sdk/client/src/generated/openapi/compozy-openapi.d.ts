@@ -16061,6 +16061,7 @@ export interface components {
       limit: number;
       next_cursor?: string;
       total?: number | null;
+      working?: number | null;
     };
     SessionCatalogResponse: {
       page: components["schemas"]["SessionCatalogPagePayload"];

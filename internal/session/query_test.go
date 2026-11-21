@@ -380,6 +380,36 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		})
 	}
 
+	// Invariant (#1926): the page's working count joins durable and live rows under the
+	// total's scope, and is absent where the total is skipped or counts pins.
+	t.Run("Should count live running sessions with the page total", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 4, 2)
+		manager.sessions["live-starting"] = &Session{
+			ID: "live-starting", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-read-00",
+			AgentName: "coder", Provider: "claude", State: StateStarting,
+			CreatedAt: benchmarkSessionTime.Add(time.Hour),
+		}
+		manager.sessions["live-elsewhere"] = &Session{
+			ID: "live-elsewhere", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-read-01",
+			AgentName: "coder", Provider: "claude", State: StateStarting,
+			CreatedAt: benchmarkSessionTime.Add(time.Hour),
+		}
+		query := ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "ws-read-00"}
+		page, err := manager.ListPage(t.Context(), query)
+		if err != nil || page.Total != 3 || page.Working == nil || *page.Working != 1 {
+			t.Fatalf("page total = %d, working = %v, err = %v; want 3 and 1", page.Total, page.Working, err)
+		}
+		query.SkipTotal = true
+		if page, err = manager.ListPage(t.Context(), query); err != nil || page.Working != nil {
+			t.Fatalf("skipped-total working = %v, %v; want nil", page.Working, err)
+		}
+		query.SkipTotal, query.Sort = false, ListSortPinned
+		if page, err = manager.ListPage(t.Context(), query); err != nil || page.Working != nil {
+			t.Fatalf("pinned working = %v, %v; want nil", page.Working, err)
+		}
+	})
+
 	t.Run("Should merge live and durable sessions inside their folder partition only", func(t *testing.T) {
 		t.Parallel()
 		h, db := newMentionHarness(t)

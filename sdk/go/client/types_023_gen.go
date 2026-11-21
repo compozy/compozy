@@ -4,6 +4,24 @@ package client
 
 import "time"
 
+// SettingsObservabilityConfigPayload is a daemon API value.
+type SettingsObservabilityConfigPayload struct {
+	Enabled        bool                                   `json:"enabled"`
+	RetentionDays  int                                    `json:"retention_days"`
+	MaxGlobalBytes int64                                  `json:"max_global_bytes"`
+	Transcripts    SettingsObservabilityTranscriptPayload `json:"transcripts"`
+}
+
+// SettingsObservabilityResponse is a daemon API value.
+type SettingsObservabilityResponse struct {
+	Section         SettingsSectionName                 `json:"section"`
+	Scope           SettingsUserScopeKind               `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind             `json:"available_scopes"`
+	Config          SettingsObservabilityConfigPayload  `json:"config"`
+	Runtime         SettingsObservabilityRuntimePayload `json:"runtime"`
+	LogTail         SettingsLogTailCapabilityPayload    `json:"log_tail"`
+}
+
 // SettingsObservabilityRuntimePayload is a daemon API value.
 type SettingsObservabilityRuntimePayload struct {
 	Available          bool   `json:"available"`
@@ -420,14 +438,4 @@ type SettingsSkillSourceSkippedLinkPayload struct {
 type SettingsSkillSourceVerificationPayload struct {
 	Blocked int `json:"blocked"`
 	Warned  int `json:"warned"`
-}
-
-// SettingsSkillsConfigPayload is a daemon API value.
-type SettingsSkillsConfigPayload struct {
-	Enabled                 bool     `json:"enabled"`
-	Sources                 []string `json:"sources"`
-	CustomSources           []string `json:"custom_sources"`
-	DisabledSkills          []string `json:"disabled_skills,omitempty"`
-	PollInterval            string   `json:"poll_interval"`
-	AllowedMarketplaceHooks []string `json:"allowed_marketplace_hooks,omitempty"`
 }

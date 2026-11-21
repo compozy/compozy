@@ -26903,6 +26903,10 @@
           "total": {
             "nullable": true,
             "type": "integer"
+          },
+          "working": {
+            "nullable": true,
+            "type": "integer"
           }
         },
         "required": [

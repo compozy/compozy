@@ -100,7 +100,11 @@ type ListPage struct {
 	NextCursor string
 	HasMore    bool
 	Total      int
-	Limit      int
+	// Working counts the sessions in Total whose badge is running, with the facets' working
+	// notion: durable rows by their catalog badge, live rows by their live badge. It is nil
+	// when Total is skipped or counts pins (pinned sort).
+	Working *int
+	Limit   int
 	// Placements carries folder membership for page sessions that have one.
 	Placements map[string]store.SessionPlacement
 }
@@ -206,6 +210,9 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	candidates, page.Total, page.HasMore = cutSessionCatalogPage(
 		candidates, normalized, durable, activeMatches, position,
 	)
+	if !normalized.SkipTotal && normalized.Sort != ListSortPinned {
+		page.Working = new(durable.Working + workingSessionCatalogMatches(activeMatches, activeByID))
+	}
 	page.Sessions = projectSessionCatalogPage(candidates, activeByID)
 	m.decorateMCPAuthorities(ctx, page.Sessions, nil)
 	if err := m.populateCatalogRelations(
@@ -229,6 +236,22 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		}
 	}
 	return page, nil
+}
+
+// workingSessionCatalogMatches counts the live matches whose live badge is running, as
+// CatalogFacets counts its active overlay.
+func workingSessionCatalogMatches(activeMatches []store.SessionInfo, activeByID map[string]*Info) int {
+	working := 0
+	for index := range activeMatches {
+		info := sessionInfoFromCatalog(&activeMatches[index])
+		if active := activeByID[info.ID]; active != nil {
+			info = active
+		}
+		if BadgeForInfo(info) == BadgeRunning {
+			working++
+		}
+	}
+	return working
 }
 
 func mergeSessionCatalogCandidates(

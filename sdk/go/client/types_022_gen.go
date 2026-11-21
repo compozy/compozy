@@ -4,6 +4,22 @@ package client
 
 import "time"
 
+// SettingsDaemonRuntimePayload is a daemon API value.
+type SettingsDaemonRuntimePayload struct {
+	Available      bool       `json:"available"`
+	Status         string     `json:"status,omitempty"`
+	PID            int        `json:"pid,omitzero"`
+	StartedAt      *time.Time `json:"started_at,omitempty"`
+	UptimeSeconds  int64      `json:"uptime_seconds"`
+	Socket         string     `json:"socket,omitempty"`
+	HTTPHost       string     `json:"http_host,omitempty"`
+	HTTPPort       int        `json:"http_port,omitzero"`
+	ActiveSessions int        `json:"active_sessions"`
+	ActiveAgents   int        `json:"active_agents"`
+	TotalSessions  int        `json:"total_sessions"`
+	Version        string     `json:"version,omitempty"`
+}
+
 // SettingsDefaultsPayload is a daemon API value.
 type SettingsDefaultsPayload struct {
 	Agent           string `json:"agent"`
@@ -426,21 +442,3 @@ type SettingsMarketplaceResponse struct {
 
 // SettingsMutationBehavior is a daemon API value.
 type SettingsMutationBehavior string
-
-// SettingsObservabilityConfigPayload is a daemon API value.
-type SettingsObservabilityConfigPayload struct {
-	Enabled        bool                                   `json:"enabled"`
-	RetentionDays  int                                    `json:"retention_days"`
-	MaxGlobalBytes int64                                  `json:"max_global_bytes"`
-	Transcripts    SettingsObservabilityTranscriptPayload `json:"transcripts"`
-}
-
-// SettingsObservabilityResponse is a daemon API value.
-type SettingsObservabilityResponse struct {
-	Section         SettingsSectionName                 `json:"section"`
-	Scope           SettingsUserScopeKind               `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind             `json:"available_scopes"`
-	Config          SettingsObservabilityConfigPayload  `json:"config"`
-	Runtime         SettingsObservabilityRuntimePayload `json:"runtime"`
-	LogTail         SettingsLogTailCapabilityPayload    `json:"log_tail"`
-}

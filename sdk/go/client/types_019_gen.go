@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// SessionConfigOptionValuePayload is a daemon API value.
+type SessionConfigOptionValuePayload struct {
+	Value       string `json:"value"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+	GroupID     string `json:"group_id,omitempty"`
+	GroupLabel  string `json:"group_label,omitempty"`
+}
+
 // SessionConsumerDegradedPayload is a daemon API value.
 type SessionConsumerDegradedPayload struct {
 	SessionID       string `json:"session_id"`
@@ -433,10 +442,4 @@ type SessionInputClearResponse struct {
 	Inputs          []SessionInputPayload `json:"inputs"`
 	ClearedCount    int                   `json:"cleared_count"`
 	QueueGeneration int64                 `json:"queue_generation"`
-}
-
-// SessionInputListResponse is a daemon API value.
-type SessionInputListResponse struct {
-	Inputs []SessionInputPayload       `json:"inputs"`
-	Queue  *SessionQueueSummaryPayload `json:"queue,omitzero"`
 }

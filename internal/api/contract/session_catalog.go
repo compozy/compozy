@@ -18,7 +18,11 @@ type SessionCatalogPagePayload struct {
 	NextCursor string `json:"next_cursor,omitempty"`
 	HasMore    bool   `json:"has_more"`
 	Total      *int   `json:"total,omitzero"`
-	Limit      int    `json:"limit"`
+	// Working counts the sessions in Total whose badge is running, with the catalog facets'
+	// working notion, under the same scope and filters. It is present whenever Total is,
+	// except on a pinned-sort read, which counts pins rather than sessions.
+	Working *int `json:"working,omitzero"`
+	Limit   int  `json:"limit"`
 }
 
 // SessionCatalogEventPayload is a workspace-identified wake signal. Clients must

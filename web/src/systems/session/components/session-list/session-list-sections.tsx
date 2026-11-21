@@ -171,7 +171,11 @@ export function SessionListSections({
             key={folder.id}
             folder={folder}
             count={partitions ? page?.total : countThreadSessions(section.threads)}
-            running={countRunningThreadSessions(section.threads)}
+            // A collapsed paged folder reads its count only, so the daemon's working count
+            // stands in for the rows it does not load (#1926).
+            running={
+              page?.countOnly ? (page.working ?? 0) : countRunningThreadSessions(section.threads)
+            }
             expanded={page ? !page.countOnly : filtering || !collapsedFolders.has(folder.id)}
             onToggle={() => onToggleFolder(folder.id)}
             onNewSession={onNewSessionInFolder ? () => onNewSessionInFolder(folder.id) : undefined}

@@ -306,6 +306,7 @@ type SessionCatalogPagePayload struct {
 	NextCursor string `json:"next_cursor,omitempty"`
 	HasMore    bool   `json:"has_more"`
 	Total      *int   `json:"total,omitzero"`
+	Working    *int   `json:"working,omitzero"`
 	Limit      int    `json:"limit"`
 }
 
@@ -438,13 +439,4 @@ type SessionConfigOptionPayload struct {
 	CurrentValueID string                            `json:"current_value_id,omitempty"`
 	CurrentBool    *bool                             `json:"current_bool,omitempty"`
 	Values         []SessionConfigOptionValuePayload `json:"values,omitempty"`
-}
-
-// SessionConfigOptionValuePayload is a daemon API value.
-type SessionConfigOptionValuePayload struct {
-	Value       string `json:"value"`
-	Label       string `json:"label,omitempty"`
-	Description string `json:"description,omitempty"`
-	GroupID     string `json:"group_id,omitempty"`
-	GroupLabel  string `json:"group_label,omitempty"`
 }

@@ -7525,6 +7525,7 @@ export type SessionCatalogPagePayload = {
   limit: number;
   next_cursor?: string;
   total?: number | null;
+  working?: number | null;
 };
 
 export type SessionCatalogResponse = {
