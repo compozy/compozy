@@ -64,7 +64,7 @@ func validateNativeAgyToolPolicy(opts StartOpts) error {
 		)
 	}
 	for i, rule := range opts.PermissionRulesValue() {
-		if strings.TrimSpace(rule.Decision) == "deny" {
+		if strings.TrimSpace(rule.Decision) == permissionRuleDecisionDeny {
 			return fmt.Errorf(
 				"%w: the native Antigravity CLI executes its own tools without host permission requests, "+
 					"so permission_rules[%d] deny cannot be enforced; "+

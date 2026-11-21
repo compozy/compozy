@@ -295,6 +295,7 @@ func TestNativeAgyACPCommand(t *testing.T) {
 		"agy.cmd acp",
 		"antigravity acp",
 		"/opt/antigravity/bin/antigravity --gemini-dir=/tmp/g acp",
+		"agy --gemini-dir /tmp/g --app-data-dir antigravity-acp acp",
 		"C:/tools/antigravity.exe acp",
 	}
 	for _, command := range native {
@@ -317,6 +318,8 @@ func TestNativeAgyACPCommand(t *testing.T) {
 		"agy-wrapper acp",
 		"antigravity",
 		"antigravity-ide acp",
+		"agy --gemini-dir acp",
+		"agy --gemini-dir /tmp/g run acp",
 		"npx agy acp",
 		"env AGY_HOME=/tmp agy acp",
 		"bash -c 'agy acp'",

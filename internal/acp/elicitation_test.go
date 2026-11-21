@@ -663,8 +663,8 @@ func newLoggedElicitationTestProcess(t *testing.T) (*AgentProcess, *bytes.Buffer
 }
 
 // TestAgyInteractionPermissionAsksOperator proves an Antigravity question sent as a
-// permission request reaches the operator under every policy and never gets an answer
-// picked by approve-all. Owner: ACP operator questions.
+// permission request reaches the operator under every policy, triage included, and never gets
+// an answer picked by the permission policy. Owner: ACP operator questions.
 func TestAgyInteractionPermissionAsksOperator(t *testing.T) {
 	t.Parallel()
 
@@ -677,72 +677,100 @@ func TestAgyInteractionPermissionAsksOperator(t *testing.T) {
 			{OptionId: "bun", Name: "bun", Kind: acpsdk.PermissionOptionKindAllowOnce},
 		},
 	}
-	newAgyProcess := func(t *testing.T) *AgentProcess {
+	newAgyProcess := func(t *testing.T, mode compozyconfig.PermissionMode) *AgentProcess {
 		t.Helper()
-		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		proc := newDirectProcess(t, mode)
 		proc.providerName = "agy"
+		proc.bindSessionRoute("sess-direct")
 		return proc
 	}
+	answering := func(asked *toolspkg.ClarifyQuestion, answer toolspkg.ClarifyAnswer) ElicitationAsker {
+		return func(_ context.Context, question toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
+			*asked = question
+			return answer, nil
+		}
+	}
+	modes := []compozyconfig.PermissionMode{
+		compozyconfig.PermissionModeDenyAll,
+		compozyconfig.PermissionModeApproveReads,
+		compozyconfig.PermissionModeApproveEdits,
+		compozyconfig.PermissionModeAuto,
+		compozyconfig.PermissionModeApproveAll,
+	}
+	choice := 1
 
-	t.Run("Should select the operator's chosen answer under approve-all", func(t *testing.T) {
+	for _, mode := range modes {
+		t.Run("Should select the operator's chosen answer under "+string(mode), func(t *testing.T) {
+			t.Parallel()
+
+			proc := newAgyProcess(t, mode)
+			var asked toolspkg.ClarifyQuestion
+			proc.elicitationAsker = answering(&asked, toolspkg.ClarifyAnswer{Choice: &choice})
+
+			response, err := proc.handleRequestPermission(t.Context(), request)
+			if err != nil {
+				t.Fatalf("handleRequestPermission() error = %v", err)
+			}
+			if response.Outcome.Selected == nil || response.Outcome.Selected.OptionId != "bun" {
+				t.Fatalf("outcome = %+v, want the operator's bun answer", response.Outcome)
+			}
+			if asked.Question != title || !asked.ChoicesOnly || strings.Join(asked.Choices, ",") != "npm,bun" {
+				t.Fatalf("asked = %+v, want the provider question with its answers in order", asked)
+			}
+		})
+		t.Run("Should cancel instead of picking an answer under "+string(mode), func(t *testing.T) {
+			t.Parallel()
+
+			unavailable := newAgyProcess(t, mode)
+			unavailable.elicitationAsker = nil
+			fallback := newAgyProcess(t, mode)
+			var asked toolspkg.ClarifyQuestion
+			fallback.elicitationAsker = answering(&asked, toolspkg.ClarifyAnswer{Fallback: true})
+
+			for name, proc := range map[string]*AgentProcess{"unavailable": unavailable, "fallback": fallback} {
+				response, err := proc.handleRequestPermission(t.Context(), request)
+				if err != nil {
+					t.Fatalf("handleRequestPermission(%s) error = %v", name, err)
+				}
+				if response.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
+					t.Fatalf("outcome(%s) = %+v, want canceled", name, response.Outcome)
+				}
+			}
+		})
+	}
+
+	t.Run("Should ask the operator before triage decides", func(t *testing.T) {
 		t.Parallel()
 
-		proc := newAgyProcess(t)
+		proc := newAgyProcess(t, compozyconfig.PermissionModeApproveReads)
+		proc.executionPolicy = ExecutionPolicyTriage
 		var asked toolspkg.ClarifyQuestion
-		proc.elicitationAsker = func(_ context.Context, question toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
-			asked = question
-			choice := 1
-			return toolspkg.ClarifyAnswer{Choice: &choice}, nil
-		}
+		proc.elicitationAsker = answering(&asked, toolspkg.ClarifyAnswer{Choice: &choice})
 
-		response, err := proc.resolvePermissionRequest(t.Context(), request, permissionActorProvider)
+		response, err := proc.handleRequestPermission(t.Context(), request)
 		if err != nil {
-			t.Fatalf("resolvePermissionRequest() error = %v", err)
+			t.Fatalf("handleRequestPermission() error = %v", err)
 		}
-		if response.Outcome.Selected == nil || response.Outcome.Selected.OptionId != "bun" {
-			t.Fatalf("outcome = %+v, want the operator's bun answer", response.Outcome)
-		}
-		if asked.Question != title || !asked.ChoicesOnly || strings.Join(asked.Choices, ",") != "npm,bun" {
-			t.Fatalf("asked = %+v, want the provider question with its answers in order", asked)
+		if response.Outcome.Selected == nil || response.Outcome.Selected.OptionId != "bun" || asked.Question != title {
+			t.Fatalf("outcome = %+v asked = %+v, want the operator's answer under triage", response.Outcome, asked)
 		}
 	})
 
-	t.Run("Should cancel instead of picking an answer when no operator can answer", func(t *testing.T) {
+	t.Run("Should recognize a native CLI launch under a custom provider name", func(t *testing.T) {
 		t.Parallel()
 
-		proc := newAgyProcess(t)
-		proc.elicitationAsker = nil
-
-		response, err := proc.resolvePermissionRequest(t.Context(), request, permissionActorProvider)
-		if err != nil {
-			t.Fatalf("resolvePermissionRequest() error = %v", err)
-		}
-		if response.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
-			t.Fatalf("outcome = %+v, want canceled", response.Outcome)
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		proc.providerName = "google"
+		proc.Command, proc.Args = "/opt/antigravity/bin/antigravity", []string{"--gemini-dir", "/tmp/g", "acp"}
+		if !proc.isAgyInteractionQuestion(request) {
+			t.Fatal("isAgyInteractionQuestion(native launch) = false, want the operator question path")
 		}
 	})
 
-	t.Run("Should cancel when the operator answer falls back", func(t *testing.T) {
+	t.Run("Should keep tool approvals and other runtimes on the permission policy", func(t *testing.T) {
 		t.Parallel()
 
-		proc := newAgyProcess(t)
-		proc.elicitationAsker = func(context.Context, toolspkg.ClarifyQuestion) (toolspkg.ClarifyAnswer, error) {
-			return toolspkg.ClarifyAnswer{Fallback: true}, nil
-		}
-
-		response, err := proc.resolvePermissionRequest(t.Context(), request, permissionActorProvider)
-		if err != nil {
-			t.Fatalf("resolvePermissionRequest() error = %v", err)
-		}
-		if response.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
-			t.Fatalf("outcome = %+v, want canceled", response.Outcome)
-		}
-	})
-
-	t.Run("Should keep tool approvals and other providers on the permission policy", func(t *testing.T) {
-		t.Parallel()
-
-		proc := newAgyProcess(t)
+		proc := newAgyProcess(t, compozyconfig.PermissionModeApproveAll)
 		tool := request
 		tool.ToolCall.ToolCallId = "call_1"
 		if proc.isAgyInteractionQuestion(tool) {
@@ -750,6 +778,7 @@ func TestAgyInteractionPermissionAsksOperator(t *testing.T) {
 		}
 		other := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 		other.providerName = "gemini"
+		other.Command, other.Args = "gemini", []string{"--experimental-acp"}
 		if other.isAgyInteractionQuestion(request) {
 			t.Fatal("isAgyInteractionQuestion(gemini) = true, want the permission policy")
 		}

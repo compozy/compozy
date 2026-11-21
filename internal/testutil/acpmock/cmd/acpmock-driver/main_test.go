@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-
+	"encoding/json"
 	"os"
 	"path/filepath"
 
@@ -403,7 +403,7 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 		agent := &mockAgent{
 			agent:            acpmock.AgentFixture{Name: "per-model-options"},
 			configTemplate:   sessionConfigOptionsFromFixture(base),
-			configReannounce: sessionConfigReannouncements(base),
+			configReannounce: acpmock.ConfigReannouncementIndex(base),
 			diagnosticsPath:  filepath.Join(t.TempDir(), "config-options.jsonl"),
 			sessions:         map[string]*sessionState{},
 		}
@@ -470,25 +470,21 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 	t.Run("Should reject a reannounced value scripted with reject_set", func(t *testing.T) {
 		t.Parallel()
 
-		models := []acpmock.SessionConfigOptionValueFixture{{Value: "qa-argon"}, {Value: "qa-hydrogen"}}
+		models := fixtureValues("qa-argon", "qa-hydrogen")
+		hydrogenLevels := fixtureValues("low", "medium", "xhigh")
+		hydrogenLevels[2].RejectSet = true
 		models[1].WhenSelected = []acpmock.SessionConfigOptionFixture{
-			{ID: "model", Name: "Model", Current: "qa-hydrogen", Values: []acpmock.SessionConfigOptionValueFixture{
-				{Value: "qa-argon"}, {Value: "qa-hydrogen"},
-			}},
-			{ID: "thought_level", Name: "Thinking", Current: "medium", Values: []acpmock.SessionConfigOptionValueFixture{
-				{Value: "low"}, {Value: "medium"}, {Value: "xhigh", RejectSet: true},
-			}},
+			{ID: "model", Name: "Model", Current: "qa-hydrogen", Values: fixtureValues("qa-argon", "qa-hydrogen")},
+			{ID: "thought_level", Name: "Thinking", Current: "medium", Values: hydrogenLevels},
 		}
 		base := []acpmock.SessionConfigOptionFixture{
 			{ID: "model", Name: "Model", Current: "qa-argon", Values: models},
-			{ID: "thought_level", Name: "Thinking", Current: "medium", Values: []acpmock.SessionConfigOptionValueFixture{
-				{Value: "low"}, {Value: "medium"},
-			}},
+			{ID: "thought_level", Name: "Thinking", Current: "medium", Values: fixtureValues("low", "medium")},
 		}
 		agent := &mockAgent{
 			agent:            acpmock.AgentFixture{Name: "nested-reject", ConfigOptions: base},
 			configTemplate:   sessionConfigOptionsFromFixture(base),
-			configReannounce: sessionConfigReannouncements(base),
+			configReannounce: acpmock.ConfigReannouncementIndex(base),
 			diagnosticsPath:  filepath.Join(t.TempDir(), "config-options.jsonl"),
 			sessions:         map[string]*sessionState{},
 		}
@@ -532,6 +528,123 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 		}
 	})
 
+	// A value advertised by two branches reannounces the replacement of the branch that is
+	// active, not another branch's definition of the same option id and value.
+	t.Run("Should reannounce the active branch replacement for a shared value", func(t *testing.T) {
+		t.Parallel()
+
+		branch := func(levels ...string) []acpmock.SessionConfigOptionFixture {
+			models := fixtureValues("qa-argon", "qa-hydrogen")
+			models[1].WhenSelected = []acpmock.SessionConfigOptionFixture{
+				{ID: "thought_level", Name: "Thinking", Current: "low", Values: fixtureValues(levels...)},
+			}
+			return []acpmock.SessionConfigOptionFixture{
+				{ID: "model", Name: "Model", Current: "qa-argon", Values: models},
+			}
+		}
+		modes := fixtureValues("branch-a", "branch-b")
+		modes[0].WhenSelected = branch("low", "high")
+		modes[1].WhenSelected = branch("low", "high", "xhigh")
+		base := []acpmock.SessionConfigOptionFixture{
+			{ID: "mode", Name: "Mode", Current: "branch-a", Values: modes},
+		}
+		agent := &mockAgent{
+			agent:            acpmock.AgentFixture{Name: "shared-value", ConfigOptions: base},
+			configTemplate:   sessionConfigOptionsFromFixture(base),
+			configReannounce: acpmock.ConfigReannouncementIndex(base),
+			diagnosticsPath:  filepath.Join(t.TempDir(), "config-options.jsonl"),
+			sessions:         map[string]*sessionState{},
+		}
+		for _, tc := range []struct {
+			mode string
+			want []string
+		}{
+			{mode: "branch-a", want: []string{"low", "high"}},
+			{mode: "branch-b", want: []string{"low", "high", "xhigh"}},
+		} {
+			session, err := agent.NewSession(t.Context(), acpsdk.NewSessionRequest{})
+			if err != nil {
+				t.Fatalf("NewSession(%s) error = %v", tc.mode, err)
+			}
+			var hydrogen acpsdk.SetSessionConfigOptionResponse
+			for _, selection := range [][2]string{{"mode", tc.mode}, {"model", "qa-hydrogen"}} {
+				hydrogen, err = agent.SetSessionConfigOption(
+					t.Context(),
+					acpsdk.SetSessionConfigOptionRequest{
+						ValueId: &acpsdk.SetSessionConfigOptionValueId{
+							SessionId: session.SessionId,
+							ConfigId:  acpsdk.SessionConfigId(selection[0]),
+							Value:     acpsdk.SessionConfigValueId(selection[1]),
+						},
+					},
+				)
+				if err != nil {
+					t.Fatalf("SetSessionConfigOption(%s=%s) error = %v", selection[0], selection[1], err)
+				}
+			}
+			if got := thoughtLevelValues(hydrogen.ConfigOptions); !slices.Equal(got, tc.want) {
+				t.Fatalf("%s Hydrogen thought_level values = %#v, want %#v", tc.mode, got, tc.want)
+			}
+		}
+	})
+
+	// An explicit empty when_selected replaces the advertised controls with none, while an
+	// omitted one keeps the current set.
+	t.Run("Should advertise no controls after an explicit empty reannouncement", func(t *testing.T) {
+		t.Parallel()
+
+		models := fixtureValues("qa-argon", "qa-bare")
+		models[1].WhenSelected = []acpmock.SessionConfigOptionFixture{}
+		base := []acpmock.SessionConfigOptionFixture{
+			{ID: "model", Name: "Model", Current: "qa-argon", Values: models},
+		}
+		agent := &mockAgent{
+			agent:            acpmock.AgentFixture{Name: "empty-reannounce", ConfigOptions: base},
+			configTemplate:   sessionConfigOptionsFromFixture(base),
+			configReannounce: acpmock.ConfigReannouncementIndex(base),
+			diagnosticsPath:  filepath.Join(t.TempDir(), "config-options.jsonl"),
+			sessions:         map[string]*sessionState{},
+		}
+		session, err := agent.NewSession(t.Context(), acpsdk.NewSessionRequest{})
+		if err != nil {
+			t.Fatalf("NewSession() error = %v", err)
+		}
+		selectValue := func(value string) acpsdk.SetSessionConfigOptionResponse {
+			t.Helper()
+			response, selectErr := agent.SetSessionConfigOption(
+				t.Context(),
+				acpsdk.SetSessionConfigOptionRequest{
+					ValueId: &acpsdk.SetSessionConfigOptionValueId{
+						SessionId: session.SessionId,
+						ConfigId:  acpsdk.SessionConfigId("model"),
+						Value:     acpsdk.SessionConfigValueId(value),
+					},
+				},
+			)
+			if selectErr != nil {
+				t.Fatalf("SetSessionConfigOption(model=%s) error = %v", value, selectErr)
+			}
+			return response
+		}
+
+		argon := selectValue("qa-argon")
+		if len(argon.ConfigOptions) != 1 || argon.ConfigOptions[0].Select == nil ||
+			argon.ConfigOptions[0].Select.CurrentValue != acpsdk.SessionConfigValueId("qa-argon") {
+			t.Fatalf("omitted reannouncement options = %#v, want the advertised model control", argon.ConfigOptions)
+		}
+		bare := selectValue("qa-bare")
+		if bare.ConfigOptions == nil || len(bare.ConfigOptions) != 0 {
+			t.Fatalf("explicit empty reannouncement options = %#v, want an empty set", bare.ConfigOptions)
+		}
+		encoded, err := json.Marshal(bare)
+		if err != nil {
+			t.Fatalf("json.Marshal(response) error = %v", err)
+		}
+		if !strings.Contains(string(encoded), `"configOptions":[]`) {
+			t.Fatalf("encoded response = %s, want an empty configOptions list", encoded)
+		}
+	})
+
 	// The AGY browser journey runs under the AGY agent's approve-all policy, so startup
 	// selects the advertised unrestricted `auto` mode before the model; each model
 	// replacement set must keep it instead of resetting to the advertised default.
@@ -562,7 +675,7 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 		agent := &mockAgent{
 			agent:            *agy,
 			configTemplate:   sessionConfigOptionsFromFixture(agy.ConfigOptions),
-			configReannounce: sessionConfigReannouncements(agy.ConfigOptions),
+			configReannounce: acpmock.ConfigReannouncementIndex(agy.ConfigOptions),
 			diagnosticsPath:  filepath.Join(t.TempDir(), "config-options.jsonl"),
 			sessions:         map[string]*sessionState{},
 		}
@@ -627,6 +740,14 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 			t.Fatalf("Argon thought_level values = %#v, want three levels", got)
 		}
 	})
+}
+
+func fixtureValues(values ...string) []acpmock.SessionConfigOptionValueFixture {
+	result := make([]acpmock.SessionConfigOptionValueFixture, 0, len(values))
+	for _, value := range values {
+		result = append(result, acpmock.SessionConfigOptionValueFixture{Value: value})
+	}
+	return result
 }
 
 func thoughtLevelValues(options []acpsdk.SessionConfigOption) []string {

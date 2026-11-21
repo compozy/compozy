@@ -12,6 +12,9 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 )
 
+// permissionRuleDecisionDeny is the permission_rules decision that rejects a matching request.
+const permissionRuleDecisionDeny = "deny"
+
 func (p permissionPolicy) ruleDecision(
 	request acpsdk.RequestPermissionRequest,
 	paths []string,
@@ -25,7 +28,7 @@ func (p permissionPolicy) ruleDecision(
 			continue
 		}
 
-		if rule.Decision == "deny" {
+		if rule.Decision == permissionRuleDecisionDeny {
 			return decisionRejectOnce, true
 		}
 		allowed = true
@@ -110,7 +113,7 @@ func (p *AgentProcess) automaticPermissionOutcome(requestID string, request acps
 				if rule.Path != "" && !p.permissions.rulePathsMatch(rule, paths) {
 					continue
 				}
-				if (rule.Decision == "deny") != (decision == decisionRejectOnce) {
+				if (rule.Decision == permissionRuleDecisionDeny) != (decision == decisionRejectOnce) {
 					continue
 				}
 				var payload map[string]any

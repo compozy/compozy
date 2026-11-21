@@ -33,7 +33,7 @@ type sessionState struct {
 	nativeTools          *sdkmcp.ClientSession
 	PromptCount          int
 	ConfigOptions        []acpsdk.SessionConfigOption
-	rejectedConfigValues map[string]struct{}
+	activeConfig         []acpmock.SessionConfigOptionFixture
 	activePromptCancel   context.CancelFunc
 	activePromptCancelID uint64
 }
@@ -42,7 +42,7 @@ type mockAgent struct {
 	conn             agentConnection
 	agent            acpmock.AgentFixture
 	configTemplate   []acpsdk.SessionConfigOption
-	configReannounce map[string]configOptionSet
+	configReannounce map[string][]acpmock.SessionConfigOptionFixture
 	diagnosticsPath  string
 	provider         string
 	lifecycleCtx     context.Context
@@ -93,7 +93,7 @@ func main() {
 	agent := &mockAgent{
 		agent:            agentFixture,
 		configTemplate:   sessionConfigOptionsFromFixture(agentFixture.ConfigOptions),
-		configReannounce: sessionConfigReannouncements(agentFixture.ConfigOptions),
+		configReannounce: acpmock.ConfigReannouncementIndex(agentFixture.ConfigOptions),
 		diagnosticsPath:  strings.TrimSpace(args.DiagnosticsPath),
 		provider:         strings.TrimSpace(args.Provider),
 		lifecycleCtx:     lifecycleCtx,

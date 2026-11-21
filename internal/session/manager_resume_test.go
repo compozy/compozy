@@ -3156,6 +3156,35 @@ func TestResumeRouteChangeRebuildsEffectiveOptions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should apply a confirmed AGY selection when the accepted route still matches", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		installAgyAgent(t, h, nativeRoute, "gemini-4-hydrogen", "xhigh", nil)
+		created := createStoppedPromptSession(t, h, &CreateOpts{
+			AgentName: agyResumeAgentName, Permissions: compozyconfig.PermissionModeApproveAll,
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+			ACPOptions: []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}},
+		})
+		if _, err := h.manager.SetRuntimeSelection(testutil.Context(t), created.ID, RuntimeSelection{
+			Provider: agyProviderName, Model: "gemini-4-hydrogen", ReasoningEffort: "xhigh",
+		}, 0); err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.Command != nativeRoute {
+			t.Fatalf("resume command = %q, want the unchanged native route", call.Command)
+		}
+		if got := acpOptionValue(call.ACPOptions, "mode"); got != "" {
+			t.Fatalf("resume ACP options = %+v, want the confirmed empty selection", call.ACPOptions)
+		}
+	})
+
 	t.Run("Should apply a confirmed AGY selection when no native session was bound", func(t *testing.T) {
 		t.Parallel()
 		spec := &sessionStartSpec{

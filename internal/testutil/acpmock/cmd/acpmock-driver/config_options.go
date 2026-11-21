@@ -10,17 +10,11 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
 
-// configOptionSet is one advertised option set together with the values its fixture
-// scripts to fail, so a reannounced set keeps its own rejection metadata.
-type configOptionSet struct {
-	options []acpsdk.SessionConfigOption
-	rejects map[string]struct{}
-}
-
 func sessionConfigOptionsFromFixture(
 	options []acpmock.SessionConfigOptionFixture,
 ) []acpsdk.SessionConfigOption {
-	if len(options) == 0 {
+	// An explicit empty set advertises no controls, which ACP encodes as [] rather than null.
+	if options == nil {
 		return nil
 	}
 	result := make([]acpsdk.SessionConfigOption, 0, len(options))
@@ -57,69 +51,12 @@ func sessionConfigOptionsFromFixture(
 	return result
 }
 
-// configRejectedValues indexes the values an option set scripts to fail on
-// session/set_config_option.
-func configRejectedValues(options []acpmock.SessionConfigOptionFixture) map[string]struct{} {
-	var rejects map[string]struct{}
-	for _, option := range options {
-		for _, value := range option.Values {
-			if !value.RejectSet {
-				continue
-			}
-			if rejects == nil {
-				rejects = make(map[string]struct{})
-			}
-			rejects[configReannouncementKey(option.ID, value.Value)] = struct{}{}
-		}
-	}
-	return rejects
-}
-
-// sessionConfigReannouncements indexes each value's replacement option set, including
-// the nested sets a reannounced selection can itself trigger. Fixture validation rejects
-// two different replacements for the same option value, so the index is unambiguous.
-func sessionConfigReannouncements(
-	options []acpmock.SessionConfigOptionFixture,
-) map[string]configOptionSet {
-	reannouncements := make(map[string]configOptionSet)
-	collectSessionConfigReannouncements(options, reannouncements)
-	if len(reannouncements) == 0 {
-		return nil
-	}
-	return reannouncements
-}
-
-func collectSessionConfigReannouncements(
-	options []acpmock.SessionConfigOptionFixture,
-	reannouncements map[string]configOptionSet,
-) {
-	for _, option := range options {
-		for _, value := range option.Values {
-			if len(value.WhenSelected) == 0 {
-				continue
-			}
-			key := configReannouncementKey(option.ID, value.Value)
-			if _, indexed := reannouncements[key]; !indexed {
-				reannouncements[key] = configOptionSet{
-					options: sessionConfigOptionsFromFixture(value.WhenSelected),
-					rejects: configRejectedValues(value.WhenSelected),
-				}
-			}
-			collectSessionConfigReannouncements(value.WhenSelected, reannouncements)
-		}
-	}
-}
-
-func configReannouncementKey(configID string, value string) string {
-	return strings.TrimSpace(configID) + "\x00" + strings.TrimSpace(value)
-}
-
-// newSessionState starts a session from the advertised template and its rejection rules.
+// newSessionState starts a session from the advertised template and its fixture option set.
 // Callers hold a.mu.
 func (a *mockAgent) newSessionState() *sessionState {
 	return &sessionState{
-		ConfigOptions:        cloneSessionConfigOptions(a.configTemplate),
-		rejectedConfigValues: configRejectedValues(a.agent.ConfigOptions),
+		ConfigOptions: cloneSessionConfigOptions(a.configTemplate),
+		activeConfig:  a.agent.ConfigOptions,
 	}
 }
 
@@ -128,12 +65,43 @@ func (a *mockAgent) newSessionState() *sessionState {
 func (a *mockAgent) rejectsConfigValue(sessionID string, configID string, value string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	rejects := configRejectedValues(a.agent.ConfigOptions)
+	active := a.agent.ConfigOptions
 	if session := a.sessions[strings.TrimSpace(sessionID)]; session != nil {
-		rejects = session.rejectedConfigValues
+		active = session.activeConfig
 	}
-	_, rejected := rejects[configReannouncementKey(configID, value)]
-	return rejected
+	for _, option := range active {
+		if strings.TrimSpace(option.ID) != strings.TrimSpace(configID) {
+			continue
+		}
+		for _, candidate := range option.Values {
+			if candidate.RejectSet && strings.TrimSpace(candidate.Value) == strings.TrimSpace(value) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// configReplacement returns the option set that selecting the value reannounces. The
+// active set's own when_selected wins, so a value shared by several branches keeps each
+// branch's replacement; a value advertised without one uses the tree-wide definition.
+func (a *mockAgent) configReplacement(
+	active []acpmock.SessionConfigOptionFixture,
+	configID string,
+	value string,
+) ([]acpmock.SessionConfigOptionFixture, bool) {
+	for _, option := range active {
+		if strings.TrimSpace(option.ID) != configID {
+			continue
+		}
+		for _, candidate := range option.Values {
+			if strings.TrimSpace(candidate.Value) == value && candidate.WhenSelected != nil {
+				return candidate.WhenSelected, true
+			}
+		}
+	}
+	replacement, ok := a.configReannounce[acpmock.ConfigReannouncementKey(configID, value)]
+	return replacement, ok
 }
 
 func (a *mockAgent) setConfigOptionValue(sessionID string, configID string, value string) error {
@@ -168,10 +136,10 @@ func (a *mockAgent) setConfigOptionValue(sessionID string, configID string, valu
 		for _, candidate := range *option.Options.Ungrouped {
 			if string(candidate.Value) == trimmedValue {
 				option.CurrentValue = acpsdk.SessionConfigValueId(trimmedValue)
-				reannounced := a.configReannounce[configReannouncementKey(trimmedConfigID, trimmedValue)]
-				if len(reannounced.options) > 0 {
-					session.ConfigOptions = cloneSessionConfigOptions(reannounced.options)
-					session.rejectedConfigValues = reannounced.rejects
+				replacement, reannounced := a.configReplacement(session.activeConfig, trimmedConfigID, trimmedValue)
+				if reannounced {
+					session.ConfigOptions = sessionConfigOptionsFromFixture(replacement)
+					session.activeConfig = replacement
 				}
 				return nil
 			}
@@ -205,7 +173,7 @@ func (a *mockAgent) sessionConfigOptions(sessionID string) []acpsdk.SessionConfi
 }
 
 func cloneSessionConfigOptions(options []acpsdk.SessionConfigOption) []acpsdk.SessionConfigOption {
-	if len(options) == 0 {
+	if options == nil {
 		return nil
 	}
 	cloned := make([]acpsdk.SessionConfigOption, 0, len(options))

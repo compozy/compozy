@@ -8,7 +8,6 @@ import (
 	"io"
 
 	"os"
-	"reflect"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -151,11 +150,7 @@ func (a AgentFixture) Validate(path string) error {
 			return err
 		}
 	}
-	if err := validateConfigReannouncements(
-		a.ConfigOptions,
-		path+".config_options",
-		make(map[string]configReannouncementDefinition),
-	); err != nil {
+	if err := validateConfigReannouncements(a.ConfigOptions, path+".config_options"); err != nil {
 		return err
 	}
 	for idx, turn := range a.Turns {
@@ -208,65 +203,6 @@ func (o SessionConfigOptionFixture) Validate(path string) error {
 		return fmt.Errorf("acpmock: %s.current %q must be listed in values", path, current)
 	}
 	return nil
-}
-
-// configReannouncementDefinition records the first when_selected set scripted for one
-// option value, without its own nested reannouncements.
-type configReannouncementDefinition struct {
-	path    string
-	options []SessionConfigOptionFixture
-}
-
-// validateConfigReannouncements rejects two when_selected sets that script different
-// replacements for the same option value. The driver indexes replacements by option id
-// and value, so a conflicting branch would otherwise silently override the other one.
-// Identical repeated definitions stay valid.
-func validateConfigReannouncements(
-	options []SessionConfigOptionFixture,
-	path string,
-	seen map[string]configReannouncementDefinition,
-) error {
-	for optionIdx, option := range options {
-		for valueIdx, value := range option.Values {
-			if len(value.WhenSelected) == 0 {
-				continue
-			}
-			valuePath := fmt.Sprintf("%s[%d].values[%d].when_selected", path, optionIdx, valueIdx)
-			id, selected := strings.TrimSpace(option.ID), strings.TrimSpace(value.Value)
-			key := id + "\x00" + selected
-			replacement := withoutNestedReannouncements(value.WhenSelected)
-			prior, defined := seen[key]
-			if defined && !reflect.DeepEqual(prior.options, replacement) {
-				return fmt.Errorf(
-					"acpmock: %s conflicts with %s for %s=%q",
-					valuePath, prior.path, id, selected,
-				)
-			}
-			if !defined {
-				seen[key] = configReannouncementDefinition{path: valuePath, options: replacement}
-			}
-			if err := validateConfigReannouncements(value.WhenSelected, valuePath, seen); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// withoutNestedReannouncements copies one replacement set without the when_selected sets
-// of its values; those nested definitions are compared under their own option value.
-func withoutNestedReannouncements(options []SessionConfigOptionFixture) []SessionConfigOptionFixture {
-	shallow := make([]SessionConfigOptionFixture, len(options))
-	for idx, option := range options {
-		values := make([]SessionConfigOptionValueFixture, len(option.Values))
-		for valueIdx, value := range option.Values {
-			value.WhenSelected = nil
-			values[valueIdx] = value
-		}
-		option.Values = values
-		shallow[idx] = option
-	}
-	return shallow
 }
 
 // Validate ensures the turn match contains at least one supported stable selector.

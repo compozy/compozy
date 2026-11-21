@@ -19,11 +19,14 @@ const (
 
 // isAgyInteractionQuestion reports an Antigravity question delivered as a permission
 // request. Its options are answers, so no permission policy may choose one.
+// Both the provider name and the native CLI launch identify the runtime, so a custom-named
+// provider launching `agy acp` or `antigravity acp` is still recognized.
 func (p *AgentProcess) isAgyInteractionQuestion(request acpsdk.RequestPermissionRequest) bool {
-	if compozyconfig.CanonicalProviderName(p.permissionModeProvider()) != providerAgy {
+	if !strings.HasPrefix(strings.TrimSpace(string(request.ToolCall.ToolCallId)), agyInteractionToolCallPrefix) {
 		return false
 	}
-	return strings.HasPrefix(strings.TrimSpace(string(request.ToolCall.ToolCallId)), agyInteractionToolCallPrefix)
+	return compozyconfig.CanonicalProviderName(p.permissionModeProvider()) == providerAgy ||
+		compozyconfig.IsNativeAgyACPLaunch(p.Command, p.Args)
 }
 
 // answerAgyInteractionQuestion asks the operator to choose one of the provider's answers.
@@ -33,11 +36,11 @@ func (p *AgentProcess) answerAgyInteractionQuestion(
 	ctx context.Context,
 	request acpsdk.RequestPermissionRequest,
 ) acpsdk.RequestPermissionResponse {
-	cancelled := acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}
+	canceled := acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}
 	question := agyInteractionClarifyQuestion(request)
 	if p.elicitationAsker == nil || len(question.Choices) == 0 {
 		p.logAgyInteraction(ctx, "unavailable", nil)
-		return cancelled
+		return canceled
 	}
 	askCtx := ctx
 	if wait := p.permissionTimeoutOrDefault(); wait > 0 {
@@ -48,11 +51,11 @@ func (p *AgentProcess) answerAgyInteractionQuestion(
 	answer, err := p.elicitationAsker(askCtx, question)
 	if err != nil {
 		p.logAgyInteraction(ctx, "unanswered", err)
-		return cancelled
+		return canceled
 	}
 	if answer.Fallback || answer.Choice == nil || *answer.Choice < 0 || *answer.Choice >= len(request.Options) {
 		p.logAgyInteraction(ctx, "unanswered", nil)
-		return cancelled
+		return canceled
 	}
 	return acpsdk.RequestPermissionResponse{
 		Outcome: acpsdk.NewRequestPermissionOutcomeSelected(request.Options[*answer.Choice].OptionId),
@@ -78,9 +81,9 @@ func agyInteractionClarifyQuestion(request acpsdk.RequestPermissionRequest) tool
 }
 
 func (p *AgentProcess) logAgyInteraction(ctx context.Context, outcome string, err error) {
-	attrs := []any{"provider", p.permissionModeProvider(), "outcome", outcome}
+	attrs := []any{"runtime_provider", p.permissionModeProvider(), "outcome", outcome}
 	if err != nil {
 		attrs = append(attrs, "error", err)
 	}
-	slog.InfoContext(ctx, "permission.agy_interaction_cancelled", attrs...)
+	slog.InfoContext(ctx, "permission.agy_interaction_canceled", attrs...)
 }

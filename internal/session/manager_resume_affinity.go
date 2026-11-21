@@ -59,6 +59,9 @@ func (m *Manager) applyResumeRouteAffinity(
 			spec.fallbackAttempt = index
 			if spec.sessionType == SessionTypeCoordinator {
 				spec.fallbackAttempt = record.Attempt
+			} else if index == 0 {
+				// A confirmed selection also governs a resume that keeps the primary AGY route.
+				applyResumeRuntimeOptions(spec)
 			}
 			return
 		}

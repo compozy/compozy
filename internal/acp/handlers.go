@@ -227,6 +227,11 @@ func (p *AgentProcess) handleRequestPermission(
 	if !p.permissionRequestIsBound(request.SessionId) {
 		return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
 	}
+	if p.isAgyInteractionQuestion(request) {
+		// An Antigravity question is not a tool approval: under every policy, triage included,
+		// only the operator picks its answer.
+		return p.answerAgyInteractionQuestion(ctx, request), nil
+	}
 	return p.resolvePermissionRequest(ctx, request, permissionActorProvider)
 }
 
@@ -239,10 +244,6 @@ func (p *AgentProcess) resolvePermissionRequest(
 ) (acpsdk.RequestPermissionResponse, error) {
 	if p.executionPolicy == ExecutionPolicyTriage {
 		return p.triagePermission(ctx, request)
-	}
-	if p.isAgyInteractionQuestion(request) {
-		// An Antigravity question is not a tool approval: only the operator picks its answer.
-		return p.answerAgyInteractionQuestion(ctx, request), nil
 	}
 	turnID, turnSpan := p.activeTraceContext()
 	resource, title := permissionRequestDisplay(request)

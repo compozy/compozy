@@ -114,9 +114,13 @@ model; without it every model keeps one shared value list.
   must stay possible.
 - Nested `when_selected` entries are honored, so switching back can restore the first
   model's values.
-- Replacements are indexed by option id and value across the whole tree, so every
-  `when_selected` for the same value must be identical; validation rejects a conflicting
-  repeat and names both paths.
+- A value's own `when_selected` wins, so two branches can advertise the same value with
+  different replacements. A value advertised without `when_selected` reuses the tree-wide
+  definition for that option id and value; validation rejects it when the tree scripts
+  replacements that still differ after normalization (trimmed fields, labels defaulting to
+  the value, `reject_set` flags), and names the conflicting paths.
+- `"when_selected": []` replaces the advertised controls with none; omitting the field
+  keeps the behavior above.
 - `reject_set` inside a replacement applies while that replacement is the active set, and
   the rejected selection leaves the current value unchanged.
 - Validation rejects a replacement whose `current` is not listed in its `values`, reporting

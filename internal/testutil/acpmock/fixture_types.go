@@ -70,8 +70,10 @@ type SessionConfigOptionValueFixture struct {
 	RejectSet bool `json:"reject_set,omitzero"`
 	// WhenSelected replaces the session's whole config option set after this value is
 	// accepted. It scripts providers that reannounce their controls per selection:
-	// selecting one model returns that model's own thought levels.
-	WhenSelected []SessionConfigOptionFixture `json:"when_selected,omitempty"`
+	// selecting one model returns that model's own thought levels. An explicit empty list
+	// replaces the controls with none; omitting it reuses the value's tree-wide definition.
+	// omitzero keeps an explicit empty list distinct from an omitted one when encoded.
+	WhenSelected []SessionConfigOptionFixture `json:"when_selected,omitzero"`
 }
 
 // TurnFixture describes one deterministic prompt turn for an agent.
