@@ -495,12 +495,33 @@ func TestClarifyBridgeUnboundedWaits(t *testing.T) {
 		publisher := newClarifyPublisherStub()
 		bridge := newTestClarifyBridgeWithClock(t, 0, publisher, clock.Now)
 		scope := testClarifyScope()
-		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Which env first?"})
+		progressStarted := make(chan struct{})
+		progressStopped := make(chan struct{})
+		ctx := toolspkg.WithHostedWaitProgress(testutil.Context(t), func() func() {
+			close(progressStarted)
+			return func() { close(progressStopped) }
+		})
+		result := askClarificationWithContext(
+			ctx,
+			bridge,
+			scope,
+			toolspkg.ClarifyQuestion{Question: "Which env first?"},
+		)
 		publisher.await(t)
+		select {
+		case <-progressStarted:
+		case <-time.After(time.Second):
+			t.Fatal("unbounded wait did not start hosted progress")
+		}
 		clock.Advance(61 * time.Second)
 		assertClarifyBlocked(t, result)
 		clock.Advance(5 * time.Minute)
 		assertClarifyBlocked(t, result)
+		select {
+		case <-progressStopped:
+			t.Fatal("hosted progress stopped before the answer")
+		default:
+		}
 		pending := awaitPendingClarification(t, bridge, scope)
 		if !pending[0].Deadline.IsZero() {
 			t.Fatalf("Pending().Deadline = %s, want zero for unbounded", pending[0].Deadline)
@@ -518,6 +539,11 @@ func TestClarifyBridgeUnboundedWaits(t *testing.T) {
 		}
 		if got := awaitClarifyResult(t, result); got.err != nil || got.answer.Text != "staging" {
 			t.Fatalf("Ask() result = %#v, want staging", got)
+		}
+		select {
+		case <-progressStopped:
+		default:
+			t.Fatal("hosted progress continued after the answer")
 		}
 	})
 
@@ -652,7 +678,11 @@ func TestClarifyBridgeUnboundedWaits(t *testing.T) {
 		publisher := newClarifyPublisherStub()
 		bridge := newTestClarifyBridge(t, 25*time.Millisecond, publisher)
 		scope := testClarifyScope()
-		result := askClarification(t, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
+		ctx := toolspkg.WithHostedWaitProgress(testutil.Context(t), func() func() {
+			t.Error("finite clarification should use its own timeout without hosted progress")
+			return func() {}
+		})
+		result := askClarificationWithContext(ctx, bridge, scope, toolspkg.ClarifyQuestion{Question: "Continue?"})
 		pendingEvent := publisher.await(t)
 		if pendingEvent.Request.Deadline.IsZero() {
 			t.Fatalf("pending event deadline is zero, want a real finite deadline")
@@ -807,9 +837,18 @@ func askClarification(
 	question toolspkg.ClarifyQuestion,
 ) <-chan clarifyResult {
 	t.Helper()
+	return askClarificationWithContext(testutil.Context(t), bridge, scope, question)
+}
+
+func askClarificationWithContext(
+	ctx context.Context,
+	bridge *clarifyBridge,
+	scope toolspkg.Scope,
+	question toolspkg.ClarifyQuestion,
+) <-chan clarifyResult {
 	result := make(chan clarifyResult, 1)
 	go func() {
-		answer, err := bridge.Ask(testutil.Context(t), scope, question)
+		answer, err := bridge.Ask(ctx, scope, question)
 		result <- clarifyResult{answer: answer, err: err}
 	}()
 	return result

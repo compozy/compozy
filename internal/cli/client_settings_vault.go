@@ -80,7 +80,8 @@ func newClientWithTimeout(target ClientTarget, requestTimeout time.Duration) (Da
 		httpClient: &http.Client{
 			Transport: transport, Timeout: requestTimeout, CheckRedirect: checkRedirect,
 		},
-		streamClient: &http.Client{Transport: transport, CheckRedirect: checkRedirect},
+		streamClient:         &http.Client{Transport: transport, CheckRedirect: checkRedirect},
+		hostedMCPCallTimeout: hostedMCPLongestFiniteWait + requestTimeout,
 	}, nil
 }
 

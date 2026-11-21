@@ -7,11 +7,11 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// hostedToolProgressInterval paces hosted tool call progress notifications at
+// HostedToolProgressInterval paces hosted tool call progress notifications at
 // a 2x margin under the ~60s default request timeout enforced by MCP clients
 // such as opencode, whose callTool runs with resetTimeoutOnProgress and aborts
 // blocked calls that receive no progress. Not a config key by design.
-const hostedToolProgressInterval = 30 * time.Second
+const HostedToolProgressInterval = 30 * time.Second
 
 // startHostedToolProgress emits standard notifications/progress while one
 // hosted tool call blocks, resetting the client-side request timer so long
@@ -29,7 +29,7 @@ func startHostedToolProgress(ctx context.Context, req *sdkmcp.CallToolRequest) f
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		ticker := time.NewTicker(hostedToolProgressInterval)
+		ticker := time.NewTicker(HostedToolProgressInterval)
 		defer ticker.Stop()
 		for progress := float64(1); ; progress++ {
 			select {

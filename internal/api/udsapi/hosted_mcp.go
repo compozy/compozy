@@ -221,7 +221,13 @@ func (h *Handlers) callHostedMCP(c *gin.Context) {
 		h.respondHostedMCPPeerError(c, err)
 		return
 	}
-	response, err := h.HostedMCP.Call(c.Request.Context(), req, peer)
+	ctx := c.Request.Context()
+	if req.ReportWaitProgress {
+		if writer, ok := c.Writer.(interface{ Unwrap() http.ResponseWriter }); ok {
+			ctx = withHostedWaitProgress(ctx, writer.Unwrap())
+		}
+	}
+	response, err := h.HostedMCP.Call(ctx, req, peer)
 	if err != nil {
 		respondHostedMCPError(c, err)
 		return

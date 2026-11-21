@@ -897,3 +897,10 @@ the proposal waiting and does not fail the completed check-in.
 daemon. `COMPOZY_CLIENT_TIMEOUT` overrides it for one invocation and wins over the file; both sources
 reject an out-of-range value. Streams are not bounded by it, and profile and workspace layers reject
 `client.*`. Set it with `compozy config set client.request_timeout 2m`.
+
+Hosted MCP calls with no caller deadline get a separate transport budget. The
+proxy allows the highest finite tool wait (24h), the maximum tool approval wait
+(10m), and the configured `client.request_timeout` for the response. An
+unbounded clarification or extension tool wait remains open while the daemon
+reports progress. If the daemon stops responding, the proxy closes the request
+when that budget elapses. Caller deadlines and cancellation still apply.
