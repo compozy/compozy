@@ -26,7 +26,7 @@ interface ScrollRenderTracker {
   rendered: boolean;
   /** The listeners that read {@link isRenderedAtScroll} for this element. */
   readers: number;
-  readonly handleScroll: () => void;
+  readonly handleScroll: (event: Event) => void;
 }
 
 const scrollRenderTrackers = new WeakMap<Element, ScrollRenderTracker>();
@@ -43,8 +43,9 @@ export function trackRenderedOnScroll(element: Element): () => void {
     const created: ScrollRenderTracker = {
       rendered: isRenderedElement(element),
       readers: 0,
-      handleScroll: () => {
-        created.rendered = isRenderedElement(element);
+      handleScroll: event => {
+        // The capture phase also sees scrolls of nested scrollers; only the element's own counts.
+        if (event.target === element) created.rendered = isRenderedElement(element);
       },
     };
     element.addEventListener("scroll", created.handleScroll, { capture: true, passive: true });

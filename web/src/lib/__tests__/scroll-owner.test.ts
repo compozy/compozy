@@ -48,10 +48,28 @@ describe("trackRenderedOnScroll", () => {
     releaseFirst();
     pane.hidden = true;
     scroller.dispatchEvent(new Event("scroll"));
-    releaseSecond();
     pane.hidden = false;
+    // The remaining reader still holds the walk: the answer is the one its scroll event got.
+    expect(isRenderedAtScroll(scroller)).toBe(false);
+    releaseSecond();
 
     expect(reads).toEqual([false]);
     expect(isRenderedAtScroll(scroller)).toBe(true);
+  });
+
+  it("Should not walk for scrolls of a scroller nested in the tracked element", () => {
+    document.body.append(pane);
+    const nested = document.createElement("div");
+    scroller.append(nested);
+    const release = trackRenderedOnScroll(scroller);
+
+    pane.hidden = true;
+    nested.dispatchEvent(new Event("scroll"));
+    pane.hidden = false;
+    const answer = isRenderedAtScroll(scroller);
+    release();
+    nested.remove();
+
+    expect(answer).toBe(true);
   });
 });
