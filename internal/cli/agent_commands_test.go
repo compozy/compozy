@@ -1189,7 +1189,11 @@ func TestAgentInstanceCommands(t *testing.T) {
 			"Queued inputs and memory are kept.\nMain session: sess-main\n"},
 		{"show", []string{"show", "ainst-test", "--all-profiles"}, "ainst-test\ttriage\tactive\nProfile: work\nMain session: sess-main\n" +
 			"Pause reason: \nUnattended turns: 0/0\nHeld wakes: 0\n"},
-		{"authorization-filtered peer list", []string{"list", "--peers"}, "Access restrictions hid every peer candidate.\n"},
+		{
+			"authorization-filtered peer list",
+			[]string{"list", "--peers", "--all-workspaces", "--profile", "default"},
+			"Access restrictions hid every peer candidate.\n",
+		},
 		{"reported check", []string{"check", "ainst-test"}, "Check finished: 1 proposal delivered\n"},
 	} {
 		t.Run("Should render the approved "+tc.name+" result", func(t *testing.T) {
@@ -1198,6 +1202,8 @@ func TestAgentInstanceCommands(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				body := `{"instance":{"id":"ainst-test","agent_name":"triage","label":"Triage Lead","scope":"Global","state":"active","main_session_id":"sess-main","profile_id":"profile-work","profile_name":"work"}}`
 				switch r.URL.Path {
+				case "/api/profiles":
+					body = `[{"name":"default","state":"active"}]`
 				case "/api/agent-instances",
 					"/api/agent-instances/adopt",
 					"/api/agent-instances/ainst-test/pause",
@@ -1205,6 +1211,10 @@ func TestAgentInstanceCommands(t *testing.T) {
 					"/api/agent-instances/ainst-test/ensure-main":
 					if r.URL.Path == "/api/agent-instances" && r.Method == http.MethodGet &&
 						r.URL.Query().Get("peers") == "true" {
+						if query := r.URL.Query(); query.Get("all_workspaces") != "true" ||
+							query.Get("profile") != "default" {
+							t.Errorf("unexpected peer list scope: %s", r.URL.RawQuery)
+						}
 						body = `{"instances":[],"peers_note":"Access restrictions hid every peer candidate."}`
 					} else if r.Method != http.MethodPost {
 						t.Errorf("unexpected method %s", r.Method)
@@ -1262,7 +1272,9 @@ func TestAgentInstanceCommands(t *testing.T) {
 				})},
 			}
 			args := append([]string{"agent", "instance"}, tc.args...)
-			args = append(args, "--global")
+			if !slices.Contains(tc.args, "--all-workspaces") {
+				args = append(args, "--global")
+			}
 			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
 			if err != nil || stdout != tc.want {
 				t.Fatalf("output=%q err=%v, want %q", stdout, err, tc.want)
