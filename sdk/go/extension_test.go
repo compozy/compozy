@@ -3,6 +3,7 @@ package compozysdk_test
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -22,10 +23,12 @@ import (
 )
 
 type digestFixture struct {
-	Name      string          `json:"name"`
-	Schema    json.RawMessage `json:"schema"`
-	Canonical string          `json:"canonical"`
-	SHA256    string          `json:"sha256"`
+	Name              string          `json:"name"`
+	Schema            json.RawMessage `json:"schema"`
+	Canonical         string          `json:"canonical"`
+	SHA256            string          `json:"sha256"`
+	IdentityCanonical string          `json:"identity_canonical"`
+	IdentitySHA256    string          `json:"identity_sha256"`
 }
 
 func TestToolRegistrationValidation(t *testing.T) {
@@ -316,7 +319,7 @@ func TestToolRegistrationValidation(t *testing.T) {
 	})
 }
 
-func TestSchemaDigestFixturesMatchDaemonAndTypeScript(t *testing.T) {
+func TestSchemaDigestFixturesMatchPublishedDaemonIdentities(t *testing.T) {
 	t.Parallel()
 
 	fixtures := readDigestFixtures(t)
@@ -328,16 +331,16 @@ func TestSchemaDigestFixturesMatchDaemonAndTypeScript(t *testing.T) {
 			if err != nil {
 				t.Fatalf("CanonicalJSON() error = %v", err)
 			}
-			if got := string(canonical); got != fixture.Canonical {
-				t.Fatalf("CanonicalJSON() = %q, want %q", got, fixture.Canonical)
+			if got, want := string(canonical), cmp.Or(fixture.IdentityCanonical, fixture.Canonical); got != want {
+				t.Fatalf("CanonicalJSON() = %q, want %q", got, want)
 			}
 
 			digest, err := compozysdk.SchemaDigest(fixture.Schema)
 			if err != nil {
 				t.Fatalf("SchemaDigest() error = %v", err)
 			}
-			if digest != fixture.SHA256 {
-				t.Fatalf("SchemaDigest() = %q, want %q", digest, fixture.SHA256)
+			if want := cmp.Or(fixture.IdentitySHA256, fixture.SHA256); digest != want {
+				t.Fatalf("SchemaDigest() = %q, want %q", digest, want)
 			}
 		})
 	}

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestCanonicalJSONShouldProduceStableJCSBytes(t *testing.T) {
+func TestCanonicalJSONShouldProduceStableIdentityBytes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"encoding/json"
 	"maps"
 	"slices"
 	"strings"
@@ -45,7 +46,7 @@ func ReconcileManifestToolRuntime(
 	if !hasRequiredCapabilities(state.ProvidedCapabilities, manifest.Tool.Backend.RequiresCapabilities) {
 		reasons = appendToolReason(reasons, toolspkg.ReasonExtensionCapabilityMissing)
 	}
-	reasons = appendRuntimeDescriptorReasons(reasons, manifest.RuntimeDescriptor, runtime)
+	reasons = appendRuntimeDescriptorReasons(reasons, manifest, runtime)
 	if len(reasons) == 0 {
 		availability.Available = true
 		availability.Executable = true
@@ -56,7 +57,7 @@ func ReconcileManifestToolRuntime(
 
 func appendRuntimeDescriptorReasons(
 	reasons []toolspkg.ReasonCode,
-	manifest toolspkg.ExtensionToolRuntimeDescriptor,
+	manifest *ManifestToolDescriptor,
 	runtime *toolspkg.ExtensionToolRuntimeDescriptor,
 ) []toolspkg.ReasonCode {
 	if runtime == nil {
@@ -76,19 +77,34 @@ func appendRuntimeDescriptorReasons(
 }
 
 func runtimeDescriptorMatches(
-	manifest toolspkg.ExtensionToolRuntimeDescriptor,
+	tool *ManifestToolDescriptor,
 	runtime toolspkg.ExtensionToolRuntimeDescriptor,
 ) bool {
+	manifest := tool.RuntimeDescriptor
 	return manifest.ID == runtime.ID &&
 		strings.TrimSpace(manifest.Handler) == strings.TrimSpace(runtime.Handler) &&
 		strings.TrimSpace(manifest.FriendlyVerb) == strings.TrimSpace(runtime.FriendlyVerb) &&
 		strings.TrimSpace(manifest.Preview) == strings.TrimSpace(runtime.Preview) &&
-		strings.TrimSpace(manifest.InputSchemaDigest) == strings.TrimSpace(runtime.InputSchemaDigest) &&
-		strings.TrimSpace(manifest.OutputSchemaDigest) == strings.TrimSpace(runtime.OutputSchemaDigest) &&
+		extensionSchemaDigestMatches(tool.Tool.InputSchema, manifest.InputSchemaDigest, runtime.InputSchemaDigest) &&
+		extensionSchemaDigestMatches(tool.Tool.OutputSchema, manifest.OutputSchemaDigest, runtime.OutputSchemaDigest) &&
 		manifest.ReadOnly == runtime.ReadOnly &&
 		manifest.Risk == runtime.Risk &&
 		manifest.RequiresInteraction == runtime.RequiresInteraction &&
 		commandSpecsEqual(manifest.Command, runtime.Command)
+}
+
+func extensionSchemaDigestMatches(schema json.RawMessage, identity, supplied string) bool {
+	supplied = strings.TrimSpace(supplied)
+	identity = strings.TrimSpace(identity)
+	if identity == supplied {
+		return true
+	}
+	if identity == "" || supplied == "" {
+		return false
+	}
+	// Recompute against the authoritative schema before accepting the SDK's separator encoding.
+	digest, err := toolspkg.TypeScriptSeparatorSchemaDigest(schema)
+	return err == nil && supplied == digest
 }
 
 func commandSpecsEqual(left, right *toolspkg.ExtensionCommandSpec) bool {

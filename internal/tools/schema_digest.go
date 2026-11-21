@@ -5,15 +5,21 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"fmt"
 	"io"
 	"maps"
+	"math/big"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 )
 
-// CanonicalJSON returns RFC 8785/JCS-compatible canonical JSON bytes.
+// Match complete strings so numeric formatting only touches JSON numbers.
+var sdkSchemaNumberToken = regexp.MustCompile(`"([^"\\]|\\.)*"|-?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?`)
+
+// CanonicalJSON returns the daemon's identity encoding, which escapes U+2028 and U+2029.
 func CanonicalJSON(raw json.RawMessage) ([]byte, error) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 {
@@ -41,7 +47,7 @@ func CanonicalJSON(raw json.RawMessage) ([]byte, error) {
 	return []byte(builder.String()), nil
 }
 
-// SchemaDigest returns the lowercase SHA-256 digest of a canonical JSON Schema subtree.
+// SchemaDigest returns the daemon's published SHA-256 identity for a JSON Schema subtree.
 func SchemaDigest(raw json.RawMessage) (string, error) {
 	if err := ValidateJSONObject("schema", raw, true); err != nil {
 		return "", err
@@ -50,8 +56,59 @@ func SchemaDigest(raw json.RawMessage) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return hashCanonicalSchema(canonical), nil
+}
+
+// TypeScriptSeparatorSchemaDigest returns an SDK digest when the schema has separators and each number round-trips.
+func TypeScriptSeparatorSchemaDigest(raw json.RawMessage) (string, error) {
+	if err := ValidateJSONObject("schema", raw, true); err != nil {
+		return "", err
+	}
+	canonical := jsontext.Value(bytes.Clone(raw))
+	if err := canonical.Format(jsontext.ReorderRawObjects(true)); err != nil {
+		return "", fmt.Errorf("canonicalize TypeScript schema: %w", err)
+	}
+	if !bytes.ContainsAny(canonical, "\u2028\u2029") {
+		return "", nil
+	}
+	lossless := true
+	canonical = sdkSchemaNumberToken.ReplaceAllFunc(canonical, func(token []byte) []byte {
+		if !lossless || token[0] == '"' {
+			return token
+		}
+		formatted := typeScriptSchemaNumber(token)
+		lossless = formatted != nil
+		return formatted
+	})
+	if !lossless {
+		return "", nil
+	}
+	return hashCanonicalSchema(canonical), nil
+}
+
+func typeScriptSchemaNumber(token []byte) []byte {
+	original := string(token)
+	value, err := strconv.ParseFloat(original, 64)
+	if err != nil {
+		return nil
+	}
+	if value == 0 {
+		value = 0 // The SDK serializes both signs of zero as 0.
+	}
+	formatted := jsontext.Float(value).String()
+	if original != formatted {
+		exact, exactOK := new(big.Rat).SetString(original)
+		roundTrip, roundTripOK := new(big.Rat).SetString(formatted)
+		if !exactOK || !roundTripOK || exact.Cmp(roundTrip) != 0 {
+			return nil
+		}
+	}
+	return []byte(strings.Replace(formatted, "e+", "e", 1))
+}
+
+func hashCanonicalSchema(canonical []byte) string {
 	sum := sha256.Sum256(canonical)
-	return hex.EncodeToString(sum[:]), nil
+	return hex.EncodeToString(sum[:])
 }
 
 // DescriptorWithSchemaDigests returns a descriptor with canonical schema digests populated.

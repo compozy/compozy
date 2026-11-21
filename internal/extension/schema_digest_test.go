@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,13 +12,15 @@ import (
 )
 
 type schemaDigestFixture struct {
-	Name      string          `json:"name"`
-	Schema    json.RawMessage `json:"schema"`
-	Canonical string          `json:"canonical"`
-	SHA256    string          `json:"sha256"`
+	Name              string          `json:"name"`
+	Schema            json.RawMessage `json:"schema"`
+	Canonical         string          `json:"canonical"`
+	SHA256            string          `json:"sha256"`
+	IdentityCanonical string          `json:"identity_canonical"`
+	IdentitySHA256    string          `json:"identity_sha256"`
 }
 
-func TestSchemaDigestFixturesMatchJCSCanonicalBytes(t *testing.T) {
+func TestSchemaDigestFixturesMatchSDKsAndPublishedIdentities(t *testing.T) {
 	t.Parallel()
 
 	fixtures := readSchemaDigestFixtures(t, filepath.Join("testdata", "digest", "cases.json"))
@@ -29,7 +32,7 @@ func TestSchemaDigestFixturesMatchJCSCanonicalBytes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("CanonicalJSON(%s) error = %v", fixture.Name, err)
 			}
-			if got, want := string(canonical), fixture.Canonical; got != want {
+			if got, want := string(canonical), cmp.Or(fixture.IdentityCanonical, fixture.Canonical); got != want {
 				t.Fatalf("CanonicalJSON(%s) = %q, want %q", fixture.Name, got, want)
 			}
 
@@ -37,11 +40,40 @@ func TestSchemaDigestFixturesMatchJCSCanonicalBytes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("SchemaDigest(%s) error = %v", fixture.Name, err)
 			}
-			if digest != fixture.SHA256 {
-				t.Fatalf("SchemaDigest(%s) = %q, want %q", fixture.Name, digest, fixture.SHA256)
+			if want := cmp.Or(fixture.IdentitySHA256, fixture.SHA256); digest != want {
+				t.Fatalf("SchemaDigest(%s) = %q, want %q", fixture.Name, digest, want)
+			}
+
+			literalDigest, err := toolspkg.TypeScriptSeparatorSchemaDigest(fixture.Schema)
+			if err != nil {
+				t.Fatalf("TypeScriptSeparatorSchemaDigest(%s) error = %v", fixture.Name, err)
+			}
+			var wantLiteral string
+			if fixture.IdentitySHA256 != "" {
+				wantLiteral = fixture.SHA256
+			}
+			if literalDigest != wantLiteral {
+				t.Fatalf(
+					"TypeScriptSeparatorSchemaDigest(%s) = %q, want %q",
+					fixture.Name,
+					literalDigest,
+					wantLiteral,
+				)
 			}
 		})
 	}
+}
+
+func unicodeSeparatorSchemaFixture(t *testing.T) schemaDigestFixture {
+	t.Helper()
+
+	for _, fixture := range readSchemaDigestFixtures(t, filepath.Join("testdata", "digest", "cases.json")) {
+		if fixture.Name == "unicode_separators" {
+			return fixture
+		}
+	}
+	t.Fatal("unicode_separators digest fixture is missing")
+	return schemaDigestFixture{}
 }
 
 func TestSchemaDigestFixturesAreSharedWithSDKs(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -15,17 +16,28 @@ import (
 )
 
 func TestBuildBundleDescribeRoundTrip(t *testing.T) {
-	t.Run("Should build and describe a Go SDK bundle", testBuildBundleDescribeRoundTrip)
-}
-
-func testBuildBundleDescribeRoundTrip(t *testing.T) {
 	withDaemonVersion(t, "0.6.0")
-
-	sourceDir := t.TempDir()
+	fixture := unicodeSeparatorSchemaFixture(t)
 	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatalf("filepath.Abs(repo root) error = %v", err)
 	}
+
+	t.Run("Should build and register a Go SDK bundle with its published schema identity", func(t *testing.T) {
+		sourceDir := t.TempDir()
+		writeGoRoundTripSource(t, sourceDir, repoRoot, fixture.Schema)
+		testBuildBundleDescribeRoundTrip(t, sourceDir, "bin", fixture.IdentitySHA256, fixture.IdentitySHA256)
+	})
+	t.Run("Should build and register a TypeScript SDK bundle with separator schemas", func(t *testing.T) {
+		sourceDir := t.TempDir()
+		writeTypeScriptRoundTripSource(t, sourceDir, repoRoot, fixture.Schema)
+		testBuildBundleDescribeRoundTrip(t, sourceDir, "index.cjs", fixture.SHA256, fixture.IdentitySHA256)
+	})
+}
+
+func writeGoRoundTripSource(t *testing.T, sourceDir, repoRoot string, schema json.RawMessage) {
+	t.Helper()
+
 	writeFile(t, filepath.Join(sourceDir, "go.mod"), `module example.com/roundtrip
 
 go 1.26.4
@@ -37,6 +49,7 @@ replace github.com/compozy/compozy/sdk/go => `+filepath.ToSlash(filepath.Join(re
 
 import (
   "context"
+  "encoding/json"
   "fmt"
   "os"
 
@@ -57,11 +70,7 @@ func main() {
   err := compozysdk.Tool[searchInput](extension, "search", compozysdk.ToolOptions{
     Description: "Search fixture data",
     ReadOnly: true,
-    InputSchema: map[string]any{
-      "type": "object",
-      "required": []string{"query"},
-      "properties": map[string]any{"query": map[string]any{"type": "string"}},
-    },
+    InputSchema: json.RawMessage(`+strconv.Quote(string(schema))+`),
   }, func(_ context.Context, req compozysdk.ToolRequest[searchInput]) (compozysdk.ToolResult, error) {
     return compozysdk.TextResult("found " + req.Input.Query), nil
   })
@@ -75,6 +84,43 @@ func main() {
   }
 }
 `)
+}
+
+func writeTypeScriptRoundTripSource(t *testing.T, sourceDir, repoRoot string, schema json.RawMessage) {
+	t.Helper()
+
+	sdk := filepath.ToSlash(filepath.Join(repoRoot, "sdk", "typescript", "src", "index.ts"))
+	writeFile(t, filepath.Join(sourceDir, "package.json"), `{
+  "scripts": {
+    "build": "bun build index.ts --target=node --format=cjs --outfile=dist/index.cjs",
+    "start": "node dist/index.cjs"
+  }
+}`)
+	writeFile(t, filepath.Join(sourceDir, "index.ts"), `
+import { Extension } from `+strconv.Quote(sdk)+`;
+
+const extension = new Extension({
+  name: "roundtrip",
+  version: "0.1.0",
+  description: "Real build round trip",
+  subprocess: { command: "node", args: ["index.cjs"] },
+});
+extension.tool<{ query: string }>("search", {
+  description: "Search fixture data",
+  readOnly: true,
+  inputSchema: `+string(schema)+`,
+}, async ({ input }) => ({
+  content: [{ type: "text", text: "found " + input.query }],
+  truncated: false,
+  bytes: 0,
+  duration_ms: 0,
+}));
+void extension.start();
+`)
+}
+
+func testBuildBundleDescribeRoundTrip(t *testing.T, sourceDir, binary, runtimeDigest, identityDigest string) {
+	t.Helper()
 
 	ctx, cancel := context.WithTimeout(testutil.Context(t), 60*time.Second)
 	defer cancel()
@@ -82,7 +128,7 @@ func main() {
 	if err != nil {
 		t.Fatalf("BuildBundle() error = %v", err)
 	}
-	if info, err := os.Stat(filepath.Join(result.GenerationDir, "bin")); err != nil || !info.Mode().IsRegular() {
+	if info, err := os.Stat(filepath.Join(result.GenerationDir, binary)); err != nil || !info.Mode().IsRegular() {
 		t.Fatalf("built binary stat = (%#v, %v), want regular file", info, err)
 	}
 	if checksum, err := ComputeDirectoryChecksum(result.GenerationDir); err != nil {
@@ -110,8 +156,8 @@ func main() {
 	if len(tools) != 1 || tools[0].Tool.ID.String() != "ext__roundtrip__search" {
 		t.Fatalf("installed tools = %#v, want ext__roundtrip__search", tools)
 	}
-	if tools[0].Tool.InputSchemaDigest == "" {
-		t.Fatal("installed tool input schema digest is empty")
+	if got := tools[0].Tool.InputSchemaDigest; got != identityDigest {
+		t.Fatalf("installed tool digest = %q, want published identity %q", got, identityDigest)
 	}
 
 	manager := NewManager(
@@ -131,6 +177,13 @@ func main() {
 		extension, getErr := manager.Get("roundtrip")
 		return getErr == nil && extension.Status.Active && extension.Status.Healthy
 	})
+	descriptors, err := manager.ProvideTools(testutil.Context(t), "roundtrip")
+	if err != nil {
+		t.Fatalf("Manager.ProvideTools() error = %v", err)
+	}
+	if len(descriptors) != 1 || descriptors[0].InputSchemaDigest != runtimeDigest {
+		t.Fatalf("runtime descriptors = %#v, want one with digest %q", descriptors, runtimeDigest)
+	}
 
 	toolRegistry := newExtensionToolRegistry(t, env.registry, manager, extensionToolPolicyAllowAll())
 	scope := toolspkg.Scope{Operator: true, SessionID: "session-1"}
@@ -140,6 +193,9 @@ func main() {
 	}
 	if !view.Availability.Executable {
 		t.Fatalf("tool availability = %#v, want executable", view.Availability)
+	}
+	if got := view.Descriptor.InputSchemaDigest; got != identityDigest {
+		t.Fatalf("tool registry digest = %q, want published identity %q", got, identityDigest)
 	}
 	callResult, err := toolRegistry.Call(
 		testutil.Context(t),
