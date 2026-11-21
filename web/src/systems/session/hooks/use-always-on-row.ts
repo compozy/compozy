@@ -6,7 +6,24 @@ import {
   type AgentInstancePayload,
 } from "@/systems/agent";
 
+import { alwaysOnOwnerOf } from "../lib/always-on-owner";
 import type { SessionListTarget } from "../types";
+import { useSession } from "./use-sessions";
+
+/**
+ * Which of these agents the open session belongs to: its main session, or a side chat, child, or
+ * subagent under it, read from the open session's lineage.
+ */
+export function useAlwaysOnCurrentId(
+  instances: readonly AgentInstancePayload[],
+  currentSessionId: string | null | undefined
+): string | undefined {
+  const id = currentSessionId?.trim() ?? "";
+  const { data: session } = useSession(id);
+  if (id === "") return undefined;
+  const lineage = session?.id === id ? session.lineage : undefined;
+  return alwaysOnOwnerOf(instances, { id, lineage })?.id;
+}
 
 /** The verbs an avatar offers. Its one click opens the main session, created again if it was lost. */
 export function useAlwaysOnRowActions(onOpenSession: (session: SessionListTarget) => void) {
