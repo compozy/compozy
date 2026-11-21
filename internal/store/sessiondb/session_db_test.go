@@ -2912,12 +2912,16 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		sessionDB := openTestSessionDB(t, "sess-transcript-stream")
-		for index, text := range []string{"hel", "lo"} {
+		for index, content := range []string{
+			`{"type":"agent_message","turn_id":"turn-stream","text":"hel"}`,
+			`{"type":"agent_message","turn_id":"turn-stream","text":"lo"}`,
+			" " + string([]byte{0xff, 0xfe}),
+		} {
 			if err := sessionDB.Record(ctx, SessionEvent{
 				TurnID:    "turn-stream",
 				Type:      acp.EventTypeAgentMessage,
 				AgentName: "coder",
-				Content:   fmt.Sprintf(`{"type":"agent_message","turn_id":"turn-stream","text":%q}`, text),
+				Content:   content,
 			}); err != nil {
 				t.Fatalf("Record(%d) error = %v", index, err)
 			}
@@ -2934,10 +2938,10 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 		if got, want := entry.StartSequence, int64(1); got != want {
 			t.Fatalf("StartSequence = %d, want %d", got, want)
 		}
-		if got, want := entry.Sequence, int64(2); got != want {
+		if got, want := entry.Sequence, int64(3); got != want {
 			t.Fatalf("Sequence = %d, want %d", got, want)
 		}
-		if got, want := transcript.UIMessageText(entry.Message), "hello"; got != want {
+		if got, want := transcript.UIMessageText(entry.Message), "hello \ufffd\ufffd"; got != want {
 			t.Fatalf("streamed text = %q, want %q", got, want)
 		}
 	})

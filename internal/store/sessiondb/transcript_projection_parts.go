@@ -8,6 +8,7 @@ import (
 	jsonv2 "encoding/json/v2"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/store/sessiondb/sqlcgen"
 	"github.com/compozy/compozy/internal/transcript"
@@ -136,7 +137,7 @@ func assembleProjectionParts(
 	finishPart := func() {
 		if len(parts) > 0 {
 			part := &parts[len(parts)-1]
-			part.Text = text.String()
+			part.Text = projectionString(text.String())
 			text.Reset()
 			transcript.SetProjectedStreamState(part, complete)
 		}
@@ -185,13 +186,21 @@ func applyProjectionPartField(
 	case partDataField:
 		part.Data = raw
 	case partTitleField:
-		part.Title = row.Content
+		part.Title = projectionString(row.Content)
 	case partErrorField:
-		part.ErrorText = row.Content
+		part.ErrorText = projectionString(row.Content)
 	case partTextField:
 		text.WriteString(row.Content)
 	default:
 		return fmt.Errorf("unexpected field %d at part %d", row.Field, row.PartIndex)
 	}
 	return nil
+}
+
+// The previous JSON snapshot replaced invalid UTF-8 after joining the text chunks.
+func projectionString(value string) string {
+	if utf8.ValidString(value) {
+		return value
+	}
+	return string([]rune(value))
 }

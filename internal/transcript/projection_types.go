@@ -10,6 +10,7 @@ import (
 
 const (
 	// ProjectionVersion identifies the deterministic transcript projection contract.
+	// Changing existing part values requires a versioned repair because appends only write changed fields.
 	ProjectionVersion = 4
 	defaultPageLimit  = 200
 	maxPageLimit      = 1000
