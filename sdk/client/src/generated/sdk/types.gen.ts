@@ -204,6 +204,7 @@ export type AgentDraftRuntime = {
 export type AgentEffectiveRuntimePayload = {
   acp_options?: Array<AgentACPOptionSelection>;
   auto_compact_window?: number | null;
+  fallback_chain?: Array<RoleFallbackStatus>;
   lean_environment?: boolean | null;
   model?: string;
   permissions?: string;
@@ -219,6 +220,7 @@ export type AgentEffectiveRuntimePayload = {
 };
 
 export type AgentEffectiveRuntimeSources = {
+  fallback_chain?: string;
   model?: string;
   permissions?: string;
   provider: string;
