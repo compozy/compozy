@@ -18,7 +18,7 @@ const (
 	digestErrorKey = "error"
 )
 
-// CanonicalJSON returns RFC 8785/JCS-compatible canonical JSON bytes.
+// CanonicalJSON returns the daemon's schema identity encoding, which escapes U+2028 and U+2029.
 func CanonicalJSON(raw json.RawMessage) ([]byte, error) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 {

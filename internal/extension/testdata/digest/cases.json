@@ -50,5 +50,30 @@
         },
         "canonical": "{\"properties\":{\"limit\":{\"default\":10,\"maximum\":100,\"type\":\"integer\"},\"tag\":{\"enum\":[\"alpha\",\"beta\"],\"type\":\"string\"}},\"type\":\"object\"}",
         "sha256": "98e8773e128a2588736a27e45a4282c66cd52bafb7f4b69386d3e75718a2814c"
+    },
+    {
+        "name": "unicode_separators",
+        "schema": {
+            "type": "object",
+            "required": [
+                "query"
+            ],
+            "properties": {
+                "query": {
+                    "type": "string"
+                },
+                "line\u2028break": {
+                    "type": "string"
+                },
+                "paragraph\u2029break": {
+                    "type": "string"
+                }
+            },
+            "description": "a\u00e7\u00e3o\u2028\u2029 \\u2028 \\\u2029 \"<tag>\" \u0000\b\t\n\f\r\u001f"
+        },
+        "canonical": "{\"description\":\"a\u00e7\u00e3o\u2028\u2029 \\\\u2028 \\\\\u2029 \\\"<tag>\\\" \\u0000\\b\\t\\n\\f\\r\\u001f\",\"properties\":{\"line\u2028break\":{\"type\":\"string\"},\"paragraph\u2029break\":{\"type\":\"string\"},\"query\":{\"type\":\"string\"}},\"required\":[\"query\"],\"type\":\"object\"}",
+        "sha256": "b368fdc7697aac8da6dd20abeefe809fcf29b1cbf075ba1d837ef65d943624cf",
+        "identity_canonical": "{\"description\":\"a\u00e7\u00e3o\\u2028\\u2029 \\\\u2028 \\\\\\u2029 \\\"<tag>\\\" \\u0000\\b\\t\\n\\f\\r\\u001f\",\"properties\":{\"line\\u2028break\":{\"type\":\"string\"},\"paragraph\\u2029break\":{\"type\":\"string\"},\"query\":{\"type\":\"string\"}},\"required\":[\"query\"],\"type\":\"object\"}",
+        "identity_sha256": "41b25efe0dd759734f6551522b2b4ae022dd991e396379e998bd2d1aab026b32"
     }
 ]

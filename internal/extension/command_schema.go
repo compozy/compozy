@@ -328,7 +328,7 @@ func canonicalCommandJSON(value any) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return toolspkg.CanonicalJSON(raw)
+	return toolspkg.CanonicalIdentityJSON(raw)
 }
 
 func commandBound(value *big.Rat) (*float64, error) {

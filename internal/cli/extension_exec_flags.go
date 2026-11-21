@@ -78,7 +78,7 @@ func buildCommandInput(
 	if err != nil {
 		return nil, fmt.Errorf("cli: encode command input: %w", err)
 	}
-	canonical, err := toolspkg.CanonicalJSON(raw)
+	canonical, err := toolspkg.CanonicalIdentityJSON(raw)
 	if err != nil {
 		return nil, fmt.Errorf("cli: canonicalize command input: %w", err)
 	}

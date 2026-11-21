@@ -11,8 +11,20 @@ import (
 func TestReconcileManifestToolRuntimeReportsAvailabilityReasons(t *testing.T) {
 	t.Parallel()
 
-	manifest := mustManifestToolDescriptor(t)
+	fixture := unicodeSeparatorSchemaFixture(t)
+	manifest := mustManifestToolDescriptor(t, fixture.Schema)
 	matching := manifest.RuntimeDescriptor
+	if matching.InputSchemaDigest != fixture.IdentitySHA256 || matching.OutputSchemaDigest != fixture.IdentitySHA256 {
+		t.Fatalf(
+			"manifest digests = (%q, %q), want %q",
+			matching.InputSchemaDigest,
+			matching.OutputSchemaDigest,
+			fixture.IdentitySHA256,
+		)
+	}
+	sdk := matching
+	sdk.InputSchemaDigest = fixture.SHA256
+	sdk.OutputSchemaDigest = fixture.SHA256
 	missingHandler := matching
 	missingHandler.Handler = ""
 	mismatchedDigest := matching
@@ -35,6 +47,12 @@ func TestReconcileManifestToolRuntimeReportsAvailabilityReasons(t *testing.T) {
 			name:       "Should Mark Matching Runtime Descriptor Executable",
 			state:      healthyState,
 			runtime:    &matching,
+			executable: true,
+		},
+		{
+			name:       "Should reconcile separator digests from the TypeScript SDK",
+			state:      healthyState,
+			runtime:    &sdk,
 			executable: true,
 		},
 		{
@@ -123,7 +141,7 @@ func TestReconcileManifestToolRuntimeReportsAvailabilityReasons(t *testing.T) {
 	}
 }
 
-func mustManifestToolDescriptor(t *testing.T) ManifestToolDescriptor {
+func mustManifestToolDescriptor(t *testing.T, schema json.RawMessage) ManifestToolDescriptor {
 	t.Helper()
 
 	descriptors, err := ResolveManifestToolDescriptors(&Manifest{
@@ -131,12 +149,11 @@ func mustManifestToolDescriptor(t *testing.T) ManifestToolDescriptor {
 		Resources: ResourcesConfig{
 			Tools: map[string]ToolConfig{
 				"lookup": {
-					Description: "Search workspace",
-					Backend:     ToolBackendConfig{Kind: "extension_host", Handler: "lookup"},
-					InputSchema: json.RawMessage(`{
-						"type": "object"
-					}`),
-					ReadOnly: true,
+					Description:  "Search workspace",
+					Backend:      ToolBackendConfig{Kind: "extension_host", Handler: "lookup"},
+					InputSchema:  schema,
+					OutputSchema: schema,
+					ReadOnly:     true,
 				},
 			},
 		},

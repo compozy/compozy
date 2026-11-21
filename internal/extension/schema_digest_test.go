@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,13 +12,15 @@ import (
 )
 
 type schemaDigestFixture struct {
-	Name      string          `json:"name"`
-	Schema    json.RawMessage `json:"schema"`
-	Canonical string          `json:"canonical"`
-	SHA256    string          `json:"sha256"`
+	Name              string          `json:"name"`
+	Schema            json.RawMessage `json:"schema"`
+	Canonical         string          `json:"canonical"`
+	SHA256            string          `json:"sha256"`
+	IdentityCanonical string          `json:"identity_canonical"`
+	IdentitySHA256    string          `json:"identity_sha256"`
 }
 
-func TestSchemaDigestFixturesMatchJCSCanonicalBytes(t *testing.T) {
+func TestSchemaDigestFixturesMatchSDKsAndPublishedIdentities(t *testing.T) {
 	t.Parallel()
 
 	fixtures := readSchemaDigestFixtures(t, filepath.Join("testdata", "digest", "cases.json"))
@@ -40,8 +43,35 @@ func TestSchemaDigestFixturesMatchJCSCanonicalBytes(t *testing.T) {
 			if digest != fixture.SHA256 {
 				t.Fatalf("SchemaDigest(%s) = %q, want %q", fixture.Name, digest, fixture.SHA256)
 			}
+
+			identityJSON, err := toolspkg.CanonicalIdentityJSON(fixture.Schema)
+			if err != nil {
+				t.Fatalf("CanonicalIdentityJSON(%s) error = %v", fixture.Name, err)
+			}
+			if got, want := string(identityJSON), cmp.Or(fixture.IdentityCanonical, fixture.Canonical); got != want {
+				t.Fatalf("CanonicalIdentityJSON(%s) = %q, want %q", fixture.Name, got, want)
+			}
+			identityDigest, err := toolspkg.SchemaIdentityDigest(fixture.Schema)
+			if err != nil {
+				t.Fatalf("SchemaIdentityDigest(%s) error = %v", fixture.Name, err)
+			}
+			if got, want := identityDigest, cmp.Or(fixture.IdentitySHA256, fixture.SHA256); got != want {
+				t.Fatalf("SchemaIdentityDigest(%s) = %q, want %q", fixture.Name, got, want)
+			}
 		})
 	}
+}
+
+func unicodeSeparatorSchemaFixture(t *testing.T) schemaDigestFixture {
+	t.Helper()
+
+	for _, fixture := range readSchemaDigestFixtures(t, filepath.Join("testdata", "digest", "cases.json")) {
+		if fixture.Name == "unicode_separators" {
+			return fixture
+		}
+	}
+	t.Fatal("unicode_separators digest fixture is missing")
+	return schemaDigestFixture{}
 }
 
 func TestSchemaDigestFixturesAreSharedWithSDKs(t *testing.T) {

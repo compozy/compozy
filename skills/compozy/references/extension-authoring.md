@@ -80,6 +80,10 @@ reserved as the separator.
 `InputSchema` is a JSON Schema object. Provide `OutputSchema` only when the tool has one; the digest
 of each is computed by the SDK and re-verified by the daemon.
 
+For U+2028 and U+2029 in schema keys or values, `__describe` and `provide_tools` accept the
+TypeScript SDK's literal UTF-8 digest and the Go SDK's escaped digest for the same schema. Published
+tool identities and stored Loop schema pins use the escaped digest.
+
 Registration closes at `initialize`. Register every tool, hook, watch source, and command group
 before `Run`/`start`.
 

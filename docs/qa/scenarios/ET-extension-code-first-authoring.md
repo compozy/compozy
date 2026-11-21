@@ -41,3 +41,9 @@ SDKs (one Playwright journey, 17.8 seconds). Each language returned changed tool
 updating to 0.2.0, disappeared from the callable tool registry on disable, and disappeared from
 the installed catalog on removal. This verifies the two tool-provider templates; the older
 external-provider blockers above are not reclassified by this local SDK check.
+
+QA impact for #1539. `TestBuildBundleDescribeRoundTrip` builds, installs, starts, and calls real Go
+and TypeScript SDK tools whose input schema contains U+2028 and U+2029 in keys and values. Both tools
+must remain callable and publish the existing escaped digest, including when the TypeScript peer
+supplies the literal UTF-8 digest. CI's Go integration lane owns this run. The describe and runtime
+reconciliation suites cover rejection of unrelated digests.

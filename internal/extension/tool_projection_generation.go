@@ -133,7 +133,7 @@ func canonicalProjectionSchema(raw json.RawMessage) (json.RawMessage, error) {
 	if len(raw) == 0 {
 		return raw, nil
 	}
-	canonical, err := toolspkg.CanonicalJSON(raw)
+	canonical, err := toolspkg.CanonicalIdentityJSON(raw)
 	if err != nil {
 		return nil, err
 	}

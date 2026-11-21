@@ -189,7 +189,7 @@ func hookTOMLTable(hook *HookConfig) map[string]any {
 }
 
 func canonicalSchemaString(raw json.RawMessage) (string, error) {
-	canonical, err := toolspkg.CanonicalJSON(raw)
+	canonical, err := toolspkg.CanonicalIdentityJSON(raw)
 	if err != nil {
 		return "", err
 	}

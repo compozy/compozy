@@ -260,11 +260,11 @@ func manifestToolsFromDescribe(
 }
 
 func validateDescribeToolSchemas(descriptor toolspkg.ExtensionToolRuntimeDescriptor) error {
-	inputDigest, err := toolspkg.SchemaDigest(descriptor.InputSchema)
+	inputDigest, err := toolspkg.SchemaIdentityDigest(descriptor.InputSchema)
 	if err != nil {
 		return fmt.Errorf("input_schema: %w", err)
 	}
-	if inputDigest != strings.TrimSpace(descriptor.InputSchemaDigest) {
+	if !extensionSchemaDigestMatches(descriptor.InputSchema, inputDigest, descriptor.InputSchemaDigest) {
 		return errors.New("input_schema_digest does not match input_schema")
 	}
 	if len(bytes.TrimSpace(descriptor.OutputSchema)) == 0 {
@@ -273,11 +273,11 @@ func validateDescribeToolSchemas(descriptor toolspkg.ExtensionToolRuntimeDescrip
 		}
 		return nil
 	}
-	outputDigest, err := toolspkg.SchemaDigest(descriptor.OutputSchema)
+	outputDigest, err := toolspkg.SchemaIdentityDigest(descriptor.OutputSchema)
 	if err != nil {
 		return fmt.Errorf("output_schema: %w", err)
 	}
-	if outputDigest != strings.TrimSpace(descriptor.OutputSchemaDigest) {
+	if !extensionSchemaDigestMatches(descriptor.OutputSchema, outputDigest, descriptor.OutputSchemaDigest) {
 		return errors.New("output_schema_digest does not match output_schema")
 	}
 	return nil

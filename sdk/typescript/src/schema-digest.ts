@@ -6,6 +6,7 @@ export function canonicalJSON(value: JSONValue): string {
   return appendCanonicalValue(value);
 }
 
+/** Hashes a schema for extension registration. The daemon retains its published schema identity. */
 export function schemaDigest(schema: JSONValue): string {
   if (!isJSONObject(schema)) {
     throw new Error("schema must be a JSON object");

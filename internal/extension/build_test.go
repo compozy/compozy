@@ -655,6 +655,41 @@ min_compozy_version = "9.9.9"
 func TestManifestFromDescribeResources(t *testing.T) {
 	t.Parallel()
 
+	fixture := unicodeSeparatorSchemaFixture(t)
+	for _, tc := range []struct {
+		name         string
+		inputDigest  string
+		outputDigest string
+		wantError    string
+	}{
+		{"Should accept the published separator digest", fixture.IdentitySHA256, fixture.IdentitySHA256, ""},
+		{"Should accept the TypeScript separator digest", fixture.SHA256, fixture.SHA256, ""},
+		{"Should reject an unrelated input digest", strings.Repeat("0", 64), fixture.SHA256, "input_schema_digest does not match"},
+		{"Should reject an unrelated output digest", fixture.IdentitySHA256, strings.Repeat("0", 64), "output_schema_digest does not match"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := validDescribePayload()
+			payload.Provides = []string{extensionprotocol.CapabilityToolProvider}
+			payload.Tools = []toolspkg.ExtensionToolRuntimeDescriptor{{
+				ID: "ext__fixture__search", Handler: "search", ReadOnly: true, Risk: toolspkg.RiskRead,
+				InputSchema: fixture.Schema, InputSchemaDigest: tc.inputDigest,
+				OutputSchema: fixture.Schema, OutputSchemaDigest: tc.outputDigest,
+			}}
+			_, err := manifestFromDescribe(&payload)
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("manifestFromDescribe() error = %v, want %q", err, tc.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("manifestFromDescribe() error = %v", err)
+			}
+		})
+	}
+
 	t.Run("Should map every declared resource kind in sorted order", func(t *testing.T) {
 		t.Parallel()
 

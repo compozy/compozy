@@ -13,40 +13,69 @@ import (
 	"strings"
 )
 
-// CanonicalJSON returns RFC 8785/JCS-compatible canonical JSON bytes.
+// Match escaped backslashes first so literal escape text remains part of the JSON string.
+var jsonSeparators = strings.NewReplacer(`\\`, `\\`, `\u2028`, "\u2028", `\u2029`, "\u2029")
+
+// CanonicalJSON returns canonical JSON with literal Unicode separators, as in the TypeScript SDK.
 func CanonicalJSON(raw json.RawMessage) ([]byte, error) {
+	canonical, err := canonicalIdentityJSON(raw)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(jsonSeparators.Replace(canonical)), nil
+}
+
+// CanonicalIdentityJSON retains the escaped separators used by existing daemon identities.
+func CanonicalIdentityJSON(raw json.RawMessage) ([]byte, error) {
+	canonical, err := canonicalIdentityJSON(raw)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(canonical), nil
+}
+
+func canonicalIdentityJSON(raw json.RawMessage) (string, error) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 {
-		return nil, NewValidationError("json", ReasonSchemaInvalid, "json value is required")
+		return "", NewValidationError("json", ReasonSchemaInvalid, "json value is required")
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(trimmed))
 	decoder.UseNumber()
 	var value any
 	if err := decoder.Decode(&value); err != nil {
-		return nil, NewValidationError("json", ReasonSchemaInvalid, err.Error())
+		return "", NewValidationError("json", ReasonSchemaInvalid, err.Error())
 	}
 	var extra any
 	if err := decoder.Decode(&extra); err != io.EOF {
 		if err != nil {
-			return nil, NewValidationError("json", ReasonSchemaInvalid, err.Error())
+			return "", NewValidationError("json", ReasonSchemaInvalid, err.Error())
 		}
-		return nil, NewValidationError("json", ReasonSchemaInvalid, "multiple JSON values are not allowed")
+		return "", NewValidationError("json", ReasonSchemaInvalid, "multiple JSON values are not allowed")
 	}
 
 	var builder strings.Builder
 	if err := appendCanonicalValue(&builder, value); err != nil {
-		return nil, err
+		return "", err
 	}
-	return []byte(builder.String()), nil
+	return builder.String(), nil
 }
 
-// SchemaDigest returns the lowercase SHA-256 digest of a canonical JSON Schema subtree.
+// SchemaDigest hashes the canonical schema with the TypeScript SDK's separator encoding.
 func SchemaDigest(raw json.RawMessage) (string, error) {
+	return schemaDigest(raw, CanonicalJSON)
+}
+
+// SchemaIdentityDigest retains the digest published by the daemon and Go SDK.
+func SchemaIdentityDigest(raw json.RawMessage) (string, error) {
+	return schemaDigest(raw, CanonicalIdentityJSON)
+}
+
+func schemaDigest(raw json.RawMessage, canonicalize func(json.RawMessage) ([]byte, error)) (string, error) {
 	if err := ValidateJSONObject("schema", raw, true); err != nil {
 		return "", err
 	}
-	canonical, err := CanonicalJSON(raw)
+	canonical, err := canonicalize(raw)
 	if err != nil {
 		return "", err
 	}
@@ -58,7 +87,7 @@ func SchemaDigest(raw json.RawMessage) (string, error) {
 func DescriptorWithSchemaDigests(descriptor Descriptor) (Descriptor, error) {
 	descriptor.ToolPresentation = CloneToolPresentation(descriptor.ToolPresentation)
 	descriptor.ToolExecutionMetadata = CloneToolExecutionMetadata(descriptor.ToolExecutionMetadata)
-	inputDigest, err := SchemaDigest(descriptor.InputSchema)
+	inputDigest, err := SchemaIdentityDigest(descriptor.InputSchema)
 	if err != nil {
 		return Descriptor{}, wrapField(err, "input_schema")
 	}
@@ -75,7 +104,7 @@ func DescriptorWithSchemaDigests(descriptor Descriptor) (Descriptor, error) {
 		descriptor.OutputSchemaDigest = ""
 		return descriptor, nil
 	}
-	outputDigest, err := SchemaDigest(descriptor.OutputSchema)
+	outputDigest, err := SchemaIdentityDigest(descriptor.OutputSchema)
 	if err != nil {
 		return Descriptor{}, wrapField(err, "output_schema")
 	}
