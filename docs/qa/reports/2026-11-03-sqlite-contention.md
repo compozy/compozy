@@ -951,7 +951,7 @@ Seven jobs were canceled and three runs had no paired job. Including the failed
 first attempt of the one rerun gives 9 passes and 6 failures. The pre-split
 workflow had no `main` runs. [Rerun and attempt history](https://github.com/compozy/compozy/actions/runs/44771745725/attempts/1)
 
-The retained failures show three distinct reasons for rejection.
+The retained failures illustrate four reasons for rejection.
 
 - A core `update session state` COMMIT recurred on November 20. The rejected
   trial recorded 1,026 ms elapsed, 1 ms callback and 1,025 ms COMMIT, in a
@@ -961,9 +961,10 @@ The retained failures show three distinct reasons for rejection.
   attribute that time. [Job](https://github.com/compozy/compozy/actions/runs/44740096682/job/136301299816) · [Artifact](https://github.com/compozy/compozy/actions/runs/44740096682/artifacts/14630938241)
 - Baseline transcript writes can expire waiting for the session writer's
   completion. In the failed `44757938804` run all four controls were incomplete
-  and two head maxima exceeded the absolute 1,000 ms budget. A passing rerun
-  on another unchanged head had one incomplete control and a 942.371 ms head
-  maximum in that pair. An incomplete control cannot calibrate a warning.
+  and two head maxima exceeded the absolute 1,000 ms budget. Run `44771745725`
+  passed on its second attempt at the same SHA with one incomplete control and
+  a 942.371 ms head maximum in that pair. An incomplete control cannot
+  calibrate a warning.
   [Failed job](https://github.com/compozy/compozy/actions/runs/44757938804/job/136362510161) · [Passing rerun](https://github.com/compozy/compozy/actions/runs/44771745725/job/136424105606)
 - Background callback holds and checkpoint or admission failures invalidate a
   head trial. Only a session transcript or coalesced telemetry COMMIT of at
@@ -971,6 +972,10 @@ The retained failures show three distinct reasons for rejection.
   complete paired budget, can pass. A telemetry transaction with a 1,117 ms
   callback and 14 ms COMMIT was rejected even with a complete control.
   [Job and summary](https://github.com/compozy/compozy/actions/runs/44767446098/job/136395761644) · [Artifact](https://github.com/compozy/compozy/actions/runs/44767446098/artifacts/14647206749)
+- The transaction warning measures the whole hold. A 1,003 ms telemetry hold
+  with a 27 ms callback and a 975 ms COMMIT failed despite a complete control
+  with a 1,830.6 ms budget. The COMMIT did not reach the 1,000 ms required for
+  calibration. [Job and summary](https://github.com/compozy/compozy/actions/runs/44744741487/job/136317037134) · [Artifact](https://github.com/compozy/compozy/actions/runs/44744741487/artifacts/14633681661)
 
 The first manual uninstrumented `main` run passed on
 `810f309eb1bc2e756961f3f9955ed934da99112a`. All four transcript controls were
@@ -983,8 +988,12 @@ and a median transcript tail ratio of 0.609. Head transcript maxima were
 The historical core hold did not recur in this sample. Its cause remains open
 in #1433. [Main job and summary](https://github.com/compozy/compozy/actions/runs/44901986429/job/136839617838) · [Artifact](https://github.com/compozy/compozy/actions/runs/44901986429/artifacts/14707200091)
 
-The separate `runtime_trace_trials=true` run on the same `main` SHA also
-completed without a core warning that rejected a trial. Its artifact contains
-original-trial runtime recordings. Use them to attribute events within that
-run. The instrumented workload does not count as a second acceptance pass or
-attribute the earlier untraced holds. [Traced job](https://github.com/compozy/compozy/actions/runs/44902062663/job/136839843214) · [Artifact](https://github.com/compozy/compozy/actions/runs/44902062663/artifacts/14706658453)
+The separate `runtime_trace_trials=true` run on the same `main` SHA captured
+zero core warnings and one telemetry hold. The 1,393 ms hold included a 132 ms
+callback and a 1,261 ms COMMIT, which passed against its complete 1,947 ms
+paired budget. Aligning the trial trace clock with the warning timestamp shows
+roughly 1,255 ms in the telemetry COMMIT's `fsync` interval, overlapping
+`fsync` calls from several session checkpoints. This attributes the sampled
+telemetry delay to time in the syscall. The earlier core holds have no
+contemporaneous recording, and the traced run is diagnostic only.
+[Traced job](https://github.com/compozy/compozy/actions/runs/44902062663/job/136839843214) · [Artifact](https://github.com/compozy/compozy/actions/runs/44902062663/artifacts/14706658453)
