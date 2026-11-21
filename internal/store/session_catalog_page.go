@@ -64,7 +64,8 @@ func (p SessionCatalogPosition) Validate() error {
 // explicit profile or the AllProfiles aggregate. Cursor decoding and
 // active-session overlay belong to the session manager.
 type SessionCatalogPageQuery struct {
-	BoardExcludedIDs   []string
+	// FacetOverlayIDs removes durable copies of live sessions while retaining their pending approvals.
+	FacetOverlayIDs    []string
 	DefaultBranches    map[string][]string
 	RepositoryKeys     map[string]string
 	Columns            []string

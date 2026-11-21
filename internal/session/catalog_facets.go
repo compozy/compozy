@@ -28,8 +28,12 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 	if err != nil {
 		return store.SessionCatalogFacetResult{}, err
 	}
-	durableQuery := sessionCatalogPageQuery(normalized, nil, activeIDs)
-	durableQuery.BoardExcludedIDs = query.BoardExcludedIDs
+	var excludedIDs []string
+	if normalized.ExcludeInstanceMain {
+		excludedIDs = normalized.InstanceMainIDs
+	}
+	durableQuery := sessionCatalogPageQuery(normalized, nil, excludedIDs)
+	durableQuery.FacetOverlayIDs = activeIDs
 	durableQuery.RepositoryKeys = m.catalogRepositoryKeys(ctx, normalized)
 	durableQuery.DefaultBranches = m.catalogDefaultBranches(ctx, normalized)
 	durable, err := reader.SessionCatalogFacets(ctx, durableQuery)
@@ -45,26 +49,24 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 		profiles[profile.ProfileID] = profile.Facets
 	}
 	for index := range activeMatches {
+		if slices.Contains(excludedIDs, activeMatches[index].ID) {
+			continue
+		}
 		info := sessionInfoFromCatalog(&activeMatches[index])
 		// Use the live Info, including supervision, rather than the durable projection.
 		if active := activeByID[info.ID]; active != nil {
 			info = active
 		}
 		facets := workspaces[info.WorkspaceID]
-		addSessionFacet(&facets, BadgeForInfo(info))
-		if !slices.Contains(query.BoardExcludedIDs, info.ID) {
-			facets.Board.Add(string(info.BoardColumn), 1)
-		}
-		addSessionFacet(&durable.Facets, BadgeForInfo(info))
-		if !slices.Contains(query.BoardExcludedIDs, info.ID) {
-			durable.Facets.Board.Add(string(info.BoardColumn), 1)
-		}
+		badge, column := BadgeForInfo(info), string(info.BoardColumn)
+		addSessionFacet(&facets, badge)
+		facets.Board.Add(column, 1)
+		addSessionFacet(&durable.Facets, badge)
+		durable.Facets.Board.Add(column, 1)
 		workspaces[info.WorkspaceID] = facets
 		profile := profiles[info.ProfileID]
-		addSessionFacet(&profile, BadgeForInfo(info))
-		if !slices.Contains(query.BoardExcludedIDs, info.ID) {
-			profile.Board.Add(string(info.BoardColumn), 1)
-		}
+		addSessionFacet(&profile, badge)
+		profile.Board.Add(column, 1)
 		profiles[info.ProfileID] = profile
 	}
 	durable.ByWorkspace = make([]store.WorkspaceSessionCatalogFacets, 0, len(workspaces))

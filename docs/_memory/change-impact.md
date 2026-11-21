@@ -1,5 +1,22 @@
 # Compozy Change Impact
 
+## Session facet counts for always-on mains (GH-1897)
+
+- **HTTP/UDS and compatibility.** On `GET /api/sessions/facets`, the existing
+  opt-in `exclude_instance_main=true` excludes current mains from every session count.
+  The route, parameters, defaults, and response fields are unchanged. Instance attention
+  is a separate count. When the flag is set, aggregate User narrowing includes Global
+  instances in that count as well. Requests that omit the flag or pass `false` retain
+  their existing counts. The generated API reference describes the corrected filter.
+- **State and isolation.** No persisted data changes. Project and Global mains are resolved
+  within the authorized workspace and profile scope of the session catalog read. Counting
+  instance attention still requires list authority for each instance. Flagged session
+  pages resolve main IDs without loading instance attention.
+- **Web and QA.** Group totals and Kanban columns use the corrected counts through the
+  existing Web request. `MS-web-stays-on-placement` covers scoped and aggregate reads.
+- **CLI, native tools, hooks, configuration, extensions and official skill.** No contracts
+  changed on these surfaces.
+
 ## Budgeted hosted MCP tool listing (GH-1869) — 2026-11-19
 
 - **Native tools.** `compozy__tool_search` accepts multi-word queries and ranks results by where

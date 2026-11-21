@@ -26867,7 +26867,7 @@ export type ListSessionFacetsData = {
   path?: never;
   query?: {
     /**
-     * Exclude instance main sessions from board counts
+     * Exclude always-on main sessions from all session counts
      */
     exclude_instance_main?: boolean;
     /**

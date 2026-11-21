@@ -11,28 +11,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func instanceMainIDs(instances []contract.AgentInstancePayload) []string {
-	ids := make([]string, 0, len(instances))
-	for _, instance := range instances {
-		if instance.MainSessionID != "" {
-			ids = append(ids, instance.MainSessionID)
-		}
-	}
-	return ids
+type instanceFacetData struct {
+	rows    []contract.AgentInstancePayload
+	mainIDs []string
 }
 
-func (h *BaseHandlers) instanceFacetRows(
+func (h *BaseHandlers) instanceFacets(
 	c *gin.Context,
 	query session.ListQuery,
-) ([]contract.AgentInstancePayload, error) {
+	includeAttention bool,
+) (instanceFacetData, error) {
 	if h.AgentInstances == nil {
-		return nil, nil
+		return instanceFacetData{}, nil
 	}
 	profiles := []string{query.ReadScope.ProfileID}
 	if query.ReadScope.AllProfiles {
 		owners, err := h.profileOwnerIdentities(c.Request.Context())
 		if err != nil {
-			return nil, err
+			return instanceFacetData{}, err
 		}
 		profiles = nil
 		for id := range owners {
@@ -42,34 +38,41 @@ func (h *BaseHandlers) instanceFacetRows(
 	slices.Sort(profiles)
 	actor, ok := h.instanceActor(c)
 	if !ok {
-		return nil, agentinstance.ErrForbidden
+		return instanceFacetData{}, agentinstance.ErrForbidden
 	}
-	var result []contract.AgentInstancePayload
+	var result instanceFacetData
 	for _, profile := range profiles {
 		list := agentinstance.ListQuery{ProfileID: profile, AllWorkspaces: true, Limit: 100}
 		for {
 			rows, err := h.AgentInstances.Store.List(c.Request.Context(), list)
 			if err != nil {
-				return nil, err
+				return instanceFacetData{}, err
 			}
 			for _, row := range rows {
 				if !instanceMatchesSessionQuery(&row, query) {
+					continue
+				}
+				// Main IDs narrow the authorized session population. Instance attention requires list authority.
+				if query.ExcludeInstanceMain && row.MainSessionID != "" {
+					result.mainIDs = append(result.mainIDs, row.MainSessionID)
+				}
+				if !includeAttention {
 					continue
 				}
 				if err := h.AgentInstances.Authority.Authorize(c.Request.Context(), actor, row, "list"); err != nil {
 					if errors.Is(err, agentinstance.ErrForbidden) {
 						continue
 					}
-					return nil, err
+					return instanceFacetData{}, err
 				}
 				payload := AgentInstancePayload(row)
 				if h.AgentInstances.ReadAttention != nil {
 					payload.NeedsAttention, err = h.AgentInstances.ReadAttention(c.Request.Context(), row.ID)
 					if err != nil {
-						return nil, err
+						return instanceFacetData{}, err
 					}
 				}
-				result = append(result, payload)
+				result.rows = append(result.rows, payload)
 			}
 			if len(rows) < list.Limit {
 				break
@@ -128,7 +131,12 @@ func instanceMatchesSessionQuery(row *agentinstance.Instance, query session.List
 	if !query.AllWorkspaces && row.WorkspaceID != workspace {
 		return false
 	}
-	if len(query.WorkspaceIDs) > 0 && !slices.Contains(query.WorkspaceIDs, row.WorkspaceID) {
+	instanceWorkspace := row.WorkspaceID
+	// Apply the catalog's User selector to main exclusions while preserving unflagged instance facets.
+	if query.ExcludeInstanceMain && instanceWorkspace == "" {
+		instanceWorkspace = userScopeWorkspaceRef
+	}
+	if len(query.WorkspaceIDs) > 0 && !slices.Contains(query.WorkspaceIDs, instanceWorkspace) {
 		return false
 	}
 	return query.AgentName == "" || row.AgentName == query.AgentName

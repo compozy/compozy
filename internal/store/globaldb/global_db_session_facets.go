@@ -2,7 +2,6 @@ package globaldb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -26,6 +25,10 @@ func (g *SessionRepo) SessionCatalogFacets(
 	query.Columns = nil
 	query.AttentionOnly = false
 	query.Search = ""
+	approvalQuery := query
+	if len(query.FacetOverlayIDs) > 0 {
+		query.ExcludeIDs = append(slices.Clone(query.ExcludeIDs), query.FacetOverlayIDs...)
+	}
 	where, args, err := sessionCatalogPageFilters(query, store.FormatTimestamp(g.now()))
 	if err != nil {
 		return result, err
@@ -36,15 +39,11 @@ func (g *SessionRepo) SessionCatalogFacets(
 	if err != nil {
 		return result, err
 	}
-	boardCount, boardArgs, err := sessionCatalogBoardCount(query.BoardExcludedIDs)
-	if err != nil {
-		return result, err
-	}
 	selection := "SELECT workspace_id, profile_id, " + sessionCatalogBadgeExpression + ", " +
-		sessionCatalogBoardColumnExpression + ", COUNT(1), " + boardCount + " FROM " + source
+		sessionCatalogBoardColumnExpression + ", COUNT(1) FROM " + source
 	statement.WriteString(store.AppendWhere(selection, where))
 	statement.WriteString(" GROUP BY workspace_id, profile_id, 3, 4 ORDER BY workspace_id")
-	args = append(append(boardArgs, sourceArgs...), args...)
+	args = append(sourceArgs, args...)
 
 	rows, err := g.readDB.QueryContext(ctx, statement.String(), args...)
 	if err != nil {
@@ -59,8 +58,8 @@ func (g *SessionRepo) SessionCatalogFacets(
 	profiles := map[string]store.SessionCatalogFacets{}
 	for rows.Next() {
 		var workspaceID, profileID, badge, column string
-		var count, boardCount int
-		if err := rows.Scan(&workspaceID, &profileID, &badge, &column, &count, &boardCount); err != nil {
+		var count int
+		if err := rows.Scan(&workspaceID, &profileID, &badge, &column, &count); err != nil {
 			return result, fmt.Errorf("store: scan session catalog facets: %w", err)
 		}
 		if len(result.ByWorkspace) == 0 || result.ByWorkspace[len(result.ByWorkspace)-1].WorkspaceID != workspaceID {
@@ -71,19 +70,19 @@ func (g *SessionRepo) SessionCatalogFacets(
 		}
 		workspace := &result.ByWorkspace[len(result.ByWorkspace)-1]
 		addCatalogBadgeCount(&workspace.Facets, badge, count)
-		workspace.Facets.Board.Add(column, boardCount)
+		workspace.Facets.Board.Add(column, count)
 		addCatalogBadgeCount(&result.Facets, badge, count)
-		result.Facets.Board.Add(column, boardCount)
+		result.Facets.Board.Add(column, count)
 		facets := profiles[profileID]
 		addCatalogBadgeCount(&facets, badge, count)
-		facets.Board.Add(column, boardCount)
+		facets.Board.Add(column, count)
 		profiles[profileID] = facets
 	}
 	if err := rows.Err(); err != nil {
 		return result, fmt.Errorf("store: iterate session catalog facets: %w", err)
 	}
 	result.ByProfile = sortedProfileCatalogFacets(profiles)
-	if err := g.addTerminalApprovalFacets(ctx, query, &result); err != nil {
+	if err := g.addTerminalApprovalFacets(ctx, approvalQuery, &result); err != nil {
 		return result, err
 	}
 	if result.Later, err = g.sessionCatalogLaterCount(ctx, query); err != nil {
@@ -129,17 +128,6 @@ func addCatalogBadgeCount(facets *store.SessionCatalogFacets, badge string, coun
 }
 
 var _ store.SessionCatalogFacetReader = (*SessionRepo)(nil)
-
-func sessionCatalogBoardCount(excludedIDs []string) (string, []any, error) {
-	if len(excludedIDs) == 0 {
-		return "COUNT(1)", nil, nil
-	}
-	encoded, err := json.Marshal(excludedIDs)
-	if err != nil {
-		return "", nil, err
-	}
-	return "SUM(CASE WHEN id IN (SELECT value FROM json_each(?)) THEN 0 ELSE 1 END)", []any{string(encoded)}, nil
-}
 
 func sortedProfileCatalogFacets(profiles map[string]store.SessionCatalogFacets) []store.ProfileSessionCatalogFacets {
 	result := make([]store.ProfileSessionCatalogFacets, 0, len(profiles))

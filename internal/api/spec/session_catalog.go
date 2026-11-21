@@ -305,7 +305,7 @@ func sessionCatalogFacetsOperation() OperationSpec {
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
-			boolQueryParam("exclude_instance_main", "Exclude instance main sessions from board counts"),
+			boolQueryParam("exclude_instance_main", "Exclude always-on main sessions from all session counts"),
 			boolQueryParam("exclude_finished_automation", finishedAutomationParamDescription),
 			boolQueryParam("exclude_automation", automationFacetsParamDescription),
 			queryParam("workspace_id", "Workspace id or path", false),
