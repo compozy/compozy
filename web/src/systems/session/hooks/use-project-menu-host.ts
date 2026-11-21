@@ -4,6 +4,7 @@ import { useOpenProjectFiles } from "@/systems/os";
 import { useProfileReadScope } from "@/systems/profiles";
 import type { ProjectMenuHost, ProjectMenuMove, WorkspacePayload } from "@/systems/workspace";
 
+import { useArchiveStopped } from "./use-archive-stopped";
 import { useSessionCreateActions } from "./use-session-create";
 import { useSessionListGroupFolderCreate } from "./use-session-list-group-folder-create";
 import { useWorkspaceLayout, type WorkspaceLayout } from "./use-workspace-layout";
@@ -20,6 +21,8 @@ export function useProjectMenuHost() {
     profile: profile ?? "",
     enabled: openMenus > 0 && profile !== null,
   });
+  // Under All profiles no one profile owns the project's threads, so Archive stopped stays hidden.
+  const stopped = useArchiveStopped(profile ?? "");
   const [folderProject, setFolderProject] = useState<WorkspacePayload | null>(null);
   const folder = useSessionListGroupFolderCreate({
     workspaceId: folderProject?.id ?? null,
@@ -39,6 +42,13 @@ export function useProjectMenuHost() {
       },
       openFiles: openFiles ? () => openFiles(workspace.id) : undefined,
       move: layout && profile !== null ? projectFolderMove(layout, workspace.id) : undefined,
+      archiveStopped:
+        profile !== null
+          ? {
+              run: () => stopped.archiveStopped({ kind: "project", workspaceId: workspace.id }),
+              running: stopped.running({ kind: "project", workspaceId: workspace.id }),
+            }
+          : undefined,
     }),
   };
   return { host, folder, folderProject };

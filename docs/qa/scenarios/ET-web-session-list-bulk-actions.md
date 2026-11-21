@@ -182,3 +182,30 @@ invoked again after it settled, it detached all three (daemon reads confirmed ev
 needs two invocations within one React turn, which a pointer cannot produce; the lifecycle hook
 suite owns it. At rest the end slot shows the time, so progress appears on hover or focus, as
 before #1472.
+
+## Archive stopped (issue #1924)
+
+Added 2026-11-21. Use a project with a stopped thread whose root has child sessions, a second
+stopped thread, one running session, one session waiting on you (a pending permission), and one
+pinned stopped session. Add a second project with one stopped thread.
+
+1. Open the first project's menu (session list group header, overview tile, or menubar row):
+   "Archive stopped" sits above "Archive project". Choose it: no dialog opens; while the request
+   runs the item reads disabled. The toast reads "Archived 2 threads" with "3 skipped: 1 running,
+   1 waiting on you, 1 pinned" (order follows the daemon's counts) and an "Undo" action. Both threads,
+   children included, leave the active list; the running, waiting and pinned rows stay.
+2. Choose "Undo" before the toast closes: the toast reads "Restored 2 threads", every archived
+   session returns (roots before their children), and nothing that was skipped changes.
+3. Choose "Archive stopped" again right away on a project whose stopped threads are already
+   archived: the toast reads "No stopped threads to archive" with the skip summary and no Undo.
+4. Switch the list to All projects. View options ends with "Archive stopped in all projects";
+   choosing it archives the eligible threads of both projects in one toast. Under one project the
+   item reads "Archive stopped"; on the Archived or Later shelf, under All profiles, or in the User
+   scope it is absent.
+5. With a thread whose archive fails (or a restore that fails), the error toast names up to three
+   titles and "and {n} more"; Undo stays available for the threads that were archived.
+
+Verification ownership: the session hook suite (`use-archive-stopped.test.tsx`) owns the request
+scope, the toast outcomes, the in-flight hold, and Undo's exact, root-first replay; the project
+menu tree suite owns placement; the session list suite owns the View options entry per scope.
+This walk remains unverified until recorded.

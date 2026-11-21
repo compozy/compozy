@@ -1,11 +1,12 @@
 /**
  * The one project menu every project surface opens, right-click or `…`: New ▸, Open files,
- * Move ▸, then Archive and Remove last. A surface passes the verbs it can reach; a verb it
+ * Move ▸, then Archive stopped, Archive and Remove last. A surface passes the verbs it can reach; a verb it
  * cannot perform is absent, and the tidy pass drops the groups that leaves empty.
  */
 import {
   Archive,
   ArchiveRestore,
+  ArchiveX,
   ArrowDown,
   ArrowUp,
   Bot,
@@ -47,6 +48,8 @@ export interface ProjectMenuVerbs {
   addAlwaysOn?: () => void;
   openFiles?: () => void;
   move?: ProjectMenuMove;
+  /** Archive the project's stopped threads; `running` while a run for the project is in flight. */
+  archiveStopped?: { run: () => void; running: boolean };
 }
 
 /** `over`'s verbs where it has them, `base`'s otherwise. */
@@ -60,6 +63,7 @@ export function mergeProjectMenuVerbs(
     addAlwaysOn: over?.addAlwaysOn ?? base?.addAlwaysOn,
     openFiles: over?.openFiles ?? base?.openFiles,
     move: over?.move ?? base?.move,
+    archiveStopped: over?.archiveStopped ?? base?.archiveStopped,
   };
 }
 
@@ -111,6 +115,7 @@ export function projectMenuTree({
     { kind: "separator", id: "s-move" },
     ...(live.move ? [moveSubmenu(live.move, live.move.testId ?? testId)] : []),
     { kind: "separator", id: "s-lifecycle" },
+    ...(live.archiveStopped ? [archiveStoppedItem(live.archiveStopped, testId)] : []),
     ...(workspace ? lifecycleItems(archived, choose, testId) : []),
   ]);
 }
@@ -157,6 +162,21 @@ function moveSubmenu(move: ProjectMenuMove, testId: string): MenuTreeNode {
       { kind: "separator", id: "s-order" },
       ...order,
     ],
+  };
+}
+
+function archiveStoppedItem(
+  archiveStopped: NonNullable<ProjectMenuVerbs["archiveStopped"]>,
+  testId: string
+): MenuTreeNode {
+  return {
+    kind: "item",
+    id: "archive-stopped",
+    label: "Archive stopped",
+    icon: ArchiveX,
+    disabled: archiveStopped.running,
+    testId: `${testId}-archive-stopped`,
+    onSelect: archiveStopped.run,
   };
 }
 

@@ -346,6 +346,15 @@ A session's child sessions are the rows nested under it in the session list; con
 - Checkbox: "Also archive {N} child session(s)", checked by default. In the delete dialogs "Also delete {N} child session(s)", unchecked by default because deletion cannot be undone. Subagents always follow an archived parent, so archive does not count them.
 - Failed count read: "Couldn't read child sessions." with "Try again". Archive reports the read error and does not run.
 
+### Archive Stopped
+
+One action archives every stopped thread of a project, or of every project, for list hygiene. A thread is a top-level session with all its child sessions; this feature's copy counts threads. No confirmation: the action is reversible from its toast.
+
+- Entry points: "Archive stopped" in the project menu, above "Archive project"; in the session list's View options, "Archive stopped" for one project and "Archive stopped in all projects" under All projects. Each is disabled while its run is in flight.
+- Toasts: "Archived {N} thread(s)" with the skip summary "{n} skipped: {n} waiting on you, {n} running" and the action "Undo"; nothing eligible reads "No stopped threads to archive" with the same summary and no Undo; failures read "Archived {N} thread(s), {M} failed" or "Couldn't archive {M} thread(s)", listing up to three titles and "and {n} more"; a refused request reads the daemon's reason, or "Couldn't archive stopped threads".
+- Skip reasons: "waiting on you", "running", "queued input", "pinned", "in Later", "always-on main session".
+- Undo: "Restored {N} thread(s)"; failures read "Restored {N} thread(s), {M} failed" or "Couldn't restore {M} thread(s)", listing the titles the same way.
+
 ### Session Move to Profile Terms
 
 A session's profile never changes; **Move to profile** copies it into another profile and archives the original. Never "transfer", "migrate", or "reassign" in UI copy.
