@@ -220,6 +220,9 @@ func instanceListText(page contract.AgentInstanceListResponse) string {
 	for _, instance := range page.Instances {
 		text.WriteString(instanceText(instance))
 	}
+	if page.PeersNote != "" {
+		text.WriteString(page.PeersNote + "\n")
+	}
 	if page.NextCursor != "" {
 		fmt.Fprintf(&text, "Next cursor: %s\n", page.NextCursor)
 	}

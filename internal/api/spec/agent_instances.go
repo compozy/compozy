@@ -127,7 +127,13 @@ func agentInstanceCatalogOperations() []OperationSpec {
 				queryParam("cursor", "Pagination cursor", false),
 				queryParam("limit", "Page size", false),
 			},
-			Responses: []ResponseSpec{{Status: 200, Description: "OK", Body: contract.AgentInstanceListResponse{}}},
+			Responses: []ResponseSpec{
+				{
+					Status:      200,
+					Body:        contract.AgentInstanceListResponse{},
+					Description: "Instance list or reachable peers. An authorization-filtered empty peer list may include peers_note.",
+				},
+			},
 		},
 		{
 			Method:      httpMethodPost,

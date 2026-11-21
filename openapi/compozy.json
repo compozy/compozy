@@ -1085,6 +1085,9 @@
               "$ref": "#/components/schemas/AgentInstancePeer"
             },
             "type": "array"
+          },
+          "peers_note": {
+            "type": "string"
           }
         },
         "required": [
@@ -51651,7 +51654,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Instance list or reachable peers. An authorization-filtered empty peer list may include peers_note."
           },
           "400": {
             "content": {

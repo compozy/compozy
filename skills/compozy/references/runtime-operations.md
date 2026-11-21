@@ -2159,7 +2159,10 @@ Read reachable peers with `compozy agent instance list --peers` or
 The `peers` array carries only the addressable `name`, `description`, `scope`, `state` and the
 `accepts` input forms the peer's definition declares. Workspace access filters rows before
 pagination. Omit workspace to inspect reachable scopes in the current profile, and retain filters
-with each `next_cursor`.
+with each `next_cursor`. An initial, unfiltered peer list can return an optional `peers_note`
+when access rules hid every candidate. The note contains no identities, scopes or counts.
+It is available for an all-workspaces read of the current profile or a read scoped to the
+caller's workspace. CLI text output prints the same note.
 
 ### Standing context of always-on agents
 
@@ -2171,7 +2174,8 @@ scope, a non-active state, the description cut to 160 characters and the accepte
 tells the agent to hand work that matches a peer's role to that peer through
 `compozy__session_prompt` with `agent`. When more peers exist the block says so; list them with
 `peers: true`. A session that does not belong to an instance gets rules but no roster. The roster is cached per
-session and re-read when the agent definition catalog changes or after 30 seconds.
+session and re-read when the agent definition catalog changes or after 30 seconds. The roster
+excludes the calling instance and displays the access note when every other candidate was hidden.
 
 The block is bounded to 12,000 characters and sent in full only when needed: on the first turn of a
 provider session, when the rules or roster change, and after a completed provider compaction (its

@@ -244,9 +244,9 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "5891f6d5562b32019114f64afdfaabf6b82f1f7b8bb15ff5293f89c5825106c1",
-    "output_schema_digest": "e36f8bdfcde46dd7cf0a16960005c4f0c26e114b4e82e641590473505ef0033d",
+    "output_schema_digest": "0a698c4a8a33d2573f05304d317c3e3361f9923b3f0d2c3cd9adc9acc4f0e5d5",
     "result_contract": "compact_full",
-    "compact_output_schema_digest": "e36f8bdfcde46dd7cf0a16960005c4f0c26e114b4e82e641590473505ef0033d",
+    "compact_output_schema_digest": "0a698c4a8a33d2573f05304d317c3e3361f9923b3f0d2c3cd9adc9acc4f0e5d5",
     "full_output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

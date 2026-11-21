@@ -2125,7 +2125,7 @@ func TestAgentInstancePeers(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		for _, id := range []string{"allowed", "denied"} {
+		for _, id := range []string{"allowed", "denied", "empty"} {
 			now := time.Now()
 			if err := db.InsertWorkspace(
 				t.Context(),
@@ -2142,8 +2142,9 @@ func TestAgentInstancePeers(t *testing.T) {
 		}
 
 		repo := db.Instances()
+		var withheldIDs []string
 		for i, workspace := range []string{"denied", "allowed", "denied", "allowed"} {
-			_, _, err := repo.AdmitCreate(
+			instance, _, err := repo.AdmitCreate(
 				t.Context(),
 				agentinstance.Instance{
 					ProfileID:         store.DefaultProfileID,
@@ -2156,6 +2157,9 @@ func TestAgentInstancePeers(t *testing.T) {
 			)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if workspace == "denied" {
+				withheldIDs = append(withheldIDs, instance.ID)
 			}
 		}
 		api := &core.AgentInstanceAPI{
@@ -2172,9 +2176,9 @@ func TestAgentInstancePeers(t *testing.T) {
 			WorkspaceID: "allowed",
 		}
 		query := agentinstance.ListQuery{ProfileID: store.DefaultProfileID, AllWorkspaces: true, Limit: 1}
-		first, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{})
+		first, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{}, "")
 		if err != nil || len(first.Peers) != 1 || first.Peers[0].Scope != "allowed" || first.NextCursor == "" ||
-			len(first.Instances) != 0 {
+			len(first.Instances) != 0 || first.PeersNote != "" {
 			t.Fatalf("first peers: %+v %v", first, err)
 		}
 		raw, err := json.Marshal(first.Peers[0])
@@ -2190,18 +2194,68 @@ func TestAgentInstancePeers(t *testing.T) {
 			fields["state"] == nil {
 			t.Fatalf("private peer fields: %s", raw)
 		}
+		t.Run(
+			"Should distinguish a filtered workspace from an empty one without exposing hidden peers",
+			func(t *testing.T) {
+				t.Parallel()
+				for _, tc := range []struct {
+					name, workspace, agent, state, callerWorkspace string
+					wantNote                                       bool
+				}{
+					{name: "Should report when access hides every candidate", workspace: "denied", callerWorkspace: "denied", wantNote: true},
+					{name: "Should keep a genuinely empty workspace empty", workspace: "empty", callerWorkspace: "empty"},
+					{name: "Should conceal a targeted workspace", workspace: "denied", callerWorkspace: "allowed"},
+					{name: "Should conceal a targeted agent", workspace: "denied", callerWorkspace: "denied", agent: "agent-0"},
+					{name: "Should conceal a targeted state", workspace: "denied", callerWorkspace: "denied", state: "active"},
+				} {
+					t.Run(tc.name, func(t *testing.T) {
+						t.Parallel()
+						query := agentinstance.ListQuery{
+							ProfileID: store.DefaultProfileID, WorkspaceID: tc.workspace,
+							Limit: 1, AgentName: tc.agent, State: tc.state,
+						}
+						actor := workspaceaccess.ActorRef{
+							Kind:        workspaceaccess.ActorAgentSession,
+							SessionID:   "caller",
+							WorkspaceID: tc.callerWorkspace,
+						}
+						page, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{}, "")
+						if err != nil || len(page.Peers) != 0 || len(page.Instances) != 0 || page.NextCursor != "" {
+							t.Fatalf("empty peers: %+v %v", page, err)
+						}
+						body, err := json.Marshal(page)
+						if err != nil {
+							t.Fatal(err)
+						}
+						var envelope map[string]any
+						if err := json.Unmarshal(body, &envelope); err != nil {
+							t.Fatal(err)
+						}
+						if note, present := envelope["peers_note"]; present != tc.wantNote ||
+							(tc.wantNote && note != "Access restrictions hid every peer candidate.") {
+							t.Fatalf("unexpected peers diagnostic: %s", body)
+						}
+						for _, secret := range append([]string{"agent-0", "agent-2", "denied"}, withheldIDs...) {
+							if strings.Contains(string(body), secret) {
+								t.Fatalf("peer result exposes %q: %s", secret, body)
+							}
+						}
+					})
+				}
+			},
+		)
 		query.AfterID = first.NextCursor
-		next, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{})
+		next, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{}, "")
 		if err != nil || len(next.Peers) != 1 || next.Peers[0].Name == first.Peers[0].Name || next.NextCursor != "" {
 			t.Fatalf("next peers: %+v %v", next, err)
 		}
 		query.State = "paused"
-		if _, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{}); err == nil {
+		if _, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{}, ""); err == nil {
 			t.Fatal("cursor crossed filters")
 		}
 		query.State = ""
 		actor.SessionID = "another"
-		if _, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{}); err == nil {
+		if _, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{}, ""); err == nil {
 			t.Fatal("cursor crossed callers")
 		}
 	})

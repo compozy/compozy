@@ -220,6 +220,17 @@ func nativeAgentInstanceViewFixtures(t *testing.T) []nativeResultViewFixture {
 			},
 			MustKeep: []string{"peers.0.name", "peers.0.state", "next_cursor", "active_count", "max_active_instances"},
 		},
+		nativeResultViewFixture{
+			ToolID: toolspkg.ToolIDAgentInstanceList,
+			Name:   "authorization-filtered peers",
+			Result: func(view toolspkg.ResultView) (toolspkg.ToolResult, error) {
+				return agentInstancePeersViews.result(view, contract.AgentInstanceListResponse{
+					Instances: []contract.AgentInstancePayload{},
+					PeersNote: "Access restrictions hid every peer candidate.",
+				})
+			},
+			MustKeep: []string{"peers_note"},
+		},
 	)
 	return rows
 }

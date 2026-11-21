@@ -1,6 +1,8 @@
 package daemon
 
 import (
+	"cmp"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/heartbeat/source"
@@ -108,6 +110,7 @@ var agentInstanceCreateViews = func() resultViews[contract.AgentInstancePayload]
 
 type compactAgentInstanceList struct {
 	Peers              []contract.AgentInstancePeer `json:"peers,omitempty"`
+	PeersNote          string                       `json:"peers_note,omitempty"`
 	MaxActiveInstances int                          `json:"max_active_instances"`
 	ActiveCount        int64                        `json:"active_count"`
 	Instances          []compactAgentInstanceRecord `json:"instances"`
@@ -118,6 +121,7 @@ var agentInstanceListViews = resultViews[contract.AgentInstanceListResponse]{
 	Compact: func(p contract.AgentInstanceListResponse) any {
 		result := compactAgentInstanceList{
 			Peers:              p.Peers,
+			PeersNote:          p.PeersNote,
 			MaxActiveInstances: p.MaxActiveInstances,
 			ActiveCount:        p.ActiveCount,
 			NextCursor:         p.NextCursor,
@@ -135,6 +139,8 @@ var agentInstanceListViews = resultViews[contract.AgentInstanceListResponse]{
 
 var agentInstancePeersViews = func() resultViews[contract.AgentInstanceListResponse] {
 	views := agentInstanceListViews
-	views.Preview = func(contract.AgentInstanceListResponse) string { return "Reachable instance peers" }
+	views.Preview = func(p contract.AgentInstanceListResponse) string {
+		return cmp.Or(p.PeersNote, "Reachable instance peers")
+	}
 	return views
 }()

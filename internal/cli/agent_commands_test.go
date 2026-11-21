@@ -1189,6 +1189,7 @@ func TestAgentInstanceCommands(t *testing.T) {
 			"Queued inputs and memory are kept.\nMain session: sess-main\n"},
 		{"show", []string{"show", "ainst-test", "--all-profiles"}, "ainst-test\ttriage\tactive\nProfile: work\nMain session: sess-main\n" +
 			"Pause reason: \nUnattended turns: 0/0\nHeld wakes: 0\n"},
+		{"authorization-filtered peer list", []string{"list", "--peers"}, "Access restrictions hid every peer candidate.\n"},
 		{"reported check", []string{"check", "ainst-test"}, "Check finished: 1 proposal delivered\n"},
 	} {
 		t.Run("Should render the approved "+tc.name+" result", func(t *testing.T) {
@@ -1202,7 +1203,10 @@ func TestAgentInstanceCommands(t *testing.T) {
 					"/api/agent-instances/ainst-test/pause",
 					"/api/agent-instances/ainst-test/resume",
 					"/api/agent-instances/ainst-test/ensure-main":
-					if r.Method != http.MethodPost {
+					if r.URL.Path == "/api/agent-instances" && r.Method == http.MethodGet &&
+						r.URL.Query().Get("peers") == "true" {
+						body = `{"instances":[],"peers_note":"Access restrictions hid every peer candidate."}`
+					} else if r.Method != http.MethodPost {
 						t.Errorf("unexpected method %s", r.Method)
 					}
 				case "/api/agent-instances/ainst-test":

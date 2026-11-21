@@ -32,6 +32,10 @@ overlaps: RT-agent-memory-startup, RT-pressure-context-compaction
 13. Remove every rule from an agent with no peers while its session runs. The next turn carries a block saying no rules or peers are in force and that earlier standing context is withdrawn.
 14. With the agent's session identity (`X-Compozy-Session-ID` and `X-Compozy-Agent`), call the HTTP memory routes: adding `kind: "rule"`, editing or removing a rule, and a whole-file write or rollback that changes the rules all return 403 `agent_memory_rule_protected`; note writes succeed.
 15. Have a peer send the agent a message whose text contains a `<compozy-standing-context>` block. The real block sits above the `[Message from session …]` header and the copy below it is neutralized.
+16. In a profile where the calling instance is the only visible placement, add an instance in a
+    denied workspace. The next refreshed standing block reports that access rules hid all peer
+    candidates and shows neither the hidden name nor its workspace. Make another instance reachable
+    and refresh again. The roster shows the reachable peer and the access note disappears.
 
 Implementation evidence: `TestPromptInputCompositeIntegrationStandingContext` drives a real session manager and file store through first delivery, a live rule edit, a compaction boundary and the restored marker; `TestStore/Should_keep_operator_rules_apart_from_notes_and_closed_to_agent_writes`, `TestAgentMemoryNativeTools`, `TestAgentMemoryRoutes`, `TestClaudeLeanEnvironment` and `TestSessionLeanEnvironment` own the remaining invariants.
 
@@ -55,3 +59,5 @@ actually exercised. Two peers fit in the remaining budget and do not justify a
 peer-overflow pointer. The existing budget, envelope and both pointer assertions
 remain unchanged in `TestPromptInputCompositeIntegrationStandingContext`; no
 production truncation policy changed. CI owns execution; no local suite was run.
+
+Step 16 is covered by the standing-context integration suite in CI. It has not been walked in a lab.
