@@ -925,15 +925,15 @@ what would be archived and changes nothing. App tokens are denied.
 
 A thread is skipped, with the first matching reason, when:
 
-| Reason           | When                                                                         |
-| ---------------- | ---------------------------------------------------------------------------- |
-| `instance_main`  | A session in it is the main session of an always-on agent.                   |
-| `running`        | A session in it is not stopped, or is resuming.                              |
-| `waiting_on_you` | A session in it has a pending or orphaned permission or clarify request.    |
-| `queued_input`   | A session in it has queued or dispatching input.                             |
-| `pinned`         | A session in it is pinned.                                                   |
-| `later`          | A session in it is in Later.                                                 |
-| `caller`         | The thread contains the session that made the request.                       |
+| Reason           | When                                                                     |
+| ---------------- | ------------------------------------------------------------------------ |
+| `instance_main`  | A session in it is the main session of an always-on agent.               |
+| `running`        | A session in it is not stopped, or is resuming.                          |
+| `waiting_on_you` | A session in it has a pending or orphaned permission or clarify request. |
+| `queued_input`   | A session in it has queued or dispatching input.                         |
+| `pinned`         | A session in it is pinned.                                               |
+| `later`          | A session in it is in Later.                                             |
+| `caller`         | The thread contains the session that made the request.                   |
 
 Sessions already archived inside a thread do not block it and are not archived again. Each thread
 archives in its own transaction that checks every rule again, so a thread that changed after the
