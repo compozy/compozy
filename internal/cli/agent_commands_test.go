@@ -1212,7 +1212,8 @@ func TestAgentInstanceCommands(t *testing.T) {
 					if r.URL.Path == "/api/agent-instances" && r.Method == http.MethodGet &&
 						r.URL.Query().Get("peers") == "true" {
 						if query := r.URL.Query(); query.Get("all_workspaces") != "true" ||
-							query.Get("profile") != "default" {
+							query.Get("profile") != "default" || query.Get("all_profiles") == "true" ||
+							query.Get("workspace") != "" {
 							t.Errorf("unexpected peer list scope: %s", r.URL.RawQuery)
 						}
 						body = `{"instances":[],"peers_note":"Access restrictions hid every peer candidate."}`
