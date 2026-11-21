@@ -12,7 +12,7 @@ Q2 Reviewers?                 a) One  b) Two, different providers  c) Choose run
 Q3 Maximum rounds?            a) 1 (Recommended)  b) 2  c) 3
 ```
 
-If the operator declines, end authoring and write no review artifacts. For each reviewer, settle provider, model and reasoning effort, using project instructions when they name them and this session's runtime otherwise. Never substitute a different model than the operator chose.
+If the operator declines, write no review artifacts and continue with the delivery question in `SKILL.md` step 10. For each reviewer, settle provider, model and reasoning effort, using project instructions when they name them and this session's runtime otherwise. Never substitute a different model than the operator chose.
 
 The answers authorize every round up to the maximum. Do not ask again between rounds.
 
@@ -25,7 +25,7 @@ Files live in `<spec-dir>/qa/`, addressed by absolute path, and each round has i
 3. Register a session monitor where one is available. Otherwise use a timer monitor and re-arm it until the child settles.
 4. Read the findings files when the monitor wakes you. The file is the result; session output is not.
 
-If native sessions or a `reviewer` agent are unavailable, report that limitation and stop. The authoring self-check needs no reviewer.
+If native sessions or a `reviewer` agent are unavailable, report that limitation, skip the review, and continue with `SKILL.md` step 10. The authoring self-check needs no reviewer.
 
 A reviewer that stops early keeps what it wrote. Summarize that partial file as incomplete, and do not treat it as a clean round.
 
@@ -100,4 +100,4 @@ Empty sections say `None.`
 - Otherwise, run the next round if the maximum allows it. Each later round covers changed blockers only: send the same session the changed files, the summary path, the blockers to verify, and the new findings path. Do not resend the full spec. Ask it to confirm each fix and check the changed text for regressions, continuing finding IDs. If that session is gone, create a new one with the same narrow scope.
 - At the maximum with blockers open, stop. List them as unresolved in the final summary and in your report to the operator.
 
-Stop reviewer sessions when the review ends. Review never commits, starts implementation, or approves the spec.
+Stop reviewer sessions when the review ends, then continue with `SKILL.md` step 10. Review rounds never commit, start implementation, or approve the spec.

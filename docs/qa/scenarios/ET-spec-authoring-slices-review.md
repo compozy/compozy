@@ -4,7 +4,7 @@ area: ET
 title: Author a spec with slices and optional peer review
 persona: Bruno
 journey: J-deliver-through-agents
-expected: cy-create-spec writes _slices.md, asks the peer review questions once after approval, stops at the first round without blockers, and declining review leaves no review artifacts.
+expected: cy-create-spec writes _slices.md, asks the peer review questions once after approval, stops at the first round without blockers, and declining review leaves no review artifacts; after approval and review (or declining it), the next question offers delivery: a starts a spec_conductor session with an explicit runtime and reports its ID, b starts nothing and prints Web and CLI steps, and without session-create permission a falls back to b.
 entry_points: skill cy-create-spec; .compozy/tasks/<slug>/_slices.md; .compozy/tasks/<slug>/qa/peer-review-findings-round<N>-<reviewer>.md
 qa_status: partial
 bug_ids:
@@ -28,8 +28,8 @@ escalated. Interrupt a reviewer and confirm its findings file keeps what it wrot
 and confirm no review artifact appears.
 
 QA impact 2026-11-21 (#1612): after the spec and `_slices.md` are approved and any review is settled,
-`cy-create-spec` asks one `Q1 - a` question: start a `spec_conductor` session now, or not now. Answer
-`a` and confirm a new `spec_conductor` session exists, received `Deliver .compozy/tasks/<slug>`, and
-its ID is reported. Answer `b` and confirm no session starts and the reply names the Web UI path and
+`cy-create-spec` asks the next numbered question in grill-protocol format: start a `spec_conductor`
+session now, or not now. Decline review once and confirm the question still appears. Answer `a` and confirm a new `spec_conductor` session exists, received `Deliver .compozy/tasks/<slug>`, and
+runs on the reported effective runtime, and its ID is reported. Answer `b` and confirm no session starts and the reply names the Web UI path and
 `compozy session new --agent spec_conductor`. Without session-create permission, `a` falls back to `b`.
 Planning flag only; the next QA cycle owns execution.

@@ -103,26 +103,31 @@ happens after that, such as opening a pull request. Without them, you get a veri
 
 ## Deliver a spec from chat
 
-When you approve the spec and its `_slices.md`, `cy-create-spec` asks one last question:
+When you approve the spec and its `_slices.md`, and any peer review is done or declined,
+`cy-create-spec` asks one last question, numbered after the earlier ones:
 
-```text
-Q1. Deliver now?
-- a) Start a spec_conductor session for .compozy/tasks/billing-export (Recommended)
-- b) Not now
+```markdown
+### Q4. Deliver this spec now?
+
+**Why this matters:** starting delivery creates a spec_conductor session that builds every slice.
+
+- a) Start a spec_conductor session for .compozy/tasks/billing-export (Recommended).
+- b) Not now. Get the steps to start it later.
 ```
 
-Answer `Q1 - a` and the authoring session starts a `spec_conductor` session, sends it
+Answer `a` (for example `Q4 - a`) and the authoring session starts a `spec_conductor` session, sends it
 `Deliver .compozy/tasks/billing-export`, and replies with the new session ID. Follow it from
 [Step 4](#step-4-follow-the-run).
 
-Answer `Q1 - b` and nothing starts. The session tells you how to start delivery later:
+Answer `b` and nothing starts. The session tells you how to start delivery later:
 
 - **Web UI:** open the `spec_conductor` agent, or start a New session and pick `spec_conductor`,
   then send `Deliver .compozy/tasks/billing-export`.
 - **CLI:** run [Step 2](#step-2-start-the-conductor) and [Step 3](#step-3-hand-it-the-spec).
 
 Delivery never starts without your yes. If the authoring session is not allowed to create sessions,
-it answers as if you chose `b`.
+it answers as if you chose `b`. If it created the session but could not send the prompt, it says so,
+gives you the session ID, and also prints the steps for `b`.
 
 ## How it works
 
