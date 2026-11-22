@@ -340,7 +340,7 @@ func placeDeriveChild(opts *CreateOpts, spec deriveSpec, scope workspacepkg.Scop
 // here names the same route the child's first bind resolves.
 func deriveResolutionMeta(spec deriveSpec, meta *store.SessionMeta) *store.SessionMeta {
 	if meta == nil {
-		return meta
+		return nil
 	}
 	profileID := deriveChildProfileID(spec.childProfileID(), meta)
 	if profileID == normalizeCreateProfileID(meta.ProfileID) {
