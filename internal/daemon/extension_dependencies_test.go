@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -162,7 +163,7 @@ func dependencyPayloadNames(items []contract.ExtensionDependencyPayload) []strin
 
 // Invariant: the resolver classifies each dependency against installations visible to the dependent's instance
 // (D11), orders the graph dependencies first, collapses diamonds onto the highest min_version, and refuses
-// cycles, depth beyond 5 and conflicting sources before any mutation (rules 11 and 12).
+// cycles, depth beyond 5 (5 itself is accepted) and conflicting sources before any mutation (rules 11 and 12).
 // Owner: daemon dependency resolver. Canonical suite: extension_dependencies_test.go.
 func TestExtensionDependencyResolution(t *testing.T) {
 	t.Parallel()
@@ -314,19 +315,28 @@ func TestExtensionDependencyResolution(t *testing.T) {
 			name: "a chain deeper than five",
 			build: func(t *testing.T, fixture *dependencyFixture) *extensionpkg.Manifest {
 				t.Helper()
-				for level := 1; level <= 6; level++ {
-					var next []string
-					if level < 6 {
-						next = []string{fmt.Sprintf("dep-%d", level+1)}
-					}
-					fixture.write(t, fmt.Sprintf("dep-%d", level), "1.0.0", next...)
-				}
-				return dependencyRoot(fixture.localDependency(t, "dep-1", ""))
+				return writeDependencyChain(t, fixture, 6)
 			},
 			reason: extensionpkg.DependencyGraphReasonDepth,
 			path:   []string{"root", "dep-1", "dep-2", "dep-3", "dep-4", "dep-5", "dep-6"},
 		},
 	}
+	t.Run("Should accept a chain of exactly five", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		items, err := fixture.resolve(t, writeDependencyChain(t, fixture, 5), extensionMutationTarget{
+			profile: extensionDefaultProfileLens(),
+		})
+		if err != nil || len(items) != 5 {
+			t.Fatalf("resolve() = %+v, %v; want the five-level chain accepted", items, err)
+		}
+		if !slices.ContainsFunc(items, func(item contract.ExtensionDependencyPayload) bool {
+			return item.Name == "dep-5" && item.Depth == 5
+		}) {
+			t.Fatalf("chain = %+v, want dep-5 at depth 5", items)
+		}
+	})
+
 	for _, test := range invalid {
 		t.Run("Should refuse "+test.name, func(t *testing.T) {
 			t.Parallel()
@@ -378,6 +388,19 @@ func TestExtensionDependencyResolution(t *testing.T) {
 	})
 }
 
+// writeDependencyChain writes dep-1 requiring dep-2 and so on down to dep-levels, and returns a root requiring dep-1.
+func writeDependencyChain(t *testing.T, fixture *dependencyFixture, levels int) *extensionpkg.Manifest {
+	t.Helper()
+	for level := 1; level <= levels; level++ {
+		var next []string
+		if level < levels {
+			next = []string{fmt.Sprintf("dep-%d", level+1)}
+		}
+		fixture.write(t, fmt.Sprintf("dep-%d", level), "1.0.0", next...)
+	}
+	return dependencyRoot(fixture.localDependency(t, "dep-1", ""))
+}
+
 func appendDependencyManifest(t *testing.T, dir, content string) {
 	t.Helper()
 	path := filepath.Join(dir, "extension.toml")
@@ -391,8 +414,8 @@ func appendDependencyManifest(t *testing.T, dir, content string) {
 }
 
 // Invariant: unmet dependencies refuse install without consent; consented installs run dependencies first with
-// per-dependency trust consent, never update a version_unmet dependency, and stop at the first failure keeping
-// and reporting what they completed (rules 12 and 13).
+// per-dependency trust consent settled before any mutation, never update a version_unmet dependency, and stop at
+// the first runtime failure keeping and reporting what they completed (rules 12 and 13).
 // Owner: daemon dependency install gate. Canonical suite: extension_dependencies_test.go.
 func TestExtensionDependencyInstall(t *testing.T) {
 	t.Parallel()
@@ -532,7 +555,7 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		}
 	})
 
-	t.Run("Should stop at the first failure and report completed dependencies", func(t *testing.T) {
+	t.Run("Should refuse a later dependency's missing consent before installing any", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDependencyFixture(t)
 		fixture.write(t, "dep-first", "1.0.0")
@@ -542,12 +565,43 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		_, err := fixture.service.Install(t.Context(), fixture.rootRequest(t,
 			map[string]contract.ExtensionDependencyConsent{"dep-first": {AllowUnverified: true}},
 		), dependencyOperator(t))
+		gate, ok := errors.AsType[*extensionpkg.DependencyGateError](err)
+		if !ok || gate.Dependency != "dep-second" || !errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified) {
+			t.Fatalf("error = %v, want checksum_unverified naming dep-second", err)
+		}
+		if _, partial := errors.AsType[*extensionpkg.DependenciesInstalledError](err); partial {
+			t.Fatalf("error = %v reports installed dependencies, want none", err)
+		}
+		for _, name := range []string{"dep-first", "dep-second", "root"} {
+			if fixture.installed(t, name) {
+				t.Fatalf("consent refusal left %s installed", name)
+			}
+		}
+	})
+
+	t.Run("Should stop at the first runtime failure and report completed dependencies", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-first", "1.0.0")
+		// A required input nobody supplies fails dep-second's commit after every consent was granted.
+		appendDependencyManifest(t, fixture.write(t, "dep-second", "1.0.0"),
+			"requires_env = [\"DEP_SECOND_UNSET_INPUT\"]\n\n[[inputs]]\nid = \"token\"\nprompt = \"Token\"\n"+
+				"type = \"string\"\nrequired = true\nbinding = { type = \"env\", name = \"DEP_SECOND_UNSET_INPUT\" }\n")
+		fixture.write(t, "dep-third", "1.0.0")
+		fixture.write(t, "root", "1.0.0", "dep-first", "dep-second", "dep-third")
+		consent := contract.ExtensionDependencyConsent{AllowUnverified: true}
+
+		_, err := fixture.service.Install(t.Context(), fixture.rootRequest(t,
+			map[string]contract.ExtensionDependencyConsent{
+				"dep-first": consent, "dep-second": consent, "dep-third": consent,
+			},
+		), dependencyOperator(t))
 		partial, ok := errors.AsType[*extensionpkg.DependenciesInstalledError](err)
 		gate, gated := errors.AsType[*extensionpkg.DependencyGateError](err)
 		if !ok || !slices.Equal(partial.Installed, []string{"dep-first"}) || !gated || gate.Dependency != "dep-second" {
-			t.Fatalf("error = %v, want dep-second refused after installing dep-first", err)
+			t.Fatalf("error = %v, want dep-second failed after installing dep-first", err)
 		}
-		if !fixture.installed(t, "dep-first") || fixture.installed(t, "dep-second") || fixture.installed(t, "root") {
+		if !fixture.installed(t, "dep-first") || fixture.installed(t, "dep-third") || fixture.installed(t, "root") {
 			t.Fatal("partial install state differs from stop-at-first-failure")
 		}
 	})
@@ -825,7 +879,7 @@ func TestExtensionDependencyRetryCommand(t *testing.T) {
 			if err != nil || len(unmet) != 1 {
 				t.Fatalf("cellUnmetDependencies() = %+v, %v; want open-design unmet", unmet, err)
 			}
-			market.service.addDependencyRetryCommands(t.Context(), unmet, cell)
+			market.service.addRefusalRetryCommands(t.Context(), newDependencyRefusal(unmet, cell))
 			if unmet[0].RetryCommand != want {
 				t.Fatalf("enable guidance = %+v, want %q", unmet[0], want)
 			}
@@ -861,6 +915,69 @@ func TestExtensionDependencyRetryCommand(t *testing.T) {
 			t.Fatalf("error = %v, want extension_dependencies_required for open-design without a command", err)
 		}
 	})
+
+	t.Run("Should report an unmet dependency on read without a marketplace lookup", func(t *testing.T) {
+		t.Parallel()
+		market := newMarketplaceDependencyService(t)
+		market.installUnmetRoot(t)
+		probe := &entryProbeCatalog{Service: market.service.marketplaceCatalog}
+		market.service.marketplaceCatalog = probe
+
+		status, err := market.service.Status(t.Context(), "root")
+		if err != nil || len(status.UnmetDependencies) != 1 ||
+			status.UnmetDependencies[0].State != dependencyStateVersionUnmet ||
+			status.UnmetDependencies[0].RetryCommand != "" {
+			t.Fatalf("Status(root) = %+v, %v; want open-design version_unmet without a command",
+				status.UnmetDependencies, err)
+		}
+		if calls := probe.calls.Load(); calls != 0 {
+			t.Fatalf("status read made %d marketplace lookups, want none", calls)
+		}
+	})
+
+	t.Run("Should name the enable refusal command only after the name lock is released", func(t *testing.T) {
+		t.Parallel()
+		market := newMarketplaceDependencyService(t)
+		market.installUnmetRoot(t)
+		probe := &entryProbeCatalog{Service: market.service.marketplaceCatalog}
+		probe.onEntry = func(ctx context.Context) {
+			free, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+			if err := market.service.lifecycle.withName(free, "root", func() error { return nil }); err != nil {
+				t.Errorf("update lookup ran under the root name lock: %v", err)
+			}
+		}
+		market.service.marketplaceCatalog = probe
+		want := "compozy extension update open-design --scope global"
+
+		_, err := market.service.SetEnablement(t.Context(), "root", contract.SetExtensionEnablementRequest{
+			Profile: extensionDefaultProfileLens().Name, Enabled: true,
+		}, dependencyOperator(t))
+		required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
+		if !ok || len(required.Dependencies) != 1 ||
+			required.Dependencies[0].State != dependencyStateVersionUnmet ||
+			required.Dependencies[0].RetryCommand != want {
+			t.Fatalf("error = %v, want extension_dependencies_required naming %q", err, want)
+		}
+		if probe.calls.Load() == 0 {
+			t.Fatal("enable refusal made no update lookup, want one after the lock")
+		}
+	})
+}
+
+// entryProbeCatalog counts catalog entry lookups, the network step of an update check, and runs onEntry first.
+type entryProbeCatalog struct {
+	marketplace.Service
+	calls   atomic.Int32
+	onEntry func(context.Context)
+}
+
+func (c *entryProbeCatalog) Entry(ctx context.Context, origin marketplace.Origin) (*marketplace.Entry, error) {
+	c.calls.Add(1)
+	if c.onEntry != nil {
+		c.onEntry(ctx)
+	}
+	return c.Service.Entry(ctx, origin)
 }
 
 // stalledEntryCatalog blocks every catalog entry lookup until its context ends, like an unresponsive source.
@@ -919,6 +1036,26 @@ func (m *marketplaceDependencyFixture) workspaceDesignDependency(
 		t.Fatalf("dependencies = %+v, want open-design only", items)
 	}
 	return items[0]
+}
+
+// installUnmetRoot installs a disabled root on the global open-design 1.0.0 while 1.1.0 is listed, then raises its
+// installed requirement to min_version 1.1.0, as if the dependency was reinstalled older since.
+func (m *marketplaceDependencyFixture) installUnmetRoot(t *testing.T) {
+	t.Helper()
+	m.installGlobalDesign(t)
+	if _, err := m.service.Install(t.Context(), m.rootRequest(t), dependencyOperator(t)); err != nil {
+		t.Fatalf("install root error = %v", err)
+	}
+	if _, err := m.service.SetEnablement(t.Context(), "root", contract.SetExtensionEnablementRequest{
+		Profile: extensionDefaultProfileLens().Name, Enabled: false,
+	}, dependencyOperator(t)); err != nil {
+		t.Fatalf("disable root error = %v", err)
+	}
+	info, err := m.service.registry.Get("root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendDependencyManifest(t, filepath.Dir(info.ManifestPath), "min_version = \"1.1.0\"\n")
 }
 
 // rootRequest installs a local root requiring team/design as open-design.

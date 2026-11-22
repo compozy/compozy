@@ -3,6 +3,7 @@ package daemon
 import (
 	"cmp"
 	"context"
+	"errors"
 	"slices"
 	"time"
 
@@ -13,6 +14,44 @@ import (
 // dependencyUpdateCheckTimeout bounds the check-only marketplace lookup behind an `extension update` hint, so a
 // slow source only drops the command instead of delaying the refusal.
 const dependencyUpdateCheckTimeout = 5 * time.Second
+
+// dependencyRefusal is an extension_dependencies_required refusal raised under a lifecycle lock. It carries the
+// instance cell of each unmet dependency so addRefusalRetryCommands names the retry commands, whose marketplace
+// lookup must never hold a lock, once the lock is released.
+type dependencyRefusal struct {
+	*extensionpkg.DependenciesRequiredError
+	cells []extensionpkg.InstallationScope
+}
+
+func (e *dependencyRefusal) Unwrap() error { return e.DependenciesRequiredError }
+
+// newDependencyRefusal refuses the unmet dependencies of one instance cell.
+func newDependencyRefusal(
+	unmet []contract.ExtensionDependencyPayload, cell extensionpkg.InstallationScope,
+) *dependencyRefusal {
+	cells := make([]extensionpkg.InstallationScope, len(unmet))
+	for index := range cells {
+		cells[index] = cell
+	}
+	return &dependencyRefusal{
+		DependenciesRequiredError: &extensionpkg.DependenciesRequiredError{Dependencies: unmet}, cells: cells,
+	}
+}
+
+// addRefusalRetryCommands names the retry commands of a refusal raised under a lifecycle lock. Callers run it only
+// after releasing every lock, so the bounded marketplace update check never holds one; a failed lookup only leaves
+// the command out.
+func (s *daemonExtensionService) addRefusalRetryCommands(ctx context.Context, err error) {
+	if refusal, ok := errors.AsType[*dependencyRefusal](err); ok {
+		for index := range refusal.Dependencies {
+			refusal.Dependencies[index].RetryCommand = s.dependencyRetryCommand(
+				ctx, refusal.Dependencies[index], &refusal.cells[index])
+		}
+	}
+	if replacement, ok := errors.AsType[*dependencyReplacementError](err); ok {
+		replacement.command = s.dependencyRetryCommand(ctx, replacement.item, nil)
+	}
+}
 
 // dependencyRetryCommand names the command that unblocks a version_unmet or installed_elsewhere dependency, or ""
 // when no command can (rule 12, D9). It is `compozy extension update` only when the installed package is

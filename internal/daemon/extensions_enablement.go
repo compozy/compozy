@@ -88,6 +88,7 @@ func (s *daemonExtensionService) SetEnablement(
 		}
 		return s.applyProfileEnablement(ctx, name, profile.ID, profile.Name, req.Enabled, actor)
 	})
+	s.addRefusalRetryCommands(ctx, err)
 	if err != nil {
 		return contract.ExtensionEnablementPayload{}, err
 	}

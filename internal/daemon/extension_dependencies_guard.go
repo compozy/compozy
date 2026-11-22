@@ -126,8 +126,8 @@ func (s *daemonExtensionService) dependencyProfileName(ctx context.Context, prof
 }
 
 // cellUnmetDependencies classifies the direct requires.extensions of one instance cell without acquiring
-// packages (D11): missing, version_unmet or disabled for the cell's profile. It names no retry command, so a
-// caller holding a lifecycle lock adds them with addDependencyRetryCommands after releasing it.
+// packages (D11): missing, version_unmet or disabled for the cell's profile. It names no retry command: a refusal
+// carries its cells as a dependencyRefusal, and addRefusalRetryCommands names them after the locks are released.
 func (s *daemonExtensionService) cellUnmetDependencies(
 	ctx context.Context,
 	dependent string,
@@ -151,15 +151,6 @@ func (s *daemonExtensionService) cellUnmetDependencies(
 		unmet = append(unmet, item)
 	}
 	return unmet, nil
-}
-
-// addDependencyRetryCommands names the retry command of each unmet dependency of the dependent's cell.
-func (s *daemonExtensionService) addDependencyRetryCommands(
-	ctx context.Context, items []contract.ExtensionDependencyPayload, cell extensionpkg.InstallationScope,
-) {
-	for index := range items {
-		items[index].RetryCommand = s.dependencyRetryCommand(ctx, items[index], &cell)
-	}
 }
 
 func (s *daemonExtensionService) cellDependencyState(
@@ -189,7 +180,8 @@ func (s *daemonExtensionService) cellDependencyState(
 }
 
 // checkProfileEnablementDependencies refuses enabling a dependent whose dependencies are unmet in any of its
-// installation cells for the profile (rule 15), with the install payload. Boot never runs this gate.
+// installation cells for the profile (rule 15), with the install payload. Boot never runs this gate. It runs under
+// the name lock, so the caller names the retry commands with addRefusalRetryCommands after releasing it.
 func (s *daemonExtensionService) checkProfileEnablementDependencies(ctx context.Context, name, profileID string) error {
 	ext, err := s.runtime.InspectPackageResources(ctx, name)
 	if err != nil || ext == nil || ext.Manifest == nil || len(ext.Manifest.Requires.Extensions) == 0 {
@@ -209,28 +201,29 @@ func (s *daemonExtensionService) checkProfileEnablementDependencies(ctx context.
 	if len(cells) == 0 {
 		cells = append(cells, extensionpkg.InstallationScope{ProfileID: profileID})
 	}
-	var unmet []contract.ExtensionDependencyPayload
+	refusal := &dependencyRefusal{DependenciesRequiredError: &extensionpkg.DependenciesRequiredError{}}
 	for _, cell := range cells {
 		items, err := s.cellUnmetDependencies(ctx, name, manifest.Requires.Extensions, cell)
 		if err != nil {
 			return err
 		}
-		s.addDependencyRetryCommands(ctx, items, cell)
 		for _, item := range items {
-			if !slices.ContainsFunc(unmet, func(seen contract.ExtensionDependencyPayload) bool {
+			if !slices.ContainsFunc(refusal.Dependencies, func(seen contract.ExtensionDependencyPayload) bool {
 				return seen.Name == item.Name
 			}) {
-				unmet = append(unmet, item)
+				refusal.Dependencies = append(refusal.Dependencies, item)
+				refusal.cells = append(refusal.cells, cell)
 			}
 		}
 	}
-	if len(unmet) == 0 {
+	if len(refusal.Dependencies) == 0 {
 		return nil
 	}
-	return &extensionpkg.DependenciesRequiredError{Dependencies: unmet}
+	return refusal
 }
 
-// populateExtensionDependencyStatus reports unmet_dependencies on read; a dependent left unmet keeps running.
+// populateExtensionDependencyStatus reports unmet_dependencies on read; a dependent left unmet keeps running. A read
+// names no retry command: that needs a marketplace lookup, which a status, list or inventory read never makes.
 func (s *daemonExtensionService) populateExtensionDependencyStatus(
 	ctx context.Context, ext *extensionpkg.Extension, profileID string, payload *contract.ExtensionPayload,
 ) error {
@@ -242,7 +235,6 @@ func (s *daemonExtensionService) populateExtensionDependencyStatus(
 	if err != nil {
 		return err
 	}
-	s.addDependencyRetryCommands(ctx, unmet, cell)
 	payload.UnmetDependencies = unmet
 	if len(unmet) > 0 {
 		names := make([]string, 0, len(unmet))
