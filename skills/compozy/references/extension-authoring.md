@@ -34,8 +34,11 @@ schema-digest drift cannot occur. Manifest generation is deterministic; identica
 byte-identical manifest.
 
 Published SDKs, both version-matched to the daemon: `@compozy/extension-sdk` on npm and
-`github.com/compozy/compozy/sdk/go`. `build` stamps `min_compozy_version` from the SDK, so an
-extension cannot claim compatibility its SDK does not have.
+`github.com/compozy/compozy/sdk/go`. `build` writes `min_compozy_version` as the higher of the SDK
+release floor and the floor the extension declares in its SDK definition
+(`ExtensionDefinition.MinCompozyVersion` in Go; empty keeps the SDK floor). An extension therefore
+cannot claim less compatibility than its SDK, and a declared floor above the SDK raises the
+requirement.
 
 ## Templates
 
