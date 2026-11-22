@@ -56,6 +56,9 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"automation_trigger_overlays",
 		"automation_suggestions",
 	)
+	// Fresh databases take the column order from schema/definitions/30_automation.sql, where
+	// loop_input_command precedes created_at. Only upgraded databases append it at the end via
+	// ALTER TABLE in migration 00219; assertTableColumns compares sets, not positions.
 	assertTableColumns(t, globalDB.db, "automation_jobs", []string{
 		"id",
 		"profile_id",
@@ -81,7 +84,9 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"grant_ceiling",
 	})
 	// Migration 00181 rebuilds the table with grant_ceiling first and
-	// target_instance_scope after target_kind, on fresh and upgraded databases alike.
+	// target_instance_scope after target_kind, on fresh and upgraded databases alike. The fresh
+	// column order comes from schema/definitions/30_automation.sql; loop_input_command is appended
+	// at the end only on upgraded databases, so the comparison is set-based.
 	assertTableColumns(t, globalDB.db, "automation_triggers", []string{
 		"grant_ceiling",
 		"id",
