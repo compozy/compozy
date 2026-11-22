@@ -1917,8 +1917,8 @@ func TestLoopInputValidationShouldRenderReadableAPIError(t *testing.T) {
 		if err == nil || err.Error() != want {
 			t.Fatalf("readAPIErrorBody() error = %v, want %q", err, want)
 		}
-		var apiErr *daemonAPIError
-		if !errors.As(err, &apiErr) || apiErr.statusCode != http.StatusUnprocessableEntity {
+		apiErr, ok := errors.AsType[*daemonAPIError](err)
+		if !ok || apiErr.statusCode != http.StatusUnprocessableEntity {
 			t.Fatalf("readAPIErrorBody() error = %#v, want the 422 daemon error", err)
 		}
 	})
