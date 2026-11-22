@@ -3472,6 +3472,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addCheckInToolSchemaFields(baseline)
 		addSessionCatalogExcludeRootParameter(baseline, current)
 		addSessionCatalogFolderParameter(t, baseline)
+		// #1926: the session list page counts its running sessions beside its total.
+		addSessionCatalogPageWorkingSchema(t, baseline)
 		addDaemonReadinessSchema(t, baseline, current)
 		addSubagentRemovedStreamEvent(t, baseline, current)
 		// #1644: session payloads name the parent a continued child is listed under.
@@ -6329,6 +6331,28 @@ func addSessionCatalogFolderParameter(t *testing.T, baseline map[string]any) {
 			t.Fatalf("%s: historical list parameters are missing worktree", path)
 		}
 		get["parameters"] = slices.Insert(params, worktree+1, any(folder))
+	}
+}
+
+// The two list operations' page gained one optional nullable integer, working, beside total.
+// Keep the historical baseline and the full comparison for every other page property.
+func addSessionCatalogPageWorkingSchema(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	for _, path := range []string{"/api/sessions", "/api/workspaces/{workspace_id}/sessions"} {
+		node := paths[path].(map[string]any)["get"].(map[string]any)
+		for _, key := range []string{"responses", "200", "content", "application/json", "schema", "properties", "page"} {
+			next, ok := node[key].(map[string]any)
+			if !ok {
+				t.Fatalf("%s: historical list response has no %s", path, key)
+			}
+			node = next
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s: historical list page has no properties", path)
+		}
+		properties["working"] = map[string]any{"type": "integer", "nullable": true}
 	}
 }
 
