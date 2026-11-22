@@ -19,37 +19,50 @@ import (
 
 const subagentRoleGeneral = "general"
 
-func normalizeSubagentRequest(req SubagentRequest) (SubagentRequest, error) {
+func normalizeIsolation(req *SubagentRequest) error {
 	if req.Isolation == "" {
 		req.Isolation = subagentIsolationShared
 	}
 	if req.Isolation != subagentIsolationShared && req.Isolation != SubagentIsolationWorktree {
-		return req, invalidSubagent("isolation must be shared or worktree.")
+		return invalidSubagent("isolation must be shared or worktree.")
 	}
 	req.BaseRef = strings.TrimSpace(req.BaseRef)
 	if req.BaseRef != "" && req.Isolation != SubagentIsolationWorktree {
-		return req, invalidSubagent(`base_ref requires isolation "worktree".`)
+		return invalidSubagent(`base_ref requires isolation "worktree".`)
 	}
+	return nil
+}
 
+func validateHandoff(req *SubagentRequest) error {
+	req.PriorSubagentID = strings.TrimSpace(req.PriorSubagentID)
+	if utf8.RuneCountInString(req.PriorSubagentID) > 64 {
+		return invalidSubagent("prior_subagent_id exceeds 64 characters.")
+	}
+	if req.Handoff != nil {
+		req.Handoff.Objections = strings.TrimSpace(req.Handoff.Objections)
+		req.Handoff.Findings = strings.TrimSpace(req.Handoff.Findings)
+		if utf8.RuneCountInString(req.Handoff.Objections) > 40000 {
+			return invalidSubagent("handoff.objections exceeds 40000 characters.")
+		}
+		if utf8.RuneCountInString(req.Handoff.Findings) > 40000 {
+			return invalidSubagent("handoff.findings exceeds 40000 characters.")
+		}
+	}
+	return nil
+}
+
+func normalizeSubagentRequest(req SubagentRequest) (SubagentRequest, error) {
+	if err := normalizeIsolation(&req); err != nil {
+		return req, err
+	}
 	if strings.TrimSpace(req.Task) == "" {
 		return req, invalidSubagent("task is required.")
 	}
 	if utf8.RuneCountInString(req.Task) > 120000 {
 		return req, invalidSubagent("task exceeds 120000 characters.")
 	}
-	req.PriorSubagentID = strings.TrimSpace(req.PriorSubagentID)
-	if utf8.RuneCountInString(req.PriorSubagentID) > 64 {
-		return req, invalidSubagent("prior_subagent_id exceeds 64 characters.")
-	}
-	if req.Handoff != nil {
-		req.Handoff.Objections = strings.TrimSpace(req.Handoff.Objections)
-		req.Handoff.Findings = strings.TrimSpace(req.Handoff.Findings)
-		if utf8.RuneCountInString(req.Handoff.Objections) > 40000 {
-			return req, invalidSubagent("handoff.objections exceeds 40000 characters.")
-		}
-		if utf8.RuneCountInString(req.Handoff.Findings) > 40000 {
-			return req, invalidSubagent("handoff.findings exceeds 40000 characters.")
-		}
+	if err := validateHandoff(&req); err != nil {
+		return req, err
 	}
 	req.Title = strings.TrimSpace(req.Title)
 	if req.Title == "" {
