@@ -4511,7 +4511,7 @@ describe("SessionList breadth and Group by", () => {
     const beta = await screen.findByTestId("session-sidebar-group-project:ws-beta");
     const leading = beta.firstElementChild as HTMLElement;
     const both = within(leading).getByRole("img", { name: "2 need you, 3 sessions working" });
-    expect(both.closest("[data-slot]")).toHaveAttribute("data-slot", "session-group-needs-you");
+    expect(leading.querySelector("[data-slot='session-group-needs-you']")).toContainElement(both);
     expect(beta.querySelectorAll("[data-slot^='session-group-']")).toHaveLength(1);
     expect(within(beta).queryByRole("img", { name: "2 need you" })).not.toBeInTheDocument();
     const alpha = screen.getByTestId("session-sidebar-group-project:ws-alpha");
@@ -4893,6 +4893,9 @@ describe("SessionList breadth and Group by", () => {
     expect(
       within(toggle.firstElementChild as HTMLElement).getByRole("img", { name: "2 need you" })
     ).toBeInTheDocument();
+    // Folder folds persist in the sidebar state; reopen so later cases start expanded.
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
   });
 
   it("Should create a project folder from the list's New folder", async () => {
