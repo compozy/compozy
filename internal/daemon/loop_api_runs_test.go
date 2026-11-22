@@ -268,6 +268,87 @@ func TestDaemonLoopAPIServiceListLoopRunsForwardsProfileScope(t *testing.T) {
 	})
 }
 
+func TestDaemonLoopAPIServiceShouldProjectTheLoopTerminalCause(t *testing.T) {
+	t.Parallel()
+
+	at := time.Date(2026, time.November, 20, 9, 0, 0, 0, time.UTC)
+	cause := looppkg.RunTerminalCause{
+		Status: looppkg.StatusBlocked, Cause: looppkg.TransitionCauseGateRejected,
+		ReasonCode: "gate_blocked", GateID: "contract", NodeID: "phase_gate",
+		Message: "external dependency missing", At: at,
+	}
+
+	t.Run("Should include the terminal object for a settled run only", func(t *testing.T) {
+		t.Parallel()
+
+		persistence := &loopRunScopePersistenceStub{
+			runs: []looppkg.Run{
+				{ID: "run-settled", WorkspaceID: "ws-terminal", LoopName: "delivery", Status: looppkg.StatusBlocked},
+				{ID: "run-live", WorkspaceID: "ws-terminal", LoopName: "delivery", Status: looppkg.StatusRunning},
+			},
+			terminalCauses: map[looppkg.WorkspaceID]map[looppkg.RunID]looppkg.RunTerminalCause{
+				"ws-terminal": {"run-settled": cause},
+			},
+		}
+		service := &daemonLoopAPIService{persistence: persistence}
+		response, err := service.ListLoopRuns(t.Context(), "ws-terminal", core.LoopRunListQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("ListLoopRuns() error = %v", err)
+		}
+		if len(response.Runs) != 2 {
+			t.Fatalf("ListLoopRuns() runs = %#v, want settled and live", response.Runs)
+		}
+		settled := response.Runs[0]
+		if settled.Terminal == nil {
+			t.Fatalf("settled run terminal = nil, want %#v", cause)
+		}
+		if settled.Terminal.Status != contract.LoopRunStatusBlocked ||
+			settled.Terminal.Cause != string(looppkg.TransitionCauseGateRejected) ||
+			settled.Terminal.ReasonCode != cause.ReasonCode ||
+			settled.Terminal.GateID != cause.GateID ||
+			settled.Terminal.NodeID != cause.NodeID ||
+			settled.Terminal.Message != cause.Message ||
+			!settled.Terminal.At.Equal(at) {
+			t.Fatalf("settled run terminal = %#v, want %#v", settled.Terminal, cause)
+		}
+		if response.Runs[1].Terminal != nil {
+			t.Fatalf("live run terminal = %#v, want omitted", response.Runs[1].Terminal)
+		}
+		liveJSON, err := json.Marshal(response.Runs[1])
+		if err != nil {
+			t.Fatalf("json.Marshal(live run) error = %v", err)
+		}
+		if strings.Contains(string(liveJSON), `"terminal"`) {
+			t.Fatalf("live run payload = %s, want no terminal field", liveJSON)
+		}
+	})
+
+	t.Run("Should not leak a terminal cause from another workspace", func(t *testing.T) {
+		t.Parallel()
+
+		persistence := &loopRunScopePersistenceStub{
+			runs: []looppkg.Run{{
+				ID: "run-shared", WorkspaceID: "ws-other", LoopName: "delivery",
+				Status: looppkg.StatusBlocked,
+			}},
+			terminalCauses: map[looppkg.WorkspaceID]map[looppkg.RunID]looppkg.RunTerminalCause{
+				"ws-terminal": {"run-shared": cause},
+			},
+		}
+		service := &daemonLoopAPIService{persistence: persistence}
+		response, err := service.ListLoopRuns(t.Context(), "ws-other", core.LoopRunListQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("ListLoopRuns() error = %v", err)
+		}
+		if len(response.Runs) != 1 || response.Runs[0].Terminal != nil {
+			t.Fatalf("ListLoopRuns() runs = %#v, want no terminal cause", response.Runs)
+		}
+		if len(persistence.causeWorkspaces) != 1 || persistence.causeWorkspaces[0] != "ws-other" {
+			t.Fatalf("terminal cause workspaces = %#v, want ws-other", persistence.causeWorkspaces)
+		}
+	})
+}
+
 func TestDaemonLoopAPIServiceShouldResolveRunWebEndpointBeforeStarting(t *testing.T) {
 	t.Parallel()
 
@@ -853,8 +934,10 @@ func (s *loopRunHistoryPersistenceStub) GetLoopDefinitionSnapshot(
 
 type loopRunScopePersistenceStub struct {
 	loopAPIPersistence
-	query looppkg.RunListQuery
-	runs  []looppkg.Run
+	query           looppkg.RunListQuery
+	runs            []looppkg.Run
+	terminalCauses  map[looppkg.WorkspaceID]map[looppkg.RunID]looppkg.RunTerminalCause
+	causeWorkspaces []looppkg.WorkspaceID
 }
 
 func (s *loopRunScopePersistenceStub) ListLoopRuns(
@@ -863,6 +946,21 @@ func (s *loopRunScopePersistenceStub) ListLoopRuns(
 ) ([]looppkg.Run, error) {
 	s.query = query
 	return append([]looppkg.Run(nil), s.runs...), nil
+}
+
+func (s *loopRunScopePersistenceStub) ListLoopRunTerminalCauses(
+	_ context.Context,
+	workspaceID looppkg.WorkspaceID,
+	runIDs []looppkg.RunID,
+) (map[looppkg.RunID]looppkg.RunTerminalCause, error) {
+	s.causeWorkspaces = append(s.causeWorkspaces, workspaceID)
+	causes := make(map[looppkg.RunID]looppkg.RunTerminalCause, len(runIDs))
+	for _, runID := range runIDs {
+		if cause, ok := s.terminalCauses[workspaceID][runID]; ok {
+			causes[runID] = cause
+		}
+	}
+	return causes, nil
 }
 
 func (s *loopRunHistoryPersistenceStub) ListGenerations(
