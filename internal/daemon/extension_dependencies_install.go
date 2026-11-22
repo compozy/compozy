@@ -12,6 +12,11 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+const (
+	dependencyInstallOutcomeInstalled = "installed"
+	dependencyInstallOutcomeFailed    = "failed"
+)
+
 // installDependencies is the dependency gate between the requested artifact's trust gates and its input gate
 // (rules 12 and 13). With consent it installs missing and enables disabled nodes, dependencies first, in the
 // dependent's scope and profile, and stops at the first failure keeping what it completed.
@@ -50,9 +55,9 @@ func (s *daemonExtensionService) installDependencies(
 		default:
 			continue
 		}
-		outcome := "installed"
+		outcome := dependencyInstallOutcomeInstalled
 		if err != nil {
-			outcome = "failed"
+			outcome = dependencyInstallOutcomeFailed
 		}
 		s.logger.Info("extension dependency install", "dependent", strings.Join(node.payload.RequiredBy, ","),
 			"dependency", name, "source", node.payload.Source, "state", node.payload.State, "outcome", outcome)

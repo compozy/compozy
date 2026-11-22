@@ -3,18 +3,11 @@ import type { MarketplaceCatalogListing } from "@/systems/marketplace";
 
 type ExtensionPayload = OperationResponse<"listExtensions", 200>["extensions"][number];
 type ExtensionArrayField = "mcp_servers" | "inputs" | "missing_inputs";
-/**
- * Experimental status field for a dependency the instance no longer resolves (installed, enabled,
- * visible, at `min_version`). Declared here until the status payload ships it on the wire.
- */
-export interface ExtensionUnmetDependency {
-  name: string;
-  min_version?: string;
-  state: string;
-}
 export type ExtensionEntry = Omit<ExtensionPayload, ExtensionArrayField> & {
   [Field in ExtensionArrayField]: NonNullable<ExtensionPayload[Field]>;
-} & { unmet_dependencies?: ExtensionUnmetDependency[] };
+};
+/** Experimental: a dependency the instance no longer resolves (installed, enabled, visible, at `min_version`). */
+export type ExtensionUnmetDependency = NonNullable<ExtensionPayload["unmet_dependencies"]>[number];
 export type ExtensionProvenance = OperationResponse<"getExtensionProvenance", 200>["provenance"];
 export type ExtensionUpdateRequest = OperationRequestBody<"updateExtension">;
 export type ExtensionLogsSnapshot = OperationResponse<"getExtensionLogs", 200>;

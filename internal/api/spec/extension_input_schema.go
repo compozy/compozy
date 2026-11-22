@@ -75,7 +75,7 @@ func customizeExtensionUpdateRequestSchema(schema *openapi3.Schema) {
 
 func customizeExtensionDependencyConsentSchema(schema *openapi3.Schema) {
 	customizeClosedObjectSchema(schema)
-	schema.Extensions = map[string]any{"x-stability": schemaStabilityExperimental}
+	schema.Extensions = map[string]any{schemaStabilityExtensionKey: schemaStabilityExperimental}
 	if digest := schema.Properties["expected_digest"]; digest != nil && digest.Value != nil {
 		digest.Value.Pattern = `^[a-fA-F0-9]{64}$`
 	}
