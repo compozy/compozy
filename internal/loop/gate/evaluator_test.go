@@ -879,6 +879,19 @@ func TestEvaluatorAuthoredTerminalStatus(t *testing.T) {
 		}
 	})
 
+	t.Run("Should tolerate a nil contract lifecycle state", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeGate := commandGate("cmd", "verify", "")
+		runtimeGate.OnResult = map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "blocked"},
+		}
+		verdict := evaluate(t, runtimeGate, PlacementInBody, &dsl.Contract{})
+		if verdict.Route.Action != RouteHalt || verdict.Route.TerminalStatus != terminalBlocked {
+			t.Fatalf("route = %#v, want halt/blocked", verdict.Route)
+		}
+	})
+
 	t.Run("Should reject terminal status on a non-halt action", func(t *testing.T) {
 		t.Parallel()
 

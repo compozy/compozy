@@ -184,7 +184,7 @@ func authoredTerminalStatusAllowed(value string, contract *dsl.Contract) bool {
 	if !dsl.IsKnownTerminalState(state) {
 		return false
 	}
-	if contract == nil || len(contract.TerminalStates) == 0 {
+	if contract == nil || contract.ContractLifecycleState == nil || len(contract.TerminalStates) == 0 {
 		return true
 	}
 	return slices.Contains(contract.TerminalStates, state)
