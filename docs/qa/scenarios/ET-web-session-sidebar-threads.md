@@ -283,8 +283,8 @@ expectation that active rows require expansion. No local run; verification belon
 
 qa-impact: 2026-11-21 (#1926) — running activity moved to the leading mark column for every sidebar row
 type. A parent with a running child session or live subagent leads with the running glyph unless it needs you, failed or is stuck; the
-branch toggle keeps its icon, count and only attention/failed escalations; a collapsed project group and
-a collapsed session folder show the running glyph where the chevron rests. Walk: a done parent with a
+branch toggle keeps its icon, count and only attention/failed escalations; a collapsed project group shows its
+state glyph where the chevron rests (needs you over running), and a collapsed session folder shows the running glyph there. Walk: a done parent with a
 running child (leading glyph spins, toggle shows no glyph), a needs-you parent with live subagents
 (attention glyph stays), a parent waiting on sessions with a running child (running glyph leads, "Waiting on sessions" word stays), a collapsed project group with working sessions and one needing you (attention
 glyph leading, named "1 needs you, N sessions working", no dot on the right), a collapsed project folder holding that project (attention glyph leading), a collapsed folder holding a running session (running glyph leading,
