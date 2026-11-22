@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -81,10 +82,8 @@ func (d *Dispatcher) resolveLoopInputsForFire(
 	if merged == nil {
 		merged = make(map[string]any, len(resolved))
 	}
-	for key, value := range resolved {
-		// The fire-time command wins over a static value with the same key.
-		merged[key] = value
-	}
+	// The fire-time command wins over a static value with the same key.
+	maps.Copy(merged, resolved)
 	keys := make([]string, 0, len(merged))
 	for key := range merged {
 		keys = append(keys, key)
