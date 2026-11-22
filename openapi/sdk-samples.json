@@ -1177,6 +1177,13 @@
             "resource": "extensions",
             "app_access": "denied"
         },
+        "getExtensionInputs": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.extensions.getExtensionInputs({ path: { \"name\": \"name\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetExtensionInputs(ctx, client.GetExtensionInputsParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "extensions",
+            "app_access": "denied"
+        },
         "getExtensionInventory": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.extensions.getExtensionInventory({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetExtensionInventory(ctx, client.GetExtensionInventoryParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -3595,6 +3602,13 @@
         "setExtensionEnablement": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.extensions.setExtensionEnablement({ path: { \"name\": \"name\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SetExtensionEnablement(ctx, client.SetExtensionEnablementParams{Name: \"name\"}, client.SetExtensionEnablementRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "extensions",
+            "app_access": "denied"
+        },
+        "setExtensionInputs": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.extensions.setExtensionInputs({ path: { \"name\": \"name\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SetExtensionInputs(ctx, client.SetExtensionInputsParams{Name: \"name\"}, client.SetExtensionInputsRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "extensions",
             "app_access": "denied"

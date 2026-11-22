@@ -106,14 +106,16 @@ func isOwnAgentMemoryWrite(d Descriptor) bool {
 
 // inputSkipsPermissionCeiling reports a call whose input keeps it within what
 // the permission mode lets through without asking, whatever the tool's declared
-// risk: an always-on instance's self-service call at approve-reads, and a
-// session cleanup that only previews or reads its run, or stops it.
+// risk: an always-on instance's self-service call at approve-reads, a
+// session cleanup that only previews or reads its run, or stops it, and an
+// extension setup call that writes no inputs.
 func (e *EffectivePolicyEvaluator) inputSkipsPermissionCeiling(d Descriptor, input json.RawMessage) bool {
 	switch e.permissionMode() {
 	case PermissionModeApproveReads:
-		return isInstanceSelfServiceCall(d, input) || classifySessionCleanupCall(d, input) == sessionCleanupReads
+		return isInstanceSelfServiceCall(d, input) || classifySessionCleanupCall(d, input) == sessionCleanupReads ||
+			isExtensionSetupRead(d, input)
 	case PermissionModeApproveEdits, PermissionModeAuto:
-		return classifySessionCleanupCall(d, input) != sessionCleanupDeletes
+		return classifySessionCleanupCall(d, input) != sessionCleanupDeletes || isExtensionSetupRead(d, input)
 	default:
 		return false
 	}
@@ -164,4 +166,22 @@ func classifySessionCleanupCall(d Descriptor, input json.RawMessage) sessionClea
 		}
 	}
 	return sessionCleanupDeletes
+}
+
+// isExtensionSetupRead reports an extensions_setup call that writes no inputs. Unlike session cleanup,
+// a call without input (a catalog view) is the read: only an inputs entry mutates.
+func isExtensionSetupRead(d Descriptor, input json.RawMessage) bool {
+	if d.Source.Kind != SourceBuiltin || d.ID != ToolIDExtensionsSetup {
+		return false
+	}
+	if len(input) == 0 {
+		return true
+	}
+	var call struct {
+		Inputs map[string]json.RawMessage `json:"inputs"`
+	}
+	if json.Unmarshal(input, &call) != nil {
+		return false
+	}
+	return len(call.Inputs) == 0
 }

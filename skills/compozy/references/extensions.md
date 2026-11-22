@@ -207,9 +207,24 @@ Every catalog entry has exactly one category id: `productivity`, `communication`
   install, the result is still success (`201`, exit 0) with `extension.enabled: false` and
   `enable_error {error, code}`; the package stays installed. Retry with
   `compozy extension enable <name>` / `compozy__extensions_enable`.
-- Setup state after Add: missing inputs via `compozy extension status <name>` /
-  `compozy__extensions_info`, servers waiting for sign-in via `compozy__mcp_auth_status`, then
+- Setup state after Add: read input state with `compozy__extensions_setup {name}` or
+  `GET /api/extensions/{name}/inputs`, servers waiting for sign-in via `compozy__mcp_auth_status`, then
   `compozy mcp auth login <server>`. Do not report a plugin as ready from install success alone.
+  Each input has `state`: `set` (binding, stored value or default), `missing`, `invalid` (stored value
+  fails the current type) or `daemon_env` (an MCP server also consumes it and only the daemon
+  environment satisfies it; still ready, but the extension process does not receive it). Key prompts
+  off `state`, never off the `set` boolean, which stays true for `daemon_env`. `missing` lists required
+  inputs only; `missing_env` lists bare `requires_env` keys for `secrets set`; `mcp_auth_servers` lists
+  OAuth servers needing sign-in. Values and Vault references are never returned.
+- Complete inputs with `compozy__extensions_setup {name, inputs}` or `PUT /api/extensions/{name}/inputs`
+  (`{"inputs": {...}}`, same value/vault_ref envelopes as install, same scope/workspace/profile
+  selectors). Writes merge: omitted inputs keep their value. The result adds `changed` and `reloaded`;
+  an enabled instance restarts only when a value changed, a disabled one stays disabled, and the
+  installed version, attachments and enablement never change. A write that leaves required inputs
+  missing still succeeds with `missing` populated. The native tool uses the caller's trusted
+  workspace and profile and may write only `missing`, `invalid` or `daemon_env` inputs; including a
+  `set` input refuses the whole call with `extension_input_overwrite_denied` (`input_ids`), nothing
+  written. Changing a set value is operator-only. A call without `inputs` is a read for approvals.
 
 Plugin sources accept `url` and `git-subdir` source objects and the Codex index
 `.agents/plugins/marketplace.json`; an unreadable shape is reported as `unsupported_source`.

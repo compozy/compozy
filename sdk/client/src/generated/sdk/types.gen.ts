@@ -2428,7 +2428,34 @@ export type ExtensionInputStatePayload = {
   active: boolean;
   id: string;
   set: boolean;
+  state?: string;
   type: string;
+};
+
+export type ExtensionInputStatusPayload = {
+  binding: MarketplaceInputBindingPayload;
+  default?: unknown;
+  id: string;
+  prompt: string;
+  required: boolean;
+  state: string;
+  targets: Array<string>;
+  type: string;
+};
+
+export type ExtensionInputsPayload = {
+  changed?: Array<string>;
+  daemon_env: Array<string>;
+  enabled: boolean;
+  extension: string;
+  inputs: Array<ExtensionInputStatusPayload>;
+  invalid: Array<string>;
+  mcp_auth_servers: Array<string>;
+  missing: Array<string>;
+  missing_env: Array<string>;
+  profile: string;
+  reloaded?: boolean;
+  workspace_id: string;
 };
 
 export type ExtensionInstallDeclaredProfilePayload = {
@@ -2492,8 +2519,10 @@ export type ExtensionOperationErrorPayload = {
   fetched_digest?: string;
   input_definitions?: Array<MarketplaceInputPayload>;
   input_id?: string;
+  input_ids?: Array<string>;
   inputs?: Array<string>;
   installed_origin?: MarketplaceOriginPayload | null;
+  invalid?: Array<string>;
   listed_digest?: string;
   missing_env?: Array<string>;
 };
@@ -8727,6 +8756,12 @@ export type SetExtensionEnablementRequest = {
   profile: string;
 };
 
+export type SetExtensionInputsRequest = {
+  inputs: {
+    [key: string]: Value;
+  };
+};
+
 export type SetExtensionSecretsRequest = {
   bindings: Array<ExtensionSecretBindingInput>;
 };
@@ -14067,6 +14102,12 @@ export type InstallExtensionRequestWritable = {
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
   workspace_id?: string;
+};
+
+export type SetExtensionInputsRequestWritable = {
+  inputs: {
+    [key: string]: ValueWritable;
+  };
 };
 
 export type UpdateAgentRequestWritable = {
@@ -21335,6 +21376,117 @@ export type SetExtensionEnablementResponses = {
 
 export type SetExtensionEnablementResponse =
   SetExtensionEnablementResponses[keyof SetExtensionEnablementResponses];
+
+export type GetExtensionInputsData = {
+  body?: never;
+  path: {
+    /**
+     * Extension name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Installation scope: global or workspace
+     */
+    scope?: string;
+    /**
+     * Operator workspace reference; omit for the global instance
+     */
+    workspace?: string;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/extensions/{name}/inputs";
+};
+
+export type GetExtensionInputsErrors = {
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Extension not found
+   */
+  404: ExtensionOperationErrorPayload;
+};
+
+export type GetExtensionInputsError = GetExtensionInputsErrors[keyof GetExtensionInputsErrors];
+
+export type GetExtensionInputsResponses = {
+  /**
+   * OK
+   */
+  200: ExtensionInputsPayload;
+};
+
+export type GetExtensionInputsResponse =
+  GetExtensionInputsResponses[keyof GetExtensionInputsResponses];
+
+export type SetExtensionInputsData = {
+  /**
+   * JSON request body
+   */
+  body: SetExtensionInputsRequestWritable;
+  path: {
+    /**
+     * Extension name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Installation scope: global or workspace
+     */
+    scope?: string;
+    /**
+     * Operator workspace reference; omit for the global instance
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/extensions/{name}/inputs";
+};
+
+export type SetExtensionInputsErrors = {
+  /**
+   * Invalid request
+   */
+  400: ExtensionOperationErrorPayload;
+  /**
+   * Forbidden, or an agent tried to overwrite inputs that are already set
+   */
+  403: ExtensionOperationErrorPayload;
+  /**
+   * Extension not found
+   */
+  404: ExtensionOperationErrorPayload;
+  /**
+   * Invalid input value
+   */
+  422: ExtensionOperationErrorPayload;
+};
+
+export type SetExtensionInputsError = SetExtensionInputsErrors[keyof SetExtensionInputsErrors];
+
+export type SetExtensionInputsResponses = {
+  /**
+   * OK
+   */
+  200: ExtensionInputsPayload;
+};
+
+export type SetExtensionInputsResponse =
+  SetExtensionInputsResponses[keyof SetExtensionInputsResponses];
 
 export type GetExtensionInventoryData = {
   body?: never;

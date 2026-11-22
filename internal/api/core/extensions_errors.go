@@ -31,6 +31,7 @@ const (
 	extensionErrorNameConflict
 	extensionErrorInputsRequired
 	extensionErrorInputInvalid
+	extensionErrorInputOverwriteDenied
 	extensionErrorNotFound
 	extensionErrorNotBuiltin
 	extensionErrorBuiltinNotRemoved
@@ -77,7 +78,7 @@ func ExtensionStatusCode(err error) int {
 	case extensionErrorBadRequest, extensionErrorEnvBindingUndeclared,
 		extensionErrorEnvBindingDangling, extensionErrorEnvBindingInvalid:
 		return http.StatusBadRequest
-	case extensionErrorForbidden:
+	case extensionErrorForbidden, extensionErrorInputOverwriteDenied:
 		return http.StatusForbidden
 	case extensionErrorUnavailable, extensionErrorSourceUnreachable:
 		return http.StatusServiceUnavailable
@@ -181,6 +182,8 @@ func classifyExtensionAcquisitionError(err error) extensionErrorKind {
 		return extensionErrorInputsRequired
 	case errors.Is(err, extensionpkg.ErrExtensionInputInvalid):
 		return extensionErrorInputInvalid
+	case errors.Is(err, extensionpkg.ErrExtensionInputOverwriteDenied):
+		return extensionErrorInputOverwriteDenied
 	default:
 		return extensionErrorUnknown
 	}

@@ -260,6 +260,11 @@ type SetExtensionEnablementRequest struct {
 	Enabled bool   `json:"enabled"`
 }
 
+// SetExtensionInputsRequest is a daemon API value.
+type SetExtensionInputsRequest struct {
+	Inputs map[string]Value `json:"inputs"`
+}
+
 // SetExtensionSecretsRequest is a daemon API value.
 type SetExtensionSecretsRequest struct {
 	Bindings []ExtensionSecretBindingInput `json:"bindings"`
@@ -430,20 +435,4 @@ type SettingsDaemonPayload struct {
 type SettingsDaemonReloadTimeoutsPayload struct {
 	Providers string `json:"providers"`
 	MCP       string `json:"mcp"`
-}
-
-// SettingsDaemonRuntimePayload is a daemon API value.
-type SettingsDaemonRuntimePayload struct {
-	Available      bool       `json:"available"`
-	Status         string     `json:"status,omitempty"`
-	PID            int        `json:"pid,omitzero"`
-	StartedAt      *time.Time `json:"started_at,omitempty"`
-	UptimeSeconds  int64      `json:"uptime_seconds"`
-	Socket         string     `json:"socket,omitempty"`
-	HTTPHost       string     `json:"http_host,omitempty"`
-	HTTPPort       int        `json:"http_port,omitzero"`
-	ActiveSessions int        `json:"active_sessions"`
-	ActiveAgents   int        `json:"active_agents"`
-	TotalSessions  int        `json:"total_sessions"`
-	Version        string     `json:"version,omitempty"`
 }

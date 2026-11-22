@@ -1649,6 +1649,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/extensions/{name}/inputs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read declared extension inputs and their setup state without values */
+    get: operations["getExtensionInputs"];
+    /** Write extension input values for one installed instance */
+    put: operations["setExtensionInputs"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/extensions/{name}/inventory": {
     parameters: {
       query?: never;
@@ -10802,7 +10820,32 @@ export interface components {
       active: boolean;
       id: string;
       set: boolean;
+      state?: string;
       type: string;
+    };
+    ExtensionInputStatusPayload: {
+      binding: components["schemas"]["MarketplaceInputBindingPayload"];
+      default?: unknown;
+      id: string;
+      prompt: string;
+      required: boolean;
+      state: string;
+      targets: string[];
+      type: string;
+    };
+    ExtensionInputsPayload: {
+      changed?: string[];
+      daemon_env: string[];
+      enabled: boolean;
+      extension: string;
+      inputs: components["schemas"]["ExtensionInputStatusPayload"][];
+      invalid: string[];
+      mcp_auth_servers: string[];
+      missing: string[];
+      missing_env: string[];
+      profile: string;
+      reloaded?: boolean;
+      workspace_id: string;
     };
     ExtensionInstallDeclaredProfilePayload: {
       create: boolean;
@@ -10868,8 +10911,10 @@ export interface components {
       fetched_digest?: string;
       input_definitions?: components["schemas"]["MarketplaceInputPayload"][];
       input_id?: string;
+      input_ids?: string[];
       inputs?: string[];
       installed_origin?: components["schemas"]["MarketplaceOriginPayload"] | null;
+      invalid?: string[];
       listed_digest?: string;
       missing_env?: string[];
     };
@@ -17299,6 +17344,11 @@ export interface components {
     SetExtensionEnablementRequest: {
       enabled: boolean;
       profile: string;
+    };
+    SetExtensionInputsRequest: {
+      inputs: {
+        [key: string]: components["schemas"]["Value"];
+      };
     };
     SetExtensionSecretsRequest: {
       bindings: components["schemas"]["ExtensionSecretBindingInput"][];
@@ -33066,6 +33116,127 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getExtensionInputs: {
+    parameters: {
+      query?: {
+        /** @description Installation scope: global or workspace */
+        scope?: string;
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionInputsPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Extension not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+    };
+  };
+  setExtensionInputs: {
+    parameters: {
+      query?: {
+        /** @description Installation scope: global or workspace */
+        scope?: string;
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SetExtensionInputsRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionInputsPayload"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Forbidden, or an agent tried to overwrite inputs that are already set */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Extension not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Invalid input value */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
     };

@@ -12,7 +12,11 @@ import (
 )
 
 // The lifecycle coordinator owns the instance lock throughout Prepare, Commit, and Rollback.
-type extensionInputBinder struct{ service *daemonExtensionService }
+// partial accepts a plan that still leaves required inputs missing: setup is a partial-progress write.
+type extensionInputBinder struct {
+	service *daemonExtensionService
+	partial bool
+}
 
 type extensionInputPlan struct {
 	instance      extensioninput.Instance
@@ -81,7 +85,7 @@ func (b extensionInputBinder) Prepare(
 	}
 	b.prepareRetiredSecrets(plan, declared)
 	readiness := extensionpkg.InputReadiness(manifest, plan.state, b.service.getenv)
-	if len(manifest.Inputs) > 0 {
+	if len(manifest.Inputs) > 0 && !b.partial {
 		if err := readiness.RequiredError(manifest); err != nil {
 			return nil, err
 		}

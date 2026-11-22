@@ -2714,6 +2714,7 @@ env = { ACME_VALUE = "acme_value" }
 		invalidInputs []string
 		daemonEnv     []string
 		set           bool
+		state         string
 	}{
 		{
 			name:  "treat a binding-backed value as set",
@@ -2721,14 +2722,16 @@ env = { ACME_VALUE = "acme_value" }
 			record: &InputValueRecord{
 				Type: "boolean", Value: json.RawMessage(`true`), SecretRef: "vault:acme", Active: true,
 			},
-			set: true,
+			set:   true,
+			state: "set",
 		},
-		{name: "treat a default as set", input: input(true, "false"), set: true},
+		{name: "treat a default as set", input: input(true, "false"), set: true, state: "set"},
 		{
 			name:        "ignore the daemon environment for a subprocess-only input",
 			input:       input(true, ""),
 			daemonValue: "true",
 			missingEnv:  []string{"ACME_VALUE"},
+			state:       "missing",
 		},
 		{
 			name:          "block a required value that fails the manifest type",
@@ -2736,14 +2739,16 @@ env = { ACME_VALUE = "acme_value" }
 			record:        &InputValueRecord{Type: "boolean", Active: true, Invalid: "stored value does not match"},
 			missingEnv:    []string{"ACME_VALUE"},
 			invalidInputs: []string{"acme_value"},
+			state:         "invalid",
 		},
 		{
 			name:          "report an optional invalid value without blocking start",
 			input:         input(false, ""),
 			record:        &InputValueRecord{Type: "string", Value: json.RawMessage(`"eu"`), Active: true},
 			invalidInputs: []string{"acme_value"},
+			state:         "invalid",
 		},
-		{name: "not block start for an unset optional input", input: input(false, "")},
+		{name: "not block start for an unset optional input", input: input(false, ""), state: "missing"},
 		{
 			name:        "keep a server-consumed input ready on the daemon environment",
 			input:       input(true, ""),
@@ -2751,6 +2756,7 @@ env = { ACME_VALUE = "acme_value" }
 			daemonValue: "true",
 			daemonEnv:   []string{"acme_value"},
 			set:         true,
+			state:       "daemon_env",
 		},
 	}
 	for _, test := range readiness {
@@ -2775,15 +2781,65 @@ env = { ACME_VALUE = "acme_value" }
 				t.Fatalf("InputReadiness() = %#v", ready)
 			}
 			described := DescribeInputState(manifest, state, getenv)
-			if len(described) != 1 || described[0].Set != test.set {
-				t.Fatalf("DescribeInputState() = %#v, want set %v", described, test.set)
+			if len(described) != 1 || described[0].Set != test.set || described[0].State != test.state {
+				t.Fatalf("DescribeInputState() = %#v, want set %v state %q", described, test.set, test.state)
 			}
 			required, ok := errors.AsType[*InputsRequiredError](ready.RequiredError(manifest))
 			if len(test.missingEnv) > 0 && (!ok || !slices.Equal(required.MissingInputs, []string{"acme_value"})) {
 				t.Fatalf("RequiredError() = %#v, want acme_value", required)
 			}
+			if ok && !slices.Equal(required.InvalidInputs, test.invalidInputs) {
+				t.Fatalf("RequiredError().InvalidInputs = %v, want %v", required.InvalidInputs, test.invalidInputs)
+			}
 		})
 	}
+
+	t.Run("Should describe setup receivers, required missing and bare env without secret defaults", func(t *testing.T) {
+		t.Parallel()
+		manifest := &Manifest{
+			Inputs: []ManifestInput{
+				{
+					ID: "project", Prompt: "Project", Type: "identifier", Required: true,
+					Binding: marketplace.InputBinding{Type: "env", Name: "PROJECT_ID"},
+				},
+				{
+					ID: "token", Prompt: "Token", Type: "secret", Default: json.RawMessage(`"leak"`),
+					Binding: marketplace.InputBinding{Type: "env", Name: "API_TOKEN"},
+				},
+				{
+					ID: "mode", Prompt: "Mode", Type: "boolean", Default: json.RawMessage(`true`),
+					Binding: marketplace.InputBinding{Type: "env", Name: "MODE"},
+				},
+			},
+			DeclaredRequiresEnv: []string{"PROJECT_ID", "API_TOKEN", "BARE"},
+		}
+		manifest.RequiresEnv = manifestRequiredEnv(manifest.DeclaredRequiresEnv, manifest.Inputs)
+		manifest.Resources.MCPServers = map[string]MCPServerConfig{
+			"acme":   {Command: "acme", Env: map[string]string{"MODE": "mode"}},
+			"remote": {Transport: "http", URL: "https://example.com/mcp", Auth: &MCPServerAuthConfig{Method: "oauth"}},
+		}
+		payload := DescribeInputSetup(manifest, InputState{}, func(string) string { return "" })
+		if !slices.Equal(payload.Missing, []string{"project"}) || !slices.Equal(payload.MissingEnv, []string{"BARE"}) ||
+			!slices.Equal(payload.MCPAuthServers, []string{"remote"}) || len(payload.Inputs) != 3 {
+			t.Fatalf("DescribeInputSetup() = %#v", payload)
+		}
+		want := map[string]struct {
+			state   string
+			targets []string
+			def     string
+		}{
+			"project": {"missing", []string{"subprocess"}, ""},
+			"token":   {"missing", []string{"subprocess"}, ""},
+			"mode":    {"set", []string{"mcp:acme"}, "true"},
+		}
+		for _, input := range payload.Inputs {
+			expected := want[input.ID]
+			if input.State != expected.state || !slices.Equal(input.Targets, expected.targets) ||
+				string(input.Default) != expected.def {
+				t.Fatalf("input %s = %#v, want %#v", input.ID, input, expected)
+			}
+		}
+	})
 
 	t.Run("Should keep a bare requires_env key in missing_env", func(t *testing.T) {
 		t.Parallel()

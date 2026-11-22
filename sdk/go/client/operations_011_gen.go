@@ -9,6 +9,40 @@ import (
 	"strings"
 )
 
+// GetGlobalSessionInheritedTranscript Get a bounded page of a derived session's source transcript through the derive cut for a Global session
+func (c *Client) GetGlobalSessionInheritedTranscript(ctx context.Context, params GetGlobalSessionInheritedTranscriptParams) (*SessionTranscriptResponse, error) {
+	path := "/api/sessions/{session_id}/transcript/inherited"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.BeforeSequence != nil {
+		query.Set("before_sequence", strconv.FormatInt(*params.BeforeSequence, 10))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionTranscriptResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetGlobalSessionStatusParams carries the path, query, and header parameters.
+type GetGlobalSessionStatusParams struct {
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetGlobalSessionStatus Read compact session status and wake eligibility for a Global session
 func (c *Client) GetGlobalSessionStatus(ctx context.Context, params GetGlobalSessionStatusParams) (*SessionStatusResponse, error) {
 	path := "/api/sessions/{session_id}/status"
@@ -408,40 +442,6 @@ func (c *Client) GetLoopRun(ctx context.Context, params GetLoopRunParams) (*Loop
 type GetLoopRunBriefingParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	RunID       string  `url:"run_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetLoopRunBriefing Explain the current Loop run state
-func (c *Client) GetLoopRunBriefing(ctx context.Context, params GetLoopRunBriefingParams) (*Briefing, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out Briefing
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetLoopRunNodesParams carries the path, query, and header parameters.
-type GetLoopRunNodesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	State       *string `url:"state"`
-	Generation  *int    `url:"generation"`
-	Cursor      *string `url:"cursor"`
-	Limit       *int    `url:"limit"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }

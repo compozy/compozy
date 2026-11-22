@@ -25,6 +25,7 @@ func DescribeInputState(
 			}
 			result = append(result, contract.ExtensionInputStatePayload{
 				ID: input.ID, Type: input.Type, Set: present && err == nil, Active: active,
+				State: InputSetupState(manifest, input, state, getenv),
 			})
 		}
 	}

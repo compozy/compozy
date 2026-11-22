@@ -51,7 +51,9 @@ type ExtensionOperationErrorPayload struct {
 	ListedDigest     string                    `json:"listed_digest,omitempty"`
 	FetchedDigest    string                    `json:"fetched_digest,omitempty"`
 	InputID          string                    `json:"input_id,omitempty"`
+	InputIDs         []string                  `json:"input_ids,omitempty"`
 	Inputs           []string                  `json:"inputs,omitempty"`
+	Invalid          []string                  `json:"invalid,omitempty"`
 	MissingEnv       []string                  `json:"missing_env,omitempty"`
 	Error            string                    `json:"error"`
 	Code             string                    `json:"code"`

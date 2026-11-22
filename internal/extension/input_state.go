@@ -56,13 +56,32 @@ func (r Readiness) RequiredError(manifest *Manifest) error {
 		}
 	}
 	slices.Sort(missing)
+	var invalid []string
+	for _, id := range r.InvalidInputs {
+		if slices.Contains(missing, id) {
+			invalid = append(invalid, id)
+		}
+	}
 	return &InputsRequiredError{
 		MissingInputs: slices.Compact(missing), MissingEnv: slices.Clone(r.MissingEnv), InputDefinitions: definitions,
+		InvalidInputs: invalid,
 	}
 }
 
 var ErrExtensionInputInvalid = errors.New("extension: invalid input")
 var ErrExtensionInputsRequired = errors.New("extension: inputs required")
+var ErrExtensionInputOverwriteDenied = errors.New("extension: input overwrite denied")
+
+// InputOverwriteDeniedError refuses an agent write that targets inputs already set (D7); nothing is written.
+type InputOverwriteDeniedError struct{ InputIDs []string }
+
+func (e *InputOverwriteDeniedError) Error() string {
+	return fmt.Sprintf(
+		"extension: inputs already set; only the operator can overwrite them: %s",
+		strings.Join(e.InputIDs, ", "),
+	)
+}
+func (e *InputOverwriteDeniedError) Unwrap() error { return ErrExtensionInputOverwriteDenied }
 
 // InputValidationError identifies invalid input without including its value.
 type InputValidationError struct {
@@ -80,6 +99,8 @@ type InputsRequiredError struct {
 	InputDefinitions []ManifestInput
 	MissingInputs    []string
 	MissingEnv       []string
+	// InvalidInputs lists the required inputs among MissingInputs whose stored value fails the manifest type.
+	InvalidInputs []string
 }
 
 func (e *InputsRequiredError) Unwrap() error { return ErrExtensionInputsRequired }

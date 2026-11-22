@@ -1914,6 +1914,13 @@ func TestInstanceCallApproval(t *testing.T) {
 		{"cleanup stop at approve-reads", ToolIDSessionCleanup, `{"action":"stop"}`, "", PermissionModeApproveReads, false, false},
 		{"hook escalates cleanup preview", ToolIDSessionCleanup, `{}`, `{"dry_run":false}`, PermissionModeApproveEdits, false, false},
 		{"cleanup at deny all", ToolIDSessionCleanup, `{}`, "", PermissionModeDenyAll, false, false},
+		{"setup read", ToolIDExtensionsSetup, `{}`, "", PermissionModeApproveReads, false, true},
+		{"setup empty inputs", ToolIDExtensionsSetup, `{"inputs":{}}`, "", PermissionModeApproveEdits, false, true},
+		{"setup write", ToolIDExtensionsSetup, `{"inputs":{"project":{}}}`, "", PermissionModeApproveReads, false, false},
+		{"setup write at auto", ToolIDExtensionsSetup, `{"inputs":{"project":{}}}`, "", PermissionModeAuto, false, false},
+		{"hook escalates setup read", ToolIDExtensionsSetup, `{}`, `{"inputs":{"project":{}}}`,
+			PermissionModeApproveReads, false, false},
+		{"setup at deny all", ToolIDExtensionsSetup, `{}`, "", PermissionModeDenyAll, false, false},
 	} {
 		t.Run("Should enforce input approval for "+tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1927,7 +1934,7 @@ func TestInstanceCallApproval(t *testing.T) {
 			}
 			d.InputSchema = json.RawMessage(
 				`{"type":"object","properties":{"enabled":{"type":"boolean"},"dry_run":{"type":"boolean"},` +
-					`"action":{"type":"string"}},"additionalProperties":false}`,
+					`"action":{"type":"string"},"inputs":{"type":"object"}},"additionalProperties":false}`,
 			)
 			provider := providerWithDescriptors(d.Source, d)
 			called := false

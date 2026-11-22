@@ -5,9 +5,51 @@ package client
 import (
 	"context"
 	"net/url"
-	"strconv"
 	"strings"
 )
+
+// GetSettingsCmdPalette Read command-palette settings
+func (c *Client) GetSettingsCmdPalette(ctx context.Context, params GetSettingsCmdPaletteParams) (*SettingsCmdPaletteResponse, error) {
+	path := "/api/settings/cmd-palette"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsCmdPaletteResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsGeneral Read the general settings section
+func (c *Client) GetSettingsGeneral(ctx context.Context) (*SettingsGeneralResponse, error) {
+	path := "/api/settings/general"
+	var out SettingsGeneralResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsHooksExtensions Read the hooks and extensions settings section
+func (c *Client) GetSettingsHooksExtensions(ctx context.Context) (*SettingsHooksExtensionsResponse, error) {
+	path := "/api/settings/hooks-extensions"
+	var out SettingsHooksExtensionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // GetSettingsMCPAuthStatusParams carries the path, query, and header parameters.
 type GetSettingsMCPAuthStatusParams struct {
@@ -396,43 +438,4 @@ func (c *Client) GetSubagent(ctx context.Context, params GetSubagentParams) (*Su
 // GetSupportBundleParams carries the path, query, and header parameters.
 type GetSupportBundleParams struct {
 	OperationID string `url:"operation_id"`
-}
-
-// GetSupportBundle Get support bundle operation status
-func (c *Client) GetSupportBundle(ctx context.Context, params GetSupportBundleParams) (*SupportBundleOperationResponse, error) {
-	path := "/api/support/bundles/{operation_id}"
-	path = strings.ReplaceAll(path, "{operation_id}", url.PathEscape(params.OperationID))
-	var out SupportBundleOperationResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetTaskParams carries the path, query, and header parameters.
-type GetTaskParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetTask Get one task with detail
-func (c *Client) GetTask(ctx context.Context, params GetTaskParams) (*TaskDetailResponse, error) {
-	path := "/api/tasks/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskDetailResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

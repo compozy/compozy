@@ -8925,6 +8925,9 @@
           "set": {
             "type": "boolean"
           },
+          "state": {
+            "type": "string"
+          },
           "type": {
             "type": "string"
           }
@@ -8934,6 +8937,119 @@
           "id",
           "set",
           "type"
+        ],
+        "type": "object"
+      },
+      "ExtensionInputStatusPayload": {
+        "properties": {
+          "binding": {
+            "$ref": "#/components/schemas/MarketplaceInputBindingPayload"
+          },
+          "default": {},
+          "id": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "binding",
+          "id",
+          "prompt",
+          "required",
+          "state",
+          "targets",
+          "type"
+        ],
+        "type": "object"
+      },
+      "ExtensionInputsPayload": {
+        "properties": {
+          "changed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "daemon_env": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "extension": {
+            "type": "string"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionInputStatusPayload"
+            },
+            "type": "array"
+          },
+          "invalid": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mcp_auth_servers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "missing_env": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "reloaded": {
+            "type": "boolean"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "daemon_env",
+          "enabled",
+          "extension",
+          "inputs",
+          "invalid",
+          "mcp_auth_servers",
+          "missing",
+          "missing_env",
+          "profile",
+          "workspace_id"
         ],
         "type": "object"
       },
@@ -9207,6 +9323,12 @@
           "input_id": {
             "type": "string"
           },
+          "input_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "inputs": {
             "items": {
               "type": "string"
@@ -9225,6 +9347,12 @@
                 "nullable": true
               }
             ]
+          },
+          "invalid": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "listed_digest": {
             "type": "string"
@@ -31761,6 +31889,20 @@
         "required": [
           "enabled",
           "profile"
+        ],
+        "type": "object"
+      },
+      "SetExtensionInputsRequest": {
+        "properties": {
+          "inputs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Value"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "inputs"
         ],
         "type": "object"
       },
@@ -65604,6 +65746,205 @@
           }
         },
         "summary": "Set one extension's effective state for a profile",
+        "tags": [
+          "extensions"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/extensions/{name}/inputs": {
+      "get": {
+        "operationId": "getExtensionInputs",
+        "parameters": [
+          {
+            "description": "Extension name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Installation scope: global or workspace",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operator workspace reference; omit for the global instance",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionInputsPayload"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Extension not found"
+          }
+        },
+        "summary": "Read declared extension inputs and their setup state without values",
+        "tags": [
+          "extensions"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "put": {
+        "operationId": "setExtensionInputs",
+        "parameters": [
+          {
+            "description": "Extension name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Installation scope: global or workspace",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operator workspace reference; omit for the global instance",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetExtensionInputsRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionInputsPayload"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden, or an agent tried to overwrite inputs that are already set"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Extension not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid input value"
+          }
+        },
+        "summary": "Write extension input values for one installed instance",
         "tags": [
           "extensions"
         ],

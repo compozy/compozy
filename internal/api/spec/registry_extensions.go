@@ -19,6 +19,8 @@ func registryExtensionOperations() []OperationSpec {
 		listExtensionSecretsOperationSpec(),
 		setExtensionSecretsOperationSpec(),
 		deleteExtensionSecretOperationSpec(),
+		getExtensionInputsOperationSpec(),
+		setExtensionInputsOperationSpec(),
 		updateExtensionOperationSpec(),
 		updateExtensionsOperationSpec(),
 		removeExtensionOperationSpec(),

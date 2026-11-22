@@ -94,6 +94,7 @@ var nativeEntries = map[string]Entry{
 	"compozy__extensions_restore":      nativeEntry("Restoring", " ", false, "🧩", "auto"),
 	"compozy__extensions_removed_list": nativeEntry("Reading", " ", false, "🧩", "auto"),
 	"compozy__extensions_search":       nativeEntry("Searching", " for ", false, "🧩", previewHintQuery),
+	"compozy__extensions_setup":        nativeEntry("Configuring", " ", false, "🧩", "auto"),
 	"compozy__extensions_update":       nativeEntry("Updating", " ", false, "🧩", "auto"),
 	"compozy__extensions_validate":     nativeEntry("Validating", " ", false, "🧩", "auto"),
 	"compozy__gateway":                 nativeEntry("Reading", " ", false, "🌐", "auto"),

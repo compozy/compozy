@@ -171,6 +171,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__extensions_restore":      expectedNativeEntry("Restoring", " ", false, "🧩", "auto"),
 		"compozy__extensions_removed_list": expectedNativeEntry("Reading", " ", false, "🧩", "auto"),
 		"compozy__extensions_search":       expectedNativeEntry("Searching", " for ", false, "🧩", "query"),
+		"compozy__extensions_setup":        expectedNativeEntry("Configuring", " ", false, "🧩", "auto"),
 		"compozy__extensions_update":       expectedNativeEntry("Updating", " ", false, "🧩", "auto"),
 		"compozy__extensions_validate":     expectedNativeEntry("Validating", " ", false, "🧩", "auto"),
 		"compozy__gateway":                 expectedNativeEntry("Reading", " ", false, "🌐", "auto"),

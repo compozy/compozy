@@ -1020,7 +1020,10 @@ Cursors bind the query, scope, workspace, and source revision. Paging and instal
 identity rules live in `references/tools-and-skills.md`. Installed state is scoped to the caller's
 exact workspace; never reuse it across workspace scopes.
 Extension tools are
-`compozy__extensions_{init,build,validate,dev,reload,logs,list,info,inventory,preview,search,provenance,publish,install,update,remove,enable,disable,restore,removed_list}`.
+`compozy__extensions_{init,build,validate,dev,reload,logs,list,info,inventory,preview,search,provenance,publish,install,update,remove,enable,disable,setup,restore,removed_list}`.
+`setup` is mutating but classified per call: without `inputs` it reads input `state` and needs no
+mutation approval; with `inputs` it writes only `missing`, `invalid` or `daemon_env` inputs of the
+caller's trusted instance and refuses a `set` input with `extension_input_overwrite_denied`.
 `validate`, `logs`, `list`, `info`, `search`, `provenance`, and `removed_list` are read-only; `init`, `build`, `dev`,
 and `reload` are mutating, with `build`, `dev`, and `reload` requiring interaction; `remove` is
 destructive; `restore` is mutating: it re-enrolls a permanently removed built-in at its bundled version,

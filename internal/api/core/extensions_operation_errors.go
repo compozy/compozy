@@ -32,7 +32,8 @@ func extensionOperationErrorPayload(
 		extensionErrorSourceUnreachable,
 		extensionErrorMarketplaceSourceNotFound,
 		extensionErrorInputsRequired,
-		extensionErrorInputInvalid:
+		extensionErrorInputInvalid,
+		extensionErrorInputOverwriteDenied:
 		payload, _ = ExtensionAcquisitionErrorPayload(err)
 	case extensionErrorGatewayConfirmationRequired:
 		confirmationErr, ok := errors.AsType[*extensionpkg.GatewayConfirmationRequiredError](err)
@@ -254,6 +255,7 @@ func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErr
 		payload.Code = diagnosticcontract.CodeExtensionInputsRequired
 		if required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err); ok {
 			payload.Inputs, payload.MissingEnv = slices.Clone(required.MissingInputs), slices.Clone(required.MissingEnv)
+			payload.Invalid = slices.Clone(required.InvalidInputs)
 			for _, input := range required.InputDefinitions {
 				payload.InputDefinitions = append(payload.InputDefinitions, contract.MarketplaceInputPayload{
 					ID:       input.ID,
@@ -272,6 +274,11 @@ func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErr
 		payload.Code = diagnosticcontract.CodeExtensionInputInvalid
 		if invalid, ok := errors.AsType[*extensionpkg.InputValidationError](err); ok {
 			payload.InputID = invalid.InputID
+		}
+	case extensionErrorInputOverwriteDenied:
+		payload.Code = diagnosticcontract.CodeExtensionInputOverwriteDenied
+		if denied, ok := errors.AsType[*extensionpkg.InputOverwriteDeniedError](err); ok {
+			payload.InputIDs = slices.Clone(denied.InputIDs)
 		}
 	default:
 		return payload, false

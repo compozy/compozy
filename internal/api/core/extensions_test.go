@@ -576,6 +576,8 @@ type extensionServiceStub struct {
 	listSecretsFn      func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionSecretsPayload, error)
 	setSecretsFn       func(context.Context, string, contract.SetExtensionSecretsRequest, taskpkg.ActorContext) (contract.ExtensionSecretsPayload, error)
 	deleteSecretFn     func(context.Context, string, string, taskpkg.ActorContext) error
+	inputsFn           func(context.Context, string, string, taskpkg.ActorContext) (contract.ExtensionInputsPayload, error)
+	setInputsFn        func(context.Context, string, string, contract.SetExtensionInputsRequest, taskpkg.ActorContext) (contract.ExtensionInputsPayload, error)
 	marketplaceTrustFn func(context.Context, extensionpkg.MarketplaceTrustEvidence) (contract.ExtensionTrustReportPayload, error)
 	devFn              func(context.Context, contract.DevLinkExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	reloadDevFn        func(context.Context, string, contract.ReloadExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
@@ -730,6 +732,31 @@ func (s extensionServiceStub) SetExtensionSecrets(
 		return s.setSecretsFn(ctx, name, req, actor)
 	}
 	return contract.ExtensionSecretsPayload{}, nil
+}
+
+func (s extensionServiceStub) ExtensionInputs(
+	ctx context.Context,
+	name string,
+	scope string,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionInputsPayload, error) {
+	if s.inputsFn != nil {
+		return s.inputsFn(ctx, name, scope, actor)
+	}
+	return contract.ExtensionInputsPayload{}, nil
+}
+
+func (s extensionServiceStub) SetExtensionInputs(
+	ctx context.Context,
+	name string,
+	scope string,
+	req contract.SetExtensionInputsRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionInputsPayload, error) {
+	if s.setInputsFn != nil {
+		return s.setInputsFn(ctx, name, scope, req, actor)
+	}
+	return contract.ExtensionInputsPayload{}, nil
 }
 
 func (s extensionServiceStub) DeleteExtensionSecret(
@@ -1261,6 +1288,95 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 			if errors.Is(testCase.err, extensionpkg.ErrExtensionEnvBindingUndeclared) &&
 				!reflect.DeepEqual(payload.DeclaredEnv, []string{"API_KEY", "TOKEN"}) {
 				t.Fatalf("declared env = %#v, want sorted names", payload.DeclaredEnv)
+			}
+		})
+	}
+}
+
+// Invariant: setup routes map domain refusals onto their stable codes and never echo values.
+// Owner: core extension input handlers; suite: TestExtensionInputHandlers.
+func TestExtensionInputHandlers(t *testing.T) {
+	t.Parallel()
+	t.Run("Should read input state with the scope selector [T-08]", func(t *testing.T) {
+		t.Parallel()
+		var gotScope string
+		service := extensionServiceStub{inputsFn: func(
+			_ context.Context, name, scope string, _ taskpkg.ActorContext,
+		) (contract.ExtensionInputsPayload, error) {
+			gotScope = scope
+			return contract.ExtensionInputsPayload{Extension: name, Missing: []string{"project"}}, nil
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.GET("/extensions/:name/inputs", handlers.GetExtensionInputs)
+		response := performRequest(t, engine, http.MethodGet, "/extensions/kit/inputs?scope=global", nil)
+		if response.Code != http.StatusOK || gotScope != "global" ||
+			!strings.Contains(response.Body.String(), `"missing":["project"]`) {
+			t.Fatalf("status=%d scope=%q body=%s", response.Code, gotScope, response.Body.String())
+		}
+	})
+	for _, testCase := range []struct {
+		name   string
+		err    error
+		status int
+		check  func(contract.ExtensionOperationErrorPayload) bool
+	}{
+		{
+			name:   "Should refuse an agent overwrite with the listed input ids [T-10]",
+			err:    &extensionpkg.InputOverwriteDeniedError{InputIDs: []string{"project"}},
+			status: http.StatusForbidden,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionInputOverwriteDenied &&
+					reflect.DeepEqual(payload.InputIDs, []string{"project"})
+			},
+		},
+		{
+			name:   "Should map an invalid value onto its input id",
+			err:    &extensionpkg.InputValidationError{InputID: "project", Reason: "value must be a string"},
+			status: http.StatusUnprocessableEntity,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionInputInvalid && payload.InputID == "project"
+			},
+		},
+		{
+			name:   "Should report an uninstalled extension as not found [T-08]",
+			err:    &extensionpkg.ExtensionNotFoundError{Name: "kit"},
+			status: http.StatusNotFound,
+			check:  func(contract.ExtensionOperationErrorPayload) bool { return true },
+		},
+		{
+			name: "Should list required invalid inputs in invalid",
+			err: &extensionpkg.InputsRequiredError{
+				MissingInputs: []string{"project"}, InvalidInputs: []string{"project"},
+			},
+			status: http.StatusUnprocessableEntity,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionInputsRequired &&
+					reflect.DeepEqual(payload.Invalid, []string{"project"})
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			service := extensionServiceStub{setInputsFn: func(
+				context.Context, string, string, contract.SetExtensionInputsRequest, taskpkg.ActorContext,
+			) (contract.ExtensionInputsPayload, error) {
+				return contract.ExtensionInputsPayload{}, testCase.err
+			}}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+			engine := gin.New()
+			engine.PUT("/extensions/:name/inputs", handlers.SetExtensionInputs)
+			response := performRequest(t, engine, http.MethodPut, "/extensions/kit/inputs",
+				[]byte(`{"inputs":{"project":{"value":"planted-input-value"}}}`))
+			if response.Code != testCase.status {
+				t.Fatalf("status = %d, want %d; body=%s", response.Code, testCase.status, response.Body.String())
+			}
+			var payload contract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("json.Unmarshal(error) error = %v", err)
+			}
+			if !testCase.check(payload) || strings.Contains(response.Body.String(), "planted-input-value") {
+				t.Fatalf("payload = %#v body=%s", payload, response.Body.String())
 			}
 		})
 	}
