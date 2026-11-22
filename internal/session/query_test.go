@@ -404,7 +404,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		if page, err = manager.ListPage(t.Context(), query); err != nil || page.Working != nil {
 			t.Fatalf("skipped-total working = %v, %v; want nil", page.Working, err)
 		}
-		query.SkipTotal, query.Sort = false, ListSortPinned
+		query.SkipTotal, query.Sort, query.Pinned = false, ListSortPinned, store.SessionPinnedOnly
 		if page, err = manager.ListPage(t.Context(), query); err != nil || page.Working != nil {
 			t.Fatalf("pinned working = %v, %v; want nil", page.Working, err)
 		}
