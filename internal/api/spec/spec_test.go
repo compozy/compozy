@@ -3482,6 +3482,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addLoopRunOutcomeDiagnosticSchemas(baseline) == 0 {
 			t.Fatal("approved Loop run outcome diagnostics: no historical outcome schemas found")
 		}
+		// Authored gate terminal status arrives as the optional contract on_result map.
+		if addLoopContractOnResultSchemas(baseline) == 0 {
+			t.Fatal("approved Loop contract on_result: no historical contract schemas found")
+		}
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
