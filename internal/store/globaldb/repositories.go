@@ -49,6 +49,19 @@ func newRepoBase(db, readDB *sql.DB, now func() time.Time, closed *atomic.Int32)
 	}
 }
 
+// newCachedRepoBase returns a repository base whose reads use GlobalDB's statement caches.
+func (g *GlobalDB) newCachedRepoBase(now func() time.Time) *repoBase {
+	base := newRepoBase(g.db, g.readDB, now, &g.closed)
+	base.readStatements = g.readStatements
+	base.readQueries = sqlcgen.New(statementReader{db: g.readDB, cache: g.staticReadStatements})
+	return base
+}
+
+// readExecutor runs read SQL on the read pool through the dynamic statement cache.
+func (r *repoBase) readExecutor() statementReader {
+	return statementReader{db: r.readDB, cache: r.readStatements}
+}
+
 func (r *repoBase) checkReady(ctx context.Context, action string) error {
 	if r == nil || r.db == nil || r.queries == nil || r.closed == nil {
 		return errors.New("store: repository is required")
@@ -151,10 +164,8 @@ type CmdPaletteRepo struct{ *repoBase }
 type WorktreeRepo struct{ *repoBase }
 
 func (g *GlobalDB) initializeRepositories(config openConfig) {
-	base := newRepoBase(g.db, g.readDB, func() time.Time { return g.now() }, &g.closed)
+	base := g.newCachedRepoBase(func() time.Time { return g.now() })
 	base.path = g.path
-	base.readStatements = g.readStatements
-	base.readQueries = sqlcgen.New(statementReader{db: g.readDB, cache: g.staticReadStatements})
 	base.background = g.background
 	base.telemetry = g.telemetry
 	if g.background != nil {

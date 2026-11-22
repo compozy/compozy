@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func TestSessionListReadStatementReuse(t *testing.T) {
@@ -299,6 +300,40 @@ func TestStaticReadStatementReuse(t *testing.T) {
 		}
 		if got := cachedStatementsContaining(globalDB.readStatements, "archived_at"); got != 0 {
 			t.Fatalf("dynamic cache holds %d archive-state statements, want 0 for a static read", got)
+		}
+	})
+
+	t.Run("Should reuse one statement per task-run filter shape", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		for _, sessionID := range []string{"sess-lease-a", "sess-lease-b"} {
+			runs, err := globalDB.ListTaskRuns(t.Context(), taskpkg.RunQuery{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, SessionID: sessionID,
+			})
+			if err != nil || len(runs) != 0 {
+				t.Fatalf("ListTaskRuns(%s) = %d runs, %v; want none", sessionID, len(runs), err)
+			}
+		}
+		if got := cachedStatementsContaining(globalDB.readStatements, "FROM task_runs"); got != 1 {
+			t.Fatalf("cached task-run statements = %d, want 1 for one filter shape", got)
+		}
+	})
+
+	t.Run("Should give repositories built on demand the shared statement caches", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		for name, base := range map[string]*repoBase{
+			"instances":       globalDB.Instances().repoBase,
+			"instance events": globalDB.InstanceEvents(time.Second).repoBase,
+			"instance report": globalDB.InstanceReports().repoBase,
+			"skill reviews":   globalDB.SkillReviews().repoBase,
+		} {
+			// newCachedRepoBase wires both caches together, so the shared dynamic cache marks it.
+			if base.readStatements == nil || base.readStatements != globalDB.readStatements {
+				t.Fatalf("%s repository reads without the shared statement caches", name)
+			}
 		}
 	})
 

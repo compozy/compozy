@@ -15,7 +15,7 @@ type SkillReviewRepo struct{ *repoBase }
 var _ agentinstance.SkillReviewStore = (*SkillReviewRepo)(nil)
 
 func (g *GlobalDB) SkillReviews() *SkillReviewRepo {
-	return &SkillReviewRepo{repoBase: newRepoBase(g.db, g.readDB, g.now, &g.closed)}
+	return &SkillReviewRepo{repoBase: g.newCachedRepoBase(g.now)}
 }
 
 func (r *SkillReviewRepo) CreateReview(

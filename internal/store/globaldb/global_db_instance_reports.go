@@ -18,7 +18,7 @@ type InstanceReportRepo struct{ *repoBase }
 var _ agentinstance.ReportStore = (*InstanceReportRepo)(nil)
 
 func (g *GlobalDB) InstanceReports() *InstanceReportRepo {
-	return &InstanceReportRepo{repoBase: newRepoBase(g.db, g.readDB, g.now, &g.closed)}
+	return &InstanceReportRepo{repoBase: g.newCachedRepoBase(g.now)}
 }
 
 func (r *InstanceReportRepo) AppendReport(

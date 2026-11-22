@@ -72,7 +72,7 @@ func (g *TaskRepo) ListTaskRuns(
 		return nil, err
 	}
 
-	return g.listTaskRunsWithExecutor(ctx, g.readDB, query)
+	return g.listTaskRunsWithExecutor(ctx, g.readExecutor(), query)
 }
 
 func (g *TaskRepo) listTaskRunsWithExecutor(

@@ -19,7 +19,7 @@ type InstanceRepo struct {
 
 func (g *GlobalDB) Instances() *InstanceRepo {
 	return &InstanceRepo{
-		repoBase:             newRepoBase(g.db, g.readDB, g.now, &g.closed),
+		repoBase:             g.newCachedRepoBase(g.now),
 		mcpProjectionTimeout: defaultMCPProjectionTimeout,
 	}
 }
