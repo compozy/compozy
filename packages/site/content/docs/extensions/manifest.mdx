@@ -80,9 +80,14 @@ A manifest whose `min_compozy_version` is above the running daemon is rejected a
 load. For a subprocess extension `build` never copies a hand-written manifest value: it writes the
 higher of the SDK release floor and the floor the extension declares
 (`ExtensionDefinition.MinCompozyVersion` in the Go SDK). An empty declaration keeps the SDK floor,
-so an extension cannot claim less compatibility than the SDK it was compiled against, while a
-declared floor above it raises the requirement. A declared value that is not a semantic version
-fails the build.
+while a declared floor above it raises the requirement. A declared value that is not a semantic
+version fails the build.
+
+Declare a floor at or above the floor of the SDK release the extension builds against. `build`
+validates the semantic-version syntax and clamps the value against the SDK floor embedded in the
+running daemon, but it cannot see which SDK release the extension linked, so it cannot detect a
+declared floor below that release's own floor. Declaring lower understates compatibility: the
+generated manifest can be installed on a daemon the extension's SDK does not actually support.
 
 ## `[capabilities]`
 
