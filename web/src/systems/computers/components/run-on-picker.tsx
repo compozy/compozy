@@ -61,6 +61,7 @@ export interface RunOnPickerProps {
   onUpgrade?: (computerId: string) => void;
   onAddComputer?: () => void;
   className?: string;
+  triggerId?: string;
   testId?: string;
 }
 
@@ -149,6 +150,7 @@ export function RunOnPicker({
   onUpgrade,
   onAddComputer,
   className,
+  triggerId,
   testId = "run-on-picker",
 }: RunOnPickerProps) {
   const [open, setOpen] = useState(defaultOpen);
@@ -272,6 +274,7 @@ export function RunOnPicker({
         data-slot="run-on-picker-trigger"
         data-testid={testId}
         disabled={disabled}
+        id={triggerId}
         onKeyDown={event => {
           if (open || event.key.length !== 1 || event.metaKey || event.ctrlKey || event.altKey) {
             return;
@@ -291,7 +294,7 @@ export function RunOnPicker({
         align="start"
         className={cn(
           "flex max-h-[min(28rem,calc(var(--available-height,24rem)-0.5rem))] w-80 max-w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden border border-line-strong bg-popover p-0 shadow-overlay",
-          defaultOpen && "opacity-100!"
+          defaultOpen && "opacity-100! animate-none! transition-none!"
         )}
         commandProps={{
           className: "flex max-h-full min-h-0 flex-1 flex-col overflow-hidden bg-popover",

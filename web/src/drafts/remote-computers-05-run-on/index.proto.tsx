@@ -16,7 +16,8 @@ export const meta = definePrototype({
   surface: "U4",
   route: "/sessions",
   states: [
-    { id: "session-create-connected", label: "Session create · Picker closed on devbox" },
+    { id: "session-create-connected", label: "Session create · devbox with agent selector" },
+    { id: "session-create-advanced", label: "Session create · Advanced with worktree & name" },
     { id: "picker-open", label: "Picker open · This computer, Auto & fleet load" },
     { id: "offline-draft", label: "Offline target · Draft kept, Start disabled" },
     { id: "reconnect-inline", label: "Reconnect inline · Redial offline host in menu" },
@@ -24,13 +25,25 @@ export const meta = definePrototype({
     { id: "auto-resolved", label: "Auto resolved · Picks studio with capacity context" },
     { id: "auto-no-eligible", label: "Auto blocked · No computer can run this project" },
     { id: "local-execution-off", label: "Local agents off · This computer omitted" },
-    { id: "kanban-new-session", label: "Kanban · New session with compact Run on" },
-    { id: "automation-job-editor", label: "Automation editor · No Auto, ownership hint" },
+    { id: "kanban-new-session", label: "Kanban · New session with Run on & agent" },
+    { id: "automation-job-editor", label: "Automation editor · No Auto, host timezone" },
   ],
 });
 
 export default function RemoteComputersRunOnDraft({ state }: PrototypeProps) {
   switch (state) {
+    case "session-create-advanced":
+      return (
+        <RunOnSessionCreateScene
+          initialEnvironment={{ kind: "worktree", worktreeId: "wt_devbox_pg_pool" }}
+          initialMode="advanced"
+          initialProject="api"
+          initialSessionName="Fix Postgres pool exhaustion flake"
+          initialTarget="cmp_7f3k2q9x"
+          key={state}
+          loadBalancingEnabled
+        />
+      );
     case "picker-open":
       return (
         <RunOnSessionCreateScene
@@ -44,8 +57,10 @@ export default function RemoteComputersRunOnDraft({ state }: PrototypeProps) {
     case "offline-draft":
       return (
         <RunOnSessionCreateScene
+          initialEnvironment={{ kind: "worktree", worktreeId: "wt_ws_batch" }}
+          initialMode="advanced"
           initialProject="trainer"
-          initialPrompt="Run the 8-GPU batch packing benchmark and compare tokens/sec against main."
+          initialSessionName="Refactor GPU batch scheduler"
           initialTarget="cmp_4b2m9x1p"
           key={state}
           loadBalancingEnabled
