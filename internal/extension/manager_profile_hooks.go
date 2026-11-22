@@ -153,7 +153,9 @@ func appendProfileHookDeclarations(
 					workspaceID,
 				)
 			}
-			declaration.Matcher.WorkspaceID = workspaceID
+			if hookspkg.MatcherFieldAllowedForEvent(declaration.Event, "workspace_id") {
+				declaration.Matcher.WorkspaceID = workspaceID
+			}
 		}
 		destination = append(destination, declaration)
 	}

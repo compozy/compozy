@@ -65,6 +65,35 @@ func TestAppendProfileHookDeclarationsInjectsWorkspaceMatcherForSubagentHooks(t 
 		}
 	})
 
+	t.Run("Should not inject workspace id for event hooks that reject the field", func(t *testing.T) {
+		t.Parallel()
+
+		decls, err := appendProfileHookDeclarations(nil, projected(hookspkg.HookDecl{
+			Name:   "event-observer",
+			Event:  hookspkg.HookEventPreRecord,
+			Source: hookspkg.HookSourceNative,
+			Mode:   hookspkg.HookModeAsync,
+			Matcher: hookspkg.HookMatcher{
+				ACPEventType: "session_update",
+			},
+		}), profileID, "ws-1", nil)
+		if err != nil {
+			t.Fatalf("appendProfileHookDeclarations() error = %v", err)
+		}
+		if len(decls) != 1 {
+			t.Fatalf("len(decls) = %d, want 1", len(decls))
+		}
+		if got := decls[0].Matcher.WorkspaceID; got != "" {
+			t.Fatalf("decls[0].Matcher.WorkspaceID = %q, want empty", got)
+		}
+		if got, want := decls[0].Matcher.ACPEventType, "session_update"; got != want {
+			t.Fatalf("decls[0].Matcher.ACPEventType = %q, want %q", got, want)
+		}
+		if err := hookspkg.ValidateMatcherForEvent(decls[0].Event, decls[0].Matcher); err != nil {
+			t.Fatalf("ValidateMatcherForEvent() error = %v", err)
+		}
+	})
+
 	t.Run("Should reject a declared workspace that differs from the installation", func(t *testing.T) {
 		t.Parallel()
 
