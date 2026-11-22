@@ -43,7 +43,9 @@ type](/docs/loops/dsl-reference#declared-inputs) decides how the text is read: a
 `boolean` input decodes the literal (`1`, `false`), while `string`, `file`, `agent`, and `ref`
 inputs keep the text exactly as typed, so `--input gate_command=false` passes the string `false`.
 When a textual input must carry a value that looks like another type, quote the value as JSON:
-`--input gate_command='"false"'` yields the string `false`. Keys the definition does not declare
+`--input gate_command='"false"'` yields the string `false`. The same rule applies to
+`compozy loop fork --input`, which coerces overrides against the source run's executed definition —
+the definition the daemon revalidates the fork against. Keys the definition does not declare
 are sent as decoded JSON for the daemon to reject. Runtime inputs also accept
 `provider/model@reasoning:speed=normal|fast`, with `-` leaving provider
 or model unset and `-/-:speed=fast` selecting speed alone. Use a JSON runtime object with
