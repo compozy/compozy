@@ -5996,7 +5996,51 @@
             "type": "array"
           },
           "on_result": {
-            "additionalProperties": {},
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "continue",
+                    "done",
+                    "next_generation",
+                    "halt",
+                    "escalate"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "continue",
+                        "done",
+                        "next_generation",
+                        "halt",
+                        "escalate"
+                      ],
+                      "type": "string"
+                    },
+                    "terminal_status": {
+                      "enum": [
+                        "done",
+                        "no-op",
+                        "blocked",
+                        "failed",
+                        "exhausted",
+                        "stalled",
+                        "canceled"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
             "type": "object"
           },
           "on_stalled": {
@@ -12636,7 +12680,64 @@
                   "type": "array"
                 },
                 "on_result": {
-                  "additionalProperties": {},
+                  "additionalProperties": {
+                    "oneOf": [
+                      {
+                        "enum": [
+                          "continue",
+                          "revise",
+                          "next_generation",
+                          "halt",
+                          "escalate"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "route": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "route"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "action": {
+                            "enum": [
+                              "continue",
+                              "revise",
+                              "next_generation",
+                              "halt",
+                              "escalate"
+                            ],
+                            "type": "string"
+                          },
+                          "terminal_status": {
+                            "enum": [
+                              "done",
+                              "no-op",
+                              "blocked",
+                              "failed",
+                              "exhausted",
+                              "stalled",
+                              "canceled"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "action"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
                   "type": "object"
                 },
                 "on_retry": {
@@ -15727,7 +15828,51 @@
             "type": "array"
           },
           "on_result": {
-            "additionalProperties": {},
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "continue",
+                    "done",
+                    "next_generation",
+                    "halt",
+                    "escalate"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "continue",
+                        "done",
+                        "next_generation",
+                        "halt",
+                        "escalate"
+                      ],
+                      "type": "string"
+                    },
+                    "terminal_status": {
+                      "enum": [
+                        "done",
+                        "no-op",
+                        "blocked",
+                        "failed",
+                        "exhausted",
+                        "stalled",
+                        "canceled"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
             "type": "object"
           },
           "on_stalled": {
@@ -18299,11 +18444,6 @@
           },
           "status": {
             "enum": [
-              "queued",
-              "running",
-              "watching",
-              "needs-approval",
-              "paused",
               "done",
               "no-op",
               "blocked",

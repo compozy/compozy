@@ -10050,7 +10050,21 @@ export interface components {
       on_failed?: components["schemas"]["EffectSpec"][];
       on_noop?: components["schemas"]["EffectSpec"][];
       on_result?: {
-        [key: string]: unknown;
+        [key: string]:
+          | ("continue" | "done" | "next_generation" | "halt" | "escalate")
+          | {
+              /** @enum {string} */
+              action: "continue" | "done" | "next_generation" | "halt" | "escalate";
+              /** @enum {string} */
+              terminal_status?:
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+            };
       };
       on_stalled?: components["schemas"]["EffectSpec"][];
       runtime_defaults?: components["schemas"]["RuntimeDefaults"] | null;
@@ -11919,7 +11933,24 @@ export interface components {
             }
         )[];
         on_result?: {
-          [key: string]: unknown;
+          [key: string]:
+            | ("continue" | "revise" | "next_generation" | "halt" | "escalate")
+            | {
+                route: string;
+              }
+            | {
+                /** @enum {string} */
+                action: "continue" | "revise" | "next_generation" | "halt" | "escalate";
+                /** @enum {string} */
+                terminal_status?:
+                  | "done"
+                  | "no-op"
+                  | "blocked"
+                  | "failed"
+                  | "exhausted"
+                  | "stalled"
+                  | "canceled";
+              };
         };
         on_retry?: (
           | {
@@ -12862,7 +12893,21 @@ export interface components {
       on_failed?: components["schemas"]["LoopEffectSpec"][];
       on_noop?: components["schemas"]["LoopEffectSpec"][];
       on_result?: {
-        [key: string]: unknown;
+        [key: string]:
+          | ("continue" | "done" | "next_generation" | "halt" | "escalate")
+          | {
+              /** @enum {string} */
+              action: "continue" | "done" | "next_generation" | "halt" | "escalate";
+              /** @enum {string} */
+              terminal_status?:
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+            };
       };
       on_stalled?: components["schemas"]["LoopEffectSpec"][];
       runtime_defaults?: components["schemas"]["LoopRuntimeDefaults"] | null;
@@ -13630,19 +13675,7 @@ export interface components {
       node_id?: string;
       reason_code?: string;
       /** @enum {string} */
-      status:
-        | "queued"
-        | "running"
-        | "watching"
-        | "needs-approval"
-        | "paused"
-        | "done"
-        | "no-op"
-        | "blocked"
-        | "failed"
-        | "exhausted"
-        | "stalled"
-        | "canceled";
+      status: "done" | "no-op" | "blocked" | "failed" | "exhausted" | "stalled" | "canceled";
     };
     LoopRunsAggregatePayload: {
       failed: number;

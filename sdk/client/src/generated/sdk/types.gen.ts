@@ -1672,7 +1672,23 @@ export type Contract = {
   on_failed?: Array<EffectSpec>;
   on_noop?: Array<EffectSpec>;
   on_result?: {
-    [key: string]: unknown;
+    [key: string]:
+      | "continue"
+      | "done"
+      | "next_generation"
+      | "halt"
+      | "escalate"
+      | {
+          action: "continue" | "done" | "next_generation" | "halt" | "escalate";
+          terminal_status?:
+            | "done"
+            | "no-op"
+            | "blocked"
+            | "failed"
+            | "exhausted"
+            | "stalled"
+            | "canceled";
+        };
   };
   on_stalled?: Array<EffectSpec>;
   runtime_defaults?: RuntimeDefaults | null;
@@ -3535,7 +3551,26 @@ export type Graph = {
         }
     >;
     on_result?: {
-      [key: string]: unknown;
+      [key: string]:
+        | "continue"
+        | "revise"
+        | "next_generation"
+        | "halt"
+        | "escalate"
+        | {
+            route: string;
+          }
+        | {
+            action: "continue" | "revise" | "next_generation" | "halt" | "escalate";
+            terminal_status?:
+              | "done"
+              | "no-op"
+              | "blocked"
+              | "failed"
+              | "exhausted"
+              | "stalled"
+              | "canceled";
+          };
     };
     on_retry?: Array<
       | {
@@ -4489,7 +4524,23 @@ export type LoopContract = {
   on_failed?: Array<LoopEffectSpec>;
   on_noop?: Array<LoopEffectSpec>;
   on_result?: {
-    [key: string]: unknown;
+    [key: string]:
+      | "continue"
+      | "done"
+      | "next_generation"
+      | "halt"
+      | "escalate"
+      | {
+          action: "continue" | "done" | "next_generation" | "halt" | "escalate";
+          terminal_status?:
+            | "done"
+            | "no-op"
+            | "blocked"
+            | "failed"
+            | "exhausted"
+            | "stalled"
+            | "canceled";
+        };
   };
   on_stalled?: Array<LoopEffectSpec>;
   runtime_defaults?: LoopRuntimeDefaults | null;
@@ -5134,19 +5185,7 @@ export type LoopRunTerminal = {
   message?: string;
   node_id?: string;
   reason_code?: string;
-  status:
-    | "queued"
-    | "running"
-    | "watching"
-    | "needs-approval"
-    | "paused"
-    | "done"
-    | "no-op"
-    | "blocked"
-    | "failed"
-    | "exhausted"
-    | "stalled"
-    | "canceled";
+  status: "done" | "no-op" | "blocked" | "failed" | "exhausted" | "stalled" | "canceled";
 };
 
 export type LoopRunsAggregatePayload = {
