@@ -45966,6 +45966,10 @@
               }
             ]
           },
+          "loop_input_command": {
+            "nullable": true,
+            "type": "string"
+          },
           "loop_target": {
             "oneOf": [
               {

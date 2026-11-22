@@ -346,9 +346,9 @@ func applyAutomationLoopInputCommandUpdate(
 	if loaded.LoopTarget == nil {
 		return errors.New("cli: --loop-input-command requires a Loop target job")
 	}
-	target := *loaded.LoopTarget
-	target.InputCommand = command
-	request.LoopTarget = &target
+	// Patch only the command field. Rebuilding the whole target from this GET would revert a
+	// concurrent edit made between the read and the update.
+	request.LoopInputCommand = &command
 	return nil
 }
 

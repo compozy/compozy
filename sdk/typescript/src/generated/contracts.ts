@@ -902,6 +902,7 @@ export interface AutomationJobUpdateParams {
   schedule?: ScheduleSpec;
   task?: JobTaskConfig;
   loop_target?: LoopTarget;
+  loop_input_command?: string;
   enabled?: boolean;
   retry?: RetryConfig;
   fire_limit?: FireLimitConfig;

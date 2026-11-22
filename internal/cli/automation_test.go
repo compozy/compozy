@@ -1322,7 +1322,7 @@ func TestAutomationJobsUpdateLoopInputCommand(t *testing.T) {
 		return job
 	}
 
-	t.Run("Should replace the Loop input command and preserve the rest of the target", func(t *testing.T) {
+	t.Run("Should patch only the Loop input command field", func(t *testing.T) {
 		t.Parallel()
 
 		var request AutomationJobUpdateRequest
@@ -1350,17 +1350,17 @@ func TestAutomationJobsUpdateLoopInputCommand(t *testing.T) {
 		if err != nil {
 			t.Fatalf("executeRootCommand(automation jobs update loop input command) error = %v", err)
 		}
-		if request.LoopTarget == nil {
-			t.Fatal("request.LoopTarget = nil, want the full target replacement")
+		if request.LoopTarget != nil {
+			t.Fatalf(
+				"request.LoopTarget = %#v, want nil so the daemon keeps the stored target",
+				request.LoopTarget,
+			)
 		}
-		if got, want := request.LoopTarget.InputCommand, "scripts/next-spec.sh"; got != want {
-			t.Fatalf("request.LoopTarget.InputCommand = %q, want %q", got, want)
+		if request.LoopInputCommand == nil {
+			t.Fatal("request.LoopInputCommand = nil, want the command-only patch")
 		}
-		if got, want := request.LoopTarget.LoopName, "overnight"; got != want {
-			t.Fatalf("request.LoopTarget.LoopName = %q, want the preserved %q", got, want)
-		}
-		if got, want := request.LoopTarget.Inputs["channel"], "nightly"; got != want {
-			t.Fatalf("request.LoopTarget.Inputs[channel] = %#v, want the preserved %#v", got, want)
+		if got, want := *request.LoopInputCommand, "scripts/next-spec.sh"; got != want {
+			t.Fatalf("request.LoopInputCommand = %q, want %q", got, want)
 		}
 	})
 
@@ -1394,11 +1394,14 @@ func TestAutomationJobsUpdateLoopInputCommand(t *testing.T) {
 		if err != nil {
 			t.Fatalf("executeRootCommand(automation jobs clear loop input command) error = %v", err)
 		}
-		if request.LoopTarget == nil {
-			t.Fatal("request.LoopTarget = nil, want the cleared target")
+		if request.LoopTarget != nil {
+			t.Fatalf("request.LoopTarget = %#v, want nil for the command-only clear", request.LoopTarget)
 		}
-		if got := request.LoopTarget.InputCommand; got != "" {
-			t.Fatalf("request.LoopTarget.InputCommand = %q, want empty", got)
+		if request.LoopInputCommand == nil {
+			t.Fatal("request.LoopInputCommand = nil, want the cleared command field")
+		}
+		if got := *request.LoopInputCommand; got != "" {
+			t.Fatalf("request.LoopInputCommand = %q, want empty", got)
 		}
 	})
 

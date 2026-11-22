@@ -13237,6 +13237,7 @@ export type UpdateExtensionsRequest = {
 export type UpdateJobRequest = {
   enabled?: boolean | null;
   fire_limit?: FireLimitConfig | null;
+  loop_input_command?: string | null;
   loop_target?: LoopTarget | null;
   name?: string | null;
   prompt?: string | null;
