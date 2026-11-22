@@ -659,8 +659,9 @@ Omitting the key keeps today's behavior: `halt` settles `failed` and `blocked` v
 
 The synthetic contract/definition-of-done gate accepts the same grammar under
 `contract.on_result`. It has no forward targets, so `{route: node_id}` is rejected there; use an
-action object. Without `contract.on_result`, a rejected definition-of-done verdict still schedules
-the next generation (`next_generation`).
+action object. It also requires at least one `contract.verification` criterion, because the
+definition-of-done gate is skipped without one. Without `contract.on_result`, a rejected
+definition-of-done verdict still schedules the next generation (`next_generation`).
 
 ```yaml
 contract:
