@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-extension-kit-lifecycle
 expected: compozy extension setup prompts only for missing, invalid and daemon-environment inputs (or every input with --all), writes them to the selected instance, restarts it when enabled, and points to mcp auth login for OAuth servers; an agent through compozy__extensions_setup fills only missing, invalid or daemon_env inputs and is refused with extension_input_overwrite_denied for a set one.
 entry_points: /docs/extensions/install#complete-inputs-after-install and CLI extension setup reference; compozy extension setup <name> [--scope] [--workspace] [--profile] [--all] [--input|--input-file] [-o json|toon]; GET|PUT /api/extensions/:name/inputs over HTTP and UDS; compozy__extensions_setup
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: [BUG-20261122-unset-input-binding-resurrected, BUG-20261122-install-enable-500]
+fix_status: pending
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a
+last_report: docs/qa/reports/2026-11-22-gh-1845-pr-a-extension-inputs.md
 overlaps: ET-ext-secrets-binding; ET-web-marketplace-installed-management
 ---
 
@@ -60,3 +60,12 @@ Pass: values never appear in output, logs, events, SSE or transcripts; the insta
 attachments and enablement never change.
 
 src: .compozy/tasks/extension-inputs-setup-deps/_tests.md
+
+QA 2026-11-22 (#1845 PR A, lab build f9f47e42b stamped v0.7.9): steps 1, 2, 4 and 5 pass. Step 3
+as written is unreachable: an update that leaves a required stored value invalid is refused at
+install preflight (`invalid: ["project"]`); the optional-invalid variant passes through `--all`.
+Step 4's default rerun prompts a `daemon_env` input by design, so its "no prompt" holds only once
+`region` is bound. Step 6 passes for the global refusal, the workspace write and profile isolation;
+a local-path package cannot hold global and workspace installations at once. Step 7's agent
+identity rules are unverified (no provider in the lab); operator `tool invoke` read/write passes.
+Fails on BUG-20261122-unset-input-binding-resurrected. Details in the dated report.

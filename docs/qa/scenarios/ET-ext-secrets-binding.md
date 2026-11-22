@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-extension-kit-lifecycle
 expected: A declared environment key binds to an existing Vault reference or hidden input at the exact extension instance scope, while list and every transport expose only bound key names.
 entry_points: /docs/extensions/secrets, /docs/extensions/install and CLI extension secrets reference; compozy extension install (TTY input prompt); compozy extension secrets set --value-stdin|bind|list|unset [--workspace] -o json|jsonl|toon; GET|PUT|DELETE /api/extensions/:name/secrets[/env] over HTTP and UDS; compozy doctor --only extension
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: [BUG-20261122-install-enable-500, BUG-20261122-unset-input-binding-resurrected]
+fix_status: pending
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-08-02-bundles-removal.md
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a
+last_report: docs/qa/reports/2026-11-22-gh-1845-pr-a-extension-inputs.md
 overlaps: ET-019; ET-web-extension-detail; ET-extension-setup-inputs
 ---
 
@@ -47,3 +47,9 @@ Pass: the value never appears in CLI output, logs, events, SSE or transcripts; t
 `ACME_TOKEN` environment variable never reaches the subprocess.
 
 src: .compozy/tasks/extension-inputs-setup-deps/_tests.md
+
+QA 2026-11-22 (#1845 subprocess inputs): steps 2–4 pass, with no value in any transcript or log
+and the daemon's own environment absent from the subprocess. Step 1: the hidden prompt, retry and
+install work, but the install-time enable fails with a masked 500
+(BUG-20261122-install-enable-500); a later `enable` starts the extension and it receives
+`ACME_TOKEN`. Details in the dated report.

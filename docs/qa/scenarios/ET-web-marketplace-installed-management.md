@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: The installed shelf opens a flat local extension inventory independent of catalog pagination or availability. Rows show contents, enablement and overflow actions; the updates line and Update all preserve per-item results, including partial failure.
 entry_points: /marketplace/installed; Marketplace installed-count shelf
-qa_status: untested
+qa_status: pass
 bug_ids: [BUG-20260913-marketplace-installed-plugin-panic, BUG-20260913-marketplace-instance-mutation-scope, BUG-20260913-marketplace-workspace-dev-state]
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-09-13-marketplace-catalog/inventory-after-workspace-removal.json
-last_report: docs/qa/reports/2026-09-13-marketplace-catalog.md
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a/screenshots
+last_report: docs/qa/reports/2026-11-22-gh-1845-pr-a-extension-inputs.md
 overlaps: ET-web-extensions-manage; ET-web-extension-detail; ET-web-mcp-status-matrix
 ---
 
@@ -121,3 +121,10 @@ required input stays empty (dialog stays open listing it); enter a bad value (fi
 `input_id`); save a `daemon_env` input empty (toast says it is still using the daemon environment and
 the status keeps `daemon_env`); an OAuth server lists under the sign-in hint with its Authorize
 action. Confirm no secret value is ever prefilled or returned. Reset to untested.
+
+QA 2026-11-22 (GH-1845 extension setup): the Setup walk passed against an isolated daemon and the
+checkout's Web: notice and Set up, Actions → Setup… (absent without inputs), Missing/Set/daemon_env
+labels, still-needs-setup on an empty save, inline and 422 `input_id` field errors, "Setup saved"
+plus "Restarted acme-tool", the daemon-environment toast, the OAuth server under the sign-in hint
+(action label "Sign in") and no secret prefill. The dev-overlay hide was not walked. Earlier
+contracts above were not re-walked.
