@@ -207,6 +207,23 @@ func manifestInput(manifest *extensionpkg.Manifest, id string) (extensionpkg.Man
 	return extensionpkg.ManifestInput{}, false
 }
 
+// envBindingInputID names the declared input whose value the env binding envName stores: a secret or
+// subprocess-bound input bound to that name (rule 3), or "" when the binding belongs to no input.
+func envBindingInputID(manifest *extensionpkg.Manifest, envName string) string {
+	if manifest == nil {
+		return ""
+	}
+	for _, input := range manifest.Inputs {
+		if input.Binding.Type != "env" || input.Binding.Name != envName {
+			continue
+		}
+		if input.Type == extensionInputTypeSecret || manifest.SubprocessInput(input) {
+			return input.ID
+		}
+	}
+	return ""
+}
+
 func withDaemonExtensionInputs(inputs extensioninput.Store) daemonExtensionServiceOption {
 	return func(service *daemonExtensionService) { service.inputs = inputs }
 }

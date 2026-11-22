@@ -293,15 +293,18 @@ func overwrittenInputs(prior contract.ExtensionInputsPayload, values map[string]
 	return denied
 }
 
-// plannedInputChanges lists the declared inputs whose row or binding the plan changes.
+// plannedInputChanges lists the declared inputs whose row or binding the plan changes. A subprocess
+// input's binding is canonical (D2): a row write that only mirrors it changes no value.
 func plannedInputChanges(plan *extensionInputPlan) []string {
 	declared := make(map[string]bool, len(plan.manifest.Inputs))
+	mirrored := make(map[string]bool, len(plan.manifest.Inputs))
 	for _, input := range plan.manifest.Inputs {
 		declared[input.ID] = true
+		mirrored[input.ID] = plan.manifest.SubprocessInput(input)
 	}
 	changed := map[string]struct{}{}
 	for _, row := range plan.rows {
-		if declared[row.InputID] {
+		if declared[row.InputID] && !mirrored[row.InputID] {
 			changed[row.InputID] = struct{}{}
 		}
 	}

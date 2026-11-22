@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extensioninput"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/vault"
 )
@@ -272,7 +273,8 @@ func (s *daemonExtensionService) deleteExtensionSecretForProfileInstance(
 	profileID string,
 	envName string,
 ) error {
-	if _, err := s.extensionSecretTarget(ctx, key); err != nil {
+	ext, err := s.extensionSecretTarget(ctx, key)
+	if err != nil {
 		return err
 	}
 	envName = strings.TrimSpace(envName)
@@ -290,6 +292,17 @@ func (s *daemonExtensionService) deleteExtensionSecretForProfileInstance(
 	if !ok {
 		return nil
 	}
+	inputID := ""
+	if previous.MCPServer == "" {
+		inputID = envBindingInputID(ext.Manifest, envName)
+	}
+	instance := extensioninput.Instance{Extension: key.Name, ProfileID: profileID, WorkspaceID: key.WorkspaceID}
+	restoreRow, err := s.unsetInputRow(ctx, instance, inputID)
+	if err != nil {
+		return err
+	}
+	rollbackCtx, cancel := extensionSecretRollbackContext(ctx)
+	defer cancel()
 	if err := s.envBindings.DeleteEnvBinding(
 		ctx,
 		key.Name,
@@ -297,14 +310,40 @@ func (s *daemonExtensionService) deleteExtensionSecretForProfileInstance(
 		key.WorkspaceID,
 		envName,
 	); err != nil {
-		return fmt.Errorf("daemon: delete extension secret binding %q: %w", envName, err)
+		return errors.Join(
+			fmt.Errorf("daemon: delete extension secret binding %q: %w", envName, err), restoreRow(rollbackCtx),
+		)
 	}
 	if err := s.gcOwnedExtensionSecret(ctx, previous.SecretRef); err != nil {
-		rollbackCtx, cancel := extensionSecretRollbackContext(ctx)
-		defer cancel()
-		return errors.Join(err, s.envBindings.PutEnvBinding(rollbackCtx, previous))
+		return errors.Join(err, s.envBindings.PutEnvBinding(rollbackCtx, previous), restoreRow(rollbackCtx))
 	}
 	return nil
+}
+
+// unsetInputRow deletes the typed row that mirrors an unbound input for MCP publication, so an explicit
+// unset is neither read back as set nor carried forward into a new binding by a later write (rule 3a).
+// It returns the restore for the deleted row.
+func (s *daemonExtensionService) unsetInputRow(
+	ctx context.Context, instance extensioninput.Instance, inputID string,
+) (func(context.Context) error, error) {
+	noop := func(context.Context) error { return nil }
+	if s.inputs == nil || inputID == "" {
+		return noop, nil
+	}
+	rows, err := s.inputs.List(ctx, instance)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: list extension input rows: %w", err)
+	}
+	row, found := rows[inputID]
+	if !found {
+		return noop, nil
+	}
+	if err := s.inputs.Apply(ctx, instance, []extensioninput.Mutation{{InputID: inputID, Before: &row}}); err != nil {
+		return nil, fmt.Errorf("daemon: unset extension input %q: %w", inputID, err)
+	}
+	return func(ctx context.Context) error {
+		return s.inputs.Apply(ctx, instance, []extensioninput.Mutation{{InputID: inputID, After: &row}})
+	}, nil
 }
 
 func (s *daemonExtensionService) extensionSecretTarget(

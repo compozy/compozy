@@ -1,6 +1,6 @@
 # BUG-20261122-install-enable-500: Installing a new local extension with --enable reports an Internal Server Error and leaves it off
 
-- **Status:** open
+- **Status:** open-upstream (pre-existing, not caused by #1845)
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Bruno
@@ -40,5 +40,41 @@ so the masked cause is not observable.
   masked by `core.ExtensionEnableFailure(err, true)`. Whether this predates #1845 was not checked.
 
 ## Fix
+
+**Disposition: pre-existing, not fixed here.**
+
+**Evidence that #1845 did not introduce it.**
+
+- `git diff origin/main...HEAD` is empty for every file on the install → enable path:
+  `internal/daemon/extensions_install_enable.go`, `extensions_enable.go`, `extensions_lifecycle.go`
+  (`Install`, `commitPreparedInstall`), `extensions_inventory.go` (`previewExtensionTarget`),
+  `extensions_scope.go` (`installedTargetStatus`), `extensions_events.go`, and `extensions.go`
+  (`reloadExtensions`, `syncExtensionConsumers`).
+- #1845 reaches this path only through the input reader in `populateExtensionInputStatus` and the
+  launch env resolution. The control fixture `acme-plain` declares no inputs and no `requires_env`,
+  so both are no-ops for it, and it fails the same way.
+
+**Where it fails (lab daemon.log).**
+
+- During the `acme-plain` install, the enable reload loads the extension active (11:25:40.656
+  `extension.lifecycle.loaded acme-plain active=true`). A second global reload at 11:25:42.3 then
+  shuts it down and reloads without it.
+- That is `rollbackGlobalExtensionLifecycle` running after a step that follows a successful reload
+  in `enableTargetUnlocked` (`internal/daemon/extensions_enable.go`): the consumer sync inside
+  `reloadExtensions` (`extensions.go:104`), `installedTargetStatus` (`:58`), or
+  `recordExtensionEnableEvents` (`:64`).
+- Install runs `enableTargetUnlocked` with `prepared.target` under the install lock
+  (`extensions_install_enable.go:23-26`). A later plain `enable` runs it under `withName` with the
+  default target and succeeds.
+
+**Why no log line exists.**
+
+- `enableInstalledExtension` stores the failure only as `item.InstallEnableError`
+  (`extensions_install_enable.go:53`).
+- `installEnableError` masks it through `core.ExtensionEnableFailure(err, true)` (`:67`) and never
+  logs the unmasked error.
+- The static read did not single out which of the three steps fails. An upstream fix should log the
+  unmasked cause at warn level in `enableInstalledExtension`, then reproduce with a fresh global
+  `install --enable` of a no-input fixture.
 
 ## Verification

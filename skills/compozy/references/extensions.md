@@ -93,7 +93,9 @@ and retry the same scoped request. Inputs remain isolated by profile: an unconfi
 publishes no packaged MCPs and does not block installation or restart in a configured profile.
 Subprocess inputs share this gate and the same `inputs`/`input_definitions` lists. Their values,
 non-secret ones included, are stored as instance env bindings in the Vault, so
-`compozy extension secrets set <name> --env <KEY>` also satisfies them. Launch injects the bound
+`compozy extension secrets set <name> --env <KEY>` also satisfies them, and `secrets unset` removes
+the value for the process and its MCP servers until it is written again; removing the installation
+discards it. Launch injects the bound
 value or the input default; the daemon environment never reaches the subprocess and never satisfies
 a subprocess-only input. A stored value that no longer fits a changed input type reads invalid:
 required ones block enable, optional ones are omitted from the process and its MCP servers.

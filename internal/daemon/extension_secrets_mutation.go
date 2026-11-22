@@ -80,6 +80,11 @@ func (s *daemonExtensionService) prepareExtensionSecrets(
 		if err != nil {
 			return nil, err
 		}
+		if inputID == "" && input.MCPServer == "" {
+			// Keep the input link after an unset dropped the prior binding, so the next input write
+			// sees this binding as the input's own and does not rewrite it (rule 3).
+			inputID = envBindingInputID(ext.Manifest, name)
+		}
 		secret.inputID = inputID
 		prepared = append(prepared, secret)
 	}

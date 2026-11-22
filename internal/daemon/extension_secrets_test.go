@@ -1819,6 +1819,126 @@ func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
 			t.Fatalf("invalid input leaked its value or did not block: %v %s", requiredErr, described)
 		}
 	})
+
+	// An unset removes the input value everywhere it is stored; a later write of another input neither
+	// resurrects it nor reports it as changed (BUG-20261122-unset-input-binding-resurrected).
+	t.Run("Should keep an unset dual-consumer input unset across later writes", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		runtime, ok := service.runtime.(*fakeExtensionRuntime)
+		if !ok {
+			t.Fatal("extension runtime is not a fakeExtensionRuntime")
+		}
+		runtime.getExt.Manifest = manifest
+		ctx := testutil.Context(t)
+		regionRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "REGION")
+		commit(t, service, manifest, initialValues)
+
+		if err := service.deleteExtensionSecretForProfileInstance(ctx, key, profile.ID, "REGION"); err != nil {
+			t.Fatalf("deleteExtensionSecretForProfileInstance() error = %v", err)
+		}
+		rows, err := service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if _, exists := rows["region"]; exists || secretVault.value(regionRef) != "" {
+			t.Fatalf("unset left the region value behind: rows=%#v", rows)
+		}
+		state, err := service.inputReader().load(ctx, instance, manifest)
+		if err != nil {
+			t.Fatalf("load() error = %v", err)
+		}
+		if setup := extensionpkg.DescribeInputSetup(manifest, state, service.getenv); !slices.Equal(
+			setup.Missing, []string{"region"},
+		) {
+			t.Fatalf("setup missing after unset = %#v, want region", setup.Missing)
+		}
+
+		changedAfter := func(t *testing.T, values map[string]extensioninput.Value) []string {
+			t.Helper()
+			binder := extensionInputBinder{service: service, partial: true}
+			var changed []string
+			err := service.lifecycle.withInstance(ctx, key, func() error {
+				plan, err := binder.Prepare(ctx, key, profile, manifest, values)
+				if err != nil {
+					return err
+				}
+				changed = plannedInputChanges(plan)
+				_, err = binder.Commit(ctx, plan)
+				return err
+			})
+			if err != nil {
+				t.Fatalf("Prepare/Commit() error = %v", err)
+			}
+			return changed
+		}
+		changed := changedAfter(t, map[string]extensioninput.Value{"project": {Value: json.RawMessage(`"other-41"`)}})
+		if !slices.Equal(changed, []string{"project"}) {
+			t.Fatalf("changed = %#v, want only the named project", changed)
+		}
+		if _, bound := bindingsByName(t, bindings)["REGION"]; bound || secretVault.value(regionRef) != "" {
+			t.Fatal("a later write re-bound the unset region value")
+		}
+
+		// `secrets set` after the unset binds the input again; it stays the input's own binding.
+		if _, err := service.setExtensionSecretsForProfileInstance(ctx, key, profile.ID,
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "REGION", Value: new("ap-south")},
+			}}); err != nil {
+			t.Fatalf("setExtensionSecretsForProfileInstance() error = %v", err)
+		}
+		if region := bindingsByName(t, bindings)["REGION"]; region.InputID != "region" {
+			t.Fatalf("secrets set binding = %#v, want it linked to the region input", region)
+		}
+		changed = changedAfter(t, map[string]extensioninput.Value{"project": {Value: json.RawMessage(`"third-41"`)}})
+		if !slices.Equal(changed, []string{"project"}) {
+			t.Fatalf("changed after secrets set = %#v, want only the named project", changed)
+		}
+		if secretVault.value(regionRef) != "ap-south" {
+			t.Fatal("a later write changed the secrets set region value")
+		}
+	})
+
+	t.Run("Should discard subprocess input values on removal so a reinstall starts from defaults", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		ctx := testutil.Context(t)
+		regionRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "REGION")
+		commit(t, service, manifest, initialValues)
+
+		scopes := []extensionpkg.InstallationScope{{ProfileID: profile.ID}}
+		retirement, err := service.retireExtensionBindingScopes(ctx, key.Name, scopes)
+		if err != nil {
+			t.Fatalf("retireExtensionBindingScopes() error = %v", err)
+		}
+		rows, err := service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if _, exists := rows["region"]; exists || secretVault.value(regionRef) != "" {
+			t.Fatalf("removal kept the region value: rows=%#v", rows)
+		}
+		_, err = extensionInputBinder{service: service}.Prepare(ctx, key, profile, manifest,
+			map[string]extensioninput.Value{"project": {Value: json.RawMessage(`"` + projectValue + `"`)}})
+		required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
+		if !ok || !slices.Equal(required.MissingInputs, []string{"region"}) {
+			t.Fatalf("reinstall Prepare() error = %v, want region missing instead of carried forward", err)
+		}
+
+		// A compensated removal restores the input row with the bindings.
+		if err := retirement.rollback(ctx, service); err != nil {
+			t.Fatalf("rollback() error = %v", err)
+		}
+		rows, err = service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if string(rows["region"].Value) != `"eu-west"` || bindingsByName(t, bindings)["REGION"].InputID != "region" {
+			t.Fatalf("rollback rows=%#v, want the region row and binding restored", rows)
+		}
+	})
 }
 
 func extensionSubprocessInputManifest() *extensionpkg.Manifest {

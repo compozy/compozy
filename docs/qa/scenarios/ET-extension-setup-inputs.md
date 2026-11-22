@@ -45,7 +45,11 @@ Steps:
    default mode: no prompt, `All required inputs of acme-tool are set.`, no restart.
 5. `compozy extension setup acme-tool --input project=platform-2` with stdin redirected: writes
    without prompting and exits 0. Remove the `api_token` binding with `secrets unset` and rerun
-   setup with stdin redirected: it lists the inputs, names `api_token`, and exits 2.
+   setup with stdin redirected: it lists the inputs, names `api_token`, and exits 2. Unset the
+   `REGION` binding of the dual-consumer `region` input: setup reads it as `daemon_env` or
+   `missing`, never `set`, and a later write of another input reports `Updated 1 input` and leaves
+   `REGION` unbound. Remove and reinstall in the same cell without a region value: `region` starts
+   from its default (or missing), not the old value.
 6. Repeat step 5's write on a `--workspace` instance and with `--profile <other>`; the global
    instance and the other profile are unchanged. `compozy extension setup acme-tool --workspace <W>`
    against the global installation fails before any prompt and names `--scope global`.
