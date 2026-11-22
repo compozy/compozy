@@ -2052,6 +2052,47 @@ func TestLoopInputValidationShouldRenderReadableAPIError(t *testing.T) {
 		}
 	})
 
+	t.Run("Should redact credential-shaped rejected values", func(t *testing.T) {
+		t.Parallel()
+
+		body, marshalErr := json.Marshal(contract.LoopValidationResponse{
+			InputValidation: &contract.LoopInputValidationErrorPayload{
+				Loop: "deliver-phases", Field: "phase", Kind: "number",
+				Value: "ghp_githubsecretvalue", Origin: "run", Reason: "type_mismatch",
+			},
+		})
+		if marshalErr != nil {
+			t.Fatalf("json.Marshal() error = %v", marshalErr)
+		}
+		err := readAPIErrorBody(http.StatusUnprocessableEntity, "422 Unprocessable Entity", body)
+		if err == nil {
+			t.Fatal("readAPIErrorBody() error = nil, want the readable refusal")
+		}
+		message := err.Error()
+		if strings.Contains(message, "ghp_githubsecretvalue") {
+			t.Fatalf("message = %q, want the credential redacted", message)
+		}
+		if !strings.Contains(message, "[REDACTED]") {
+			t.Fatalf("message = %q, want the redaction marker", message)
+		}
+
+		body, marshalErr = json.Marshal(contract.LoopValidationResponse{
+			InputValidation: &contract.LoopInputValidationErrorPayload{
+				Loop: "deliver-phases", Field: "gate_command", Kind: "string",
+				Value: "false", Origin: "run", Reason: "type_mismatch",
+			},
+		})
+		if marshalErr != nil {
+			t.Fatalf("json.Marshal() error = %v", marshalErr)
+		}
+		err = readAPIErrorBody(http.StatusUnprocessableEntity, "422 Unprocessable Entity", body)
+		want := `input "gate_command" (string) at run: type mismatch for value "false"; ` +
+			`quote it as a JSON string, for example --input 'gate_command="false"'`
+		if err == nil || err.Error() != want {
+			t.Fatalf("readAPIErrorBody() error = %v, want %q", err, want)
+		}
+	})
+
 	t.Run("Should keep a hostile field key inside one shell word", func(t *testing.T) {
 		t.Parallel()
 

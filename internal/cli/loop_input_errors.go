@@ -30,21 +30,24 @@ func parseLoopInputValidationAPIError(statusCode int, status string, body []byte
 const loopInputKindEnum = "enum"
 
 func loopInputValidationMessage(failure contract.LoopInputValidationErrorPayload) string {
-	kind := cmp.Or(strings.TrimSpace(failure.Kind), "input")
-	message := fmt.Sprintf("input %q (%s) at %s: ", failure.Field, kind, failure.Origin)
+	field := redactToolDiagnostic(failure.Field)
+	kind := cmp.Or(strings.TrimSpace(redactToolDiagnostic(failure.Kind)), "input")
+	message := fmt.Sprintf(
+		"input %q (%s) at %s: ", field, kind, redactToolDiagnostic(failure.Origin),
+	)
 	if strings.TrimSpace(failure.Reason) != "type_mismatch" {
 		return message + strings.ReplaceAll(
 			cmp.Or(strings.TrimSpace(failure.Reason), "invalid value"), "_", " ",
 		)
 	}
 	message += "type mismatch"
-	if value := strings.TrimSpace(failure.Value); value != "" {
+	if value := strings.TrimSpace(redactToolDiagnostic(failure.Value)); value != "" {
 		message += fmt.Sprintf(" for value %q", value)
 	}
 	if loopInputKindIsTextual(failure.Kind) {
 		message += fmt.Sprintf(
 			`; quote it as a JSON string, for example --input '%s="false"'`,
-			shellSafeLoopInputField(failure.Field),
+			shellSafeLoopInputField(field),
 		)
 	}
 	return message
@@ -68,10 +71,10 @@ func loopInputKindIsTextual(kind string) bool {
 }
 
 // shellSafeLoopInputField keeps the example pasteable as one shell word: input
-// keys are author-controlled, so strip terminal controls and close/reopen the
-// single-quoted string around any quote.
+// keys are author-controlled, so redact them, strip terminal controls, and
+// close/reopen the single-quoted string around any quote.
 func shellSafeLoopInputField(field string) string {
-	field = strings.TrimSpace(safeLoopPromptText(field))
+	field = redactToolDiagnostic(strings.TrimSpace(safeLoopPromptText(field)))
 	if field == "" {
 		return "field"
 	}
