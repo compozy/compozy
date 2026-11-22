@@ -581,7 +581,12 @@ func TestLinterShouldValidateAuthoredTerminalStatus(t *testing.T) {
 		}
 		errs := loop.NewLinter().Lint(definition)
 		requireLintCodes(t, errs, loop.CodeRouteMappingInvalid)
-		requireLintMessageContains(t, errs, loop.CodeRouteMappingInvalid, "requires at least one verification criterion")
+		requireLintMessageContains(
+			t,
+			errs,
+			loop.CodeRouteMappingInvalid,
+			"requires at least one verification criterion",
+		)
 	})
 
 	t.Run("Should reject a contract on_result route target", func(t *testing.T) {

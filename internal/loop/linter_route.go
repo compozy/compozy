@@ -116,7 +116,8 @@ func (c *lintContext) lintContractOnResult() {
 		c.add(
 			"",
 			CodeRouteMappingInvalid,
-			"contract.on_result requires at least one verification criterion; without one the definition-of-done gate is skipped",
+			"contract.on_result requires at least one verification criterion; without one the "+
+				"definition-of-done gate is skipped",
 		)
 	}
 	c.lintOnResult(onResultScope{
