@@ -3482,6 +3482,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addLoopRunOutcomeDiagnosticSchemas(baseline) == 0 {
 			t.Fatal("approved Loop run outcome diagnostics: no historical outcome schemas found")
 		}
+		// #1943: automation Loop targets carry the optional fire-time input command.
+		if addAutomationLoopInputCommandSchema(baseline) == 0 {
+			t.Fatal("approved automation Loop input command: no historical Loop target schemas found")
+		}
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
