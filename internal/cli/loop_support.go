@@ -111,23 +111,8 @@ func loopConfigPayloadFromDomain(ctx context.Context, cfg *looppkg.LoopConfig) (
 	return &payload, nil
 }
 
-func parseLoopInputFlags(flags []string) (map[string]any, error) {
-	raw, err := parseLoopInputFlagText(flags)
-	if err != nil {
-		return nil, err
-	}
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	values := make(map[string]any, len(raw))
-	for key, value := range raw {
-		values[key] = parseLoopValue(value)
-	}
-	return values, nil
-}
-
-// parseLoopInputFlagText keeps the text exactly as the operator typed it. Loop
-// runs need it because the declared input type only arrives with the definition.
+// parseLoopInputFlagText keeps --input text exactly as the operator typed it.
+// Loop runs and forks coerce it only once the declared input types are known.
 func parseLoopInputFlagText(flags []string) (map[string]string, error) {
 	if len(flags) == 0 {
 		return nil, nil

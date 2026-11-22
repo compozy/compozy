@@ -272,6 +272,7 @@ type stubClient struct {
 	getLoopTimelineFn  func(context.Context, string, string, LoopTimelineQuery) (contract.LoopTimelineResponse, error)
 	streamLoopEventsFn func(context.Context, string, string, int64, SSEHandler) error
 	cancelLoopRunFn    func(context.Context, string, string, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	forkLoopRunFn      func(context.Context, string, string, contract.ForkLoopRequest, agentidentity.Credentials) (contract.ForkLoopResponse, error)
 	listLoopNodesFn    func(context.Context, string, LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error)
 	pauseLoopNodeFn    func(context.Context, string, string, string, contract.LoopNodePauseRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
 	resumeLoopNodeFn   func(context.Context, string, string, string, contract.LoopNodeResumeRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
@@ -2243,8 +2244,15 @@ func (s *stubClient) RerunLoopRun(
 }
 
 func (s *stubClient) ForkLoopRun(
-	context.Context, string, string, contract.ForkLoopRequest, agentidentity.Credentials,
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	request contract.ForkLoopRequest,
+	credentials agentidentity.Credentials,
 ) (contract.ForkLoopResponse, error) {
+	if s.forkLoopRunFn != nil {
+		return s.forkLoopRunFn(ctx, workspaceID, runID, request, credentials)
+	}
 	return contract.ForkLoopResponse{}, errors.New("unexpected ForkLoopRun call")
 }
 

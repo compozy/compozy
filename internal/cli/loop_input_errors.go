@@ -26,6 +26,9 @@ func parseLoopInputValidationAPIError(statusCode int, status string, body []byte
 	}
 }
 
+// loopInputKindEnum is how the daemon reports an enum-backed string input.
+const loopInputKindEnum = "enum"
+
 func loopInputValidationMessage(failure contract.LoopInputValidationErrorPayload) string {
 	kind := cmp.Or(strings.TrimSpace(failure.Kind), "input")
 	message := fmt.Sprintf("input %q (%s) at %s: ", failure.Field, kind, failure.Origin)
@@ -38,12 +41,39 @@ func loopInputValidationMessage(failure contract.LoopInputValidationErrorPayload
 	if value := strings.TrimSpace(failure.Value); value != "" {
 		message += fmt.Sprintf(" for value %q", value)
 	}
-	switch failure.Kind {
-	case string(dsl.InputTypeString), string(dsl.InputTypeFile), string(dsl.InputTypeAgent),
-		string(dsl.InputTypeRef):
+	if loopInputKindIsTextual(failure.Kind) {
 		message += fmt.Sprintf(
-			`; quote it as a JSON string, for example --input '%s="false"'`, failure.Field,
+			`; quote it as a JSON string, for example --input '%s="false"'`,
+			shellSafeLoopInputField(failure.Field),
 		)
 	}
 	return message
+}
+
+// loopInputKindIsTextual reports whether the daemon's reported kind accepts
+// string text. It mirrors effectiveInputKind, which reports ref kinds and
+// "enum" instead of the base declared type.
+func loopInputKindIsTextual(kind string) bool {
+	trimmed := strings.TrimSpace(kind)
+	switch dsl.InputType(trimmed) {
+	case dsl.InputTypeString, dsl.InputTypeFile, dsl.InputTypeAgent, dsl.InputTypeRef:
+		return true
+	}
+	switch dsl.InputRefKind(trimmed) {
+	case dsl.InputRefKindSkill, dsl.InputRefKindLoop, dsl.InputRefKindWorktree,
+		dsl.InputRefKindSession, dsl.InputRefKindWorkspace, dsl.InputRefKindSecret:
+		return true
+	}
+	return trimmed == loopInputKindEnum
+}
+
+// shellSafeLoopInputField keeps the example pasteable as one shell word: input
+// keys are author-controlled, so strip terminal controls and close/reopen the
+// single-quoted string around any quote.
+func shellSafeLoopInputField(field string) string {
+	field = strings.TrimSpace(safeLoopPromptText(field))
+	if field == "" {
+		return "field"
+	}
+	return strings.ReplaceAll(field, "'", `'\''`)
 }

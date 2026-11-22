@@ -475,6 +475,84 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		}
 	})
 
+	t.Run("Should coerce fork overrides by the source executed definition", func(t *testing.T) {
+		t.Parallel()
+
+		definition := testLoopDefinition("release", 1)
+		definition.Inputs["gate_command"] = dsl.Input{Type: dsl.InputTypeString}
+		definition.Inputs["retries"] = dsl.Input{Type: dsl.InputTypeNumber}
+		document, err := contract.NewLoopDefinitionDocument(definition)
+		if err != nil {
+			t.Fatalf("NewLoopDefinitionDocument() error = %v", err)
+		}
+		lookups := 0
+		var captured contract.ForkLoopRequest
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			getLoopRunFn: func(_ context.Context, workspaceID, runID string) (contract.LoopRunResponse, error) {
+				lookups++
+				if workspaceID != "ws-alpha" || runID != "looprun-1" {
+					t.Fatalf("GetLoopRun target = %s/%s, want ws-alpha/looprun-1", workspaceID, runID)
+				}
+				return contract.LoopRunResponse{
+					Run:                contract.LoopRunPayload{ID: runID, LoopName: "release"},
+					ExecutedDefinition: &document,
+				}, nil
+			},
+			forkLoopRunFn: func(
+				_ context.Context,
+				workspaceID string,
+				runID string,
+				request contract.ForkLoopRequest,
+				_ agentidentity.Credentials,
+			) (contract.ForkLoopResponse, error) {
+				if workspaceID != "ws-alpha" || runID != "looprun-1" {
+					t.Fatalf("ForkLoopRun target = %s/%s, want ws-alpha/looprun-1", workspaceID, runID)
+				}
+				captured = request
+				return contract.ForkLoopResponse{Run: contract.LoopRunPayload{ID: "looprun-2"}}, nil
+			},
+		})
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "fork",
+			"--workspace", "alpha",
+			"--run-id", "looprun-1",
+			"--generation", "2",
+			"--input", "gate_command=false",
+			"--input", "retries=3",
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("executeRootCommand(loop fork typed inputs) error = %v", err)
+		}
+		if got, ok := captured.Inputs["gate_command"].(string); !ok || got != "false" {
+			t.Fatalf("ForkLoop gate_command = %#v, want the string false", captured.Inputs["gate_command"])
+		}
+		if got, ok := captured.Inputs["retries"].(json.Number); !ok || got.String() != "3" {
+			t.Fatalf("ForkLoop retries = %#v, want json.Number(3)", captured.Inputs["retries"])
+		}
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "fork",
+			"--workspace", "alpha",
+			"--run-id", "looprun-1",
+			"--generation", "2",
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("executeRootCommand(loop fork without overrides) error = %v", err)
+		}
+		if lookups != 1 {
+			t.Fatalf("GetLoopRun lookups = %d, want 1 for overrides only", lookups)
+		}
+		if captured.Inputs != nil {
+			t.Fatalf("ForkLoop inputs without overrides = %#v, want nil", captured.Inputs)
+		}
+	})
+
 	t.Run("Should publish file with expected version", func(t *testing.T) {
 		t.Parallel()
 
@@ -1934,6 +2012,69 @@ func TestLoopInputValidationShouldRenderReadableAPIError(t *testing.T) {
 		want := `input "phase" (number) at run: type mismatch for value "abc"`
 		if err == nil || err.Error() != want {
 			t.Fatalf("readAPIErrorBody() error = %v, want %q", err, want)
+		}
+	})
+
+	t.Run("Should quote-hint every textual effective kind", func(t *testing.T) {
+		t.Parallel()
+
+		for _, kind := range []string{
+			"string", "file", "agent", "ref", "skill", "loop", "worktree",
+			"session", "workspace", "secret", "enum",
+		} {
+			body, marshalErr := json.Marshal(contract.LoopValidationResponse{
+				InputValidation: &contract.LoopInputValidationErrorPayload{
+					Loop: "deliver-phases", Field: " target ", Kind: kind,
+					Origin: "run", Reason: "type_mismatch",
+				},
+			})
+			if marshalErr != nil {
+				t.Fatalf("json.Marshal() error = %v", marshalErr)
+			}
+			err := readAPIErrorBody(http.StatusUnprocessableEntity, "422 Unprocessable Entity", body)
+			if err == nil || !strings.Contains(err.Error(), `--input 'target="false"'`) {
+				t.Fatalf("kind %q message = %v, want the quoting hint", kind, err)
+			}
+		}
+
+		body, marshalErr := json.Marshal(contract.LoopValidationResponse{
+			InputValidation: &contract.LoopInputValidationErrorPayload{
+				Loop: "deliver-phases", Field: "phase", Kind: "number",
+				Origin: "run", Reason: "type_mismatch",
+			},
+		})
+		if marshalErr != nil {
+			t.Fatalf("json.Marshal() error = %v", marshalErr)
+		}
+		err := readAPIErrorBody(http.StatusUnprocessableEntity, "422 Unprocessable Entity", body)
+		if err == nil || strings.Contains(err.Error(), "quote it as a JSON string") {
+			t.Fatalf("number kind message = %v, want no quoting hint", err)
+		}
+	})
+
+	t.Run("Should keep a hostile field key inside one shell word", func(t *testing.T) {
+		t.Parallel()
+
+		body, marshalErr := json.Marshal(contract.LoopValidationResponse{
+			InputValidation: &contract.LoopInputValidationErrorPayload{
+				Loop: "deliver-phases", Field: "gate'command\x1b[31m",
+				Kind: "string", Origin: "run", Reason: "type_mismatch",
+			},
+		})
+		if marshalErr != nil {
+			t.Fatalf("json.Marshal() error = %v", marshalErr)
+		}
+		err := readAPIErrorBody(http.StatusUnprocessableEntity, "422 Unprocessable Entity", body)
+		if err == nil {
+			t.Fatal("readAPIErrorBody() error = nil, want the readable refusal")
+		}
+		message := err.Error()
+		if strings.Contains(message, "\x1b") {
+			t.Fatalf("message = %q, want terminal controls stripped", message)
+		}
+		want := `--input 'gate'\''command` + "\uFFFD" + `[31m="false"'`
+		if !strings.Contains(message, want) {
+			t.Fatalf("message = %q, want %q", message, want)
 		}
 	})
 }
