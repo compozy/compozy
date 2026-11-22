@@ -1476,6 +1476,29 @@ describe("Add with dependencies", () => {
     );
   });
 
+  it("Should name the dependencies a failed Add already installed", async () => {
+    io.preview.mockResolvedValueOnce(dependencyPreview());
+    io.install.mockRejectedValueOnce(
+      new MarketplaceApiError("acme-log failed to install", 422, "extension_inputs_required", false, {
+        dependenciesInstalled: ["acme-core", "acme-net"],
+      })
+    );
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+    await screen.findByRole("region", { name: "Also installs" });
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(await screen.findByTestId("extension-trust-confirm"));
+    await user.click(await screen.findByTestId("extension-gateway-confirm-accept"));
+
+    await waitFor(() =>
+      expect(io.error).toHaveBeenCalledWith("acme-log failed to install", {
+        description: "Installed first: acme-core, acme-net · extension_inputs_required",
+      })
+    );
+    expect(io.success).not.toHaveBeenCalled();
+  });
+
   it("Should abort the whole Add when a dependency gate is canceled", async () => {
     io.preview.mockResolvedValueOnce(dependencyPreview());
     renderRow(verified);

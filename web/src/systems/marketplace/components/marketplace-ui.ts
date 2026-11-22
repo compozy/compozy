@@ -23,6 +23,11 @@ export function marketplaceErrorCode(error: unknown): string | undefined {
   return undefined;
 }
 
+/** The dependencies a failed install already completed; they stay installed. */
+export function marketplaceDependenciesInstalled(error: unknown): readonly string[] {
+  return error instanceof MarketplaceApiError ? (error.dependenciesInstalled ?? []) : [];
+}
+
 interface MarketplaceTrustSubject {
   tier?: string;
   trust?: { checksum_verified: boolean } | null;
