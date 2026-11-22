@@ -1,6 +1,6 @@
 # BUG-20261122-install-enable-500: Installing a new local extension with --enable reports an Internal Server Error and leaves it off
 
-- **Status:** open-upstream (pre-existing, not caused by #1845)
+- **Status:** open-upstream (pre-existing, not caused by #1845; filed as compozy/compozy#1959)
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Bruno

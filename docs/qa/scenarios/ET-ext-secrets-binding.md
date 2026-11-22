@@ -7,11 +7,11 @@ journey: J-extension-kit-lifecycle
 expected: A declared environment key binds to an existing Vault reference or hidden input at the exact extension instance scope, while list and every transport expose only bound key names.
 entry_points: /docs/extensions/secrets, /docs/extensions/install and CLI extension secrets reference; compozy extension install (TTY input prompt); compozy extension secrets set --value-stdin|bind|list|unset [--workspace] -o json|jsonl|toon; GET|PUT|DELETE /api/extensions/:name/secrets[/env] over HTTP and UDS; compozy doctor --only extension
 qa_status: fail
-bug_ids: [BUG-20261122-install-enable-500, BUG-20261122-unset-input-binding-resurrected]
-fix_status: pending
-retest_status:
-fix_commits:
-evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a
+bug_ids: [BUG-20261122-install-enable-500, BUG-20261122-unset-input-binding-resurrected, BUG-20261122-workspace-enable-reads-global-inputs]
+fix_status: fixed
+retest_status: pass
+fix_commits: [331c6f564]
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a; docs/qa/evidence/2026-11-22-gh-1845-pr-a-rewalk
 last_report: docs/qa/reports/2026-11-22-gh-1845-pr-a-extension-inputs.md
 overlaps: ET-019; ET-web-extension-detail; ET-extension-setup-inputs
 ---
@@ -53,3 +53,12 @@ and the daemon's own environment absent from the subprocess. Step 1: the hidden 
 install work, but the install-time enable fails with a masked 500
 (BUG-20261122-install-enable-500); a later `enable` starts the extension and it receives
 `ACME_TOKEN`. Details in the dated report.
+
+Re-walk 2026-11-22 (lab build `331c6f564` stamped v0.7.9): step 4 passes. A workspace installation
+in `ws-b` went through `secrets unset --env ACME_TOKEN` and then `secrets set --value-stdin`.
+Setup read `api_token` `set`. The next `setup --input project=true` reported `Updated 1 input` and
+restarted the instance under a new PID, and the subprocess logged `ACME_TOKEN` present. The
+daemon's own `REGION`/`ACME_TOKEN` never reached it. A restart through `disable` then `enable` is
+refused by BUG-20261122-workspace-enable-reads-global-inputs, so the setup write did the restart.
+Step 1 was not re-walked; BUG-20261122-install-enable-500 is still open upstream (compozy/compozy#1959).
+Evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a-rewalk/cli/r5-sb4.txt, r8-sb4-restart.txt.

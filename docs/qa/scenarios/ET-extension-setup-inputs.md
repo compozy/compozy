@@ -7,11 +7,11 @@ journey: J-extension-kit-lifecycle
 expected: compozy extension setup prompts only for missing, invalid and daemon-environment inputs (or every input with --all), writes them to the selected instance, restarts it when enabled, and points to mcp auth login for OAuth servers; an agent through compozy__extensions_setup fills only missing, invalid or daemon_env inputs and is refused with extension_input_overwrite_denied for a set one.
 entry_points: /docs/extensions/install#complete-inputs-after-install and CLI extension setup reference; compozy extension setup <name> [--scope] [--workspace] [--profile] [--all] [--input|--input-file] [-o json|toon]; GET|PUT /api/extensions/:name/inputs over HTTP and UDS; compozy__extensions_setup
 qa_status: fail
-bug_ids: [BUG-20261122-unset-input-binding-resurrected, BUG-20261122-install-enable-500]
-fix_status: pending
-retest_status:
-fix_commits:
-evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a
+bug_ids: [BUG-20261122-unset-input-binding-resurrected, BUG-20261122-install-enable-500, BUG-20261122-workspace-enable-reads-global-inputs]
+fix_status: fixed
+retest_status: pass
+fix_commits: [331c6f564]
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a; docs/qa/evidence/2026-11-22-gh-1845-pr-a-rewalk
 last_report: docs/qa/reports/2026-11-22-gh-1845-pr-a-extension-inputs.md
 overlaps: ET-ext-secrets-binding; ET-web-marketplace-installed-management
 ---
@@ -73,3 +73,14 @@ Step 4's default rerun prompts a `daemon_env` input by design, so its "no prompt
 a local-path package cannot hold global and workspace installations at once. Step 7's agent
 identity rules are unverified (no provider in the lab); operator `tool invoke` read/write passes.
 Fails on BUG-20261122-unset-input-binding-resurrected. Details in the dated report.
+
+Re-walk 2026-11-22 (lab build `331c6f564` stamped v0.7.9, after the
+BUG-20261122-unset-input-binding-resurrected fix): step 5 passes. `--input project=…` with stdin
+redirected writes and exits 0. With `api_token` unbound, the redirected setup lists the inputs,
+names `api_token` and exits 2. After `secrets unset --env REGION`, `region` reads `daemon_env`.
+The next one-input write reports `Updated 1 input` and leaves `REGION` unbound. A reinstall in the
+same cell starts `region` from `daemon_env`, both after an unset and after removing a bound value.
+Steps 3, 6 and 7 were not re-walked. The scenario stays `fail` on the open
+BUG-20261122-install-enable-500 (filed upstream as compozy/compozy#1959) and the new
+BUG-20261122-workspace-enable-reads-global-inputs. Evidence:
+docs/qa/evidence/2026-11-22-gh-1845-pr-a-rewalk/cli/ (r1–r4).

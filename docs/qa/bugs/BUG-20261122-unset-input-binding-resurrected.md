@@ -1,6 +1,6 @@
 # BUG-20261122-unset-input-binding-resurrected: An unbound extension input value comes back on the next setup write or reinstall
 
-- **Status:** fixed (pending re-walk)
+- **Status:** verified (re-walk 2026-11-22, `331c6f564`)
 - **Impact (user-side):** Trust-Damage
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -107,3 +107,33 @@ carry-forward would bind it on reinstall.
   input" keeps F-1 covered.
 
 ## Verification
+
+Re-walk 2026-11-22: isolated `eng-qa-bootstrap` lab (fresh home, HTTP 40371, own UDS,
+`[automation] enabled = false`). Binary built from `331c6f564` stamped `v0.7.9`. The daemon ran
+with `REGION` and a canary `ACME_TOKEN` in its own environment. Fixture: same `acme-tool` as the
+original walk. Evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a-rewalk/cli/.
+
+- Repro steps 1–4 (r1-repro.txt): pass. `compozy__extensions_setup` wrote `region`, and the probe
+  read `REGION_VALUE=us-east-2`. `secrets unset --env REGION` → `bound_env_keys` `[ACME_TOKEN]`.
+  Setup read `region` `daemon_env`, not `set`. `setup --input project=false` printed
+  `Updated 1 input of acme-tool. Restarted acme-tool.` and left `REGION` unbound. The restarted
+  subprocess logged `R1=absent`.
+- Repro step 5 (r1-repro.txt): pass. Remove left `vault list` empty. A reinstall without a region
+  value created only `env/ACME_TOKEN`. `region` read `daemon_env`, and the probe recorded an empty
+  `REGION_VALUE`.
+- Removal of a bound region (r2-remove-bound.txt): pass. After `setup --input region=ap-south-1`
+  (probe `REGION_VALUE=ap-south-1`), remove and reinstall left `region` `daemon_env`, `REGION`
+  unbound, and the probe value empty.
+- Count after `unset` then `secrets set` (r3-unset-set-count.txt): pass. After
+  `secrets unset --env ACME_TOKEN` and `secrets set --value-stdin`, `api_token` read `set`. The next
+  `setup --input project=true` printed `Updated 1 input`, and the restarted subprocess had
+  `A1=present`.
+- F-1 upgrade carry-forward (r9-f1-upgrade.txt): pass. With v0.1.0, where `REGION` was not in
+  `requires_env`, a stored `region=sa-east-1` gave `bound_env_keys` `[ACME_TOKEN]` and
+  `R1=absent`. `install --replace` with v0.3.0, which adds `REGION`, bound it
+  (`[ACME_TOKEN, REGION]`) without re-entry. The probe read `REGION_VALUE=sa-east-1`.
+- No entered token or the daemon canary appears in CLI transcripts, the daemon log or runtime logs.
+- New, separate defect found while restarting a workspace instance:
+  BUG-20261122-workspace-enable-reads-global-inputs.
+
+**Status after re-walk:** verified fixed.
