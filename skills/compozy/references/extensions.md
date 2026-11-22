@@ -60,6 +60,8 @@ Native manifests declare install values with `[[inputs]]`: unique `id`, `prompt`
 An `env` binding must match a server's `env` or `secret_env` key (the map value is the input id),
 or name an author-declared `requires_env` entry; the latter delivers the value to the extension
 subprocess as that env var and needs `min_compozy_version >= 0.7.9` when no server references it.
+SDK-built extensions declare the same inputs with `inputs` (TS) / `Inputs` (Go); `build` writes them
+into the generated manifest.
 A `url_query` binding must match a parameter declared in a remote server URL. Server-bound secrets
 require `secret_env`; secrets cannot bind URLs or have defaults. Boolean defaults are booleans; other
 non-secret defaults are strings. Values are NUL-free and at most 8 KiB; identifier values use

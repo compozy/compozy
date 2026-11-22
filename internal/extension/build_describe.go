@@ -47,13 +47,15 @@ func manifestFromDescribe(input *extensioncontract.DescribePayload) (*Manifest, 
 	if err := validateDescribeCapabilityCoverage(&payload); err != nil {
 		return nil, err
 	}
+	inputs := manifestInputsFromDescribe(payload.Inputs)
 	manifest := &Manifest{
 		Name:                strings.TrimSpace(payload.Name),
 		Version:             strings.TrimSpace(payload.Version),
 		Description:         strings.TrimSpace(payload.Description),
 		MinCompozyVersion:   strings.TrimSpace(payload.SDK.MinCompozyVersion),
-		RequiresEnv:         payload.RequiresEnv,
+		RequiresEnv:         manifestRequiredEnv(payload.RequiresEnv, inputs),
 		DeclaredRequiresEnv: slices.Clone(payload.RequiresEnv),
+		Inputs:              inputs,
 		Profiles:            manifestProfilesFromDescribe(payload.Profiles),
 		Resources: ResourcesConfig{
 			Skills:     manifestResourcePathsFromDescribe(payload.Resources.Skills),

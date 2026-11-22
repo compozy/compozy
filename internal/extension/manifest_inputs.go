@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/marketplace"
 )
 
@@ -52,6 +53,22 @@ func decodeManifestInputs(documents []manifestInputDocument) ([]ManifestInput, e
 		return nil, nil
 	}
 	return inputs, nil
+}
+
+// manifestInputsFromDescribe applies the TOML decoder's normalization to SDK-described inputs.
+func manifestInputsFromDescribe(described []extensioncontract.DescribeInput) []ManifestInput {
+	if len(described) == 0 {
+		return nil
+	}
+	inputs := make([]ManifestInput, 0, len(described))
+	for _, input := range described {
+		inputs = append(inputs, ManifestInput{
+			ID: strings.TrimSpace(input.ID), Prompt: strings.TrimSpace(input.Prompt), Type: input.Type,
+			Required: input.Required, Default: cloneManifestRawMessage(input.Default),
+			Binding: marketplace.InputBinding{Type: input.Binding.Type, Name: strings.TrimSpace(input.Binding.Name)},
+		})
+	}
+	return inputs
 }
 
 func cloneManifestInputs(inputs []ManifestInput) []ManifestInput {

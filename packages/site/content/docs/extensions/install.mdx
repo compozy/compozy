@@ -562,6 +562,10 @@ default = "default-project"
 binding = { type = "env", name = "ACME_PROJECT" }
 ```
 
+SDK-built extensions declare the same inputs in code with `inputs` (TypeScript) or `Inputs` (Go);
+`compozy extension build` writes them into the generated manifest. See
+[Declare install inputs](/docs/extensions/develop#declare-install-inputs).
+
 A manifest whose input reaches only the subprocess must set `min_compozy_version` to `0.7.9` or newer;
 older daemons then refuse the package instead of misreading it. An input that is not referenced by a
 server and whose name is not in `requires_env` fails validation on `inputs[N].binding`.

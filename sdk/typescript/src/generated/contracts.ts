@@ -1524,6 +1524,20 @@ export interface DescribeGatewayRequirement {
   permissions: string[];
 }
 
+export interface DescribeInputBinding {
+  type: string;
+  name: string;
+}
+
+export interface DescribeInput {
+  id: string;
+  prompt: string;
+  type: string;
+  required: boolean;
+  binding: DescribeInputBinding;
+  default?: JSONValue;
+}
+
 export interface DescribeProfileDefaults {
   agent?: string;
   provider?: string;
@@ -1624,6 +1638,7 @@ export interface DescribePayload {
   provides: string[];
   permissions: string[];
   requires_env?: string[];
+  inputs?: DescribeInput[];
   profiles?: DescribeProfile[];
   resources: DescribeResources;
   subprocess: DescribeSubprocess;

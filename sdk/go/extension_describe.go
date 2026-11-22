@@ -57,6 +57,12 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 		permissions = append(permissions, string(method))
 	}
 
+	inputs := normalizeDescribeInputs(e.definition.Inputs)
+	minCompozyVersion := MinCompozyVersion
+	if len(inputs) > 0 {
+		// Released daemons reject described inputs, so emitting them raises the floor.
+		minCompozyVersion = InputsMinCompozyVersion
+	}
 	return contracts.DescribePayload{
 		Name:        strings.TrimSpace(e.definition.Name),
 		Version:     strings.TrimSpace(e.definition.Version),
@@ -64,6 +70,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 		Provides:    requiredStringList(e.definition.Capabilities.Provides),
 		Permissions: requiredStringList(permissions),
 		RequiresEnv: normalizeStrings(e.definition.RequiresEnv),
+		Inputs:      inputs,
 		Profiles:    normalizeDescribeProfiles(e.definition.Profiles),
 		Resources: contracts.DescribeResources{
 			Skills:     normalizeDescribeResourcePaths(e.definition.Resources.Skills),
@@ -89,9 +96,24 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			Name:              SDKName,
 			Version:           e.sdkVersion,
 			ProtocolVersion:   ProtocolVersion,
-			MinCompozyVersion: MinCompozyVersion,
+			MinCompozyVersion: minCompozyVersion,
 		},
 	}, nil
+}
+
+func normalizeDescribeInputs(inputs []Input) []Input {
+	if len(inputs) == 0 {
+		return nil
+	}
+	normalized := make([]Input, 0, len(inputs))
+	for _, input := range inputs {
+		normalized = append(normalized, Input{
+			ID: strings.TrimSpace(input.ID), Prompt: strings.TrimSpace(input.Prompt), Type: input.Type,
+			Required: input.Required, Default: cloneRawMessage(input.Default),
+			Binding: InputBinding{Type: input.Binding.Type, Name: strings.TrimSpace(input.Binding.Name)},
+		})
+	}
+	return normalized
 }
 
 func cmdPaletteViewIDs(config contracts.CmdPaletteConfig) []string {

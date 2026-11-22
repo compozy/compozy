@@ -7,6 +7,38 @@ import (
 	"time"
 )
 
+type HeartbeatPolicyPayload struct {
+	Actions          []ActionDecl                       `json:"actions"`
+	Authority        HeartbeatAuthorityPayload          `json:"authority"`
+	AgentName        string                             `json:"agent_name,omitempty"`
+	Enabled          bool                               `json:"enabled"`
+	Present          bool                               `json:"present"`
+	Active           bool                               `json:"active"`
+	Valid            bool                               `json:"valid"`
+	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SnapshotID       string                             `json:"snapshot_id,omitempty"`
+	SchemaVersion    int                                `json:"schema_version"`
+	Summary          string                             `json:"summary,omitempty"`
+	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
+	Frontmatter      HeartbeatFrontmatterPayload        `json:"frontmatter"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	ConfigProvenance HeartbeatConfigProvenancePayload   `json:"config_provenance"`
+	Prompt           HeartbeatPromptContributionPayload `json:"prompt"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	Limits           AuthoredContextLimitsPayload       `json:"limits"`
+	CreatedAt        *time.Time                         `json:"created_at,omitempty"`
+}
+
+type HeartbeatPreferencesPayload struct {
+	MinInterval  string                            `json:"min_interval"`
+	ActiveHours  []HeartbeatTimeWindowPayload      `json:"active_hours,omitempty"`
+	QuietWindows []HeartbeatTimeWindowPayload      `json:"quiet_windows,omitempty"`
+	Context      HeartbeatContextProjectionPayload `json:"context"`
+}
+
 type HeartbeatPromptContributionPayload struct {
 	Active           bool                               `json:"active"`
 	Digest           string                             `json:"digest,omitempty"`
@@ -201,7 +233,3 @@ type HookMatcher struct {
 	Trigger          string           `json:"compaction_trigger,omitempty"`
 	Autonomy         *AutonomyMatcher `json:"autonomy,omitempty"`
 }
-
-type HookMode string
-
-type HookRunOutcome string

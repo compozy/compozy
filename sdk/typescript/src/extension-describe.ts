@@ -1,4 +1,5 @@
 import {
+  SDK_INPUTS_MIN_COMPOZY_VERSION,
   SDK_MIN_COMPOZY_VERSION,
   SDK_NAME,
   type ExtensionDescribeProcess,
@@ -8,6 +9,7 @@ import type {
   CmdPaletteConfig,
   DescribePayload,
   DescribeHookEvent,
+  DescribeInput,
   DescribeProfile,
   DescribeResourcePath,
   ExtensionDefinition,
@@ -75,6 +77,7 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
     throw new Error("subprocess command is required");
   }
   const viewIDs = cmdPaletteViewIDs(input.definition.resources?.cmd_palette);
+  const inputs = normalizeDescribeInputs(input.definition.inputs);
 
   return {
     name: input.definition.name.trim(),
@@ -85,6 +88,7 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
     provides: normalizeStringList(input.definition.capabilities?.provides),
     permissions: normalizeHostMethodList(input.definition.permissions?.requires),
     requires_env: normalizeStringList(input.definition.requires_env),
+    ...(inputs.length === 0 ? {} : { inputs }),
     profiles: normalizeDescribeProfiles(input.definition.profiles),
     resources: {
       skills: normalizeDescribeResourcePaths(input.definition.resources?.skills),
@@ -116,9 +120,22 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
       name: SDK_NAME,
       version: input.sdkVersion,
       protocol_version: "1",
-      min_compozy_version: SDK_MIN_COMPOZY_VERSION,
+      // Released daemons reject described inputs, so emitting them raises the floor.
+      min_compozy_version:
+        inputs.length === 0 ? SDK_MIN_COMPOZY_VERSION : SDK_INPUTS_MIN_COMPOZY_VERSION,
     },
   };
+}
+
+function normalizeDescribeInputs(inputs: DescribeInput[] | undefined): DescribeInput[] {
+  return (inputs ?? []).map(input => ({
+    id: input.id.trim(),
+    prompt: input.prompt.trim(),
+    type: input.type,
+    required: input.required,
+    binding: { type: input.binding.type, name: input.binding.name.trim() },
+    ...(input.default === undefined ? {} : { default: structuredClone(input.default) }),
+  }));
 }
 
 function normalizeDescribeResourcePaths(

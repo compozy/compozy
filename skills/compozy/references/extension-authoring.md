@@ -35,7 +35,10 @@ byte-identical manifest.
 
 Published SDKs, both version-matched to the daemon: `@compozy/extension-sdk` on npm and
 `github.com/compozy/compozy/sdk/go`. `build` stamps `min_compozy_version` from the SDK, so an
-extension cannot claim compatibility its SDK does not have.
+extension cannot claim compatibility its SDK does not have. SDK definitions declare install inputs
+with `inputs` (TS) / `Inputs` (Go) in the manifest `[[inputs]]` grammar, each env binding listed in
+`requires_env`; describe emits them only when non-empty and then stamps `min_compozy_version` 0.7.9.
+`build` validates them like TOML inputs and fails on a secret default or an unlisted binding name.
 
 ## Templates
 

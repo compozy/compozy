@@ -91,6 +91,51 @@ compozysdk.Tool[searchInput](extension, "search", compozysdk.ToolOptions{
 
 Registering a tool adds `tool.provider` to `capabilities.provides` automatically.
 
+### Declare install inputs
+
+`inputs` (TypeScript) and `Inputs` (Go) use the manifest `[[inputs]]` grammar: `id`, `prompt`,
+`type` (`string`, `identifier`, `boolean`, or `secret`), `required`, `binding` with `type = "env"`
+and a `name`, and an optional `default` (never for `secret`). Each binding name must also appear in
+`requires_env`; the value then reaches the extension process as that env var.
+
+```ts
+const extension = new Extension({
+  name: "acme-tool",
+  version: "1.2.0",
+  requires_env: ["ACME_TOKEN"],
+  inputs: [
+    {
+      id: "api_token",
+      prompt: "API token for Acme",
+      type: "secret",
+      required: true,
+      binding: { type: "env", name: "ACME_TOKEN" },
+    },
+  ],
+  subprocess: { command: "node", args: ["dist/index.js"] },
+});
+```
+
+```go
+compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+	Name: "acme-tool", Version: "1.2.0",
+	RequiresEnv: []string{"ACME_TOKEN"},
+	Inputs: []compozysdk.Input{{
+		ID: "api_token", Prompt: "API token for Acme", Type: "secret", Required: true,
+		Binding: compozysdk.InputBinding{Type: "env", Name: "ACME_TOKEN"},
+	}},
+	Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
+})
+```
+
+`__describe` emits `inputs` only when at least one is declared, and then raises the emitted
+`min_compozy_version` to `0.7.9`. `build` writes the inputs into the generated `extension.toml` and
+validates them like hand-written `[[inputs]]`: a secret with a default or a binding name missing from
+`requires_env` fails the build with the manifest validation message. Build such an extension with
+CompozyOS 0.7.9 or newer; an older `compozy extension build` rejects the unknown `inputs` field.
+Installing and configuring the values is described in
+[Declare inputs for the extension process](/docs/extensions/install#declare-inputs-for-the-extension-process).
+
 The daemon checks input and output schema digests in both `__describe` and `provide_tools`. For
 U+2028 (line separator) and U+2029 (paragraph separator) in schema keys or values, it accepts the
 TypeScript SDK's literal UTF-8 encoding and the Go SDK's escaped encoding. The TypeScript encoding

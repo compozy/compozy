@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { Extension } from "../extension.js";
+import { SDK_INPUTS_MIN_COMPOZY_VERSION, SDK_MIN_COMPOZY_VERSION } from "../extension-contract.js";
 import {
   CONNECTIVITY_ESTABLISH_METHOD,
   CONNECTIVITY_STATUS_METHOD,
@@ -512,6 +513,64 @@ describe("Extension", () => {
       constructor: InternalError,
       data: { error: expect.stringContaining("models/list") },
     });
+  });
+
+  it("describes normalized inputs and raises the compatibility floor", () => {
+    const extension = new Extension({
+      name: "acme-tool",
+      version: "1.2.0",
+      requires_env: ["ACME_TOKEN", "ACME_REGION"],
+      inputs: [
+        {
+          id: " api_token ",
+          prompt: " API token for Acme ",
+          type: "secret",
+          required: true,
+          binding: { type: "env", name: " ACME_TOKEN " },
+        },
+        {
+          id: "region",
+          prompt: "Acme region",
+          type: "identifier",
+          required: false,
+          binding: { type: "env", name: "ACME_REGION" },
+          default: "us_east",
+        },
+      ],
+      subprocess: { command: "node", args: ["index.js"] },
+    });
+    const payload = extension.describe();
+    expect(payload.inputs).toEqual([
+      {
+        id: "api_token",
+        prompt: "API token for Acme",
+        type: "secret",
+        required: true,
+        binding: { type: "env", name: "ACME_TOKEN" },
+      },
+      {
+        id: "region",
+        prompt: "Acme region",
+        type: "identifier",
+        required: false,
+        binding: { type: "env", name: "ACME_REGION" },
+        default: "us_east",
+      },
+    ]);
+    expect(payload.inputs?.[0]).not.toHaveProperty("default");
+    expect(payload.sdk.min_compozy_version).toBe(SDK_INPUTS_MIN_COMPOZY_VERSION);
+  });
+
+  it("omits empty inputs and keeps the base compatibility floor", () => {
+    const extension = new Extension({
+      name: "acme-tool",
+      version: "1.2.0",
+      inputs: [],
+      subprocess: { command: "node", args: ["index.js"] },
+    });
+    const payload = extension.describe();
+    expect(payload).not.toHaveProperty("inputs");
+    expect(payload.sdk.min_compozy_version).toBe(SDK_MIN_COMPOZY_VERSION);
   });
 
   it("describes and polls heartbeat sources", async () => {
