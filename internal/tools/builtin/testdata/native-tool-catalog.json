@@ -1163,7 +1163,7 @@
     "output_schema_digest": "284ec01587bcf70f274c24ee8a2f25c01630553190e485224a14c1941d8e5755",
     "result_contract": "compact_full",
     "compact_output_schema_digest": "284ec01587bcf70f274c24ee8a2f25c01630553190e485224a14c1941d8e5755",
-    "full_output_schema_digest": "848e75972db001f3a0819fa4e7a1180cbd33086a71811dc01d4581d82d4aa9c3"
+    "full_output_schema_digest": "d4ffdc6c96e509fc20391a1e8f3bcb292cbb200cadd5b4610a4e54464e873a34"
   },
   {
     "tool_id": "compozy__extensions_init",
@@ -1194,7 +1194,7 @@
     "output_schema_digest": "284ec01587bcf70f274c24ee8a2f25c01630553190e485224a14c1941d8e5755",
     "result_contract": "compact_full",
     "compact_output_schema_digest": "284ec01587bcf70f274c24ee8a2f25c01630553190e485224a14c1941d8e5755",
-    "full_output_schema_digest": "848e75972db001f3a0819fa4e7a1180cbd33086a71811dc01d4581d82d4aa9c3"
+    "full_output_schema_digest": "d4ffdc6c96e509fc20391a1e8f3bcb292cbb200cadd5b4610a4e54464e873a34"
   },
   {
     "tool_id": "compozy__extensions_inventory",

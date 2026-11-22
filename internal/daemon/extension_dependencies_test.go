@@ -934,7 +934,7 @@ func (m *marketplaceDependencyFixture) rootRequest(t *testing.T) contract.Instal
 	}
 }
 
-// publish changes the plugin version, refreshes the source and returns the newly listed digest.
+// publish changes the plugin and listed version, refreshes the source and returns the newly listed digest.
 func (m *marketplaceDependencyFixture) publish(t *testing.T, version string) string {
 	t.Helper()
 	path := filepath.Join(m.pluginDir, ".claude-plugin", "plugin.json")
@@ -943,6 +943,7 @@ func (m *marketplaceDependencyFixture) publish(t *testing.T, version string) str
 		t.Fatal(err)
 	}
 	writeDaemonFile(t, path, strings.Replace(string(data), `"version": "1.0.0"`, `"version": "`+version+`"`, 1))
+	writeDesignListing(t, filepath.Dir(m.pluginDir), version)
 	if _, err := m.runtime.Refresh(t.Context(), "team"); err != nil {
 		t.Fatal(err)
 	}
@@ -953,6 +954,14 @@ func (m *marketplaceDependencyFixture) publish(t *testing.T, version string) str
 	return entry.DigestSHA256
 }
 
+// writeDesignListing lists the design plugin at version. A listing without a version lists the package revision,
+// which no min_version comparison can match.
+func writeDesignListing(t *testing.T, root, version string) {
+	t.Helper()
+	writeDaemonFile(t, filepath.Join(root, "marketplace.json"),
+		`{"plugins":[{"name":"design","source":"./plugin","version":"`+version+`"}]}`)
+}
+
 func newMarketplaceDependencyService(t *testing.T) *marketplaceDependencyFixture {
 	t.Helper()
 	ctx := t.Context()
@@ -961,7 +970,7 @@ func newMarketplaceDependencyService(t *testing.T) *marketplaceDependencyFixture
 		os.DirFS(filepath.Join("..", "extension", "testdata", "client-plugins", "open-design"))); err != nil {
 		t.Fatal(err)
 	}
-	writeDaemonFile(t, filepath.Join(root, "marketplace.json"), `{"plugins":[{"name":"design","source":"./plugin"}]}`)
+	writeDesignListing(t, root, "1.0.0")
 	feed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if _, err := fmt.Fprint(
