@@ -128,9 +128,15 @@ const (
 
 // ExtensionDefinition describes one extension process implementation.
 type ExtensionDefinition struct {
-	Name                string              `json:"name"`
-	Version             string              `json:"version"`
-	Description         string              `json:"description,omitempty"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description,omitempty"`
+	// MinCompozyVersion is the oldest CompozyOS daemon this extension supports.
+	//
+	// Empty keeps MinCompozyVersion, the floor of the SDK release that built the
+	// extension. `compozy extension build` writes the higher of the two floors to
+	// the generated manifest, so a declared floor never lowers the SDK's own.
+	MinCompozyVersion   string              `json:"min_compozy_version,omitempty"`
 	RequiresEnv         []string            `json:"requires_env,omitempty"`
 	Profiles            []DescribeProfile   `json:"profiles,omitempty"`
 	Resources           DescribeResources   `json:"resources,omitempty"` //nolint:modernize // omitempty is a no-op on this struct; omitzero would drop the zero DescribeResources object from the wire.
