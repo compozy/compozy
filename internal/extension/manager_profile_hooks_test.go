@@ -80,9 +80,9 @@ func TestAppendProfileHookDeclarationsInjectsWorkspaceScopedMatchers(t *testing.
 				Mode:   hookspkg.HookModeAsync,
 			},
 			matchesWorkspace: func(matcher hookspkg.HookMatcher, workspaceID string) bool {
-				return matcher.MatchesEvent(hookspkg.EventRecordPayload{
-					SessionContext: hookspkg.SessionContext{WorkspaceID: workspaceID},
-				})
+				var payload hookspkg.EventRecordPayload
+				payload.WorkspaceID = workspaceID
+				return matcher.MatchesEvent(payload)
 			},
 		},
 		{
@@ -94,9 +94,9 @@ func TestAppendProfileHookDeclarationsInjectsWorkspaceScopedMatchers(t *testing.
 				Mode:   hookspkg.HookModeAsync,
 			},
 			matchesWorkspace: func(matcher hookspkg.HookMatcher, workspaceID string) bool {
-				return matcher.MatchesMessage(hookspkg.MessagePayload{
-					SessionContext: hookspkg.SessionContext{WorkspaceID: workspaceID},
-				})
+				var payload hookspkg.MessagePayload
+				payload.WorkspaceID = workspaceID
+				return matcher.MatchesMessage(payload)
 			},
 		},
 		{
@@ -108,9 +108,9 @@ func TestAppendProfileHookDeclarationsInjectsWorkspaceScopedMatchers(t *testing.
 				Mode:   hookspkg.HookModeSync,
 			},
 			matchesWorkspace: func(matcher hookspkg.HookMatcher, workspaceID string) bool {
-				return matcher.MatchesContextCompact(hookspkg.ContextCompactionPayload{
-					SessionContext: hookspkg.SessionContext{WorkspaceID: workspaceID},
-				})
+				var payload hookspkg.ContextCompactionPayload
+				payload.WorkspaceID = workspaceID
+				return matcher.MatchesContextCompact(payload)
 			},
 		},
 	}
