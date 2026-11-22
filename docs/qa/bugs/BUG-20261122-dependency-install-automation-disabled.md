@@ -1,6 +1,6 @@
 # BUG-20261122-dependency-install-automation-disabled: Dependency installs fail on a daemon with automation disabled
 
-- **Status:** fixed, pending re-walk
+- **Status:** verified
 - **Impact (user-side):** Blocker for `--with-dependencies` and the Web Add flow when `[automation] enabled = false`
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -79,4 +79,13 @@ step 3 and #1959 on a daemon with `[automation] enabled = false`.
 
 ## Verification
 
-Pending upstream fix. The rest of this walk ran with `[automation] enabled = true`.
+Verified 2026-11-22 on `0cb8b750d` (re-walk report
+`docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md`). The isolated lab ran with
+`[automation] enabled = false` throughout. Step 3 refused at the `acme-base` gateway confirmation, with
+`dependencies_installed: ["acme-core"]` and `acme-core` `active`. The full
+`--with-dependencies --confirm-gateway-requirement acme-base=…` install exited 0 with acme-tool and
+both dependencies `active`. A fresh chain install (`acme-chain` → `acme-mid` → `acme-leaf`), the
+marketplace dependency install (`acme-mkt` → `acme-design`) and the Web Add of `acme-kit` with
+`acme-webdep` all ended with every dependency installed and active. The daemon log has no
+`previewer is required` line. Evidence: `docs/qa/evidence/2026-11-22-gh-1845-pr-b-rewalk/cli/transcript.md`
+("S3 … (automation disabled)", "HP …", "HP2 …", "S11 CLI install …", "W after Web Add …") and screenshots 01–02.

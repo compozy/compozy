@@ -1,6 +1,6 @@
 # BUG-20261122-enable-dependency-guidance-flag: The enable refusal suggests a flag that enable does not have
 
-- **Status:** fixed, pending re-walk
+- **Status:** verified
 - **Impact (user-side):** Confusion; the suggested command fails
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Bruno
@@ -47,4 +47,10 @@ the dependent with `--with-dependencies`. Test: "Should guide enable without the
 
 ## Verification
 
-Pending fix.
+Verified 2026-11-22 on `0cb8b750d` (re-walk report
+`docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md`). With acme-core disabled,
+`compozy extension enable acme-tool` prints
+`extension dependencies unmet: acme-core (disabled). Enable first: compozy extension enable acme-core.`
+and exits 2. With a missing dependency, `compozy extension enable acme-rel` prints
+`Install acme-reldep first, or reinstall this extension with compozy extension install <source> --with-dependencies (experimental).`
+Neither suggests a flag on `enable`.

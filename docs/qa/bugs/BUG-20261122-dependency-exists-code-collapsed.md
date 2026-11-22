@@ -1,6 +1,6 @@
 # BUG-20261122-dependency-exists-code-collapsed: A dependency's extension_exists refusal is reported as extension_install_failed
 
-- **Status:** fixed, pending re-walk
+- **Status:** verified
 - **Impact (user-side):** Friction for agents and scripts that branch on the error code
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Bruno
@@ -56,4 +56,14 @@ acquisition code (`extension_exists`) and add `dependency`, the same way it alre
 
 ## Verification
 
-Pending fix.
+Verified 2026-11-22 on `0cb8b750d` (re-walk report
+`docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md`):
+- Step 12: `acme-p12dep` is installed only for profile `other`, and its source bytes have changed. The
+  preview reports `state: installed_elsewhere` with
+  `retry_command: compozy extension update acme-p12dep --scope global --profile other`. The install
+  refuses with `extension_dependencies_required` and the same command. `acme-p12a`, listed first, was
+  not installed, and `other` keeps 0.1.0.
+- Commit-time collision: in two concurrent installs that share the missing `acme-racedep`, the loser
+  returned `code: "extension_exists"`, `diagnostic.id: extension.exists`, `dependency: "acme-racedep"`.
+- Step 11: a direct API install without `expected_digest` returns 400 with
+  `issues[{field: "expected_digest"}]` and `dependency: "acme-design"`.

@@ -62,3 +62,8 @@ daemon's own `REGION`/`ACME_TOKEN` never reached it. A restart through `disable`
 refused by BUG-20261122-workspace-enable-reads-global-inputs, so the setup write did the restart.
 Step 1 was not re-walked; BUG-20261122-install-enable-500 is still open upstream (compozy/compozy#1959).
 Evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a-rewalk/cli/r5-sb4.txt, r8-sb4-restart.txt.
+
+QA 2026-11-22 (GH-1845 PR B re-walk, head `0cb8b750d`, `[automation] enabled = false`): the
+no-input fixture `acme-plain` installed with `--enable` and started in one step, so
+BUG-20261122-install-enable-500 (compozy/compozy#1959) is verified (report `docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md`). The input-bearing
+install in this scenario's step 1 was not re-walked.

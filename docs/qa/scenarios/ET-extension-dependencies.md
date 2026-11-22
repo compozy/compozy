@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-extension-kit-lifecycle
 expected: install of a package declaring [[requires.extensions]] refuses with extension_dependencies_required until consent; a human TTY shows one consolidated preview and each dependency's own trust gates, a non-TTY needs --with-dependencies plus per-name consent; remove and disable of a needed dependency refuse with extension_dependency_in_use listing the dependents until --force; a forced removal never cascades and the dependent reports unmet_dependencies while it keeps running; enabling a dependent with unmet dependencies refuses with extension_dependencies_required.
 entry_points: compozy extension install <source> [--with-dependencies] [--allow-unverified-dependency <name>] [--confirm-gateway-requirement <name>=<digest>]; compozy extension remove|disable <name> [--force]; compozy extension status <name>; POST /api/extensions and /api/extensions/preview-install; DELETE /api/extensions/{name}?force=true; PUT /api/extensions/{name}/enablement {force}; compozy__extensions_install|remove|disable
-qa_status: fail
+qa_status: pass
 bug_ids: [BUG-20261122-dependency-install-automation-disabled, BUG-20261122-dependency-exists-code-collapsed, BUG-20261122-enable-dependency-guidance-flag]
-fix_status: pending
-retest_status: pending
-fix_commits: []
-evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-b
-last_report: docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies.md
+fix_status: fixed
+retest_status: pass
+fix_commits: [08bd19a60, 0cb8b750d]
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-b; docs/qa/evidence/2026-11-22-gh-1845-pr-b-rewalk
+last_report: docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md
 overlaps: ET-extension-setup-inputs; ET-web-extension-union-install; ET-extension-profile-enablement
 ---
 
@@ -73,8 +73,12 @@ Steps:
     `registry_tier`, without any consent. Installing with `--with-dependencies` pins that digest;
     a direct API call without `dependencies.<name>.expected_digest` refuses naming the dependency.
 12. A dependency installed only for another profile, whose source has since published new bytes:
-    installing the root with `--with-dependencies` refuses with `extension_exists` naming the
-    dependency and `compozy extension update`; the other profile keeps the installed version.
+    the preview reports it as `installed_elsewhere` with a scoped
+    `compozy extension update <dep> --scope <scope> --profile <profile>` `retry_command`. Installing
+    the root with `--with-dependencies` refuses with `extension_dependencies_required` and that
+    command before it installs any dependency, and the other profile keeps the installed version. A
+    dependency that a concurrent install commits first still refuses with `extension_exists` and
+    `dependency`.
 13. With a disabled unverified dependency installed, the preview lists it with its
     `installed_version`, `registry_tier: "unverified"` and, if its gateway confirmation no longer
     covers it, its gateway digest; the CLI calls it `unverified` and the Web shows `Not verified`.
@@ -97,3 +101,21 @@ folder plugin source, so the dependency was `unverified` and needed `consent_req
 confirmation no longer covers it) was not reachable without an update. A transitive chain
 (`acme-chain` → `acme-mid` → `acme-leaf`) and a diamond (`acme-top` → `acme-left`/`acme-right` →
 `acme-core`, merged `min_version` 0.5.0, both parents in `required_by`) were also verified.
+
+QA re-walk 2026-11-22 (head `0cb8b750d`, fresh isolated lab, `[automation] enabled = false` throughout,
+report `docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md`):
+- Step 3 passes. The full `--with-dependencies` install ends with acme-tool, acme-core and acme-base
+  installed and active, and so do a fresh chain install and the step 11 marketplace dependency.
+- Step 7 now prints `Enable first: compozy extension enable acme-core.`, or install guidance for a
+  missing dependency, with no flag suggested on `enable`.
+- Step 12 previews `installed_elsewhere` with
+  `compozy extension update acme-p12dep --scope global --profile other`. It refuses before installing
+  the first-listed missing dependency, and the other profile keeps 0.1.0. The step text was updated
+  to this contract.
+- A dependency-attributed commit collision keeps `extension_exists`. The step 11 missing
+  `expected_digest` response is a 400 validation response with `field: expected_digest`.
+- A source offering only a version below `min_version` is refused without dependency consent prompts
+  or a `--with-dependencies` hint.
+- A relative `local_path` ref (`../acme-reldep`) resolves against the dependent's folder.
+
+All four defects are verified. Steps 1, 2, 4–6, 8–10 and 13 were not re-walked.

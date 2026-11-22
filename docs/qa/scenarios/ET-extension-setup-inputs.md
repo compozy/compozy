@@ -84,3 +84,8 @@ Steps 3, 6 and 7 were not re-walked. The scenario stays `fail` on the open
 BUG-20261122-install-enable-500 (filed upstream as compozy/compozy#1959) and the new
 BUG-20261122-workspace-enable-reads-global-inputs. Evidence:
 docs/qa/evidence/2026-11-22-gh-1845-pr-a-rewalk/cli/ (r1–r4).
+
+QA 2026-11-22 (GH-1845 PR B re-walk, head `0cb8b750d`, `[automation] enabled = false`): the
+no-input fixture `acme-plain` installed with `--enable` and started in one step, so
+BUG-20261122-install-enable-500 (compozy/compozy#1959) is verified (report `docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md`). The input-bearing
+install in this scenario's step 1 was not re-walked.

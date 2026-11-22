@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: untested
 fix_commits:
-evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a/screenshots; docs/qa/evidence/2026-11-22-gh-1845-pr-b/screenshots
-last_report: docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies.md
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a/screenshots; docs/qa/evidence/2026-11-22-gh-1845-pr-b/screenshots; docs/qa/evidence/2026-11-22-gh-1845-pr-b-rewalk/screenshots
+last_report: docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md
 overlaps: ET-web-extensions-manage; ET-extension-published-source-installs
 ---
 
@@ -89,3 +89,12 @@ later first" with Add disabled (05). After `remove acme-webdep --force`, the acm
 "Missing dependency: acme-webdep" with Install (06). The source-union local-path Add of `acme-solo`
 surfaced "extension: dependencies required: acme-webdep (missing)" (07). The source-guidance parts
 were not re-walked.
+
+QA re-walk 2026-11-22 (head `0cb8b750d`, daemon with `[automation] enabled = false`, report
+`docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md`): the Add of the catalog `acme-kit` showed **Also installs** `acme-webdep v0.3.0` (Not verified,
+Local path, Remote access digest) (01). It then opened the `acme-webdep` trust gate and the
+remote-access gate with its fingerprint. One `POST /api/extensions` (201) followed the preview, and
+the toast read "acme-kit added with acme-webdep" (02). `acme-kit` and `acme-webdep` were active, so
+BUG-20261122-dependency-install-automation-disabled no longer blocks the joint install. The Add of
+`acme-kit-high`, which requires `acme-lowdep >= 9.0.0` while its source has 0.1.0, showed "Its source
+has no version of acme-lowdep at 9.0.0 or later" with Add disabled (03).
