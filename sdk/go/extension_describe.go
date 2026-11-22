@@ -57,6 +57,11 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 		permissions = append(permissions, string(method))
 	}
 
+	minCompozyVersion := strings.TrimSpace(e.definition.MinCompozyVersion)
+	if minCompozyVersion == "" {
+		minCompozyVersion = MinCompozyVersion
+	}
+
 	return contracts.DescribePayload{
 		Name:        strings.TrimSpace(e.definition.Name),
 		Version:     strings.TrimSpace(e.definition.Version),
@@ -89,7 +94,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			Name:              SDKName,
 			Version:           e.sdkVersion,
 			ProtocolVersion:   ProtocolVersion,
-			MinCompozyVersion: MinCompozyVersion,
+			MinCompozyVersion: minCompozyVersion,
 		},
 	}, nil
 }
