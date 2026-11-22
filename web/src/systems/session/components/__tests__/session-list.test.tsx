@@ -4488,9 +4488,9 @@ describe("SessionList breadth and Group by", () => {
     expect(toggleGroup).toHaveBeenCalledWith("project:ws-beta");
   });
 
-  // Invariant (#1926): a collapsed group's running work leads its header, in the column the
-  // session rows' marks use; needs-you stays on the right; an open group shows its rows instead.
-  it("Should lead a collapsed group with its running signal and keep needs-you on the right", async () => {
+  // Invariant (#1926): a collapsed group's leading column carries one glyph with the rows'
+  // precedence, needs you over running, named for both; the right keeps no needs-you dot.
+  it("Should lead a collapsed group with needs-you over running, named for both", async () => {
     const groups = projectSessionGroups(
       {
         by_workspace: [
@@ -4502,15 +4502,22 @@ describe("SessionList breadth and Group by", () => {
     );
     renderList({
       sessions: [],
-      view: grouped({ groups, collapsedGroupKeys: new Set(["project:ws-beta"]) }),
+      view: grouped({
+        groups,
+        collapsedGroupKeys: new Set(["project:ws-alpha", "project:ws-beta"]),
+      }),
     });
 
     const beta = await screen.findByTestId("session-sidebar-group-project:ws-beta");
     const leading = beta.firstElementChild as HTMLElement;
-    expect(within(leading).getByRole("img", { name: "3 sessions working" })).toBeInTheDocument();
-    expect(leading).not.toContainElement(within(beta).getByRole("img", { name: "2 need you" }));
+    const both = within(leading).getByRole("img", { name: "2 need you, 3 sessions working" });
+    expect(both.closest("[data-slot]")).toHaveAttribute("data-slot", "session-group-needs-you");
+    expect(beta.querySelectorAll("[data-slot^='session-group-']")).toHaveLength(1);
+    expect(within(beta).queryByRole("img", { name: "2 need you" })).not.toBeInTheDocument();
     const alpha = screen.getByTestId("session-sidebar-group-project:ws-alpha");
-    expect(within(alpha).queryByRole("img", { name: "1 session working" })).not.toBeInTheDocument();
+    expect(
+      within(alpha.firstElementChild as HTMLElement).getByRole("img", { name: "1 session working" })
+    ).toBeInTheDocument();
   });
 
   // Invariant: group headers take the same disclosure keys as folder headers.
@@ -4868,6 +4875,24 @@ describe("SessionList breadth and Group by", () => {
     expect(
       screen.queryByTestId("session-sidebar-project-folder-wf-1-menu-new-session")
     ).not.toBeInTheDocument();
+  });
+
+  // Invariant (#1926): a collapsed project folder leads with its projects' needs-you glyph,
+  // the rows' precedence over running, in the chevron's place.
+  it("Should lead a collapsed project folder with its projects' needs-you signal", async () => {
+    const user = userEvent.setup();
+    const { view: foldered } = projectFoldered([
+      { workspace_id: "ws-beta", folder_id: "wf-1", position: 0 },
+    ]);
+    renderList({ sessions: [], view: foldered });
+    const toggle = await screen.findByTestId("session-sidebar-project-folder-wf-1-toggle");
+    expect(within(toggle).queryByRole("img", { name: "2 need you" })).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(
+      within(toggle.firstElementChild as HTMLElement).getByRole("img", { name: "2 need you" })
+    ).toBeInTheDocument();
   });
 
   it("Should create a project folder from the list's New folder", async () => {

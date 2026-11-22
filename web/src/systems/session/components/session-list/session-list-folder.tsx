@@ -16,7 +16,7 @@ import { openContextMenuFromKeyboard } from "@/systems/os/lib/context-menu-keybo
 
 import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
 import { onDisclosureArrowKey } from "../../lib/session-list-stops";
-import { SessionListDisclosureMark, SessionListRunningGlyph } from "./session-list-disclosure-mark";
+import { SessionListDisclosureMark } from "./session-list-disclosure-mark";
 
 export interface SessionListFolderProps {
   folder: { id: string; name: string };
@@ -24,6 +24,8 @@ export interface SessionListFolderProps {
   count?: number;
   /** Member rows working; a collapsed folder shows it in the leading column (#1926). */
   running?: number;
+  /** Member rows needing you; outranks `running` in the collapsed leading glyph. */
+  needsYou?: number;
   /**
    * What the folder holds. A project folder (issue #1044) starts no sessions and
    * hangs its projects on a tree rail; a session folder indents its threads.
@@ -53,6 +55,7 @@ export function SessionListFolder({
   folder,
   count,
   running = 0,
+  needsYou = 0,
   holds = "sessions",
   expanded,
   onToggle,
@@ -101,11 +104,7 @@ export function SessionListFolder({
       >
         <SessionListDisclosureMark
           open={expanded}
-          signal={
-            running > 0 ? (
-              <SessionListRunningGlyph count={running} slot="session-folder-working" />
-            ) : undefined
-          }
+          signal={{ needsYou, working: running, slot: "session-folder" }}
         />
         <Icon as={Folder} size="sm" className="shrink-0 text-faint" />
         <span className="min-w-0 flex-1 truncate font-medium text-fg">{folder.name}</span>

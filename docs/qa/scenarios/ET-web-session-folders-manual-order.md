@@ -42,3 +42,4 @@ Issue #1827 (pinned sessions, 2026-11-18): a pinned session leaves its folder vi
 qa-impact: 2026-11-21 (#1926) — a collapsed session folder holding running sessions shows the running
 glyph in its chevron's place ("N sessions working"); the chevron returns on hover or keyboard focus and an
 open folder shows its rows instead. Walk it with ET-web-session-sidebar-threads. A collapsed paged session folder (#1935) reads its count only; the daemon returns `page.working` with that count, so it still shows the running glyph.
+A collapsed project folder sums its projects' needs-you and working counts and leads with the attention glyph when any project needs you ("N need you, M sessions working"), else the running glyph. Session folders carry no needs-you count, so they stay running-only.

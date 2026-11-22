@@ -18,39 +18,37 @@ import {
 import { AlwaysOnCreateMenu } from "../always-on/always-on-create-menu";
 import { AlwaysOnCollapsedSignal } from "../always-on/always-on-signals";
 import { SessionListCreateMenu } from "./session-list-create-menu";
-import { SessionListRunningGlyph } from "./session-list-disclosure-mark";
 import { SessionListGroupFolderDialog } from "./session-list-group-folder-dialog";
 import { SessionListGroupProjectMenu } from "./session-list-group-project-menu";
 import { SessionListGroupToggle } from "./session-list-group-toggle";
 
 /**
  * Collapsed header signal: needs-you outranks working; an open group shows its rows
- * instead. The sidebar header passes `working={false}`: its leading column carries
- * working, so the right keeps needs-you alone.
+ * instead. The sidebar header passes `states={false}`: its leading column carries
+ * needs-you and working (#1926), so the right keeps the always-on signal alone.
  */
 export function SessionListGroupSignal({
   group,
-  working = true,
+  states = true,
 }: {
   group: SessionListGroupSpec;
-  working?: boolean;
+  states?: boolean;
 }) {
   const scope = group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
   return (
     <>
       {scope ? <AlwaysOnCollapsedSignal workspaceId={scope} /> : null}
-      <SessionGroupSignal group={group} working={working} />
+      {states ? <SessionGroupSignal group={group} /> : null}
     </>
   );
 }
 
-function SessionGroupSignal({ group, working }: { group: SessionListGroupSpec; working: boolean }) {
+function SessionGroupSignal({ group }: { group: SessionListGroupSpec }) {
   const label = sessionListGroupSignalLabel(group);
   if (label === null) return null;
   if (group.needsYou > 0) {
     return <StatusDot tone="attn" size="sm" label={label} data-slot="session-group-needs-you" />;
   }
-  if (!working) return null;
   return <StatusDot tone="success" size="sm" label={label} data-slot="session-group-working" />;
 }
 
@@ -175,12 +173,8 @@ export function SessionListGroupHeader({
             count={group.total}
             identity={<SessionListGroupIdentity group={group} />}
             onToggle={onToggle}
-            signal={<SessionListGroupSignal group={group} working={false} />}
-            running={
-              group.working > 0 ? (
-                <SessionListRunningGlyph count={group.working} slot="session-group-working" />
-              ) : undefined
-            }
+            signal={<SessionListGroupSignal group={group} states={false} />}
+            leading={{ needsYou: group.needsYou, working: group.working, slot: "session-group" }}
             testId={testId}
           />
           {alwaysOn ? (
