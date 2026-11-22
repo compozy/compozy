@@ -196,7 +196,7 @@ export function gateFields(_raw: RawLoopNode): FieldSpec[] {
       mono: true,
       json: true,
       placeholder: '"continue" or {"route":"node_id"}',
-      hint: 'Use continue, revise, next_generation, escalate, halt, or {"route":"node_id"}. The object target must be a declared forward edge.',
+      hint: 'Use continue, revise, next_generation, escalate, halt, {"route":"node_id"}, or {"action":"halt","terminal_status":"blocked"}. The object target must be a declared forward edge.',
     },
     {
       type: "text",
@@ -206,7 +206,7 @@ export function gateFields(_raw: RawLoopNode): FieldSpec[] {
       mono: true,
       json: true,
       placeholder: '"revise" or {"route":"node_id"}',
-      hint: 'Use continue, revise, next_generation, escalate, halt, or {"route":"node_id"}. The removed branch action is rejected.',
+      hint: 'Use continue, revise, next_generation, escalate, halt, {"route":"node_id"}, or {"action":"halt","terminal_status":"blocked"}. The removed branch action is rejected.',
     },
     {
       type: "number",
