@@ -113,7 +113,7 @@ func (m *Manager) resolveInstanceEnvMap(
 	return values, cleanups, nil
 }
 
-// launchInput is one input delivered to the subprocess. An unbound required server-consumed input is
+// launchInput is one input delivered to the subprocess. An unbound server-consumed input is
 // decided by the readiness precedence: its active typed row, then its default, then the daemon
 // environment (rule 5a).
 type launchInput struct {
@@ -209,12 +209,12 @@ type InputRowReader interface {
 	List(context.Context, extensioninput.Instance) (map[string]extensioninput.Record, error)
 }
 
-// serverInputsSatisfiedElsewhere decides each unbound, required server-consumed input with the readiness
+// serverInputsSatisfiedElsewhere decides each unbound server-consumed input with the readiness
 // precedence (effectiveInputValue): an active typed row wins, valid or not; a default comes next; the
 // daemon environment (daemon_env, rule 5a) is read only without either. A ready name is satisfied without
 // a delivered value; an invalid row or daemon value is marked invalid, so it blocks start and never falls
 // back to the default (rule 4). stored names the inputs an active typed row satisfies, which outranks
-// the default.
+// the default for optional inputs too, so the subprocess never gets a default the MCP server overrides.
 func (m *Manager) serverInputsSatisfiedElsewhere(
 	ctx context.Context, key InstanceKey, values map[string]string, invalid map[string]bool, inputs []launchInput,
 ) (satisfied, stored map[string]bool, err error) {
@@ -223,7 +223,7 @@ func (m *Manager) serverInputsSatisfiedElsewhere(
 	rowsLoaded := false
 	for _, input := range inputs {
 		name := strings.TrimSpace(input.Binding.Name)
-		if _, bound := values[name]; bound || invalid[name] || !input.Required || !input.serverConsumed {
+		if _, bound := values[name]; bound || invalid[name] || !input.serverConsumed {
 			continue
 		}
 		if !rowsLoaded {

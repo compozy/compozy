@@ -2190,7 +2190,7 @@ func TestExtensionSetupCommand(t *testing.T) {
 		t.Parallel()
 		state := defaultState()
 		state.WorkspaceID = "ws-alpha"
-		got := run(t, state, false, "", "--workspace", "alpha", "--input", "token=abc")
+		got := run(t, state, false, "", "--workspace", "alpha", "--input", "token=abc", "--input", "project=platform")
 		if got.err != nil || len(got.reads) != 1 || len(got.written) != 1 {
 			t.Fatalf("setup --workspace: reads=%v writes=%v err=%v", got.reads, got.written, got.err)
 		}
