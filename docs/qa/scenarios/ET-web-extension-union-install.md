@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-extension-distribution
 expected: The Extensions-only "Install extension" entry point submits the generated `InstallExtensionRequest` union shape (`{source, ref, version?, asset?, allow_unverified?}`) for local_path, github, and git; per-source ref grammar is validated inline before the request; unverified archives route through the daemon's explicit consent dialog (including the daemon's own 422 reason); daemon validation errors are surfaced verbatim; and the curated one-click card install stays unchanged.
 entry_points: /marketplace/extensions (Install extension); `POST /api/extensions`
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status: untested
 fix_commits:
-evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a/screenshots
-last_report: docs/qa/reports/2026-11-22-gh-1845-pr-a-extension-inputs.md
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a/screenshots; docs/qa/evidence/2026-11-22-gh-1845-pr-b/screenshots
+last_report: docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies.md
 overlaps: ET-web-extensions-manage; ET-extension-published-source-installs
 ---
 
@@ -73,3 +73,19 @@ a cancel at the dependency gate (nothing installed), a dependency installed at a
 notice. The source-union dialog (Install from GitHub, Git URL or local path) does not list
 dependencies; a source-union Add with unmet dependencies surfaces the daemon's
 `extension_dependencies_required` message. Reset to untested.
+
+QA 2026-11-22 (GH-1845 PR B dependencies, head `08bd19a60`; daemon with `[automation] enabled = true`,
+see BUG-20261122-dependency-install-automation-disabled): a local v3 catalog feed served `acme-kit`,
+which requires the local unverified `acme-webdep` (gateway permission) and the installed but disabled
+`acme-base`. Add showed **Also installs** with `acme-webdep v0.3.0` (Not verified, Local path, Remote
+access digest) and `acme-base v1.0.0` (Turns on, Not verified). It hid met rows (01). Add opened the
+`acme-webdep` trust gate titled with its name (02). Cancel closed the Add with no
+`POST /api/extensions`, and nothing was installed. Confirming the trust gate and the remote-access gate
+(03) sent one POST with `with_dependencies: true`, root `allow_unverified: false`, and
+`dependencies.acme-webdep` carrying only `expected_digest`, `allow_unverified` and
+`confirm_gateway_digest`. The toast read "acme-kit added with acme-webdep, acme-base" (04), and both
+dependencies were active. `acme-kit-new` (needs acme-base 2.0.0) showed "Update acme-base to 2.0.0 or
+later first" with Add disabled (05). After `remove acme-webdep --force`, the acme-kit rail showed
+"Missing dependency: acme-webdep" with Install (06). The source-union local-path Add of `acme-solo`
+surfaced "extension: dependencies required: acme-webdep (missing)" (07). The source-guidance parts
+were not re-walked.

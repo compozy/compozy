@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-extension-kit-lifecycle
 expected: install of a package declaring [[requires.extensions]] refuses with extension_dependencies_required until consent; a human TTY shows one consolidated preview and each dependency's own trust gates, a non-TTY needs --with-dependencies plus per-name consent; remove and disable of a needed dependency refuse with extension_dependency_in_use listing the dependents until --force; a forced removal never cascades and the dependent reports unmet_dependencies while it keeps running; enabling a dependent with unmet dependencies refuses with extension_dependencies_required.
 entry_points: compozy extension install <source> [--with-dependencies] [--allow-unverified-dependency <name>] [--confirm-gateway-requirement <name>=<digest>]; compozy extension remove|disable <name> [--force]; compozy extension status <name>; POST /api/extensions and /api/extensions/preview-install; DELETE /api/extensions/{name}?force=true; PUT /api/extensions/{name}/enablement {force}; compozy__extensions_install|remove|disable
-qa_status: untested
-bug_ids: []
-fix_status: n/a
-retest_status: n/a
+qa_status: fail
+bug_ids: [BUG-20261122-dependency-install-automation-disabled, BUG-20261122-dependency-exists-code-collapsed, BUG-20261122-enable-dependency-guidance-flag]
+fix_status: pending
+retest_status: pending
 fix_commits: []
-evidence: ""
-last_report: ""
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-b
+last_report: docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies.md
 overlaps: ET-extension-setup-inputs; ET-web-extension-union-install; ET-extension-profile-enablement
 ---
 
@@ -83,3 +83,17 @@ Pass: no dependency is installed, enabled or updated without consent for that ex
 removal never cascades; the dependent's runtime state never changes because of the guard.
 
 src: .compozy/tasks/extension-inputs-setup-deps/_tests.md (T-16 to T-19)
+
+QA 2026-11-22 (GH-1845 PR B, head `08bd19a60`, isolated lab, CLI/API/Web): steps 1, 2, 4–11 and 13
+pass. Step 3 fails while `[automation] enabled = false`: every dependency install aborts with a
+masked 500 (BUG-20261122-dependency-install-automation-disabled, the trigger of #1959). With
+automation enabled it passes as written. Step 12 refuses and names the dependency and
+`compozy extension update`, but the code is `extension_install_failed`, not `extension_exists`
+(BUG-20261122-dependency-exists-code-collapsed). Step 7's human hint names an unknown
+`--with-dependencies` flag on `enable` (BUG-20261122-enable-dependency-guidance-flag). Step 10 ran
+as the operator through `compozy tool invoke` because the lab has no provider. Step 11 used a custom
+folder plugin source, so the dependency was `unverified` and needed `consent_required: true`. The
+"without any consent" wording assumes a verified tier. Step 13's gateway-digest sub-case (the
+confirmation no longer covers it) was not reachable without an update. A transitive chain
+(`acme-chain` → `acme-mid` → `acme-leaf`) and a diamond (`acme-top` → `acme-left`/`acme-right` →
+`acme-core`, merged `min_version` 0.5.0, both parents in `required_by`) were also verified.

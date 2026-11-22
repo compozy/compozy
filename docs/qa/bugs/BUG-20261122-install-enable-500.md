@@ -78,3 +78,14 @@ so the masked cause is not observable.
   `install --enable` of a no-input fixture.
 
 ## Verification
+
+## Trigger found (2026-11-22, GH-1845 PR B walk)
+
+The failure depends on `[automation] enabled = false`. On a lab built from `08bd19a60`, a fresh
+`install <acme-leaf> --enable` returned `enable_error: Internal Server Error` with automation
+disabled. After `[automation] enabled = true` and a daemon restart, the same command returned
+`enabled: true, state: active`. The dependency install path shows the unmasked cause on a retry:
+`daemon: extension automation previewer is required`
+(`previewExtensionAutomation`, `internal/daemon/extensions_inventory.go:364-365`, also on
+`origin/main`). See BUG-20261122-dependency-install-automation-disabled for the repro and for the
+impact on `--with-dependencies`.
