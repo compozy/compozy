@@ -25,14 +25,18 @@ export function useExtensionSetupDialog(extension: ExtensionEntry, onClose: () =
   const [remaining, setRemaining] = useState<readonly string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<string, string>>>({});
   const [feedbackInstance, setFeedbackInstance] = useState(instance);
-  // The instance whose save the mutation state reports; another instance's failure stays hidden.
-  const [savedInstance, setSavedInstance] = useState(instance);
-  const currentInstance = useRef(instance);
+  // Every instance switch starts a new generation, so switching away and back still retires a save
+  // that began before the switch.
+  const [generation, setGeneration] = useState(0);
+  // The generation whose save the mutation state reports; an earlier generation's failure stays hidden.
+  const [savedGeneration, setSavedGeneration] = useState(generation);
+  const currentGeneration = useRef(generation);
   useEffect(() => {
-    currentInstance.current = instance;
-  }, [instance]);
+    currentGeneration.current = generation;
+  }, [generation]);
   if (feedbackInstance !== instance) {
     setFeedbackInstance(instance);
+    setGeneration(next => next + 1);
     setRemaining([]);
     setFieldErrors({});
   }
@@ -58,8 +62,8 @@ export function useExtensionSetupDialog(extension: ExtensionEntry, onClose: () =
   }, [firstPending]);
 
   const submit = async () => {
-    const submitted = instance;
-    setSavedInstance(submitted);
+    const submitted = generation;
+    setSavedGeneration(submitted);
     setFieldErrors({});
     try {
       const result = await save.mutateAsync({
@@ -68,21 +72,21 @@ export function useExtensionSetupDialog(extension: ExtensionEntry, onClose: () =
         inputs: form.inputs,
       });
       reportSaved(extension.name, result);
-      // A save that resolves after the dialog switched instance must not touch the new one.
-      if (currentInstance.current !== submitted) return;
+      // A save that resolves after the dialog switched instance must not touch the current form.
+      if (currentGeneration.current !== submitted) return;
       form.reset();
       const pending = [...result.missing, ...result.invalid];
       setRemaining(pending);
       if (pending.length === 0) onClose();
     } catch (error) {
-      if (currentInstance.current !== submitted) return;
+      if (currentGeneration.current !== submitted) return;
       if (error instanceof ExtensionsApiError && error.inputId) {
         setFieldErrors({ [error.inputId]: error.message });
       }
     }
   };
 
-  const saveError = savedInstance === instance ? generalSaveError(save.error) : null;
+  const saveError = savedGeneration === generation ? generalSaveError(save.error) : null;
 
   return {
     firstPending,
