@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -151,7 +152,7 @@ func TestSessionListReadStatementReuse(t *testing.T) {
 		db.SetMaxOpenConns(1)
 		cache := newReadStatementCache(db, 4)
 		// Registered first so it runs last: an early failure still closes the pool and cache.
-		t.Cleanup(func() { _ = closeReadPool(db, cache) })
+		t.Cleanup(func() { _ = closeReadPool(context.WithoutCancel(t.Context()), db, cache) })
 		rows, err := cache.query(t.Context(), "SELECT 1")
 		if err != nil {
 			t.Fatalf("prime cached statement: %v", err)
@@ -185,7 +186,7 @@ func TestSessionListReadStatementReuse(t *testing.T) {
 			time.Sleep(time.Millisecond)
 		}
 		closed := make(chan error, 1)
-		go func() { closed <- closeReadPool(db, cache) }()
+		go func() { closed <- closeReadPool(context.WithoutCancel(t.Context()), db, cache) }()
 		select {
 		case err := <-closed:
 			if err != nil {
@@ -292,7 +293,8 @@ func TestStaticReadStatementReuse(t *testing.T) {
 			t.Fatalf("SessionArchivedAt(after) = %v, %v; want %s", archivedAt, err, want)
 		}
 		// Other static reads run in the background, so count only this query's statements.
-		if got := cachedStatementsContaining(globalDB.staticReadStatements, "SELECT archived_at FROM sessions"); got != 1 {
+		archiveRead := "SELECT archived_at FROM sessions"
+		if got := cachedStatementsContaining(globalDB.staticReadStatements, archiveRead); got != 1 {
 			t.Fatalf("cached archive-state statements = %d, want 1 across two reads", got)
 		}
 		if got := cachedStatementsContaining(globalDB.readStatements, "archived_at"); got != 0 {
@@ -337,6 +339,124 @@ func TestStaticReadStatementReuse(t *testing.T) {
 		}
 		if got := cache.len(); got != 2 {
 			t.Fatalf("cached statements = %d, want 2 for two query texts", got)
+		}
+	})
+
+	t.Run("Should report no rows through a cached single-row read", func(t *testing.T) {
+		t.Parallel()
+
+		reader, _ := openStatementReader(t)
+		var got int
+		err := reader.QueryRowContext(t.Context(), "SELECT 1 WHERE 0").Scan(&got)
+		if !errors.Is(err, sql.ErrNoRows) {
+			t.Fatalf("QueryRowContext(no rows) error = %v, want sql.ErrNoRows", err)
+		}
+	})
+
+	t.Run("Should leave expanded slice placeholders unprepared", func(t *testing.T) {
+		t.Parallel()
+
+		reader, cache := openStatementReader(t)
+		rows, err := reader.QueryContext(t.Context(), "SELECT 1 WHERE ? IN (?,?)", 2, 1, 2)
+		if err != nil {
+			t.Fatalf("QueryContext(slice) error = %v", err)
+		}
+		found := rows.Next()
+		if err := errors.Join(rows.Err(), rows.Close()); err != nil || !found {
+			t.Fatalf("QueryContext(slice) found=%t error=%v, want one row", found, err)
+		}
+		if got := cache.len(); got != 0 {
+			t.Fatalf("cached statements = %d, want 0 for an expanded slice list", got)
+		}
+	})
+
+	t.Run("Should never start a read on a statement released by close", func(t *testing.T) {
+		t.Parallel()
+
+		reader, cache := openStatementReader(t)
+		errs := make(chan error, 64)
+		var wg sync.WaitGroup
+		for i := range 64 {
+			wg.Go(func() {
+				var got int
+				errs <- reader.QueryRowContext(t.Context(), "SELECT ?", i).Scan(&got)
+			})
+			if i == 32 {
+				if err := cache.close(); err != nil {
+					t.Errorf("close cache: %v", err)
+				}
+			}
+		}
+		waitStatementReads(t, &wg)
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("read during close error = %v, want every read served", err)
+			}
+		}
+	})
+
+	t.Run("Should bound the close by its context while a read runs", func(t *testing.T) {
+		t.Parallel()
+
+		db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "running-read.db"))
+		if err != nil {
+			t.Fatalf("open pool: %v", err)
+		}
+		cache := newReadStatementCache(db, 4)
+		started, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+		go func() {
+			_, runErr := cache.run(t.Context(), "SELECT 1", func(*sql.Stmt) {
+				close(started)
+				<-release
+			})
+			done <- runErr
+		}()
+		select {
+		case <-started:
+		case <-time.After(5 * time.Second):
+			t.Fatal("read did not start")
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		defer cancel()
+		closeErr := closeReadPool(ctx, db, cache)
+		close(release)
+		if !errors.Is(closeErr, context.DeadlineExceeded) {
+			t.Fatalf("closeReadPool error = %v, want the context deadline", closeErr)
+		}
+		select {
+		case runErr := <-done:
+			if runErr != nil {
+				t.Fatalf("running read error = %v", runErr)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("running read did not finish")
+		}
+	})
+
+	t.Run("Should keep the static bound above the generated read queries", func(t *testing.T) {
+		t.Parallel()
+
+		files, err := filepath.Glob(filepath.Join("queries", "*.sql"))
+		if err != nil || len(files) == 0 {
+			t.Fatalf("glob generated queries: %v (files=%d)", err, len(files))
+		}
+		reads := 0
+		for _, file := range files {
+			data, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatalf("read %s: %v", file, err)
+			}
+			for line := range strings.SplitSeq(string(data), "\n") {
+				if strings.HasPrefix(line, "-- name: ") &&
+					(strings.HasSuffix(line, " :one") || strings.HasSuffix(line, " :many")) {
+					reads++
+				}
+			}
+		}
+		if reads == 0 || reads > defaultStaticReadStatementCacheLimit {
+			t.Fatalf("generated read queries = %d, static bound = %d; raise the bound",
+				reads, defaultStaticReadStatementCacheLimit)
 		}
 	})
 
@@ -428,4 +548,30 @@ func cachedStatementsContaining(cache *readStatementCache, fragment string) int 
 		}
 	}
 	return n
+}
+
+func openStatementReader(t *testing.T) (statementReader, *readStatementCache) {
+	t.Helper()
+	globalDB := openTestGlobalDB(t)
+	cache := newReadStatementCache(globalDB.readDB, 4)
+	t.Cleanup(func() {
+		if err := cache.close(); err != nil {
+			t.Errorf("close cache: %v", err)
+		}
+	})
+	return statementReader{db: globalDB.readDB, cache: cache}, cache
+}
+
+func waitStatementReads(t *testing.T, wg *sync.WaitGroup) {
+	t.Helper()
+	finished := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(finished)
+	}()
+	select {
+	case <-finished:
+	case <-time.After(10 * time.Second):
+		t.Fatal("reads did not finish")
+	}
 }

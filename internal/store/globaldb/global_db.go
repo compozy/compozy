@@ -152,7 +152,7 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 	if g.background != nil {
 		backgroundErr = g.background.Close(ctx)
 	}
-	readCloseErr := closeReadPool(g.readDB, g.readStatements, g.staticReadStatements)
+	readCloseErr := closeReadPool(ctx, g.readDB, g.readStatements, g.staticReadStatements)
 	telemetryErr := g.telemetry.Close(ctx)
 	closeErr := store.CloseCheckpointedDatabase(ctx, g.db, g.checkpoint)
 	return errors.Join(healthErr, summaryErr, backgroundErr, readCloseErr, telemetryErr, closeErr)
