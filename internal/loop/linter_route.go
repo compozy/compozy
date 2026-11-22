@@ -109,8 +109,15 @@ func (c *lintContext) lintGateRoutes(node dsl.Node) {
 }
 
 func (c *lintContext) lintContractOnResult() {
-	if c.def.Contract.ContractLifecycleState == nil {
+	if c.def.Contract.ContractLifecycleState == nil || len(c.def.Contract.OnResult) == 0 {
 		return
+	}
+	if len(c.def.Contract.Verification) == 0 {
+		c.add(
+			"",
+			CodeRouteMappingInvalid,
+			"contract.on_result requires at least one verification criterion; without one the definition-of-done gate is skipped",
+		)
 	}
 	c.lintOnResult(onResultScope{
 		owner:     "",

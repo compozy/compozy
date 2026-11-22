@@ -563,16 +563,34 @@ func TestLinterShouldValidateAuthoredTerminalStatus(t *testing.T) {
 		t.Parallel()
 
 		definition := validDefinition()
+		definition.Contract.Verification = []dsl.GateCriterion{{
+			ID: "check", Type: dsl.CriterionCommand, Check: "true",
+		}}
 		definition.Contract.OnResult = map[string]any{
 			"fail": map[string]any{"action": "halt", "terminal_status": "failed"},
 		}
 		requireLintCodes(t, loop.NewLinter().Lint(definition))
 	})
 
+	t.Run("Should reject contract on_result without verification", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Contract.OnResult = map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "failed"},
+		}
+		errs := loop.NewLinter().Lint(definition)
+		requireLintCodes(t, errs, loop.CodeRouteMappingInvalid)
+		requireLintMessageContains(t, errs, loop.CodeRouteMappingInvalid, "requires at least one verification criterion")
+	})
+
 	t.Run("Should reject a contract on_result route target", func(t *testing.T) {
 		t.Parallel()
 
 		definition := validDefinition()
+		definition.Contract.Verification = []dsl.GateCriterion{{
+			ID: "check", Type: dsl.CriterionCommand, Check: "true",
+		}}
 		definition.Contract.OnResult = map[string]any{
 			"fail": map[string]any{"route": "quick"},
 		}
@@ -585,6 +603,9 @@ func TestLinterShouldValidateAuthoredTerminalStatus(t *testing.T) {
 		t.Parallel()
 
 		definition := validDefinition()
+		definition.Contract.Verification = []dsl.GateCriterion{{
+			ID: "check", Type: dsl.CriterionCommand, Check: "true",
+		}}
 		definition.Contract.OnResult = map[string]any{"exploded": "halt"}
 		errs := loop.NewLinter().Lint(definition)
 		requireLintCodes(t, errs, loop.CodeRouteMappingInvalid)
