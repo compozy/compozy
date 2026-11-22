@@ -39,8 +39,10 @@ func validateHandoff(req *SubagentRequest) error {
 		return invalidSubagent("prior_subagent_id exceeds 64 characters.")
 	}
 	if req.Handoff != nil {
-		req.Handoff.Objections = strings.TrimSpace(req.Handoff.Objections)
-		req.Handoff.Findings = strings.TrimSpace(req.Handoff.Findings)
+		handoff := *req.Handoff
+		handoff.Objections = strings.TrimSpace(handoff.Objections)
+		handoff.Findings = strings.TrimSpace(handoff.Findings)
+		req.Handoff = &handoff
 		if utf8.RuneCountInString(req.Handoff.Objections) > 40000 {
 			return invalidSubagent("handoff.objections exceeds 40000 characters.")
 		}

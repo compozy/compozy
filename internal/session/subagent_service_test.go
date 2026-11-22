@@ -335,6 +335,55 @@ func TestSubagentDelegate(t *testing.T) {
 			t.Fatalf("expected different session error, got: %v", err)
 		}
 	})
+	t.Run("Should inherit worktree branch from prior subagent", func(t *testing.T) {
+		t.Parallel()
+		wt := &subagentWorktreeStub{
+			worktree: SubagentWorktree{
+				ID:     "wt-follow-up",
+				Name:   "follow-up",
+				Branch: "worktree/follow-up",
+			},
+		}
+		s, db, _ := newSubagentTestService(t, WithSubagentWorktrees(wt))
+		db.rows["sub-wt-prior"] = store.SessionSubagent{
+			ID:              "sub-wt-prior",
+			WorkspaceID:     "ws",
+			ParentSessionID: "parent",
+			Status:          "completed",
+			Isolation:       SubagentIsolationWorktree,
+			Worktree: &store.SubagentWorktreeState{
+				Branch: "worktree/sub-wt-prior",
+			},
+		}
+		req := subagentTestRequest()
+		req.IdempotencyKey = "follow-up-wt"
+		req.PriorSubagentID = "sub-wt-prior"
+		req.Isolation = SubagentIsolationWorktree
+		requireSubagent(t, s, req)
+		if len(wt.requests) == 0 || wt.requests[len(wt.requests)-1].BaseRef != "worktree/sub-wt-prior" {
+			t.Fatalf("expected BaseRef to be worktree/sub-wt-prior, got: %+v", wt.requests)
+		}
+	})
+	t.Run("Should reject prior worktree subagent when worktree branch is missing", func(t *testing.T) {
+		t.Parallel()
+		s, db, _ := newSubagentTestService(t)
+		db.rows["sub-wt-pending"] = store.SessionSubagent{
+			ID:              "sub-wt-pending",
+			WorkspaceID:     "ws",
+			ParentSessionID: "parent",
+			Status:          "running",
+			Isolation:       SubagentIsolationWorktree,
+		}
+		req := subagentTestRequest()
+		req.IdempotencyKey = "follow-up-pending-wt"
+		req.PriorSubagentID = "sub-wt-pending"
+		req.Isolation = SubagentIsolationWorktree
+		_, err := s.Delegate(t.Context(), req)
+		if !errors.Is(err, ErrSubagentInvalidRequest) ||
+			!strings.Contains(err.Error(), "no associated worktree branch yet") {
+			t.Fatalf("expected branch not ready error, got: %v", err)
+		}
+	})
 	t.Run("Should stop child after failed first admission UT-059", func(t *testing.T) {
 		t.Parallel()
 		s, _, runtime := newSubagentTestService(t)
