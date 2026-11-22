@@ -13,7 +13,10 @@ import (
 	"github.com/compozy/compozy/internal/vault"
 )
 
-const extensionInputTypeSecret = "secret"
+const (
+	extensionInputTypeSecret = "secret"
+	extensionInputBindingEnv = "env"
+)
 
 type extensionInputReader struct {
 	inputs   extensioninput.Store
@@ -214,7 +217,7 @@ func envBindingInputID(manifest *extensionpkg.Manifest, envName string) string {
 		return ""
 	}
 	for _, input := range manifest.Inputs {
-		if input.Binding.Type != "env" || input.Binding.Name != envName {
+		if input.Binding.Type != extensionInputBindingEnv || input.Binding.Name != envName {
 			continue
 		}
 		if input.Type == extensionInputTypeSecret || manifest.SubprocessInput(input) {
