@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"maps"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -27,9 +28,7 @@ func (s *daemonLoopAPIService) loopRunTerminalCauses(
 		if err != nil {
 			return nil, err
 		}
-		for runID, cause := range found {
-			causes[runID] = cause
-		}
+		maps.Copy(causes, found)
 	}
 	return causes, nil
 }

@@ -27,7 +27,7 @@ func TestLoopTerminalCauseShouldSurfaceInReadOutputs(t *testing.T) {
 		row := loopRunSummaryRow(&contract.LoopRunPayload{
 			Status:   contract.LoopRunStatusBlocked,
 			Terminal: terminal,
-		}, func() time.Time { return time.Now() })
+		}, time.Now)
 		if row[0] != "blocked (gate_blocked)" {
 			t.Fatalf("run list status = %q, want blocked (gate_blocked)", row[0])
 		}
@@ -38,7 +38,7 @@ func TestLoopTerminalCauseShouldSurfaceInReadOutputs(t *testing.T) {
 
 		row := loopRunSummaryRow(&contract.LoopRunPayload{
 			Status: contract.LoopRunStatusBlocked,
-		}, func() time.Time { return time.Now() })
+		}, time.Now)
 		if row[0] != "blocked" {
 			t.Fatalf("run list status = %q, want blocked", row[0])
 		}

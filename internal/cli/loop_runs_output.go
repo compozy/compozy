@@ -25,7 +25,7 @@ func loopStatusOutputBundle(response *contract.LoopRunResponse) outputBundle {
 		if terminal := response.Run.Terminal; terminal != nil {
 			fields = append(fields,
 				keyValue{Label: "Terminal cause", Value: stringOrDash(terminal.Cause)},
-				keyValue{Label: "Reason", Value: stringOrDash(terminal.ReasonCode)},
+				keyValue{Label: "Terminal reason", Value: stringOrDash(terminal.ReasonCode)},
 				keyValue{Label: "Deciding node", Value: stringOrDash(terminal.NodeID)},
 			)
 		}
