@@ -3,9 +3,12 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
@@ -52,10 +55,6 @@ func (b extensionInputBinder) Prepare(
 		state:    prior,
 		previous: map[string]extensionpkg.EnvBinding{},
 	}
-	for id, record := range plan.state.Values {
-		record.Active = false
-		plan.state.Values[id] = record
-	}
 	if b.service.envBindings != nil {
 		bindings, err := b.service.envBindings.ListEnvBindings(ctx, key.Name, profile.ID, key.WorkspaceID)
 		if err != nil {
@@ -63,8 +62,16 @@ func (b extensionInputBinder) Prepare(
 		}
 		plan.previous = extensionBindingsByName(bindings)
 	}
+	carried := carriedSubprocessValues(plan, values)
+	for id, record := range plan.state.Values {
+		record.Active = false
+		plan.state.Values[id] = record
+	}
 	for _, input := range manifest.Inputs {
 		value, supplied := values[input.ID]
+		if !supplied {
+			value, supplied = carried[input.ID]
+		}
 		if supplied && ((len(value.Value) == 0) == (value.VaultRef == nil)) {
 			return nil, inputInvalid(input.ID, "supply exactly one of value or vault_ref")
 		}
@@ -91,6 +98,39 @@ func (b extensionInputBinder) Prepare(
 		}
 	}
 	return plan, nil
+}
+
+// carriedSubprocessValues mints the env binding of an omitted subprocess-bound input from its active
+// typed row when no active binding exists yet, so a stored value keeps reaching the subprocess after
+// the input gains a subprocess target (rule 5a).
+func carriedSubprocessValues(
+	plan *extensionInputPlan, values map[string]extensioninput.Value,
+) map[string]extensioninput.Value {
+	carried := map[string]extensioninput.Value{}
+	for _, input := range plan.manifest.Inputs {
+		if _, supplied := values[input.ID]; supplied || input.Type == extensionInputTypeSecret ||
+			!plan.manifest.SubprocessInput(input) {
+			continue
+		}
+		if binding, bound := plan.previous[input.Binding.Name]; bound && !binding.Inactive {
+			continue
+		}
+		row, found := plan.state.Values[input.ID]
+		if !found || !row.Active || row.Type != input.Type || row.SecretRef != "" || row.Invalid != "" ||
+			blankInputValue(row.Value) {
+			continue
+		}
+		carried[input.ID] = extensioninput.Value{Value: row.Value}
+	}
+	return carried
+}
+
+func blankInputValue(raw json.RawMessage) bool {
+	var decoded any
+	if len(raw) == 0 || json.Unmarshal(raw, &decoded) != nil {
+		return true
+	}
+	return strings.TrimSpace(fmt.Sprint(decoded)) == ""
 }
 
 func (b extensionInputBinder) prepareValue(
@@ -133,28 +173,46 @@ func (b extensionInputBinder) prepareRows(
 		after[id] = row
 	}
 	for id, record := range plan.state.Values {
-		input, found := declared[id]
-		if !found || input.Type == extensionInputTypeSecret || record.Type != input.Type || !record.Active {
-			continue
-		}
-		// Subprocess-only values live in their env binding; only server-consumed inputs keep a typed row.
-		if plan.manifest.SubprocessOnlyInput(input) {
-			continue
-		}
-		// An invalid canonical binding has no value to mirror; the prior row stays as it was.
-		if record.Invalid != "" {
-			if previous, found := before[id]; found {
-				after[id] = previous
-			}
-			continue
-		}
-		after[id] = extensioninput.Record{
-			Type:      record.Type,
-			Value:     record.Value,
-			Active:    true,
-			UpdatedAt: record.UpdatedAt,
+		if row, keep := plannedInputRow(plan.manifest, declared, before, id, record); keep {
+			after[id] = row
 		}
 	}
+	b.diffInputRows(plan, before, after)
+	if len(plan.rows) > 0 && b.service.inputs == nil {
+		return errors.New("daemon: extension input store is required")
+	}
+	return nil
+}
+
+// plannedInputRow reports the typed row an active non-secret record keeps, if any.
+func plannedInputRow(
+	manifest *extensionpkg.Manifest, declared map[string]extensionpkg.ManifestInput,
+	before map[string]extensioninput.Record, id string, record extensionpkg.InputValueRecord,
+) (extensioninput.Record, bool) {
+	input, found := declared[id]
+	if !found || input.Type == extensionInputTypeSecret || record.Type != input.Type || !record.Active {
+		return extensioninput.Record{}, false
+	}
+	// Subprocess-only values live in their env binding; only server-consumed inputs keep a typed row.
+	if manifest.SubprocessOnlyInput(input) {
+		return extensioninput.Record{}, false
+	}
+	// An invalid canonical binding has no value to mirror; the prior row stays as it was.
+	if record.Invalid != "" {
+		previous, found := before[id]
+		return previous, found
+	}
+	return extensioninput.Record{
+		Type:      record.Type,
+		Value:     record.Value,
+		Active:    true,
+		UpdatedAt: record.UpdatedAt,
+	}, true
+}
+
+func (b extensionInputBinder) diffInputRows(
+	plan *extensionInputPlan, before, after map[string]extensioninput.Record,
+) {
 	for _, id := range slices.Sorted(maps.Keys(after)) {
 		row := after[id]
 		previous, found := before[id]
@@ -173,10 +231,6 @@ func (b extensionInputBinder) prepareRows(
 		}
 		plan.rows = append(plan.rows, mutation)
 	}
-	if len(plan.rows) > 0 && b.service.inputs == nil {
-		return errors.New("daemon: extension input store is required")
-	}
-	return nil
 }
 
 func (b extensionInputBinder) prepareRetiredSecrets(

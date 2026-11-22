@@ -1745,6 +1745,56 @@ func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
 		}
 	})
 
+	// An input that gains a subprocess target keeps its stored value: Prepare mints the env binding
+	// from the active typed row when the request omits the input (F-1, rule 5a).
+	t.Run("Should carry a typed row forward into the binding of a newly subprocess-bound input", func(t *testing.T) {
+		t.Parallel()
+		regionRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "REGION")
+		serverOnlyRegion := func() *extensionpkg.Manifest {
+			manifest := extensionSubprocessInputManifest()
+			manifest.RequiresEnv, manifest.DeclaredRequiresEnv = []string{"PROJECT_ID"}, []string{"PROJECT_ID"}
+			return manifest
+		}
+		subprocessOnlyRegion := extensionSubprocessInputManifest()
+		subprocessOnlyRegion.Resources.MCPServers = map[string]extensionpkg.MCPServerConfig{}
+		for _, tc := range []struct {
+			name    string
+			updated *extensionpkg.Manifest
+			wantRow bool
+		}{
+			{name: "dual consumer", updated: extensionSubprocessInputManifest(), wantRow: true},
+			{name: "subprocess only", updated: subprocessOnlyRegion},
+		} {
+			t.Run("Should bind the stored value for a "+tc.name+" update", func(t *testing.T) {
+				t.Parallel()
+				service, bindings, secretVault := newService(t)
+				commit(t, service, serverOnlyRegion(), initialValues)
+				if _, bound := bindingsByName(t, bindings)["REGION"]; bound {
+					t.Fatal("a server-only input was stored as an env binding")
+				}
+				commit(t, service, tc.updated, nil)
+				region := bindingsByName(t, bindings)["REGION"]
+				if region.InputID != "region" || region.Inactive || secretVault.value(regionRef) != "eu-west" {
+					t.Fatalf("region binding = %#v, want the carried value bound and active", region)
+				}
+				rows, err := service.inputs.List(testutil.Context(t), instance)
+				if err != nil {
+					t.Fatalf("List() error = %v", err)
+				}
+				if row := rows["region"]; row.Active != tc.wantRow || string(row.Value) != `"eu-west"` {
+					t.Fatalf("region row = %#v, want active=%v with the stored value", row, tc.wantRow)
+				}
+				state, err := service.inputReader().load(testutil.Context(t), instance, tc.updated)
+				if err != nil {
+					t.Fatalf("load() error = %v", err)
+				}
+				if ready := extensionpkg.InputReadiness(tc.updated, state, service.getenv); len(ready.MissingEnv) != 0 {
+					t.Fatalf("readiness = %#v, want ready", ready)
+				}
+			})
+		}
+	})
+
 	t.Run("Should report a stored value that fails a changed manifest type as invalid", func(t *testing.T) {
 		t.Parallel()
 		service, _, _ := newService(t)
