@@ -933,6 +933,62 @@ func TestExtensionInstallDependencyFlow(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse without a prompt when the source has no satisfying version", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		tooOld := core
+		tooOld.State, tooOld.Version, tooOld.MinVersion = "version_unmet", "1.5.0", "2.0.0"
+		deps := newDeps(t, true, &calls, required(tooOld))
+		_, stderr, err := executeRootCommandWithInput(t, deps, "y\ny\ny\n", "extension", "install", "compozy/typed")
+		want := "The source of acme-core provides 1.5.0; no version satisfies min_version 2.0.0"
+		if err == nil || len(calls) != 1 || cliExitCodeForError(err) != 2 ||
+			strings.Contains(stderr, "Install these dependencies") ||
+			strings.Contains(err.Error(), "--with-dependencies") || !strings.Contains(err.Error(), want) {
+			t.Fatalf("calls = %d, stderr = %q, err = %v; want one refusal naming the source version", len(calls),
+				stderr, err)
+		}
+	})
+
+	t.Run("Should print the scoped update command for a copy another profile uses", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		elsewhere := core
+		elsewhere.State, elsewhere.InstalledVersion = "installed_elsewhere", "0.3.0"
+		elsewhere.RetryCommand = "compozy extension update acme-core --scope global --profile other"
+		refusal := required(elsewhere)
+		refusal.(*extensionOperationAPIError).payload.RetryCommand = elsewhere.RetryCommand
+		deps := newDeps(t, true, &calls, refusal)
+		_, _, err := executeRootCommandWithInput(t, deps, "y\n", "extension", "install", "compozy/typed")
+		if err == nil || len(calls) != 1 ||
+			!strings.Contains(err.Error(), "Update first: "+elsewhere.RetryCommand) {
+			t.Fatalf("calls = %d, err = %v; want the scoped update guidance without a prompt", len(calls), err)
+		}
+	})
+
+	t.Run("Should guide enable without the install-only --with-dependencies flag", func(t *testing.T) {
+		t.Parallel()
+		disabled := core
+		disabled.State = "disabled"
+		refusal, ok := required(disabled, other).(*extensionOperationAPIError)
+		if !ok {
+			t.Fatal("required() did not build an extension operation error")
+		}
+		refusal.enabling = true
+		message := refusal.Error()
+		for _, text := range []string{
+			"Enable first: compozy extension enable acme-core.",
+			"Install acme-other first, or reinstall this extension with " +
+				"`compozy extension install <source> --with-dependencies`",
+		} {
+			if !strings.Contains(message, text) {
+				t.Fatalf("message = %q, want %q", message, text)
+			}
+		}
+		if strings.Contains(message, "Pass --with-dependencies") {
+			t.Fatalf("message = %q suggests a flag enable does not accept", message)
+		}
+	})
+
 	t.Run("Should not let bare --allow-unverified consent for a dependency", func(t *testing.T) {
 		t.Parallel()
 		var calls []InstallExtensionRequest

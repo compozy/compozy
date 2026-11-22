@@ -221,9 +221,11 @@ func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err err
 		if validationErr, ok := errors.AsType[*extensionpkg.ManifestValidationError](err); ok && validationErr != nil {
 			issue.Field = strings.TrimSpace(validationErr.Field)
 		}
-		c.JSON(status, contract.ExtensionValidationErrorPayload{
+		validation := contract.ExtensionValidationErrorPayload{
 			Error: payload.Error, Diagnostic: payload.Diagnostic, Issues: []contract.ValidationIssue{issue},
-		})
+		}
+		validation.Dependency, validation.DependenciesInstalled = dependencyErrorFields(err)
+		c.JSON(status, validation)
 		return
 	}
 	if item, ok := ExtensionGitDependencyDiagnostic(err); ok {

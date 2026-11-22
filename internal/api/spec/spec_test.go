@@ -3495,8 +3495,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			t.Fatal("approved Loop run outcome diagnostics: no historical outcome schemas found")
 		}
 		// #1845: install requests, previews, responses and operation errors gain the experimental dependency fields.
-		if added := addExtensionDependencyFields(baseline, newComponents); added < 4 {
-			t.Fatalf("approved extension dependency fields: matched %d historical schema kinds, want 4", added)
+		if added := addExtensionDependencyFields(baseline, newComponents); added < 5 {
+			t.Fatalf("approved extension dependency fields: matched %d historical schema kinds, want 5", added)
 		}
 		// #1845 S7: the experimental dependency guard adds force, dependents and unmet_dependencies.
 		addExtensionDependencyGuardFields(t, baseline, current, newComponents)
@@ -7178,8 +7178,8 @@ func addExtensionInputErrorFields(value any) int {
 }
 
 // addExtensionDependencyFields copies the experimental dependency properties, refs inlined, from the current
-// components into every historical install request, preview, install response and operation error schema.
-// It returns how many of those four schema kinds it matched.
+// components into every historical install request, preview, install response, operation error and validation
+// error schema. It returns how many of those five schema kinds it matched.
 func addExtensionDependencyFields(baseline map[string]any, components map[string]any) int {
 	targets := []struct {
 		component string
@@ -7196,6 +7196,9 @@ func addExtensionDependencyFields(baseline map[string]any, components map[string
 		{"ExtensionOperationErrorPayload", []string{"listed_digest", "declared_env", "input_id"}, 0, []string{
 			"dependency", "dependencies", "dependencies_installed", "reason", "path", "parents", "retry_command",
 		}},
+		// G-2: a dependency's validation failure keeps its field issue and names the dependency.
+		{"ExtensionValidationErrorPayload", []string{"error", "diagnostic", "issues"}, 3,
+			[]string{"dependency", "dependencies_installed"}},
 	}
 	matched := 0
 	for _, target := range targets {

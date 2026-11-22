@@ -85,6 +85,10 @@ type ExtensionValidationErrorPayload struct {
 	Error      string            `json:"error"`
 	Diagnostic *DiagnosticItem   `json:"diagnostic,omitzero"`
 	Issues     []ValidationIssue `json:"issues"`
+	// Dependency names the dependency whose package or consent failed validation. Experimental.
+	Dependency string `json:"dependency,omitempty"`
+	// DependenciesInstalled lists dependencies a failed consented install already installed. Experimental.
+	DependenciesInstalled []string `json:"dependencies_installed,omitempty"`
 }
 
 // ExtensionOperationErrorPayload is the deterministic extension lifecycle error envelope.

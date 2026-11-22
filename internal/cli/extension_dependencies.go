@@ -20,6 +20,11 @@ const (
 	extensionWithDependenciesFlagName   = "with-dependencies"
 	extensionAllowUnverifiedDepFlagName = "allow-unverified-dependency"
 	extensionForceFlagName              = "force"
+	// Dependency states consent cannot satisfy (rule 12). Experimental.
+	extensionDependencyStateMissing            = "missing"
+	extensionDependencyStateDisabled           = "disabled"
+	extensionDependencyStateVersionUnmet       = "version_unmet"
+	extensionDependencyStateInstalledElsewhere = "installed_elsewhere"
 )
 
 var errExtensionDependenciesDeclined = errors.New("cli: dependency install declined; nothing was installed")
@@ -135,13 +140,14 @@ func pinExtensionDependencyDigests(
 
 // promptExtensionInstallDependencies answers extension_dependencies_required on an interactive terminal: one
 // consolidated preview, one consent, then each artifact's own trust gate in order. It reports false when the
-// refusal is not prompted (no TTY, a version_unmet node, or another error), so the caller keeps the error.
+// refusal is not prompted (no TTY, a node consent cannot install, or another error), so the caller keeps the error.
 func promptExtensionInstallDependencies(
 	cmd *cobra.Command, deps commandDeps, plan extensionInstallPlan, installErr error,
 ) (extensionInstallPlan, bool, error) {
 	apiErr, ok := errors.AsType[*extensionOperationAPIError](installErr)
 	if !ok || apiErr.payload.Code != diagnosticcontract.CodeExtensionDependenciesRequired ||
-		apiErr.payload.RetryCommand != "" || len(apiErr.payload.Dependencies) == 0 {
+		len(apiErr.payload.Dependencies) == 0 ||
+		slices.ContainsFunc(apiErr.payload.Dependencies, extensionDependencyBlocked) {
 		return plan, false, nil
 	}
 	interactive, err := extensionInputsInteractive(cmd, deps)
@@ -235,18 +241,16 @@ func writeExtensionDependencyPreview(cmd *cobra.Command, dependencies []contract
 	return nil
 }
 
-// extensionDependencyErrorMessage renders the experimental dependency refusals with the next step.
-func extensionDependencyErrorMessage(payload contract.ExtensionOperationErrorPayload) (string, bool) {
+// extensionDependencyErrorMessage renders the experimental dependency refusals with the next step. enabling selects
+// the guidance of `extension enable`, which has no --with-dependencies flag.
+func extensionDependencyErrorMessage(payload contract.ExtensionOperationErrorPayload, enabling bool) (string, bool) {
 	switch {
 	case payload.Code == diagnosticcontract.CodeExtensionDependenciesRequired:
 		items := make([]string, 0, len(payload.Dependencies))
 		for _, dependency := range payload.Dependencies {
 			items = append(items, dependency.Name+" ("+dependency.State+")")
 		}
-		next := "Pass --with-dependencies to install them first (experimental)."
-		if payload.RetryCommand != "" {
-			next = "Update first: " + payload.RetryCommand
-		}
+		next := extensionDependencyNextStep(payload, enabling)
 		return fmt.Sprintf("extension dependencies unmet: %s. %s (%s)", strings.Join(items, ", "), next,
 			payload.Code), true
 	case payload.Code == diagnosticcontract.CodeExtensionDependencyInUse:
@@ -262,6 +266,49 @@ func extensionDependencyErrorMessage(payload contract.ExtensionOperationErrorPay
 			extensionDependencyGateHint(payload)), true
 	}
 	return "", false
+}
+
+// extensionDependencyNextStep names what unblocks an extension_dependencies_required refusal. Consent cannot
+// install a dependency whose source has no satisfying version or that would replace another cell's copy.
+func extensionDependencyNextStep(payload contract.ExtensionOperationErrorPayload, enabling bool) string {
+	if payload.RetryCommand != "" {
+		return "Update first: " + payload.RetryCommand
+	}
+	if enabling {
+		return extensionEnableDependencyNextStep(payload.Dependencies)
+	}
+	for _, dependency := range payload.Dependencies {
+		if dependency.State == extensionDependencyStateVersionUnmet && dependency.InstalledVersion == "" {
+			return fmt.Sprintf("The source of %s provides %s; no version satisfies min_version %s.",
+				dependency.Name, cmp.Or(dependency.Version, "no release"), dependency.MinVersion)
+		}
+	}
+	return "Pass --with-dependencies to install them first (experimental)."
+}
+
+// extensionEnableDependencyNextStep turns on disabled dependencies and installs missing ones; only install
+// accepts --with-dependencies.
+func extensionEnableDependencyNextStep(dependencies []contract.ExtensionDependencyPayload) string {
+	var steps, missing []string
+	for _, dependency := range dependencies {
+		switch dependency.State {
+		case extensionDependencyStateDisabled:
+			steps = append(steps, "Enable first: compozy extension enable "+dependency.Name+".")
+		case extensionDependencyStateMissing:
+			missing = append(missing, dependency.Name)
+		}
+	}
+	if len(missing) > 0 {
+		steps = append(steps, fmt.Sprintf("Install %s first, or reinstall this extension with "+
+			"`compozy extension install <source> --with-dependencies` (experimental).", strings.Join(missing, ", ")))
+	}
+	return strings.Join(steps, " ")
+}
+
+// extensionDependencyBlocked reports a dependency that --with-dependencies cannot install.
+func extensionDependencyBlocked(dependency contract.ExtensionDependencyPayload) bool {
+	return dependency.State == extensionDependencyStateVersionUnmet ||
+		dependency.State == extensionDependencyStateInstalledElsewhere
 }
 
 func extensionDependencyGateHint(payload contract.ExtensionOperationErrorPayload) string {

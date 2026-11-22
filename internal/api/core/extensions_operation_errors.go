@@ -22,12 +22,6 @@ func extensionOperationErrorPayload(
 	payload := contract.ExtensionOperationErrorPayload{}
 	message := ErrorPayloadForStatus(status, err, maskInternal).Error
 	name := strings.TrimSpace(c.Param("name"))
-	if dependencyErrorContext(err) {
-		payload, _ = ExtensionAcquisitionErrorPayload(err)
-		payload.Error = message
-		return payload, true
-	}
-
 	kind := classifyExtensionError(err)
 	switch kind {
 	case extensionErrorMCPNameTaken:
@@ -88,12 +82,32 @@ func extensionOperationErrorPayload(
 		payload.Code = ExtensionAgentPluginErrorCode(err)
 	default:
 		var ok bool
-		if payload, ok = extensionBuiltinOperationPayload(kind, message, name); !ok {
+		if payload, ok = extensionFallbackOperationPayload(err, kind, message, name); !ok {
 			return contract.ExtensionOperationErrorPayload{}, false
 		}
 	}
 	payload.Error = message
+	// A failure attributed to a dependency keeps its own code and fields, and also names that dependency.
+	payload.Dependency, payload.DependenciesInstalled = dependencyErrorFields(err)
 	return payload, true
+}
+
+// extensionFallbackOperationPayload maps the built-in lifecycle conflicts, then the trust gates of a failure that
+// belongs to a dependency. A dependency manifest validation failure is left to the validation payload, which keeps
+// its field issue and names the dependency too.
+func extensionFallbackOperationPayload(
+	err error,
+	kind extensionErrorKind,
+	message string,
+	name string,
+) (contract.ExtensionOperationErrorPayload, bool) {
+	if payload, ok := extensionBuiltinOperationPayload(kind, message, name); ok {
+		return payload, true
+	}
+	if !dependencyErrorContext(err) || errors.Is(err, extensionpkg.ErrManifestInvalid) {
+		return contract.ExtensionOperationErrorPayload{}, false
+	}
+	return extensionDependencyGatePayload(err), true
 }
 
 // extensionBuiltinOperationPayload maps the built-in lifecycle conflicts (not a built-in, not removed,
@@ -249,12 +263,7 @@ func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErr
 	if !ok {
 		payload = extensionDependencyGatePayload(err)
 	}
-	if gate, gated := errors.AsType[*extensionpkg.DependencyGateError](err); gated {
-		payload.Dependency = gate.Dependency
-	}
-	if installed, partial := errors.AsType[*extensionpkg.DependenciesInstalledError](err); partial {
-		payload.DependenciesInstalled = slices.Clone(installed.Installed)
-	}
+	payload.Dependency, payload.DependenciesInstalled = dependencyErrorFields(err)
 	return payload, true
 }
 
@@ -264,10 +273,28 @@ func dependencyErrorContext(err error) bool {
 	return gated || partial
 }
 
-// extensionDependencyGatePayload maps the trust and gateway gates a dependency artifact can fail.
+// dependencyErrorFields names the dependency a failure belongs to and the dependencies installed before it.
+func dependencyErrorFields(err error) (dependency string, installed []string) {
+	if gate, gated := errors.AsType[*extensionpkg.DependencyGateError](err); gated {
+		dependency = gate.Dependency
+	}
+	if partial, ok := errors.AsType[*extensionpkg.DependenciesInstalledError](err); ok {
+		installed = slices.Clone(partial.Installed)
+	}
+	return dependency, installed
+}
+
+// extensionDependencyGatePayload maps the trust, gateway and package conflicts a dependency artifact can fail.
 func extensionDependencyGatePayload(err error) contract.ExtensionOperationErrorPayload {
 	payload := contract.ExtensionOperationErrorPayload{Error: err.Error()}
 	switch {
+	case errors.Is(err, extensionpkg.ErrExtensionExists):
+		payload.Code = diagnosticcontract.CodeExtensionExists
+	case errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
+		payload.Code = diagnosticcontract.CodeExtensionAgentConflict
+		if conflict, ok := errors.AsType[*extensionpkg.AgentConflictError](err); ok && conflict != nil {
+			payload.Agents = slices.Sorted(slices.Values(conflict.Agents))
+		}
 	case errors.Is(err, extensionpkg.ErrExtensionGatewayConfirmationRequired):
 		payload.Code = diagnosticcontract.CodeExtensionGatewayConfirmRequired
 		if confirmation, ok := errors.AsType[*extensionpkg.GatewayConfirmationRequiredError](err); ok {

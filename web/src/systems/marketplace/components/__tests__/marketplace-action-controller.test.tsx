@@ -1339,7 +1339,20 @@ describe("Add with dependencies", () => {
   const CORE_DIGEST = "a".repeat(64);
   const NET_GATEWAY_DIGEST = "b".repeat(64);
   const LOG_DIGEST = "c".repeat(64);
-  const dependencyPreview = (state: "missing" | "version_unmet" = "missing") => ({
+  const blockedCore = {
+    missing: {},
+    version_unmet: { installed_version: "0.3.0" },
+    // A missing dependency whose source only offers a version below min_version (G-4).
+    source_too_old: { state: "version_unmet", version: "0.3.5" },
+    // A different copy another profile uses; dependency installs never replace it (G-3).
+    installed_elsewhere: {
+      installed_version: "0.3.0",
+      retry_command: "compozy extension update acme-core --scope global --profile other",
+    },
+  } as const;
+  const dependencyPreview = (
+    state: "missing" | "version_unmet" | "source_too_old" | "installed_elsewhere" = "missing"
+  ) => ({
     name: "kit",
     inputs: [],
     declared_profiles: [],
@@ -1356,7 +1369,7 @@ describe("Add with dependencies", () => {
         version: "0.5.1",
         digest_sha256: CORE_DIGEST,
         consent_required: true,
-        ...(state === "version_unmet" ? { installed_version: "0.3.0" } : {}),
+        ...blockedCore[state],
       },
       {
         name: "acme-net",
@@ -1481,6 +1494,31 @@ describe("Add with dependencies", () => {
     expect(screen.queryByTestId("extension-trust-dialog")).toBeNull();
     expect(io.install).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["source_too_old", "Its source has no version of acme-core at 0.4.0 or later"],
+    [
+      "installed_elsewhere",
+      "Another profile or workspace uses a different copy of acme-core. Run compozy extension update acme-core --scope global --profile other first",
+    ],
+  ] as const)(
+    "Should block Add without update or consent prompts when acme-core is %s",
+    async (state, guidance) => {
+      io.preview.mockResolvedValueOnce(dependencyPreview(state));
+      renderRow(verified);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+
+      const row = await screen.findByTestId("extension-install-dependency-acme-core");
+      expect(row).toHaveTextContent(guidance);
+      expect(row).not.toHaveTextContent("Update acme-core to");
+      const add = screen.getByRole("button", { name: "Add" });
+      expect(add).toBeDisabled();
+      await user.click(add);
+      expect(screen.queryByTestId("extension-trust-dialog")).toBeNull();
+      expect(io.install).not.toHaveBeenCalled();
+    }
+  );
 });
 
 describe("Marketplace update recovery", () => {

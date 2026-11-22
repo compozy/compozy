@@ -1,6 +1,6 @@
 # BUG-20261122-dependency-exists-code-collapsed: A dependency's extension_exists refusal is reported as extension_install_failed
 
-- **Status:** open
+- **Status:** fixed, pending re-walk
 - **Impact (user-side):** Friction for agents and scripts that branch on the error code
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Bruno
@@ -42,6 +42,13 @@ code. Its message names the dependency.
   expected_digest".
 
 ## Fix
+
+**Disposition: fixed in this PR, pending re-walk.** Dependency-attributed errors now go through
+the normal error mapping and then gain `dependency`/`dependencies_installed`
+(`internal/api/core/extensions_operation_errors.go`); a missing dependency `expected_digest` is a
+validation response that keeps its field. The step 12 case is now refused earlier with state
+`installed_elsewhere`. Tests: `TestExtensionDependencyHandlers`,
+`TestExtensionDependencyValidationPayload`.
 
 **Disposition: not fixed here (QA walk).** The dependency error wrapping should keep the inner
 acquisition code (`extension_exists`) and add `dependency`, the same way it already does for

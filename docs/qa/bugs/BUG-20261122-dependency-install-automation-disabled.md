@@ -1,6 +1,6 @@
 # BUG-20261122-dependency-install-automation-disabled: Dependency installs fail on a daemon with automation disabled
 
-- **Status:** open (the trigger predates #1845; #1845 makes it block every dependency install)
+- **Status:** fixed, pending re-walk
 - **Impact (user-side):** Blocker for `--with-dependencies` and the Web Add flow when `[automation] enabled = false`
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -63,6 +63,12 @@ reports `daemon: extension automation previewer is required`.
   dependency path that turns it into a blocker.
 
 ## Fix
+
+**Disposition: fixed in this PR, pending re-walk.** `previewExtensionAutomation`
+(`internal/daemon/extensions_inventory.go`) returned "extension automation previewer is required"
+when automation is disabled; every enable preview calls it. With no previewer it now reports no
+starting automation, and `enableInstalledExtension` logs the unmasked enable error. Test: "Should
+install and enable with automation disabled" in `TestExtensionDependencyInstall`.
 
 **Disposition: not fixed here (QA walk; product code untouched).**
 

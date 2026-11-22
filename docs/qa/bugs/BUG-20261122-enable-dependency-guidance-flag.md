@@ -1,6 +1,6 @@
 # BUG-20261122-enable-dependency-guidance-flag: The enable refusal suggests a flag that enable does not have
 
-- **Status:** open
+- **Status:** fixed, pending re-walk
 - **Impact (user-side):** Confusion; the suggested command fails
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Bruno
@@ -35,6 +35,11 @@ should point to `compozy extension install <dependent source> --with-dependencie
   "probe enable --with-dependencies".
 
 ## Fix
+
+**Disposition: fixed in this PR, pending re-walk.** Enable now prints `Enable first: compozy extension
+enable <dep>.` for a disabled dependency and points a missing one to installing it or reinstalling
+the dependent with `--with-dependencies`. Test: "Should guide enable without the install-only
+--with-dependencies flag".
 
 **Disposition: not fixed here (QA walk).** The CLI renders the same install-oriented hint for
 `extension_dependencies_required` from install and from enable

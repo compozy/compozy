@@ -1478,6 +1478,28 @@ func TestExtensionDependencyHandlers(t *testing.T) {
 					reflect.DeepEqual(payload.DependenciesInstalled, []string{"acme-base"})
 			},
 		},
+		{
+			name: "Should keep extension_exists for a dependency whose installed package differs",
+			err: &extensionpkg.DependencyGateError{
+				Dependency: "acme-core", Err: fmt.Errorf("%w: acme-core 1.0.0 differs", extensionpkg.ErrExtensionExists),
+			},
+			status: http.StatusConflict,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionExists && payload.Dependency == "acme-core"
+			},
+		},
+		{
+			name: "Should keep the root agent conflict after dependencies were installed",
+			err: &extensionpkg.DependenciesInstalledError{
+				Installed: []string{"acme-core"}, Err: &extensionpkg.AgentConflictError{Agents: []string{"zed", "ada"}},
+			},
+			status: http.StatusConflict,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionAgentConflict && payload.Dependency == "" &&
+					reflect.DeepEqual(payload.Agents, []string{"ada", "zed"}) &&
+					reflect.DeepEqual(payload.DependenciesInstalled, []string{"acme-core"})
+			},
+		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
@@ -1503,6 +1525,45 @@ func TestExtensionDependencyHandlers(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: a dependency's missing marketplace digest keeps the validation payload's field issue and names the
+// dependency (G-2). Owner: core extension install handlers; suite: TestExtensionDependencyHandlers.
+func TestExtensionDependencyValidationPayload(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep the expected_digest issue and name the dependency", func(t *testing.T) {
+		t.Parallel()
+		service := extensionServiceStub{installFn: func(
+			context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext,
+		) (contract.ExtensionPayload, error) {
+			return contract.ExtensionPayload{}, &extensionpkg.DependenciesInstalledError{
+				Installed: []string{"acme-base"},
+				Err: &extensionpkg.DependencyGateError{
+					Dependency: "acme-core",
+					Err: &extensionpkg.ManifestValidationError{
+						Field: "expected_digest", Message: "a listed digest is required for marketplace plugins",
+					},
+				},
+			}
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions", handlers.InstallExtension)
+		response := performRequest(t, engine, http.MethodPost, "/extensions",
+			[]byte(`{"source":"curated","ref":"acme/tool","with_dependencies":true}`))
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.ExtensionValidationErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(error) error = %v", err)
+		}
+		installed := payload.DependenciesInstalled
+		if len(payload.Issues) != 1 || payload.Issues[0].Field != "expected_digest" ||
+			payload.Dependency != "acme-core" || !reflect.DeepEqual(installed, []string{"acme-base"}) {
+			t.Fatalf("payload = %#v body=%s", payload, response.Body.String())
+		}
+	})
 }
 
 func mustJSONMarshal(t *testing.T, value any) []byte {

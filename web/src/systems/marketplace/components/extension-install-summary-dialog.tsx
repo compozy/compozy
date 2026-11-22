@@ -15,7 +15,10 @@ import type { ExtensionInstallPreview, ExtensionInstallRequest } from "@/systems
 import type { MarketplaceCatalogListing } from "../types";
 
 import { ExtensionDependencyList } from "./extension-dependency-list";
-import { unmetExtensionDependencies, versionUnmetDependencies } from "./extension-dependency-model";
+import {
+  blockedExtensionDependencies,
+  unmetExtensionDependencies,
+} from "./extension-dependency-model";
 import { ExtensionInputFields } from "./extension-input-fields";
 import { marketplaceTrustSentence } from "./marketplace-ui";
 import { useExtensionInputForm } from "./use-extension-input-form";
@@ -48,7 +51,7 @@ export function ExtensionInstallSummaryDialog(props: SummaryDialogProps) {
   const form = useExtensionInputForm(definitions, name);
   const hasInputs = definitions.length > 0;
   // A dependency below its required version refuses even a joint install; Add stays disabled.
-  const blocked = model.versionUnmet > 0;
+  const blocked = model.blockedDependencies > 0;
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
@@ -116,7 +119,7 @@ function summaryDialogModel(props: SummaryDialogProps) {
       description: "Provide the required inputs to update this extension.",
       preview: null,
       dependencies: [],
-      versionUnmet: 0,
+      blockedDependencies: 0,
       destination: null,
       trust: null,
     };
@@ -132,7 +135,7 @@ function summaryDialogModel(props: SummaryDialogProps) {
         ? props.preview
         : null,
     dependencies: unmetExtensionDependencies(props.preview),
-    versionUnmet: versionUnmetDependencies(props.preview).length,
+    blockedDependencies: blockedExtensionDependencies(props.preview).length,
     destination: (
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-small-body">
         <dt className="text-muted-foreground">Installs in</dt>

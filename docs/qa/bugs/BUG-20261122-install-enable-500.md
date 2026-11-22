@@ -1,6 +1,6 @@
 # BUG-20261122-install-enable-500: Installing a new local extension with --enable reports an Internal Server Error and leaves it off
 
-- **Status:** open-upstream (pre-existing, not caused by #1845; filed as compozy/compozy#1959)
+- **Status:** fixed in #1845 PR B, pending re-walk (compozy/compozy#1959)
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Bruno
@@ -40,6 +40,10 @@ so the masked cause is not observable.
   masked by `core.ExtensionEnableFailure(err, true)`. Whether this predates #1845 was not checked.
 
 ## Fix
+
+**Disposition: fixed by the automation-disabled fix in #1845 PR B, pending re-walk.** The trigger
+was the enable preview failing when automation is disabled (see
+BUG-20261122-dependency-install-automation-disabled). The enable error is now also logged unmasked.
 
 **Disposition: pre-existing, not fixed here.**
 

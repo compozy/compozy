@@ -98,7 +98,8 @@ func (s *daemonExtensionService) previewDependencies(
 	ctx context.Context, prepared preparedDaemonExtensionInstall, req contract.InstallExtensionRequest,
 	actor taskpkg.ActorContext,
 ) (_ []contract.ExtensionDependencyPayload, resultErr error) {
-	graph, err := s.resolveDependencies(ctx, prepared.manifest, prepared.target, req.Dependencies, actor)
+	graph, err := s.resolveDependencies(ctx, prepared.manifest, prepared.sourceDir, prepared.target, req.Dependencies,
+		actor)
 	if err != nil {
 		return nil, err
 	}

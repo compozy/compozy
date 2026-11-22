@@ -3,6 +3,7 @@ import { Eyebrow, MonoId, Pill } from "@compozy/ui";
 import type { ExtensionDependency } from "@/systems/extensions";
 
 import {
+  extensionDependencyBlockedReason,
   extensionDependencySourceLabel,
   isRegistryVerifiedDependency,
 } from "./extension-dependency-model";
@@ -10,7 +11,7 @@ import { formatMarketplaceVersion } from "./marketplace-ui";
 
 /**
  * Add's **Also installs** section: every dependency the install must add or turn on, in install
- * order, with its own trust word. A version that is too old blocks Add with update guidance.
+ * order, with its own trust word. A dependency Add cannot install blocks it with guidance.
  */
 export function ExtensionDependencyList({
   dependencies,
@@ -33,6 +34,7 @@ export function ExtensionDependencyList({
 function ExtensionDependencyRow({ dependency }: { dependency: ExtensionDependency }) {
   const version = formatMarketplaceVersion(dependency.version ?? dependency.installed_version);
   const verified = isRegistryVerifiedDependency(dependency);
+  const blocked = extensionDependencyBlockedReason(dependency);
   return (
     <li
       className="flex flex-col gap-1 py-2.5 text-small-body"
@@ -48,7 +50,7 @@ function ExtensionDependencyRow({ dependency }: { dependency: ExtensionDependenc
             Turns on
           </Pill>
         ) : null}
-        {dependency.state === "version_unmet" ? null : (
+        {blocked ? null : (
           <Pill size="xs" tone={verified ? "neutral" : "warning"}>
             {verified ? "Checked by CompozyOS" : "Not verified"}
           </Pill>
@@ -63,10 +65,9 @@ function ExtensionDependencyRow({ dependency }: { dependency: ExtensionDependenc
           <MonoId size="sm" value={dependency.gateway_requirement_digest} />
         </span>
       ) : null}
-      {dependency.state === "version_unmet" ? (
+      {blocked ? (
         <span className="text-form-hint text-warning" role="alert">
-          Update {dependency.name} to {dependency.min_version ?? "the required version"} or later
-          first
+          {blocked}
         </span>
       ) : null}
     </li>

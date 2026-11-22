@@ -89,7 +89,7 @@ func (f *dependencyFixture) resolve(t *testing.T, root *extensionpkg.Manifest, t
 	[]contract.ExtensionDependencyPayload, error,
 ) {
 	t.Helper()
-	graph, err := f.service.resolveDependencies(t.Context(), root, target, nil, dependencyOperator(t))
+	graph, err := f.service.resolveDependencies(t.Context(), root, "", target, nil, dependencyOperator(t))
 	if err != nil {
 		return nil, err
 	}
@@ -441,6 +441,37 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		}
 	})
 
+	t.Run("Should install and enable with automation disabled", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		// [automation] enabled = false wires no automation previewer into the extension service.
+		fixture.service.automation = nil
+		fixture.write(t, "dep-core", "1.0.0")
+		fixture.write(t, "root", "1.0.0", "dep-core")
+		fixture.write(t, "solo", "1.0.0")
+
+		item, err := fixture.service.Install(t.Context(), fixture.rootRequest(t,
+			map[string]contract.ExtensionDependencyConsent{"dep-core": {AllowUnverified: true}},
+		), dependencyOperator(t))
+		if err != nil || !slices.Equal(item.InstallDependenciesInstalled, []string{"dep-core"}) {
+			t.Fatalf("Install(root) = %v, %v; want dep-core installed and enabled first",
+				item.InstallDependenciesInstalled, err)
+		}
+		solo, err := fixture.service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: fixture.dir(t, "solo"), AllowUnverified: true,
+			Enable: true,
+		}, dependencyOperator(t))
+		if err != nil || solo.InstallEnableError != nil || !solo.Enabled {
+			t.Fatalf("Install(solo --enable) = %+v, %v; want enabled without an enable error", solo, err)
+		}
+		for _, name := range []string{"dep-core", "solo"} {
+			enabled, err := fixture.registry.IsEnabledForProfile(name, extensionDefaultProfileLens().ID)
+			if err != nil || !enabled {
+				t.Fatalf("%s enabled = %t, %v", name, enabled, err)
+			}
+		}
+	})
+
 	t.Run("Should refuse a dependency without its own unverified consent", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDependencyFixture(t)
@@ -517,6 +548,38 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		}
 		if !fixture.installed(t, "dep-first") || fixture.installed(t, "dep-second") || fixture.installed(t, "root") {
 			t.Fatal("partial install state differs from stop-at-first-failure")
+		}
+	})
+
+	t.Run("Should resolve a relative local_path ref against the dependent's directory", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		// The daemon's working directory is this package; ../dep-core must not resolve against it.
+		parent := t.TempDir()
+		fixture.dirs["dep-core"], fixture.dirs["root"] = filepath.Join(parent, "dep-core"), filepath.Join(parent, "root")
+		for _, dir := range []string{fixture.dirs["dep-core"], fixture.dirs["root"]} {
+			if err := os.Mkdir(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}
+		fixture.write(t, "dep-core", "1.0.0")
+		writeDaemonFile(t, filepath.Join(fixture.dirs["root"], "extension.toml"), fmt.Sprintf(
+			"name = \"root\"\nversion = \"1.0.0\"\nmin_compozy_version = %q\n\n[[requires.extensions]]\n"+
+				"name = \"dep-core\"\nsource = \"local_path\"\nref = \"../dep-core\"\n", dependencyFixtureMinVersion))
+
+		item, err := fixture.service.Install(t.Context(), fixture.rootRequest(t,
+			map[string]contract.ExtensionDependencyConsent{"dep-core": {AllowUnverified: true}},
+		), dependencyOperator(t))
+		if err != nil || !slices.Equal(item.InstallDependenciesInstalled, []string{"dep-core"}) {
+			t.Fatalf("Install() = %v, %v; want dep-core installed from the sibling directory",
+				item.InstallDependenciesInstalled, err)
+		}
+		_, err = fixture.resolve(t, dependencyRoot(extensionpkg.ExtensionDependency{
+			Name: "dep-other", Source: string(contract.InstallExtensionSourceLocalPath), Ref: "../dep-other",
+		}), extensionMutationTarget{profile: extensionDefaultProfileLens()})
+		gate, ok := errors.AsType[*extensionpkg.DependencyGateError](err)
+		if !ok || gate.Dependency != "dep-other" || !errors.Is(err, extensionpkg.ErrManifestInvalid) {
+			t.Fatalf("error = %v, want a relative ref without a local dependent refused naming dep-other", err)
 		}
 	})
 
@@ -613,40 +676,69 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		}
 	})
 
-	t.Run("Should never replace a dependency package another profile uses", func(t *testing.T) {
-		t.Parallel()
-		market := newMarketplaceDependencyService(t)
-		other, err := market.service.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "other"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := market.service.Install(t.Context(), contract.InstallExtensionRequest{
-			Source: contract.InstallExtensionSourceMarketplace, Ref: "team/design", Profile: other.Name,
-			ExpectedDigest: market.digest, AllowUnverified: true,
-		}, dependencyOperator(t)); err != nil {
-			t.Fatalf("install open-design for other error = %v", err)
-		}
-		newer := market.publish(t, "1.1.0")
-		req := market.rootRequest(t)
-		req.WithDependencies = true
-		req.Dependencies = map[string]contract.ExtensionDependencyConsent{
-			"open-design": {AllowUnverified: true, ExpectedDigest: newer},
-		}
+	t.Run("Should report a package another profile uses and refuse before installing any dependency",
+		func(t *testing.T) {
+			t.Parallel()
+			market := newMarketplaceDependencyService(t)
+			other, err := market.service.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "other"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := market.service.Install(t.Context(), contract.InstallExtensionRequest{
+				Source: contract.InstallExtensionSourceMarketplace, Ref: "team/design", Profile: other.Name,
+				ExpectedDigest: market.digest, AllowUnverified: true,
+			}, dependencyOperator(t)); err != nil {
+				t.Fatalf("install open-design for other error = %v", err)
+			}
+			newer := market.publish(t, "1.1.0")
+			// dep-first is declared before open-design, so stop-at-first-failure would have installed it first.
+			firstDir, rootDir := t.TempDir(), t.TempDir()
+			writeDaemonFile(t, filepath.Join(firstDir, "extension.toml"), fmt.Sprintf(
+				"name = \"dep-first\"\nversion = \"1.0.0\"\nmin_compozy_version = %q\n", dependencyFixtureMinVersion))
+			writeDaemonFile(t, filepath.Join(rootDir, "extension.toml"), fmt.Sprintf(
+				"name = \"root\"\nversion = \"1.0.0\"\nmin_compozy_version = %q\n\n"+
+					"[[requires.extensions]]\nname = \"dep-first\"\nsource = \"local_path\"\nref = %q\n\n"+
+					"[[requires.extensions]]\nname = \"open-design\"\nsource = \"marketplace\"\nref = \"team/design\"\n",
+				dependencyFixtureMinVersion, firstDir))
+			req := contract.InstallExtensionRequest{
+				Source: contract.InstallExtensionSourceLocalPath, Ref: rootDir, AllowUnverified: true,
+			}
+			command := "compozy extension update open-design --scope global --profile other"
 
-		_, err = market.service.Install(t.Context(), req, dependencyOperator(t))
-		gate, ok := errors.AsType[*extensionpkg.DependencyGateError](err)
-		if !ok || gate.Dependency != "open-design" || !errors.Is(err, extensionpkg.ErrExtensionExists) ||
-			!strings.Contains(err.Error(), "never updated") {
-			t.Fatalf("error = %v, want a refused replacement naming open-design", err)
-		}
-		info, err := market.service.registry.Get("open-design")
-		if err != nil || info.Version != "1.0.0" {
-			t.Fatalf("open-design = %+v, %v; want 1.0.0 kept for the other profile", info, err)
-		}
-		if _, err := market.service.registry.Get("root"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
-			t.Fatalf("root lookup error = %v, want not installed", err)
-		}
-	})
+			preview, err := market.service.PreviewInstall(t.Context(), req, dependencyOperator(t))
+			states := map[string]contract.ExtensionDependencyPayload{}
+			for _, item := range preview.Dependencies {
+				states[item.Name] = item
+			}
+			design := states["open-design"]
+			if err != nil || design.State != dependencyStateInstalledElsewhere || design.InstalledVersion != "1.0.0" ||
+				design.RetryCommand != command {
+				t.Fatalf("preview = %+v, %v; want open-design installed_elsewhere naming %q", preview.Dependencies,
+					err, command)
+			}
+			req.WithDependencies = true
+			req.Dependencies = map[string]contract.ExtensionDependencyConsent{
+				"open-design": {AllowUnverified: true, ExpectedDigest: newer},
+				"dep-first":   {AllowUnverified: true},
+			}
+
+			_, err = market.service.Install(t.Context(), req, dependencyOperator(t))
+			required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
+			if !ok || !slices.ContainsFunc(required.Dependencies, func(item contract.ExtensionDependencyPayload) bool {
+				return item.Name == "open-design" && item.RetryCommand == command
+			}) {
+				t.Fatalf("error = %v, want extension_dependencies_required naming %q", err, command)
+			}
+			info, err := market.service.registry.Get("open-design")
+			if err != nil || info.Version != "1.0.0" {
+				t.Fatalf("open-design = %+v, %v; want 1.0.0 kept for the other profile", info, err)
+			}
+			for _, name := range []string{"dep-first", "root"} {
+				if _, err := market.service.registry.Get(name); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+					t.Fatalf("%s lookup error = %v, want not installed", name, err)
+				}
+			}
+		})
 }
 
 // marketplaceDependencyFixture serves the open-design client plugin from a file marketplace source "team".

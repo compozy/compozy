@@ -31,6 +31,8 @@ type extensionOperationAPIError struct {
 	statusCode int
 	status     string
 	payload    contract.ExtensionOperationErrorPayload
+	// enabling marks a refusal of `extension enable`, whose dependency guidance differs from install's.
+	enabling bool
 }
 
 type extensionValidationAPIError struct {
@@ -132,7 +134,7 @@ func (e *extensionOperationAPIError) Error() string {
 	if e == nil {
 		return nilToolErrorString
 	}
-	if message, ok := extensionDependencyErrorMessage(e.payload); ok {
+	if message, ok := extensionDependencyErrorMessage(e.payload, e.enabling); ok {
 		return message
 	}
 	if e.payload.Code == diagnosticcontract.CodeExtensionInputsRequired {

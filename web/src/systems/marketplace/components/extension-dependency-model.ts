@@ -34,11 +34,30 @@ export function unmetExtensionDependencies(
   return (preview.dependencies ?? []).filter(dependency => dependency.state !== "met");
 }
 
-/** An installed dependency below the required version blocks Add: nothing is auto-updated. */
-export function versionUnmetDependencies(
+/**
+ * A dependency Add cannot install blocks it: an installed one below the required version, a source
+ * with no satisfying version, or a different copy another profile or workspace uses. Nothing is
+ * auto-updated.
+ */
+export function blockedExtensionDependencies(
   preview: Pick<ExtensionInstallPreview, "dependencies">
 ): ExtensionDependency[] {
-  return (preview.dependencies ?? []).filter(dependency => dependency.state === "version_unmet");
+  return (preview.dependencies ?? []).filter(
+    dependency => extensionDependencyBlockedReason(dependency) !== null
+  );
+}
+
+/** The guidance a blocking dependency row shows, or null when Add can install the dependency. */
+export function extensionDependencyBlockedReason(dependency: ExtensionDependency): string | null {
+  const minVersion = dependency.min_version ?? "the required version";
+  if (dependency.state === "installed_elsewhere") {
+    return `Another profile or workspace uses a different copy of ${dependency.name}. Run ${dependency.retry_command ?? `compozy extension update ${dependency.name}`} first`;
+  }
+  if (dependency.state !== "version_unmet") return null;
+  if (!dependency.installed_version) {
+    return `Its source has no version of ${dependency.name} at ${minVersion} or later`;
+  }
+  return `Update ${dependency.name} to ${minVersion} or later first`;
 }
 
 function installableDependencies(preview: Pick<ExtensionInstallPreview, "dependencies">) {

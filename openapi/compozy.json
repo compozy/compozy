@@ -10205,6 +10205,15 @@
       },
       "ExtensionValidationErrorPayload": {
         "properties": {
+          "dependencies_installed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dependency": {
+            "type": "string"
+          },
           "diagnostic": {
             "oneOf": [
               {

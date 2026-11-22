@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -18,7 +19,10 @@ const (
 	dependencyStateMissing      = "missing"
 	dependencyStateDisabled     = "disabled"
 	dependencyStateVersionUnmet = "version_unmet"
-	maxDependencyDepth          = 5
+	// dependencyStateInstalledElsewhere marks a package installed for another scope or profile with bytes that
+	// differ from what the dependency source provides; a dependency install never replaces it (D9).
+	dependencyStateInstalledElsewhere = "installed_elsewhere"
+	maxDependencyDepth                = 5
 )
 
 // dependencyNode is one extension name of the graph; diamonds collapse onto it.
@@ -32,6 +36,10 @@ type dependencyNode struct {
 	candidate *preparedDaemonExtensionInstall
 	// unverifiedErr is the trust refusal replayed when a consent-required node lacks allow_unverified.
 	unverifiedErr error
+	// installedElsewhere is set when the candidate would replace a package other cells use.
+	installedElsewhere bool
+	// sourceDir is this package's local source directory, the base of its relative local_path dependency refs.
+	sourceDir string
 }
 
 // dependencyGraph lists nodes in topological order, dependencies first.
@@ -71,18 +79,20 @@ func (g *dependencyGraph) payloads() []contract.ExtensionDependencyPayload {
 	return items
 }
 
-// gate refuses unmet dependencies without consent, and version_unmet ones always (rule 12).
+// gate refuses unmet dependencies without consent, and version_unmet or installed_elsewhere ones always (rule 12),
+// before any dependency is installed.
 func (g *dependencyGraph) gate(withDependencies bool) error {
 	var unmet []contract.ExtensionDependencyPayload
-	versionUnmet := false
+	blocked := false
 	for _, item := range g.payloads() {
 		if item.State == dependencyStateMet {
 			continue
 		}
 		unmet = append(unmet, item)
-		versionUnmet = versionUnmet || item.State == dependencyStateVersionUnmet
+		blocked = blocked || item.State == dependencyStateVersionUnmet ||
+			item.State == dependencyStateInstalledElsewhere
 	}
-	if len(unmet) == 0 || (withDependencies && !versionUnmet) {
+	if len(unmet) == 0 || (withDependencies && !blocked) {
 		return nil
 	}
 	return &extensionpkg.DependenciesRequiredError{Dependencies: unmet}
@@ -100,7 +110,7 @@ type dependencyResolver struct {
 // resolveDependencies walks root's transitive requires.extensions before any mutation (rules 11 and 12).
 // Every path is expanded, so depth and cycles are checked on each chain; acquisitions happen once per name.
 func (s *daemonExtensionService) resolveDependencies(
-	ctx context.Context, root *extensionpkg.Manifest, target extensionMutationTarget,
+	ctx context.Context, root *extensionpkg.Manifest, rootDir string, target extensionMutationTarget,
 	consent map[string]contract.ExtensionDependencyConsent, actor taskpkg.ActorContext,
 ) (*dependencyGraph, error) {
 	graph := &dependencyGraph{nodes: make(map[string]*dependencyNode)}
@@ -110,7 +120,7 @@ func (s *daemonExtensionService) resolveDependencies(
 	resolver := dependencyResolver{
 		service: s, target: target, consent: consent, actor: actor, graph: graph, finished: make(map[string]bool),
 	}
-	if err := resolver.expand(ctx, root.Name, root.Requires.Extensions, []string{root.Name}); err != nil {
+	if err := resolver.expand(ctx, root.Name, rootDir, root.Requires.Extensions, []string{root.Name}); err != nil {
 		return nil, errors.Join(err, graph.Close())
 	}
 	for _, node := range graph.order {
@@ -120,9 +130,13 @@ func (s *daemonExtensionService) resolveDependencies(
 }
 
 func (r *dependencyResolver) expand(
-	ctx context.Context, parent string, dependencies []extensionpkg.ExtensionDependency, path []string,
+	ctx context.Context, parent, parentDir string, dependencies []extensionpkg.ExtensionDependency, path []string,
 ) error {
 	for _, dependency := range dependencies {
+		dependency, err := resolveDependencyRef(dependency, parentDir)
+		if err != nil {
+			return err
+		}
 		chain := append(slices.Clone(path), dependency.Name)
 		if slices.Contains(path, dependency.Name) {
 			return &extensionpkg.DependencyGraphInvalidError{
@@ -140,7 +154,7 @@ func (r *dependencyResolver) expand(
 		if err != nil {
 			return err
 		}
-		if err := r.expand(ctx, dependency.Name, node.children, chain); err != nil {
+		if err := r.expand(ctx, dependency.Name, node.sourceDir, node.children, chain); err != nil {
 			return err
 		}
 		if !r.finished[dependency.Name] {
@@ -211,6 +225,10 @@ func (r *dependencyResolver) inspect(ctx context.Context, node *dependencyNode) 
 	}
 	node.installed, node.payload.InstalledVersion = true, info.Version
 	node.children = manifest.Requires.Extensions
+	source := info.Provenance.SourceURL
+	if info.Provenance.InstalledFrom == extensionpkg.ExtensionInstalledFromLocalPath && filepath.IsAbs(source) {
+		node.sourceDir = source
+	}
 	// The recorded tier, not past consent, says whether the installed package is registry-verified.
 	node.payload.RegistryTier = cmp.Or(info.Provenance.RegistryTier, extensionpkg.ExtensionRegistryTierUnverified)
 	// Enabling repeats the gateway gate only when the installed confirmation does not cover the requirement.
@@ -274,14 +292,86 @@ func (r *dependencyResolver) acquire(ctx context.Context, node *dependencyNode) 
 	}
 	node.payload.Version, node.payload.DigestSHA256 = prepared.manifest.Version, prepared.digest
 	node.payload.GatewayRequirementDigest, node.payload.RegistryTier = digest, prepared.registryTier
-	node.children = prepared.manifest.Requires.Extensions
+	node.children, node.sourceDir = prepared.manifest.Requires.Extensions, prepared.sourceDir
+	return r.checkInstalledElsewhere(ctx, node)
+}
+
+// resolveDependencyRef resolves a relative local_path ref against the dependent's source directory, never the
+// daemon's working directory. The result is an absolute path, which a local_path install already accepts, so it
+// reaches nothing a manifest could not name directly. A dependent without a local source directory (a published
+// or remotely installed package) cannot declare a relative ref.
+func resolveDependencyRef(
+	dependency extensionpkg.ExtensionDependency, parentDir string,
+) (extensionpkg.ExtensionDependency, error) {
+	if contract.InstallExtensionSource(dependency.Source) != contract.InstallExtensionSourceLocalPath ||
+		filepath.IsAbs(dependency.Ref) {
+		return dependency, nil
+	}
+	if parentDir == "" {
+		return dependency, &extensionpkg.DependencyGateError{
+			Dependency: dependency.Name,
+			Err: &extensionpkg.ManifestValidationError{
+				Field: "requires.extensions.ref", Value: dependency.Ref,
+				Message: "a relative local_path ref needs a local_path dependent; use an absolute path",
+			},
+		}
+	}
+	dependency.Ref = filepath.Join(parentDir, dependency.Ref)
+	return dependency, nil
+}
+
+// checkInstalledElsewhere marks a missing node whose package is installed for another scope or profile with
+// different bytes, so preview reports it and install refuses before installing any dependency.
+func (r *dependencyResolver) checkInstalledElsewhere(ctx context.Context, node *dependencyNode) error {
+	installed, err := r.service.registry.Get(node.payload.Name)
+	if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if node.candidate.published == nil || node.candidate.published.MatchesInstalled(installed) {
+		return nil
+	}
+	command, err := r.service.dependencyUpdateCommand(ctx, installed.Name)
+	if err != nil {
+		return err
+	}
+	node.installedElsewhere = true
+	node.payload.InstalledVersion, node.payload.RetryCommand = installed.Version, command
 	return nil
+}
+
+// dependencyUpdateCommand names the update of a package in the scope and profile of one of its installations,
+// the only place `compozy extension update` resolves it from.
+func (s *daemonExtensionService) dependencyUpdateCommand(ctx context.Context, name string) (string, error) {
+	command := "compozy extension update " + name
+	installations, err := s.registry.Installations(ctx, name)
+	if err != nil || len(installations) == 0 {
+		return command, err
+	}
+	scope := installations[0].Scope
+	if scope.WorkspaceID != "" {
+		command += " --workspace " + scope.WorkspaceID
+	} else {
+		command += " --scope global"
+	}
+	if scope.ProfileID != "" && s.profiles != nil {
+		profile, err := s.profiles.ProfileName(ctx, scope.ProfileID)
+		if err != nil {
+			return "", fmt.Errorf("daemon: read dependency %q installation profile: %w", name, err)
+		}
+		command += " --profile " + profile
+	}
+	return command, nil
 }
 
 // resolveState classifies the node against its effective (highest) min_version.
 func (node *dependencyNode) resolveState() {
 	item := &node.payload
 	switch {
+	case !node.installed && node.installedElsewhere:
+		item.State = dependencyStateInstalledElsewhere
 	case !node.installed:
 		item.State = dependencyStateMissing
 		if !extensionpkg.VersionSatisfies(item.Version, item.MinVersion) {

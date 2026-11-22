@@ -2724,6 +2724,8 @@ export type ExtensionUpdateResponse = {
 };
 
 export type ExtensionValidationErrorPayload = {
+  dependencies_installed?: Array<string>;
+  dependency?: string;
   diagnostic?: DiagnosticItem | null;
   error: string;
   issues: Array<ValidationIssue>;

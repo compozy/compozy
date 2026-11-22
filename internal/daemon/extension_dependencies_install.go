@@ -27,7 +27,8 @@ func (s *daemonExtensionService) installDependencies(
 	if prepared.manifest == nil || len(prepared.manifest.Requires.Extensions) == 0 {
 		return nil, nil
 	}
-	graph, err := s.resolveDependencies(ctx, prepared.manifest, prepared.target, req.Dependencies, actor)
+	graph, err := s.resolveDependencies(ctx, prepared.manifest, prepared.sourceDir, prepared.target, req.Dependencies,
+		actor)
 	if err != nil {
 		return nil, err
 	}
@@ -177,16 +178,23 @@ func (s *daemonExtensionService) checkCommitDependenciesMet(
 	return &extensionpkg.DependenciesRequiredError{Dependencies: unmet}
 }
 
-// dependencyReplacementRefused refuses a dependency install that would replace the package other cells use.
-func dependencyReplacementRefused(installed *extensionpkg.ExtensionInfo, candidate *extensionpkg.Manifest) error {
+// dependencyReplacementRefused refuses a dependency install that would replace the package other cells use. The
+// resolver reports this case before any mutation; the commit repeats it for a package installed meanwhile.
+func (s *daemonExtensionService) dependencyReplacementRefused(
+	ctx context.Context, installed *extensionpkg.ExtensionInfo, candidate *extensionpkg.Manifest,
+) error {
 	version := ""
 	if candidate != nil {
 		version = candidate.Version
 	}
+	command, err := s.dependencyUpdateCommand(ctx, installed.Name)
+	if err != nil {
+		return err
+	}
 	return fmt.Errorf(
 		"%w: %s %s is installed for another scope or profile and its source now provides %s; "+
-			"dependencies are never updated, run `compozy extension update %s` first",
-		extensionpkg.ErrExtensionExists, installed.Name, installed.Version, version, installed.Name,
+			"dependencies are never updated, run `%s` first",
+		extensionpkg.ErrExtensionExists, installed.Name, installed.Version, version, command,
 	)
 }
 

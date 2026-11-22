@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -47,6 +48,9 @@ type preparedDaemonExtensionInstall struct {
 	// keepInstalled refuses replacing an installed package whose bytes differ: a dependency install only
 	// attaches the package other cells already use and never updates it (D9).
 	keepInstalled bool
+	// sourceDir is the absolute directory of a local_path package; relative local_path dependency refs resolve
+	// against it. Published packages have none.
+	sourceDir string
 }
 
 func (p preparedDaemonExtensionInstall) Close() error {
@@ -102,7 +106,7 @@ func (s *daemonExtensionService) installPrepared(
 		if prepared.published != nil {
 			if installed, readErr := s.registry.Get(prepared.name); readErr == nil {
 				if prepared.keepInstalled && !prepared.published.MatchesInstalled(installed) {
-					return dependencyReplacementRefused(installed, prepared.manifest)
+					return s.dependencyReplacementRefused(ctx, installed, prepared.manifest)
 				}
 				if err := s.reinstallPreparedExtension(ctx, prepared, installed, req, actor, &item); err != nil {
 					return err
@@ -179,6 +183,10 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	if err != nil {
 		return preparedDaemonExtensionInstall{}, err
 	}
+	sourceDir, err := filepath.Abs(req.Ref)
+	if err != nil {
+		return preparedDaemonExtensionInstall{}, fmt.Errorf("daemon: resolve extension source directory: %w", err)
+	}
 	if err := extensionpkg.CheckExpectedDigest(req.ExpectedDigest, checksum); err != nil {
 		return preparedDaemonExtensionInstall{}, err
 	}
@@ -204,7 +212,7 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	}
 	return preparedDaemonExtensionInstall{
 		name: manifest.Name, manifest: manifest, digest: checksum, target: target,
-		registryTier: extensionpkg.ExtensionRegistryTierUnverified, published: prepared,
+		registryTier: extensionpkg.ExtensionRegistryTierUnverified, published: prepared, sourceDir: sourceDir,
 		commit: func() error {
 			// The early check only fails fast; the commit repeats it under the lifecycle
 			// lock so an attachment enrolled meanwhile cannot be overwritten by a caller

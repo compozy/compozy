@@ -11115,6 +11115,8 @@ export interface components {
       transport?: string;
     };
     ExtensionValidationErrorPayload: {
+      dependencies_installed?: string[];
+      dependency?: string;
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       issues: components["schemas"]["ValidationIssue"][];

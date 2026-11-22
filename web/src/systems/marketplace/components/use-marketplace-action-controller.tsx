@@ -53,7 +53,7 @@ import { useMarketplacePending } from "./use-marketplace-pending";
 import {
   extensionDependencyGates,
   extensionDependencyInstallFields,
-  versionUnmetDependencies,
+  blockedExtensionDependencies,
 } from "./extension-dependency-model";
 import { useExtensionDependencyGates } from "./use-extension-dependency-gates";
 import { useMarketplaceEnableRecovery } from "./use-marketplace-enable-recovery";
@@ -397,7 +397,7 @@ function useMarketplaceActionController(
     const selected = installPreview;
     if (!selected) return;
     if (!prepareExtensionInputs(selected.preview.inputs, draft).valid) return;
-    if (versionUnmetDependencies(selected.preview).length > 0) return;
+    if (blockedExtensionDependencies(selected.preview).length > 0) return;
     const gates = extensionDependencyGates(selected.preview);
     if (gates.length === 0) {
       void withPendingEntry(selected.entry, () => submitInstall(selected, draft));

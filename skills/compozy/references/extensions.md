@@ -351,7 +351,9 @@ as a GitHub repository. Inspect source state with `compozy marketplace sources l
 
 Dependencies are experimental and may change without a deprecation window. A package declares the
 extensions it needs with `[[requires.extensions]]` entries: `name`, `source` (`curated`,
-`marketplace`, `github`, `git`, `local_path`), `ref`, and an optional `min_version` lower bound. Self
+`marketplace`, `github`, `git`, `local_path`), `ref`, and an optional `min_version` lower bound. A
+relative `local_path` ref resolves against the dependent package's own source directory; a dependent
+without a local source directory (published or remotely installed) must use an absolute path. Self
 and duplicate names are invalid, and the manifest must set `min_compozy_version` to at least `0.7.9`
 so older daemons refuse it instead of ignoring the table. The catalog feed carries no dependency
 field: browsing never shows dependencies; install preview reads them from the downloaded package.
@@ -365,15 +367,19 @@ returns `reason: "conflicting_source"` with both `parents`. Diamonds collapse to
 `min_version` is the highest bound and whose `required_by` lists every parent.
 
 Preview (`POST /api/extensions/preview-install`) returns `dependencies[]`, dependencies first, each
-with `state` (`met`, `missing`, `disabled`, `version_unmet`), `required_by`, `depth`, `registry_tier`
+with `state` (`met`, `missing`, `disabled`, `version_unmet`, `installed_elsewhere`), `required_by`, `depth`, `registry_tier`
 (only `official` and `community` are registry-verified; earlier consent is not), and, for a missing
 package, its `version`, `digest_sha256`, `gateway_requirement_digest` and `consent_required` (true when
 it needs `allow_unverified`). An installed `disabled` dependency carries `installed_version` and, when
 enabling must confirm it again, `gateway_requirement_digest`. A marketplace dependency is previewed at
 its listed digest; installing it still requires that digest as `dependencies.<name>.expected_digest`. Install without `with_dependencies` refuses any unmet
 dependency with `422 extension_dependencies_required` listing the unmet entries. `version_unmet`
-always refuses, even with consent, and carries `retry_command: "compozy extension update <dep>"`;
-nothing is ever auto-updated.
+always refuses, even with consent; an installed one carries `retry_command: "compozy extension update
+<dep>"`, and a missing one (its source offers only an older `version`) has no retry command.
+`installed_elsewhere` marks a package installed for another scope or profile whose source now provides
+different bytes: it always refuses before any dependency installs, with `installed_version` and a
+`retry_command` naming the scope and profile where `compozy extension update <dep>` resolves it.
+Nothing is ever auto-updated.
 
 `with_dependencies: true` installs `missing` and enables `disabled` dependencies in the dependent's
 scope and profile, dependencies first, before the dependent's own input gate. Consent is per
@@ -384,8 +390,10 @@ confirmation refuses with that gate's existing code (`extension_checksum_unverif
 Execution stops at the first failure and keeps completed dependencies, reported as
 `dependencies_installed` on the error (including one committed before its enable failed); a successful
 install returns `201` with `dependencies_installed`. A dependency already installed for another scope or
-profile is only attached: when its source now provides different bytes the install refuses with
-`extension_exists` instead of updating the package other cells use. The dependent's commit re-checks its
+profile with the same bytes is only attached; different bytes are `installed_elsewhere` (above), and a
+package installed meanwhile refuses at commit with `extension_exists` naming the dependency. Every
+dependency-attributed error keeps its own code and fields (`extension_exists`, `agents`, a validation
+`issues[].field` such as `expected_digest`) and adds `dependency`/`dependencies_installed`. The dependent's commit re-checks its
 dependencies, so one removed concurrently refuses with `extension_dependencies_required`. A dependency with required inputs refuses with `extension_inputs_required`
 naming it; set it up separately first. `compozy__extensions_install` accepts the same
 `with_dependencies` and closed `dependencies` object with the authority of a plain install.
@@ -397,7 +405,8 @@ then asks each artifact's own gates (unverified consent, gateway digest) and ret
 `--allow-unverified` covers only the requested extension, each unverified dependency needs
 `--allow-unverified-dependency <name>` (with `--yes` for structured output), and
 `--confirm-gateway-requirement` takes a bare digest for the root and `<name>=<digest>` for a dependency.
-A `version_unmet` dependency prints `Update first: compozy extension update <dep>` and exits 2.
+A `version_unmet` or `installed_elsewhere` dependency never prompts: it prints `Update first:
+<retry_command>`, or names the source version when no version satisfies `min_version`, and exits 2.
 
 Remove (`DELETE /api/extensions/{name}`) and disable (`PUT /api/extensions/{name}/enablement` with
 `enabled: false`) refuse with `409 extension_dependency_in_use` while an installed dependent still
@@ -408,7 +417,9 @@ cascades: the dependent keeps its runtime state and status/list/info report
 `unmet_dependencies: [{name, min_version, state, ...}]` (also in the compact native results and the
 human/TOON CLI output). Enabling a dependent whose dependencies are
 unmet refuses with `422 extension_dependencies_required`; boot never refuses. The CLI prints the
-dependents and exits 1.
+dependents and exits 1. `compozy extension enable` answers an unmet-dependency refusal with
+`Enable first: compozy extension enable <dep>` for a disabled dependency, and points a missing one to
+`compozy extension install <source> --with-dependencies` (enable has no such flag).
 
 ## Built-in Permanent Removal
 
