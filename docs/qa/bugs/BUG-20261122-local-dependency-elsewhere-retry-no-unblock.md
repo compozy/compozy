@@ -1,6 +1,6 @@
 # BUG-20261122-local-dependency-elsewhere-retry-no-unblock: The local `--replace` retry for an `installed_elsewhere` dependency never unblocks the root
 
-- **Status:** fixed (pending re-walk)
+- **Status:** verified
 - **Impact (user-side):** Blocked. The user runs the offered command, it succeeds, and the root
   still cannot be installed with any flag
 - **Severity:** Medium · **Priority:** P2
@@ -94,4 +94,24 @@ unchanged.
 
 ## Verification
 
-Pending CI and a re-walk of ET-extension-dependencies step 12.
+Re-walked on 2026-11-22 against head `f0b712302` (binary stamped `v0.7.9`, fresh isolated lab,
+`[automation] enabled = false`). The report is the "Third re-walk" section of
+`docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md`, and the evidence is in
+`docs/qa/evidence/2026-11-22-gh-1845-pr-b-s12-local/`.
+
+1. `acme-p12dep` 0.1.0 installed for `other` only, then its source description changed. The preview of
+   `acme-p12` gives `installed_elsewhere` with `retry_command: compozy extension install
+   <lab>/fixtures/acme-p12dep --replace --allow-unverified --scope global --profile other`. The
+   `--with-dependencies` install exits 2 with `extension_dependencies_required`, the same top-level
+   `retry_command`, and human `Run first: …`.
+2. That command, typed exactly as shown in a PTY (`s12-local-retry-tty.pty`), asks "This extension
+   checksum is unverified. Continue with allow_unverified? [y/N]". After `y` it exits 0. The `other`
+   copy now has the source checksum `084282be…`.
+3. The preview then reports `acme-p12dep` as `missing` with digest `084282be…`. `install acme-p12
+   --allow-unverified --with-dependencies --allow-unverified-dependency acme-p12dep --enable --yes`
+   exits 0 with `dependencies_installed: ["acme-p12dep"]`, and `acme-p12` is `enabled: true, active`.
+4. `extension list --profile default` and `--profile other` both show `acme-p12dep` 0.1.0 `active`
+   with checksum `084282be…`. `other` keeps its own installation (`installation_profile: other`).
+
+The marketplace variant still unblocks the root, and step 9 and the G-9 workspace hint show no
+regression.

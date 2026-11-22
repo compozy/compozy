@@ -148,3 +148,62 @@ The manifest `TEARDOWN_COMMAND` ran from a script whose command line did not nam
 agent shell survived this time. `teardown.json` (copied to the evidence folder) reports `clean: true`
 with no survivors. The daemon survived its graceful stop and the signal sweep ended it. Nothing listens
 on 47691–47693 any more, and no lab process remains.
+
+## Third re-walk: step 12 local retry on `f0b712302`
+
+`f0b712302` fixed BUG-20261122-local-dependency-elsewhere-retry-no-unblock. This pass re-walked step
+12 (local and marketplace) and, as a quick regression, step 9 (local and marketplace) and the G-9
+workspace hint.
+
+- **Build:** `go build` of `./cmd/compozy` from `f0b712302`, stamped
+  `-X …/internal/version.Version=v0.7.9`. No Web.
+- **Lab:** a fresh, empty `eng-qa-bootstrap` lab (targeted profile; CLI, API): home
+  `/tmp/compozyqa-536ba50716bb/runtime`, HTTP 42623, its own UDS, and a loopback catalog feed on
+  42625. `[automation] enabled = false`, provider usage was off, and the lab had no provider. Every
+  CLI call went through a wrapper that unset every `COMPOZY_*` variable and then set only the lab
+  home, port and socket. Onboarding was completed through `POST /api/onboarding/complete`.
+- **Terminal runs:** the offered retry commands were typed exactly as shown in a PTY (`script`), with
+  a `compozy` on `PATH` that pointed to the lab wrapper. The first attempt used zsh. Its startup
+  files put the operator's `~/.compozy/bin` first, so the command reached the operator's v0.7.8
+  daemon. That daemon refused the fixture (`min_compozy_version "0.7.9"`) before it changed
+  anything (`s12-local-retry-tty-wrong-binary.pty`). The command was then rerun under bash, which
+  resolved the lab wrapper.
+- **Fixtures** (`docs/qa/evidence/2026-11-22-gh-1845-pr-b-s12-local/fixture/`, built by `mkfix.py`):
+  `acme-p12` → local `acme-p12dep`; `acme-p12m` → catalog `acme-mdep2`; `acme-s9` → local
+  `acme-s9base >= 2.0.0`; `acme-s9m` → catalog `acme-mdep >= 2.0.0`; `acme-g9` → catalog
+  `acme-mdep3 >= 2.0.0`.
+- **Transcript:** `cli/transcript.md` records every call with its timestamp, command, output and exit
+  or HTTP code. `cli/*.pty` are the terminal runs, and `cli/daemon.log` is the daemon log. It has no
+  `ERROR` line.
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Step 12 local, preview and refusal | **Pass** | `acme-p12dep` 0.1.0 is installed for `other` only, and then its source bytes changed. The preview of `acme-p12` gives `installed_elsewhere`, `installed_version: 0.1.0`, digest `084282be…`, and `retry_command: compozy extension install <lab>/fixtures/acme-p12dep --replace --allow-unverified --scope global --profile other`. The `--with-dependencies` install exits 2 with `extension_dependencies_required` and the same top-level `retry_command`. Human output: `Run first: compozy extension install … --replace --allow-unverified --scope global --profile other`. |
+| Step 12 local, running the command in a terminal | **Pass** | Typed exactly as shown (`s12-local-retry-tty.pty`), it asks `This extension checksum is unverified. Continue with allow_unverified? [y/N]`. After `y` it exits 0, and `acme-p12dep` is `active`. The `other` copy now has checksum `084282be…`. |
+| Step 12 local, root unblocked | **Pass** | The preview now gives `acme-p12dep` `missing`, digest `084282be…`. `install acme-p12 --allow-unverified --with-dependencies --allow-unverified-dependency acme-p12dep --enable --yes` exits 0 with `dependencies_installed: ["acme-p12dep"]`, and `acme-p12` is `enabled: true, active`. `extension list --profile default` and `--profile other` both show `acme-p12dep` 0.1.0 `active`, checksum `084282be…`. In `other` it keeps `installation_profile: other`. |
+| Step 12 marketplace | **Pass** | `acme-mdep2` 1.0.0 is installed for `other`, and then 1.1.0 is published. The preview of `acme-p12m` gives `installed_elsewhere` with `retry_command: compozy extension update acme-mdep2 --scope global --profile other`, and the install exits 2 with `Run first: …`. The command, typed exactly in a PTY (`s12-market-update-tty.pty`), updates 1.0.0 to 1.1.0 and exits 0. Then `acme-p12m` installs and is `active`, and `acme-mdep2` 1.1.0 is `active` in `default` and `other`. |
+| Step 9 local | **Pass** | `acme-s9base` 1.0.0 is installed. The preview of `acme-s9` gives `version_unmet` with no `retry_command`. The install exits 2 with and without `--with-dependencies`, and the human output is `No update of acme-s9base 1.0.0 reaches min_version 2.0.0; reinstall it from a source that provides it first.` |
+| Step 9 marketplace | **Pass** | With only 1.0.0 in the catalog, the output is the same "No update of acme-mdep 1.0.0 reaches min_version 2.0.0" text with no command. After 2.0.0 is published and refreshed, the preview and refusal give `retry_command: compozy extension update acme-mdep --scope global`, and the human output is `Run first: …`. The update was run with an extra `--profile default` and reached 2.0.0. Then `acme-s9m` installs and is `active`. The offered form without `--profile` was run as written in the G-9 case. |
+| G-9: dependent in a workspace, dependency global and too old | **Pass** | `acme-mdep3` 1.0.0 is installed with `--scope global`, and then 2.0.0 is published. `install acme-g9 --scope workspace --workspace <lab>/product --with-dependencies` exits 2 with `retry_command: compozy extension update acme-mdep3 --scope global` (no `--workspace`), and the human output is `Run first: …`. Running that command exactly updates the package to 2.0.0. Then `acme-g9` installs into workspace `ws_2e1ee5ae38dd87b1` and is `active`. |
+
+### New defects
+
+None.
+
+### Paper cuts
+
+| Where | Felt | Sharpness |
+| --- | --- | --- |
+| Local `install --replace --allow-unverified` retry command | In a terminal it still asks to allow the unverified checksum, even though `--allow-unverified` is on the command line. This is the carried-over TTY paper cut from the first re-walk, and the fix deliberately leaves out `--yes` | Low |
+
+### Not re-walked
+
+Steps 1–8, 10, 11 and 13, and the Web. `f0b712302` changes only the dependency attach and reinstall
+path, the local retry command text, and the checksum diagnostic copy.
+
+### Teardown
+
+The manifest `TEARDOWN_COMMAND` ran from a `/tmp` script whose command line did not name the lab.
+`teardown.json` (copied to the evidence folder) reports `clean: true` with no survivors. The daemon
+survived its graceful stop and the signal sweep ended it. Nothing listens on 42623 or 42625 any more,
+and no lab process remains.

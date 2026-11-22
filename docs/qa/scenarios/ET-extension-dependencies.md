@@ -145,3 +145,19 @@ report):
 - A native `compozy__extensions_install` returns the HTTP validation payload with its field
   (`requires.extensions.ref` for a relative ref in a catalog package, `expected_digest` for a
   marketplace dependency) as `tool_invalid_input` with `extension_validation_failed`.
+
+QA re-walk of step 12 2026-11-22 (head `f0b712302`, fresh isolated lab, CLI/API, same report):
+- Step 12 passes. For a `local_path` dependency installed only for `other` with changed source bytes,
+  the preview and refusal give `compozy extension install <dir> --replace --allow-unverified --scope
+  global --profile other`. Typed exactly as shown in a terminal, it asks to allow the unverified
+  checksum and succeeds. The root then installs with `--with-dependencies`, and the dependency is
+  active with the same checksum in both `default` and `other`
+  (BUG-20261122-local-dependency-elsewhere-retry-no-unblock verified). The catalog variant
+  (`compozy extension update acme-mdep2 --scope global --profile other`) still unblocks the root.
+- Step 9 shows no regression: the local-path case prints `No update of acme-s9base 1.0.0 reaches
+  min_version 2.0.0; …` with no command. The catalog case prints that text until 2.0.0 is published,
+  then `Run first: compozy extension update acme-mdep --scope global`, and after the update the root
+  installs.
+- A root installed into a workspace (`--scope workspace`) whose dependency is installed globally at a
+  version that is too old gets `compozy extension update acme-mdep3 --scope global` (G-9). Running it
+  unblocks the workspace install.
