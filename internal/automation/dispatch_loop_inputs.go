@@ -119,7 +119,7 @@ func loopInputFailureMetadata(existing map[string]any, runErr error) map[string]
 	return metadata
 }
 
-// classifyLoopInputError treats a caller cancellation as a cancelled fire. The runner's own
+// classifyLoopInputError treats a caller cancellation as a canceled fire. The runner's own
 // command timeout stays a failure: it wraps DeadlineExceeded, not a caller cancellation.
 func classifyLoopInputError(err error) RunStatus {
 	if errors.Is(err, context.Canceled) {
