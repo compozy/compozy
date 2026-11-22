@@ -2,6 +2,7 @@ package loop
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -18,6 +19,15 @@ const (
 	gateResultApprovalKey = "approval"
 	gateResultTimeoutKey  = "timeout"
 )
+
+// onResultScope describes where an authored on_result map lives: an in-body gate
+// node or the synthetic contract/definition-of-done gate.
+type onResultScope struct {
+	owner     dsl.NodeID
+	label     string
+	placement gate.Placement
+	adjacency []dsl.NodeID
+}
 
 func (c *lintContext) lintRoute(node dsl.Node) {
 	if node.OnEvalError == dsl.EvalErrorExit {
@@ -90,84 +100,230 @@ func (c *lintContext) lintRouteDestination(
 }
 
 func (c *lintContext) lintGateRoutes(node dsl.Node) {
-	for outcome, mapping := range node.OnResult {
+	c.lintOnResult(onResultScope{
+		owner:     node.ID,
+		label:     "on_result",
+		placement: gate.PlacementInBody,
+		adjacency: c.adjacency[node.ID],
+	}, node.OnResult)
+}
+
+func (c *lintContext) lintContractOnResult() {
+	c.lintOnResult(onResultScope{
+		owner:     "",
+		label:     "contract.on_result",
+		placement: gate.PlacementDefinitionOfDone,
+	}, c.def.Contract.OnResult)
+}
+
+func (c *lintContext) lintOnResult(scope onResultScope, onResult map[string]any) {
+	for outcome, mapping := range onResult {
 		if _, ok := gateResultKeys[outcome]; !ok {
-			c.add(node.ID, CodeRouteMappingInvalid, "on_result outcome %q is not supported", outcome)
+			c.add(scope.owner, CodeRouteMappingInvalid, "%s outcome %q is not supported", scope.label, outcome)
 			continue
 		}
 		switch typed := mapping.(type) {
 		case string:
-			c.lintGateStringRoute(node, outcome, typed)
+			c.lintGateStringRoute(scope, outcome, typed)
 		case map[string]any:
-			c.lintGateObjectRoute(node, outcome, typed)
+			c.lintGateObjectRoute(scope, outcome, typed)
 		case map[string]string:
 			converted := make(map[string]any, len(typed))
 			for key, value := range typed {
 				converted[key] = value
 			}
-			c.lintGateObjectRoute(node, outcome, converted)
+			c.lintGateObjectRoute(scope, outcome, converted)
 		default:
-			c.add(node.ID, CodeRouteMappingInvalid, "on_result.%s must be a string action or {route: node_id}", outcome)
+			c.add(
+				scope.owner,
+				CodeRouteMappingInvalid,
+				"%s.%s must be a string action, {route: node_id}, or {action: action, terminal_status: state}",
+				scope.label,
+				outcome,
+			)
 		}
 	}
 }
 
-func (c *lintContext) lintGateStringRoute(node dsl.Node, outcome, raw string) {
+func (c *lintContext) lintGateStringRoute(scope onResultScope, outcome, raw string) {
 	action := gate.RouteAction(strings.TrimSpace(raw))
 	if action == gate.RouteAction("branch") {
 		c.add(
-			node.ID,
+			scope.owner,
 			CodeRouteActionRemoved,
-			"on_result.%s action branch was removed; use {route: node_id}",
+			"%s.%s action branch was removed; use {route: node_id}",
+			scope.label,
 			outcome,
 		)
 		return
 	}
-	if !gateStringRouteAllowed(action) || outcome == string(TransitionCauseApproval) &&
-		action != gate.RouteEscalate && action != gate.RouteHalt {
-		c.add(node.ID, CodeRouteMappingInvalid, "on_result.%s action %q is not legal", outcome, raw)
+	if !gateStringRouteAllowed(action, scope.placement) ||
+		outcome == string(TransitionCauseApproval) &&
+			action != gate.RouteEscalate && action != gate.RouteHalt {
+		c.add(scope.owner, CodeRouteMappingInvalid, "%s.%s action %q is not legal", scope.label, outcome, raw)
 	}
 }
 
-func (c *lintContext) lintGateObjectRoute(node dsl.Node, outcome string, mapping map[string]any) {
-	if len(mapping) != 1 {
+func (c *lintContext) lintGateObjectRoute(scope onResultScope, outcome string, mapping map[string]any) {
+	if raw, ok := mapping["route"]; ok {
+		c.lintGateRouteTarget(scope, outcome, raw, len(mapping))
+		return
+	}
+	c.lintGateActionObject(scope, outcome, mapping)
+}
+
+func (c *lintContext) lintGateRouteTarget(
+	scope onResultScope,
+	outcome string,
+	raw any,
+	fieldCount int,
+) {
+	target, stringOK := raw.(string)
+	target = strings.TrimSpace(target)
+	if fieldCount != 1 {
 		c.add(
-			node.ID,
+			scope.owner,
 			CodeRouteMappingInvalid,
-			"on_result.%s must contain exactly one route field",
+			"%s.%s must contain exactly one route field",
+			scope.label,
 			outcome,
 		)
 		return
 	}
-	raw, ok := mapping["route"]
-	target, stringOK := raw.(string)
-	target = strings.TrimSpace(target)
-	if !ok || !stringOK || target == "" {
-		c.add(node.ID, CodeRouteMappingInvalid, "on_result.%s.route must be a node id", outcome)
+	if !stringOK || target == "" {
+		c.add(scope.owner, CodeRouteMappingInvalid, "%s.%s.route must be a node id", scope.label, outcome)
+		return
+	}
+	if scope.placement != gate.PlacementInBody {
+		c.add(
+			scope.owner,
+			CodeRouteMappingInvalid,
+			"%s.%s.route is not supported on the contract gate; use {action: halt, terminal_status: state}",
+			scope.label,
+			outcome,
+		)
 		return
 	}
 	if outcome == gateResultApprovalKey {
-		c.add(node.ID, CodeRouteMappingInvalid, "on_result.approval cannot bypass a pending approval")
+		c.add(scope.owner, CodeRouteMappingInvalid, "%s.approval cannot bypass a pending approval", scope.label)
 		return
 	}
-	if !containsNodeID(c.adjacency[node.ID], dsl.NodeID(target)) {
+	if !containsNodeID(scope.adjacency, dsl.NodeID(target)) {
 		c.add(
-			node.ID,
+			scope.owner,
 			CodeRouteTargetInvalid,
-			"on_result.%s.route %q must be a declared direct forward destination from %q",
+			"%s.%s.route %q must be a declared direct forward destination from %q",
+			scope.label,
 			outcome,
 			target,
-			node.ID,
+			scope.owner,
 		)
 	}
 }
 
-func gateStringRouteAllowed(action gate.RouteAction) bool {
-	switch action {
-	case gate.RouteContinue, gate.RouteRevise, gate.RouteNextGeneration,
-		gate.RouteHalt, gate.RouteEscalate:
-		return true
-	default:
-		return false
+func (c *lintContext) lintGateActionObject(scope onResultScope, outcome string, mapping map[string]any) {
+	rawAction, ok := mapping["action"].(string)
+	action := gate.RouteAction(strings.TrimSpace(rawAction))
+	if !ok || action == "" {
+		c.add(
+			scope.owner,
+			CodeRouteMappingInvalid,
+			"%s.%s must declare action (string) or route (node id)",
+			scope.label,
+			outcome,
+		)
+		return
 	}
+	for key := range mapping {
+		if key != "action" && key != "terminal_status" {
+			c.add(
+				scope.owner,
+				CodeRouteMappingInvalid,
+				"%s.%s field %q is not supported; use action and terminal_status",
+				scope.label,
+				outcome,
+				key,
+			)
+			return
+		}
+	}
+	if !gateStringRouteAllowed(action, scope.placement) ||
+		outcome == string(TransitionCauseApproval) &&
+			action != gate.RouteEscalate && action != gate.RouteHalt {
+		c.add(scope.owner, CodeRouteMappingInvalid, "%s.%s action %q is not legal", scope.label, outcome, rawAction)
+		return
+	}
+	rawTerminal, exists := mapping["terminal_status"]
+	if !exists {
+		return
+	}
+	terminal, terminalOK := rawTerminal.(string)
+	terminal = strings.TrimSpace(terminal)
+	if !terminalOK || terminal == "" {
+		c.add(
+			scope.owner,
+			CodeRouteMappingInvalid,
+			"%s.%s.terminal_status must be a terminal state",
+			scope.label,
+			outcome,
+		)
+		return
+	}
+	if action != gate.RouteHalt {
+		c.add(
+			scope.owner,
+			CodeRouteMappingInvalid,
+			"%s.%s.terminal_status requires action halt, got %q",
+			scope.label,
+			outcome,
+			rawAction,
+		)
+		return
+	}
+	c.lintAuthoredTerminalStatus(scope, outcome, terminal)
+}
+
+func (c *lintContext) lintAuthoredTerminalStatus(scope onResultScope, outcome, terminal string) {
+	state := dsl.TerminalState(terminal)
+	if !dsl.IsKnownTerminalState(state) {
+		c.add(
+			scope.owner,
+			CodeRouteMappingInvalid,
+			"%s.%s.terminal_status %q is not in the closed enum: %s",
+			scope.label,
+			outcome,
+			terminal,
+			joinTerminalStates(dsl.TerminalStateValues()),
+		)
+		return
+	}
+	declared := c.def.Contract.TerminalStates
+	if len(declared) == 0 || slices.Contains(declared, state) {
+		return
+	}
+	c.add(
+		scope.owner,
+		CodeRouteMappingInvalid,
+		"%s.%s.terminal_status %q is not declared by contract.terminal_states (allowed: %s)",
+		scope.label,
+		outcome,
+		terminal,
+		joinTerminalStates(declared),
+	)
+}
+
+func joinTerminalStates(states []dsl.TerminalState) string {
+	values := make([]string, 0, len(states))
+	for _, state := range states {
+		values = append(values, string(state))
+	}
+	return strings.Join(values, ", ")
+}
+
+func gateStringRouteAllowed(action gate.RouteAction, placement gate.Placement) bool {
+	// The DoD placement maps an authored continue to done at runtime.
+	if placement == gate.PlacementDefinitionOfDone && action == gate.RouteContinue {
+		return true
+	}
+	return gate.RouteAllowed(action, placement)
 }
