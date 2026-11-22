@@ -2431,6 +2431,163 @@ func TestHostAPIHandlerAutomationCreateTargetParity(t *testing.T) {
 	}
 }
 
+func TestHostAPIHandlerAutomationJobUpdateLoopInputCommand(t *testing.T) {
+	t.Parallel()
+
+	createLoopJob := func(t *testing.T, env *hostAPITestEnv, extName string, inputCommand string) automationpkg.Job {
+		t.Helper()
+
+		loopTarget := map[string]any{
+			"workspace_id": env.workspaceID,
+			"loop_name":    "overnight",
+			"inputs":       map[string]any{"channel": "nightly"},
+		}
+		if inputCommand != "" {
+			loopTarget["input_command"] = inputCommand
+		}
+		createResult, err := env.call(t, extName, "automation/jobs/create", map[string]any{
+			"name":         "host-api-loop-command",
+			"scope":        "workspace",
+			"workspace_id": env.workspace.RootDir,
+			"target_kind":  "loop",
+			"schedule": map[string]any{
+				"mode":     "every",
+				"interval": "5m",
+			},
+			"loop_target": loopTarget,
+		})
+		if err != nil {
+			t.Fatalf("Handle(automation/jobs/create loop target) error = %v", err)
+		}
+		var created automationpkg.Job
+		decodeResult(t, createResult, &created)
+		if created.LoopTarget == nil {
+			t.Fatalf("created loop job = %#v, want a Loop target", created)
+		}
+		return created
+	}
+
+	t.Run("Should patch only the command and preserve a concurrent edit", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t, withHostAPITestLoopStarter(&hostAPITestLoopStarter{}))
+		extName := "ext-automation-loop-command"
+		env.grant(
+			extName,
+			[]string{"automation/jobs/create", "automation/jobs/update"},
+			[]string{"automation.write"},
+		)
+		created := createLoopJob(t, env, extName, "scripts/old.sh")
+
+		stored, err := env.automation.GetJob(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("GetJob() error = %v", err)
+		}
+		if stored.LoopTarget == nil {
+			t.Fatalf("stored loop job = %#v, want a Loop target", stored)
+		}
+		stored.Name = "concurrent-name"
+		stored.LoopTarget.Inputs["channel"] = "concurrent"
+		if _, err := env.automation.UpdateJob(testutil.Context(t), stored); err != nil {
+			t.Fatalf("UpdateJob(concurrent edit) error = %v", err)
+		}
+
+		updateResult, err := env.call(t, extName, "automation/jobs/update", map[string]any{
+			"id":                 created.ID,
+			"loop_input_command": "scripts/next-spec.sh",
+		})
+		if err != nil {
+			t.Fatalf("Handle(automation/jobs/update loop input command) error = %v", err)
+		}
+		var updated automationpkg.Job
+		decodeResult(t, updateResult, &updated)
+		if updated.LoopTarget == nil {
+			t.Fatalf("updated loop job = %#v, want a Loop target", updated)
+		}
+		if got, want := updated.LoopTarget.InputCommand, "scripts/next-spec.sh"; got != want {
+			t.Fatalf("updated input_command = %q, want %q", got, want)
+		}
+		if got, want := updated.LoopTarget.LoopName, "overnight"; got != want {
+			t.Fatalf("updated loop_name = %q, want the stored %q", got, want)
+		}
+		if got, want := updated.LoopTarget.Inputs["channel"], "concurrent"; got != want {
+			t.Fatalf("updated inputs[channel] = %#v, want the concurrent edit %#v", got, want)
+		}
+		if got, want := updated.Name, "concurrent-name"; got != want {
+			t.Fatalf("updated name = %q, want the concurrent edit %q", got, want)
+		}
+	})
+
+	t.Run("Should clear the command with an empty value", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t, withHostAPITestLoopStarter(&hostAPITestLoopStarter{}))
+		extName := "ext-automation-loop-clear"
+		env.grant(
+			extName,
+			[]string{"automation/jobs/create", "automation/jobs/update"},
+			[]string{"automation.write"},
+		)
+		created := createLoopJob(t, env, extName, "scripts/old.sh")
+
+		updateResult, err := env.call(t, extName, "automation/jobs/update", map[string]any{
+			"id":                 created.ID,
+			"loop_input_command": "",
+		})
+		if err != nil {
+			t.Fatalf("Handle(automation/jobs/update cleared loop input command) error = %v", err)
+		}
+		var updated automationpkg.Job
+		decodeResult(t, updateResult, &updated)
+		if updated.LoopTarget == nil {
+			t.Fatalf("updated loop job = %#v, want a Loop target", updated)
+		}
+		if got := updated.LoopTarget.InputCommand; got != "" {
+			t.Fatalf("updated input_command = %q, want empty", got)
+		}
+		if got, want := updated.LoopTarget.Inputs["channel"], "nightly"; got != want {
+			t.Fatalf("updated inputs[channel] = %#v, want the stored %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject a command-only update on a non-Loop job", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		extName := "ext-automation-agent-command"
+		env.grant(
+			extName,
+			[]string{"automation/jobs/create", "automation/jobs/update"},
+			[]string{"automation.write"},
+		)
+		createResult, err := env.call(t, extName, "automation/jobs/create", map[string]any{
+			"name":         "host-api-agent-command",
+			"scope":        "workspace",
+			"workspace_id": env.workspace.RootDir,
+			"agent_name":   "coder",
+			"prompt":       "Review the queue",
+			"schedule": map[string]any{
+				"mode":     "every",
+				"interval": "5m",
+			},
+		})
+		if err != nil {
+			t.Fatalf("Handle(automation/jobs/create agent target) error = %v", err)
+		}
+		var created automationpkg.Job
+		decodeResult(t, createResult, &created)
+
+		_, err = env.call(t, extName, "automation/jobs/update", map[string]any{
+			"id":                 created.ID,
+			"loop_input_command": "scripts/next-spec.sh",
+		})
+		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+		if err == nil || !strings.Contains(err.Error(), "requires a Loop target job") {
+			t.Fatalf("Handle(automation/jobs/update non-Loop command) error = %v", err)
+		}
+	})
+}
+
 func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
 	t.Parallel()
 
@@ -2587,6 +2744,11 @@ func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
 		_, err = env.call(t, "ext-automation", "automation/jobs/update", map[string]any{
 			"id":     configJob.ID,
 			"prompt": "should fail",
+		})
+		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+		_, err = env.call(t, "ext-automation", "automation/jobs/update", map[string]any{
+			"id":                 configJob.ID,
+			"loop_input_command": "scripts/next-spec.sh",
 		})
 		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 		_, err = env.call(t, "ext-automation", "automation/jobs/delete", map[string]any{"id": configJob.ID})

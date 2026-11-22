@@ -76,7 +76,7 @@ func (h *HostAPIHandler) handleAutomationJobsUpdate(ctx context.Context, raw jso
 		return nil, err
 	}
 
-	if current.Source == automationpkg.JobSourceConfig {
+	if current.Source == automationpkg.JobSourceConfig || current.Source == automationpkg.JobSourcePackage {
 		if err := validateHostAPIConfigJobUpdate(params.UpdateJobRequest); err != nil {
 			return nil, invalidParamsRPCError(err)
 		}
@@ -85,7 +85,7 @@ func (h *HostAPIHandler) handleAutomationJobsUpdate(ctx context.Context, raw jso
 
 	next, err := h.applyJobUpdateParams(ctx, current, params.UpdateJobRequest)
 	if err != nil {
-		return nil, err
+		return nil, invalidParamsRPCError(err)
 	}
 	if err := next.Validate("job"); err != nil {
 		return nil, invalidParamsRPCError(err)
