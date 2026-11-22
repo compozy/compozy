@@ -1042,14 +1042,17 @@ func TestScopeWorkspaceHookDeclsOnlyInjectsSupportedMatcherFields(t *testing.T) 
 			},
 		},
 		{
-			name: "Should not inject workspace fields for message hooks",
+			name: "Should inject only workspace id for message hooks",
 			assert: func(t *testing.T, _ []hookspkg.HookDecl, scoped []hookspkg.HookDecl) {
 				t.Helper()
 
-				if scoped[2].Matcher.WorkspaceID != "" || scoped[2].Matcher.WorkspaceRoot != "" {
+				if scoped[2].Matcher.WorkspaceID != resolved.WorkspaceID {
+					t.Fatalf("message WorkspaceID = %q, want %q", scoped[2].Matcher.WorkspaceID, resolved.WorkspaceID)
+				}
+				if scoped[2].Matcher.WorkspaceRoot != "" {
 					t.Fatalf(
-						"message matcher workspace fields = %#v, want no unsupported workspace scoping",
-						scoped[2].Matcher,
+						"message WorkspaceRoot = %q, want empty because message hooks do not support it",
+						scoped[2].Matcher.WorkspaceRoot,
 					)
 				}
 				if err := hookspkg.ValidateMatcherForEvent(scoped[2].Event, scoped[2].Matcher); err != nil {

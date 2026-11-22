@@ -727,7 +727,7 @@ func TestHookBindingProjectorPreservesPermissionEscalationGuard(t *testing.T) {
 	}
 }
 
-func TestValidateHookBindingSpecInjectsWorkspaceMatcherOnlyWhenSupported(t *testing.T) {
+func TestValidateHookBindingSpecInjectsWorkspaceMatcherForWorkspaceScope(t *testing.T) {
 	t.Parallel()
 
 	workspaceScope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
@@ -753,7 +753,7 @@ func TestValidateHookBindingSpecInjectsWorkspaceMatcherOnlyWhenSupported(t *test
 			wantMatch: "ws-1",
 		},
 		{
-			name:  "Should not inject a workspace id into message hooks",
+			name:  "Should inject the workspace id for message hooks",
 			scope: workspaceScope,
 			decl: hookspkg.HookDecl{
 				Name:   "message-delta",
@@ -761,7 +761,18 @@ func TestValidateHookBindingSpecInjectsWorkspaceMatcherOnlyWhenSupported(t *test
 				Source: hookspkg.HookSourceNative,
 				Mode:   hookspkg.HookModeAsync,
 			},
-			wantMatch: "",
+			wantMatch: "ws-1",
+		},
+		{
+			name:  "Should inject the workspace id for event hooks",
+			scope: workspaceScope,
+			decl: hookspkg.HookDecl{
+				Name:   "event-post-record",
+				Event:  hookspkg.HookEventPostRecord,
+				Source: hookspkg.HookSourceNative,
+				Mode:   hookspkg.HookModeAsync,
+			},
+			wantMatch: "ws-1",
 		},
 		{
 			name:      "Should not inject the workspace id into user scope bindings",

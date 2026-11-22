@@ -437,9 +437,27 @@ func TestMatcherFieldAllowedForEvent(t *testing.T) {
 			want:  false,
 		},
 		{
-			name:  "Should deny workspace id for message delta hook",
+			name:  "Should allow workspace id for event record hook",
+			event: HookEventPostRecord,
+			field: "workspace_id",
+			want:  true,
+		},
+		{
+			name:  "Should allow workspace id for message delta hook",
 			event: HookMessageDelta,
 			field: "workspace_id",
+			want:  true,
+		},
+		{
+			name:  "Should allow workspace id for context compaction hook",
+			event: HookContextPreCompact,
+			field: "workspace_id",
+			want:  true,
+		},
+		{
+			name:  "Should deny workspace root for message delta hook",
+			event: HookMessageDelta,
+			field: "workspace_root",
 			want:  false,
 		},
 		{name: "Should deny invalid event", event: HookEvent("bad.event"), field: "workspace_id", want: false},
