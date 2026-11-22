@@ -94,9 +94,11 @@ function reportSaved(name: string, result: ExtensionInputsState) {
   toast.success("Setup saved");
   if (result.reloaded) toast.success(`Restarted ${name}`);
   // MCP-only daemon_env inputs still reach their server through the daemon environment.
-  const unreached = result.inputs
-    .filter(input => input.state === "daemon_env" && input.targets.includes("subprocess"))
-    .map(input => input.id);
+  const unreached: string[] = [];
+  for (const input of result.inputs) {
+    if (input.state === "daemon_env" && input.targets.includes("subprocess"))
+      unreached.push(input.id);
+  }
   if (unreached.length > 0) {
     toast.info(
       `${unreached.join(", ")} still using the daemon environment; the extension process does not receive it.`
