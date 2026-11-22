@@ -107,7 +107,7 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 
 	inputs, skipped, inputErr := d.resolveLoopInputsForFire(ctx, req, target, scheduledRun)
 	if inputErr != nil {
-		return d.finishRun(ctx, scheduledRun, RunFailed, inputErr)
+		return d.finishRun(ctx, scheduledRun, classifyLoopInputError(inputErr), inputErr)
 	}
 	if skipped {
 		scheduledRun.Metadata = loopInputSkipMetadata(scheduledRun.Metadata)
