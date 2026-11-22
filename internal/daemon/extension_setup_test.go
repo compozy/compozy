@@ -409,6 +409,28 @@ func TestExtensionInputSetupInstanceRestart(t *testing.T) {
 				recorder.restarted, fixture.runtime.reloadCount, want)
 		}
 	})
+
+	t.Run("Should skip the reload while a required dual-consumer input is missing [R-7]", func(t *testing.T) {
+		t.Parallel()
+		fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{})
+		fixture.service.getenv = func(string) string { return "" } // REGION is not daemon_env
+		ctx := testutil.Context(t)
+		recorder := &restartRecordingRuntime{fakeExtensionRuntime: fixture.runtime}
+		fixture.service.runtime = recorder
+		target := extensionInputsTarget{Name: setupKitName}
+
+		written, err := fixture.service.SetInputs(
+			ctx, target, setupValues("project", setupProjectValue), extensionSetupOperator(t),
+		)
+		if err != nil || written.Reloaded || len(recorder.restarted) != 0 {
+			t.Fatalf("write = %#v restarts %#v error %v, want no reload while region is missing",
+				written, recorder.restarted, err)
+		}
+		if states := setupInputStates(written); states["region"] !=
+			contract.ExtensionInputStateMissing {
+			t.Fatalf("region state = %q, want missing", states["region"])
+		}
+	})
 }
 
 // failingRestartRuntime fails the next instance restart and records the stored project value each

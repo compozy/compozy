@@ -63,6 +63,9 @@ func (b extensionInputBinder) Prepare(
 		plan.previous = extensionBindingsByName(bindings)
 	}
 	carried := carriedSubprocessValues(plan, values)
+	if err := b.carryBindingValues(ctx, plan, values, carried); err != nil {
+		return nil, err
+	}
 	for id, record := range plan.state.Values {
 		record.Active = false
 		plan.state.Values[id] = record
@@ -123,6 +126,45 @@ func carriedSubprocessValues(
 		carried[input.ID] = extensioninput.Value{Value: row.Value}
 	}
 	return carried
+}
+
+// carryBindingValues is the reverse of carriedSubprocessValues: an omitted non-secret input that is no
+// longer subprocess-bound takes its typed row from its active env binding, re-checked against the
+// declared type, so the value survives when prepareRetiredSecrets retires that binding. An invalid or
+// unavailable value is not carried.
+func (b extensionInputBinder) carryBindingValues(
+	ctx context.Context, plan *extensionInputPlan, values, carried map[string]extensioninput.Value,
+) error {
+	for _, input := range plan.manifest.Inputs {
+		if _, supplied := values[input.ID]; supplied || input.Type == extensionInputTypeSecret ||
+			plan.manifest.SubprocessInput(input) {
+			continue
+		}
+		if row, found := plan.state.Values[input.ID]; found && row.Active && row.Type == input.Type {
+			continue
+		}
+		binding, found := activeInputBinding(plan.previous, input.ID)
+		if !found {
+			continue
+		}
+		record := extensionpkg.InputValueRecord{Type: input.Type}
+		if err := b.service.inputReader().recheckBindingValue(ctx, &record, input, binding.SecretRef); err != nil {
+			return err
+		}
+		if record.Invalid == "" {
+			carried[input.ID] = extensioninput.Value{Value: record.Value}
+		}
+	}
+	return nil
+}
+
+func activeInputBinding(bindings map[string]extensionpkg.EnvBinding, inputID string) (extensionpkg.EnvBinding, bool) {
+	for _, envName := range slices.Sorted(maps.Keys(bindings)) {
+		if binding := bindings[envName]; binding.InputID == inputID && !binding.Inactive && binding.MCPServer == "" {
+			return binding, true
+		}
+	}
+	return extensionpkg.EnvBinding{}, false
 }
 
 func blankInputValue(raw json.RawMessage) bool {

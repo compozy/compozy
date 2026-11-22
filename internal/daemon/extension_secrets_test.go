@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1794,6 +1795,58 @@ func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
 			})
 		}
 	})
+
+	// The reverse move keeps the value too: an input that loses its subprocess target takes its typed row
+	// from the env binding before the binding retires, and the Vault value stays retained.
+	t.Run("Should carry a binding back into the typed row of an input that loses its subprocess target",
+		func(t *testing.T) {
+			t.Parallel()
+			regionRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "REGION")
+			for _, required := range []bool{true, false} {
+				t.Run(fmt.Sprintf("Should keep the stored value when required=%v", required), func(t *testing.T) {
+					t.Parallel()
+					subprocessOnly := extensionSubprocessInputManifest()
+					subprocessOnly.Resources.MCPServers = map[string]extensionpkg.MCPServerConfig{}
+					serverOnly := extensionSubprocessInputManifest()
+					serverOnly.RequiresEnv, serverOnly.DeclaredRequiresEnv = []string{
+						"PROJECT_ID",
+					}, []string{
+						"PROJECT_ID",
+					}
+					subprocessOnly.Inputs[1].Required, serverOnly.Inputs[1].Required = required, required
+					service, bindings, secretVault := newService(t)
+					commit(t, service, subprocessOnly, initialValues)
+					if rows, err := service.inputs.List(testutil.Context(t), instance); err != nil || len(rows) != 0 {
+						t.Fatalf("rows = %#v error %v, want the subprocess-only value in its binding only", rows, err)
+					}
+					commit(t, service, serverOnly, nil)
+					rows, err := service.inputs.List(testutil.Context(t), instance)
+					if err != nil {
+						t.Fatalf("List() error = %v", err)
+					}
+					if row := rows["region"]; !row.Active || row.Type != "string" || string(row.Value) != `"eu-west"` {
+						t.Fatalf("region row = %#v, want the carried value active", row)
+					}
+					region := bindingsByName(t, bindings)["REGION"]
+					if !region.Inactive || secretVault.value(regionRef) != "eu-west" {
+						t.Fatalf("region binding = %#v, want it retired with its Vault value retained", region)
+					}
+					state, err := service.inputReader().load(testutil.Context(t), instance, serverOnly)
+					if err != nil {
+						t.Fatalf("load() error = %v", err)
+					}
+					if setup := extensionpkg.DescribeInputSetup(
+						serverOnly,
+						state,
+						service.getenv,
+					); len(
+						setup.Missing,
+					) != 0 {
+						t.Fatalf("setup missing = %#v, want region set from the carried row", setup.Missing)
+					}
+				})
+			}
+		})
 
 	t.Run("Should report a stored value that fails a changed manifest type as invalid", func(t *testing.T) {
 		t.Parallel()

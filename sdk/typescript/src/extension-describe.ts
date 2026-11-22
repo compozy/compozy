@@ -120,11 +120,33 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
       name: SDK_NAME,
       version: input.sdkVersion,
       protocol_version: "1",
-      // Released daemons reject described inputs, so emitting them raises the floor.
-      min_compozy_version:
-        inputs.length === 0 ? SDK_MIN_COMPOZY_VERSION : SDK_INPUTS_MIN_COMPOZY_VERSION,
+      // The TS definition declares no author floor, so the SDK floor is the one inputs may raise.
+      min_compozy_version: describeInputsFloor(SDK_MIN_COMPOZY_VERSION, inputs.length > 0),
     },
   };
+}
+
+/**
+ * Raises floor to SDK_INPUTS_MIN_COMPOZY_VERSION when inputs are emitted, since released daemons
+ * reject them; a higher floor wins, matching the Go SDK.
+ */
+export function describeInputsFloor(floor: string, hasInputs: boolean): string {
+  return hasInputs && versionCoreLess(floor, SDK_INPUTS_MIN_COMPOZY_VERSION)
+    ? SDK_INPUTS_MIN_COMPOZY_VERSION
+    : floor;
+}
+
+// ponytail: prerelease tags are ignored, so 0.7.9-beta.1 equals 0.7.9, as in the Go SDK.
+function versionCoreLess(left: string, right: string): boolean {
+  const core = (version: string) =>
+    (version.split(/[-+]/, 1)[0] ?? "").split(".").map(part => Number.parseInt(part, 10) || 0);
+  const [a, b] = [core(left), core(right)];
+  for (let index = 0; index < 3; index++) {
+    if ((a[index] ?? 0) !== (b[index] ?? 0)) {
+      return (a[index] ?? 0) < (b[index] ?? 0);
+    }
+  }
+  return false;
 }
 
 function normalizeDescribeInputs(inputs: DescribeInput[] | undefined): DescribeInput[] {

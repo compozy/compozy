@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -356,25 +358,68 @@ func TestManagerResolveLaunchInputGate(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refuse a missing required subprocess-only input but not a server-consumed one [R-7]",
-		func(t *testing.T) {
-			t.Parallel()
-			manager := newManager(nil, nil)
-			missing := envLaunchInput("project", "identifier", "PROJECT_ID", "", false)
-			missing.Required = true
-			_, _, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
-				[]string{"PROJECT_ID"}, []launchInput{missing}, t.TempDir(), nil, nil)
-			refused, ok := errors.AsType[*InputsRequiredError](err)
-			if !ok || !slices.Equal(refused.MissingInputs, []string{"project"}) || len(refused.InvalidInputs) != 0 {
-				t.Fatalf("resolveInstanceEnvMap(missing) error = %#v, want project required", err)
+	t.Run("Should refuse a missing required subprocess-only or server-consumed input [R-7]", func(t *testing.T) {
+		t.Parallel()
+		manager := newManager(nil, nil)
+		missing := envLaunchInput("project", "identifier", "PROJECT_ID", "", false)
+		missing.Required = true
+		_, _, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+			[]string{"PROJECT_ID"}, []launchInput{missing}, t.TempDir(), nil, nil)
+		refused, ok := errors.AsType[*InputsRequiredError](err)
+		if !ok || !slices.Equal(refused.MissingInputs, []string{"project"}) || len(refused.InvalidInputs) != 0 {
+			t.Fatalf("resolveInstanceEnvMap(missing) error = %#v, want project required", err)
+		}
+		served := envLaunchInput("region", "string", "REGION", "", true)
+		served.Required = true
+		_, _, err = manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+			[]string{"REGION"}, []launchInput{served}, t.TempDir(), nil, nil)
+		refused, ok = errors.AsType[*InputsRequiredError](err)
+		if !ok || !slices.Equal(refused.MissingInputs, []string{"region"}) || len(refused.InvalidInputs) != 0 {
+			t.Fatalf("resolveInstanceEnvMap(server-consumed) error = %#v, want region required", err)
+		}
+	})
+
+	t.Run("Should start a required server-consumed input satisfied by daemon_env or its typed row", func(t *testing.T) {
+		t.Parallel()
+		served := envLaunchInput("region", "string", "REGION", "", true)
+		served.Required = true
+		daemonEnv := NewManager(nil,
+			WithGetenv(func(name string) string {
+				if name == "REGION" {
+					return "eu-west"
+				}
+				return ""
+			}),
+			WithEnvBindingStore(&envResolutionBindingStore{}),
+		)
+		typedRow := NewManager(nil,
+			WithGetenv(func(string) string { return "" }),
+			WithEnvBindingStore(&envResolutionBindingStore{}),
+			WithInputRowReader(envResolutionInputRows{
+				"region": {Type: "string", Value: json.RawMessage(`"eu-west"`), Active: true},
+			}),
+		)
+		for name, manager := range map[string]*Manager{"daemon_env": daemonEnv, "typed row": typedRow} {
+			env, cleanups, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+				[]string{"REGION"}, []launchInput{served}, t.TempDir(), nil, nil)
+			if err != nil {
+				t.Fatalf("resolveInstanceEnvMap(%s) error = %v, want start", name, err)
 			}
-			served := envLaunchInput("region", "string", "REGION", "", true)
-			served.Required = true
-			if _, _, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
-				[]string{"REGION"}, []launchInput{served}, t.TempDir(), nil, nil); err != nil {
-				t.Fatalf("resolveInstanceEnvMap(server-consumed) error = %v, want daemon_env start", err)
+			runExtensionRedactionCleanups(cleanups)
+			if value, exists := envListToMap(t, env)["REGION"]; exists {
+				t.Fatalf("REGION = %q via %s, want the daemon-side value withheld from the subprocess", value, name)
 			}
-		})
+		}
+	})
+}
+
+type envResolutionInputRows map[string]extensioninput.Record
+
+func (r envResolutionInputRows) List(
+	context.Context,
+	extensioninput.Instance,
+) (map[string]extensioninput.Record, error) {
+	return maps.Clone(r), nil
 }
 
 func envLaunchInput(id, inputType, name, inputDefault string, serverConsumed bool) launchInput {
