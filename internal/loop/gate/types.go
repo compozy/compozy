@@ -74,7 +74,7 @@ func GateFromNode(node dsl.Node) Gate {
 func GateFromContract(id string, contract dsl.Contract, maxRevisions int) Gate {
 	var onResult map[string]any
 	if contract.ContractLifecycleState != nil {
-		onResult = contract.ContractLifecycleState.OnResult
+		onResult = contract.OnResult
 	}
 	return Gate{
 		ID:            strings.TrimSpace(id),
