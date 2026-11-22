@@ -2426,6 +2426,7 @@ export type ExtensionDependencyPayload = {
   min_version?: string;
   name: string;
   ref: string;
+  registry_tier?: string;
   required_by: Array<string>;
   retry_command?: string;
   source: string;
@@ -21050,9 +21051,9 @@ export type PreviewExtensionInstallErrors = {
    */
   409: ExtensionOperationErrorPayload;
   /**
-   * Package validation failure
+   * Extension trust decision, dependency graph refusal, or package validation failure
    */
-  422: ExtensionValidationErrorPayload;
+  422: ErrorPayload | ExtensionOperationErrorPayload | ExtensionValidationErrorPayload;
   /**
    * Extension service is not configured
    */

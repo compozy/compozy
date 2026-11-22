@@ -973,6 +973,24 @@ func TestExtensionInstallDependencyFlow(t *testing.T) {
 			t.Fatalf("request = %+v, want consent for acme-core only", request)
 		}
 	})
+
+	t.Run("Should call only official and community dependencies registry-verified", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			dependency contract.ExtensionDependencyPayload
+			want       string
+		}{
+			{contract.ExtensionDependencyPayload{RegistryTier: "official"}, "registry-verified (official)"},
+			{contract.ExtensionDependencyPayload{RegistryTier: "community"}, "registry-verified (community)"},
+			{contract.ExtensionDependencyPayload{RegistryTier: "unverified", State: "disabled"}, "unverified"},
+			{contract.ExtensionDependencyPayload{}, "unverified"},
+			{contract.ExtensionDependencyPayload{RegistryTier: "official", ConsentRequired: true}, "unverified"},
+		} {
+			if got := extensionDependencyTrustWord(tc.dependency); got != tc.want {
+				t.Fatalf("trust word for %+v = %q, want %q", tc.dependency, got, tc.want)
+			}
+		}
+	})
 }
 
 // Invariant: remove prints the dependents and exits 1 on extension_dependency_in_use; --force carries force to the

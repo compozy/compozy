@@ -220,10 +220,7 @@ func writeExtensionDependencyPreview(cmd *cobra.Command, dependencies []contract
 	var output strings.Builder
 	output.WriteString("Dependencies (experimental):\n")
 	for _, dependency := range dependencies {
-		trust := "registry-verified"
-		if dependency.ConsentRequired {
-			trust = "unverified"
-		}
+		trust := extensionDependencyTrustWord(dependency)
 		version := cmp.Or(dependency.Version, dependency.InstalledVersion, "?")
 		fmt.Fprintf(&output, "  • %s %s from %s %s — %s, %s", safeLoopPromptText(dependency.Name),
 			safeLoopPromptText(version), dependency.Source, safeLoopPromptText(dependency.Ref), dependency.State, trust)
@@ -296,4 +293,14 @@ func registerExtensionForceFlag(cmd *cobra.Command, force *bool) {
 	cmd.Flags().BoolVar(force, extensionForceFlagName, false,
 		"Experimental. Proceed while an installed dependent still needs the extension; the dependent then "+
 			"reports unmet_dependencies. Nothing cascades")
+}
+
+// extensionDependencyTrustWord names the recorded registry tier; only official and community are verified.
+// Consent granted earlier is not verification, so an installed unverified package stays "unverified".
+func extensionDependencyTrustWord(dependency contract.ExtensionDependencyPayload) string {
+	tier := dependency.RegistryTier
+	if !dependency.ConsentRequired && (tier == "official" || tier == "community") {
+		return "registry-verified (" + tier + ")"
+	}
+	return "unverified"
 }

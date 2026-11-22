@@ -2,7 +2,10 @@ import { Eyebrow, MonoId, Pill } from "@compozy/ui";
 
 import type { ExtensionDependency } from "@/systems/extensions";
 
-import { extensionDependencySourceLabel } from "./extension-dependency-model";
+import {
+  extensionDependencySourceLabel,
+  isRegistryVerifiedDependency,
+} from "./extension-dependency-model";
 import { formatMarketplaceVersion } from "./marketplace-ui";
 
 /**
@@ -28,7 +31,8 @@ export function ExtensionDependencyList({
 }
 
 function ExtensionDependencyRow({ dependency }: { dependency: ExtensionDependency }) {
-  const version = formatMarketplaceVersion(dependency.version);
+  const version = formatMarketplaceVersion(dependency.version ?? dependency.installed_version);
+  const verified = isRegistryVerifiedDependency(dependency);
   return (
     <li
       className="flex flex-col gap-1 py-2.5 text-small-body"
@@ -45,8 +49,8 @@ function ExtensionDependencyRow({ dependency }: { dependency: ExtensionDependenc
           </Pill>
         ) : null}
         {dependency.state === "version_unmet" ? null : (
-          <Pill size="xs" tone={dependency.consent_required ? "warning" : "neutral"}>
-            {dependency.consent_required ? "Not verified" : "Checked by CompozyOS"}
+          <Pill size="xs" tone={verified ? "neutral" : "warning"}>
+            {verified ? "Checked by CompozyOS" : "Not verified"}
           </Pill>
         )}
       </div>

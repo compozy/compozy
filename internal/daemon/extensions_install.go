@@ -32,16 +32,21 @@ type preparedExtensionReplacement interface {
 }
 
 type preparedDaemonExtensionInstall struct {
-	target    extensionMutationTarget
-	name      string
-	digest    string
-	manifest  *extensionpkg.Manifest
-	commit    func() error
-	cleanup   func() error
-	published preparedExtensionReplacement
+	target extensionMutationTarget
+	name   string
+	digest string
+	// registryTier is the trust tier the commit records for this acquisition.
+	registryTier string
+	manifest     *extensionpkg.Manifest
+	commit       func() error
+	cleanup      func() error
+	published    preparedExtensionReplacement
 	// enrollAttachment marks an acquisition that may attach the selected scope to an
 	// already-installed package. A local bundle replaces the code only.
 	enrollAttachment bool
+	// keepInstalled refuses replacing an installed package whose bytes differ: a dependency install only
+	// attaches the package other cells already use and never updates it (D9).
+	keepInstalled bool
 }
 
 func (p preparedDaemonExtensionInstall) Close() error {
@@ -91,8 +96,14 @@ func (s *daemonExtensionService) installPrepared(
 ) (contract.ExtensionPayload, error) {
 	var item contract.ExtensionPayload
 	mutation := func() error {
+		if err := s.checkCommitDependenciesMet(ctx, prepared); err != nil {
+			return err
+		}
 		if prepared.published != nil {
 			if installed, readErr := s.registry.Get(prepared.name); readErr == nil {
+				if prepared.keepInstalled && !prepared.published.MatchesInstalled(installed) {
+					return dependencyReplacementRefused(installed, prepared.manifest)
+				}
 				if err := s.reinstallPreparedExtension(ctx, prepared, installed, req, actor, &item); err != nil {
 					return err
 				}
@@ -112,11 +123,14 @@ func (s *daemonExtensionService) installPrepared(
 		}
 		return s.commitPreparedInstallWithInputs(ctx, prepared, req, confirmation, actor, event, &item)
 	}
+	// The direct dependencies are locked with the package so a concurrent remove or disable of one either runs
+	// before the commit's dependency check or sees this package as its dependent.
+	names := append([]string{prepared.name}, dependencyNames(prepared.manifest)...)
 	var err error
 	if prepared.published != nil {
-		err = s.lifecycle.withPackageMutation(ctx, []string{prepared.name}, mutation)
+		err = s.lifecycle.withPackageMutation(ctx, names, mutation)
 	} else {
-		err = s.lifecycle.withInstances(ctx, extensionMutationKeys([]string{prepared.name}, prepared.target), mutation)
+		err = s.lifecycle.withInstances(ctx, extensionMutationKeys(names, prepared.target), mutation)
 	}
 	if err = s.finishPreparedInstall(prepared, err); err != nil {
 		return contract.ExtensionPayload{}, errors.Join(
@@ -190,7 +204,7 @@ func (s *daemonExtensionService) prepareLocalExtensionInstall(
 	}
 	return preparedDaemonExtensionInstall{
 		name: manifest.Name, manifest: manifest, digest: checksum, target: target,
-		published: prepared,
+		registryTier: extensionpkg.ExtensionRegistryTierUnverified, published: prepared,
 		commit: func() error {
 			// The early check only fails fast; the commit repeats it under the lifecycle
 			// lock so an attachment enrolled meanwhile cannot be overwritten by a caller
@@ -245,7 +259,7 @@ func (s *daemonExtensionService) preparePublishedExtensionInstall(
 	}
 	return preparedDaemonExtensionInstall{
 		name: prepared.Name(), manifest: manifest, target: target,
-		digest: prepared.Digest(), published: prepared, enrollAttachment: true,
+		digest: prepared.Digest(), registryTier: prepared.RegistryTier(), published: prepared, enrollAttachment: true,
 		commit: func() error {
 			_, commitErr := prepared.Commit(target.scope)
 			return commitErr

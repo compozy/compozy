@@ -475,6 +475,72 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 	})
 
+	// Invariant: remove and disable forward the experimental force flag to the dependency guard, and the compact
+	// results carry dependencies_installed and unmet_dependencies [T-17, T-18].
+	// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
+	t.Run("Should forward force and report dependency status in compact results", func(t *testing.T) {
+		t.Parallel()
+		deps, extRegistry, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		dependencyDir := writeNativeLocalExtensionFixture(t, "dep-core", "1.0.0")
+		rootDir := writeNativeLocalExtensionFixture(t, "dep-root", "1.0.0")
+		manifestPath := filepath.Join(rootDir, "extension.toml")
+		content, err := os.ReadFile(manifestPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content = bytes.Replace(content, []byte(`"0.5.0"`), []byte(`"0.7.9"`), 1)
+		content = fmt.Appendf(content, "\n[[requires.extensions]]\nname = \"dep-core\"\n"+
+			"source = \"local_path\"\nref = %q\n", dependencyDir)
+		if err := os.WriteFile(manifestPath, content, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		call := func(id toolspkg.ToolID, input string) (toolspkg.ToolResult, error) {
+			return registry.Call(t.Context(), toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(input)})
+		}
+		requireInUse := func(id toolspkg.ToolID, input string) {
+			t.Helper()
+			_, err := call(id, input)
+			toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || toolErr.Code != "extension_dependency_in_use" {
+				t.Fatalf("%s without force error = %#v, want extension_dependency_in_use", id, err)
+			}
+		}
+		requireUnmet := func(state string) {
+			t.Helper()
+			result, err := call(toolspkg.ToolIDExtensionsInfo, `{"name":"dep-root"}`)
+			if err != nil {
+				t.Fatalf("extensions_info(dep-root) error = %v", err)
+			}
+			requireNativeStructuredContains(t, result,
+				[]byte(`"unmet_dependencies":[{"name":"dep-core","state":"`+state+`"`))
+		}
+
+		installed, err := call(toolspkg.ToolIDExtensionsInstall, fmt.Sprintf(`{"source":"local_path","ref":%q,`+
+			`"allow_unverified":true,"with_dependencies":true,"dependencies":{"dep-core":{"allow_unverified":true}}}`,
+			rootDir))
+		if err != nil {
+			t.Fatalf("extensions_install(dep-root) error = %v", err)
+		}
+		requireNativeStructuredContains(t, installed, []byte(`"dependencies_installed":["dep-core"]`))
+
+		requireInUse(toolspkg.ToolIDExtensionsDisable, `{"name":"dep-core"}`)
+		if _, err := call(toolspkg.ToolIDExtensionsDisable, `{"name":"dep-core","force":true}`); err != nil {
+			t.Fatalf("forced extensions_disable error = %v", err)
+		}
+		requireUnmet(dependencyStateDisabled)
+
+		requireInUse(toolspkg.ToolIDExtensionsRemove, `{"name":"dep-core"}`)
+		if _, err := call(toolspkg.ToolIDExtensionsRemove, `{"name":"dep-core","force":true}`); err != nil {
+			t.Fatalf("forced extensions_remove error = %v", err)
+		}
+		if _, err := extRegistry.Get("dep-core"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("dep-core after forced remove: %v", err)
+		}
+		requireUnmet(dependencyStateMissing)
+	})
+
 	// Invariant: native acquisition failures retain recovery metadata, including after partial batch progress.
 	// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
 	t.Run("Should retain missing candidate fields after a partial native update", func(t *testing.T) {

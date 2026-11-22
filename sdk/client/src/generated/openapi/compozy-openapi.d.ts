@@ -10819,6 +10819,7 @@ export interface components {
       min_version?: string;
       name: string;
       ref: string;
+      registry_tier?: string;
       required_by: string[];
       retry_command?: string;
       source: string;
@@ -32635,13 +32636,16 @@ export interface operations {
           "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
-      /** @description Package validation failure */
+      /** @description Extension trust decision, dependency graph refusal, or package validation failure */
       422: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ExtensionValidationErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ExtensionOperationErrorPayload"]
+            | components["schemas"]["ExtensionValidationErrorPayload"];
         };
       };
       /** @description Extension service is not configured */

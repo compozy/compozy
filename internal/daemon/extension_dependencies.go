@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -210,6 +211,16 @@ func (r *dependencyResolver) inspect(ctx context.Context, node *dependencyNode) 
 	}
 	node.installed, node.payload.InstalledVersion = true, info.Version
 	node.children = manifest.Requires.Extensions
+	// The recorded tier, not past consent, says whether the installed package is registry-verified.
+	node.payload.RegistryTier = cmp.Or(info.Provenance.RegistryTier, extensionpkg.ExtensionRegistryTierUnverified)
+	// Enabling repeats the gateway gate only when the installed confirmation does not cover the requirement.
+	digest, required, err := candidateGatewayConfirmationRequirement(info, manifest)
+	if err != nil {
+		return fmt.Errorf("daemon: read installed dependency %q gateway requirement: %w", name, err)
+	}
+	if required {
+		node.payload.GatewayRequirementDigest = digest
+	}
 	return nil
 }
 
@@ -233,6 +244,15 @@ func (r *dependencyResolver) acquire(ctx context.Context, node *dependencyNode) 
 		}
 		r.graph.releases = append(r.graph.releases, release)
 	}
+	if req.ExpectedDigest == "" && req.Source == contract.InstallExtensionSourceMarketplace {
+		// The first preview has no reviewed digest yet: acquire the listed one so preview can report it.
+		// Installing still requires the caller's own pin (checkDependencyDigestConsent).
+		listed, err := s.listedMarketplaceDigest(ctx, node.payload.Ref)
+		if err != nil {
+			return &extensionpkg.DependencyGateError{Dependency: name, Err: err}
+		}
+		req.ExpectedDigest = listed
+	}
 	prepared, err := s.prepareExtensionInstall(ctx, req, r.actor, extensionInstalledBy(r.actor), r.target)
 	if errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified) {
 		node.unverifiedErr, node.payload.ConsentRequired = err, true
@@ -253,7 +273,7 @@ func (r *dependencyResolver) acquire(ctx context.Context, node *dependencyNode) 
 		return &extensionpkg.DependencyGateError{Dependency: name, Err: err}
 	}
 	node.payload.Version, node.payload.DigestSHA256 = prepared.manifest.Version, prepared.digest
-	node.payload.GatewayRequirementDigest = digest
+	node.payload.GatewayRequirementDigest, node.payload.RegistryTier = digest, prepared.registryTier
 	node.children = prepared.manifest.Requires.Extensions
 	return nil
 }

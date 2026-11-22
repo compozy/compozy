@@ -53,7 +53,10 @@ Steps:
    answers 409 with `dependents[]`.
 6. `compozy extension disable acme-core --force`: succeeds. `compozy extension status acme-tool -o json`
    shows `unmet_dependencies: [{"name": "acme-core", "state": "disabled", ...}]` while `acme-tool`
-   stays enabled and running; the daemon log has WARN `extension dependency unmet`.
+   stays enabled and running; the daemon log has WARN `extension dependency unmet`. Human
+   `compozy extension status acme-tool` shows `Unmet Dependencies  acme-core (disabled)`, and
+   `compozy extension list -o toon` has the `unmet_dependencies` column; the compact
+   `compozy__extensions_info` result carries `unmet_dependencies`.
 7. `compozy extension disable acme-tool`, then `compozy extension enable acme-tool`: exits 2 with
    `extension_dependencies_required` listing `acme-core` as `disabled`. Enable `acme-core`, then
    `acme-tool` enables.
@@ -65,6 +68,16 @@ Steps:
 10. From an agent session: `compozy__extensions_remove {name: "acme-base"}` in the agent's
     workspace installation returns the `extension_dependency_in_use` tool error with `dependents`;
     with `force: true` it proceeds.
+11. Marketplace dependency: a root requiring a plugin-source package (`source = "marketplace"`,
+    `ref = "<source>/<entry>"`) previews it as `missing` with the listed `digest_sha256` and its
+    `registry_tier`, without any consent. Installing with `--with-dependencies` pins that digest;
+    a direct API call without `dependencies.<name>.expected_digest` refuses naming the dependency.
+12. A dependency installed only for another profile, whose source has since published new bytes:
+    installing the root with `--with-dependencies` refuses with `extension_exists` naming the
+    dependency and `compozy extension update`; the other profile keeps the installed version.
+13. With a disabled unverified dependency installed, the preview lists it with its
+    `installed_version`, `registry_tier: "unverified"` and, if its gateway confirmation no longer
+    covers it, its gateway digest; the CLI calls it `unverified` and the Web shows `Not verified`.
 
 Pass: no dependency is installed, enabled or updated without consent for that exact artifact;
 removal never cascades; the dependent's runtime state never changes because of the guard.

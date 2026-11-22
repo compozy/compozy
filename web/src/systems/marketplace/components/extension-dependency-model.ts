@@ -18,6 +18,15 @@ export function extensionDependencySourceLabel(source: string): string {
   return SOURCE_LABEL[source] ?? source;
 }
 
+/**
+ * Only the recorded official or community tier is registry verification; consent an installed
+ * dependency was granted earlier is not.
+ */
+export function isRegistryVerifiedDependency(dependency: ExtensionDependency): boolean {
+  if (dependency.consent_required) return false;
+  return dependency.registry_tier === "official" || dependency.registry_tier === "community";
+}
+
 /** The dependencies Add acts on; a met dependency needs nothing and stays hidden. */
 export function unmetExtensionDependencies(
   preview: Pick<ExtensionInstallPreview, "dependencies">

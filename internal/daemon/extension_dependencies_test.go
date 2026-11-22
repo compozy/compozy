@@ -1,17 +1,25 @@
 package daemon
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/marketplace"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -193,8 +201,15 @@ func TestExtensionDependencyResolution(t *testing.T) {
 				if item.InstalledVersion != "0.1.0" || item.RetryCommand != "compozy extension update dep-old" {
 					t.Fatalf("version_unmet entry = %+v", item)
 				}
+			case "dep-disabled":
+				// Consent granted at install is not verification: the recorded tier stays unverified (B-7).
+				if item.RegistryTier != extensionpkg.ExtensionRegistryTierUnverified ||
+					item.InstalledVersion != "1.0.0" {
+					t.Fatalf("disabled entry = %+v, want its unverified tier and installed version", item)
+				}
 			case "dep-missing":
 				if item.Version != "0.5.1" || item.DigestSHA256 == "" || !item.ConsentRequired ||
+					item.RegistryTier != extensionpkg.ExtensionRegistryTierUnverified ||
 					!slices.Equal(item.RequiredBy, []string{"root"}) || item.Depth != 1 {
 					t.Fatalf("missing entry = %+v", item)
 				}
@@ -504,6 +519,238 @@ func TestExtensionDependencyInstall(t *testing.T) {
 			t.Fatal("partial install state differs from stop-at-first-failure")
 		}
 	})
+
+	t.Run("Should report a dependency kept installed after its enable failed", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		appendDependencyManifest(t, fixture.write(t, "dep-env", "1.0.0"),
+			"requires_env = [\"COMPOZY_DEPENDENCY_TEST_NEVER_SET\"]\n")
+		fixture.write(t, "root", "1.0.0", "dep-env")
+		other, err := fixture.deps.ProfileManager.Create(t.Context(), profilepkg.CreateInput{Name: "other"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := fixture.rootRequest(
+			t,
+			map[string]contract.ExtensionDependencyConsent{"dep-env": {AllowUnverified: true}},
+		)
+		req.Profile = other.Name
+
+		_, err = fixture.service.Install(t.Context(), req, dependencyOperator(t))
+		partial, ok := errors.AsType[*extensionpkg.DependenciesInstalledError](err)
+		gate, gated := errors.AsType[*extensionpkg.DependencyGateError](err)
+		if !ok || !slices.Equal(partial.Installed, []string{"dep-env"}) || !gated || gate.Dependency != "dep-env" {
+			t.Fatalf("error = %v, want dep-env failed to enable and reported installed", err)
+		}
+		if !fixture.installed(t, "dep-env") || fixture.installed(t, "root") {
+			t.Fatal("enable failure state differs: dep-env must stay installed and root must not install")
+		}
+	})
+
+	t.Run("Should refuse committing a dependent whose dependency was removed after resolution", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-core", "1.0.0")
+		fixture.install(t, "dep-core", contract.InstallExtensionRequest{})
+		fixture.write(t, "root", "1.0.0", "dep-core")
+		req := fixture.rootRequest(t, nil)
+		target, err := fixture.service.resolveExtensionScope(t.Context(), "", "", "", dependencyOperator(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+		prepared, err := fixture.service.prepareExtensionInstall(t.Context(), req, dependencyOperator(t), "operator",
+			target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.service.installDependencies(
+			t.Context(),
+			prepared,
+			req,
+			dependencyOperator(t),
+		); err != nil {
+			t.Fatalf("installDependencies() error = %v", err)
+		}
+		// The interleaving: the guard sees no installed dependent yet, so the remove proceeds unforced.
+		if _, err := fixture.service.Remove(t.Context(), "dep-core", dependencyOperator(t)); err != nil {
+			t.Fatalf("Remove(dep-core) error = %v", err)
+		}
+
+		_, err = fixture.service.installPrepared(t.Context(), prepared, req, dependencyOperator(t),
+			extensionpkg.LifecycleEvent{Type: eventspkg.ExtensionInstallFailed, ExtensionName: "root"})
+		required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
+		if !ok || len(required.Dependencies) != 1 || required.Dependencies[0].Name != "dep-core" {
+			t.Fatalf("error = %v, want the commit refused with dep-core unmet", err)
+		}
+		if fixture.installed(t, "root") {
+			t.Fatal("root committed with an unmet dependency")
+		}
+	})
+
+	t.Run("Should preview and install a marketplace dependency from its listed digest", func(t *testing.T) {
+		t.Parallel()
+		market := newMarketplaceDependencyService(t)
+		req := market.rootRequest(t)
+
+		preview, err := market.service.PreviewInstall(t.Context(), req, dependencyOperator(t))
+		if err != nil || len(preview.Dependencies) != 1 || preview.Dependencies[0].DigestSHA256 != market.digest ||
+			preview.Dependencies[0].State != dependencyStateMissing {
+			t.Fatalf("preview = %+v, %v; want open-design missing with the listed digest", preview.Dependencies, err)
+		}
+		consent := contract.ExtensionDependencyConsent{AllowUnverified: true}
+		req.WithDependencies = true
+		req.Dependencies = map[string]contract.ExtensionDependencyConsent{"open-design": consent}
+		_, err = market.service.Install(t.Context(), req, dependencyOperator(t))
+		gate, ok := errors.AsType[*extensionpkg.DependencyGateError](err)
+		if !ok || gate.Dependency != "open-design" || !strings.Contains(err.Error(), "expected_digest") {
+			t.Fatalf("error = %v, want the reviewed digest required for open-design", err)
+		}
+		consent.ExpectedDigest = market.digest
+		req.Dependencies["open-design"] = consent
+		item, err := market.service.Install(t.Context(), req, dependencyOperator(t))
+		if err != nil || !slices.Equal(item.InstallDependenciesInstalled, []string{"open-design"}) {
+			t.Fatalf("Install() = %v, %v; want open-design installed first", item.InstallDependenciesInstalled, err)
+		}
+	})
+
+	t.Run("Should never replace a dependency package another profile uses", func(t *testing.T) {
+		t.Parallel()
+		market := newMarketplaceDependencyService(t)
+		other, err := market.service.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "other"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := market.service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceMarketplace, Ref: "team/design", Profile: other.Name,
+			ExpectedDigest: market.digest, AllowUnverified: true,
+		}, dependencyOperator(t)); err != nil {
+			t.Fatalf("install open-design for other error = %v", err)
+		}
+		newer := market.publish(t, "1.1.0")
+		req := market.rootRequest(t)
+		req.WithDependencies = true
+		req.Dependencies = map[string]contract.ExtensionDependencyConsent{
+			"open-design": {AllowUnverified: true, ExpectedDigest: newer},
+		}
+
+		_, err = market.service.Install(t.Context(), req, dependencyOperator(t))
+		gate, ok := errors.AsType[*extensionpkg.DependencyGateError](err)
+		if !ok || gate.Dependency != "open-design" || !errors.Is(err, extensionpkg.ErrExtensionExists) ||
+			!strings.Contains(err.Error(), "never updated") {
+			t.Fatalf("error = %v, want a refused replacement naming open-design", err)
+		}
+		info, err := market.service.registry.Get("open-design")
+		if err != nil || info.Version != "1.0.0" {
+			t.Fatalf("open-design = %+v, %v; want 1.0.0 kept for the other profile", info, err)
+		}
+		if _, err := market.service.registry.Get("root"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("root lookup error = %v, want not installed", err)
+		}
+	})
+}
+
+// marketplaceDependencyFixture serves the open-design client plugin from a file marketplace source "team".
+type marketplaceDependencyFixture struct {
+	service   *daemonExtensionService
+	runtime   *marketplaceRuntime
+	pluginDir string
+	digest    string
+}
+
+// rootRequest installs a local root requiring team/design as open-design.
+func (m *marketplaceDependencyFixture) rootRequest(t *testing.T) contract.InstallExtensionRequest {
+	t.Helper()
+	rootDir := t.TempDir()
+	writeDaemonFile(t, filepath.Join(rootDir, "extension.toml"), fmt.Sprintf(
+		"name = \"root\"\nversion = \"1.0.0\"\nmin_compozy_version = %q\n\n[[requires.extensions]]\n"+
+			"name = \"open-design\"\nsource = \"marketplace\"\nref = \"team/design\"\n",
+		dependencyFixtureMinVersion))
+	return contract.InstallExtensionRequest{
+		Source: contract.InstallExtensionSourceLocalPath, Ref: rootDir, AllowUnverified: true,
+	}
+}
+
+// publish changes the plugin version, refreshes the source and returns the newly listed digest.
+func (m *marketplaceDependencyFixture) publish(t *testing.T, version string) string {
+	t.Helper()
+	path := filepath.Join(m.pluginDir, ".claude-plugin", "plugin.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeDaemonFile(t, path, strings.Replace(string(data), `"version": "1.0.0"`, `"version": "`+version+`"`, 1))
+	if _, err := m.runtime.Refresh(t.Context(), "team"); err != nil {
+		t.Fatal(err)
+	}
+	entry, err := m.runtime.Detail(t.Context(), "team", "design")
+	if err != nil || entry == nil || entry.DigestSHA256 == m.digest {
+		t.Fatalf("republished entry = %+v, %v; want a new digest", entry, err)
+	}
+	return entry.DigestSHA256
+}
+
+func newMarketplaceDependencyService(t *testing.T) *marketplaceDependencyFixture {
+	t.Helper()
+	ctx := t.Context()
+	root := t.TempDir()
+	if err := os.CopyFS(filepath.Join(root, "plugin"),
+		os.DirFS(filepath.Join("..", "extension", "testdata", "client-plugins", "open-design"))); err != nil {
+		t.Fatal(err)
+	}
+	writeDaemonFile(t, filepath.Join(root, "marketplace.json"), `{"plugins":[{"name":"design","source":"./plugin"}]}`)
+	feed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if _, err := fmt.Fprint(
+			w,
+			`{"manifest_version":3,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`,
+		); err != nil {
+			t.Error(err)
+		}
+	}))
+	t.Cleanup(feed.Close)
+	home := testHomePaths(t)
+	cfg := testConfig(t, home)
+	cfg.Extensions.Trust.AllowUnverified = true
+	cfg.Marketplace.Catalog.BaseURL = feed.URL
+	cfg.Marketplace.PluginSources = []compozyconfig.MarketplacePluginSourceConfig{
+		{Name: "team", Source: (&url.URL{Scheme: "file", Path: root}).String()},
+	}
+	db := openDaemonTestGlobalDB(t)
+	catalog, err := marketplace.NewSQLiteStore(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime, err := newMarketplaceRuntime(ctx, catalog, nil, cfg.Marketplace, home, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := runtime.Shutdown(context.WithoutCancel(ctx)); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := runtime.Refresh(ctx, "team"); err != nil {
+		t.Fatal(err)
+	}
+	entry, err := runtime.Detail(ctx, "team", "design")
+	if err != nil || entry == nil || !entry.Installable {
+		t.Fatalf("catalog entry = %+v, %v", entry, err)
+	}
+	profiles, err := profilepkg.NewManager(profilepkg.WithStore(db), profilepkg.WithHomePaths(home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := extensionpkg.NewRegistry(db.DB())
+	service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+		Registry: registry, Runtime: newLifecycleStateRuntime(registry), Profiles: profiles, HomePaths: home,
+		Logger: discardLogger(),
+	}, withDaemonExtensionMarketplace(cfg.Extensions, nil), withDaemonExtensionCatalog(runtime),
+		withDaemonMarketplacePackageAcquirer(runtime.resolver),
+		withDaemonMarketplacePackageCache(runtime.resolver.Cache),
+		withDaemonExtensionAutomation(&fakeAutomationManager{})).(*daemonExtensionService)
+	return &marketplaceDependencyFixture{
+		service: service, runtime: runtime, pluginDir: filepath.Join(root, "plugin"), digest: entry.DigestSHA256,
+	}
 }
 
 // Invariant: removing or disabling a dependency an installed dependent still resolves refuses with the dependents

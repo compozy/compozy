@@ -8901,6 +8901,9 @@
           "ref": {
             "type": "string"
           },
+          "registry_tier": {
+            "type": "string"
+          },
           "required_by": {
             "items": {
               "type": "string"
@@ -65205,11 +65208,21 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ExtensionValidationErrorPayload"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ExtensionValidationErrorPayload"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Package validation failure"
+            "description": "Extension trust decision, dependency graph refusal, or package validation failure"
           },
           "503": {
             "content": {

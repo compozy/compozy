@@ -79,7 +79,15 @@ func previewExtensionInstallOperationSpec() OperationSpec {
 			},
 			{Status: 400, Description: "Invalid install request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Package validation failure", Body: contract.ExtensionValidationErrorPayload{}},
+			{
+				Status:      422,
+				Description: "Extension trust decision, dependency graph refusal, or package validation failure",
+				Bodies: responseBodiesOf(
+					responseBodyOf[contract.ErrorPayload](),
+					responseBodyOf[contract.ExtensionOperationErrorPayload](),
+					responseBodyOf[contract.ExtensionValidationErrorPayload](),
+				),
+			},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 		},
 	}

@@ -400,6 +400,7 @@ type ExtensionDependencyPayload struct {
 	InstalledVersion         string   `json:"installed_version,omitempty"`
 	Version                  string   `json:"version,omitempty"`
 	DigestSHA256             string   `json:"digest_sha256,omitempty"`
+	RegistryTier             string   `json:"registry_tier,omitempty"`
 	ConsentRequired          bool     `json:"consent_required,omitzero"`
 	GatewayRequirementDigest string   `json:"gateway_requirement_digest,omitempty"`
 	RetryCommand             string   `json:"retry_command,omitempty"`

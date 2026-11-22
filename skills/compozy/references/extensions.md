@@ -365,9 +365,12 @@ returns `reason: "conflicting_source"` with both `parents`. Diamonds collapse to
 `min_version` is the highest bound and whose `required_by` lists every parent.
 
 Preview (`POST /api/extensions/preview-install`) returns `dependencies[]`, dependencies first, each
-with `state` (`met`, `missing`, `disabled`, `version_unmet`), `required_by`, `depth`, and, for a
-missing package, its `version`, `digest_sha256`, `gateway_requirement_digest` and `consent_required`
-(true when it needs `allow_unverified`). Install without `with_dependencies` refuses any unmet
+with `state` (`met`, `missing`, `disabled`, `version_unmet`), `required_by`, `depth`, `registry_tier`
+(only `official` and `community` are registry-verified; earlier consent is not), and, for a missing
+package, its `version`, `digest_sha256`, `gateway_requirement_digest` and `consent_required` (true when
+it needs `allow_unverified`). An installed `disabled` dependency carries `installed_version` and, when
+enabling must confirm it again, `gateway_requirement_digest`. A marketplace dependency is previewed at
+its listed digest; installing it still requires that digest as `dependencies.<name>.expected_digest`. Install without `with_dependencies` refuses any unmet
 dependency with `422 extension_dependencies_required` listing the unmet entries. `version_unmet`
 always refuses, even with consent, and carries `retry_command: "compozy extension update <dep>"`;
 nothing is ever auto-updated.
@@ -379,8 +382,11 @@ artifact under `dependencies.<name>` (`expected_digest`, `allow_unverified`,
 confirmation refuses with that gate's existing code (`extension_checksum_unverified`,
 `extension_source_changed`, `extension_gateway_confirmation_required`, ...) plus `dependency: "<name>"`.
 Execution stops at the first failure and keeps completed dependencies, reported as
-`dependencies_installed` on the error; a successful install returns `201` with
-`dependencies_installed`. A dependency with required inputs refuses with `extension_inputs_required`
+`dependencies_installed` on the error (including one committed before its enable failed); a successful
+install returns `201` with `dependencies_installed`. A dependency already installed for another scope or
+profile is only attached: when its source now provides different bytes the install refuses with
+`extension_exists` instead of updating the package other cells use. The dependent's commit re-checks its
+dependencies, so one removed concurrently refuses with `extension_dependencies_required`. A dependency with required inputs refuses with `extension_inputs_required`
 naming it; set it up separately first. `compozy__extensions_install` accepts the same
 `with_dependencies` and closed `dependencies` object with the authority of a plain install.
 
@@ -399,7 +405,8 @@ resolves its dependency to that installation; `dependents[]` lists `name`, `work
 `profile` (empty means global or all profiles). `?force=true`, `{"force": true}`, CLI `--force`, or
 native `force` on `compozy__extensions_remove`/`compozy__extensions_disable` proceeds. Nothing
 cascades: the dependent keeps its runtime state and status/list/info report
-`unmet_dependencies: [{name, min_version, state, ...}]`. Enabling a dependent whose dependencies are
+`unmet_dependencies: [{name, min_version, state, ...}]` (also in the compact native results and the
+human/TOON CLI output). Enabling a dependent whose dependencies are
 unmet refuses with `422 extension_dependencies_required`; boot never refuses. The CLI prints the
 dependents and exits 1.
 

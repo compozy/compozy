@@ -7261,6 +7261,14 @@ func addExtensionDependencyGuardFields(t *testing.T, baseline, current, componen
 		return operation["responses"].(map[string]any)["409"].(map[string]any)["content"].(map[string]any)
 	}
 	conflict(oldRemove)["application/json"] = inlineSchemaRefs(conflict(newRemove)["application/json"], components)
+	// B-8: preview's 422 also carries the operation error shape of trust and dependency graph refusals.
+	unprocessable := func(paths map[string]any) map[string]any {
+		operation := paths["/api/extensions/preview-install"].(map[string]any)["post"].(map[string]any)
+		return operation["responses"].(map[string]any)["422"].(map[string]any)["content"].(map[string]any)
+	}
+	unprocessable(oldPaths)["application/json"] = inlineSchemaRefs(
+		unprocessable(newPaths)["application/json"], components,
+	)
 }
 
 func addSchemaPropertiesBySignature(

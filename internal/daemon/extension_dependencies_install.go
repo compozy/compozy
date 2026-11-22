@@ -47,11 +47,13 @@ func (s *daemonExtensionService) installDependencies(
 	for _, node := range graph.order {
 		name := node.payload.Name
 		consent := req.Dependencies[name]
+		committed := false
 		switch node.payload.State {
 		case dependencyStateMissing:
-			err = s.installDependencyNode(ctx, node, consent, actor)
+			committed, err = s.installDependencyNode(ctx, node, consent, actor)
 		case dependencyStateDisabled:
 			err = s.enableDependency(ctx, name, consent, prepared.target, actor)
+			committed = err == nil
 		default:
 			continue
 		}
@@ -61,10 +63,13 @@ func (s *daemonExtensionService) installDependencies(
 		}
 		s.logger.Info("extension dependency install", "dependent", strings.Join(node.payload.RequiredBy, ","),
 			"dependency", name, "source", node.payload.Source, "state", node.payload.State, "outcome", outcome)
+		// A package committed before its activation failed stays on disk, so it is reported as installed.
+		if committed {
+			installed = append(installed, name)
+		}
 		if err != nil {
 			return installed, &extensionpkg.DependencyGateError{Dependency: name, Err: err}
 		}
-		installed = append(installed, name)
 	}
 	return installed, nil
 }
@@ -90,18 +95,23 @@ func (s *daemonExtensionService) precheckRootGatewayConfirmation(
 	return &extensionpkg.GatewayConfirmationRequiredError{CurrentDigest: digest}
 }
 
-// installDependencyNode commits the acquired candidate with its own per-dependency consent.
+// installDependencyNode commits the acquired candidate with its own per-dependency consent. committed reports a
+// package left installed even when its enable or post-commit notification failed (the retained-package contract).
 func (s *daemonExtensionService) installDependencyNode(
 	ctx context.Context, node *dependencyNode, consent contract.ExtensionDependencyConsent, actor taskpkg.ActorContext,
-) error {
+) (committed bool, _ error) {
 	if node.payload.ConsentRequired && !consent.AllowUnverified {
-		return node.unverifiedErr
+		return false, node.unverifiedErr
+	}
+	if err := checkDependencyDigestConsent(node.payload, consent); err != nil {
+		return false, err
 	}
 	if node.candidate == nil {
-		return fmt.Errorf("daemon: dependency %q has no acquired package", node.payload.Name)
+		return false, fmt.Errorf("daemon: dependency %q has no acquired package", node.payload.Name)
 	}
 	prepared := *node.candidate
 	node.candidate = nil
+	prepared.keepInstalled = true
 	req := contract.InstallExtensionRequest{
 		Enable: true, Source: contract.InstallExtensionSource(node.payload.Source), Ref: node.payload.Ref,
 		ExpectedDigest: consent.ExpectedDigest, AllowUnverified: consent.AllowUnverified,
@@ -110,13 +120,74 @@ func (s *daemonExtensionService) installDependencyNode(
 	item, err := s.installPrepared(ctx, prepared, req, actor, extensionpkg.LifecycleEvent{
 		Type: eventspkg.ExtensionInstallFailed, ExtensionName: prepared.name, SourceKind: node.payload.Source,
 	})
+	committed = item.Name != ""
 	if err != nil {
-		return err
+		return committed, err
 	}
 	if item.InstallEnableError != nil {
-		return fmt.Errorf("daemon: dependency installed but not enabled: %s", item.InstallEnableError.Error)
+		return committed, fmt.Errorf("daemon: dependency installed but not enabled: %s", item.InstallEnableError.Error)
 	}
-	return nil
+	return committed, nil
+}
+
+// checkDependencyDigestConsent requires the reviewed digest a marketplace artifact needs (rule 13). Preview
+// acquires with the listed digest, so the install must not trust that acquisition without the caller's pin.
+func checkDependencyDigestConsent(
+	item contract.ExtensionDependencyPayload,
+	consent contract.ExtensionDependencyConsent,
+) error {
+	if contract.InstallExtensionSource(item.Source) == contract.InstallExtensionSourceMarketplace &&
+		strings.TrimSpace(consent.ExpectedDigest) == "" {
+		return &extensionpkg.ManifestValidationError{
+			Field:   "expected_digest",
+			Message: "a listed digest is required for marketplace plugins",
+		}
+	}
+	return extensionpkg.CheckExpectedDigest(consent.ExpectedDigest, item.DigestSHA256)
+}
+
+// dependencyNames lists the direct requires.extensions names of a manifest.
+func dependencyNames(manifest *extensionpkg.Manifest) []string {
+	if manifest == nil {
+		return nil
+	}
+	names := make([]string, 0, len(manifest.Requires.Extensions))
+	for _, dependency := range manifest.Requires.Extensions {
+		names = append(names, dependency.Name)
+	}
+	return names
+}
+
+// checkCommitDependenciesMet re-checks, under the lifecycle locks of the package and its direct dependencies,
+// that every dependency is still met in the target cell: a dependency removed or disabled after the graph was
+// resolved refuses the commit instead of leaving the new dependent unmet.
+func (s *daemonExtensionService) checkCommitDependenciesMet(
+	ctx context.Context, prepared preparedDaemonExtensionInstall,
+) error {
+	if prepared.manifest == nil || len(prepared.manifest.Requires.Extensions) == 0 {
+		return nil
+	}
+	unmet, err := s.cellUnmetDependencies(ctx, prepared.name, prepared.manifest.Requires.Extensions,
+		extensionpkg.InstallationScope{
+			ProfileID: prepared.target.profile.ID, WorkspaceID: prepared.target.scope.WorkspaceID,
+		})
+	if err != nil || len(unmet) == 0 {
+		return err
+	}
+	return &extensionpkg.DependenciesRequiredError{Dependencies: unmet}
+}
+
+// dependencyReplacementRefused refuses a dependency install that would replace the package other cells use.
+func dependencyReplacementRefused(installed *extensionpkg.ExtensionInfo, candidate *extensionpkg.Manifest) error {
+	version := ""
+	if candidate != nil {
+		version = candidate.Version
+	}
+	return fmt.Errorf(
+		"%w: %s %s is installed for another scope or profile and its source now provides %s; "+
+			"dependencies are never updated, run `compozy extension update %s` first",
+		extensionpkg.ErrExtensionExists, installed.Name, installed.Version, version, installed.Name,
+	)
 }
 
 // enableDependency enables a disabled dependency for the dependent's profile through the enable paths.

@@ -1338,6 +1338,7 @@ describe("Add", () => {
 describe("Add with dependencies", () => {
   const CORE_DIGEST = "a".repeat(64);
   const NET_GATEWAY_DIGEST = "b".repeat(64);
+  const LOG_DIGEST = "c".repeat(64);
   const dependencyPreview = (state: "missing" | "version_unmet" = "missing") => ({
     name: "kit",
     inputs: [],
@@ -1365,7 +1366,19 @@ describe("Add with dependencies", () => {
         depth: 1,
         state: "disabled",
         installed_version: "1.0.0",
+        registry_tier: "unverified",
         gateway_requirement_digest: NET_GATEWAY_DIGEST,
+      },
+      {
+        name: "acme-log",
+        source: "curated",
+        ref: "acme/log",
+        required_by: ["kit"],
+        depth: 1,
+        state: "missing",
+        version: "2.0.0",
+        digest_sha256: LOG_DIGEST,
+        registry_tier: "community",
       },
       {
         name: "acme-met",
@@ -1392,8 +1405,13 @@ describe("Add with dependencies", () => {
     expect(within(section).getByTestId("extension-install-dependency-acme-core")).toHaveTextContent(
       "Not verified"
     );
-    expect(within(section).getByTestId("extension-install-dependency-acme-net")).toHaveTextContent(
-      "Turns on"
+    const net = within(section).getByTestId("extension-install-dependency-acme-net");
+    expect(net).toHaveTextContent("Turns on");
+    // A disabled unverified dependency keeps its tier and shows its installed version (B-7).
+    expect(net).toHaveTextContent("Not verified");
+    expect(net).toHaveTextContent("1.0.0");
+    expect(within(section).getByTestId("extension-install-dependency-acme-log")).toHaveTextContent(
+      "Checked by CompozyOS"
     );
     expect(within(section).queryByTestId("extension-install-dependency-acme-met")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Add" }));
@@ -1418,6 +1436,7 @@ describe("Add with dependencies", () => {
       dependencies: {
         "acme-core": { expected_digest: CORE_DIGEST, allow_unverified: true },
         "acme-net": { confirm_gateway_digest: NET_GATEWAY_DIGEST },
+        "acme-log": { expected_digest: LOG_DIGEST },
       },
     });
     // No blanket consent: the dependent's own request keeps allow_unverified off.
