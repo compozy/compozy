@@ -1,6 +1,6 @@
 # BUG-20261122-source-install-stale-preview-after-success: The Install dialog reopens with the last install's preview and gates
 
-- **Status:** open
+- **Status:** fixed, pending re-walk
 - **Impact (user-side):** Friction. After a successful install, the next "Install extension from a
   local build…" opens with the old review. Install walks the old dependency gates again and then fails
   with "extension already exists"
@@ -58,3 +58,12 @@ dependency trust and remote-access gates before the request.
 
 Reset the preview (`resetPreview()`) after a successful install. For example, call it in `execute`
 after `mutateAsync` resolves, or when the store leaves the `submitting` phase with success.
+
+## Fix
+
+`useExtensionInstallDialog` (`web/src/systems/marketplace/components/use-extension-install-dialog.tsx`)
+now clears the preview after a successful install, and every `open()` clears it again and mounts a
+fresh form (the dialog key carries a per-open session counter). A success that closes the dialog
+through the store phase therefore leaves no path, review, **Also installs** rows or Install button
+behind. Covered by "Should reopen on a fresh form after a successful install, without repeating its
+gates" in `marketplace-components.test.tsx` (source-union install, "with dependencies").

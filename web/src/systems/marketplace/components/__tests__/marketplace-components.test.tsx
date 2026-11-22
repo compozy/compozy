@@ -1850,6 +1850,33 @@ describe("Extension source installation", () => {
       );
     });
 
+    // BUG-20261122-source-install-stale-preview-after-success: a success closes through the store.
+    it("Should reopen on a fresh form after a successful install, without repeating its gates", async () => {
+      const user = userEvent.setup();
+      mocks.previewExtensionInstall.mockResolvedValueOnce(dependencyPreview());
+      mocks.installExtension.mockResolvedValueOnce({
+        dependencies_installed: ["acme-core", "acme-net", "acme-log"],
+        extension: extensionFixtures[0],
+      });
+      await previewKit(user);
+      await user.click(screen.getByTestId("extension-install-submit"));
+      await user.click(await screen.findByTestId("extension-trust-confirm"));
+      await user.click(await screen.findByTestId("extension-gateway-confirm-accept"));
+      await waitFor(() => expect(screen.queryByTestId("extension-install-dialog")).toBeNull());
+      expect(mocks.installExtension).toHaveBeenCalledOnce();
+
+      await user.click(screen.getByTestId("marketplace-extension-install"));
+      expect(await screen.findByTestId("extension-install-dialog")).toBeVisible();
+      expect(screen.getByTestId("extension-install-ref")).toHaveValue("");
+      expect(screen.queryByTestId("extension-install-summary")).toBeNull();
+      expect(screen.queryByRole("region", { name: "Also installs" })).toBeNull();
+
+      await user.click(screen.getByTestId("extension-install-submit"));
+      expect(screen.queryByTestId("extension-trust-dialog")).toBeNull();
+      expect(screen.queryByTestId("extension-gateway-confirm-dialog")).toBeNull();
+      expect(mocks.installExtension).toHaveBeenCalledOnce();
+    });
+
     it("Should abort the whole install when a dependency gate is canceled", async () => {
       const user = userEvent.setup();
       mocks.previewExtensionInstall.mockResolvedValueOnce(dependencyPreview());

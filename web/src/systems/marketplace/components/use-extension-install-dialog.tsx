@@ -44,6 +44,8 @@ export function useExtensionInstallDialog(
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
   const [initialSource, setInitialSource] = useState<ExtensionInstallSource>("local_path");
+  // Each open mounts a fresh form: a success closes through the store, never through the form.
+  const [formSession, setFormSession] = useState(0);
   const dependencyGates = useExtensionDependencyGates();
 
   const resetPreview = () => {
@@ -54,6 +56,7 @@ export function useExtensionInstallDialog(
 
   const execute = async (request: ExtensionInstallRequest) => {
     const result = await install.mutateAsync(request);
+    resetPreview();
     const alsoInstalled = result.dependencies_installed ?? [];
     const message =
       alsoInstalled.length > 0
@@ -102,7 +105,7 @@ export function useExtensionInstallDialog(
       <ExtensionInstallDialog
         error={state.phase === "form" ? (previewError ?? state.error) : null}
         initialSource={initialSource}
-        key={initialSource}
+        key={`${initialSource}:${formSession}`}
         onFormChange={resetPreview}
         onOpenChange={open => {
           if (!open) {
@@ -167,7 +170,9 @@ export function useExtensionInstallDialog(
     dialogs,
     isOpen: state.phase !== "closed",
     open: (source = "local_path") => {
+      resetPreview();
       setInitialSource(source);
+      setFormSession(session => session + 1);
       store.trigger.installOpened();
     },
   };
