@@ -47,7 +47,8 @@ Steps:
    without prompting and exits 0. Remove the `api_token` binding with `secrets unset` and rerun
    setup with stdin redirected: it lists the inputs, names `api_token`, and exits 2.
 6. Repeat step 5's write on a `--workspace` instance and with `--profile <other>`; the global
-   instance and the other profile are unchanged.
+   instance and the other profile are unchanged. `compozy extension setup acme-tool --workspace <W>`
+   against the global installation fails before any prompt and names `--scope global`.
 7. From the agent session, call `compozy__extensions_setup {name: "acme-tool"}` on the global
    installation: the read succeeds, and a write is refused as a scope error with nothing written.
    Install `acme-tool` in the agent's workspace, then read, write a value for the `daemon_env` input

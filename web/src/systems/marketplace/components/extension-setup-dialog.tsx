@@ -20,7 +20,12 @@ import { ExtensionInputFields, type ExtensionInputAnnotation } from "./extension
 import { ExtensionSetupSignInHint } from "./extension-setup-sign-in";
 import { pendingField, useExtensionSetupDialog } from "./use-extension-setup-dialog";
 
-const DAEMON_ENV_NOTE = "Uses the daemon environment; the extension process does not receive it.";
+// Only the extension process misses a daemon_env value; an MCP server reads the daemon environment.
+function daemonEnvNote(input: ExtensionInputStatus): string {
+  return input.targets.includes("subprocess")
+    ? "Uses the daemon environment; the extension process does not receive it."
+    : "Uses the daemon environment. A value saved here is stored for the MCP server.";
+}
 
 interface ExtensionSetupDialogProps {
   extension: ExtensionEntry;
@@ -151,7 +156,7 @@ function annotateInput(
     case "daemon_env":
       return {
         marker: <SetupStateMarker tone="warning">Missing</SetupStateMarker>,
-        description: DAEMON_ENV_NOTE,
+        description: daemonEnvNote(input),
       };
     default:
       return input.required

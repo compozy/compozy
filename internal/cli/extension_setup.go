@@ -102,7 +102,7 @@ func runExtensionSetup(cmd *cobra.Command, deps commandDeps, name string, f *ext
 	if err != nil {
 		return err
 	}
-	values, err := extensionSetupValues(cmd, deps, state, f, explicit)
+	values, err := extensionSetupValues(cmd, deps, state, selected, f, explicit)
 	if err != nil {
 		return err
 	}
@@ -132,8 +132,20 @@ func runExtensionSetup(cmd *cobra.Command, deps commandDeps, name string, f *ext
 }
 
 func extensionSetupValues(
-	cmd *cobra.Command, deps commandDeps, state ExtensionInputsRecord, f *extensionSetupFlags, explicit bool,
+	cmd *cobra.Command, deps commandDeps, state ExtensionInputsRecord, selected extensionCLIScope,
+	f *extensionSetupFlags, explicit bool,
 ) (map[string]extensioninput.Value, error) {
+	interactive, err := extensionInputsInteractive(cmd, deps)
+	if err != nil {
+		return nil, err
+	}
+	if (explicit || interactive) && state.WorkspaceID == "" && selected.workspaceID != "" {
+		// The daemon refuses a workspace write to a global installation; fail before collecting values.
+		return nil, fmt.Errorf(
+			"cli: %s is installed globally; set up its inputs with: compozy extension setup %s --scope global",
+			state.Extension, state.Extension,
+		)
+	}
 	if explicit {
 		values, err := readExtensionInputFile(f.inputs.file)
 		if err != nil {
@@ -145,9 +157,8 @@ func extensionSetupValues(
 		}
 		return mergeExtensionInputFlags(values, f.inputs.values, types)
 	}
-	interactive, err := extensionInputsInteractive(cmd, deps)
-	if err != nil || !interactive {
-		return nil, err
+	if !interactive {
+		return nil, nil
 	}
 	return newExtensionInputPrompter(cmd).promptAll(cmd.Context(), extensionSetupPromptInputs(state, f.all))
 }
@@ -165,7 +176,7 @@ func extensionSetupPromptInputs(state ExtensionInputsRecord, all bool) []extensi
 		}
 		inputs = append(inputs, extensionPromptInput{
 			ID: input.ID, Prompt: input.Prompt, Type: input.Type, Required: input.Required,
-			Default: input.Default, State: input.State,
+			Default: input.Default, State: input.State, Subprocess: slices.Contains(input.Targets, "subprocess"),
 		})
 	}
 	return inputs

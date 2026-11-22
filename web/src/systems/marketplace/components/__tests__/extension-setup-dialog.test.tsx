@@ -20,6 +20,7 @@ type SetupInput = {
   required: boolean;
   state: string;
   set?: boolean;
+  targets?: string[];
 };
 
 const binding = (name: string) => ({ type: "env", name });
@@ -30,11 +31,11 @@ function inputsPayload(inputs: SetupInput[], extra: Record<string, unknown> = {}
     workspace_id: "",
     profile: "default",
     enabled: true,
-    inputs: inputs.map(input => ({
+    inputs: inputs.map(({ targets = ["subprocess"], ...input }) => ({
       ...input,
       prompt: `Prompt ${input.id}`,
       binding: binding(input.id.toUpperCase()),
-      targets: ["subprocess"],
+      targets,
     })),
     missing: inputs.filter(input => input.state === "missing").map(input => input.id),
     invalid: inputs.filter(input => input.state === "invalid").map(input => input.id),
@@ -158,6 +159,27 @@ describe("ExtensionSetupDialog", () => {
     expect(info).toHaveBeenCalledWith(
       "legacy_key still using the daemon environment; the extension process does not receive it."
     );
+  });
+
+  it("Should say an MCP-only daemon_env value is stored for the MCP server", async () => {
+    const info = vi.spyOn(toast, "info");
+    readPayload = inputsPayload([
+      TOKEN,
+      { ...LEGACY, targets: ["mcp:acme"] },
+      { ...REGION, state: "set" },
+    ]);
+    const { onClose, user } = await renderDialog();
+
+    const legacy = field("legacy_key");
+    expect(legacy).toHaveTextContent(
+      "Uses the daemon environment. A value saved here is stored for the MCP server."
+    );
+    expect(legacy).not.toHaveTextContent("the extension process does not receive it");
+
+    await user.click(screen.getByTestId("extension-setup-save"));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(info).not.toHaveBeenCalled();
   });
 
   it("Should stay open and list required inputs that are still missing", async () => {

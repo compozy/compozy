@@ -605,15 +605,17 @@ compozy extension setup acme-tool -o json               # read state, never prom
 ```
 
 - By default it prompts for required inputs that are missing or invalid, and for every input that
-  only the daemon environment satisfies. Enter keeps such an input unbound and says that the
-  extension process still does not receive it.
+  only the daemon environment satisfies. Enter keeps such an input unbound. For an input the
+  extension process uses, setup says the process still does not receive it; for an input only an
+  MCP server uses, it says a value saved here is stored for that server.
 - `--all` prompts for every input; Enter keeps a value that is already set. Secrets are never shown.
 - `--input` and `--input-file` write without prompting, then report what is still missing.
 - A write restarts an enabled instance only when a value changed; rerunning with nothing missing
   changes nothing. Only that instance restarts; other extensions, profiles and workspaces keep
   running.
 - A globally installed extension keeps one set of values for every workspace, so set it up with
-  `--scope global`; a workspace-scoped write to a global installation is refused.
+  `--scope global`; a workspace-scoped write to a global installation is refused before setup
+  prompts for any value.
 - When an input feeds an MCP server that signs in with OAuth, the output ends with
   `Sign in: compozy mcp auth login <server>`. Setup does not sign in.
 - Exit codes: 0 when nothing required is missing or for any `-o json|toon` read; 2 when required

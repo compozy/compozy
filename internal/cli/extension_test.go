@@ -1988,6 +1988,9 @@ func TestExtensionSetupCommand(t *testing.T) {
 		t.Helper()
 		var result setupRun
 		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+			},
 			extensionInputsFn: func(_ context.Context, name string, _ extensionCLIScope) (ExtensionInputsRecord, error) {
 				if name != "acme-tool" {
 					t.Fatalf("setup read name = %q", name)
@@ -2094,6 +2097,45 @@ func TestExtensionSetupCommand(t *testing.T) {
 		}
 		if string(got.writes[0].Inputs["project"].Value) != `"platform"` || len(got.writes[0].Inputs) != 2 {
 			t.Fatalf("written inputs = %#v", got.writes[0].Inputs)
+		}
+	})
+
+	t.Run("Should say an MCP-only daemon_env value is stored for the MCP server [F-5]", func(t *testing.T) {
+		t.Parallel()
+		state := defaultState()
+		state.Inputs[3].Targets = []string{"mcp:acme"}
+		got := run(t, state, true, "tok-value\nplatform\n\n")
+		if got.err != nil {
+			t.Fatalf("setup error = %v", got.err)
+		}
+		want := "Acme region: still using the daemon environment; a value saved here is stored for the MCP server."
+		if !strings.Contains(got.stderr, want) {
+			t.Fatalf("prompts = %q, want %q", got.stderr, want)
+		}
+		if strings.Contains(got.stderr, "extension process does not receive") {
+			t.Fatalf("prompts = %q, want no subprocess note for an MCP-only input", got.stderr)
+		}
+	})
+
+	t.Run("Should refuse before prompting when a workspace selects a global installation [F-3]", func(t *testing.T) {
+		t.Parallel()
+		for _, args := range [][]string{
+			{"--workspace", "alpha"},
+			{"--workspace", "alpha", "--input", "token=abc"},
+		} {
+			got := run(t, defaultState(), true, "tok-value\nplatform\n\n", args...)
+			if got.err == nil ||
+				!strings.Contains(got.err.Error(), "compozy extension setup acme-tool --scope global") {
+				t.Fatalf("setup %v error = %v, want the --scope global guidance", args, got.err)
+			}
+			if len(got.writes) != 0 || got.stderr != "" {
+				t.Fatalf(
+					"setup %v: writes=%d stderr=%q, want no prompt and no write",
+					args,
+					len(got.writes),
+					got.stderr,
+				)
+			}
 		}
 	})
 

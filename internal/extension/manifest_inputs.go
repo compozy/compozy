@@ -178,7 +178,7 @@ func ValidateManifestInputs(manifest *Manifest) error {
 		if !bound {
 			return &ManifestValidationError{
 				Field:   fmt.Sprintf("inputs[%d].binding", index),
-				Message: "input is not bound to any declared MCP server or author-declared requires_env",
+				Message: "input is not bound to any declared MCP server or requires_env entry",
 			}
 		}
 	}

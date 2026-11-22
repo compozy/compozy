@@ -911,7 +911,7 @@ func TestManifestFromDescribeInputs(t *testing.T) {
 			mutate: func(payload *extensioncontract.DescribePayload) {
 				payload.Inputs[0].Binding.Name = "OTHER_TOKEN"
 			},
-			want: "input is not bound to any declared MCP server or author-declared requires_env",
+			want: "input is not bound to any declared MCP server or requires_env entry",
 		},
 		{
 			name: "Should reject inputs below the subprocess input floor",

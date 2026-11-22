@@ -212,7 +212,7 @@ Every catalog entry has exactly one category id: `productivity`, `communication`
   `compozy mcp auth login <server>`. Do not report a plugin as ready from install success alone.
   Each input has `state`: `set` (binding, stored value or default), `missing`, `invalid` (stored value
   fails the current type) or `daemon_env` (an MCP server also consumes it and only the daemon
-  environment satisfies it; still ready, but the extension process does not receive it). Key prompts
+  environment satisfies it; still ready, but an extension process that uses it does not receive it). Key prompts
   off `state`, never off the `set` boolean, which stays true for `daemon_env`. `missing` lists required
   inputs only; `missing_env` lists bare `requires_env` keys for `secrets set`; `mcp_auth_servers` lists
   OAuth servers needing sign-in. Values and Vault references are never returned.

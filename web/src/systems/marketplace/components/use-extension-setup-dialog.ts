@@ -93,9 +93,13 @@ function setupDefinitions(inputs: readonly ExtensionInputStatus[]): ExtensionInp
 function reportSaved(name: string, result: ExtensionInputsState) {
   toast.success("Setup saved");
   if (result.reloaded) toast.success(`Restarted ${name}`);
-  if (result.daemon_env.length > 0) {
+  // MCP-only daemon_env inputs still reach their server through the daemon environment.
+  const unreached = result.inputs
+    .filter(input => input.state === "daemon_env" && input.targets.includes("subprocess"))
+    .map(input => input.id);
+  if (unreached.length > 0) {
     toast.info(
-      `${result.daemon_env.join(", ")} still using the daemon environment; the extension process does not receive it.`
+      `${unreached.join(", ")} still using the daemon environment; the extension process does not receive it.`
     );
   }
 }

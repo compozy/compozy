@@ -189,7 +189,7 @@ func (s *daemonExtensionService) resolveInputsInstance(
 		// A global installation serves every workspace from one runtime and input cell, so a
 		// workspace-scoped write would change the other workspaces (Safety Invariant 3).
 		return extensionInputsInstance{}, extensionScopeError(
-			"scope", "extension is installed globally; only the operator can set it up with scope global",
+			"scope", "extension is installed globally; set up its inputs with scope global (--scope global)",
 		)
 	}
 	return extensionInputsInstance{

@@ -26,14 +26,15 @@ const (
 var errExtensionInputPromptAborted = errors.New("cli: extension input prompt aborted; nothing was written")
 
 // extensionPromptInput is one input the CLI asks for. State is empty for install refusals, which list
-// only inputs that need a value.
+// only inputs that need a value. Subprocess reports that the extension process consumes the input.
 type extensionPromptInput struct {
-	ID       string
-	Prompt   string
-	Type     string
-	Required bool
-	Default  json.RawMessage
-	State    string
+	ID         string
+	Prompt     string
+	Type       string
+	Required   bool
+	Default    json.RawMessage
+	State      string
+	Subprocess bool
 }
 
 // extensionInputPrompter asks for extension input values on an interactive terminal. Install uses it on
@@ -103,8 +104,8 @@ func (p *extensionInputPrompter) promptOne(
 		if reason == "" {
 			if !entered && input.State == contract.ExtensionInputStateDaemonEnv {
 				if _, err := fmt.Fprintf(
-					p.output, "%s: still using the daemon environment; the extension process does not receive it.\n",
-					extensionInputPromptText(input),
+					p.output, "%s: still using the daemon environment; %s\n",
+					extensionInputPromptText(input), extensionDaemonEnvNote(input),
 				); err != nil {
 					return nil, false, fmt.Errorf("cli: write extension input notice: %w", err)
 				}
@@ -115,6 +116,15 @@ func (p *extensionInputPrompter) promptOne(
 			return nil, false, fmt.Errorf("cli: write extension input reason: %w", err)
 		}
 	}
+}
+
+// extensionDaemonEnvNote names who misses a daemon_env value: only the extension process lacks it; an
+// MCP server reads the daemon environment until a stored value replaces it.
+func extensionDaemonEnvNote(input extensionPromptInput) string {
+	if input.Subprocess {
+		return "the extension process does not receive it."
+	}
+	return "a value saved here is stored for the MCP server."
 }
 
 // extensionPromptAnswer maps one answer to a typed value. An empty answer keeps a set value, the daemon
