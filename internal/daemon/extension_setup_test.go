@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -68,9 +69,9 @@ type extensionSetupFixture struct {
 	runtime  *fakeExtensionRuntime
 }
 
-// newExtensionSetupFixture installs setup-kit globally and enabled, with REGION only in the daemon
+// newExtensionSetupFixture installs setup-kit enabled in scope, with REGION only in the daemon
 // environment so the dual-consumer region input reads daemon_env.
-func newExtensionSetupFixture(t *testing.T) extensionSetupFixture {
+func newExtensionSetupFixture(t *testing.T, scope extensionpkg.InstallationScope) extensionSetupFixture {
 	t.Helper()
 	service, bindings := newExtensionSecretsTestService(t, nil, newExtensionSecretVaultFake())
 	service.getenv = func(name string) string {
@@ -96,8 +97,16 @@ func newExtensionSetupFixture(t *testing.T) extensionSetupFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if scope.WorkspaceID != "" {
+		stamp := store.FormatTimestamp(service.now())
+		if _, err := service.registry.DB().ExecContext(testutil.Context(t), `INSERT INTO workspaces
+			(id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			scope.WorkspaceID, t.TempDir(), "Setup workspace", stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := service.registry.Install(
-		manifest, dir, checksum, extensionpkg.WithInstallScope(extensionpkg.InstallationScope{}),
+		manifest, dir, checksum, extensionpkg.WithInstallScope(scope),
 	); err != nil {
 		t.Fatalf("Registry.Install() error = %v", err)
 	}
@@ -143,7 +152,7 @@ func TestExtensionInputSetup(t *testing.T) {
 
 	t.Run("Should report state, targets and daemon_env without values [T-08]", func(t *testing.T) {
 		t.Parallel()
-		fixture := newExtensionSetupFixture(t)
+		fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{})
 		ctx := testutil.Context(t)
 		payload, err := fixture.service.InputsState(ctx, target, extensionSetupOperator(t))
 		if err != nil {
@@ -155,8 +164,10 @@ func TestExtensionInputSetup(t *testing.T) {
 			states["token"] != contract.ExtensionInputStateMissing {
 			t.Fatalf("states = %#v", states)
 		}
-		if !slices.Equal(payload.Missing, []string{"project"}) || !slices.Equal(payload.DaemonEnv, []string{"region"}) ||
-			len(payload.Invalid) != 0 || len(payload.MissingEnv) != 0 ||
+		if !slices.Equal(payload.Missing, []string{"project"}) ||
+			!slices.Equal(payload.DaemonEnv, []string{"region"}) ||
+			len(payload.Invalid) != 0 ||
+			len(payload.MissingEnv) != 0 ||
 			!payload.Enabled ||
 			payload.Extension != setupKitName ||
 			payload.Profile != daemonDefaultProfileName {
@@ -187,7 +198,7 @@ func TestExtensionInputSetup(t *testing.T) {
 
 	t.Run("Should merge writes, reload once per change and keep the installation intact [T-09]", func(t *testing.T) {
 		t.Parallel()
-		fixture := newExtensionSetupFixture(t)
+		fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{})
 		ctx := testutil.Context(t)
 		operator := extensionSetupOperator(t)
 		service := fixture.service
@@ -269,7 +280,7 @@ func TestExtensionInputSetup(t *testing.T) {
 
 	t.Run("Should leave required inputs missing on a partial write and refuse invalid values", func(t *testing.T) {
 		t.Parallel()
-		fixture := newExtensionSetupFixture(t)
+		fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{})
 		ctx := testutil.Context(t)
 		partial, err := fixture.service.SetInputs(
 			ctx,
@@ -297,9 +308,9 @@ func TestExtensionInputSetup(t *testing.T) {
 
 	t.Run("Should report daemon_env in status while keeping set true [T-09]", func(t *testing.T) {
 		t.Parallel()
-		fixture := newExtensionSetupFixture(t)
+		fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{})
 		ctx := testutil.Context(t)
-		instance, err := fixture.service.resolveInputsInstance(ctx, target, extensionSetupOperator(t))
+		instance, err := fixture.service.resolveInputsInstance(ctx, target, extensionSetupOperator(t), false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -318,6 +329,10 @@ func TestExtensionInputSetup(t *testing.T) {
 		}
 		if slices.Contains(payload.MissingInputs, "region") || slices.Contains(payload.MissingEnv, "REGION") {
 			t.Fatalf("daemon_env input blocked readiness: %#v", payload)
+		}
+		// A required subprocess input is reported by id so the Web setup notice shows (R-6).
+		if !slices.Equal(payload.MissingInputs, []string{"project"}) {
+			t.Fatalf("status missing_inputs = %#v, want the required subprocess input", payload.MissingInputs)
 		}
 
 		// The compact info and list results carry the new state and must stay valid for their schemas.
@@ -352,6 +367,50 @@ func TestExtensionInputSetup(t *testing.T) {
 	})
 }
 
+// restartRecordingRuntime records instance-scoped restarts and fails if the manager-wide reload runs.
+type restartRecordingRuntime struct {
+	*fakeExtensionRuntime
+	restarted []extensionpkg.InstanceKey
+}
+
+func (r *restartRecordingRuntime) RestartInstance(_ context.Context, key extensionpkg.InstanceKey) error {
+	r.restarted = append(r.restarted, key)
+	return nil
+}
+
+// Invariant: a setup write restarts only the resolved instance's runtime (rule 7, Safety Invariant 3).
+// Owner: daemon setup service; suite: TestExtensionInputSetupInstanceRestart.
+func TestExtensionInputSetupInstanceRestart(t *testing.T) {
+	t.Parallel()
+	t.Run("Should restart only the resolved instance and skip a reload that cannot start [R-2]", func(t *testing.T) {
+		t.Parallel()
+		fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{})
+		ctx := testutil.Context(t)
+		recorder := &restartRecordingRuntime{fakeExtensionRuntime: fixture.runtime}
+		fixture.service.runtime = recorder
+		target := extensionInputsTarget{Name: setupKitName}
+
+		// project stays missing, so the instance cannot start and the partial write is not reloaded.
+		partial, err := fixture.service.SetInputs(
+			ctx, target, setupValues("token", setupTokenValue), extensionSetupOperator(t),
+		)
+		if err != nil || partial.Reloaded || len(recorder.restarted) != 0 {
+			t.Fatalf("partial write = %#v restarts %#v error %v, want no reload", partial, recorder.restarted, err)
+		}
+		written, err := fixture.service.SetInputs(
+			ctx, target, setupValues("project", setupProjectValue), extensionSetupOperator(t),
+		)
+		if err != nil {
+			t.Fatalf("SetInputs() error = %v", err)
+		}
+		want := []extensionpkg.InstanceKey{{Name: setupKitName, ProfileID: store.DefaultProfileID}}
+		if !written.Reloaded || !slices.Equal(recorder.restarted, want) || fixture.runtime.reloadCount != 0 {
+			t.Fatalf("restarts = %#v manager reloads = %d, want only %#v",
+				recorder.restarted, fixture.runtime.reloadCount, want)
+		}
+	})
+}
+
 // Invariant: an agent caller writes only missing, invalid or daemon_env inputs of its trusted instance (D7).
 // Owner: native extension setup tool; suite: TestExtensionInputSetupAgentAuthority.
 func TestExtensionInputSetupAgentAuthority(t *testing.T) {
@@ -373,7 +432,7 @@ func TestExtensionInputSetupAgentAuthority(t *testing.T) {
 
 	t.Run("Should let an agent write missing and daemon_env inputs [T-10]", func(t *testing.T) {
 		t.Parallel()
-		fixture := newExtensionSetupFixture(t)
+		fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{WorkspaceID: setupWorkspaceID})
 		read, err := call(t, fixture, `{"name":"setup-kit"}`)
 		if err != nil {
 			t.Fatalf("extensions_setup read error = %v", err)
@@ -388,21 +447,57 @@ func TestExtensionInputSetupAgentAuthority(t *testing.T) {
 			t.Fatalf("extensions_setup write error = %v", err)
 		}
 		requireNativeStructuredContains(t, written, []byte(`"changed":["project","region"]`))
+		ctx := testutil.Context(t)
+		own, err := fixture.bindings.ListEnvBindings(ctx, setupKitName, store.DefaultProfileID, setupWorkspaceID)
+		if err != nil || extensionBindingsByName(own)["PROJECT_ID"].InputID != "project" {
+			t.Fatalf("agent workspace bindings = %#v error %v, want project bound", own, err)
+		}
+		for _, workspaceID := range []string{"", "ws-other"} {
+			other, err := fixture.bindings.ListEnvBindings(ctx, setupKitName, store.DefaultProfileID, workspaceID)
+			if err != nil || len(other) != 0 {
+				t.Fatalf("workspace %q bindings = %#v error %v, want untouched", workspaceID, other, err)
+			}
+		}
 	})
+
+	t.Run("Should refuse an agent write to a global installation and leave the global cell untouched [R-1]",
+		func(t *testing.T) {
+			t.Parallel()
+			fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{})
+			ctx := testutil.Context(t)
+			read, err := call(t, fixture, `{"name":"setup-kit"}`)
+			if err != nil {
+				t.Fatalf("extensions_setup read of the visible global installation error = %v", err)
+			}
+			requireNativeStructuredContains(t, read, []byte(`"missing":["project"]`))
+			_, err = call(t, fixture, `{"name":"setup-kit","inputs":{"project":{"value":"acme-project-41"}}}`)
+			if _, ok := errors.AsType[*extensionpkg.ManifestValidationError](err); !ok {
+				t.Fatalf("extensions_setup global write error = %#v, want a scope refusal", err)
+			}
+			for _, workspaceID := range []string{"", setupWorkspaceID} {
+				bound, err := fixture.bindings.ListEnvBindings(ctx, setupKitName, store.DefaultProfileID, workspaceID)
+				if err != nil || len(bound) != 0 {
+					t.Fatalf("workspace %q bindings = %#v error %v, want untouched", workspaceID, bound, err)
+				}
+			}
+			if fixture.runtime.reloadCount != 0 {
+				t.Fatal("a refused write reloaded the extension")
+			}
+		})
 
 	t.Run("Should refuse an agent write that includes a set input and write nothing [T-10]", func(t *testing.T) {
 		t.Parallel()
-		fixture := newExtensionSetupFixture(t)
+		fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{WorkspaceID: setupWorkspaceID})
 		ctx := testutil.Context(t)
 		if _, err := fixture.service.SetInputs(
 			ctx,
-			extensionInputsTarget{Name: setupKitName},
+			extensionInputsTarget{Name: setupKitName, Scope: "workspace", WorkspaceID: setupWorkspaceID},
 			setupValues("project", setupProjectValue),
 			extensionSetupOperator(t),
 		); err != nil {
 			t.Fatal(err)
 		}
-		before, err := fixture.bindings.ListEnvBindings(ctx, setupKitName, store.DefaultProfileID, "")
+		before, err := fixture.bindings.ListEnvBindings(ctx, setupKitName, store.DefaultProfileID, setupWorkspaceID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -423,7 +518,7 @@ func TestExtensionInputSetupAgentAuthority(t *testing.T) {
 		if !slices.Equal(denied.InputIDs, []string{"project"}) {
 			t.Fatalf("denied input_ids = %#v, want project", denied.InputIDs)
 		}
-		after, err := fixture.bindings.ListEnvBindings(ctx, setupKitName, store.DefaultProfileID, "")
+		after, err := fixture.bindings.ListEnvBindings(ctx, setupKitName, store.DefaultProfileID, setupWorkspaceID)
 		if err != nil || !slices.EqualFunc(before, after, func(left, right extensionpkg.EnvBinding) bool {
 			return left.EnvName == right.EnvName && left.SecretRef == right.SecretRef && left.Inactive == right.Inactive
 		}) {

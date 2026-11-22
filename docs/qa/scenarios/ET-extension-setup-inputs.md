@@ -48,9 +48,12 @@ Steps:
    setup with stdin redirected: it lists the inputs, names `api_token`, and exits 2.
 6. Repeat step 5's write on a `--workspace` instance and with `--profile <other>`; the global
    instance and the other profile are unchanged.
-7. From the agent session, call `compozy__extensions_setup {name: "acme-tool"}` (read), then with a
-   value for the `daemon_env` input `region` (accepted, now `set`), then with `project` (already
-   `set`): refused with `extension_input_overwrite_denied` listing `project`, nothing written.
+7. From the agent session, call `compozy__extensions_setup {name: "acme-tool"}` on the global
+   installation: the read succeeds, and a write is refused as a scope error with nothing written.
+   Install `acme-tool` in the agent's workspace, then read, write a value for the `daemon_env` input
+   `region` (accepted, now `set`; only that workspace's runtime restarts), then write `project`
+   (already `set`): refused with `extension_input_overwrite_denied` listing `project`, nothing
+   written. The global instance and other workspaces stay unchanged.
 
 Pass: values never appear in output, logs, events, SSE or transcripts; the installed version,
 attachments and enablement never change.

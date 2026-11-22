@@ -43,7 +43,7 @@ func (m *Manager) resolveInstanceEnvMap(
 	ctx context.Context,
 	key InstanceKey,
 	requiresEnv []string,
-	subprocessInputs []ManifestInput,
+	subprocessInputs []launchInput,
 	rootDir string,
 	env map[string]string,
 	secretEnv map[string]string,
@@ -112,6 +112,23 @@ func (m *Manager) resolveInstanceEnvMap(
 	return values, cleanups, nil
 }
 
+// launchInput is one input delivered to the subprocess. A server-consumed input may stay satisfied by
+// the daemon environment or its typed row (rule 5a), so only its invalid binding refuses start.
+type launchInput struct {
+	ManifestInput
+	serverConsumed bool
+}
+
+// launchInputs lists the subprocess inputs with their MCP consumption.
+func (m *Manifest) launchInputs() []launchInput {
+	inputs := m.SubprocessInputs()
+	result := make([]launchInput, 0, len(inputs))
+	for _, input := range inputs {
+		result = append(result, launchInput{ManifestInput: input, serverConsumed: m.ServerInput(input)})
+	}
+	return result
+}
+
 // resolveBoundEnvMap delivers instance bindings for requires_env names. A subprocess-bound input's
 // binding is re-checked against its manifest type and omitted when invalid; an unbound input falls back
 // to its default. The daemon environment is never copied.
@@ -119,26 +136,15 @@ func (m *Manager) resolveBoundEnvMap(
 	ctx context.Context,
 	key InstanceKey,
 	requiresEnv []string,
-	subprocessInputs []ManifestInput,
+	subprocessInputs []launchInput,
 ) (map[string]string, []func(), error) {
 	key = key.Normalize()
 	if key.Name == "" || len(requiresEnv) == 0 {
 		return nil, nil, nil
 	}
-	var bindings []EnvBinding
-	if m.envBindings != nil {
-		if ctx == nil {
-			return nil, nil, errors.New("extension: bound env context is required")
-		}
-		profileID := key.ProfileID
-		if profileID == "" {
-			profileID = store.DefaultProfileID
-		}
-		var err error
-		bindings, err = m.envBindings.ResolveEnvBindings(ctx, key.Name, profileID, key.WorkspaceID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("extension: resolve subprocess env bindings for %q: %w", key.runtimeID(), err)
-		}
+	bindings, err := m.instanceEnvBindings(ctx, key)
+	if err != nil {
+		return nil, nil, err
 	}
 	declared := make(map[string]struct{}, len(requiresEnv))
 	for _, name := range normalizeStrings(requiresEnv) {
@@ -149,6 +155,7 @@ func (m *Manager) resolveBoundEnvMap(
 		inputTypes[strings.TrimSpace(input.Binding.Name)] = input.Type
 	}
 	values := make(map[string]string, len(bindings))
+	invalid := make(map[string]bool)
 	cleanups := make([]func(), 0, len(bindings))
 	slices.SortFunc(bindings, func(left, right EnvBinding) int {
 		return strings.Compare(left.EnvName, right.EnvName)
@@ -171,23 +178,68 @@ func (m *Manager) resolveBoundEnvMap(
 		if inputType, bound := inputTypes[name]; bound && inputType != manifestInputTypeSecret {
 			normalized, err := marketplace.NormalizeMCPInputValue(inputType, value)
 			if err != nil {
-				// Invalid values are never injected; readiness refuses start when the input is required.
+				invalid[name] = true // never injected, and never replaced by the default (rule 4)
 				continue
 			}
 			value = normalized
 		}
 		values[name] = value
 	}
-	for _, input := range subprocessInputs {
-		name := strings.TrimSpace(input.Binding.Name)
-		if _, bound := values[name]; bound || len(input.Default) == 0 {
-			continue
-		}
-		if value, err := typedInputValue(input.Type, input.Default); err == nil {
-			values[name] = value
-		}
+	if err := applyLaunchInputDefaults(values, invalid, subprocessInputs); err != nil {
+		runExtensionRedactionCleanups(cleanups)
+		return nil, nil, err
 	}
 	return values, cleanups, nil
+}
+
+func (m *Manager) instanceEnvBindings(ctx context.Context, key InstanceKey) ([]EnvBinding, error) {
+	if m.envBindings == nil {
+		return nil, nil
+	}
+	if ctx == nil {
+		return nil, errors.New("extension: bound env context is required")
+	}
+	profileID := key.ProfileID
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
+	bindings, err := m.envBindings.ResolveEnvBindings(ctx, key.Name, profileID, key.WorkspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("extension: resolve subprocess env bindings for %q: %w", key.runtimeID(), err)
+	}
+	return bindings, nil
+}
+
+// applyLaunchInputDefaults fills unbound inputs from their defaults and refuses start when a required
+// input stays missing or invalid (rules 4-5). An invalid binding is never replaced by the default.
+func applyLaunchInputDefaults(values map[string]string, invalid map[string]bool, inputs []launchInput) error {
+	readiness := Readiness{MissingInputs: []string{}, MissingEnv: []string{}}
+	manifest := &Manifest{}
+	for _, input := range inputs {
+		manifest.Inputs = append(manifest.Inputs, input.ManifestInput)
+		name := strings.TrimSpace(input.Binding.Name)
+		if _, bound := values[name]; bound {
+			continue
+		}
+		if !invalid[name] && len(input.Default) > 0 {
+			if value, err := typedInputValue(input.Type, input.Default); err == nil {
+				values[name] = value
+				continue
+			}
+		}
+		if !input.Required || (input.serverConsumed && !invalid[name]) {
+			continue
+		}
+		readiness.MissingEnv = append(readiness.MissingEnv, name)
+		if invalid[name] {
+			readiness.InvalidInputs = append(readiness.InvalidInputs, input.ID)
+		}
+	}
+	if len(readiness.MissingEnv) == 0 {
+		return nil
+	}
+	slices.Sort(readiness.MissingEnv)
+	return readiness.RequiredError(manifest)
 }
 
 type boundEnvResolutionError struct {

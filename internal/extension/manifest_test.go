@@ -2708,6 +2708,7 @@ env = { ACME_VALUE = "acme_value" }
 		name          string
 		input         ManifestInput
 		server        bool
+		undeclared    bool // a released manifest: no author-declared requires_env
 		record        *InputValueRecord
 		daemonValue   string
 		missingEnv    []string
@@ -2758,11 +2759,24 @@ env = { ACME_VALUE = "acme_value" }
 			set:         true,
 			state:       "daemon_env",
 		},
+		{
+			name:        "keep a released required server input folded into requires_env on daemon_env",
+			input:       input(true, ""),
+			server:      true,
+			undeclared:  true,
+			daemonValue: "true",
+			daemonEnv:   []string{"acme_value"},
+			set:         true,
+			state:       "daemon_env",
+		},
 	}
 	for _, test := range readiness {
 		t.Run("Should "+test.name, func(t *testing.T) {
 			t.Parallel()
 			manifest := &Manifest{Inputs: []ManifestInput{test.input}, DeclaredRequiresEnv: []string{"ACME_VALUE"}}
+			if test.undeclared {
+				manifest.DeclaredRequiresEnv = nil
+			}
 			manifest.RequiresEnv = manifestRequiredEnv(manifest.DeclaredRequiresEnv, manifest.Inputs)
 			if test.server {
 				manifest.Resources.MCPServers = map[string]MCPServerConfig{

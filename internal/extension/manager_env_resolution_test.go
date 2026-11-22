@@ -276,23 +276,16 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 				"vault:server": "server-value",
 			}}),
 		)
-		input := func(id, inputType, name, inputDefault string) ManifestInput {
-			value := ManifestInput{ID: id, Type: inputType, Binding: marketplace.InputBinding{Type: "env", Name: name}}
-			if inputDefault != "" {
-				value.Default = json.RawMessage(inputDefault)
-			}
-			return value
-		}
 		env, cleanups, err := manager.resolveInstanceEnvMap(
 			t.Context(),
 			InstanceKey{Name: "demo"},
 			[]string{"BOUND", "DEFAULTED", "STALE_TYPE", "SERVER_ONLY", "DAEMON_ONLY"},
-			[]ManifestInput{
-				input("bound", "string", "BOUND", ""),
-				input("defaulted", "boolean", "DEFAULTED", "true"),
-				input("stale", "boolean", "STALE_TYPE", ""),
-				input("server", "string", "SERVER_ONLY", ""),
-				input("daemon", "string", "DAEMON_ONLY", ""),
+			[]launchInput{
+				envLaunchInput("bound", "string", "BOUND", "", false),
+				envLaunchInput("defaulted", "boolean", "DEFAULTED", "true", false),
+				envLaunchInput("stale", "boolean", "STALE_TYPE", "", false),
+				envLaunchInput("server", "string", "SERVER_ONLY", "", false),
+				envLaunchInput("daemon", "string", "DAEMON_ONLY", "", false),
 			},
 			t.TempDir(),
 			nil,
@@ -315,6 +308,81 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 			t.Fatalf("bound value was not registered for redaction: %q", got)
 		}
 	})
+}
+
+func TestManagerResolveLaunchInputGate(t *testing.T) {
+	t.Parallel()
+	newManager := func(bindings []EnvBinding, values map[string]string) *Manager {
+		return NewManager(nil,
+			WithGetenv(func(string) string { return "" }),
+			WithEnvBindingStore(&envResolutionBindingStore{bindings: map[string][]EnvBinding{
+				envResolutionBindingKey("demo", "", ""): bindings,
+			}}),
+			WithSecretResolver(envResolutionSecretResolver{values: values}),
+		)
+	}
+	staleBinding := []EnvBinding{{ExtensionName: "demo", EnvName: "FLAG", SecretRef: "vault:flag", InputID: "flag"}}
+	staleValue := map[string]string{"vault:flag": "eu-west"}
+
+	t.Run("Should omit an optional invalid binding instead of injecting its default [R-4]", func(t *testing.T) {
+		t.Parallel()
+		manager := newManager(staleBinding, staleValue)
+		env, cleanups, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+			[]string{"FLAG"}, []launchInput{envLaunchInput("flag", "boolean", "FLAG", "true", false)},
+			t.TempDir(), nil, nil)
+		if err != nil {
+			t.Fatalf("resolveInstanceEnvMap() error = %v", err)
+		}
+		t.Cleanup(func() { runExtensionRedactionCleanups(cleanups) })
+		if value, exists := envListToMap(t, env)["FLAG"]; exists {
+			t.Fatalf("FLAG = %q, want the optional invalid input omitted", value)
+		}
+	})
+
+	t.Run("Should refuse start for a required invalid binding even with a default [R-7]", func(t *testing.T) {
+		t.Parallel()
+		manager := newManager(staleBinding, staleValue)
+		required := envLaunchInput("flag", "boolean", "FLAG", "true", true)
+		required.Required = true
+		_, cleanups, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+			[]string{"FLAG"}, []launchInput{required}, t.TempDir(), nil, nil)
+		refused, ok := errors.AsType[*InputsRequiredError](err)
+		if !ok || !slices.Equal(refused.MissingInputs, []string{"flag"}) ||
+			!slices.Equal(refused.InvalidInputs, []string{"flag"}) || cleanups != nil {
+			t.Fatalf("resolveInstanceEnvMap() = %#v cleanups %d, want flag refused as invalid", err, len(cleanups))
+		}
+		if strings.Contains(err.Error(), "eu-west") {
+			t.Fatal("launch refusal leaked the stored value")
+		}
+	})
+
+	t.Run("Should refuse a missing required subprocess-only input but not a server-consumed one [R-7]",
+		func(t *testing.T) {
+			t.Parallel()
+			manager := newManager(nil, nil)
+			missing := envLaunchInput("project", "identifier", "PROJECT_ID", "", false)
+			missing.Required = true
+			_, _, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+				[]string{"PROJECT_ID"}, []launchInput{missing}, t.TempDir(), nil, nil)
+			refused, ok := errors.AsType[*InputsRequiredError](err)
+			if !ok || !slices.Equal(refused.MissingInputs, []string{"project"}) || len(refused.InvalidInputs) != 0 {
+				t.Fatalf("resolveInstanceEnvMap(missing) error = %#v, want project required", err)
+			}
+			served := envLaunchInput("region", "string", "REGION", "", true)
+			served.Required = true
+			if _, _, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+				[]string{"REGION"}, []launchInput{served}, t.TempDir(), nil, nil); err != nil {
+				t.Fatalf("resolveInstanceEnvMap(server-consumed) error = %v, want daemon_env start", err)
+			}
+		})
+}
+
+func envLaunchInput(id, inputType, name, inputDefault string, serverConsumed bool) launchInput {
+	value := ManifestInput{ID: id, Type: inputType, Binding: marketplace.InputBinding{Type: "env", Name: name}}
+	if inputDefault != "" {
+		value.Default = json.RawMessage(inputDefault)
+	}
+	return launchInput{ManifestInput: value, serverConsumed: serverConsumed}
 }
 
 type envResolutionBindingStore struct {

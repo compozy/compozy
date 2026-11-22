@@ -1706,6 +1706,45 @@ func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
 		}
 	})
 
+	t.Run("Should let a secrets set change of a dual-consumer binding outrank its typed row [R-5]", func(t *testing.T) {
+		t.Parallel()
+		service, _, secretVault := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		manifest.Inputs[1].Type = "boolean"
+		commit(t, service, manifest, map[string]extensioninput.Value{
+			"project": {Value: json.RawMessage(`"` + projectValue + `"`)},
+			"region":  {Value: json.RawMessage(`true`)},
+		})
+		rows, err := service.inputs.List(testutil.Context(t), instance)
+		if err != nil || string(rows["region"].Value) != `true` {
+			t.Fatalf("region typed row = %#v error %v, want true", rows["region"], err)
+		}
+		regionRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "REGION")
+		// `secrets set --env REGION` rewrites the canonical binding value without touching the typed row.
+		secretVault.seed(regionRef, extensionpkg.ExtensionEnvBindingKind, "false")
+		state, err := service.inputReader().load(testutil.Context(t), instance, manifest)
+		if err != nil {
+			t.Fatalf("load() error = %v", err)
+		}
+		if got := string(state.Values["region"].Value); got != `false` {
+			t.Fatalf("region state value = %s, want the binding's false", got)
+		}
+		secretVault.seed(regionRef, extensionpkg.ExtensionEnvBindingKind, "not-a-boolean")
+		state, err = service.inputReader().load(testutil.Context(t), instance, manifest)
+		if err != nil {
+			t.Fatalf("load() error = %v", err)
+		}
+		ready := extensionpkg.InputReadiness(manifest, state, service.getenv)
+		if !slices.Equal(ready.InvalidInputs, []string{"region"}) || !slices.Contains(ready.MissingEnv, "REGION") {
+			t.Fatalf("readiness = %#v, want region invalid and blocking", ready)
+		}
+		if setup := extensionpkg.DescribeInputSetup(manifest, state, service.getenv); !slices.Equal(
+			setup.Invalid, []string{"region"},
+		) {
+			t.Fatalf("setup invalid = %#v, want region", setup.Invalid)
+		}
+	})
+
 	t.Run("Should report a stored value that fails a changed manifest type as invalid", func(t *testing.T) {
 		t.Parallel()
 		service, _, _ := newService(t)

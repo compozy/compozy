@@ -141,6 +141,13 @@ func (b extensionInputBinder) prepareRows(
 		if plan.manifest.SubprocessOnlyInput(input) {
 			continue
 		}
+		// An invalid canonical binding has no value to mirror; the prior row stays as it was.
+		if record.Invalid != "" {
+			if previous, found := before[id]; found {
+				after[id] = previous
+			}
+			continue
+		}
 		after[id] = extensioninput.Record{
 			Type:      record.Type,
 			Value:     record.Value,

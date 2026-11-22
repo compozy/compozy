@@ -69,7 +69,7 @@ func (s *daemonExtensionService) InputsState(
 	if !actor.Authority.Read {
 		return contract.ExtensionInputsPayload{}, taskpkg.ErrPermissionDenied
 	}
-	instance, err := s.resolveInputsInstance(ctx, target, actor)
+	instance, err := s.resolveInputsInstance(ctx, target, actor, false)
 	if err != nil {
 		return contract.ExtensionInputsPayload{}, err
 	}
@@ -92,7 +92,7 @@ func (s *daemonExtensionService) SetInputs(
 	if err := validateExtensionWriteActor(actor); err != nil {
 		return contract.ExtensionInputsPayload{}, err
 	}
-	instance, err := s.resolveInputsInstance(ctx, target, actor)
+	instance, err := s.resolveInputsInstance(ctx, target, actor, true)
 	if err != nil {
 		return contract.ExtensionInputsPayload{}, err
 	}
@@ -134,7 +134,13 @@ func (s *daemonExtensionService) setInputsLocked(
 			return contract.ExtensionInputsPayload{}, err
 		}
 	}
-	reloaded := mutated && ext.Status.Enabled
+	payload, err := s.inputsPayload(ctx, instance, ext)
+	if err != nil {
+		return contract.ExtensionInputsPayload{}, err
+	}
+	// An instance still missing required inputs cannot start (rules 4-5), so a partial write keeps
+	// its progress instead of failing the reload and rolling back.
+	reloaded := mutated && ext.Status.Enabled && !inputsBlockStart(payload)
 	if reloaded {
 		if err := s.reloadInputsInstance(ctx, instance); err != nil {
 			rollbackErr := binder.Rollback(ctx, plan)
@@ -146,10 +152,6 @@ func (s *daemonExtensionService) setInputsLocked(
 			return contract.ExtensionInputsPayload{}, errors.Join(err, rollbackErr)
 		}
 	}
-	payload, err := s.inputsPayload(ctx, instance, ext)
-	if err != nil {
-		return contract.ExtensionInputsPayload{}, err
-	}
 	payload.Changed, payload.Reloaded = changed, reloaded
 	s.logger.Info("extension inputs updated",
 		"extension", instance.key.Name, "profile", instance.profile.Name,
@@ -158,8 +160,9 @@ func (s *daemonExtensionService) setInputsLocked(
 }
 
 // resolveInputsInstance applies install's selector rules, then binds to the visible installation row.
+// A write must address the installation's own cell; reads of a visible global installation are allowed.
 func (s *daemonExtensionService) resolveInputsInstance(
-	ctx context.Context, target extensionInputsTarget, actor taskpkg.ActorContext,
+	ctx context.Context, target extensionInputsTarget, actor taskpkg.ActorContext, write bool,
 ) (extensionInputsInstance, error) {
 	name := strings.TrimSpace(target.Name)
 	if err := extensionpkg.GlobalInstanceKey(name).Validate(); err != nil {
@@ -181,6 +184,13 @@ func (s *daemonExtensionService) resolveInputsInstance(
 	})
 	if err != nil {
 		return extensionInputsInstance{}, err
+	}
+	if write && installation.Scope.WorkspaceID != resolved.scope.WorkspaceID {
+		// A global installation serves every workspace from one runtime and input cell, so a
+		// workspace-scoped write would change the other workspaces (Safety Invariant 3).
+		return extensionInputsInstance{}, extensionScopeError(
+			"scope", "extension is installed globally; only the operator can set it up with scope global",
+		)
 	}
 	return extensionInputsInstance{
 		key: extensionpkg.InstanceKey{
@@ -237,16 +247,38 @@ func (s *daemonExtensionService) inputsPayload(
 	return payload, nil
 }
 
-// reloadInputsInstance restarts the named extension like update with inputs does and drops a stale
-// profile runtime like `secrets set` does, so new values take effect.
+const extensionInputTargetSubprocess = "subprocess"
+
+type extensionInstanceRestarter interface {
+	RestartInstance(context.Context, extensionpkg.InstanceKey) error
+}
+
+// reloadInputsInstance restarts only the runtime serving the resolved instance so new values take
+// effect; other profiles, workspaces and extensions keep running (Safety Invariant 3).
 func (s *daemonExtensionService) reloadInputsInstance(ctx context.Context, instance extensionInputsInstance) error {
-	if invalidator, ok := s.runtime.(extensionProfileRuntimeInvalidator); ok {
-		key := extensionpkg.ProfileInstanceKey(instance.key.Name, instance.profile.ID, instance.key.WorkspaceID)
-		if err := invalidator.InvalidateProfileRuntime(ctx, key); err != nil {
-			return err
-		}
+	restarter, ok := s.runtime.(extensionInstanceRestarter)
+	if !ok {
+		return s.reloadExtensions(ctx, instance.key.Name)
 	}
-	return s.reloadExtensions(ctx, instance.key.Name)
+	key := extensionpkg.InstanceKey{
+		Name: instance.key.Name, ProfileID: instance.profile.ID, WorkspaceID: instance.key.WorkspaceID,
+	}
+	if err := restarter.RestartInstance(ctx, key); err != nil {
+		return err
+	}
+	return s.syncExtensionConsumers(ctx)
+}
+
+// inputsBlockStart mirrors the launch gate: a required subprocess input that is invalid, or missing
+// with no MCP consumer that may still be satisfied elsewhere, refuses start.
+func inputsBlockStart(payload contract.ExtensionInputsPayload) bool {
+	return slices.ContainsFunc(payload.Inputs, func(input contract.ExtensionInputStatusPayload) bool {
+		if !input.Required || !slices.Contains(input.Targets, extensionInputTargetSubprocess) {
+			return false
+		}
+		return input.State == contract.ExtensionInputStateInvalid ||
+			(input.State == contract.ExtensionInputStateMissing && len(input.Targets) == 1)
+	})
 }
 
 // overwrittenInputs lists supplied inputs whose state is already set; daemon_env holds no stored value.

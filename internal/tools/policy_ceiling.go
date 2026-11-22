@@ -168,14 +168,12 @@ func classifySessionCleanupCall(d Descriptor, input json.RawMessage) sessionClea
 	return sessionCleanupDeletes
 }
 
-// isExtensionSetupRead reports an extensions_setup call that writes no inputs. Unlike session cleanup,
-// a call without input (a catalog view) is the read: only an inputs entry mutates.
+// isExtensionSetupRead reports an extensions_setup call that writes no inputs: only an inputs entry
+// mutates. Like session cleanup, an evaluation without input (a catalog view) keeps the mutating class,
+// so the tool advertises the approval its writes need.
 func isExtensionSetupRead(d Descriptor, input json.RawMessage) bool {
-	if d.Source.Kind != SourceBuiltin || d.ID != ToolIDExtensionsSetup {
+	if d.Source.Kind != SourceBuiltin || d.ID != ToolIDExtensionsSetup || len(input) == 0 {
 		return false
-	}
-	if len(input) == 0 {
-		return true
 	}
 	var call struct {
 		Inputs map[string]json.RawMessage `json:"inputs"`

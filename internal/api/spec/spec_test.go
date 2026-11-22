@@ -3301,6 +3301,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addMCPReloadErrorFields(baseline) == 0 {
 			t.Fatal("approved MCP reload error fields: no historical error schemas found")
 		}
+		// #1845: extension operation errors name refused input ids and the invalid ones among them.
+		if addExtensionInputErrorFields(baseline) == 0 {
+			t.Fatal("approved extension input error fields: no historical extension error schemas found")
+		}
 		addNativeReadPagingSchemas(t, baseline)
 		addManualJobWaitParameters(t, baseline)
 		if addNativeResultViewSchemas(baseline) == 0 {
@@ -7096,6 +7100,30 @@ func addWindowManagerTabHookSchemas(t *testing.T, baseline map[string]any) {
 	if changes != 5 {
 		t.Fatalf("approved window-manager tab hooks: updated %d historical enums, want 5", changes)
 	}
+}
+
+// Extension operation errors gain the optional input_ids and invalid string lists.
+func addExtensionInputErrorFields(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addExtensionInputErrorFields(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addExtensionInputErrorFields(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["listed_digest"] != nil && properties["declared_env"] != nil &&
+			properties["input_id"] != nil {
+			stringList := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+			properties["input_ids"] = stringList
+			properties["invalid"] = maps.Clone(stringList)
+			count++
+		}
+	}
+	return count
 }
 
 // MCP reload failures return retry information before prompt acceptance.

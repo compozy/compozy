@@ -42,20 +42,16 @@ func (r Readiness) RequiredError(manifest *Manifest) error {
 	if len(r.MissingInputs) == 0 && len(r.MissingEnv) == 0 {
 		return nil
 	}
-	missing := slices.Clone(r.MissingInputs)
+	missing := r.missingInputIDs(manifest)
 	var definitions []ManifestInput
 	if manifest != nil {
 		for _, input := range manifest.Inputs {
-			if input.Binding.Type == manifestEnvKey && slices.Contains(r.MissingEnv, input.Binding.Name) {
-				missing = append(missing, input.ID)
-			}
 			if slices.Contains(missing, input.ID) {
 				input.Default = slices.Clone(input.Default)
 				definitions = append(definitions, input)
 			}
 		}
 	}
-	slices.Sort(missing)
 	var invalid []string
 	for _, id := range r.InvalidInputs {
 		if slices.Contains(missing, id) {
@@ -63,9 +59,24 @@ func (r Readiness) RequiredError(manifest *Manifest) error {
 		}
 	}
 	return &InputsRequiredError{
-		MissingInputs: slices.Compact(missing), MissingEnv: slices.Clone(r.MissingEnv), InputDefinitions: definitions,
+		MissingInputs: missing, MissingEnv: slices.Clone(r.MissingEnv), InputDefinitions: definitions,
 		InvalidInputs: invalid,
 	}
+}
+
+// missingInputIDs names every blocking input: typed missing inputs plus env-bound inputs whose
+// requires_env name is missing or invalid.
+func (r Readiness) missingInputIDs(manifest *Manifest) []string {
+	missing := append([]string{}, r.MissingInputs...)
+	if manifest != nil {
+		for _, input := range manifest.Inputs {
+			if input.Binding.Type == manifestEnvKey && slices.Contains(r.MissingEnv, input.Binding.Name) {
+				missing = append(missing, input.ID)
+			}
+		}
+	}
+	slices.Sort(missing)
+	return slices.Compact(missing)
 }
 
 var ErrExtensionInputInvalid = errors.New("extension: invalid input")
@@ -179,9 +190,12 @@ func manifestInputValue(
 }
 
 // daemonEnvInput reports a server-and-subprocess input with no stored value or default whose only
-// source is the daemon environment, which the subprocess never receives (rule 5a/5d).
+// source is the daemon environment, which the subprocess never receives (rule 5a/5d). A released
+// manifest's required server env input is folded into RequiresEnv without an author declaration and
+// reaches the subprocess only through bindings, so it qualifies too.
 func (m *Manifest) daemonEnvInput(input ManifestInput, state InputState, getenv func(string) string) bool {
-	if !m.SubprocessInput(input) || !m.ServerInput(input) || len(input.Default) > 0 {
+	if input.Binding.Type != manifestEnvKey || !slices.Contains(m.RequiresEnv, strings.TrimSpace(input.Binding.Name)) ||
+		!m.ServerInput(input) || len(input.Default) > 0 {
 		return false
 	}
 	if record, found := state.Values[input.ID]; found && record.Active {
@@ -214,7 +228,8 @@ func effectiveInputValue(
 		}
 		return value, "", true, nil
 	}
-	if len(input.Default) > 0 {
+	// A secret has no default (rule 2) and is checked for presence only, so a stray default is ignored.
+	if len(input.Default) > 0 && input.Type != manifestInputTypeSecret {
 		value, err := typedInputValue(input.Type, input.Default)
 		if err != nil {
 			return "", "", false, &InputValidationError{input.ID, err.Error()}

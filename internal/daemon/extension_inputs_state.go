@@ -115,8 +115,9 @@ func preferStoredInput(
 				continue
 			}
 			if manifest.SubprocessInput(input) {
-				// An active binding outranks a retired row for the same subprocess input.
-				return row.Active || binding.Inactive
+				// The env binding is canonical for a subprocess input (D2), so an active binding outranks
+				// even an active typed row kept for MCP publication; `secrets set` changes stay visible.
+				return binding.Inactive
 			}
 			return input.Type != extensionInputTypeSecret
 		}

@@ -220,8 +220,11 @@ Every catalog entry has exactly one category id: `productivity`, `communication`
   (`{"inputs": {...}}`, same value/vault_ref envelopes as install, same scope/workspace/profile
   selectors). Writes merge: omitted inputs keep their value. The result adds `changed` and `reloaded`;
   an enabled instance restarts only when a value changed, a disabled one stays disabled, and the
-  installed version, attachments and enablement never change. A write that leaves required inputs
-  missing still succeeds with `missing` populated. The native tool uses the caller's trusted
+  installed version, attachments and enablement never change. Only that instance's runtime restarts;
+  other profiles, workspaces and extensions keep running. A write that leaves a required subprocess
+  input missing still succeeds with `missing` populated and does not restart. A global installation
+  serves every workspace from one input cell, so a workspace-scoped write to it is refused; set it up
+  with scope global as the operator. The native tool uses the caller's trusted
   workspace and profile and may write only `missing`, `invalid` or `daemon_env` inputs; including a
   `set` input refuses the whole call with `extension_input_overwrite_denied` (`input_ids`), nothing
   written. Changing a set value is operator-only. A call without `inputs` is a read for approvals.
