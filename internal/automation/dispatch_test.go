@@ -1501,6 +1501,136 @@ func TestDispatchReservedRunRetryClearsStaleLoopInputError(t *testing.T) {
 	}
 }
 
+func TestDispatchReservedRunRetrySkipClearsLoopInputMetadata(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	store := newMemoryRunStore()
+	starter := &recordingLoopStarter{
+		resolveErrors: []error{
+			errors.New("daemon: loop input command failed: exit status 1: queue is locked"),
+			nil,
+		},
+	}
+	dispatcher := newTestDispatcher(
+		t,
+		newRecordingSessionCreator(),
+		store,
+		WithDispatcherLoopStarter(starter),
+		WithDispatcherSleep(func(context.Context, time.Duration) error { return nil }),
+	)
+
+	job := testJob(AutomationScopeWorkspace, "job-input-skip-retry", "ws_alpha")
+	job.AgentName = ""
+	job.Prompt = ""
+	job.TargetKind = TargetKindLoop
+	job.LoopTarget = &LoopTarget{
+		WorkspaceID:  "ws_alpha",
+		LoopName:     "triage",
+		InputCommand: "scripts/next-spec.sh",
+	}
+	job.Retry = RetryConfig{
+		Strategy:   RetryStrategyBackoff,
+		MaxRetries: 1,
+		BaseDelay:  "1s",
+	}
+	reserved, err := store.CreateRun(ctx, Run{
+		ID:        "run-input-skip-retry",
+		JobID:     job.ID,
+		Status:    RunScheduled,
+		Attempt:   1,
+		StartedAt: new(time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)),
+	})
+	if err != nil {
+		t.Fatalf("CreateRun(reserved) error = %v", err)
+	}
+
+	run, err := dispatcher.Dispatch(ctx, DispatchRequest{
+		Kind:        DispatchKindSchedule,
+		Job:         &job,
+		ReservedRun: &reserved,
+	})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+	if run == nil || run.Status != RunCancelled {
+		t.Fatalf("Dispatch() run = %#v, want a canceled no-inputs skip", run)
+	}
+	if got, want := run.Metadata[SchedulerSkipReasonMetadataKey], LoopInputSkipReasonNoInputs; got != want {
+		t.Fatalf("run.Metadata[reason] = %#v, want %#v", got, want)
+	}
+	for _, key := range []string{
+		LoopInputsMetadataKey,
+		LoopInputKeysMetadataKey,
+		LoopInputErrorMetadataKey,
+	} {
+		if value, exists := run.Metadata[key]; exists {
+			t.Fatalf("run.Metadata[%s] = %#v, want the failed attempt's value cleared", key, value)
+		}
+	}
+}
+
+func TestDispatchLoopInputResolutionCancellationClassification(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		resolveErr error
+		wantStatus RunStatus
+	}{
+		{
+			name:       "Should cancel the run when the caller cancels during input resolution",
+			resolveErr: context.Canceled,
+			wantStatus: RunCancelled,
+		},
+		{
+			name: "Should fail the run when the input command itself times out",
+			resolveErr: fmt.Errorf(
+				"daemon: loop input command timed out after 60s: %w",
+				context.DeadlineExceeded,
+			),
+			wantStatus: RunFailed,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := newMemoryRunStore()
+			starter := &recordingLoopStarter{resolveErr: tc.resolveErr}
+			dispatcher := newTestDispatcher(
+				t,
+				newRecordingSessionCreator(),
+				store,
+				WithDispatcherLoopStarter(starter),
+			)
+			job := testJob(AutomationScopeWorkspace, "job-input-cancel", "ws_alpha")
+			job.AgentName = ""
+			job.Prompt = ""
+			job.TargetKind = TargetKindLoop
+			job.LoopTarget = &LoopTarget{
+				WorkspaceID:  "ws_alpha",
+				LoopName:     "triage",
+				InputCommand: "scripts/next-spec.sh",
+			}
+
+			run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+				Kind: DispatchKindSchedule,
+				Job:  &job,
+			})
+			if err == nil {
+				t.Fatal("Dispatch() error = nil, want the resolution failure")
+			}
+			if run == nil || run.Status != tc.wantStatus {
+				t.Fatalf("Dispatch() run = %#v, want status %q", run, tc.wantStatus)
+			}
+			if got := len(starter.startCallSnapshot()); got != 0 {
+				t.Fatalf("len(StartLoop calls) = %d, want 0", got)
+			}
+		})
+	}
+}
+
 func TestTruncateRunMetadataKeepsRuneBoundary(t *testing.T) {
 	t.Parallel()
 

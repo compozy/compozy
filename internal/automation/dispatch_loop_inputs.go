@@ -119,6 +119,15 @@ func loopInputFailureMetadata(existing map[string]any, runErr error) map[string]
 	return metadata
 }
 
+// classifyLoopInputError treats a caller cancellation as a cancelled fire. The runner's own
+// command timeout stays a failure: it wraps DeadlineExceeded, not a caller cancellation.
+func classifyLoopInputError(err error) RunStatus {
+	if errors.Is(err, context.Canceled) {
+		return RunCancelled
+	}
+	return RunFailed
+}
+
 func loopInputSkipMetadata(existing map[string]any) map[string]any {
 	metadata := cloneJSONMap(existing)
 	if metadata == nil {
@@ -126,6 +135,10 @@ func loopInputSkipMetadata(existing map[string]any) map[string]any {
 	}
 	metadata[SchedulerSkipReasonMetadataKey] = LoopInputSkipReasonNoInputs
 	metadata[LoopInputSourceMetadataKey] = LoopInputSourceCommand
+	// A retried run reuses this row; a skip supersedes a prior attempt's resolved inputs and failure.
+	delete(metadata, LoopInputsMetadataKey)
+	delete(metadata, LoopInputKeysMetadataKey)
+	delete(metadata, LoopInputErrorMetadataKey)
 	return metadata
 }
 
