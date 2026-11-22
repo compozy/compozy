@@ -1975,6 +1975,10 @@ func TestInstanceCallApproval(t *testing.T) {
 			if called != tc.wantCall || (err == nil) != tc.wantCall {
 				t.Fatalf("called=%v error=%v want call=%v", called, err, tc.wantCall)
 			}
+			// A refused call must fail at the permission gate, not on input validation.
+			if !tc.wantCall && !errors.Is(err, ErrToolApprovalRequired) && !errors.Is(err, ErrToolDenied) {
+				t.Fatalf("error = %v, want a permission denial (approval required or denied)", err)
+			}
 		})
 	}
 }
