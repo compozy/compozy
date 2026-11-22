@@ -211,4 +211,12 @@ threads with an unresolved interaction.
 Verification ownership: the session hook suite (`use-archive-stopped.test.tsx`) owns the request
 scope, the toast outcomes, the in-flight hold, and Undo's exact, root-first replay; the project
 menu tree suite owns placement; the session list suite owns the View options entry per scope.
-This walk remains unverified until recorded.
+
+QA 2026-11-22 (PR #1940 at `db3f92bd5`, Web bundle served by an isolated lab daemon): steps 1-4 pass.
+The menu placement, no-dialog run, toast "Archived 4 threads" / "4 skipped: 2 running, 1 in Later,
+1 pinned" with Undo, "Restored 4 threads" (child and subagent included), the empty toast without Undo,
+"Archive stopped in all projects" across both projects, "Archive stopped" under one project, and its
+absence on the Archived shelf and in the User scope were all observed; archiving the open session still
+shows the toast. All profiles and step 5's failure toasts were not reachable in the walk; the hook and
+session list suites own them. The bulk-selection walk above stays deferred, so `qa_status` stays
+`skipped`. Report: [2026-11-22-archive-stopped-1940](../reports/2026-11-22-archive-stopped-1940.md).
