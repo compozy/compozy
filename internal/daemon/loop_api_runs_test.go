@@ -298,7 +298,18 @@ func TestDaemonLoopAPIServiceShouldProjectTheLoopTerminalCause(t *testing.T) {
 		if len(response.Runs) != 2 {
 			t.Fatalf("ListLoopRuns() runs = %#v, want settled and live", response.Runs)
 		}
-		settled := response.Runs[0]
+		var settled, live *contract.LoopRunPayload
+		for index := range response.Runs {
+			switch response.Runs[index].ID {
+			case "run-settled":
+				settled = &response.Runs[index]
+			case "run-live":
+				live = &response.Runs[index]
+			}
+		}
+		if settled == nil || live == nil {
+			t.Fatalf("ListLoopRuns() runs = %#v, want run-settled and run-live", response.Runs)
+		}
 		if settled.Terminal == nil {
 			t.Fatalf("settled run terminal = nil, want %#v", cause)
 		}
@@ -311,10 +322,10 @@ func TestDaemonLoopAPIServiceShouldProjectTheLoopTerminalCause(t *testing.T) {
 			!settled.Terminal.At.Equal(at) {
 			t.Fatalf("settled run terminal = %#v, want %#v", settled.Terminal, cause)
 		}
-		if response.Runs[1].Terminal != nil {
-			t.Fatalf("live run terminal = %#v, want omitted", response.Runs[1].Terminal)
+		if live.Terminal != nil {
+			t.Fatalf("live run terminal = %#v, want omitted", live.Terminal)
 		}
-		liveJSON, err := json.Marshal(response.Runs[1])
+		liveJSON, err := json.Marshal(live)
 		if err != nil {
 			t.Fatalf("json.Marshal(live run) error = %v", err)
 		}
