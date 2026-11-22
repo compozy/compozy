@@ -57,10 +57,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 		permissions = append(permissions, string(method))
 	}
 
-	minCompozyVersion := strings.TrimSpace(e.definition.MinCompozyVersion)
-	if minCompozyVersion == "" {
-		minCompozyVersion = MinCompozyVersion
-	}
+	minCompozyVersion := e.describeMinCompozyVersion()
 
 	return contracts.DescribePayload{
 		Name:        strings.TrimSpace(e.definition.Name),
@@ -240,4 +237,13 @@ func cloneStringMap(values map[string]string) map[string]string {
 		return nil
 	}
 	return maps.Clone(values)
+}
+
+// describeMinCompozyVersion reports the declared floor, falling back to the SDK floor.
+func (e *Extension) describeMinCompozyVersion() string {
+	declared := strings.TrimSpace(e.definition.MinCompozyVersion)
+	if declared == "" {
+		return MinCompozyVersion
+	}
+	return declared
 }
