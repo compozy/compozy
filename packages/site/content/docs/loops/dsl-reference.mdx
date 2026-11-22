@@ -102,7 +102,7 @@ contract:
         expect: exit_zero,
       }
   terminal_states: [done, no-op, blocked, failed, exhausted, stalled, canceled]
-  iteration_cap: 50 # 0 = unbounded (watch Loops)
+  iteration_cap: 50 # A positive value sets the cap. Zero uses the configured default.
   no_progress: { window: 3 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt } # 0 = off
   runtime_defaults:
@@ -483,9 +483,9 @@ graph:
 The matched batch lands at `nodes.<id>.output` for downstream nodes (fan out over it to process each
 event). A Loop with a `watch-events` node holds `watching` between wakes and — unlike
 `watch-source` — **never stalls on silence**. Its default configuration is still the delivery
-profile, including `iteration_cap: 50`; set `contract.iteration_cap: 0` explicitly when it must run
-without an iteration limit. A quiet subscription is healthy dormancy, not a failure; the Loop parks
-until an event matches.
+profile, with a shipped fallback of `iteration_cap: 50`. Set the per-Loop config override to
+`iteration_cap: 0` when the Loop must run without an iteration limit. The Loop parks until an
+event matches.
 
 **Supported kinds.** `events[].kind` validates against the full hook catalog at publish; a
 kind outside the supported set fails lint (`watch_events_kind_unsupported`). Only **post-state

@@ -148,16 +148,19 @@ the author's logical-width bound.
 
 | Limit              | Contract key                          | Delivery default | `watch-source` default | Daemon ceiling             |
 | ------------------ | ------------------------------------- | ---------------- | ---------------------- | -------------------------- |
-| Iteration cap      | `contract.iteration_cap`              | 50               | 0 (unbounded, `∞`)     | none — `0` means unbounded |
+| Iteration cap      | `contract.iteration_cap`              | 50               | 0 (unbounded, `∞`)     | none                       |
 | Token budget       | `contract.budget.tokens`              | 0 (off)          | 0 (off)                | none                       |
 | Wall-clock budget  | `contract.budget.wall_clock_sec`      | 0 (off)          | 0 (off)                | none                       |
 | No-progress window | `contract.no_progress.window`         | 3                | 2                      | 30                         |
 | Fan-out window     | node `max_parallel` / `fan_out_width` | 4                | 2                      | none                       |
 | Gate max revisions | gate `max_revisions`                  | 10               | —                      | 64                         |
 
-A definition containing `watch-source` defaults `iteration_cap: 0` and renders the cap as `∞`.
-`watch-events` retains the delivery default of `50` unless its contract explicitly sets `0`; a `0`
-budget means unlimited (progress-first). Budgets are opt-in — set a nonzero value to cap spend.
+The run ends `exhausted` with reason `iteration_cap_exceeded` if it would start a generation
+beyond its effective cap. A positive contract cap applies before the configured fallback and
+yields to [per-Loop and per-run overrides](/docs/loops/configure#how-it-stores-and-merges).
+A definition containing `watch-source` selects the watch fallback. A definition containing only
+`watch-events` among watch sources selects the delivery fallback. An effective cap of `0` renders
+as `∞`. Budgets are opt-in. Set a nonzero budget to cap spend.
 Fan-out logical width is bounded by the node's required positive `max_fan_out`; only the
 `max_parallel` window materializes at once.
 

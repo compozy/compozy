@@ -501,8 +501,8 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		resolved := compileDefinition(t, validDefinition())
 		effective, err := loop.ResolveEffectiveConfig(
 			resolved,
-			loop.LoopDefaults{Delivery: loop.LoopConfig{IterationCap: new(0)}},
-			&loop.LoopConfig{HumanGateEnabled: new(false)},
+			loop.DefaultLoopDefaults(),
+			&loop.LoopConfig{IterationCap: new(0), HumanGateEnabled: new(false)},
 			loop.LoopConfig{},
 		)
 		if err != nil {
@@ -511,11 +511,29 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 		if effective.IterationCap != 0 || effective.HumanGateEnabled {
 			t.Fatalf("effective zero/false = iteration:%d gate:%t", effective.IterationCap, effective.HumanGateEnabled)
 		}
-		if got := effective.Sources["/iteration_cap"]; got != loop.EffectiveConfigSourceDeliveryDefaults {
-			t.Fatalf("iteration source = %q, want delivery defaults", got)
+		if got := effective.Sources["/iteration_cap"]; got != loop.EffectiveConfigSourceLoopConfig {
+			t.Fatalf("iteration source = %q, want loop_config", got)
 		}
 		if got := effective.Sources["/human_gate_enabled"]; got != loop.EffectiveConfigSourceLoopConfig {
 			t.Fatalf("human gate source = %q, want loop config", got)
+		}
+	})
+
+	t.Run("Should fall back to the delivery iteration cap when the definition omits it", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Contract.IterationCap = 0
+		resolved := compileDefinition(t, definition)
+		effective, err := loop.ResolveEffectiveConfig(resolved, loop.DefaultLoopDefaults(), nil, loop.LoopConfig{})
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+		}
+		if got := effective.IterationCap; got != 50 {
+			t.Fatalf("IterationCap = %d, want 50", got)
+		}
+		if got := effective.Sources["/iteration_cap"]; got != loop.EffectiveConfigSourceDeliveryDefaults {
+			t.Fatalf("iteration source = %q, want delivery defaults", got)
 		}
 	})
 
@@ -606,10 +624,12 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 		store := newFakeLoopStore()
 		iterationCap := 12
 		var resolvedWorkspace loop.WorkspaceID
+		definition := validDefinition()
+		definition.Contract.IterationCap = 0
 		svc := newTestServiceWithOptions(
 			t,
 			store,
-			validDefinition(),
+			definition,
 			loop.WithDefaultsResolver(func(
 				_ context.Context,
 				ws loop.WorkspaceID,

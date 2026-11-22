@@ -2621,8 +2621,9 @@ logical width.
 | `runtime_rules[]`                                            | none     | none    | Exactly `id`, `type`, `complexity`, or `type + complexity`. | Field-merged worker override; conjunction is AND, specificity is `id > type + complexity > type > complexity`, and later equal-specificity rules win per non-empty field. |
 
 Only a definition containing `watch-source` selects the watch defaults. A definition with
-`watch-events` but no `watch-source` remains on delivery defaults, including `iteration_cap = 50`,
-unless its definition or run override sets another value.
+`watch-events` and no `watch-source` selects the delivery defaults. The configured iteration
+cap is the fallback for an omitted or zero `contract.iteration_cap`. See
+[Loop iteration cap precedence](/docs/loops/configure#how-it-stores-and-merges).
 
 `[[loops.defaults.delivery.autopause]]` and `[[loops.defaults.watch.autopause]]` append ordered
 rules. Each rule has a CEL `match` over failure facts and `action = "pause"`; the first match wins.

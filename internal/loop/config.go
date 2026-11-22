@@ -133,6 +133,10 @@ func resolveEffectiveConfig(
 	mergeConfigLayer(&effective, definitionConfigLayer(resolved.Definition), EffectiveConfigSourceDefinition)
 	defaultLayer, defaultSource := defaults.forDefinition(resolved.Definition)
 	mergeConfigLayer(&effective, defaultLayer, defaultSource)
+	// A zero-valued contract cap also represents omission in existing definitions.
+	if cap := resolved.Definition.Contract.IterationCap; cap > 0 {
+		mergeConfigLayer(&effective, LoopConfig{IterationCap: new(cap)}, EffectiveConfigSourceDefinition)
+	}
 	if inheritedEnvironment != nil {
 		inherited := *inheritedEnvironment
 		mergeConfigLayer(
@@ -184,7 +188,6 @@ func definitionConfigLayer(def dsl.Definition) LoopConfig {
 	}
 	runtimeDefaults, runtimeRules := definitionRuntimeConfig(def)
 	return LoopConfig{
-		IterationCap:     new(def.Contract.IterationCap),
 		BudgetTokens:     new(int(def.Contract.Budget.Tokens)),
 		BudgetWallSec:    new(int(def.Contract.Budget.WallClockSec)),
 		BudgetOnExceeded: new(onExceeded),

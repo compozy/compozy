@@ -496,6 +496,11 @@ func TestLoopsConfigShouldExposeAgentMutableToolPaths(t *testing.T) {
 			kind: ConfigValueInt,
 		},
 		{
+			name: "Should allow delivery iteration cap defaults",
+			path: []string{"loops", "defaults", "delivery", "iteration_cap"},
+			kind: ConfigValueInt,
+		},
+		{
 			name: "Should allow watch budget policy defaults",
 			path: []string{"loops", "defaults", "watch", "budget", "on_exceeded"},
 			kind: ConfigValueString,

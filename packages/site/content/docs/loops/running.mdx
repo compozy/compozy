@@ -53,9 +53,9 @@ the reason to that field. No run row, task, or external action is created.
 <OperatorNote label="What the run form does not offer">
   There is no cost cap — cost is [display-only](/docs/loops/guardrails#cost-is-a-meter-not-a-cap).
   Re-attempt strategy is a [configure](/docs/loops/configure)-time choice, not a per-run one. The
-  canonical delivery defaults are `iteration_cap: 50` and budgets off (`0`). Only a definition that
-  contains `watch-source` defaults to `iteration_cap: 0` (`∞`); set `contract.iteration_cap: 0`
-  explicitly when a `watch-events` Loop must be unbounded.
+  shipped delivery defaults are `iteration_cap: 50` and budgets off (`0`). A definition that
+  contains `watch-source` selects the unbounded watch default. To make a `watch-events` Loop
+  unbounded, set its [per-Loop iteration cap](/docs/loops/configure#how-it-stores-and-merges) to `0`.
 </OperatorNote>
 
 ## The live run page

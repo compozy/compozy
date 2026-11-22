@@ -54,6 +54,12 @@ ceilings. From lowest to highest precedence, its logical sources are:
 5. this per-Loop configure overlay (`loop_config`),
 6. per-run overrides (`per_run`).
 
+The iteration cap has its own precedence. From highest to lowest, the sources are the per-run
+`config_overrides.iteration_cap`, the stored per-Loop `iteration_cap` (set with
+`compozy loop configure --name <name> --set iteration_cap=<n>`), a positive
+`contract.iteration_cap`, and the matching `[loops.defaults.*]` value. An omitted or zero
+contract cap uses the configured default. A zero in a config or override layer means unbounded.
+
 `effective_config.sources` maps each effective field's JSON Pointer, such as `/iteration_cap` or
 `/runtime_defaults/worker/model`, to the source that won. Explicit `0` and `false` values keep their
 source; they are not mistaken for missing overrides. Ordered runtime rules use indexed pointers such
@@ -62,9 +68,9 @@ as `/runtime_rules/0`, while per-run rules use `/run_runtime_rules/0`.
 Node reliability resolves more narrowly: authored node fields override the stored per-Loop
 lifecycle layer, which overrides the matching delivery or watch default. The resolved values are
 pinned when work is admitted, so a config reload never rewrites a running attempt. `compozy loop
-inspect -o json` and dry-run report the current effective values and sources. Run status reads the
-effective config from that run's persisted definition snapshot, so later default or overlay changes
-cannot rewrite history.
+inspect -o json` reports the current effective values and sources for a new run. Dry-run also
+applies any supplied per-run overrides. Run status reports the values pinned at admission, including
+the effective iteration cap at `run.iteration_cap`. A later config change can affect future runs.
 
 `GET /loops/:name/config` returns the stored per-Loop override as `config` and the daemon-resolved
 first three layers as `effective_config`. A missing override is `config: null`; it is not a missing

@@ -650,6 +650,16 @@ visible and unchanged in Web until replaced.
 The retired `params.cwd` fails validation; migrate it to
 `params.environment: {mode: directory, directory: <path>}`.
 
+The effective iteration cap comes from the first applicable source: per-run
+`config_overrides.iteration_cap`, the stored per-Loop `iteration_cap` set through
+`compozy loop configure --name <name> --set iteration_cap=<n>`, a positive
+`contract.iteration_cap`, or `[loops.defaults.delivery]` or `[loops.defaults.watch]` as selected
+by the graph. An omitted or zero contract cap uses the configured fallback. Zero in a config
+or override layer means unbounded. Read the current effective cap in `loop inspect -o json` at
+`loop.effective_config.iteration_cap` and a run's pinned cap in `loop status -o json` at
+`run.iteration_cap`. A run that would exceed its cap ends `exhausted` with reason
+`iteration_cap_exceeded`.
+
 `run-loop.params.config_overrides` applies one direct-run configuration layer to the child started
 by that node. It works in `await` and `detach`, has per-run precedence, never writes the child's
 stored configuration, and is optional without changing existing execution. Its closed fields are
@@ -888,8 +898,9 @@ or lint returns `watch_events_filter_too_broad`; its output excludes record cont
 metadata such as `record_type`, `sequence`, `turn_id`, `agent_name`, and `session_id`.
 
 A Loop with a `watch-events` node holds `watching` between wakes and **never stalls on silence** — a
-quiet subscription is healthy dormancy. It keeps the delivery default `iteration_cap: 50` unless the
-definition sets `0`; only `watch-source` selects the unbounded watch default. The
+quiet subscription is healthy dormancy. It uses the delivery fallback of `50` when there is no
+positive contract cap or override. To run unbounded, set the per-Loop config override to
+`iteration_cap: 0`. The
 parked read-model (active subscriptions, per-stream cursors, `last_wake_at`) is exposed on the run
 detail (`compozy loop status --run-id <id> -o json`, HTTP/UDS parity) only while the Loop is dormant
 on events.

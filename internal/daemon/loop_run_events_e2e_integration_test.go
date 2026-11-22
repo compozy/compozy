@@ -214,6 +214,61 @@ func TestDaemonE2ELoopRunEventsShouldStreamRichFramesAndResume(t *testing.T) {
 		)
 	})
 
+	t.Run("Should exhaust a Loop with a false stop_when at its authored cap", func(t *testing.T) {
+		t.Parallel()
+
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{})
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+
+		definition := loopEventsDefinition()
+		definition.Meta.Name = "loop-authored-cap"
+		definition.Contract.StopWhen = dsl.StopWhenSpec{Expr: "generation == 0"}
+		definition.Contract.IterationCap = 1
+		definition.Graph.Nodes = []dsl.Node{{
+			ID: "probe", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+			Params: dsl.NodeParams{"map": map[string]any{"status": map[string]any{"value": "completed"}}},
+		}}
+		createLoopViaHTTP(t, ctx, harness, definition)
+
+		inspectJSON, stderr, err := harness.CLI.Run(
+			ctx, "loop", "inspect", "--name", definition.Meta.Name, "--workspace", harness.WorkspaceRoot, "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("loop inspect error = %v stderr=%s", err, stderr)
+		}
+		var inspect compozycontract.LoopResponse
+		if err := json.Unmarshal([]byte(inspectJSON), &inspect); err != nil {
+			t.Fatalf("decode loop inspect: %v", err)
+		}
+		effective := inspect.Loop.EffectiveConfig
+		if effective == nil || effective.IterationCap != 1 ||
+			effective.Sources["/iteration_cap"] != looppkg.EffectiveConfigSourceDefinition {
+			t.Fatalf("loop inspect effective config = %#v, want cap 1 from definition", effective)
+		}
+
+		run := runLoopViaHTTP(t, ctx, harness, definition.Meta.Name)
+		waitForLoopRunStatus(t, ctx, harness, run.ID, compozycontract.LoopRunStatusExhausted)
+		statusJSON, stderr, err := harness.CLI.Run(
+			ctx, "loop", "status", "--run-id", run.ID, "--workspace", harness.WorkspaceRoot, "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("loop status error = %v stderr=%s", err, stderr)
+		}
+		var status compozycontract.LoopRunResponse
+		if err := json.Unmarshal([]byte(statusJSON), &status); err != nil {
+			t.Fatalf("decode loop status: %v", err)
+		}
+		if status.Run.Status != compozycontract.LoopRunStatusExhausted || status.Run.Generation != 1 {
+			t.Fatalf("run = %s at generation %d, want exhausted at 1", status.Run.Status, status.Run.Generation)
+		}
+		if status.Run.IterationCap != effective.IterationCap ||
+			status.EffectiveConfig.IterationCap != effective.IterationCap {
+			t.Fatalf("status caps = %d and %d, want inspect cap %d",
+				status.Run.IterationCap, status.EffectiveConfig.IterationCap, effective.IterationCap)
+		}
+	})
+
 	t.Run("Should resume a paused Loop into its next generation after restart", func(t *testing.T) {
 		t.Parallel()
 		acpmock.RequireDriver(t)
