@@ -171,7 +171,7 @@ func TestCoordinatorShouldSettleAuthoredBlockedTerminal(t *testing.T) {
 		coordinatorRun,
 		nil,
 		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
-			{Generation: 1, NodeID: "load", Status: generationOutputSucceeded},
+			{Generation: 1, NodeID: "load", Status: generationOutputSucceeded, OutputRef: `{}`},
 			{Generation: 1, NodeID: "phase_gate", Status: generationOutputPending},
 		}}},
 		definition,
