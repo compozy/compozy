@@ -1479,9 +1479,15 @@ describe("Add with dependencies", () => {
   it("Should name the dependencies a failed Add already installed", async () => {
     io.preview.mockResolvedValueOnce(dependencyPreview());
     io.install.mockRejectedValueOnce(
-      new MarketplaceApiError("acme-log failed to install", 422, "extension_inputs_required", false, {
-        dependenciesInstalled: ["acme-core", "acme-net"],
-      })
+      new MarketplaceApiError(
+        "acme-log failed to install",
+        422,
+        "extension_inputs_required",
+        false,
+        {
+          dependenciesInstalled: ["acme-core", "acme-net"],
+        }
+      )
     );
     renderRow(verified);
     const user = userEvent.setup();
