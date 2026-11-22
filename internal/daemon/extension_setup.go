@@ -269,8 +269,9 @@ func (s *daemonExtensionService) reloadInputsInstance(ctx context.Context, insta
 	return s.syncExtensionConsumers(ctx)
 }
 
-// inputsBlockStart mirrors the launch gate: a required subprocess input that is invalid or missing
-// refuses start, including a dual-consumer input; only daemon_env stays ready (rule 5a).
+// inputsBlockStart mirrors the launch gate, which decides a dual-consumer input with the same readiness
+// precedence (an active typed row wins, the daemon env is read only without one): a required subprocess
+// input that is invalid or missing refuses start; set and daemon_env stay ready (rule 5a).
 func inputsBlockStart(payload contract.ExtensionInputsPayload) bool {
 	return slices.ContainsFunc(payload.Inputs, func(input contract.ExtensionInputStatusPayload) bool {
 		if !input.Required || !slices.Contains(input.Targets, extensionInputTargetSubprocess) {

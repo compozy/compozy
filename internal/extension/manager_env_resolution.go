@@ -113,8 +113,9 @@ func (m *Manager) resolveInstanceEnvMap(
 	return values, cleanups, nil
 }
 
-// launchInput is one input delivered to the subprocess. A missing required server-consumed input stays
-// ready only through a non-empty daemon environment value (rule 5a) or its active typed row.
+// launchInput is one input delivered to the subprocess. An unbound required server-consumed input is
+// decided by the readiness precedence: its active typed row, then its default, then the daemon
+// environment (rule 5a).
 type launchInput struct {
 	ManifestInput
 	serverConsumed bool
@@ -202,39 +203,53 @@ type InputRowReader interface {
 	List(context.Context, extensioninput.Instance) (map[string]extensioninput.Record, error)
 }
 
-// serverInputsSatisfiedElsewhere names the unbound, valid, required server-consumed inputs without a
-// default that stay ready without a binding: a non-empty daemon environment value (daemon_env, rule 5a)
-// or an active typed row, either valid for the declared type. Neither is delivered to the subprocess.
+// serverInputsSatisfiedElsewhere decides each unbound, required server-consumed input with the readiness
+// precedence (effectiveInputValue): an active typed row wins, valid or not; a default comes next; the
+// daemon environment (daemon_env, rule 5a) is read only without either. A ready name is satisfied without
+// a delivered value; an invalid row or daemon value is marked invalid, so it blocks start and never falls
+// back to the default (rule 4).
 func (m *Manager) serverInputsSatisfiedElsewhere(
 	ctx context.Context, key InstanceKey, values map[string]string, invalid map[string]bool, inputs []launchInput,
 ) (map[string]bool, error) {
 	satisfied := map[string]bool{}
-	var rows map[string]extensioninput.Record
+	var state InputState
 	rowsLoaded := false
 	for _, input := range inputs {
 		name := strings.TrimSpace(input.Binding.Name)
-		if _, bound := values[name]; bound || invalid[name] || !input.Required || !input.serverConsumed ||
-			len(input.Default) > 0 {
-			continue
-		}
-		if raw := m.getenv(name); strings.TrimSpace(raw) != "" {
-			_, err := marketplace.NormalizeMCPInputValue(input.Type, raw)
-			satisfied[name] = err == nil // an invalid daemon value reads invalid, never daemon_env
+		if _, bound := values[name]; bound || invalid[name] || !input.Required || !input.serverConsumed {
 			continue
 		}
 		if !rowsLoaded {
 			var err error
-			if rows, err = m.instanceInputRows(ctx, key); err != nil {
+			if state, err = m.instanceInputState(ctx, key); err != nil {
 				return nil, err
 			}
 			rowsLoaded = true
 		}
-		if row, found := rows[input.ID]; found && row.Active && row.Type == input.Type {
-			_, err := typedInputValue(input.Type, row.Value)
-			satisfied[name] = err == nil
+		// A server-consumed input is never subprocess-only, so readiness reads the daemon env for it too.
+		_, _, present, err := effectiveInputValue(input.ManifestInput, state, m.getenv)
+		if err != nil {
+			invalid[name] = true
+			continue
 		}
+		satisfied[name] = present
 	}
 	return satisfied, nil
+}
+
+// instanceInputState projects the instance's typed rows into the readiness input snapshot.
+func (m *Manager) instanceInputState(ctx context.Context, key InstanceKey) (InputState, error) {
+	rows, err := m.instanceInputRows(ctx, key)
+	if err != nil {
+		return InputState{}, err
+	}
+	state := InputState{Values: make(map[string]InputValueRecord, len(rows))}
+	for id, row := range rows {
+		state.Values[id] = InputValueRecord{
+			Type: row.Type, Value: row.Value, Active: row.Active, UpdatedAt: row.UpdatedAt,
+		}
+	}
+	return state, nil
 }
 
 func (m *Manager) instanceInputRows(ctx context.Context, key InstanceKey) (map[string]extensioninput.Record, error) {
@@ -273,8 +288,9 @@ func (m *Manager) instanceEnvBindings(ctx context.Context, key InstanceKey) ([]E
 }
 
 // applyLaunchInputDefaults fills unbound inputs from their defaults and refuses start when a required
-// input stays missing or invalid (rules 4-5). An invalid binding is never replaced by the default; a
-// satisfied name is ready without a delivered value.
+// input stays missing or invalid (rules 4-5). An invalid binding, typed row or daemon value is never
+// replaced by the default and is reported under InvalidInputs; a satisfied name is ready without a
+// delivered value.
 func applyLaunchInputDefaults(
 	values map[string]string, invalid, satisfied map[string]bool, inputs []launchInput,
 ) error {
