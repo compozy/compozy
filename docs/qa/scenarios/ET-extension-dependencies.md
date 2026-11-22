@@ -39,8 +39,10 @@ Steps:
    `dependency: "acme-core"` and the message names `--allow-unverified-dependency acme-core`; bare
    `--allow-unverified` covered only `acme-tool`.
 3. Add `--allow-unverified-dependency acme-core --allow-unverified-dependency acme-base`: the
-   refusal is the gateway confirmation for `acme-base` (`dependency: "acme-base"`) and
-   `dependencies_installed: ["acme-core"]`; `acme-core` stays installed.
+   refusal is the gateway confirmation for `acme-base` (`dependency: "acme-base"`) without
+   `dependencies_installed`; every consent is checked first, so nothing is installed. In a human
+   terminal without `--yes`, `--allow-unverified-dependency` first asks
+   `Dependency checksums of acme-core, acme-base are unverified. ...`; `n` installs nothing.
 4. Uninstall nothing; in a real terminal run `compozy extension install <acme-tool dir>
    --allow-unverified`: the CLI prints `Dependencies (experimental):` with one line per missing
    dependency (version, source, state, trust, gateway digest, required by), asks once, then asks
@@ -56,7 +58,8 @@ Steps:
    stays enabled and running; the daemon log has WARN `extension dependency unmet`. Human
    `compozy extension status acme-tool` shows `Unmet Dependencies  acme-core (disabled)`, and
    `compozy extension list -o toon` has the `unmet_dependencies` column; the compact
-   `compozy__extensions_info` result carries `unmet_dependencies`.
+   `compozy__extensions_info` result carries `unmet_dependencies`. Status, list and inventory reads
+   carry no `retry_command` and never contact a marketplace source.
 7. `compozy extension disable acme-tool`, then `compozy extension enable acme-tool`: exits 2 with
    `extension_dependencies_required` listing `acme-core` as `disabled`. Enable `acme-core`, then
    `acme-tool` enables.

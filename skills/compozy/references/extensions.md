@@ -394,7 +394,8 @@ artifact under `dependencies.<name>` (`expected_digest`, `allow_unverified`,
 `confirm_gateway_digest`); the root `allow_unverified` never covers a dependency. A missing
 confirmation refuses with that gate's existing code (`extension_checksum_unverified`,
 `extension_source_changed`, `extension_gateway_confirmation_required`, ...) plus `dependency: "<name>"`.
-Execution stops at the first failure and keeps completed dependencies, reported as
+Every artifact's consent is checked before the first dependency installs, so a missing one installs
+nothing. Execution then stops at the first runtime failure and keeps completed dependencies, reported as
 `dependencies_installed` on the error (including one committed before its enable failed); a successful
 install returns `201` with `dependencies_installed`. A dependency already installed for another scope or
 profile with the same bytes is only attached; different bytes are `installed_elsewhere` (above), and a
@@ -410,8 +411,9 @@ consolidated preview (name, version, source, state, trust, gateway digest, requi
 then asks each artifact's own gates (unverified consent, gateway digest) and retries with
 `with_dependencies`. Without a TTY or with `-o json`, pass `--with-dependencies`; bare
 `--allow-unverified` covers only the requested extension, each unverified dependency needs
-`--allow-unverified-dependency <name>` (with `--yes` for structured output), and
-`--confirm-gateway-requirement` takes a bare digest for the root and `<name>=<digest>` for a dependency.
+`--allow-unverified-dependency <name>`, which asks first on a human terminal like `--allow-unverified`
+(structured output needs `--yes`), and `--confirm-gateway-requirement` takes a bare digest for the root
+(repeated, the last one wins) and `<name>=<digest>` for a dependency.
 A `version_unmet` or `installed_elsewhere` dependency never prompts: it prints `Run first:
 <retry_command>`, or, without one, the reinstall guidance or the source version when no version
 satisfies `min_version`, and exits 2.
@@ -423,7 +425,8 @@ resolves its dependency to that installation; `dependents[]` lists `name`, `work
 native `force` on `compozy__extensions_remove`/`compozy__extensions_disable` proceeds. Nothing
 cascades: the dependent keeps its runtime state and status/list/info report
 `unmet_dependencies: [{name, min_version, state, ...}]` (also in the compact native results and the
-human/TOON CLI output). Enabling a dependent whose dependencies are
+human/TOON CLI output). These reads never contact a marketplace, so they carry no `retry_command`; the
+refusals below name it. Enabling a dependent whose dependencies are
 unmet refuses with `422 extension_dependencies_required`; boot never refuses. The CLI prints the
 dependents and exits 1. `compozy extension enable` answers an unmet-dependency refusal with
 `Enable first: compozy extension enable <dep>` for a disabled dependency, and points a missing one to
