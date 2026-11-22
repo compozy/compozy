@@ -48,7 +48,9 @@ Steps:
    setup with stdin redirected: it lists the inputs, names `api_token`, and exits 2. Unset the
    `REGION` binding of the dual-consumer `region` input: setup reads it as `daemon_env` or
    `missing`, never `set`, and a later write of another input reports `Updated 1 input` and leaves
-   `REGION` unbound. Remove and reinstall in the same cell without a region value: `region` starts
+   `REGION` unbound. With `REGION` also absent from the daemon environment, `region` reads `missing`
+   and blocks start: that write does not restart the instance, and enable refuses with
+   `extension_inputs_required` naming `region`. Remove and reinstall in the same cell without a region value: `region` starts
    from its default (or missing), not the old value.
 6. Repeat step 5's write on a `--workspace` instance and with `--profile <other>`; the global
    instance and the other profile are unchanged. `compozy extension setup acme-tool --workspace <W>`

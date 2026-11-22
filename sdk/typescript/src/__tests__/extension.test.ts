@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { Extension } from "../extension.js";
 import { SDK_INPUTS_MIN_COMPOZY_VERSION, SDK_MIN_COMPOZY_VERSION } from "../extension-contract.js";
+import { describeInputsFloor } from "../extension-describe.js";
 import {
   CONNECTIVITY_ESTABLISH_METHOD,
   CONNECTIVITY_STATUS_METHOD,
@@ -571,6 +572,12 @@ describe("Extension", () => {
     const payload = extension.describe();
     expect(payload).not.toHaveProperty("inputs");
     expect(payload.sdk.min_compozy_version).toBe(SDK_MIN_COMPOZY_VERSION);
+  });
+
+  it("raises the floor for inputs without replacing a higher floor", () => {
+    expect(describeInputsFloor("0.9.0", true)).toBe("0.9.0");
+    expect(describeInputsFloor("0.3.0-beta.1", true)).toBe(SDK_INPUTS_MIN_COMPOZY_VERSION);
+    expect(describeInputsFloor("0.3.0-beta.1", false)).toBe("0.3.0-beta.1");
   });
 
   it("describes and polls heartbeat sources", async () => {

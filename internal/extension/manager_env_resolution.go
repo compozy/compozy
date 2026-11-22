@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/store"
@@ -112,8 +113,8 @@ func (m *Manager) resolveInstanceEnvMap(
 	return values, cleanups, nil
 }
 
-// launchInput is one input delivered to the subprocess. A server-consumed input may stay satisfied by
-// the daemon environment or its typed row (rule 5a), so only its invalid binding refuses start.
+// launchInput is one input delivered to the subprocess. A missing required server-consumed input stays
+// ready only through a non-empty daemon environment value (rule 5a) or its active typed row.
 type launchInput struct {
 	ManifestInput
 	serverConsumed bool
@@ -185,11 +186,72 @@ func (m *Manager) resolveBoundEnvMap(
 		}
 		values[name] = value
 	}
-	if err := applyLaunchInputDefaults(values, invalid, subprocessInputs); err != nil {
+	satisfied, err := m.serverInputsSatisfiedElsewhere(ctx, key, values, invalid, subprocessInputs)
+	if err == nil {
+		err = applyLaunchInputDefaults(values, invalid, satisfied, subprocessInputs)
+	}
+	if err != nil {
 		runExtensionRedactionCleanups(cleanups)
 		return nil, nil, err
 	}
 	return values, cleanups, nil
+}
+
+// InputRowReader lists the typed input rows of one extension instance.
+type InputRowReader interface {
+	List(context.Context, extensioninput.Instance) (map[string]extensioninput.Record, error)
+}
+
+// serverInputsSatisfiedElsewhere names the unbound, valid, required server-consumed inputs without a
+// default that stay ready without a binding: a non-empty daemon environment value (daemon_env, rule 5a)
+// or an active typed row, either valid for the declared type. Neither is delivered to the subprocess.
+func (m *Manager) serverInputsSatisfiedElsewhere(
+	ctx context.Context, key InstanceKey, values map[string]string, invalid map[string]bool, inputs []launchInput,
+) (map[string]bool, error) {
+	satisfied := map[string]bool{}
+	var rows map[string]extensioninput.Record
+	rowsLoaded := false
+	for _, input := range inputs {
+		name := strings.TrimSpace(input.Binding.Name)
+		if _, bound := values[name]; bound || invalid[name] || !input.Required || !input.serverConsumed ||
+			len(input.Default) > 0 {
+			continue
+		}
+		if raw := m.getenv(name); strings.TrimSpace(raw) != "" {
+			_, err := marketplace.NormalizeMCPInputValue(input.Type, raw)
+			satisfied[name] = err == nil // an invalid daemon value reads invalid, never daemon_env
+			continue
+		}
+		if !rowsLoaded {
+			var err error
+			if rows, err = m.instanceInputRows(ctx, key); err != nil {
+				return nil, err
+			}
+			rowsLoaded = true
+		}
+		if row, found := rows[input.ID]; found && row.Active && row.Type == input.Type {
+			_, err := typedInputValue(input.Type, row.Value)
+			satisfied[name] = err == nil
+		}
+	}
+	return satisfied, nil
+}
+
+func (m *Manager) instanceInputRows(ctx context.Context, key InstanceKey) (map[string]extensioninput.Record, error) {
+	if m.inputRows == nil {
+		return nil, nil
+	}
+	profileID := key.ProfileID
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
+	rows, err := m.inputRows.List(ctx, extensioninput.Instance{
+		Extension: key.Name, ProfileID: profileID, WorkspaceID: key.WorkspaceID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("extension: list input rows for %q: %w", key.runtimeID(), err)
+	}
+	return rows, nil
 }
 
 func (m *Manager) instanceEnvBindings(ctx context.Context, key InstanceKey) ([]EnvBinding, error) {
@@ -211,8 +273,11 @@ func (m *Manager) instanceEnvBindings(ctx context.Context, key InstanceKey) ([]E
 }
 
 // applyLaunchInputDefaults fills unbound inputs from their defaults and refuses start when a required
-// input stays missing or invalid (rules 4-5). An invalid binding is never replaced by the default.
-func applyLaunchInputDefaults(values map[string]string, invalid map[string]bool, inputs []launchInput) error {
+// input stays missing or invalid (rules 4-5). An invalid binding is never replaced by the default; a
+// satisfied name is ready without a delivered value.
+func applyLaunchInputDefaults(
+	values map[string]string, invalid, satisfied map[string]bool, inputs []launchInput,
+) error {
 	readiness := Readiness{MissingInputs: []string{}, MissingEnv: []string{}}
 	manifest := &Manifest{}
 	for _, input := range inputs {
@@ -227,7 +292,7 @@ func applyLaunchInputDefaults(values map[string]string, invalid map[string]bool,
 				continue
 			}
 		}
-		if !input.Required || (input.serverConsumed && !invalid[name]) {
+		if !input.Required || satisfied[name] {
 			continue
 		}
 		readiness.MissingEnv = append(readiness.MissingEnv, name)

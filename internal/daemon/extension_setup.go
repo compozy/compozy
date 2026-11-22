@@ -269,15 +269,14 @@ func (s *daemonExtensionService) reloadInputsInstance(ctx context.Context, insta
 	return s.syncExtensionConsumers(ctx)
 }
 
-// inputsBlockStart mirrors the launch gate: a required subprocess input that is invalid, or missing
-// with no MCP consumer that may still be satisfied elsewhere, refuses start.
+// inputsBlockStart mirrors the launch gate: a required subprocess input that is invalid or missing
+// refuses start, including a dual-consumer input; only daemon_env stays ready (rule 5a).
 func inputsBlockStart(payload contract.ExtensionInputsPayload) bool {
 	return slices.ContainsFunc(payload.Inputs, func(input contract.ExtensionInputStatusPayload) bool {
 		if !input.Required || !slices.Contains(input.Targets, extensionInputTargetSubprocess) {
 			return false
 		}
-		return input.State == contract.ExtensionInputStateInvalid ||
-			(input.State == contract.ExtensionInputStateMissing && len(input.Targets) == 1)
+		return input.State == contract.ExtensionInputStateInvalid || input.State == contract.ExtensionInputStateMissing
 	})
 }
 
