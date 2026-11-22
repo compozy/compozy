@@ -122,7 +122,9 @@ func versionCore(version string) [3]int {
 	var core [3]int
 	base, _, _ := strings.Cut(strings.TrimPrefix(strings.TrimSpace(version), "v"), "-")
 	for i, part := range strings.SplitN(base, ".", 3) {
-		core[i], _ = strconv.Atoi(part)
+		if n, err := strconv.Atoi(part); err == nil {
+			core[i] = n
+		}
 	}
 	return core
 }
