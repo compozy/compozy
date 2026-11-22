@@ -144,8 +144,9 @@ export function SessionWindowSidebarRail({
 /**
  * The session window while the session it now names loads: the live rail, already marking that
  * session current at its kept scroll, beside the pane's placeholder. A row pick never trades the
- * rail for placeholder rows (#1923). The rail is resizable once the session loads, in the split
- * that keeps the new width.
+ * rail for placeholder rows (#1923). The loaded window mounts its own rail, so this one takes no
+ * input: a resize, an open row menu or a row pick begun here would be dropped by the swap. The
+ * rail answers once the session loads, in the split that keeps what the operator does.
  */
 export function SessionWindowLoadingFrame({
   windowId,
@@ -160,11 +161,13 @@ export function SessionWindowLoadingFrame({
       <SessionWindowRailLayout
         resizable={false}
         sidebar={
-          <SessionWindowSidebarRail
-            windowId={windowId}
-            sidebar={sidebar}
-            currentSessionId={sessionId}
-          />
+          <div className="contents" inert>
+            <SessionWindowSidebarRail
+              windowId={windowId}
+              sidebar={sidebar}
+              currentSessionId={sessionId}
+            />
+          </div>
         }
       >
         <SessionWindowSkeleton />

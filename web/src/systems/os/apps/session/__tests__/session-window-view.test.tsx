@@ -3,8 +3,8 @@
 // runtime to the `@user` selector; only a legacy session without any scope falls back to the
 // read-only history. A window whose session has not loaded keeps the live sessions rail, marking
 // that session current, beside the frames the loaded pane fills (transcript, composer) under one
-// busy status, never a bare spinner. That rail offers no resize handle: the loaded window mounts
-// its own resizable split, which would drop a drag begun on the loading one. The rail list resumes
+// busy status, never a bare spinner. That rail takes no input and offers no resize handle: the
+// loaded window mounts its own rail and split, which would drop a gesture begun on the loading one. The rail list resumes
 // its window's scroll when a session switch remounts it (#1923). Only a
 // not-found read says "Couldn't find this session"; any other failure says the read failed and
 // offers Try again.
@@ -158,8 +158,9 @@ describe("SessionWindowView", () => {
     expect(screen.getByTestId("session-sidebar")).toBeInTheDocument();
     expect(region).not.toContainElement(screen.getByTestId("session-sidebar"));
     expect(screen.getByTestId("session-list-scroll")).toHaveAttribute("data-current", "sess-1");
-    // Resizing waits for the loaded window's split, the one that keeps the width.
+    // Input waits for the loaded window's rail and split, the ones that keep what it does.
     expect(screen.queryByRole("separator", { name: "Resize sessions sidebar" })).toBeNull();
+    expect(screen.getByTestId("session-sidebar").closest("[inert]")).not.toBeNull();
     expect(region.querySelector('[data-slot="skeleton-text"]')).not.toBeNull();
     expect(screen.getByTestId("composer-skeleton")).toBeInTheDocument();
     // One announcement for the whole window: the placeholders are never statuses of their own.
