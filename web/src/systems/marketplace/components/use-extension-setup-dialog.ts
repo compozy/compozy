@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { toast } from "@compozy/ui";
 
@@ -31,7 +31,8 @@ export function useExtensionSetupDialog(extension: ExtensionEntry, onClose: () =
   // The generation whose save the mutation state reports; an earlier generation's failure stays hidden.
   const [savedGeneration, setSavedGeneration] = useState(generation);
   const currentGeneration = useRef(generation);
-  useEffect(() => {
+  // Layout effect: the guard must see the new generation before a pending save continuation runs.
+  useLayoutEffect(() => {
     currentGeneration.current = generation;
   }, [generation]);
   if (feedbackInstance !== instance) {
