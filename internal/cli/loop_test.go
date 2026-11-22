@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -414,6 +415,63 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 		}
 		if !strings.Contains(toonOutput, "input_origins") || strings.Contains(toonOutput, "web_url") {
 			t.Fatalf("loop run dry TOON = %q, want input origins without web_url", toonOutput)
+		}
+	})
+
+	t.Run("Should coerce run inputs by the declared type", func(t *testing.T) {
+		t.Parallel()
+
+		definition := testLoopDefinition("release", 1)
+		definition.Inputs["gate_command"] = dsl.Input{Type: dsl.InputTypeString}
+		definition.Inputs["quoted"] = dsl.Input{Type: dsl.InputTypeString}
+		definition.Inputs["retries"] = dsl.Input{Type: dsl.InputTypeNumber}
+		definition.Inputs["enabled"] = dsl.Input{Type: dsl.InputTypeBoolean}
+		var captured contract.RunLoopRequest
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			getLoopFn: func(context.Context, string, string) (contract.LoopResponse, error) {
+				return testLoopResponse(t, definition), nil
+			},
+			runLoopFn: func(
+				_ context.Context,
+				_ string,
+				_ string,
+				request contract.RunLoopRequest,
+				_ bool,
+				_ agentidentity.Credentials,
+			) (contract.RunLoopResponse, error) {
+				captured = request
+				return contract.RunLoopResponse{Run: &contract.LoopRunPayload{ID: "run-1"}}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"loop", "run",
+			"--workspace", "alpha",
+			"--name", "release",
+			"--input", "target=prod",
+			"--input", "gate_command=false",
+			"--input", `quoted="false"`,
+			"--input", "retries=1",
+			"--input", "enabled=true",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(loop run typed inputs) error = %v", err)
+		}
+		if got, ok := captured.Inputs["gate_command"].(string); !ok || got != "false" {
+			t.Fatalf("RunLoop gate_command = %#v, want the string false", captured.Inputs["gate_command"])
+		}
+		if got, ok := captured.Inputs["quoted"].(string); !ok || got != "false" {
+			t.Fatalf("RunLoop quoted = %#v, want the unquoted string false", captured.Inputs["quoted"])
+		}
+		if got, ok := captured.Inputs["retries"].(json.Number); !ok || got.String() != "1" {
+			t.Fatalf("RunLoop retries = %#v, want json.Number(1)", captured.Inputs["retries"])
+		}
+		if captured.Inputs["enabled"] != true {
+			t.Fatalf("RunLoop enabled = %#v, want the boolean true", captured.Inputs["enabled"])
 		}
 	})
 
@@ -1298,7 +1356,7 @@ func TestLoopRunInputsShouldNormalizeRuntimeAndRespectPromptMode(t *testing.T) {
 
 		definition := testLoopDefinition("release", 1)
 		definition.Inputs["runtime"] = dsl.Input{Type: dsl.InputTypeRuntime}
-		values, err := normalizeLoopRunInputs(definition, map[string]any{
+		values, err := normalizeLoopRunInputs(definition, map[string]string{
 			"target": "openai/gpt-5@high", "runtime": "openai/gpt-5@high",
 		})
 		if err != nil {
@@ -1310,6 +1368,52 @@ func TestLoopRunInputsShouldNormalizeRuntimeAndRespectPromptMode(t *testing.T) {
 		want := map[string]any{"provider": "openai", "model": "gpt-5", "reasoning": "high"}
 		if !reflect.DeepEqual(values["runtime"], want) {
 			t.Fatalf("runtime = %#v, want %#v", values["runtime"], want)
+		}
+	})
+
+	t.Run("Should coerce input text by the declared input type", func(t *testing.T) {
+		t.Parallel()
+
+		definition := testLoopDefinition("release", 1)
+		definition.Inputs["gate_command"] = dsl.Input{Type: dsl.InputTypeString}
+		definition.Inputs["retries"] = dsl.Input{Type: dsl.InputTypeNumber}
+		definition.Inputs["enabled"] = dsl.Input{Type: dsl.InputTypeBoolean}
+		values, err := normalizeLoopRunInputs(definition, map[string]string{
+			"gate_command": "false",
+			"retries":      "1",
+			"enabled":      "true",
+		})
+		if err != nil {
+			t.Fatalf("normalizeLoopRunInputs() error = %v", err)
+		}
+		if got, ok := values["gate_command"].(string); !ok || got != "false" {
+			t.Fatalf("gate_command = %#v, want the string false", values["gate_command"])
+		}
+		if got, ok := values["retries"].(json.Number); !ok || got.String() != "1" {
+			t.Fatalf("retries = %#v, want json.Number(1)", values["retries"])
+		}
+		if values["enabled"] != true {
+			t.Fatalf("enabled = %#v, want the boolean true", values["enabled"])
+		}
+	})
+
+	t.Run("Should keep a JSON-quoted text escape for textual inputs", func(t *testing.T) {
+		t.Parallel()
+
+		definition := testLoopDefinition("release", 1)
+		definition.Inputs["gate_command"] = dsl.Input{Type: dsl.InputTypeString}
+		definition.Inputs["ref"] = dsl.Input{Type: dsl.InputTypeRef, Ref: &dsl.InputRef{Kind: dsl.InputRefKindSkill}}
+		values, err := normalizeLoopRunInputs(definition, map[string]string{
+			"gate_command": `"false"`, "ref": "0",
+		})
+		if err != nil {
+			t.Fatalf("normalizeLoopRunInputs() error = %v", err)
+		}
+		if got, ok := values["gate_command"].(string); !ok || got != "false" {
+			t.Fatalf("gate_command = %#v, want the unquoted string false", values["gate_command"])
+		}
+		if got, ok := values["ref"].(string); !ok || got != "0" {
+			t.Fatalf("ref = %#v, want the string 0", values["ref"])
 		}
 	})
 
@@ -1793,6 +1897,43 @@ func TestLoopAllWorkspacesCommands(t *testing.T) {
 		}
 		if calls != 3 {
 			t.Fatalf("calls = %d", calls)
+		}
+	})
+}
+
+func TestLoopInputValidationShouldRenderReadableAPIError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should explain a type mismatch on a textual input", func(t *testing.T) {
+		t.Parallel()
+
+		body := []byte(
+			`{"valid":false,"input_validation":{"loop":"deliver-phases",` +
+				`"field":"gate_command","kind":"string","origin":"run","reason":"type_mismatch"}}`,
+		)
+		err := readAPIErrorBody(http.StatusUnprocessableEntity, "422 Unprocessable Entity", body)
+		want := `input "gate_command" (string) at run: type mismatch; ` +
+			`quote it as a JSON string, for example --input 'gate_command="false"'`
+		if err == nil || err.Error() != want {
+			t.Fatalf("readAPIErrorBody() error = %v, want %q", err, want)
+		}
+		var apiErr *daemonAPIError
+		if !errors.As(err, &apiErr) || apiErr.statusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("readAPIErrorBody() error = %#v, want the 422 daemon error", err)
+		}
+	})
+
+	t.Run("Should name the rejected value for a non-textual input", func(t *testing.T) {
+		t.Parallel()
+
+		body := []byte(
+			`{"valid":false,"input_validation":{"loop":"deliver-phases",` +
+				`"field":"phase","kind":"number","value":"abc","origin":"run","reason":"type_mismatch"}}`,
+		)
+		err := readAPIErrorBody(http.StatusUnprocessableEntity, "422 Unprocessable Entity", body)
+		want := `input "phase" (number) at run: type mismatch for value "abc"`
+		if err == nil || err.Error() != want {
+			t.Fatalf("readAPIErrorBody() error = %v, want %q", err, want)
 		}
 	})
 }
