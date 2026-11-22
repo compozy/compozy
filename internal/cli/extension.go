@@ -203,7 +203,7 @@ func runExtensionInstall(
 		plan.Attempts[index].WorkspaceID = selected.workspaceID
 		plan.Attempts[index].Profile = selected.profile
 	}
-	if err := f.dependencies.apply(cmd, plan, f.yes); err != nil {
+	if err := f.dependencies.apply(plan); err != nil {
 		return err
 	}
 	plan, err = resolvePluginInstallPlan(cmd.Context(), deps, plan)
@@ -224,6 +224,9 @@ func runExtensionInstall(
 		return err
 	}
 	if err := confirmExtensionUnverifiedInstall(cmd, f.allowUnverified, f.yes); err != nil {
+		return err
+	}
+	if err := f.dependencies.confirmUnverified(cmd, f.yes); err != nil {
 		return err
 	}
 	if f.dependencies.withDependencies {

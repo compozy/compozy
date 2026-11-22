@@ -1055,6 +1055,46 @@ func TestExtensionInstallDependencyFlow(t *testing.T) {
 		}
 	})
 
+	t.Run("Should prompt before an unverified dependency like the root --allow-unverified", func(t *testing.T) {
+		t.Parallel()
+		for _, answer := range []string{"n", "y"} {
+			var calls []InstallExtensionRequest
+			deps := newDeps(t, true, &calls, nil)
+			_, stderr, err := executeRootCommandWithInput(t, deps, answer+"\n", "extension", "install",
+				"compozy/typed", "--with-dependencies", "--allow-unverified-dependency", "acme-core")
+			if !strings.Contains(stderr, "Dependency checksums of acme-core are unverified") {
+				t.Fatalf("answer %s: stderr = %q, want the dependency trust prompt", answer, stderr)
+			}
+			if answer == "n" && (err == nil || len(calls) != 0) {
+				t.Fatalf("declined prompt: calls = %d, err = %v; want nothing installed", len(calls), err)
+			}
+			if answer == "y" && (err != nil || len(calls) != 1 || !calls[0].Dependencies["acme-core"].AllowUnverified) {
+				t.Fatalf("accepted prompt: calls = %+v, err = %v; want acme-core consent", calls, err)
+			}
+		}
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, false, &calls, nil)
+		_, _, err := executeRootCommandWithInput(t, deps, "", "extension", "install", "compozy/typed",
+			"--with-dependencies", "--allow-unverified-dependency", "acme-core", "-o", "json")
+		if err == nil || !strings.Contains(err.Error(), "--allow-unverified-dependency requires --yes") ||
+			len(calls) != 0 {
+			t.Fatalf("structured output: calls = %d, err = %v; want --yes required", len(calls), err)
+		}
+	})
+
+	// Invariant: the stable --confirm-gateway-requirement keeps last-wins for a repeated bare digest (SD-013).
+	t.Run("Should let the last repeated bare gateway digest win", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		first, last := strings.Repeat("e", 64), strings.Repeat("f", 64)
+		deps := newDeps(t, false, &calls, nil)
+		_, _, err := executeRootCommandWithInput(t, deps, "", "extension", "install", "compozy/typed",
+			"--confirm-gateway-requirement", first, "--confirm-gateway-requirement", last, "--yes", "-o", "json")
+		if err != nil || len(calls) != 1 || calls[0].ConfirmGatewayDigest != last {
+			t.Fatalf("calls = %+v, err = %v; want the last bare digest %s", calls, err, last)
+		}
+	})
+
 	t.Run("Should call only official and community dependencies registry-verified", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {

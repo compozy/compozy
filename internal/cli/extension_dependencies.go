@@ -31,7 +31,8 @@ var errExtensionDependenciesDeclined = errors.New("cli: dependency install decli
 
 // extensionDependencyFlags carries the experimental dependency consent of one install (D8). Gateway
 // confirmations come from the repeatable --confirm-gateway-requirement flag: a bare digest confirms the
-// requested extension and <name>=<digest> confirms one dependency.
+// requested extension, the last one winning as before the flag was repeatable, and <name>=<digest> confirms one
+// dependency.
 type extensionDependencyFlags struct {
 	withDependencies bool
 	allowUnverified  []string
@@ -50,16 +51,12 @@ func (f *extensionDependencyFlags) register(cmd *cobra.Command) {
 }
 
 // apply sets the root gateway digest and per-dependency consent on every attempt of the plan.
-func (f *extensionDependencyFlags) apply(cmd *cobra.Command, plan extensionInstallPlan, yes bool) error {
+func (f *extensionDependencyFlags) apply(plan extensionInstallPlan) error {
 	root := ""
 	consent := make(map[string]contract.ExtensionDependencyConsent)
 	for _, raw := range f.confirmGateway {
 		name, digest, scoped := strings.Cut(strings.TrimSpace(raw), "=")
 		if !scoped {
-			if root != "" {
-				return fmt.Errorf("cli: --%s accepts one bare digest; use <name>=<digest> for a dependency",
-					extensionConfirmGatewayFlagName)
-			}
 			root = name
 			continue
 		}
@@ -80,15 +77,6 @@ func (f *extensionDependencyFlags) apply(cmd *cobra.Command, plan extensionInsta
 		item.AllowUnverified = true
 		consent[name] = item
 	}
-	if len(f.allowUnverified) > 0 && !yes {
-		mode, err := resolveOutputFormat(cmd)
-		if err != nil {
-			return err
-		}
-		if mode != OutputHuman {
-			return fmt.Errorf("cli: --%s requires --yes for structured output", extensionAllowUnverifiedDepFlagName)
-		}
-	}
 	for index := range plan.Attempts {
 		plan.Attempts[index].ConfirmGatewayDigest = root
 		plan.Attempts[index].WithDependencies = f.withDependencies
@@ -97,6 +85,17 @@ func (f *extensionDependencyFlags) apply(cmd *cobra.Command, plan extensionInsta
 		}
 	}
 	return nil
+}
+
+// confirmUnverified asks once before the dependencies named by --allow-unverified-dependency
+// install unverified, like the requested extension's own --allow-unverified; structured output needs --yes.
+func (f *extensionDependencyFlags) confirmUnverified(cmd *cobra.Command, yes bool) error {
+	if len(f.allowUnverified) == 0 || yes {
+		return nil
+	}
+	return promptExtensionUnverifiedConsent(cmd, "--"+extensionAllowUnverifiedDepFlagName, fmt.Sprintf(
+		"Dependency checksums of %s are unverified. Continue with allow_unverified for them? [y/N] ",
+		strings.Join(f.allowUnverified, ", ")))
 }
 
 // pinExtensionDependencyDigests pins each acquired dependency to the digest the preview reviewed, like the
