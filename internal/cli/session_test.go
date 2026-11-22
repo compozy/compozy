@@ -1268,7 +1268,8 @@ func TestSessionArchiveStoppedCommand(t *testing.T) {
 			t.Parallel()
 			var requests []contract.SessionArchiveStoppedRequest
 			deps := newDeps(t, &requests, report)
-			code, _, stderr := executeRootCommandWithExit(t, deps, append([]string{"session", "archive"}, tc.args...)...)
+			args := append([]string{"session", "archive"}, tc.args...)
+			code, _, stderr := executeRootCommandWithExit(t, deps, args...)
 			if code != 2 || len(requests) != 0 || !strings.Contains(stderr, tc.want) {
 				t.Fatalf("exit = %d requests = %d stderr = %q, want usage exit 2 naming %q without a request",
 					code, len(requests), stderr, tc.want)
