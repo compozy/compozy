@@ -3486,6 +3486,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addLoopOnResultSchemas(baseline, current) == 0 {
 			t.Fatal("approved Loop on_result grammar: no historical gate or contract schemas found")
 		}
+		// Loop run reads add the optional settled terminal cause.
+		if addLoopRunTerminalSchemas(baseline, current) == 0 {
+			t.Fatal("approved Loop terminal read projection: no historical run payload schemas found")
+		}
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
