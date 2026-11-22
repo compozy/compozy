@@ -152,7 +152,7 @@ func dependencyStates(items []contract.ExtensionDependencyPayload) map[string]st
 	return states
 }
 
-func dependencyNames(items []contract.ExtensionDependencyPayload) []string {
+func dependencyPayloadNames(items []contract.ExtensionDependencyPayload) []string {
 	names := make([]string, 0, len(items))
 	for _, item := range items {
 		names = append(names, item.Name)
@@ -258,7 +258,7 @@ func TestExtensionDependencyResolution(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveDependencies() error = %v", err)
 		}
-		if got := dependencyNames(items); !slices.Equal(got, []string{"dep-b", "dep-a"}) {
+		if got := dependencyPayloadNames(items); !slices.Equal(got, []string{"dep-b", "dep-a"}) {
 			t.Fatalf("order = %v, want [dep-b dep-a]", got)
 		}
 		if items[0].Depth != 2 || !slices.Equal(items[0].RequiredBy, []string{"dep-a"}) {
