@@ -7,6 +7,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // LoopInputResolutionRequest asks the composition root to run one fire-time Loop input command.
@@ -101,6 +102,8 @@ func loopInputMetadata(existing map[string]any, inputs map[string]any, keys []st
 	metadata[LoopInputSourceMetadataKey] = LoopInputSourceCommand
 	metadata[LoopInputsMetadataKey] = cloneJSONMap(inputs)
 	metadata[LoopInputKeysMetadataKey] = keys
+	// A retried run reuses this row; a later successful resolution supersedes an earlier failure.
+	delete(metadata, LoopInputErrorMetadataKey)
 	return metadata
 }
 
@@ -128,8 +131,16 @@ func loopInputSkipMetadata(existing map[string]any) map[string]any {
 
 func truncateRunMetadata(value string, limit int) string {
 	trimmed := strings.TrimSpace(value)
+	if limit <= 0 {
+		return ""
+	}
 	if len(trimmed) <= limit {
 		return trimmed
 	}
-	return trimmed[:limit] + "..."
+	// Trim to the last rune boundary so the stored text stays valid UTF-8.
+	cut := limit
+	for cut > 0 && !utf8.RuneStart(trimmed[cut]) {
+		cut--
+	}
+	return trimmed[:cut] + "..."
 }

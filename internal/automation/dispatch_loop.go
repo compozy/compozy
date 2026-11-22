@@ -146,7 +146,11 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 	)
 	if err != nil {
 		if req.CatchUp && errors.Is(err, ErrLoopConcurrencyConflict) {
-			scheduledRun.Metadata = loopCatchUpFailureMetadata(req, "loop_concurrency_conflict")
+			scheduledRun.Metadata = loopCatchUpFailureMetadata(
+				scheduledRun.Metadata,
+				req,
+				"loop_concurrency_conflict",
+			)
 		}
 		return d.finishRun(ctx, scheduledRun, classifyDispatchError(err), err)
 	}
@@ -186,11 +190,17 @@ func loopAdmissionEventKey(envelope *ActivationEnvelope) string {
 	return strings.TrimSpace(value)
 }
 
-func loopCatchUpFailureMetadata(req DispatchRequest, reason string) map[string]any {
-	metadata := map[string]any{
-		"catch_up": true,
-		"reason":   strings.TrimSpace(reason),
+func loopCatchUpFailureMetadata(
+	existing map[string]any,
+	req DispatchRequest,
+	reason string,
+) map[string]any {
+	metadata := cloneJSONMap(existing)
+	if metadata == nil {
+		metadata = make(map[string]any, 5)
 	}
+	metadata["catch_up"] = true
+	metadata["reason"] = strings.TrimSpace(reason)
 	if req.CatchUpPolicy != "" {
 		metadata["catch_up_policy"] = string(req.CatchUpPolicy)
 	}

@@ -16,6 +16,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -761,7 +762,8 @@ func TestDispatchLoopTargetCatchUpConflictRecordsMetadata(t *testing.T) {
 	store := newMemoryRunStore()
 	creator := newRecordingSessionCreator()
 	starter := &recordingLoopStarter{
-		startErr: fmt.Errorf("%w: active_loop_run_exists", ErrLoopConcurrencyConflict),
+		startErr:      fmt.Errorf("%w: active_loop_run_exists", ErrLoopConcurrencyConflict),
+		resolveInputs: map[string]any{"slug": "queued-spec"},
 	}
 	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherLoopStarter(starter))
 	scheduledAt := time.Date(2026, 7, 7, 9, 30, 0, 0, time.UTC)
@@ -770,8 +772,9 @@ func TestDispatchLoopTargetCatchUpConflictRecordsMetadata(t *testing.T) {
 	job.Prompt = ""
 	job.TargetKind = TargetKindLoop
 	job.LoopTarget = &LoopTarget{
-		WorkspaceID: "ws_alpha",
-		LoopName:    "triage",
+		WorkspaceID:  "ws_alpha",
+		LoopName:     "triage",
+		InputCommand: "scripts/next-spec.sh",
 	}
 
 	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
@@ -798,6 +801,16 @@ func TestDispatchLoopTargetCatchUpConflictRecordsMetadata(t *testing.T) {
 	}
 	if got, want := run.Metadata["scheduled_at"], scheduledAt.Format(time.RFC3339Nano); got != want {
 		t.Fatalf("run.Metadata[scheduled_at] = %#v, want %q", got, want)
+	}
+	resolved, ok := run.Metadata[LoopInputsMetadataKey].(map[string]any)
+	if !ok {
+		t.Fatalf("run.Metadata[loop_inputs] = %#v, want the resolved map preserved", run.Metadata[LoopInputsMetadataKey])
+	}
+	if got, want := resolved["slug"], "queued-spec"; got != want {
+		t.Fatalf("run.Metadata[loop_inputs][slug] = %#v, want %#v", got, want)
+	}
+	if got, want := run.Metadata[LoopInputSourceMetadataKey], LoopInputSourceCommand; got != want {
+		t.Fatalf("run.Metadata[loop_input_source] = %#v, want %#v", got, want)
 	}
 	startCalls := starter.startCallSnapshot()
 	if got, want := len(startCalls), 1; got != want {
@@ -1412,6 +1425,89 @@ func TestDispatchReservedRunAdvancesAttemptAcrossRetry(t *testing.T) {
 	}
 	if got, want := statuses, []RunStatus{RunFailed, RunDelegated}; !slices.Equal(got, want) {
 		t.Fatalf("reserved run update statuses = %#v, want %#v without stale rewrite", got, want)
+	}
+}
+
+func TestDispatchReservedRunRetryClearsStaleLoopInputError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	store := newMemoryRunStore()
+	starter := &recordingLoopStarter{
+		runID: "looprun-input-retry",
+		resolveErrors: []error{
+			errors.New("daemon: loop input command failed: exit status 1: queue is locked"),
+			nil,
+		},
+		resolveInputs: map[string]any{"slug": "queued-spec"},
+	}
+	dispatcher := newTestDispatcher(
+		t,
+		newRecordingSessionCreator(),
+		store,
+		WithDispatcherLoopStarter(starter),
+		WithDispatcherSleep(func(context.Context, time.Duration) error { return nil }),
+	)
+
+	job := testJob(AutomationScopeWorkspace, "job-input-retry", "ws_alpha")
+	job.AgentName = ""
+	job.Prompt = ""
+	job.TargetKind = TargetKindLoop
+	job.LoopTarget = &LoopTarget{
+		WorkspaceID:  "ws_alpha",
+		LoopName:     "triage",
+		InputCommand: "scripts/next-spec.sh",
+	}
+	job.Retry = RetryConfig{
+		Strategy:   RetryStrategyBackoff,
+		MaxRetries: 1,
+		BaseDelay:  "1s",
+	}
+	reserved, err := store.CreateRun(ctx, Run{
+		ID:        "run-input-retry",
+		JobID:     job.ID,
+		Status:    RunScheduled,
+		Attempt:   1,
+		StartedAt: new(time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)),
+	})
+	if err != nil {
+		t.Fatalf("CreateRun(reserved) error = %v", err)
+	}
+
+	run, err := dispatcher.Dispatch(ctx, DispatchRequest{
+		Kind:        DispatchKindSchedule,
+		Job:         &job,
+		ReservedRun: &reserved,
+	})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+	if run == nil || run.Status != RunDelegated {
+		t.Fatalf("Dispatch() run = %#v, want delegated retry", run)
+	}
+	if _, exists := run.Metadata[LoopInputErrorMetadataKey]; exists {
+		t.Fatalf(
+			"run.Metadata[%s] = %#v, want the stale failure cleared",
+			LoopInputErrorMetadataKey,
+			run.Metadata[LoopInputErrorMetadataKey],
+		)
+	}
+	resolved, ok := run.Metadata[LoopInputsMetadataKey].(map[string]any)
+	if !ok || resolved["slug"] != "queued-spec" {
+		t.Fatalf("run.Metadata[loop_inputs] = %#v, want the retried resolution", run.Metadata[LoopInputsMetadataKey])
+	}
+}
+
+func TestTruncateRunMetadataKeepsRuneBoundary(t *testing.T) {
+	t.Parallel()
+
+	value := "aaaé" + strings.Repeat("b", 10)
+	got := truncateRunMetadata(value, 4)
+	if want := "aaa..."; got != want {
+		t.Fatalf("truncateRunMetadata() = %q, want %q", got, want)
+	}
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncateRunMetadata() = %q, want valid UTF-8", got)
 	}
 }
 
@@ -2276,6 +2372,7 @@ type recordingLoopStarter struct {
 	resolveCalls    []LoopInputResolutionRequest
 	resolveInputs   map[string]any
 	resolveErr      error
+	resolveErrors   []error
 	runID           string
 	suppressed      bool
 	suppressedCount int
@@ -2354,7 +2451,11 @@ func (s *recordingLoopStarter) ResolveLoopInputs(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	callIndex := len(s.resolveCalls)
 	s.resolveCalls = append(s.resolveCalls, req)
+	if callIndex < len(s.resolveErrors) && s.resolveErrors[callIndex] != nil {
+		return nil, s.resolveErrors[callIndex]
+	}
 	if s.resolveErr != nil {
 		return nil, s.resolveErr
 	}
