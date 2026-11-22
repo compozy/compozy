@@ -160,13 +160,13 @@ type Contract struct {
 	Boundaries       []string           `json:"boundaries,omitempty"`
 	StopWhen         StopWhenSpec       `json:"stop_when,omitzero"`
 	Verification     []GateCriterion    `json:"verification,omitempty"`
-	OnResult         map[string]any     `json:"on_result,omitempty"`
 	IterationCap     int                `json:"iteration_cap"`
 	NoProgress       NoProgress         `json:"no_progress"`
 	Budget           Budget             `json:"budget"`
 	RuntimeDefaults  *RuntimeDefaults   `json:"runtime_defaults,omitzero"`
 	RuntimeRules     []RuntimeRule      `json:"runtime_rules,omitempty"`
 	TerminalStates   []DslTerminalState `json:"terminal_states,omitempty"`
+	OnResult         map[string]any     `json:"on_result,omitempty"`
 	OnDone           []EffectSpec       `json:"on_done,omitempty"`
 	OnNoOp           []EffectSpec       `json:"on_noop,omitempty"`
 	OnBlocked        []EffectSpec       `json:"on_blocked,omitempty"`

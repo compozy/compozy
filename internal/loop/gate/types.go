@@ -72,11 +72,15 @@ func GateFromNode(node dsl.Node) Gate {
 //
 //revive:disable-next-line:exported // GateFromContract is the explicit adapter name for the gate package.
 func GateFromContract(id string, contract dsl.Contract, maxRevisions int) Gate {
+	var onResult map[string]any
+	if contract.ContractLifecycleState != nil {
+		onResult = contract.ContractLifecycleState.OnResult
+	}
 	return Gate{
 		ID:            strings.TrimSpace(id),
 		Criteria:      cloneCriteria(contract.Verification),
 		VerdictPolicy: contractVerdictPolicy(contract.Verification),
-		OnResult:      cloneResultRoutes(contract.OnResult),
+		OnResult:      cloneResultRoutes(onResult),
 		MaxRevisions:  maxRevisions,
 	}
 }

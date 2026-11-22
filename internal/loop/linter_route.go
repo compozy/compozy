@@ -109,6 +109,9 @@ func (c *lintContext) lintGateRoutes(node dsl.Node) {
 }
 
 func (c *lintContext) lintContractOnResult() {
+	if c.def.Contract.ContractLifecycleState == nil {
+		return
+	}
 	c.lintOnResult(onResultScope{
 		owner:     "",
 		label:     "contract.on_result",

@@ -37,5 +37,6 @@ type TerminalEffects struct {
 // ContractLifecycleState keeps optional terminal effects off the hot Contract value.
 type ContractLifecycleState struct {
 	TerminalStates  []TerminalState `json:"terminal_states,omitempty" yaml:"terminal_states,omitempty"`
+	OnResult        map[string]any  `json:"on_result,omitempty"       yaml:"on_result,omitempty"`
 	TerminalEffects `                                                 yaml:",inline"`
 }

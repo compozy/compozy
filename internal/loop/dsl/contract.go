@@ -8,7 +8,6 @@ type Contract struct {
 	Boundaries              []string         `json:"boundaries,omitempty"      yaml:"boundaries,omitempty"`
 	StopWhen                StopWhenSpec     `json:"stop_when,omitzero"        yaml:"stop_when,omitempty"`
 	Verification            []GateCriterion  `json:"verification,omitempty"    yaml:"verification,omitempty"`
-	OnResult                map[string]any   `json:"on_result,omitempty"       yaml:"on_result,omitempty"`
 	IterationCap            int              `json:"iteration_cap"             yaml:"iteration_cap"`
 	NoProgress              NoProgress       `json:"no_progress"               yaml:"no_progress"`
 	Budget                  Budget           `json:"budget"                    yaml:"budget"`
