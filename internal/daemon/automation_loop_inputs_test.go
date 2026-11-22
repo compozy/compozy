@@ -1,6 +1,8 @@
 package daemon
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -8,6 +10,8 @@ import (
 	"time"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	looppkg "github.com/compozy/compozy/internal/loop"
+	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -89,7 +93,11 @@ func TestParseLoopInputCommandOutput(t *testing.T) {
 func TestAutomationLoopStarterResolveLoopInputs(t *testing.T) {
 	// Serial: one subtest mutates the process environment with t.Setenv.
 
-	newStarter := func(t *testing.T, rootDir string) *automationLoopStarter {
+	newStarterWithInputs := func(
+		t *testing.T,
+		rootDir string,
+		declared map[string]loopdsl.Input,
+	) *automationLoopStarter {
 		t.Helper()
 		return &automationLoopStarter{
 			workspaces: &daemonExtensionWorkspaceResolverStub{
@@ -98,8 +106,22 @@ func TestAutomationLoopStarterResolveLoopInputs(t *testing.T) {
 					WorkspaceID: "ws_alpha",
 				},
 			},
+			resolver: looppkg.DefinitionResolverFunc(func(
+				context.Context,
+				looppkg.WorkspaceID,
+				string,
+				string,
+			) (*looppkg.ResolvedDefinition, error) {
+				return &looppkg.ResolvedDefinition{
+					Definition: loopdsl.Definition{Inputs: declared},
+				}, nil
+			}),
 			commandTimeout: 30 * time.Second,
 		}
+	}
+	newStarter := func(t *testing.T, rootDir string) *automationLoopStarter {
+		t.Helper()
+		return newStarterWithInputs(t, rootDir, nil)
 	}
 
 	request := func(command string) automationpkg.LoopInputResolutionRequest {
@@ -154,6 +176,108 @@ func TestAutomationLoopStarterResolveLoopInputs(t *testing.T) {
 		}
 	})
 
+	t.Run("Should coerce command values by the declared input type", func(t *testing.T) {
+		t.Parallel()
+
+		starter := newStarterWithInputs(t, t.TempDir(), map[string]loopdsl.Input{
+			"slug":         {Type: loopdsl.InputTypeString},
+			"review_round": {Type: loopdsl.InputTypeNumber},
+			"approved":     {Type: loopdsl.InputTypeBoolean},
+			"payload":      {Type: automationLoopInputTypeJSON},
+		})
+		inputs, err := starter.ResolveLoopInputs(
+			t.Context(),
+			request(
+				"printf 'slug=catalog\\nreview_round=2\\napproved=true\\npayload={\"mode\":\"nightly\",\"count\":3}\\n'",
+			),
+		)
+		if err != nil {
+			t.Fatalf("ResolveLoopInputs() error = %v", err)
+		}
+		if got, want := inputs["slug"], "catalog"; got != want {
+			t.Fatalf("ResolveLoopInputs()[slug] = %#v, want %#v", got, want)
+		}
+		number, ok := inputs["review_round"].(json.Number)
+		if !ok || number.String() != "2" {
+			t.Fatalf("ResolveLoopInputs()[review_round] = %#v, want json.Number(2)", inputs["review_round"])
+		}
+		if got, ok := inputs["approved"].(bool); !ok || !got {
+			t.Fatalf("ResolveLoopInputs()[approved] = %#v, want true", inputs["approved"])
+		}
+		payload, ok := inputs["payload"].(map[string]any)
+		if !ok {
+			t.Fatalf("ResolveLoopInputs()[payload] = %#v, want a decoded JSON object", inputs["payload"])
+		}
+		if got, want := payload["mode"], "nightly"; got != want {
+			t.Fatalf("ResolveLoopInputs()[payload][mode] = %#v, want %#v", got, want)
+		}
+		count, ok := payload["count"].(json.Number)
+		if !ok || count.String() != "3" {
+			t.Fatalf("ResolveLoopInputs()[payload][count] = %#v, want json.Number(3)", payload["count"])
+		}
+	})
+
+	testCases := []struct {
+		name     string
+		declared loopdsl.Input
+		value    string
+		wantKind string
+	}{
+		{
+			name:     "Should reject an invalid number",
+			declared: loopdsl.Input{Type: loopdsl.InputTypeNumber},
+			value:    "two",
+			wantKind: "number",
+		},
+		{
+			name:     "Should reject an invalid boolean",
+			declared: loopdsl.Input{Type: loopdsl.InputTypeBoolean},
+			value:    "maybe",
+			wantKind: "boolean",
+		},
+		{
+			name:     "Should reject invalid JSON",
+			declared: loopdsl.Input{Type: automationLoopInputTypeJSON},
+			value:    "{",
+			wantKind: "json",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			starter := newStarterWithInputs(t, t.TempDir(), map[string]loopdsl.Input{
+				"work": tc.declared,
+			})
+			_, err := starter.ResolveLoopInputs(
+				t.Context(),
+				request("printf 'work="+tc.value+"\\n'"),
+			)
+			if err == nil {
+				t.Fatal("ResolveLoopInputs() error = nil, want an invalid value failure")
+			}
+			if !strings.Contains(err.Error(), `"work"`) || !strings.Contains(err.Error(), tc.wantKind) {
+				t.Fatalf("ResolveLoopInputs() error = %q, want the key and declared kind", err)
+			}
+		})
+	}
+
+	t.Run("Should preserve cancellation identity when the fire is canceled", func(t *testing.T) {
+		starter := newStarter(t, t.TempDir())
+		ctx, cancel := context.WithCancel(t.Context())
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+		_, err := starter.ResolveLoopInputs(ctx, request("sleep 5; printf 'slug=late\\n'"))
+		if err == nil {
+			t.Fatal("ResolveLoopInputs() error = nil, want cancellation")
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("ResolveLoopInputs() error = %v, want context.Canceled identity", err)
+		}
+	})
+
 	t.Run("Should fail with the bounded stderr when the command exits non-zero", func(t *testing.T) {
 		t.Parallel()
 
@@ -184,6 +308,22 @@ func TestAutomationLoopStarterResolveLoopInputs(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "timed out") {
 			t.Fatalf("ResolveLoopInputs() error = %q, want a timeout reason", err)
+		}
+	})
+
+	t.Run("Should stop the command group when stdout exceeds the limit", func(t *testing.T) {
+		t.Parallel()
+
+		starter := newStarter(t, t.TempDir())
+		_, err := starter.ResolveLoopInputs(
+			t.Context(),
+			request("head -c 2097152 /dev/zero | tr '\\0' a"),
+		)
+		if err == nil {
+			t.Fatal("ResolveLoopInputs() error = nil, want an output limit failure")
+		}
+		if !strings.Contains(err.Error(), "exceeds") {
+			t.Fatalf("ResolveLoopInputs() error = %q, want the output limit reason", err)
 		}
 	})
 

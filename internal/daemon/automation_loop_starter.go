@@ -18,13 +18,12 @@ import (
 )
 
 type automationLoopStarter struct {
-	service         automationLoopService
-	resolver        looppkg.DefinitionResolver
-	inputEntities   looppkg.InputEntityCatalog
-	runtimeCatalog  looppkg.WorkspaceRuntimeCatalog
-	workspaces      workspacepkg.RuntimeResolver
-	commandTimeout  time.Duration
-	commandEnvAllow []string
+	service        automationLoopService
+	resolver       looppkg.DefinitionResolver
+	inputEntities  looppkg.InputEntityCatalog
+	runtimeCatalog looppkg.WorkspaceRuntimeCatalog
+	workspaces     workspacepkg.RuntimeResolver
+	commandTimeout time.Duration
 }
 
 type automationLoopService interface {
