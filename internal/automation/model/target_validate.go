@@ -265,7 +265,29 @@ func (t *LoopTarget) Validate(path string, scope Scope, automationWorkspaceID st
 	if err := validateLoopTargetInputs(t.Inputs, nestedPath(path, "inputs")); err != nil {
 		return err
 	}
+	if err := validateLoopTargetInputCommand(t.InputCommand, nestedPath(path, "input_command")); err != nil {
+		return err
+	}
 	return validateLoopTargetInputMapping(t.InputMapping, nestedPath(path, "input_mapping"))
+}
+
+// loopTargetInputCommandMaxLength bounds the operator-authored fire-time input command.
+const loopTargetInputCommandMaxLength = 4096
+
+func validateLoopTargetInputCommand(command string, path string) error {
+	if command == "" {
+		return nil
+	}
+	if strings.TrimSpace(command) == "" {
+		return errors.New(path + " must not be blank")
+	}
+	if len(command) > loopTargetInputCommandMaxLength {
+		return fmt.Errorf("%s must be at most %d bytes", path, loopTargetInputCommandMaxLength)
+	}
+	if strings.ContainsRune(command, 0) {
+		return errors.New(path + " must not contain NUL bytes")
+	}
+	return nil
 }
 
 func validateLoopTargetInputs(inputs map[string]any, path string) error {
@@ -345,5 +367,6 @@ func hasLoopTarget(target *LoopTarget) bool {
 	return strings.TrimSpace(target.WorkspaceID) != "" ||
 		strings.TrimSpace(target.LoopName) != "" ||
 		len(target.Inputs) > 0 ||
-		len(target.InputMapping) > 0
+		len(target.InputMapping) > 0 ||
+		strings.TrimSpace(target.InputCommand) != ""
 }

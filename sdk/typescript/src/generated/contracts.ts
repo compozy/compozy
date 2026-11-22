@@ -822,6 +822,7 @@ export interface LoopTarget {
   loop_name: string;
   inputs?: Record<string, JSONValue>;
   input_mapping?: Record<string, string>;
+  input_command?: string;
 }
 
 export type RetryStrategy = string;

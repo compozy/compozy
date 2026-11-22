@@ -5187,6 +5187,7 @@ export type LoopStartBinding = {
 };
 
 export type LoopTarget = {
+  input_command?: string;
   input_mapping?: {
     [key: string]: string;
   };

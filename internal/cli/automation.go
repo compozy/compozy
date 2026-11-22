@@ -87,6 +87,7 @@ type automationJobUpdateInput struct {
 	MisfireGraceSeconds int
 	RetryRaw            string
 	Enabled             bool
+	LoopInputCommand    string
 }
 
 func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
@@ -155,6 +156,7 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 		misfireGraceSeconds int
 		retryRaw            string
 		enabled             bool
+		loopInputCommand    string
 	)
 
 	cmd := &cobra.Command{
@@ -176,6 +178,7 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 				MisfireGraceSeconds: misfireGraceSeconds,
 				RetryRaw:            retryRaw,
 				Enabled:             enabled,
+				LoopInputCommand:    loopInputCommand,
 			})
 			if err != nil {
 				return err
@@ -203,6 +206,12 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&retryRaw, automationRetryKey, "", `Update retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
 	cmd.Flags().BoolVar(&enabled, automationEnabledKey, false, "Update the enabled state")
+	cmd.Flags().StringVar(
+		&loopInputCommand,
+		automationLoopInputCommandFlag,
+		"",
+		"Resolve Loop inputs at each fire by running a shell command in the workspace; empty clears it",
+	)
 	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
@@ -230,12 +239,25 @@ func buildAutomationJobUpdateRequest(
 	}
 
 	var currentSchedule *automationpkg.ScheduleSpec
+	currentLoaded := false
+	var current JobRecord
+	loadCurrent := func() (JobRecord, error) {
+		if currentLoaded {
+			return current, nil
+		}
+		loaded, err := client.GetAutomationJob(cmd.Context(), input.JobID)
+		if err != nil {
+			return JobRecord{}, err
+		}
+		current, currentLoaded = loaded, true
+		return current, nil
+	}
 	if reliabilityChanged || scheduleChanged && request.Schedule.Mode != automationpkg.ScheduleModeAt {
-		current, err := client.GetAutomationJob(cmd.Context(), input.JobID)
+		loaded, err := loadCurrent()
 		if err != nil {
 			return AutomationJobUpdateRequest{}, err
 		}
-		currentSchedule = current.Schedule
+		currentSchedule = loaded.Schedule
 	}
 	if scheduleChanged && request.Schedule.Mode != automationpkg.ScheduleModeAt && currentSchedule != nil {
 		request.Schedule.CatchUpPolicy = currentSchedule.CatchUpPolicy
@@ -275,6 +297,24 @@ func buildAutomationJobUpdateRequest(
 	}
 	if cmd.Flags().Changed(automationEnabledKey) {
 		request.Enabled = new(input.Enabled)
+	}
+	if cmd.Flags().Changed(automationLoopInputCommandFlag) {
+		command, err := parseAutomationLoopInputCommand(input.LoopInputCommand)
+		if err != nil {
+			return AutomationJobUpdateRequest{}, err
+		}
+		loaded, err := loadCurrent()
+		if err != nil {
+			return AutomationJobUpdateRequest{}, err
+		}
+		if loaded.LoopTarget == nil {
+			return AutomationJobUpdateRequest{}, errors.New(
+				"cli: --loop-input-command requires a Loop target job",
+			)
+		}
+		target := *loaded.LoopTarget
+		target.InputCommand = command
+		request.LoopTarget = &target
 	}
 	return request, nil
 }

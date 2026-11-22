@@ -18,10 +18,13 @@ import (
 )
 
 type automationLoopStarter struct {
-	service        automationLoopService
-	resolver       looppkg.DefinitionResolver
-	inputEntities  looppkg.InputEntityCatalog
-	runtimeCatalog looppkg.WorkspaceRuntimeCatalog
+	service         automationLoopService
+	resolver        looppkg.DefinitionResolver
+	inputEntities   looppkg.InputEntityCatalog
+	runtimeCatalog  looppkg.WorkspaceRuntimeCatalog
+	workspaces      workspacepkg.RuntimeResolver
+	commandTimeout  time.Duration
+	commandEnvAllow []string
 }
 
 type automationLoopService interface {
@@ -84,6 +87,8 @@ func newAutomationLoopStarter(
 		resolver:       resolver,
 		inputEntities:  inputEntities,
 		runtimeCatalog: runtimeCatalog,
+		workspaces:     workspaceResolver,
+		commandTimeout: automationLoopInputCommandTimeout,
 	}, nil
 }
 

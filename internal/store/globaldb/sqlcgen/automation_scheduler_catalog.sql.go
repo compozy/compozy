@@ -81,7 +81,7 @@ SELECT j.grant_ceiling, j.profile_id, j.id, j.scope, j.name, j.agent_name, j.wor
   CASE WHEN j.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
     THEN o.enabled_override ELSE j.enabled END AS enabled,
   j.retry, j.fire_limit, j.source, j.target_kind, j.loop_workspace_id,
-	j.loop_name, j.loop_inputs, j.loop_input_mapping, j.created_at, j.updated_at
+	j.loop_name, j.loop_inputs, j.loop_input_mapping, j.loop_input_command, j.created_at, j.updated_at
 FROM requested
 JOIN automation_jobs AS j ON j.id = requested.job_id
 LEFT JOIN automation_job_overlays AS o ON o.job_id = j.id
@@ -108,6 +108,7 @@ type HydrateAutomationJobCatalogRow struct {
 	LoopName         sql.NullString `json:"loop_name"`
 	LoopInputs       sql.NullString `json:"loop_inputs"`
 	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
+	LoopInputCommand sql.NullString `json:"loop_input_command"`
 	CreatedAt        string         `json:"created_at"`
 	UpdatedAt        string         `json:"updated_at"`
 }
@@ -141,6 +142,7 @@ func (q *Queries) HydrateAutomationJobCatalog(ctx context.Context, idsJson any) 
 			&i.LoopName,
 			&i.LoopInputs,
 			&i.LoopInputMapping,
+			&i.LoopInputCommand,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -166,6 +168,7 @@ SELECT t.grant_ceiling, t.profile_id, t.id, t.scope, t.name, t.agent_name, t.wor
     THEN o.enabled_override ELSE t.enabled END AS enabled,
   t.retry, t.fire_limit, t.source, t.webhook_id, t.endpoint_slug, t.webhook_secret_ref,
   t.target_kind, t.target_instance_scope, t.loop_workspace_id, t.loop_name, t.loop_inputs, t.loop_input_mapping,
+  t.loop_input_command,
 	t.created_at, t.updated_at
 FROM requested
 JOIN automation_triggers AS t ON t.id = requested.trigger_id
@@ -197,6 +200,7 @@ type HydrateAutomationTriggerCatalogRow struct {
 	LoopName            sql.NullString `json:"loop_name"`
 	LoopInputs          sql.NullString `json:"loop_inputs"`
 	LoopInputMapping    sql.NullString `json:"loop_input_mapping"`
+	LoopInputCommand    sql.NullString `json:"loop_input_command"`
 	CreatedAt           string         `json:"created_at"`
 	UpdatedAt           string         `json:"updated_at"`
 }
@@ -234,6 +238,7 @@ func (q *Queries) HydrateAutomationTriggerCatalog(ctx context.Context, idsJson a
 			&i.LoopName,
 			&i.LoopInputs,
 			&i.LoopInputMapping,
+			&i.LoopInputCommand,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

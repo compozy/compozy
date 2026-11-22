@@ -13673,6 +13673,7 @@ export interface components {
       kind: string;
     };
     LoopTarget: {
+      input_command?: string;
       input_mapping?: {
         [key: string]: string;
       };

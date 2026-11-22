@@ -18442,6 +18442,9 @@
       },
       "LoopTarget": {
         "properties": {
+          "input_command": {
+            "type": "string"
+          },
           "input_mapping": {
             "additionalProperties": {
               "type": "string"

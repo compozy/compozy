@@ -105,6 +105,15 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 		return d.finishRun(ctx, scheduledRun, RunCancelled, nil)
 	}
 
+	inputs, skipped, inputErr := d.resolveLoopInputsForFire(ctx, req, target, scheduledRun)
+	if inputErr != nil {
+		return d.finishRun(ctx, scheduledRun, RunFailed, inputErr)
+	}
+	if skipped {
+		scheduledRun.Metadata = loopInputSkipMetadata(scheduledRun.Metadata)
+		return d.finishRun(ctx, scheduledRun, RunCancelled, nil)
+	}
+
 	actor, err := loopTargetActorContext(req, scheduledRun.ID)
 	if err != nil {
 		return d.finishRun(ctx, scheduledRun, RunFailed, err)
@@ -123,7 +132,7 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 			WorkspaceID:     strings.TrimSpace(target.WorkspaceID),
 			LoopName:        strings.TrimSpace(target.LoopName),
 			Kind:            req.loopStartKind(),
-			Inputs:          cloneJSONMap(target.Inputs),
+			Inputs:          inputs,
 			InputMapping:    cloneStringMap(target.InputMapping),
 			TriggerPayload:  cloneJSONMap(req.envelopeData()),
 			Actor:           actor,
