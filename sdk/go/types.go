@@ -27,10 +27,6 @@ const ProtocolVersion = "1"
 // MinCompozyVersion is the oldest CompozyOS daemon supported by this SDK release.
 const MinCompozyVersion = "0.3.0-beta.1"
 
-// InputsMinCompozyVersion is the first CompozyOS release that builds and delivers SDK-declared
-// subprocess inputs. Describe raises the emitted floor to it when the definition declares inputs.
-const InputsMinCompozyVersion = "0.7.9"
-
 // CapabilityToolProvider is the provide surface for executable extension-host tools.
 const CapabilityToolProvider = "tool.provider"
 
@@ -146,12 +142,6 @@ type ExtensionDefinition struct {
 	Gateway             *GatewayRequirement `json:"gateway,omitzero"`
 	Metadata            map[string]string   `json:"metadata,omitempty"`
 }
-
-// Input declares one typed install input with the manifest [[inputs]] grammar.
-type Input = contracts.DescribeInput
-
-// InputBinding names the environment variable receiving an input value.
-type InputBinding = contracts.DescribeInputBinding
 
 // DescribeResources declares source-relative static resource paths shipped by an extension.
 type DescribeResources = contracts.DescribeResources
