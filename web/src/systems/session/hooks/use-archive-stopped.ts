@@ -25,6 +25,12 @@ export interface ArchiveStoppedModel {
   running: (scope: ArchiveStoppedScope) => boolean;
 }
 
+/** One run: the profile it archives in, so Undo and the in-flight state stay with that profile. */
+interface ArchiveStoppedRun {
+  profile: string;
+  scope: ArchiveStoppedScope;
+}
+
 function errorText(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
@@ -37,13 +43,19 @@ function errorText(error: unknown, fallback: string): string {
 export function useArchiveStopped(profile: string): ArchiveStoppedModel {
   const queryClient = useQueryClient();
   const inFlight = useMutationState({
-    filters: { mutationKey: ARCHIVE_STOPPED_KEY, status: "pending" },
-    select: mutation => archiveStoppedScopeKey(mutation.state.variables as ArchiveStoppedScope),
+    filters: {
+      mutationKey: ARCHIVE_STOPPED_KEY,
+      status: "pending",
+      predicate: mutation => (mutation.state.variables as ArchiveStoppedRun).profile === profile,
+    },
+    select: mutation =>
+      archiveStoppedScopeKey((mutation.state.variables as ArchiveStoppedRun).scope),
   });
+  // A read that starts after the change: a list fetch already in flight may predate it.
   const refreshLists = () =>
-    void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }, { cancelRefetch: false });
+    void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }, { cancelRefetch: true });
 
-  const undo = (report: SessionArchiveStoppedResponse) => {
+  const undo = (report: SessionArchiveStoppedResponse, runProfile: string) => {
     const { ids, threadOf } = archiveStoppedUndoPlan(report);
     const workspaceOf = new Map(
       report.archived.flatMap(thread =>
@@ -56,7 +68,7 @@ export function useArchiveStopped(profile: string): ArchiveStoppedModel {
       ids,
       previous: [],
       coveredBy: threadOf,
-      execute: id => unarchiveSession(workspaceOf.get(id)!, id, profile),
+      execute: id => unarchiveSession(workspaceOf.get(id)!, id, runProfile),
       onProgress: () => {},
     }).then(results => {
       refreshLists();
@@ -68,11 +80,11 @@ export function useArchiveStopped(profile: string): ArchiveStoppedModel {
 
   const mutation = useMutation({
     mutationKey: ARCHIVE_STOPPED_KEY,
-    mutationFn: (scope: ArchiveStoppedScope) => archiveStoppedSessions(profile, scope),
-    onSuccess: report => {
+    mutationFn: (run: ArchiveStoppedRun) => archiveStoppedSessions(run.profile, run.scope),
+    onSuccess: (report, run) => {
       refreshLists();
       const outcome = archiveStoppedOutcome(report);
-      const action = { label: "Undo", onClick: () => undo(report) };
+      const action = { label: "Undo", onClick: () => undo(report, run.profile) };
       if (outcome.kind === "empty") {
         toast.message("No stopped threads to archive", { description: outcome.description });
       } else if (outcome.kind === "archived") {
@@ -90,7 +102,7 @@ export function useArchiveStopped(profile: string): ArchiveStoppedModel {
   const running = (scope: ArchiveStoppedScope) => inFlight.includes(archiveStoppedScopeKey(scope));
   return {
     archiveStopped: scope => {
-      if (!running(scope)) mutation.mutate(scope);
+      if (!running(scope)) mutation.mutate({ profile, scope });
     },
     running,
   };

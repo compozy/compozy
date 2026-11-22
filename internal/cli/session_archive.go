@@ -31,7 +31,7 @@ func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Comm
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if archived {
 				if stoppedFlags.stopped {
-					return runSessionArchiveStopped(cmd, deps, stoppedFlags)
+					return runSessionArchiveStopped(cmd.Context(), cmd, deps, stoppedFlags)
 				}
 				if err := sessionArchiveStoppedOnlyFlagError(cmd); err != nil {
 					return err

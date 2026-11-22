@@ -2,6 +2,7 @@ package cli
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -68,7 +69,12 @@ func sessionArchiveStoppedOnlyFlagError(cmd *cobra.Command) error {
 	return nil
 }
 
-func runSessionArchiveStopped(cmd *cobra.Command, deps commandDeps, flags sessionArchiveStoppedFlags) error {
+func runSessionArchiveStopped(
+	ctx context.Context,
+	cmd *cobra.Command,
+	deps commandDeps,
+	flags sessionArchiveStoppedFlags,
+) error {
 	base, err := clientFromDeps(deps)
 	if err != nil {
 		return err
@@ -85,7 +91,7 @@ func runSessionArchiveStopped(cmd *cobra.Command, deps commandDeps, flags sessio
 			return withCommandExitCode(2, flagErr)
 		}
 		resolution, resolveErr := resolveCommandWorkspace(
-			cmd.Context(), cmd, deps, base, workspaceResolutionRequest{FlagRef: workspaceRef},
+			ctx, cmd, deps, base, workspaceResolutionRequest{FlagRef: workspaceRef},
 		)
 		if resolveErr != nil {
 			return resolveErr
@@ -93,7 +99,7 @@ func runSessionArchiveStopped(cmd *cobra.Command, deps commandDeps, flags sessio
 		request.WorkspaceID = resolution.ID
 		scope = cmp.Or(strings.TrimSpace(resolution.Detail.Workspace.Name), resolution.ID)
 	}
-	response, err := client.ArchiveStoppedSessions(cmd.Context(), request)
+	response, err := client.ArchiveStoppedSessions(ctx, request)
 	if err != nil {
 		return err
 	}

@@ -1203,27 +1203,30 @@ func TestSessionArchiveStoppedCommand(t *testing.T) {
 		t.Parallel()
 		var requests []contract.SessionArchiveStoppedRequest
 		deps := newDeps(t, &requests, report)
+		// Serial subtests: every scope appends to the shared requests.
 		for _, scope := range [][]string{{"--all-workspaces"}, {"--workspace", "platform"}} {
 			args := append([]string{"session", "archive", "--stopped", "-o", "json"}, scope...)
-			output, _, err := executeRootCommand(t, deps, args...)
-			if err != nil {
-				t.Fatalf("executeRootCommand(%v) error = %v", args, err)
-			}
-			var decoded map[string]any
-			if err := json.Unmarshal([]byte(output), &decoded); err != nil {
-				t.Fatalf("json.Unmarshal(%v) error = %v", args, err)
-			}
-			var want map[string]any
-			encoded, err := json.Marshal(report)
-			if err != nil {
-				t.Fatalf("json.Marshal(report) error = %v", err)
-			}
-			if err := json.Unmarshal(encoded, &want); err != nil {
-				t.Fatalf("json.Unmarshal(report) error = %v", err)
-			}
-			if !reflect.DeepEqual(decoded, want) {
-				t.Fatalf("%v output = %v, want the response DTO %v", args, decoded, want)
-			}
+			t.Run("Should print the DTO for "+strings.Join(scope, " "), func(t *testing.T) {
+				output, _, err := executeRootCommand(t, deps, args...)
+				if err != nil {
+					t.Fatalf("executeRootCommand(%v) error = %v", args, err)
+				}
+				var decoded map[string]any
+				if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+					t.Fatalf("json.Unmarshal(%v) error = %v", args, err)
+				}
+				var want map[string]any
+				encoded, err := json.Marshal(report)
+				if err != nil {
+					t.Fatalf("json.Marshal(report) error = %v", err)
+				}
+				if err := json.Unmarshal(encoded, &want); err != nil {
+					t.Fatalf("json.Unmarshal(report) error = %v", err)
+				}
+				if !reflect.DeepEqual(decoded, want) {
+					t.Fatalf("%v output = %v, want the response DTO %v", args, decoded, want)
+				}
+			})
 		}
 		wantRequests := []contract.SessionArchiveStoppedRequest{{AllWorkspaces: true}, {WorkspaceID: "ws-platform"}}
 		if !slices.Equal(requests, wantRequests) {
@@ -1247,21 +1250,28 @@ func TestSessionArchiveStoppedCommand(t *testing.T) {
 		}
 	})
 
-	for _, args := range [][]string{
-		{"sess-1", "--stopped"},
-		{"--stopped", "--stop"},
-		{"--stopped", "--with-children"},
-		{"--stopped", "--terminate-processes"},
-		{"--stopped", "--keep-processes"},
-		{"sess-1", "--dry-run"},
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{args: []string{"sess-1", "--stopped"}, want: "drop the session ID"},
+		{args: []string{"--stopped", "--stop"}, want: "--stopped cannot be combined with --stop"},
+		{args: []string{"--stopped", "--with-children"}, want: "--stopped cannot be combined with --with-children"},
+		{
+			args: []string{"--stopped", "--terminate-processes"},
+			want: "--stopped cannot be combined with --terminate-processes",
+		},
+		{args: []string{"--stopped", "--keep-processes"}, want: "--stopped cannot be combined with --keep-processes"},
+		{args: []string{"sess-1", "--dry-run"}, want: "--dry-run requires --stopped"},
 	} {
-		t.Run("Should refuse "+strings.Join(args, " ")+" as a usage error", func(t *testing.T) {
+		t.Run("Should refuse "+strings.Join(tc.args, " ")+" as a usage error", func(t *testing.T) {
 			t.Parallel()
 			var requests []contract.SessionArchiveStoppedRequest
 			deps := newDeps(t, &requests, report)
-			code, _, _ := executeRootCommandWithExit(t, deps, append([]string{"session", "archive"}, args...)...)
-			if code != 2 || len(requests) != 0 {
-				t.Fatalf("exit = %d requests = %d, want usage exit 2 without a request", code, len(requests))
+			code, _, stderr := executeRootCommandWithExit(t, deps, append([]string{"session", "archive"}, tc.args...)...)
+			if code != 2 || len(requests) != 0 || !strings.Contains(stderr, tc.want) {
+				t.Fatalf("exit = %d requests = %d stderr = %q, want usage exit 2 naming %q without a request",
+					code, len(requests), stderr, tc.want)
 			}
 		})
 	}
