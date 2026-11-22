@@ -805,7 +805,8 @@ func TestManifestFromDescribeResources(t *testing.T) {
 }
 
 func TestManifestFromDescribeInputs(t *testing.T) {
-	t.Parallel()
+	// Serial: the suite stamps daemon 0.6.0, below the floor described inputs must declare.
+	withDaemonVersion(t, subprocessInputsFloor)
 
 	describedInputsPayload := func() extensioncontract.DescribePayload {
 		payload := validDescribePayload()
