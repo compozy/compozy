@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/vault"
 )
 
 func TestManagerResolveInstanceEnvMap(t *testing.T) {
@@ -355,6 +356,80 @@ func TestManagerResolveLaunchInputGate(t *testing.T) {
 		}
 		if strings.Contains(err.Error(), "eu-west") {
 			t.Fatal("launch refusal leaked the stored value")
+		}
+	})
+
+	// The launch path agrees with the daemon state reader: an unavailable stored value is invalid.
+	t.Run(
+		"Should treat an unavailable bound value as invalid and abort on other resolution errors",
+		func(t *testing.T) {
+			t.Parallel()
+			optional := envLaunchInput("flag", "boolean", "FLAG", "true", false)
+			required := optional
+			required.Required = true
+			for _, missing := range []error{vault.ErrSecretNotFound, vault.ErrMissingSecret} {
+				manager := NewManager(nil,
+					WithGetenv(func(string) string { return "" }),
+					WithEnvBindingStore(&envResolutionBindingStore{bindings: map[string][]EnvBinding{
+						envResolutionBindingKey("demo", "", ""): staleBinding,
+					}}),
+					WithSecretResolver(envResolutionSecretResolver{errors: map[string]error{"vault:flag": missing}}),
+				)
+				env, cleanups, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+					[]string{"FLAG"}, []launchInput{optional}, t.TempDir(), nil, nil)
+				if err != nil {
+					t.Fatalf("resolveInstanceEnvMap(optional, %v) error = %v, want start", missing, err)
+				}
+				runExtensionRedactionCleanups(cleanups)
+				if value, exists := envListToMap(t, env)["FLAG"]; exists {
+					t.Fatalf("FLAG = %q with %v, want the unavailable optional input omitted", value, missing)
+				}
+				_, _, err = manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+					[]string{"FLAG"}, []launchInput{required}, t.TempDir(), nil, nil)
+				refused, ok := errors.AsType[*InputsRequiredError](err)
+				if !ok || !slices.Equal(refused.InvalidInputs, []string{"flag"}) {
+					t.Fatalf(
+						"resolveInstanceEnvMap(required, %v) error = %#v, want flag refused as invalid",
+						missing,
+						err,
+					)
+				}
+			}
+			locked := errors.New("vault is locked")
+			manager := NewManager(nil,
+				WithGetenv(func(string) string { return "" }),
+				WithEnvBindingStore(&envResolutionBindingStore{bindings: map[string][]EnvBinding{
+					envResolutionBindingKey("demo", "", ""): staleBinding,
+				}}),
+				WithSecretResolver(envResolutionSecretResolver{errors: map[string]error{"vault:flag": locked}}),
+			)
+			_, _, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+				[]string{"FLAG"}, []launchInput{optional}, t.TempDir(), nil, nil)
+			if !errors.Is(err, locked) {
+				t.Fatalf("resolveInstanceEnvMap(locked) error = %v, want the Vault failure", err)
+			}
+		},
+	)
+
+	t.Run("Should keep a stored typed row over the default of a required server-consumed input", func(t *testing.T) {
+		t.Parallel()
+		served := envLaunchInput("region", "string", "REGION", `"us-east"`, true)
+		served.Required = true
+		manager := NewManager(nil,
+			WithGetenv(func(string) string { return "" }),
+			WithEnvBindingStore(&envResolutionBindingStore{}),
+			WithInputRowReader(envResolutionInputRows{
+				"region": {Type: "string", Value: json.RawMessage(`"eu-west"`), Active: true},
+			}),
+		)
+		env, cleanups, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+			[]string{"REGION"}, []launchInput{served}, t.TempDir(), nil, nil)
+		if err != nil {
+			t.Fatalf("resolveInstanceEnvMap() error = %v, want start", err)
+		}
+		runExtensionRedactionCleanups(cleanups)
+		if value, exists := envListToMap(t, env)["REGION"]; exists {
+			t.Fatalf("REGION = %q, want the default withheld behind the stored typed row", value)
 		}
 	})
 

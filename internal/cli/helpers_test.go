@@ -114,12 +114,14 @@ type stubClient struct {
 		SettingsMCPAuthTarget,
 		SettingsMCPAuthBeginRequest,
 	) (SettingsMCPAuthBeginRecord, error)
-	exchangeSettingsMCPAuthFn  func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
-	logoutSettingsMCPAuthFn    func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
-	installExtensionFn         func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
-	previewExtensionInstallFn  func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error)
-	extensionInputsFn          func(context.Context, string, extensionCLIScope) (ExtensionInputsRecord, error)
-	setExtensionInputsFn       func(context.Context, string, contract.SetExtensionInputsRequest) (ExtensionInputsRecord, error)
+	exchangeSettingsMCPAuthFn func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
+	logoutSettingsMCPAuthFn   func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
+	installExtensionFn        func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
+	previewExtensionInstallFn func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error)
+	extensionInputsFn         func(context.Context, string, extensionCLIScope) (ExtensionInputsRecord, error)
+	setExtensionInputsFn      func(
+		context.Context, string, extensionCLIScope, contract.SetExtensionInputsRequest,
+	) (ExtensionInputsRecord, error)
 	updateExtensionFn          func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
 	updateExtensionsFn         func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
 	removeExtensionFn          func(context.Context, string) (ManagedExtensionRemoveRecord, error)
@@ -1025,11 +1027,11 @@ func (s *stubClient) ExtensionInputs(
 func (s *stubClient) SetExtensionInputs(
 	ctx context.Context,
 	name string,
-	_ extensionCLIScope,
+	selected extensionCLIScope,
 	request contract.SetExtensionInputsRequest,
 ) (ExtensionInputsRecord, error) {
 	if s.setExtensionInputsFn != nil {
-		return s.setExtensionInputsFn(ctx, name, request)
+		return s.setExtensionInputsFn(ctx, name, selected, request)
 	}
 	return ExtensionInputsRecord{}, errors.New("unexpected SetExtensionInputs call")
 }

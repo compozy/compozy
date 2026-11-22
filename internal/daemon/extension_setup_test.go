@@ -431,6 +431,51 @@ func TestExtensionInputSetupInstanceRestart(t *testing.T) {
 			t.Fatalf("region state = %q, want missing", states["region"])
 		}
 	})
+
+	// A save that only mirrors an unchanged binding into its typed row changes no launched value.
+	t.Run("Should persist a mirror-only save without restarting the instance", func(t *testing.T) {
+		t.Parallel()
+		fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{})
+		fixture.service.getenv = func(string) string { return "" }
+		ctx := testutil.Context(t)
+		secretVault, ok := fixture.service.secretVault.(*extensionSecretVaultFake)
+		if !ok {
+			t.Fatal("setup fixture vault is not the fake vault")
+		}
+		// `secrets set` bound both values; neither has a typed row yet.
+		for _, bound := range []struct{ inputID, envName, value string }{
+			{"project", "PROJECT_ID", setupProjectValue},
+			{"region", "REGION", "us-east"},
+		} {
+			ref := vault.ExtensionProfileSecretRef(setupKitName, store.DefaultProfileID, "", bound.envName)
+			secretVault.seed(ref, extensionpkg.ExtensionEnvBindingKind, bound.value)
+			if err := fixture.bindings.PutEnvBinding(ctx, extensionpkg.EnvBinding{
+				ExtensionName: setupKitName, ProfileID: store.DefaultProfileID, EnvName: bound.envName,
+				SecretRef: ref, Kind: extensionpkg.ExtensionEnvBindingKind, InputID: bound.inputID,
+			}); err != nil {
+				t.Fatalf("PutEnvBinding(%s) error = %v", bound.envName, err)
+			}
+		}
+		recorder := &restartRecordingRuntime{fakeExtensionRuntime: fixture.runtime}
+		fixture.service.runtime = recorder
+
+		written, err := fixture.service.SetInputs(
+			ctx, extensionInputsTarget{Name: setupKitName}, setupValues("region", "us-east"), extensionSetupOperator(t),
+		)
+		if err != nil || written.Reloaded || len(written.Changed) != 0 || len(recorder.restarted) != 0 {
+			t.Fatalf("mirror-only save = %#v restarts %#v error %v, want no change and no restart",
+				written, recorder.restarted, err)
+		}
+		rows, err := fixture.service.inputs.List(
+			ctx, extensioninput.Instance{Extension: setupKitName, ProfileID: store.DefaultProfileID},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if row := rows["region"]; !row.Active || string(row.Value) != `"us-east"` {
+			t.Fatalf("region row = %#v, want the mirrored binding value persisted", row)
+		}
+	})
 }
 
 // failingRestartRuntime fails the next instance restart and records the stored project value each
@@ -518,6 +563,69 @@ func TestExtensionInputSetupReloadRollback(t *testing.T) {
 			t.Fatalf("rows after rollback = %#v, want %#v", rowsAfter, rowsBefore)
 		}
 	})
+
+	t.Run("Should roll back a committed write when the post-commit read fails", func(t *testing.T) {
+		t.Parallel()
+		fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{})
+		ctx := testutil.Context(t)
+		secretVault, ok := fixture.service.secretVault.(*extensionSecretVaultFake)
+		if !ok {
+			t.Fatal("setup fixture vault is not the fake vault")
+		}
+		target := extensionInputsTarget{Name: setupKitName}
+		instance := extensioninput.Instance{Extension: setupKitName, ProfileID: store.DefaultProfileID}
+		if _, err := fixture.service.SetInputs(
+			ctx, target, setupValues("project", setupProjectValue, "region", "us-east"), extensionSetupOperator(t),
+		); err != nil {
+			t.Fatalf("SetInputs() error = %v", err)
+		}
+		rows := fixture.service.inputs
+		injected := errors.New("injected post-commit read failure")
+		fixture.service.inputs = &extensionInputListFailureAfterApply{Store: rows, err: injected}
+
+		_, err := fixture.service.SetInputs(ctx, target, setupValues("region", "eu-other"), extensionSetupOperator(t))
+		if !errors.Is(err, injected) {
+			t.Fatalf("SetInputs() error = %v, want the post-commit read failure", err)
+		}
+		stored, err := rows.List(ctx, instance)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(stored["region"].Value) != `"us-east"` || !stored["region"].Active {
+			t.Fatalf("region row after failed read = %#v, want the prior value restored", stored["region"])
+		}
+		regionRef := vault.ExtensionProfileSecretRef(setupKitName, store.DefaultProfileID, "", "REGION")
+		if got := secretVault.value(regionRef); got != "us-east" {
+			t.Fatalf("region Vault value = %q, want the prior value restored", got)
+		}
+	})
+}
+
+// extensionInputListFailureAfterApply fails every row read once a row write has landed, modelling a
+// post-commit read failure; Apply keeps delegating so a rollback can still restore the rows.
+type extensionInputListFailureAfterApply struct {
+	extensioninput.Store
+	applied bool
+	err     error
+}
+
+func (s *extensionInputListFailureAfterApply) Apply(
+	ctx context.Context, instance extensioninput.Instance, mutations []extensioninput.Mutation,
+) error {
+	if err := s.Store.Apply(ctx, instance, mutations); err != nil {
+		return err
+	}
+	s.applied = true
+	return nil
+}
+
+func (s *extensionInputListFailureAfterApply) List(
+	ctx context.Context, instance extensioninput.Instance,
+) (map[string]extensioninput.Record, error) {
+	if s.applied {
+		return nil, s.err
+	}
+	return s.Store.List(ctx, instance)
 }
 
 // Invariant: an agent caller writes only missing, invalid or daemon_env inputs of its trusted instance (D7).

@@ -872,8 +872,9 @@ func TestResolveManifestMCPServerOptionalInvalidInputs(t *testing.T) {
 			_, err := ResolveManifestMCPServerResources(
 				t.TempDir(), manifestFor(true), staleState, func(string) string { return "" },
 			)
-			if err == nil {
-				t.Fatal("ResolveManifestMCPServerResources() error = nil, want required input failure")
+			required, ok := errors.AsType[*InputsRequiredError](err)
+			if !ok || !slices.Equal(required.InvalidInputs, []string{"region"}) {
+				t.Fatalf("ResolveManifestMCPServerResources() error = %#v, want region reported as invalid", err)
 			}
 		})
 	}

@@ -218,9 +218,12 @@ func (p *extensionInputPrompter) read(ctx context.Context, hidden bool) (string,
 		}
 		readLine = func() (string, error) {
 			value, err := p.readPassword(fd)
-			_, _ = fmt.Fprintln(p.output)
+			_, writeErr := fmt.Fprintln(p.output)
 			if err != nil {
-				return "", fmt.Errorf("cli: read hidden extension input: %w", err)
+				return "", errors.Join(fmt.Errorf("cli: read hidden extension input: %w", err), writeErr)
+			}
+			if writeErr != nil {
+				return "", fmt.Errorf("cli: write extension input prompt: %w", writeErr)
 			}
 			return strings.TrimRight(string(value), "\r\n"), nil
 		}
@@ -238,11 +241,13 @@ func (p *extensionInputPrompter) read(ctx context.Context, hidden bool) (string,
 	case result := <-done:
 		return result.text, result.err
 	case <-ctx.Done():
-		restoreErr := restore()
-		_, _ = fmt.Fprintln(p.output)
-		if restoreErr != nil {
-			return "", errors.Join(errExtensionInputPromptAborted, fmt.Errorf("cli: restore terminal: %w", restoreErr))
+		err := errExtensionInputPromptAborted
+		if restoreErr := restore(); restoreErr != nil {
+			err = errors.Join(err, fmt.Errorf("cli: restore terminal: %w", restoreErr))
 		}
-		return "", errExtensionInputPromptAborted
+		if _, writeErr := fmt.Fprintln(p.output); writeErr != nil {
+			err = errors.Join(err, fmt.Errorf("cli: write extension input prompt: %w", writeErr))
+		}
+		return "", err
 	}
 }

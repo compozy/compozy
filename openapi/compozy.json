@@ -66023,19 +66023,11 @@
             }
           },
           {
-            "description": "Read one profile's rows by name",
+            "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "description": "Read the owner-labeled all-profiles aggregate",
-            "in": "query",
-            "name": "all_profiles",
-            "schema": {
-              "type": "boolean"
             }
           }
         ],

@@ -2,12 +2,14 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
+// extensionInputsParameters documents the scoped profile selector alone on both verbs: the inputs
+// handlers resolve one acting profile, so the all-profiles aggregate is not offered on the read.
 func extensionInputsParameters() []ParameterSpec {
-	return []ParameterSpec{
+	return withProfileSelector(
 		pathParam("name", "Extension name"),
 		queryParam("scope", "Installation scope: global or workspace", false),
 		queryParam("workspace", specExtensionWorkspaceParamDescription, false),
-	}
+	)
 }
 
 func getExtensionInputsOperationSpec() OperationSpec {

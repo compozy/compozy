@@ -2798,7 +2798,11 @@ env = { ACME_VALUE = "acme_value" }
 			if len(described) != 1 || described[0].Set != test.set || described[0].State != test.state {
 				t.Fatalf("DescribeInputState() = %#v, want set %v state %q", described, test.set, test.state)
 			}
-			required, ok := errors.AsType[*InputsRequiredError](ready.RequiredError(manifest))
+			requiredErr := ready.RequiredError(manifest)
+			if len(test.missingEnv) == 0 && requiredErr != nil {
+				t.Fatalf("RequiredError() = %v, want nil for a nonblocking input", requiredErr)
+			}
+			required, ok := errors.AsType[*InputsRequiredError](requiredErr)
 			if len(test.missingEnv) > 0 && (!ok || !slices.Equal(required.MissingInputs, []string{"acme_value"})) {
 				t.Fatalf("RequiredError() = %#v, want acme_value", required)
 			}

@@ -403,6 +403,8 @@ func TestDescribeInputs(t *testing.T) {
 		for _, tc := range []struct{ declared, want string }{
 			{declared: "0.5.0", want: compozysdk.InputsMinCompozyVersion},
 			{declared: "0.8.0", want: "0.8.0"},
+			{declared: compozysdk.InputsMinCompozyVersion + "-rc.1", want: compozysdk.InputsMinCompozyVersion},
+			{declared: "0.7.10+build.1", want: "0.7.10+build.1"},
 		} {
 			extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
 				Name: "acme-tool", Version: "1.2.0", RequiresEnv: []string{"ACME_REGION"},
