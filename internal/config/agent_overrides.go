@@ -24,6 +24,14 @@ type AgentOverride struct {
 	Model           string         `toml:"model,omitempty"`
 	ReasoningEffort string         `toml:"reasoning_effort,omitempty"`
 	Speed           speedpkg.Speed `toml:"speed,omitempty"`
+	// FallbackChain replaces the authored chain as a whole. Nil leaves the authored chain;
+	// a non-nil empty chain (`fallback_chain = []`) clears it.
+	FallbackChain []RoleFallback `toml:"fallback_chain,omitempty"`
+}
+
+func (o *AgentOverride) isZero() bool {
+	return o.Permissions == "" && o.Provider == "" && o.Model == "" && o.ReasoningEffort == "" &&
+		o.Speed == "" && o.FallbackChain == nil
 }
 
 type agentOverrideOverlay struct {
@@ -32,11 +40,12 @@ type agentOverrideOverlay struct {
 	Model           *string         `toml:"model"`
 	ReasoningEffort *string         `toml:"reasoning_effort"`
 	Speed           *speedpkg.Speed `toml:"speed"`
+	FallbackChain   *[]RoleFallback `toml:"fallback_chain"`
 }
 
 // agentOverrideFields records which effective runtime fields an override supplied.
 type agentOverrideFields struct {
-	permissions, provider, model, reasoningEffort, speed bool
+	permissions, provider, model, reasoningEffort, speed, fallbackChain bool
 }
 
 // applyAgentOverrideOverlays merges each layer per agent and per field, so a workspace layer
@@ -59,6 +68,13 @@ func applyAgentOverrideOverlays(layer map[string]agentOverrideOverlay, dst *map[
 		assignTrimmed(&current.ReasoningEffort, overlay.ReasoningEffort)
 		if overlay.Speed != nil {
 			current.Speed = normalizeAgentSpeed(*overlay.Speed)
+		}
+		if overlay.FallbackChain != nil {
+			// A narrower layer replaces the whole chain; an explicit empty array clears it.
+			current.FallbackChain = normalizeRoleFallbacks(*overlay.FallbackChain)
+			if current.FallbackChain == nil {
+				current.FallbackChain = []RoleFallback{}
+			}
 		}
 		(*dst)[key] = current
 	}
@@ -88,6 +104,9 @@ func validateAgentOverrides(overrides map[string]AgentOverride) error {
 		if err := validateAgentSpeed(override.Speed, path+".speed"); err != nil {
 			return err
 		}
+		if err := validateFallbackChain(path+".fallback_chain", override.FallbackChain, nil, false); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -110,7 +129,7 @@ func (c *Config) AgentOverride(name string) (AgentOverride, bool) {
 		return AgentOverride{}, false
 	}
 	override, ok := c.Agents.Overrides[NormalizeAgentName(name)]
-	return override, ok && override != AgentOverride{}
+	return override, ok && !override.isZero()
 }
 
 // ApplyAgentOverride returns the definition with its configured operator override applied.
@@ -119,6 +138,16 @@ func (c *Config) AgentOverride(name string) (AgentOverride, bool) {
 func (c *Config) ApplyAgentOverride(agent AgentDef) AgentDef {
 	overridden, _ := c.applyAgentOverride(agent)
 	return overridden
+}
+
+// EffectiveAgentFallbackChain returns the agent's fallback chain after its operator override:
+// the override chain when one is configured (empty when it clears the chain), otherwise the
+// authored chain.
+func (c *Config) EffectiveAgentFallbackChain(agent AgentDef) []RoleFallback {
+	if override, ok := c.AgentOverride(agent.Name); ok && override.FallbackChain != nil {
+		return cloneRoleFallbacks(override.FallbackChain)
+	}
+	return agent.FallbackChain
 }
 
 // applyAgentOverride mirrors the session runtime rule: a changed provider owns the complete
@@ -155,6 +184,9 @@ func (c *Config) applyAgentOverride(agent AgentDef) (AgentDef, agentOverrideFiel
 	}
 	if override.Permissions != "" {
 		agent.Permissions, applied.permissions = override.Permissions, true
+	}
+	if override.FallbackChain != nil {
+		agent.FallbackChain, applied.fallbackChain = cloneRoleFallbacks(override.FallbackChain), true
 	}
 	return agent, applied
 }
@@ -199,4 +231,5 @@ func (applied agentOverrideFields) markOverrideSources(sources *ResolvedRuntimeS
 	mark(applied.reasoningEffort, &sources.ReasoningEffort)
 	mark(applied.speed, &sources.Speed)
 	mark(applied.permissions, &sources.Permissions)
+	mark(applied.fallbackChain, &sources.FallbackChain)
 }

@@ -8620,6 +8620,7 @@ export interface components {
     AgentEffectiveRuntimePayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       auto_compact_window?: number | null;
+      fallback_chain?: components["schemas"]["RoleFallbackStatus"][];
       lean_environment?: boolean | null;
       model?: string;
       permissions?: string;
@@ -8635,6 +8636,7 @@ export interface components {
       speed?: "normal" | "fast";
     };
     AgentEffectiveRuntimeSources: {
+      fallback_chain?: string;
       model?: string;
       permissions?: string;
       provider: string;

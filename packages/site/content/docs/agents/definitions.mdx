@@ -110,7 +110,7 @@ does not merge either definition before or after the delete.
 
 ### Override a packaged agent without forking it
 
-To change only the permission level (or provider, model, reasoning effort, or speed) of a bundled,
+To change only the permission level (or provider, model, reasoning effort, speed, or fallback chain) of a bundled,
 extension, or global agent, add an operator override to `config.toml` instead of copying its
 `AGENT.md`:
 
@@ -310,6 +310,14 @@ command is missing an executable`, `agent "reviewer" fallback_chain[1].provider:
 "grokk"`), and it is projected by `compozy agent show` and `GET /api/agents/{name}` with a
 `command_fingerprint` (`sha256:`) for every route that sets `command`. There is no limit on the number of
 routes or on command length.
+
+An operator can replace the chain of a bundled, extension, or global agent without forking its
+`AGENT.md` with `[[agents.overrides.<name>.fallback_chain]]` in `config.toml`; the override replaces the
+whole chain, and `fallback_chain = []` clears it. Session starts, the first prompt bind of an
+unbound session, `compozy session continue --route`, forks, and resumes then use the override chain. Reads keep the authored chain in `fallback_chain` and
+report the chain new sessions use in `effective_runtime.fallback_chain`, with
+`sources.fallback_chain` set to `agent` or `config_override`. See
+[`[agents.overrides.<agent>]`](/docs/configuration/config-toml#agentsoverridesagent).
 
 Only one chain owns a launch. Sessions that a background role launches with this agent (an inherited
 `auto_title`, for example) always run the role's own `fallback_chain` from `config.toml`, never this one.

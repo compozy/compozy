@@ -259,6 +259,7 @@ type AgentEffectiveRuntimePayload struct {
 	ACPOptions               []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
 	PolicyExcludedACPOptions []AgentACPOptionSelection                 `json:"policy_excluded_acp_options,omitempty"`
 	Permissions              string                                    `json:"permissions,omitempty"`
+	FallbackChain            []RoleFallbackStatus                      `json:"fallback_chain,omitempty"`
 	Sources                  AgentEffectiveRuntimeSources              `json:"sources"`
 }
 
@@ -269,6 +270,7 @@ type AgentEffectiveRuntimeSources struct {
 	ReasoningEffort AgentRuntimeValueSource `json:"reasoning_effort,omitempty"`
 	Speed           AgentRuntimeValueSource `json:"speed,omitempty"`
 	Permissions     AgentRuntimeValueSource `json:"permissions,omitempty"`
+	FallbackChain   AgentRuntimeValueSource `json:"fallback_chain,omitempty"`
 }
 
 // AgentFallbackRoutePayload is a daemon API value.
