@@ -384,6 +384,25 @@ Execution stops at the first failure and keeps completed dependencies, reported 
 naming it; set it up separately first. `compozy__extensions_install` accepts the same
 `with_dependencies` and closed `dependencies` object with the authority of a plain install.
 
+CLI: on a human TTY, `compozy extension install` answers `extension_dependencies_required` with one
+consolidated preview (name, version, source, state, trust, gateway digest, required by), asks once,
+then asks each artifact's own gates (unverified consent, gateway digest) and retries with
+`with_dependencies`. Without a TTY or with `-o json`, pass `--with-dependencies`; bare
+`--allow-unverified` covers only the requested extension, each unverified dependency needs
+`--allow-unverified-dependency <name>` (with `--yes` for structured output), and
+`--confirm-gateway-requirement` takes a bare digest for the root and `<name>=<digest>` for a dependency.
+A `version_unmet` dependency prints `Update first: compozy extension update <dep>` and exits 2.
+
+Remove (`DELETE /api/extensions/{name}`) and disable (`PUT /api/extensions/{name}/enablement` with
+`enabled: false`) refuse with `409 extension_dependency_in_use` while an installed dependent still
+resolves its dependency to that installation; `dependents[]` lists `name`, `workspace_id` and
+`profile` (empty means global or all profiles). `?force=true`, `{"force": true}`, CLI `--force`, or
+native `force` on `compozy__extensions_remove`/`compozy__extensions_disable` proceeds. Nothing
+cascades: the dependent keeps its runtime state and status/list/info report
+`unmet_dependencies: [{name, min_version, state, ...}]`. Enabling a dependent whose dependencies are
+unmet refuses with `422 extension_dependencies_required`; boot never refuses. The CLI prints the
+dependents and exits 1.
+
 ## Built-in Permanent Removal
 
 A built-in is a bundled extension, embedded in the binary from `extensions/`. A plain

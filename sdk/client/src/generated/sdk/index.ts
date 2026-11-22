@@ -994,6 +994,7 @@ export type {
   ExtensionDependencyConsent,
   ExtensionDependencyParentPayload,
   ExtensionDependencyPayload,
+  ExtensionDependentPayload,
   ExtensionEnableError,
   ExtensionEnablementPayload,
   ExtensionEnablePreviewPayload,

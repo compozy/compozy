@@ -72,6 +72,13 @@ type ExtensionDependencyParentPayload struct {
 	Ref    string `json:"ref"`
 }
 
+// ExtensionDependentPayload names one installed dependent that still needs a dependency. Experimental.
+type ExtensionDependentPayload struct {
+	Name        string `json:"name"`
+	WorkspaceID string `json:"workspace_id"`
+	Profile     string `json:"profile"`
+}
+
 // ExtensionValidationErrorPayload reports positioned extension validation failures.
 type ExtensionValidationErrorPayload struct {
 	Error      string            `json:"error"`
@@ -108,6 +115,8 @@ type ExtensionOperationErrorPayload struct {
 	Path         []string                           `json:"path,omitempty"`
 	Parents      []ExtensionDependencyParentPayload `json:"parents,omitempty"`
 	RetryCommand string                             `json:"retry_command,omitempty"`
+	// Dependents lists the installed dependents of an extension_dependency_in_use refusal. Experimental.
+	Dependents []ExtensionDependentPayload `json:"dependents,omitempty"`
 }
 
 // UpdateExtensionRequest is the shared marketplace extension update payload.
@@ -229,54 +238,56 @@ type ExtensionPayload struct {
 	// InstallEnableError carries the install outcome to transport envelopes without changing inventory JSON.
 	InstallEnableError *ExtensionEnableError `json:"-"`
 	// InstallDependenciesInstalled carries the consented dependency installs to transport envelopes. Experimental.
-	InstallDependenciesInstalled []string                          `json:"-"`
-	Description                  string                            `json:"description,omitempty"`
-	InstallationProfile          string                            `json:"installation_profile,omitempty"`
-	Layout                       string                            `json:"layout,omitempty"`
-	MCPServers                   []MarketplaceServerPayload        `json:"mcp_servers,omitempty"`
-	Inputs                       []ExtensionInputStatePayload      `json:"inputs,omitempty"`
-	MissingInputs                []string                          `json:"missing_inputs,omitempty"`
-	Contents                     ExtensionContentsPayload          `json:"contents"`
-	Origin                       *MarketplaceOriginPayload         `json:"origin,omitzero"`
-	Name                         string                            `json:"name"`
-	Profile                      string                            `json:"profile"`
-	WorkspaceID                  string                            `json:"workspace_id,omitempty"`
-	Version                      string                            `json:"version"`
-	Type                         string                            `json:"type"`
-	Format                       string                            `json:"format"`
-	Source                       string                            `json:"source"`
-	Enabled                      bool                              `json:"enabled"`
-	State                        string                            `json:"state"`
-	Capabilities                 []string                          `json:"capabilities,omitempty"`
-	Permissions                  []string                          `json:"permissions,omitempty"`
-	RequiresEnv                  []string                          `json:"requires_env,omitempty"`
-	MissingEnv                   []string                          `json:"missing_env,omitempty"`
-	BoundEnvKeys                 []string                          `json:"bound_env_keys,omitempty"`
-	GatewayRequirementDigest     string                            `json:"gateway_requirement_digest,omitempty"`
-	GatewayConfirmationRequired  bool                              `json:"gateway_confirmation_required"`
-	PID                          int                               `json:"pid,omitzero"`
-	UptimeSeconds                int64                             `json:"uptime_seconds,omitzero"`
-	Health                       string                            `json:"health,omitempty"`
-	HealthMessage                string                            `json:"health_message,omitempty"`
-	LastError                    string                            `json:"last_error,omitempty"`
-	FailureCode                  string                            `json:"failure_code,omitempty"`
-	ConsecutiveFailures          int                               `json:"consecutive_failures"`
-	RestartBackoffMS             int64                             `json:"restart_backoff_ms"`
-	GenerationHash               string                            `json:"generation_hash,omitempty"`
-	Dev                          bool                              `json:"dev,omitzero"`
-	OverridesPublished           bool                              `json:"overrides_published,omitzero"`
-	OriginPath                   string                            `json:"origin_path,omitempty"`
-	UpdateAvailable              bool                              `json:"update_available"`
-	RemoteVersion                string                            `json:"remote_version,omitempty"`
-	DigestMatched                bool                              `json:"digest_matched"`
-	DaemonRunning                bool                              `json:"daemon_running"`
-	Provenance                   *ExtensionProvenancePayload       `json:"provenance,omitzero"`
-	Marketplace                  *MarketplaceListingPayload        `json:"marketplace,omitzero"`
-	Trust                        *ExtensionTrustReportPayload      `json:"trust,omitzero"`
-	Diagnostics                  []DiagnosticItem                  `json:"diagnostics,omitempty"`
-	DeclaredProfiles             []ExtensionDeclaredProfilePayload `json:"declared_profiles,omitempty"`
-	Placements                   []ExtensionPlacementPayload       `json:"placements,omitempty"`
-	DormantPlacements            []ExtensionPlacementPayload       `json:"dormant_placements,omitempty"`
+	InstallDependenciesInstalled []string                     `json:"-"`
+	Description                  string                       `json:"description,omitempty"`
+	InstallationProfile          string                       `json:"installation_profile,omitempty"`
+	Layout                       string                       `json:"layout,omitempty"`
+	MCPServers                   []MarketplaceServerPayload   `json:"mcp_servers,omitempty"`
+	Inputs                       []ExtensionInputStatePayload `json:"inputs,omitempty"`
+	MissingInputs                []string                     `json:"missing_inputs,omitempty"`
+	// UnmetDependencies lists the declared dependencies this instance does not currently meet. Experimental.
+	UnmetDependencies           []ExtensionDependencyPayload      `json:"unmet_dependencies,omitempty"`
+	Contents                    ExtensionContentsPayload          `json:"contents"`
+	Origin                      *MarketplaceOriginPayload         `json:"origin,omitzero"`
+	Name                        string                            `json:"name"`
+	Profile                     string                            `json:"profile"`
+	WorkspaceID                 string                            `json:"workspace_id,omitempty"`
+	Version                     string                            `json:"version"`
+	Type                        string                            `json:"type"`
+	Format                      string                            `json:"format"`
+	Source                      string                            `json:"source"`
+	Enabled                     bool                              `json:"enabled"`
+	State                       string                            `json:"state"`
+	Capabilities                []string                          `json:"capabilities,omitempty"`
+	Permissions                 []string                          `json:"permissions,omitempty"`
+	RequiresEnv                 []string                          `json:"requires_env,omitempty"`
+	MissingEnv                  []string                          `json:"missing_env,omitempty"`
+	BoundEnvKeys                []string                          `json:"bound_env_keys,omitempty"`
+	GatewayRequirementDigest    string                            `json:"gateway_requirement_digest,omitempty"`
+	GatewayConfirmationRequired bool                              `json:"gateway_confirmation_required"`
+	PID                         int                               `json:"pid,omitzero"`
+	UptimeSeconds               int64                             `json:"uptime_seconds,omitzero"`
+	Health                      string                            `json:"health,omitempty"`
+	HealthMessage               string                            `json:"health_message,omitempty"`
+	LastError                   string                            `json:"last_error,omitempty"`
+	FailureCode                 string                            `json:"failure_code,omitempty"`
+	ConsecutiveFailures         int                               `json:"consecutive_failures"`
+	RestartBackoffMS            int64                             `json:"restart_backoff_ms"`
+	GenerationHash              string                            `json:"generation_hash,omitempty"`
+	Dev                         bool                              `json:"dev,omitzero"`
+	OverridesPublished          bool                              `json:"overrides_published,omitzero"`
+	OriginPath                  string                            `json:"origin_path,omitempty"`
+	UpdateAvailable             bool                              `json:"update_available"`
+	RemoteVersion               string                            `json:"remote_version,omitempty"`
+	DigestMatched               bool                              `json:"digest_matched"`
+	DaemonRunning               bool                              `json:"daemon_running"`
+	Provenance                  *ExtensionProvenancePayload       `json:"provenance,omitzero"`
+	Marketplace                 *MarketplaceListingPayload        `json:"marketplace,omitzero"`
+	Trust                       *ExtensionTrustReportPayload      `json:"trust,omitzero"`
+	Diagnostics                 []DiagnosticItem                  `json:"diagnostics,omitempty"`
+	DeclaredProfiles            []ExtensionDeclaredProfilePayload `json:"declared_profiles,omitempty"`
+	Placements                  []ExtensionPlacementPayload       `json:"placements,omitempty"`
+	DormantPlacements           []ExtensionPlacementPayload       `json:"dormant_placements,omitempty"`
 }
 
 // ExtensionDeclaredProfilePayload reports one manifest-declared profile and its live setup state.

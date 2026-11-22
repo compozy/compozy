@@ -10825,6 +10825,11 @@ export interface components {
       state: string;
       version?: string;
     };
+    ExtensionDependentPayload: {
+      name: string;
+      profile: string;
+      workspace_id: string;
+    };
     ExtensionEnableError: {
       code: string;
       error: string;
@@ -10936,6 +10941,7 @@ export interface components {
       dependencies?: components["schemas"]["ExtensionDependencyPayload"][];
       dependencies_installed?: string[];
       dependency?: string;
+      dependents?: components["schemas"]["ExtensionDependentPayload"][];
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       env_name?: string;
       error: string;
@@ -10998,6 +11004,7 @@ export interface components {
       state: string;
       trust?: components["schemas"]["ExtensionTrustReportPayload"] | null;
       type: string;
+      unmet_dependencies?: components["schemas"]["ExtensionDependencyPayload"][];
       update_available: boolean;
       /** Format: int64 */
       uptime_seconds?: number;
@@ -17385,6 +17392,7 @@ export interface components {
     };
     SetExtensionEnablementRequest: {
       enabled: boolean;
+      force?: boolean;
       profile: string;
     };
     SetExtensionInputsRequest: {
@@ -32945,6 +32953,8 @@ export interface operations {
         workspace?: string;
         /** @description Remove a bundled built-in permanently. It is not re-enrolled at boot or update until restored. Global only. */
         permanent?: boolean;
+        /** @description Experimental. Remove even while an installed dependent still needs the extension; the dependent then reports unmet_dependencies. Removal never cascades. */
+        force?: boolean;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -32993,13 +33003,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Extension is in use */
+      /** @description Extension is in use, or experimental: an installed dependent still needs it */
       409: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
       /** @description Extension is not a built-in */
@@ -33142,7 +33154,16 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Extension inputs are required */
+      /** @description Experimental: an installed dependent still needs the extension (extension_dependency_in_use) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Extension inputs are required, or experimental: its dependencies are unmet */
       422: {
         headers: {
           [name: string]: unknown;

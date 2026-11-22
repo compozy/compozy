@@ -505,3 +505,119 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: removing or disabling a dependency an installed dependent still resolves refuses with the dependents
+// unless forced; force never cascades, the dependent keeps its runtime state and reports unmet_dependencies, and
+// enabling a dependent with unmet dependencies refuses with the install payload (rules 14 and 15).
+// Owner: daemon dependency guard. Canonical suite: extension_dependencies_test.go.
+func TestExtensionDependencyGuard(t *testing.T) {
+	t.Parallel()
+
+	installPair := func(t *testing.T) *dependencyFixture {
+		t.Helper()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-core", "1.0.0")
+		fixture.install(t, "dep-core", contract.InstallExtensionRequest{})
+		fixture.write(t, "root", "1.0.0", "dep-core")
+		fixture.install(t, "root", contract.InstallExtensionRequest{})
+		return fixture
+	}
+	defaultProfile := extensionDefaultProfileLens()
+	disable := func(force bool) contract.SetExtensionEnablementRequest {
+		return contract.SetExtensionEnablementRequest{Profile: defaultProfile.Name, Enabled: false, Force: force}
+	}
+	assertUnmet := func(t *testing.T, fixture *dependencyFixture, state string) {
+		t.Helper()
+		status, err := fixture.service.Status(t.Context(), "root")
+		if err != nil {
+			t.Fatalf("Status(root) error = %v", err)
+		}
+		if len(status.UnmetDependencies) != 1 || status.UnmetDependencies[0].Name != "dep-core" ||
+			status.UnmetDependencies[0].State != state {
+			t.Fatalf("root unmet_dependencies = %+v, want dep-core %s", status.UnmetDependencies, state)
+		}
+		enabled, err := fixture.registry.IsEnabledForProfile("root", defaultProfile.ID)
+		if err != nil || !enabled {
+			t.Fatalf("root enabled = %t, %v; the dependent's runtime state must not change", enabled, err)
+		}
+	}
+
+	t.Run("Should refuse removing a needed dependency and list its dependents", func(t *testing.T) {
+		t.Parallel()
+		fixture := installPair(t)
+
+		_, err := fixture.service.Remove(t.Context(), "dep-core", dependencyOperator(t))
+		inUse, ok := errors.AsType[*extensionpkg.DependencyInUseError](err)
+		want := []contract.ExtensionDependentPayload{{Name: "root"}}
+		if !ok || !errors.Is(err, extensionpkg.ErrExtensionDependencyInUse) ||
+			!reflect.DeepEqual(inUse.Dependents, want) {
+			t.Fatalf("error = %v, want extension_dependency_in_use listing root", err)
+		}
+		if !fixture.installed(t, "dep-core") {
+			t.Fatal("refused removal uninstalled dep-core")
+		}
+		status, err := fixture.service.Status(t.Context(), "root")
+		if err != nil || len(status.UnmetDependencies) != 0 {
+			t.Fatalf("met dependent unmet_dependencies = %+v, %v; want none", status.UnmetDependencies, err)
+		}
+	})
+
+	t.Run("Should remove with force without cascading and report the dependent unmet", func(t *testing.T) {
+		t.Parallel()
+		fixture := installPair(t)
+
+		ctx := extensionpkg.WithDependencyForce(t.Context(), true)
+		if _, err := fixture.service.Remove(ctx, "dep-core", dependencyOperator(t)); err != nil {
+			t.Fatalf("forced Remove(dep-core) error = %v", err)
+		}
+		if fixture.installed(t, "dep-core") || !fixture.installed(t, "root") {
+			t.Fatal("forced removal did not remove only dep-core")
+		}
+		assertUnmet(t, fixture, dependencyStateMissing)
+	})
+
+	t.Run("Should refuse disabling a needed dependency for the profile unless forced", func(t *testing.T) {
+		t.Parallel()
+		fixture := installPair(t)
+
+		_, err := fixture.service.SetEnablement(t.Context(), "dep-core", disable(false), dependencyOperator(t))
+		inUse, ok := errors.AsType[*extensionpkg.DependencyInUseError](err)
+		want := []contract.ExtensionDependentPayload{{Name: "root", Profile: defaultProfile.Name}}
+		if !ok || !reflect.DeepEqual(inUse.Dependents, want) {
+			t.Fatalf("error = %v, want extension_dependency_in_use listing root in %s", err, defaultProfile.Name)
+		}
+		if enabled, err := fixture.registry.IsEnabledForProfile("dep-core", defaultProfile.ID); err != nil || !enabled {
+			t.Fatalf("refused disable changed dep-core: enabled = %t, %v", enabled, err)
+		}
+		_, err = fixture.service.SetEnablement(t.Context(), "dep-core", disable(true), dependencyOperator(t))
+		if err != nil {
+			t.Fatalf("forced disable error = %v", err)
+		}
+		assertUnmet(t, fixture, dependencyStateDisabled)
+	})
+
+	t.Run("Should refuse enabling a dependent whose dependency is unmet", func(t *testing.T) {
+		t.Parallel()
+		fixture := installPair(t)
+		// The dependent goes first; an installed dependent still guards its dependency, so that needs force.
+		for _, name := range []string{"root", "dep-core"} {
+			req := disable(name == "dep-core")
+			if _, err := fixture.service.SetEnablement(t.Context(), name, req, dependencyOperator(t)); err != nil {
+				t.Fatalf("disable %s error = %v", name, err)
+			}
+		}
+
+		_, err := fixture.service.SetEnablement(t.Context(), "root", contract.SetExtensionEnablementRequest{
+			Profile: defaultProfile.Name, Enabled: true,
+		}, dependencyOperator(t))
+		required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
+		if !ok || len(required.Dependencies) != 1 || required.Dependencies[0].Name != "dep-core" ||
+			required.Dependencies[0].State != dependencyStateDisabled ||
+			!slices.Equal(required.Dependencies[0].RequiredBy, []string{"root"}) {
+			t.Fatalf("error = %v, want extension_dependencies_required listing disabled dep-core", err)
+		}
+		if enabled, err := fixture.registry.IsEnabledForProfile("root", defaultProfile.ID); err != nil || enabled {
+			t.Fatalf("refused enable changed root: enabled = %t, %v", enabled, err)
+		}
+	})
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/githubauth"
 	registrypkg "github.com/compozy/compozy/internal/registry"
@@ -37,6 +38,8 @@ type extensionMarketplaceSourceLoader func(
 type extensionNameInput struct {
 	Name  string `json:"name"`
 	Owner string `json:"owner"`
+	// Force overrides the experimental dependency guard on remove and disable.
+	Force bool `json:"force"`
 }
 
 type extensionInstallInput struct {
@@ -274,6 +277,7 @@ func (n *daemonNativeTools) extensionRemove(
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
 
+	ctx = extensionpkg.WithDependencyForce(ctx, input.Force)
 	var item contract.ManagedExtensionRemovePayload
 	if strings.TrimSpace(actor.Scope.WorkspaceID) == "" {
 		item, err = n.extensionService().Remove(ctx, name, actor)
@@ -303,7 +307,7 @@ func (n *daemonNativeTools) extensionEnable(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	item, err := n.setNativeExtensionEnablement(ctx, scope, name, true, actor)
+	item, err := n.setNativeExtensionEnablement(ctx, scope, name, true, false, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
@@ -327,7 +331,7 @@ func (n *daemonNativeTools) extensionDisable(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	item, err := n.setNativeExtensionEnablement(ctx, scope, name, false, actor)
+	item, err := n.setNativeExtensionEnablement(ctx, scope, name, false, input.Force, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
@@ -338,7 +342,7 @@ func (n *daemonNativeTools) setNativeExtensionEnablement(
 	ctx context.Context,
 	scope toolspkg.Scope,
 	name string,
-	enabled bool,
+	enabled, force bool,
 	actor taskpkg.ActorContext,
 ) (contract.ExtensionEnablementPayload, error) {
 	service := n.extensionService()
@@ -362,6 +366,7 @@ func (n *daemonNativeTools) setNativeExtensionEnablement(
 	return service.SetEnablement(ctx, name, contract.SetExtensionEnablementRequest{
 		Profile: profileName,
 		Enabled: enabled,
+		Force:   force,
 	}, actor)
 }
 

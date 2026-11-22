@@ -160,7 +160,7 @@ var extensionTools = []toolspkg.Descriptor{
 		"extensions_remove",
 		"Extensions Remove",
 		"Remove one managed installed extension with rollback on reload failure.",
-		extensionNameInputSchema,
+		extensionForceInputSchema,
 		toolspkg.RiskDestructive,
 		false,
 		true,
@@ -184,7 +184,7 @@ var extensionTools = []toolspkg.Descriptor{
 		"extensions_disable",
 		"Extensions Disable",
 		"Disable one installed extension for the caller's active profile.",
-		extensionNameInputSchema,
+		extensionForceInputSchema,
 		toolspkg.RiskMutating,
 		false,
 		false,
@@ -296,6 +296,21 @@ const extensionNameInputSchema = `{
 		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
 			"description":"Definition owner; must equal extension:<name>."},
 		"name":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+// extensionForceInputSchema adds the experimental dependency-guard override to remove and disable.
+const extensionForceInputSchema = `{
+	"type":"object",
+	"required":["name"],
+	"properties":{
+		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
+			"description":"Definition owner; must equal extension:<name>."},
+		"name":{"type":"string"},
+		"force":{"type":"boolean","default":false,
+			"description":"Experimental. Proceed even while an installed dependent still needs this extension ` +
+	`(extension_dependency_in_use); the dependent then reports unmet_dependencies. Nothing cascades."}
 	},
 	"additionalProperties":false
 }`

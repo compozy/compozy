@@ -81,7 +81,7 @@ func (c *daemonClient) RemoveDevExtension(
 	}
 	query := url.Values{extensionWorkspaceQueryKey: []string{strings.TrimSpace(workspaceRef)}}
 	path := "/api/extensions/" + url.PathEscape(strings.TrimSpace(name))
-	if err := c.doJSON(ctx, http.MethodDelete, path, query, nil, &response); err != nil {
+	if err := c.doJSON(ctx, http.MethodDelete, path, extensionForceQuery(ctx, query), nil, &response); err != nil {
 		return ManagedExtensionRemoveRecord{}, err
 	}
 	return response.Extension, nil

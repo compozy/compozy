@@ -43,7 +43,8 @@ func promptExtensionInstallInputs(
 	cmd *cobra.Command, deps commandDeps, plan extensionInstallPlan, installErr error,
 ) (extensionInstallPlan, bool, error) {
 	apiErr, ok := errors.AsType[*extensionOperationAPIError](installErr)
-	if !ok || apiErr.payload.Code != diagnosticcontract.CodeExtensionInputsRequired {
+	// A dependency's own inputs refusal names the dependency; its inputs are set up separately.
+	if !ok || apiErr.payload.Code != diagnosticcontract.CodeExtensionInputsRequired || apiErr.payload.Dependency != "" {
 		return plan, false, nil
 	}
 	interactive, err := extensionInputsInteractive(cmd, deps)

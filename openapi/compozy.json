@@ -8930,6 +8930,25 @@
         ],
         "type": "object"
       },
+      "ExtensionDependentPayload": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "profile",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
       "ExtensionEnableError": {
         "properties": {
           "code": {
@@ -9413,6 +9432,12 @@
           "dependency": {
             "type": "string"
           },
+          "dependents": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionDependentPayload"
+            },
+            "type": "array"
+          },
           "diagnostic": {
             "oneOf": [
               {
@@ -9716,6 +9741,12 @@
           },
           "type": {
             "type": "string"
+          },
+          "unmet_dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionDependencyPayload"
+            },
+            "type": "array"
           },
           "update_available": {
             "type": "boolean"
@@ -32036,6 +32067,9 @@
       "SetExtensionEnablementRequest": {
         "properties": {
           "enabled": {
+            "type": "boolean"
+          },
+          "force": {
             "type": "boolean"
           },
           "profile": {
@@ -65409,6 +65443,14 @@
             }
           },
           {
+            "description": "Experimental. Remove even while an installed dependent still needs the extension; the dependent then reports unmet_dependencies. Removal never cascades.",
+            "in": "query",
+            "name": "force",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -65462,11 +65504,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Extension is in use"
+            "description": "Extension is in use, or experimental: an installed dependent still needs it"
           },
           "422": {
             "content": {
@@ -65880,6 +65929,16 @@
             },
             "description": "Extension not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Experimental: an installed dependent still needs the extension (extension_dependency_in_use)"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -65888,7 +65947,7 @@
                 }
               }
             },
-            "description": "Extension inputs are required"
+            "description": "Extension inputs are required, or experimental: its dependencies are unmet"
           },
           "503": {
             "content": {

@@ -40,7 +40,8 @@ func extensionOperationErrorPayload(
 		extensionErrorInputInvalid,
 		extensionErrorInputOverwriteDenied,
 		extensionErrorDependenciesRequired,
-		extensionErrorDependencyGraphInvalid:
+		extensionErrorDependencyGraphInvalid,
+		extensionErrorDependencyInUse:
 		payload, _ = ExtensionAcquisitionErrorPayload(err)
 	case extensionErrorGatewayConfirmationRequired:
 		confirmationErr, ok := errors.AsType[*extensionpkg.GatewayConfirmationRequiredError](err)
@@ -327,6 +328,11 @@ func extensionAcquisitionKindPayload(err error) (contract.ExtensionOperationErro
 		if invalid, ok := errors.AsType[*extensionpkg.DependencyGraphInvalidError](err); ok {
 			payload.Reason, payload.Path = invalid.Reason, slices.Clone(invalid.Path)
 			payload.Parents = slices.Clone(invalid.Parents)
+		}
+	case extensionErrorDependencyInUse:
+		payload.Code = diagnosticcontract.CodeExtensionDependencyInUse
+		if inUse, ok := errors.AsType[*extensionpkg.DependencyInUseError](err); ok {
+			payload.Dependents = slices.Clone(inUse.Dependents)
 		}
 	default:
 		return payload, false

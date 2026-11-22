@@ -278,6 +278,9 @@ func (s *daemonExtensionService) payloadFromExtension(
 	if err := s.populateExtensionInputStatus(ctx, ext, profile.ID, &payload); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
+	if err := s.populateExtensionDependencyStatus(ctx, ext, profile.ID, &payload); err != nil {
+		return contract.ExtensionPayload{}, err
+	}
 	if err := s.populateExtensionGatewayStatus(key, &payload); err != nil {
 		return contract.ExtensionPayload{}, err
 	}

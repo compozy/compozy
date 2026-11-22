@@ -131,16 +131,16 @@ func newExtensionListCommand(deps commandDeps) *cobra.Command {
 }
 
 type extensionInstallFlags struct {
-	scope                string
-	workspaceRef         string
-	inputs               extensionInputFlags
-	version              string
-	asset                string
-	confirmGatewayDigest string
-	allowUnverified      bool
-	enable               bool
-	replace              bool
-	yes                  bool
+	scope           string
+	workspaceRef    string
+	inputs          extensionInputFlags
+	dependencies    extensionDependencyFlags
+	version         string
+	asset           string
+	allowUnverified bool
+	enable          bool
+	replace         bool
+	yes             bool
 }
 
 func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
@@ -179,12 +179,7 @@ func (f *extensionInstallFlags) register(cmd *cobra.Command) {
 		"Allow install when the extension checksum is not registry-verified",
 	)
 	cmd.Flags().BoolVar(&f.yes, yesFlagName, false, "Skip confirmation when using --allow-unverified")
-	cmd.Flags().StringVar(
-		&f.confirmGatewayDigest,
-		extensionConfirmGatewayFlagName,
-		"",
-		"Confirm the candidate extension gateway requirement digest",
-	)
+	f.dependencies.register(cmd)
 }
 
 func runExtensionInstall(
@@ -207,7 +202,9 @@ func runExtensionInstall(
 		plan.Attempts[index].Scope = selected.scope
 		plan.Attempts[index].WorkspaceID = selected.workspaceID
 		plan.Attempts[index].Profile = selected.profile
-		plan.Attempts[index].ConfirmGatewayDigest = strings.TrimSpace(f.confirmGatewayDigest)
+	}
+	if err := f.dependencies.apply(cmd, plan, f.yes); err != nil {
+		return err
 	}
 	plan, err = resolvePluginInstallPlan(cmd.Context(), deps, plan)
 	if err != nil {
@@ -229,22 +226,43 @@ func runExtensionInstall(
 	if err := confirmExtensionUnverifiedInstall(cmd, f.allowUnverified, f.yes); err != nil {
 		return err
 	}
-	item, err := executeExtensionInstallPlan(cmd.Context(), deps, plan)
-	if err != nil {
-		retry, prompted, promptErr := promptExtensionInstallInputs(cmd, deps, plan, err)
-		if promptErr != nil {
-			return promptErr
-		}
-		if !prompted {
-			return err
-		}
-		plan = retry
-		if item, err = executeExtensionInstallPlan(cmd.Context(), deps, plan); err != nil {
+	if f.dependencies.withDependencies {
+		if err := pinExtensionDependencyDigests(cmd.Context(), deps, plan, preview); err != nil {
 			return err
 		}
 	}
+	item, err := executeExtensionInstallPlanWithPrompts(cmd, deps, plan)
+	if err != nil {
+		return err
+	}
 	report := extensionInstallValidationReport(deps, plan, &item)
 	return writeCommandOutput(cmd, extensionInstallResultBundle(&item, report, f.enable))
+}
+
+// executeExtensionInstallPlanWithPrompts installs, answering a dependency refusal and then an inputs refusal
+// on an interactive terminal; the dependency gate runs before the input gate, so at most two retries follow.
+func executeExtensionInstallPlanWithPrompts(
+	cmd *cobra.Command, deps commandDeps, plan extensionInstallPlan,
+) (ExtensionRecord, error) {
+	item, err := executeExtensionInstallPlan(cmd.Context(), deps, plan)
+	for range 2 {
+		if err == nil {
+			return item, nil
+		}
+		retry, prompted, promptErr := promptExtensionInstallDependencies(cmd, deps, plan, err)
+		if promptErr == nil && !prompted {
+			retry, prompted, promptErr = promptExtensionInstallInputs(cmd, deps, plan, err)
+		}
+		if promptErr != nil {
+			return ExtensionRecord{}, promptErr
+		}
+		if !prompted {
+			return ExtensionRecord{}, err
+		}
+		plan = retry
+		item, err = executeExtensionInstallPlan(cmd.Context(), deps, plan)
+	}
+	return item, err
 }
 
 // newExtensionRemoveCommand resolves the selected profile before choosing the removal transport.
@@ -252,6 +270,7 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
 	var global bool
 	var permanent bool
+	var force bool
 	command := &cobra.Command{
 		Use:   cliRemoveNameUse,
 		Short: "Remove an installed extension from disk and the registry",
@@ -260,6 +279,7 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 			if err := validateExtensionPermanentRemoveFlags(permanent, workspaceRef); err != nil {
 				return err
 			}
+			withExtensionForce(cmd, force)
 			baseClient, err := requireExtensionDaemonClient(cmd.Context(), deps)
 			if err != nil {
 				return err
@@ -304,6 +324,7 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 		false,
 		"Remove a bundled built-in permanently; it will not return until restored (global only)",
 	)
+	registerExtensionForceFlag(command, &force)
 	return command
 }
 
@@ -405,11 +426,13 @@ func newExtensionEnableCommand(deps commandDeps) *cobra.Command {
 }
 
 func newExtensionDisableCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	var force bool
+	command := &cobra.Command{
 		Use:   cliUseDisableName,
 		Short: "Disable an installed extension",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			withExtensionForce(cmd, force)
 			item, err := setExtensionProfileEnablement(cmd, deps, args[0], false)
 			if err != nil {
 				return err
@@ -417,6 +440,8 @@ func newExtensionDisableCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, extensionEnablementBundle(item))
 		},
 	}
+	registerExtensionForceFlag(command, &force)
+	return command
 }
 
 func newExtensionStatusCommand(deps commandDeps) *cobra.Command {

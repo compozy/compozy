@@ -3498,6 +3498,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if added := addExtensionDependencyFields(baseline, newComponents); added < 4 {
 			t.Fatalf("approved extension dependency fields: matched %d historical schema kinds, want 4", added)
 		}
+		// #1845 S7: the experimental dependency guard adds force, dependents and unmet_dependencies.
+		addExtensionDependencyGuardFields(t, baseline, current, newComponents)
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
@@ -7210,6 +7212,55 @@ func addExtensionDependencyFields(baseline map[string]any, components map[string
 		}
 	}
 	return matched
+}
+
+// addExtensionDependencyGuardFields approves the experimental dependency guard: operation errors gain dependents,
+// extension payloads gain unmet_dependencies, the enablement request gains force, and removeExtension gains the
+// force query flag after permanent plus the structured 409 body. Each copies the current shape, refs inlined.
+func addExtensionDependencyGuardFields(t *testing.T, baseline, current, components map[string]any) {
+	t.Helper()
+	fields := []struct {
+		component string
+		signature []string
+		field     string
+	}{
+		{"ExtensionOperationErrorPayload", []string{"listed_digest", "declared_env", "input_id"}, "dependents"},
+		{"ExtensionPayload", []string{"gateway_confirmation_required", "consecutive_failures", "restart_backoff_ms"},
+			"unmet_dependencies"},
+	}
+	for _, target := range fields {
+		source := components[target.component].(map[string]any)["properties"].(map[string]any)
+		if addSchemaPropertiesBySignature(
+			baseline, target.signature, 0, []string{target.field}, source, components,
+		) == 0 {
+			t.Fatalf("approved %s.%s: no historical schemas found", target.component, target.field)
+		}
+	}
+	oldPaths, newPaths := baseline["paths"].(map[string]any), current["paths"].(map[string]any)
+	enablementBody := func(paths map[string]any) map[string]any {
+		node := paths["/api/extensions/{name}/enablement"].(map[string]any)["put"].(map[string]any)
+		for _, key := range []string{"requestBody", "content", "application/json", "schema"} {
+			node = node[key].(map[string]any)
+		}
+		return node
+	}
+	newRequest := inlineSchemaRefs(enablementBody(newPaths), components).(map[string]any)
+	enablementBody(oldPaths)["properties"].(map[string]any)["force"] = newRequest["properties"].(map[string]any)["force"]
+	oldRemove := oldPaths["/api/extensions/{name}"].(map[string]any)["delete"].(map[string]any)
+	newRemove := newPaths["/api/extensions/{name}"].(map[string]any)["delete"].(map[string]any)
+	parameters := oldRemove["parameters"].([]any)
+	for index, raw := range newRemove["parameters"].([]any) {
+		if raw.(map[string]any)["name"] == "force" {
+			oldRemove["parameters"] = slices.Insert(parameters, min(index, len(parameters)), raw)
+		}
+	}
+	if len(oldRemove["parameters"].([]any)) == len(parameters) {
+		t.Fatal("approved removeExtension force flag: current operation has no force parameter")
+	}
+	conflict := func(operation map[string]any) map[string]any {
+		return operation["responses"].(map[string]any)["409"].(map[string]any)["content"].(map[string]any)
+	}
+	conflict(oldRemove)["application/json"] = inlineSchemaRefs(conflict(newRemove)["application/json"], components)
 }
 
 func addSchemaPropertiesBySignature(

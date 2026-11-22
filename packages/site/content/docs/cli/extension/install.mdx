@@ -14,19 +14,21 @@ compozy extension install <source> [flags]
 ### Options
 
 ```
-      --allow-unverified                     Allow install when the extension checksum is not registry-verified
-      --asset string                         Select a specific registry asset when multiple archives exist
-      --confirm-gateway-requirement string   Confirm the candidate extension gateway requirement digest
-      --enable                               Enable after install; activation failures retain the package
-      --expected-digest string               Pin the SHA-256 digest of the reviewed extension
-  -h, --help                                 help for install
-      --input stringArray                    Set a manifest input as id=value (repeatable)
-      --input-file string                    Read input values from a JSON object of {value} or {vault_ref} envelopes
-      --replace                              Replace the installed extension of the same name; local paths only, since published sources replace implicitly. The previous version stays installed only when the replacement fails before the reinstall transaction completes; a failure after it returns, such as enable failing, does not restore it
-      --scope string                         Install globally or in one workspace: global, workspace
-      --version string                       Install a specific registry version
-      --workspace string                     Override workspace context
-      --yes                                  Skip confirmation when using --allow-unverified
+      --allow-unverified                          Allow install when the extension checksum is not registry-verified
+      --allow-unverified-dependency stringArray   Experimental. Allow one unverified dependency by name (repeatable); --allow-unverified covers only the requested extension
+      --asset string                              Select a specific registry asset when multiple archives exist
+      --confirm-gateway-requirement stringArray   Confirm the candidate gateway requirement digest; use <name>=<digest> for a dependency (experimental, repeatable)
+      --enable                                    Enable after install; activation failures retain the package
+      --expected-digest string                    Pin the SHA-256 digest of the reviewed extension
+  -h, --help                                      help for install
+      --input stringArray                         Set a manifest input as id=value (repeatable)
+      --input-file string                         Read input values from a JSON object of {value} or {vault_ref} envelopes
+      --replace                                   Replace the installed extension of the same name; local paths only, since published sources replace implicitly. The previous version stays installed only when the replacement fails before the reinstall transaction completes; a failure after it returns, such as enable failing, does not restore it
+      --scope string                              Install globally or in one workspace: global, workspace
+      --version string                            Install a specific registry version
+      --with-dependencies                         Experimental. Install missing and enable disabled dependencies first, each through its own trust gate
+      --workspace string                          Override workspace context
+      --yes                                       Skip confirmation when using --allow-unverified
 ```
 
 ### Options inherited from parent commands

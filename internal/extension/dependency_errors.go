@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -73,3 +74,39 @@ func (e *DependenciesInstalledError) Error() string {
 }
 
 func (e *DependenciesInstalledError) Unwrap() error { return e.Err }
+
+// ErrExtensionDependencyInUse refuses a remove or disable an installed dependent still needs. Experimental.
+var ErrExtensionDependencyInUse = errors.New("extension: dependency in use")
+
+// DependencyInUseError lists the installed dependents that still resolve their dependency to the target.
+type DependencyInUseError struct {
+	Name       string
+	Dependents []contract.ExtensionDependentPayload
+}
+
+func (e *DependencyInUseError) Error() string {
+	names := make([]string, 0, len(e.Dependents))
+	for _, dependent := range e.Dependents {
+		names = append(names, dependent.Name)
+	}
+	return fmt.Sprintf("%s: %s is required by %s; pass force to proceed", ErrExtensionDependencyInUse, e.Name,
+		strings.Join(names, ", "))
+}
+
+func (e *DependencyInUseError) Unwrap() error { return ErrExtensionDependencyInUse }
+
+type dependencyForceKey struct{}
+
+// WithDependencyForce carries a remove's consent to leave its dependents unmet (D10). Experimental.
+func WithDependencyForce(ctx context.Context, force bool) context.Context {
+	if !force {
+		return ctx
+	}
+	return context.WithValue(ctx, dependencyForceKey{}, true)
+}
+
+// DependencyForced reports whether the remove carried force.
+func DependencyForced(ctx context.Context) bool {
+	forced, _ := ctx.Value(dependencyForceKey{}).(bool)
+	return forced
+}

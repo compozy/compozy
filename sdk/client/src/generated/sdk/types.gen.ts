@@ -2433,6 +2433,12 @@ export type ExtensionDependencyPayload = {
   version?: string;
 };
 
+export type ExtensionDependentPayload = {
+  name: string;
+  profile: string;
+  workspace_id: string;
+};
+
 export type ExtensionEnableError = {
   code: string;
   error: string;
@@ -2547,6 +2553,7 @@ export type ExtensionOperationErrorPayload = {
   dependencies?: Array<ExtensionDependencyPayload>;
   dependencies_installed?: Array<string>;
   dependency?: string;
+  dependents?: Array<ExtensionDependentPayload>;
   diagnostic?: DiagnosticItem | null;
   env_name?: string;
   error: string;
@@ -2609,6 +2616,7 @@ export type ExtensionPayload = {
   state: string;
   trust?: ExtensionTrustReportPayload | null;
   type: string;
+  unmet_dependencies?: Array<ExtensionDependencyPayload>;
   update_available: boolean;
   uptime_seconds?: number;
   version: string;
@@ -8802,6 +8810,7 @@ export type SessionsResponse = {
 
 export type SetExtensionEnablementRequest = {
   enabled: boolean;
+  force?: boolean;
   profile: string;
 };
 
@@ -21173,6 +21182,10 @@ export type RemoveExtensionData = {
      */
     permanent?: boolean;
     /**
+     * Experimental. Remove even while an installed dependent still needs the extension; the dependent then reports unmet_dependencies. Removal never cascades.
+     */
+    force?: boolean;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -21194,9 +21207,9 @@ export type RemoveExtensionErrors = {
    */
   404: ErrorPayload;
   /**
-   * Extension is in use
+   * Extension is in use, or experimental: an installed dependent still needs it
    */
-  409: ErrorPayload;
+  409: ErrorPayload | ExtensionOperationErrorPayload;
   /**
    * Extension is not a built-in
    */
@@ -21414,7 +21427,11 @@ export type SetExtensionEnablementErrors = {
    */
   404: ErrorPayload;
   /**
-   * Extension inputs are required
+   * Experimental: an installed dependent still needs the extension (extension_dependency_in_use)
+   */
+  409: ExtensionOperationErrorPayload;
+  /**
+   * Extension inputs are required, or experimental: its dependencies are unmet
    */
   422: ExtensionOperationErrorPayload;
   /**

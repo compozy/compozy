@@ -810,3 +810,221 @@ func TestPluginSourceInstallSelection(t *testing.T) {
 		})
 	}
 }
+
+// Invariant: the experimental dependency flow consents per artifact: a TTY shows one consolidated preview and each
+// dependency's own trust gates, a non-TTY needs --with-dependencies, bare --allow-unverified never consents for a
+// dependency, and remove refuses while dependents need the extension unless --force is passed [T-19].
+// Owner: CLI extension install/remove commands. Canonical suite: extension_marketplace_test.go.
+func TestExtensionInstallDependencyFlow(t *testing.T) {
+	t.Parallel()
+	gateway := strings.Repeat("d", 64)
+	core := contract.ExtensionDependencyPayload{
+		Name: "acme-core", Source: "curated", Ref: "acme/core", RequiredBy: []string{"typed"}, Depth: 1,
+		State: "missing", Version: "0.5.1", DigestSHA256: strings.Repeat("a", 64), ConsentRequired: true,
+		GatewayRequirementDigest: gateway,
+	}
+	other := contract.ExtensionDependencyPayload{
+		Name: "acme-other", Source: "curated", Ref: "acme/other", RequiredBy: []string{"typed"}, Depth: 1,
+		State: "missing", Version: "1.0.0", DigestSHA256: strings.Repeat("b", 64), ConsentRequired: true,
+	}
+	required := func(items ...contract.ExtensionDependencyPayload) error {
+		return &extensionOperationAPIError{statusCode: 422, status: "422 Unprocessable Entity",
+			payload: contract.ExtensionOperationErrorPayload{
+				Error: "extension: dependencies required", Code: diagnosticcontract.CodeExtensionDependenciesRequired,
+				Dependencies: items,
+			}}
+	}
+	newDeps := func(
+		t *testing.T, terminal bool, calls *[]InstallExtensionRequest, first error,
+	) commandDeps {
+		t.Helper()
+		deps, _ := newExtensionLocalDeps(t, &stubClient{
+			previewExtensionInstallFn: func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error) {
+				return ExtensionInstallPreviewRecord{
+					Name: "typed", DigestSHA256: strings.Repeat("c", 64),
+					Dependencies: []contract.ExtensionDependencyPayload{core, other},
+				}, nil
+			},
+			installExtensionFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionRecord, error) {
+				*calls = append(*calls, req)
+				if len(*calls) == 1 && first != nil {
+					return ExtensionRecord{}, first
+				}
+				return ExtensionRecord{Name: "typed", InstallDependenciesInstalled: []string{"acme-core"}}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+		deps.inputIsTerminal = func(io.Reader) bool { return terminal }
+		deps.outputIsTerminal = func(io.Writer) bool { return terminal }
+		return deps
+	}
+
+	t.Run("Should show one consolidated preview and run each dependency trust gate on a TTY", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, true, &calls, required(core))
+		stdout, stderr, err := executeRootCommandWithInput(
+			t,
+			deps,
+			"y\ny\ny\n",
+			"extension",
+			"install",
+			"compozy/typed",
+		)
+		if err != nil || len(calls) != 2 {
+			t.Fatalf("install calls = %d, err = %v; want a refusal and one consented retry", len(calls), err)
+		}
+		want := contract.ExtensionDependencyConsent{
+			ExpectedDigest: core.DigestSHA256, AllowUnverified: true, ConfirmGatewayDigest: gateway,
+		}
+		if retry := calls[1]; !retry.WithDependencies || retry.Dependencies["acme-core"] != want {
+			t.Fatalf("retry = %+v, want with_dependencies and acme-core consent %+v", retry, want)
+		}
+		for _, text := range []string{"Dependencies (experimental):", "acme-core 0.5.1 from curated acme/core",
+			"Install these dependencies first", "acme-core is not registry-verified", "gateway requirement " + gateway} {
+			if !strings.Contains(stderr, text) {
+				t.Fatalf("stderr = %q, want %q", stderr, text)
+			}
+		}
+		if !strings.Contains(stdout, "Installed dependencies first: acme-core.") {
+			t.Fatalf("stdout = %q, want the installed dependencies", stdout)
+		}
+	})
+
+	t.Run("Should install nothing more when the consolidated consent is declined", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, true, &calls, required(core))
+		_, _, err := executeRootCommandWithInput(t, deps, "n\n", "extension", "install", "compozy/typed")
+		if !errors.Is(err, errExtensionDependenciesDeclined) || len(calls) != 1 {
+			t.Fatalf("declined consent: calls = %d, err = %v", len(calls), err)
+		}
+	})
+
+	t.Run("Should require --with-dependencies without a TTY", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, false, &calls, required(core))
+		_, stderr, err := executeRootCommandWithInput(t, deps, "y\n", "extension", "install", "compozy/typed")
+		if err == nil || len(calls) != 1 || strings.Contains(stderr, "Install these dependencies") {
+			t.Fatalf("calls = %d, stderr = %q, err = %v; want one refusal without a prompt", len(calls), stderr, err)
+		}
+		if !strings.Contains(err.Error(), "--with-dependencies") || cliExitCodeForError(err) != 2 {
+			t.Fatalf(
+				"error = %q (exit %d), want --with-dependencies guidance and exit 2",
+				err,
+				cliExitCodeForError(err),
+			)
+		}
+	})
+
+	t.Run("Should print the update command for a version_unmet dependency", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		unmet := core
+		unmet.State, unmet.RetryCommand = "version_unmet", "compozy extension update acme-core"
+		refusal := required(unmet)
+		refusal.(*extensionOperationAPIError).payload.RetryCommand = unmet.RetryCommand
+		deps := newDeps(t, true, &calls, refusal)
+		_, _, err := executeRootCommandWithInput(t, deps, "y\n", "extension", "install", "compozy/typed")
+		if err == nil || len(calls) != 1 || cliExitCodeForError(err) != 2 ||
+			!strings.Contains(err.Error(), "Update first: compozy extension update acme-core") {
+			t.Fatalf("calls = %d, err = %v; want the update guidance and exit 2 without a prompt", len(calls), err)
+		}
+	})
+
+	t.Run("Should not let bare --allow-unverified consent for a dependency", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		gate := &extensionOperationAPIError{statusCode: 422, status: "422 Unprocessable Entity",
+			payload: contract.ExtensionOperationErrorPayload{
+				Error: "checksum unverified", Code: diagnosticcontract.CodeExtensionChecksumUnverified,
+				Dependency: "acme-core",
+			}}
+		deps := newDeps(t, false, &calls, gate)
+		_, _, err := executeRootCommandWithInput(t, deps, "", "extension", "install", "compozy/typed",
+			"--with-dependencies", "--allow-unverified", "--yes", "-o", "json")
+		if len(calls) != 1 || !calls[0].AllowUnverified || calls[0].Dependencies["acme-core"].AllowUnverified {
+			t.Fatalf("request = %+v, want root-only allow_unverified", calls)
+		}
+		if err == nil || !strings.Contains(err.Error(), "--allow-unverified-dependency acme-core") {
+			t.Fatalf("error = %v, want the per-dependency flag naming acme-core", err)
+		}
+	})
+
+	t.Run("Should consent only for the named dependency and confirm a dependency gateway digest", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		root := strings.Repeat("e", 64)
+		deps := newDeps(t, false, &calls, nil)
+		_, _, err := executeRootCommandWithInput(t, deps, "", "extension", "install", "compozy/typed",
+			"--with-dependencies", "--allow-unverified-dependency", "acme-core", "--yes",
+			"--confirm-gateway-requirement", root, "--confirm-gateway-requirement", "acme-core="+gateway, "-o", "json")
+		if err != nil || len(calls) != 1 {
+			t.Fatalf("install calls = %d, err = %v", len(calls), err)
+		}
+		request := calls[0]
+		wantCore := contract.ExtensionDependencyConsent{
+			ExpectedDigest: core.DigestSHA256, AllowUnverified: true, ConfirmGatewayDigest: gateway,
+		}
+		wantOther := contract.ExtensionDependencyConsent{ExpectedDigest: other.DigestSHA256}
+		if !request.WithDependencies || request.AllowUnverified || request.ConfirmGatewayDigest != root ||
+			request.Dependencies["acme-core"] != wantCore || request.Dependencies["acme-other"] != wantOther {
+			t.Fatalf("request = %+v, want consent for acme-core only", request)
+		}
+	})
+}
+
+// Invariant: remove prints the dependents and exits 1 on extension_dependency_in_use; --force carries force to the
+// daemon request [T-19].
+func TestExtensionRemoveDependencyGuard(t *testing.T) {
+	t.Parallel()
+	inUse := &extensionOperationAPIError{statusCode: 409, status: "409 Conflict",
+		payload: contract.ExtensionOperationErrorPayload{
+			Error: "extension: dependency in use", Code: diagnosticcontract.CodeExtensionDependencyInUse,
+			Dependents: []contract.ExtensionDependentPayload{{Name: "acme-tool", Profile: "default"}},
+		}}
+	for _, testCase := range []struct {
+		name  string
+		force bool
+	}{
+		{name: "Should print the dependents and exit 1 without --force"},
+		{name: "Should carry --force to the removal", force: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			forced := false
+			deps, _ := newExtensionLocalDeps(t, &stubClient{
+				removeExtensionFn: func(ctx context.Context, name string) (ManagedExtensionRemoveRecord, error) {
+					forced = extensionpkg.DependencyForced(ctx)
+					if forced {
+						return ManagedExtensionRemoveRecord{Name: name, Status: "removed"}, nil
+					}
+					return ManagedExtensionRemoveRecord{}, inUse
+				},
+			})
+			markExtensionDaemonRunning(&deps)
+			args := []string{"extension", "remove", "acme-core", "--global"}
+			if testCase.force {
+				args = append(args, "--force")
+			}
+			_, _, err := executeRootCommand(t, deps, args...)
+			if testCase.force {
+				if err != nil || !forced {
+					t.Fatalf("forced remove: forced = %t, err = %v", forced, err)
+				}
+				if query := extensionForceQuery(extensionpkg.WithDependencyForce(t.Context(), true), nil); query.Get(
+					extensionForceFlagName) != toolBoolTrue {
+					t.Fatalf("force query = %v, want force=true", query)
+				}
+				return
+			}
+			if err == nil || cliExitCodeForError(err) != 1 ||
+				!strings.Contains(err.Error(), "acme-tool (workspace global, profile default)") ||
+				!strings.Contains(err.Error(), "--force") {
+				t.Fatalf("error = %v (exit %d), want the dependents, --force guidance and exit 1",
+					err, cliExitCodeForError(err))
+			}
+		})
+	}
+}

@@ -132,6 +132,9 @@ func (e *extensionOperationAPIError) Error() string {
 	if e == nil {
 		return nilToolErrorString
 	}
+	if message, ok := extensionDependencyErrorMessage(e.payload); ok {
+		return message
+	}
 	if e.payload.Code == diagnosticcontract.CodeExtensionInputsRequired {
 		return fmt.Sprintf("extension inputs required: %s. Pass --input id=value or --input-file inputs.json. (%s)",
 			strings.Join(e.payload.Inputs, ", "), e.payload.Code)
@@ -143,9 +146,12 @@ func (e *extensionOperationAPIError) cliExitCode() int {
 	if e == nil {
 		return 1
 	}
-	if e.payload.Code == diagnosticcontract.CodeExtensionInputsRequired ||
-		e.payload.Code == diagnosticcontract.CodeExtensionInputInvalid {
+	switch e.payload.Code {
+	case diagnosticcontract.CodeExtensionInputsRequired, diagnosticcontract.CodeExtensionInputInvalid,
+		diagnosticcontract.CodeExtensionDependenciesRequired:
 		return 2
+	case diagnosticcontract.CodeExtensionDependencyInUse:
+		return 1
 	}
 	if strings.HasPrefix(strings.TrimSpace(e.payload.Code), extensionAgentPluginDiagnosticPrefix) {
 		return 1

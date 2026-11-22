@@ -104,6 +104,7 @@ type ExtensionPayload struct {
 	MCPServers                  []MarketplaceServerPayload        `json:"mcp_servers,omitempty"`
 	Inputs                      []ExtensionInputStatePayload      `json:"inputs,omitempty"`
 	MissingInputs               []string                          `json:"missing_inputs,omitempty"`
+	UnmetDependencies           []ExtensionDependencyPayload      `json:"unmet_dependencies,omitempty"`
 	Contents                    ExtensionContentsPayload          `json:"contents"`
 	Origin                      *MarketplaceOriginPayload         `json:"origin,omitzero"`
 	Name                        string                            `json:"name"`

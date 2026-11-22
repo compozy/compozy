@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
 func (c *daemonClient) ListExtensions(ctx context.Context) ([]ExtensionRecord, error) {
@@ -43,14 +44,12 @@ func (c *daemonClient) InstallExtension(
 	ctx context.Context,
 	request InstallExtensionRequest,
 ) (ExtensionRecord, error) {
-	var response struct {
-		Extension   ExtensionRecord                `json:"extension"`
-		EnableError *contract.ExtensionEnableError `json:"enable_error"`
-	}
+	var response contract.InstallExtensionResponse
 	if err := c.doJSON(ctx, http.MethodPost, "/api/extensions", nil, request, &response); err != nil {
 		return ExtensionRecord{}, err
 	}
 	response.Extension.InstallEnableError = response.EnableError
+	response.Extension.InstallDependenciesInstalled = response.DependenciesInstalled
 	return response.Extension, nil
 }
 
@@ -146,7 +145,7 @@ func (c *daemonClient) deleteExtension(
 		ctx,
 		http.MethodDelete,
 		extensionPath(name, ""),
-		query,
+		extensionForceQuery(ctx, query),
 		nil,
 		&response,
 	); err != nil {
@@ -179,7 +178,9 @@ func (c *daemonClient) SetExtensionEnablement(
 	enabled bool,
 ) (ExtensionEnablementRecord, error) {
 	var response ExtensionEnablementRecord
-	request := contract.SetExtensionEnablementRequest{Profile: strings.TrimSpace(profile), Enabled: enabled}
+	request := contract.SetExtensionEnablementRequest{
+		Profile: strings.TrimSpace(profile), Enabled: enabled, Force: extensionpkg.DependencyForced(ctx),
+	}
 	if err := c.doJSON(ctx, http.MethodPut, extensionPath(name, "enablement"), nil, request, &response); err != nil {
 		return ExtensionEnablementRecord{}, err
 	}
