@@ -1937,7 +1937,8 @@ func TestInstanceCallApproval(t *testing.T) {
 			}
 			d.InputSchema = json.RawMessage(
 				`{"type":"object","properties":{"enabled":{"type":"boolean"},"dry_run":{"type":"boolean"},` +
-					`"action":{"type":"string"},"inputs":{"type":"object"}},"additionalProperties":false}`,
+					`"action":{"type":"string"},"name":{"type":"string"},"inputs":{"type":"object"}},` +
+					`"additionalProperties":false}`,
 			)
 			provider := providerWithDescriptors(d.Source, d)
 			called := false

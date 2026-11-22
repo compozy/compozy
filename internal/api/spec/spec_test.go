@@ -3305,6 +3305,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addExtensionInputErrorFields(baseline) == 0 {
 			t.Fatal("approved extension input error fields: no historical extension error schemas found")
 		}
+		// #1845: extension input status items gain the optional setup state classification.
+		if addExtensionInputStateField(baseline) == 0 {
+			t.Fatal("approved extension input state field: no historical extension input schemas found")
+		}
 		addNativeReadPagingSchemas(t, baseline)
 		addManualJobWaitParameters(t, baseline)
 		if addNativeResultViewSchemas(baseline) == 0 {
@@ -7120,6 +7124,28 @@ func addExtensionInputErrorFields(value any) int {
 			stringList := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
 			properties["input_ids"] = stringList
 			properties["invalid"] = maps.Clone(stringList)
+			count++
+		}
+	}
+	return count
+}
+
+// Extension input status items gain the optional state string next to set and active.
+func addExtensionInputStateField(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addExtensionInputStateField(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addExtensionInputStateField(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && len(properties) == 4 && properties["id"] != nil && properties["type"] != nil &&
+			properties["set"] != nil && properties["active"] != nil {
+			properties["state"] = map[string]any{"type": "string"}
 			count++
 		}
 	}
