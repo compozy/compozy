@@ -35,6 +35,14 @@ export const extensionKeys = {
       extensionProfileKey(profileName),
       name.trim(),
     ] as const,
+  inputs: (name: string, workspaceId?: string | null, profileName?: string | null) =>
+    [
+      ...extensionKeys.all,
+      "inputs",
+      name,
+      extensionWorkspaceKey(workspaceId),
+      extensionProfileKey(profileName),
+    ] as const,
   inventory: (name: string, workspaceId?: string | null, profileName?: string | null) =>
     [
       ...extensionKeys.all,

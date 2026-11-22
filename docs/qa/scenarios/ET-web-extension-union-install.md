@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-extension-distribution
 expected: The Extensions-only "Install extension" entry point submits the generated `InstallExtensionRequest` union shape (`{source, ref, version?, asset?, allow_unverified?}`) for local_path, github, and git; per-source ref grammar is validated inline before the request; unverified archives route through the daemon's explicit consent dialog (including the daemon's own 422 reason); daemon validation errors are surfaced verbatim; and the curated one-click card install stays unchanged.
 entry_points: /marketplace/extensions (Install extension); `POST /api/extensions`
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -41,3 +41,10 @@ Git recovery state are linked above.
 QA impact 2026-09-28 (ui-normie-pass): Version, Asset and "Allow an unverified package" now sit under a
 closed "More options" fold in the install dialog; open it before setting them. Request shape is unchanged.
 The description reads "Install from GitHub, a git link, or a folder on this computer." Reset to untested.
+
+QA impact 2026-11-22 (GH-1845 subprocess inputs): inputs bound to the extension subprocess now arrive
+in preview `inputs` and in the `extension_inputs_required` refusal's `input_definitions` next to MCP
+inputs, and the same input form renders them (secret masked, boolean as a switch). No form change
+ships. Walk an Add of an extension that declares one subprocess-only secret and one MCP input: both
+appear, Add stays disabled until the required ones are filled, the install succeeds, and the
+subprocess input is bound (Installed shows no "Needs setup" notice). Reset to untested.

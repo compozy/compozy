@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: The installed shelf opens a flat local extension inventory independent of catalog pagination or availability. Rows show contents, enablement and overflow actions; the updates line and Update all preserve per-item results, including partial failure.
 entry_points: /marketplace/installed; Marketplace installed-count shelf
-qa_status: pass
+qa_status: untested
 bug_ids: [BUG-20260913-marketplace-installed-plugin-panic, BUG-20260913-marketplace-instance-mutation-scope, BUG-20260913-marketplace-workspace-dev-state]
 fix_status:
 retest_status: pass
@@ -108,3 +108,16 @@ QA impact 2026-11-04 (issue #1305 gap 3): Browse gained a Plugins | MCPs toggle 
 **Add MCP server…**. Installed is unchanged: its strip is search only and its Add ▾ keeps the two
 install doors and Add plugin marketplace…, and its count never includes MCP servers. Confirm that
 the installed shelf link from either Browse kind still opens this inventory.
+
+QA impact 2026-11-22 (GH-1845 extension setup): an installed extension that declares inputs gains
+Actions → **Setup…** (above Provenance; hidden without declared inputs and on a dev overlay) and,
+when `missing_inputs` is non-empty, a rail notice "Needs setup: {n} required inputs" whose **Set up**
+opens the same dialog. The dialog reads `GET /api/extensions/{name}/inputs` for the rail's instance
+and labels each input from `state`: Set (empty control; empty keeps the value), Missing, Invalid, or a
+`daemon_env` input marked Missing with "Uses the daemon environment; the extension process does not
+receive it." Save sends `PUT .../inputs` with only typed fields. Walk: fill one missing subprocess
+input on an enabled extension (toast "Setup saved" plus "Restarted {name}"); save while another
+required input stays empty (dialog stays open listing it); enter a bad value (field error from
+`input_id`); save a `daemon_env` input empty (toast says it is still using the daemon environment and
+the status keeps `daemon_env`); an OAuth server lists under the sign-in hint with its Authorize
+action. Confirm no secret value is ever prefilled or returned. Reset to untested.

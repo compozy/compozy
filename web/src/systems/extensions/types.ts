@@ -21,6 +21,10 @@ export type ExtensionRemovedBuiltin = OperationResponse<
   200
 >["removed"][number];
 export type ExtensionRestoreResult = OperationResponse<"restoreExtension", 200>;
+/** Setup view of one instance: declared inputs keyed by `state`, never values. */
+export type ExtensionInputsState = OperationResponse<"getExtensionInputs", 200>;
+export type ExtensionInputStatus = ExtensionInputsState["inputs"][number];
+export type ExtensionSetInputsRequest = OperationRequestBody<"setExtensionInputs">;
 
 /** Selects one daemon extension instance by optional workspace and profile axes. */
 export interface ExtensionInstanceScope {
