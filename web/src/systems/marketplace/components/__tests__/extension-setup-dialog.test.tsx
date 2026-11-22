@@ -59,7 +59,7 @@ const LEGACY: SetupInput = {
 
 const requests = { put: [] as unknown[], get: [] as URL[] };
 let readPayload = inputsPayload([TOKEN, REGION, LEGACY]);
-let writeResponse: () => Response = () => HttpResponse.json(readPayload);
+let writeResponse: () => Response | Promise<Response> = () => HttpResponse.json(readPayload);
 
 const server = setupServer(
   http.get("*/api/extensions/:name/inputs", ({ request }) => {
@@ -236,5 +236,40 @@ describe("ExtensionSetupDialog", () => {
 
     await waitFor(() => expect(screen.getByTestId("extension-input-region")).toHaveValue(""));
     expect(screen.queryByTestId("extension-setup-remaining")).not.toBeInTheDocument();
+  });
+
+  it("Should keep a failed save of one instance off another instance", async () => {
+    writeResponse = () => HttpResponse.json({ error: "vault is locked" }, { status: 500 });
+    const { rerenderWith, user } = await renderDialog();
+    await user.type(screen.getByTestId("extension-input-api_token"), "rotated");
+    await user.click(screen.getByTestId("extension-setup-save"));
+    expect(await screen.findByTestId("extension-setup-save-error")).toBeInTheDocument();
+
+    rerenderWith({ ...extension(), workspace_id: "ws-other" });
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("extension-setup-save-error")).not.toBeInTheDocument()
+    );
+  });
+
+  it("Should ignore a save that completes after the dialog switched instance", async () => {
+    let release = () => {};
+    writeResponse = () =>
+      new Promise<Response>(resolve => {
+        release = () => resolve(HttpResponse.json(inputsPayload([{ ...REGION, state: "set" }])));
+      });
+    const success = vi.spyOn(toast, "success");
+    const { onClose, rerenderWith, user } = await renderDialog();
+    await user.type(screen.getByTestId("extension-input-region"), "eu-west");
+    await user.click(screen.getByTestId("extension-setup-save"));
+    await waitFor(() => expect(requests.put).toHaveLength(1));
+
+    rerenderWith({ ...extension(), workspace_id: "ws-other" });
+    await waitFor(() => expect(screen.getByTestId("extension-input-region")).toHaveValue(""));
+    release();
+
+    await waitFor(() => expect(success).toHaveBeenCalledWith("Setup saved"));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("extension-setup-dialog")).toBeInTheDocument();
   });
 });

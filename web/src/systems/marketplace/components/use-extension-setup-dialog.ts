@@ -25,6 +25,12 @@ export function useExtensionSetupDialog(extension: ExtensionEntry, onClose: () =
   const [remaining, setRemaining] = useState<readonly string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<string, string>>>({});
   const [feedbackInstance, setFeedbackInstance] = useState(instance);
+  // The instance whose save the mutation state reports; another instance's failure stays hidden.
+  const [savedInstance, setSavedInstance] = useState(instance);
+  const currentInstance = useRef(instance);
+  useEffect(() => {
+    currentInstance.current = instance;
+  }, [instance]);
   if (feedbackInstance !== instance) {
     setFeedbackInstance(instance);
     setRemaining([]);
@@ -52,6 +58,8 @@ export function useExtensionSetupDialog(extension: ExtensionEntry, onClose: () =
   }, [firstPending]);
 
   const submit = async () => {
+    const submitted = instance;
+    setSavedInstance(submitted);
     setFieldErrors({});
     try {
       const result = await save.mutateAsync({
@@ -59,22 +67,22 @@ export function useExtensionSetupDialog(extension: ExtensionEntry, onClose: () =
         scope,
         inputs: form.inputs,
       });
-      form.reset();
       reportSaved(extension.name, result);
+      // A save that resolves after the dialog switched instance must not touch the new one.
+      if (currentInstance.current !== submitted) return;
+      form.reset();
       const pending = [...result.missing, ...result.invalid];
       setRemaining(pending);
       if (pending.length === 0) onClose();
     } catch (error) {
+      if (currentInstance.current !== submitted) return;
       if (error instanceof ExtensionsApiError && error.inputId) {
         setFieldErrors({ [error.inputId]: error.message });
       }
     }
   };
 
-  const saveError =
-    save.error && !(save.error instanceof ExtensionsApiError && save.error.inputId)
-      ? save.error
-      : null;
+  const saveError = savedInstance === instance ? generalSaveError(save.error) : null;
 
   return {
     firstPending,
@@ -106,6 +114,11 @@ function setupDefinitions(inputs: readonly ExtensionInputStatus[]): ExtensionInp
     required: false,
     type,
   }));
+}
+
+// A failure naming an input shows on its field; any other failure shows on the dialog.
+function generalSaveError(error: Error | null): Error | null {
+  return error && !(error instanceof ExtensionsApiError && error.inputId) ? error : null;
 }
 
 function reportSaved(name: string, result: ExtensionInputsState) {
