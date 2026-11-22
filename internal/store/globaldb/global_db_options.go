@@ -13,6 +13,7 @@ type OpenOption func(*openConfig)
 type openConfig struct {
 	healthFlushInterval      time.Duration
 	readStatementCacheLimit  int
+	staticStatementLimit     int
 	openSessionEventMetadata store.SessionEventMetadataOpener
 	operatorHomeDir          string
 	migrationProgress        MigrationProgressFunc
@@ -59,6 +60,16 @@ func WithReadStatementCacheLimit(limit int) OpenOption {
 	}
 }
 
+// WithStaticReadStatementCacheLimit bounds sqlc's static read statements kept prepared; zero
+// disables static reuse. The default stays above the generated read-query count.
+func WithStaticReadStatementCacheLimit(limit int) OpenOption {
+	return func(config *openConfig) {
+		if limit >= 0 {
+			config.staticStatementLimit = limit
+		}
+	}
+}
+
 // WithClock replaces the wall clock repositories stamp records with. Fixture writers such as
 // the demo seed use it to place records on a reproducible timeline; the daemon keeps the default.
 func WithClock(now func() time.Time) OpenOption {
@@ -67,19 +78,20 @@ func WithClock(now func() time.Time) OpenOption {
 	}
 }
 
-// staticReadStatementCacheLimit bounds sqlc's static read statements, which come from a fixed
-// set of generated queries; disabling dynamic reuse disables static reuse too.
+// staticReadStatementCacheLimit is the configured static bound; disabling dynamic reuse with
+// WithReadStatementCacheLimit(0) disables static reuse too.
 func (c openConfig) staticReadStatementCacheLimit() int {
 	if c.readStatementCacheLimit == 0 {
 		return 0
 	}
-	return defaultStaticReadStatementCacheLimit
+	return c.staticStatementLimit
 }
 
 func newOpenConfig(options []OpenOption) openConfig {
 	config := openConfig{
 		healthFlushInterval:     500 * time.Millisecond,
 		readStatementCacheLimit: defaultReadStatementCacheLimit,
+		staticStatementLimit:    defaultStaticReadStatementCacheLimit,
 	}
 	for _, option := range options {
 		if option != nil {

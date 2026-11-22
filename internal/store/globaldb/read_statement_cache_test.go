@@ -392,16 +392,26 @@ func TestStaticReadStatementReuse(t *testing.T) {
 		t.Parallel()
 
 		reader, cache := openStatementReader(t)
-		rows, err := reader.QueryContext(t.Context(), "SELECT 1 WHERE ? IN (?,?)", 2, 1, 2)
-		if err != nil {
-			t.Fatalf("QueryContext(slice) error = %v", err)
-		}
-		found := rows.Next()
-		if err := errors.Join(rows.Err(), rows.Close()); err != nil || !found {
-			t.Fatalf("QueryContext(slice) found=%t error=%v, want one row", found, err)
+		// sqlc expands slices without spaces; sqlInPlaceholders joins them with ", ".
+		for _, query := range []string{"SELECT 1 WHERE ? IN (?,?)", "SELECT 1 WHERE ? IN (?, ?)"} {
+			rows, err := reader.QueryContext(t.Context(), query, 2, 1, 2)
+			if err != nil {
+				t.Fatalf("QueryContext(%q) error = %v", query, err)
+			}
+			found := rows.Next()
+			if err := errors.Join(rows.Err(), rows.Close()); err != nil || !found {
+				t.Fatalf("QueryContext(%q) found=%t error=%v, want one row", query, found, err)
+			}
+			dynamic, err := cache.query(t.Context(), query, 2, 1, 2)
+			if err != nil {
+				t.Fatalf("dynamic query(%q) error = %v", query, err)
+			}
+			if err := dynamic.Close(); err != nil {
+				t.Fatalf("close dynamic rows: %v", err)
+			}
 		}
 		if got := cache.len(); got != 0 {
-			t.Fatalf("cached statements = %d, want 0 for an expanded slice list", got)
+			t.Fatalf("cached statements = %d, want 0 for expanded placeholder lists", got)
 		}
 	})
 
@@ -553,6 +563,32 @@ func TestStaticReadStatementReuse(t *testing.T) {
 		}
 		if got := globalDB.staticReadStatements.len(); got != 0 {
 			t.Fatalf("cached static statements = %d, want 0 with reuse disabled", got)
+		}
+	})
+
+	t.Run("Should take the static bound from its open option", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name    string
+			options []OpenOption
+			want    int
+		}{
+			{"Should default the static bound above the generated reads", nil, defaultStaticReadStatementCacheLimit},
+			{"Should apply a smaller static bound", []OpenOption{WithStaticReadStatementCacheLimit(8)}, 8},
+			{"Should disable static reuse alone", []OpenOption{WithStaticReadStatementCacheLimit(0)}, 0},
+			{"Should disable static reuse with dynamic reuse", []OpenOption{
+				WithStaticReadStatementCacheLimit(8), WithReadStatementCacheLimit(0),
+			}, 0},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				if got := newOpenConfig(tc.options).staticReadStatementCacheLimit(); got != tc.want {
+					t.Fatalf("static bound = %d, want %d", got, tc.want)
+				}
+			})
 		}
 	})
 

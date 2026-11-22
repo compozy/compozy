@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -57,8 +56,12 @@ func (c *readStatementCache) query(ctx context.Context, query string, args ...an
 }
 
 // run starts fn on the cached statement for query and reports whether it did. It reports false
-// without calling fn when the read must run unprepared: beyond the bound or after close.
+// without calling fn when the read must run unprepared: an expanded placeholder list, beyond the
+// bound, or after close.
 func (c *readStatementCache) run(ctx context.Context, query string, fn func(*sql.Stmt)) (bool, error) {
+	if hasPlaceholderList(query) {
+		return false, nil
+	}
 	stmt, err := c.statement(ctx, query)
 	if err != nil || stmt == nil || c.closing.Load() {
 		return false, err
@@ -198,13 +201,37 @@ func (r statementReader) QueryRowContext(ctx context.Context, query string, args
 	return r.db.QueryRowContext(ctx, query, args...)
 }
 
-// run reports false when the read must run unprepared. sqlc expands a slice argument into one
-// placeholder per element, so each length would claim its own cache slot; those texts stay
-// unprepared. A preparation error recurs on the unprepared query, which reports it.
+// run reports false when the read must run unprepared. A preparation error recurs on the
+// unprepared query, which reports it.
 func (r statementReader) run(ctx context.Context, query string, fn func(*sql.Stmt)) bool {
-	if r.cache == nil || strings.Contains(query, "?,?") {
+	if r.cache == nil {
 		return false
 	}
 	ran, err := r.cache.run(ctx, query, fn)
 	return err == nil && ran
+}
+
+// hasPlaceholderList reports whether query holds two placeholders separated only by a comma and
+// spaces, as sqlc's slice expansion ("?,?") and sqlInPlaceholders ("?, ?") write them. Each list
+// length is a distinct text, so caching those would claim one slot per length.
+func hasPlaceholderList(query string) bool {
+	for i := 0; i < len(query); i++ {
+		if query[i] != '?' {
+			continue
+		}
+		j := skipSpaces(query, i+1)
+		if j < len(query) && query[j] == ',' {
+			if k := skipSpaces(query, j+1); k < len(query) && query[k] == '?' {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func skipSpaces(s string, i int) int {
+	for i < len(s) && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n') {
+		i++
+	}
+	return i
 }
