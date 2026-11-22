@@ -53,6 +53,7 @@ const mocks = vi.hoisted(() => ({
     type: string;
   }>,
   extensionMissingInputs: [] as string[],
+  extensionUnmetDependencies: [] as Array<{ name: string; min_version?: string; state: string }>,
   extensionGatewayConfirmationRequired: false,
   extensionGatewayDigest: undefined as string | undefined,
   extensionLogs: [] as Array<{
@@ -105,6 +106,7 @@ function extensionPayload(): ExtensionEntry {
     ],
     inputs: mocks.extensionInputs,
     missing_inputs: mocks.extensionMissingInputs,
+    unmet_dependencies: mocks.extensionUnmetDependencies,
     declared_profiles: mocks.extensionDeclaredProfiles,
     dormant_placements: mocks.extensionPlacements.filter(item => item.dormant),
     enabled: mocks.extensionEnabled,
@@ -289,6 +291,7 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionGatewayDigest = undefined;
     mocks.extensionInputs = [];
     mocks.extensionMissingInputs = [];
+    mocks.extensionUnmetDependencies = [];
     mocks.extensionPlacements = [];
     mocks.extensionUpdateAvailable = false;
     mocks.extensionWorkspaceId = null;
@@ -554,6 +557,21 @@ describe("Marketplace installed-detail management", () => {
 
     const dialog = await screen.findByTestId("extension-setup-dialog");
     expect(await within(dialog).findByTestId("extension-input-pager_token")).toHaveFocus();
+  });
+
+  // T-20 [US-014.AC-3]: the rail names each unmet dependency with the action that resolves it.
+  it("Should show an unmet-dependency notice per dependency on the installed rail", async () => {
+    mocks.extensionUnmetDependencies = [
+      { name: "acme-core", min_version: "0.4.0", state: "missing" },
+      { name: "acme-net", state: "disabled" },
+    ];
+    await renderDetail(extensionDetailData());
+
+    const missing = screen.getByTestId("marketplace-extension-dependency-notice-acme-core");
+    expect(missing).toHaveTextContent("Missing dependency: acme-core");
+    expect(within(missing).getByRole("button", { name: "Install" })).toBeInTheDocument();
+    const disabled = screen.getByTestId("marketplace-extension-dependency-notice-acme-net");
+    expect(within(disabled).getByRole("button", { name: "Turn on" })).toBeInTheDocument();
   });
 
   it("Should show a recoverable state when installed extension management fails", async () => {

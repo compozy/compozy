@@ -1,4 +1,5 @@
 export type {
+  ExtensionDependency,
   ExtensionEnablement,
   ExtensionEntry,
   ExtensionInputsState,
@@ -11,6 +12,7 @@ export type {
   ExtensionLogEntry,
   ExtensionLogsSnapshot,
   ExtensionProvenance,
+  ExtensionUnmetDependency,
   ExtensionUpdateRequest,
   InstalledExtensionView,
 } from "./types";

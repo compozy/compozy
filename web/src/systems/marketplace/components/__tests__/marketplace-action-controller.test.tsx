@@ -11,6 +11,7 @@ import {
   renderHook,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
@@ -1329,6 +1330,137 @@ describe("Add", () => {
     releasePreview();
     await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
     expect(io.preview).toHaveBeenCalledOnce();
+  });
+});
+
+// T-20 [US-014]: Add previews dependencies, gates each one in order, and installs them jointly.
+// Invariant: no dependency is installed without its own consent; a cancel or too-old dependency sends nothing.
+describe("Add with dependencies", () => {
+  const CORE_DIGEST = "a".repeat(64);
+  const NET_GATEWAY_DIGEST = "b".repeat(64);
+  const dependencyPreview = (state: "missing" | "version_unmet" = "missing") => ({
+    name: "kit",
+    inputs: [],
+    declared_profiles: [],
+    placements: [],
+    dependencies: [
+      {
+        name: "acme-core",
+        source: "github",
+        ref: "acme/core",
+        min_version: "0.4.0",
+        required_by: ["acme-net", "kit"],
+        depth: 2,
+        state,
+        version: "0.5.1",
+        digest_sha256: CORE_DIGEST,
+        consent_required: true,
+        ...(state === "version_unmet" ? { installed_version: "0.3.0" } : {}),
+      },
+      {
+        name: "acme-net",
+        source: "curated",
+        ref: "acme/net",
+        required_by: ["kit"],
+        depth: 1,
+        state: "disabled",
+        installed_version: "1.0.0",
+        gateway_requirement_digest: NET_GATEWAY_DIGEST,
+      },
+      {
+        name: "acme-met",
+        source: "curated",
+        ref: "acme/met",
+        required_by: ["kit"],
+        depth: 1,
+        state: "met",
+      },
+    ],
+  });
+
+  it("Should list Also installs, confirm each dependency gate in order, and send per-dependency consent", async () => {
+    io.preview.mockResolvedValueOnce(dependencyPreview());
+    io.install.mockResolvedValueOnce({
+      dependencies_installed: ["acme-core", "acme-net"],
+      extension: extensionFixtures[0],
+    });
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+
+    const section = await screen.findByRole("region", { name: "Also installs" });
+    expect(within(section).getByTestId("extension-install-dependency-acme-core")).toHaveTextContent(
+      "Not verified"
+    );
+    expect(within(section).getByTestId("extension-install-dependency-acme-net")).toHaveTextContent(
+      "Turns on"
+    );
+    expect(within(section).queryByTestId("extension-install-dependency-acme-met")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByTestId("extension-trust-dialog")).toHaveTextContent(
+      "Install acme-core?"
+    );
+    expect(screen.queryByTestId("extension-install-summary-dialog")).toBeNull();
+    await user.click(screen.getByTestId("extension-trust-confirm"));
+    expect(await screen.findByTestId("extension-gateway-confirm-dialog")).toHaveTextContent(
+      "Allow remote access for acme-net?"
+    );
+    expect(io.install).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("extension-gateway-confirm-accept"));
+
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    const request = io.install.mock.calls[0]![0];
+    expect(request).toMatchObject({
+      enable: true,
+      expected_digest: verified.digest_sha256,
+      with_dependencies: true,
+      dependencies: {
+        "acme-core": { expected_digest: CORE_DIGEST, allow_unverified: true },
+        "acme-net": { confirm_gateway_digest: NET_GATEWAY_DIGEST },
+      },
+    });
+    // No blanket consent: the dependent's own request keeps allow_unverified off.
+    expect(request.allow_unverified).toBe(false);
+    expect(request.dependencies).not.toHaveProperty("acme-met");
+    await waitFor(() =>
+      expect(io.success).toHaveBeenCalledWith(
+        `${verified.name} added with acme-core, acme-net`,
+        expect.anything()
+      )
+    );
+  });
+
+  it("Should abort the whole Add when a dependency gate is canceled", async () => {
+    io.preview.mockResolvedValueOnce(dependencyPreview());
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+    await screen.findByRole("region", { name: "Also installs" });
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    const gate = await screen.findByTestId("extension-trust-dialog");
+    expect(gate).toHaveTextContent("Install acme-core?");
+    await user.click(within(gate).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByTestId("extension-trust-dialog")).toBeNull());
+    expect(screen.queryByTestId("extension-install-summary-dialog")).toBeNull();
+    expect(io.install).not.toHaveBeenCalled();
+  });
+
+  it("Should block Add with update guidance when a dependency is too old", async () => {
+    io.preview.mockResolvedValueOnce(dependencyPreview("version_unmet"));
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+
+    const row = await screen.findByTestId("extension-install-dependency-acme-core");
+    expect(row).toHaveTextContent("Update acme-core to 0.4.0 or later first");
+    const add = screen.getByRole("button", { name: "Add" });
+    expect(add).toBeDisabled();
+    await user.click(add);
+    expect(screen.queryByTestId("extension-trust-dialog")).toBeNull();
+    expect(io.install).not.toHaveBeenCalled();
   });
 });
 

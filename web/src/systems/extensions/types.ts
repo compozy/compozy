@@ -3,9 +3,18 @@ import type { MarketplaceCatalogListing } from "@/systems/marketplace";
 
 type ExtensionPayload = OperationResponse<"listExtensions", 200>["extensions"][number];
 type ExtensionArrayField = "mcp_servers" | "inputs" | "missing_inputs";
+/**
+ * Experimental status field for a dependency the instance no longer resolves (installed, enabled,
+ * visible, at `min_version`). Declared here until the status payload ships it on the wire.
+ */
+export interface ExtensionUnmetDependency {
+  name: string;
+  min_version?: string;
+  state: string;
+}
 export type ExtensionEntry = Omit<ExtensionPayload, ExtensionArrayField> & {
   [Field in ExtensionArrayField]: NonNullable<ExtensionPayload[Field]>;
-};
+} & { unmet_dependencies?: ExtensionUnmetDependency[] };
 export type ExtensionProvenance = OperationResponse<"getExtensionProvenance", 200>["provenance"];
 export type ExtensionUpdateRequest = OperationRequestBody<"updateExtension">;
 export type ExtensionLogsSnapshot = OperationResponse<"getExtensionLogs", 200>;
@@ -13,6 +22,8 @@ export type ExtensionLogEntry = ExtensionLogsSnapshot["logs"][number];
 export type ExtensionEnablement = OperationResponse<"setExtensionEnablement", 200>;
 export type ExtensionInstallRequest = OperationRequestBody<"previewExtensionInstall">;
 export type ExtensionInstallPreview = OperationResponse<"previewExtensionInstall", 200>;
+/** One node of the experimental dependency graph an install preview resolved. */
+export type ExtensionDependency = NonNullable<ExtensionInstallPreview["dependencies"]>[number];
 export type ExtensionKitInventory = OperationResponse<"getExtensionInventory", 200>;
 export type ExtensionKitItem = ExtensionKitInventory["items"][number];
 /** One permanently removed built-in: a tombstone the daemon lists in its API order. */

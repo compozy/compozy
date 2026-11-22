@@ -6,10 +6,10 @@ persona: Bruno
 journey: J-extension-distribution
 expected: The Extensions-only "Install extension" entry point submits the generated `InstallExtensionRequest` union shape (`{source, ref, version?, asset?, allow_unverified?}`) for local_path, github, and git; per-source ref grammar is validated inline before the request; unverified archives route through the daemon's explicit consent dialog (including the daemon's own 422 reason); daemon validation errors are surfaced verbatim; and the curated one-click card install stays unchanged.
 entry_points: /marketplace/extensions (Install extension); `POST /api/extensions`
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status: untested
 fix_commits:
 evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a/screenshots
 last_report: docs/qa/reports/2026-11-22-gh-1845-pr-a-extension-inputs.md
@@ -53,3 +53,23 @@ QA 2026-11-22 (GH-1845 subprocess inputs): the Add of a local extension with one
 secret and MCP inputs rendered both masked secrets and a boolean switch; Install stayed disabled
 until both required secrets were filled, consent ran, the install succeeded and Installed showed
 no Needs setup. Dependency parts are out of scope; source-guidance parts were not re-walked.
+
+QA impact 2026-11-22 (GH-1845 dependencies, experimental): the catalog Add review now lists an
+**Also installs** section built from preview `dependencies` (missing and disabled rows; met rows
+hidden), each with version, source, ref, trust word ("Not verified" or "Checked by CompozyOS"),
+"Turns on" for a disabled dependency, and the gateway digest when one is required. A `version_unmet`
+row reads "Update {name} to {min_version} or later first" and Add stays disabled. Add then shows each
+dependency's own gate in preview order, titled with its name: the unverified trust dialog for
+`consent_required`, then the remote-access digest dialog for a gateway requirement. Canceling any
+gate closes the Add and sends no install. Confirming every gate sends one `POST /api/extensions` with
+`with_dependencies: true` and `dependencies.<name>` carrying only that dependency's
+`expected_digest`, `allow_unverified` and `confirm_gateway_digest`; the dependent's own
+`allow_unverified` is unchanged. The success toast names `dependencies_installed`. The installed
+rail shows "Missing dependency: {name}" per `unmet_dependencies` entry, with Install (browse), Turn
+on or Update (Installed) routing to that dependency. Walk against a real daemon: a kit whose
+dependency is a local unverified extension (consent gate, joint install, both listed in Installed),
+a cancel at the dependency gate (nothing installed), a dependency installed at a lower version than
+`min_version` (Add disabled), then remove the dependency with force and confirm the dependent's rail
+notice. The source-union dialog (Install from GitHub, Git URL or local path) does not list
+dependencies; a source-union Add with unmet dependencies surfaces the daemon's
+`extension_dependencies_required` message. Reset to untested.

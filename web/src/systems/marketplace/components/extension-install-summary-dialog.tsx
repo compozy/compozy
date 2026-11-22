@@ -14,6 +14,8 @@ import type { ExtensionInstallPreview, ExtensionInstallRequest } from "@/systems
 
 import type { MarketplaceCatalogListing } from "../types";
 
+import { ExtensionDependencyList } from "./extension-dependency-list";
+import { unmetExtensionDependencies, versionUnmetDependencies } from "./extension-dependency-model";
 import { ExtensionInputFields } from "./extension-input-fields";
 import { marketplaceTrustSentence } from "./marketplace-ui";
 import { useExtensionInputForm } from "./use-extension-input-form";
@@ -45,6 +47,8 @@ export function ExtensionInstallSummaryDialog(props: SummaryDialogProps) {
   const { name, definitions, actionLabel } = model;
   const form = useExtensionInputForm(definitions, name);
   const hasInputs = definitions.length > 0;
+  // A dependency below its required version refuses even a joint install; Add stays disabled.
+  const blocked = model.versionUnmet > 0;
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
@@ -56,7 +60,7 @@ export function ExtensionInstallSummaryDialog(props: SummaryDialogProps) {
           className="flex min-h-0 flex-1 flex-col"
           onSubmit={event => {
             event.preventDefault();
-            if (pending || !form.valid) return;
+            if (pending || blocked || !form.valid) return;
             onConfirm(form.draft);
           }}
         >
@@ -68,6 +72,7 @@ export function ExtensionInstallSummaryDialog(props: SummaryDialogProps) {
           </DialogHeader>
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
             {model.preview ? <ExtensionInstallSummary preview={model.preview} /> : null}
+            <ExtensionDependencyList dependencies={model.dependencies} />
             {hasInputs ? <ExtensionInputFields disabled={pending} form={form} /> : null}
             {definitions.some(input => input.type === "secret") ? (
               <p className="text-form-hint text-muted-foreground">
@@ -88,7 +93,7 @@ export function ExtensionInstallSummaryDialog(props: SummaryDialogProps) {
             </Button>
             <Button
               data-testid="extension-install-summary-confirm"
-              disabled={pending || !form.valid}
+              disabled={pending || blocked || !form.valid}
               type="submit"
             >
               {pending ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
@@ -110,6 +115,8 @@ function summaryDialogModel(props: SummaryDialogProps) {
       pendingLabel: "Updating…",
       description: "Provide the required inputs to update this extension.",
       preview: null,
+      dependencies: [],
+      versionUnmet: 0,
       destination: null,
       trust: null,
     };
@@ -124,6 +131,8 @@ function summaryDialogModel(props: SummaryDialogProps) {
       props.preview.declared_profiles.length > 0 || props.preview.placements.length > 0
         ? props.preview
         : null,
+    dependencies: unmetExtensionDependencies(props.preview),
+    versionUnmet: versionUnmetDependencies(props.preview).length,
     destination: (
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-small-body">
         <dt className="text-muted-foreground">Installs in</dt>
