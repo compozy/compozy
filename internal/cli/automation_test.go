@@ -125,6 +125,49 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 		}
 	})
 
+	t.Run("Should pass a fire-time Loop input command", func(t *testing.T) {
+		t.Parallel()
+
+		var request AutomationJobCreateRequest
+		deps := newDefaultProfileTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "alpha" {
+					t.Fatalf("GetWorkspace ref = %q, want alpha", ref)
+				}
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+			},
+			createAutomationJobFn: func(_ context.Context, got AutomationJobCreateRequest) (JobRecord, error) {
+				request = got
+				return sampleAutomationJobRecord(), nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"automation", "jobs", "create",
+			"--name", "overnight-spec",
+			"--scope", "workspace",
+			"--workspace", "alpha",
+			"--schedule", "every:24h",
+			"--loop", "overnight",
+			"--loop-input", "channel=nightly",
+			"--loop-input-command", "  scripts/next-spec.sh  ",
+		)
+		if err != nil {
+			t.Fatalf("automation jobs create fire-time input command error = %v", err)
+		}
+		if request.LoopTarget == nil {
+			t.Fatal("job Loop target = nil, want a Loop target")
+		}
+		if got, want := request.LoopTarget.InputCommand, "scripts/next-spec.sh"; got != want {
+			t.Fatalf("job Loop input command = %q, want %q", got, want)
+		}
+		if got, want := request.LoopTarget.Inputs["channel"], "nightly"; got != want {
+			t.Fatalf("job Loop static inputs[channel] = %#v, want %#v", got, want)
+		}
+	})
+
 	t.Run("Should create a global trigger with static and mapped Loop inputs", func(t *testing.T) {
 		t.Parallel()
 
@@ -211,6 +254,16 @@ func TestAutomationCreateSupportsLoopTargets(t *testing.T) {
 			name: "Should require a Loop workspace for global automation",
 			args: []string{"--loop", "release"},
 			want: "--loop-workspace is required for a global Loop target",
+		},
+		{
+			name: "Should require --loop for a fire-time input command",
+			args: []string{"--loop-input-command", "scripts/next-spec.sh"},
+			want: "--loop is required when Loop target flags are set",
+		},
+		{
+			name: "Should reject a blank fire-time input command",
+			args: []string{"--loop", "release", "--loop-workspace", "alpha", "--loop-input-command", "   "},
+			want: "--loop-input-command must not be blank",
 		},
 	}
 	for _, tt := range invalidJobs {
@@ -1251,6 +1304,134 @@ func TestAutomationHelperFormattingAndParsing(t *testing.T) {
 	if got := displayRunTarget(sampleAutomationRunRecord()); got != "job:job-1" {
 		t.Fatalf("displayRunTarget() = %q, want job target", got)
 	}
+}
+
+func TestAutomationJobsUpdateLoopInputCommand(t *testing.T) {
+	t.Parallel()
+
+	loopJobRecord := func() JobRecord {
+		job := sampleAutomationJobRecord()
+		job.AgentName = ""
+		job.Prompt = ""
+		job.TargetKind = automationpkg.TargetKindLoop
+		job.LoopTarget = &automationpkg.LoopTarget{
+			WorkspaceID: "ws-alpha",
+			LoopName:    "overnight",
+			Inputs:      map[string]any{"channel": "nightly"},
+		}
+		return job
+	}
+
+	t.Run("Should replace the Loop input command and preserve the rest of the target", func(t *testing.T) {
+		t.Parallel()
+
+		var request AutomationJobUpdateRequest
+		deps := newDefaultProfileTestDeps(t, &stubClient{
+			getAutomationJobFn: func(context.Context, string) (JobRecord, error) {
+				return loopJobRecord(), nil
+			},
+			updateAutomationJobFn: func(
+				_ context.Context,
+				_ string,
+				got AutomationJobUpdateRequest,
+			) (JobRecord, error) {
+				request = got
+				return loopJobRecord(), nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"automation", "jobs", "update", "job-1",
+			"--loop-input-command", "scripts/next-spec.sh",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(automation jobs update loop input command) error = %v", err)
+		}
+		if request.LoopTarget == nil {
+			t.Fatal("request.LoopTarget = nil, want the full target replacement")
+		}
+		if got, want := request.LoopTarget.InputCommand, "scripts/next-spec.sh"; got != want {
+			t.Fatalf("request.LoopTarget.InputCommand = %q, want %q", got, want)
+		}
+		if got, want := request.LoopTarget.LoopName, "overnight"; got != want {
+			t.Fatalf("request.LoopTarget.LoopName = %q, want the preserved %q", got, want)
+		}
+		if got, want := request.LoopTarget.Inputs["channel"], "nightly"; got != want {
+			t.Fatalf("request.LoopTarget.Inputs[channel] = %#v, want the preserved %#v", got, want)
+		}
+	})
+
+	t.Run("Should clear the Loop input command with an empty value", func(t *testing.T) {
+		t.Parallel()
+
+		var request AutomationJobUpdateRequest
+		job := loopJobRecord()
+		job.LoopTarget.InputCommand = "scripts/previous.sh"
+		deps := newDefaultProfileTestDeps(t, &stubClient{
+			getAutomationJobFn: func(context.Context, string) (JobRecord, error) {
+				return job, nil
+			},
+			updateAutomationJobFn: func(
+				_ context.Context,
+				_ string,
+				got AutomationJobUpdateRequest,
+			) (JobRecord, error) {
+				request = got
+				return job, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"automation", "jobs", "update", "job-1",
+			"--loop-input-command", "",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(automation jobs clear loop input command) error = %v", err)
+		}
+		if request.LoopTarget == nil {
+			t.Fatal("request.LoopTarget = nil, want the cleared target")
+		}
+		if got := request.LoopTarget.InputCommand; got != "" {
+			t.Fatalf("request.LoopTarget.InputCommand = %q, want empty", got)
+		}
+	})
+
+	t.Run("Should reject a fire-time input command on an Agent target job", func(t *testing.T) {
+		t.Parallel()
+
+		updateCalls := 0
+		deps := newDefaultProfileTestDeps(t, &stubClient{
+			getAutomationJobFn: func(context.Context, string) (JobRecord, error) {
+				return sampleAutomationJobRecord(), nil
+			},
+			updateAutomationJobFn: func(
+				_ context.Context,
+				_ string,
+				_ AutomationJobUpdateRequest,
+			) (JobRecord, error) {
+				updateCalls++
+				return sampleAutomationJobRecord(), nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"automation", "jobs", "update", "job-1",
+			"--loop-input-command", "scripts/next-spec.sh",
+			"-o", "json",
+		)
+		assertErrorContains(t, err, "--loop-input-command requires a Loop target job")
+		if updateCalls != 0 {
+			t.Fatalf("UpdateAutomationJob calls = %d, want 0", updateCalls)
+		}
+	})
 }
 
 func sampleAutomationJobRecord() JobRecord {

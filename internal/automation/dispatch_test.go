@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -554,6 +555,201 @@ func TestDispatchLoopTargetFailsRunWhenLoopStarterRejects(t *testing.T) {
 	if got := len(creator.createCalls()); got != 0 {
 		t.Fatalf("len(Create calls) = %d, want 0", got)
 	}
+}
+
+func TestDispatchLoopTargetFireTimeInputCommand(t *testing.T) {
+	t.Parallel()
+
+	loopJob := func() Job {
+		job := testJob(AutomationScopeWorkspace, "job-loop-input-command", "ws_alpha")
+		job.AgentName = ""
+		job.Prompt = ""
+		job.TargetKind = TargetKindLoop
+		job.LoopTarget = &LoopTarget{
+			WorkspaceID: "ws_alpha",
+			LoopName:    "triage",
+			Inputs: map[string]any{
+				"slug":    "static-slug",
+				"channel": "stable",
+			},
+			InputCommand: "scripts/next-spec.sh",
+		}
+		return job
+	}
+
+	t.Run("Should merge command inputs over static inputs and record them", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryRunStore()
+		creator := newRecordingSessionCreator()
+		starter := &recordingLoopStarter{
+			runID: "looprun-inputs",
+			resolveInputs: map[string]any{
+				"slug":  "catalog-mutability",
+				"extra": "queued",
+			},
+		}
+		dispatcher := newTestDispatcher(t, creator, store, WithDispatcherLoopStarter(starter))
+
+		job := loopJob()
+		run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+			Kind: DispatchKindSchedule,
+			Job:  &job,
+		})
+		if err != nil {
+			t.Fatalf("Dispatch() error = %v", err)
+		}
+		if got, want := run.Status, RunDelegated; got != want {
+			t.Fatalf("run.Status = %q, want %q", got, want)
+		}
+		if got, want := run.LoopRunID, "looprun-inputs"; got != want {
+			t.Fatalf("run.LoopRunID = %q, want %q", got, want)
+		}
+
+		resolveCalls := starter.resolveCallSnapshot()
+		if got, want := len(resolveCalls), 1; got != want {
+			t.Fatalf("len(ResolveLoopInputs calls) = %d, want %d", got, want)
+		}
+		resolveCall := resolveCalls[0]
+		if got, want := resolveCall.Command, "scripts/next-spec.sh"; got != want {
+			t.Fatalf("ResolveLoopInputs().Command = %q, want %q", got, want)
+		}
+		if got, want := resolveCall.WorkspaceID, "ws_alpha"; got != want {
+			t.Fatalf("ResolveLoopInputs().WorkspaceID = %q, want %q", got, want)
+		}
+		if got, want := resolveCall.LoopName, "triage"; got != want {
+			t.Fatalf("ResolveLoopInputs().LoopName = %q, want %q", got, want)
+		}
+		if got, want := resolveCall.Kind, LoopStartKindSchedule; got != want {
+			t.Fatalf("ResolveLoopInputs().Kind = %q, want %q", got, want)
+		}
+		if got, want := resolveCall.AutomationRunID, run.ID; got != want {
+			t.Fatalf("ResolveLoopInputs().AutomationRunID = %q, want %q", got, want)
+		}
+
+		startCalls := starter.startCallSnapshot()
+		if got, want := len(startCalls), 1; got != want {
+			t.Fatalf("len(StartLoop calls) = %d, want %d", got, want)
+		}
+		inputs := startCalls[0].Inputs
+		if got, want := inputs["slug"], "catalog-mutability"; got != want {
+			t.Fatalf("StartLoop().Inputs[slug] = %v, want %v (command wins)", got, want)
+		}
+		if got, want := inputs["channel"], "stable"; got != want {
+			t.Fatalf("StartLoop().Inputs[channel] = %v, want %v (static value preserved)", got, want)
+		}
+		if got, want := inputs["extra"], "queued"; got != want {
+			t.Fatalf("StartLoop().Inputs[extra] = %v, want %v", got, want)
+		}
+
+		if got, want := run.Metadata[LoopInputSourceMetadataKey], LoopInputSourceCommand; got != want {
+			t.Fatalf("run.Metadata[loop_input_source] = %#v, want %#v", got, want)
+		}
+		resolved, ok := run.Metadata[LoopInputsMetadataKey].(map[string]any)
+		if !ok {
+			t.Fatalf("run.Metadata[loop_inputs] = %#v, want a map", run.Metadata[LoopInputsMetadataKey])
+		}
+		if got, want := resolved["slug"], "catalog-mutability"; got != want {
+			t.Fatalf("run.Metadata[loop_inputs][slug] = %v, want %v", got, want)
+		}
+		keys, ok := run.Metadata[LoopInputKeysMetadataKey].([]string)
+		if !ok {
+			t.Fatalf("run.Metadata[loop_input_keys] = %#v, want a string slice", run.Metadata[LoopInputKeysMetadataKey])
+		}
+		if got, want := strings.Join(keys, ","), "channel,extra,slug"; got != want {
+			t.Fatalf("run.Metadata[loop_input_keys] = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should record a skip without a Loop run when the command resolves no inputs", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryRunStore()
+		creator := newRecordingSessionCreator()
+		starter := &recordingLoopStarter{runID: "looprun-skipped", resolveInputs: map[string]any{}}
+		dispatcher := newTestDispatcher(t, creator, store, WithDispatcherLoopStarter(starter))
+
+		job := loopJob()
+		run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+			Kind: DispatchKindSchedule,
+			Job:  &job,
+		})
+		if err != nil {
+			t.Fatalf("Dispatch() error = %v", err)
+		}
+		if got, want := run.Status, RunCancelled; got != want {
+			t.Fatalf("run.Status = %q, want %q", got, want)
+		}
+		if got := run.LoopRunID; got != "" {
+			t.Fatalf("run.LoopRunID = %q, want empty", got)
+		}
+		if got, want := run.Metadata[SchedulerSkipReasonMetadataKey], LoopInputSkipReasonNoInputs; got != want {
+			t.Fatalf("run.Metadata[reason] = %#v, want %#v", got, want)
+		}
+		if got := len(starter.startCallSnapshot()); got != 0 {
+			t.Fatalf("len(StartLoop calls) = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should fail the run with the command stderr when resolution fails", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryRunStore()
+		creator := newRecordingSessionCreator()
+		starter := &recordingLoopStarter{
+			runID:      "looprun-failed",
+			resolveErr: errors.New("daemon: loop input command failed: exit status 1: queue is locked"),
+		}
+		dispatcher := newTestDispatcher(t, creator, store, WithDispatcherLoopStarter(starter))
+
+		job := loopJob()
+		run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+			Kind: DispatchKindSchedule,
+			Job:  &job,
+		})
+		if err == nil {
+			t.Fatal("Dispatch() error = nil, want input command failure")
+		}
+		if got, want := run.Status, RunFailed; got != want {
+			t.Fatalf("run.Status = %q, want %q", got, want)
+		}
+		if got := run.LoopRunID; got != "" {
+			t.Fatalf("run.LoopRunID = %q, want empty", got)
+		}
+		if !strings.Contains(run.Error, "queue is locked") {
+			t.Fatalf("run.Error = %q, want the command stderr", run.Error)
+		}
+		if got := len(starter.startCallSnapshot()); got != 0 {
+			t.Fatalf("len(StartLoop calls) = %d, want 0", got)
+		}
+		stored, ok := run.Metadata[LoopInputErrorMetadataKey].(string)
+		if !ok || !strings.Contains(stored, "queue is locked") {
+			t.Fatalf("run.Metadata[loop_input_error] = %#v, want the command stderr", run.Metadata[LoopInputErrorMetadataKey])
+		}
+	})
+
+	t.Run("Should fail the run when the loop starter cannot resolve fire-time inputs", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryRunStore()
+		creator := newRecordingSessionCreator()
+		dispatcher := newTestDispatcher(t, creator, store, WithDispatcherLoopStarter(&plainLoopStarter{}))
+
+		job := loopJob()
+		run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+			Kind: DispatchKindSchedule,
+			Job:  &job,
+		})
+		if err == nil {
+			t.Fatal("Dispatch() error = nil, want missing resolver failure")
+		}
+		if got, want := run.Status, RunFailed; got != want {
+			t.Fatalf("run.Status = %q, want %q", got, want)
+		}
+		if !strings.Contains(run.Error, "fire-time input resolver") {
+			t.Fatalf("run.Error = %q, want the missing resolver reason", run.Error)
+		}
+	})
 }
 
 func TestDispatchLoopTargetCatchUpConflictRecordsMetadata(t *testing.T) {
@@ -2074,6 +2270,9 @@ type recordingLoopStarter struct {
 	validateErr     error
 	startErr        error
 	startErrors     []error
+	resolveCalls    []LoopInputResolutionRequest
+	resolveInputs   map[string]any
+	resolveErr      error
 	runID           string
 	suppressed      bool
 	suppressedCount int
@@ -2139,6 +2338,47 @@ func (s *recordingLoopStarter) startCallSnapshot() []LoopStartRequest {
 		out = append(out, cloneLoopStartRequest(call))
 	}
 	return out
+}
+
+func (s *recordingLoopStarter) ResolveLoopInputs(
+	ctx context.Context,
+	req LoopInputResolutionRequest,
+) (map[string]any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.resolveCalls = append(s.resolveCalls, req)
+	if s.resolveErr != nil {
+		return nil, s.resolveErr
+	}
+	if s.resolveInputs == nil {
+		return nil, nil
+	}
+	resolved := make(map[string]any, len(s.resolveInputs))
+	maps.Copy(resolved, s.resolveInputs)
+	return resolved, nil
+}
+
+func (s *recordingLoopStarter) resolveCallSnapshot() []LoopInputResolutionRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.resolveCalls)
+}
+
+// plainLoopStarter implements only LoopStarter, so a job with an input command cannot resolve it.
+type plainLoopStarter struct{}
+
+func (s *plainLoopStarter) ValidateLoopTarget(context.Context, LoopTargetValidationRequest) error {
+	return nil
+}
+
+func (s *plainLoopStarter) StartLoop(context.Context, LoopStartRequest) (LoopStartResult, error) {
+	return LoopStartResult{RunID: "looprun-plain"}, nil
 }
 
 func cloneLoopTargetValidationRequest(req LoopTargetValidationRequest) LoopTargetValidationRequest {
