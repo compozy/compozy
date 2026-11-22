@@ -320,7 +320,24 @@ const extensionInstallInputSchema = `{
 			"description":"Replace the installed local extension; the previous version stays installed ` +
 	`only when the replacement fails before the reinstall transaction completes. A failure after it ` +
 	`returns, such as enable failing, does not restore it."},
-		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"},
+		"with_dependencies":{"type":"boolean","default":false,
+			"description":"Experimental. Install missing and enable disabled requires.extensions dependencies ` +
+	`first, in the same scope and profile. Without it unmet dependencies refuse with ` +
+	`extension_dependencies_required."},
+		"dependencies":{"type":"object",
+			"description":"Experimental. Per-dependency trust consent keyed by dependency name; ` +
+	`allow_unverified above applies only to the requested extension.",
+			"additionalProperties":{
+				"type":"object",
+				"properties":{
+					"expected_digest":{"type":"string","pattern":"^[a-fA-F0-9]{64}$"},
+					"allow_unverified":{"type":"boolean"},
+					"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+				},
+				"additionalProperties":false
+			}
+		}
 	},
 	"additionalProperties":false
 }`

@@ -347,6 +347,43 @@ acquisition refs keep priority if the same spelling collides; `marketplace:team/
 the plugin. An unknown explicit marketplace source fails before acquisition; it is never interpreted
 as a GitHub repository. Inspect source state with `compozy marketplace sources list -o json`.
 
+### Extension dependencies (experimental)
+
+Dependencies are experimental and may change without a deprecation window. A package declares the
+extensions it needs with `[[requires.extensions]]` entries: `name`, `source` (`curated`,
+`marketplace`, `github`, `git`, `local_path`), `ref`, and an optional `min_version` lower bound. Self
+and duplicate names are invalid, and the manifest must set `min_compozy_version` to at least `0.7.9`
+so older daemons refuse it instead of ignoring the table. The catalog feed carries no dependency
+field: browsing never shows dependencies; install preview reads them from the downloaded package.
+
+A dependency is met when an installation with that name is visible to the dependent's instance (a
+global install counts for workspaces of the same profile, never for another profile), enabled for that
+profile, and at least `min_version`. Install and preview resolve the transitive graph before any
+mutation: a cycle or a chain deeper than 5 returns `422 extension_dependency_graph_invalid` with
+`reason` `cycle` or `depth` and `path`; one name declared with different `source`/`ref` by two parents
+returns `reason: "conflicting_source"` with both `parents`. Diamonds collapse to one node whose
+`min_version` is the highest bound and whose `required_by` lists every parent.
+
+Preview (`POST /api/extensions/preview-install`) returns `dependencies[]`, dependencies first, each
+with `state` (`met`, `missing`, `disabled`, `version_unmet`), `required_by`, `depth`, and, for a
+missing package, its `version`, `digest_sha256`, `gateway_requirement_digest` and `consent_required`
+(true when it needs `allow_unverified`). Install without `with_dependencies` refuses any unmet
+dependency with `422 extension_dependencies_required` listing the unmet entries. `version_unmet`
+always refuses, even with consent, and carries `retry_command: "compozy extension update <dep>"`;
+nothing is ever auto-updated.
+
+`with_dependencies: true` installs `missing` and enables `disabled` dependencies in the dependent's
+scope and profile, dependencies first, before the dependent's own input gate. Consent is per
+artifact under `dependencies.<name>` (`expected_digest`, `allow_unverified`,
+`confirm_gateway_digest`); the root `allow_unverified` never covers a dependency. A missing
+confirmation refuses with that gate's existing code (`extension_checksum_unverified`,
+`extension_source_changed`, `extension_gateway_confirmation_required`, ...) plus `dependency: "<name>"`.
+Execution stops at the first failure and keeps completed dependencies, reported as
+`dependencies_installed` on the error; a successful install returns `201` with
+`dependencies_installed`. A dependency with required inputs refuses with `extension_inputs_required`
+naming it; set it up separately first. `compozy__extensions_install` accepts the same
+`with_dependencies` and closed `dependencies` object with the authority of a plain install.
+
 ## Built-in Permanent Removal
 
 A built-in is a bundled extension, embedded in the binary from `extensions/`. A plain

@@ -3494,6 +3494,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addLoopRunOutcomeDiagnosticSchemas(baseline) == 0 {
 			t.Fatal("approved Loop run outcome diagnostics: no historical outcome schemas found")
 		}
+		// #1845: install requests, previews, responses and operation errors gain the experimental dependency fields.
+		if added := addExtensionDependencyFields(baseline, newComponents); added < 4 {
+			t.Fatalf("approved extension dependency fields: matched %d historical schema kinds, want 4", added)
+		}
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
@@ -7169,6 +7173,91 @@ func addExtensionInputErrorFields(value any) int {
 		}
 	}
 	return count
+}
+
+// addExtensionDependencyFields copies the experimental dependency properties, refs inlined, from the current
+// components into every historical install request, preview, install response and operation error schema.
+// It returns how many of those four schema kinds it matched.
+func addExtensionDependencyFields(baseline map[string]any, components map[string]any) int {
+	targets := []struct {
+		component string
+		signature []string
+		size      int // exact historical property count, 0 for any
+		fields    []string
+	}{
+		{"InstallExtensionRequest", []string{"ref", "source", "allow_unverified", "expected_digest"}, 0,
+			[]string{"with_dependencies", "dependencies"}},
+		{"ExtensionInstallPreviewPayload", []string{"declared_profiles", "placements", "inputs"}, 6,
+			[]string{"dependencies"}},
+		{"InstallExtensionResponse", []string{"enable_error", "extension"}, 0,
+			[]string{"dependencies_installed"}},
+		{"ExtensionOperationErrorPayload", []string{"listed_digest", "declared_env", "input_id"}, 0, []string{
+			"dependency", "dependencies", "dependencies_installed", "reason", "path", "parents", "retry_command",
+		}},
+	}
+	matched := 0
+	for _, target := range targets {
+		source := components[target.component].(map[string]any)["properties"].(map[string]any)
+		if addSchemaPropertiesBySignature(
+			baseline,
+			target.signature,
+			target.size,
+			target.fields,
+			source,
+			components,
+		) > 0 {
+			matched++
+		}
+	}
+	return matched
+}
+
+func addSchemaPropertiesBySignature(
+	value any, signature []string, size int, fields []string, source, components map[string]any,
+) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSchemaPropertiesBySignature(child, signature, size, fields, source, components)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addSchemaPropertiesBySignature(child, signature, size, fields, source, components)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || (size > 0 && len(properties) != size) ||
+			slices.ContainsFunc(signature, func(key string) bool { return properties[key] == nil }) {
+			return count
+		}
+		for _, field := range fields {
+			properties[field] = inlineSchemaRefs(source[field], components)
+		}
+		count++
+	}
+	return count
+}
+
+func inlineSchemaRefs(value any, components map[string]any) any {
+	switch node := value.(type) {
+	case []any:
+		items := make([]any, 0, len(node))
+		for _, child := range node {
+			items = append(items, inlineSchemaRefs(child, components))
+		}
+		return items
+	case map[string]any:
+		if reference, ok := node["$ref"].(string); ok {
+			return inlineSchemaRefs(components[strings.TrimPrefix(reference, "#/components/schemas/")], components)
+		}
+		copied := make(map[string]any, len(node))
+		for key, child := range node {
+			copied[key] = inlineSchemaRefs(child, components)
+		}
+		return copied
+	default:
+		return value
+	}
 }
 
 // Extension input status items gain the optional state string next to set and active.

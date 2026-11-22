@@ -416,6 +416,65 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 	})
 
+	// Invariant: per-dependency consent is a closed object forwarded to the dependency's own gate [T-17].
+	// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
+	t.Run("Should reject unknown per-dependency consent keys", func(t *testing.T) {
+		t.Parallel()
+		deps, _, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input: json.RawMessage(`{"source":"curated","ref":"acme/tool","with_dependencies":true,` +
+				`"dependencies":{"acme-core":{"allow_unverified":true,"allow_all":true}}}`),
+		})
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(unknown consent key) error = %v, want invalid input", err)
+		}
+	})
+
+	t.Run("Should forward per-dependency consent to the dependency gate", func(t *testing.T) {
+		t.Parallel()
+		deps, extRegistry, _, _ := newNativeExtensionToolDeps(t)
+		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
+		dependencyDir := writeNativeLocalExtensionFixture(t, "dep-core", "1.0.0")
+		rootDir := writeNativeLocalExtensionFixture(t, "dep-root", "1.0.0")
+		manifestPath := filepath.Join(rootDir, "extension.toml")
+		content, err := os.ReadFile(manifestPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content = bytes.Replace(content, []byte(`"0.5.0"`), []byte(`"0.7.9"`), 1)
+		content = fmt.Appendf(content, "\n[[requires.extensions]]\nname = \"dep-core\"\n"+
+			"source = \"local_path\"\nref = %q\n", dependencyDir)
+		if err := os.WriteFile(manifestPath, content, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		mismatched := strings.Repeat("a", 64)
+
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDExtensionsInstall,
+			Input: json.RawMessage(fmt.Sprintf(`{"source":"local_path","ref":%q,"allow_unverified":true,`+
+				`"with_dependencies":true,"dependencies":{"dep-core":{"allow_unverified":true,"expected_digest":%q}}}`,
+				rootDir, mismatched)),
+		})
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != "extension_source_changed" || toolErr.PartialResult == nil {
+			t.Fatalf("Registry.Call(dependency digest) error = %#v", err)
+		}
+		var payload contract.ExtensionOperationErrorPayload
+		if err := json.Unmarshal(toolErr.PartialResult.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Dependency != "dep-core" || payload.ListedDigest != mismatched {
+			t.Fatalf("dependency gate payload = %#v", payload)
+		}
+		for _, name := range []string{"dep-root", "dep-core"} {
+			if _, err := extRegistry.Get(name); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+				t.Fatalf("%s installed after refusal: %v", name, err)
+			}
+		}
+	})
+
 	// Invariant: native acquisition failures retain recovery metadata, including after partial batch progress.
 	// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
 	t.Run("Should retain missing candidate fields after a partial native update", func(t *testing.T) {

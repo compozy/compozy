@@ -36,10 +36,11 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 			Value: openapi3.NewStringSchema().WithEnum("approved", "denied"),
 		}
 	},
-	reflect.TypeFor[extensioninput.Value]():             customizeExtensionInputValueSchema,
-	reflect.TypeFor[contract.InstallExtensionRequest](): customizeExtensionInstallRequestSchema,
-	reflect.TypeFor[contract.UpdateExtensionRequest]():  customizeExtensionUpdateRequestSchema,
-	reflect.TypeFor[contract.UpdateExtensionsRequest](): customizeExtensionUpdateRequestSchema,
+	reflect.TypeFor[extensioninput.Value]():                customizeExtensionInputValueSchema,
+	reflect.TypeFor[contract.InstallExtensionRequest]():    customizeExtensionInstallRequestSchema,
+	reflect.TypeFor[contract.ExtensionDependencyConsent](): customizeExtensionDependencyConsentSchema,
+	reflect.TypeFor[contract.UpdateExtensionRequest]():     customizeExtensionUpdateRequestSchema,
+	reflect.TypeFor[contract.UpdateExtensionsRequest]():    customizeExtensionUpdateRequestSchema,
 	reflect.TypeFor[binaryResponse](): func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewStringSchema()
 		schema.Format = schemaFormatBinary

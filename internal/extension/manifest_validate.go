@@ -55,6 +55,9 @@ func validateManifestResources(manifest *Manifest) error {
 	if err := ValidateManifestInputs(manifest); err != nil {
 		return err
 	}
+	if err := validateManifestRequires(manifest); err != nil {
+		return err
+	}
 	if err := validateManifestMCPPolicies(manifest.Resources.MCPServers); err != nil {
 		return err
 	}

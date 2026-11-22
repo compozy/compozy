@@ -8839,6 +8839,97 @@
         ],
         "type": "object"
       },
+      "ExtensionDependencyConsent": {
+        "additionalProperties": false,
+        "properties": {
+          "allow_unverified": {
+            "type": "boolean"
+          },
+          "confirm_gateway_digest": {
+            "type": "string"
+          },
+          "expected_digest": {
+            "pattern": "^[a-fA-F0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "x-stability": "experimental"
+      },
+      "ExtensionDependencyParentPayload": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "ref",
+          "source"
+        ],
+        "type": "object"
+      },
+      "ExtensionDependencyPayload": {
+        "properties": {
+          "consent_required": {
+            "type": "boolean"
+          },
+          "depth": {
+            "type": "integer"
+          },
+          "digest_sha256": {
+            "type": "string"
+          },
+          "gateway_requirement_digest": {
+            "type": "string"
+          },
+          "installed_version": {
+            "type": "string"
+          },
+          "min_version": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "required_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "retry_command": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "depth",
+          "name",
+          "ref",
+          "required_by",
+          "source",
+          "state"
+        ],
+        "type": "object"
+      },
       "ExtensionEnableError": {
         "properties": {
           "code": {
@@ -9091,6 +9182,12 @@
             },
             "type": "array"
           },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionDependencyPayload"
+            },
+            "type": "array"
+          },
           "digest_sha256": {
             "type": "string"
           },
@@ -9301,6 +9398,21 @@
             },
             "type": "array"
           },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionDependencyPayload"
+            },
+            "type": "array"
+          },
+          "dependencies_installed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dependency": {
+            "type": "string"
+          },
           "diagnostic": {
             "oneOf": [
               {
@@ -9371,6 +9483,24 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "parents": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionDependencyParentPayload"
+            },
+            "type": "array"
+          },
+          "path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "retry_command": {
+            "type": "string"
           }
         },
         "required": [
@@ -14812,6 +14942,13 @@
           "confirm_gateway_digest": {
             "type": "string"
           },
+          "dependencies": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ExtensionDependencyConsent"
+            },
+            "description": "Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies.",
+            "type": "object"
+          },
           "enable": {
             "default": false,
             "description": "Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.",
@@ -14860,6 +14997,10 @@
           "version": {
             "type": "string"
           },
+          "with_dependencies": {
+            "description": "Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse.",
+            "type": "boolean"
+          },
           "workspace_id": {
             "description": "Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.",
             "type": "string"
@@ -14873,6 +15014,12 @@
       },
       "InstallExtensionResponse": {
         "properties": {
+          "dependencies_installed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "enable_error": {
             "oneOf": [
               {

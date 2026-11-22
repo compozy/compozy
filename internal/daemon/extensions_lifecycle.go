@@ -50,42 +50,18 @@ func (s *daemonExtensionService) Install(
 		)
 	}
 	event.ExtensionName = prepared.name
-	var item contract.ExtensionPayload
-	mutation := func() error {
-		if prepared.published != nil {
-			if installed, readErr := s.registry.Get(prepared.name); readErr == nil {
-				if err := s.reinstallPreparedExtension(ctx, prepared, installed, req, actor, &item); err != nil {
-					return err
-				}
-				if req.Enable {
-					return s.enableInstalledExtension(ctx, prepared, req, actor, &item)
-				}
-				return nil
-			} else if !errors.Is(readErr, extensionpkg.ErrExtensionNotFound) {
-				return readErr
-			}
-		}
-		confirmation, confirmErr := s.prepareInstallGatewayConfirmation(
-			prepared.manifest, strings.TrimSpace(req.ConfirmGatewayDigest), actor,
-		)
-		if confirmErr != nil {
-			return confirmErr
-		}
-		return s.commitPreparedInstallWithInputs(ctx, prepared, req, confirmation, actor, event, &item)
-	}
-	if prepared.published != nil {
-		err = s.lifecycle.withPackageMutation(ctx, []string{prepared.name}, mutation)
-	} else {
-		err = s.lifecycle.withInstances(ctx, extensionMutationKeys([]string{prepared.name}, prepared.target), mutation)
-	}
-	if err = s.finishPreparedInstall(prepared, err); err != nil {
+	installed, err := s.installDependencies(ctx, prepared, req, actor)
+	if err != nil {
 		return contract.ExtensionPayload{}, errors.Join(
-			err,
+			withDependenciesInstalled(err, installed),
+			prepared.Close(),
 			s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event),
 		)
 	}
-	err = s.notifyMarketplaceExtensionInstalled(ctx, &item)
-	return item, err
+	// A post-commit notification failure still returns the installed item, as before dependencies.
+	item, err := s.installPrepared(ctx, prepared, req, actor, event)
+	item.InstallDependenciesInstalled = installed
+	return item, withDependenciesInstalled(err, installed)
 }
 
 // A target activation or publication failure compensates its registry, input and managed-file changes.

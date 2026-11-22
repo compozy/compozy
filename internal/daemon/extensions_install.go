@@ -81,6 +81,53 @@ func (s *daemonExtensionService) prepareExtensionInstall(
 	}
 }
 
+// installPrepared commits one acquired package, owning and closing it.
+func (s *daemonExtensionService) installPrepared(
+	ctx context.Context,
+	prepared preparedDaemonExtensionInstall,
+	req contract.InstallExtensionRequest,
+	actor taskpkg.ActorContext,
+	event extensionpkg.LifecycleEvent,
+) (contract.ExtensionPayload, error) {
+	var item contract.ExtensionPayload
+	mutation := func() error {
+		if prepared.published != nil {
+			if installed, readErr := s.registry.Get(prepared.name); readErr == nil {
+				if err := s.reinstallPreparedExtension(ctx, prepared, installed, req, actor, &item); err != nil {
+					return err
+				}
+				if req.Enable {
+					return s.enableInstalledExtension(ctx, prepared, req, actor, &item)
+				}
+				return nil
+			} else if !errors.Is(readErr, extensionpkg.ErrExtensionNotFound) {
+				return readErr
+			}
+		}
+		confirmation, confirmErr := s.prepareInstallGatewayConfirmation(
+			prepared.manifest, strings.TrimSpace(req.ConfirmGatewayDigest), actor,
+		)
+		if confirmErr != nil {
+			return confirmErr
+		}
+		return s.commitPreparedInstallWithInputs(ctx, prepared, req, confirmation, actor, event, &item)
+	}
+	var err error
+	if prepared.published != nil {
+		err = s.lifecycle.withPackageMutation(ctx, []string{prepared.name}, mutation)
+	} else {
+		err = s.lifecycle.withInstances(ctx, extensionMutationKeys([]string{prepared.name}, prepared.target), mutation)
+	}
+	if err = s.finishPreparedInstall(prepared, err); err != nil {
+		return contract.ExtensionPayload{}, errors.Join(
+			err,
+			s.recordCanonicalExtensionLifecycleEvent(ctx, actor, event),
+		)
+	}
+	err = s.notifyMarketplaceExtensionInstalled(ctx, &item)
+	return item, err
+}
+
 func normalizedInstallSource(source contract.InstallExtensionSource) contract.InstallExtensionSource {
 	return contract.InstallExtensionSource(strings.ToLower(strings.TrimSpace(string(source))))
 }

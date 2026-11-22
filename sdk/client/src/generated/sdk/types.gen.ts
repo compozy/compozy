@@ -2405,6 +2405,34 @@ export type ExtensionDeclaredProfilePayload = {
   needs_setup: boolean;
 };
 
+export type ExtensionDependencyConsent = {
+  allow_unverified?: boolean;
+  confirm_gateway_digest?: string;
+  expected_digest?: string;
+};
+
+export type ExtensionDependencyParentPayload = {
+  name: string;
+  ref: string;
+  source: string;
+};
+
+export type ExtensionDependencyPayload = {
+  consent_required?: boolean;
+  depth: number;
+  digest_sha256?: string;
+  gateway_requirement_digest?: string;
+  installed_version?: string;
+  min_version?: string;
+  name: string;
+  ref: string;
+  required_by: Array<string>;
+  retry_command?: string;
+  source: string;
+  state: string;
+  version?: string;
+};
+
 export type ExtensionEnableError = {
   code: string;
   error: string;
@@ -2468,6 +2496,7 @@ export type ExtensionInstallDeclaredProfilePayload = {
 
 export type ExtensionInstallPreviewPayload = {
   declared_profiles: Array<ExtensionInstallDeclaredProfilePayload>;
+  dependencies?: Array<ExtensionDependencyPayload>;
   digest_sha256?: string;
   gateway_requirement_digest?: string;
   inputs: Array<MarketplaceInputPayload>;
@@ -2515,6 +2544,9 @@ export type ExtensionOperationErrorPayload = {
   code: string;
   current_digest?: string;
   declared_env?: Array<string>;
+  dependencies?: Array<ExtensionDependencyPayload>;
+  dependencies_installed?: Array<string>;
+  dependency?: string;
   diagnostic?: DiagnosticItem | null;
   env_name?: string;
   error: string;
@@ -2527,6 +2559,10 @@ export type ExtensionOperationErrorPayload = {
   invalid?: Array<string>;
   listed_digest?: string;
   missing_env?: Array<string>;
+  parents?: Array<ExtensionDependencyParentPayload>;
+  path?: Array<string>;
+  reason?: string;
+  retry_command?: string;
 };
 
 export type ExtensionPayload = {
@@ -4229,6 +4265,12 @@ export type InstallExtensionRequest = {
   asset?: string;
   confirm_gateway_digest?: string;
   /**
+   * Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies.
+   */
+  dependencies?: {
+    [key: string]: ExtensionDependencyConsent;
+  };
+  /**
    * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
    */
   enable?: boolean;
@@ -4255,12 +4297,17 @@ export type InstallExtensionRequest = {
   source: "curated" | "marketplace" | "github" | "git" | "local_path";
   version?: string;
   /**
+   * Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse.
+   */
+  with_dependencies?: boolean;
+  /**
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
   workspace_id?: string;
 };
 
 export type InstallExtensionResponse = {
+  dependencies_installed?: Array<string>;
   enable_error?: ExtensionEnableError | null;
   extension: ExtensionPayload;
 };
@@ -14075,6 +14122,12 @@ export type InstallExtensionRequestWritable = {
   asset?: string;
   confirm_gateway_digest?: string;
   /**
+   * Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies.
+   */
+  dependencies?: {
+    [key: string]: ExtensionDependencyConsent;
+  };
+  /**
    * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
    */
   enable?: boolean;
@@ -14100,6 +14153,10 @@ export type InstallExtensionRequestWritable = {
    */
   source: "curated" | "marketplace" | "github" | "git" | "local_path";
   version?: string;
+  /**
+   * Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse.
+   */
+  with_dependencies?: boolean;
   /**
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */

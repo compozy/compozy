@@ -4,6 +4,67 @@ package client
 
 import "time"
 
+// SessionPullRequestPayload is a daemon API value.
+type SessionPullRequestPayload struct {
+	Title          string                          `json:"title,omitempty"`
+	Provider       string                          `json:"provider"`
+	Number         int                             `json:"number"`
+	URL            string                          `json:"url"`
+	State          PullRequestState                `json:"state"`
+	Draft          *bool                           `json:"draft"`
+	HeadSHA        string                          `json:"head_sha"`
+	Checks         SessionPullRequestChecksPayload `json:"checks"`
+	ReviewDecision SessionReviewDecision           `json:"review_decision"`
+	Mergeable      Mergeable                       `json:"mergeable"`
+	ReadyToMerge   bool                            `json:"ready_to_merge"`
+}
+
+// SessionPullRequestResponse is a daemon API value.
+type SessionPullRequestResponse struct {
+	SessionID         string                           `json:"session_id"`
+	Branch            string                           `json:"branch"`
+	PullRequest       *SessionPullRequestPayload       `json:"pull_request"`
+	PullRequestLookup *SessionPullRequestLookupPayload `json:"pull_request_lookup"`
+}
+
+// SessionQueueSummaryPayload is a daemon API value.
+type SessionQueueSummaryPayload struct {
+	Entries int `json:"entries"`
+	Cap     int `json:"cap"`
+}
+
+// SessionRecapResponse is a daemon API value.
+type SessionRecapResponse struct {
+	Recap RecapPayload `json:"recap"`
+}
+
+// SessionRepairActionPayload is a daemon API value.
+type SessionRepairActionPayload struct {
+	Code       string `json:"code"`
+	TurnID     string `json:"turn_id"`
+	EventID    string `json:"event_id,omitempty"`
+	ToolCallID string `json:"tool_call_id,omitempty"`
+	ToolName   string `json:"tool_name,omitempty"`
+	Persisted  bool   `json:"persisted"`
+}
+
+// SessionRepairIssuePayload is a daemon API value.
+type SessionRepairIssuePayload struct {
+	Code     string `json:"code"`
+	Severity string `json:"severity"`
+	TurnID   string `json:"turn_id,omitempty"`
+	EventID  string `json:"event_id,omitempty"`
+	Detail   string `json:"detail,omitempty"`
+}
+
+// SessionRepairPayload is a daemon API value.
+type SessionRepairPayload struct {
+	SessionID string                       `json:"session_id"`
+	Issues    []SessionRepairIssuePayload  `json:"issues"`
+	Actions   []SessionRepairActionPayload `json:"actions"`
+	Persisted bool                         `json:"persisted"`
+}
+
 // SessionRepairResponse is a daemon API value.
 type SessionRepairResponse struct {
 	Repair SessionRepairPayload `json:"repair"`
@@ -383,56 +444,4 @@ type SettingsAutomationRuntimePayload struct {
 // SettingsBusyInputPayload is a daemon API value.
 type SettingsBusyInputPayload struct {
 	DefaultMode string `json:"default_mode"`
-}
-
-// SettingsCmdPaletteResponse is a daemon API value.
-type SettingsCmdPaletteResponse struct {
-	Section              SettingsSectionName        `json:"section"`
-	Scope                SettingsLayeredScopeKind   `json:"scope"`
-	WorkspaceID          string                     `json:"workspace_id,omitempty"`
-	Profile              string                     `json:"profile,omitempty"`
-	AvailableScopes      []SettingsLayeredScopeKind `json:"available_scopes"`
-	FallbackAgentEnabled bool                       `json:"fallback_agent_enabled"`
-	Personalization      bool                       `json:"personalization"`
-	Aliases              map[string]string          `json:"aliases"`
-}
-
-// SettingsCollectionName is a daemon API value.
-type SettingsCollectionName string
-
-// SettingsConfigPathsPayload is a daemon API value.
-type SettingsConfigPathsPayload struct {
-	HomeDir          string `json:"home_dir"`
-	GlobalConfig     string `json:"global_config"`
-	GlobalMCPSidecar string `json:"global_mcp_sidecar"`
-	LogFile          string `json:"log_file"`
-	DaemonInfo       string `json:"daemon_info"`
-}
-
-// SettingsCoordinatorRoleConfigPayload is a daemon API value.
-type SettingsCoordinatorRoleConfigPayload struct {
-	Enabled                       bool                          `json:"enabled"`
-	Agent                         string                        `json:"agent"`
-	Provider                      string                        `json:"provider"`
-	Model                         string                        `json:"model"`
-	ReasoningEffort               string                        `json:"reasoning_effort"`
-	Speed                         *Speed                        `json:"speed,omitzero"`
-	ACPOptions                    []AgentACPOptionSelection     `json:"acp_options"`
-	FallbackChain                 []SettingsRoleFallbackPayload `json:"fallback_chain"`
-	TTL                           string                        `json:"ttl"`
-	MaxChildren                   int                           `json:"max_children"`
-	MaxActiveSessionsPerWorkspace int                           `json:"max_active_sessions_per_workspace"`
-}
-
-// SettingsDaemonPayload is a daemon API value.
-type SettingsDaemonPayload struct {
-	Socket               string                              `json:"socket"`
-	MemoryReportInterval string                              `json:"memory_report_interval"`
-	ReloadTimeouts       SettingsDaemonReloadTimeoutsPayload `json:"reload_timeouts"`
-}
-
-// SettingsDaemonReloadTimeoutsPayload is a daemon API value.
-type SettingsDaemonReloadTimeoutsPayload struct {
-	Providers string `json:"providers"`
-	MCP       string `json:"mcp"`
 }

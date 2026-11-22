@@ -51,6 +51,15 @@ func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
 			"extension_name_conflict. Replacing a package attached outside the caller's workspace requires " +
 			"operator authority."
 	}
+	if with := schema.Properties["with_dependencies"]; with != nil && with.Value != nil {
+		with.Value.Description = "Experimental. Install missing and enable disabled dependencies declared under " +
+			"requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies " +
+			"refuse with extension_dependencies_required. version_unmet dependencies always refuse."
+	}
+	if dependencies := schema.Properties["dependencies"]; dependencies != nil && dependencies.Value != nil {
+		dependencies.Value.Description = "Experimental. Per-dependency trust consent keyed by dependency name. " +
+			"There is no blanket consent; the root allow_unverified does not apply to dependencies."
+	}
 }
 
 func customizeExtensionUpdateRequestSchema(schema *openapi3.Schema) {
@@ -61,5 +70,13 @@ func customizeExtensionUpdateRequestSchema(schema *openapi3.Schema) {
 	if profile := schema.Properties["profile"]; profile != nil && profile.Value != nil {
 		profile.Value.Description = "Profile name for input validation and persistence. " +
 			"Inputs do not cross profile boundaries."
+	}
+}
+
+func customizeExtensionDependencyConsentSchema(schema *openapi3.Schema) {
+	customizeClosedObjectSchema(schema)
+	schema.Extensions = map[string]any{"x-stability": schemaStabilityExperimental}
+	if digest := schema.Properties["expected_digest"]; digest != nil && digest.Value != nil {
+		digest.Value.Pattern = `^[a-fA-F0-9]{64}$`
 	}
 }

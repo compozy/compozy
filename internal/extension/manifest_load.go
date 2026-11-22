@@ -272,7 +272,7 @@ func rejectUnsupportedManifestTOML(keys []toml.Key) error {
 			key[0] == legacyManifestNetworkParticipationKey {
 			return legacyManifestSectionError(key[0])
 		}
-		if key[0] == manifestResourcesKey {
+		if key[0] == manifestResourcesKey || key[0] == manifestRequiresKey {
 			return unknownManifestFieldError(key.String())
 		}
 	}

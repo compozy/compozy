@@ -53,6 +53,9 @@ type extensionInstallInput struct {
 	AllowUnverified      bool                            `json:"allow_unverified"`
 	Replace              bool                            `json:"replace"`
 	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest"`
+	WithDependencies     bool                            `json:"with_dependencies"`
+	// Dependencies carries per-dependency consent; there is no blanket consent (A1).
+	Dependencies map[string]contract.ExtensionDependencyConsent `json:"dependencies"`
 }
 
 func (i extensionInstallInput) request() contract.InstallExtensionRequest {
@@ -62,6 +65,7 @@ func (i extensionInstallInput) request() contract.InstallExtensionRequest {
 		Source: i.Source, Ref: i.Ref, Version: i.Version, Asset: i.Asset,
 		AllowUnverified: i.AllowUnverified, Replace: i.Replace,
 		ConfirmGatewayDigest: i.ConfirmGatewayDigest,
+		WithDependencies:     i.WithDependencies, Dependencies: i.Dependencies,
 	}
 }
 
@@ -178,7 +182,9 @@ func (n *daemonNativeTools) extensionInstall(
 	return (resultViews[*contract.InstallExtensionResponse]{
 		Compact: compactExtensionRecord,
 		Preview: func(*contract.InstallExtensionResponse) string { return item.Name },
-	}).result(req.View, &contract.InstallExtensionResponse{Extension: item, EnableError: item.InstallEnableError})
+	}).result(req.View, &contract.InstallExtensionResponse{
+		Extension: item, EnableError: item.InstallEnableError, DependenciesInstalled: item.InstallDependenciesInstalled,
+	})
 }
 
 func (n *daemonNativeTools) extensionUpdate(

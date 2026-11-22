@@ -1,0 +1,507 @@
+package daemon
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	profilepkg "github.com/compozy/compozy/internal/profile"
+	taskpkg "github.com/compozy/compozy/internal/task"
+)
+
+// dependencyFixtureMinVersion is the dependencies floor every dependency-declaring fixture must require.
+const dependencyFixtureMinVersion = "0.7.9"
+
+type dependencyFixture struct {
+	service  *daemonExtensionService
+	registry *extensionpkg.Registry
+	deps     *daemonNativeToolsDeps
+	dirs     map[string]string
+}
+
+// newDependencyFixture builds a service over real SQLite whose unverified policy allows consented side-loads.
+func newDependencyFixture(t *testing.T) *dependencyFixture {
+	t.Helper()
+	deps, registry, _, _ := newNativeExtensionToolDeps(t)
+	service := newDaemonExtensionService(&daemonExtensionServiceDeps{
+		Registry: registry, Runtime: newLifecycleStateRuntime(registry), HomePaths: deps.HomePaths,
+		Profiles: deps.ProfileManager, Logger: discardLogger(),
+	}, withDaemonExtensionMarketplace(validNativeExtensionConfig(true), deps.ExtensionSources),
+		withDaemonExtensionAutomation(&fakeAutomationManager{})).(*daemonExtensionService)
+	return &dependencyFixture{service: service, registry: registry, deps: deps, dirs: make(map[string]string)}
+}
+
+// dir reserves one package directory per name so manifests can reference each other before they are written.
+func (f *dependencyFixture) dir(t *testing.T, name string) string {
+	t.Helper()
+	if dir, ok := f.dirs[name]; ok {
+		return dir
+	}
+	f.dirs[name] = t.TempDir()
+	return f.dirs[name]
+}
+
+// write stores name@version requiring each "dep" or "dep>=min" entry as a local_path dependency.
+func (f *dependencyFixture) write(t *testing.T, name, version string, requires ...string) string {
+	t.Helper()
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "name = %q\nversion = %q\nmin_compozy_version = %q\n", name, version,
+		dependencyFixtureMinVersion)
+	for _, entry := range requires {
+		dependency, minVersion, _ := strings.Cut(entry, ">=")
+		fmt.Fprintf(&builder, "\n[[requires.extensions]]\nname = %q\nsource = \"local_path\"\nref = %q\n",
+			dependency, f.dir(t, dependency))
+		if minVersion != "" {
+			fmt.Fprintf(&builder, "min_version = %q\n", minVersion)
+		}
+	}
+	dir := f.dir(t, name)
+	if err := os.WriteFile(filepath.Join(dir, "extension.toml"), []byte(builder.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func (f *dependencyFixture) install(t *testing.T, name string, req contract.InstallExtensionRequest) {
+	t.Helper()
+	req.Source, req.Ref, req.AllowUnverified = contract.InstallExtensionSourceLocalPath, f.dir(t, name), true
+	if _, err := f.service.Install(t.Context(), req, dependencyOperator(t)); err != nil {
+		t.Fatalf("install %s error = %v", name, err)
+	}
+}
+
+func (f *dependencyFixture) resolve(t *testing.T, root *extensionpkg.Manifest, target extensionMutationTarget) (
+	[]contract.ExtensionDependencyPayload, error,
+) {
+	t.Helper()
+	graph, err := f.service.resolveDependencies(t.Context(), root, target, nil, dependencyOperator(t))
+	if err != nil {
+		return nil, err
+	}
+	t.Cleanup(func() {
+		if closeErr := graph.Close(); closeErr != nil {
+			t.Errorf("graph.Close() error = %v", closeErr)
+		}
+	})
+	return graph.payloads(), nil
+}
+
+func (f *dependencyFixture) installed(t *testing.T, name string) bool {
+	t.Helper()
+	_, err := f.registry.Get(name)
+	if err != nil && !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+		t.Fatalf("registry.Get(%s) error = %v", name, err)
+	}
+	return err == nil
+}
+
+// rootRequest installs the "root" fixture; a non-nil consent map also sets with_dependencies.
+func (f *dependencyFixture) rootRequest(
+	t *testing.T, consent map[string]contract.ExtensionDependencyConsent,
+) contract.InstallExtensionRequest {
+	t.Helper()
+	return contract.InstallExtensionRequest{
+		Source: contract.InstallExtensionSourceLocalPath, Ref: f.dir(t, "root"), AllowUnverified: true,
+		WithDependencies: consent != nil, Dependencies: consent,
+	}
+}
+
+func dependencyOperator(t *testing.T) taskpkg.ActorContext {
+	t.Helper()
+	actor, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "extension dependencies")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return actor
+}
+
+func dependencyRoot(requires ...extensionpkg.ExtensionDependency) *extensionpkg.Manifest {
+	return &extensionpkg.Manifest{Name: "root", Requires: extensionpkg.ManifestRequires{Extensions: requires}}
+}
+
+func (f *dependencyFixture) localDependency(t *testing.T, name, minVersion string) extensionpkg.ExtensionDependency {
+	t.Helper()
+	return extensionpkg.ExtensionDependency{
+		Name:       name,
+		Source:     string(contract.InstallExtensionSourceLocalPath),
+		Ref:        f.dir(t, name),
+		MinVersion: minVersion,
+	}
+}
+
+func dependencyStates(items []contract.ExtensionDependencyPayload) map[string]string {
+	states := make(map[string]string, len(items))
+	for _, item := range items {
+		states[item.Name] = item.State
+	}
+	return states
+}
+
+func dependencyNames(items []contract.ExtensionDependencyPayload) []string {
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		names = append(names, item.Name)
+	}
+	return names
+}
+
+// Invariant: the resolver classifies each dependency against installations visible to the dependent's instance
+// (D11), orders the graph dependencies first, collapses diamonds onto the highest min_version, and refuses
+// cycles, depth beyond 5 and conflicting sources before any mutation (rules 11 and 12).
+// Owner: daemon dependency resolver. Canonical suite: extension_dependencies_test.go.
+func TestExtensionDependencyResolution(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should classify met, missing, disabled and version_unmet dependencies", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-met", "1.0.0")
+		fixture.write(t, "dep-disabled", "1.0.0")
+		fixture.write(t, "dep-old", "0.1.0")
+		fixture.write(t, "dep-missing", "0.5.1")
+		for _, name := range []string{"dep-met", "dep-disabled", "dep-old"} {
+			fixture.install(t, name, contract.InstallExtensionRequest{})
+		}
+		if err := fixture.registry.Disable("dep-disabled"); err != nil {
+			t.Fatal(err)
+		}
+		rootDir := fixture.write(t, "root", "1.0.0", "dep-met", "dep-disabled", "dep-old>=0.2.0", "dep-missing>=0.4.0")
+
+		preview, err := fixture.service.PreviewInstall(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: rootDir, AllowUnverified: true,
+		}, dependencyOperator(t))
+		if err != nil {
+			t.Fatalf("PreviewInstall() error = %v", err)
+		}
+		want := map[string]string{
+			"dep-met": dependencyStateMet, "dep-disabled": dependencyStateDisabled,
+			"dep-old": dependencyStateVersionUnmet, "dep-missing": dependencyStateMissing,
+		}
+		if got := dependencyStates(preview.Dependencies); !reflect.DeepEqual(got, want) {
+			t.Fatalf("states = %#v, want %#v", got, want)
+		}
+		for _, item := range preview.Dependencies {
+			switch item.Name {
+			case "dep-old":
+				if item.InstalledVersion != "0.1.0" || item.RetryCommand != "compozy extension update dep-old" {
+					t.Fatalf("version_unmet entry = %+v", item)
+				}
+			case "dep-missing":
+				if item.Version != "0.5.1" || item.DigestSHA256 == "" || !item.ConsentRequired ||
+					!slices.Equal(item.RequiredBy, []string{"root"}) || item.Depth != 1 {
+					t.Fatalf("missing entry = %+v", item)
+				}
+			}
+		}
+		if fixture.installed(t, "dep-missing") || fixture.installed(t, "root") {
+			t.Fatal("preview installed a package")
+		}
+	})
+
+	t.Run("Should see global installations from workspaces of the same profile only", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-global", "1.0.0")
+		fixture.write(t, "dep-other-profile", "1.0.0")
+		fixture.install(t, "dep-global", contract.InstallExtensionRequest{})
+		other, err := fixture.deps.ProfileManager.Create(t.Context(), profilepkg.CreateInput{Name: "other"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture.install(t, "dep-other-profile", contract.InstallExtensionRequest{Profile: other.Name})
+		workspaceTarget := extensionMutationTarget{
+			scope:   extensionpkg.InstallationScope{WorkspaceID: "ws-dependent"},
+			profile: extensionDefaultProfileLens(),
+		}
+
+		items, err := fixture.resolve(t, dependencyRoot(fixture.localDependency(t, "dep-global", "")), workspaceTarget)
+		if err != nil || dependencyStates(items)["dep-global"] != dependencyStateMet {
+			t.Fatalf("global dependency from a workspace = %+v, %v; want met", items, err)
+		}
+		items, err = fixture.resolve(t, dependencyRoot(fixture.localDependency(t, "dep-other-profile", "")),
+			extensionMutationTarget{profile: extensionDefaultProfileLens()})
+		if err != nil || dependencyStates(items)["dep-other-profile"] != dependencyStateMissing {
+			t.Fatalf("dependency installed for another profile = %+v, %v; want missing", items, err)
+		}
+	})
+
+	t.Run("Should order transitive dependencies first", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-a", "1.0.0", "dep-b")
+		fixture.write(t, "dep-b", "1.0.0")
+
+		items, err := fixture.resolve(t, dependencyRoot(fixture.localDependency(t, "dep-a", "")),
+			extensionMutationTarget{profile: extensionDefaultProfileLens()})
+		if err != nil {
+			t.Fatalf("resolveDependencies() error = %v", err)
+		}
+		if got := dependencyNames(items); !slices.Equal(got, []string{"dep-b", "dep-a"}) {
+			t.Fatalf("order = %v, want [dep-b dep-a]", got)
+		}
+		if items[0].Depth != 2 || !slices.Equal(items[0].RequiredBy, []string{"dep-a"}) {
+			t.Fatalf("transitive node = %+v", items[0])
+		}
+	})
+
+	t.Run("Should collapse a diamond onto one node with the highest min_version", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-d", "0.2.0")
+		fixture.install(t, "dep-d", contract.InstallExtensionRequest{})
+		fixture.write(t, "dep-b", "1.0.0", "dep-d>=0.1.0")
+		fixture.write(t, "dep-c", "1.0.0", "dep-d>=0.3.0")
+
+		items, err := fixture.resolve(t, dependencyRoot(
+			fixture.localDependency(t, "dep-b", ""), fixture.localDependency(t, "dep-c", ""),
+		), extensionMutationTarget{profile: extensionDefaultProfileLens()})
+		if err != nil {
+			t.Fatalf("resolveDependencies() error = %v", err)
+		}
+		var nodes []contract.ExtensionDependencyPayload
+		for _, item := range items {
+			if item.Name == "dep-d" {
+				nodes = append(nodes, item)
+			}
+		}
+		if len(nodes) != 1 || nodes[0].MinVersion != "0.3.0" || nodes[0].State != dependencyStateVersionUnmet ||
+			!slices.Equal(nodes[0].RequiredBy, []string{"dep-b", "dep-c"}) {
+			t.Fatalf("diamond nodes = %+v", nodes)
+		}
+	})
+
+	invalid := []struct {
+		name   string
+		build  func(t *testing.T, fixture *dependencyFixture) *extensionpkg.Manifest
+		reason string
+		path   []string
+	}{
+		{
+			name: "a cycle",
+			build: func(t *testing.T, fixture *dependencyFixture) *extensionpkg.Manifest {
+				t.Helper()
+				fixture.write(t, "dep-a", "1.0.0", "dep-b")
+				fixture.write(t, "dep-b", "1.0.0", "dep-a")
+				return dependencyRoot(fixture.localDependency(t, "dep-a", ""))
+			},
+			reason: extensionpkg.DependencyGraphReasonCycle,
+			path:   []string{"root", "dep-a", "dep-b", "dep-a"},
+		},
+		{
+			name: "a chain deeper than five",
+			build: func(t *testing.T, fixture *dependencyFixture) *extensionpkg.Manifest {
+				t.Helper()
+				for level := 1; level <= 6; level++ {
+					var next []string
+					if level < 6 {
+						next = []string{fmt.Sprintf("dep-%d", level+1)}
+					}
+					fixture.write(t, fmt.Sprintf("dep-%d", level), "1.0.0", next...)
+				}
+				return dependencyRoot(fixture.localDependency(t, "dep-1", ""))
+			},
+			reason: extensionpkg.DependencyGraphReasonDepth,
+			path:   []string{"root", "dep-1", "dep-2", "dep-3", "dep-4", "dep-5", "dep-6"},
+		},
+	}
+	for _, test := range invalid {
+		t.Run("Should refuse "+test.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newDependencyFixture(t)
+			_, err := fixture.resolve(t, test.build(t, fixture), extensionMutationTarget{
+				profile: extensionDefaultProfileLens(),
+			})
+			graphErr, ok := errors.AsType[*extensionpkg.DependencyGraphInvalidError](err)
+			if !ok || graphErr.Reason != test.reason || !slices.Equal(graphErr.Path, test.path) {
+				t.Fatalf("error = %v, want %s with path %v", err, test.reason, test.path)
+			}
+		})
+	}
+
+	t.Run("Should refuse a diamond declared with conflicting sources and install nothing", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-d", "1.0.0")
+		fixture.write(t, "dep-b", "1.0.0", "dep-d")
+		cDir := fixture.write(t, "dep-c", "1.0.0")
+		otherD := t.TempDir()
+		conflicting := fmt.Sprintf(
+			"\n[[requires.extensions]]\nname = \"dep-d\"\nsource = \"local_path\"\nref = %q\n",
+			otherD,
+		)
+		appendDependencyManifest(t, cDir, conflicting)
+		rootDir := fixture.write(t, "root", "1.0.0", "dep-b", "dep-c")
+
+		_, err := fixture.service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: rootDir, AllowUnverified: true,
+			WithDependencies: true, Dependencies: map[string]contract.ExtensionDependencyConsent{
+				"dep-b": {AllowUnverified: true}, "dep-c": {AllowUnverified: true}, "dep-d": {AllowUnverified: true},
+			},
+		}, dependencyOperator(t))
+		graphErr, ok := errors.AsType[*extensionpkg.DependencyGraphInvalidError](err)
+		want := []contract.ExtensionDependencyParentPayload{
+			{Name: "dep-b", Source: "local_path", Ref: fixture.dir(t, "dep-d")},
+			{Name: "dep-c", Source: "local_path", Ref: otherD},
+		}
+		if !ok || graphErr.Reason != extensionpkg.DependencyGraphReasonConflictingSource ||
+			!reflect.DeepEqual(graphErr.Parents, want) {
+			t.Fatalf("error = %v, want conflicting_source naming dep-b and dep-c", err)
+		}
+		for _, name := range []string{"root", "dep-b", "dep-c", "dep-d"} {
+			if fixture.installed(t, name) {
+				t.Fatalf("%s was installed", name)
+			}
+		}
+	})
+}
+
+func appendDependencyManifest(t *testing.T, dir, content string) {
+	t.Helper()
+	path := filepath.Join(dir, "extension.toml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, append(data, content...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Invariant: unmet dependencies refuse install without consent; consented installs run dependencies first with
+// per-dependency trust consent, never update a version_unmet dependency, and stop at the first failure keeping
+// and reporting what they completed (rules 12 and 13).
+// Owner: daemon dependency install gate. Canonical suite: extension_dependencies_test.go.
+func TestExtensionDependencyInstall(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should refuse unmet dependencies without consent and install nothing", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-core", "1.0.0")
+		fixture.write(t, "root", "1.0.0", "dep-core")
+
+		_, err := fixture.service.Install(t.Context(), fixture.rootRequest(t, nil), dependencyOperator(t))
+		required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
+		if !ok || len(required.Dependencies) != 1 || required.Dependencies[0].Name != "dep-core" ||
+			required.Dependencies[0].State != dependencyStateMissing {
+			t.Fatalf("error = %v, want extension_dependencies_required listing dep-core", err)
+		}
+		if fixture.installed(t, "root") || fixture.installed(t, "dep-core") {
+			t.Fatal("refused install left a package installed")
+		}
+	})
+
+	t.Run("Should install missing and enable disabled dependencies before the dependent", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-core", "1.0.0")
+		fixture.write(t, "dep-off", "1.0.0")
+		fixture.install(t, "dep-off", contract.InstallExtensionRequest{})
+		if err := fixture.registry.Disable("dep-off"); err != nil {
+			t.Fatal(err)
+		}
+		fixture.write(t, "root", "1.0.0", "dep-core", "dep-off")
+
+		item, err := fixture.service.Install(t.Context(), fixture.rootRequest(t,
+			map[string]contract.ExtensionDependencyConsent{"dep-core": {AllowUnverified: true}},
+		), dependencyOperator(t))
+		if err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		if item.Name != "root" || !slices.Equal(item.InstallDependenciesInstalled, []string{"dep-core", "dep-off"}) {
+			t.Fatalf("install = %s, dependencies_installed = %v", item.Name, item.InstallDependenciesInstalled)
+		}
+		for _, name := range []string{"dep-core", "dep-off"} {
+			enabled, err := fixture.registry.IsEnabledForProfile(name, extensionDefaultProfileLens().ID)
+			if err != nil || !enabled {
+				t.Fatalf("%s enabled = %t, %v", name, enabled, err)
+			}
+		}
+	})
+
+	t.Run("Should refuse a dependency without its own unverified consent", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-core", "1.0.0")
+		fixture.write(t, "root", "1.0.0", "dep-core")
+
+		_, err := fixture.service.Install(t.Context(), fixture.rootRequest(t,
+			map[string]contract.ExtensionDependencyConsent{}), dependencyOperator(t))
+		gate, ok := errors.AsType[*extensionpkg.DependencyGateError](err)
+		if !ok || gate.Dependency != "dep-core" || !errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified) {
+			t.Fatalf("error = %v, want checksum_unverified naming dep-core", err)
+		}
+		if fixture.installed(t, "root") || fixture.installed(t, "dep-core") {
+			t.Fatal("refused install left a package installed")
+		}
+	})
+
+	t.Run("Should refuse a missing root gateway confirmation before installing any dependency", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-core", "1.0.0")
+		appendDependencyManifest(t, fixture.write(t, "root", "1.0.0", "dep-core"),
+			"\n[gateway]\npermissions = [\"gateway.private\"]\n")
+
+		_, err := fixture.service.Install(t.Context(), fixture.rootRequest(t,
+			map[string]contract.ExtensionDependencyConsent{"dep-core": {AllowUnverified: true}},
+		), dependencyOperator(t))
+		if !errors.Is(err, extensionpkg.ErrExtensionGatewayConfirmationRequired) {
+			t.Fatalf("error = %v, want the root gateway confirmation refusal", err)
+		}
+		if _, partial := errors.AsType[*extensionpkg.DependenciesInstalledError](err); partial {
+			t.Fatalf("error = %v reports installed dependencies", err)
+		}
+		if fixture.installed(t, "dep-core") || fixture.installed(t, "root") {
+			t.Fatal("root gateway refusal left a package installed")
+		}
+	})
+
+	t.Run("Should refuse a version_unmet dependency even with consent", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-core", "0.1.0")
+		fixture.install(t, "dep-core", contract.InstallExtensionRequest{})
+		fixture.write(t, "root", "1.0.0", "dep-core>=0.4.0")
+
+		_, err := fixture.service.Install(t.Context(), fixture.rootRequest(t,
+			map[string]contract.ExtensionDependencyConsent{"dep-core": {AllowUnverified: true}},
+		), dependencyOperator(t))
+		required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
+		if !ok || required.Dependencies[0].State != dependencyStateVersionUnmet ||
+			required.Dependencies[0].RetryCommand != "compozy extension update dep-core" {
+			t.Fatalf("error = %v, want version_unmet with an update retry command", err)
+		}
+		info, err := fixture.registry.Get("dep-core")
+		if err != nil || info.Version != "0.1.0" || fixture.installed(t, "root") {
+			t.Fatalf("dep-core = %+v, %v; root installed = %t", info, err, fixture.installed(t, "root"))
+		}
+	})
+
+	t.Run("Should stop at the first failure and report completed dependencies", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.write(t, "dep-first", "1.0.0")
+		fixture.write(t, "dep-second", "1.0.0")
+		fixture.write(t, "root", "1.0.0", "dep-first", "dep-second")
+
+		_, err := fixture.service.Install(t.Context(), fixture.rootRequest(t,
+			map[string]contract.ExtensionDependencyConsent{"dep-first": {AllowUnverified: true}},
+		), dependencyOperator(t))
+		partial, ok := errors.AsType[*extensionpkg.DependenciesInstalledError](err)
+		gate, gated := errors.AsType[*extensionpkg.DependencyGateError](err)
+		if !ok || !slices.Equal(partial.Installed, []string{"dep-first"}) || !gated || gate.Dependency != "dep-second" {
+			t.Fatalf("error = %v, want dep-second refused after installing dep-first", err)
+		}
+		if !fixture.installed(t, "dep-first") || fixture.installed(t, "dep-second") || fixture.installed(t, "root") {
+			t.Fatal("partial install state differs from stop-at-first-failure")
+		}
+	})
+}

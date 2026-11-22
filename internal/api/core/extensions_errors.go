@@ -32,6 +32,8 @@ const (
 	extensionErrorInputsRequired
 	extensionErrorInputInvalid
 	extensionErrorInputOverwriteDenied
+	extensionErrorDependenciesRequired
+	extensionErrorDependencyGraphInvalid
 	extensionErrorNotFound
 	extensionErrorNotBuiltin
 	extensionErrorBuiltinNotRemoved
@@ -71,6 +73,7 @@ func ExtensionStatusCode(err error) int {
 		return http.StatusConflict
 	case extensionErrorUnprocessable, extensionErrorMCPNameTaken, extensionErrorNotBuiltin,
 		extensionErrorInputsRequired, extensionErrorInputInvalid,
+		extensionErrorDependenciesRequired, extensionErrorDependencyGraphInvalid,
 		extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported,
 		extensionErrorAgentPluginManifestInvalid:
@@ -184,6 +187,10 @@ func classifyExtensionAcquisitionError(err error) extensionErrorKind {
 		return extensionErrorInputInvalid
 	case errors.Is(err, extensionpkg.ErrExtensionInputOverwriteDenied):
 		return extensionErrorInputOverwriteDenied
+	case errors.Is(err, extensionpkg.ErrExtensionDependenciesRequired):
+		return extensionErrorDependenciesRequired
+	case errors.Is(err, extensionpkg.ErrExtensionDependencyGraphInvalid):
+		return extensionErrorDependencyGraphInvalid
 	default:
 		return extensionErrorUnknown
 	}
