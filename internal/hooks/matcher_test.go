@@ -425,6 +425,18 @@ func TestMatcherFieldAllowedForEvent(t *testing.T) {
 			want:  false,
 		},
 		{
+			name:  "Should allow workspace id for subagent settled hook",
+			event: HookSubagentSettled,
+			field: "workspace_id",
+			want:  true,
+		},
+		{
+			name:  "Should deny workspace root for subagent settled hook",
+			event: HookSubagentSettled,
+			field: "workspace_root",
+			want:  false,
+		},
+		{
 			name:  "Should deny workspace id for message delta hook",
 			event: HookMessageDelta,
 			field: "workspace_id",

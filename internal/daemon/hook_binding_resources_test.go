@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -724,6 +725,79 @@ func TestHookBindingProjectorPreservesPermissionEscalationGuard(t *testing.T) {
 	if got, want := payload.DecisionClass, "interactive"; got != want {
 		t.Fatalf("payload.DecisionClass = %q, want %q", got, want)
 	}
+}
+
+func TestValidateHookBindingSpecInjectsWorkspaceMatcherOnlyWhenSupported(t *testing.T) {
+	t.Parallel()
+
+	workspaceScope := resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"}
+	subagentDecl := func() hookspkg.HookDecl {
+		return hookspkg.HookDecl{
+			Name:   "subagent-settled",
+			Event:  hookspkg.HookSubagentSettled,
+			Source: hookspkg.HookSourceNative,
+			Mode:   hookspkg.HookModeAsync,
+		}
+	}
+
+	testCases := []struct {
+		name      string
+		scope     resources.ResourceScope
+		decl      hookspkg.HookDecl
+		wantMatch string
+	}{
+		{
+			name:      "Should inject the workspace id for subagent hooks",
+			scope:     workspaceScope,
+			decl:      subagentDecl(),
+			wantMatch: "ws-1",
+		},
+		{
+			name:  "Should not inject a workspace id into message hooks",
+			scope: workspaceScope,
+			decl: hookspkg.HookDecl{
+				Name:   "message-delta",
+				Event:  hookspkg.HookMessageDelta,
+				Source: hookspkg.HookSourceNative,
+				Mode:   hookspkg.HookModeAsync,
+			},
+			wantMatch: "",
+		},
+		{
+			name:      "Should not inject the workspace id into user scope bindings",
+			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			decl:      subagentDecl(),
+			wantMatch: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			spec, err := validateHookBindingSpec(testutil.Context(t), tc.scope, tc.decl)
+			if err != nil {
+				t.Fatalf("validateHookBindingSpec() error = %v", err)
+			}
+			if got := spec.Matcher.WorkspaceID; got != tc.wantMatch {
+				t.Fatalf("spec.Matcher.WorkspaceID = %q, want %q", got, tc.wantMatch)
+			}
+			if err := hookspkg.ValidateMatcherForEvent(spec.Event, spec.Matcher); err != nil {
+				t.Fatalf("ValidateMatcherForEvent() error = %v", err)
+			}
+		})
+	}
+
+	t.Run("Should reject a declared workspace that differs from the binding scope", func(t *testing.T) {
+		t.Parallel()
+
+		decl := subagentDecl()
+		decl.Matcher.WorkspaceID = "ws-2"
+		_, err := validateHookBindingSpec(testutil.Context(t), workspaceScope, decl)
+		if !errors.Is(err, resources.ErrInvalidScopeBinding) {
+			t.Fatalf("validateHookBindingSpec() error = %v, want ErrInvalidScopeBinding", err)
+		}
+	})
 }
 
 func TestHookBindingCodecPreservesInternalDeclarationFields(t *testing.T) {

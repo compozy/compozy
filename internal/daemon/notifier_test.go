@@ -994,6 +994,10 @@ func TestScopeWorkspaceHookDeclsOnlyInjectsSupportedMatcherFields(t *testing.T) 
 				Name:  "message",
 				Event: hookspkg.HookMessageDelta,
 			},
+			{
+				Name:  "subagent",
+				Event: hookspkg.HookSubagentSettled,
+			},
 		}
 	}
 	resolved := workspaceResolvedForTest("ws-1", "/tmp/ws-1")
@@ -1050,6 +1054,25 @@ func TestScopeWorkspaceHookDeclsOnlyInjectsSupportedMatcherFields(t *testing.T) 
 				}
 				if err := hookspkg.ValidateMatcherForEvent(scoped[2].Event, scoped[2].Matcher); err != nil {
 					t.Fatalf("message matcher validation error = %v", err)
+				}
+			},
+		},
+		{
+			name: "Should inject only workspace id for subagent hooks",
+			assert: func(t *testing.T, _ []hookspkg.HookDecl, scoped []hookspkg.HookDecl) {
+				t.Helper()
+
+				if scoped[3].Matcher.WorkspaceID != resolved.WorkspaceID {
+					t.Fatalf("subagent WorkspaceID = %q, want %q", scoped[3].Matcher.WorkspaceID, resolved.WorkspaceID)
+				}
+				if scoped[3].Matcher.WorkspaceRoot != "" {
+					t.Fatalf(
+						"subagent WorkspaceRoot = %q, want empty because subagent hooks do not support it",
+						scoped[3].Matcher.WorkspaceRoot,
+					)
+				}
+				if err := hookspkg.ValidateMatcherForEvent(scoped[3].Event, scoped[3].Matcher); err != nil {
+					t.Fatalf("subagent matcher validation error = %v", err)
 				}
 			},
 		},
