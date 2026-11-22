@@ -1,48 +1,44 @@
 package spec
 
-// addLoopOnResultSchemas refreshes every historical authored on_result schema from
-// the current document: gate nodes tighten their object grammar, and contracts gain
-// the optional map.
-func addLoopOnResultSchemas(baseline, current any) int {
-	return updateSchemaPairs(baseline, current, func(oldNode, newNode map[string]any) int {
-		oldProperties, _ := oldNode["properties"].(map[string]any)
-		newProperties, _ := newNode["properties"].(map[string]any)
-		if oldProperties == nil || newProperties == nil {
-			return 0
+import "encoding/json"
+
+// addLoopOnResultSchemas refreshes every historical authored on_result schema:
+// gate nodes take the in-body grammar, and contracts take the forward-target-free
+// definition-of-done grammar.
+func addLoopOnResultSchemas(baseline any) int {
+	nodeSchema := schemaJSON(loopNodeOnResultSchema())
+	contractSchema := schemaJSON(loopContractOnResultSchema())
+	return walkSchemaProperties(baseline, func(properties map[string]any) int {
+		contractShape := properties["goal"] != nil && properties["definition_of_done"] != nil &&
+			properties["verification"] != nil && properties["iteration_cap"] != nil
+		if contractShape {
+			properties["on_result"] = cloneSchemaValue(contractSchema)
+			return 1
 		}
-		contractShape := oldProperties["goal"] != nil && oldProperties["definition_of_done"] != nil &&
-			oldProperties["verification"] != nil && oldProperties["iteration_cap"] != nil
-		gateShape := oldProperties["criteria"] != nil && oldProperties["on_result"] != nil
-		if !contractShape && !gateShape {
-			return 0
+		gateShape := properties["criteria"] != nil && properties["on_result"] != nil
+		if gateShape {
+			properties["on_result"] = cloneSchemaValue(nodeSchema)
+			return 1
 		}
-		onResult, ok := newProperties["on_result"]
-		if !ok {
-			return 0
-		}
-		oldProperties["on_result"] = cloneSchemaValue(onResult)
-		return 1
+		return 0
 	})
 }
 
 // addLoopRunTerminalSchemas adds the optional terminal read projection to every
 // historical Loop run payload and registers the new component for $ref resolution.
 func addLoopRunTerminalSchemas(baseline, current any) int {
-	count := updateSchemaPairs(baseline, current, func(oldNode, newNode map[string]any) int {
-		oldProperties, _ := oldNode["properties"].(map[string]any)
-		newProperties, _ := newNode["properties"].(map[string]any)
-		if oldProperties == nil || newProperties == nil {
+	terminalSchema := map[string]any{
+		"oneOf": []any{
+			map[string]any{"$ref": "#/components/schemas/LoopRunTerminal"},
+			map[string]any{"enum": []any{nil}, "nullable": true},
+		},
+	}
+	count := walkSchemaProperties(baseline, func(properties map[string]any) int {
+		if properties["loop_name"] == nil || properties["completion_state"] == nil ||
+			properties["attention"] == nil {
 			return 0
 		}
-		if oldProperties["loop_name"] == nil || oldProperties["completion_state"] == nil ||
-			oldProperties["attention"] == nil {
-			return 0
-		}
-		terminal, ok := newProperties["terminal"]
-		if !ok {
-			return 0
-		}
-		oldProperties["terminal"] = cloneSchemaValue(terminal)
+		properties["terminal"] = cloneSchemaValue(terminalSchema)
 		return 1
 	})
 	oldComponents, _ := schemaComponents(baseline)
@@ -55,25 +51,19 @@ func addLoopRunTerminalSchemas(baseline, current any) int {
 	return count
 }
 
-func updateSchemaPairs(oldValue, newValue any, update func(map[string]any, map[string]any) int) int {
+func walkSchemaProperties(value any, visit func(map[string]any) int) int {
 	count := 0
-	switch oldNode := oldValue.(type) {
+	switch node := value.(type) {
 	case map[string]any:
-		newNode, ok := newValue.(map[string]any)
-		if !ok {
-			return 0
+		if properties, ok := node["properties"].(map[string]any); ok {
+			count += visit(properties)
 		}
-		count += update(oldNode, newNode)
-		for key, child := range oldNode {
-			count += updateSchemaPairs(child, newNode[key], update)
+		for _, child := range node {
+			count += walkSchemaProperties(child, visit)
 		}
 	case []any:
-		newArray, ok := newValue.([]any)
-		if !ok || len(newArray) != len(oldNode) {
-			return count
-		}
-		for index := range oldNode {
-			count += updateSchemaPairs(oldNode[index], newArray[index], update)
+		for _, child := range node {
+			count += walkSchemaProperties(child, visit)
 		}
 	}
 	return count
@@ -90,6 +80,18 @@ func schemaComponents(document any) (map[string]any, bool) {
 	}
 	schemas, ok := components["schemas"].(map[string]any)
 	return schemas, ok
+}
+
+func schemaJSON(value any) map[string]any {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		panic(err)
+	}
+	return decoded
 }
 
 func cloneSchemaValue(value any) any {

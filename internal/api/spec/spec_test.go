@@ -3483,7 +3483,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			t.Fatal("approved Loop run outcome diagnostics: no historical outcome schemas found")
 		}
 		// Authored gate terminal status arrives as the constrained on_result route map.
-		if addLoopOnResultSchemas(baseline, current) == 0 {
+		if addLoopOnResultSchemas(baseline) == 0 {
 			t.Fatal("approved Loop on_result grammar: no historical gate or contract schemas found")
 		}
 		// Loop run reads add the optional settled terminal cause.
