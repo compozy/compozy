@@ -6,12 +6,12 @@ persona: Bruno
 journey: J-extension-distribution
 expected: The Extensions-only "Install extension" entry point submits the generated `InstallExtensionRequest` union shape (`{source, ref, version?, asset?, allow_unverified?}`) for local_path, github, and git; per-source ref grammar is validated inline before the request; unverified archives route through the daemon's explicit consent dialog (including the daemon's own 422 reason); the preview lists unmet dependencies under **Also installs**, each with its own trust gate before the root's, and installs them in one request with per-dependency consent; daemon validation errors are surfaced verbatim; and the curated one-click card install stays unchanged.
 entry_points: /marketplace/extensions (Install extension); `POST /api/extensions`
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status: untested
+qa_status: pass
+bug_ids: BUG-20261122-source-install-stale-preview-after-success; BUG-20261122-install-activation-failure-masked-500
+fix_status: open
+retest_status: pending
 fix_commits:
-evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a/screenshots; docs/qa/evidence/2026-11-22-gh-1845-pr-b/screenshots; docs/qa/evidence/2026-11-22-gh-1845-pr-b-rewalk/screenshots
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a/screenshots; docs/qa/evidence/2026-11-22-gh-1845-pr-b/screenshots; docs/qa/evidence/2026-11-22-gh-1845-pr-b-rewalk/screenshots; docs/qa/evidence/2026-11-22-gh-1845-pr-b-d12/screenshots
 last_report: docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md
 overlaps: ET-web-extensions-manage; ET-extension-published-source-installs
 ---
@@ -118,3 +118,24 @@ dependency is the local unverified `acme-webdep` (Also installs listed, dependen
 gate, joint install, both active in Installed), a cancel at the dependency gate (nothing installed),
 and a dependency whose source is below `min_version` (Install disabled with guidance). Reset to
 untested.
+
+QA 2026-11-22 (GH-1845 D16 source-union dependency parity, head `4ce0671ff`, report
+`docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md`, section "Fourth
+re-walk"): passed through the local-path source against a real daemon. After **Review install**,
+`acme-solo` listed **Also installs** `acme-webdep v0.3.0` (Not verified, Local path, Remote access
+digest) and `acme-off v1.0.0` (Turns on). The met `acme-base` was hidden (01). Install opened
+"Install acme-webdep?" (02), then "Allow remote access for acme-webdep?" (04), and only then the
+root's own unverified consent (05). A cancel at either dependency gate closed the dialog with no
+`POST /api/extensions`, and nothing was installed (03). Confirming every gate sent one POST (201)
+with `with_dependencies: true` and `dependencies.acme-webdep` carrying only `expected_digest`,
+`allow_unverified` and `confirm_gateway_digest`. The root's `allow_unverified` stayed its own, and
+`acme-off` got no consent entry. The toast read "… installed with acme-webdep, acme-off" (06), and
+all three were active in Installed (13). Install was disabled for "Its source has no version of
+acme-lowdep at 9.0.0 or later" (09), "No update of acme-s9base reaches 2.0.0. Reinstall it from a
+source with 2.0.0 or later first" (10) and the `installed_elsewhere` "Run compozy extension install
+… --replace --allow-unverified --scope global --profile other first" (11). A dependency that failed
+to start after `acme-depa` committed showed "Internal Server Error · Installed first: acme-depa"
+(12; masked cause, BUG-20261122-install-activation-failure-masked-500). The error appears in the
+root consent dialog, because a local root always passes that consent. Reopening the dialog after a
+success reuses the old preview and gates (07, 08; BUG-20261122-source-install-stale-preview-after-success).
+GitHub and Git URL sources were not walked, because the lab had no offline release or repository.

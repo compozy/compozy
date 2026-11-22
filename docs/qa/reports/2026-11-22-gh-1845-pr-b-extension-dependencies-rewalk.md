@@ -207,3 +207,73 @@ The manifest `TEARDOWN_COMMAND` ran from a `/tmp` script whose command line did 
 `teardown.json` (copied to the evidence folder) reports `clean: true` with no survivors. The daemon
 survived its graceful stop and the signal sweep ended it. Nothing listens on 42623 or 42625 any more,
 and no lab process remains.
+
+## Fourth re-walk: Web source-union dependency parity (D12) on `4ce0671ff`
+
+D12 (`a21255f33`) gives the source-union Install dialog the same dependency flow as catalog Add.
+This pass walked the "QA impact 2026-11-22 (GH-1845 D16)" steps of
+`ET-web-extension-union-install` through the local-path source.
+
+- **Build:** `go build` of `./cmd/compozy` from `4ce0671ff`, stamped
+  `-X …/internal/version.Version=v0.7.9`. The Web ran under `vite` from the same checkout (after
+  `bun install`) on 50461, proxying the lab daemon, and was started from a script that unset every
+  `COMPOZY_*` variable.
+- **Lab:** a fresh, empty `eng-qa-bootstrap` lab (targeted profile; CLI, API, Web): home
+  `/tmp/compozyqa-b9a1516d4147/runtime`, HTTP 50459, its own UDS. `[automation] enabled = false`,
+  provider usage was off, and the lab had no provider. Every CLI call went through a bash wrapper
+  that unset every `COMPOZY_*` variable, set only the lab home, port and socket, and ran the lab binary
+  by absolute path. Onboarding was completed through `POST /api/onboarding/complete`.
+- **Fixtures** (`docs/qa/evidence/2026-11-22-gh-1845-pr-b-d12/fixture/`, built by `mkfix.py`), all
+  local and unverified:
+  - `acme-solo` requires `acme-webdep` (missing, gateway permission), `acme-base` (installed,
+    active) and `acme-off` (installed, disabled).
+  - `acme-high` requires `acme-lowdep >= 9.0.0`, and the source has 0.1.0.
+  - `acme-s9` requires `acme-s9base >= 2.0.0`, and the installed copy and source are 1.0.0.
+  - `acme-p12` requires `acme-p12dep`, installed only for profile `other`, whose source bytes changed
+    afterwards.
+  - `acme-two` requires `acme-depa` and `acme-depb`.
+  - `acme-three` requires `acme-depa` and `acme-depx`, whose subprocess exits at once.
+- **Transcript:** `cli/transcript.md` records every CLI and HTTP call. `cli/daemon.log` is the daemon
+  log. `cli/*.json` hold the captured install request and response bodies.
+- **Screenshots:** stored locally under `screenshots/` and published at
+  `https://raw.githubusercontent.com/jillesmc/compozy/pr-evidence/pr-1961/4ce0671/<file>`
+  (pr-evidence commit `5597093`).
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Also installs listed, met rows hidden | **Pass** | `acme-solo` review: `acme-webdep v0.3.0` (Not verified, Local path · path, Remote access `631b94e8…`) and `acme-off v1.0.0` (Turns on, Not verified). `acme-base` (met) is hidden (01). |
+| Per-dependency gates in order, before root consent | **Pass** | Install hides the form and opens "Install acme-webdep?" ("acme-solo needs acme-webdep, which isn't verified…") (02). Then "Allow remote access for acme-webdep?" with the fingerprint (04). Only then does the root's own "Install <path>/acme-solo?" consent appear (05). |
+| Cancel sends nothing | **Pass** | A cancel at the trust gate, and separately at the remote-access gate, closes every dialog (03). The requests show only `preview-install`, with no `POST /api/extensions`. `extension list` is unchanged. |
+| Joint install request | **Pass** | One `POST /api/extensions` (201): `with_dependencies: true` and `dependencies: {"acme-webdep": {expected_digest, allow_unverified: true, confirm_gateway_digest}}`. The root's own `allow_unverified: true` and `expected_digest` sit at the top level. `acme-off` (disabled, nothing to consent) gets no entry (`cli/solo-install-request.json`). |
+| Toast and Installed | **Pass** | "…/acme-solo installed with acme-webdep, acme-off" (06). The response has `dependencies_installed: ["acme-webdep","acme-off"]`. `acme-solo`, `acme-webdep` and `acme-off` are active (13). |
+| Blocked: source too old | **Pass** | `acme-high`: "Its source has no version of acme-lowdep at 9.0.0 or later". Install is disabled (09). |
+| Blocked: `version_unmet`, installed copy | **Pass** | `acme-s9`: "No update of acme-s9base reaches 2.0.0. Reinstall it from a source with 2.0.0 or later first". Install is disabled (10). |
+| Blocked: `installed_elsewhere` | **Pass** | `acme-p12`: "Another profile or workspace uses a different copy of acme-p12dep. Run compozy extension install …/acme-p12dep --replace --allow-unverified --scope global --profile other first". Install is disabled (11). |
+| Partial failure shows "Installed first" | **Pass** (masked message) | `acme-three`: `acme-depa` commits and `acme-depx` fails to initialize. The response is 500 with `dependencies_installed: ["acme-depa"]`, and the dialog shows "Internal Server Error · Installed first: acme-depa" (12). `acme-depa` stays active, and `acme-depx` is rolled back. The message is masked (BUG-20261122-install-activation-failure-masked-500). The error shows in the root consent dialog, because a local root always passes it. |
+| Source changed between preview and install | **Pass** (no partial install) | Changing `acme-depb` or the root `acme-two` while a gate was open gives 409 `extension_source_changed` (with `dependency: "acme-depb"` for the dependency) before anything installs (12b). |
+| GitHub / Git URL sources | Not walked | No offline GitHub release or HTTPS repository was available in the lab. |
+
+### New defects
+
+| Bug | Severity | Pre-existing? |
+| --- | --- | --- |
+| BUG-20261122-source-install-stale-preview-after-success | Low | Partly. `main` keeps the preview after success too. D12 adds the stale **Also installs** rows and repeats the dependency gates (07, 08) |
+| BUG-20261122-install-activation-failure-masked-500 | Low | Likely. A plain install of the failing package returns the same bare 500 |
+
+### Paper cuts
+
+| Where | Felt | Sharpness |
+| --- | --- | --- |
+| Review install of a local folder without "Allow an unverified package" | The form shows the raw daemon text "extension: checksum is unverified: acme-solo", and the user has to find the option under More options | Low |
+| Reopened dialog | The previous path and the checked "Allow an unverified package" stay in the form, so clicking the checkbox again unchecks it | Cosmetic |
+| `compozy extension remove <name>` from an unregistered cwd | It fails on workspace resolution until `--global` is passed | Low |
+| Web gateway gate for a new dependency | "Updating acme-webdep lets it use remote access" on a first install (carried over) | Low |
+
+### Teardown
+
+The manifest `TEARDOWN_COMMAND` ran from `/tmp/d12-teardown.sh`. `teardown.json` (copied to the
+evidence folder) reports `clean: true` with no survivors. The daemon survived its graceful stop and
+the signal sweep ended it, along with the registered `vite` and the lab extension subprocesses.
+Nothing listens on 50459 or 50461 any more, and no lab process remains. The script's own command line
+did not name the lab, but the tool shell that launched it did, because the command text defined the lab
+path. The sweep ended that shell as well (exit 144).
