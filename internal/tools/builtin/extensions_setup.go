@@ -16,7 +16,7 @@ var extensionSetupTools = []toolspkg.Descriptor{
 		extensionSetupOutputSchema,
 		toolspkg.RiskMutating,
 		false,
-		[]string{extensionsExtensionsKey, "setup", "inputs", extensionsMutationKey},
+		[]string{extensionsExtensionsKey, "setup", inputsTagKey, extensionsMutationKey},
 		[]string{"extension setup", "configure extension inputs", "missing extension inputs"},
 	),
 }

@@ -78,15 +78,6 @@ func extensionOperationErrorPayload(
 	case extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported:
 		payload.Code = ExtensionAgentPluginErrorCode(err)
-	case extensionErrorNotBuiltin:
-		payload.Code = diagnosticcontract.CodeExtensionNotBuiltin
-		payload.Diagnostic = extensionOperationDiagnostic(
-			"extension.not_builtin",
-			payload.Code,
-			"Extension is not a built-in",
-			message,
-			"",
-		)
 	default:
 		var ok bool
 		if payload, ok = extensionBuiltinOperationPayload(kind, message, name); !ok {
@@ -97,8 +88,9 @@ func extensionOperationErrorPayload(
 	return payload, true
 }
 
-// extensionBuiltinOperationPayload maps the built-in lifecycle conflicts (not removed, existing copy, failed
-// restore, failed removal compensation) onto their stable codes. It reports false for every other kind.
+// extensionBuiltinOperationPayload maps the built-in lifecycle conflicts (not a built-in, not removed,
+// existing copy, failed restore, failed removal compensation) onto their stable codes. It reports false for
+// every other kind.
 func extensionBuiltinOperationPayload(
 	kind extensionErrorKind,
 	message string,
@@ -106,6 +98,15 @@ func extensionBuiltinOperationPayload(
 ) (contract.ExtensionOperationErrorPayload, bool) {
 	payload := contract.ExtensionOperationErrorPayload{}
 	switch kind {
+	case extensionErrorNotBuiltin:
+		payload.Code = diagnosticcontract.CodeExtensionNotBuiltin
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.not_builtin",
+			payload.Code,
+			"Extension is not a built-in",
+			message,
+			"",
+		)
 	case extensionErrorBuiltinNotRemoved:
 		payload.Code = diagnosticcontract.CodeExtensionBuiltinNotRemoved
 		payload.Diagnostic = extensionOperationDiagnostic(

@@ -61,7 +61,7 @@ func DescribeInputSetup(
 	}
 	payload.MissingEnv = bareMissingEnv(manifest, readiness.MissingEnv)
 	for _, name := range sortedMapKeys(manifest.Resources.MCPServers) {
-		if auth := manifest.Resources.MCPServers[name].Auth; auth != nil && auth.Method == "oauth" {
+		if auth := manifest.Resources.MCPServers[name].Auth; auth != nil && auth.Method == mcpAuthMethodOAuth {
 			payload.MCPAuthServers = append(payload.MCPAuthServers, name)
 		}
 	}

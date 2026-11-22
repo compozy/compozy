@@ -142,7 +142,7 @@ func extensionPromptAnswer(input extensionPromptInput, answer string) (json.RawM
 	}
 	if input.Type == extensionInputTypeBoolean {
 		switch strings.ToLower(answer) {
-		case "y", "yes", "true":
+		case "y", yesFlagName, toolBoolTrue:
 			raw = json.RawMessage("true")
 		case "n", "no", "false":
 			raw = json.RawMessage("false")
@@ -200,11 +200,11 @@ func (p *extensionInputPrompter) read(ctx context.Context, hidden bool) (string,
 		}
 		return strings.TrimRight(line, "\r\n"), nil
 	}
-	restore := func() {}
+	restore := func() error { return nil }
 	if file, ok := p.input.(*os.File); ok && hidden && p.readPassword != nil {
 		fd := int(file.Fd())
 		if state, err := term.GetState(fd); err == nil {
-			restore = func() { _ = term.Restore(fd, state) }
+			restore = func() error { return term.Restore(fd, state) }
 		}
 		readLine = func() (string, error) {
 			value, err := p.readPassword(fd)
@@ -228,8 +228,11 @@ func (p *extensionInputPrompter) read(ctx context.Context, hidden bool) (string,
 	case result := <-done:
 		return result.text, result.err
 	case <-ctx.Done():
-		restore()
+		restoreErr := restore()
 		_, _ = fmt.Fprintln(p.output)
+		if restoreErr != nil {
+			return "", errors.Join(errExtensionInputPromptAborted, fmt.Errorf("cli: restore terminal: %w", restoreErr))
+		}
 		return "", errExtensionInputPromptAborted
 	}
 }

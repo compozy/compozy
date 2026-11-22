@@ -23,7 +23,11 @@ func getExtensionInputsOperationSpec() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionInputsPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ExtensionOperationErrorPayload{}},
+			{
+				Status:      404,
+				Description: specExtensionNotFoundDescription,
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
 		},
 	}
 }
@@ -41,13 +45,21 @@ func setExtensionInputsOperationSpec() OperationSpec {
 		RequestBody: contract.SetExtensionInputsRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionInputsPayload{}},
-			{Status: 400, Description: "Invalid request", Body: contract.ExtensionOperationErrorPayload{}},
+			{
+				Status:      400,
+				Description: cmdPaletteInvalidRequestDescription,
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
 			{
 				Status:      403,
 				Description: "Forbidden, or an agent tried to overwrite inputs that are already set",
 				Body:        contract.ExtensionOperationErrorPayload{},
 			},
-			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ExtensionOperationErrorPayload{}},
+			{
+				Status:      404,
+				Description: specExtensionNotFoundDescription,
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
 			{Status: 422, Description: "Invalid input value", Body: contract.ExtensionOperationErrorPayload{}},
 		},
 	}
