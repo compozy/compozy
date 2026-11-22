@@ -130,8 +130,11 @@ slug=catalog-mutability
 review_round=2
 ```
 
-- Blank lines are ignored, a repeated key keeps the last value, and values stay raw text. The daemon
-  validates them against the Loop input schema when the Loop starts, exactly like static inputs.
+- Blank lines are ignored and a repeated key keeps the last value. Each value is coerced by the
+  Loop's declared input type before the start call: `number` becomes a number, `boolean` becomes a
+  boolean, and `string`, `file`, `agent`, `ref`, and `runtime` inputs keep the raw text. An invalid
+  value fails the firing with the key and declared kind in the run error, and the Loop does not
+  start.
 - The command result merges over `loop_target.inputs`; on a key conflict the command wins.
 - Exit `0` with at least one input starts the Loop with the merged inputs.
 - Exit `0` with empty or whitespace-only output records the firing as a skip: the run settles as
@@ -144,6 +147,12 @@ review_round=2
 Each run keeps the evidence in its metadata: `loop_input_source`, `loop_inputs`, `loop_input_keys`,
 and, on failure, `loop_input_error`. `compozy automation runs get` shows the resulting Loop run in
 `loop_run_id` and the skip reason, so job history answers what the fire armed and what happened.
+
+The command is a discovery step, not part of the Loop run. The daemon resolves the inputs before
+the Loop's admission check, so a rejected admission (for example, the Loop's concurrency policy)
+happens after the command has already produced its side effects. Keep the command side-effect free
+and idempotent: it should only discover and print the queued work, never move, claim, or delete it.
+The Loop owns the work after it starts.
 
 `loop_target.input_command` is operator-authored configuration, and CompozyOS executes it as a shell
 command with the daemon user's permissions and no sandbox. Treat a job definition with an input
