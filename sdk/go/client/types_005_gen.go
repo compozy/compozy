@@ -160,6 +160,7 @@ type Contract struct {
 	Boundaries       []string           `json:"boundaries,omitempty"`
 	StopWhen         StopWhenSpec       `json:"stop_when,omitzero"`
 	Verification     []GateCriterion    `json:"verification,omitempty"`
+	OnResult         map[string]any     `json:"on_result,omitempty"`
 	IterationCap     int                `json:"iteration_cap"`
 	NoProgress       NoProgress         `json:"no_progress"`
 	Budget           Budget             `json:"budget"`

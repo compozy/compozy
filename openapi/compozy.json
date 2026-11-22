@@ -5995,6 +5995,10 @@
             },
             "type": "array"
           },
+          "on_result": {
+            "additionalProperties": {},
+            "type": "object"
+          },
           "on_stalled": {
             "items": {
               "$ref": "#/components/schemas/EffectSpec"
@@ -15722,6 +15726,10 @@
             },
             "type": "array"
           },
+          "on_result": {
+            "additionalProperties": {},
+            "type": "object"
+          },
           "on_stalled": {
             "items": {
               "$ref": "#/components/schemas/LoopEffectSpec"
@@ -18123,6 +18131,19 @@
             ],
             "type": "string"
           },
+          "terminal": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LoopRunTerminal"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "tokens_used": {
             "format": "int64",
             "type": "integer"
@@ -18252,6 +18273,50 @@
           "requests",
           "run",
           "waits"
+        ],
+        "type": "object"
+      },
+      "LoopRunTerminal": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cause": {
+            "type": "string"
+          },
+          "gate_id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "watching",
+              "needs-approval",
+              "paused",
+              "done",
+              "no-op",
+              "blocked",
+              "failed",
+              "exhausted",
+              "stalled",
+              "canceled"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
         ],
         "type": "object"
       },

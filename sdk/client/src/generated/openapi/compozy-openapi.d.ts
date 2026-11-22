@@ -10049,6 +10049,9 @@ export interface components {
       on_exhausted?: components["schemas"]["EffectSpec"][];
       on_failed?: components["schemas"]["EffectSpec"][];
       on_noop?: components["schemas"]["EffectSpec"][];
+      on_result?: {
+        [key: string]: unknown;
+      };
       on_stalled?: components["schemas"]["EffectSpec"][];
       runtime_defaults?: components["schemas"]["RuntimeDefaults"] | null;
       runtime_rules?: components["schemas"]["RuntimeRule"][];
@@ -12858,6 +12861,9 @@ export interface components {
       on_exhausted?: components["schemas"]["LoopEffectSpec"][];
       on_failed?: components["schemas"]["LoopEffectSpec"][];
       on_noop?: components["schemas"]["LoopEffectSpec"][];
+      on_result?: {
+        [key: string]: unknown;
+      };
       on_stalled?: components["schemas"]["LoopEffectSpec"][];
       runtime_defaults?: components["schemas"]["LoopRuntimeDefaults"] | null;
       runtime_rules?: components["schemas"]["LoopRuntimeRule"][];
@@ -13593,6 +13599,7 @@ export interface components {
         | "exhausted"
         | "stalled"
         | "canceled";
+      terminal?: components["schemas"]["LoopRunTerminal"] | null;
       /** Format: int64 */
       tokens_used: number;
       workspace_id: string;
@@ -13613,6 +13620,29 @@ export interface components {
       run: components["schemas"]["LoopRunPayload"];
       waits: components["schemas"]["LoopNodeWaitPayload"][];
       watch_events?: components["schemas"]["LoopWatchEventsState"] | null;
+    };
+    LoopRunTerminal: {
+      /** Format: date-time */
+      at?: string;
+      cause?: string;
+      gate_id?: string;
+      message?: string;
+      node_id?: string;
+      reason_code?: string;
+      /** @enum {string} */
+      status:
+        | "queued"
+        | "running"
+        | "watching"
+        | "needs-approval"
+        | "paused"
+        | "done"
+        | "no-op"
+        | "blocked"
+        | "failed"
+        | "exhausted"
+        | "stalled"
+        | "canceled";
     };
     LoopRunsAggregatePayload: {
       failed: number;
