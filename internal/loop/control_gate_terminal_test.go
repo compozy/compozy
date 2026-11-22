@@ -205,11 +205,11 @@ func TestDefinitionOfDoneGateShouldSettleAuthoredBlocked(t *testing.T) {
 
 	contract := dsl.Contract{
 		Verification: []dsl.GateCriterion{{ID: "check", Type: dsl.CriterionCommand, Check: "true"}},
-		OnResult: map[string]any{
-			"fail": map[string]any{"action": "halt", "terminal_status": "blocked"},
-		},
 		ContractLifecycleState: &dsl.ContractLifecycleState{
 			TerminalStates: []dsl.TerminalState{dsl.TerminalBlocked, dsl.TerminalFailed},
+			OnResult: map[string]any{
+				"fail": map[string]any{"action": "halt", "terminal_status": "blocked"},
+			},
 		},
 	}
 	runtimeGate := gate.GateFromContract(definitionOfDoneGateID, contract, 0)
