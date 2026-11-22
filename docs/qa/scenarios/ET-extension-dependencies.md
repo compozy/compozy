@@ -78,7 +78,8 @@ Steps:
     the preview reports it as `installed_elsewhere` with a `retry_command` scoped to that profile
     (`--scope <scope> --profile <profile>`): `compozy extension update <dep>` for a marketplace-installed
     package whose release is the dependency's version, otherwise
-    `compozy extension install <dependency source> [--replace]`. Running it unblocks the root. Installing
+    `compozy extension install <dependency source> [--replace] [--allow-unverified]`. Running it in a
+    terminal unblocks the root: the root's dependency install then attaches the same bytes to its profile. Installing
     the root with `--with-dependencies` refuses with `extension_dependencies_required` and that
     command before it installs any dependency, and the other profile keeps the installed version. A
     dependency that a concurrent install commits first still refuses with `extension_exists` and

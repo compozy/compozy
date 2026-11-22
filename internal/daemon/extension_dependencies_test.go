@@ -754,7 +754,7 @@ func TestExtensionDependencyInstall(t *testing.T) {
 func TestExtensionDependencyRetryCommand(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should name a reinstall from the dependency source for a local package another profile uses",
+	t.Run("Should name a local reinstall that unblocks the root by attaching the same bytes",
 		func(t *testing.T) {
 			t.Parallel()
 			fixture := newDependencyFixture(t)
@@ -766,18 +766,31 @@ func TestExtensionDependencyRetryCommand(t *testing.T) {
 			fixture.install(t, "dep-core", contract.InstallExtensionRequest{Profile: other.Name})
 			fixture.write(t, "dep-core", "1.1.0")
 			fixture.write(t, "root", "1.0.0", "dep-core>=1.1.0")
+			req := fixture.rootRequest(t,
+				map[string]contract.ExtensionDependencyConsent{"dep-core": {AllowUnverified: true}})
 
-			_, err = fixture.service.Install(t.Context(), fixture.rootRequest(t,
-				map[string]contract.ExtensionDependencyConsent{"dep-core": {AllowUnverified: true}},
-			), dependencyOperator(t))
+			_, err = fixture.service.Install(t.Context(), req, dependencyOperator(t))
 			required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
-			want := "compozy extension install " + fixture.dir(
-				t,
-				"dep-core",
-			) + " --replace --scope global --profile other"
+			want := "compozy extension install " + fixture.dir(t, "dep-core") +
+				" --replace --allow-unverified --scope global --profile other"
 			if !ok || required.Dependencies[0].State != dependencyStateInstalledElsewhere ||
 				required.Dependencies[0].RetryCommand != want {
 				t.Fatalf("error = %v, want installed_elsewhere naming %q", err, want)
+			}
+
+			// The offered command: replace the other profile's copy from the dependency's source.
+			fixture.install(t, "dep-core", contract.InstallExtensionRequest{
+				Scope: "global", Profile: other.Name, Replace: true,
+			})
+			if _, err := fixture.service.Install(t.Context(), req, dependencyOperator(t)); err != nil {
+				t.Fatalf("Install() after the retry command error = %v, want the root installed", err)
+			}
+			installations, err := fixture.registry.Installations(t.Context(), "dep-core")
+			if err != nil || len(installations) != 2 {
+				t.Fatalf("dep-core installations = %+v, %v; want other and the root's profile", installations, err)
+			}
+			if !fixture.installed(t, "root") {
+				t.Fatal("root is not installed after the retry command")
 			}
 		})
 

@@ -42,8 +42,14 @@ func (s *daemonExtensionService) dependencyRetryCommand(
 		return ""
 	}
 	command := "compozy extension install " + dependencyInstallArgument(item)
-	if contract.InstallExtensionSource(item.Source) == contract.InstallExtensionSourceLocalPath {
+	local := contract.InstallExtensionSource(item.Source) == contract.InstallExtensionSourceLocalPath
+	if local {
 		command += " --replace"
+	}
+	// A side-load is always unverified and the CLI never offers that consent itself; in a terminal the flag still
+	// prompts before installing.
+	if local || item.ConsentRequired {
+		command += " --allow-unverified"
 	}
 	return command + flags
 }

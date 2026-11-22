@@ -112,7 +112,9 @@ func (s *daemonExtensionService) installDependencyNode(
 	}
 	prepared := *node.candidate
 	node.candidate = nil
-	prepared.keepInstalled = true
+	// A dependency only attaches the package other cells already use (D9), whatever its source; a local bundle
+	// with the installed bytes enrolls the attachment like a published one instead of refusing it.
+	prepared.keepInstalled, prepared.enrollAttachment = true, true
 	req := contract.InstallExtensionRequest{
 		Enable: true, Source: contract.InstallExtensionSource(node.payload.Source), Ref: node.payload.Ref,
 		ExpectedDigest: consent.ExpectedDigest, AllowUnverified: consent.AllowUnverified,

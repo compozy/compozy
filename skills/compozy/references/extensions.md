@@ -384,7 +384,8 @@ first installation). A marketplace update check that fails or takes longer than 
 leaves the command out:
 `compozy extension update <dep>` when the package is marketplace-installed and its source's release
 reaches `min_version`; otherwise, for `installed_elsewhere`, `compozy extension install <dependency
-source> [--replace]` when the dependency's own source satisfies it. Without one, reinstall the package
+source> [--replace] [--allow-unverified]` when the dependency's own source satisfies it (`--replace` for a
+local path, `--allow-unverified` for an unverified source; in a terminal it still asks before installing). Without one, reinstall the package
 from a source that provides `min_version`. Nothing is ever auto-updated.
 
 `with_dependencies: true` installs `missing` and enables `disabled` dependencies in the dependent's

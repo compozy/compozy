@@ -1,6 +1,6 @@
 # BUG-20261122-local-dependency-elsewhere-retry-no-unblock: The local `--replace` retry for an `installed_elsewhere` dependency never unblocks the root
 
-- **Status:** open
+- **Status:** fixed (pending re-walk)
 - **Impact (user-side):** Blocked. The user runs the offered command, it succeeds, and the root
   still cannot be installed with any flag
 - **Severity:** Medium · **Priority:** P2
@@ -62,6 +62,36 @@ commit path refuses because a `local_path` candidate has no `published` record. 
 reinstall/attach branch. A `local_path` candidate goes to the fresh-install commit, and that commit
 refuses because the name is already registered.
 
+## Fix
+
+The QA suspicion was close but not exact: a `local_path` candidate does reach the reinstall branch
+(`published` is set for local bundles too). It was refused there for two reasons:
+
+- `PreparedLocalManagedInstall.ValidateReinstall` returns `extension_exists` when the request has no
+  `replace` (`internal/extension/install_local_preparation.go`), and a dependency install never sets
+  it. `validateReinstallAuthority` (`internal/daemon/extensions_reinstall.go`) now skips the
+  replacement guards when a dependency install (`keepInstalled`) matches the installed bytes. Nothing
+  is replaced, so no replace authority is needed (D9).
+- Local candidates never set `enrollAttachment`, so even a passing reinstall would not attach the
+  dependent's cell. `installDependencyNode` (`internal/daemon/extension_dependencies_install.go`)
+  now enrolls the attachment for every dependency source, so the same bytes are attached as they are
+  for a marketplace dependency.
+
+The offered local command now carries `--allow-unverified`: `compozy extension install <dir> --replace
+--allow-unverified --scope global --profile other`. A side-load is always unverified and the CLI never
+offers that consent on its own; in a terminal it still asks before installing, so `--yes` is
+deliberately left out. The checksum-unverified diagnostic now reads "The extension source did not
+provide a verifiable checksum." and no longer mentions a marketplace for a local folder.
+
+Regression test: `TestExtensionDependencyRetryCommand/Should name a local reinstall that unblocks the
+root by attaching the same bytes` (`internal/daemon/extension_dependencies_test.go`). It asserts the
+new command, runs the offered reinstall, and then requires the root install to succeed with
+`dep-core` attached to both profiles.
+
+The direct `install <dir>` into a profile without the package still refuses (`extension_exists`,
+or `extension not found` with `--replace`). That path is not a retry command, so this fix leaves it
+unchanged.
+
 ## Verification
 
-Pending fix.
+Pending CI and a re-walk of ET-extension-dependencies step 12.
