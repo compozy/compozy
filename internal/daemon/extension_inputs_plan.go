@@ -115,7 +115,8 @@ func carriedSubprocessValues(
 			!plan.manifest.SubprocessInput(input) {
 			continue
 		}
-		if binding, bound := plan.previous[input.Binding.Name]; bound && !binding.Inactive {
+		if binding, bound := plan.previous[input.Binding.Name]; bound && !binding.Inactive &&
+			binding.InputID == input.ID {
 			continue
 		}
 		row, found := plan.state.Values[input.ID]
@@ -130,17 +131,15 @@ func carriedSubprocessValues(
 
 // carryBindingValues is the reverse of carriedSubprocessValues: an omitted non-secret input that is no
 // longer subprocess-bound takes its typed row from its active env binding, re-checked against the
-// declared type, so the value survives when prepareRetiredSecrets retires that binding. An invalid or
-// unavailable value is not carried.
+// declared type, so the value survives when prepareRetiredSecrets retires that binding. The binding
+// outranks an active typed row of a former dual consumer, which `secrets set` does not rewrite (R-5).
+// An invalid or unavailable value is not carried, so such a row keeps its own value.
 func (b extensionInputBinder) carryBindingValues(
 	ctx context.Context, plan *extensionInputPlan, values, carried map[string]extensioninput.Value,
 ) error {
 	for _, input := range plan.manifest.Inputs {
 		if _, supplied := values[input.ID]; supplied || input.Type == extensionInputTypeSecret ||
 			plan.manifest.SubprocessInput(input) {
-			continue
-		}
-		if row, found := plan.state.Values[input.ID]; found && row.Active && row.Type == input.Type {
 			continue
 		}
 		binding, found := activeInputBinding(plan.previous, input.ID)
@@ -303,6 +302,22 @@ func (b extensionInputBinder) prepareRetiredSecrets(
 
 func inputInvalid(id, reason string) error {
 	return &extensionpkg.InputValidationError{InputID: id, Reason: reason}
+}
+
+// inputInvalidCause keeps the sanitized public diagnostic of an input validation error while carrying
+// its cause for errors.Is and errors.As; the cause text stays out of Error().
+type inputInvalidCause struct {
+	*extensionpkg.InputValidationError
+	cause error
+}
+
+func (e *inputInvalidCause) Unwrap() []error { return []error{e.InputValidationError, e.cause} }
+
+func inputInvalidWithCause(id, reason string, cause error) error {
+	return &inputInvalidCause{
+		InputValidationError: &extensionpkg.InputValidationError{InputID: id, Reason: reason},
+		cause:                cause,
+	}
 }
 
 func validateExtensionInputPreparation(

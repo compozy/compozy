@@ -18,13 +18,31 @@ import { useExtensionInputForm } from "./use-extension-input-form";
 
 export function useExtensionSetupDialog(extension: ExtensionEntry, onClose: () => void) {
   const scope = extensionInstallationScope(extension);
+  // The installed instance owns the draft and the save feedback; another instance starts clean.
+  const instance = [extension.name, scope.profileName, scope.workspaceId].join("/");
   const state = useQuery(extensionInputsOptions(extension.name, scope));
   const save = useSetExtensionInputs();
   const [remaining, setRemaining] = useState<readonly string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<string, string>>>({});
+  const [feedbackInstance, setFeedbackInstance] = useState(instance);
+  if (feedbackInstance !== instance) {
+    setFeedbackInstance(instance);
+    setRemaining([]);
+    setFieldErrors({});
+  }
   const inputs = state.data?.inputs ?? [];
   const definitions = setupDefinitions(inputs);
-  const form = useExtensionInputForm(definitions, `${extension.name}:setup`);
+  const inputForm = useExtensionInputForm(definitions, `${instance}:setup`);
+  // Editing a field retires the daemon's rejection of its previous value; other fields keep theirs.
+  const form = {
+    ...inputForm,
+    change: (id: string, value: string | boolean) => {
+      inputForm.change(id, value);
+      setFieldErrors(errors =>
+        errors[id] === undefined ? errors : { ...errors, [id]: undefined }
+      );
+    },
+  };
   const formRef = useRef<HTMLFormElement>(null);
   const firstPending = inputs.find(input => input.state !== "set")?.id;
   // Fields arrive after the popup opens: the first input still needing a value takes focus when it

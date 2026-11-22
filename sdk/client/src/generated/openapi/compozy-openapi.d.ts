@@ -33129,10 +33129,8 @@ export interface operations {
         scope?: string;
         /** @description Operator workspace reference; omit for the global instance */
         workspace?: string;
-        /** @description Read one profile's rows by name */
+        /** @description Act as this profile by name */
         profile?: string;
-        /** @description Read the owner-labeled all-profiles aggregate */
-        all_profiles?: boolean;
       };
       header?: never;
       path: {

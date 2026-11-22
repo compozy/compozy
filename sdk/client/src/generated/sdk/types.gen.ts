@@ -21397,13 +21397,9 @@ export type GetExtensionInputsData = {
      */
     workspace?: string;
     /**
-     * Read one profile's rows by name
+     * Act as this profile by name
      */
     profile?: string;
-    /**
-     * Read the owner-labeled all-profiles aggregate
-     */
-    all_profiles?: boolean;
   };
   url: "/api/extensions/{name}/inputs";
 };

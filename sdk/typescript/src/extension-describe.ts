@@ -136,17 +136,19 @@ export function describeInputsFloor(floor: string, hasInputs: boolean): string {
     : floor;
 }
 
-// ponytail: prerelease tags are ignored, so 0.7.9-beta.1 equals 0.7.9, as in the Go SDK.
+// Orders versions by their numeric cores; under SemVer a prerelease of the same core precedes the
+// release, and build metadata never affects the order, as in the Go SDK.
 function versionCoreLess(left: string, right: string): boolean {
   const core = (version: string) =>
     (version.split(/[-+]/, 1)[0] ?? "").split(".").map(part => Number.parseInt(part, 10) || 0);
+  const prerelease = (version: string) => (version.split("+", 1)[0] ?? "").includes("-");
   const [a, b] = [core(left), core(right)];
   for (let index = 0; index < 3; index++) {
     if ((a[index] ?? 0) !== (b[index] ?? 0)) {
       return (a[index] ?? 0) < (b[index] ?? 0);
     }
   }
-  return false;
+  return prerelease(left) && !prerelease(right);
 }
 
 function normalizeDescribeInputs(inputs: DescribeInput[] | undefined): DescribeInput[] {

@@ -136,11 +136,17 @@ func (s *daemonExtensionService) setInputsLocked(
 	}
 	payload, err := s.inputsPayload(ctx, instance, ext)
 	if err != nil {
+		// Keep the stored values in step with the runtime that loaded the prior ones.
+		if mutated {
+			err = errors.Join(err, binder.Rollback(ctx, plan))
+		}
 		return contract.ExtensionInputsPayload{}, err
 	}
 	// An instance still missing required inputs cannot start (rules 4-5), so a partial write keeps
-	// its progress instead of failing the reload and rolling back.
-	reloaded := mutated && ext.Status.Enabled && !inputsBlockStart(payload)
+	// its progress instead of failing the reload and rolling back. A save that only mirrors an
+	// unchanged binding into its typed row changes no launched value, so it does not restart.
+	valueChanged := len(changed) > 0 || len(plan.writes) > 0
+	reloaded := valueChanged && ext.Status.Enabled && !inputsBlockStart(payload)
 	if reloaded {
 		if err := s.reloadInputsInstance(ctx, instance); err != nil {
 			rollbackErr := binder.Rollback(ctx, plan)

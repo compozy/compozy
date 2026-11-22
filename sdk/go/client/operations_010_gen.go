@@ -232,11 +232,10 @@ func (c *Client) GetExtension(ctx context.Context, params GetExtensionParams) (*
 
 // GetExtensionInputsParams carries the path, query, and header parameters.
 type GetExtensionInputsParams struct {
-	Name        string  `url:"name"`
-	Scope       *string `url:"scope"`
-	Workspace   *string `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
+	Name      string  `url:"name"`
+	Scope     *string `url:"scope"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
 }
 
 // GetExtensionInputs Read declared extension inputs and their setup state without values
@@ -252,9 +251,6 @@ func (c *Client) GetExtensionInputs(ctx context.Context, params GetExtensionInpu
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()

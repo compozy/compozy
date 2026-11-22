@@ -1685,6 +1685,23 @@ func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the Vault cause behind the sanitized preparation diagnostic", func(t *testing.T) {
+		t.Parallel()
+		service, _, secretVault := newService(t)
+		secretVault.failMetadataAt = 1
+		_, err := extensionInputBinder{service: service}.Prepare(
+			testutil.Context(t), key, profile, extensionSubprocessInputManifest(), initialValues,
+		)
+		invalid, ok := errors.AsType[*extensionpkg.InputValidationError](err)
+		if !ok || invalid.InputID != "project" || !errors.Is(err, errInjectedSecretMetadata) ||
+			!errors.Is(err, extensionpkg.ErrExtensionInputInvalid) {
+			t.Fatalf("Prepare() error = %#v, want project validation error carrying the Vault cause", err)
+		}
+		if strings.Contains(err.Error(), errInjectedSecretMetadata.Error()) {
+			t.Fatalf("Prepare() error = %q, want the cause kept out of the public diagnostic", err)
+		}
+	})
+
 	t.Run("Should accept a secrets set binding for a subprocess input", func(t *testing.T) {
 		t.Parallel()
 		service, bindings, secretVault := newService(t)
@@ -1848,6 +1865,50 @@ func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
 			}
 		})
 
+	// A former dual consumer keeps the binding value that `secrets set` wrote, not its older typed row (R-5).
+	t.Run("Should carry a rewritten binding over an older typed row when the subprocess target is removed",
+		func(t *testing.T) {
+			t.Parallel()
+			regionRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "REGION")
+			serverOnly := extensionSubprocessInputManifest()
+			serverOnly.RequiresEnv, serverOnly.DeclaredRequiresEnv = []string{"PROJECT_ID"}, []string{"PROJECT_ID"}
+			service, bindings, secretVault := newService(t)
+			commit(t, service, extensionSubprocessInputManifest(), initialValues)
+			secretVault.seed(regionRef, extensionpkg.ExtensionEnvBindingKind, "us-east")
+			commit(t, service, serverOnly, nil)
+			rows, err := service.inputs.List(testutil.Context(t), instance)
+			if err != nil {
+				t.Fatalf("List() error = %v", err)
+			}
+			if row := rows["region"]; !row.Active || string(row.Value) != `"us-east"` {
+				t.Fatalf("region row = %#v, want the rewritten binding value active", row)
+			}
+			if region := bindingsByName(t, bindings)["REGION"]; !region.Inactive {
+				t.Fatalf("region binding = %#v, want it retired", region)
+			}
+		})
+
+	// A binding name another input owned does not suppress the carry of the input that now binds it.
+	t.Run("Should carry a typed row into an env name released by a removed input", func(t *testing.T) {
+		t.Parallel()
+		serverOnly := extensionSubprocessInputManifest()
+		serverOnly.RequiresEnv, serverOnly.DeclaredRequiresEnv = []string{"PROJECT_ID"}, []string{"PROJECT_ID"}
+		renamed := extensionSubprocessInputManifest()
+		renamed.Inputs = []extensionpkg.ManifestInput{{
+			ID: "region", Prompt: "Region", Type: "string", Required: true,
+			Binding: marketplace.InputBinding{Type: "env", Name: "PROJECT_ID"},
+		}}
+		renamed.RequiresEnv, renamed.DeclaredRequiresEnv = []string{"PROJECT_ID"}, []string{"PROJECT_ID"}
+		renamed.Resources.MCPServers = map[string]extensionpkg.MCPServerConfig{}
+		service, bindings, secretVault := newService(t)
+		commit(t, service, serverOnly, initialValues)
+		commit(t, service, renamed, nil)
+		bound := bindingsByName(t, bindings)["PROJECT_ID"]
+		if bound.InputID != "region" || bound.Inactive || secretVault.value(projectRef) != "eu-west" {
+			t.Fatalf("PROJECT_ID binding = %#v, want region's carried value bound and active", bound)
+		}
+	})
+
 	t.Run("Should report a stored value that fails a changed manifest type as invalid", func(t *testing.T) {
 		t.Parallel()
 		service, _, _ := newService(t)
@@ -1867,9 +1928,12 @@ func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
 		if err != nil {
 			t.Fatalf("json.Marshal() error = %v", err)
 		}
-		if requiredErr == nil || strings.Contains(requiredErr.Error(), projectValue) ||
-			bytes.Contains(described, []byte(projectValue)) {
-			t.Fatalf("invalid input leaked its value or did not block: %v %s", requiredErr, described)
+		required, ok := errors.AsType[*extensionpkg.InputsRequiredError](requiredErr)
+		if !ok || !slices.Equal(required.InvalidInputs, []string{"project"}) {
+			t.Fatalf("RequiredError() = %#v, want project reported as an invalid required input", requiredErr)
+		}
+		if strings.Contains(requiredErr.Error(), projectValue) || bytes.Contains(described, []byte(projectValue)) {
+			t.Fatalf("invalid input leaked its value: %v %s", requiredErr, described)
 		}
 	})
 

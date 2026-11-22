@@ -106,8 +106,8 @@ func describeInputsFloor(floor string, inputs []Input) string {
 	return floor
 }
 
-// versionCoreLess compares the numeric major.minor.patch cores of two versions.
-// ponytail: prerelease tags are ignored, so 0.7.9-beta.1 equals 0.7.9; use full semver if that matters.
+// versionCoreLess orders two versions by their numeric major.minor.patch cores; under SemVer a
+// prerelease of the same core precedes the release, and build metadata never affects the order.
 func versionCoreLess(left, right string) bool {
 	l, r := versionCore(left), versionCore(right)
 	for i := range l {
@@ -115,12 +115,22 @@ func versionCoreLess(left, right string) bool {
 			return l[i] < r[i]
 		}
 	}
-	return false
+	return versionPrerelease(left) && !versionPrerelease(right)
+}
+
+// versionBase strips the v prefix and build metadata, keeping the core and any prerelease tag.
+func versionBase(version string) string {
+	base, _, _ := strings.Cut(strings.TrimPrefix(strings.TrimSpace(version), "v"), "+")
+	return base
+}
+
+func versionPrerelease(version string) bool {
+	return strings.Contains(versionBase(version), "-")
 }
 
 func versionCore(version string) [3]int {
 	var core [3]int
-	base, _, _ := strings.Cut(strings.TrimPrefix(strings.TrimSpace(version), "v"), "-")
+	base, _, _ := strings.Cut(versionBase(version), "-")
 	for i, part := range strings.SplitN(base, ".", 3) {
 		if n, err := strconv.Atoi(part); err == nil {
 			core[i] = n

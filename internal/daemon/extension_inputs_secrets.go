@@ -106,13 +106,13 @@ func (b extensionInputBinder) prepareInputBinding(
 ) (string, error) {
 	write, err := b.service.prepareExtensionSecret(ctx, plan.key, plan.instance.ProfileID, request)
 	if err != nil {
-		return "", inputInvalid(inputID, "value could not be prepared")
+		return "", inputInvalidWithCause(inputID, "value could not be prepared", err)
 	}
 	write.inputID = inputID
 	if write.value != nil {
 		snapshot, err := b.service.snapshotExtensionSecret(ctx, write.ref)
 		if err != nil {
-			return "", inputInvalid(inputID, "value could not be snapshotted")
+			return "", inputInvalidWithCause(inputID, "value could not be snapshotted", err)
 		}
 		write.snapshot = &snapshot
 	}

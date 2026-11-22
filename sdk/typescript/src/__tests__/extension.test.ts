@@ -578,6 +578,10 @@ describe("Extension", () => {
     expect(describeInputsFloor("0.9.0", true)).toBe("0.9.0");
     expect(describeInputsFloor("0.3.0-beta.1", true)).toBe(SDK_INPUTS_MIN_COMPOZY_VERSION);
     expect(describeInputsFloor("0.3.0-beta.1", false)).toBe("0.3.0-beta.1");
+    expect(describeInputsFloor(`${SDK_INPUTS_MIN_COMPOZY_VERSION}-rc.1`, true)).toBe(
+      SDK_INPUTS_MIN_COMPOZY_VERSION
+    );
+    expect(describeInputsFloor("0.7.10+build.1", true)).toBe("0.7.10+build.1");
   });
 
   it("describes and polls heartbeat sources", async () => {

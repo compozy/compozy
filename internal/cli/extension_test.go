@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -527,6 +528,52 @@ func TestExtensionSecretReaderReadsHiddenInput(t *testing.T) {
 		_, err := reader.Read("API_KEY")
 		if !errors.Is(err, readErr) || !errors.Is(err, newlineErr) {
 			t.Fatalf("Read() error = %v, want joined read and newline failures", err)
+		}
+	})
+}
+
+func TestExtensionInputPrompterReadReportsOutputFailures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fail a hidden read whose trailing newline cannot be written", func(t *testing.T) {
+		t.Parallel()
+
+		input := openExtensionSecretTestInput(t)
+		writeErr := errors.New("newline write failed")
+		prompter := &extensionInputPrompter{
+			input:        input,
+			output:       &extensionSecretTestWriter{failAfter: 0, err: writeErr},
+			reader:       bufio.NewReader(input),
+			readPassword: func(int) ([]byte, error) { return []byte("secret-value"), nil },
+		}
+
+		value, err := prompter.read(t.Context(), true)
+		if !errors.Is(err, writeErr) || value != "" {
+			t.Fatalf("read() value=%q err=%v, want newline write failure and no value", value, err)
+		}
+	})
+
+	t.Run("Should join the abort with a cancellation newline write failure", func(t *testing.T) {
+		t.Parallel()
+
+		reader, writer := io.Pipe()
+		t.Cleanup(func() {
+			if err := writer.Close(); err != nil {
+				t.Errorf("close prompt pipe: %v", err)
+			}
+		})
+		writeErr := errors.New("newline write failed")
+		prompter := &extensionInputPrompter{
+			input:  reader,
+			output: &extensionSecretTestWriter{failAfter: 0, err: writeErr},
+			reader: bufio.NewReader(reader),
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		_, err := prompter.read(ctx, false)
+		if !errors.Is(err, errExtensionInputPromptAborted) || !errors.Is(err, writeErr) {
+			t.Fatalf("read() error = %v, want abort joined with newline write failure", err)
 		}
 	})
 }
@@ -1983,6 +2030,7 @@ func TestExtensionSetupCommand(t *testing.T) {
 		stdout, stderr string
 		err            error
 		writes         []contract.SetExtensionInputsRequest
+		reads, written []extensionCLIScope
 	}
 	run := func(t *testing.T, state ExtensionInputsRecord, terminal bool, stdin string, args ...string) setupRun {
 		t.Helper()
@@ -1991,16 +2039,20 @@ func TestExtensionSetupCommand(t *testing.T) {
 			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
 				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
 			},
-			extensionInputsFn: func(_ context.Context, name string, _ extensionCLIScope) (ExtensionInputsRecord, error) {
+			extensionInputsFn: func(
+				_ context.Context, name string, selected extensionCLIScope,
+			) (ExtensionInputsRecord, error) {
 				if name != "acme-tool" {
 					t.Fatalf("setup read name = %q", name)
 				}
+				result.reads = append(result.reads, selected)
 				return state, nil
 			},
 			setExtensionInputsFn: func(
-				_ context.Context, _ string, request contract.SetExtensionInputsRequest,
+				_ context.Context, _ string, selected extensionCLIScope, request contract.SetExtensionInputsRequest,
 			) (ExtensionInputsRecord, error) {
 				result.writes = append(result.writes, request)
+				result.written = append(result.written, selected)
 				after := state
 				after.Inputs = slices.Clone(state.Inputs)
 				for index := range after.Inputs {
@@ -2097,6 +2149,23 @@ func TestExtensionSetupCommand(t *testing.T) {
 		}
 		if string(got.writes[0].Inputs["project"].Value) != `"platform"` || len(got.writes[0].Inputs) != 2 {
 			t.Fatalf("written inputs = %#v", got.writes[0].Inputs)
+		}
+	})
+
+	t.Run("Should write to the same workspace instance it read", func(t *testing.T) {
+		t.Parallel()
+		state := defaultState()
+		state.WorkspaceID = "ws-alpha"
+		got := run(t, state, false, "", "--workspace", "alpha", "--input", "token=abc")
+		if got.err != nil || len(got.reads) != 1 || len(got.written) != 1 {
+			t.Fatalf("setup --workspace: reads=%v writes=%v err=%v", got.reads, got.written, got.err)
+		}
+		if got.written[0] != got.reads[0] || got.written[0].workspaceID != "ws-alpha" {
+			t.Fatalf(
+				"write scope = %#v, read scope = %#v, want both on workspace ws-alpha",
+				got.written[0],
+				got.reads[0],
+			)
 		}
 	})
 

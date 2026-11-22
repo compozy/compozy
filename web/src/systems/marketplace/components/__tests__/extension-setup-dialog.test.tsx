@@ -98,13 +98,18 @@ async function renderDialog() {
   });
   clients.push(client);
   const onClose = vi.fn();
-  render(
+  const view = (entry: ExtensionEntry) => (
     <QueryClientProvider client={client}>
-      <ExtensionSetupDialog extension={extension()} onClose={onClose} />
+      <ExtensionSetupDialog extension={entry} onClose={onClose} />
     </QueryClientProvider>
   );
+  const { rerender } = render(view(extension()));
   await screen.findByTestId("extension-input-region");
-  return { onClose, user: userEvent.setup() };
+  return {
+    onClose,
+    rerenderWith: (entry: ExtensionEntry) => rerender(view(entry)),
+    user: userEvent.setup(),
+  };
 }
 
 function field(id: string): HTMLElement {
@@ -214,5 +219,22 @@ describe("ExtensionSetupDialog", () => {
     );
     expect(screen.queryByTestId("extension-setup-save-error")).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
+
+    await user.type(screen.getByTestId("extension-input-region"), "x");
+
+    expect(screen.queryByTestId("extension-input-region-error")).not.toBeInTheDocument();
+  });
+
+  it("Should start another installed instance with an empty draft and no save feedback", async () => {
+    const { rerenderWith, user } = await renderDialog();
+    await user.type(screen.getByTestId("extension-input-api_token"), "rotated");
+    await user.click(screen.getByTestId("extension-setup-save"));
+    await screen.findByTestId("extension-setup-remaining");
+    await user.type(screen.getByTestId("extension-input-region"), "draft");
+
+    rerenderWith({ ...extension(), workspace_id: "ws-other" });
+
+    await waitFor(() => expect(screen.getByTestId("extension-input-region")).toHaveValue(""));
+    expect(screen.queryByTestId("extension-setup-remaining")).not.toBeInTheDocument();
   });
 });

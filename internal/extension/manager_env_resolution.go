@@ -132,8 +132,9 @@ func (m *Manifest) launchInputs() []launchInput {
 }
 
 // resolveBoundEnvMap delivers instance bindings for requires_env names. A subprocess-bound input's
-// binding is re-checked against its manifest type and omitted when invalid; an unbound input falls back
-// to its default. The daemon environment is never copied.
+// binding is re-checked against its manifest type and omitted when invalid or when its stored value is
+// unavailable, as the daemon state reader reports it; an unbound input falls back to its default. The
+// daemon environment is never copied.
 func (m *Manager) resolveBoundEnvMap(
 	ctx context.Context,
 	key InstanceKey,
@@ -172,6 +173,11 @@ func (m *Manager) resolveBoundEnvMap(
 		}
 		ref := vault.NormalizeRef(binding.SecretRef)
 		value, err := m.resolveSecretRef(ctx, ref)
+		_, inputBound := inputTypes[name]
+		if inputBound && (errors.Is(err, vault.ErrSecretNotFound) || errors.Is(err, vault.ErrMissingSecret)) {
+			invalid[name] = true // an unavailable stored value is invalid: omitted, never defaulted (rule 5)
+			continue
+		}
 		if err != nil {
 			runExtensionRedactionCleanups(cleanups)
 			return nil, nil, &boundEnvResolutionError{envName: name, cause: err}
@@ -187,9 +193,9 @@ func (m *Manager) resolveBoundEnvMap(
 		}
 		values[name] = value
 	}
-	satisfied, err := m.serverInputsSatisfiedElsewhere(ctx, key, values, invalid, subprocessInputs)
+	satisfied, stored, err := m.serverInputsSatisfiedElsewhere(ctx, key, values, invalid, subprocessInputs)
 	if err == nil {
-		err = applyLaunchInputDefaults(values, invalid, satisfied, subprocessInputs)
+		err = applyLaunchInputDefaults(values, invalid, satisfied, stored, subprocessInputs)
 	}
 	if err != nil {
 		runExtensionRedactionCleanups(cleanups)
@@ -207,11 +213,12 @@ type InputRowReader interface {
 // precedence (effectiveInputValue): an active typed row wins, valid or not; a default comes next; the
 // daemon environment (daemon_env, rule 5a) is read only without either. A ready name is satisfied without
 // a delivered value; an invalid row or daemon value is marked invalid, so it blocks start and never falls
-// back to the default (rule 4).
+// back to the default (rule 4). stored names the inputs an active typed row satisfies, which outranks
+// the default.
 func (m *Manager) serverInputsSatisfiedElsewhere(
 	ctx context.Context, key InstanceKey, values map[string]string, invalid map[string]bool, inputs []launchInput,
-) (map[string]bool, error) {
-	satisfied := map[string]bool{}
+) (satisfied, stored map[string]bool, err error) {
+	satisfied, stored = map[string]bool{}, map[string]bool{}
 	var state InputState
 	rowsLoaded := false
 	for _, input := range inputs {
@@ -220,21 +227,21 @@ func (m *Manager) serverInputsSatisfiedElsewhere(
 			continue
 		}
 		if !rowsLoaded {
-			var err error
 			if state, err = m.instanceInputState(ctx, key); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			rowsLoaded = true
 		}
 		// A server-consumed input is never subprocess-only, so readiness reads the daemon env for it too.
-		_, _, present, err := effectiveInputValue(input.ManifestInput, state, m.getenv)
-		if err != nil {
+		_, _, present, valueErr := effectiveInputValue(input.ManifestInput, state, m.getenv)
+		if valueErr != nil {
 			invalid[name] = true
 			continue
 		}
 		satisfied[name] = present
+		stored[name] = state.Values[input.ID].Active
 	}
-	return satisfied, nil
+	return satisfied, stored, nil
 }
 
 // instanceInputState projects the instance's typed rows into the readiness input snapshot.
@@ -290,9 +297,9 @@ func (m *Manager) instanceEnvBindings(ctx context.Context, key InstanceKey) ([]E
 // applyLaunchInputDefaults fills unbound inputs from their defaults and refuses start when a required
 // input stays missing or invalid (rules 4-5). An invalid binding, typed row or daemon value is never
 // replaced by the default and is reported under InvalidInputs; a satisfied name is ready without a
-// delivered value.
+// delivered value, and a stored typed row outranks the default, so the default is not delivered over it.
 func applyLaunchInputDefaults(
-	values map[string]string, invalid, satisfied map[string]bool, inputs []launchInput,
+	values map[string]string, invalid, satisfied, stored map[string]bool, inputs []launchInput,
 ) error {
 	readiness := Readiness{MissingInputs: []string{}, MissingEnv: []string{}}
 	manifest := &Manifest{}
@@ -302,7 +309,7 @@ func applyLaunchInputDefaults(
 		if _, bound := values[name]; bound {
 			continue
 		}
-		if !invalid[name] && len(input.Default) > 0 {
+		if !invalid[name] && !stored[name] && len(input.Default) > 0 {
 			if value, err := typedInputValue(input.Type, input.Default); err == nil {
 				values[name] = value
 				continue
