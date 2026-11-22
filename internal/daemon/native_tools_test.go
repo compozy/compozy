@@ -17059,6 +17059,9 @@ func TestNativeSessionArchiveStoppedTool(t *testing.T) {
 			payload.Skipped[0].RootID != "sess-agent" || payload.Skipped[0].Reason != "caller" {
 			t.Fatalf("payload = %+v, want one archived thread and the caller's thread skipped", payload)
 		}
+		if want := "would archive 1 thread (2 sessions); skipped 1; failed 0"; result.Preview != want {
+			t.Fatalf("preview = %q, want %q", result.Preview, want)
+		}
 	})
 
 	t.Run("Should deny all workspaces to an agent session without unrestricted access", func(t *testing.T) {

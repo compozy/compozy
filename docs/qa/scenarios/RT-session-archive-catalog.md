@@ -140,8 +140,10 @@ CI owns this verification; the manual walk is pending.
 ## Archive every stopped thread (#1924)
 
 Fill one project with stopped threads (some with child sessions and subagents) plus one thread of
-each skip kind: a running session, a pending permission request (waiting on you), queued input, a
-pinned session, a session in Later, and an always-on agent's main session. Repeat a smaller set in a
+each skip kind: a running session, a stopped thread with an unresolved interaction (waiting on
+you), queued input, a pinned session, a session in Later, and an always-on agent's main session. A
+live session with a pending permission counts as `running`, since `running` is classified first;
+stopping a session cancels its pending permission, so the thread becomes eligible. Repeat a smaller set in a
 second project.
 
 1. `compozy session archive --stopped --workspace <project> --dry-run` prints
@@ -160,4 +162,4 @@ second project.
 5. From an agent session, `compozy__session_archive_stopped` with `dry_run: true` runs without
    approval and reports the caller's own thread as skipped `caller`; without `dry_run` it archives
    and never archives the caller's thread. `all_workspaces: true` from a restricted agent returns
-   `capability_denied` with reason `needs_grant`.
+   `tool_denied` with reason code `workspace_access_denied`.

@@ -186,13 +186,15 @@ before #1472.
 ## Archive stopped (issue #1924)
 
 Added 2026-11-21. Use a project with a stopped thread whose root has child sessions, a second
-stopped thread, one running session, one session waiting on you (a pending permission), and one
-pinned stopped session. Add a second project with one stopped thread.
+stopped thread, one running session, one live session waiting on a pending permission, and one
+pinned stopped session. Add a second project with one stopped thread. The live waiting session
+counts as running: `running` is classified before `waiting on you`, which applies to stopped
+threads with an unresolved interaction.
 
 1. Open the first project's menu (session list group header, overview tile, or menubar row):
    "Archive stopped" sits above "Archive project". Choose it: no dialog opens; while the request
-   runs the item reads disabled. The toast reads "Archived 2 threads" with "3 skipped: 1 pinned,
-   1 running, 1 waiting on you" (largest count first; equal counts follow the reason code) and an
+   runs the item reads disabled. The toast reads "Archived 2 threads" with "3 skipped: 2 running,
+   1 pinned" (largest count first; equal counts follow the reason code) and an
    "Undo" action. Both threads, children included, leave the active list; the running, waiting and
    pinned rows stay.
 2. Choose "Undo" before the toast closes: the toast reads "Restored 2 threads", every archived

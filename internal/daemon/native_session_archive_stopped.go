@@ -82,8 +82,16 @@ func (n *daemonNativeTools) sessionArchiveStopped(
 	for _, count := range payload.SkipCounts {
 		skipped += count
 	}
-	return structuredResult(payload, fmt.Sprintf("%s %d threads (%d sessions); skipped %d; failed %d",
-		verb, payload.ArchivedThreadCount, payload.ArchivedSessionCount, skipped, payload.FailureCount))
+	return structuredResult(payload, fmt.Sprintf("%s %s (%s); skipped %d; failed %d",
+		verb, archiveStoppedCount(payload.ArchivedThreadCount, "thread"),
+		archiveStoppedCount(payload.ArchivedSessionCount, "session"), skipped, payload.FailureCount))
+}
+
+func archiveStoppedCount(count int, noun string) string {
+	if count != 1 {
+		noun += "s"
+	}
+	return fmt.Sprintf("%d %s", count, noun)
 }
 
 // archiveStoppedWorkspaceID resolves an unarchived workspace: an archived one
