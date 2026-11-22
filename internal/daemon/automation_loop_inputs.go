@@ -29,6 +29,8 @@ const (
 	automationLoopInputCommandMaxOutputBytes = 1 << 20
 	// automationLoopInputStderrLimit bounds the stderr text carried by a failed firing.
 	automationLoopInputStderrLimit = 2000
+	// automationLoopInputInvalidValueLimit bounds the command value echoed by a coercion failure.
+	automationLoopInputInvalidValueLimit = 256
 	// automationLoopInputProcessGroupWait bounds draining a killed input command group.
 	automationLoopInputProcessGroupWait = time.Second
 	// automationLoopInputTypeJSON is the forward-compatible declared input kind that accepts a JSON
@@ -257,11 +259,12 @@ func coerceLoopInputCommandValue(key string, input loopdsl.Input, value any) (an
 }
 
 func invalidLoopInputCommandValueError(key string, input loopdsl.Input, text string) error {
+	display := diagnostics.RedactAndBound(text, automationLoopInputInvalidValueLimit)
 	return fmt.Errorf(
 		"daemon: loop input %q declared %s but the command value %q is invalid",
 		key,
 		input.Type,
-		text,
+		display,
 	)
 }
 

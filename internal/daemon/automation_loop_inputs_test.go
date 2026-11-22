@@ -262,6 +262,27 @@ func TestAutomationLoopStarterResolveLoopInputs(t *testing.T) {
 		})
 	}
 
+	t.Run("Should truncate a large invalid value in the coercion error", func(t *testing.T) {
+		t.Parallel()
+
+		starter := newStarterWithInputs(t, t.TempDir(), map[string]loopdsl.Input{
+			"work": {Type: loopdsl.InputTypeNumber},
+		})
+		_, err := starter.ResolveLoopInputs(
+			t.Context(),
+			request("printf 'work='; head -c 524288 /dev/zero | tr '\\0' a; printf '\\n'"),
+		)
+		if err == nil {
+			t.Fatal("ResolveLoopInputs() error = nil, want an invalid value failure")
+		}
+		if !strings.Contains(err.Error(), "[truncated]") {
+			t.Fatalf("ResolveLoopInputs() error = %q, want the value truncation marker", err)
+		}
+		if got := len(err.Error()); got > 1000 {
+			t.Fatalf("len(ResolveLoopInputs() error) = %d, want a bounded message", got)
+		}
+	})
+
 	t.Run("Should preserve cancellation identity when the fire is canceled", func(t *testing.T) {
 		starter := newStarter(t, t.TempDir())
 		ctx, cancel := context.WithCancel(t.Context())
