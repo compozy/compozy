@@ -58,11 +58,6 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 	}
 
 	inputs := normalizeDescribeInputs(e.definition.Inputs)
-	minCompozyVersion := MinCompozyVersion
-	if len(inputs) > 0 {
-		// Released daemons reject described inputs, so emitting them raises the floor.
-		minCompozyVersion = InputsMinCompozyVersion
-	}
 	return contracts.DescribePayload{
 		Name:        strings.TrimSpace(e.definition.Name),
 		Version:     strings.TrimSpace(e.definition.Version),
@@ -96,9 +91,17 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			Name:              SDKName,
 			Version:           e.sdkVersion,
 			ProtocolVersion:   ProtocolVersion,
-			MinCompozyVersion: minCompozyVersion,
+			MinCompozyVersion: describeMinCompozyVersion(inputs),
 		},
 	}, nil
+}
+
+// describeMinCompozyVersion raises the floor when inputs are emitted, since released daemons reject them.
+func describeMinCompozyVersion(inputs []Input) string {
+	if len(inputs) > 0 {
+		return InputsMinCompozyVersion
+	}
+	return MinCompozyVersion
 }
 
 func normalizeDescribeInputs(inputs []Input) []Input {
