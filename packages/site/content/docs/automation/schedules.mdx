@@ -82,7 +82,7 @@ the job has never run. The human table shows it as the **Last Run** column, for 
 | `agent` / `agent_name`       | Agent targets without `task` | TOML uses `agent`; API payloads use `agent_name`. For an Agent target, after trimming it must match `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters). It must be empty for Loop targets. |
 | `prompt`                     | Agent targets without `task` | Prompt submitted to the agent when the job fires. Must be empty for Loop targets.                                                                                                           |
 | `task`                       | No                           | Materializes Task-backed work for an Agent target. Must be empty for Loop targets.                                                                                                          |
-| `loop_target`                | Loop targets                 | Selects `workspace_id`, `loop_name`, and static `inputs`. Scheduled jobs reject `input_mapping`.                                                                                            |
+| `loop_target`                | Loop targets                 | Selects `workspace_id`, `loop_name`, static `inputs`, and an optional fire-time `input_command`. Scheduled jobs reject `input_mapping`.                                                     |
 | `schedule`                   | Yes                          | One of `cron`, `every`, or `at`; recurring schedules may set catch-up policy and misfire grace.                                                                                             |
 | `enabled`                    | No                           | Defaults to `true` for parsed config definitions. Disabled jobs stay stored but are not registered with the scheduler.                                                                      |
 | `retry`                      | No                           | Defaults to `{ strategy = "none" }`.                                                                                                                                                        |
@@ -99,6 +99,57 @@ workspace explicitly. The selected Loop must support automation starts.
 
 Scheduled jobs supply deterministic static values through `loop_target.inputs`. They cannot use
 `input_mapping` because a clock fire has no activation envelope to map.
+
+When the unit of work is whatever is queued at fire time, set `loop_target.input_command`. The
+daemon runs the command at each fire and turns its output into that fire's Loop inputs, so one job
+can serve a work queue instead of one job per item.
+
+```bash
+compozy automation jobs create \
+  --name overnight-spec \
+  --scope workspace \
+  --workspace /path/to/workspace \
+  --schedule "every:24h" \
+  --loop overnight \
+  --loop-input channel=nightly \
+  --loop-input-command 'compozy/scripts/next-spec.sh'
+```
+
+### Fire-time input command
+
+`loop_target.input_command` is a shell command string. The daemon runs it through `sh -c` with the
+Loop workspace root as the working directory, a 60-second timeout, and a minimal environment
+(`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `TMP`, `TEMP`, `USER`, `SHELL`) extended with
+`COMPOZY_AUTOMATION_ID`, `COMPOZY_AUTOMATION_RUN_ID`, `COMPOZY_LOOP_NAME`, and
+`COMPOZY_WORKSPACE_ID`.
+
+The command prints one input per line as `key=value`:
+
+```text
+slug=catalog-mutability
+review_round=2
+```
+
+- Blank lines are ignored, a repeated key keeps the last value, and values stay raw text. The daemon
+  validates them against the Loop input schema when the Loop starts, exactly like static inputs.
+- The command result merges over `loop_target.inputs`; on a key conflict the command wins.
+- Exit `0` with at least one input starts the Loop with the merged inputs.
+- Exit `0` with empty or whitespace-only output records the firing as a skip: the run settles as
+  `canceled`, its metadata carries `reason: "no inputs"`, and no Loop run is created. Filter run
+  history with `--status canceled` and read the reason to confirm the night had no work.
+- A non-zero exit, a timeout, stdout above 1 MiB, or a line that is not `key=value` fails the
+  firing. The run records the command's bounded stderr, no Loop run is created, and the job's retry
+  policy applies.
+
+Each run keeps the evidence in its metadata: `loop_input_source`, `loop_inputs`, `loop_input_keys`,
+and, on failure, `loop_input_error`. `compozy automation runs get` shows the resulting Loop run in
+`loop_run_id` and the skip reason, so job history answers what the fire armed and what happened.
+
+`loop_target.input_command` is operator-authored configuration, and CompozyOS executes it as a shell
+command with the daemon user's permissions and no sandbox. Treat a job definition with an input
+command like a script you install on the host: only trusted operators should be able to create or
+update dynamic jobs. Runtime values are never interpolated into the command, so queue discovery must
+happen inside the script rather than through prompt or event data.
 
 ```bash
 curl -sS -X POST http://localhost:2123/api/automation/jobs \
@@ -133,8 +184,9 @@ compozy automation jobs create \
   --loop-input channel=stable
 ```
 
-The update command changes common job fields but does not replace the target union. Use the native
-tool, HTTP, or UDS when an existing job must switch between Agent and Loop targets.
+The update command changes common job fields but does not replace the target union. It can set or
+clear only the Loop input command through `--loop-input-command`. Use the native tool, HTTP, or UDS
+when an existing job must switch between Agent and Loop targets or change other Loop target fields.
 
 ## Daemon lifecycle protection
 
