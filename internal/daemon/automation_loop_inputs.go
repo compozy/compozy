@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -33,9 +32,6 @@ const (
 	automationLoopInputInvalidValueLimit = 256
 	// automationLoopInputProcessGroupWait bounds draining a killed input command group.
 	automationLoopInputProcessGroupWait = time.Second
-	// automationLoopInputTypeJSON is the forward-compatible declared input kind that accepts a JSON
-	// document. The DSL input vocabulary does not declare it yet, so no authored Loop uses it today.
-	automationLoopInputTypeJSON = loopdsl.InputType("json")
 )
 
 // automationLoopInputCommandBaseEnv is the environment a fire-time input command inherits.
@@ -171,7 +167,7 @@ func (e *loopInputCommandFailure) Error() string {
 func (e *loopInputCommandFailure) Unwrap() error { return e.err }
 
 // coerceLoopInputValues converts the command's raw key=value text into the Loop's declared types
-// before the start call, so numeric, boolean, and JSON inputs are not rejected as strings.
+// before the start call, so numeric and boolean inputs are not rejected as strings.
 func (s *automationLoopStarter) coerceLoopInputValues(
 	ctx context.Context,
 	req automationpkg.LoopInputResolutionRequest,
@@ -238,21 +234,14 @@ func coerceLoopInputCommandValue(key string, input loopdsl.Input, value any) (an
 		}
 		return number, nil
 	case loopdsl.InputTypeBoolean:
-		boolean, err := strconv.ParseBool(strings.TrimSpace(text))
-		if err != nil {
+		switch strings.TrimSpace(text) {
+		case "true":
+			return true, nil
+		case "false":
+			return false, nil
+		default:
 			return nil, invalidLoopInputCommandValueError(key, input, text)
 		}
-		return boolean, nil
-	case automationLoopInputTypeJSON:
-		decoded, err := decodeLoopInputJSON(text)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"%w: %w",
-				invalidLoopInputCommandValueError(key, input, text),
-				err,
-			)
-		}
-		return decoded, nil
 	default:
 		return text, nil
 	}
@@ -281,19 +270,6 @@ func decodeLoopInputNumber(text string) (json.Number, bool) {
 	}
 	number, ok := value.(json.Number)
 	return number, ok
-}
-
-func decodeLoopInputJSON(text string) (any, error) {
-	decoder := json.NewDecoder(strings.NewReader(strings.TrimSpace(text)))
-	decoder.UseNumber()
-	var value any
-	if err := decoder.Decode(&value); err != nil {
-		return nil, err
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return nil, errors.New("must contain one JSON value")
-	}
-	return value, nil
 }
 
 // parseLoopInputCommandOutput reads one key=value input per line. Blank lines are skipped and a

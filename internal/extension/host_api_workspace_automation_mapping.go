@@ -143,7 +143,7 @@ func (h *HostAPIHandler) applyJobUpdateParams(
 	}
 	if req.LoopInputCommand != nil {
 		if next.LoopTarget == nil {
-			return automationpkg.Job{}, errors.New("loop_input_command requires a Loop target job")
+			return automationpkg.Job{}, invalidParamsRPCError(errors.New("loop_input_command requires a Loop target job"))
 		}
 		target := cloneHostAPIAutomationLoopTarget(next.LoopTarget)
 		target.InputCommand = strings.TrimSpace(*req.LoopInputCommand)

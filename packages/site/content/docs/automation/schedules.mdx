@@ -121,7 +121,8 @@ compozy automation jobs create \
 Loop workspace root as the working directory, a 60-second timeout, and a minimal environment
 (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `TMP`, `TEMP`, `USER`, `SHELL`) extended with
 `COMPOZY_AUTOMATION_ID`, `COMPOZY_AUTOMATION_RUN_ID`, `COMPOZY_LOOP_NAME`, and
-`COMPOZY_WORKSPACE_ID`.
+`COMPOZY_WORKSPACE_ID`. Because the command executes through `sh -c`, it is Unix-only; on Windows
+hosts, input command resolution fails at fire time.
 
 The command prints one input per line as `key=value`:
 
@@ -132,9 +133,10 @@ review_round=2
 
 - Blank lines are ignored and a repeated key keeps the last value. Each value is coerced by the
   Loop's declared input type before the start call: `number` becomes a number, `boolean` becomes a
-  boolean, and `string`, `file`, `agent`, `ref`, and `runtime` inputs keep the raw text. An invalid
-  value fails the firing with the key and declared kind in the run error, and the Loop does not
-  start.
+  boolean (accepting only the JSON literals `true` and `false`), and `string`, `file`, `agent`, and
+  `ref` inputs keep the raw text. Runtime inputs cannot come from the command; declare runtime
+  inputs on the Loop target statically instead. An invalid value fails the firing with the key and
+  declared kind in the run error, and the Loop does not start.
 - The command result merges over `loop_target.inputs`; on a key conflict the command wins.
 - Exit `0` with at least one input starts the Loop with the merged inputs.
 - Exit `0` with empty or whitespace-only output records the firing as a skip: the run settles as

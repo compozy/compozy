@@ -183,12 +183,11 @@ func TestAutomationLoopStarterResolveLoopInputs(t *testing.T) {
 			"slug":         {Type: loopdsl.InputTypeString},
 			"review_round": {Type: loopdsl.InputTypeNumber},
 			"approved":     {Type: loopdsl.InputTypeBoolean},
-			"payload":      {Type: automationLoopInputTypeJSON},
 		})
 		inputs, err := starter.ResolveLoopInputs(
 			t.Context(),
 			request(
-				"printf 'slug=catalog\\nreview_round=2\\napproved=true\\npayload={\"mode\":\"nightly\",\"count\":3}\\n'",
+				"printf 'slug=catalog\\nreview_round=2\\napproved=true\\n'",
 			),
 		)
 		if err != nil {
@@ -203,17 +202,6 @@ func TestAutomationLoopStarterResolveLoopInputs(t *testing.T) {
 		}
 		if got, ok := inputs["approved"].(bool); !ok || !got {
 			t.Fatalf("ResolveLoopInputs()[approved] = %#v, want true", inputs["approved"])
-		}
-		payload, ok := inputs["payload"].(map[string]any)
-		if !ok {
-			t.Fatalf("ResolveLoopInputs()[payload] = %#v, want a decoded JSON object", inputs["payload"])
-		}
-		if got, want := payload["mode"], "nightly"; got != want {
-			t.Fatalf("ResolveLoopInputs()[payload][mode] = %#v, want %#v", got, want)
-		}
-		count, ok := payload["count"].(json.Number)
-		if !ok || count.String() != "3" {
-			t.Fatalf("ResolveLoopInputs()[payload][count] = %#v, want json.Number(3)", payload["count"])
 		}
 	})
 
@@ -230,16 +218,28 @@ func TestAutomationLoopStarterResolveLoopInputs(t *testing.T) {
 			wantKind: "number",
 		},
 		{
-			name:     "Should reject an invalid boolean",
+			name:     "Should reject an invalid boolean string",
 			declared: loopdsl.Input{Type: loopdsl.InputTypeBoolean},
 			value:    "maybe",
 			wantKind: "boolean",
 		},
 		{
-			name:     "Should reject invalid JSON",
-			declared: loopdsl.Input{Type: automationLoopInputTypeJSON},
-			value:    "{",
-			wantKind: "json",
+			name:     "Should reject non-literal integer 1 as boolean",
+			declared: loopdsl.Input{Type: loopdsl.InputTypeBoolean},
+			value:    "1",
+			wantKind: "boolean",
+		},
+		{
+			name:     "Should reject non-literal integer 0 as boolean",
+			declared: loopdsl.Input{Type: loopdsl.InputTypeBoolean},
+			value:    "0",
+			wantKind: "boolean",
+		},
+		{
+			name:     "Should reject uppercase TRUE as boolean",
+			declared: loopdsl.Input{Type: loopdsl.InputTypeBoolean},
+			value:    "TRUE",
+			wantKind: "boolean",
 		},
 	}
 	for _, tc := range testCases {
