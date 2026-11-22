@@ -299,24 +299,37 @@ func buildAutomationJobUpdateRequest(
 		request.Enabled = new(input.Enabled)
 	}
 	if cmd.Flags().Changed(automationLoopInputCommandFlag) {
-		command, err := parseAutomationLoopInputCommand(input.LoopInputCommand)
-		if err != nil {
+		if err := applyAutomationLoopInputCommandUpdate(
+			&request,
+			input.LoopInputCommand,
+			loadCurrent,
+		); err != nil {
 			return AutomationJobUpdateRequest{}, err
 		}
-		loaded, err := loadCurrent()
-		if err != nil {
-			return AutomationJobUpdateRequest{}, err
-		}
-		if loaded.LoopTarget == nil {
-			return AutomationJobUpdateRequest{}, errors.New(
-				"cli: --loop-input-command requires a Loop target job",
-			)
-		}
-		target := *loaded.LoopTarget
-		target.InputCommand = command
-		request.LoopTarget = &target
 	}
 	return request, nil
+}
+
+func applyAutomationLoopInputCommandUpdate(
+	request *AutomationJobUpdateRequest,
+	raw string,
+	loadCurrent func() (JobRecord, error),
+) error {
+	command, err := parseAutomationLoopInputCommand(raw)
+	if err != nil {
+		return err
+	}
+	loaded, err := loadCurrent()
+	if err != nil {
+		return err
+	}
+	if loaded.LoopTarget == nil {
+		return errors.New("cli: --loop-input-command requires a Loop target job")
+	}
+	target := *loaded.LoopTarget
+	target.InputCommand = command
+	request.LoopTarget = &target
+	return nil
 }
 
 func newAutomationJobsDeleteCommand(deps commandDeps) *cobra.Command {

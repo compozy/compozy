@@ -30,7 +30,7 @@ func automationRunBundle(item RunRecord) outputBundle {
 				{Label: automationStartedValue, Value: stringOrDash(formatOptionalTime(item.StartedAt))},
 				{Label: automationEndedValue, Value: stringOrDash(formatOptionalTime(item.EndedAt))},
 				{Label: automationErrorValue, Value: stringOrDash(item.Error)},
-				{Label: "Reason", Value: stringOrDash(automationRunMetadataString(item.Metadata, "reason"))},
+				{Label: cliReasonValue, Value: stringOrDash(automationRunMetadataString(item.Metadata, "reason"))},
 				{Label: "Delivery Error", Value: stringOrDash(item.DeliveryError)},
 			}), nil
 		},

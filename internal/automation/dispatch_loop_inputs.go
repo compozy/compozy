@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -87,7 +87,7 @@ func (d *Dispatcher) resolveLoopInputsForFire(
 		merged[key] = value
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	scheduledRun.Metadata = loopInputMetadata(scheduledRun.Metadata, merged, keys)
 	return merged, false, nil
 }

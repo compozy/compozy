@@ -724,7 +724,10 @@ func TestDispatchLoopTargetFireTimeInputCommand(t *testing.T) {
 		}
 		stored, ok := run.Metadata[LoopInputErrorMetadataKey].(string)
 		if !ok || !strings.Contains(stored, "queue is locked") {
-			t.Fatalf("run.Metadata[loop_input_error] = %#v, want the command stderr", run.Metadata[LoopInputErrorMetadataKey])
+			t.Fatalf(
+				"run.Metadata[loop_input_error] = %#v, want the command stderr",
+				run.Metadata[LoopInputErrorMetadataKey],
+			)
 		}
 	})
 
