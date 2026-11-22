@@ -49,10 +49,11 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		matcherInputClassKey:    {},
 	},
 	HookEventFamilyEvent: {
-		matcherAgentNameKey:  {},
-		matcherWorktreeIDKey: {},
-		"acp_event_type":     {},
-		matcherTurnIDKey:     {},
+		matcherAgentNameKey:   {},
+		matcherWorkspaceIDKey: {},
+		matcherWorktreeIDKey:  {},
+		"acp_event_type":      {},
+		matcherTurnIDKey:      {},
 	},
 	HookEventFamilyAutomation: {
 		matcherAgentNameKey:   {},
@@ -88,13 +89,15 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"decision_class":        {},
 	},
 	HookEventFamilyMessage: {
-		matcherWorktreeIDKey: {},
-		"message_role":       {},
-		"message_delta_type": {},
+		matcherWorkspaceIDKey: {},
+		matcherWorktreeIDKey:  {},
+		"message_role":        {},
+		"message_delta_type":  {},
 	},
 	HookEventFamilyContext: {
-		matcherWorktreeIDKey: {},
-		"compaction_trigger": {},
+		matcherWorkspaceIDKey: {},
+		matcherWorktreeIDKey:  {},
+		"compaction_trigger":  {},
 	},
 	HookEventFamilyCoordinator: {
 		matcherAgentNameKey:            {},
@@ -143,6 +146,9 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"root_session_id":       {},
 		"child_session_id":      {},
 		"spawn_role":            {},
+	},
+	HookEventFamilySubagent: {
+		matcherWorkspaceIDKey: {},
 	},
 	HookEventFamilyWindowManager: {
 		matcherWorkspaceIDKey: {},

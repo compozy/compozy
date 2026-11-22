@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -4286,6 +4287,96 @@ func TestResolveAgentAppliesOperatorOverride(t *testing.T) {
 		_, err = LoadForHome(homePaths, withoutDotEnv())
 		if err == nil || !strings.Contains(err.Error(), "agents.overrides.orchestrator.permissions") {
 			t.Fatalf("LoadForHome() error = %v, want override permissions validation", err)
+		}
+	})
+
+	chained := CloneAgentDef(bundled)
+	chained.FallbackChain = []RoleFallback{{Provider: "codex", Model: "authored-route"}}
+	const globalChain = "[[agents.overrides.orchestrator.fallback_chain]]\n" +
+		"provider = \"claude\"\nmodel = \"first\"\n" +
+		"[[agents.overrides.orchestrator.fallback_chain]]\nprovider = \"codex\"\nmodel = \"second\"\n"
+	chainModels := func(chain []RoleFallback) []string {
+		models := make([]string, 0, len(chain))
+		for _, route := range chain {
+			models = append(models, route.Provider+"/"+route.Model)
+		}
+		return models
+	}
+
+	t.Run("Should replace the authored fallback chain and attribute it to the override", func(t *testing.T) {
+		t.Parallel()
+		cfg := loadWithOverrides(t, globalChain, "")
+		got := chainModels(cfg.EffectiveAgentFallbackChain(chained))
+		if want := []string{"claude/first", "codex/second"}; !slices.Equal(got, want) {
+			t.Fatalf("EffectiveAgentFallbackChain() = %v, want %v", got, want)
+		}
+		resolved, err := cfg.ResolveAgent(chained)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.RuntimeSources.FallbackChain != RuntimeValueSourceConfigOverride {
+			t.Fatalf("FallbackChain source = %q, want config_override", resolved.RuntimeSources.FallbackChain)
+		}
+		if got := chainModels(chained.FallbackChain); !slices.Equal(got, []string{"codex/authored-route"}) {
+			t.Fatalf("override mutated the authored chain: %v", got)
+		}
+	})
+
+	t.Run("Should let a workspace layer replace the whole global chain", func(t *testing.T) {
+		t.Parallel()
+		cfg := loadWithOverrides(t, globalChain,
+			"[[agents.overrides.orchestrator.fallback_chain]]\nprovider = \"codex\"\nmodel = \"workspace\"\n")
+		got := chainModels(cfg.EffectiveAgentFallbackChain(chained))
+		if want := []string{"codex/workspace"}; !slices.Equal(got, want) {
+			t.Fatalf("EffectiveAgentFallbackChain() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("Should clear an inherited chain with an explicit empty array", func(t *testing.T) {
+		t.Parallel()
+		cfg := loadWithOverrides(t, globalChain, "[agents.overrides.orchestrator]\nfallback_chain = []\n")
+		if got := cfg.EffectiveAgentFallbackChain(chained); len(got) != 0 {
+			t.Fatalf("EffectiveAgentFallbackChain() = %v, want cleared chain", chainModels(got))
+		}
+		resolved, err := cfg.ResolveAgent(chained)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.RuntimeSources.FallbackChain != RuntimeValueSourceConfigOverride {
+			t.Fatalf("FallbackChain source = %q, want config_override", resolved.RuntimeSources.FallbackChain)
+		}
+	})
+
+	t.Run("Should keep the authored chain when the override omits fallback_chain", func(t *testing.T) {
+		t.Parallel()
+		cfg := loadWithOverrides(t, "[agents.overrides.orchestrator]\nmodel = \"override-model\"\n", "")
+		got := chainModels(cfg.EffectiveAgentFallbackChain(chained))
+		if !slices.Equal(got, []string{"codex/authored-route"}) {
+			t.Fatalf("EffectiveAgentFallbackChain() = %v, want authored chain", got)
+		}
+		resolved, err := cfg.ResolveAgent(chained)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.RuntimeSources.FallbackChain != RuntimeValueSourceAgent {
+			t.Fatalf("FallbackChain source = %q, want agent", resolved.RuntimeSources.FallbackChain)
+		}
+	})
+
+	t.Run("Should reject an override route without a model at load", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, homePaths.ConfigFile,
+			"[[agents.overrides.orchestrator.fallback_chain]]\nprovider = \"codex\"\n")
+		_, err = LoadForHome(homePaths, withoutDotEnv())
+		if err == nil || !strings.Contains(err.Error(), "agents.overrides.orchestrator.fallback_chain[0].model") {
+			t.Fatalf("LoadForHome() error = %v, want override fallback_chain validation", err)
 		}
 	})
 }

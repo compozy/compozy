@@ -13,6 +13,7 @@ import (
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
 func decodeDescribePayload(data []byte) (extensioncontract.DescribePayload, error) {
@@ -85,6 +86,11 @@ func manifestFromDescribe(input *extensioncontract.DescribePayload) (*Manifest, 
 	if err := validateDescribeSDK(payload.SDK); err != nil {
 		return nil, err
 	}
+	effectiveFloor, err := effectiveMinCompozyVersion(manifest.MinCompozyVersion)
+	if err != nil {
+		return nil, err
+	}
+	manifest.MinCompozyVersion = effectiveFloor
 
 	tools, err := manifestToolsFromDescribe(payload.Tools)
 	if err != nil {
@@ -103,6 +109,27 @@ func manifestFromDescribe(input *extensioncontract.DescribePayload) (*Manifest, 
 		return nil, fmt.Errorf("extension: validate described tools: %w", err)
 	}
 	return manifest, nil
+}
+
+// effectiveMinCompozyVersion keeps the highest of the floor the extension
+// declared and the floor of the SDK that described it. The SDK constant is the
+// floor of the daemon's own SDK release, so a declaration below it cannot lower
+// the compatibility contract; the declared floor wins when it is newer.
+func effectiveMinCompozyVersion(declared string) (string, error) {
+	declaredFloor := strings.TrimSpace(declared)
+	parsedDeclared, ok := parseSemanticVersion(declaredFloor)
+	if !ok {
+		return "", &ManifestValidationError{
+			Field:   "sdk.min_compozy_version",
+			Value:   declaredFloor,
+			Message: manifestMustBeASemanticVersionValue,
+		}
+	}
+	parsedSDK, ok := parseSemanticVersion(compozysdk.MinCompozyVersion)
+	if !ok || compareSemanticVersions(parsedDeclared, parsedSDK) >= 0 {
+		return declaredFloor, nil
+	}
+	return compozysdk.MinCompozyVersion, nil
 }
 
 func normalizeDescribeResources(resources extensioncontract.DescribeResources) extensioncontract.DescribeResources {

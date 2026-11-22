@@ -34,11 +34,17 @@ schema-digest drift cannot occur. Manifest generation is deterministic; identica
 byte-identical manifest.
 
 Published SDKs, both version-matched to the daemon: `@compozy/extension-sdk` on npm and
-`github.com/compozy/compozy/sdk/go`. `build` stamps `min_compozy_version` from the SDK, so an
-extension cannot claim compatibility its SDK does not have. SDK definitions declare install inputs
-with `inputs` (TS) / `Inputs` (Go) in the manifest `[[inputs]]` grammar, each env binding listed in
-`requires_env`; describe emits them only when non-empty and then stamps `min_compozy_version` 0.7.9.
-`build` validates them like TOML inputs and fails on a secret default or an unlisted binding name.
+`github.com/compozy/compozy/sdk/go`. `build` writes `min_compozy_version` as the higher of the SDK
+release floor and the floor the extension declares in its SDK definition
+(`ExtensionDefinition.MinCompozyVersion` in Go; empty keeps the SDK floor). Declare at or above the
+floor of the SDK release you build against: `build` checks semantic-version syntax and clamps
+against the daemon's embedded SDK floor, but cannot detect a declaration below your own SDK
+release's floor, so declaring lower understates compatibility.
+
+SDK definitions declare install inputs with `inputs` (TS) / `Inputs` (Go) in the manifest
+`[[inputs]]` grammar, each env binding listed in `requires_env`; describe emits them only when
+non-empty and then raises `min_compozy_version` to at least 0.7.9. `build` validates them like TOML
+inputs and fails on a secret default or an unlisted binding name.
 
 ## Templates
 

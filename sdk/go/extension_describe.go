@@ -5,6 +5,7 @@ import (
 	"io"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/sdk/go/contracts"
@@ -91,17 +92,39 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			Name:              SDKName,
 			Version:           e.sdkVersion,
 			ProtocolVersion:   ProtocolVersion,
-			MinCompozyVersion: describeMinCompozyVersion(inputs),
+			MinCompozyVersion: describeInputsFloor(e.describeMinCompozyVersion(), inputs),
 		},
 	}, nil
 }
 
-// describeMinCompozyVersion raises the floor when inputs are emitted, since released daemons reject them.
-func describeMinCompozyVersion(inputs []Input) string {
-	if len(inputs) > 0 {
+// describeInputsFloor raises floor to InputsMinCompozyVersion when inputs are emitted, since released
+// daemons reject them; a higher declared floor wins.
+func describeInputsFloor(floor string, inputs []Input) string {
+	if len(inputs) > 0 && versionCoreLess(floor, InputsMinCompozyVersion) {
 		return InputsMinCompozyVersion
 	}
-	return MinCompozyVersion
+	return floor
+}
+
+// versionCoreLess compares the numeric major.minor.patch cores of two versions.
+// ponytail: prerelease tags are ignored, so 0.7.9-beta.1 equals 0.7.9; use full semver if that matters.
+func versionCoreLess(left, right string) bool {
+	l, r := versionCore(left), versionCore(right)
+	for i := range l {
+		if l[i] != r[i] {
+			return l[i] < r[i]
+		}
+	}
+	return false
+}
+
+func versionCore(version string) [3]int {
+	var core [3]int
+	base, _, _ := strings.Cut(strings.TrimPrefix(strings.TrimSpace(version), "v"), "-")
+	for i, part := range strings.SplitN(base, ".", 3) {
+		core[i], _ = strconv.Atoi(part)
+	}
+	return core
 }
 
 func normalizeDescribeInputs(inputs []Input) []Input {
@@ -260,4 +283,13 @@ func cloneStringMap(values map[string]string) map[string]string {
 		return nil
 	}
 	return maps.Clone(values)
+}
+
+// describeMinCompozyVersion reports the declared floor, falling back to the SDK floor.
+func (e *Extension) describeMinCompozyVersion() string {
+	declared := strings.TrimSpace(e.definition.MinCompozyVersion)
+	if declared == "" {
+		return MinCompozyVersion
+	}
+	return declared
 }

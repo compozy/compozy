@@ -87,6 +87,9 @@ type AgentEffectiveRuntimeSources struct {
 	ReasoningEffort AgentRuntimeValueSource `json:"reasoning_effort,omitempty"`
 	Speed           AgentRuntimeValueSource `json:"speed,omitempty"`
 	Permissions     AgentRuntimeValueSource `json:"permissions,omitempty"`
+	// FallbackChain is agent for an authored chain, config_override when
+	// [agents.overrides.<name>].fallback_chain replaced or cleared it, and empty otherwise.
+	FallbackChain AgentRuntimeValueSource `json:"fallback_chain,omitempty"`
 }
 
 // AgentEffectiveRuntimePayload is the workspace-scoped runtime projection for
@@ -108,8 +111,11 @@ type AgentEffectiveRuntimePayload struct {
 	// then the authored level, then [permissions].mode. An always-on definition with neither
 	// reports the level its main instance session runs at (source always_on_default); its
 	// non-instance sessions still fall back to [permissions].mode.
-	Permissions string                       `json:"permissions,omitempty"`
-	Sources     AgentEffectiveRuntimeSources `json:"sources"`
+	Permissions string `json:"permissions,omitempty"`
+	// FallbackChain is the chain a new session of the definition uses: the operator override
+	// chain when one is configured, otherwise the authored chain.
+	FallbackChain []RoleFallbackStatus         `json:"fallback_chain,omitempty"`
+	Sources       AgentEffectiveRuntimeSources `json:"sources"`
 }
 
 // AgentDefinitionShadowPayload reports one lower-precedence authored definition.

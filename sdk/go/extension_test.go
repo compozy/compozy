@@ -300,6 +300,50 @@ func TestToolRegistrationValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("Should Describe The Declared Compatibility Floor", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name     string
+			declared string
+			want     string
+		}{
+			{
+				name:     "Should Use The Declared Floor When Set",
+				declared: " 0.7.7 ",
+				want:     "0.7.7",
+			},
+			{
+				name:     "Should Fall Back To The SDK Floor When Empty",
+				declared: "  ",
+				want:     compozysdk.MinCompozyVersion,
+			},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+					Name:              "floor-fixture",
+					Version:           "0.1.0",
+					MinCompozyVersion: tc.declared,
+					Subprocess:        compozysdk.DescribeSubprocess{Command: "./bin"},
+				})
+				payload, err := extension.Describe()
+				if err != nil {
+					t.Fatalf("Describe() error = %v", err)
+				}
+				if payload.SDK.MinCompozyVersion != tc.want {
+					t.Fatalf(
+						"Describe().SDK.MinCompozyVersion = %q, want %q",
+						payload.SDK.MinCompozyVersion,
+						tc.want,
+					)
+				}
+			})
+		}
+	})
+
 	t.Run("Should Reserve Tool Provider Methods", func(t *testing.T) {
 		t.Parallel()
 
@@ -350,6 +394,33 @@ func TestDescribeInputs(t *testing.T) {
 				"Describe().SDK.MinCompozyVersion = %q, want %q",
 				payload.SDK.MinCompozyVersion, compozysdk.InputsMinCompozyVersion,
 			)
+		}
+	})
+
+	t.Run("Should keep the higher of the declared floor and the inputs floor", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct{ declared, want string }{
+			{declared: "0.5.0", want: compozysdk.InputsMinCompozyVersion},
+			{declared: "0.8.0", want: "0.8.0"},
+		} {
+			extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+				Name: "acme-tool", Version: "1.2.0", RequiresEnv: []string{"ACME_REGION"},
+				MinCompozyVersion: tc.declared,
+				Inputs: []compozysdk.Input{{
+					ID: "region", Prompt: "Region", Type: "identifier",
+					Binding: compozysdk.InputBinding{Type: "env", Name: "ACME_REGION"},
+				}},
+				Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
+			}, compozysdk.WithStderr(io.Discard))
+			payload, err := extension.Describe()
+			if err != nil {
+				t.Fatalf("Describe() error = %v", err)
+			}
+			if payload.SDK.MinCompozyVersion != tc.want {
+				t.Fatalf("declared %q: Describe().SDK.MinCompozyVersion = %q, want %q",
+					tc.declared, payload.SDK.MinCompozyVersion, tc.want)
+			}
 		}
 	})
 
@@ -1139,7 +1210,11 @@ type input struct {
 }
 
 func main() {
-	extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "consumer", Version: "0.1.0"})
+	extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+		Name:              "consumer",
+		Version:           "0.1.0",
+		MinCompozyVersion: "0.4.0",
+	})
 	if err := compozysdk.Tool[input](extension, "search", compozysdk.ToolOptions{
 		ReadOnly: true,
 		InputSchema: map[string]any{"type": "object"},

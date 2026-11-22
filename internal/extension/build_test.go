@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	compozysdk "github.com/compozy/compozy/sdk/go"
 	"golang.org/x/mod/modfile"
 )
 
@@ -615,12 +616,78 @@ min_compozy_version = "9.9.9"
 		if err != nil {
 			t.Fatalf("buildBundle() error = %v", err)
 		}
-		if result.Manifest.MinCompozyVersion != payload.SDK.MinCompozyVersion {
+		if result.Manifest.MinCompozyVersion != compozysdk.MinCompozyVersion {
 			t.Fatalf(
-				"MinCompozyVersion = %q, want %q",
+				"MinCompozyVersion = %q, want SDK floor %q",
 				result.Manifest.MinCompozyVersion,
-				payload.SDK.MinCompozyVersion,
+				compozysdk.MinCompozyVersion,
 			)
+		}
+	})
+
+	t.Run("Should Keep The Highest Compatibility Floor", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name     string
+			declared string
+			want     string
+		}{
+			{
+				name:     "Should Keep A Declared Floor Above The SDK Floor",
+				declared: "0.3.0-beta.2",
+				want:     "0.3.0-beta.2",
+			},
+			{
+				name:     "Should Raise A Declared Floor Below The SDK Floor",
+				declared: "0.0.1",
+				want:     compozysdk.MinCompozyVersion,
+			},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dir := t.TempDir()
+				writeGoBuildFixture(t, dir)
+				payload := validDescribePayload()
+				payload.SDK.MinCompozyVersion = tc.declared
+				result, err := buildBundle(
+					testutil.Context(t),
+					BuildRequest{SourceDir: dir},
+					newBuildTestRunner(&payload),
+				)
+				if err != nil {
+					t.Fatalf("buildBundle() error = %v", err)
+				}
+				if result.Manifest.MinCompozyVersion != tc.want {
+					t.Fatalf(
+						"MinCompozyVersion = %q, want %q",
+						result.Manifest.MinCompozyVersion,
+						tc.want,
+					)
+				}
+			})
+		}
+	})
+
+	t.Run("Should Reject An Invalid Declared Compatibility Floor", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		writeGoBuildFixture(t, dir)
+		payload := validDescribePayload()
+		payload.SDK.MinCompozyVersion = "0.7"
+		_, err := buildBundle(
+			testutil.Context(t),
+			BuildRequest{SourceDir: dir},
+			newBuildTestRunner(&payload),
+		)
+		if !errors.Is(err, ErrManifestInvalid) || !strings.Contains(err.Error(), "sdk.min_compozy_version") {
+			t.Fatalf("buildBundle() error = %v, want invalid sdk.min_compozy_version", err)
+		}
+		if _, statErr := os.Stat(filepath.Join(dir, "dist", "extension.toml")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("manifest stat error = %v, want not exist", statErr)
 		}
 	})
 
