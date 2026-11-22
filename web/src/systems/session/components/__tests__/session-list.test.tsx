@@ -3337,6 +3337,49 @@ describe("SessionList folders and manual order", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Invariant (#1926): a collapsed paged folder loads its count only, so its leading
+  // running glyph comes from the daemon's working count, not from rows it never loads.
+  it("Should lead a collapsed paged folder with the daemon's working count", () => {
+    const roots = layoutRows.filter(row => !row.folder_id);
+    const countOnly = (total: number, working: number) => ({
+      ...sessionListCatalogFixture({ total, working }),
+      countOnly: true,
+      showNavigation: false,
+    });
+    renderList({
+      sessions: roots,
+      view: {
+        ...view,
+        sort: "manual",
+        layout: fakeLayout(),
+        partitions: new Map([
+          [
+            "@root",
+            {
+              ...sessionListCatalogFixture({ sessions: roots, total: roots.length, working: 0 }),
+              countOnly: false,
+              showNavigation: false,
+            },
+          ],
+          ["fa", countOnly(3, 2)],
+          ["fb", countOnly(1, 0)],
+        ]),
+        folderOf: new Map(roots.map(row => [row.id, null])),
+      },
+    });
+
+    const alpha = screen.getByTestId("session-sidebar-folder-fa-toggle");
+    expect(alpha).toHaveAttribute("aria-expanded", "false");
+    expect(
+      within(alpha.firstElementChild as HTMLElement).getByRole("img", {
+        name: "2 sessions working",
+      })
+    ).toBeInTheDocument();
+    const beta = screen.getByTestId("session-sidebar-folder-fb-toggle");
+    expect(beta).toHaveAttribute("aria-expanded", "false");
+    expect(within(beta).queryByRole("img")).not.toBeInTheDocument();
+  });
+
   // Invariant: a header toggle takes tree disclosure keys — ArrowLeft collapses,
   // ArrowRight expands, each a no-op in its own state — and is a session-walk stop.
   it("Should collapse and expand a folder from its header with the arrow keys", async () => {
