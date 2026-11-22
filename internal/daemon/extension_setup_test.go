@@ -411,6 +411,93 @@ func TestExtensionInputSetupInstanceRestart(t *testing.T) {
 	})
 }
 
+// failingRestartRuntime fails the next instance restart and records the stored project value each
+// restart would launch with.
+type failingRestartRuntime struct {
+	*fakeExtensionRuntime
+	failNext bool
+	project  func() string
+	launched []string
+}
+
+func (r *failingRestartRuntime) RestartInstance(context.Context, extensionpkg.InstanceKey) error {
+	r.launched = append(r.launched, r.project())
+	if r.failNext {
+		r.failNext = false
+		return errors.New("injected instance restart failure")
+	}
+	return nil
+}
+
+// Invariant: a setup write whose instance restart fails restores bindings, Vault values and typed rows,
+// then restarts the instance with the old values (Safety Invariant 4).
+// Owner: daemon setup service; suite: TestExtensionInputSetupInstanceRestart.
+func TestExtensionInputSetupReloadRollback(t *testing.T) {
+	t.Parallel()
+	t.Run("Should restore the prior inputs and restart with them when the reload fails", func(t *testing.T) {
+		t.Parallel()
+		fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{})
+		ctx := testutil.Context(t)
+		secretVault, ok := fixture.service.secretVault.(*extensionSecretVaultFake)
+		if !ok {
+			t.Fatal("setup fixture vault is not the fake vault")
+		}
+		projectRef := vault.ExtensionProfileSecretRef(setupKitName, store.DefaultProfileID, "", "PROJECT_ID")
+		runtime := &failingRestartRuntime{
+			fakeExtensionRuntime: fixture.runtime,
+			project:              func() string { return secretVault.value(projectRef) },
+		}
+		fixture.service.runtime = runtime
+		target := extensionInputsTarget{Name: setupKitName}
+		instance := extensioninput.Instance{Extension: setupKitName, ProfileID: store.DefaultProfileID}
+		if _, err := fixture.service.SetInputs(
+			ctx, target, setupValues("project", setupProjectValue, "region", "us-east"), extensionSetupOperator(t),
+		); err != nil {
+			t.Fatalf("SetInputs() error = %v", err)
+		}
+		bindingsBefore, err := fixture.bindings.ListEnvBindings(ctx, setupKitName, store.DefaultProfileID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		rowsBefore, err := fixture.service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		runtime.failNext, runtime.launched = true, nil
+		_, err = fixture.service.SetInputs(
+			ctx, target, setupValues("project", "acme-project-99", "region", "eu-other"), extensionSetupOperator(t),
+		)
+		if err == nil || !strings.Contains(err.Error(), "injected instance restart failure") {
+			t.Fatalf("SetInputs() error = %v, want the restart failure", err)
+		}
+		if want := []string{"acme-project-99", setupProjectValue}; !slices.Equal(runtime.launched, want) {
+			t.Fatalf("restarts launched with %#v, want %#v", runtime.launched, want)
+		}
+		if got := secretVault.value(projectRef); got != setupProjectValue {
+			t.Fatalf("project Vault value = %q, want the prior value restored", got)
+		}
+		bindingsAfter, err := fixture.bindings.ListEnvBindings(ctx, setupKitName, store.DefaultProfileID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.EqualFunc(bindingsBefore, bindingsAfter, func(a, b extensionpkg.EnvBinding) bool {
+			return a.EnvName == b.EnvName && a.SecretRef == b.SecretRef && a.InputID == b.InputID &&
+				a.Inactive == b.Inactive
+		}) {
+			t.Fatalf("bindings after rollback = %#v, want %#v", bindingsAfter, bindingsBefore)
+		}
+		rowsAfter, err := fixture.service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(rowsAfter["region"].Value) != `"us-east"` || !rowsAfter["region"].Active ||
+			len(rowsAfter) != len(rowsBefore) {
+			t.Fatalf("rows after rollback = %#v, want %#v", rowsAfter, rowsBefore)
+		}
+	})
+}
+
 // Invariant: an agent caller writes only missing, invalid or daemon_env inputs of its trusted instance (D7).
 // Owner: native extension setup tool; suite: TestExtensionInputSetupAgentAuthority.
 func TestExtensionInputSetupAgentAuthority(t *testing.T) {
