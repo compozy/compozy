@@ -34,9 +34,12 @@ func (s *daemonLoopAPIService) loopRunTerminalCauses(
 }
 
 func applyLoopRunTerminalCause(payload *contract.LoopRunPayload, cause looppkg.RunTerminalCause) {
+	if looppkg.Status(payload.Status) != cause.Status || !cause.Status.Terminal() {
+		return
+	}
 	payload.Terminal = &contract.LoopRunTerminal{
 		Status:     contract.LoopRunStatus(cause.Status),
-		Cause:      string(cause.Cause),
+		Cause:      looppkg.TerminalOutcomeCause(cause.Status, cause.Cause),
 		ReasonCode: cause.ReasonCode,
 		GateID:     string(cause.GateID),
 		NodeID:     string(cause.NodeID),

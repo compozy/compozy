@@ -334,6 +334,51 @@ func TestDaemonLoopAPIServiceShouldProjectTheLoopTerminalCause(t *testing.T) {
 		}
 	})
 
+	t.Run("Should omit a cause that does not match the current status", func(t *testing.T) {
+		t.Parallel()
+
+		persistence := &loopRunScopePersistenceStub{
+			runs: []looppkg.Run{{
+				ID: "run-done", WorkspaceID: "ws-terminal", LoopName: "delivery", Status: looppkg.StatusDone,
+			}},
+			terminalCauses: map[looppkg.WorkspaceID]map[looppkg.RunID]looppkg.RunTerminalCause{
+				"ws-terminal": {"run-done": cause},
+			},
+		}
+		service := &daemonLoopAPIService{persistence: persistence}
+		response, err := service.ListLoopRuns(t.Context(), "ws-terminal", core.LoopRunListQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("ListLoopRuns() error = %v", err)
+		}
+		if len(response.Runs) != 1 || response.Runs[0].Terminal != nil {
+			t.Fatalf("ListLoopRuns() runs = %#v, want no mismatched terminal cause", response.Runs)
+		}
+	})
+
+	t.Run("Should normalize a verified contract cause", func(t *testing.T) {
+		t.Parallel()
+
+		persistence := &loopRunScopePersistenceStub{
+			runs: []looppkg.Run{{
+				ID: "run-verified", WorkspaceID: "ws-terminal", LoopName: "delivery", Status: looppkg.StatusDone,
+			}},
+			terminalCauses: map[looppkg.WorkspaceID]map[looppkg.RunID]looppkg.RunTerminalCause{
+				"ws-terminal": {"run-verified": {
+					Status: looppkg.StatusDone, Cause: looppkg.TransitionCauseContract, At: at,
+				}},
+			},
+		}
+		service := &daemonLoopAPIService{persistence: persistence}
+		response, err := service.ListLoopRuns(t.Context(), "ws-terminal", core.LoopRunListQuery{Limit: 10})
+		if err != nil {
+			t.Fatalf("ListLoopRuns() error = %v", err)
+		}
+		if len(response.Runs) != 1 || response.Runs[0].Terminal == nil ||
+			response.Runs[0].Terminal.Cause != "verified" {
+			t.Fatalf("ListLoopRuns() runs = %#v, want verified terminal cause", response.Runs)
+		}
+	})
+
 	t.Run("Should not leak a terminal cause from another workspace", func(t *testing.T) {
 		t.Parallel()
 
