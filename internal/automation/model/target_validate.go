@@ -265,7 +265,7 @@ func (t *LoopTarget) Validate(path string, scope Scope, automationWorkspaceID st
 	if err := validateLoopTargetInputs(t.Inputs, nestedPath(path, "inputs")); err != nil {
 		return err
 	}
-	if err := validateLoopTargetInputCommand(t.InputCommand, nestedPath(path, "input_command")); err != nil {
+	if err := ValidateLoopTargetInputCommand(t.InputCommand, nestedPath(path, "input_command")); err != nil {
 		return err
 	}
 	return validateLoopTargetInputMapping(t.InputMapping, nestedPath(path, "input_mapping"))
@@ -274,7 +274,9 @@ func (t *LoopTarget) Validate(path string, scope Scope, automationWorkspaceID st
 // loopTargetInputCommandMaxLength bounds the operator-authored fire-time input command.
 const loopTargetInputCommandMaxLength = 4096
 
-func validateLoopTargetInputCommand(command string, path string) error {
+// ValidateLoopTargetInputCommand applies the shared fire-time input command rules so the config
+// loader and the automation manager reject the same command shapes.
+func ValidateLoopTargetInputCommand(command string, path string) error {
 	if command == "" {
 		return nil
 	}

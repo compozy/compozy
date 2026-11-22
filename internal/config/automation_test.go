@@ -385,6 +385,76 @@ func TestConfigAutomationAgentReferencesValidateAtTheirOwningBoundary(t *testing
 	}
 }
 
+// Invariant: config-time and manager-time Loop input command rules agree.
+// Owning layer: authored configuration; canonical automation load/validation suite.
+func TestConfigAutomationLoopInputCommandValidationMatchesManager(t *testing.T) {
+	t.Parallel()
+
+	job := func(command string) AutomationJob {
+		return AutomationJob{
+			Scope:      automationpkg.AutomationScopeWorkspace,
+			Name:       "overnight",
+			Workspace:  "ws_alpha",
+			TargetKind: automationpkg.TargetKindLoop,
+			LoopTarget: &automationpkg.LoopTarget{
+				WorkspaceID:  "ws_alpha",
+				LoopName:     "overnight",
+				InputCommand: command,
+			},
+			Schedule: automationpkg.ScheduleSpec{
+				Mode:     automationpkg.ScheduleModeEvery,
+				Interval: "24h",
+			},
+			Retry:     automationpkg.DefaultRetryConfig(),
+			FireLimit: automationpkg.DefaultFireLimitConfig(),
+			Source:    automationpkg.JobSourceConfig,
+		}
+	}
+
+	t.Run("Should accept an operator-authored command", func(t *testing.T) {
+		t.Parallel()
+
+		if err := job("scripts/next-spec.sh").Validate("automation.jobs[0]"); err != nil {
+			t.Fatalf("AutomationJob.Validate() error = %v", err)
+		}
+	})
+
+	testCases := []struct {
+		name    string
+		command string
+		want    string
+	}{
+		{
+			name:    "Should reject a blank command",
+			command: "   ",
+			want:    "input_command must not be blank",
+		},
+		{
+			name:    "Should reject a command with a NUL byte",
+			command: "scripts/next\x00-spec.sh",
+			want:    "input_command must not contain NUL bytes",
+		},
+		{
+			name:    "Should reject a command longer than the contract limit",
+			command: "scripts/" + strings.Repeat("a", 4100),
+			want:    "input_command must be at most 4096 bytes",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := job(tc.command).Validate("automation.jobs[0]")
+			if err == nil {
+				t.Fatal("AutomationJob.Validate() error = nil, want command rejection")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("AutomationJob.Validate() error = %q, want substring %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func prepareAutomationConfigTestEnv(t *testing.T) (string, HomePaths) {
 	t.Helper()
 
