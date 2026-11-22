@@ -6,12 +6,12 @@ persona: Bruno
 journey: J-extension-kit-lifecycle
 expected: install of a package declaring [[requires.extensions]] refuses with extension_dependencies_required until consent; a human TTY shows one consolidated preview and each dependency's own trust gates, a non-TTY needs --with-dependencies plus per-name consent; remove and disable of a needed dependency refuse with extension_dependency_in_use listing the dependents until --force; a forced removal never cascades and the dependent reports unmet_dependencies while it keeps running; enabling a dependent with unmet dependencies refuses with extension_dependencies_required.
 entry_points: compozy extension install <source> [--with-dependencies] [--allow-unverified-dependency <name>] [--confirm-gateway-requirement <name>=<digest>]; compozy extension remove|disable <name> [--force]; compozy extension status <name>; POST /api/extensions and /api/extensions/preview-install; DELETE /api/extensions/{name}?force=true; PUT /api/extensions/{name}/enablement {force}; compozy__extensions_install|remove|disable
-qa_status: pass
-bug_ids: [BUG-20261122-dependency-install-automation-disabled, BUG-20261122-dependency-exists-code-collapsed, BUG-20261122-enable-dependency-guidance-flag]
-fix_status: fixed
-retest_status: pass
+qa_status: fail
+bug_ids: [BUG-20261122-dependency-install-automation-disabled, BUG-20261122-dependency-exists-code-collapsed, BUG-20261122-enable-dependency-guidance-flag, BUG-20261122-local-dependency-elsewhere-retry-no-unblock]
+fix_status: open
+retest_status: fail
 fix_commits: [08bd19a60, 0cb8b750d]
-evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-b; docs/qa/evidence/2026-11-22-gh-1845-pr-b-rewalk
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-b; docs/qa/evidence/2026-11-22-gh-1845-pr-b-rewalk; docs/qa/evidence/2026-11-22-gh-1845-pr-b-s9-s12
 last_report: docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md
 overlaps: ET-extension-setup-inputs; ET-web-extension-union-install; ET-extension-profile-enablement
 ---
@@ -123,3 +123,24 @@ report `docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md
 - A relative `local_path` ref (`../acme-reldep`) resolves against the dependent's folder.
 
 All four defects are verified. Steps 1, 2, 4–6, 8–10 and 13 were not re-walked.
+
+QA re-walk of steps 9 and 12 2026-11-22 (head `43f54e4c6`, fresh isolated lab, CLI/API/Web, same
+report):
+- Step 9 passes. The local-path `acme-s9base` prints `No update of acme-s9base 1.0.0 reaches
+  min_version 2.0.0; …` with no `retry_command`. The catalog-installed `acme-mdep` prints the same
+  text while the catalog has only 1.0.0. After 2.0.0 is published, it prints `Run first: compozy
+  extension update acme-mdep --scope global --profile default`, and running that unblocks the root.
+  A `min_version` above the release (3.0.0) gets no command. Web Add shows "Update acme-mdep to 2.0.0
+  or later first: run …" or "No update of acme-s9base reaches 2.0.0. Reinstall it from a source with
+  2.0.0 or later first", and Add is disabled.
+- Step 12 fails: running the offered command does not unblock the root for a `local_path`
+  dependency. The preview and refusal give
+  `compozy extension install <dir> --replace --scope global --profile other` (local), `compozy
+  extension update acme-mdep2 --scope global --profile other` (catalog), or no command and
+  `Another scope or profile uses a different copy of acme-p12dep 0.1.0; reinstall it there …`
+  (source below `min_version`). The Web shows the matching copy. The catalog command unblocks the root.
+  After the local command, the root still refuses with `extension_exists`
+  (BUG-20261122-local-dependency-elsewhere-retry-no-unblock).
+- A native `compozy__extensions_install` returns the HTTP validation payload with its field
+  (`requires.extensions.ref` for a relative ref in a catalog package, `expected_digest` for a
+  marketplace dependency) as `tool_invalid_input` with `extension_validation_failed`.
