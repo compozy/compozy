@@ -227,7 +227,8 @@ func validateHookBindingSpec(
 		return hookspkg.HookDecl{}, err
 	}
 
-	if normalizedScope.Kind == resources.ResourceScopeKindWorkspace {
+	if normalizedScope.Kind == resources.ResourceScopeKindWorkspace &&
+		hookspkg.MatcherFieldAllowedForEvent(normalized.Event, "workspace_id") {
 		workspaceID := strings.TrimSpace(normalized.Matcher.WorkspaceID)
 		switch {
 		case workspaceID == "":

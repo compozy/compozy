@@ -144,6 +144,9 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"child_session_id":      {},
 		"spawn_role":            {},
 	},
+	HookEventFamilySubagent: {
+		matcherWorkspaceIDKey: {},
+	},
 	HookEventFamilyWindowManager: {
 		matcherWorkspaceIDKey: {},
 	},
