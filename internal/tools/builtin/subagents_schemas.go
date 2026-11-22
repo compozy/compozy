@@ -9,6 +9,34 @@ const subagentDelegateInputSchema = `{
       "maxLength": 120000,
       "description": "Self-contained brief; the child sees only this task."
     },
+    "prior_subagent_id": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Optional ID of a prior subagent from this session being continued or corrected."
+    },
+    "handoff": {
+      "type": "object",
+      "properties": {
+        "objections": {
+          "type": "string",
+          "maxLength": 40000,
+          "description": "Unresolved objections or verification failures from the prior round."
+        },
+        "findings": {
+          "type": "string",
+          "maxLength": 40000,
+          "description": "Key findings or conclusions to carry forward."
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Relevant file paths already inspected or modified."
+        }
+      },
+      "additionalProperties": false
+    },
     "title": {
       "type": "string",
       "maxLength": 512

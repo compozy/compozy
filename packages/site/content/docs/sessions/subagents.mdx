@@ -359,6 +359,29 @@ Settlement fields, including `pull_request_status`, are omitted while the child 
 A settled `unknown` PR status means the forge lookup was unavailable or failed; it does not mean
 that no PR exists.
 
+## Corrective rounds and handoff
+
+When a subagent's result fails verification or needs another pass, delegate again with `prior_subagent_id`
+and `handoff` instead of prompting the old child session:
+
+```json
+{
+  "title": "Fix billing retries edge case",
+  "task": "Fix the missing exponential backoff clamp and verify with the reproduction script.",
+  "prior_subagent_id": "sub-3c9e1f0a7b2d4e61",
+  "handoff": {
+    "objections": "The backoff loop retries without a jitter cap, saturating the test harness.",
+    "findings": "Retries work for 429 status codes but fail on 503.",
+    "files": ["internal/billing/client.go"]
+  },
+  "isolation": "worktree"
+}
+```
+
+When using `isolation: "worktree"`, omitting `base_ref` automatically continues from the prior subagent's
+branch, so commits and changes made during the prior round remain in place while the model starts with a
+fresh, clean context window to avoid reasoning drift.
+
 ## Messages to always-on agents
 
 An agent can address `compozy__session_prompt` by `agent` and `workspace`, instead of a session ID.

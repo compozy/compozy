@@ -68,12 +68,30 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 	if err != nil {
 		return Subagent{}, err
 	}
-	fingerprint, err := subagentFingerprint(req)
-	if err != nil {
-		return Subagent{}, err
-	}
 	id := subagentID(req.Caller.SessionID, req.IdempotencyKey)
 	unlock := s.lock(req.Caller.SessionID)
+	if req.PriorSubagentID != "" {
+		prior, err := s.store.GetSubagent(ctx, req.Caller.WorkspaceID, req.PriorSubagentID)
+		if err != nil {
+			unlock()
+			if errors.Is(err, store.ErrSubagentNotFound) {
+				return Subagent{}, invalidSubagent(fmt.Sprintf("prior_subagent_id %q not found.", req.PriorSubagentID))
+			}
+			return Subagent{}, err
+		}
+		if prior.ParentSessionID != req.Caller.SessionID {
+			unlock()
+			return Subagent{}, invalidSubagent("prior_subagent_id belongs to a different session.")
+		}
+		if req.Isolation == SubagentIsolationWorktree && req.BaseRef == "" && prior.Worktree != nil && prior.Worktree.Branch != "" {
+			req.BaseRef = prior.Worktree.Branch
+		}
+	}
+	fingerprint, err := subagentFingerprint(req)
+	if err != nil {
+		unlock()
+		return Subagent{}, err
+	}
 	existing, lookupErr := s.store.GetSubagent(ctx, req.Caller.WorkspaceID, id)
 	if lookupErr == nil {
 		unlock()

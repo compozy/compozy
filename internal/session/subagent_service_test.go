@@ -281,6 +281,60 @@ func TestSubagentDelegate(t *testing.T) {
 			t.Fatal(row)
 		}
 	})
+	t.Run("Should format prompt with structured handoff and prior subagent context", func(t *testing.T) {
+		t.Parallel()
+		s, _, runtime := newSubagentTestService(t)
+		prior := requireSubagent(t, s, subagentTestRequest())
+
+		followUp := subagentTestRequest()
+		followUp.IdempotencyKey = "follow-up-call"
+		followUp.PriorSubagentID = prior.ID
+		followUp.Handoff = &SubagentHandoff{
+			Objections: "Unit tests failed on empty inputs",
+			Findings:   "The parser works for normal cases",
+			Files:      []string{"src/parser.ts"},
+		}
+		followUp.Task = "Fix the edge cases"
+
+		second := requireSubagent(t, s, followUp)
+		if second.ID == prior.ID {
+			t.Fatal("expected different subagent id")
+		}
+		prompt := runtime.admitted[second.ID]
+		if !strings.Contains(prompt, prior.ID) ||
+			!strings.Contains(prompt, "Unit tests failed on empty inputs") ||
+			!strings.Contains(prompt, "The parser works for normal cases") ||
+			!strings.Contains(prompt, "src/parser.ts") ||
+			!strings.Contains(prompt, "Fix the edge cases") {
+			t.Fatalf("unexpected prompt: %s", prompt)
+		}
+	})
+	t.Run("Should reject non-existent prior_subagent_id", func(t *testing.T) {
+		t.Parallel()
+		s, _, _ := newSubagentTestService(t)
+		req := subagentTestRequest()
+		req.PriorSubagentID = "sub-nonexistent"
+		_, err := s.Delegate(t.Context(), req)
+		if !errors.Is(err, ErrSubagentInvalidRequest) || !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("expected not found error, got: %v", err)
+		}
+	})
+	t.Run("Should reject prior_subagent_id from different session", func(t *testing.T) {
+		t.Parallel()
+		s, db, _ := newSubagentTestService(t)
+		db.rows["sub-other"] = store.SessionSubagent{
+			ID:              "sub-other",
+			WorkspaceID:     "ws",
+			ParentSessionID: "other-parent",
+			Status:          "completed",
+		}
+		req := subagentTestRequest()
+		req.PriorSubagentID = "sub-other"
+		_, err := s.Delegate(t.Context(), req)
+		if !errors.Is(err, ErrSubagentInvalidRequest) || !strings.Contains(err.Error(), "different session") {
+			t.Fatalf("expected different session error, got: %v", err)
+		}
+	})
 	t.Run("Should stop child after failed first admission UT-059", func(t *testing.T) {
 		t.Parallel()
 		s, _, runtime := newSubagentTestService(t)

@@ -37,12 +37,30 @@ func normalizeSubagentRequest(req SubagentRequest) (SubagentRequest, error) {
 	if utf8.RuneCountInString(req.Task) > 120000 {
 		return req, invalidSubagent("task exceeds 120000 characters.")
 	}
+	req.PriorSubagentID = strings.TrimSpace(req.PriorSubagentID)
+	if utf8.RuneCountInString(req.PriorSubagentID) > 64 {
+		return req, invalidSubagent("prior_subagent_id exceeds 64 characters.")
+	}
+	if req.Handoff != nil {
+		req.Handoff.Objections = strings.TrimSpace(req.Handoff.Objections)
+		req.Handoff.Findings = strings.TrimSpace(req.Handoff.Findings)
+		if utf8.RuneCountInString(req.Handoff.Objections) > 40000 {
+			return req, invalidSubagent("handoff.objections exceeds 40000 characters.")
+		}
+		if utf8.RuneCountInString(req.Handoff.Findings) > 40000 {
+			return req, invalidSubagent("handoff.findings exceeds 40000 characters.")
+		}
+	}
 	req.Title = strings.TrimSpace(req.Title)
 	if req.Title == "" {
 		req.Title = strings.TrimSpace(strings.SplitN(strings.TrimSpace(req.Task), "\n", 2)[0])
 	}
 	if utf8.RuneCountInString(req.Title) > 512 {
 		return req, invalidSubagent("title exceeds 512 characters.")
+	}
+	req.Task = formatTaskWithHandoff(req.Task, req.PriorSubagentID, req.Handoff)
+	if utf8.RuneCountInString(req.Task) > 120000 {
+		return req, invalidSubagent("task exceeds 120000 characters.")
 	}
 	if req.Role == "" {
 		req.Role = subagentRoleGeneral
@@ -103,6 +121,44 @@ func subagentFingerprint(req SubagentRequest) (string, error) {
 	sum := sha256.Sum256(payload)
 	return hex.EncodeToString(sum[:]), nil
 }
+func formatTaskWithHandoff(task, priorID string, handoff *SubagentHandoff) string {
+	if priorID == "" && handoff == nil {
+		return task
+	}
+	var sb strings.Builder
+	sb.WriteString("[Corrective / follow-up round")
+	if priorID != "" {
+		sb.WriteString(" for prior subagent ")
+		sb.WriteString(priorID)
+	}
+	sb.WriteString("]\n")
+	if handoff != nil {
+		if handoff.Objections != "" {
+			sb.WriteString("\nUnresolved objections / verification failures:\n")
+			sb.WriteString(handoff.Objections)
+			sb.WriteString("\n")
+		}
+		if handoff.Findings != "" {
+			sb.WriteString("\nPrior findings / retained context:\n")
+			sb.WriteString(handoff.Findings)
+			sb.WriteString("\n")
+		}
+		if len(handoff.Files) > 0 {
+			sb.WriteString("\nRelevant inspected / modified files:\n")
+			for _, f := range handoff.Files {
+				if trimmed := strings.TrimSpace(f); trimmed != "" {
+					sb.WriteString("- ")
+					sb.WriteString(trimmed)
+					sb.WriteString("\n")
+				}
+			}
+		}
+	}
+	sb.WriteString("\n---\nTask:\n")
+	sb.WriteString(task)
+	return sb.String()
+}
+
 func subagentPrompt(role, task string) string {
 	if role == subagentRoleGeneral {
 		return task
