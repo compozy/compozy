@@ -80,6 +80,37 @@ func (s *subagentService) resolvePriorDelegation(ctx context.Context, req *Subag
 	return nil
 }
 
+func (s *subagentService) trackFlight(id string) func() {
+	s.mu.Lock()
+	flight := &subagentFlight{done: make(chan struct{})}
+	s.flights[id] = flight
+	s.mu.Unlock()
+	return sync.OnceFunc(func() {
+		s.mu.Lock()
+		delete(s.flights, id)
+		close(flight.done)
+		s.mu.Unlock()
+	})
+}
+
+func (s *subagentService) prepareIsolationOpts(
+	ctx context.Context,
+	req SubagentRequest,
+	parent *Info,
+	row *store.SessionSubagent,
+	opts *SpawnOpts,
+) error {
+	if req.Isolation != SubagentIsolationWorktree {
+		return nil
+	}
+	if err := s.provisionIsolation(ctx, req, parent, row); err != nil {
+		return err
+	}
+	opts.IsolatedWorktreeID = row.WorktreeState().ID
+	opts.Subagent.WorktreeID = row.WorktreeState().ID
+	return nil
+}
+
 func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Subagent, error) {
 	req, err := normalizeSubagentRequest(req)
 	if err != nil {
@@ -140,22 +171,14 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 		unlock()
 		return s.replay(ctx, row)
 	}
-	s.mu.Lock()
-	flight := &subagentFlight{done: make(chan struct{})}
-	s.flights[id] = flight
-	s.mu.Unlock()
+	finishFlight := s.trackFlight(id)
+	defer finishFlight()
 	s.publish(ctx, row)
 	s.runtime.PublishParent(ctx, row.ParentSessionID)
 	unlock()
-	finishFlight := sync.OnceFunc(func() { s.mu.Lock(); delete(s.flights, id); close(flight.done); s.mu.Unlock() })
-	defer finishFlight()
 	opts := subagentSpawnOptions(row, target, mode, policy)
-	if req.Isolation == SubagentIsolationWorktree {
-		if err := s.provisionIsolation(ctx, req, snap.Info, &row); err != nil {
-			return s.failIsolatedDelegation(ctx, row, "", err)
-		}
-		opts.IsolatedWorktreeID = row.WorktreeState().ID
-		opts.Subagent.WorktreeID = row.WorktreeState().ID
+	if err := s.prepareIsolationOpts(ctx, req, snap.Info, &row, &opts); err != nil {
+		return s.failIsolatedDelegation(ctx, row, "", err)
 	}
 	return s.startDelegation(ctx, req, row, &opts, finishFlight)
 }
