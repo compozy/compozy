@@ -75,6 +75,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"loop_name",
 		"loop_inputs",
 		"loop_input_mapping",
+		"loop_input_command",
 		"created_at",
 		"updated_at",
 		"grant_ceiling",
@@ -105,6 +106,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"loop_name",
 		"loop_inputs",
 		"loop_input_mapping",
+		"loop_input_command",
 		"created_at",
 		"updated_at",
 	})
