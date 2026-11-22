@@ -1,6 +1,6 @@
 # BUG-20261122-preview-malformed-manifest-500: Previewing a local package with a malformed manifest returns a masked 500
 
-- **Status:** open
+- **Status:** open-upstream (pre-existing; filed as compozy/compozy#1962)
 - **Impact (user-side):** Friction. The Web review and API clients get "Internal Server Error" instead of the TOML error
 - **Severity:** Low · **Priority:** P3
 - **Persona Affected:** Bruno
