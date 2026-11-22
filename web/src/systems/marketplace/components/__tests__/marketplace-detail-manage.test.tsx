@@ -17,10 +17,26 @@ import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 import { handlers as statusHandlers } from "@/systems/status/mocks";
 import { extensionFixtures } from "@/systems/extensions/mocks";
-import type { ExtensionEntry, ExtensionLogEventSource } from "@/systems/extensions";
+import type {
+  ExtensionEntry,
+  ExtensionLogEventSource,
+  ExtensionUnmetDependency,
+} from "@/systems/extensions";
 import { marketplaceCatalogFixture } from "../../mocks";
 import type { MarketplaceCatalogEntryResponse } from "../../types";
 import { MarketplaceDetailExtensionInstalled } from "../marketplace-detail-extension-installed";
+
+function unmetDependency(
+  fields: Pick<ExtensionUnmetDependency, "name" | "state"> & Partial<ExtensionUnmetDependency>
+): ExtensionUnmetDependency {
+  return {
+    depth: 1,
+    ref: fields.name,
+    required_by: ["ops-extension"],
+    source: "marketplace",
+    ...fields,
+  };
+}
 
 const mocks = vi.hoisted(() => ({
   extensionEnabled: true,
@@ -53,7 +69,7 @@ const mocks = vi.hoisted(() => ({
     type: string;
   }>,
   extensionMissingInputs: [] as string[],
-  extensionUnmetDependencies: [] as Array<{ name: string; min_version?: string; state: string }>,
+  extensionUnmetDependencies: [] as ExtensionUnmetDependency[],
   extensionGatewayConfirmationRequired: false,
   extensionGatewayDigest: undefined as string | undefined,
   extensionLogs: [] as Array<{
@@ -562,8 +578,8 @@ describe("Marketplace installed-detail management", () => {
   // T-20 [US-014.AC-3]: the rail names each unmet dependency with the action that resolves it.
   it("Should show an unmet-dependency notice per dependency on the installed rail", async () => {
     mocks.extensionUnmetDependencies = [
-      { name: "acme-core", min_version: "0.4.0", state: "missing" },
-      { name: "acme-net", state: "disabled" },
+      unmetDependency({ name: "acme-core", min_version: "0.4.0", state: "missing" }),
+      unmetDependency({ name: "acme-net", state: "disabled" }),
     ];
     await renderDetail(extensionDetailData());
 
