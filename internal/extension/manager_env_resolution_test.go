@@ -411,6 +411,80 @@ func TestManagerResolveLaunchInputGate(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Should decide a dual-consumer input with the readiness precedence of setup", func(t *testing.T) {
+		t.Parallel()
+		manifest := &Manifest{
+			Inputs: []ManifestInput{{
+				ID: "region", Prompt: "Region", Type: "identifier", Required: true,
+				Binding: marketplace.InputBinding{Type: "env", Name: "REGION"},
+			}},
+			DeclaredRequiresEnv: []string{"REGION"},
+			Resources: ResourcesConfig{MCPServers: map[string]MCPServerConfig{
+				"geo": {Command: "geo", Env: map[string]string{"REGION": "region"}},
+			}},
+		}
+		manifest.RequiresEnv = manifestRequiredEnv(manifest.DeclaredRequiresEnv, manifest.Inputs)
+		cases := []struct {
+			name        string
+			row         string
+			daemonValue string
+			wantState   string
+		}{
+			{name: "valid typed row over an invalid daemon value", row: `"eu-west"`, daemonValue: "eu west",
+				wantState: "set"},
+			{name: "invalid typed row over a valid daemon value", row: `"eu west"`, daemonValue: "eu-west",
+				wantState: "invalid"},
+			{name: "invalid daemon value without a row", daemonValue: "eu west", wantState: "invalid"},
+		}
+		for _, tc := range cases {
+			t.Run("Should agree with setup on a "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				rows := envResolutionInputRows{}
+				state := InputState{Values: map[string]InputValueRecord{}}
+				if tc.row != "" {
+					rows["region"] = extensioninput.Record{
+						Type:   "identifier",
+						Value:  json.RawMessage(tc.row),
+						Active: true,
+					}
+					state.Values["region"] = InputValueRecord{
+						Type:   "identifier",
+						Value:  json.RawMessage(tc.row),
+						Active: true,
+					}
+				}
+				getenv := func(name string) string {
+					if name == "REGION" {
+						return tc.daemonValue
+					}
+					return ""
+				}
+				if got := InputSetupState(manifest, manifest.Inputs[0], state, getenv); got != tc.wantState {
+					t.Fatalf("InputSetupState(%s) = %q, want %q", tc.name, got, tc.wantState)
+				}
+				manager := NewManager(nil, WithGetenv(getenv), WithEnvBindingStore(&envResolutionBindingStore{}),
+					WithInputRowReader(rows))
+				env, cleanups, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+					manifest.RequiresEnv, manifest.launchInputs(), t.TempDir(), nil, nil)
+				runExtensionRedactionCleanups(cleanups)
+				if tc.wantState == "set" {
+					if err != nil {
+						t.Fatalf("resolveInstanceEnvMap(%s) error = %v, want start", tc.name, err)
+					}
+					if value, exists := envListToMap(t, env)["REGION"]; exists {
+						t.Fatalf("REGION = %q via %s, want the daemon-side value withheld", value, tc.name)
+					}
+					return
+				}
+				refused, ok := errors.AsType[*InputsRequiredError](err)
+				if !ok || !slices.Equal(refused.MissingInputs, []string{"region"}) ||
+					!slices.Equal(refused.InvalidInputs, []string{"region"}) {
+					t.Fatalf("resolveInstanceEnvMap(%s) error = %#v, want region invalid", tc.name, err)
+				}
+			})
+		}
+	})
 }
 
 type envResolutionInputRows map[string]extensioninput.Record
