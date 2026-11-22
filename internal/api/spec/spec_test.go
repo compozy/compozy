@@ -3486,6 +3486,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addAutomationLoopInputCommandSchema(baseline) == 0 {
 			t.Fatal("approved automation Loop input command: no historical Loop target schemas found")
 		}
+		// #1943: the job update request can patch only the fire-time command.
+		if addAutomationJobUpdateLoopInputCommandSchema(baseline) == 0 {
+			t.Fatal("approved automation job update command: no historical update request schemas found")
+		}
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
