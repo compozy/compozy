@@ -87,7 +87,7 @@ func TestParseLoopInputCommandOutput(t *testing.T) {
 }
 
 func TestAutomationLoopStarterResolveLoopInputs(t *testing.T) {
-	t.Parallel()
+	// Serial: one subtest mutates the process environment with t.Setenv.
 
 	newStarter := func(t *testing.T, rootDir string) *automationLoopStarter {
 		t.Helper()
