@@ -13,6 +13,7 @@ import {
   PHONE_HOSTED_URL,
   PHONE_NARROW_SCOPES,
   PHONE_OTHER_ACCOUNT_EMAIL,
+  PHONE_OWNER_EMAIL,
   PHONE_PEERS_MULTI,
   PHONE_PEERS_SINGLE,
   PHONE_TARGET_COMPUTER,
@@ -20,6 +21,7 @@ import {
 
 import { PhoneApp } from "./phone-app";
 import { PhoneFrame } from "./phone-frame";
+import { PhoneUpgradeCloudPage } from "./phone-upgrade-cloud-page";
 
 export const meta = definePrototype({
   title: "Phone browser",
@@ -32,16 +34,20 @@ export const meta = definePrototype({
       id: "signed-in-session-live",
       label: "Session open · Streaming transcript, approval & composer",
     },
-    { id: "computer-menu", label: "Computer menu · Hosted-route peers & own-origin note" },
+    { id: "computer-menu", label: "Computer menu · Hosted peers & Sign out" },
     { id: "computer-menu-only-host", label: "Computer menu · Only this computer reachable" },
     { id: "offline-reconnecting", label: "Offline · Reconnecting with read-only transcript" },
     { id: "signed-in-no-terminal-scope", label: "Narrowed permissions · Terminal hidden on phone" },
-    { id: "sign-in", label: "Sign in · Hosted-route entry gate" },
+    { id: "sign-in", label: "Sign in · Google or GitHub hosted-route gate" },
     { id: "waiting-approval", label: "Waiting for approval · Fingerprint & auto-polling" },
     { id: "approval-expired", label: "Approval expired · Request approval again" },
     { id: "not-approved", label: "Not approved · Denied on studio" },
     { id: "another-account", label: "Another account · Signed-in email mismatch" },
     { id: "needs-pro", label: "Hosted route needs Pro · 7-day plan-expired gate" },
+    {
+      id: "upgrade-cloud-page",
+      label: "Upgrade on cloud · Sign in & plan choice on cloud.compozy.com",
+    },
     { id: "device-removed", label: "Device removed · Revoked from account" },
   ],
 });
@@ -79,7 +85,7 @@ function renderGate(kind: BrowserSignInGateKind) {
             toast("Signed out. Redirecting to Compozy Cloud sign-in…");
             break;
           case "needs_pro":
-            toast("Opening Compozy Pro billing…");
+            toast(`Opening https://cloud.compozy.com/billing/upgrade?hostname=${PHONE_HOSTED_URL}`);
             break;
           case "device_removed":
             toast("Starting fresh device sign-in…");
@@ -95,6 +101,11 @@ function renderGate(kind: BrowserSignInGateKind) {
           toast("Switching account…");
         }
       }}
+      onSignInProvider={provider =>
+        toast(
+          `Redirecting to Compozy Cloud (${provider === "google" ? "Google" : "GitHub"}) sign-in…`
+        )
+      }
       platform={PHONE_TARGET_COMPUTER.platform}
       signedInEmail={kind === "another_account" ? PHONE_OTHER_ACCOUNT_EMAIL : undefined}
       trustedAdminDeviceName="MacBook Pro"
@@ -103,6 +114,18 @@ function renderGate(kind: BrowserSignInGateKind) {
 }
 
 function renderPhoneState(state: string) {
+  if (state === "upgrade-cloud-page") {
+    return (
+      <PhoneUpgradeCloudPage
+        computerName={PHONE_TARGET_COMPUTER.name}
+        hostname={PHONE_HOSTED_URL}
+        iconKind={PHONE_TARGET_COMPUTER.iconKind}
+        ownerEmail={PHONE_OWNER_EMAIL}
+        platform={PHONE_TARGET_COMPUTER.platform}
+      />
+    );
+  }
+
   const gateKind = GATE_STATES[state];
   if (gateKind) {
     return renderGate(gateKind);

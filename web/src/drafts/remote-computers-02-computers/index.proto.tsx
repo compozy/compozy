@@ -22,15 +22,15 @@ export const meta = definePrototype({
     { id: "pro-populated", label: "Pro · Fleet with every row status" },
     { id: "free-slot-used", label: "Free · 1 of 1 remote computer slot used" },
     { id: "downgraded-needs-pro", label: "Downgraded · 1 active, 2 need Pro" },
-    { id: "signed-out", label: "Signed out · Local computer only" },
-    { id: "empty", label: "Empty · Signed in with no other computers" },
+    { id: "empty", label: "Empty · No other computers yet" },
     { id: "cloud-unreachable", label: "Cloud unreachable · Local & LAN unaffected" },
     { id: "upgrade-notice", label: "Upgrade notice · Gateway removed & webhook review" },
     { id: "hosted-route-degraded", label: "Hosted route · Port 7844 blocked & Devices open" },
     { id: "hosted-route-starting", label: "Hosted route · Provisioning in progress" },
     { id: "load-balancing-open", label: "Load balancing · Weights & live capacity" },
+    { id: "stop-local-agents-dialog", label: "Stop local agents · Confirm with running sessions" },
     { id: "remove-dialog", label: "Remove dialog · Free slot & SSH uninstall options" },
-    { id: "revoke-device-safeguard", label: "Revoke device · Require approval safeguard" },
+    { id: "revoke-device-safeguard", label: "Revoke device · Local approval safeguard" },
     { id: "scale-50", label: "Scale · 50 computers in flat filterable list" },
   ],
 });
@@ -66,18 +66,6 @@ function propsFor(state: string): ComputersPageProps {
           hostedRouteState: "off",
         },
         computers: COMPUTERS_DOWNGRADED,
-        unadded: [],
-      };
-    case "signed-out":
-      return {
-        account: ACCOUNT_PRESETS.signed_out,
-        local: {
-          ...LOCAL_COMPUTER,
-          remoteEnabled: false,
-          hostedRouteEnabled: false,
-          hostedRouteState: "off",
-        },
-        computers: [],
         unadded: [],
       };
     case "empty":
@@ -129,6 +117,11 @@ function propsFor(state: string): ComputersPageProps {
         ...proBase,
         loadBalancingEnabled: true,
         loadBalancingOpen: true,
+      };
+    case "stop-local-agents-dialog":
+      return {
+        ...proBase,
+        initialDisableLocalOpen: true,
       };
     case "remove-dialog":
       return {

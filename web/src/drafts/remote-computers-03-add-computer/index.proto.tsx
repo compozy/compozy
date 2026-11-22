@@ -80,6 +80,12 @@ function configFor(state: string): StateConfig {
         dialog: {
           ...baseDialog,
           initialSshStage: "host_key_changed",
+          initialHostDraft: {
+            host: "10.0.0.42",
+            user: "pedro",
+            port: "2222",
+            name: "devbox",
+          },
         },
       };
     case "ssh-password":
@@ -190,7 +196,7 @@ export default function AddComputerDraft({ state }: PrototypeProps) {
         {...config.dialog}
         onClose={() => {
           setOpen(false);
-          toast("Dialog closed — switch state to reopen.");
+          toast("Dialog closed. Switch state to reopen.");
         }}
         onOpenComputer={name => {
           setOpen(false);

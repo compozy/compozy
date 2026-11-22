@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, ShieldAlert, Sparkles, Trash2 } from "@compozy/ui/icons";
+import { Plus, Sparkles, Trash2 } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -13,8 +13,11 @@ import {
 } from "@compozy/ui";
 
 import {
+  AccountRevokeDeviceDialog,
+  type AccountRevokeDeviceDialogProps,
+} from "@/systems/account/components/account-devices-section";
+import {
   LOAD_BALANCING_WEIGHT_OPTIONS,
-  type AccountDeviceFixture,
   type AccountStateFixture,
   type AccountUnaddedComputerFixture,
   type ComputerFixture,
@@ -364,67 +367,10 @@ export function RemoveComputerDialog({
   );
 }
 
-export interface RevokeDeviceDialogProps {
-  device: AccountDeviceFixture | null;
-  requireDeviceApproval: boolean;
-  onClose: () => void;
-  onConfirm: (device: AccountDeviceFixture, enableApproval: boolean) => void;
-}
+export type RevokeDeviceDialogProps = AccountRevokeDeviceDialogProps;
 
-export function RevokeDeviceDialog({
-  device,
-  requireDeviceApproval,
-  onClose,
-  onConfirm,
-}: RevokeDeviceDialogProps) {
-  const [enableApproval, setEnableApproval] = useState(!requireDeviceApproval);
-
-  if (!device) return null;
-
-  return (
-    <ConfirmDialog
-      body={
-        !requireDeviceApproval ? (
-          <label
-            className="flex cursor-pointer items-start gap-2.5"
-            htmlFor="revoke-require-approval"
-          >
-            <Checkbox
-              checked={enableApproval}
-              className="mt-0.5"
-              id="revoke-require-approval"
-              onCheckedChange={next => setEnableApproval(Boolean(next))}
-            />
-            <span className="flex flex-col gap-0.5">
-              <span className="text-small-body font-medium text-fg">
-                Require approval for new devices
-              </span>
-              <span className="text-meta text-muted-foreground">
-                New or re-signed-in devices will wait for your approval before connecting here.
-              </span>
-            </span>
-          </label>
-        ) : undefined
-      }
-      cancelLabel="Cancel"
-      confirmLabel="Revoke device"
-      description={`${device.name} loses access immediately and its live streams on every connected computer close within seconds.`}
-      icon={ShieldAlert}
-      note={
-        !requireDeviceApproval
-          ? "Approval for new devices is off, so a revoked device signed in to your account can connect again on its own."
-          : undefined
-      }
-      noteTone="warning"
-      onConfirm={() => onConfirm(device, enableApproval)}
-      onOpenChange={open => {
-        if (!open) onClose();
-      }}
-      open
-      title={`Revoke ${device.name}?`}
-      tone="destructive"
-    />
-  );
+export function RevokeDeviceDialog(props: RevokeDeviceDialogProps) {
+  return <AccountRevokeDeviceDialog {...props} />;
 }
 
 export interface DisableLocalAgentsDialogProps {
@@ -441,17 +387,18 @@ export function DisableLocalAgentsDialog({
   onConfirm,
 }: DisableLocalAgentsDialogProps) {
   if (!open) return null;
+  const count = local.activeLocalSessions;
   return (
     <ConfirmDialog
-      cancelLabel="Keep running locally"
-      confirmLabel="Turn off local agents"
-      description={`New sessions will no longer start on ${local.name}. Your ${local.activeLocalSessions} active local sessions stay readable, and you can turn this back on anytime.`}
+      cancelLabel="Cancel"
+      confirmLabel="Stop running agents"
+      description={`${count} ${count === 1 ? "session is" : "sessions are"} running here. They keep running until they finish; new sessions go to your other computers.`}
       onConfirm={onConfirm}
       onOpenChange={next => {
         if (!next) onClose();
       }}
       open
-      title={`Turn off agents on ${local.name}?`}
+      title="Stop running agents on this computer?"
       tone="warning"
     />
   );

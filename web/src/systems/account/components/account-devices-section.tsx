@@ -144,29 +144,33 @@ export function AccountDevicesSection({
 
 export interface AccountRevokeDeviceDialogProps {
   device: AccountDeviceFixture | null;
+  localRemoteEnabled?: boolean;
   requireDeviceApproval: boolean;
   onClose: () => void;
   onConfirm: (device: AccountDeviceFixture, enableApproval: boolean) => void;
 }
 
 /**
- * Account-level device revocation confirm (`_uiux.md` U3, US-020, `research-references` §4.1):
- * includes the approval safeguard when any host has device approval turned off.
+ * Device revocation confirm shared by Account and Computers (`_uiux.md` U1/U3, Q3):
+ * includes the local approval safeguard checkbox only when this computer has
+ * remote access enabled and device approval turned off.
  */
 export function AccountRevokeDeviceDialog({
   device,
+  localRemoteEnabled = true,
   requireDeviceApproval,
   onClose,
   onConfirm,
 }: AccountRevokeDeviceDialogProps) {
-  const [enableApproval, setEnableApproval] = useState(!requireDeviceApproval);
+  const showApprovalCheckbox = localRemoteEnabled && !requireDeviceApproval;
+  const [enableApproval, setEnableApproval] = useState(showApprovalCheckbox);
 
   if (!device) return null;
 
   return (
     <ConfirmDialog
       body={
-        !requireDeviceApproval ? (
+        showApprovalCheckbox ? (
           <label
             className="flex cursor-pointer items-start gap-2.5"
             htmlFor="account-revoke-require-approval"
@@ -179,11 +183,12 @@ export function AccountRevokeDeviceDialog({
             />
             <span className="flex flex-col gap-0.5">
               <span className="text-small-body font-medium text-fg">
-                Require approval for new devices on this computer
+                Also require approval for new devices on this computer
               </span>
               <span className="text-meta text-muted-foreground">
-                Hold new or re-signed-in devices until you approve their fingerprint.
+                Without approval, this device could sign back in on its own.
               </span>
+              <span className="text-meta text-subtle">Other computers keep their own setting.</span>
             </span>
           </label>
         ) : undefined
@@ -193,13 +198,7 @@ export function AccountRevokeDeviceDialog({
       description={`${device.name} loses access across your account. Every connected computer closes its streams within 2 seconds; offline computers apply the revoke when they reconnect.`}
       footNote={<KeyFingerprint copyable={false} layout="inline" value={device.keyFingerprint} />}
       icon={ShieldAlert}
-      note={
-        !requireDeviceApproval
-          ? "Approval for new devices is off on this computer, so a revoked device signed in to your account can connect again on its own."
-          : undefined
-      }
-      noteTone="warning"
-      onConfirm={() => onConfirm(device, enableApproval)}
+      onConfirm={() => onConfirm(device, showApprovalCheckbox && enableApproval)}
       onOpenChange={open => {
         if (!open) onClose();
       }}

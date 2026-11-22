@@ -34,6 +34,7 @@ import type {
 } from "../mocks/remote-computers-fixtures";
 import {
   buildSshSetupSteps,
+  SSH_HOST_KEY_CHANGED_FIXTURE,
   SSH_HOST_TRUST_FIXTURE,
   SSH_LINGER_NOTE_FIXTURE,
   SSH_SECRET_PROMPT_FIXTURE,
@@ -107,11 +108,12 @@ export function AddComputerDialog({
   const selectedSuggestion = sshSuggestions.find(
     item => item.alias === draft.host || item.hostname === draft.host
   );
-  const targetAddress = selectedSuggestion
-    ? `${draft.user || selectedSuggestion.user}@${selectedSuggestion.hostname}`
-    : draft.user
-      ? `${draft.user}@${draft.host}`
-      : draft.host;
+  const resolvedHost = selectedSuggestion ? selectedSuggestion.hostname : draft.host;
+  const resolvedUser = draft.user || selectedSuggestion?.user || "";
+  const resolvedPort = draft.port && draft.port !== "22" ? `:${draft.port}` : "";
+  const targetAddress = resolvedUser
+    ? `${resolvedUser}@${resolvedHost}${resolvedPort}`
+    : `${resolvedHost}${resolvedPort}`;
   const hostLabel = draft.name || draft.host || "staging-box";
 
   const isSshProgressView = method === "ssh" && sshStage !== "picker";
@@ -193,21 +195,32 @@ export function AddComputerDialog({
     hostLabel,
     targetAddress,
     trustPromptNode:
-      sshStage === "trust_host" || sshStage === "host_key_changed" ? (
+      sshStage === "host_key_changed" ? (
+        <AddComputerHostKeyCard
+          fingerprint={SSH_HOST_KEY_CHANGED_FIXTURE.observedFingerprint}
+          hostLabel={hostLabel}
+          keyType={SSH_HOST_KEY_CHANGED_FIXTURE.keyType}
+          mode="changed"
+          pinEntry={SSH_HOST_KEY_CHANGED_FIXTURE.pinEntry}
+          previousFingerprint={SSH_HOST_KEY_CHANGED_FIXTURE.pinnedFingerprint}
+          recoveryCommand={SSH_HOST_KEY_CHANGED_FIXTURE.recoveryCommand}
+          target={SSH_HOST_KEY_CHANGED_FIXTURE.target}
+          verifyCommand={SSH_HOST_KEY_CHANGED_FIXTURE.verifyCommand}
+        />
+      ) : sshStage === "trust_host" ? (
         <AddComputerHostKeyCard
           fingerprint={SSH_HOST_TRUST_FIXTURE.fingerprint}
           hostLabel={hostLabel}
           keyType={SSH_HOST_TRUST_FIXTURE.keyType}
-          mode={sshStage === "host_key_changed" ? "changed" : "trust"}
+          mode="trust"
           onDecline={() => {
             setSshStage("picker");
-            toast("Setup cancelled — host key was not trusted.");
+            toast("Setup cancelled. Host key was not trusted.");
           }}
           onTrust={() => {
             setSshStage("running");
             toast.success(`Trusted ${hostLabel} and continued setup.`);
           }}
-          previousFingerprint={SSH_HOST_TRUST_FIXTURE.previousFingerprint}
           target={SSH_HOST_TRUST_FIXTURE.target}
           verifyCommand={SSH_HOST_TRUST_FIXTURE.verifyCommand}
         />
@@ -396,7 +409,6 @@ export function AddComputerDialog({
             hostLabel={hostLabel}
             linkedCommitReached={linkedCommitReached}
             method={method}
-            onChooseAnotherHost={() => setSshStage("picker")}
             onClose={() => onClose?.()}
             onOpenComputer={onOpenComputer}
             onRemoveLinked={() => toast(`Opens Remove dialog for ${hostLabel}`)}

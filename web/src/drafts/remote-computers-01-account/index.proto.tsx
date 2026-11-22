@@ -1,11 +1,14 @@
-import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import { definePrototype, useSearch, type PrototypeProps } from "@compozy/proto";
 
-import { ACCOUNT_DEVICES, ACCOUNT_PRESETS, PENDING_APPROVALS } from "../remote-computers-shared";
+import type { UpgradeSheetPhase } from "@/systems/account/components/account-upgrade-sheet";
 import {
   ACCOUNT_APPROVALS_EXTENDED,
   ACCOUNT_NON_ADMIN_DEVICES,
-  ACCOUNT_PRO_HOSTED_CAP,
+  ACCOUNT_TOKENS,
+  CREATED_ACCOUNT_TOKEN_FIXTURE,
 } from "@/systems/computers/mocks/remote-computers-fixtures-lane-a";
+
+import { ACCOUNT_DEVICES, ACCOUNT_PRESETS, PENDING_APPROVALS } from "../remote-computers-shared";
 import { AccountSettingsPage, type AccountPageProps } from "./account-page";
 
 export const meta = definePrototype({
@@ -14,28 +17,37 @@ export const meta = definePrototype({
   surface: "U3 U9",
   route: "/settings/account",
   states: [
-    { id: "pro-populated", label: "Pro · Plan, usage, pending approvals & devices" },
+    { id: "pro-populated", label: "Pro · Profile, plan, approvals & devices" },
     { id: "free", label: "Free · 1 of 1 remote computer slot used" },
     { id: "downgraded", label: "Downgraded · Pro ended, 1 active & 2 need Pro" },
-    { id: "signed-out", label: "Signed out · Local work unaffected" },
-    { id: "signing-in", label: "Signing in · Waiting for browser & device code" },
     { id: "pending-approvals", label: "Approvals · Pending, delivering & recent decisions" },
-    { id: "non-admin-device", label: "Standard device · Admin controls guarded" },
+    { id: "non-admin-device", label: "Standard device · Admin controls & delete guarded" },
     { id: "payment-issue", label: "Payment issue · Past due card banner" },
-    { id: "ending-subscription", label: "Ending · Pro cancels on date & hosted cap" },
-    { id: "cloud-unreachable", label: "Cloud unreachable · Local work unaffected" },
-    { id: "upgrade-sheet", label: "Upgrade sheet · Annual vs monthly over Account" },
-    { id: "upgrade-waiting", label: "Upgrade sheet · Waiting for checkout" },
-    { id: "upgrade-done", label: "Upgrade sheet · You're on Pro" },
-    { id: "revoke-device-dialog", label: "Revoke device · Confirm with approval safeguard" },
+    { id: "cloud-unreachable", label: "Cloud unreachable · Cached profile & local unaffected" },
+    {
+      id: "link-only-installation",
+      label: "Link-only · Linked for remote access & other-account notice",
+    },
+    { id: "email-and-tokens", label: "Email, tokens & delete · Pro account lower blocks" },
+    { id: "upgrade-sheet", label: "Upgrade sheet · Annual vs monthly (click for waiting)" },
+    { id: "token-created", label: "Account token created · Copy secret once" },
+    { id: "revoke-device-dialog", label: "Revoke device · Confirm with local approval safeguard" },
+    { id: "sign-out-dialog", label: "Sign out · Also unlinks this computer" },
+    { id: "delete-account-dialog", label: "Delete account · Impact summary & email confirmation" },
   ],
 });
 
-function propsFor(state: string): AccountPageProps {
+function resolveUpgradePhase(raw: string | null): UpgradeSheetPhase {
+  if (raw === "waiting" || raw === "waiting_timeout" || raw === "done") return raw;
+  return "select";
+}
+
+function propsFor(state: string, searchPhase: string | null): AccountPageProps {
   const proBase: AccountPageProps = {
     account: ACCOUNT_PRESETS.pro,
     devices: ACCOUNT_DEVICES,
     pendingApprovals: PENDING_APPROVALS,
+    tokens: ACCOUNT_TOKENS,
   };
 
   switch (state) {
@@ -44,93 +56,105 @@ function propsFor(state: string): AccountPageProps {
         account: ACCOUNT_PRESETS.free,
         devices: ACCOUNT_DEVICES.slice(0, 2),
         pendingApprovals: [],
+        tokens: ACCOUNT_TOKENS.slice(0, 1),
       };
     case "downgraded":
       return {
         account: ACCOUNT_PRESETS.downgraded,
         devices: ACCOUNT_DEVICES,
         pendingApprovals: [],
+        tokens: ACCOUNT_TOKENS.slice(0, 1),
         downgradedNeedsProCount: 2,
-      };
-    case "signed-out":
-      return {
-        account: ACCOUNT_PRESETS.signed_out,
-        devices: [],
-        pendingApprovals: [],
-      };
-    case "signing-in":
-      return {
-        account: ACCOUNT_PRESETS.signed_out,
-        signingIn: true,
-        devices: [],
-        pendingApprovals: [],
       };
     case "pending-approvals":
       return {
         account: ACCOUNT_PRESETS.pro,
         devices: ACCOUNT_DEVICES,
         pendingApprovals: ACCOUNT_APPROVALS_EXTENDED,
+        tokens: ACCOUNT_TOKENS,
       };
     case "non-admin-device":
       return {
         account: ACCOUNT_PRESETS.pro,
         devices: ACCOUNT_NON_ADMIN_DEVICES,
-        pendingApprovals: PENDING_APPROVALS.map(item => ({ ...item, canDecide: false })),
+        pendingApprovals: [],
+        tokens: ACCOUNT_TOKENS.slice(0, 1),
+        scrollToLower: true,
       };
     case "payment-issue":
       return {
         account: ACCOUNT_PRESETS.past_due,
         devices: ACCOUNT_DEVICES,
         pendingApprovals: [],
-      };
-    case "ending-subscription":
-      return {
-        account: {
-          ...ACCOUNT_PRO_HOSTED_CAP,
-          cancelAtPeriodEnd: true,
-          renewsAt: null,
-          endsAt: ACCOUNT_PRESETS.ending.endsAt,
-        },
-        devices: ACCOUNT_DEVICES,
-        pendingApprovals: [],
+        tokens: ACCOUNT_TOKENS,
       };
     case "cloud-unreachable":
       return {
         account: ACCOUNT_PRESETS.cloud_unreachable,
         devices: ACCOUNT_DEVICES,
         pendingApprovals: [],
+        tokens: ACCOUNT_TOKENS,
+      };
+    case "link-only-installation":
+      return {
+        account: ACCOUNT_PRESETS.link_only_installation,
+        devices: [],
+        pendingApprovals: [],
+        tokens: [],
+        initialLinkMismatch: true,
+      };
+    case "email-and-tokens":
+      return {
+        account: ACCOUNT_PRESETS.pro,
+        devices: ACCOUNT_DEVICES,
+        pendingApprovals: [],
+        tokens: ACCOUNT_TOKENS,
+        scrollToLower: true,
       };
     case "upgrade-sheet":
       return {
         account: ACCOUNT_PRESETS.free,
         devices: ACCOUNT_DEVICES.slice(0, 2),
         pendingApprovals: [],
+        tokens: ACCOUNT_TOKENS.slice(0, 1),
         initialUpgradeOpen: true,
-        initialUpgradePhase: "select",
+        initialUpgradePhase: resolveUpgradePhase(searchPhase),
       };
-    case "upgrade-waiting":
-      return {
-        account: ACCOUNT_PRESETS.free,
-        devices: ACCOUNT_DEVICES.slice(0, 2),
-        pendingApprovals: [],
-        initialUpgradeOpen: true,
-        initialUpgradePhase: "waiting",
-      };
-    case "upgrade-done":
+    case "token-created":
       return {
         account: ACCOUNT_PRESETS.pro,
         devices: ACCOUNT_DEVICES,
         pendingApprovals: [],
-        initialUpgradeOpen: true,
-        initialUpgradePhase: "done",
+        tokens: ACCOUNT_TOKENS,
+        scrollToLower: true,
+        initialCreatedToken: CREATED_ACCOUNT_TOKEN_FIXTURE,
       };
     case "revoke-device-dialog":
       return {
         account: ACCOUNT_PRESETS.pro,
         devices: ACCOUNT_DEVICES,
         pendingApprovals: [],
+        tokens: ACCOUNT_TOKENS,
+        localRemoteEnabled: true,
         localRequireDeviceApproval: false,
         initialRevokeDeviceId: "dev_5k1p9z",
+      };
+    case "sign-out-dialog":
+      return {
+        account: { ...ACCOUNT_PRESETS.pro, installationLinked: true },
+        devices: ACCOUNT_DEVICES,
+        pendingApprovals: [],
+        tokens: ACCOUNT_TOKENS,
+        initialSignOutOpen: true,
+      };
+    case "delete-account-dialog":
+      return {
+        account: ACCOUNT_PRESETS.free,
+        devices: ACCOUNT_DEVICES.slice(0, 2),
+        pendingApprovals: [],
+        tokens: ACCOUNT_TOKENS.slice(0, 1),
+        scrollToLower: true,
+        initialDeleteOpen: true,
       };
     default:
       return proBase;
@@ -138,5 +162,7 @@ function propsFor(state: string): AccountPageProps {
 }
 
 export default function RemoteComputersAccountDraft({ state }: PrototypeProps) {
-  return <AccountSettingsPage key={state} {...propsFor(state)} />;
+  const search = useSearch();
+  const phaseParam = new URLSearchParams(search).get("phase");
+  return <AccountSettingsPage key={`${state}-${phaseParam ?? ""}`} {...propsFor(state, phaseParam)} />;
 }

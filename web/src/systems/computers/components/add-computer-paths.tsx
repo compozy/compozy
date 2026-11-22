@@ -241,7 +241,6 @@ export interface AddComputerFooterProps {
   onUpgrade?: () => void;
   onOpenComputer?: (name: string) => void;
   onSwitchToCommand: () => void;
-  onChooseAnotherHost: () => void;
   onRemoveLinked: () => void;
 }
 
@@ -261,7 +260,6 @@ export function AddComputerFooter({
   onUpgrade,
   onOpenComputer,
   onSwitchToCommand,
-  onChooseAnotherHost,
   onRemoveLinked,
 }: AddComputerFooterProps) {
   if (method === "account") {
@@ -330,10 +328,10 @@ export function AddComputerFooter({
     return (
       <EntityDialogFooter
         cancelLabel="Cancel"
-        hint="Verify the host fingerprint before updating your local known_hosts."
         onCancel={onClose}
-        onPrimary={onChooseAnotherHost}
-        primaryLabel="Choose another host"
+        onPrimary={onRetry}
+        primaryIcon={RefreshCw}
+        primaryLabel="Retry"
       />
     );
   }

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ArrowUpRight, Check, Info, X } from "@compozy/ui/icons";
+import { ArrowUpRight, Check, Info, LogIn, X } from "@compozy/ui/icons";
 
 import { Button, cn, Pill, StatusDot } from "@compozy/ui";
 
@@ -14,6 +14,7 @@ export interface PhoneComputerMenuProps {
   presentation?: "sheet" | "popover";
   onClose: () => void;
   onSelectPeer?: (peer: HostedPeerFixture) => void;
+  onSignOut?: () => void;
 }
 
 /**
@@ -30,6 +31,7 @@ export function PhoneComputerMenu({
   presentation = "sheet",
   onClose,
   onSelectPeer,
+  onSignOut,
 }: PhoneComputerMenuProps) {
   useEffect(() => {
     if (!open) return;
@@ -175,6 +177,23 @@ export function PhoneComputerMenu({
             <span className="font-medium text-muted-foreground">{currentComputerName}</span>.
             Choosing another computer opens its own hosted address.
           </p>
+        </div>
+
+        <div className="border-t border-line-soft px-2 py-2">
+          <button
+            className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-small-body font-medium text-fg transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none"
+            data-testid="phone-computer-menu-sign-out"
+            onClick={onSignOut}
+            type="button"
+          >
+            <LogIn aria-hidden="true" className="size-4 shrink-0 -scale-x-100 text-subtle" />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span>Sign out</span>
+              <span className="text-eyebrow font-normal text-subtle">
+                Ends this browser session on {currentComputerName}
+              </span>
+            </span>
+          </button>
         </div>
       </div>
     </div>

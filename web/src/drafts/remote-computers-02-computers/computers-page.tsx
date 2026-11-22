@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Plus, UserCheck } from "@compozy/ui/icons";
+import { Plus } from "@compozy/ui/icons";
 
-import { Button, Empty, toast } from "@compozy/ui";
+import { Button, toast } from "@compozy/ui";
 
 import {
   ACCOUNT_DEVICES,
@@ -17,7 +17,6 @@ import {
   type RemoteScope,
   type UpgradeMigrationNoticeFixture,
 } from "@/systems/computers/mocks/remote-computers-fixtures";
-import { SettingsGroup } from "@/systems/settings/components/settings-group";
 
 import { RemoteSettingsShell } from "../remote-computers-shared";
 import { ComputersBanners, ComputersListSection } from "./computers-list-section";
@@ -41,6 +40,7 @@ export interface ComputersPageProps {
   loadBalancingEnabled?: boolean;
   loadBalancingOpen?: boolean;
   devicesOpen?: boolean;
+  initialDisableLocalOpen?: boolean;
   initialRemoveTargetId?: string | null;
   initialRevokeDeviceId?: string | null;
   selectedComputerId?: string | null;
@@ -51,9 +51,6 @@ function buildSubheadMeta(
   account: AccountStateFixture,
   computers: readonly ComputerFixture[]
 ): Array<{ key: string; content: string }> {
-  if (!account.signedIn) {
-    return [{ key: "local", content: "Local computer only" }];
-  }
   const connected = computers.filter(
     item => item.status === "connected" || item.status === "needs_attention"
   ).length;
@@ -95,6 +92,7 @@ export function ComputersSettingsPage({
   loadBalancingEnabled: initialLoadBalancingEnabled = true,
   loadBalancingOpen = false,
   devicesOpen = false,
+  initialDisableLocalOpen = false,
   initialRemoveTargetId = null,
   initialRevokeDeviceId = null,
   selectedComputerId = null,
@@ -109,7 +107,7 @@ export function ComputersSettingsPage({
   const [upgradeNotice, setUpgradeNotice] = useState(initialUpgradeNotice);
   const [uninstallWarning, setUninstallWarning] = useState(initialUninstallWarning);
   const [loadBalancingEnabled, setLoadBalancingEnabled] = useState(initialLoadBalancingEnabled);
-  const [confirmDisableLocal, setConfirmDisableLocal] = useState(false);
+  const [confirmDisableLocal, setConfirmDisableLocal] = useState(initialDisableLocalOpen);
 
   const [removeTarget, setRemoveTarget] = useState<ComputerFixture | null>(() =>
     initialRemoveTargetId
@@ -266,6 +264,7 @@ export function ComputersSettingsPage({
       />
       <RevokeDeviceDialog
         device={revokeTarget}
+        localRemoteEnabled={local.remoteEnabled}
         onClose={() => setRevokeTarget(null)}
         onConfirm={handleConfirmRevoke}
         requireDeviceApproval={local.requireDeviceApproval}
@@ -286,12 +285,10 @@ export function ComputersSettingsPage({
     <RemoteSettingsShell
       activeSection="computers"
       headerActions={
-        account.signedIn ? (
-          <Button onClick={openAddComputer} size="sm" type="button" variant="secondary">
-            <Plus aria-hidden="true" />
-            Add computer
-          </Button>
-        ) : undefined
+        <Button onClick={openAddComputer} size="sm" type="button" variant="secondary">
+          <Plus aria-hidden="true" />
+          Add computer
+        </Button>
       }
       meta={buildSubheadMeta(account, computers)}
       overlay={overlay}
@@ -339,67 +336,45 @@ export function ComputersSettingsPage({
         pendingApprovals={approvals}
       />
 
-      {!account.signedIn ? (
-        <SettingsGroup bare title="Computers">
-          <Empty
-            action={
-              <Button
-                onClick={() => toast("Opens Compozy sign-in (Settings → Account)")}
-                size="sm"
-                type="button"
-              >
-                Sign in
-              </Button>
-            }
-            description="Sign in to your Compozy account to add remote computers over SSH or connect machines already linked to your account."
-            framed
-            icon={UserCheck}
-            title="Sign in to use other computers"
-          />
-        </SettingsGroup>
-      ) : (
-        <>
-          <ComputersListSection
-            account={account}
-            computers={computers}
-            onAddComputer={openAddComputer}
-            onOpenDetails={(target, tab) =>
-              toast(`Opens Computer details for ${target.name} (${tab ?? "status"} tab)`)
-            }
-            onRemove={setRemoveTarget}
-            onRemoveRoute={handleRemoveRoute}
-            onRename={target => toast(`Rename ${target.name}`)}
-            onToggleEnabled={handleToggleComputer}
-            onUpgrade={openUpgrade}
-            selectedComputerId={selectedComputerId}
-          />
+      <ComputersListSection
+        account={account}
+        computers={computers}
+        onAddComputer={openAddComputer}
+        onOpenDetails={(target, tab) =>
+          toast(`Opens Computer details for ${target.name} (${tab ?? "status"} tab)`)
+        }
+        onRemove={setRemoveTarget}
+        onRemoveRoute={handleRemoveRoute}
+        onRename={target => toast(`Rename ${target.name}`)}
+        onToggleEnabled={handleToggleComputer}
+        onUpgrade={openUpgrade}
+        selectedComputerId={selectedComputerId}
+      />
 
-          <AccountComputersSection
-            account={account}
-            computers={unadded}
-            onAddAccountComputer={handleAddAccountComputer}
-            onUpgrade={openUpgrade}
-          />
+      <AccountComputersSection
+        account={account}
+        computers={unadded}
+        onAddAccountComputer={handleAddAccountComputer}
+        onUpgrade={openUpgrade}
+      />
 
-          <LoadBalancingSection
-            computers={computers}
-            defaultOpen={loadBalancingOpen}
-            enabled={loadBalancingEnabled}
-            local={local}
-            onChangeComputerWeight={(id, weight: LoadBalancingWeight) =>
-              setComputers(current =>
-                current.map(item =>
-                  item.id === id ? { ...item, loadBalancingWeight: weight } : item
-                )
-              )
-            }
-            onChangeLocalWeight={weight =>
-              setLocal(current => ({ ...current, loadBalancingWeight: weight }))
-            }
-            onToggleEnabled={setLoadBalancingEnabled}
-          />
-        </>
-      )}
+      <LoadBalancingSection
+        computers={computers}
+        defaultOpen={loadBalancingOpen}
+        enabled={loadBalancingEnabled}
+        local={local}
+        onChangeComputerWeight={(id, weight: LoadBalancingWeight) =>
+          setComputers(current =>
+            current.map(item =>
+              item.id === id ? { ...item, loadBalancingWeight: weight } : item
+            )
+          )
+        }
+        onChangeLocalWeight={weight =>
+          setLocal(current => ({ ...current, loadBalancingWeight: weight }))
+        }
+        onToggleEnabled={setLoadBalancingEnabled}
+      />
     </RemoteSettingsShell>
   );
 }

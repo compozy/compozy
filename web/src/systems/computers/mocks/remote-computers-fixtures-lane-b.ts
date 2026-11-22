@@ -39,6 +39,21 @@ export const SSH_HOST_TRUST_FIXTURE = {
   verifyCommand: "ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub",
 } as const;
 
+export const SSH_HOST_KEY_CHANGED_FIXTURE = {
+  alias: "devbox",
+  host: "10.0.0.42",
+  user: "pedro",
+  port: "2222",
+  pinEntry: "[10.0.0.42]:2222",
+  target: "pedro@10.0.0.42:2222",
+  keyType: "ED25519",
+  // 36-char bodies = 9 groups of 4 (3 even rows in 3-column grid, zero orphan chunk)
+  pinnedFingerprint: "SHA256:1aZ9xC4vB7nM2kL5jH8gF3dS6aP0oI4uY7tR",
+  observedFingerprint: "SHA256:3vQ8mN2pR7xK4wL9cF1hJ6tB5yD0sA8eG2qU",
+  verifyCommand: "ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub",
+  recoveryCommand: "ssh-keygen -R '[10.0.0.42]:2222' -f ~/.compozy/ssh/known_hosts",
+} as const;
+
 export const SSH_SECRET_PROMPT_FIXTURE = {
   target: "deploy@10.0.0.71",
   promptLabel: "SSH password or verification code",
@@ -130,9 +145,7 @@ export function buildSshSetupSteps({
         title: "Connecting over SSH",
         status: isChanged ? "failed" : "needs_input",
         detail: targetAddress,
-        caption: isChanged
-          ? `${hostLabel}'s key changed since you trusted it.`
-          : "Verify this computer's host key before continuing.",
+        caption: isChanged ? undefined : "Verify this computer's host key before continuing.",
         prompt: trustPromptNode,
       },
       { id: "install", title: installTitle, status: "pending" },

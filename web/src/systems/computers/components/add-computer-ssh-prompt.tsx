@@ -7,7 +7,7 @@ import {
   AlertTitle,
   Button,
   CodeBlock,
-  Disclosure,
+  CopyIconButton,
   Field,
   FieldDescription,
   FieldLabel,
@@ -21,27 +21,69 @@ export interface AddComputerHostKeyCardProps {
   mode: "trust" | "changed";
   hostLabel: string;
   target: string;
+  pinEntry?: string;
   keyType: string;
   fingerprint: string;
   previousFingerprint?: string;
   verifyCommand?: string;
+  recoveryCommand?: string;
   onTrust?: () => void;
   onDecline?: () => void;
+}
+
+function splitFingerprintChunks(raw: string): string[] {
+  const colonIdx = raw.indexOf(":");
+  const body = colonIdx > 0 ? raw.slice(colonIdx + 1) : raw;
+  const clean = body.replace(/\s+/g, "");
+  const chunks: string[] = [];
+  for (let i = 0; i < clean.length; i += 4) {
+    chunks.push(clean.slice(i, i + 4));
+  }
+  return chunks;
+}
+
+function FingerprintPinCell({ label, value }: { label: string; value: string }) {
+  const chunks = splitFingerprintChunks(value);
+  return (
+    <div className="flex flex-col gap-1.5 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="eyebrow text-subtle">{label}</span>
+        <CopyIconButton
+          className="size-5 text-subtle hover:text-fg"
+          copiedLabel="Fingerprint copied"
+          copiedToastLabel="Fingerprint copied"
+          copyLabel={`Copy ${label.toLowerCase()} fingerprint`}
+          value={value}
+        />
+      </div>
+      <div
+        className="grid grid-cols-3 gap-x-2.5 gap-y-0.5 font-mono text-mono-id tracking-wide text-fg tabular-nums select-all"
+        title={value}
+      >
+        {chunks.map((chunk, idx) => (
+          <span key={`${idx}-${chunk}`}>{chunk}</span>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 /**
  * Anchored inline host-key prompt directly beneath the active `Connecting over SSH` step:
  * - `trust`: left-ruled inline prompt with a single framed fingerprint block (no nested card)
- * - `changed`: blocked warning (`ssh_host_key_changed`) explaining rebuilt host vs interception
+ * - `changed`: blocked warning (`ssh_host_key_changed`) with pinned vs observed fingerprints
+ *   from the same pin entry and the exact recovery command (no Replace action, Q8)
  */
 export function AddComputerHostKeyCard({
   mode,
   hostLabel,
   target,
+  pinEntry,
   keyType,
   fingerprint,
   previousFingerprint,
   verifyCommand = "ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub",
+  recoveryCommand,
   onTrust,
   onDecline,
 }: AddComputerHostKeyCardProps) {
@@ -50,39 +92,45 @@ export function AddComputerHostKeyCard({
       <div className="flex flex-col gap-3" data-slot="ssh-host-key-changed-card">
         <Alert variant="destructive">
           <ShieldAlert aria-hidden="true" />
-          <AlertTitle>{hostLabel}'s key changed since you trusted it</AlertTitle>
-          <AlertDescription className="flex flex-col gap-2">
-            <p>
-              Compozy blocked this connection to protect your credentials. This happens if{" "}
-              <span className="font-mono text-mono-id text-fg">{target}</span> was rebuilt, or if
-              another computer is answering at that address.
-            </p>
+          <AlertTitle>{hostLabel}&apos;s key changed since you trusted it.</AlertTitle>
+          <AlertDescription>
+            Compozy blocked this connection to protect your credentials. Check the key directly on{" "}
+            <span className="font-mono text-mono-id text-fg">{target}</span> before clearing the old
+            pin.
           </AlertDescription>
         </Alert>
 
-        <KeyFingerprint
-          columns={3}
-          label={`New ${keyType} fingerprint`}
-          layout="grid"
-          value={fingerprint}
-        />
-
-        {previousFingerprint ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 text-meta">
-            <span className="text-subtle">Previously trusted</span>
-            <KeyFingerprint copyable={false} layout="inline" value={previousFingerprint} />
+        <div className="overflow-hidden rounded-md border border-line bg-code-bg divide-y divide-line-soft">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-eyebrow">
+            <span className="text-subtle">
+              Pin entry{" "}
+              <span className="font-mono text-mono-id text-fg">{pinEntry ?? target}</span>
+            </span>
+            <span className="font-mono text-micro text-faint">{keyType} · SHA256</span>
           </div>
-        ) : null}
-
-        <Disclosure label="How to verify this host's fingerprint" variant="inline">
-          <div className="flex flex-col gap-2">
-            <p className="text-meta text-muted-foreground">
-              Run this command directly on {hostLabel} and compare the output before removing the
-              old entry from your local <span className="font-mono text-mono-id">known_hosts</span>:
-            </p>
-            <CodeBlock code={verifyCommand} copyable density="compact" language="bash" showPrompt />
+          <div className="grid grid-cols-1 divide-y divide-line-soft sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+            {previousFingerprint ? (
+              <FingerprintPinCell label="Pinned" value={previousFingerprint} />
+            ) : null}
+            <FingerprintPinCell label="Observed" value={fingerprint} />
           </div>
-        </Disclosure>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <p className="text-meta text-muted-foreground">
+            Check the host key on {hostLabel}, then remove the old pin and retry:
+          </p>
+          <CodeBlock code={verifyCommand} copyable density="compact" language="bash" showPrompt />
+          {recoveryCommand ? (
+            <CodeBlock
+              code={recoveryCommand}
+              copyable
+              density="compact"
+              language="bash"
+              showPrompt
+            />
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -240,8 +288,8 @@ export function AddComputerSecretCard({
             <FieldDescription className="flex items-center gap-1.5">
               <LockKeyhole aria-hidden="true" className="size-3 shrink-0 text-faint" />
               <span>
-                Entered only on your screen — sent to your local SSH process and never saved or
-                shown to agents.
+                Entered only on your screen. Sent to your local SSH process and never saved or shown
+                to agents.
               </span>
             </FieldDescription>
           </Field>

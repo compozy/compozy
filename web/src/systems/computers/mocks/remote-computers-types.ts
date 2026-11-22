@@ -4,6 +4,10 @@
 
 export type AccountPlan = "free" | "pro";
 
+export type AccountProvider = "google" | "github";
+
+export type AccountSessionSource = "session" | "host_link" | "account_token";
+
 export type AccountPresetKey =
   | "pro"
   | "free"
@@ -11,12 +15,29 @@ export type AccountPresetKey =
   | "past_due"
   | "ending"
   | "signed_out"
-  | "cloud_unreachable";
+  | "cloud_unreachable"
+  | "token_installation"
+  | "link_only_installation";
+
+export interface AccountTokenFixture {
+  id: string;
+  name: string;
+  createdLabel: string;
+  lastUsedLabel: string | null;
+}
 
 export interface AccountStateFixture {
   signedIn: boolean;
   accountId: string;
+  name: string;
   email: string;
+  provider: AccountProvider | null;
+  source: AccountSessionSource;
+  /** Token name when `source === "account_token"` (e.g. `"ci"`). */
+  tokenName: string | null;
+  marketingOptIn: boolean;
+  /** True when this computer is also linked to the account for remote access. */
+  installationLinked: boolean;
   plan: AccountPlan;
   remoteComputersUsed: number;
   /** `null` = unlimited (Pro). */

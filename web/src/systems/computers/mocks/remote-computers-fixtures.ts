@@ -27,13 +27,20 @@ export {
 
 const GB = 1024 * 1024 * 1024;
 
+export const OWNER_NAME = "Pedro Nauck";
 export const OWNER_EMAIL = "pedro@example.com";
 export const OWNER_ACCOUNT_ID = "acc_01k8m4p2q9";
 
 const PRO_BASE: AccountStateFixture = {
   signedIn: true,
   accountId: OWNER_ACCOUNT_ID,
+  name: OWNER_NAME,
   email: OWNER_EMAIL,
+  provider: "google",
+  source: "session",
+  tokenName: null,
+  marketingOptIn: true,
+  installationLinked: true,
   plan: "pro",
   remoteComputersUsed: 9,
   remoteComputersLimit: null,
@@ -50,6 +57,7 @@ const PRO_BASE: AccountStateFixture = {
 
 const FREE_BASE: AccountStateFixture = {
   ...PRO_BASE,
+  marketingOptIn: false,
   plan: "free",
   remoteComputersUsed: 1,
   remoteComputersLimit: 1,
@@ -68,10 +76,28 @@ export const ACCOUNT_PRESETS: Record<AccountPresetKey, AccountStateFixture> = {
     ...FREE_BASE,
     signedIn: false,
     accountId: "",
+    name: "",
     email: "",
+    provider: null,
+    installationLinked: false,
     remoteComputersUsed: 0,
   },
   cloud_unreachable: { ...PRO_BASE, cloudUnreachable: true },
+  token_installation: {
+    ...FREE_BASE,
+    provider: null,
+    source: "account_token",
+    tokenName: "ci",
+    installationLinked: false,
+    remoteComputersUsed: 0,
+  },
+  link_only_installation: {
+    ...PRO_BASE,
+    provider: null,
+    source: "host_link",
+    tokenName: null,
+    installationLinked: true,
+  },
 };
 
 export const ACCOUNT_DEVICES: readonly AccountDeviceFixture[] = [

@@ -302,23 +302,20 @@ export function ThisComputerSection({
         control={
           <Switch
             aria-label="Remote access"
-            checked={account.signedIn && local.remoteEnabled}
-            disabled={!account.signedIn}
+            checked={local.remoteEnabled}
             onCheckedChange={onToggleRemoteEnabled}
             size="sm"
           />
         }
         description={
-          !account.signedIn
-            ? "Sign in to turn on remote access."
-            : local.remoteEnabled
-              ? "Your other devices can connect to this computer over LAN, SSH, or a hosted route."
-              : "No other device can connect to this computer while remote access is off."
+          local.remoteEnabled
+            ? "Your other devices can connect to this computer over LAN, SSH, or a hosted route."
+            : "No other device can connect to this computer while remote access is off."
         }
         label="Remote access"
       />
 
-      {account.signedIn && local.remoteEnabled ? (
+      {local.remoteEnabled ? (
         <>
           <HostedRouteSubRow
             account={account}

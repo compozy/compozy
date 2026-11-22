@@ -12,8 +12,13 @@ import {
 } from "@compozy/ui/icons";
 
 import { Button, cn, Logo, Spinner, Surface } from "@compozy/ui";
+import { GithubLogo, GoogleLogo } from "@compozy/ui/logos";
 
-import type { ComputerIconKind, ComputerPlatform } from "../mocks/remote-computers-fixtures";
+import type {
+  AccountProvider,
+  ComputerIconKind,
+  ComputerPlatform,
+} from "../mocks/remote-computers-fixtures";
 import { ComputerPlatformIcon } from "./computer-platform-icon";
 import { KeyFingerprint } from "./key-fingerprint";
 
@@ -42,6 +47,7 @@ export interface BrowserSignInGateProps {
   signedInEmail?: string;
   /** Days remaining in the 7-day entitlement-only window (`needs_pro`). */
   graceDaysLeft?: number | null;
+  onSignInProvider?: (provider: AccountProvider) => void;
   onPrimaryAction?: () => void;
   onSecondaryAction?: () => void;
   className?: string;
@@ -109,6 +115,7 @@ export function BrowserSignInGate({
   trustedAdminDeviceName = "MacBook Pro",
   signedInEmail,
   graceDaysLeft,
+  onSignInProvider,
   onPrimaryAction,
   onSecondaryAction,
   className,
@@ -279,9 +286,30 @@ export function BrowserSignInGate({
 
           <div className="flex flex-col gap-2">
             {kind === "sign_in" ? (
-              <Button className="w-full" onClick={onPrimaryAction} size="cta-lg">
-                Sign in
-              </Button>
+              <>
+                <Button
+                  className="w-full"
+                  onClick={() =>
+                    onSignInProvider ? onSignInProvider("google") : onPrimaryAction?.()
+                  }
+                  size="cta-lg"
+                  variant="secondary"
+                >
+                  <GoogleLogo aria-hidden="true" className="size-4 shrink-0" />
+                  Continue with Google
+                </Button>
+                <Button
+                  className="w-full"
+                  onClick={() =>
+                    onSignInProvider ? onSignInProvider("github") : onPrimaryAction?.()
+                  }
+                  size="cta-lg"
+                  variant="secondary"
+                >
+                  <GithubLogo className="size-4 shrink-0" />
+                  Continue with GitHub
+                </Button>
+              </>
             ) : null}
 
             {kind === "waiting_approval" ? (

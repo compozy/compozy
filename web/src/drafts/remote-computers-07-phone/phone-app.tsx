@@ -11,22 +11,9 @@ import {
   X,
 } from "@compozy/ui/icons";
 
-import {
-  Button,
-  cn,
-  CodeBlock,
-  Empty,
-  Logo,
-  Pill,
-  PillCount,
-  StateGlyph,
-  StatusDot,
-  Surface,
-  toast,
-} from "@compozy/ui";
+import { Button, cn, Empty, Logo, PillCount, StatusDot, toast } from "@compozy/ui";
 
 import { ComputerPlatformIcon } from "@/systems/computers/components/computer-platform-icon";
-import { KeyFingerprint } from "@/systems/computers/components/key-fingerprint";
 import { PhoneComputerMenu } from "@/systems/computers/components/phone-computer-menu";
 import type {
   ComputerFixture,
@@ -40,11 +27,10 @@ import {
   PHONE_FULL_SCOPES,
   PHONE_PEERS_MULTI,
   PHONE_STUDIO_SESSIONS,
-  PHONE_TERMINAL_OUTPUT,
 } from "@/systems/computers/mocks/remote-computers-fixtures-phone";
-import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
 
 import { useIsWideBrowser } from "./phone-frame";
+import { PhoneApprovalsPane, PhoneSessionList, PhoneTerminalPane } from "./phone-panes";
 import { PhoneSessionView } from "./phone-session-view";
 
 export type PhoneTabId = "sessions" | "terminal" | "approvals";
@@ -60,19 +46,6 @@ export interface PhoneAppProps {
   initialComputerMenuOpen?: boolean;
   offline?: boolean;
   showInstallHint?: boolean;
-}
-
-function sessionStateLabel(state: UnifiedSessionFixture["state"]): string {
-  switch (state) {
-    case "attention":
-      return "Needs you";
-    case "running":
-      return "Working";
-    case "done":
-      return "Done";
-    case "idle":
-      return "Idle";
-  }
 }
 
 /**
@@ -123,6 +96,17 @@ export function PhoneApp({
   const handleRetry = () => {
     setOffline(false);
     toast.success(`Reconnected to ${computer.name}`);
+  };
+
+  const handleSignOut = () => {
+    setComputerMenuOpen(false);
+    toast(`Signed out on ${computer.name}. This device stays registered on your account.`);
+  };
+
+  const handleDecideApproval = (approvalId: string, decision: "approved" | "denied") => {
+    setApprovals(current =>
+      current.map(entry => (entry.id === approvalId ? { ...entry, state: decision } : entry))
+    );
   };
 
   const renderHeader = () => (
@@ -179,217 +163,21 @@ export function PhoneApp({
     ) : null;
 
   const renderSessionList = () => (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-line-soft px-3.5 py-2">
-        <Pill
-          active={projectFilter === "all"}
-          onClick={() => setProjectFilter("all")}
-          render={<button type="button" />}
-          size="sm"
-          tone="neutral"
-        >
-          All · {sessions.length}
-        </Pill>
-        {projects.map(project => (
-          <Pill
-            active={projectFilter === project}
-            key={project}
-            onClick={() => setProjectFilter(project)}
-            render={<button type="button" />}
-            size="sm"
-            tone="neutral"
-          >
-            {project}
-          </Pill>
-        ))}
-      </div>
-
-      <div
-        className={cn(
-          "flex min-h-0 flex-1 flex-col divide-y divide-line-soft overflow-y-auto",
-          offline && "opacity-70"
-        )}
-      >
-        {filteredSessions.map(item => {
-          const needsYou = item.state === "attention";
-          const isSelected = isWide && activeTab === "sessions" && openSessionId === item.id;
-          return (
-            <button
-              aria-current={isSelected ? "true" : undefined}
-              className={cn(
-                "flex min-h-15 w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none",
-                isSelected && "bg-selected hover:bg-selected"
-              )}
-              key={item.id}
-              onClick={() => {
-                setOpenSessionId(item.id);
-                setActiveTab("sessions");
-              }}
-              type="button"
-            >
-              <span className="mt-1 shrink-0">
-                <StateGlyph size="md" state={offline ? "idle" : item.state} still={offline} />
-              </span>
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span
-                    className={cn(
-                      "min-w-0 truncate text-body text-fg",
-                      (needsYou || isSelected) && "font-medium text-fg-strong"
-                    )}
-                  >
-                    {item.title}
-                  </span>
-                  <span className="shrink-0 font-mono text-micro text-subtle tabular-nums">
-                    {item.updatedLabel}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 text-eyebrow text-subtle">
-                  <WorkspaceBadge
-                    identity={{ id: item.project, kind: "workspace", name: item.project }}
-                  />
-                  <span aria-hidden="true">·</span>
-                  <span className={cn(needsYou && !offline && "font-medium text-attn")}>
-                    {offline ? "Offline" : sessionStateLabel(item.state)}
-                  </span>
-                  <span aria-hidden="true">·</span>
-                  <span className="truncate">{item.model}</span>
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-
-  const renderTerminalPane = () => (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <div
-        className={cn(
-          "mx-auto flex w-full max-w-3xl flex-col gap-3",
-          isWide ? "px-6 py-6" : "px-3.5 py-3.5"
-        )}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex flex-col">
-            <span className="text-body font-medium text-fg-strong">zsh on {computer.name}</span>
-            <span className="font-mono text-micro text-subtle">/Users/pedro/code/api</span>
-          </div>
-          <Pill form="plain" tone={offline ? "warning" : "success"}>
-            <Pill.Dot />
-            {offline ? "Disconnected" : "Live"}
-          </Pill>
-        </div>
-        <CodeBlock
-          code={PHONE_TERMINAL_OUTPUT.join("\n")}
-          copyable
-          density="compact"
-          language="bash"
-          wrapLines
-        />
-        <p className="text-eyebrow text-subtle">
-          Commands run directly on {computer.name} under your user account. Output stays buffered if
-          your connection drops briefly.
-        </p>
-      </div>
-    </div>
-  );
-
-  const renderApprovalsPane = () => (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <div
-        className={cn(
-          "mx-auto flex w-full max-w-xl flex-col gap-3",
-          isWide ? "px-6 py-6" : "px-3.5 py-3.5"
-        )}
-      >
-        {approvals.length === 0 ? (
-          <Empty
-            description={`New device requests for ${computer.name} appear here.`}
-            icon={Bell}
-            size="compact"
-            title="No pending approvals"
-          />
-        ) : (
-          approvals.map(item => (
-            <Surface className="flex flex-col gap-3 p-4" key={item.id} variant="card">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className="truncate text-body font-medium text-fg-strong">
-                    {item.deviceName}
-                  </span>
-                  <span className="text-eyebrow text-subtle">
-                    Wants to access {item.computerName} · {item.createdLabel}
-                  </span>
-                </div>
-                <Pill
-                  form="tint"
-                  tone={
-                    item.state === "approved"
-                      ? "success"
-                      : item.state === "denied"
-                        ? "destructive"
-                        : "warning"
-                  }
-                >
-                  {item.state === "approved"
-                    ? "Approved"
-                    : item.state === "denied"
-                      ? "Denied"
-                      : "Waiting"}
-                </Pill>
-              </div>
-
-              <KeyFingerprint
-                columns={3}
-                label="Device fingerprint"
-                layout="grid"
-                value={item.keyFingerprint}
-              />
-
-              {item.canDecide ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    disabled={item.state !== "pending"}
-                    onClick={() => {
-                      setApprovals(current =>
-                        current.map(entry =>
-                          entry.id === item.id ? { ...entry, state: "denied" } : entry
-                        )
-                      );
-                      toast(`Denied ${item.deviceName}`);
-                    }}
-                    size="lg"
-                    variant="outline"
-                  >
-                    Deny
-                  </Button>
-                  <Button
-                    disabled={item.state !== "pending"}
-                    onClick={() => {
-                      setApprovals(current =>
-                        current.map(entry =>
-                          entry.id === item.id ? { ...entry, state: "approved" } : entry
-                        )
-                      );
-                      toast.success(`Approved ${item.deviceName}`);
-                    }}
-                    size="lg"
-                  >
-                    Approve
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-eyebrow text-subtle">
-                  Approve on {item.computerName}, or from a device it already trusts.
-                </p>
-              )}
-            </Surface>
-          ))
-        )}
-      </div>
-    </div>
+    <PhoneSessionList
+      activeTab={activeTab}
+      filteredSessions={filteredSessions}
+      isWide={isWide}
+      offline={offline}
+      onOpenSession={sessionId => {
+        setOpenSessionId(sessionId);
+        setActiveTab("sessions");
+      }}
+      onSelectProject={setProjectFilter}
+      openSessionId={openSessionId}
+      projectFilter={projectFilter}
+      projects={projects}
+      sessions={sessions}
+    />
   );
 
   if (isWide) {
@@ -466,9 +254,14 @@ export function PhoneApp({
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
           {activeTab === "terminal" && canOperateTerminal ? (
-            renderTerminalPane()
+            <PhoneTerminalPane computer={computer} isWide offline={offline} />
           ) : activeTab === "approvals" ? (
-            renderApprovalsPane()
+            <PhoneApprovalsPane
+              approvals={approvals}
+              computer={computer}
+              isWide
+              onDecide={handleDecideApproval}
+            />
           ) : openSession ? (
             <PhoneSessionView
               canOperateTerminal={canOperateTerminal}
@@ -508,6 +301,7 @@ export function PhoneApp({
             setComputerMenuOpen(false);
             toast(`Opening https://${peer.hostname}`);
           }}
+          onSignOut={handleSignOut}
           open={computerMenuOpen}
           peers={peers}
           presentation="popover"
@@ -567,8 +361,17 @@ export function PhoneApp({
       ) : null}
 
       {activeTab === "sessions" ? renderSessionList() : null}
-      {activeTab === "terminal" && canOperateTerminal ? renderTerminalPane() : null}
-      {activeTab === "approvals" ? renderApprovalsPane() : null}
+      {activeTab === "terminal" && canOperateTerminal ? (
+        <PhoneTerminalPane computer={computer} isWide={false} offline={offline} />
+      ) : null}
+      {activeTab === "approvals" ? (
+        <PhoneApprovalsPane
+          approvals={approvals}
+          computer={computer}
+          isWide={false}
+          onDecide={handleDecideApproval}
+        />
+      ) : null}
 
       <nav
         aria-label="Phone navigation"
@@ -629,6 +432,7 @@ export function PhoneApp({
           setComputerMenuOpen(false);
           toast(`Opening https://${peer.hostname}`);
         }}
+        onSignOut={handleSignOut}
         open={computerMenuOpen}
         peers={peers}
         presentation="sheet"

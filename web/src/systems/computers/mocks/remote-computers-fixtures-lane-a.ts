@@ -9,6 +9,7 @@ import {
   PENDING_APPROVALS,
   type AccountDeviceFixture,
   type AccountStateFixture,
+  type AccountTokenFixture,
   type PendingApprovalFixture,
 } from "./remote-computers-fixtures";
 
@@ -141,4 +142,38 @@ export const ACCOUNT_PRO_HOSTED_CAP: AccountStateFixture = {
   remoteComputersUsed: 12,
   cloudRoutesUsed: 10,
   cloudRoutesLimit: 10,
+};
+
+/** Account tokens for CI and ephemeral environments (`_uiux.md` U3, US-029). */
+export const ACCOUNT_TOKENS: readonly AccountTokenFixture[] = [
+  {
+    id: "atk_8d2k1m",
+    name: "ci",
+    createdLabel: "Nov 12, 2026",
+    lastUsedLabel: "2 hours ago",
+  },
+  {
+    id: "atk_3p7r9x",
+    name: "release-runner",
+    createdLabel: "Nov 19, 2026",
+    lastUsedLabel: "1 day ago",
+  },
+  {
+    id: "atk_5n1q4v",
+    name: "nightly-evals",
+    createdLabel: "Nov 21, 2026",
+    lastUsedLabel: null,
+  },
+];
+
+export interface CreatedAccountTokenFixture {
+  id: string;
+  name: string;
+  token: string;
+}
+
+export const CREATED_ACCOUNT_TOKEN_FIXTURE: CreatedAccountTokenFixture = {
+  id: "atk_9w4m2k",
+  name: "ci-preview",
+  token: "cpzat_2Qe8kL4mN9pR7xT1vB6cD3fG5hJ0sA8wY2uXv9",
 };
