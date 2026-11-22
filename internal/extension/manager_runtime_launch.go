@@ -180,6 +180,7 @@ func (m *Manager) launchConfigFor(
 		ctx,
 		ext.instanceKey(),
 		ext.manifest.RequiresEnv,
+		ext.manifest.SubprocessInputs(),
 		ext.rootDir,
 		ext.manifest.Subprocess.Env,
 		ext.manifest.Subprocess.SecretEnv,

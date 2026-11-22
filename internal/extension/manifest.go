@@ -104,14 +104,17 @@ type Manifest struct {
 
 	MinCompozyVersion string `toml:"min_compozy_version" json:"min_compozy_version"`
 
-	Inputs       []ManifestInput     `toml:"inputs,omitempty"       json:"inputs,omitempty"`
-	RequiresEnv  []string            `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
-	Gateway      *GatewayRequirement `toml:"gateway,omitempty"      json:"gateway,omitzero"`
-	Resources    ResourcesConfig     `toml:"resources"              json:"resources"`
-	Capabilities CapabilitiesConfig  `toml:"capabilities"           json:"capabilities"`
-	Permissions  PermissionsConfig   `toml:"permissions"            json:"permissions"`
-	Subprocess   SubprocessConfig    `toml:"subprocess"             json:"subprocess"`
-	Profiles     []ManifestProfile   `toml:"profiles,omitempty"     json:"profiles,omitempty"`
+	Inputs      []ManifestInput `toml:"inputs,omitempty"       json:"inputs,omitempty"`
+	RequiresEnv []string        `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
+	// DeclaredRequiresEnv is the author-declared requires_env before required env inputs are folded
+	// into RequiresEnv. It is not serialized; encode keeps writing the folded RequiresEnv.
+	DeclaredRequiresEnv []string            `toml:"-"                      json:"-"`
+	Gateway             *GatewayRequirement `toml:"gateway,omitempty"      json:"gateway,omitzero"`
+	Resources           ResourcesConfig     `toml:"resources"              json:"resources"`
+	Capabilities        CapabilitiesConfig  `toml:"capabilities"           json:"capabilities"`
+	Permissions         PermissionsConfig   `toml:"permissions"            json:"permissions"`
+	Subprocess          SubprocessConfig    `toml:"subprocess"             json:"subprocess"`
+	Profiles            []ManifestProfile   `toml:"profiles,omitempty"     json:"profiles,omitempty"`
 }
 
 // ResourcesConfig declares static assets packaged with an extension.

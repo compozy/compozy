@@ -48,12 +48,13 @@ func manifestFromDescribe(input *extensioncontract.DescribePayload) (*Manifest, 
 		return nil, err
 	}
 	manifest := &Manifest{
-		Name:              strings.TrimSpace(payload.Name),
-		Version:           strings.TrimSpace(payload.Version),
-		Description:       strings.TrimSpace(payload.Description),
-		MinCompozyVersion: strings.TrimSpace(payload.SDK.MinCompozyVersion),
-		RequiresEnv:       payload.RequiresEnv,
-		Profiles:          manifestProfilesFromDescribe(payload.Profiles),
+		Name:                strings.TrimSpace(payload.Name),
+		Version:             strings.TrimSpace(payload.Version),
+		Description:         strings.TrimSpace(payload.Description),
+		MinCompozyVersion:   strings.TrimSpace(payload.SDK.MinCompozyVersion),
+		RequiresEnv:         payload.RequiresEnv,
+		DeclaredRequiresEnv: slices.Clone(payload.RequiresEnv),
+		Profiles:            manifestProfilesFromDescribe(payload.Profiles),
 		Resources: ResourcesConfig{
 			Skills:     manifestResourcePathsFromDescribe(payload.Resources.Skills),
 			Loops:      manifestResourcePathsFromDescribe(payload.Resources.Loops),

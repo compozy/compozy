@@ -18,7 +18,7 @@ func DescribeInputState(
 	if manifest != nil {
 		for _, input := range manifest.Inputs {
 			declared[input.ID] = struct{}{}
-			_, _, present, err := effectiveInputValue(input, state, getenv)
+			_, _, present, err := manifestInputValue(manifest, input, state, getenv)
 			active := true
 			if record, found := state.Values[input.ID]; found {
 				active = record.Active

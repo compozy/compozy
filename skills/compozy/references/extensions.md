@@ -57,9 +57,11 @@ state. Read the fresh detail when following events; the creation result can prec
 
 Native manifests declare install values with `[[inputs]]`: unique `id`, `prompt`,
 `type = string|identifier|boolean|secret`, `required`, and `binding = {type, name}`.
-An `env` binding must match a server's `env` or `secret_env` key; the map value is the input id.
-A `url_query` binding must match a parameter declared in a remote server URL. Secrets require
-`secret_env`, cannot bind URLs, and cannot have defaults. Boolean defaults are booleans; other
+An `env` binding must match a server's `env` or `secret_env` key (the map value is the input id),
+or name an author-declared `requires_env` entry; the latter delivers the value to the extension
+subprocess as that env var and needs `min_compozy_version >= 0.7.9` when no server references it.
+A `url_query` binding must match a parameter declared in a remote server URL. Server-bound secrets
+require `secret_env`; secrets cannot bind URLs or have defaults. Boolean defaults are booleans; other
 non-secret defaults are strings. Values are NUL-free and at most 8 KiB; identifier values use
 URL-safe unreserved characters.
 
@@ -87,6 +89,12 @@ stay in that instance. The CLI derives types from the manifest. Required-field f
 `inputs` and candidate `input_definitions` in `extension_inputs_required`; prompt for those fields
 and retry the same scoped request. Inputs remain isolated by profile: an unconfigured profile
 publishes no packaged MCPs and does not block installation or restart in a configured profile.
+Subprocess inputs share this gate and the same `inputs`/`input_definitions` lists. Their values,
+non-secret ones included, are stored as instance env bindings in the Vault, so
+`compozy extension secrets set <name> --env <KEY>` also satisfies them. Launch injects the bound
+value or the input default; the daemon environment never reaches the subprocess and never satisfies
+a subprocess-only input. A stored value that no longer fits a changed input type reads invalid:
+required ones block enable, optional ones are omitted from the process and its MCP servers.
 `extension_input_invalid` names the invalid input_id, and
 `extension_source_changed` requires reviewing the current artifact before retrying.
 

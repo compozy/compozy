@@ -790,3 +790,91 @@ func TestTemplateBindingName(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: an optional input whose stored value fails the current manifest type publishes the server
+// shape of an absent optional input, while a required one still fails publication (rule 5).
+// Owner: extension MCP publication. Canonical suite: resource_publication_test.go.
+func TestResolveManifestMCPServerOptionalInvalidInputs(t *testing.T) {
+	t.Parallel()
+	staleState := InputState{Values: map[string]InputValueRecord{
+		"region": {Type: "identifier", Value: json.RawMessage(`"eu"`), Active: true},
+	}}
+	cases := []struct {
+		name    string
+		binding marketplace.InputBinding
+		server  MCPServerConfig
+		check   func(*testing.T, ResolvedManifestMCPServer)
+	}{
+		{
+			name:    "drop the env key",
+			binding: marketplace.InputBinding{Type: "env", Name: "REGION"},
+			server:  MCPServerConfig{Command: "acme", Env: map[string]string{"REGION": "region"}},
+			check: func(t *testing.T, server ResolvedManifestMCPServer) {
+				t.Helper()
+				if _, exists := server.Env["REGION"]; exists {
+					t.Fatalf("Env = %#v, want no REGION placeholder or stale value", server.Env)
+				}
+			},
+		},
+		{
+			name:    "remove the query parameter",
+			binding: marketplace.InputBinding{Type: "url_query", Name: "region"},
+			server:  MCPServerConfig{Transport: "http", URL: "https://acme.example/mcp?region="},
+			check: func(t *testing.T, server ResolvedManifestMCPServer) {
+				t.Helper()
+				parsed, err := url.Parse(server.URL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if parsed.Query().Has("region") {
+					t.Fatalf("URL = %q, want region removed", server.URL)
+				}
+			},
+		},
+		{
+			name:    "render the template fallback",
+			binding: marketplace.InputBinding{Type: "template", Name: "REGION"},
+			server:  MCPServerConfig{Transport: "http", URL: "https://${REGION:-fallback.example}/mcp"},
+			check: func(t *testing.T, server ResolvedManifestMCPServer) {
+				t.Helper()
+				rendered, _, err := server.RenderInputs(nil)
+				if err != nil || rendered.URL != "https://fallback.example/mcp" {
+					t.Fatalf("RenderInputs() URL = %q, err = %v", rendered.URL, err)
+				}
+			},
+		},
+	}
+	for _, tc := range cases {
+		manifestFor := func(required bool) *Manifest {
+			return &Manifest{
+				Name: "acme",
+				Inputs: []ManifestInput{{
+					ID: "region", Prompt: "Region", Type: "boolean", Required: required, Binding: tc.binding,
+				}},
+				Resources: ResourcesConfig{MCPServers: map[string]MCPServerConfig{"acme": tc.server}},
+			}
+		}
+		t.Run("Should "+tc.name+" for an optional invalid input", func(t *testing.T) {
+			t.Parallel()
+			servers, err := ResolveManifestMCPServerResources(
+				t.TempDir(), manifestFor(false), staleState, func(string) string { return "" },
+			)
+			if err != nil {
+				t.Fatalf("ResolveManifestMCPServerResources() error = %v", err)
+			}
+			if len(servers) != 1 {
+				t.Fatalf("server count = %d, want 1", len(servers))
+			}
+			tc.check(t, servers[0])
+		})
+		t.Run("Should fail publication when the invalid input for "+tc.name+" is required", func(t *testing.T) {
+			t.Parallel()
+			_, err := ResolveManifestMCPServerResources(
+				t.TempDir(), manifestFor(true), staleState, func(string) string { return "" },
+			)
+			if err == nil {
+				t.Fatal("ResolveManifestMCPServerResources() error = nil, want required input failure")
+			}
+		})
+	}
+}

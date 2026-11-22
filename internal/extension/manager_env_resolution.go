@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/store"
 
@@ -35,13 +36,14 @@ func (m *Manager) resolveEnvMap(
 	env map[string]string,
 	secretEnv map[string]string,
 ) ([]string, []func(), error) {
-	return m.resolveInstanceEnvMap(ctx, InstanceKey{}, nil, rootDir, env, secretEnv)
+	return m.resolveInstanceEnvMap(ctx, InstanceKey{}, nil, nil, rootDir, env, secretEnv)
 }
 
 func (m *Manager) resolveInstanceEnvMap(
 	ctx context.Context,
 	key InstanceKey,
 	requiresEnv []string,
+	subprocessInputs []ManifestInput,
 	rootDir string,
 	env map[string]string,
 	secretEnv map[string]string,
@@ -54,7 +56,7 @@ func (m *Manager) resolveInstanceEnvMap(
 	if err != nil {
 		return nil, nil, err
 	}
-	bindingMap, bindingCleanups, err := m.resolveBoundEnvMap(ctx, key, requiresEnv)
+	bindingMap, bindingCleanups, err := m.resolveBoundEnvMap(ctx, key, requiresEnv, subprocessInputs)
 	if err != nil {
 		runExtensionRedactionCleanups(cleanups)
 		return nil, nil, err
@@ -110,29 +112,41 @@ func (m *Manager) resolveInstanceEnvMap(
 	return values, cleanups, nil
 }
 
+// resolveBoundEnvMap delivers instance bindings for requires_env names. A subprocess-bound input's
+// binding is re-checked against its manifest type and omitted when invalid; an unbound input falls back
+// to its default. The daemon environment is never copied.
 func (m *Manager) resolveBoundEnvMap(
 	ctx context.Context,
 	key InstanceKey,
 	requiresEnv []string,
+	subprocessInputs []ManifestInput,
 ) (map[string]string, []func(), error) {
 	key = key.Normalize()
-	if m.envBindings == nil || key.Name == "" || len(requiresEnv) == 0 {
+	if key.Name == "" || len(requiresEnv) == 0 {
 		return nil, nil, nil
 	}
-	if ctx == nil {
-		return nil, nil, errors.New("extension: bound env context is required")
-	}
-	profileID := key.ProfileID
-	if profileID == "" {
-		profileID = store.DefaultProfileID
-	}
-	bindings, err := m.envBindings.ResolveEnvBindings(ctx, key.Name, profileID, key.WorkspaceID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("extension: resolve subprocess env bindings for %q: %w", key.runtimeID(), err)
+	var bindings []EnvBinding
+	if m.envBindings != nil {
+		if ctx == nil {
+			return nil, nil, errors.New("extension: bound env context is required")
+		}
+		profileID := key.ProfileID
+		if profileID == "" {
+			profileID = store.DefaultProfileID
+		}
+		var err error
+		bindings, err = m.envBindings.ResolveEnvBindings(ctx, key.Name, profileID, key.WorkspaceID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("extension: resolve subprocess env bindings for %q: %w", key.runtimeID(), err)
+		}
 	}
 	declared := make(map[string]struct{}, len(requiresEnv))
 	for _, name := range normalizeStrings(requiresEnv) {
 		declared[name] = struct{}{}
+	}
+	inputTypes := make(map[string]string, len(subprocessInputs))
+	for _, input := range subprocessInputs {
+		inputTypes[strings.TrimSpace(input.Binding.Name)] = input.Type
 	}
 	values := make(map[string]string, len(bindings))
 	cleanups := make([]func(), 0, len(bindings))
@@ -153,8 +167,25 @@ func (m *Manager) resolveBoundEnvMap(
 			runExtensionRedactionCleanups(cleanups)
 			return nil, nil, &boundEnvResolutionError{envName: name, cause: err}
 		}
-		values[name] = value
 		cleanups = append(cleanups, diagnostics.RegisterDynamicSecret(value))
+		if inputType, bound := inputTypes[name]; bound && inputType != manifestInputTypeSecret {
+			normalized, err := marketplace.NormalizeMCPInputValue(inputType, value)
+			if err != nil {
+				// Invalid values are never injected; readiness refuses start when the input is required.
+				continue
+			}
+			value = normalized
+		}
+		values[name] = value
+	}
+	for _, input := range subprocessInputs {
+		name := strings.TrimSpace(input.Binding.Name)
+		if _, bound := values[name]; bound || len(input.Default) == 0 {
+			continue
+		}
+		if value, err := typedInputValue(input.Type, input.Default); err == nil {
+			values[name] = value
+		}
 	}
 	return values, cleanups, nil
 }

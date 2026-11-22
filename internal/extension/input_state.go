@@ -20,6 +20,8 @@ type InputValueRecord struct {
 	SecretRef string
 	Active    bool
 	UpdatedAt time.Time
+	// Invalid names why a stored value fails the current manifest type; the value is never kept.
+	Invalid string
 }
 
 // InputState is the effective input snapshot for one extension instance.
@@ -29,6 +31,10 @@ type InputState struct{ Values map[string]InputValueRecord }
 type Readiness struct {
 	MissingInputs []string
 	MissingEnv    []string
+	// InvalidInputs have a stored value that fails the current manifest type; required ones also block.
+	InvalidInputs []string
+	// DaemonEnvInputs are server-and-subprocess inputs satisfied only by the daemon environment.
+	DaemonEnvInputs []string
 }
 
 // RequiredError names manifest input IDs while retaining the separate missing environment list.
@@ -86,7 +92,8 @@ func (e *InputsRequiredError) Error() string {
 	)
 }
 
-// InputReadiness uses stored values/defaults for URL inputs and permits environment fallback only for env inputs.
+// InputReadiness uses stored values/defaults for URL inputs and permits environment fallback only for
+// env inputs that an MCP server consumes; subprocess-only inputs need a binding or a default.
 func InputReadiness(manifest *Manifest, state InputState, getenv func(string) string) Readiness {
 	result := Readiness{MissingInputs: []string{}, MissingEnv: []string{}}
 	if manifest == nil {
@@ -97,15 +104,7 @@ func InputReadiness(manifest *Manifest, state InputState, getenv func(string) st
 	}
 	satisfiedEnv := make(map[string]bool)
 	for _, input := range manifest.Inputs {
-		_, _, present, err := effectiveInputValue(input, state, getenv)
-		if input.Binding.Type == manifestEnvKey {
-			satisfiedEnv[input.Binding.Name] = present && err == nil
-			if input.Required && !satisfiedEnv[input.Binding.Name] {
-				result.MissingEnv = append(result.MissingEnv, input.Binding.Name)
-			}
-		} else if input.Required && (!present || err != nil) {
-			result.MissingInputs = append(result.MissingInputs, input.ID)
-		}
+		result.addInput(manifest, input, state, getenv, satisfiedEnv)
 	}
 	for _, name := range manifest.RequiresEnv {
 		present, declared := satisfiedEnv[name]
@@ -118,7 +117,56 @@ func InputReadiness(manifest *Manifest, state InputState, getenv func(string) st
 	}
 	slices.Sort(result.MissingEnv)
 	slices.Sort(result.MissingInputs)
+	slices.Sort(result.InvalidInputs)
+	slices.Sort(result.DaemonEnvInputs)
 	return result
+}
+
+func (r *Readiness) addInput(
+	manifest *Manifest, input ManifestInput, state InputState, getenv func(string) string,
+	satisfiedEnv map[string]bool,
+) {
+	_, _, present, err := manifestInputValue(manifest, input, state, getenv)
+	if err != nil {
+		r.InvalidInputs = append(r.InvalidInputs, input.ID)
+	} else if present && manifest.daemonEnvInput(input, state, getenv) {
+		r.DaemonEnvInputs = append(r.DaemonEnvInputs, input.ID)
+	}
+	usable := present && err == nil
+	if input.Binding.Type != manifestEnvKey {
+		if input.Required && !usable {
+			r.MissingInputs = append(r.MissingInputs, input.ID)
+		}
+		return
+	}
+	// An optional subprocess input never blocks start through its requires_env key.
+	satisfied := usable || (!input.Required && manifest.SubprocessInput(input))
+	satisfiedEnv[input.Binding.Name] = satisfiedEnv[input.Binding.Name] || satisfied
+	if input.Required && !usable && !slices.Contains(r.MissingEnv, input.Binding.Name) {
+		r.MissingEnv = append(r.MissingEnv, input.Binding.Name)
+	}
+}
+
+// manifestInputValue withholds the daemon environment from subprocess-only inputs (rule 5c).
+func manifestInputValue(
+	manifest *Manifest, input ManifestInput, state InputState, getenv func(string) string,
+) (value, ref string, present bool, err error) {
+	if manifest.SubprocessOnlyInput(input) {
+		getenv = func(string) string { return "" }
+	}
+	return effectiveInputValue(input, state, getenv)
+}
+
+// daemonEnvInput reports a server-and-subprocess input with no stored value or default whose only
+// source is the daemon environment, which the subprocess never receives (rule 5a/5d).
+func (m *Manifest) daemonEnvInput(input ManifestInput, state InputState, getenv func(string) string) bool {
+	if !m.SubprocessInput(input) || !m.ServerInput(input) || len(input.Default) > 0 {
+		return false
+	}
+	if record, found := state.Values[input.ID]; found && record.Active {
+		return false
+	}
+	return strings.TrimSpace(getenv(input.Binding.Name)) != ""
 }
 
 func effectiveInputValue(
@@ -127,6 +175,9 @@ func effectiveInputValue(
 	getenv func(string) string,
 ) (value, ref string, present bool, err error) {
 	if record, found := state.Values[input.ID]; found && record.Active {
+		if record.Invalid != "" {
+			return "", "", false, &InputValidationError{input.ID, record.Invalid}
+		}
 		if record.Type != input.Type {
 			return "", "", false, &InputValidationError{input.ID, "stored type does not match the manifest"}
 		}

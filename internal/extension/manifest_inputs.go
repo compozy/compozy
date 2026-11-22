@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/marketplace"
@@ -84,7 +85,51 @@ func manifestRequiredEnv(existing []string, inputs []ManifestInput) []string {
 	return values
 }
 
-// ValidateManifestInputs checks grammar and resolves every binding to declared servers.
+// subprocessInputsFloor is the first release that delivers subprocess-bound inputs (rule 1b).
+// Older daemons reject such inputs as unbound, so the manifest must require this release.
+const subprocessInputsFloor = "0.7.9"
+
+// SubprocessInput reports whether input reaches the extension subprocess: an env binding whose
+// name the author declared in requires_env.
+func (m *Manifest) SubprocessInput(input ManifestInput) bool {
+	return m != nil && input.Binding.Type == manifestEnvKey &&
+		slices.Contains(m.DeclaredRequiresEnv, strings.TrimSpace(input.Binding.Name))
+}
+
+// SubprocessInputs lists the inputs delivered to the extension subprocess.
+func (m *Manifest) SubprocessInputs() []ManifestInput {
+	if m == nil {
+		return nil
+	}
+	var inputs []ManifestInput
+	for _, input := range m.Inputs {
+		if m.SubprocessInput(input) {
+			inputs = append(inputs, input)
+		}
+	}
+	return inputs
+}
+
+// ServerInput reports whether any declared MCP server references input (rule 1a).
+func (m *Manifest) ServerInput(input ManifestInput) bool {
+	if m == nil {
+		return false
+	}
+	for _, server := range m.Resources.MCPServers {
+		if matches, err := manifestInputMatchesServer(input, server); err == nil && matches {
+			return true
+		}
+	}
+	return false
+}
+
+// SubprocessOnlyInput reports whether input is valid only because it reaches the subprocess.
+func (m *Manifest) SubprocessOnlyInput(input ManifestInput) bool {
+	return m.SubprocessInput(input) && !m.ServerInput(input)
+}
+
+// ValidateManifestInputs checks grammar and resolves every binding to declared servers or to the
+// author-declared requires_env.
 func ValidateManifestInputs(manifest *Manifest) error {
 	if manifest == nil {
 		return nil
@@ -96,6 +141,7 @@ func ValidateManifestInputs(manifest *Manifest) error {
 		}
 		return &ManifestValidationError{Field: field, Message: err.Error()}
 	}
+	subprocessOnly := false
 	for index, input := range manifest.Inputs {
 		bound := false
 		for _, name := range sortedMapKeys(manifest.Resources.MCPServers) {
@@ -109,14 +155,34 @@ func ValidateManifestInputs(manifest *Manifest) error {
 			}
 			bound = bound || matches
 		}
+		if !bound && manifest.SubprocessInput(input) {
+			bound, subprocessOnly = true, true
+		}
 		if !bound {
 			return &ManifestValidationError{
 				Field:   fmt.Sprintf("inputs[%d].binding", index),
-				Message: "input is not bound to any declared MCP server",
+				Message: "input is not bound to any declared MCP server or author-declared requires_env",
 			}
 		}
 	}
+	if subprocessOnly {
+		return validateFeatureFloor(manifest.MinCompozyVersion, "subprocess-bound inputs", subprocessInputsFloor)
+	}
 	return nil
+}
+
+// validateFeatureFloor turns a feature older daemons would misread into their version refusal.
+func validateFeatureFloor(minVersion, feature, floor string) error {
+	required, ok := parseSemanticVersion(strings.TrimSpace(minVersion))
+	floorVersion, _ := parseSemanticVersion(floor)
+	if ok && compareSemanticVersions(required, floorVersion) >= 0 {
+		return nil
+	}
+	return &ManifestValidationError{
+		Field:   manifestMinCompozyVersionKey,
+		Value:   minVersion,
+		Message: fmt.Sprintf("%s require min_compozy_version %s or newer", feature, floor),
+	}
 }
 
 func manifestInputMatchesServer(input ManifestInput, server MCPServerConfig) (bool, error) {

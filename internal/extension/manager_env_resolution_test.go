@@ -2,12 +2,14 @@ package extensionpkg
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/marketplace"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -66,6 +68,7 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 				t.Context(),
 				key,
 				[]string{"SHARED", "BOUND_ONLY"},
+				nil,
 				t.TempDir(),
 				map[string]string{"PATH": "/manifest/bin", "SHARED": "manifest"},
 				map[string]string{"AUTHORED_ONLY": "vault:authored", "SHARED": "vault:authored"},
@@ -146,6 +149,7 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 			t.Context(),
 			InstanceKey{Name: "demo"},
 			nil,
+			nil,
 			t.TempDir(),
 			map[string]string{"SSL_CERT_FILE": "/manifest/ca.crt"},
 			nil,
@@ -191,6 +195,7 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 			t.Context(),
 			InstanceKey{Name: "demo"},
 			[]string{"B_BROKEN", "A_OK"},
+			nil,
 			t.TempDir(),
 			nil,
 			nil,
@@ -229,6 +234,7 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 			t.Context(),
 			InstanceKey{Name: "demo"},
 			[]string{"ACTIVE_KEY"},
+			nil,
 			t.TempDir(),
 			nil,
 			nil,
@@ -243,6 +249,70 @@ func TestManagerResolveInstanceEnvMap(t *testing.T) {
 		}
 		if _, exists := decoded["STALE_KEY"]; exists {
 			t.Fatalf("resolveInstanceEnvMap() injected stale binding: %#v", decoded)
+		}
+	})
+
+	t.Run("Should deliver subprocess inputs from bindings or defaults and never from the daemon", func(t *testing.T) {
+		t.Parallel()
+
+		const boundValue = "subprocess-bound-value-7f3a"
+		manager := NewManager(nil,
+			WithGetenv(func(key string) string {
+				if key == "DAEMON_ONLY" {
+					return "daemon-value"
+				}
+				return ""
+			}),
+			WithEnvBindingStore(&envResolutionBindingStore{bindings: map[string][]EnvBinding{
+				envResolutionBindingKey("demo", "", ""): {
+					{ExtensionName: "demo", EnvName: "BOUND", SecretRef: "vault:bound", InputID: "bound"},
+					{ExtensionName: "demo", EnvName: "STALE_TYPE", SecretRef: "vault:stale", InputID: "stale"},
+					{ExtensionName: "demo", EnvName: "SERVER_ONLY", SecretRef: "vault:server", MCPServer: "acme"},
+				},
+			}}),
+			WithSecretResolver(envResolutionSecretResolver{values: map[string]string{
+				"vault:bound":  boundValue,
+				"vault:stale":  "not-a-boolean",
+				"vault:server": "server-value",
+			}}),
+		)
+		input := func(id, inputType, name, inputDefault string) ManifestInput {
+			value := ManifestInput{ID: id, Type: inputType, Binding: marketplace.InputBinding{Type: "env", Name: name}}
+			if inputDefault != "" {
+				value.Default = json.RawMessage(inputDefault)
+			}
+			return value
+		}
+		env, cleanups, err := manager.resolveInstanceEnvMap(
+			t.Context(),
+			InstanceKey{Name: "demo"},
+			[]string{"BOUND", "DEFAULTED", "STALE_TYPE", "SERVER_ONLY", "DAEMON_ONLY"},
+			[]ManifestInput{
+				input("bound", "string", "BOUND", ""),
+				input("defaulted", "boolean", "DEFAULTED", "true"),
+				input("stale", "boolean", "STALE_TYPE", ""),
+				input("server", "string", "SERVER_ONLY", ""),
+				input("daemon", "string", "DAEMON_ONLY", ""),
+			},
+			t.TempDir(),
+			nil,
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("resolveInstanceEnvMap() error = %v", err)
+		}
+		t.Cleanup(func() { runExtensionRedactionCleanups(cleanups) })
+		decoded := envListToMap(t, env)
+		if decoded["BOUND"] != boundValue || decoded["DEFAULTED"] != "true" {
+			t.Fatalf("subprocess env = %#v, want bound value and default", decoded)
+		}
+		for _, name := range []string{"STALE_TYPE", "SERVER_ONLY", "DAEMON_ONLY"} {
+			if _, exists := decoded[name]; exists {
+				t.Fatalf("subprocess env = %#v, want no %s", decoded, name)
+			}
+		}
+		if got := diagnostics.Redact("value " + boundValue); strings.Contains(got, boundValue) {
+			t.Fatalf("bound value was not registered for redaction: %q", got)
 		}
 	})
 }

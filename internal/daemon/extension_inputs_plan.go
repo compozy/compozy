@@ -16,6 +16,7 @@ type extensionInputBinder struct{ service *daemonExtensionService }
 
 type extensionInputPlan struct {
 	instance      extensioninput.Instance
+	manifest      *extensionpkg.Manifest
 	key           extensionpkg.InstanceKey
 	state         extensionpkg.InputState
 	rows          []extensioninput.Mutation
@@ -42,6 +43,7 @@ func (b extensionInputBinder) Prepare(
 	}
 	plan := &extensionInputPlan{
 		instance: instance,
+		manifest: manifest,
 		key:      key,
 		state:    prior,
 		previous: map[string]extensionpkg.EnvBinding{},
@@ -62,11 +64,15 @@ func (b extensionInputBinder) Prepare(
 		if supplied && ((len(value.Value) == 0) == (value.VaultRef == nil)) {
 			return nil, inputInvalid(input.ID, "supply exactly one of value or vault_ref")
 		}
-		if input.Type == extensionInputTypeSecret {
-			if err := b.prepareSecret(ctx, plan, input, value, supplied); err != nil {
-				return nil, err
-			}
-		} else if err := b.prepareValue(plan, input, value, supplied); err != nil {
+		switch {
+		case input.Type == extensionInputTypeSecret:
+			err = b.prepareSecret(ctx, plan, input, value, supplied)
+		case manifest.SubprocessInput(input):
+			err = b.prepareSubprocessValue(ctx, plan, input, value, supplied)
+		default:
+			err = b.prepareValue(plan, input, value, supplied)
+		}
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -127,6 +133,10 @@ func (b extensionInputBinder) prepareRows(
 		if !found || input.Type == extensionInputTypeSecret || record.Type != input.Type || !record.Active {
 			continue
 		}
+		// Subprocess-only values live in their env binding; only server-consumed inputs keep a typed row.
+		if plan.manifest.SubprocessOnlyInput(input) {
+			continue
+		}
 		after[id] = extensioninput.Record{
 			Type:      record.Type,
 			Value:     record.Value,
@@ -171,7 +181,9 @@ func (b extensionInputBinder) prepareRetiredSecrets(
 			continue
 		}
 		input, present := declared[before.InputID]
-		inactive := !present || input.Type != extensionInputTypeSecret || input.Binding.Name != envName
+		// Subprocess-bound inputs keep their binding whatever their type (rule 3a).
+		retired := input.Type != extensionInputTypeSecret && !plan.manifest.SubprocessInput(input)
+		inactive := !present || retired || input.Binding.Name != envName
 		if before.Inactive == inactive {
 			continue
 		}

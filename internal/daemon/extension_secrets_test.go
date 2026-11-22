@@ -1545,3 +1545,211 @@ type extensionInputApplyFailure struct {
 func (s extensionInputApplyFailure) Apply(context.Context, extensioninput.Instance, []extensioninput.Mutation) error {
 	return s.err
 }
+
+// Invariant: subprocess-bound inputs persist as instance env bindings (non-secret values included),
+// keep their binding across partial updates, roll back with the plan, and re-check their type on read.
+// Owner: daemon input persistence. Canonical suite: TestExtensionInputBinder.
+func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
+	t.Parallel()
+	const projectValue = "acme-project-41"
+	key, profile := extensionpkg.GlobalInstanceKey("kit"), extensionDefaultProfileLens()
+	instance := extensioninput.Instance{Extension: key.Name, ProfileID: profile.ID}
+	projectRef := vault.ExtensionProfileSecretRef(key.Name, profile.ID, "", "PROJECT_ID")
+	newService := func(t *testing.T) (*daemonExtensionService, *globaldb.ExtensionEnvRepo, *extensionSecretVaultFake) {
+		t.Helper()
+		secretVault := newExtensionSecretVaultFake()
+		service, bindings := newExtensionSecretsTestService(t, nil, secretVault)
+		service.getenv = func(string) string { return "" }
+		return service, bindings, secretVault
+	}
+	commit := func(
+		t *testing.T, service *daemonExtensionService, manifest *extensionpkg.Manifest,
+		values map[string]extensioninput.Value,
+	) {
+		t.Helper()
+		binder := extensionInputBinder{service: service}
+		err := service.lifecycle.withInstance(testutil.Context(t), key, func() error {
+			plan, err := binder.Prepare(testutil.Context(t), key, profile, manifest, values)
+			if err != nil {
+				return err
+			}
+			_, err = binder.Commit(testutil.Context(t), plan)
+			return err
+		})
+		if err != nil {
+			t.Fatalf("Prepare/Commit() error = %v", err)
+		}
+	}
+	initialValues := map[string]extensioninput.Value{
+		"project": {Value: json.RawMessage(`"` + projectValue + `"`)},
+		"region":  {Value: json.RawMessage(`"eu-west"`)},
+	}
+	bindingsByName := func(t *testing.T, bindings *globaldb.ExtensionEnvRepo) map[string]extensionpkg.EnvBinding {
+		t.Helper()
+		listed, err := bindings.ListEnvBindings(testutil.Context(t), key.Name, profile.ID, "")
+		if err != nil {
+			t.Fatalf("ListEnvBindings() error = %v", err)
+		}
+		return extensionBindingsByName(listed)
+	}
+
+	t.Run("Should store non-secret subprocess values as instance env bindings", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		commit(t, service, manifest, initialValues)
+		bound := bindingsByName(t, bindings)
+		if bound["PROJECT_ID"].InputID != "project" || bound["PROJECT_ID"].Inactive ||
+			bound["REGION"].InputID != "region" || bound["REGION"].Inactive {
+			t.Fatalf("bindings = %#v, want active input bindings", bound)
+		}
+		if secretVault.value(projectRef) != projectValue {
+			t.Fatal("project value was not stored as an instance-owned Vault secret")
+		}
+		rows, err := service.inputs.List(testutil.Context(t), instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if _, exists := rows["project"]; exists || string(rows["region"].Value) != `"eu-west"` {
+			t.Fatalf("rows = %#v, want only the server-consumed typed row", rows)
+		}
+		state, err := service.inputReader().load(testutil.Context(t), instance, manifest)
+		if err != nil {
+			t.Fatalf("load() error = %v", err)
+		}
+		if state.Values["project"].Type != "identifier" {
+			t.Fatalf("project state type = %q, want identifier", state.Values["project"].Type)
+		}
+		ready := extensionpkg.InputReadiness(manifest, state, service.getenv)
+		if len(ready.MissingEnv) != 0 || len(ready.InvalidInputs) != 0 {
+			t.Fatalf("readiness = %#v, want ready", ready)
+		}
+		commit(t, service, manifest, map[string]extensioninput.Value{"region": {Value: json.RawMessage(`"us-east"`)}})
+		if project := bindingsByName(t, bindings)["PROJECT_ID"]; project.Inactive || project.InputID != "project" {
+			t.Fatalf("project binding after partial update = %#v, want active", project)
+		}
+	})
+
+	// Install refuses through this gate before acquiring any state (extension_inputs_required).
+	t.Run("Should refuse install with every missing subprocess and MCP input", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, _ := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		manifest.Inputs = append(manifest.Inputs, extensionpkg.ManifestInput{
+			ID: "workspace", Prompt: "Workspace", Type: "identifier", Required: true,
+			Binding: marketplace.InputBinding{Type: "url_query", Name: "ws"},
+		})
+		manifest.Resources.MCPServers["remote"] = extensionpkg.MCPServerConfig{
+			Transport: "http", URL: "https://example.com/mcp?ws=",
+		}
+		_, err := extensionInputBinder{service: service}.Prepare(testutil.Context(t), key, profile, manifest, nil)
+		required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
+		if !ok || !slices.Equal(required.MissingInputs, []string{"project", "region", "workspace"}) ||
+			len(required.InputDefinitions) != 3 {
+			t.Fatalf("Prepare() error = %#v, want every missing input with its definition", err)
+		}
+		if bound := bindingsByName(t, bindings); len(bound) != 0 {
+			t.Fatalf("refused install wrote bindings: %#v", bound)
+		}
+	})
+
+	t.Run("Should roll back bindings and Vault values when a later write fails", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		injected := errors.New("injected input transaction failure")
+		service.inputs = extensionInputApplyFailure{Store: service.inputs, err: injected}
+		binder := extensionInputBinder{service: service}
+		err := service.lifecycle.withInstance(testutil.Context(t), key, func() error {
+			plan, err := binder.Prepare(
+				testutil.Context(t),
+				key,
+				profile,
+				extensionSubprocessInputManifest(),
+				initialValues,
+			)
+			if err != nil {
+				return err
+			}
+			_, err = binder.Commit(testutil.Context(t), plan)
+			return err
+		})
+		if !errors.Is(err, injected) {
+			t.Fatalf("Commit() error = %v, want injected failure", err)
+		}
+		if bound := bindingsByName(t, bindings); len(bound) != 0 {
+			t.Fatalf("bindings after rollback = %#v, want none", bound)
+		}
+		if secretVault.value(projectRef) != "" {
+			t.Fatal("rollback left the project value in Vault")
+		}
+	})
+
+	t.Run("Should accept a secrets set binding for a subprocess input", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		secretVault.seed(projectRef, "extension", projectValue)
+		if err := bindings.PutEnvBinding(testutil.Context(t), extensionpkg.EnvBinding{
+			ExtensionName: key.Name, ProfileID: profile.ID, EnvName: "PROJECT_ID",
+			SecretRef: projectRef, Kind: extensionpkg.ExtensionEnvBindingKind,
+		}); err != nil {
+			t.Fatalf("PutEnvBinding() error = %v", err)
+		}
+		manifest := extensionSubprocessInputManifest()
+		manifest.Inputs = manifest.Inputs[:1]
+		state, err := service.inputReader().load(testutil.Context(t), instance, manifest)
+		if err != nil {
+			t.Fatalf("load() error = %v", err)
+		}
+		described := extensionpkg.DescribeInputState(manifest, state, service.getenv)
+		if len(described) != 1 || !described[0].Set || described[0].Type != "identifier" {
+			t.Fatalf("DescribeInputState() = %#v, want set identifier", described)
+		}
+	})
+
+	t.Run("Should report a stored value that fails a changed manifest type as invalid", func(t *testing.T) {
+		t.Parallel()
+		service, _, _ := newService(t)
+		commit(t, service, extensionSubprocessInputManifest(), initialValues)
+		changed := extensionSubprocessInputManifest()
+		changed.Inputs[0].Type = "boolean"
+		state, err := service.inputReader().load(testutil.Context(t), instance, changed)
+		if err != nil {
+			t.Fatalf("load() error = %v", err)
+		}
+		ready := extensionpkg.InputReadiness(changed, state, service.getenv)
+		if !slices.Equal(ready.InvalidInputs, []string{"project"}) || !slices.Contains(ready.MissingEnv, "PROJECT_ID") {
+			t.Fatalf("readiness = %#v, want project invalid and blocking", ready)
+		}
+		requiredErr := ready.RequiredError(changed)
+		described, err := json.Marshal(extensionpkg.DescribeInputState(changed, state, service.getenv))
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if requiredErr == nil || strings.Contains(requiredErr.Error(), projectValue) ||
+			bytes.Contains(described, []byte(projectValue)) {
+			t.Fatalf("invalid input leaked its value or did not block: %v %s", requiredErr, described)
+		}
+	})
+}
+
+func extensionSubprocessInputManifest() *extensionpkg.Manifest {
+	return &extensionpkg.Manifest{
+		Name: "kit",
+		Inputs: []extensionpkg.ManifestInput{
+			{
+				ID: "project", Prompt: "Project", Type: "identifier", Required: true,
+				Binding: marketplace.InputBinding{Type: "env", Name: "PROJECT_ID"},
+			},
+			{
+				ID: "region", Prompt: "Region", Type: "string", Required: true,
+				Binding: marketplace.InputBinding{Type: "env", Name: "REGION"},
+			},
+		},
+		RequiresEnv:         []string{"PROJECT_ID", "REGION"},
+		DeclaredRequiresEnv: []string{"PROJECT_ID", "REGION"},
+		MinCompozyVersion:   "0.7.9",
+		Resources: extensionpkg.ResourcesConfig{MCPServers: map[string]extensionpkg.MCPServerConfig{
+			"server": {Command: "server", Env: map[string]string{"REGION": "region"}},
+		}},
+	}
+}
