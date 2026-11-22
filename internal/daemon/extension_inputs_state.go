@@ -185,7 +185,9 @@ func (r extensionInputReader) recheckBindingValue(
 	}
 	raw := json.RawMessage(normalized)
 	if input.Type != "boolean" {
-		raw, _ = json.Marshal(normalized)
+		if raw, err = json.Marshal(normalized); err != nil {
+			return fmt.Errorf("daemon: encode extension input %q value: %w", input.ID, err)
+		}
 	}
 	record.Value = raw
 	record.SecretRef = ref
