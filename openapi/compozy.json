@@ -6016,8 +6016,22 @@
                         "continue",
                         "done",
                         "next_generation",
-                        "halt",
                         "escalate"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "halt"
                       ],
                       "type": "string"
                     },
@@ -12713,8 +12727,22 @@
                               "continue",
                               "revise",
                               "next_generation",
-                              "halt",
                               "escalate"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "action"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "action": {
+                            "enum": [
+                              "halt"
                             ],
                             "type": "string"
                           },
@@ -15848,8 +15876,22 @@
                         "continue",
                         "done",
                         "next_generation",
-                        "halt",
                         "escalate"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "halt"
                       ],
                       "type": "string"
                     },

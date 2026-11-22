@@ -1679,7 +1679,10 @@ export type Contract = {
       | "halt"
       | "escalate"
       | {
-          action: "continue" | "done" | "next_generation" | "halt" | "escalate";
+          action: "continue" | "done" | "next_generation" | "escalate";
+        }
+      | {
+          action: "halt";
           terminal_status?:
             | "done"
             | "no-op"
@@ -3561,7 +3564,10 @@ export type Graph = {
             route: string;
           }
         | {
-            action: "continue" | "revise" | "next_generation" | "halt" | "escalate";
+            action: "continue" | "revise" | "next_generation" | "escalate";
+          }
+        | {
+            action: "halt";
             terminal_status?:
               | "done"
               | "no-op"
@@ -4531,7 +4537,10 @@ export type LoopContract = {
       | "halt"
       | "escalate"
       | {
-          action: "continue" | "done" | "next_generation" | "halt" | "escalate";
+          action: "continue" | "done" | "next_generation" | "escalate";
+        }
+      | {
+          action: "halt";
           terminal_status?:
             | "done"
             | "no-op"

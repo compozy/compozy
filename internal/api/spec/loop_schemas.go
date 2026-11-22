@@ -306,6 +306,12 @@ func loopOnResultSchema(actions []string, withRoute bool) *openapi3.Schema {
 	for _, state := range dsl.TerminalStateValues() {
 		terminalValues = append(terminalValues, string(state))
 	}
+	nonHaltActions := make([]string, 0, len(actions))
+	for _, action := range actions {
+		if action != string(gate.RouteHalt) {
+			nonHaltActions = append(nonHaltActions, action)
+		}
+	}
 	variants := []*openapi3.SchemaRef{
 		{Value: openapi3.NewStringSchema().WithEnum(enumAsAny(actions)...)},
 	}
@@ -317,11 +323,18 @@ func loopOnResultSchema(actions []string, withRoute bool) *openapi3.Schema {
 		variants = append(variants, &openapi3.SchemaRef{Value: routeObject})
 	}
 	actionObject := openapi3.NewObjectSchema().
-		WithProperty("action", openapi3.NewStringSchema().WithEnum(enumAsAny(actions)...)).
-		WithProperty("terminal_status", openapi3.NewStringSchema().WithEnum(enumAsAny(terminalValues)...)).
+		WithProperty("action", openapi3.NewStringSchema().WithEnum(enumAsAny(nonHaltActions)...)).
 		WithoutAdditionalProperties()
 	actionObject.Required = []string{"action"}
-	variants = append(variants, &openapi3.SchemaRef{Value: actionObject})
+	haltObject := openapi3.NewObjectSchema().
+		WithProperty("action", openapi3.NewStringSchema().WithEnum(string(gate.RouteHalt))).
+		WithProperty("terminal_status", openapi3.NewStringSchema().WithEnum(enumAsAny(terminalValues)...)).
+		WithoutAdditionalProperties()
+	haltObject.Required = []string{"action"}
+	variants = append(variants,
+		&openapi3.SchemaRef{Value: actionObject},
+		&openapi3.SchemaRef{Value: haltObject},
+	)
 	return openapi3.NewObjectSchema().WithAdditionalProperties(&openapi3.Schema{OneOf: variants})
 }
 

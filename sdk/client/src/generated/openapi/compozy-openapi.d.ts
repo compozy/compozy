@@ -10054,7 +10054,11 @@ export interface components {
           | ("continue" | "done" | "next_generation" | "halt" | "escalate")
           | {
               /** @enum {string} */
-              action: "continue" | "done" | "next_generation" | "halt" | "escalate";
+              action: "continue" | "done" | "next_generation" | "escalate";
+            }
+          | {
+              /** @enum {string} */
+              action: "halt";
               /** @enum {string} */
               terminal_status?:
                 | "done"
@@ -11940,7 +11944,11 @@ export interface components {
               }
             | {
                 /** @enum {string} */
-                action: "continue" | "revise" | "next_generation" | "halt" | "escalate";
+                action: "continue" | "revise" | "next_generation" | "escalate";
+              }
+            | {
+                /** @enum {string} */
+                action: "halt";
                 /** @enum {string} */
                 terminal_status?:
                   | "done"
@@ -12897,7 +12905,11 @@ export interface components {
           | ("continue" | "done" | "next_generation" | "halt" | "escalate")
           | {
               /** @enum {string} */
-              action: "continue" | "done" | "next_generation" | "halt" | "escalate";
+              action: "continue" | "done" | "next_generation" | "escalate";
+            }
+          | {
+              /** @enum {string} */
+              action: "halt";
               /** @enum {string} */
               terminal_status?:
                 | "done"
