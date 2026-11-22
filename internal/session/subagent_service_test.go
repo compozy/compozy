@@ -344,7 +344,8 @@ func TestSubagentDelegate(t *testing.T) {
 				Branch: "worktree/follow-up",
 			},
 		}
-		s, db, _ := newSubagentTestService(t, WithSubagentWorktrees(wt))
+		s, db, _ := newSubagentTestService(t)
+		s.worktrees = wt
 		db.rows["sub-wt-prior"] = store.SessionSubagent{
 			ID:              "sub-wt-prior",
 			WorkspaceID:     "ws",
