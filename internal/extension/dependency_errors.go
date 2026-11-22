@@ -107,6 +107,6 @@ func WithDependencyForce(ctx context.Context, force bool) context.Context {
 
 // DependencyForced reports whether the remove carried force.
 func DependencyForced(ctx context.Context) bool {
-	forced, _ := ctx.Value(dependencyForceKey{}).(bool)
-	return forced
+	forced, ok := ctx.Value(dependencyForceKey{}).(bool)
+	return ok && forced
 }
