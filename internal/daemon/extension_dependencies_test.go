@@ -748,9 +748,9 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		})
 }
 
-// Invariant: an installed_elsewhere retry command must work: a package `extension update` cannot reach is
-// reinstalled from the dependency's own source in the blocking cell, and a failed profile lookup only drops the
-// command (G-7). Owner: daemon dependency resolver; canonical suite: this file.
+// Invariant: a retry command must work: a package `extension update` cannot reach is reinstalled from the
+// dependency's own source in the blocking cell, an update selects the installation the dependent resolves (G-9), and
+// a failed profile or stalled update lookup only drops the command, never the refusal (G-7). Owner: daemon dependency resolver; canonical suite: this file.
 func TestExtensionDependencyRetryCommand(t *testing.T) {
 	t.Parallel()
 
@@ -792,6 +792,112 @@ func TestExtensionDependencyRetryCommand(t *testing.T) {
 			t.Fatalf("dependencyRetryCommand() = %q, want no command without the profile name", command)
 		}
 	})
+
+	t.Run("Should scope the update command to the global installation a workspace dependent resolves",
+		func(t *testing.T) {
+			t.Parallel()
+			market := newMarketplaceDependencyService(t)
+			market.installGlobalDesign(t)
+			cell := extensionpkg.InstallationScope{
+				ProfileID: extensionDefaultProfileLens().ID, WorkspaceID: "ws-dependent",
+			}
+			want := "compozy extension update open-design --scope global"
+
+			design := market.workspaceDesignDependency(t, cell)
+			if design.State != dependencyStateVersionUnmet || design.RetryCommand != want {
+				t.Fatalf("install hint = %+v, want version_unmet naming %q", design, want)
+			}
+			unmet, err := market.service.cellUnmetDependencies(t.Context(), "root",
+				[]extensionpkg.ExtensionDependency{designDependencyAtLeast("1.1.0")}, cell)
+			if err != nil || len(unmet) != 1 {
+				t.Fatalf("cellUnmetDependencies() = %+v, %v; want open-design unmet", unmet, err)
+			}
+			market.service.addDependencyRetryCommands(t.Context(), unmet, cell)
+			if unmet[0].RetryCommand != want {
+				t.Fatalf("enable guidance = %+v, want %q", unmet[0], want)
+			}
+		})
+
+	t.Run("Should drop the command and keep the refusal when the update lookup stalls", func(t *testing.T) {
+		t.Parallel()
+		market := newMarketplaceDependencyService(t)
+		market.installGlobalDesign(t)
+		market.service.marketplaceCatalog = stalledEntryCatalog{Service: market.service.marketplaceCatalog}
+		market.service.dependencyUpdateHintTimeout = 50 * time.Millisecond
+		cell := extensionpkg.InstallationScope{
+			ProfileID: extensionDefaultProfileLens().ID, WorkspaceID: "ws-dependent",
+		}
+
+		design := market.workspaceDesignDependency(t, cell)
+		if design.State != dependencyStateVersionUnmet || design.RetryCommand != "" {
+			t.Fatalf("install hint = %+v, want version_unmet without a command", design)
+		}
+		rootDir := t.TempDir()
+		writeDaemonFile(t, filepath.Join(rootDir, "extension.toml"), fmt.Sprintf(
+			"name = \"root\"\nversion = \"1.0.0\"\nmin_compozy_version = %q\n\n[[requires.extensions]]\n"+
+				"name = \"open-design\"\nsource = \"marketplace\"\nref = \"team/design\"\nmin_version = \"1.1.0\"\n",
+			dependencyFixtureMinVersion))
+		_, err := market.service.Install(t.Context(), contract.InstallExtensionRequest{
+			Source: contract.InstallExtensionSourceLocalPath, Ref: rootDir, AllowUnverified: true,
+			WithDependencies: true,
+			Dependencies:     map[string]contract.ExtensionDependencyConsent{"open-design": {AllowUnverified: true}},
+		}, dependencyOperator(t))
+		required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
+		if !ok || len(required.Dependencies) != 1 || required.Dependencies[0].State != dependencyStateVersionUnmet ||
+			required.Dependencies[0].RetryCommand != "" {
+			t.Fatalf("error = %v, want extension_dependencies_required for open-design without a command", err)
+		}
+	})
+}
+
+// stalledEntryCatalog blocks every catalog entry lookup until its context ends, like an unresponsive source.
+type stalledEntryCatalog struct{ marketplace.Service }
+
+func (stalledEntryCatalog) Entry(ctx context.Context, _ marketplace.Origin) (*marketplace.Entry, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func designDependencyAtLeast(minVersion string) extensionpkg.ExtensionDependency {
+	return extensionpkg.ExtensionDependency{
+		Name: "open-design", Source: string(contract.InstallExtensionSourceMarketplace), Ref: "team/design",
+		MinVersion: minVersion,
+	}
+}
+
+// installGlobalDesign installs open-design 1.0.0 globally for every profile, then lists 1.1.0.
+func (m *marketplaceDependencyFixture) installGlobalDesign(t *testing.T) {
+	t.Helper()
+	if _, err := m.service.Install(t.Context(), contract.InstallExtensionRequest{
+		Source: contract.InstallExtensionSourceMarketplace, Ref: "team/design", ExpectedDigest: m.digest,
+		AllowUnverified: true,
+	}, dependencyOperator(t)); err != nil {
+		t.Fatalf("install open-design globally error = %v", err)
+	}
+	m.publish(t, "1.1.0")
+}
+
+// workspaceDesignDependency resolves a root requiring open-design>=1.1.0 for the dependent's cell.
+func (m *marketplaceDependencyFixture) workspaceDesignDependency(
+	t *testing.T, cell extensionpkg.InstallationScope,
+) contract.ExtensionDependencyPayload {
+	t.Helper()
+	target := extensionMutationTarget{scope: cell, profile: extensionDefaultProfileLens()}
+	graph, err := m.service.resolveDependencies(t.Context(), dependencyRoot(designDependencyAtLeast("1.1.0")), "",
+		target, nil, dependencyOperator(t))
+	if err != nil {
+		t.Fatalf("resolveDependencies() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := graph.Close(); closeErr != nil {
+			t.Errorf("graph.Close() error = %v", closeErr)
+		}
+	})
+	items := graph.payloads()
+	if len(items) != 1 {
+		t.Fatalf("dependencies = %+v, want open-design only", items)
+	}
+	return items[0]
 }
 
 // marketplaceDependencyFixture serves the open-design client plugin from a file marketplace source "team".

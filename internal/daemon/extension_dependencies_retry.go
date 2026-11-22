@@ -4,16 +4,22 @@ import (
 	"cmp"
 	"context"
 	"slices"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
+// dependencyUpdateCheckTimeout bounds the check-only marketplace lookup behind an `extension update` hint, so a
+// slow source only drops the command instead of delaying the refusal.
+const dependencyUpdateCheckTimeout = 5 * time.Second
+
 // dependencyRetryCommand names the command that unblocks a version_unmet or installed_elsewhere dependency, or ""
 // when no command can (rule 12, D9). It is `compozy extension update` only when the installed package is
 // marketplace-installed and its source's release reaches the requirement; otherwise an installed_elsewhere package
-// is reinstalled from the dependency's own source when that source satisfies it. cell is the blocking cell; nil
-// selects the package's first installation in a deterministic order. A failed lookup only drops the command.
+// is reinstalled from the dependency's own source when that source satisfies it. cell is the dependent's cell, and
+// the flags select the installation visible there (D11), which may be global; nil selects the package's first
+// installation in a deterministic order. A failed lookup only drops the command.
 func (s *daemonExtensionService) dependencyRetryCommand(
 	ctx context.Context, item contract.ExtensionDependencyPayload, cell *extensionpkg.InstallationScope,
 ) string {
@@ -21,9 +27,7 @@ func (s *daemonExtensionService) dependencyRetryCommand(
 	if !elsewhere && (item.State != dependencyStateVersionUnmet || item.InstalledVersion == "") {
 		return ""
 	}
-	if cell == nil {
-		cell = s.dependencyInstallationCell(ctx, item.Name)
-	}
+	cell = s.dependencyBlockingCell(ctx, item.Name, cell)
 	if cell == nil {
 		return ""
 	}
@@ -54,9 +58,13 @@ func (s *daemonExtensionService) dependencyUpdateSatisfies(
 		*info.RegistrySlug == "" {
 		return false
 	}
+	timeout := cmp.Or(s.dependencyUpdateHintTimeout, dependencyUpdateCheckTimeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	if s.marketplaceCache != nil {
 		release, err := s.marketplaceCache.Hold(ctx)
 		if err != nil {
+			s.logger.Warn("extension dependency update check", "dependency", item.Name, "error", err)
 			return false
 		}
 		defer release()
@@ -68,11 +76,27 @@ func (s *daemonExtensionService) dependencyUpdateSatisfies(
 			ResolveTrust: s.marketplaceTrustResolver(), ResolvePlugin: s.resolveMarketplacePluginOrigin,
 		}, nil)
 	if err != nil || len(items) != 1 {
-		s.logger.Debug("extension dependency update check", "dependency", item.Name, "error", err)
+		s.logger.Warn("extension dependency update check", "dependency", item.Name, "error", err)
 		return false
 	}
 	latest := items[0].LatestVersion
 	return extensionpkg.VersionSatisfies(latest, item.MinVersion) && (item.Version == "" || latest == item.Version)
+}
+
+// dependencyBlockingCell is the installation the command must select: the one the dependent's cell resolves
+// (a global installation is visible from a workspace), or the package's first installation without a cell.
+func (s *daemonExtensionService) dependencyBlockingCell(
+	ctx context.Context, name string, cell *extensionpkg.InstallationScope,
+) *extensionpkg.InstallationScope {
+	if cell == nil {
+		return s.dependencyInstallationCell(ctx, name)
+	}
+	installation, err := s.registry.ResolveInstallation(ctx, name, *cell)
+	if err != nil {
+		s.logger.Warn("extension dependency retry installation lookup", "dependency", name, "error", err)
+		return nil
+	}
+	return &installation.Scope
 }
 
 // dependencyInstallationCell picks the package's first installation, global before workspaces, then by profile.

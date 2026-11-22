@@ -378,8 +378,10 @@ always refuses, even with consent, and a missing one (its source offers only an 
 no retry command. `installed_elsewhere` marks a package installed for another scope or profile whose
 source now provides different bytes: it always refuses before any dependency installs, with
 `installed_version`. `retry_command` is set only when a command can satisfy the dependency, scoped
-(`--scope`/`--workspace`, `--profile`) to the blocking cell (an installed `version_unmet` dependency's
-own cell, or the first installation of an `installed_elsewhere` package):
+(`--scope`/`--workspace`, `--profile`) to the blocking cell (for an installed `version_unmet` dependency,
+the installation the dependent resolves, which may be global; for `installed_elsewhere`, the package's
+first installation). A marketplace update check that fails or takes longer than a few seconds only
+leaves the command out:
 `compozy extension update <dep>` when the package is marketplace-installed and its source's release
 reaches `min_version`; otherwise, for `installed_elsewhere`, `compozy extension install <dependency
 source> [--replace]` when the dependency's own source satisfies it. Without one, reinstall the package

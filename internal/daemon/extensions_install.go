@@ -106,7 +106,7 @@ func (s *daemonExtensionService) installPrepared(
 		if prepared.published != nil {
 			if installed, readErr := s.registry.Get(prepared.name); readErr == nil {
 				if prepared.keepInstalled && !prepared.published.MatchesInstalled(installed) {
-					return s.dependencyReplacementRefused(ctx, installed, prepared.manifest, req)
+					return dependencyReplacementRefused(installed, prepared.manifest, req)
 				}
 				if err := s.reinstallPreparedExtension(ctx, prepared, installed, req, actor, &item); err != nil {
 					return err
@@ -136,6 +136,7 @@ func (s *daemonExtensionService) installPrepared(
 	} else {
 		err = s.lifecycle.withInstances(ctx, extensionMutationKeys(names, prepared.target), mutation)
 	}
+	s.addCommitRetryCommands(ctx, err, prepared)
 	if err = s.finishPreparedInstall(prepared, err); err != nil {
 		return contract.ExtensionPayload{}, errors.Join(
 			err,

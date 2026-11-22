@@ -126,7 +126,8 @@ func (s *daemonExtensionService) dependencyProfileName(ctx context.Context, prof
 }
 
 // cellUnmetDependencies classifies the direct requires.extensions of one instance cell without acquiring
-// packages (D11): missing, version_unmet or disabled for the cell's profile.
+// packages (D11): missing, version_unmet or disabled for the cell's profile. It names no retry command, so a
+// caller holding a lifecycle lock adds them with addDependencyRetryCommands after releasing it.
 func (s *daemonExtensionService) cellUnmetDependencies(
 	ctx context.Context,
 	dependent string,
@@ -147,10 +148,18 @@ func (s *daemonExtensionService) cellUnmetDependencies(
 			continue
 		}
 		item.State, item.InstalledVersion = state, installedVersion
-		item.RetryCommand = s.dependencyRetryCommand(ctx, item, &cell)
 		unmet = append(unmet, item)
 	}
 	return unmet, nil
+}
+
+// addDependencyRetryCommands names the retry command of each unmet dependency of the dependent's cell.
+func (s *daemonExtensionService) addDependencyRetryCommands(
+	ctx context.Context, items []contract.ExtensionDependencyPayload, cell extensionpkg.InstallationScope,
+) {
+	for index := range items {
+		items[index].RetryCommand = s.dependencyRetryCommand(ctx, items[index], &cell)
+	}
 }
 
 func (s *daemonExtensionService) cellDependencyState(
@@ -206,6 +215,7 @@ func (s *daemonExtensionService) checkProfileEnablementDependencies(ctx context.
 		if err != nil {
 			return err
 		}
+		s.addDependencyRetryCommands(ctx, items, cell)
 		for _, item := range items {
 			if !slices.ContainsFunc(unmet, func(seen contract.ExtensionDependencyPayload) bool {
 				return seen.Name == item.Name
@@ -227,11 +237,12 @@ func (s *daemonExtensionService) populateExtensionDependencyStatus(
 	if ext.Manifest == nil || len(ext.Manifest.Requires.Extensions) == 0 {
 		return nil
 	}
-	unmet, err := s.cellUnmetDependencies(ctx, ext.Info.Name, ext.Manifest.Requires.Extensions,
-		extensionpkg.InstallationScope{ProfileID: profileID, WorkspaceID: ext.Status.WorkspaceID})
+	cell := extensionpkg.InstallationScope{ProfileID: profileID, WorkspaceID: ext.Status.WorkspaceID}
+	unmet, err := s.cellUnmetDependencies(ctx, ext.Info.Name, ext.Manifest.Requires.Extensions, cell)
 	if err != nil {
 		return err
 	}
+	s.addDependencyRetryCommands(ctx, unmet, cell)
 	payload.UnmetDependencies = unmet
 	if len(unmet) > 0 {
 		names := make([]string, 0, len(unmet))

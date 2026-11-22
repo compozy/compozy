@@ -161,7 +161,8 @@ func dependencyNames(manifest *extensionpkg.Manifest) []string {
 
 // checkCommitDependenciesMet re-checks, under the lifecycle locks of the package and its direct dependencies,
 // that every dependency is still met in the target cell: a dependency removed or disabled after the graph was
-// resolved refuses the commit instead of leaving the new dependent unmet.
+// resolved refuses the commit instead of leaving the new dependent unmet. addCommitRetryCommands names the retry
+// commands once the locks are released.
 func (s *daemonExtensionService) checkCommitDependenciesMet(
 	ctx context.Context, prepared preparedDaemonExtensionInstall,
 ) error {
@@ -178,28 +179,53 @@ func (s *daemonExtensionService) checkCommitDependenciesMet(
 	return &extensionpkg.DependenciesRequiredError{Dependencies: unmet}
 }
 
-// dependencyReplacementRefused refuses a dependency install that would replace the package other cells use. The
+// dependencyReplacementError refuses a dependency install that would replace the package other cells use. The
 // resolver reports this case before any mutation; the commit repeats it for a package installed meanwhile.
-func (s *daemonExtensionService) dependencyReplacementRefused(
-	ctx context.Context, installed *extensionpkg.ExtensionInfo, candidate *extensionpkg.Manifest,
-	req contract.InstallExtensionRequest,
-) error {
-	version := ""
-	if candidate != nil {
-		version = candidate.Version
-	}
+type dependencyReplacementError struct {
+	item    contract.ExtensionDependencyPayload
+	command string
+}
+
+func (e *dependencyReplacementError) Error() string {
 	next := "reinstall it there from a source that provides the required version first"
-	if command := s.dependencyRetryCommand(ctx, contract.ExtensionDependencyPayload{
-		Name: installed.Name, Source: string(req.Source), Ref: req.Ref, Version: version,
-		State: dependencyStateInstalledElsewhere,
-	}, nil); command != "" {
-		next = "run `" + command + "` first"
+	if e.command != "" {
+		next = "run `" + e.command + "` first"
 	}
-	return fmt.Errorf(
-		"%w: %s %s is installed for another scope or profile and its source now provides %s; "+
+	return fmt.Sprintf(
+		"%s: %s %s is installed for another scope or profile and its source now provides %s; "+
 			"dependencies are never updated, %s",
-		extensionpkg.ErrExtensionExists, installed.Name, installed.Version, version, next,
+		extensionpkg.ErrExtensionExists.Error(), e.item.Name, e.item.InstalledVersion, e.item.Version, next,
 	)
+}
+
+func (e *dependencyReplacementError) Unwrap() error { return extensionpkg.ErrExtensionExists }
+
+func dependencyReplacementRefused(
+	installed *extensionpkg.ExtensionInfo, candidate *extensionpkg.Manifest, req contract.InstallExtensionRequest,
+) error {
+	item := contract.ExtensionDependencyPayload{
+		Name: installed.Name, Source: string(req.Source), Ref: req.Ref, InstalledVersion: installed.Version,
+		State: dependencyStateInstalledElsewhere,
+	}
+	if candidate != nil {
+		item.Version = candidate.Version
+	}
+	return &dependencyReplacementError{item: item}
+}
+
+// addCommitRetryCommands names the retry commands of a commit refusal after the lifecycle locks are released, so
+// the bounded marketplace update check never holds them; a failed lookup only leaves the command out.
+func (s *daemonExtensionService) addCommitRetryCommands(
+	ctx context.Context, err error, prepared preparedDaemonExtensionInstall,
+) {
+	if required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err); ok {
+		s.addDependencyRetryCommands(ctx, required.Dependencies, extensionpkg.InstallationScope{
+			ProfileID: prepared.target.profile.ID, WorkspaceID: prepared.target.scope.WorkspaceID,
+		})
+	}
+	if replacement, ok := errors.AsType[*dependencyReplacementError](err); ok {
+		replacement.command = s.dependencyRetryCommand(ctx, replacement.item, nil)
+	}
 }
 
 // enableDependency enables a disabled dependency for the dependent's profile through the enable paths.
