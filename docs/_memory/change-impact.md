@@ -20,7 +20,17 @@
   subprocess inputs. `extensions.md`, `extension-authoring.md`, `native-tools.md`, site install,
   develop and CLI docs. ET-ext-secrets-binding, ET-web-marketplace-installed-management,
   ET-web-extension-union-install, and new ET-extension-setup-inputs.
-- **Dependencies (experimental).** Delivered separately; this entry is updated when they land.
+- **Dependencies (experimental).** Manifest `[[requires.extensions]]` (`name`, `source`, `ref`,
+  `min_version`) behind a 0.7.9 floor. Install and preview gain `with_dependencies` and per-dependency
+  `dependencies` consent; preview lists `dependencies` read from the downloaded package (catalog feed
+  unchanged); install results carry `dependencies_installed`. Remove and disable gain `force`
+  (HTTP/UDS, `compozy__extensions_remove`/`_disable`, CLI `--force`); status gains
+  `unmet_dependencies`. New codes `extension_dependencies_required`,
+  `extension_dependency_graph_invalid`, `extension_dependency_in_use`. CLI `install
+  --with-dependencies` and `--allow-unverified-dependency`; Web Add lists "Also installs" with
+  per-dependency trust dialogs. No schema change; dependencies install into the dependent's scope and
+  profile. QA: new ET-extension-dependencies and the dependency part of
+  ET-web-extension-union-install.
 
 ## Session facet counts for always-on mains (GH-1897)
 
