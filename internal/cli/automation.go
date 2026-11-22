@@ -238,7 +238,6 @@ func buildAutomationJobUpdateRequest(
 		request.Schedule = &schedule
 	}
 
-	var currentSchedule *automationpkg.ScheduleSpec
 	currentLoaded := false
 	var current JobRecord
 	loadCurrent := func() (JobRecord, error) {
@@ -252,36 +251,15 @@ func buildAutomationJobUpdateRequest(
 		current, currentLoaded = loaded, true
 		return current, nil
 	}
-	if reliabilityChanged || scheduleChanged && request.Schedule.Mode != automationpkg.ScheduleModeAt {
-		loaded, err := loadCurrent()
-		if err != nil {
-			return AutomationJobUpdateRequest{}, err
-		}
-		currentSchedule = loaded.Schedule
-	}
-	if scheduleChanged && request.Schedule.Mode != automationpkg.ScheduleModeAt && currentSchedule != nil {
-		request.Schedule.CatchUpPolicy = currentSchedule.CatchUpPolicy
-		request.Schedule.MisfireGraceSeconds = currentSchedule.MisfireGraceSeconds
-	}
-	if reliabilityChanged {
-		if request.Schedule == nil {
-			if currentSchedule == nil {
-				return AutomationJobUpdateRequest{}, errors.New(
-					"cli: automation job has no schedule to update reliability",
-				)
-			}
-			request.Schedule = new(*currentSchedule)
-		}
-		if err := applyAutomationScheduleReliability(
-			cmd,
-			request.Schedule,
-			automationScheduleReliabilityInput{
-				CatchUpPolicyRaw:    input.CatchUpPolicyRaw,
-				MisfireGraceSeconds: input.MisfireGraceSeconds,
-			},
-		); err != nil {
-			return AutomationJobUpdateRequest{}, err
-		}
+	if err := applyAutomationScheduleUpdate(
+		cmd,
+		&request,
+		input,
+		scheduleChanged,
+		reliabilityChanged,
+		loadCurrent,
+	); err != nil {
+		return AutomationJobUpdateRequest{}, err
 	}
 	if cmd.Flags().Changed(automationRetryKey) {
 		retry, err := parseAutomationRetryFlag(input.RetryRaw)
@@ -308,6 +286,48 @@ func buildAutomationJobUpdateRequest(
 		}
 	}
 	return request, nil
+}
+
+func applyAutomationScheduleUpdate(
+	cmd *cobra.Command,
+	request *AutomationJobUpdateRequest,
+	input automationJobUpdateInput,
+	scheduleChanged bool,
+	reliabilityChanged bool,
+	loadCurrent func() (JobRecord, error),
+) error {
+	var currentSchedule *automationpkg.ScheduleSpec
+	if reliabilityChanged ||
+		(scheduleChanged && request.Schedule.Mode != automationpkg.ScheduleModeAt) {
+		loaded, err := loadCurrent()
+		if err != nil {
+			return err
+		}
+		currentSchedule = loaded.Schedule
+	}
+	if scheduleChanged &&
+		request.Schedule.Mode != automationpkg.ScheduleModeAt &&
+		currentSchedule != nil {
+		request.Schedule.CatchUpPolicy = currentSchedule.CatchUpPolicy
+		request.Schedule.MisfireGraceSeconds = currentSchedule.MisfireGraceSeconds
+	}
+	if !reliabilityChanged {
+		return nil
+	}
+	if request.Schedule == nil {
+		if currentSchedule == nil {
+			return errors.New("cli: automation job has no schedule to update reliability")
+		}
+		request.Schedule = new(*currentSchedule)
+	}
+	return applyAutomationScheduleReliability(
+		cmd,
+		request.Schedule,
+		automationScheduleReliabilityInput{
+			CatchUpPolicyRaw:    input.CatchUpPolicyRaw,
+			MisfireGraceSeconds: input.MisfireGraceSeconds,
+		},
+	)
 }
 
 func applyAutomationLoopInputCommandUpdate(
