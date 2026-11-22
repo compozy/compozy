@@ -209,7 +209,7 @@ func loopRunSummaryTOONRow(run *contract.LoopRunPayload) []string {
 		stringOrDash(run.ID),
 		stringOrDash(run.ProfileName),
 		stringOrDash(run.LoopName),
-		loopRunStatusLabel(run),
+		stringOrDash(string(run.Status)),
 		loopRunAttentionLabel(run.Attention),
 		fmt.Sprintf("%d/%d", run.Progress.StepsDone, run.Progress.StepsTotal),
 		stringOrDash(string(run.CompletionState)),

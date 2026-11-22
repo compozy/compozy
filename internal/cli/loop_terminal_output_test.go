@@ -44,6 +44,33 @@ func TestLoopTerminalCauseShouldSurfaceInReadOutputs(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the TOON status cell raw", func(t *testing.T) {
+		t.Parallel()
+
+		needsYou := loopRunSummaryTOONRow(&contract.LoopRunPayload{
+			ID:       "run-needs-you",
+			LoopName: "review",
+			Status:   contract.LoopRunStatusRunning,
+			Attention: &contract.LoopRunAttention{
+				Kind:  "approval",
+				Count: 1,
+			},
+		})
+		if needsYou[3] != "running" || needsYou[4] != "approval (1)" {
+			t.Fatalf("TOON needs-you row = %#v, want raw status and attention column", needsYou)
+		}
+
+		settled := loopRunSummaryTOONRow(&contract.LoopRunPayload{
+			ID:       "run-blocked",
+			LoopName: "delivery",
+			Status:   contract.LoopRunStatusBlocked,
+			Terminal: terminal,
+		})
+		if settled[3] != "blocked" {
+			t.Fatalf("TOON settled status = %q, want raw blocked", settled[3])
+		}
+	})
+
 	t.Run("Should render the terminal cause in loop status", func(t *testing.T) {
 		t.Parallel()
 
