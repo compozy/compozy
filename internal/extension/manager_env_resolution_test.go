@@ -411,25 +411,28 @@ func TestManagerResolveLaunchInputGate(t *testing.T) {
 		},
 	)
 
-	t.Run("Should keep a stored typed row over the default of a required server-consumed input", func(t *testing.T) {
+	t.Run("Should keep a stored typed row over the default of a server-consumed input", func(t *testing.T) {
 		t.Parallel()
-		served := envLaunchInput("region", "string", "REGION", `"us-east"`, true)
-		served.Required = true
-		manager := NewManager(nil,
-			WithGetenv(func(string) string { return "" }),
-			WithEnvBindingStore(&envResolutionBindingStore{}),
-			WithInputRowReader(envResolutionInputRows{
-				"region": {Type: "string", Value: json.RawMessage(`"eu-west"`), Active: true},
-			}),
-		)
-		env, cleanups, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
-			[]string{"REGION"}, []launchInput{served}, t.TempDir(), nil, nil)
-		if err != nil {
-			t.Fatalf("resolveInstanceEnvMap() error = %v, want start", err)
-		}
-		runExtensionRedactionCleanups(cleanups)
-		if value, exists := envListToMap(t, env)["REGION"]; exists {
-			t.Fatalf("REGION = %q, want the default withheld behind the stored typed row", value)
+		for _, required := range []bool{true, false} {
+			served := envLaunchInput("region", "string", "REGION", `"us-east"`, true)
+			served.Required = required
+			manager := NewManager(nil,
+				WithGetenv(func(string) string { return "" }),
+				WithEnvBindingStore(&envResolutionBindingStore{}),
+				WithInputRowReader(envResolutionInputRows{
+					"region": {Type: "string", Value: json.RawMessage(`"eu-west"`), Active: true},
+				}),
+			)
+			env, cleanups, err := manager.resolveInstanceEnvMap(t.Context(), InstanceKey{Name: "demo"},
+				[]string{"REGION"}, []launchInput{served}, t.TempDir(), nil, nil)
+			if err != nil {
+				t.Fatalf("resolveInstanceEnvMap(required=%t) error = %v, want start", required, err)
+			}
+			runExtensionRedactionCleanups(cleanups)
+			if value, exists := envListToMap(t, env)["REGION"]; exists {
+				t.Fatalf("REGION = %q (required=%t), want the default withheld behind the stored typed row",
+					value, required)
+			}
 		}
 	})
 

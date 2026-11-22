@@ -1914,16 +1914,16 @@ func TestInstanceCallApproval(t *testing.T) {
 		{"cleanup stop at approve-reads", ToolIDSessionCleanup, `{"action":"stop"}`, "", PermissionModeApproveReads, false, false},
 		{"hook escalates cleanup preview", ToolIDSessionCleanup, `{}`, `{"dry_run":false}`, PermissionModeApproveEdits, false, false},
 		{"cleanup at deny all", ToolIDSessionCleanup, `{}`, "", PermissionModeDenyAll, false, false},
-		{"setup read", ToolIDExtensionsSetup, `{}`, "", PermissionModeApproveReads, false, true},
-		{"setup empty inputs", ToolIDExtensionsSetup, `{"inputs":{}}`, "", PermissionModeApproveEdits, false, true},
-		{"setup write", ToolIDExtensionsSetup, `{"inputs":{"project":{}}}`, "", PermissionModeApproveReads, false, false},
-		{"setup write at auto", ToolIDExtensionsSetup, `{"inputs":{"project":{}}}`, "", PermissionModeAuto, false, false},
+		{"setup read", ToolIDExtensionsSetup, `{"name":"kit"}`, "", PermissionModeApproveReads, false, true},
+		{"setup empty inputs", ToolIDExtensionsSetup, `{"name":"kit","inputs":{}}`, "", PermissionModeApproveEdits, false, true},
+		{"setup write", ToolIDExtensionsSetup, `{"name":"kit","inputs":{"project":{}}}`, "", PermissionModeApproveReads, false, false},
+		{"setup write at auto", ToolIDExtensionsSetup, `{"name":"kit","inputs":{"project":{}}}`, "", PermissionModeAuto, false, false},
 		{"setup name-only read", ToolIDExtensionsSetup, `{"name":"kit"}`, "", PermissionModeApproveEdits, false, true},
-		{"setup write at approve-edits", ToolIDExtensionsSetup, `{"inputs":{"project":{}}}`, "",
+		{"setup write at approve-edits", ToolIDExtensionsSetup, `{"name":"kit","inputs":{"project":{}}}`, "",
 			PermissionModeApproveEdits, false, false},
-		{"hook escalates setup read", ToolIDExtensionsSetup, `{}`, `{"inputs":{"project":{}}}`,
+		{"hook escalates setup read", ToolIDExtensionsSetup, `{"name":"kit"}`, `{"name":"kit","inputs":{"project":{}}}`,
 			PermissionModeApproveReads, false, false},
-		{"setup at deny all", ToolIDExtensionsSetup, `{}`, "", PermissionModeDenyAll, false, false},
+		{"setup at deny all", ToolIDExtensionsSetup, `{"name":"kit"}`, "", PermissionModeDenyAll, false, false},
 	} {
 		t.Run("Should enforce input approval for "+tc.name, func(t *testing.T) {
 			t.Parallel()
