@@ -1540,6 +1540,11 @@ func TestDispatchReservedRunRetrySkipClearsLoopInputMetadata(t *testing.T) {
 		Status:    RunScheduled,
 		Attempt:   1,
 		StartedAt: new(time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)),
+		Metadata: map[string]any{
+			LoopInputsMetadataKey:     map[string]any{"slug": "stale-spec"},
+			LoopInputKeysMetadataKey:  []string{"slug"},
+			LoopInputErrorMetadataKey: "stale failure from a prior attempt",
+		},
 	})
 	if err != nil {
 		t.Fatalf("CreateRun(reserved) error = %v", err)
@@ -1558,6 +1563,9 @@ func TestDispatchReservedRunRetrySkipClearsLoopInputMetadata(t *testing.T) {
 	}
 	if got, want := run.Metadata[SchedulerSkipReasonMetadataKey], LoopInputSkipReasonNoInputs; got != want {
 		t.Fatalf("run.Metadata[reason] = %#v, want %#v", got, want)
+	}
+	if got, want := run.Metadata[LoopInputSourceMetadataKey], LoopInputSourceCommand; got != want {
+		t.Fatalf("run.Metadata[loop_input_source] = %#v, want %#v", got, want)
 	}
 	for _, key := range []string{
 		LoopInputsMetadataKey,
