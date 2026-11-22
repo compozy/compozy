@@ -49,7 +49,8 @@ func WithHealthFlushInterval(interval time.Duration) OpenOption {
 	}
 }
 
-// WithReadStatementCacheLimit bounds the dynamic read shapes kept prepared; zero disables reuse.
+// WithReadStatementCacheLimit bounds the dynamic read shapes kept prepared; zero disables reuse of
+// both dynamic and static reads.
 func WithReadStatementCacheLimit(limit int) OpenOption {
 	return func(config *openConfig) {
 		if limit >= 0 {
@@ -64,6 +65,15 @@ func WithClock(now func() time.Time) OpenOption {
 	return func(config *openConfig) {
 		config.now = now
 	}
+}
+
+// staticReadStatementCacheLimit bounds sqlc's static read statements, which come from a fixed
+// set of generated queries; disabling dynamic reuse disables static reuse too.
+func (c openConfig) staticReadStatementCacheLimit() int {
+	if c.readStatementCacheLimit == 0 {
+		return 0
+	}
+	return defaultStaticReadStatementCacheLimit
 }
 
 func newOpenConfig(options []OpenOption) openConfig {

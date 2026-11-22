@@ -154,6 +154,7 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	base := newRepoBase(g.db, g.readDB, func() time.Time { return g.now() }, &g.closed)
 	base.path = g.path
 	base.readStatements = g.readStatements
+	base.readQueries = sqlcgen.New(statementReader{db: g.readDB, cache: g.staticReadStatements})
 	base.background = g.background
 	base.telemetry = g.telemetry
 	if g.background != nil {

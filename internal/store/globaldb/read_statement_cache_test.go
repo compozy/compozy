@@ -266,3 +266,166 @@ func insertStatementCacheSessions(t *testing.T, globalDB *GlobalDB, ids ...strin
 		}
 	}
 }
+
+// Invariant: sqlc's static reads on the read pool reuse one prepared statement per query text.
+// Owning layer/canonical suite: globaldb read statement reuse, next to the dynamic-shape cases above.
+func TestStaticReadStatementReuse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should prepare a static read once and still read fresh rows", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := t.Context()
+		insertStatementCacheSessions(t, globalDB, "sess-static-a")
+		archivedAt, err := globalDB.SessionArchivedAt(ctx, "", "sess-static-a")
+		if err != nil || archivedAt != nil {
+			t.Fatalf("SessionArchivedAt(before) = %v, %v; want nil, nil", archivedAt, err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `UPDATE sessions SET archived_at = ? WHERE id = ?`,
+			"2026-11-02T00:00:00Z", "sess-static-a"); err != nil {
+			t.Fatalf("archive session: %v", err)
+		}
+		archivedAt, err = globalDB.SessionArchivedAt(ctx, "", "sess-static-a")
+		want := time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC)
+		if err != nil || archivedAt == nil || !archivedAt.Equal(want) {
+			t.Fatalf("SessionArchivedAt(after) = %v, %v; want %s", archivedAt, err, want)
+		}
+		// Other static reads run in the background, so count only this query's statements.
+		if got := cachedStatementsContaining(globalDB.staticReadStatements, "SELECT archived_at FROM sessions"); got != 1 {
+			t.Fatalf("cached archive-state statements = %d, want 1 across two reads", got)
+		}
+		if got := cachedStatementsContaining(globalDB.readStatements, "archived_at"); got != 0 {
+			t.Fatalf("dynamic cache holds %d archive-state statements, want 0 for a static read", got)
+		}
+	})
+
+	t.Run("Should serve single-row and multi-row reads through one statement per text", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		cache := newReadStatementCache(globalDB.readDB, 4)
+		t.Cleanup(func() {
+			if err := cache.close(); err != nil {
+				t.Errorf("close cache: %v", err)
+			}
+		})
+		reader := statementReader{db: globalDB.readDB, cache: cache}
+		for _, want := range []int{1, 2} {
+			var got int
+			if err := reader.QueryRowContext(t.Context(), "SELECT ?", want).Scan(&got); err != nil || got != want {
+				t.Fatalf("QueryRowContext(%d) = %d, %v", want, got, err)
+			}
+		}
+		rows, err := reader.QueryContext(t.Context(), "SELECT ? UNION ALL SELECT ?", 3, 4)
+		if err != nil {
+			t.Fatalf("QueryContext error = %v", err)
+		}
+		var values []int
+		for rows.Next() {
+			var value int
+			if err := rows.Scan(&value); err != nil {
+				t.Fatalf("scan row: %v", err)
+			}
+			values = append(values, value)
+		}
+		if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+			t.Fatalf("read rows: %v", err)
+		}
+		if len(values) != 2 || values[0] != 3 || values[1] != 4 {
+			t.Fatalf("QueryContext rows = %v, want [3 4]", values)
+		}
+		if got := cache.len(); got != 2 {
+			t.Fatalf("cached statements = %d, want 2 for two query texts", got)
+		}
+	})
+
+	t.Run("Should fall back to unprepared single-row reads after the cache closes", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		cache := newReadStatementCache(globalDB.readDB, 4)
+		reader := statementReader{db: globalDB.readDB, cache: cache}
+		if err := cache.close(); err != nil {
+			t.Fatalf("close cache: %v", err)
+		}
+		var got int
+		if err := reader.QueryRowContext(t.Context(), "SELECT 7").Scan(&got); err != nil || got != 7 {
+			t.Fatalf("QueryRowContext after close = %d, %v; want 7", got, err)
+		}
+		if got := cache.len(); got != 0 {
+			t.Fatalf("cached statements after close = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should surface a failed preparation as the read error", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		cache := newReadStatementCache(globalDB.readDB, 4)
+		t.Cleanup(func() {
+			if err := cache.close(); err != nil {
+				t.Errorf("close cache: %v", err)
+			}
+		})
+		reader := statementReader{db: globalDB.readDB, cache: cache}
+		var got int
+		err := reader.QueryRowContext(t.Context(), "SELECT missing_column FROM sessions").Scan(&got)
+		if err == nil || !strings.Contains(err.Error(), "missing_column") {
+			t.Fatalf("QueryRowContext(invalid) error = %v, want the missing column", err)
+		}
+		if got := cache.len(); got != 0 {
+			t.Fatalf("cached statements after a failed prepare = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should read static queries unprepared when the open option disables reuse", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB, err := OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), GlobalDatabaseName),
+			WithReadStatementCacheLimit(0))
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := globalDB.Close(context.WithoutCancel(t.Context())); err != nil {
+				t.Errorf("close global db: %v", err)
+			}
+		})
+		insertStatementCacheSessions(t, globalDB, "sess-static-off")
+		if _, err := globalDB.SessionArchivedAt(t.Context(), "", "sess-static-off"); err != nil {
+			t.Fatalf("SessionArchivedAt error = %v", err)
+		}
+		if got := globalDB.staticReadStatements.len(); got != 0 {
+			t.Fatalf("cached static statements = %d, want 0 with reuse disabled", got)
+		}
+	})
+
+	t.Run("Should release static statements when the database closes", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		insertStatementCacheSessions(t, globalDB, "sess-static-close")
+		if _, err := globalDB.SessionArchivedAt(t.Context(), "", "sess-static-close"); err != nil {
+			t.Fatalf("SessionArchivedAt error = %v", err)
+		}
+		if err := globalDB.Close(context.WithoutCancel(t.Context())); err != nil {
+			t.Fatalf("Close error = %v", err)
+		}
+		if got := globalDB.staticReadStatements.len(); got != 0 {
+			t.Fatalf("cached static statements after close = %d, want 0", got)
+		}
+	})
+}
+
+func cachedStatementsContaining(cache *readStatementCache, fragment string) int {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	n := 0
+	for query := range cache.stmts {
+		if strings.Contains(query, fragment) {
+			n++
+		}
+	}
+	return n
+}

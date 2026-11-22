@@ -47,12 +47,14 @@ type GlobalDB struct {
 	readDB *sql.DB
 	// readStatements shadows the promoted repoBase field so GlobalDB owns its close.
 	readStatements *readStatementCache
-	background     *store.BackgroundWriter
-	checkpoint     *store.PassiveCheckpointer
-	telemetry      *telemetrydb.Store
-	healthBuffer   *sessionHealthBuffer
-	summaryRetry   *eventSummaryRetry
-	path           string
-	now            func() time.Time
-	closed         atomic.Int32
+	// staticReadStatements serves sqlc's static reads on the read pool; GlobalDB owns its close.
+	staticReadStatements *readStatementCache
+	background           *store.BackgroundWriter
+	checkpoint           *store.PassiveCheckpointer
+	telemetry            *telemetrydb.Store
+	healthBuffer         *sessionHealthBuffer
+	summaryRetry         *eventSummaryRetry
+	path                 string
+	now                  func() time.Time
+	closed               atomic.Int32
 }
