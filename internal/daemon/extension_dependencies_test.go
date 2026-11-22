@@ -878,6 +878,14 @@ func designDependencyAtLeast(minVersion string) extensionpkg.ExtensionDependency
 	}
 }
 
+// marketplaceDependencyFixture serves the open-design client plugin from a file marketplace source "team".
+type marketplaceDependencyFixture struct {
+	service   *daemonExtensionService
+	runtime   *marketplaceRuntime
+	pluginDir string
+	digest    string
+}
+
 // installGlobalDesign installs open-design 1.0.0 globally for every profile, then lists 1.1.0.
 func (m *marketplaceDependencyFixture) installGlobalDesign(t *testing.T) {
 	t.Helper()
@@ -911,14 +919,6 @@ func (m *marketplaceDependencyFixture) workspaceDesignDependency(
 		t.Fatalf("dependencies = %+v, want open-design only", items)
 	}
 	return items[0]
-}
-
-// marketplaceDependencyFixture serves the open-design client plugin from a file marketplace source "team".
-type marketplaceDependencyFixture struct {
-	service   *daemonExtensionService
-	runtime   *marketplaceRuntime
-	pluginDir string
-	digest    string
 }
 
 // rootRequest installs a local root requiring team/design as open-design.
