@@ -2746,9 +2746,11 @@ func TestHostAPIHandlerAutomationTriggerCRUDAndConfigGuardrails(t *testing.T) {
 		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 		_, err = env.call(t, "ext-automation", "automation/jobs/update", map[string]any{
 			"id":                 configJob.ID,
+			"enabled":            false,
 			"loop_input_command": "scripts/next-spec.sh",
 		})
 		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
+		assertErrorContains(t, err, "only accept enabled updates")
 		_, err = env.call(t, "ext-automation", "automation/jobs/delete", map[string]any{"id": configJob.ID})
 		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 
