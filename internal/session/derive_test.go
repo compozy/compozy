@@ -538,6 +538,46 @@ func TestValidateDeriveSource(t *testing.T) {
 	}
 }
 
+// The child resolves its agent, declared route, and budget in the profile it binds in, so a
+// route index selected at derive names the route the child's first bind resolves (#1928).
+func TestDeriveResolutionMeta(t *testing.T) {
+	t.Parallel()
+
+	source := &store.SessionMeta{ID: "sess_src", WorkspaceID: "ws", ProfileID: "source-profile"}
+	for _, tc := range []struct {
+		name string
+		spec deriveSpec
+		want string
+	}{
+		{
+			name: "Should resolve a non-relocation derive in the requested child profile",
+			spec: deriveSpec{profileID: "child-profile"},
+			want: "child-profile",
+		},
+		{
+			name: "Should resolve a relocated copy in the target profile",
+			spec: deriveSpec{profileID: "source-profile", relocation: &deriveRelocation{profileID: "target-profile"}},
+			want: "target-profile",
+		},
+		{
+			name: "Should keep the source profile when no child profile is requested",
+			spec: deriveSpec{},
+			want: "source-profile",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := deriveResolutionMeta(tc.spec, source)
+			if got.ProfileID != tc.want {
+				t.Fatalf("deriveResolutionMeta().ProfileID = %q, want %q", got.ProfileID, tc.want)
+			}
+			if source.ProfileID != "source-profile" {
+				t.Fatalf("deriveResolutionMeta() mutated the source meta: %q", source.ProfileID)
+			}
+		})
+	}
+}
+
 func TestReplayBudgetWorkspaceOverlay(t *testing.T) {
 	t.Parallel()
 	t.Run("Should use the same workspace overlay for resume and derive", func(t *testing.T) {
