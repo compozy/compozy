@@ -145,14 +145,7 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 		},
 	)
 	if err != nil {
-		if req.CatchUp && errors.Is(err, ErrLoopConcurrencyConflict) {
-			scheduledRun.Metadata = loopCatchUpFailureMetadata(
-				scheduledRun.Metadata,
-				req,
-				"loop_concurrency_conflict",
-			)
-		}
-		return d.finishRun(ctx, scheduledRun, classifyDispatchError(err), err)
+		return d.finishLoopStartFailure(ctx, req, scheduledRun, err)
 	}
 	if strings.TrimSpace(result.RunID) == "" {
 		return d.finishRun(ctx, scheduledRun, RunFailed, errors.New("automation: loop starter returned empty run id"))
@@ -167,6 +160,22 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 	}
 	d.dispatchPostFireHook(ctx, req, *delegatedRun)
 	return delegatedRun, nil
+}
+
+func (d *Dispatcher) finishLoopStartFailure(
+	ctx context.Context,
+	req DispatchRequest,
+	scheduledRun *Run,
+	runErr error,
+) (*Run, error) {
+	if req.CatchUp && errors.Is(runErr, ErrLoopConcurrencyConflict) {
+		scheduledRun.Metadata = loopCatchUpFailureMetadata(
+			scheduledRun.Metadata,
+			req,
+			"loop_concurrency_conflict",
+		)
+	}
+	return d.finishRun(ctx, scheduledRun, classifyDispatchError(runErr), runErr)
 }
 
 func loopSuppressionMetadata(existing map[string]any, suppressedCount int) map[string]any {

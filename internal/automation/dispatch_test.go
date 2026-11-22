@@ -804,7 +804,10 @@ func TestDispatchLoopTargetCatchUpConflictRecordsMetadata(t *testing.T) {
 	}
 	resolved, ok := run.Metadata[LoopInputsMetadataKey].(map[string]any)
 	if !ok {
-		t.Fatalf("run.Metadata[loop_inputs] = %#v, want the resolved map preserved", run.Metadata[LoopInputsMetadataKey])
+		t.Fatalf(
+			"run.Metadata[loop_inputs] = %#v, want the resolved map preserved",
+			run.Metadata[LoopInputsMetadataKey],
+		)
 	}
 	if got, want := resolved["slug"], "queued-spec"; got != want {
 		t.Fatalf("run.Metadata[loop_inputs][slug] = %#v, want %#v", got, want)
