@@ -2582,9 +2582,7 @@ func TestHostAPIHandlerAutomationJobUpdateLoopInputCommand(t *testing.T) {
 			"loop_input_command": "scripts/next-spec.sh",
 		})
 		assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-		if err == nil || !strings.Contains(err.Error(), "requires a Loop target job") {
-			t.Fatalf("Handle(automation/jobs/update non-Loop command) error = %v", err)
-		}
+		assertErrorContains(t, err, "requires a Loop target job")
 	})
 }
 
