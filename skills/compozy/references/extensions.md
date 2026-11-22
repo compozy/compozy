@@ -207,8 +207,8 @@ Every catalog entry has exactly one category id: `productivity`, `communication`
   install, the result is still success (`201`, exit 0) with `extension.enabled: false` and
   `enable_error {error, code}`; the package stays installed. Retry with
   `compozy extension enable <name>` / `compozy__extensions_enable`.
-- Setup state after Add: read input state with `compozy__extensions_setup {name}` or
-  `GET /api/extensions/{name}/inputs`, servers waiting for sign-in via `compozy__mcp_auth_status`, then
+- Setup state after Add: read input state with `compozy extension setup <name> -o json`,
+  `compozy__extensions_setup {name}` or `GET /api/extensions/{name}/inputs`, servers waiting for sign-in via `compozy__mcp_auth_status`, then
   `compozy mcp auth login <server>`. Do not report a plugin as ready from install success alone.
   Each input has `state`: `set` (binding, stored value or default), `missing`, `invalid` (stored value
   fails the current type) or `daemon_env` (an MCP server also consumes it and only the daemon
@@ -225,6 +225,15 @@ Every catalog entry has exactly one category id: `productivity`, `communication`
   workspace and profile and may write only `missing`, `invalid` or `daemon_env` inputs; including a
   `set` input refuses the whole call with `extension_input_overwrite_denied` (`input_ids`), nothing
   written. Changing a set value is operator-only. A call without `inputs` is a read for approvals.
+- Operator CLI: `compozy extension setup <name> [--scope global|workspace] [--workspace <ref>]
+  [--profile <name>]` prompts on a terminal for required `missing`/`invalid` inputs and every
+  `daemon_env` input (Enter keeps a `daemon_env` input unbound and says so); `--all` revisits every input,
+  Enter keeping `set` values; `--input id=value`/`--input-file f.json` write without prompting;
+  `-o json|toon` never prompts. Exit 0 when nothing required is missing or for any structured read, 2
+  when required inputs stay missing in human output or a value is invalid, 1 otherwise. The output ends
+  with `Sign in: compozy mcp auth login <server>` when an input feeds an OAuth server. `compozy extension
+  install` on a terminal prompts for the inputs an `extension_inputs_required` refusal lists and retries;
+  without a terminal or with structured output it keeps the `--input` guidance and exit 2.
 
 Plugin sources accept `url` and `git-subdir` source objects and the Codex index
 `.agents/plugins/marketplace.json`; an unreadable shape is reported as `unsupported_source`.

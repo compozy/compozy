@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -1947,4 +1948,179 @@ func getInstalledExtension(t *testing.T, homePaths compozyconfig.HomePaths, name
 		t.Fatalf("registry.Get(%q) error = %v", name, err)
 	}
 	return info
+}
+
+// Invariant: setup prompts only for what its mode selects, keeps daemon_env inputs unbound on Enter,
+// writes without prompting for --input, never prompts for structured output, and exits 2 when required
+// inputs stay missing in human output. Owner: CLI setup boundary (T-11). Canonical suite: extension_test.go.
+func TestExtensionSetupCommand(t *testing.T) {
+	t.Parallel()
+	input := func(id, prompt, kind string, required bool, state string, targets ...string) contract.ExtensionInputStatusPayload {
+		return contract.ExtensionInputStatusPayload{
+			ID: id, Prompt: prompt, Type: kind, Required: required, State: state,
+			Binding: contract.MarketplaceInputBindingPayload{Type: "env", Name: strings.ToUpper(id)},
+			Targets: append([]string{"subprocess"}, targets...),
+		}
+	}
+	defaultState := func() ExtensionInputsRecord {
+		return ExtensionInputsRecord{
+			Extension: "acme-tool", Profile: "default", Enabled: true,
+			Inputs: []contract.ExtensionInputStatusPayload{
+				input("token", "API token for Acme", "secret", true, contract.ExtensionInputStateMissing),
+				input("project", "Acme project ID", "identifier", true, contract.ExtensionInputStateInvalid),
+				input("owner", "Owner", "string", true, contract.ExtensionInputStateSet),
+				input("region", "Acme region", "string", false, contract.ExtensionInputStateDaemonEnv, "mcp:acme"),
+				input("verbose", "Verbose logs", "boolean", false, contract.ExtensionInputStateMissing),
+			},
+			Missing:        []string{"token"},
+			Invalid:        []string{"project"},
+			DaemonEnv:      []string{"region"},
+			MissingEnv:     []string{},
+			MCPAuthServers: []string{"acme"},
+		}
+	}
+	type setupRun struct {
+		stdout, stderr string
+		err            error
+		writes         []contract.SetExtensionInputsRequest
+	}
+	run := func(t *testing.T, state ExtensionInputsRecord, terminal bool, stdin string, args ...string) setupRun {
+		t.Helper()
+		var result setupRun
+		deps := newTestDeps(t, &stubClient{
+			extensionInputsFn: func(_ context.Context, name string, _ extensionCLIScope) (ExtensionInputsRecord, error) {
+				if name != "acme-tool" {
+					t.Fatalf("setup read name = %q", name)
+				}
+				return state, nil
+			},
+			setExtensionInputsFn: func(
+				_ context.Context, _ string, request contract.SetExtensionInputsRequest,
+			) (ExtensionInputsRecord, error) {
+				result.writes = append(result.writes, request)
+				after := state
+				after.Inputs = slices.Clone(state.Inputs)
+				for index := range after.Inputs {
+					if _, written := request.Inputs[after.Inputs[index].ID]; written {
+						after.Inputs[index].State = contract.ExtensionInputStateSet
+						after.Changed = append(after.Changed, after.Inputs[index].ID)
+					}
+				}
+				after.Missing, after.Invalid, after.Reloaded = []string{}, []string{}, true
+				return after, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+		deps.inputIsTerminal = func(io.Reader) bool { return terminal }
+		deps.outputIsTerminal = func(io.Writer) bool { return terminal }
+		result.stdout, result.stderr, result.err = executeRootCommandWithInput(
+			t, deps, stdin, append([]string{"extension", "setup", "acme-tool"}, args...)...,
+		)
+		return result
+	}
+
+	t.Run("Should prompt required missing and invalid inputs and every daemon_env input", func(t *testing.T) {
+		t.Parallel()
+		got := run(t, defaultState(), true, "tok-value\nplatform\n\n")
+		if got.err != nil {
+			t.Fatalf("setup error = %v", got.err)
+		}
+		if len(got.writes) != 1 {
+			t.Fatalf("writes = %d, want 1", len(got.writes))
+		}
+		values := got.writes[0].Inputs
+		if len(values) != 2 || string(values["token"].Value) != `"tok-value"` ||
+			string(values["project"].Value) != `"platform"` {
+			t.Fatalf("written inputs = %#v, want token and project only (daemon_env kept unbound)", values)
+		}
+		for _, want := range []string{
+			"API token for Acme (secret): ",
+			"Acme project ID: ",
+			"Acme region (daemon environment — Enter keeps it unbound): ",
+			"Acme region: still using the daemon environment; the extension process does not receive it.",
+		} {
+			if !strings.Contains(got.stderr, want) {
+				t.Fatalf("prompts = %q, want %q", got.stderr, want)
+			}
+		}
+		if strings.Contains(got.stderr, "Owner") || strings.Contains(got.stderr, "Verbose") ||
+			strings.Contains(got.stderr, "tok-value") {
+			t.Fatalf("prompts = %q, want no set or optional input and no echoed secret", got.stderr)
+		}
+		for _, want := range []string{
+			"Updated 2 inputs of acme-tool. Restarted acme-tool.",
+			"Sign in: compozy mcp auth login acme",
+		} {
+			if !strings.Contains(got.stdout, want) {
+				t.Fatalf("output = %q, want %q", got.stdout, want)
+			}
+		}
+	})
+
+	t.Run("Should keep set and daemon_env values on Enter under --all", func(t *testing.T) {
+		t.Parallel()
+		state := defaultState()
+		for index := range state.Inputs {
+			if state.Inputs[index].State != contract.ExtensionInputStateDaemonEnv {
+				state.Inputs[index].State = contract.ExtensionInputStateSet
+			}
+		}
+		state.Inputs[4].State = contract.ExtensionInputStateMissing
+		state.Missing, state.Invalid = []string{}, []string{}
+		got := run(t, state, true, "\n\n\n\n\n", "--all")
+		if got.err != nil || len(got.writes) != 0 {
+			t.Fatalf("setup --all: writes=%d err=%v, want no write", len(got.writes), got.err)
+		}
+		for _, want := range []string{
+			"API token for Acme (secret, set — Enter keeps it): ",
+			"Owner (set — Enter keeps it): ",
+			"Verbose logs [y/N]: ",
+			"Acme region: still using the daemon environment; the extension process does not receive it.",
+		} {
+			if !strings.Contains(got.stderr, want) {
+				t.Fatalf("prompts = %q, want %q", got.stderr, want)
+			}
+		}
+		if !strings.Contains(got.stdout, "All required inputs of acme-tool are set.") {
+			t.Fatalf("output = %q, want the idempotent summary", got.stdout)
+		}
+	})
+
+	t.Run("Should write --input values without prompting", func(t *testing.T) {
+		t.Parallel()
+		got := run(t, defaultState(), false, "", "--input", "token=abc", "--input", "project=platform")
+		if got.err != nil || len(got.writes) != 1 || got.stderr != "" {
+			t.Fatalf("setup --input: writes=%d stderr=%q err=%v", len(got.writes), got.stderr, got.err)
+		}
+		if string(got.writes[0].Inputs["project"].Value) != `"platform"` || len(got.writes[0].Inputs) != 2 {
+			t.Fatalf("written inputs = %#v", got.writes[0].Inputs)
+		}
+	})
+
+	t.Run("Should print the read payload for JSON output without prompting", func(t *testing.T) {
+		t.Parallel()
+		got := run(t, defaultState(), true, "", "-o", "json")
+		if got.err != nil || len(got.writes) != 0 || got.stderr != "" {
+			t.Fatalf("setup -o json: writes=%d stderr=%q err=%v", len(got.writes), got.stderr, got.err)
+		}
+		var payload ExtensionInputsRecord
+		if err := json.Unmarshal([]byte(got.stdout), &payload); err != nil {
+			t.Fatalf("decode setup JSON: %v", err)
+		}
+		if !reflect.DeepEqual(payload.Missing, []string{"token"}) || payload.Inputs[3].State != "daemon_env" {
+			t.Fatalf("setup JSON = %#v, want the GET payload", payload)
+		}
+	})
+
+	t.Run("Should exit 2 when required inputs stay missing without a terminal", func(t *testing.T) {
+		t.Parallel()
+		got := run(t, defaultState(), false, "")
+		if len(got.writes) != 0 || cliExitCodeForError(got.err) != 2 {
+			t.Fatalf("setup non-terminal: writes=%d err=%v, want exit 2", len(got.writes), got.err)
+		}
+		if !strings.Contains(got.err.Error(), "token, project") ||
+			!strings.Contains(got.stdout, "Sign in: compozy mcp auth login acme") {
+			t.Fatalf("setup non-terminal: stdout=%q err=%v", got.stdout, got.err)
+		}
+	})
 }

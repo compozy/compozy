@@ -94,6 +94,11 @@ compozy extension install compozy/context7
 compozy extension install compozy/grafana --input-file inputs.json
 ```
 
+On a terminal with human output, a refused install prompts for each input the refusal lists (secret
+values are hidden, defaults are shown in brackets and Enter accepts them) and retries. Without a
+terminal, or with `-o json|toon`, it never prompts: it names the missing inputs, points to `--input`
+and `--input-file`, and exits with code 2.
+
 Context7's API key is optional. For Grafana, `inputs.json` can provide both the URL and an existing
 secret reference:
 
@@ -586,6 +591,33 @@ A stored value is checked against the input type each time it is read. If a pack
 the type and the old value no longer fits, the input reads as invalid: a required invalid input
 blocks enable like a missing one, and an optional invalid input is omitted from the process and its
 MCP servers. Supply a new value to repair it.
+
+## Complete inputs after install
+
+`compozy extension setup <name>` completes the inputs of one installed extension in the selected
+scope, workspace, and profile:
+
+```bash
+compozy extension setup acme-tool                       # prompt for what is missing
+compozy extension setup acme-tool --all                 # revisit every input
+compozy extension setup acme-tool --input project=platform
+compozy extension setup acme-tool -o json               # read state, never prompt
+```
+
+- By default it prompts for required inputs that are missing or invalid, and for every input that
+  only the daemon environment satisfies. Enter keeps such an input unbound and says that the
+  extension process still does not receive it.
+- `--all` prompts for every input; Enter keeps a value that is already set. Secrets are never shown.
+- `--input` and `--input-file` write without prompting, then report what is still missing.
+- A write restarts an enabled instance only when a value changed; rerunning with nothing missing
+  changes nothing.
+- When an input feeds an MCP server that signs in with OAuth, the output ends with
+  `Sign in: compozy mcp auth login <server>`. Setup does not sign in.
+- Exit codes: 0 when nothing required is missing or for any `-o json|toon` read; 2 when required
+  inputs remain missing in human output or a value is invalid; 1 for other errors.
+
+Agents use `compozy__extensions_setup`, which may fill only missing, invalid, or daemon-environment
+inputs of their own instance. Changing a value that is already set is operator-only.
 
 ## Install one package in several scopes
 

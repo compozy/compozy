@@ -7,10 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/spf13/cobra"
@@ -23,10 +26,57 @@ type extensionInputFlags struct {
 }
 
 func (f *extensionInputFlags) register(cmd *cobra.Command) {
+	f.registerValues(cmd)
+	cmd.Flags().StringVar(&f.digest, "expected-digest", "", "Pin the SHA-256 digest of the reviewed extension")
+}
+
+func (f *extensionInputFlags) registerValues(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVar(&f.values, "input", nil, "Set a manifest input as id=value (repeatable)")
 	cmd.Flags().
 		StringVar(&f.file, "input-file", "", "Read input values from a JSON object of {value} or {vault_ref} envelopes")
-	cmd.Flags().StringVar(&f.digest, "expected-digest", "", "Pin the SHA-256 digest of the reviewed extension")
+}
+
+// promptExtensionInstallInputs answers an extension_inputs_required refusal on an interactive terminal. It
+// prompts for the listed inputs in input_definitions order and returns the plan to retry with the merged
+// values. It reports false when the refusal is not prompted, so the caller keeps the original error.
+func promptExtensionInstallInputs(
+	cmd *cobra.Command, deps commandDeps, plan extensionInstallPlan, installErr error,
+) (extensionInstallPlan, bool, error) {
+	apiErr, ok := errors.AsType[*extensionOperationAPIError](installErr)
+	if !ok || apiErr.payload.Code != diagnosticcontract.CodeExtensionInputsRequired {
+		return plan, false, nil
+	}
+	interactive, err := extensionInputsInteractive(cmd, deps)
+	if err != nil || !interactive {
+		return plan, false, err
+	}
+	listed := append(slices.Clone(apiErr.payload.Inputs), apiErr.payload.Invalid...)
+	inputs := make([]extensionPromptInput, 0, len(listed))
+	for _, definition := range apiErr.payload.InputDefinitions {
+		if slices.Contains(listed, definition.ID) {
+			inputs = append(inputs, extensionPromptInput{
+				ID: definition.ID, Prompt: definition.Prompt, Type: definition.Type,
+				Required: definition.Required, Default: definition.Default,
+			})
+		}
+	}
+	if len(inputs) == 0 {
+		return plan, false, nil
+	}
+	values, err := newExtensionInputPrompter(cmd).promptAll(cmd.Context(), inputs)
+	if err != nil {
+		return plan, false, err
+	}
+	retry := extensionInstallPlan{Attempts: slices.Clone(plan.Attempts)}
+	for index := range retry.Attempts {
+		merged := maps.Clone(retry.Attempts[index].Inputs)
+		if merged == nil {
+			merged = make(map[string]extensioninput.Value, len(values))
+		}
+		maps.Copy(merged, values)
+		retry.Attempts[index].Inputs = merged
+	}
+	return retry, true, nil
 }
 
 func prepareExtensionCLIInputs(

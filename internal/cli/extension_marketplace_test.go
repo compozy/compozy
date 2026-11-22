@@ -3,7 +3,9 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
@@ -351,6 +354,116 @@ func TestExtensionInstallCommandInputs(t *testing.T) {
 			"json",
 		); err != nil {
 			t.Fatal(err)
+		}
+	})
+}
+
+// Invariant: an extension_inputs_required refusal prompts on a terminal and retries once with the merged
+// values; without a terminal or with structured output it keeps the --input guidance and exit code 2.
+// Owner: CLI install boundary (T-12). Canonical suite: extension_marketplace_test.go.
+func TestExtensionInstallPromptsForRequiredInputs(t *testing.T) {
+	t.Parallel()
+	refusal := func() error {
+		return &extensionOperationAPIError{
+			statusCode: 422,
+			status:     "422 Unprocessable Entity",
+			payload: contract.ExtensionOperationErrorPayload{
+				Error:  "extension: inputs required",
+				Code:   diagnosticcontract.CodeExtensionInputsRequired,
+				Inputs: []string{"token"},
+				InputDefinitions: []contract.MarketplaceInputPayload{
+					{ID: "label", Prompt: "Label", Type: "string"},
+					{ID: "token", Prompt: "API token", Type: "secret", Required: true},
+				},
+			},
+		}
+	}
+	newDeps := func(t *testing.T, terminal bool, calls *[]InstallExtensionRequest) commandDeps {
+		t.Helper()
+		deps, _ := newExtensionLocalDeps(t, &stubClient{
+			previewExtensionInstallFn: func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error) {
+				return ExtensionInstallPreviewRecord{
+					Name:         "typed",
+					DigestSHA256: strings.Repeat("c", 64),
+					Inputs: []contract.MarketplaceInputPayload{
+						{ID: "label", Type: "string"},
+						{ID: "token", Type: "secret", Required: true},
+					},
+				}, nil
+			},
+			installExtensionFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionRecord, error) {
+				*calls = append(*calls, req)
+				if len(*calls) == 1 {
+					return ExtensionRecord{}, refusal()
+				}
+				return ExtensionRecord{Name: "typed"}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+		deps.inputIsTerminal = func(io.Reader) bool { return terminal }
+		deps.outputIsTerminal = func(io.Writer) bool { return terminal }
+		return deps
+	}
+
+	t.Run("Should prompt for the listed inputs and retry with the merged values", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, true, &calls)
+		_, stderr, err := executeRootCommandWithInput(
+			t, deps, "s3cret-token\n", "extension", "install", "compozy/typed", "--input", "label=team",
+		)
+		if err != nil {
+			t.Fatalf("install with prompt error = %v", err)
+		}
+		if len(calls) != 2 {
+			t.Fatalf("install calls = %d, want a refusal and one retry", len(calls))
+		}
+		retry := calls[1].Inputs
+		if string(retry["token"].Value) != `"s3cret-token"` || string(retry["label"].Value) != `"team"` {
+			t.Fatalf("retry inputs = %#v, want prompted token merged with --input label", retry)
+		}
+		if !strings.Contains(stderr, "API token (secret): ") || strings.Contains(stderr, "Label") {
+			t.Fatalf("prompt output = %q, want only the listed secret input", stderr)
+		}
+		if strings.Contains(stderr, "s3cret-token") {
+			t.Fatal("prompt output echoed the secret value")
+		}
+	})
+
+	for _, testCase := range []struct {
+		name     string
+		terminal bool
+		args     []string
+	}{
+		{name: "without a terminal", terminal: false},
+		{name: "with JSON output", terminal: true, args: []string{"-o", "json"}},
+	} {
+		t.Run("Should keep the input guidance and exit code "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+			var calls []InstallExtensionRequest
+			deps := newDeps(t, testCase.terminal, &calls)
+			args := append([]string{"extension", "install", "compozy/typed"}, testCase.args...)
+			_, stderr, err := executeRootCommandWithInput(t, deps, "unused\n", args...)
+			if err == nil || len(calls) != 1 || strings.Contains(stderr, "(secret)") {
+				t.Fatalf("calls=%d stderr=%q err=%v, want one refused call without prompt", len(calls), stderr, err)
+			}
+			if code := cliExitCodeForError(err); code != 2 {
+				t.Fatalf("exit code = %d, want 2", code)
+			}
+			want := "extension inputs required: token. Pass --input id=value or --input-file inputs.json."
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("error = %q, want unchanged guidance", err)
+			}
+		})
+	}
+
+	t.Run("Should not retry when the prompt is aborted", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, true, &calls)
+		_, _, err := executeRootCommandWithInput(t, deps, "", "extension", "install", "compozy/typed")
+		if !errors.Is(err, errExtensionInputPromptAborted) || len(calls) != 1 {
+			t.Fatalf("aborted prompt: calls=%d err=%v, want abort without retry", len(calls), err)
 		}
 	})
 }

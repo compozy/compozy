@@ -118,6 +118,8 @@ type stubClient struct {
 	logoutSettingsMCPAuthFn    func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
 	installExtensionFn         func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
 	previewExtensionInstallFn  func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error)
+	extensionInputsFn          func(context.Context, string, extensionCLIScope) (ExtensionInputsRecord, error)
+	setExtensionInputsFn       func(context.Context, string, contract.SetExtensionInputsRequest) (ExtensionInputsRecord, error)
 	updateExtensionFn          func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
 	updateExtensionsFn         func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
 	removeExtensionFn          func(context.Context, string) (ManagedExtensionRemoveRecord, error)
@@ -1007,6 +1009,29 @@ func (s *stubClient) InstallExtension(
 		return s.installExtensionFn(ctx, request)
 	}
 	return ExtensionRecord{}, errors.New("unexpected InstallExtension call")
+}
+
+func (s *stubClient) ExtensionInputs(
+	ctx context.Context,
+	name string,
+	selected extensionCLIScope,
+) (ExtensionInputsRecord, error) {
+	if s.extensionInputsFn != nil {
+		return s.extensionInputsFn(ctx, name, selected)
+	}
+	return ExtensionInputsRecord{}, errors.New("unexpected ExtensionInputs call")
+}
+
+func (s *stubClient) SetExtensionInputs(
+	ctx context.Context,
+	name string,
+	_ extensionCLIScope,
+	request contract.SetExtensionInputsRequest,
+) (ExtensionInputsRecord, error) {
+	if s.setExtensionInputsFn != nil {
+		return s.setExtensionInputsFn(ctx, name, request)
+	}
+	return ExtensionInputsRecord{}, errors.New("unexpected SetExtensionInputs call")
 }
 
 func (s *stubClient) PreviewExtensionInstall(

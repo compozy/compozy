@@ -183,6 +183,9 @@ func (d commandDeps) withDaemonRuntimeDefaults() commandDeps {
 }
 
 func (d commandDeps) withBootstrapDefaults() commandDeps {
+	if d.outputIsTerminal == nil {
+		d.outputIsTerminal = writerIsTerminal
+	}
 	if d.inspectDaemonLock == nil {
 		d.inspectDaemonLock = compozydaemon.InspectLockOwner
 	}
