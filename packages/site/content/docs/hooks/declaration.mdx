@@ -116,6 +116,7 @@ Each event family accepts only its own matcher fields:
 | `coordinator` | `agent_name`, `workspace_id`, `workspace_root`, `matcher.autonomy.task_id`, `matcher.autonomy.run_id`, `matcher.autonomy.workflow_id`, `matcher.autonomy.coordinator_session_id`                                                                                                    |
 | `task.run`    | `agent_name`, `workspace_id`, `matcher.autonomy.task_id`, `matcher.autonomy.run_id`, `matcher.autonomy.workflow_id`, `matcher.autonomy.release_reason`                                                                                                                              |
 | `spawn`       | `agent_name`, `workspace_id`, `workspace_root`, `matcher.autonomy.task_id`, `matcher.autonomy.run_id`, `matcher.autonomy.workflow_id`, `matcher.autonomy.parent_session_id`, `matcher.autonomy.root_session_id`, `matcher.autonomy.child_session_id`, `matcher.autonomy.spawn_role` |
+| `subagent`    | `workspace_id`                                                                                                                                                                                                                                                                      |
 
 `agent_type` exists in the internal matcher struct, but no current event family accepts it. Setting
 it in a declaration fails validation.
