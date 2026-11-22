@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.8 - 2026-11-22
+
+### Bug Fixes
+
+- Apply the quiet watchdog to silent ACP prompts (#1895)
+- Keep session lists available when side ancestry is missing (#1901)
+- Boot with unavailable workspace roots (#1905)
+- Install the recorded app release while the channel feed is stale (#1904)
+- Bound hosted MCP calls without caller deadlines (#1908)
+- Document local sockets for stdio MCP servers (#1907)
+- Accept Unicode separator schema digests (#1909)
+- Exclude always-on mains from session group totals (#1911)
+- Show Global always-on agents once, in the Global row (#1896)
+- Show the inherited conversation in a derived child (#1910)
+- Reject whitespace in pull request monitor branches (#1918)
+- Keep children of deleted side chats hidden (#1919)
+- Explain authorization-filtered peer lists (#1920)
+- Reuse the Session window for notification jumps (#1929)
+- Keep the session rail's scroll when switching sessions (#1930)
+- Restore the session rail scroll once its list finishes loading (#1931)
+- Return a waiting terminal window to the cap dialog when its Close is refused (#1932)
+- Show usage for the current native subagent run (#1936)
+- Page session list folders independently (#1935)
+- Keep the loading frame's sessions rail out of reach (#1942)
+
+### Features
+
+- Run Google Antigravity through the official agy acp CLI (#1913)
+
+### Performance Improvements
+
+- Skip redundant metadata and SQL work in child-session supervision (#1893)
+- Persist streamed transcript parts incrementally (#1912)
+- Start desktop settings reads when the client registers (#1915)
+- Bound page-cache traffic on Linux SQLite readers (#1914)
+- Scope Linux busy-tick process scans (#1916)
+- Drop shell-route router scroll bookkeeping and share one ancestor walk per transcript scroll (#1934)
+
+### Refactoring
+
+- Compose attention toasts in the components layer (#1921)
+
+### Testing
+
+- Leave the composer before E2E-016 presses the sidebar chord (#1894)
+- Provide a profile for the peer note command (#1922)
+- Assert pinned subtree session order (#1933)
+
 ## 0.7.7 - 2026-11-20
 
 ### Bug Fixes
@@ -1788,6 +1836,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.7.8]: https://github.com/compozy/compozy/compare/v0.7.7...v0.7.8
 [0.7.7]: https://github.com/compozy/compozy/compare/v0.7.6...v0.7.7
 [0.7.6]: https://github.com/compozy/compozy/compare/v0.7.5...v0.7.6
 [0.7.5]: https://github.com/compozy/compozy/compare/v0.7.4...v0.7.5
