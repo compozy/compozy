@@ -601,7 +601,7 @@ func TestExtensionInputSetupReloadRollback(t *testing.T) {
 	})
 }
 
-// extensionInputListFailureAfterApply fails every row read once a row write has landed, modelling a
+// extensionInputListFailureAfterApply fails every row read once a row write has landed, modeling a
 // post-commit read failure; Apply keeps delegating so a rollback can still restore the rows.
 type extensionInputListFailureAfterApply struct {
 	extensioninput.Store
