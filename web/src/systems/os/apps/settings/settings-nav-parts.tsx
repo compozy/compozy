@@ -68,7 +68,7 @@ export function SettingsNavItemContent({
   section,
   isActive,
 }: {
-  section: SettingsSectionDescriptor;
+  section: Pick<SettingsSectionDescriptor, "icon" | "label">;
   isActive: boolean;
 }) {
   const Icon = section.icon;
