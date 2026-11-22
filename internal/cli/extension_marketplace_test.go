@@ -928,7 +928,7 @@ func TestExtensionInstallDependencyFlow(t *testing.T) {
 		deps := newDeps(t, true, &calls, refusal)
 		_, _, err := executeRootCommandWithInput(t, deps, "y\n", "extension", "install", "compozy/typed")
 		if err == nil || len(calls) != 1 || cliExitCodeForError(err) != 2 ||
-			!strings.Contains(err.Error(), "Update first: compozy extension update acme-core") {
+			!strings.Contains(err.Error(), "Run first: compozy extension update acme-core") {
 			t.Fatalf("calls = %d, err = %v; want the update guidance and exit 2 without a prompt", len(calls), err)
 		}
 	})
@@ -960,8 +960,33 @@ func TestExtensionInstallDependencyFlow(t *testing.T) {
 		deps := newDeps(t, true, &calls, refusal)
 		_, _, err := executeRootCommandWithInput(t, deps, "y\n", "extension", "install", "compozy/typed")
 		if err == nil || len(calls) != 1 ||
-			!strings.Contains(err.Error(), "Update first: "+elsewhere.RetryCommand) {
+			!strings.Contains(err.Error(), "Run first: "+elsewhere.RetryCommand) {
 			t.Fatalf("calls = %d, err = %v; want the scoped update guidance without a prompt", len(calls), err)
+		}
+	})
+
+	// Invariant: without a working retry command the guidance never suggests `extension update` (G-7).
+	t.Run("Should guide a reinstall when no update reaches the blocked dependency", func(t *testing.T) {
+		t.Parallel()
+		unmet, elsewhere := core, core
+		unmet.State, unmet.InstalledVersion, unmet.MinVersion = "version_unmet", "0.3.0", "0.4.0"
+		elsewhere.State, elsewhere.InstalledVersion, elsewhere.MinVersion = "installed_elsewhere", "0.3.0", "0.4.0"
+		for _, scenario := range []struct {
+			dependency contract.ExtensionDependencyPayload
+			want       string
+		}{
+			{unmet, "No update of acme-core 0.3.0 reaches min_version 0.4.0; reinstall it from a source"},
+			{elsewhere, "Another scope or profile uses a different copy of acme-core 0.3.0; reinstall it there " +
+				"from a source that provides 0.4.0 or later first."},
+		} {
+			dependency, want := scenario.dependency, scenario.want
+			var calls []InstallExtensionRequest
+			deps := newDeps(t, true, &calls, required(dependency))
+			_, _, err := executeRootCommandWithInput(t, deps, "y\n", "extension", "install", "compozy/typed")
+			if err == nil || len(calls) != 1 || cliExitCodeForError(err) != 2 ||
+				!strings.Contains(err.Error(), want) || strings.Contains(err.Error(), "extension update") {
+				t.Fatalf("calls = %d, err = %v; want %q without an update command", len(calls), err, want)
+			}
 		}
 	})
 

@@ -254,13 +254,17 @@ func extensionEnvBindingErrorCode(kind extensionErrorKind) string {
 }
 
 // ExtensionAcquisitionErrorPayload maps candidate failures consistently across public transports. A failure that
-// belongs to a dependency, or follows completed dependency installs, always maps and names them.
+// belongs to a dependency, or follows completed dependency installs, maps and names them; a dependency manifest
+// validation failure is left to the validation payload (ExtensionValidationErrorPayload), as on HTTP.
 func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErrorPayload, bool) {
 	payload, ok := extensionAcquisitionKindPayload(err)
 	if !dependencyErrorContext(err) {
 		return payload, ok
 	}
 	if !ok {
+		if errors.Is(err, extensionpkg.ErrManifestInvalid) {
+			return contract.ExtensionOperationErrorPayload{}, false
+		}
 		payload = extensionDependencyGatePayload(err)
 	}
 	payload.Dependency, payload.DependenciesInstalled = dependencyErrorFields(err)

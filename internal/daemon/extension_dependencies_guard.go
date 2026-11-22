@@ -147,9 +147,7 @@ func (s *daemonExtensionService) cellUnmetDependencies(
 			continue
 		}
 		item.State, item.InstalledVersion = state, installedVersion
-		if state == dependencyStateVersionUnmet {
-			item.RetryCommand = "compozy extension update " + dependency.Name
-		}
+		item.RetryCommand = s.dependencyRetryCommand(ctx, item, &cell)
 		unmet = append(unmet, item)
 	}
 	return unmet, nil

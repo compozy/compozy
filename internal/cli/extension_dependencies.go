@@ -272,18 +272,36 @@ func extensionDependencyErrorMessage(payload contract.ExtensionOperationErrorPay
 // install a dependency whose source has no satisfying version or that would replace another cell's copy.
 func extensionDependencyNextStep(payload contract.ExtensionOperationErrorPayload, enabling bool) string {
 	if payload.RetryCommand != "" {
-		return "Update first: " + payload.RetryCommand
+		return "Run first: " + payload.RetryCommand
+	}
+	for _, dependency := range payload.Dependencies {
+		if step := extensionDependencyBlockedStep(dependency); step != "" {
+			return step
+		}
 	}
 	if enabling {
 		return extensionEnableDependencyNextStep(payload.Dependencies)
 	}
-	for _, dependency := range payload.Dependencies {
-		if dependency.State == extensionDependencyStateVersionUnmet && dependency.InstalledVersion == "" {
-			return fmt.Sprintf("The source of %s provides %s; no version satisfies min_version %s.",
-				dependency.Name, cmp.Or(dependency.Version, "no release"), dependency.MinVersion)
-		}
-	}
 	return "Pass --with-dependencies to install them first (experimental)."
+}
+
+// extensionDependencyBlockedStep guides a blocked dependency the daemon names no working command for: neither
+// `extension update` nor a reinstall from the dependency source reaches its min_version.
+func extensionDependencyBlockedStep(dependency contract.ExtensionDependencyPayload) string {
+	minVersion := cmp.Or(dependency.MinVersion, "the required version")
+	switch {
+	case dependency.State == extensionDependencyStateInstalledElsewhere:
+		return fmt.Sprintf("Another scope or profile uses a different copy of %s %s; reinstall it there from a "+
+			"source that provides %s or later first.", dependency.Name, dependency.InstalledVersion, minVersion)
+	case dependency.State != extensionDependencyStateVersionUnmet:
+		return ""
+	case dependency.InstalledVersion == "":
+		return fmt.Sprintf("The source of %s provides %s; no version satisfies min_version %s.",
+			dependency.Name, cmp.Or(dependency.Version, "no release"), minVersion)
+	default:
+		return fmt.Sprintf("No update of %s %s reaches min_version %s; reinstall it from a source that "+
+			"provides it first.", dependency.Name, dependency.InstalledVersion, minVersion)
+	}
 }
 
 // extensionEnableDependencyNextStep turns on disabled dependencies and installs missing ones; only install

@@ -123,8 +123,15 @@ func (s *daemonExtensionService) resolveDependencies(
 	if err := resolver.expand(ctx, root.Name, rootDir, root.Requires.Extensions, []string{root.Name}); err != nil {
 		return nil, errors.Join(err, graph.Close())
 	}
+	cell := extensionpkg.InstallationScope{ProfileID: target.profile.ID, WorkspaceID: target.scope.WorkspaceID}
 	for _, node := range graph.order {
 		node.resolveState()
+		// An installed version_unmet dependency blocks in the dependent's cell; another cell's copy in its own.
+		blocking := &cell
+		if node.payload.State == dependencyStateInstalledElsewhere {
+			blocking = nil
+		}
+		node.payload.RetryCommand = s.dependencyRetryCommand(ctx, node.payload, blocking)
 	}
 	return graph, nil
 }
@@ -293,7 +300,7 @@ func (r *dependencyResolver) acquire(ctx context.Context, node *dependencyNode) 
 	node.payload.Version, node.payload.DigestSHA256 = prepared.manifest.Version, prepared.digest
 	node.payload.GatewayRequirementDigest, node.payload.RegistryTier = digest, prepared.registryTier
 	node.children, node.sourceDir = prepared.manifest.Requires.Extensions, prepared.sourceDir
-	return r.checkInstalledElsewhere(ctx, node)
+	return r.checkInstalledElsewhere(node)
 }
 
 // resolveDependencyRef resolves a relative local_path ref against the dependent's source directory, never the
@@ -322,7 +329,7 @@ func resolveDependencyRef(
 
 // checkInstalledElsewhere marks a missing node whose package is installed for another scope or profile with
 // different bytes, so preview reports it and install refuses before installing any dependency.
-func (r *dependencyResolver) checkInstalledElsewhere(ctx context.Context, node *dependencyNode) error {
+func (r *dependencyResolver) checkInstalledElsewhere(node *dependencyNode) error {
 	installed, err := r.service.registry.Get(node.payload.Name)
 	if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 		return nil
@@ -333,37 +340,8 @@ func (r *dependencyResolver) checkInstalledElsewhere(ctx context.Context, node *
 	if node.candidate.published == nil || node.candidate.published.MatchesInstalled(installed) {
 		return nil
 	}
-	command, err := r.service.dependencyUpdateCommand(ctx, installed.Name)
-	if err != nil {
-		return err
-	}
-	node.installedElsewhere = true
-	node.payload.InstalledVersion, node.payload.RetryCommand = installed.Version, command
+	node.installedElsewhere, node.payload.InstalledVersion = true, installed.Version
 	return nil
-}
-
-// dependencyUpdateCommand names the update of a package in the scope and profile of one of its installations,
-// the only place `compozy extension update` resolves it from.
-func (s *daemonExtensionService) dependencyUpdateCommand(ctx context.Context, name string) (string, error) {
-	command := "compozy extension update " + name
-	installations, err := s.registry.Installations(ctx, name)
-	if err != nil || len(installations) == 0 {
-		return command, err
-	}
-	scope := installations[0].Scope
-	if scope.WorkspaceID != "" {
-		command += " --workspace " + scope.WorkspaceID
-	} else {
-		command += " --scope global"
-	}
-	if scope.ProfileID != "" && s.profiles != nil {
-		profile, err := s.profiles.ProfileName(ctx, scope.ProfileID)
-		if err != nil {
-			return "", fmt.Errorf("daemon: read dependency %q installation profile: %w", name, err)
-		}
-		command += " --profile " + profile
-	}
-	return command, nil
 }
 
 // resolveState classifies the node against its effective (highest) min_version.
@@ -379,7 +357,6 @@ func (node *dependencyNode) resolveState() {
 		}
 	case !extensionpkg.VersionSatisfies(item.InstalledVersion, item.MinVersion):
 		item.State = dependencyStateVersionUnmet
-		item.RetryCommand = "compozy extension update " + item.Name
 	case !node.enabled:
 		item.State = dependencyStateDisabled
 	default:

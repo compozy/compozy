@@ -63,8 +63,10 @@ Steps:
 8. `compozy extension remove acme-core --global --force`: removes only `acme-core`; `acme-tool` is
    still installed and reports `acme-core` as `missing` in `unmet_dependencies`.
 9. Raise `acme-tool`'s `min_version` for `acme-base` above the installed 1.0.0 and reinstall:
-   exits 2 with `Update first: compozy extension update acme-base`, even with `--with-dependencies`;
-   nothing is updated.
+   exits 2, even with `--with-dependencies`; nothing is updated. A local-path `acme-base` is not
+   marketplace-installed, so the CLI prints `No update of acme-base 1.0.0 reaches min_version ...;
+   reinstall it from a source that provides it first.` and no `retry_command`; a marketplace-installed
+   one whose release reaches `min_version` prints `Run first: compozy extension update acme-base ...`.
 10. From an agent session: `compozy__extensions_remove {name: "acme-base"}` in the agent's
     workspace installation returns the `extension_dependency_in_use` tool error with `dependents`;
     with `force: true` it proceeds.
@@ -73,8 +75,10 @@ Steps:
     `registry_tier`, without any consent. Installing with `--with-dependencies` pins that digest;
     a direct API call without `dependencies.<name>.expected_digest` refuses naming the dependency.
 12. A dependency installed only for another profile, whose source has since published new bytes:
-    the preview reports it as `installed_elsewhere` with a scoped
-    `compozy extension update <dep> --scope <scope> --profile <profile>` `retry_command`. Installing
+    the preview reports it as `installed_elsewhere` with a `retry_command` scoped to that profile
+    (`--scope <scope> --profile <profile>`): `compozy extension update <dep>` for a marketplace-installed
+    package whose release is the dependency's version, otherwise
+    `compozy extension install <dependency source> [--replace]`. Running it unblocks the root. Installing
     the root with `--with-dependencies` refuses with `extension_dependencies_required` and that
     command before it installs any dependency, and the other profile keeps the installed version. A
     dependency that a concurrent install commits first still refuses with `extension_exists` and

@@ -47,17 +47,27 @@ export function blockedExtensionDependencies(
   );
 }
 
-/** The guidance a blocking dependency row shows, or null when Add can install the dependency. */
+/**
+ * The guidance a blocking dependency row shows, or null when Add can install the dependency. The
+ * daemon's retry_command is the only command that can unblock it; without one, no update reaches
+ * min_version and the copy must be reinstalled from a source that provides it.
+ */
 export function extensionDependencyBlockedReason(dependency: ExtensionDependency): string | null {
   const minVersion = dependency.min_version ?? "the required version";
+  const run = dependency.retry_command;
   if (dependency.state === "installed_elsewhere") {
-    return `Another profile or workspace uses a different copy of ${dependency.name}. Run ${dependency.retry_command ?? `compozy extension update ${dependency.name}`} first`;
+    const copy = `Another profile or workspace uses a different copy of ${dependency.name}.`;
+    return run
+      ? `${copy} Run ${run} first`
+      : `${copy} Reinstall it there from a source with ${minVersion} or later first`;
   }
   if (dependency.state !== "version_unmet") return null;
   if (!dependency.installed_version) {
     return `Its source has no version of ${dependency.name} at ${minVersion} or later`;
   }
-  return `Update ${dependency.name} to ${minVersion} or later first`;
+  return run
+    ? `Update ${dependency.name} to ${minVersion} or later first: run ${run}`
+    : `No update of ${dependency.name} reaches ${minVersion}. Reinstall it from a source with ${minVersion} or later first`;
 }
 
 function installableDependencies(preview: Pick<ExtensionInstallPreview, "dependencies">) {

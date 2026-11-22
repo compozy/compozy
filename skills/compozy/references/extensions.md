@@ -374,12 +374,16 @@ it needs `allow_unverified`). An installed `disabled` dependency carries `instal
 enabling must confirm it again, `gateway_requirement_digest`. A marketplace dependency is previewed at
 its listed digest; installing it still requires that digest as `dependencies.<name>.expected_digest`. Install without `with_dependencies` refuses any unmet
 dependency with `422 extension_dependencies_required` listing the unmet entries. `version_unmet`
-always refuses, even with consent; an installed one carries `retry_command: "compozy extension update
-<dep>"`, and a missing one (its source offers only an older `version`) has no retry command.
-`installed_elsewhere` marks a package installed for another scope or profile whose source now provides
-different bytes: it always refuses before any dependency installs, with `installed_version` and a
-`retry_command` naming the scope and profile where `compozy extension update <dep>` resolves it.
-Nothing is ever auto-updated.
+always refuses, even with consent, and a missing one (its source offers only an older `version`) has
+no retry command. `installed_elsewhere` marks a package installed for another scope or profile whose
+source now provides different bytes: it always refuses before any dependency installs, with
+`installed_version`. `retry_command` is set only when a command can satisfy the dependency, scoped
+(`--scope`/`--workspace`, `--profile`) to the blocking cell (an installed `version_unmet` dependency's
+own cell, or the first installation of an `installed_elsewhere` package):
+`compozy extension update <dep>` when the package is marketplace-installed and its source's release
+reaches `min_version`; otherwise, for `installed_elsewhere`, `compozy extension install <dependency
+source> [--replace]` when the dependency's own source satisfies it. Without one, reinstall the package
+from a source that provides `min_version`. Nothing is ever auto-updated.
 
 `with_dependencies: true` installs `missing` and enables `disabled` dependencies in the dependent's
 scope and profile, dependencies first, before the dependent's own input gate. Consent is per
@@ -405,8 +409,9 @@ then asks each artifact's own gates (unverified consent, gateway digest) and ret
 `--allow-unverified` covers only the requested extension, each unverified dependency needs
 `--allow-unverified-dependency <name>` (with `--yes` for structured output), and
 `--confirm-gateway-requirement` takes a bare digest for the root and `<name>=<digest>` for a dependency.
-A `version_unmet` or `installed_elsewhere` dependency never prompts: it prints `Update first:
-<retry_command>`, or names the source version when no version satisfies `min_version`, and exits 2.
+A `version_unmet` or `installed_elsewhere` dependency never prompts: it prints `Run first:
+<retry_command>`, or, without one, the reinstall guidance or the source version when no version
+satisfies `min_version`, and exits 2.
 
 Remove (`DELETE /api/extensions/{name}`) and disable (`PUT /api/extensions/{name}/enablement` with
 `enabled: false`) refuse with `409 extension_dependency_in_use` while an installed dependent still

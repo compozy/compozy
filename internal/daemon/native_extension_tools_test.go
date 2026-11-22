@@ -416,6 +416,33 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 	})
 
+	// Invariant: a dependency validation failure keeps the HTTP validation payload, field and dependency (rule 13).
+	// Owner: native extension boundary. Canonical suite: daemon native extension tools.
+	t.Run("Should report a dependency validation failure with its field like HTTP", func(t *testing.T) {
+		t.Parallel()
+		for _, field := range []string{"requires.extensions.ref", "expected_digest"} {
+			cause := &extensionpkg.DependencyGateError{
+				Dependency: "dep-core",
+				Err: &extensionpkg.ManifestValidationError{
+					Field: field, Message: "invalid dependency consent",
+				},
+			}
+			err := nativeExtensionToolError(toolspkg.ToolIDExtensionsInstall, cause)
+			toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || toolErr.Code != toolspkg.ErrorCodeInvalidInput || !errors.Is(err, toolspkg.ErrToolInvalidInput) ||
+				toolErr.PartialResult == nil {
+				t.Fatalf("native dependency validation (%s) = %#v, want invalid input with a payload", field, err)
+			}
+			var payload contract.ExtensionValidationErrorPayload
+			if err := json.Unmarshal(toolErr.PartialResult.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.Dependency != "dep-core" || len(payload.Issues) != 1 || payload.Issues[0].Field != field {
+				t.Fatalf("native dependency validation payload = %#v, want field %s for dep-core", payload, field)
+			}
+		}
+	})
+
 	// Invariant: per-dependency consent is a closed object forwarded to the dependency's own gate [T-17].
 	// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
 	t.Run("Should reject unknown per-dependency consent keys", func(t *testing.T) {

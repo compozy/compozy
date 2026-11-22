@@ -198,7 +198,8 @@ func TestExtensionDependencyResolution(t *testing.T) {
 		for _, item := range preview.Dependencies {
 			switch item.Name {
 			case "dep-old":
-				if item.InstalledVersion != "0.1.0" || item.RetryCommand != "compozy extension update dep-old" {
+				// A local_path package is not marketplace-installed: `extension update` cannot reach 0.2.0 (G-7).
+				if item.InstalledVersion != "0.1.0" || item.RetryCommand != "" {
 					t.Fatalf("version_unmet entry = %+v", item)
 				}
 			case "dep-disabled":
@@ -522,8 +523,8 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		), dependencyOperator(t))
 		required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
 		if !ok || required.Dependencies[0].State != dependencyStateVersionUnmet ||
-			required.Dependencies[0].RetryCommand != "compozy extension update dep-core" {
-			t.Fatalf("error = %v, want version_unmet with an update retry command", err)
+			required.Dependencies[0].RetryCommand != "" {
+			t.Fatalf("error = %v, want version_unmet without an update command for a local package", err)
 		}
 		info, err := fixture.registry.Get("dep-core")
 		if err != nil || info.Version != "0.1.0" || fixture.installed(t, "root") {
@@ -556,7 +557,13 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		fixture := newDependencyFixture(t)
 		// The daemon's working directory is this package; ../dep-core must not resolve against it.
 		parent := t.TempDir()
-		fixture.dirs["dep-core"], fixture.dirs["root"] = filepath.Join(parent, "dep-core"), filepath.Join(parent, "root")
+		fixture.dirs["dep-core"], fixture.dirs["root"] = filepath.Join(
+			parent,
+			"dep-core",
+		), filepath.Join(
+			parent,
+			"root",
+		)
 		for _, dir := range []string{fixture.dirs["dep-core"], fixture.dirs["root"]} {
 			if err := os.Mkdir(dir, 0o700); err != nil {
 				t.Fatal(err)
@@ -739,6 +746,52 @@ func TestExtensionDependencyInstall(t *testing.T) {
 				}
 			}
 		})
+}
+
+// Invariant: an installed_elsewhere retry command must work: a package `extension update` cannot reach is
+// reinstalled from the dependency's own source in the blocking cell, and a failed profile lookup only drops the
+// command (G-7). Owner: daemon dependency resolver; canonical suite: this file.
+func TestExtensionDependencyRetryCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should name a reinstall from the dependency source for a local package another profile uses",
+		func(t *testing.T) {
+			t.Parallel()
+			fixture := newDependencyFixture(t)
+			other, err := fixture.deps.ProfileManager.Create(t.Context(), profilepkg.CreateInput{Name: "other"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixture.write(t, "dep-core", "1.0.0")
+			fixture.install(t, "dep-core", contract.InstallExtensionRequest{Profile: other.Name})
+			fixture.write(t, "dep-core", "1.1.0")
+			fixture.write(t, "root", "1.0.0", "dep-core>=1.1.0")
+
+			_, err = fixture.service.Install(t.Context(), fixture.rootRequest(t,
+				map[string]contract.ExtensionDependencyConsent{"dep-core": {AllowUnverified: true}},
+			), dependencyOperator(t))
+			required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
+			want := "compozy extension install " + fixture.dir(
+				t,
+				"dep-core",
+			) + " --replace --scope global --profile other"
+			if !ok || required.Dependencies[0].State != dependencyStateInstalledElsewhere ||
+				required.Dependencies[0].RetryCommand != want {
+				t.Fatalf("error = %v, want installed_elsewhere naming %q", err, want)
+			}
+		})
+
+	t.Run("Should drop the command when the blocking cell profile cannot be read", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		command := fixture.service.dependencyRetryCommand(t.Context(), contract.ExtensionDependencyPayload{
+			Name: "dep-core", Source: string(contract.InstallExtensionSourceLocalPath), Ref: fixture.dir(t, "dep-core"),
+			Version: "1.1.0", State: dependencyStateInstalledElsewhere,
+		}, &extensionpkg.InstallationScope{ProfileID: "profile-missing"})
+		if command != "" {
+			t.Fatalf("dependencyRetryCommand() = %q, want no command without the profile name", command)
+		}
+	})
 }
 
 // marketplaceDependencyFixture serves the open-design client plugin from a file marketplace source "team".

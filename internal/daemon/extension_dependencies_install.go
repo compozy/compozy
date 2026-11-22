@@ -182,19 +182,23 @@ func (s *daemonExtensionService) checkCommitDependenciesMet(
 // resolver reports this case before any mutation; the commit repeats it for a package installed meanwhile.
 func (s *daemonExtensionService) dependencyReplacementRefused(
 	ctx context.Context, installed *extensionpkg.ExtensionInfo, candidate *extensionpkg.Manifest,
+	req contract.InstallExtensionRequest,
 ) error {
 	version := ""
 	if candidate != nil {
 		version = candidate.Version
 	}
-	command, err := s.dependencyUpdateCommand(ctx, installed.Name)
-	if err != nil {
-		return err
+	next := "reinstall it there from a source that provides the required version first"
+	if command := s.dependencyRetryCommand(ctx, contract.ExtensionDependencyPayload{
+		Name: installed.Name, Source: string(req.Source), Ref: req.Ref, Version: version,
+		State: dependencyStateInstalledElsewhere,
+	}, nil); command != "" {
+		next = "run `" + command + "` first"
 	}
 	return fmt.Errorf(
 		"%w: %s %s is installed for another scope or profile and its source now provides %s; "+
-			"dependencies are never updated, run `%s` first",
-		extensionpkg.ErrExtensionExists, installed.Name, installed.Version, version, command,
+			"dependencies are never updated, %s",
+		extensionpkg.ErrExtensionExists, installed.Name, installed.Version, version, next,
 	)
 }
 

@@ -1341,7 +1341,12 @@ describe("Add with dependencies", () => {
   const LOG_DIGEST = "c".repeat(64);
   const blockedCore = {
     missing: {},
-    version_unmet: { installed_version: "0.3.0" },
+    version_unmet: {
+      installed_version: "0.3.0",
+      retry_command: "compozy extension update acme-core --scope global",
+    },
+    // An installed dependency no update reaches: the daemon names no command (G-7).
+    not_updatable: { state: "version_unmet", installed_version: "0.3.0" },
     // A missing dependency whose source only offers a version below min_version (G-4).
     source_too_old: { state: "version_unmet", version: "0.3.5" },
     // A different copy another profile uses; dependency installs never replace it (G-3).
@@ -1349,9 +1354,17 @@ describe("Add with dependencies", () => {
       installed_version: "0.3.0",
       retry_command: "compozy extension update acme-core --scope global --profile other",
     },
+    // Another cell's copy no command can bring to min_version.
+    elsewhere_no_command: { state: "installed_elsewhere", installed_version: "0.3.0" },
   } as const;
   const dependencyPreview = (
-    state: "missing" | "version_unmet" | "source_too_old" | "installed_elsewhere" = "missing"
+    state:
+      | "missing"
+      | "version_unmet"
+      | "not_updatable"
+      | "source_too_old"
+      | "installed_elsewhere"
+      | "elsewhere_no_command" = "missing"
   ) => ({
     name: "kit",
     inputs: [],
@@ -1487,7 +1500,9 @@ describe("Add with dependencies", () => {
     await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
 
     const row = await screen.findByTestId("extension-install-dependency-acme-core");
-    expect(row).toHaveTextContent("Update acme-core to 0.4.0 or later first");
+    expect(row).toHaveTextContent(
+      "Update acme-core to 0.4.0 or later first: run compozy extension update acme-core --scope global"
+    );
     const add = screen.getByRole("button", { name: "Add" });
     expect(add).toBeDisabled();
     await user.click(add);
@@ -1497,6 +1512,14 @@ describe("Add with dependencies", () => {
 
   it.each([
     ["source_too_old", "Its source has no version of acme-core at 0.4.0 or later"],
+    [
+      "not_updatable",
+      "No update of acme-core reaches 0.4.0. Reinstall it from a source with 0.4.0 or later first",
+    ],
+    [
+      "elsewhere_no_command",
+      "Another profile or workspace uses a different copy of acme-core. Reinstall it there from a source with 0.4.0 or later first",
+    ],
     [
       "installed_elsewhere",
       "Another profile or workspace uses a different copy of acme-core. Run compozy extension update acme-core --scope global --profile other first",
