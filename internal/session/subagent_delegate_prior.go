@@ -30,7 +30,9 @@ func (s *subagentService) resolvePriorDelegation(ctx context.Context, req *Subag
 		if prior.Worktree != nil && prior.Worktree.Branch != "" {
 			req.BaseRef = prior.Worktree.Branch
 		} else if prior.Isolation == SubagentIsolationWorktree {
-			return invalidSubagent(fmt.Sprintf("prior subagent %q has no associated worktree branch yet.", req.PriorSubagentID))
+			return invalidSubagent(
+				fmt.Sprintf("prior subagent %q has no associated worktree branch yet.", req.PriorSubagentID),
+			)
 		}
 	}
 	return nil
