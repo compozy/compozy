@@ -316,8 +316,8 @@ func TestDaemonLoopAPIServiceShouldProjectTheLoopTerminalCause(t *testing.T) {
 		if settled.Terminal.Status != contract.LoopRunStatusBlocked ||
 			settled.Terminal.Cause != string(looppkg.TransitionCauseGateRejected) ||
 			settled.Terminal.ReasonCode != cause.ReasonCode ||
-			settled.Terminal.GateID != cause.GateID ||
-			settled.Terminal.NodeID != cause.NodeID ||
+			settled.Terminal.GateID != string(cause.GateID) ||
+			settled.Terminal.NodeID != string(cause.NodeID) ||
 			settled.Terminal.Message != cause.Message ||
 			!settled.Terminal.At.Equal(at) {
 			t.Fatalf("settled run terminal = %#v, want %#v", settled.Terminal, cause)
