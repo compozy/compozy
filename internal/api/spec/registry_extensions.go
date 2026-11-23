@@ -423,9 +423,13 @@ func updateExtensionOperationSpec() OperationSpec {
 				Description: "Gateway confirmation required",
 				Body:        contract.ExtensionOperationErrorPayload{},
 			},
-			{Status: 422, Description: "Extension trust or input configuration is required", Bodies: overlappingResponseBodiesOf(
-				responseBodyOf[contract.ErrorPayload](), responseBodyOf[contract.ExtensionOperationErrorPayload](),
-			)},
+			{
+				Status:      422,
+				Description: "Extension trust or input configuration is required",
+				Bodies: overlappingResponseBodiesOf(
+					responseBodyOf[contract.ErrorPayload](), responseBodyOf[contract.ExtensionOperationErrorPayload](),
+				),
+			},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
