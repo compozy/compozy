@@ -1,6 +1,6 @@
 //go:build aix || darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris
 
-package registry
+package fileutil
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func tryLockInstallStagingLease(file *os.File) (bool, error) {
+func tryLockFile(file *os.File) (bool, error) {
 	err := unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB)
 	switch {
 	case err == nil:
@@ -21,6 +21,6 @@ func tryLockInstallStagingLease(file *os.File) (bool, error) {
 	}
 }
 
-func unlockInstallStagingLease(file *os.File) error {
+func unlockFile(file *os.File) error {
 	return unix.Flock(int(file.Fd()), unix.LOCK_UN)
 }
