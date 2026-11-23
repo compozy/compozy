@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
@@ -77,6 +78,7 @@ func (r *SkillReviewRepo) CreateReview(
 				},
 				CreatedAt:          createdAt,
 				Kind:               string(kind),
+				SkillKey:           string(input.SkillKey),
 				BaseDigest:         input.BaseDigest,
 				Lesson:             lesson,
 				EvidenceSessionIds: evidence,
@@ -207,20 +209,20 @@ func (r *SkillReviewRepo) ListReviews(
 	return result, nil
 }
 
-func (r *SkillReviewRepo) DecideReview(ctx context.Context, id, digest, state, operator string) error {
-	if err := r.checkReady(ctx, "decide skill review"); err != nil {
+func (r *SkillReviewRepo) DecideReject(ctx context.Context, id, digest, operator string) error {
+	if err := r.checkReady(ctx, "reject skill review"); err != nil {
 		return err
 	}
-	if id == "" || digest == "" || operator == "" || (state != "approved" && state != "rejected") {
-		return errors.New("skill review decision requires identity, digest, operator and terminal state")
+	if id == "" || digest == "" || operator == "" {
+		return errors.New("skill review rejection requires identity, digest and operator")
 	}
 	count, err := executeWriteQueryResult(
 		ctx,
 		r.repoBase,
-		"globaldb.DecideAgentSkillReview",
+		"globaldb.RejectAgentSkillReview",
 		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
-			return queries.DecideAgentSkillReview(ctx, sqlcgen.DecideAgentSkillReviewParams{
-				ID: id, Digest: digest, State: state, DecidedBy: operator,
+			return queries.RejectAgentSkillReview(ctx, sqlcgen.RejectAgentSkillReviewParams{
+				ID: id, Digest: digest, DecidedBy: operator,
 				DecidedAt: sql.NullString{String: store.FormatTimestamp(r.now()), Valid: true},
 			})
 		},
@@ -232,6 +234,34 @@ func (r *SkillReviewRepo) DecideReview(ctx context.Context, id, digest, state, o
 		return agentinstance.ErrSkillReviewStale
 	}
 	return nil
+}
+
+// ProjectApproval projects a committed install-log entry. decided_at is the entry's commit time,
+// never the projection time; a review that is no longer pending is left unchanged (idempotent).
+func (r *SkillReviewRepo) ProjectApproval(
+	ctx context.Context,
+	marker agentinstance.SkillInstallMarker,
+	installedDigest string,
+	prevMarker []byte,
+	decidedAt time.Time,
+) error {
+	if err := r.checkReady(ctx, "project skill approval"); err != nil {
+		return err
+	}
+	if marker.ReviewID == "" || marker.DecidedBy == "" || installedDigest == "" || decidedAt.IsZero() {
+		return errors.New("skill approval projection requires review, decider, installed digest and commit time")
+	}
+	return r.executeWriteQuery(
+		ctx,
+		"globaldb.ProjectAgentSkillApproval",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.ProjectAgentSkillApproval(ctx, sqlcgen.ProjectAgentSkillApprovalParams{
+				ID: marker.ReviewID, DecidedBy: marker.DecidedBy, DecidedVia: marker.DecidedVia,
+				DecidedAt:       sql.NullString{String: store.FormatTimestamp(decidedAt), Valid: true},
+				InstalledDigest: installedDigest, PrevInstallMarker: prevMarker,
+			})
+		},
+	)
 }
 
 func skillReview(row sqlcgen.AgentSkillReview) (agentinstance.SkillReview, error) {
@@ -255,6 +285,11 @@ func skillReview(row sqlcgen.AgentSkillReview) (agentinstance.SkillReview, error
 		Kind:            agentinstance.SkillProposalMode(row.Kind),
 		BaseDigest:      row.BaseDigest,
 		DecidedVia:      row.DecidedVia,
+		SkillKey:        agentinstance.SkillKey(row.SkillKey),
+		InstalledDigest: row.InstalledDigest,
+	}
+	if len(row.PrevInstallMarker) > 0 {
+		result.PrevInstallMarker = row.PrevInstallMarker
 	}
 	if err := json.Unmarshal([]byte(row.Lesson), &result.Lesson); err != nil {
 		return agentinstance.SkillReview{}, fmt.Errorf("decode skill review lesson: %w", err)

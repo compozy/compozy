@@ -143,36 +143,30 @@ func (h *BaseHandlers) decideAgentSkillReview(c *gin.Context, approve bool) {
 	}
 	api := h.AgentInstances
 	operator := "operator:" + instance.ProfileID
+	if api.SkillTarget == nil {
+		h.respondError(c, 503, errors.New("skill installation target unavailable"))
+		return
+	}
+	ctx := c.Request.Context()
+	target, _, targetErr := api.SkillTarget(ctx, instance)
 	if approve {
-		if api.SkillTarget == nil {
-			h.respondError(c, 503, errors.New("skill installation target unavailable"))
+		if targetErr != nil {
+			h.skillReviewError(c, targetErr)
 			return
 		}
-		var target string
-		target, _, err = api.SkillTarget(c.Request.Context(), instance)
-		if err == nil {
-			err = api.SkillProposals.Approve(
-				c.Request.Context(),
-				actor,
-				instance,
-				review.ID,
-				input.Digest,
-				operator,
-				target,
-			)
-		}
+		// A post-commit projection or publication warning is logged by the service and retried by
+		// Reconcile; the skill is installed either way.
+		_, err = api.SkillProposals.Approve(ctx, actor, instance, review.ID, input.Digest, operator, target)
 	} else {
-		err = api.SkillProposals.Reject(c.Request.Context(), actor, instance, review.ID, input.Digest, operator)
+		// Without a resolvable target nothing can be installed, so no approval can race the rejection.
+		if targetErr != nil {
+			target = ""
+		}
+		err = api.SkillProposals.Reject(ctx, actor, instance, review.ID, input.Digest, operator, target)
 	}
 	if err != nil {
 		h.skillReviewError(c, err)
 		return
-	}
-	if approve && api.SkillPublished != nil {
-		if err := api.SkillPublished(c.Request.Context()); err != nil {
-			h.skillReviewError(c, err)
-			return
-		}
 	}
 	h.GetAgentSkillReview(c)
 }
@@ -229,6 +223,8 @@ var skillReviewErrorStatuses = []struct {
 	{agentinstance.ErrSkillProposeEvidenceRequired, 422}, {agentinstance.ErrSkillProposeEvidenceNotFound, 422},
 	{agentinstance.ErrSkillProposePreviouslyRejected, 409}, {agentinstance.ErrSkillProposeNameTaken, 409},
 	{ErrSkillReviewInvalidCursor, 422},
+	{agentinstance.ErrSkillReviewTargetExists, 409}, {agentinstance.ErrSkillInstallBusy, 409},
+	{agentinstance.ErrSkillInstallConflict, 409},
 }
 
 // SkillReviewErrorStatus returns the stable code and HTTP status of a skill review domain error.

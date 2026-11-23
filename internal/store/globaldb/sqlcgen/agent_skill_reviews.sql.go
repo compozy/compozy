@@ -10,35 +10,6 @@ import (
 	"database/sql"
 )
 
-const decideAgentSkillReview = `-- name: DecideAgentSkillReview :execrows
-UPDATE agent_skill_reviews SET state = ?1, decided_by = ?2,
-decided_at = ?3, decided_via = 'operator'
-WHERE id = ?4 AND state = 'pending' AND digest = ?5
-AND (?1 = 'approved' OR ?1 = 'rejected')
-`
-
-type DecideAgentSkillReviewParams struct {
-	State     string         `json:"state"`
-	DecidedBy string         `json:"decided_by"`
-	DecidedAt sql.NullString `json:"decided_at"`
-	ID        string         `json:"id"`
-	Digest    string         `json:"digest"`
-}
-
-func (q *Queries) DecideAgentSkillReview(ctx context.Context, arg DecideAgentSkillReviewParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, decideAgentSkillReview,
-		arg.State,
-		arg.DecidedBy,
-		arg.DecidedAt,
-		arg.ID,
-		arg.Digest,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const getAgentSkillEvidenceSession = `-- name: GetAgentSkillEvidenceSession :one
 SELECT profile_id, workspace_id FROM sessions WHERE id = ?1
 `
@@ -148,11 +119,12 @@ func (q *Queries) GetAgentSkillReviewByIdentity(ctx context.Context, arg GetAgen
 const insertAgentSkillReview = `-- name: InsertAgentSkillReview :execrows
 INSERT INTO agent_skill_reviews
 (id, instance_id, profile_id, workspace_id, agent_name, skill_name, digest, state, draft_path, source_session_id,
-created_at, kind, base_digest, lesson, evidence_session_ids)
+created_at, kind, skill_key, base_digest, lesson, evidence_session_ids)
 SELECT ?1, ?2, ?3, ?4,
 ?5, ?6, ?7, 'pending', ?8,
 ?9, ?10, ?11, ?12, ?13,
-?14
+?14,
+?15
 WHERE (SELECT count(*) FROM agent_skill_reviews WHERE instance_id = ?2 AND state = 'pending') < 5
 `
 
@@ -168,6 +140,7 @@ type InsertAgentSkillReviewParams struct {
 	SourceSessionID    sql.NullString `json:"source_session_id"`
 	CreatedAt          string         `json:"created_at"`
 	Kind               string         `json:"kind"`
+	SkillKey           string         `json:"skill_key"`
 	BaseDigest         string         `json:"base_digest"`
 	Lesson             string         `json:"lesson"`
 	EvidenceSessionIds string         `json:"evidence_session_ids"`
@@ -186,6 +159,7 @@ func (q *Queries) InsertAgentSkillReview(ctx context.Context, arg InsertAgentSki
 		arg.SourceSessionID,
 		arg.CreatedAt,
 		arg.Kind,
+		arg.SkillKey,
 		arg.BaseDigest,
 		arg.Lesson,
 		arg.EvidenceSessionIds,
@@ -276,4 +250,59 @@ func (q *Queries) ListAgentSkillReviews(ctx context.Context, arg ListAgentSkillR
 		return nil, err
 	}
 	return items, nil
+}
+
+const projectAgentSkillApproval = `-- name: ProjectAgentSkillApproval :exec
+UPDATE agent_skill_reviews SET state = 'approved', decided_by = ?1,
+decided_via = ?2, decided_at = ?3,
+installed_digest = ?4, prev_install_marker = ?5
+WHERE id = ?6 AND state = 'pending'
+`
+
+type ProjectAgentSkillApprovalParams struct {
+	DecidedBy         string         `json:"decided_by"`
+	DecidedVia        string         `json:"decided_via"`
+	DecidedAt         sql.NullString `json:"decided_at"`
+	InstalledDigest   string         `json:"installed_digest"`
+	PrevInstallMarker []byte         `json:"prev_install_marker"`
+	ID                string         `json:"id"`
+}
+
+// Projection of a committed install-log entry; a review that is no longer pending is left unchanged.
+func (q *Queries) ProjectAgentSkillApproval(ctx context.Context, arg ProjectAgentSkillApprovalParams) error {
+	_, err := q.db.ExecContext(ctx, projectAgentSkillApproval,
+		arg.DecidedBy,
+		arg.DecidedVia,
+		arg.DecidedAt,
+		arg.InstalledDigest,
+		arg.PrevInstallMarker,
+		arg.ID,
+	)
+	return err
+}
+
+const rejectAgentSkillReview = `-- name: RejectAgentSkillReview :execrows
+UPDATE agent_skill_reviews SET state = 'rejected', decided_by = ?1,
+decided_at = ?2, decided_via = 'operator'
+WHERE id = ?3 AND state = 'pending' AND digest = ?4
+`
+
+type RejectAgentSkillReviewParams struct {
+	DecidedBy string         `json:"decided_by"`
+	DecidedAt sql.NullString `json:"decided_at"`
+	ID        string         `json:"id"`
+	Digest    string         `json:"digest"`
+}
+
+func (q *Queries) RejectAgentSkillReview(ctx context.Context, arg RejectAgentSkillReviewParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, rejectAgentSkillReview,
+		arg.DecidedBy,
+		arg.DecidedAt,
+		arg.ID,
+		arg.Digest,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

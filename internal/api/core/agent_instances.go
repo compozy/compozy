@@ -32,7 +32,6 @@ type AgentInstanceAPI struct {
 	SourceExtensions      source.ExtensionPoller
 	Metrics               func(context.Context, string, string) (agentinstance.Metrics, error)
 	ReadPeer              func(context.Context, agentinstance.Instance) (contract.AgentInstancePeer, error)
-	SkillPublished        func(context.Context) error
 	SkillProposals        *agentinstance.SkillProposalService
 	SkillTarget           func(context.Context, agentinstance.Instance) (string, []string, error)
 	HeldWakes             func(context.Context, string) (int64, error)

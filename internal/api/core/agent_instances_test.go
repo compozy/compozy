@@ -2075,6 +2075,24 @@ func TestAgentSkillReviews(t *testing.T) {
 			t.Fatalf("reject uninstallable: %d %s", rejected.Code, rejected.Body.String())
 		}
 
+		// UT-081 over HTTP: a `new` review whose name was created meanwhile is refused unchanged.
+		existing := filepath.Join(scanRoot, "second")
+		if err := os.MkdirAll(existing, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(existing, "SKILL.md"), []byte("operator skill"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		taken := request("POST", "/reviews/"+reviews[1].ID+"/approve", `{"digest":"`+reviews[1].Digest+`"}`, false)
+		var takenFailure contract.ErrorPayload
+		decodeJSON(t, taken.Body.Bytes(), &takenFailure)
+		if taken.Code != 409 || takenFailure.Code != "skill_review_target_exists" {
+			t.Fatalf("approval over an existing skill: %d %+v", taken.Code, takenFailure)
+		}
+		if kept, err := os.ReadFile(filepath.Join(existing, "SKILL.md")); err != nil || string(kept) != "operator skill" {
+			t.Fatalf("existing skill changed: %q %v", kept, err)
+		}
+
 		// Stored draft bytes that no longer verify still read as a review, marked invalid, and reject.
 		if err := os.WriteFile(reviews[1].DraftPath, []byte(`{}`), 0o600); err != nil {
 			t.Fatal(err)

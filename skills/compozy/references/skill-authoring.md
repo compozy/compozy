@@ -63,8 +63,18 @@ lesson, evidence, confidence, and evidence sessions), then **Runs automatically*
 proposed files. A review created before lessons existed shows `No lesson recorded` and is decided
 as before. `list` accepts `--state pending|approved|rejected|reverted`, `--kind new|edit`, and
 `--decided-via operator|auto_approve`; a `--cursor` only continues the filters it was issued for. Agent credentials cannot decide even with `approve-all`.
-Approval never replaces existing different contents. A repeated approval of the same installed
-contents is safe and retries catalog publication after an interrupted response.
+Approval of a new skill never replaces anything: if a skill with that name now exists, approval
+fails with `skill_review_target_exists` and changes nothing; reject the review and ask for an edit.
+Every approval and rejection of one skill is serialized, also across CompozyOS homes registered on
+the same project. While another process is changing the skill, propose, approve, and reject fail
+with `skill_install_busy`; retry in a moment. Each committed install is recorded in
+`<skills root>/.skill-installs/<name>.jsonl`, the authority for what was installed by which review.
+An install interrupted by a crash is rolled back (or, after its commit point, finished) the next
+time any daemon touches the skill or starts. If the skill directory was edited in the middle of an
+install, the daemon keeps both versions (your edit at the skill path, the original next to it) and
+refuses further approvals of that skill with `skill_install_conflict` until the operator resolves
+it. A repeated approval of an already installed review is safe, writes nothing, and retries catalog
+publication after an interrupted response.
 
 The tool represents supporting files as `{path, content}`. Paths are relative; the daemon generates
 `SKILL.md` from `name`, `description`, and `body`. The proposal accepts at most 64 supporting files,

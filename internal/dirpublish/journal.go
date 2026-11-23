@@ -140,7 +140,7 @@ func ReadJournal(parent *fileutil.Directory, targetName string) (_ Journal, exis
 		}
 	}()
 
-	contents, err := io.ReadAll(io.LimitReader(file, journalMaxSize+1))
+	contents, err := io.ReadAll(io.LimitReader(file, int64(journalMaxSize)+1))
 	if err != nil {
 		return Journal{}, false, fmt.Errorf("dirpublish: read publication journal: %w", err)
 	}
