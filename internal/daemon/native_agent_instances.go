@@ -38,6 +38,7 @@ func (n *daemonNativeTools) agentInstanceBindings() map[toolspkg.ToolID]nativeTo
 	for _, id := range []toolspkg.ToolID{
 		toolspkg.ToolIDAgentInstanceCheck,
 		toolspkg.ToolIDAgentInstanceChecks,
+		toolspkg.ToolIDAgentInstanceSkillAutoApprove,
 		toolspkg.ToolIDAgentInstanceOccurrence,
 		toolspkg.ToolIDAgentInstanceCreate,
 		toolspkg.ToolIDAgentInstanceList,
@@ -140,6 +141,9 @@ func executeNativeInstanceAction(
 			return toolspkg.ToolResult{}, errors.New("instance check settings unavailable")
 		}
 		instance, err = api.CheckSettings.SetChecks(ctx, instance.ID, *input.Enabled)
+	case nativeInstanceActionSkillAutoApprove:
+		// The on-guard already ran in authorizeNativeInstanceAction, before the verb mapping.
+		instance, err = api.SetSkillAutoApprove(ctx, instance.ID, *input.Enabled)
 	case "occurrence":
 		return nativeInstanceOccurrence(ctx, api, instance.ID, input)
 	case nativeInstanceActionGet:
@@ -274,6 +278,8 @@ const (
 	nativeInstanceActionGet      = "get"
 	nativeInstanceActionCheckIns = "check_ins"
 	nativeInstanceActionReports  = "reports"
+	// nativeInstanceActionSkillAutoApprove is compozy__agent_instance_skill_auto_approve.
+	nativeInstanceActionSkillAutoApprove = "skill_auto_approve"
 )
 
 func (n *daemonNativeTools) listNativeInstances(ctx context.Context, api *core.AgentInstanceAPI,

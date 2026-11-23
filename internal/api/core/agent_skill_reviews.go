@@ -251,7 +251,9 @@ func (api *AgentInstanceAPI) ProposeSkill(
 		return contract.AgentSkillReviewResponse{}, err
 	}
 	payload, err := skillReviewPayload(result.Review, false)
-	return contract.AgentSkillReviewResponse{Review: payload, DuplicateOfPending: result.Duplicate}, err
+	return contract.AgentSkillReviewResponse{
+		Review: payload, DuplicateOfPending: result.Duplicate, AutoApproveSkipped: result.AutoApproveSkipped,
+	}, err
 }
 
 // skillReviewErrorStatuses is the one code-to-status table for skill review domain errors, shared by

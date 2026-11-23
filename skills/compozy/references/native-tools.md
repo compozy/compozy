@@ -1358,6 +1358,12 @@ does not produce a lost-wake report; stopping the main session still reports its
   Request `result_view: "full"` for poll timestamps and `last_item_count`.
 - `compozy__agent_instance_checks` requires `enabled`. Only the operator can enable checks;
   the instance's own agent can disable them. Enabling schedules one cadence ahead.
+- `compozy__agent_instance_skill_auto_approve` (experimental) requires `enabled` and takes the
+  instance selector. Only an operator can turn skill auto-approve on; an agent gets
+  `skill_auto_approve_operator_only`. The instance's own agent can send `enabled: false`, also
+  under a narrowed tool policy. When on, high-confidence lessons that run nothing automatically
+  (resulting tree) and only change skills this instance installed are approved at once, at most 3
+  per UTC day; see `skill-authoring.md`.
 - `compozy__agent_instance_clear_main` is operator only and takes the instance selector. It
   discards the main session's conversation and starts a fresh provider thread under the same
   session ID; queued inputs, agent memory and the instance are kept. It is refused while the

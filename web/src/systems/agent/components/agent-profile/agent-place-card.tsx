@@ -1,6 +1,6 @@
 /** One place an agent works: what it's doing there right now, with pause and resume at hand. */
 import { Archive, MessagesSquare, MoreHorizontal, Pause, Play } from "@compozy/ui/icons";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import {
   Button,
@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
   StatusDot,
   Surface,
+  Switch,
   cn,
 } from "@compozy/ui";
 
@@ -22,6 +23,10 @@ export interface AgentPlaceActions {
   onOpen: (place: AgentTeamPlace) => void;
   onToggle: (place: AgentTeamPlace) => void;
   onArchive: (place: AgentTeamPlace) => void;
+  /** One field per PATCH: only `skill_auto_approve`. */
+  onSkillAutoApprove: (place: AgentTeamPlace, enabled: boolean) => void;
+  /** The instance whose auto-approve change is saving, if any. */
+  savingSkillAutoApprove?: string | null;
 }
 
 /** The quiet overflow on a place: removing the agent from it. */
@@ -44,11 +49,39 @@ export function AgentPlaceMenu({ label, onRemove }: { label: string; onRemove: (
   );
 }
 
+/** Operator-only switch: this place's eligible skill lessons install without review. */
+export function AgentPlaceSkillAutoApprove({
+  place,
+  saving,
+  onChange,
+}: {
+  place: AgentTeamPlace;
+  saving: boolean;
+  onChange: (enabled: boolean) => void;
+}) {
+  const labelId = useId();
+  return (
+    <div className="flex items-center justify-between gap-3 text-small-body text-fg">
+      <span id={labelId}>Auto-approve skills</span>
+      <Switch
+        aria-labelledby={labelId}
+        checked={place.instance.skill_auto_approve ?? false}
+        data-testid={`agent-place-auto-approve-${place.scope}`}
+        disabled={saving}
+        onCheckedChange={onChange}
+        size="sm"
+      />
+    </div>
+  );
+}
+
 export function AgentPlaceCard({
   place,
   onOpen,
   onToggle,
   onArchive,
+  onSkillAutoApprove,
+  savingSkillAutoApprove,
 }: AgentPlaceActions & { place: AgentTeamPlace }) {
   const [archiving, setArchiving] = useState(false);
   const paused = place.instance.state === "paused";
@@ -93,6 +126,11 @@ export function AgentPlaceCard({
         </p>
         <p className="pl-3.5 text-eyebrow text-subtle">{agentPlaceTimes(place)}</p>
       </div>
+      <AgentPlaceSkillAutoApprove
+        onChange={enabled => onSkillAutoApprove(place, enabled)}
+        place={place}
+        saving={savingSkillAutoApprove === place.instance.id}
+      />
       <div className="mt-auto flex min-h-7 items-end justify-end gap-3">
         {paused ? (
           resumable ? (

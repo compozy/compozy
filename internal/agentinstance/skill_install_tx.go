@@ -251,7 +251,7 @@ func (tx *skillTx) commit() (skillInstallLogEntry, error) {
 	entry := skillInstallLogEntry{
 		OpID: tx.payload.OpID, HomeID: tx.s.HomeID, InstanceID: tx.op.instanceID, Action: tx.op.action,
 		ReviewID: tx.op.reviewID, DecidedVia: tx.op.decidedVia, DecidedBy: tx.op.decidedBy,
-		Current: tx.payload.NextMarker, Previous: tx.payload.PrevMarker, At: time.Now().UTC(),
+		Current: tx.payload.NextMarker, Previous: tx.payload.PrevMarker, At: tx.s.clock().UTC(),
 	}
 	if entry.Current != nil {
 		entry.InstalledDigest = entry.Current.InstalledDigest

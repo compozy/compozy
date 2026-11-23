@@ -136,6 +136,30 @@ func (s *SkillProposalService) acquireSkill(
 	return target, nil
 }
 
+// ensureParent creates a missing target root and takes its publication lock, as acquireSkill does
+// with create, for a proposal that installs automatically.
+func (t *skillTarget) ensureParent() error {
+	if t.parent != nil {
+		return nil
+	}
+	if err := os.MkdirAll(t.root, 0o700); err != nil {
+		return err
+	}
+	parent, err := fileutil.OpenDirectoryForMutation(t.root)
+	if err != nil {
+		return fmt.Errorf("open skill target root: %w", err)
+	}
+	lock, err := dirpublish.AcquireLock(parent, t.name)
+	if errors.Is(err, dirpublish.ErrBusy) {
+		err = fmt.Errorf("%w: %s is being changed by another process", ErrSkillInstallBusy, t.name)
+	}
+	if err != nil {
+		return errors.Join(err, parent.Close())
+	}
+	t.parent, t.lock = parent, lock
+	return nil
+}
+
 func (t *skillTarget) close() error {
 	err := t.lock.Close()
 	if t.parent != nil {

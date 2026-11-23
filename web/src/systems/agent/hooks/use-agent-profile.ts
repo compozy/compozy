@@ -54,6 +54,7 @@ import {
   useAgentInstanceCapacity,
   useAgentDefinitionInstances,
 } from "./use-agent-instances";
+import { useSetAgentInstanceSkillAutoApprove } from "./use-agent-instance-skill-auto-approve";
 import { useAgentRuntimeEditor } from "./use-agent-runtime-editor";
 import { useAgentSessions } from "./use-agent-sessions";
 import { useAgentWindowScope } from "./use-agent-window-scope";
@@ -204,6 +205,7 @@ export function useAgentProfile(input: {
   };
   const saveIdentity = useIdentitySave(agent);
   const model = useAgentRuntimeEditor({ agent });
+  const autoApprove = useSetAgentInstanceSkillAutoApprove();
   return {
     identity,
     places,
@@ -237,6 +239,11 @@ export function useAgentProfile(input: {
           ? actions.resume(place.instance)
           : actions.pause(place.instance),
       onArchive: (place: AgentTeamPlace) => actions.archive(place.instance),
+      onSkillAutoApprove: (place: AgentTeamPlace, enabled: boolean) =>
+        autoApprove.mutate({ instance: place.instance, enabled }),
+      savingSkillAutoApprove: autoApprove.isPending
+        ? (autoApprove.variables?.instance.id ?? null)
+        : null,
     },
     onResumeAll: () => {
       for (const place of places) {

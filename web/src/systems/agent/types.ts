@@ -127,6 +127,8 @@ export interface AgentInstancePayload {
   /** Empty until the main session exists. */
   main_session_id: string;
   checks_enabled: boolean;
+  /** Operator-only: approve this place's eligible skill lessons without review (3 per UTC day). */
+  skill_auto_approve?: boolean;
   daily_budget?: { tokens?: number; usd?: number };
   daily_budget_usage?: {
     day: string;

@@ -8829,6 +8829,7 @@ export interface components {
         [key: string]: unknown;
       };
       scope: string;
+      skill_auto_approve: boolean;
       sources: components["schemas"]["HeartbeatSourceStatus"][];
       state: string;
       /** Format: int64 */
@@ -8929,20 +8930,32 @@ export interface components {
       /** Format: date-time */
       last_seen_at: string;
     };
-    /** @description Set either checks_enabled or daily_budget. An empty daily_budget object removes both caps. */
+    /** @description Set exactly one of checks_enabled, daily_budget, or skill_auto_approve. An empty daily_budget object removes both caps. Only an operator can turn skill_auto_approve on. */
     AgentInstanceUpdateRequest: {
       checks_enabled?: boolean | null;
       daily_budget?: components["schemas"]["AgentInstanceDailyBudgetInput"] | null;
+      skill_auto_approve?: boolean | null;
     } & (
       | {
           checks_enabled: boolean;
           /** @enum {unknown|null} */
           daily_budget?: null;
+          /** @enum {unknown|null} */
+          skill_auto_approve?: null;
         }
       | {
           /** @enum {unknown|null} */
           checks_enabled?: null;
           daily_budget: components["schemas"]["AgentInstanceDailyBudgetInput"];
+          /** @enum {unknown|null} */
+          skill_auto_approve?: null;
+        }
+      | {
+          /** @enum {unknown|null} */
+          checks_enabled?: null;
+          /** @enum {unknown|null} */
+          daily_budget?: null;
+          skill_auto_approve: boolean;
         }
     );
     AgentLimitsPayload: {
@@ -9269,6 +9282,7 @@ export interface components {
       workspace_id: string;
     };
     AgentSkillReviewResponse: {
+      auto_approve_skipped?: string;
       duplicate_of_pending?: boolean;
       review: components["schemas"]["AgentSkillReviewPayload"];
     };

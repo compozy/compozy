@@ -4,6 +4,11 @@ package client
 
 import "time"
 
+// AgentInstancePickResponse is a daemon API value.
+type AgentInstancePickResponse struct {
+	Pick Pick `json:"pick"`
+}
+
 // AgentInstanceProposal is a daemon API value.
 type AgentInstanceProposal struct {
 	Action           *AgentInstanceProposalAction  `json:"action,omitempty"`
@@ -89,8 +94,9 @@ type AgentInstanceSeenResponse struct {
 
 // AgentInstanceUpdateRequest is a daemon API value.
 type AgentInstanceUpdateRequest struct {
-	ChecksEnabled *bool                          `json:"checks_enabled,omitempty"`
-	DailyBudget   *AgentInstanceDailyBudgetInput `json:"daily_budget,omitempty"`
+	ChecksEnabled    *bool                          `json:"checks_enabled,omitempty"`
+	DailyBudget      *AgentInstanceDailyBudgetInput `json:"daily_budget,omitempty"`
+	SkillAutoApprove *bool                          `json:"skill_auto_approve,omitempty"`
 }
 
 // AgentLimitsPayload is a daemon API value.

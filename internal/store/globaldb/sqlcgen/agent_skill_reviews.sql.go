@@ -10,6 +10,27 @@ import (
 	"database/sql"
 )
 
+const countAgentSkillAutoApprovals = `-- name: CountAgentSkillAutoApprovals :one
+SELECT count(*) FROM agent_skill_reviews
+WHERE instance_id = ?1 AND state IN ('approved', 'reverted')
+AND decided_via = 'auto_approve' AND decided_at >= ?2 AND decided_at < ?3
+`
+
+type CountAgentSkillAutoApprovalsParams struct {
+	InstanceID string         `json:"instance_id"`
+	DayStart   sql.NullString `json:"day_start"`
+	DayEnd     sql.NullString `json:"day_end"`
+}
+
+// Business Rule 14: automatic decisions of one instance committed in [day_start, day_end). decided_at is
+// the install-log commit time; a reverted automatic approval still counts.
+func (q *Queries) CountAgentSkillAutoApprovals(ctx context.Context, arg CountAgentSkillAutoApprovalsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAgentSkillAutoApprovals, arg.InstanceID, arg.DayStart, arg.DayEnd)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getAgentSkillEvidenceSession = `-- name: GetAgentSkillEvidenceSession :one
 SELECT profile_id, workspace_id FROM sessions WHERE id = ?1
 `

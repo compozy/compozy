@@ -1,0 +1,40 @@
+---
+title: "compozy agent instance skill-auto-approve"
+description: "Turn skill auto-approve on (operator only) or off (experimental)"
+---
+
+## compozy agent instance skill-auto-approve
+
+Turn skill auto-approve on (operator only) or off (experimental)
+
+### Options
+
+```
+  -h, --help   help for skill-auto-approve
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                                                          | Description                                           |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| [compozy agent instance skill-auto-approve off](/docs/cli/agent/instance/skill-auto-approve/off) | Turn skill auto-approve off for an always-on instance |
+| [compozy agent instance skill-auto-approve on](/docs/cli/agent/instance/skill-auto-approve/on)   | Turn skill auto-approve on for an always-on instance  |

@@ -405,6 +405,7 @@ type AgentInstancePayload struct {
 	NextWake             *AgentInstanceNextWake          `json:"next_wake,omitempty"`
 	Created              bool                            `json:"created"`
 	ChecksEnabled        bool                            `json:"checks_enabled"`
+	SkillAutoApprove     bool                            `json:"skill_auto_approve"`
 	LastWakeAt           string                          `json:"last_wake_at"`
 	NextWakeAt           string                          `json:"next_wake_at"`
 	QuietStreak          int64                           `json:"quiet_streak"`
@@ -442,9 +443,4 @@ type AgentInstancePeer struct {
 // AgentInstancePickRequest is a daemon API value.
 type AgentInstancePickRequest struct {
 	Proposal *int `json:"proposal"`
-}
-
-// AgentInstancePickResponse is a daemon API value.
-type AgentInstancePickResponse struct {
-	Pick Pick `json:"pick"`
 }

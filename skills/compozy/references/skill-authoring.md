@@ -69,6 +69,45 @@ review fails with `skill_review_stale`. Contents that were reverted can be propo
 reverts cover file contents and file permission bits; directory permissions and empty directories
 are not part of a skill tree and are not preserved.
 
+## Auto-approve (operator opt-in, per instance)
+
+An operator can let one trusted always-on instance install its own low-risk lessons without review:
+`compozy agent instance skill-auto-approve on <agent-or-instance-id>`, `PATCH
+/api/agent-instances/<id> {"skill_auto_approve": true}`, or the **Auto-approve skills** switch on
+the agent's place. It is off for every instance by default and is per-instance state, not a
+`config.toml` key. Only an operator can turn it on: an agent gets
+`skill_auto_approve_operator_only` (also through `compozy__agent_instance_skill_auto_approve`), and
+an app token gets `agent_instance_forbidden`. The instance's own agent can always turn it off with
+`compozy__agent_instance_skill_auto_approve {"enabled": false}`, even under a narrowed tool policy.
+One PATCH changes exactly one of `checks_enabled`, `daily_budget`, or `skill_auto_approve`.
+
+Every new proposal of the instance is then checked in this order; the first failing check is
+returned as `auto_approve_skipped` and the review stays pending for the operator:
+
+1. `toggled_off`: auto-approve is off (the default; nothing else is checked).
+2. `low_confidence`: `lesson.confidence` is not `high`.
+3. `runs_automatically`: the **resulting tree** has a hook, MCP server, or script. For an edit the
+   files kept from the installed skill count, so a body-only edit of a skill with `scripts/` or an
+   MCP file is not auto-approved; an unreadable MCP file or frontmatter counts too.
+4. `operator_authored_skill` (edits): the skill's current writer in the install log is not an
+   approved review of this instance (an operator-authored skill, a conflict kept as current, or
+   another instance's review), or the skill on disk no longer equals what that review installed.
+5. `base_stale` (edits): the installed skill changed after the proposal captured its base.
+6. `daily_cap`: the instance already has 3 automatic approvals in the current UTC day. The cap is
+   fixed; reverting an automatic approval does not give its slot back.
+7. `install_failed`: the install itself failed.
+
+An eligible proposal returns `state: "approved"` with `decided_via: "auto_approve"` and is installed
+at once through the same install transaction as an operator approval (decided by `auto-approve`).
+The operator lists them with `compozy agent skill review list --decided-via auto_approve` and can
+revert any of them like an operator approval. A duplicate of a pending review is returned unchanged
+and is not evaluated again.
+
+The install log in the workspace is the authority for the current writer (ADR-002). Anyone who can
+write the workspace can also write that log, so auto-approve is only as trustworthy as write access
+to the workspace; it never trusts a writer that the home's own review rows do not confirm as an
+approved review of this instance.
+
 ## Boundary
 
 This approval path applies to proposals submitted through the tool. Skills written directly through file tools retain their existing behavior, including hooks. There is no folder watcher, baseline, or catalog filter enforcing proposal approval on file writes. A proposal never grants permission for unrelated actions.

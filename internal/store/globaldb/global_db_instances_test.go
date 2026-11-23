@@ -3623,6 +3623,37 @@ func TestInstanceChecksToggle(t *testing.T) {
 			t.Fatal("retry postponed checks")
 		}
 	})
+	t.Run("Should turn skill auto-approve on idempotently and refuse archived instances [UT-020 UT-021]",
+		func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "auto-approve", "sess-auto-main")
+			repo := db.Instances()
+			instance, err := repo.Adopt(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main, 10)
+			if err != nil || instance.SkillAutoApprove {
+				t.Fatalf("Adopt() = %+v, %v; want skill auto-approve off by default", instance, err)
+			}
+			on, err := repo.SetSkillAutoApprove(t.Context(), instance.ID, true)
+			if err != nil || !on.SkillAutoApprove || on.ChecksEnabled != instance.ChecksEnabled {
+				t.Fatalf("SetSkillAutoApprove(on) = %+v, %v", on, err)
+			}
+			again, err := repo.SetSkillAutoApprove(t.Context(), instance.ID, true)
+			if err != nil || !again.SkillAutoApprove || !again.UpdatedAt.Equal(on.UpdatedAt) {
+				t.Fatalf("repeated on = %+v, %v; want a no-op", again, err)
+			}
+			if _, err := repo.Archive(t.Context(), instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := repo.SetSkillAutoApprove(t.Context(), instance.ID, false); !errors.Is(err, agentinstance.ErrNotFound) {
+				t.Fatalf("SetSkillAutoApprove(archived) = %v, want agent_instance_not_found", err)
+			}
+			if _, err := repo.SetSkillAutoApprove(t.Context(), "ainst-missing", true); !errors.Is(err, agentinstance.ErrNotFound) {
+				t.Fatalf("SetSkillAutoApprove(missing) = %v, want agent_instance_not_found", err)
+			}
+		})
 }
 
 func TestInstanceCheckGates(t *testing.T) {

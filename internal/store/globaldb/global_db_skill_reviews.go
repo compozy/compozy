@@ -295,6 +295,23 @@ func (r *SkillReviewRepo) ProjectRevert(ctx context.Context, reviewID, operator 
 	)
 }
 
+// CountAutoApprovals counts the instance's automatic approvals committed in [dayStart, dayStart+24h),
+// approved or since reverted (Business Rule 14).
+func (r *SkillReviewRepo) CountAutoApprovals(ctx context.Context, instanceID string, dayStart time.Time) (int, error) {
+	if err := r.checkReady(ctx, "count skill auto-approvals"); err != nil {
+		return 0, err
+	}
+	count, err := r.readQueries.CountAgentSkillAutoApprovals(ctx, sqlcgen.CountAgentSkillAutoApprovalsParams{
+		InstanceID: instanceID,
+		DayStart:   sql.NullString{String: store.FormatTimestamp(dayStart), Valid: true},
+		DayEnd:     sql.NullString{String: store.FormatTimestamp(dayStart.Add(24 * time.Hour)), Valid: true},
+	})
+	if err != nil {
+		return 0, err
+	}
+	return int(count), nil
+}
+
 func skillReview(row sqlcgen.AgentSkillReview) (agentinstance.SkillReview, error) {
 	created, err := store.ParseTimestamp(row.CreatedAt)
 	if err != nil {

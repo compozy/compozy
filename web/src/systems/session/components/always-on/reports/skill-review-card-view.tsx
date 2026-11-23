@@ -99,13 +99,35 @@ function UnreadableSkillReview({
  * An approved review: the receipt, and Revert only while the detail says the daemon would accept it.
  * A refusal rereads the review, so Revert disappears when a newer change or an edit on disk won.
  */
-function ApprovedSkillReview({ name, view }: { name: string; view: AgentSkillReviewView }) {
+function ApprovedSkillReview({
+  name,
+  view,
+  onReview,
+}: {
+  name: string;
+  view: AgentSkillReviewView;
+  /** Set for an automatic approval, which the operator never read: opens the exact contents. */
+  onReview?: () => void;
+}) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5" data-testid="skill-review-approved">
       <div className="flex min-w-0 items-center gap-2">
         <Receipt className="min-w-0 flex-1" icon={<Check aria-hidden="true" />} tone="allowed">
-          You approved <b>{name}</b>. It's active now.
+          {onReview ? (
+            <>
+              Approved automatically: <b>{name}</b>. It's active now.
+            </>
+          ) : (
+            <>
+              You approved <b>{name}</b>. It's active now.
+            </>
+          )}
         </Receipt>
+        {onReview ? (
+          <Button onClick={onReview} size="sm" type="button" variant="secondary">
+            Review
+          </Button>
+        ) : null}
         {view.revertAllowed ? (
           <Button
             disabled={view.deciding}
@@ -148,6 +170,7 @@ export function SkillReviewCardView({
   const { review } = view;
   if (!review) return null;
   const decide = (decision: "approve" | "reject") => view.decide(decision);
+  const autoApproved = view.state === "approved" && review.decided_via === "auto_approve";
   const dialog = (
     <AgentSkillViewerDialog
       agentLabel={agent.label}
@@ -166,12 +189,20 @@ export function SkillReviewCardView({
       onApprove={() => decide("approve")}
       onOpenChange={setOpen}
       onReject={() => decide("reject")}
-      open={open && view.state === "pending"}
+      open={open && (view.state === "pending" || autoApproved)}
       stale={view.stale}
     />
   );
   if (view.unreadable && view.state === "pending") {
     return <UnreadableSkillReview agent={agent} name={review.name} view={view} when={when} />;
+  }
+  if (autoApproved) {
+    return (
+      <>
+        <ApprovedSkillReview name={review.name} onReview={() => setOpen(true)} view={view} />
+        {dialog}
+      </>
+    );
   }
   if (view.state === "approved") {
     return <ApprovedSkillReview name={review.name} view={view} />;

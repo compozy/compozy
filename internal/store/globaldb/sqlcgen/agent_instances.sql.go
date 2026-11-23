@@ -385,7 +385,7 @@ func (q *Queries) DetachFailedInstanceAttempts(ctx context.Context, instanceID s
 }
 
 const findLiveAgentInstance = `-- name: FindLiveAgentInstance :one
-SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_session_id, grant_ceiling, permission_ceiling, checks_enabled, depth, created_by_kind, created_by_id, created_at, updated_at, archived_at FROM agent_instances WHERE profile_id = ? AND agent_name = ? AND workspace_id = ? AND archived_at IS NULL
+SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_session_id, grant_ceiling, permission_ceiling, checks_enabled, depth, created_by_kind, created_by_id, created_at, updated_at, archived_at, skill_auto_approve FROM agent_instances WHERE profile_id = ? AND agent_name = ? AND workspace_id = ? AND archived_at IS NULL
 `
 
 type FindLiveAgentInstanceParams struct {
@@ -414,12 +414,13 @@ func (q *Queries) FindLiveAgentInstance(ctx context.Context, arg FindLiveAgentIn
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArchivedAt,
+		&i.SkillAutoApprove,
 	)
 	return i, err
 }
 
 const getAgentInstance = `-- name: GetAgentInstance :one
-SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_session_id, grant_ceiling, permission_ceiling, checks_enabled, depth, created_by_kind, created_by_id, created_at, updated_at, archived_at FROM agent_instances WHERE id = ?
+SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_session_id, grant_ceiling, permission_ceiling, checks_enabled, depth, created_by_kind, created_by_id, created_at, updated_at, archived_at, skill_auto_approve FROM agent_instances WHERE id = ?
 `
 
 func (q *Queries) GetAgentInstance(ctx context.Context, id string) (AgentInstance, error) {
@@ -442,6 +443,7 @@ func (q *Queries) GetAgentInstance(ctx context.Context, id string) (AgentInstanc
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ArchivedAt,
+		&i.SkillAutoApprove,
 	)
 	return i, err
 }
@@ -756,7 +758,7 @@ func (q *Queries) LatchAgentInstanceDailyBudgetPause(ctx context.Context, instan
 }
 
 const listAgentInstances = `-- name: ListAgentInstances :many
-SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_session_id, grant_ceiling, permission_ceiling, checks_enabled, depth, created_by_kind, created_by_id, created_at, updated_at, archived_at FROM agent_instances WHERE (?1 = 1 OR profile_id = ?2)
+SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_session_id, grant_ceiling, permission_ceiling, checks_enabled, depth, created_by_kind, created_by_id, created_at, updated_at, archived_at, skill_auto_approve FROM agent_instances WHERE (?1 = 1 OR profile_id = ?2)
 AND (?3 = 1 OR workspace_id = ?4)
 AND (?5 = '' OR agent_name = ?5)
 AND (?6 = '' OR state = ?6)
@@ -809,6 +811,7 @@ func (q *Queries) ListAgentInstances(ctx context.Context, arg ListAgentInstances
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ArchivedAt,
+			&i.SkillAutoApprove,
 		); err != nil {
 			return nil, err
 		}
@@ -909,7 +912,7 @@ func (q *Queries) ListInstanceQueuedSessions(ctx context.Context, arg ListInstan
 }
 
 const listInstancesForReconciliation = `-- name: ListInstancesForReconciliation :many
-SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_session_id, grant_ceiling, permission_ceiling, checks_enabled, depth, created_by_kind, created_by_id, created_at, updated_at, archived_at FROM agent_instances WHERE archived_at IS NULL AND id > ?1
+SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_session_id, grant_ceiling, permission_ceiling, checks_enabled, depth, created_by_kind, created_by_id, created_at, updated_at, archived_at, skill_auto_approve FROM agent_instances WHERE archived_at IS NULL AND id > ?1
 ORDER BY id LIMIT ?2
 `
 
@@ -944,6 +947,7 @@ func (q *Queries) ListInstancesForReconciliation(ctx context.Context, arg ListIn
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ArchivedAt,
+			&i.SkillAutoApprove,
 		); err != nil {
 			return nil, err
 		}
@@ -1093,6 +1097,25 @@ func (q *Queries) SessionMayHaveInstanceAncestry(ctx context.Context, id string)
 	var column_1 sql.NullBool
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const setInstanceSkillAutoApprove = `-- name: SetInstanceSkillAutoApprove :execrows
+UPDATE agent_instances SET skill_auto_approve = ?1, updated_at = ?2
+WHERE id = ?3 AND archived_at IS NULL AND skill_auto_approve <> ?1
+`
+
+type SetInstanceSkillAutoApproveParams struct {
+	Enabled    int64  `json:"enabled"`
+	Now        string `json:"now"`
+	InstanceID string `json:"instance_id"`
+}
+
+func (q *Queries) SetInstanceSkillAutoApprove(ctx context.Context, arg SetInstanceSkillAutoApproveParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setInstanceSkillAutoApprove, arg.Enabled, arg.Now, arg.InstanceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const stampInstanceMainSession = `-- name: StampInstanceMainSession :execrows

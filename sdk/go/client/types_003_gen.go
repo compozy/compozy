@@ -40,6 +40,7 @@ type AgentSkillReviewPayload struct {
 type AgentSkillReviewResponse struct {
 	Review             AgentSkillReviewPayload `json:"review"`
 	DuplicateOfPending bool                    `json:"duplicate_of_pending,omitempty"`
+	AutoApproveSkipped string                  `json:"auto_approve_skipped,omitempty"`
 }
 
 // AgentSkillReviewsResponse is a daemon API value.

@@ -40,6 +40,10 @@ func (d *Daemon) bindInstanceSkillReviews(
 		HomeID:    skillInstallHomeID(d.homePaths.HomeDir),
 		Publisher: skillCatalogPublisher{state: state},
 		Locks:     agentinstance.NewSkillInstallLocks(),
+		AutoApprove: func(ctx context.Context, instanceID string) (bool, error) {
+			instance, err := api.Store.Get(ctx, instanceID)
+			return err == nil && instance.ArchivedAt == nil && instance.SkillAutoApprove, err
+		},
 	}
 	api.SkillTarget = func(ctx context.Context, instance agentinstance.Instance) (string, []string, error) {
 		resolved, target, err := definitions.skillTargetRoot(ctx, instance)

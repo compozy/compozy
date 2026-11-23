@@ -15,6 +15,7 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 	}{
 		{toolspkg.ToolIDAgentInstanceCheck, "check", false},
 		{toolspkg.ToolIDAgentInstanceChecks, "checks", false},
+		{toolspkg.ToolIDAgentInstanceSkillAutoApprove, "skill_auto_approve", false},
 		{toolspkg.ToolIDAgentInstanceOccurrence, "occurrence", true},
 		{toolspkg.ToolIDAgentInstanceCreate, descriptorKeywordCreate, false},
 		{toolspkg.ToolIDAgentInstanceList, "list", true},
@@ -36,7 +37,7 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 		schema := agentInstanceInputSchema
 		required := ""
 		switch operation.id {
-		case toolspkg.ToolIDAgentInstanceChecks:
+		case toolspkg.ToolIDAgentInstanceChecks, toolspkg.ToolIDAgentInstanceSkillAutoApprove:
 			required = "enabled"
 		case toolspkg.ToolIDAgentInstanceOccurrence:
 			required = "occurrence_id"
@@ -90,6 +91,12 @@ func agentInstanceDescription(name string) string {
 		description += ". Defaults to the caller agent and workspace; only authorized instances are returned. " +
 			"Ordinary active_count spans all workspaces in selected profiles, ignoring filters and pagination; " +
 			"max_active_instances is per profile. Use peers for reachable agents: both capacity fields are zero (unavailable)."
+	case "skill_auto_approve":
+		description = "Turn skill auto-approve on or off for an always-on agent instance. When on, the " +
+			"instance's high-confidence skill lessons that run nothing automatically (no hooks, MCP servers, " +
+			"or scripts in the resulting tree) and only change skills it installed itself are approved " +
+			"without review, at most 3 per UTC day; each is listed with decided_via auto_approve and " +
+			"revertible. Only an operator can turn it on; an agent may only send enabled: false."
 	case "ensure_main":
 		description += ". Requires an existing instance; dry_run is not supported. Use agent_instance_get to inspect it."
 	case agentInstanceClearMainOperation:
@@ -119,7 +126,8 @@ func withAgentInstanceResultViews(descriptor toolspkg.Descriptor) toolspkg.Descr
 			agentInstanceListCompactOutputSchema,
 			string(descriptor.OutputSchema),
 		)
-	case toolspkg.ToolIDAgentInstanceChecks, toolspkg.ToolIDAgentInstanceCreate,
+	case toolspkg.ToolIDAgentInstanceChecks, toolspkg.ToolIDAgentInstanceSkillAutoApprove,
+		toolspkg.ToolIDAgentInstanceCreate,
 		toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume,
 		toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceEnsureMain,
 		toolspkg.ToolIDAgentInstanceClearMain, toolspkg.ToolIDAgentInstanceGet:

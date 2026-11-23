@@ -128,6 +128,15 @@ export const SKILL_REVIEW_APPROVED_REVERTIBLE = review({
   files: SKILL_REVIEW_PLAIN.files,
 });
 
+/** An automatic approval of a high-confidence, non-executing lesson: Review and Revert. */
+export const SKILL_REVIEW_AUTO_APPROVED = review({
+  state: "approved",
+  decided_via: "auto_approve",
+  decided_by: "auto-approve",
+  revert: { allowed: true },
+  files: SKILL_REVIEW_PLAIN.files,
+});
+
 /** An approval a newer change of the same skill superseded: no Revert. */
 export const SKILL_REVIEW_APPROVED_SUPERSEDED = review({
   state: "approved",

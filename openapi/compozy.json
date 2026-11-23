@@ -1263,6 +1263,9 @@
           "scope": {
             "type": "string"
           },
+          "skill_auto_approve": {
+            "type": "boolean"
+          },
           "sources": {
             "items": {
               "$ref": "#/components/schemas/HeartbeatSourceStatus"
@@ -1313,6 +1316,7 @@
           "quiet_streak",
           "resolved_appearance",
           "scope",
+          "skill_auto_approve",
           "sources",
           "state",
           "unattended_turn_limit",
@@ -1659,7 +1663,7 @@
         "type": "object"
       },
       "AgentInstanceUpdateRequest": {
-        "description": "Set either checks_enabled or daily_budget. An empty daily_budget object removes both caps.",
+        "description": "Set exactly one of checks_enabled, daily_budget, or skill_auto_approve. An empty daily_budget object removes both caps. Only an operator can turn skill_auto_approve on.",
         "oneOf": [
           {
             "properties": {
@@ -1667,6 +1671,12 @@
                 "type": "boolean"
               },
               "daily_budget": {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              },
+              "skill_auto_approve": {
                 "enum": [
                   null
                 ],
@@ -1689,10 +1699,39 @@
               },
               "daily_budget": {
                 "$ref": "#/components/schemas/AgentInstanceDailyBudgetInput"
+              },
+              "skill_auto_approve": {
+                "enum": [
+                  null
+                ],
+                "nullable": true
               }
             },
             "required": [
               "daily_budget"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "checks_enabled": {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              },
+              "daily_budget": {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              },
+              "skill_auto_approve": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "skill_auto_approve"
             ],
             "type": "object"
           }
@@ -1714,6 +1753,10 @@
                 "nullable": true
               }
             ]
+          },
+          "skill_auto_approve": {
+            "nullable": true,
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -2946,6 +2989,9 @@
       },
       "AgentSkillReviewResponse": {
         "properties": {
+          "auto_approve_skipped": {
+            "type": "string"
+          },
           "duplicate_of_pending": {
             "type": "boolean"
           },

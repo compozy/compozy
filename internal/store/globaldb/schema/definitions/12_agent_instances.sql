@@ -14,7 +14,9 @@ CREATE TABLE agent_instances (
     created_by_id TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    archived_at TEXT
+    archived_at TEXT,
+    -- Operator-only per-instance skill auto-approve (off by default; agents may only turn it off).
+    skill_auto_approve INTEGER NOT NULL DEFAULT 0 CHECK (skill_auto_approve IN (0, 1))
 );
 
 CREATE UNIQUE INDEX idx_agent_instances_live_identity

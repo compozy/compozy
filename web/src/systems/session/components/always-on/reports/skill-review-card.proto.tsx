@@ -5,6 +5,7 @@ import { ThreadContentRail } from "@/components/assistant-ui/session-thread-cont
 import {
   SKILL_REVIEW_APPROVED_REVERTIBLE,
   SKILL_REVIEW_APPROVED_SUPERSEDED,
+  SKILL_REVIEW_AUTO_APPROVED,
   SKILL_REVIEW_AUTOMATIC,
   SKILL_REVIEW_HIDDEN_TEXT,
   SKILL_REVIEW_LEGACY,
@@ -34,6 +35,7 @@ export const meta = definePrototype({
     { id: "approved", label: "S9 · Approved" },
     { id: "rejected", label: "S9 · Rejected" },
     { id: "approved-revert", label: "S1 · Approved, revertible" },
+    { id: "auto-approved", label: "S1 · Approved automatically" },
     { id: "approved-superseded", label: "S1 · Approved, a newer change exists" },
     { id: "revert-conflict", label: "S1 · Revert refused" },
     { id: "reverted", label: "S1 · Reverted edit" },
@@ -72,6 +74,8 @@ export default function SkillReviewPrototype({ state }: PrototypeProps) {
       return card(skillReviewViewFixture({ ...SKILL_REVIEW_PLAIN, state: "rejected" }));
     case "approved-revert":
       return card(skillReviewViewFixture(SKILL_REVIEW_APPROVED_REVERTIBLE));
+    case "auto-approved":
+      return card(skillReviewViewFixture(SKILL_REVIEW_AUTO_APPROVED));
     case "approved-superseded":
       return card(skillReviewViewFixture(SKILL_REVIEW_APPROVED_SUPERSEDED));
     case "revert-conflict":

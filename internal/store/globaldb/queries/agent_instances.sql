@@ -408,3 +408,7 @@ SELECT EXISTS (
  JOIN sessions live ON live.id = s.id
  WHERE p.status IN ('pending', 'orphaned') AND live.state <> 'stopped'
 );
+
+-- name: SetInstanceSkillAutoApprove :execrows
+UPDATE agent_instances SET skill_auto_approve = sqlc.arg(enabled), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(instance_id) AND archived_at IS NULL AND skill_auto_approve <> sqlc.arg(enabled);

@@ -86,6 +86,25 @@ func (s *memSkillReviewStore) ProjectRevert(_ context.Context, id, operator stri
 	return nil
 }
 
+func (s *memSkillReviewStore) CountAutoApprovals(
+	_ context.Context,
+	instanceID string,
+	dayStart time.Time,
+) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	count := 0
+	for _, review := range s.reviews {
+		if review.InstanceID == instanceID && review.DecidedVia == skillDecidedViaAutoApprove &&
+			(review.State == skillReviewApproved || review.State == SkillReviewReverted) &&
+			review.DecidedAt != nil && !review.DecidedAt.Before(dayStart) &&
+			review.DecidedAt.Before(dayStart.Add(24*time.Hour)) {
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (s *memSkillReviewStore) DecideReject(_ context.Context, id, digest, operator string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

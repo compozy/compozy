@@ -100,6 +100,10 @@ type AgentSkillReviewResponse struct {
 	Review AgentSkillReviewPayload `json:"review"`
 	// DuplicateOfPending is set by a proposal that returned an existing pending review unchanged.
 	DuplicateOfPending bool `json:"duplicate_of_pending,omitempty"`
+	// AutoApproveSkipped is the first failing auto-approve check of a new proposal: toggled_off,
+	// low_confidence, runs_automatically, operator_authored_skill, base_stale, daily_cap or
+	// install_failed. Absent when the proposal was approved automatically.
+	AutoApproveSkipped string `json:"auto_approve_skipped,omitempty"`
 }
 type AgentSkillReviewsResponse struct {
 	Reviews    []AgentSkillReviewPayload `json:"reviews"`

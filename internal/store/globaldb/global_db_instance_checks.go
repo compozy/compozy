@@ -100,3 +100,39 @@ func (r *InstanceRepo) RecoverConfigRejectedWake(ctx context.Context, id string,
 		})
 	return err
 }
+
+// SetSkillAutoApprove turns the operator-only skill auto-approve toggle of a live instance on or off.
+// Setting the current value is a no-op; an archived or missing instance is agentinstance.ErrNotFound.
+func (r *InstanceRepo) SetSkillAutoApprove(
+	ctx context.Context,
+	id string,
+	enabled bool,
+) (agentinstance.Instance, error) {
+	if err := r.checkReady(ctx, "set instance skill auto-approve"); err != nil {
+		return agentinstance.Instance{}, err
+	}
+	value := int64(0)
+	if enabled {
+		value = 1
+	}
+	now := r.now()
+	err := store.ExecuteWriteOperation(ctx, r.db, "set instance skill auto-approve",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			q := sqlcgen.New(tx)
+			row, err := q.GetAgentInstance(ctx, id)
+			if errors.Is(err, sql.ErrNoRows) || (err == nil && row.ArchivedAt.Valid) {
+				return agentinstance.ErrNotFound
+			}
+			if err != nil {
+				return err
+			}
+			_, err = q.SetInstanceSkillAutoApprove(ctx, sqlcgen.SetInstanceSkillAutoApproveParams{
+				InstanceID: id, Enabled: value, Now: store.FormatTimestamp(now),
+			})
+			return err
+		})
+	if err != nil {
+		return agentinstance.Instance{}, err
+	}
+	return r.Get(ctx, id)
+}

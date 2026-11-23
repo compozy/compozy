@@ -95,4 +95,7 @@ type SkillReviewStore interface {
 	ProjectRevert(ctx context.Context, reviewID, operator string, revertedAt time.Time) error
 	// DecideReject records an operator rejection of a pending review; anything else is stale.
 	DecideReject(ctx context.Context, id, digest, operator string) error
+	// CountAutoApprovals counts reviews of instanceID with decided_via = auto_approve, state approved
+	// or reverted, and decided_at in [dayStart, dayStart+24h) (Business Rule 14).
+	CountAutoApprovals(ctx context.Context, instanceID string, dayStart time.Time) (int, error)
 }

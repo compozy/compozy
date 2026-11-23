@@ -120,6 +120,7 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDAgentHeartbeatWake.String(),
 			toolspkg.ToolIDAgentInstanceCheck.String(),
 			toolspkg.ToolIDAgentInstanceChecks.String(),
+			toolspkg.ToolIDAgentInstanceSkillAutoApprove.String(),
 			toolspkg.ToolIDAgentInstanceOccurrence.String(),
 			toolspkg.ToolIDAgentInstanceCreate.String(),
 			toolspkg.ToolIDAgentInstanceList.String(),

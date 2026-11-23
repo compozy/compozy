@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -254,6 +255,7 @@ func TestNativeInstanceAuthority(t *testing.T) {
 		{toolspkg.ToolIDAgentInstancePause, `{"id":"target"}`},
 		{toolspkg.ToolIDAgentInstanceEnsureMain, `{"id":"target"}`},
 		{toolspkg.ToolIDAgentInstanceChecks, `{"id":"target","enabled":false}`},
+		{toolspkg.ToolIDAgentInstanceSkillAutoApprove, `{"id":"target","enabled":false}`},
 		{toolspkg.ToolIDAgentInstanceCheck, `{"id":"target","dry_run":true}`},
 	} {
 		t.Run("Should retain foreign instance denial without approval for "+tc.id.String(), func(t *testing.T) {
@@ -372,6 +374,105 @@ func TestNativeInstanceAuthority(t *testing.T) {
 			}
 		})
 	}
+}
+
+// autoApproveTargetStore records skill auto-approve writes to its one target.
+type autoApproveTargetStore struct {
+	nativeInstanceTargetStore
+	writes *[]bool
+}
+
+func (s autoApproveTargetStore) SetSkillAutoApprove(
+	_ context.Context,
+	_ string,
+	enabled bool,
+) (agentinstance.Instance, error) {
+	*s.writes = append(*s.writes, enabled)
+	target := s.target
+	target.SkillAutoApprove = enabled
+	return target, nil
+}
+
+// Invariant (IT-008): the native auto-approve tool bypasses the HTTP handler, so a non-operator
+// scope turning it on gets skill_auto_approve_operator_only before the verb mapping and the setter,
+// while the instance's own agent may turn it off, also under a narrowed tool policy.
+// Owning layer: daemon native instance tools.
+func TestNativeInstanceSkillAutoApprove(t *testing.T) {
+	newAPI := func(writes *[]bool) *core.AgentInstanceAPI {
+		return &core.AgentInstanceAPI{
+			Store: autoApproveTargetStore{
+				nativeInstanceTargetStore: nativeInstanceTargetStore{
+					target: agentinstance.Instance{ID: "own", AgentName: "coder", ProfileID: "profile"},
+				},
+				writes: writes,
+			},
+			Authority: agentinstance.Authority{
+				Callers: &instanceAdmissionInputs{
+					caller: agentinstance.Caller{InstanceID: "own", AgentName: "coder", ProfileID: "profile"},
+				},
+			},
+		}
+	}
+	agentScope := toolspkg.Scope{SessionID: "caller", AgentName: "coder", ProfileID: "profile"}
+	allowAll := func() *recordingNativeWorkspaceAccessPolicy {
+		return &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+	}
+	t.Run("Should refuse an agent turning it on and let it turn it off", func(t *testing.T) {
+		t.Parallel()
+		var writes []bool
+		api := newAPI(&writes)
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			AgentInstances: func() *core.AgentInstanceAPI { return api }, WorkspaceAccess: allowAll(),
+		}}
+		_, err := native.agentInstanceCall(t.Context(), agentScope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentInstanceSkillAutoApprove, Input: []byte(`{"id":"own","enabled":true}`),
+			ApprovalGranted: true,
+		})
+		if !errors.Is(err, agentinstance.ErrSkillAutoApproveOperatorOnly) || len(writes) != 0 {
+			t.Fatalf("agent on = %v, writes %v; want skill_auto_approve_operator_only and no write", err, writes)
+		}
+		result, err := native.agentInstanceCall(t.Context(), agentScope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentInstanceSkillAutoApprove, Input: []byte(`{"id":"own","enabled":false}`),
+		})
+		if err != nil || !slices.Equal(writes, []bool{false}) ||
+			!strings.Contains(string(result.Structured), `"skill_auto_approve":false`) {
+			t.Fatalf("agent off = %s, %v, writes %v", result.Structured, err, writes)
+		}
+		operator := agentScope
+		operator.Operator = true
+		if _, err := native.agentInstanceCall(t.Context(), operator, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentInstanceSkillAutoApprove, Input: []byte(`{"id":"own","enabled":true}`),
+		}); err != nil || !slices.Equal(writes, []bool{false, true}) {
+			t.Fatalf("operator on = %v, writes %v", err, writes)
+		}
+	})
+	t.Run("Should let a narrowed always-on session turn it off and never on", func(t *testing.T) {
+		t.Parallel()
+		var writes []bool
+		api := newAPI(&writes)
+		inputs := nativeApproveAllPolicyInputs()
+		inputs.SystemPermissionMode = toolspkg.PermissionModeApproveReads
+		inputs.ApprovalAvailable = false
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			AgentInstances:  func() *core.AgentInstanceAPI { return api },
+			WorkspaceAccess: allowAll(),
+			Sessions: &testutil.StubSessionManager{
+				StatusFn: func(context.Context, string) (*session.Info, error) {
+					return &session.Info{ID: "caller", ProfileID: "profile", AgentName: "coder"}, nil
+				},
+			},
+		}, inputs)
+		if _, err := registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentInstanceSkillAutoApprove, Input: []byte(`{"id":"own","enabled":false}`),
+		}); err != nil || !slices.Equal(writes, []bool{false}) {
+			t.Fatalf("narrowed off = %v, writes %v", err, writes)
+		}
+		if _, err := registry.Call(t.Context(), agentScope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentInstanceSkillAutoApprove, Input: []byte(`{"id":"own","enabled":true}`),
+		}); err == nil || !slices.Equal(writes, []bool{false}) {
+			t.Fatalf("narrowed on = %v, writes %v; want a refusal and no write", err, writes)
+		}
+	})
 }
 
 func TestInstanceWorkspaceReach(t *testing.T) {

@@ -22,6 +22,8 @@ var (
 	ErrScopeMismatch               = errors.New("session_scope_mismatch")
 	ErrBudgetHistoryUncertain      = errors.New("agent_instance_budget_history_uncertain")
 	ErrDailyBudgetUsageUnavailable = errors.New("cannot establish an accurate daily budget total")
+	// ErrSkillAutoApproveOperatorOnly refuses turning skill auto-approve on for anyone but an operator.
+	ErrSkillAutoApproveOperatorOnly = errors.New("skill_auto_approve_operator_only")
 )
 
 type Instance struct {
@@ -35,12 +37,14 @@ type Instance struct {
 	GrantCeiling      string
 	PermissionCeiling string
 	ChecksEnabled     bool
-	Depth             int
-	CreatedByKind     string
-	CreatedByID       string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	ArchivedAt        *time.Time
+	// SkillAutoApprove is the operator-only per-instance skill auto-approve toggle (off by default).
+	SkillAutoApprove bool
+	Depth            int
+	CreatedByKind    string
+	CreatedByID      string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	ArchivedAt       *time.Time
 }
 
 type Occurrence struct {

@@ -438,6 +438,15 @@ reverted, and only while the installed files still match it; otherwise revert fa
 `skill_review_revert_conflict` and a reason (`superseded`, `changed_on_disk`, `legacy` or
 `target_unavailable`). The review detail reports whether revert is allowed now.
 
+You can let one trusted always-on agent install its own low-risk lessons without review:
+`compozy agent instance skill-auto-approve on <agent>`, or the **Auto-approve skills** switch on its
+place. Only you can turn it on; the agent can turn it off. A proposal is then approved automatically
+only when its lesson has `high` confidence, the resulting skill runs nothing automatically (no hooks,
+MCP servers or scripts, counting files kept from the installed skill), an edit changes a skill that
+agent installed and that nobody changed since, and the agent has had fewer than 3 automatic approvals
+today (UTC). Anything else stays pending and says why in `auto_approve_skipped`. List automatic
+approvals with `compozy agent skill review list --decided-via auto_approve` and revert any of them.
+
 Approval installs workspace skills in `.compozy/skills/` and User-scope skills beside the owning
 agent definition, in its `skills/` directory. The installed skill then follows normal discovery and
 activation. Direct file authoring and marketplace installation keep their existing behavior.

@@ -125,7 +125,12 @@ function pageFixture(overrides: Partial<UseAgentProfile> = {}): UseAgentProfile 
       tools: "",
       permissions: "Accept edits",
     },
-    placeActions: { onArchive: vi.fn(), onOpen: vi.fn(), onToggle: vi.fn() },
+    placeActions: {
+      onArchive: vi.fn(),
+      onOpen: vi.fn(),
+      onToggle: vi.fn(),
+      onSkillAutoApprove: vi.fn(),
+    },
     onResumeAll: vi.fn(),
     onSaveIdentity: vi.fn(),
     onNewSession: vi.fn(),
@@ -247,7 +252,12 @@ describe("AgentProfileHome", () => {
         page={pageFixture({
           places: [place],
           state: "needs-you",
-          placeActions: { onArchive: vi.fn(), onOpen: vi.fn(), onToggle },
+          placeActions: {
+            onArchive: vi.fn(),
+            onOpen: vi.fn(),
+            onToggle,
+            onSkillAutoApprove: vi.fn(),
+          },
         })}
       />
     );
@@ -255,6 +265,50 @@ describe("AgentProfileHome", () => {
     expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Resume" }));
     expect(onToggle).toHaveBeenCalledWith(place);
+  });
+
+  it("Should turn on skill auto-approve for one place with only that field", async () => {
+    const place = agentPlaceFromInstance(agentInstanceFixture(), new Map());
+    const onSkillAutoApprove = vi.fn();
+    renderHome(
+      pageFixture({
+        places: [place],
+        placeActions: {
+          onArchive: vi.fn(),
+          onOpen: vi.fn(),
+          onToggle: vi.fn(),
+          onSkillAutoApprove,
+        },
+      })
+    );
+    const toggle = screen.getByRole("switch", { name: "Auto-approve skills" });
+    expect(toggle).not.toBeChecked();
+
+    await userEvent.setup().click(toggle);
+
+    expect(onSkillAutoApprove).toHaveBeenCalledWith(place, true);
+  });
+
+  it("Should show skill auto-approve on and hold the switch while it saves", () => {
+    const place = agentPlaceFromInstance(
+      agentInstanceFixture({ skill_auto_approve: true }),
+      new Map()
+    );
+    renderHome(
+      pageFixture({
+        places: [place],
+        placeActions: {
+          onArchive: vi.fn(),
+          onOpen: vi.fn(),
+          onToggle: vi.fn(),
+          onSkillAutoApprove: vi.fn(),
+          savingSkillAutoApprove: place.instance.id,
+        },
+      })
+    );
+    const toggle = screen.getByRole("switch", { name: "Auto-approve skills" });
+    expect(toggle).toBeChecked();
+    expect(toggle).toBeDisabled();
   });
 
   it("Should say it can't resume when a failure report holds a deleted definition's place", () => {

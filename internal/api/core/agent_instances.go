@@ -374,16 +374,17 @@ func populateNextCheckWake(
 func AgentInstancePayload(i agentinstance.Instance) contract.AgentInstancePayload {
 	return contract.AgentInstancePayload{
 		Label: i.AgentName, Activity: "unknown", Scope: i.WorkspaceID,
-		ChecksEnabled: i.ChecksEnabled,
-		ID:            i.ID,
-		ProfileID:     i.ProfileID,
-		AgentName:     i.AgentName,
-		WorkspaceID:   i.WorkspaceID,
-		State:         i.State,
-		PauseReason:   i.PauseReason,
-		MainSessionID: i.MainSessionID,
-		CreatedAt:     i.CreatedAt,
-		UpdatedAt:     i.UpdatedAt,
+		ChecksEnabled:    i.ChecksEnabled,
+		SkillAutoApprove: i.SkillAutoApprove,
+		ID:               i.ID,
+		ProfileID:        i.ProfileID,
+		AgentName:        i.AgentName,
+		WorkspaceID:      i.WorkspaceID,
+		State:            i.State,
+		PauseReason:      i.PauseReason,
+		MainSessionID:    i.MainSessionID,
+		CreatedAt:        i.CreatedAt,
+		UpdatedAt:        i.UpdatedAt,
 	}
 }
 func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
@@ -411,6 +412,7 @@ func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
 		status int
 	}{
 		{agentinstance.ErrForbidden, http.StatusForbidden},
+		{agentinstance.ErrSkillAutoApproveOperatorOnly, http.StatusForbidden},
 		{agentinstance.ErrWorkspaceAccessDenied, http.StatusForbidden},
 		{agentinstance.ErrSessionNotRoot, http.StatusUnprocessableEntity},
 		{agentinstance.ErrScopeMismatch, http.StatusUnprocessableEntity},

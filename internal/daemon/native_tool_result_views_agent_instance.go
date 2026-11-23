@@ -24,6 +24,7 @@ type compactAgentInstanceRecord struct {
 	AttentionDismissible bool                                     `json:"attention_dismissible"`
 	AuthorityStatus      string                                   `json:"authority_status"`
 	ChecksEnabled        bool                                     `json:"checks_enabled"`
+	SkillAutoApprove     bool                                     `json:"skill_auto_approve"`
 	DailyBudget          *contract.AgentInstanceDailyBudgetLimits `json:"daily_budget,omitempty"`
 	DailyBudgetUsage     *contract.AgentInstanceDailyBudgetUsage  `json:"daily_budget_usage,omitempty"`
 	Created              bool                                     `json:"created"`
@@ -53,6 +54,7 @@ func compactAgentInstance(p contract.AgentInstancePayload) compactAgentInstanceR
 		AttentionDismissible: p.AttentionDismissible,
 		AuthorityStatus:      p.AuthorityStatus,
 		ChecksEnabled:        p.ChecksEnabled,
+		SkillAutoApprove:     p.SkillAutoApprove,
 		DailyBudget:          p.DailyBudget,
 		DailyBudgetUsage:     p.DailyBudgetUsage,
 		Created:              p.Created,

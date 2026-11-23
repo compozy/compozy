@@ -40,7 +40,7 @@ func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
 		checks.AddCommand(newAgentInstanceAction(deps, action))
 	}
 	parent.AddCommand(newAgentInstancePickCommand(deps))
-	parent.AddCommand(checks, newAgentInstanceOccurrenceCommand(deps))
+	parent.AddCommand(checks, newAgentInstanceOccurrenceCommand(deps), newAgentInstanceSkillAutoApproveCommand(deps))
 	return parent
 }
 
@@ -276,8 +276,8 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 	if action == agentInstanceCheckAction || action == "on" || action == agentInstanceChecksOff {
 		return options.check(cmd, base, action, id, target)
 	}
-	if action == agentInstanceBudgetAction {
-		return options.updateBudget(cmd, base, id)
+	if update := agentInstanceUpdates[action]; update != nil {
+		return update(options, cmd, base, id, action)
 	}
 	if action == agentInstanceAwayAction || action == agentInstanceMarkSeenAction ||
 		action == agentInstanceCheckInsAction {

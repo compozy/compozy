@@ -90,6 +90,7 @@ type AgentInstance struct {
 	CreatedAt         string         `json:"created_at"`
 	UpdatedAt         string         `json:"updated_at"`
 	ArchivedAt        sql.NullString `json:"archived_at"`
+	SkillAutoApprove  int64          `json:"skill_auto_approve"`
 }
 
 type AgentInstanceCheckToolCall struct {

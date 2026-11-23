@@ -615,6 +615,160 @@ func TestAgentInstanceDailyBudgetSettings(t *testing.T) {
 	})
 }
 
+// Invariant: PATCH /agent-instances/:id changes exactly one of checks_enabled, daily_budget and
+// skill_auto_approve; only an operator turns skill auto-approve on (an agent gets
+// skill_auto_approve_operator_only, an app token the budget path's agent_instance_forbidden), while the
+// instance's own agent and app tokens may turn it off.
+// Owning layer: api/core instance handler on real SQLite.
+func TestAgentInstanceSkillAutoApproveSettings(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "auto-approve-api.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			t.Errorf("close agent instance auto-approve DB: %v", err)
+		}
+	})
+	admit := func(name string) agentinstance.Instance {
+		instance, _, err := db.Instances().AdmitCreate(ctx, agentinstance.Instance{
+			AgentName: name, ProfileID: store.DefaultProfileID, CreatedByKind: "human", PermissionCeiling: "{}",
+		}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return instance
+	}
+	own, other := admit("coder"), admit("peer")
+	fixture := newHandlerFixture(t,
+		&testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+			return &session.Info{
+				ID: "caller", AgentName: "coder", ProfileID: store.DefaultProfileID, State: session.StateActive,
+				EffectiveWorkspaceAccess: workspaceaccess.Unrestricted,
+			}, nil
+		}},
+		testutil.StubObserver{}, testutil.StubWorkspaceService{})
+	fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{
+		AuthorizeFn: func(context.Context, workspaceaccess.Request) (workspaceaccess.Decision, error) {
+			return workspaceaccess.Decision{Allowed: true}, nil
+		},
+	}
+	fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+		Store: db.Instances(), Authority: agentinstance.Authority{Callers: instanceAPIInputs{instance: own}},
+		CheckSettings: instanceCheckSettingsRepo{db.Instances()},
+	}
+	fixture.Engine.PATCH("/instances/:id", fixture.Handlers.UpdateAgentInstance)
+	fixture.Engine.GET("/instances/:id", fixture.Handlers.GetAgentInstance)
+	patch := func(t *testing.T, id, mode, body string) (*httptest.ResponseRecorder, contract.ErrorPayload) {
+		t.Helper()
+		request := httptest.NewRequestWithContext(t.Context(), "PATCH", "/instances/"+id, strings.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		switch mode {
+		case "agent":
+			request.Header.Set(agentidentity.HeaderSessionID, "caller")
+			request.Header.Set(agentidentity.HeaderAgent, "coder")
+		case "app":
+			request = request.WithContext(core.ContextWithAppToken(request.Context(), gateway.AppToken{}))
+		}
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, request)
+		var failure contract.ErrorPayload
+		if response.Code != http.StatusOK {
+			decodeJSON(t, response.Body.Bytes(), &failure)
+		}
+		return response, failure
+	}
+	stored := func(t *testing.T, id string) agentinstance.Instance {
+		t.Helper()
+		instance, err := db.Instances().Get(t.Context(), id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return instance
+	}
+
+	t.Run("Should refuse the own agent turning auto-approve on [UT-029]", func(t *testing.T) {
+		response, failure := patch(t, own.ID, "agent", `{"skill_auto_approve":true}`)
+		if response.Code != http.StatusForbidden || failure.Code != "skill_auto_approve_operator_only" ||
+			failure.Error != "only an operator can turn on skill auto-approve" {
+			t.Fatalf("agent on status=%d body=%s", response.Code, response.Body.String())
+		}
+		if stored(t, own.ID).SkillAutoApprove {
+			t.Fatal("an agent turned skill auto-approve on")
+		}
+	})
+
+	t.Run("Should refuse an app token turning auto-approve on like a budget change [UT-089]", func(t *testing.T) {
+		response, failure := patch(t, own.ID, "app", `{"skill_auto_approve":true}`)
+		budget, budgetFailure := patch(t, own.ID, "app", `{"daily_budget":{"tokens":0}}`)
+		if response.Code != http.StatusForbidden || failure.Code != "agent_instance_forbidden" ||
+			failure.Error != "An agent can only act on its own instance, within its limits." ||
+			budget.Code != response.Code || budgetFailure.Code != failure.Code || budgetFailure.Error != failure.Error {
+			t.Fatalf("app on status=%d body=%s; budget status=%d body=%s",
+				response.Code, response.Body.String(), budget.Code, budget.Body.String())
+		}
+		if stored(t, own.ID).SkillAutoApprove {
+			t.Fatal("an app token turned skill auto-approve on")
+		}
+		if off, _ := patch(t, own.ID, "app", `{"skill_auto_approve":false}`); off.Code != http.StatusOK {
+			t.Fatalf("app off status=%d body=%s", off.Code, off.Body.String())
+		}
+	})
+
+	t.Run("Should let an operator turn it on and the own agent turn it off [IT-005 UT-028]", func(t *testing.T) {
+		on, _ := patch(t, own.ID, "operator", `{"skill_auto_approve":true}`)
+		var payload contract.AgentInstanceResponse
+		decodeJSON(t, on.Body.Bytes(), &payload)
+		if on.Code != http.StatusOK || !payload.Instance.SkillAutoApprove {
+			t.Fatalf("operator on status=%d body=%s", on.Code, on.Body.String())
+		}
+		get := performRequest(t, fixture.Engine, "GET", "/instances/"+own.ID, nil)
+		if !strings.Contains(get.Body.String(), `"skill_auto_approve":true`) {
+			t.Fatalf("GET after on = %s", get.Body.String())
+		}
+		off, _ := patch(t, own.ID, "agent", `{"skill_auto_approve":false}`)
+		if off.Code != http.StatusOK || stored(t, own.ID).SkillAutoApprove {
+			t.Fatalf("own agent off status=%d body=%s", off.Code, off.Body.String())
+		}
+	})
+
+	t.Run("Should require exactly one field and keep each field on its own setter [UT-087]", func(t *testing.T) {
+		const message = "exactly one of checks_enabled, daily_budget, or skill_auto_approve is required"
+		for _, body := range []string{
+			`{}`,
+			`{"checks_enabled":false,"skill_auto_approve":true}`,
+			`{"daily_budget":{"tokens":5},"skill_auto_approve":true}`,
+			`{"checks_enabled":false,"daily_budget":{"tokens":5},"skill_auto_approve":true}`,
+		} {
+			response, failure := patch(t, own.ID, "operator", body)
+			if response.Code != http.StatusUnprocessableEntity || failure.Code != "" || failure.Error != message {
+				t.Fatalf("PATCH %s status=%d body=%s", body, response.Code, response.Body.String())
+			}
+			current := stored(t, own.ID)
+			if current.SkillAutoApprove || current.ChecksEnabled != own.ChecksEnabled {
+				t.Fatalf("rejected PATCH %s changed the instance: %+v", body, current)
+			}
+		}
+		if limits, err := db.Instances().DailyBudgetLimits(ctx, own.ID); err != nil || limits.Tokens != nil {
+			t.Fatalf("rejected PATCH set a budget: %+v %v", limits, err)
+		}
+		if response, _ := patch(t, own.ID, "operator", `{"checks_enabled":false}`); response.Code != http.StatusOK ||
+			stored(t, own.ID).ChecksEnabled || stored(t, own.ID).SkillAutoApprove {
+			t.Fatalf("checks PATCH status=%d body=%s", response.Code, response.Body.String())
+		}
+		if response, _ := patch(t, own.ID, "operator", `{"daily_budget":{"tokens":5}}`); response.Code != http.StatusOK ||
+			stored(t, own.ID).SkillAutoApprove {
+			t.Fatalf("budget PATCH status=%d body=%s", response.Code, response.Body.String())
+		}
+		response, failure := patch(t, other.ID, "agent", `{"skill_auto_approve":false}`)
+		if response.Code != http.StatusForbidden || failure.Code != "agent_instance_forbidden" {
+			t.Fatalf("other agent off status=%d body=%s", response.Code, response.Body.String())
+		}
+	})
+}
+
 func TestAgentInstanceAway(t *testing.T) {
 	t.Run("Should keep reads passive and hide seen reports after marking", func(t *testing.T) {
 		t.Parallel()

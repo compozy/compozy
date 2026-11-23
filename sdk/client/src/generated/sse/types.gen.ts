@@ -69,6 +69,7 @@ export type AgentInstancePayload = {
     [key: string]: unknown;
   };
   scope: string;
+  skill_auto_approve: boolean;
   sources: Array<HeartbeatSourceStatus>;
   state: string;
   unattended_turn_limit: number;

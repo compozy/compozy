@@ -51,6 +51,7 @@ const agentInstanceCompactRecordSchema = `{
   "attention_dismissible",
   "authority_status",
   "checks_enabled",
+  "skill_auto_approve",
   "created",
   "held_wakes",
   "failure_streak",
@@ -75,6 +76,7 @@ const agentInstanceCompactRecordSchema = `{
   "attention_dismissible":{"type":"boolean"},
   "authority_status":{"type":"string"},
   "checks_enabled":{"type":"boolean"},
+  "skill_auto_approve":{"type":"boolean"},
   "daily_budget":{
    "type":"object",
    "properties":{
