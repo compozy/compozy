@@ -39,7 +39,7 @@ export const LEGAL_DOCUMENTS: Record<LegalDocId, LegalDocument> = {
     ],
     markdown: `## Entity and governing law
 
-These Terms of Service form a binding agreement between you and **Compozy LLC**, a Delaware limited liability company ("Compozy"), governing your access to Compozy Cloud, your Compozy account, and Compozy Pro subscriptions.
+These Terms of Service form a binding agreement between you and **Compozy, LLC**, a Delaware limited liability company (Delaware file number 10308898) with its business address at 2261 Market Street, San Francisco, CA 94114, United States ("Compozy"), governing your access to Compozy Cloud, your Compozy account, and Compozy Pro subscriptions.
 
 These terms are governed by the laws of the State of Delaware, United States, without regard to conflict-of-law principles. Any dispute arising from these terms will be resolved in the state or federal courts located in Delaware, unless mandatory consumer protection laws in your country of residence require otherwise.
 
@@ -90,7 +90,7 @@ To the maximum extent permitted by law, Compozy is not liable for indirect, inci
 
 Compozy may update these terms as the product evolves. Material changes will be posted here with an updated date and emailed to active accounts before taking effect.
 
-Questions about these terms? Contact [support@compozy.com](mailto:support@compozy.com).`,
+Questions about these terms? Contact [support@compozy.com](mailto:support@compozy.com), or write to Compozy, LLC, 2261 Market Street, San Francisco, CA 94114, United States.`,
   },
 
   privacy: {
@@ -114,7 +114,7 @@ Questions about these terms? Contact [support@compozy.com](mailto:support@compoz
     ],
     markdown: `## Who we are
 
-This Privacy Policy explains how **Compozy LLC** ("Compozy") collects, uses, and protects personal data when you sign in to CompozyOS, use Compozy Cloud, or purchase Compozy Pro.
+This Privacy Policy explains how **Compozy, LLC** ("Compozy"), a Delaware limited liability company at 2261 Market Street, San Francisco, CA 94114, United States, collects, uses, and protects personal data when you sign in to CompozyOS, use Compozy Cloud, or purchase Compozy Pro.
 
 For privacy requests or data-protection questions, write to [privacy@compozy.com](mailto:privacy@compozy.com).
 
@@ -180,11 +180,11 @@ Depending on where you live (including under the **LGPD** in Brazil, the **GDPR*
 
 - Delete your account anytime in **Settings → Account → Delete account** or via \`compozy account delete\`.
 - Request a full JSON export or exercise any privacy right by emailing [privacy@compozy.com](mailto:privacy@compozy.com). We respond within **15 days**.
-- **LGPD data-protection contact (Encarregado / DPO):** [privacy@compozy.com](mailto:privacy@compozy.com), Compozy LLC.
+- **LGPD data-protection contact (Encarregado / DPO):** [privacy@compozy.com](mailto:privacy@compozy.com), Compozy, LLC, 2261 Market Street, San Francisco, CA 94114, United States.
 
 ## International transfers
 
-Compozy LLC operates in the United States, and our sub-processors may process account metadata in the United States and other regions where they maintain infrastructure. Where required by law (including under the GDPR and LGPD), transfers rely on standard contractual clauses or equivalent legal transfer safeguards.`,
+Compozy, LLC operates in the United States, and our sub-processors may process account metadata in the United States and other regions where they maintain infrastructure. Where required by law (including under the GDPR and LGPD), transfers rely on standard contractual clauses or equivalent legal transfer safeguards.`,
   },
 
   refunds: {
