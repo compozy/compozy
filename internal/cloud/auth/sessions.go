@@ -246,7 +246,7 @@ func touchDeviceActivity(ctx context.Context, q *store.Queries, d store.AuthDevi
 
 func sessionEvent(ctx context.Context, q *store.Queries, d store.AuthDeviceSession, event string, now time.Time) error {
 	return q.AppendSecurityEvent(ctx, store.SecurityEvent{
-		AccountID: d.AccountID, Actor: "account:" + d.DeviceID, At: now, Type: event,
-		Details: map[string]any{"device_id": d.DeviceID},
+		AccountID: d.AccountID, Actor: accountActorPrefix + d.DeviceID, At: now, Type: event,
+		Details: map[string]any{deviceIDDetail: d.DeviceID},
 	})
 }

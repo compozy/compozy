@@ -37,8 +37,8 @@ type BrowserResult struct {
 
 func (s *Service) ParseBrowserRequest(form url.Values) (BrowserRequest, error) {
 	request := BrowserRequest{
-		Hostname: form.Get("hostname"), PublicJWK: form.Get("public_jwk"), State: form.Get("state"),
-		Challenge: form.Get("code_challenge"), Provider: form.Get("provider"),
+		Hostname: form.Get("hostname"), PublicJWK: form.Get("public_jwk"), State: form.Get(oauthStateField),
+		Challenge: form.Get(pkceChallengeField), Provider: form.Get(providerField),
 	}
 	prefix, ok := strings.CutSuffix(request.Hostname, "."+s.cfg.HostedDomain)
 	if !ok || !validDNSLabel(prefix) || !validLabel(request.State, 512) || !ValidSecret(request.Challenge) ||
@@ -191,10 +191,13 @@ func (s *Service) issueBrowserCode(
 		if err != nil {
 			return err
 		}
-		result.Binding, result.Redirect = bound.cookie, browserRedirect(req, "code", code)
+		result.Binding, result.Redirect = bound.cookie, browserRedirect(req, oauthCodeField, code)
 		return q.AppendSecurityEvent(ctx, store.SecurityEvent{
-			AccountID: session.AccountID, Type: "browser_authorized", Actor: "account:" + pending.DeviceID, At: now,
-			Details: map[string]any{"computer_id": computerID},
+			AccountID: session.AccountID,
+			Type:      "browser_authorized",
+			Actor:     accountActorPrefix + pending.DeviceID,
+			At:        now,
+			Details:   map[string]any{"computer_id": computerID},
 		})
 	}
 	err = s.db.Transaction(ctx, issued)
@@ -311,7 +314,7 @@ func (s *Service) bindBrowserSession(
 }
 
 func browserRedirect(req BrowserRequest, key, value string) string {
-	query := url.Values{key: {value}, "state": {req.State}}
+	query := url.Values{key: {value}, oauthStateField: {req.State}}
 	return "https://" + req.Hostname + browserCallbackPath + "?" + query.Encode()
 }
 

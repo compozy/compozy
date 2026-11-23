@@ -22,6 +22,14 @@ const (
 	Google = "google"
 	GitHub = "github"
 
+	providerField      = "provider"
+	oauthCodeField     = "code"
+	oauthStateField    = "state"
+	pkceChallengeField = "code_challenge"
+	accountActorPrefix = "account:"
+	systemActor        = "system"
+	deviceIDDetail     = "device_id"
+
 	stateActive     = "active"
 	stateSuspended  = "suspended"
 	stateDeleting   = "deleting"

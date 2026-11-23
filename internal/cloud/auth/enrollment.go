@@ -141,12 +141,12 @@ func registerEnrolledDevice(
 	if err := q.RecordAuthDeviceChange(ctx, d.AccountID); err != nil {
 		return d, err
 	}
-	details := map[string]any{"device_id": d.ID, "kind": d.Kind, "admin": d.Admin, "location": token.Location}
+	details := map[string]any{deviceIDDetail: d.ID, "kind": d.Kind, "admin": d.Admin, "location": token.Location}
 	if _, err := netip.ParseAddr(strings.TrimSpace(d.Name)); err != nil {
 		details["device_name"] = d.Name
 	}
 	return d, q.AppendSecurityEvent(ctx, store.SecurityEvent{
-		Type: "device_enrolled", AccountID: d.AccountID, Actor: "account:" + d.ID, At: now, Details: details,
+		Type: "device_enrolled", AccountID: d.AccountID, Actor: accountActorPrefix + d.ID, At: now, Details: details,
 	})
 }
 
@@ -158,7 +158,7 @@ func recoverDeviceAdmin(ctx context.Context, q *store.Queries, d store.AuthDevic
 		return err
 	}
 	return q.AppendSecurityEvent(ctx, store.SecurityEvent{
-		Type: "device_admin_changed", AccountID: d.AccountID, Actor: "account:" + d.ID, At: now,
-		Details: map[string]any{"device_id": d.ID, "admin": true, "reason": "recovery"},
+		Type: "device_admin_changed", AccountID: d.AccountID, Actor: accountActorPrefix + d.ID, At: now,
+		Details: map[string]any{deviceIDDetail: d.ID, "admin": true, "reason": "recovery"},
 	})
 }

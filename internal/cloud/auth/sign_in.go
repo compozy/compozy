@@ -171,8 +171,8 @@ func (s *Service) signIn(
 				return err
 			}
 			return q.AppendSecurityEvent(ctx, store.SecurityEvent{
-				AccountID: account.ID, Type: "sign_in", Actor: "system", At: now,
-				Details: map[string]any{"provider": identity.Provider},
+				AccountID: account.ID, Type: "sign_in", Actor: systemActor, At: now,
+				Details: map[string]any{providerField: identity.Provider},
 			})
 		})
 		if errors.Is(err, store.ErrIdentityConflict) {
@@ -209,8 +209,8 @@ func (s *Service) failOAuth(ctx context.Context, attempt store.OAuthAttempt, cau
 			}
 		}
 		return q.AppendSecurityEvent(ctx, store.SecurityEvent{
-			Type: "sign_in_failed", Actor: "system", At: now,
-			Details: map[string]any{"provider": attempt.Provider, "reason": f.Code},
+			Type: "sign_in_failed", Actor: systemActor, At: now,
+			Details: map[string]any{providerField: attempt.Provider, "reason": f.Code},
 		})
 	})
 	if err != nil {

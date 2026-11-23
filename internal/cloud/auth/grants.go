@@ -75,7 +75,7 @@ func validLabel(value string, limit int) bool {
 func ActivationQuery(code, provider string, fresh bool) string {
 	query := url.Values{"user_code": {code}}
 	if provider != "" {
-		query.Set("provider", provider)
+		query.Set(providerField, provider)
 	}
 	if fresh {
 		query.Set("max_age", "0")
@@ -167,7 +167,25 @@ func (s *Service) CancelDeviceGrant(ctx context.Context, code string) error {
 	if !ValidSecret(code) {
 		return ErrInvalidRequest
 	}
-	return s.db.CancelGrant(ctx, hashSecret(code), errDenied.Code, true, s.now())
+	return s.db.Transaction(ctx, func(q *store.Queries) error {
+		g, err := q.LockDeviceGrant(ctx, hashSecret(code))
+		if errors.Is(err, store.ErrAuthNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		now := s.now()
+		if !now.Before(g.ExpiresAt) || (g.State != statePending && g.State != stateAuthorized) {
+			return nil
+		}
+		if err := q.CancelGrant(ctx, g.CodeHash, errDenied.Code, true, now); err != nil {
+			return err
+		}
+		return q.AppendSecurityEvent(ctx, store.SecurityEvent{
+			AccountID: g.AccountID, Type: "sign_in_canceled", Actor: systemActor, At: now,
+		})
+	})
 }
 
 func (s *Service) PollDeviceGrant(ctx context.Context, code string) (remoteproto.DeviceFlowTokenResponse, error) {

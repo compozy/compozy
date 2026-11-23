@@ -74,8 +74,9 @@ func (o *OAuth) authorize(issuer, provider, state, verifier, nonce string, fresh
 		client, endpoint, scope = o.google, o.endpoints.GoogleAuthorize, "openid email profile"
 	}
 	query := url.Values{
-		"client_id": {client.ID}, "redirect_uri": {callbackURL(issuer, provider)}, "response_type": {"code"},
-		"scope": {scope}, "state": {state}, "code_challenge": {challenge(verifier)}, "code_challenge_method": {"S256"},
+		"client_id": {client.ID}, "redirect_uri": {callbackURL(issuer, provider)}, "response_type": {oauthCodeField},
+		"scope": {scope}, oauthStateField: {state}, pkceChallengeField: {challenge(verifier)},
+		"code_challenge_method": {"S256"},
 	}
 	if provider == Google {
 		query.Set("nonce", nonce)
@@ -108,7 +109,7 @@ func (o *OAuth) exchange(
 		"client_secret": {client.Secret},
 		"redirect_uri":  {callbackURL(issuer, attempt.Provider)},
 		"grant_type":    {"authorization_code"},
-		"code":          {code},
+		oauthCodeField:  {code},
 		"code_verifier": {verifier},
 	}
 	var tokens providerTokens
