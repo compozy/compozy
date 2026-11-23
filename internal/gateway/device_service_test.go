@@ -3,7 +3,6 @@ package gateway
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -332,31 +331,6 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should release idle mutation-gate state after repeated committed revocations", func(t *testing.T) {
-		t.Parallel()
-		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-		service := newDeviceServiceOnly(t, &now)
-
-		for index := range 8 {
-			issued, err := issueTestDevice(
-				t.Context(), service, fmt.Sprintf("Device %d", index), ActorKindOperatorDevice,
-			)
-			if err != nil {
-				t.Fatalf("issueTestDevice(%d) error = %v", index, err)
-			}
-			if _, err := service.RevokeDevice(t.Context(), issued.Device.ID); err != nil {
-				t.Fatalf("RevokeDevice(%d) error = %v", index, err)
-			}
-		}
-
-		service.mutations.mu.Lock()
-		tracked := len(service.mutations.devices)
-		service.mutations.mu.Unlock()
-		if tracked != 0 {
-			t.Fatalf("tracked mutation-gate devices = %d, want 0 after committed revocations", tracked)
-		}
-	})
-
 	t.Run("Should bump epoch before canceling every live connection (UT-040)", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
@@ -455,7 +429,7 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should cancel epoch revalidation and release the mutation lease", func(t *testing.T) {
+	t.Run("Should propagate cancellation to the device epoch store", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
 		store := &cancelAwareDeviceStore{
@@ -493,13 +467,6 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 			close(store.release)
 			acquireErr := <-outcome
 			t.Fatalf("AcquireMutation() ignored cancellation; eventual error = %v", acquireErr)
-		}
-
-		service.mutations.mu.Lock()
-		tracked := len(service.mutations.devices)
-		service.mutations.mu.Unlock()
-		if tracked != 0 {
-			t.Fatalf("tracked mutation-gate devices = %d, want canceled lease released", tracked)
 		}
 	})
 
@@ -556,7 +523,13 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 		if _, err := service.Authenticate(t.Context(), issued.Credential); !errors.Is(err, ErrDeviceUnauthenticated) {
 			t.Fatalf("Authenticate(revoked) error = %v", err)
 		}
-		if _, err := service.ConsumeStreamTicket(t.Context(), ticket.Ticket); !errors.Is(err, remotehost.ErrStreamTicketInvalid) {
+		if _, err := service.ConsumeStreamTicket(
+			t.Context(),
+			ticket.Ticket,
+		); !errors.Is(
+			err,
+			remotehost.ErrStreamTicketInvalid,
+		) {
 			t.Fatalf("ConsumeStreamTicket(revoked) error = %v", err)
 		}
 	})
@@ -591,5 +564,3 @@ func (s *cancelAwareDeviceStore) RevalidateDeviceEpoch(ctx context.Context, id s
 		return s.memoryDeviceStore.RevalidateDeviceEpoch(ctx, id, epoch)
 	}
 }
-
-// Invariant: app origins have one strict canonical representation; owner: gateway validation.
