@@ -732,6 +732,46 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 			t.Fatalf("journal = %+v, %v; want it still resolving", payload, ok)
 		}
 	})
+	t.Run("Should confirm the resolve log entry before publishing, also on a retry [UT-075]", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
+		logDir := filepath.Join(f.root, skillInstallLogDir)
+		var synced []string
+		failures := 1
+		svc.syncDir = func(path string) error {
+			synced = append(synced, path)
+			if path == logDir && failures > 0 {
+				failures--
+				return errors.New("log directory sync failed")
+			}
+			return nil
+		}
+		if _, err := f.resolve(t, svc, seeded.opID, SkillConflictKeepPrevious); err == nil ||
+			!strings.Contains(err.Error(), "log directory sync failed") {
+			t.Fatalf("ResolveInstallConflict() with a failing log sync = %v", err)
+		}
+		if payload, ok := f.journal(t, "release-checklist"); !ok || payload.State != skillInstallStateResolving {
+			t.Fatalf("journal = %+v, %v; want the resolution unpublished", payload, ok)
+		}
+		if entries := resolveEntries(t, f, seeded.opID); entries != 1 {
+			t.Fatalf("resolve entries for %s = %d, want the written entry", seeded.opID, entries)
+		}
+		if _, err := f.resolve(t, svc, seeded.opID, SkillConflictKeepPrevious); err != nil {
+			t.Fatalf("retry = %v", err)
+		}
+		logSyncs := 0
+		for _, path := range synced {
+			if path == logDir {
+				logSyncs++
+			}
+		}
+		if logSyncs != 2 {
+			t.Fatalf("log directory syncs = %d (%v), want one per attempt including the retry", logSyncs, synced)
+		}
+		f.requirePreviousKept(t, seeded)
+	})
 	t.Run("Should leave a resolving journal with an unknown keep unchanged [UT-076]", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
