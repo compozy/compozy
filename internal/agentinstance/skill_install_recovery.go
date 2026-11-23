@@ -220,7 +220,9 @@ func (p *skillRecoveryPolicy) restoreAsideTree(journal dirpublish.Journal, paylo
 		return dirpublish.RecoveryError("inspect skill target", err)
 	}
 	if target != "" {
-		return dirpublish.RecoveryError("retain an unverified skill tree in the incoming slot", nil)
+		return dirpublish.RecoveryError(fmt.Sprintf(
+			"op %s left an unverified skill tree at %s while %s is occupied; move one of them aside",
+			payload.OpID, p.t.path(journal.IncomingName), p.t.dir), nil)
 	}
 	if err := moveSkillChild(p.t.parent, journal.IncomingName, p.t.name); err != nil {
 		return dirpublish.RecoveryError("restore unverified skill tree", err)
