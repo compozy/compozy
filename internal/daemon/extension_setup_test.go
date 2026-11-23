@@ -432,6 +432,20 @@ func TestExtensionInputSetupInstanceRestart(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the write but not report a reload a development base defers", func(t *testing.T) {
+		t.Parallel()
+		fixture := newExtensionSetupFixture(t, extensionpkg.InstallationScope{})
+		ctx := testutil.Context(t)
+		fixture.service.runtime = deferredRestartRuntime{fakeExtensionRuntime: fixture.runtime}
+		values := setupValues("token", setupTokenValue, "project", setupProjectValue)
+
+		written, err := fixture.service.SetInputs(ctx, extensionInputsTarget{Name: setupKitName}, values,
+			extensionSetupOperator(t))
+		if err != nil || written.Reloaded || len(written.Changed) == 0 {
+			t.Fatalf("deferred restart write = %#v error %v, want changed values without a reload", written, err)
+		}
+	})
+
 	// A save that only mirrors an unchanged binding into its typed row changes no launched value.
 	t.Run("Should persist a mirror-only save without restarting the instance", func(t *testing.T) {
 		t.Parallel()
@@ -476,6 +490,15 @@ func TestExtensionInputSetupInstanceRestart(t *testing.T) {
 			t.Fatalf("region row = %#v, want the mirrored binding value persisted", row)
 		}
 	})
+}
+
+// deferredRestartRuntime keeps a development base running with its launch values.
+type deferredRestartRuntime struct {
+	*fakeExtensionRuntime
+}
+
+func (deferredRestartRuntime) RestartInstance(context.Context, extensionpkg.InstanceKey) error {
+	return extensionpkg.ErrDevelopmentRestartDeferred
 }
 
 // failingRestartRuntime fails the next instance restart and records the stored project value each
