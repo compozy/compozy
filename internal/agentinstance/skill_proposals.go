@@ -123,16 +123,33 @@ func (s *SkillProposalService) Propose(
 		EvidenceSessionIDs: evidence,
 	}, report)
 	result := SkillProposalResult{Review: review, Duplicate: duplicate}
-	if errors.Is(err, ErrSkillReviewLimit) || errors.Is(err, ErrSkillProposePreviouslyRejected) ||
-		(err == nil && review.DraftPath != path) {
-		return result, errors.Join(err, os.Remove(path), removeSkillSnapshot(snapshot))
-	}
-	if err == nil {
+	if err = s.settleProposalFiles(ctx, id, path, snapshot, review, err); err == nil {
 		slog.InfoContext(ctx, "skill.review.created", "instance_id", instance.ID, "review_id", review.ID,
 			"kind", string(review.Kind), "decided_via", review.DecidedVia)
 	}
-	// An uncertain database commit must retain the inert draft for recovery.
 	return result, err
+}
+
+// settleProposalFiles removes the draft and snapshot no review row records: a refused proposal (limit
+// or rejected identity), one answered by an existing duplicate, and a failed CreateReview whose row
+// is confirmed absent (database error, cancellation). A failure whose row may have committed (the row
+// exists, or cannot be read) is uncertain and keeps the inert draft for recovery.
+func (s *SkillProposalService) settleProposalFiles(
+	ctx context.Context,
+	id, path, snapshot string,
+	review SkillReview,
+	err error,
+) error {
+	discard := errors.Is(err, ErrSkillReviewLimit) || errors.Is(err, ErrSkillProposePreviouslyRejected) ||
+		(err == nil && review.DraftPath != path)
+	if err != nil && !discard {
+		_, readErr := s.Store.GetReview(context.WithoutCancel(ctx), id)
+		discard = errors.Is(readErr, ErrSkillReviewNotFound)
+	}
+	if !discard {
+		return err
+	}
+	return errors.Join(err, os.Remove(path), removeSkillSnapshot(snapshot))
 }
 
 // prepareProposalClaim validates the lesson and the 1–20 distinct evidence sessions.

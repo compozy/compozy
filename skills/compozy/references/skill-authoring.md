@@ -65,7 +65,9 @@ with `skill_review_revert_conflict` and a `reason`: `superseded` (a newer approv
 exists, from any instance or home; revert that one first), `changed_on_disk`, `legacy` (approved
 before this feature), or `target_unavailable`. After a revert the approval it replaced becomes
 revertible again. Reverting a reverted review succeeds without changes; a pending or rejected
-review fails with `skill_review_stale`. Contents that were reverted can be proposed again.
+review fails with `skill_review_stale`. Contents that were reverted can be proposed again. Digests, edits, and
+reverts cover file contents and file permission bits; directory permissions and empty directories
+are not part of a skill tree and are not preserved.
 
 ## Boundary
 

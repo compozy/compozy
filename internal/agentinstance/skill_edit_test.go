@@ -2,6 +2,7 @@ package agentinstance
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -76,6 +77,35 @@ func (f *skillTxFixture) requireLinkedOutside(t *testing.T, name, outside string
 	if string(data) != skillEditBase[1].content || mode != skillEditBase[1].mode {
 		t.Fatalf("outside directory changed: %q %o", data, mode)
 	}
+}
+
+// failingCreateStore fails CreateReview, optionally after committing the row, and optionally fails the
+// read that settles whether the row exists.
+type failingCreateStore struct {
+	*memSkillReviewStore
+	err     error
+	commit  bool
+	readErr error
+}
+
+func (s *failingCreateStore) CreateReview(
+	ctx context.Context,
+	review SkillReview,
+	report ReportInput,
+) (SkillReview, bool, error) {
+	if s.commit {
+		if _, _, err := s.memSkillReviewStore.CreateReview(ctx, review, report); err != nil {
+			return SkillReview{}, false, err
+		}
+	}
+	return SkillReview{}, false, s.err
+}
+
+func (s *failingCreateStore) GetReview(ctx context.Context, id string) (SkillReview, error) {
+	if s.readErr != nil {
+		return SkillReview{}, s.readErr
+	}
+	return s.memSkillReviewStore.GetReview(ctx, id)
 }
 
 func requireNoReviews(t *testing.T, svc *SkillProposalService) {
@@ -226,6 +256,43 @@ func TestSkillEditProposals(t *testing.T) {
 				t.Fatalf("%s: Propose() = %v, want skill_review_invalid", tc.name, err)
 			}
 			requireNoReviews(t, svc)
+		}
+	})
+
+	t.Run("Should drop the draft and snapshot only when the failed review row is absent", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name      string
+			committed bool
+			readErr   error
+			kept      bool
+		}{
+			{name: "no row created", kept: false},
+			{name: "row committed despite the error", committed: true, kept: true},
+			{name: "row unreadable", readErr: errors.New("database closed"), kept: true},
+		} {
+			f := newSkillTxFixture(t)
+			f.install(t, skillEditName, skillEditBase...)
+			svc := f.service(t, "home-a", nil)
+			createErr := errors.New("database is locked")
+			svc.Store = &failingCreateStore{
+				memSkillReviewStore: skillStore(svc), err: createErr, commit: tc.committed, readErr: tc.readErr,
+			}
+			if _, err := f.proposeEdit(t, svc, "Changed.\n", nil); !errors.Is(err, createErr) {
+				t.Fatalf("%s: Propose() = %v, want the store error", tc.name, err)
+			}
+			entries, err := os.ReadDir(svc.DraftRoot)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				t.Fatal(err)
+			}
+			// A kept proposal leaves its draft and its base snapshot.
+			want := 0
+			if tc.kept {
+				want = 2
+			}
+			if len(entries) != want {
+				t.Fatalf("%s: draft root holds %d entries, kept = %v", tc.name, len(entries), tc.kept)
+			}
 		}
 	})
 
