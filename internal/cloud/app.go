@@ -43,6 +43,9 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 	if cfg.Keys == nil {
 		return nil, errors.New("cloud signing keys are required")
 	}
+	if cfg.Now == nil {
+		cfg.Now = time.Now
+	}
 	db, err := store.Open(ctx, cfg.Postgres)
 	if err != nil {
 		return nil, err
@@ -52,7 +55,7 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 		Control: control.NewHub(),
 		Keys:    cfg.Keys,
 		Issuer:  cmp.Or(cfg.Issuer, remoteproto.CloudIssuer),
-		now:     cmp.Or(cfg.Now, time.Now),
+		now:     cfg.Now,
 		logger:  cmp.Or(cfg.Logger, slog.Default()),
 	}
 	a.AccountLimit = api.NewAccountLimiter(a.now)
