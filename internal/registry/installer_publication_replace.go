@@ -209,11 +209,18 @@ func appendJournalPhaseDiagnostic(
 	}
 }
 
+// finalizeCommittedInstallPublication removes the backup and then the journal of a published
+// replacement. Both survive until the published phase is durable, so a failed phase write or a
+// failed removal always leaves a layout recovery finishes rather than one it must refuse.
 func finalizeCommittedInstallPublication(
 	parent *fileutil.Directory,
 	journal dirpublish.Journal,
 ) ([]CleanupDiagnostic, error) {
 	diagnostics := make([]CleanupDiagnostic, 0, 1)
+	if err := ensureDurablePublished(parent, &journal); err != nil {
+		diagnostics, _ = appendCleanupDiagnostic(diagnostics, CleanupOperationPublication)
+		return diagnostics, recordInstallCleanupFailure(CleanupOperationPublication, err)
+	}
 	if err := parent.RemoveAll(journal.BackupName); err != nil && !errors.Is(err, os.ErrNotExist) {
 		diagnostics, _ = appendCleanupDiagnostic(diagnostics, CleanupOperationBackup)
 		return diagnostics, recordInstallCleanupFailure(CleanupOperationBackup, err)
@@ -223,6 +230,23 @@ func finalizeCommittedInstallPublication(
 		return diagnostics, recordInstallCleanupFailure(CleanupOperationPublication, err)
 	}
 	return diagnostics, nil
+}
+
+// ensureDurablePublished records the published phase before anything committed is removed. A
+// write that landed without its directory sync counts once the directory sync succeeds.
+func ensureDurablePublished(parent *fileutil.Directory, journal *dirpublish.Journal) error {
+	if journal.Phase == dirpublish.PhasePublished {
+		return nil
+	}
+	err := dirpublish.AdvancePhase(parent, journal, dirpublish.PhasePublished)
+	if err == nil || !errors.Is(err, fileutil.ErrPublishedNotDurable) {
+		return err
+	}
+	if syncErr := parent.Sync(); syncErr != nil {
+		return errors.Join(err, syncErr)
+	}
+	journal.Phase = dirpublish.PhasePublished
+	return nil
 }
 
 func reportCleanupDiagnostics(diagnostics []CleanupDiagnostic) {

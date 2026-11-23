@@ -796,6 +796,76 @@ func TestMoveInstalledDir(t *testing.T) {
 		}
 	})
 
+	t.Run("Should settle a lone target whose journal stopped before published", func(t *testing.T) {
+		t.Parallel()
+
+		parent := t.TempDir()
+		journal, err := dirpublish.NewJournal("target", nil)
+		if err != nil {
+			t.Fatalf("dirpublish.NewJournal() error = %v", err)
+		}
+		journal.Phase = dirpublish.PhaseBackup
+		writeTestFile(t, filepath.Join(parent, "target", "SKILL.md"), "new")
+		root := openPublicationTestRoot(t, parent)
+		if err := dirpublish.WriteJournal(root, journal, false); err != nil {
+			t.Fatalf("dirpublish.WriteJournal() error = %v", err)
+		}
+
+		if _, err := recoverInstalledDirPublication(root, "target"); err != nil {
+			t.Fatalf("recoverInstalledDirPublication() error = %v", err)
+		}
+		data, err := os.ReadFile(filepath.Join(parent, "target", "SKILL.md"))
+		if err != nil || string(data) != "new" {
+			t.Fatalf("settled target = %q, %v; want new", data, err)
+		}
+		if _, statErr := os.Stat(filepath.Join(parent, dirpublish.JournalName("target"))); !errors.Is(
+			statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(settled journal) error = %v, want os.ErrNotExist", statErr)
+		}
+	})
+
+	t.Run("Should keep the backup and journal when the published phase cannot be recorded", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+			t.Skip("needs a read-only directory that the test user cannot write")
+		}
+
+		parent := t.TempDir()
+		journal, err := dirpublish.NewJournal("target", nil)
+		if err != nil {
+			t.Fatalf("dirpublish.NewJournal() error = %v", err)
+		}
+		journal.Phase = dirpublish.PhaseBackup
+		writeTestFile(t, filepath.Join(parent, "target", "SKILL.md"), "new")
+		writeTestFile(t, filepath.Join(parent, journal.BackupName, "SKILL.md"), "old")
+		root := openPublicationTestRoot(t, parent)
+		if err := dirpublish.WriteJournal(root, journal, false); err != nil {
+			t.Fatalf("dirpublish.WriteJournal() error = %v", err)
+		}
+		// A read-only parent fails the published phase write.
+		if err := os.Chmod(parent, 0o500); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chmod(parent, 0o700); err != nil {
+				t.Errorf("restore parent mode: %v", err)
+			}
+		})
+
+		diagnostics, err := finalizeCommittedInstallPublication(root, journal)
+		if err == nil || len(diagnostics) != 1 || diagnostics[0].Operation != CleanupOperationPublication {
+			t.Fatalf("finalizeCommittedInstallPublication() = %#v, %v; want a publication diagnostic", diagnostics, err)
+		}
+		if data, err := os.ReadFile(filepath.Join(parent, journal.BackupName, "SKILL.md")); err != nil ||
+			string(data) != "old" {
+			t.Fatalf("backup = %q, %v; want it kept until published is durable", data, err)
+		}
+		reread, exists, err := dirpublish.ReadJournal(root, "target")
+		if err != nil || !exists || reread.Phase != dirpublish.PhaseBackup {
+			t.Fatalf("journal = %+v, %v, %v; want it kept at backup_staged", reread, exists, err)
+		}
+	})
+
 	t.Run("Should preserve a backup when an uncommitted target occupies the publication name", func(t *testing.T) {
 		t.Parallel()
 

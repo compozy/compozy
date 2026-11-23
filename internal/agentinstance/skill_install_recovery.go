@@ -23,14 +23,15 @@ func (s *SkillProposalService) reconcileSkill(
 	ctx context.Context,
 	t *skillTarget,
 ) (blocked *SkillInstallPayload, warning error, err error) {
-	if s.installLocks().publishPending.Load() {
-		warning = s.publishSkills(ctx)
+	if t.parent != nil {
+		if blocked, err = s.recoverSkill(ctx, t); err != nil {
+			return nil, nil, err
+		}
 	}
+	// After recovery, so a refresh that recovery left pending runs in the same pass.
+	warning = s.retryCatalogRefresh(ctx)
 	if t.parent == nil {
 		return nil, warning, nil
-	}
-	if blocked, err = s.recoverSkill(ctx, t); err != nil {
-		return nil, nil, err
 	}
 	entries, err := readSkillInstallLog(t.root, t.name)
 	if err != nil {
@@ -44,8 +45,14 @@ func (s *SkillProposalService) reconcileSkill(
 
 // recoverSkill applies the skill recovery policy to the journal of t, if any.
 func (s *SkillProposalService) recoverSkill(ctx context.Context, t *skillTarget) (*SkillInstallPayload, error) {
+	journal, exists, err := dirpublish.ReadJournal(t.parent, t.name)
+	if err != nil || !exists {
+		return nil, err
+	}
+	// The skill policy classifies trees by digest, not by dirpublish's directory layout, which would
+	// refuse a symlink that replaced the target before the policy could retain it as a conflict.
 	policy := &skillRecoveryPolicy{ctx: ctx, s: s, t: t}
-	if err := dirpublish.Recover(t.parent, t.name, policy); err != nil {
+	if err := policy.RecoverLayout(t.parent, journal, 0); err != nil {
 		return nil, err
 	}
 	return policy.blocked, nil
@@ -151,6 +158,8 @@ func (p *skillRecoveryPolicy) RecoverLayout(
 		if err := p.t.parent.Sync(); err != nil {
 			return dirpublish.RecoveryError("confirm published skill install", err)
 		}
+		// The call that committed may have returned before publishing, so the catalog refreshes too.
+		p.s.markCatalogRefreshPending()
 		if err := finalizeSkillOp(p.t, journal, payload); err != nil {
 			return dirpublish.RecoveryError("finalize committed skill install", err)
 		}
@@ -167,8 +176,12 @@ func (p *skillRecoveryPolicy) rollback(journal dirpublish.Journal, payload Skill
 	if journal.Phase == dirpublish.PhasePrepared || journal.Phase == dirpublish.PhaseIncoming {
 		return p.finishRollback(journal, payload)
 	}
-	if err := p.restoreAsideTree(journal, payload); err != nil {
+	retained, err := p.restoreAsideTree(journal, payload)
+	if err != nil {
 		return err
+	}
+	if retained {
+		return p.conflict(journal, payload)
 	}
 	original := expectedSkillOriginal(payload)
 	target, err := recoveryTreeState(p.t.dir)
@@ -205,29 +218,38 @@ func (p *skillRecoveryPolicy) rollback(journal dirpublish.Journal, payload Skill
 
 // restoreAsideTree handles the incoming slot after backup_staged. It then holds nothing, the complete
 // staged tree, or a tree a crashed verification moved aside from the target. Such a tree goes back to
-// an empty target so the rollback table classifies it; with the target occupied again it stays
-// untouched for the operator rather than being removed as staging.
-func (p *skillRecoveryPolicy) restoreAsideTree(journal dirpublish.Journal, payload SkillInstallPayload) error {
+// an empty target so the rollback table classifies it. With the target occupied again it is kept
+// under a retained name and the operation becomes a conflict (retained reports true), so both trees
+// survive and the operator resolves the skill with the conflict commands.
+func (p *skillRecoveryPolicy) restoreAsideTree(
+	journal dirpublish.Journal,
+	payload SkillInstallPayload,
+) (retained bool, err error) {
 	aside, err := recoveryTreeState(p.t.path(journal.IncomingName))
 	if err != nil {
-		return dirpublish.RecoveryError("inspect skill incoming slot", err)
+		return false, dirpublish.RecoveryError("inspect skill incoming slot", err)
 	}
 	if aside == "" || aside == payload.StagedDigest {
-		return nil
+		return false, nil
 	}
 	target, err := recoveryTreeState(p.t.dir)
 	if err != nil {
-		return dirpublish.RecoveryError("inspect skill target", err)
+		return false, dirpublish.RecoveryError("inspect skill target", err)
 	}
-	if target != "" {
-		return dirpublish.RecoveryError(fmt.Sprintf(
-			"op %s left an unverified skill tree at %s while %s is occupied; move one of them aside",
-			payload.OpID, p.t.path(journal.IncomingName), p.t.dir), nil)
+	if target == "" {
+		if err := moveSkillChild(p.t.parent, journal.IncomingName, p.t.name); err != nil {
+			return false, dirpublish.RecoveryError("restore unverified skill tree", err)
+		}
+		return false, nil
 	}
-	if err := moveSkillChild(p.t.parent, journal.IncomingName, p.t.name); err != nil {
-		return dirpublish.RecoveryError("restore unverified skill tree", err)
+	name := skillRetainedName(payload.OpID, "unverified")
+	if err := moveSkillChild(p.t.parent, journal.IncomingName, name); err != nil {
+		return false, dirpublish.RecoveryError(fmt.Sprintf("op %s: retain the unverified skill tree at %s",
+			payload.OpID, p.t.path(journal.IncomingName)), err)
 	}
-	return nil
+	slog.WarnContext(p.ctx, "skill.install.tree_retained", "op_id", payload.OpID, "skill", p.t.name,
+		"slot", journal.IncomingName, "retained", name)
+	return true, nil
 }
 
 func (p *skillRecoveryPolicy) finishRollback(journal dirpublish.Journal, payload SkillInstallPayload) error {
