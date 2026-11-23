@@ -44,6 +44,7 @@ func (p signInPages) browserAuthorize(w http.ResponseWriter, r *http.Request) {
 		next, err = p.service.BeginBrowserOAuth(r.Context(), request, browser)
 		if err == nil {
 			setPageHeaders(w)
+			// #nosec G710 -- OAuth uses a configured endpoint and encodes the query parameters.
 			http.Redirect(w, r, next, http.StatusSeeOther)
 			return
 		}

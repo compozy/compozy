@@ -114,6 +114,7 @@ func (s *Service) issueTokens(d store.AuthDeviceSession, now time.Time) (remotep
 		return tokens, err
 	}
 	// The sealed account and key locator still authenticates after the session's account is deleted.
+	// #nosec G407 -- NewGCMWithRandomNonce generates and prepends the nonce.
 	sealed := s.seal.Seal(nil, nil, claims, []byte(refreshAAD))
 	tokens.RefreshToken = refreshPrefix + base64.RawURLEncoding.EncodeToString(sealed)
 	return tokens, nil

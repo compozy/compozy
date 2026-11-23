@@ -13,9 +13,9 @@ import (
 
 const (
 	envGoogleID      = "COMPOZY_CLOUD_GOOGLE_CLIENT_ID"
-	envGoogleSecret  = "COMPOZY_CLOUD_GOOGLE_CLIENT_SECRET"
+	envGoogleSecret  = "COMPOZY_CLOUD_GOOGLE_CLIENT_SECRET" // #nosec G101 -- environment variable name.
 	envGitHubID      = "COMPOZY_CLOUD_GITHUB_CLIENT_ID"
-	envGitHubSecret  = "COMPOZY_CLOUD_GITHUB_CLIENT_SECRET"
+	envGitHubSecret  = "COMPOZY_CLOUD_GITHUB_CLIENT_SECRET" // #nosec G101 -- environment variable name.
 	envTurnstileSite = "COMPOZY_CLOUD_TURNSTILE_SITE_KEY"
 	envTurnstileKey  = "COMPOZY_CLOUD_TURNSTILE_SECRET_KEY"
 	envPKCEKey       = "COMPOZY_CLOUD_PKCE_ENC_KEY"

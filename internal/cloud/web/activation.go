@@ -42,6 +42,7 @@ func (p signInPages) continueActivation(w http.ResponseWriter, r *http.Request) 
 		next, err = p.service.BeginDeviceOAuth(r.Context(), grant, provider, browser, fresh)
 		if err == nil {
 			setPageHeaders(w)
+			// #nosec G710 -- OAuth uses a configured endpoint and encodes the query parameters.
 			http.Redirect(w, r, next, http.StatusSeeOther)
 			return
 		}

@@ -39,6 +39,7 @@ func (s *Service) beginOAuth(ctx context.Context, attempt store.OAuthAttempt) (s
 	state, verifier, nonce := Secret(), Secret(), Secret()
 	attempt.StateHash = hashSecret(state)
 	attempt.NonceHash = hashSecret(nonce)
+	// #nosec G407 -- NewGCMWithRandomNonce generates and prepends the nonce.
 	attempt.EncryptedVerifier = s.seal.Seal(nil, nil, []byte(verifier), attempt.StateHash)
 	err := s.db.Transaction(ctx, func(q *store.Queries) error { return q.CreateOAuthAttempt(ctx, attempt) })
 	if errors.Is(err, store.ErrAuthNotFound) {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"html/template"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -121,7 +122,9 @@ func (p signInPages) render(w http.ResponseWriter, page signInPage, err error) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	_, _ = w.Write(body.Bytes())
+	if _, err := w.Write(body.Bytes()); err != nil {
+		slog.Debug("Cloud sign-in response interrupted", "status", status)
+	}
 }
 
 func readCookie(r *http.Request, name string) string {

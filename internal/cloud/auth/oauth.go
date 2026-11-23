@@ -45,11 +45,11 @@ func WithOAuthEndpoints(endpoints OAuthEndpoints) OAuthOption {
 func NewOAuth(google, github OAuthClient, options ...OAuthOption) (*OAuth, error) {
 	if strings.TrimSpace(google.ID) == "" || strings.TrimSpace(google.Secret) == "" ||
 		strings.TrimSpace(github.ID) == "" || strings.TrimSpace(github.Secret) == "" {
-		return nil, errors.New("Google and GitHub OAuth credentials are required")
+		return nil, errors.New("missing Google or GitHub OAuth credentials")
 	}
 	o := &OAuth{
 		google: google, github: github,
-		endpoints: OAuthEndpoints{
+		endpoints: OAuthEndpoints{ // #nosec G101 -- public OAuth endpoint URLs.
 			GoogleAuthorize: googleIssuer + "/o/oauth2/v2/auth",
 			GoogleToken:     "https://oauth2.googleapis.com/token",
 			GoogleJWKS:      "https://www.googleapis.com/oauth2/v3/certs",

@@ -64,7 +64,7 @@ func validDomain(domain string) bool {
 }
 
 func validDNSLabel(label string) bool {
-	return len(label) > 0 && len(label) <= 63 && label[0] != '-' && label[len(label)-1] != '-' &&
+	return label != "" && len(label) <= 63 && label[0] != '-' && label[len(label)-1] != '-' &&
 		!strings.ContainsFunc(label, func(r rune) bool {
 			return r != '-' && (r < 'a' || r > 'z') && (r < '0' || r > '9')
 		})
