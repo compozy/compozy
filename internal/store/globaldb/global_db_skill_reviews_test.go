@@ -145,9 +145,16 @@ func TestSkillReviewRepo(t *testing.T) {
 		if err != nil || !duplicate || again.ID != "fresh" {
 			t.Fatalf("pending duplicate = %+v, %v, %v", again, duplicate, err)
 		}
-		otherBase, duplicate, err := create("fresh-base", "fresh", "sha256:fresh", "sha256:base")
-		if err != nil || duplicate || otherBase.ID != "fresh-base" {
-			t.Fatalf("different base = %+v, %v, %v", otherBase, duplicate, err)
+		// Each identity field alone makes a new review; only an exact match is a duplicate.
+		for _, tc := range []struct{ id, skill, digest, base string }{
+			{id: "fresh-skill", skill: "fresh-other", digest: "sha256:fresh"},
+			{id: "fresh-digest", skill: "fresh", digest: "sha256:fresh-other"},
+			{id: "fresh-base", skill: "fresh", digest: "sha256:fresh", base: "sha256:base"},
+		} {
+			created, duplicate, err := create(tc.id, tc.skill, tc.digest, tc.base)
+			if err != nil || duplicate || created.ID != tc.id {
+				t.Fatalf("%s identity = %+v, %v, %v; want a new review", tc.id, created, duplicate, err)
+			}
 		}
 		legacy, duplicate, err := create("legacy-again", "legacy", "sha256:legacy", "")
 		if err != nil || !duplicate || legacy.ID != "legacy-pending" {
@@ -159,14 +166,16 @@ func TestSkillReviewRepo(t *testing.T) {
 			t.Fatalf("rejected identity: %v", err)
 		}
 		for _, skill := range []string{"approved", "reverted"} {
-			created, duplicate, err := create(skill+"-again", skill, "sha256:"+skill, "")
-			if err != nil || duplicate || created.ID != skill+"-again" {
-				t.Fatalf("%s identity = %+v, %v, %v", skill, created, duplicate, err)
-			}
+			t.Run("Should create a new review over a "+skill+" identity", func(t *testing.T) {
+				created, duplicate, err := create(skill+"-again", skill, "sha256:"+skill, "")
+				if err != nil || duplicate || created.ID != skill+"-again" {
+					t.Fatalf("%s identity = %+v, %v, %v", skill, created, duplicate, err)
+				}
+			})
 		}
 		var reports int
 		if err := db.DB().QueryRowContext(ctx, "SELECT count(*) FROM agent_instance_reports WHERE instance_id = ?",
-			"identity-instance").Scan(&reports); err != nil || reports != 4 {
+			"identity-instance").Scan(&reports); err != nil || reports != 6 {
 			t.Fatalf("reports = %d, %v; want one per new review", reports, err)
 		}
 	})
