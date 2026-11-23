@@ -362,6 +362,7 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 		input := sqlcgen.InsertAgentSkillReviewParams{
 			InstanceID: "review-instance", ProfileID: store.DefaultProfileID,
 			SkillName: "review-skill", DraftPath: "/drafts/skill", CreatedAt: "2026-11-03T00:00:00Z",
+			Kind: "new", Lesson: "{}", EvidenceSessionIds: "[]",
 		}
 		for i := range 6 {
 			input.ID = fmt.Sprintf("review-%d", i)

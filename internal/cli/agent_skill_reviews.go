@@ -67,7 +67,7 @@ func newAgentSkillReviewAction(deps commandDeps, action string) *cobra.Command {
 		addWorkspaceFlag(cmd)
 		cmd.Flags().StringVar(&instance, "instance", "", "Filter by instance ID")
 		cmd.Flags().StringVar(&state, appTokenStateFlag, "", "pending, approved, rejected or reverted")
-		cmd.Flags().StringVar(&kind, "kind", "", "new or edit")
+		cmd.Flags().StringVar(&kind, cliKindKey, "", "new or edit")
 		cmd.Flags().StringVar(&decidedVia, "decided-via", "", "operator or auto_approve")
 		cmd.Flags().StringVar(&cursor, "cursor", "", "Continue from next_cursor")
 		cmd.Flags().IntVar(&limit, "limit", 50, "Page size (1-100)")
@@ -93,7 +93,7 @@ func newAgentSkillReviewAction(deps commandDeps, action string) *cobra.Command {
 				"workspace":       {scope.Workspace},
 				"instance_id":     {instance},
 				appTokenStateFlag: {state},
-				"kind":            {kind},
+				cliKindKey:        {kind},
 				"decided_via":     {decidedVia},
 				"cursor":          {cursor},
 				"limit":           {strconv.Itoa(limit)},
@@ -139,7 +139,7 @@ func agentSkillReviewTable(reviews []contract.AgentSkillReviewPayload) string {
 			review.ID, review.Name, review.Kind, review.State, review.DecidedVia, decidedAt,
 		})
 	}
-	headers := []string{"ID", "NAME", "KIND", "STATE", "DECIDED VIA", "DECIDED AT"}
+	headers := []string{"ID", cliNameHeader, cliKindHeader, cliStateHeader, "DECIDED VIA", "DECIDED AT"}
 	return renderHumanTable("", headers, rows) + "\n"
 }
 

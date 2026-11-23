@@ -32,16 +32,14 @@ func (r *SkillReviewRepo) CreateReview(
 	if input.ID == "" || input.InstanceID == "" || input.ProfileID == "" || input.SkillName == "" ||
 		input.Digest == "" ||
 		input.DraftPath == "" {
-		return agentinstance.SkillReview{}, false, errors.New("skill review identity, digest and draft path are required")
+		return agentinstance.SkillReview{}, false, errors.New(
+			"skill review identity, digest and draft path are required",
+		)
 	}
 	if err := report.Validate(); err != nil {
 		return agentinstance.SkillReview{}, false, err
 	}
-	kind := input.Kind
-	if kind == "" {
-		kind = agentinstance.SkillProposalNew
-	}
-	lesson, evidence, err := encodeSkillLesson(input.Lesson, input.EvidenceSessionIDs)
+	params, err := skillReviewInsertParams(input)
 	if err != nil {
 		return agentinstance.SkillReview{}, false, err
 	}
@@ -63,26 +61,8 @@ func (r *SkillReviewRepo) CreateReview(
 				return err
 			}
 			createdAt := store.FormatTimestamp(r.now())
-			count, err := q.InsertAgentSkillReview(ctx, sqlcgen.InsertAgentSkillReviewParams{
-				ID:          input.ID,
-				InstanceID:  input.InstanceID,
-				ProfileID:   input.ProfileID,
-				WorkspaceID: input.WorkspaceID,
-				AgentName:   input.AgentName,
-				SkillName:   input.SkillName,
-				Digest:      input.Digest,
-				DraftPath:   input.DraftPath,
-				SourceSessionID: sql.NullString{
-					String: input.SourceSessionID,
-					Valid:  input.SourceSessionID != "",
-				},
-				CreatedAt:          createdAt,
-				Kind:               string(kind),
-				SkillKey:           string(input.SkillKey),
-				BaseDigest:         input.BaseDigest,
-				Lesson:             lesson,
-				EvidenceSessionIds: evidence,
-			})
+			params.CreatedAt = createdAt
+			count, err := q.InsertAgentSkillReview(ctx, params)
 			if err != nil {
 				return err
 			}
@@ -109,6 +89,34 @@ func (r *SkillReviewRepo) CreateReview(
 		return agentinstance.SkillReview{}, false, err
 	}
 	return result, duplicate, nil
+}
+
+// skillReviewInsertParams maps a new pending review onto its row; CreatedAt is set inside the write.
+func skillReviewInsertParams(input agentinstance.SkillReview) (sqlcgen.InsertAgentSkillReviewParams, error) {
+	kind := input.Kind
+	if kind == "" {
+		kind = agentinstance.SkillProposalNew
+	}
+	lesson, evidence, err := encodeSkillLesson(input.Lesson, input.EvidenceSessionIDs)
+	if err != nil {
+		return sqlcgen.InsertAgentSkillReviewParams{}, err
+	}
+	return sqlcgen.InsertAgentSkillReviewParams{
+		ID:                 input.ID,
+		InstanceID:         input.InstanceID,
+		ProfileID:          input.ProfileID,
+		WorkspaceID:        input.WorkspaceID,
+		AgentName:          input.AgentName,
+		SkillName:          input.SkillName,
+		Digest:             input.Digest,
+		DraftPath:          input.DraftPath,
+		SourceSessionID:    sql.NullString{String: input.SourceSessionID, Valid: input.SourceSessionID != ""},
+		Kind:               string(kind),
+		SkillKey:           string(input.SkillKey),
+		BaseDigest:         input.BaseDigest,
+		Lesson:             lesson,
+		EvidenceSessionIds: evidence,
+	}, nil
 }
 
 // skillReviewByIdentity applies proposal identity: a pending match is a duplicate, a rejected match
