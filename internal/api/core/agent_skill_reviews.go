@@ -226,7 +226,7 @@ func (h *BaseHandlers) skillReviewError(c *gin.Context, err error) {
 		{agentinstance.ErrSkillProposeUnverified, 422}, {agentinstance.ErrSkillReviewInvalid, 422},
 		{agentinstance.ErrSkillProposeLessonRequired, 422}, {agentinstance.ErrSkillProposeLessonTooLong, 422},
 		{agentinstance.ErrSkillProposeEvidenceRequired, 422}, {agentinstance.ErrSkillProposeEvidenceNotFound, 422},
-		{agentinstance.ErrSkillProposePreviouslyRejected, 409}, {errSkillReviewCursor, 422},
+		{agentinstance.ErrSkillProposePreviouslyRejected, 409}, {agentinstance.ErrSkillProposeNameTaken, 409}, {ErrSkillReviewInvalidCursor, 422},
 	} {
 		if errors.Is(err, item.reason) {
 			c.JSON(item.status, contract.ErrorPayload{Code: item.reason.Error(), Error: err.Error()})

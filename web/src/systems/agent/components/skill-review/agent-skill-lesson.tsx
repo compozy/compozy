@@ -1,6 +1,6 @@
 /** S2: the lesson a skill proposal carries, with links to the sessions that show it. */
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { Eyebrow, Pill } from "@compozy/ui";
@@ -17,7 +17,6 @@ const CONFIDENCE_LABEL: Readonly<Record<string, string>> = {
 
 /** A session the daemon no longer knows reads as unavailable; any other failure keeps the link. */
 function EvidenceSession({ id }: { id: string }) {
-  const navigate = useNavigate();
   const owner = useQuery({ ...sessionOwnerOptions(id), refetchOnWindowFocus: false });
   if (owner.error instanceof SessionNotFoundError) {
     return (
@@ -27,16 +26,13 @@ function EvidenceSession({ id }: { id: string }) {
     );
   }
   return (
-    <a
+    <Link
       className="rounded-xs font-mono text-small-body text-fg underline outline-none focus-visible:shadow-focus-ring"
-      href={`/session/${encodeURIComponent(id)}`}
-      onClick={event => {
-        event.preventDefault();
-        void navigate({ to: "/session/$id", params: { id } });
-      }}
+      params={{ id }}
+      to="/session/$id"
     >
       {id}
-    </a>
+    </Link>
   );
 }
 

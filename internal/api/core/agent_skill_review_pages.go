@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	errSkillReviewQuery  = errors.New("invalid skill review query")
-	errSkillReviewCursor = errors.New("invalid_cursor")
+	errSkillReviewQuery = errors.New("invalid skill review query")
+	// ErrSkillReviewInvalidCursor refuses a malformed cursor or one reused under different filters.
+	ErrSkillReviewInvalidCursor = errors.New("invalid_cursor")
 )
 
 // skillReviewCursor binds continuation to the population and every filter it was issued for.
@@ -170,16 +171,16 @@ func (identity skillReviewCursor) apply(cursor string, query *agentinstance.Skil
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(cursor)
 	if err != nil {
-		return fmt.Errorf("%w: cursor is malformed", errSkillReviewCursor)
+		return fmt.Errorf("%w: cursor is malformed", ErrSkillReviewInvalidCursor)
 	}
 	var previous skillReviewCursor
 	if err := json.Unmarshal(raw, &previous); err != nil {
-		return fmt.Errorf("%w: cursor is malformed", errSkillReviewCursor)
+		return fmt.Errorf("%w: cursor is malformed", ErrSkillReviewInvalidCursor)
 	}
 	after, at := previous.After, previous.At
 	previous.After, previous.At = "", time.Time{}
 	if previous != identity || after == "" || at.IsZero() {
-		return fmt.Errorf("%w: cursor does not match this query", errSkillReviewCursor)
+		return fmt.Errorf("%w: cursor does not match this query", ErrSkillReviewInvalidCursor)
 	}
 	query.AfterID, query.AfterCreatedAt = after, at
 	return nil

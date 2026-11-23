@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -105,7 +106,8 @@ func nativeSkillReviewError(id toolspkg.ToolID, err error) error {
 		agentinstance.ErrSkillReviewNoTarget, agentinstance.ErrSkillReviewStale, agentinstance.ErrSkillReviewNotFound,
 		agentinstance.ErrSkillProposeLessonRequired, agentinstance.ErrSkillProposeLessonTooLong,
 		agentinstance.ErrSkillProposeEvidenceRequired, agentinstance.ErrSkillProposeEvidenceNotFound,
-		agentinstance.ErrSkillProposePreviouslyRejected} {
+		agentinstance.ErrSkillProposePreviouslyRejected, agentinstance.ErrSkillProposeNameTaken,
+		core.ErrSkillReviewInvalidCursor} {
 		if errors.Is(err, domain) {
 			return toolspkg.NewToolError(toolspkg.ErrorCode(domain.Error()), id, err.Error(), err)
 		}

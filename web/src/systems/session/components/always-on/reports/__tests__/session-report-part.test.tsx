@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
@@ -81,6 +81,23 @@ vi.mock("@/lib/user-feedback", async importOriginal => ({
 vi.mock("@tanstack/react-router", async importOriginal => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
   useNavigate: () => reads.navigate,
+  // A plain anchor keeps the browser's modifier and middle clicks; the router owns navigation.
+  Link: ({
+    to,
+    params,
+    children,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & { to: string; params?: Record<string, string> }) => (
+    <a
+      href={Object.entries(params ?? {}).reduce(
+        (path, [key, value]) => path.replace(`$${key}`, encodeURIComponent(value)),
+        to
+      )}
+      {...props}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 function harness(send: ((text: string) => void) | null, shared?: QueryClient) {

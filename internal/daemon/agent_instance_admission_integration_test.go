@@ -481,6 +481,18 @@ func TestInstanceSkillApprovalIntegration(t *testing.T) {
 		if len(page.Reviews) != 1 || page.Reviews[0].ID != proposed.Review.ID {
 			t.Fatalf("native reviews: %+v", page)
 		}
+		_, badCursor := d.toolRegistry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID:     toolspkg.ToolIDAgentSkillReviews,
+				Input:      []byte(`{"state":"pending","cursor":"not-a-cursor!"}`),
+				ToolCallID: "read-with-bad-cursor",
+			},
+		)
+		if failure, ok := errors.AsType[*toolspkg.ToolError](badCursor); !ok || string(failure.Code) != "invalid_cursor" {
+			t.Fatalf("native reviews with a bad cursor: %v", badCursor)
+		}
 		reportsReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
 			fmt.Sprintf("http://127.0.0.1:%d/api/agent-instances/%s/reports", d.info.Port, instance.ID), nil)
 		if err != nil {
