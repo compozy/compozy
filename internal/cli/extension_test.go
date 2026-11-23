@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -550,6 +551,29 @@ func TestExtensionInputPrompterReadReportsOutputFailures(t *testing.T) {
 		value, err := prompter.read(t.Context(), true)
 		if !errors.Is(err, writeErr) || value != "" {
 			t.Fatalf("read() value=%q err=%v, want newline write failure and no value", value, err)
+		}
+	})
+
+	t.Run("Should not start a hidden terminal read once the prompt is cancelled", func(t *testing.T) {
+		t.Parallel()
+
+		input := openExtensionSecretTestInput(t)
+		var started atomic.Bool
+		prompter := &extensionInputPrompter{
+			input:  input,
+			output: io.Discard,
+			reader: bufio.NewReader(input),
+			readPassword: func(int) ([]byte, error) {
+				started.Store(true)
+				return []byte("secret-value"), nil
+			},
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		value, err := prompter.read(ctx, true)
+		if !errors.Is(err, errExtensionInputPromptAborted) || value != "" || started.Load() {
+			t.Fatalf("read() value=%q err=%v started=%v, want abort without a terminal read", value, err, started.Load())
 		}
 	})
 

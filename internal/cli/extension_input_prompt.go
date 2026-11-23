@@ -198,7 +198,8 @@ func extensionInputPromptLabel(input extensionPromptInput) string {
 
 // read returns one answer. A hidden answer on a terminal file disables echo. The blocking terminal read
 // cannot be interrupted, so cancellation (Ctrl-C) restores the terminal and abandons the read; the CLI
-// exits right after and the reading goroutine ends with the process.
+// exits right after and the reading goroutine ends with the process. A context already cancelled at
+// entry never starts the read, so no late echo disable can follow the restore.
 func (p *extensionInputPrompter) read(ctx context.Context, hidden bool) (string, error) {
 	readLine := func() (string, error) {
 		line, err := p.reader.ReadString('\n')
@@ -228,6 +229,19 @@ func (p *extensionInputPrompter) read(ctx context.Context, hidden bool) (string,
 			return strings.TrimRight(string(value), "\r\n"), nil
 		}
 	}
+	abort := func() (string, error) {
+		err := errExtensionInputPromptAborted
+		if restoreErr := restore(); restoreErr != nil {
+			err = errors.Join(err, fmt.Errorf("cli: restore terminal: %w", restoreErr))
+		}
+		if _, writeErr := fmt.Fprintln(p.output); writeErr != nil {
+			err = errors.Join(err, fmt.Errorf("cli: write extension input prompt: %w", writeErr))
+		}
+		return "", err
+	}
+	if ctx.Err() != nil {
+		return abort()
+	}
 	type answer struct {
 		text string
 		err  error
@@ -241,13 +255,6 @@ func (p *extensionInputPrompter) read(ctx context.Context, hidden bool) (string,
 	case result := <-done:
 		return result.text, result.err
 	case <-ctx.Done():
-		err := errExtensionInputPromptAborted
-		if restoreErr := restore(); restoreErr != nil {
-			err = errors.Join(err, fmt.Errorf("cli: restore terminal: %w", restoreErr))
-		}
-		if _, writeErr := fmt.Fprintln(p.output); writeErr != nil {
-			err = errors.Join(err, fmt.Errorf("cli: write extension input prompt: %w", writeErr))
-		}
-		return "", err
+		return abort()
 	}
 }
