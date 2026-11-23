@@ -226,6 +226,13 @@ func (p *skillRecoveryPolicy) conflict(journal dirpublish.Journal, payload Skill
 		}
 		backup = ""
 	}
+	if payload.RetainedBackupName, err = p.retainBackup(journal, payload.OpID,
+		!targetExplained && backup != "" && backup != original); err != nil {
+		return err
+	}
+	if payload.RetainedBackupName != "" {
+		backup = ""
+	}
 	payload.OriginalSource = skillOriginalAbsent
 	switch {
 	case payload.PreExists && backup == payload.PreDigest:
@@ -249,10 +256,32 @@ func (p *skillRecoveryPolicy) conflict(journal dirpublish.Journal, payload Skill
 		return dirpublish.RecoveryError("record skill install conflict", err)
 	}
 	slog.WarnContext(p.ctx, "skill.install.conflict", "op_id", payload.OpID, "skill", p.t.name,
-		"review_id", payload.ReviewID, "action", payload.Action, "original_source", payload.OriginalSource)
+		"review_id", payload.ReviewID, "action", payload.Action, "original_source", payload.OriginalSource,
+		"retained_backup", payload.RetainedBackupName)
 	p.logged(payload, "conflict")
 	p.blocked = &payload
 	return nil
+}
+
+// retainBackup moves unexplained contents out of the backup slot when move is set, which happens
+// when the target holds unexplained contents too: both trees then survive any resolution (Safety
+// Invariant 6). It returns the retained sibling's name when that sibling exists, so a conflict
+// normalized again after a crash still records it.
+func (p *skillRecoveryPolicy) retainBackup(journal dirpublish.Journal, opID string, move bool) (string, error) {
+	name := skillConflictCopyPrefix + opID + "-backup"
+	if move {
+		if err := moveSkillChild(p.t.parent, journal.BackupName, name); err != nil {
+			return "", dirpublish.RecoveryError("retain conflicting skill backup", err)
+		}
+	}
+	retained, err := dirpublish.DirectoryExists(p.t.parent, name)
+	if err != nil {
+		return "", dirpublish.RecoveryError("inspect retained skill backup", err)
+	}
+	if !retained {
+		return "", nil
+	}
+	return name, nil
 }
 
 func (p *skillRecoveryPolicy) originalCopyValid(payload SkillInstallPayload) bool {

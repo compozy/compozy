@@ -55,7 +55,7 @@ type SkillConflictResolution struct {
 // InstallConflicts lists the retained conflicts under targetRoots, read from disk so conflicts left
 // by any home are listed. Operator only.
 func (s *SkillProposalService) InstallConflicts(
-	_ context.Context,
+	ctx context.Context,
 	actor workspaceaccess.ActorRef,
 	targetRoots []string,
 ) ([]SkillInstallConflict, error) {
@@ -63,7 +63,7 @@ func (s *SkillProposalService) InstallConflicts(
 		return nil, ErrSkillReviewOperatorOnly
 	}
 	conflicts := []SkillInstallConflict{}
-	err := walkSkillJournals(targetRoots, func(root, name string, payload SkillInstallPayload) bool {
+	err := walkSkillJournals(ctx, targetRoots, func(root, name string, payload SkillInstallPayload) bool {
 		if payload.State == skillInstallStateConflict || payload.State == skillInstallStateResolving {
 			conflicts = append(conflicts, SkillInstallConflict{
 				OpID: payload.OpID, Skill: name, ReviewID: payload.ReviewID, Action: payload.Action,
@@ -76,8 +76,13 @@ func (s *SkillProposalService) InstallConflicts(
 }
 
 // walkSkillJournals reads, without locks, the journal of every skill under roots and calls visit
-// until it returns true.
-func walkSkillJournals(roots []string, visit func(root, name string, payload SkillInstallPayload) bool) error {
+// until it returns true. A journal that cannot be read or decoded is logged and skipped, so one
+// damaged skill never hides the others; that skill stays blocked by Reconcile.
+func walkSkillJournals(
+	ctx context.Context,
+	roots []string,
+	visit func(root, name string, payload SkillInstallPayload) bool,
+) error {
 	for _, root := range roots {
 		names, err := reconcilableSkillNames(root)
 		if err != nil {
@@ -93,19 +98,23 @@ func walkSkillJournals(roots []string, visit func(root, name string, payload Ski
 		stop := false
 		for _, name := range names {
 			journal, exists, readErr := dirpublish.ReadJournal(parent, name)
-			if readErr != nil || !exists {
-				err = errors.Join(err, readErr)
+			if !exists && readErr == nil {
 				continue
 			}
-			payload, decodeErr := decodeSkillInstallPayload(journal.Payload)
-			if decodeErr != nil {
+			payload := SkillInstallPayload{}
+			if readErr == nil {
+				payload, readErr = decodeSkillInstallPayload(journal.Payload)
+			}
+			if readErr != nil {
+				slog.WarnContext(ctx, "skill.install.journal_unreadable", "target_root", root, "skill", name,
+					"error", readErr)
 				continue
 			}
 			if stop = visit(root, name, payload); stop {
 				break
 			}
 		}
-		if err = errors.Join(err, parent.Close()); err != nil || stop {
+		if err := parent.Close(); err != nil || stop {
 			return err
 		}
 	}
@@ -131,7 +140,7 @@ func (s *SkillProposalService) ResolveInstallConflict(
 	if operator == "" {
 		return SkillConflictResolution{}, errors.New("skill conflict operator identity is required")
 	}
-	root, name, err := findSkillInstallOp(targetRoots, opID)
+	root, name, err := findSkillInstallOp(ctx, targetRoots, opID)
 	if err != nil {
 		return SkillConflictResolution{}, err
 	}
@@ -159,6 +168,11 @@ func (s *SkillProposalService) ResolveInstallConflict(
 	}
 	switch payload.State {
 	case skillInstallStateConflict:
+		if keep == SkillConflictKeepPrevious && !previousRestorable(t, journal, payload) {
+			return SkillConflictResolution{}, fmt.Errorf(
+				"%w: the previous %s is no longer available to restore; resolve %s with --keep current",
+				ErrSkillInstallConflict, name, opID)
+		}
 		if journal, payload, err = s.recordResolution(t, journal, payload, keep, operator); err != nil {
 			return SkillConflictResolution{}, err
 		}
@@ -176,11 +190,31 @@ func (s *SkillProposalService) ResolveInstallConflict(
 	return result, err
 }
 
+// previousRestorable reports whether keep=previous can restore what was installed before: nothing
+// for a new skill, otherwise an original that still matches PreDigest in the backup slot or the
+// original copy. Refusing otherwise keeps the install log from naming a writer whose tree is gone.
+func previousRestorable(t *skillTarget, journal dirpublish.Journal, payload SkillInstallPayload) bool {
+	if !payload.PreExists {
+		return true
+	}
+	source := ""
+	switch payload.OriginalSource {
+	case skillOriginalInBackup:
+		source = journal.BackupName
+	case skillOriginalInCopy:
+		source = payload.OriginalCopyName
+	default:
+		return false
+	}
+	digest, err := skillTreeState(t.path(source))
+	return err == nil && digest == payload.PreDigest
+}
+
 // findSkillInstallOp locates the skill of opID: a journal carrying it, or a completed resolution in
 // an install log.
-func findSkillInstallOp(roots []string, opID string) (string, string, error) {
+func findSkillInstallOp(ctx context.Context, roots []string, opID string) (string, string, error) {
 	var root, name string
-	err := walkSkillJournals(roots, func(r, n string, payload SkillInstallPayload) bool {
+	err := walkSkillJournals(ctx, roots, func(r, n string, payload SkillInstallPayload) bool {
 		if payload.OpID == opID {
 			root, name = r, n
 			return true
@@ -231,13 +265,8 @@ func (s *SkillProposalService) repeatResolution(
 	if entry == nil {
 		return SkillConflictResolution{}, ErrSkillInstallConflictNotFound
 	}
-	// keep=current is the only resolution that records an operator-authored writer of this op.
-	kept := SkillConflictKeepPrevious
-	if entry.Current != nil && entry.Current.ReviewID == "" && entry.Current.OpID == result.OpID {
-		kept = SkillConflictKeepCurrent
-	}
-	if kept != result.Keep {
-		return SkillConflictResolution{}, skillConflictResolvingError(kept)
+	if entry.Keep != result.Keep {
+		return SkillConflictResolution{}, skillConflictResolvingError(entry.Keep)
 	}
 	result.AlreadyResolved = true
 	if result.Warning = s.publishSkills(ctx); result.Warning != nil {
@@ -310,7 +339,7 @@ func (s *SkillProposalService) continueResolution(
 	}
 	warning = errors.Join(finalizeSkillOp(t, journal, payload), s.publishSkills(ctx))
 	slog.InfoContext(ctx, "skill.install.conflict_resolved", "op_id", payload.OpID, "skill", t.name,
-		"keep", payload.Keep)
+		"keep", payload.Keep, "retained_backup", payload.RetainedBackupName)
 	if warning != nil {
 		slog.WarnContext(ctx, "skill.install.committed_with_warning", "op_id", payload.OpID,
 			"action", SkillInstallActionResolve, "error", warning)
@@ -385,7 +414,7 @@ func (s *SkillProposalService) commitResolution(
 		entry := skillInstallLogEntry{
 			OpID: payload.OpID, HomeID: s.HomeID, Action: SkillInstallActionResolve,
 			DecidedVia: skillDecidedViaOperator, DecidedBy: payload.ResolvedBy,
-			Current: payload.NextMarker, Previous: payload.PrevMarker, At: time.Now().UTC(),
+			Current: payload.NextMarker, Previous: payload.PrevMarker, Keep: payload.Keep, At: time.Now().UTC(),
 		}
 		if entry.Current != nil {
 			entry.ReviewID, entry.InstanceID = entry.Current.ReviewID, entry.Current.InstanceID
