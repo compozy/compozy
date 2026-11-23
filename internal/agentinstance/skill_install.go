@@ -151,6 +151,10 @@ func prepareSkillInstallOp(op *skillOp, t *skillTarget, review SkillReview, draf
 		if live == "" || live != review.BaseDigest {
 			return skillBaseStaleError(t.name)
 		}
+		// The saved snapshot is what revert restores: an approval it could never undo is refused.
+		if _, err := readSkillSnapshot(review); err != nil {
+			return errors.Join(ErrSkillReviewInvalid, err)
+		}
 		base, err := readSkillBase(t.dir)
 		if err != nil || base.Digest() != review.BaseDigest {
 			return errors.Join(skillBaseStaleError(t.name), err)

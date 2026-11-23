@@ -34,18 +34,11 @@ type SkillAutoApproveReader func(ctx context.Context, instanceID string) (bool, 
 // lockInstance takes the per-instance proposal mutex. Every Propose holds it before the skill locks,
 // so the toggle and the daily count are read by one proposal of an instance at a time.
 func (s *SkillProposalService) lockInstance(ctx context.Context, instanceID string) (func(), error) {
-	release, err := s.locks().lock(ctx, "instance:"+instanceID)
+	release, err := s.installLocks().lock(ctx, "instance:"+instanceID)
 	if err == nil {
 		s.step("instance_locked", nil)
 	}
 	return release, err
-}
-
-func (s *SkillProposalService) locks() *SkillInstallLocks {
-	if s.Locks == nil {
-		return defaultSkillInstallLocks
-	}
-	return s.Locks
 }
 
 // autoApprove evaluates Business Rule 9 for a freshly created review under the instance mutex and
@@ -77,7 +70,7 @@ func (s *SkillProposalService) autoApprove(
 		return projected, ""
 	}
 	// Committed but unprojected: the cap fails closed until Reconcile projects it.
-	s.locks().markUnprojected(instance.ID, review.ID)
+	s.installLocks().markUnprojected(instance.ID, review.ID)
 	review.State, review.DecidedVia, review.DecidedBy = skillReviewApproved, skillDecidedViaAutoApprove,
 		skillDecidedByAutoApprove
 	return review, ""
@@ -114,7 +107,7 @@ func (s *SkillProposalService) projectedAutoApproval(
 // hasUnprojectedAutoApproval reports whether the instance still has a committed auto-approval whose
 // review row is pending; a row that has been projected since is forgotten. A read error counts.
 func (s *SkillProposalService) hasUnprojectedAutoApproval(ctx context.Context, instanceID string) bool {
-	locks := s.locks()
+	locks := s.installLocks()
 	for _, id := range locks.unprojectedReviews(instanceID) {
 		review, err := s.Store.GetReview(ctx, id)
 		if err != nil || review.State == SkillReviewPending {

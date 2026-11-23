@@ -549,4 +549,164 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 		}
 		f.requireClean(t)
 	})
+	t.Run("Should reopen keep=current when the target changed after the choice [UT-076]", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
+		f.recordChoice(t, svc, seeded.opID, SkillConflictKeepCurrent)
+		changed := f.writeTree(t, "release-checklist", "edited again before restart")
+		f.reconcile(t, svc)
+		payload, ok := f.journal(t, "release-checklist")
+		if !ok || payload.State != skillInstallStateConflict || payload.Keep != "" {
+			t.Fatalf("journal = %+v, %v; want the conflict reopened", payload, ok)
+		}
+		if f.digest(t, f.backupName(t)) != seeded.base || f.digest(t, "release-checklist") != changed {
+			t.Fatal("reopening the conflict changed the backup or the target")
+		}
+		if _, err := f.resolve(t, svc, seeded.opID, SkillConflictKeepCurrent); err != nil {
+			t.Fatal(err)
+		}
+		if entry := f.lastInstallEntry(t); entry.Current == nil || entry.Current.InstalledDigest != changed {
+			t.Fatalf("last log entry = %+v; want the writer of the live tree %s", entry, changed)
+		}
+	})
+	t.Run("Should record the live tree when keep=current already discarded the original [UT-076]",
+		func(t *testing.T) {
+			t.Parallel()
+			f := newSkillTxFixture(t)
+			svc := f.service(t, "home-a", nil)
+			seeded := f.seedConflict(t, svc, skillOriginalInBackup)
+			crashing := crashAt(svc, "backup_removed")
+			if _, err := f.resolve(t, crashing, seeded.opID, SkillConflictKeepCurrent); !errors.Is(
+				err, errSkillInstallCrashed) {
+				t.Fatalf("ResolveInstallConflict() = %v", err)
+			}
+			changed := f.writeTree(t, "release-checklist", "edited again before restart")
+			f.reconcile(t, svc)
+			if _, ok := f.journal(t, "release-checklist"); ok {
+				t.Fatal("the resumed keep=current left its journal")
+			}
+			if entry := f.lastInstallEntry(t); entry.Current == nil || entry.Current.InstalledDigest != changed {
+				t.Fatalf("last log entry = %+v; want the writer of the live tree %s", entry, changed)
+			}
+		})
+	t.Run("Should keep a backup edited after keep=current was recorded [UT-076]", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
+		f.recordChoice(t, svc, seeded.opID, SkillConflictKeepCurrent)
+		backup := f.backupName(t)
+		edited := f.writeTree(t, backup, "backup edited before restart")
+		f.reconcile(t, svc)
+		if _, err := f.resolve(t, svc, seeded.opID, SkillConflictKeepCurrent); !errors.Is(
+			err, ErrSkillInstallConflict) || !strings.Contains(err.Error(), backup) {
+			t.Fatalf("keep=current over an edited backup = %v, want skill_install_conflict naming it", err)
+		}
+		if payload, ok := f.journal(t, "release-checklist"); !ok || payload.State != skillInstallStateResolving {
+			t.Fatalf("journal = %+v, %v; want it still resolving", payload, ok)
+		}
+		if f.digest(t, backup) != edited || f.digest(t, "release-checklist") != seeded.edited {
+			t.Fatal("a refused keep=current discarded the edited backup or changed the target")
+		}
+	})
+	t.Run("Should keep the live tree when the original changed after keep=previous [UT-075]", func(t *testing.T) {
+		t.Parallel()
+		for _, source := range []string{skillOriginalInBackup, skillOriginalInCopy} {
+			t.Run("Should refuse a changed original in its "+source, func(t *testing.T) {
+				t.Parallel()
+				f := newSkillTxFixture(t)
+				svc := f.service(t, "home-a", nil)
+				seeded := f.seedConflict(t, svc, source)
+				f.recordChoice(t, svc, seeded.opID, SkillConflictKeepPrevious)
+				var original string
+				if source == skillOriginalInCopy {
+					payload, _ := f.journal(t, "release-checklist")
+					original = payload.OriginalCopyName
+					if err := os.RemoveAll(filepath.Join(f.root, original)); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					original = f.backupName(t)
+					f.writeTree(t, original, "backup edited before restart")
+				}
+				f.reconcile(t, svc)
+				if _, err := f.resolve(t, svc, seeded.opID, SkillConflictKeepPrevious); !errors.Is(
+					err, ErrSkillInstallConflict) || !strings.Contains(err.Error(), original) {
+					t.Fatalf("keep=previous over a changed original = %v, want skill_install_conflict naming it", err)
+				}
+				if f.digest(t, "release-checklist") != seeded.edited {
+					t.Fatal("the live edited tree was moved aside before the original was verified")
+				}
+				if _, err := os.Stat(filepath.Join(f.root, skillConflictCopyPrefix+seeded.opID)); !os.IsNotExist(err) {
+					t.Fatalf("a refused keep=previous created the keep-copy: %v", err)
+				}
+				payload, ok := f.journal(t, "release-checklist")
+				if !ok || payload.State != skillInstallStateResolving {
+					t.Fatalf("journal = %+v, %v; want it still resolving", payload, ok)
+				}
+			})
+		}
+	})
+	t.Run("Should leave a resolving journal with an unknown keep unchanged [UT-076]", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
+		f.recordChoice(t, svc, seeded.opID, SkillConflictKeepCurrent)
+		f.rewriteJournal(t, "release-checklist", func(payload *SkillInstallPayload) { payload.Keep = "" })
+		f.reconcile(t, svc)
+		payload, ok := f.journal(t, "release-checklist")
+		if !ok || payload.State != skillInstallStateResolving || payload.Keep != "" {
+			t.Fatalf("journal = %+v, %v; want it unchanged", payload, ok)
+		}
+		if f.digest(t, f.backupName(t)) != seeded.base || f.digest(t, "release-checklist") != seeded.edited {
+			t.Fatal("recovery of an unknown keep changed files")
+		}
+	})
+	t.Run("Should refuse to reject a review whose install is a retained conflict [UT-066]", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
+		review := f.propose(t, svc, "release-checklist", "Another change.")
+		f.rewriteJournal(t, "release-checklist", func(payload *SkillInstallPayload) { payload.ReviewID = review.ID })
+		reject := func() error {
+			return svc.Reject(t.Context(), skillOperator, f.instance, review.ID, review.Digest,
+				"operator:prof-a", f.root)
+		}
+		if err := reject(); !errors.Is(err, ErrSkillReviewStale) ||
+			!strings.Contains(err.Error(), "install-conflict resolve "+seeded.opID) {
+			t.Fatalf("Reject() during its own conflict = %v, want skill_review_stale naming the op", err)
+		}
+		requireReviewState(t, svc, review.ID, SkillReviewPending)
+		if _, err := f.resolve(t, svc, seeded.opID, SkillConflictKeepPrevious); err != nil {
+			t.Fatal(err)
+		}
+		if err := reject(); err != nil {
+			t.Fatalf("Reject() after keep=previous = %v", err)
+		}
+		requireReviewState(t, svc, review.ID, "rejected")
+	})
+}
+
+// recordChoice records keep for opID and stops as a crash would, before any file moves.
+func (f *skillTxFixture) recordChoice(t *testing.T, svc *SkillProposalService, opID, keep string) {
+	t.Helper()
+	if _, err := f.resolve(t, crashAt(svc, "resolving_recorded"), opID, keep); !errors.Is(err, errSkillInstallCrashed) {
+		t.Fatalf("ResolveInstallConflict(%s) = %v", keep, err)
+	}
+}
+
+// backupName is the backup slot left next to the skill.
+func (f *skillTxFixture) backupName(t *testing.T) string {
+	t.Helper()
+	for _, name := range f.leftovers(t) {
+		if strings.HasPrefix(name, ".compozy-backup-") {
+			return name
+		}
+	}
+	t.Fatal("no backup slot")
+	return ""
 }

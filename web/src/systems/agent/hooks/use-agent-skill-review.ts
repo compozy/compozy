@@ -27,8 +27,6 @@ import { agentSkillReviewOptions } from "../lib/query-options";
 import type { AgentSkillReviewPayload } from "../types";
 import { useUnavailableEvidenceSessions } from "./use-agent-skill-evidence";
 
-const NO_EVIDENCE_SESSIONS: readonly string[] = [];
-
 /**
  * One proposed skill and the operator's decision on it (S9). `ref` is `null` until the caller
  * knows the instance's profile, so neither the read nor a decision goes out under the wrong one.
@@ -71,7 +69,7 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     },
   });
   const unavailableEvidenceSessionIds = useUnavailableEvidenceSessions(
-    review?.evidence_session_ids ?? NO_EVIDENCE_SESSIONS
+    review?.evidence_session_ids
   );
   const files = review ? skillReviewFiles(review) : [];
   const { unreadable, snapshotInvalid, invalid } = reviewProblems(review, mutation.error);

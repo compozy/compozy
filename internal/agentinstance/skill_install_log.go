@@ -95,17 +95,24 @@ func currentSkillWriter(entries []skillInstallLogEntry) *SkillInstallMarker {
 	return entries[len(entries)-1].Current
 }
 
-// appendSkillInstallLog atomically appends entry, keeping the newest 200 entries.
+// appendSkillInstallLog atomically appends entry. Nothing is evicted here: an operation that rolls
+// back removes its own entry and must find the committed history it appended to intact.
 func appendSkillInstallLog(root, name string, entry skillInstallLogEntry) error {
 	entries, err := readSkillInstallLog(root, name)
 	if err != nil {
 		return err
 	}
-	entries = append(entries, entry)
-	if len(entries) > skillInstallLogMaxEntries {
-		entries = entries[len(entries)-skillInstallLogMaxEntries:]
+	return writeSkillInstallLog(root, name, append(entries, entry))
+}
+
+// trimSkillInstallLog keeps the newest 200 entries. It runs only once an operation is published, so
+// published recovery retries it after a crash.
+func trimSkillInstallLog(root, name string) error {
+	entries, err := readSkillInstallLog(root, name)
+	if err != nil || len(entries) <= skillInstallLogMaxEntries {
+		return err
 	}
-	return writeSkillInstallLog(root, name, entries)
+	return writeSkillInstallLog(root, name, entries[len(entries)-skillInstallLogMaxEntries:])
 }
 
 // removeSkillInstallLogOp drops the trailing entries of an uncommitted operation. Entries of a

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/compozy/compozy/internal/dirpublish"
@@ -37,6 +38,10 @@ var errSkillInstallCrashed = errors.New("skill install crashed (test seam)")
 
 // errSkillInstallRaced reports that the moved-aside tree is not the checked original.
 var errSkillInstallRaced = errors.New("skill changed while it was being replaced")
+
+// errSkillCommitUncertain reports a published journal whose durability could not be confirmed. The
+// transaction neither rolls back nor projects; the next Reconcile decides from disk.
+var errSkillCommitUncertain = errors.New("skill install commit is not confirmed durable")
 
 // SkillInstallPayload is the opaque payload carried in the dirpublish journal (≤ 2 KiB).
 type SkillInstallPayload struct {
@@ -71,11 +76,26 @@ func decodeSkillInstallPayload(data []byte) (SkillInstallPayload, error) {
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return SkillInstallPayload{}, err
 	}
-	if payload.OpID == "" || payload.State == "" {
-		return SkillInstallPayload{}, errors.New("skill install payload is incomplete")
+	if payload.State == "" || !skillOpIDPattern.MatchString(payload.OpID) {
+		return SkillInstallPayload{}, errors.New("skill install payload is incomplete or names an invalid op")
+	}
+	// Recovery removes and moves these names, so each must be exactly the one derived from the op.
+	for _, name := range []struct{ got, want string }{
+		{payload.OriginalCopyName, skillOriginalCopyPrefix + payload.OpID},
+		{payload.KeepCopyName, skillConflictCopyPrefix + payload.OpID},
+		{payload.RetainedBackupName, skillConflictCopyPrefix + payload.OpID + "-backup"},
+	} {
+		if name.got != "" && name.got != name.want {
+			return SkillInstallPayload{}, fmt.Errorf("skill install payload name %q does not belong to op %s",
+				name.got, payload.OpID)
+		}
 	}
 	return payload, nil
 }
+
+// skillOpIDPattern matches the op IDs runSkillOp writes ("sop-<hex>") and keeps every name derived
+// from them a single safe path component.
+var skillOpIDPattern = regexp.MustCompile(`^sop[-_][A-Za-z0-9_-]{1,64}$`)
 
 // SkillInstallResult describes a successful install-transaction call.
 type SkillInstallResult struct {
@@ -146,6 +166,10 @@ func (s *SkillProposalService) runSkillOp(ctx context.Context, t *skillTarget, o
 		return SkillInstallResult{}, err
 	}
 	if err := tx.prepare(); err != nil {
+		return SkillInstallResult{}, tx.abort(ctx, err)
+	}
+	// A canceled request stops before the target moves; abort removes the stage and the journal.
+	if err := ctx.Err(); err != nil {
 		return SkillInstallResult{}, tx.abort(ctx, err)
 	}
 	if err := tx.swap(); err != nil {
@@ -247,8 +271,13 @@ func (tx *skillTx) swap() error {
 	return nil
 }
 
-// commit appends the install-log entry, then sets the journal to published: the single commit point.
+// commit re-checks that the live target is the staged tree, appends the install-log entry, then
+// sets the journal to published: the single commit point.
 func (tx *skillTx) commit() (skillInstallLogEntry, error) {
+	live, err := recoveryTreeState(tx.t.dir)
+	if err != nil || live != tx.payload.StagedDigest {
+		return skillInstallLogEntry{}, errors.Join(errSkillInstallRaced, err)
+	}
 	entry := skillInstallLogEntry{
 		OpID: tx.payload.OpID, HomeID: tx.s.HomeID, InstanceID: tx.op.instanceID, Action: tx.op.action,
 		ReviewID: tx.op.reviewID, DecidedVia: tx.op.decidedVia, DecidedBy: tx.op.decidedBy,
@@ -263,17 +292,33 @@ func (tx *skillTx) commit() (skillInstallLogEntry, error) {
 	if tx.s.crashed("logged") {
 		return skillInstallLogEntry{}, errSkillInstallCrashed
 	}
-	err := tx.advance(dirpublish.PhasePublished)
+	err = tx.advance(dirpublish.PhasePublished)
+	if err == nil && tx.s.crashed("published_unsynced") {
+		err = fileutil.ErrPublishedNotDurable
+	}
 	if err == nil {
 		return entry, nil
 	}
-	// A failed journal write may still have landed; only a journal proven unpublished rolls back.
+	return entry, tx.confirmPublished(err)
+}
+
+// confirmPublished handles a failed published write. A journal still unpublished rolls back. A
+// published one counts only after the directory sync succeeds: until then a crash could revert it,
+// so the transaction neither rolls back nor projects and leaves the decision to Reconcile.
+func (tx *skillTx) confirmPublished(writeErr error) error {
 	journal, exists, readErr := dirpublish.ReadJournal(tx.t.parent, tx.t.name)
-	if readErr == nil && exists && journal.Phase == dirpublish.PhasePublished {
-		tx.journal = journal
-		return entry, nil
+	if readErr != nil || !exists || journal.Phase != dirpublish.PhasePublished {
+		return errors.Join(writeErr, readErr)
 	}
-	return skillInstallLogEntry{}, errors.Join(err, readErr)
+	tx.journal = journal
+	syncErr := tx.t.parent.Sync()
+	if tx.s.crashed("published_sync_failed") {
+		syncErr = errors.New("simulated directory sync failure")
+	}
+	if syncErr != nil {
+		return fmt.Errorf("%w: %w", errSkillCommitUncertain, errors.Join(writeErr, syncErr))
+	}
+	return nil
 }
 
 func (tx *skillTx) advance(phase string) error {
@@ -288,7 +333,7 @@ func (tx *skillTx) advance(phase string) error {
 // abort rolls an uncommitted transaction back through Reconcile's recovery policy. A simulated
 // crash leaves everything for the next Reconcile.
 func (tx *skillTx) abort(ctx context.Context, cause error) error {
-	if errors.Is(cause, errSkillInstallCrashed) {
+	if errors.Is(cause, errSkillInstallCrashed) || errors.Is(cause, errSkillCommitUncertain) {
 		return cause
 	}
 	blocked, err := tx.s.recoverSkill(ctx, tx.t)
@@ -319,11 +364,16 @@ func (s *SkillProposalService) afterCommit(
 	return warning
 }
 
+// publishSkills refreshes the catalog. A failure leaves the refresh pending for this daemon, and the
+// next Reconcile of any skill retries it without touching files; a daemon restart rebuilds the
+// catalog from disk.
 func (s *SkillProposalService) publishSkills(ctx context.Context) error {
 	if s.Publisher == nil {
 		return nil
 	}
-	return s.Publisher.SkillPublished(ctx)
+	err := s.Publisher.SkillPublished(ctx)
+	s.installLocks().publishPending.Store(err != nil)
+	return err
 }
 
 // projectSkillInstall projects one install-log entry of this home into the store; idempotent.
@@ -354,9 +404,15 @@ func (s *SkillProposalService) projectSkillInstall(ctx context.Context, entry sk
 	return nil
 }
 
-// finalizeSkillOp removes the backup, the original copy, and then the journal of a committed
-// operation.
+// finalizeSkillOp trims the install log, removes the backup (retaining it when it no longer holds
+// the verified original), the original copy, and then the journal of a committed operation.
 func finalizeSkillOp(t *skillTarget, journal dirpublish.Journal, payload SkillInstallPayload) error {
+	if err := trimSkillInstallLog(t.root, t.name); err != nil {
+		return err
+	}
+	if err := retainChangedBackup(t, journal, payload); err != nil {
+		return err
+	}
 	err := errors.Join(t.parent.RemoveAll(journal.BackupName), t.parent.RemoveAll(journal.IncomingName))
 	if payload.OriginalCopyName != "" {
 		err = errors.Join(err, t.parent.RemoveAll(payload.OriginalCopyName))
@@ -365,6 +421,24 @@ func finalizeSkillOp(t *skillTarget, journal dirpublish.Journal, payload SkillIn
 		return err
 	}
 	return dirpublish.RemoveJournal(t.parent, t.name)
+}
+
+// retainChangedBackup moves a backup edited after its verification to a sibling the operator can
+// inspect, instead of deleting the only copy of that edit.
+func retainChangedBackup(t *skillTarget, journal dirpublish.Journal, payload SkillInstallPayload) error {
+	backup, err := recoveryTreeState(t.path(journal.BackupName))
+	if err != nil {
+		return err
+	}
+	if backup == "" || backup == expectedSkillOriginal(payload) {
+		return nil
+	}
+	name := skillConflictCopyPrefix + payload.OpID + "-edited-backup"
+	if err := moveSkillChild(t.parent, journal.BackupName, name); err != nil {
+		return fmt.Errorf("retain edited skill backup: %w", err)
+	}
+	slog.Warn("skill.install.backup_retained", "op_id", payload.OpID, "skill", t.name, "retained", name)
+	return nil
 }
 
 // expectedSkillOriginal is the digest of the original target, "" when it did not exist.

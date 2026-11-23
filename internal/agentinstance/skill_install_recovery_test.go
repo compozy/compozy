@@ -1,11 +1,17 @@
 package agentinstance
 
 import (
+	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/compozy/compozy/internal/dirpublish"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 // Invariant: Reconcile in any home recovers an interrupted skill operation from the on-disk journal
@@ -244,4 +250,163 @@ func TestSkillInstallRecovery(t *testing.T) {
 			})
 		}
 	})
+	t.Run("Should retain a target that gained a symlink as a conflict instead of failing", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		f.install(t, "release-checklist", skillBaseFiles...)
+		if err := f.runOp(t, crashAt(svc, "target_moved"), "release-checklist",
+			f.replaceOp(t, "release-checklist")); !errors.Is(err, errSkillInstallCrashed) {
+			t.Fatalf("runSkillOp() = %v", err)
+		}
+		link := filepath.Join(f.root, "release-checklist", "link.md")
+		if err := os.Symlink("SKILL.md", link); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		for range 2 {
+			f.reconcile(t, f.service(t, "home-b", nil))
+			payload, ok := f.journal(t, "release-checklist")
+			if !ok || payload.State != skillInstallStateConflict || payload.OriginalSource != skillOriginalInBackup {
+				t.Fatalf("journal = %+v, %v; want a retained conflict with the original in backup", payload, ok)
+			}
+		}
+		if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("the edited tree's symlink was not preserved: %v", err)
+		}
+	})
+	t.Run("Should keep a tree a crashed verification moved into the incoming slot", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		f.install(t, "release-checklist", skillBaseFiles...)
+		if err := f.runOp(t, crashAt(svc, "target_moved"), "release-checklist",
+			f.replaceOp(t, "release-checklist")); !errors.Is(err, errSkillInstallCrashed) {
+			t.Fatalf("runSkillOp() = %v", err)
+		}
+		journal := f.rawJournal(t, "release-checklist")
+		target := filepath.Join(f.root, "release-checklist")
+		if err := os.WriteFile(filepath.Join(target, "SKILL.md"), []byte("edited by the operator"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		edited := f.digest(t, "release-checklist")
+		// The rollback moved the edited target aside for verification, then the daemon stopped.
+		if err := os.Rename(target, filepath.Join(f.root, journal.IncomingName)); err != nil {
+			t.Fatal(err)
+		}
+		f.reconcile(t, f.service(t, "home-b", nil))
+		if f.digest(t, "release-checklist") != edited {
+			t.Fatal("recovery lost the edited tree from the incoming slot")
+		}
+		if payload, ok := f.journal(t, "release-checklist"); !ok || payload.State != skillInstallStateConflict {
+			t.Fatalf("journal = %+v, %v; want a retained conflict", payload, ok)
+		}
+	})
+	t.Run("Should leave a journal whose payload names a foreign sibling untouched", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		victim := f.install(t, "victim-skill", skillBaseFiles...)
+		data, err := json.Marshal(SkillInstallPayload{
+			OpID: "sop-corrupt", Action: SkillInstallActionInstall, PreExists: true, PreDigest: victim,
+			State: skillInstallStateActive, OriginalCopyName: "victim-skill",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		journal, err := dirpublish.NewJournal("release-checklist", data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parent, err := fileutil.OpenDirectoryForMutation(f.root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := errors.Join(dirpublish.WriteJournal(parent, journal, false), parent.Close()); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.ReconcileTargetRoot(t.Context(), f.root); err == nil {
+			t.Fatal("ReconcileTargetRoot() accepted a payload naming a foreign sibling")
+		}
+		if f.digest(t, "victim-skill") != victim {
+			t.Fatal("recovery removed a sibling the operation does not own")
+		}
+		if left := f.leftovers(t); len(left) != 1 {
+			t.Fatalf("leftovers = %v; want the corrupt journal kept for diagnosis", left)
+		}
+	})
+	t.Run("Should retain a backup edited after its verification instead of deleting it", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		f.install(t, "release-checklist", skillBaseFiles...)
+		if err := f.runOp(t, crashAt(svc, "published"), "release-checklist",
+			f.replaceOp(t, "release-checklist")); !errors.Is(err, errSkillInstallCrashed) {
+			t.Fatalf("runSkillOp() = %v", err)
+		}
+		journal := f.rawJournal(t, "release-checklist")
+		payload, _ := f.journal(t, "release-checklist")
+		backup := filepath.Join(f.root, journal.BackupName)
+		if err := os.WriteFile(filepath.Join(backup, "late.md"), []byte("saved late"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		edited, err := skillTreeState(backup)
+		if err != nil {
+			t.Fatal(err)
+		}
+		installed := f.digest(t, "release-checklist")
+		f.reconcile(t, svc)
+		retained := filepath.Join(f.root, skillConflictCopyPrefix+payload.OpID+"-edited-backup")
+		if got, err := skillTreeState(retained); err != nil || got != edited {
+			t.Fatalf("retained backup = %s, %v; want the edited backup", got, err)
+		}
+		if f.digest(t, "release-checklist") != installed {
+			t.Fatal("finalize changed the committed tree")
+		}
+		f.requireClean(t)
+	})
+	t.Run("Should keep all 200 committed log entries when an operation rolls back", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		seeded := make([]skillInstallLogEntry, skillInstallLogMaxEntries)
+		for i := range seeded {
+			seeded[i] = skillInstallLogEntry{
+				OpID: fmt.Sprintf("sop-old-%03d", i), Action: SkillInstallActionInstall, At: time.Now().UTC(),
+			}
+		}
+		if err := writeSkillInstallLog(f.root, "release-checklist", seeded); err != nil {
+			t.Fatal(err)
+		}
+		review := f.propose(t, svc, "release-checklist", "Check the changelog.")
+		if _, err := f.approve(t, crashAt(svc, "logged"), review); !errors.Is(err, errSkillInstallCrashed) {
+			t.Fatalf("Approve() = %v", err)
+		}
+		f.reconcile(t, svc)
+		entries, err := readSkillInstallLog(f.root, "release-checklist")
+		if err != nil || len(entries) != skillInstallLogMaxEntries || entries[0].OpID != "sop-old-000" {
+			t.Fatalf("log after rollback: %d entries, %v; want the 200 committed ones", len(entries), err)
+		}
+		if result, err := f.approve(t, svc, review); err != nil || !result.Committed {
+			t.Fatalf("Approve() = %+v, %v", result, err)
+		}
+		entries, err = readSkillInstallLog(f.root, "release-checklist")
+		last := entries[len(entries)-1]
+		if err != nil || len(entries) != skillInstallLogMaxEntries || entries[0].OpID != "sop-old-001" ||
+			last.Current == nil || last.Current.ReviewID != review.ID {
+			t.Fatalf("log after commit: %d entries, %v; want the newest 200 ending with the review", len(entries), err)
+		}
+	})
+}
+
+func (f *skillTxFixture) rawJournal(t *testing.T, name string) dirpublish.Journal {
+	t.Helper()
+	parent, err := fileutil.OpenDirectory(f.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	journal, exists, err := dirpublish.ReadJournal(parent, name)
+	if closeErr := parent.Close(); err != nil || closeErr != nil || !exists {
+		t.Fatalf("read journal %s: %v %v %v", name, exists, err, closeErr)
+	}
+	return journal
 }

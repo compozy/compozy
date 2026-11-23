@@ -3,6 +3,7 @@ package agentinstance
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -117,11 +118,17 @@ func (s *SkillProposalService) Reject(
 }
 
 // checkRejectable reconciles the skill and refuses a review that the install log names as committed,
-// even while its projection is still failing.
+// even while its projection is still failing, or whose install is a retained conflict: resolving it
+// with --keep current would install the review's tree while the review stayed rejected.
 func (s *SkillProposalService) checkRejectable(ctx context.Context, t *skillTarget, id string) error {
-	_, warning, err := s.reconcileSkill(ctx, t)
+	blocked, warning, err := s.reconcileSkill(ctx, t)
 	if err != nil {
 		return err
+	}
+	if blocked != nil && blocked.ReviewID == id {
+		return errors.Join(fmt.Errorf(
+			"%w: the install of this review is an unresolved conflict; run `compozy agent skill install-conflict "+
+				"resolve %s --keep current|previous` first", ErrSkillReviewStale, blocked.OpID), warning)
 	}
 	if t.parent == nil {
 		return nil
