@@ -81,12 +81,17 @@ func loadServeConfig(getenv func(string) string) (serveConfig, error) {
 	if environment == staging {
 		issuer = "https://staging.cloud.compozy.com"
 	}
+	auth, err := loadCloudAuth(getenv, environment, issuer)
+	if err != nil {
+		return serveConfig{}, err
+	}
 	return serveConfig{
 		Address: cmp.Or(getenv(envAddress), ":8080"),
 		Cloud: cloud.Config{
 			Postgres: store.Config{PooledDSN: pooled, DirectDSN: direct},
 			Keys:     keys,
 			Issuer:   issuer,
+			Auth:     auth,
 		},
 	}, nil
 }

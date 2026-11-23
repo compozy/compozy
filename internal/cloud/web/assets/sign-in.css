@@ -1,0 +1,223 @@
+/* Dark surface, type, and control values from packages/ui/src/tokens.css. */
+:root {
+  color-scheme: dark;
+  --canvas: #131313;
+  --card: #1a1a1a;
+  --sunken: #0a0a0a;
+  --hover: #232323;
+  --line: #383838;
+  --focus: #3df2e0;
+  --ink: #ececec;
+  --strong: #fff;
+  --muted: #989898;
+  --primary: #f5f5f5;
+  font-family: "Figtree Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+}
+.stage {
+  display: flex;
+  min-height: 100svh;
+  flex-direction: column;
+}
+.art {
+  position: relative;
+  display: flex;
+  height: 9rem;
+  justify-content: center;
+  align-items: start;
+  margin: 0.5rem;
+  padding: 1.25rem;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 0.875rem;
+  background: black;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 6%);
+}
+.art picture,
+.art picture img,
+.art::after {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.art picture {
+  z-index: -2;
+}
+.art picture img {
+  object-fit: cover;
+  object-position: 70% 55%;
+}
+.art::after {
+  content: "";
+  z-index: -1;
+  background: linear-gradient(180deg, rgb(0 0 0 / 55%), transparent 28% 52%, rgb(0 0 0 / 92%) 86%);
+}
+.wordmark {
+  height: 1.5rem;
+}
+.art p {
+  display: none;
+}
+.content {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  padding: 2rem 1rem;
+}
+.panel {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 26.25rem);
+  text-align: center;
+}
+h1,
+p {
+  margin: 0;
+}
+h1 {
+  color: var(--strong);
+  font-size: 1.125rem;
+  line-height: 1.25;
+  font-weight: 600;
+  text-wrap: balance;
+}
+p,
+label {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+strong,
+.phishing-warning,
+.status {
+  color: var(--ink);
+}
+.phishing-warning {
+  font-weight: 600;
+}
+.verification-code {
+  width: 100%;
+  padding: 0.875rem;
+  border-radius: 0.5rem;
+  background: var(--sunken);
+  color: var(--strong);
+  font:
+    600 clamp(1.125rem, 5vw, 1.5rem)/1.25 ui-monospace,
+    monospace;
+  letter-spacing: 0.22em;
+  user-select: all;
+}
+.verification-code.used {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+form {
+  display: grid;
+  gap: 0.625rem;
+}
+input,
+button {
+  font: inherit;
+}
+input[type="text"] {
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  color: var(--strong);
+  background: var(--card);
+}
+button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--strong);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+button img {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+button.primary {
+  background: var(--primary);
+  color: var(--sunken);
+  border-color: transparent;
+}
+button:hover {
+  background: var(--hover);
+}
+button.primary:hover {
+  background: var(--strong);
+}
+button:not(.primary) img[src$="/github.svg"] {
+  filter: invert(1);
+}
+[hidden] {
+  display: none;
+}
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+a {
+  color: var(--ink);
+  text-underline-offset: 0.2em;
+}
+a.subtle,
+footer a {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+@media (min-width: 64rem) {
+  .stage {
+    flex-direction: row-reverse;
+  }
+  .art {
+    flex-direction: column;
+    justify-content: space-between;
+    width: min(42%, 40rem);
+    height: auto;
+    margin: 0.75rem;
+    padding: 2.5rem;
+  }
+  .art picture img {
+    object-position: 60% 30%;
+  }
+  .wordmark {
+    height: 1.75rem;
+  }
+  .art p {
+    display: block;
+    max-width: 16ch;
+    color: var(--strong);
+    font-size: 2.375rem;
+    line-height: 1.08;
+    font-weight: 500;
+    letter-spacing: -0.04em;
+    text-wrap: balance;
+  }
+}

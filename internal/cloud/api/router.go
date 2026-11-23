@@ -105,6 +105,7 @@ func (r *Router) gatePolicy(w http.ResponseWriter, req *http.Request) {
 type ErrorResponse struct {
 	Error   string         `json:"error"`
 	Code    string         `json:"code"`
+	Reason  string         `json:"reason,omitempty"`
 	Details map[string]any `json:"details,omitempty"`
 }
 
