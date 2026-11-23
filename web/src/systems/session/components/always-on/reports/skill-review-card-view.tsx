@@ -223,6 +223,46 @@ function PendingSkillNotice({
   );
 }
 
+/** The viewer for a loaded review, deciding through the view. */
+function SkillReviewDialog({
+  agentLabel,
+  initialPath,
+  onOpenChange,
+  open,
+  view,
+}: {
+  agentLabel: string;
+  initialPath?: string;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  view: AgentSkillReviewView;
+}) {
+  const { review } = view;
+  if (!review) return null;
+  return (
+    <AgentSkillViewerDialog
+      agentLabel={agentLabel}
+      decided={view.state !== "pending"}
+      deciding={view.deciding}
+      approveDisabled={view.invalid}
+      automaticComparison={view.automaticComparison}
+      error={view.decideError?.message}
+      installConflictOp={view.installConflictOp}
+      evidenceSessionIds={review.evidence_session_ids}
+      files={view.files}
+      lesson={review.lesson}
+      unavailableEvidenceSessionIds={view.unavailableEvidenceSessionIds}
+      initialPath={initialPath}
+      name={review.name}
+      onApprove={() => view.decide("approve")}
+      onOpenChange={onOpenChange}
+      onReject={() => view.decide("reject")}
+      open={open}
+      stale={view.stale}
+    />
+  );
+}
+
 /** The card for a loaded review; the container below reads and decides it. */
 export function SkillReviewCardView({
   agent,
@@ -240,29 +280,15 @@ export function SkillReviewCardView({
   const [open, setOpen] = useState(defaultOpen);
   const { review } = view;
   if (!review) return null;
-  const decide = (decision: "approve" | "reject") => view.decide(decision);
   const autoApproved = view.state === "approved" && review.decided_via === "auto_approve";
   const dialog = (
-    <AgentSkillViewerDialog
+    <SkillReviewDialog
       agentLabel={agent.label}
-      decided={view.state !== "pending"}
-      deciding={view.deciding}
-      approveDisabled={view.invalid}
-      automaticComparison={view.automaticComparison}
-      error={view.decideError?.message}
-      installConflictOp={view.installConflictOp}
-      evidenceSessionIds={review.evidence_session_ids}
-      files={view.files}
-      lesson={review.lesson}
-      unavailableEvidenceSessionIds={view.unavailableEvidenceSessionIds}
       initialPath={initialPath}
       key={review.digest}
-      name={review.name}
-      onApprove={() => decide("approve")}
       onOpenChange={setOpen}
-      onReject={() => decide("reject")}
       open={open && (view.state === "pending" || autoApproved)}
-      stale={view.stale}
+      view={view}
     />
   );
   if (view.unreadable && view.state === "pending") {
