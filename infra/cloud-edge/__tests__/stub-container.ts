@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import * as edge from "../src/worker";
 
-export default edge.default;
+export { default } from "../src/worker";
 
 export class StubContainer extends DurableObject {
   #ready = true;
