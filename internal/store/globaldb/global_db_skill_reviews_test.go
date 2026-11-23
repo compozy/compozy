@@ -1,6 +1,8 @@
 package globaldb
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -8,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 )
 
 // Invariant: skill review rows survive the lesson migration losslessly, and proposal identity
@@ -28,6 +31,11 @@ func TestSkillReviewRepo(t *testing.T) {
  ('skr-pending','inst','prof','ws','coder','pending-skill','sha256:p','pending','/drafts/p','sess-p','','2026-11-01T00:00:00Z',NULL),
  ('skr-approved','inst','prof','ws','coder','approved-skill','sha256:a','approved','/drafts/a',NULL,'operator:prof','2026-11-01T00:01:00Z','2026-11-02T00:00:00Z'),
  ('skr-rejected','inst','prof','','coder','rejected-skill','sha256:r','rejected','/drafts/r','sess-r','operator:prof','2026-11-01T00:02:00Z','2026-11-02T00:01:00Z')`)
+		if seedErr == nil {
+			// The prefix already records telemetry relocation; seed its required destination exactly as the
+			// other post-relocation migration fixtures do.
+			seedErr = bindSkillReviewMigrationTelemetry(ctx, prefix, path)
+		}
 		if err := errors.Join(seedErr, prefix.Close()); err != nil {
 			t.Fatal(err)
 		}
@@ -178,4 +186,12 @@ func TestSkillReviewRepo(t *testing.T) {
 			t.Fatalf("missing session: %v", err)
 		}
 	})
+}
+
+func bindSkillReviewMigrationTelemetry(ctx context.Context, db *sql.DB, path string) error {
+	telemetry, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+	if err != nil {
+		return err
+	}
+	return errors.Join(bindTelemetryDestination(ctx, db, telemetry.DB()), telemetry.Close(ctx))
 }
