@@ -86,22 +86,23 @@ func prepareSkillLesson(lesson SkillLesson) (SkillLesson, error) {
 
 // distinctEvidenceSessions collapses duplicates and enforces 1–20 distinct session IDs.
 func distinctEvidenceSessions(ids []string) ([]string, error) {
-	result := make([]string, 0, len(ids))
-	seen := make(map[string]bool, len(ids))
+	capacity := min(len(ids), maxSkillEvidenceSessions)
+	result := make([]string, 0, capacity)
+	seen := make(map[string]bool, capacity)
 	for _, id := range ids {
 		id = strings.TrimSpace(id)
 		if id == "" || seen[id] {
 			continue
+		}
+		if len(result) == maxSkillEvidenceSessions {
+			return nil, fmt.Errorf("%w: at most %d evidence sessions are allowed",
+				ErrSkillProposeEvidenceRequired, maxSkillEvidenceSessions)
 		}
 		seen[id] = true
 		result = append(result, id)
 	}
 	if len(result) == 0 {
 		return nil, ErrSkillProposeEvidenceRequired
-	}
-	if len(result) > maxSkillEvidenceSessions {
-		return nil, fmt.Errorf("%w: at most %d evidence sessions are allowed",
-			ErrSkillProposeEvidenceRequired, maxSkillEvidenceSessions)
 	}
 	return result, nil
 }

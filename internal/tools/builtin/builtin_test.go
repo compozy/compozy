@@ -850,23 +850,68 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 		lesson := `{"cue":"Tagging","lesson":"Check the changelog.","evidence":"sess-0 failed."}`
 		for _, testCase := range []struct {
-			payload string
-			valid   bool
+			name         string
+			payload      string
+			valid        bool
+			matchesKind  func(jsonschema.ErrorKind) bool
+			expectedKind string
 		}{
-			{payload(lesson, evidence(20)), true},
-			{payload(`{"cue":"Tagging","lesson":"Check.","evidence":"Failed.","confidence":"high"}`, evidence(1)), true},
-			{payload(lesson, evidence(21)), false},
-			{payload(lesson, evidence(0)), false},
-			{payload(`{"cue":"Tagging","lesson":"Check.","evidence":"Failed.","confidence":"certain"}`, evidence(1)), false},
-			{`{"name":"release-checklist","description":"d","body":"b","evidence_session_ids":["sess-0"]}`, false},
+			{name: "Should accept 20 evidence sessions", payload: payload(lesson, evidence(20)), valid: true},
+			{
+				name:    "Should accept a high confidence lesson",
+				payload: payload(`{"cue":"Tagging","lesson":"Check.","evidence":"Failed.","confidence":"high"}`, evidence(1)),
+				valid:   true,
+			},
+			{
+				name:         "Should reject 21 evidence sessions",
+				payload:      payload(lesson, evidence(21)),
+				matchesKind:  validationErrorKindIsMaxItems,
+				expectedKind: "maxItems",
+			},
+			{
+				name:         "Should reject an empty evidence list",
+				payload:      payload(lesson, evidence(0)),
+				matchesKind:  validationErrorKindIsMinItems,
+				expectedKind: "minItems",
+			},
+			{
+				name:         "Should reject a confidence outside the enum",
+				payload:      payload(`{"cue":"Tagging","lesson":"Check.","evidence":"Failed.","confidence":"certain"}`, evidence(1)),
+				matchesKind:  validationErrorKindIsEnum,
+				expectedKind: "enum",
+			},
+			{
+				name:         "Should reject a proposal without a lesson",
+				payload:      `{"name":"release-checklist","description":"d","body":"b","evidence_session_ids":["sess-0"]}`,
+				matchesKind:  validationErrorKindIsRequired,
+				expectedKind: "required",
+			},
 		} {
-			instance, err := jsonschema.UnmarshalJSON(strings.NewReader(testCase.payload))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := input.Validate(instance); (err == nil) != testCase.valid {
-				t.Fatalf("agent_skill_propose schema on %s: valid=%v err=%v", testCase.payload, testCase.valid, err)
-			}
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				instance, err := jsonschema.UnmarshalJSON(strings.NewReader(testCase.payload))
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = input.Validate(instance)
+				if testCase.valid {
+					if err != nil {
+						t.Fatalf("agent_skill_propose schema rejected %s: %v", testCase.payload, err)
+					}
+					return
+				}
+				validationErr, ok := errors.AsType[*jsonschema.ValidationError](err)
+				if !ok {
+					t.Fatalf("agent_skill_propose validation error = %T %v, want *jsonschema.ValidationError", err, err)
+				}
+				if !validationErrorContainsKind(validationErr, testCase.matchesKind) {
+					t.Fatalf(
+						"agent_skill_propose validation cause = %#v, want %s",
+						validationErr,
+						testCase.expectedKind,
+					)
+				}
+			})
 		}
 	})
 
@@ -2335,6 +2380,26 @@ func validationErrorKindIsType(errorKind jsonschema.ErrorKind) bool {
 
 func validationErrorKindIsNot(errorKind jsonschema.ErrorKind) bool {
 	_, ok := errorKind.(*jsonschemakind.Not)
+	return ok
+}
+
+func validationErrorKindIsMaxItems(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.MaxItems)
+	return ok
+}
+
+func validationErrorKindIsMinItems(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.MinItems)
+	return ok
+}
+
+func validationErrorKindIsEnum(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.Enum)
+	return ok
+}
+
+func validationErrorKindIsRequired(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.Required)
 	return ok
 }
 
