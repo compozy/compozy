@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -292,9 +293,11 @@ func (s *daemonExtensionService) deleteExtensionSecretForProfileInstance(
 	if !ok {
 		return nil
 	}
+	// The binding's stored input link names the row it mirrors; only an unlinked legacy binding falls
+	// back to the current manifest. An inactive binding mirrors no row.
 	inputID := ""
-	if previous.MCPServer == "" {
-		inputID = envBindingInputID(ext.Manifest, envName)
+	if previous.MCPServer == "" && !previous.Inactive {
+		inputID = cmp.Or(previous.InputID, envBindingInputID(ext.Manifest, envName))
 	}
 	instance := extensioninput.Instance{Extension: key.Name, ProfileID: profileID, WorkspaceID: key.WorkspaceID}
 	restoreRow, err := s.unsetInputRow(ctx, instance, inputID)

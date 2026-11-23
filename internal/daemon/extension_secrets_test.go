@@ -2082,6 +2082,47 @@ func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
 		}
 	})
 
+	t.Run("Should unset the typed row of the input the binding stores after a manifest rebind", func(t *testing.T) {
+		t.Parallel()
+		service, _, _ := newService(t)
+		ctx := testutil.Context(t)
+		commit(t, service, extensionSubprocessInputManifest(), initialValues)
+		rows, err := service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		zone := rows["region"]
+		if err := service.inputs.Apply(
+			ctx,
+			instance,
+			[]extensioninput.Mutation{{InputID: "zone", After: &zone}},
+		); err != nil {
+			t.Fatalf("Apply(zone) error = %v", err)
+		}
+		updated := extensionSubprocessInputManifest()
+		updated.Inputs[1].ID = "zone"
+		updated.Resources.MCPServers["server"].Env["REGION"] = "zone"
+		runtime, ok := service.runtime.(*fakeExtensionRuntime)
+		if !ok {
+			t.Fatal("extension runtime is not a fakeExtensionRuntime")
+		}
+		runtime.getExt.Manifest = updated
+
+		if err := service.deleteExtensionSecretForProfileInstance(ctx, key, profile.ID, "REGION"); err != nil {
+			t.Fatalf("deleteExtensionSecretForProfileInstance() error = %v", err)
+		}
+		rows, err = service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if _, exists := rows["region"]; exists {
+			t.Fatalf("unset kept the row of the stored region link: rows=%#v", rows)
+		}
+		if _, exists := rows["zone"]; !exists {
+			t.Fatalf("unset deleted the row of the manifest's current zone input: rows=%#v", rows)
+		}
+	})
+
 	t.Run("Should refuse a foreign Vault ref for an env binding linked to a typed input", func(t *testing.T) {
 		t.Parallel()
 		service, bindings, secretVault := newService(t)
