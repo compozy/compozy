@@ -249,6 +249,8 @@ type ListAgentSkillReviewsParams struct {
 	InstanceID *string `url:"instance_id"`
 	Workspace  *string `url:"workspace"`
 	State      *string `url:"state"`
+	Kind       *string `url:"kind"`
+	DecidedVia *string `url:"decided_via"`
 	Cursor     *string `url:"cursor"`
 	Limit      *int    `url:"limit"`
 	Profile    *string `url:"profile"`
@@ -266,6 +268,12 @@ func (c *Client) ListAgentSkillReviews(ctx context.Context, params ListAgentSkil
 	}
 	if params.State != nil {
 		query.Set("state", *params.State)
+	}
+	if params.Kind != nil {
+		query.Set("kind", *params.Kind)
+	}
+	if params.DecidedVia != nil {
+		query.Set("decided_via", *params.DecidedVia)
 	}
 	if params.Cursor != nil {
 		query.Set("cursor", *params.Cursor)

@@ -102,7 +102,10 @@ func (n *daemonNativeTools) agentSkillReviews(
 
 func nativeSkillReviewError(id toolspkg.ToolID, err error) error {
 	for _, domain := range []error{agentinstance.ErrSkillReviewLimit, agentinstance.ErrSkillProposeUnverified,
-		agentinstance.ErrSkillReviewNoTarget, agentinstance.ErrSkillReviewStale, agentinstance.ErrSkillReviewNotFound} {
+		agentinstance.ErrSkillReviewNoTarget, agentinstance.ErrSkillReviewStale, agentinstance.ErrSkillReviewNotFound,
+		agentinstance.ErrSkillProposeLessonRequired, agentinstance.ErrSkillProposeLessonTooLong,
+		agentinstance.ErrSkillProposeEvidenceRequired, agentinstance.ErrSkillProposeEvidenceNotFound,
+		agentinstance.ErrSkillProposePreviouslyRejected} {
 		if errors.Is(err, domain) {
 			return toolspkg.NewToolError(toolspkg.ErrorCode(domain.Error()), id, err.Error(), err)
 		}

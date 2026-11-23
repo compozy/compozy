@@ -42,8 +42,16 @@ function review(overrides: Partial<AgentSkillReviewPayload>): AgentSkillReviewPa
     id: "skr-71a2",
     agent: "triage",
     name: "triage-labels",
+    kind: "new",
     state: "pending",
     digest: "sha256:71a2",
+    lesson: {
+      cue: "New issues arrive without labels",
+      lesson: "Pick one area and one urgency; never change a label a person already set.",
+      evidence: "You corrected the same labels three times this week.",
+      confidence: "high",
+    },
+    evidence_session_ids: ["sess-81f2a04c1d7e9b30", "sess-4f1c0b2a9d3e4f51"],
     instance_id: "ainst-1",
     profile_id: "p1",
     workspace_id: "ws-1",
@@ -61,6 +69,13 @@ export const SKILL_REVIEW_PLAIN = review({
     { path: "SKILL.md", content: definition("triage-labels", WHY) },
     { path: "references/labels.md", content: LABELS_MD },
   ],
+});
+
+/** A review created before lessons: no lesson and no evidence sessions. */
+export const SKILL_REVIEW_LEGACY = review({
+  lesson: null,
+  evidence_session_ids: [],
+  files: [{ path: "SKILL.md", content: definition("triage-labels", WHY) }],
 });
 
 export const SKILL_REVIEW_HIDDEN_TEXT = review({

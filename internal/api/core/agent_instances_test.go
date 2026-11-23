@@ -1897,28 +1897,37 @@ func TestAgentSkillReviews(t *testing.T) {
 		scanRoot := filepath.Join(t.TempDir(), "skills")
 		service := &agentinstance.SkillProposalService{
 			Store:     db.SkillReviews(),
+			Evidence:  skillEvidenceInProfile{},
 			Authority: authority,
 			DraftRoot: t.TempDir(),
 			ScanRoots: []string{scanRoot},
 		}
+		lesson := agentinstance.SkillLesson{
+			Cue:        "Tagging a release",
+			Lesson:     "Check that CHANGELOG.md has the new version before tagging.",
+			Evidence:   "Session sess-4f1c failed at the release job.",
+			Confidence: "high",
+		}
 		var reviews []agentinstance.SkillReview
 		for _, name := range []string{"first", "second"} {
-			review, err := service.Propose(
+			result, err := service.Propose(
 				t.Context(),
 				workspaceaccess.ActorRef{Operator: true},
 				instance,
 				scanRoot,
 				agentinstance.SkillProposalInput{
-					Name:        name,
-					Description: "Review changes",
-					Body:        "Read the diff.",
-					Files:       []agentinstance.SkillDraftFile{{Path: "scripts/read.sh", Content: "echo reviewed"}},
+					Name:               name,
+					Description:        "Review changes",
+					Body:               "Read the diff.",
+					Files:              []agentinstance.SkillDraftFile{{Path: "scripts/read.sh", Content: "echo reviewed"}},
+					Lesson:             lesson,
+					EvidenceSessionIDs: []string{"sess-4f1c0b2a9d3e4f51", "sess-9a2e7c1d0b4f3a62"},
 				},
 			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			reviews = append(reviews, review)
+			reviews = append(reviews, result.Review)
 		}
 		fixture := newHandlerFixture(
 			t,
@@ -1979,9 +1988,24 @@ func TestAgentSkillReviews(t *testing.T) {
 			second.NextCursor != "" {
 			t.Fatalf("next page: %d %+v", next.Code, second)
 		}
-		mismatch := request("GET", "/reviews?state=pending&cursor="+page.NextCursor, "", true)
-		if mismatch.Code != 422 {
-			t.Fatalf("changed filters: %d %s", mismatch.Code, mismatch.Body.String())
+		// IT-017: a cursor is bound to every filter it was issued for.
+		for _, filter := range []string{"state=pending", "kind=edit", "decided_via=operator"} {
+			mismatch := request("GET", "/reviews?"+filter+"&cursor="+page.NextCursor, "", true)
+			var failure contract.ErrorPayload
+			decodeJSON(t, mismatch.Body.Bytes(), &failure)
+			if mismatch.Code != 422 || failure.Code != "invalid_cursor" {
+				t.Fatalf("changed filter %s: %d %s", filter, mismatch.Code, mismatch.Body.String())
+			}
+		}
+		// The review detail returns the lesson and the evidence sessions.
+		detail := request("GET", "/reviews/"+reviews[0].ID, "", true)
+		var shown contract.AgentSkillReviewResponse
+		decodeJSON(t, detail.Body.Bytes(), &shown)
+		if detail.Code != 200 || shown.Review.Kind != "new" || shown.Review.Lesson == nil ||
+			*shown.Review.Lesson != (contract.AgentSkillLesson{
+				Cue: lesson.Cue, Lesson: lesson.Lesson, Evidence: lesson.Evidence, Confidence: "high",
+			}) || strings.Join(shown.Review.EvidenceSessionIDs, ",") != "sess-4f1c0b2a9d3e4f51,sess-9a2e7c1d0b4f3a62" {
+			t.Fatalf("lesson detail: %d %s", detail.Code, detail.Body.String())
 		}
 		for _, action := range []string{"approve", "reject"} {
 			denial := request("POST", "/reviews/"+reviews[0].ID+"/"+action, `{"digest":"`+reviews[0].Digest+`"}`, true)
@@ -1998,7 +2022,8 @@ func TestAgentSkillReviews(t *testing.T) {
 		accepted := request("POST", "/reviews/"+reviews[0].ID+"/approve", `{"digest":"`+reviews[0].Digest+`"}`, false)
 		var decision contract.AgentSkillReviewResponse
 		decodeJSON(t, accepted.Body.Bytes(), &decision)
-		if accepted.Code != 200 || decision.Review.State != "approved" || len(decision.Review.Files) != 2 {
+		if accepted.Code != 200 || decision.Review.State != "approved" || len(decision.Review.Files) != 2 ||
+			decision.Review.DecidedVia != "operator" {
 			t.Fatalf("approval: %d %+v", accepted.Code, decision)
 		}
 		installed, err := os.ReadFile(filepath.Join(scanRoot, "first", "SKILL.md"))
@@ -2019,7 +2044,7 @@ func TestAgentSkillReviews(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		invalid, err := db.SkillReviews().CreateReview(t.Context(), agentinstance.SkillReview{
+		invalid, _, err := db.SkillReviews().CreateReview(t.Context(), agentinstance.SkillReview{
 			ID:          "skr-invalid",
 			InstanceID:  instance.ID,
 			ProfileID:   instance.ProfileID,
@@ -2079,17 +2104,30 @@ func TestAgentSkillReviews(t *testing.T) {
 			t.Fatalf("damaged draft rejection not durable: %d %+v", durable.Code, settled)
 		}
 
+		// A review without a lesson reads with no lesson and an empty evidence list.
+		legacy := request("GET", "/reviews/"+invalid.ID, "", true)
+		var legacyReview contract.AgentSkillReviewResponse
+		decodeJSON(t, legacy.Body.Bytes(), &legacyReview)
+		if legacy.Code != 200 || legacyReview.Review.Lesson != nil || legacyReview.Review.EvidenceSessionIDs == nil ||
+			len(legacyReview.Review.EvidenceSessionIDs) != 0 || legacyReview.Review.Kind != "new" {
+			t.Fatalf("legacy review: %d %s", legacy.Code, legacy.Body.String())
+		}
+
 		// A deleted draft reads and rejects the same way.
-		deleted, err := service.Propose(
+		deletedResult, err := service.Propose(
 			t.Context(),
 			workspaceaccess.ActorRef{Operator: true},
 			instance,
 			scanRoot,
-			agentinstance.SkillProposalInput{Name: "third", Description: "Review changes", Body: "Read the diff."},
+			agentinstance.SkillProposalInput{
+				Name: "third", Description: "Review changes", Body: "Read the diff.",
+				Lesson: lesson, EvidenceSessionIDs: []string{"sess-4f1c0b2a9d3e4f51"},
+			},
 		)
 		if err != nil {
 			t.Fatal(err)
 		}
+		deleted := deletedResult.Review
 		if err := os.Remove(deleted.DraftPath); err != nil {
 			t.Fatal(err)
 		}
@@ -2109,7 +2147,50 @@ func TestAgentSkillReviews(t *testing.T) {
 		if retried.Code != 409 {
 			t.Fatalf("a repeated reject must report the settled state: %d %s", retried.Code, retried.Body.String())
 		}
+
+		// IT-009: decided_via pages with its own cursor and never mixes operator decisions in.
+		for _, id := range []string{"skr-auto-1", "skr-auto-2", "skr-auto-3"} {
+			if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_skill_reviews
+ (id,instance_id,profile_id,workspace_id,agent_name,skill_name,digest,state,draft_path,created_at,decided_at,decided_by,decided_via)
+ VALUES (?,?,?,?,'coder',?,'sha256:auto','approved','/missing','2026-11-05T10:00:00Z','2026-11-05T10:00:00Z','auto-approve','auto_approve')`,
+				id, instance.ID, instance.ProfileID, instance.WorkspaceID, id); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var autoIDs []string
+		cursor := ""
+		for range 4 {
+			path := "/reviews?decided_via=auto_approve&limit=2"
+			if cursor != "" {
+				path += "&cursor=" + cursor
+			}
+			listed := request("GET", path, "", false)
+			var autoPage contract.AgentSkillReviewsResponse
+			decodeJSON(t, listed.Body.Bytes(), &autoPage)
+			if listed.Code != 200 {
+				t.Fatalf("auto-approve page: %d %s", listed.Code, listed.Body.String())
+			}
+			for _, review := range autoPage.Reviews {
+				if review.DecidedVia != "auto_approve" {
+					t.Fatalf("decided_via filter leaked %+v", review)
+				}
+				autoIDs = append(autoIDs, review.ID)
+			}
+			if cursor = autoPage.NextCursor; cursor == "" {
+				break
+			}
+		}
+		if strings.Join(autoIDs, ",") != "skr-auto-1,skr-auto-2,skr-auto-3" {
+			t.Fatalf("auto-approve pages = %v", autoIDs)
+		}
 	})
+}
+
+// skillEvidenceInProfile accepts every evidence session as owned by the default profile.
+type skillEvidenceInProfile struct{}
+
+func (skillEvidenceInProfile) SessionScope(context.Context, string) (string, string, error) {
+	return store.DefaultProfileID, "", nil
 }
 
 // Invariant UT-064: inaccessible peers never occupy pages or expose private instance details.

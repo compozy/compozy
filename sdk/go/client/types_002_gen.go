@@ -364,6 +364,14 @@ type AgentSkillDraftFile struct {
 	Content string `json:"content"`
 }
 
+// AgentSkillLesson is a daemon API value.
+type AgentSkillLesson struct {
+	Cue        string `json:"cue"`
+	Lesson     string `json:"lesson"`
+	Evidence   string `json:"evidence"`
+	Confidence string `json:"confidence,omitempty"`
+}
+
 // AgentSkillReviewDecisionRequest is a daemon API value.
 type AgentSkillReviewDecisionRequest struct {
 	Digest string `json:"digest"`
@@ -371,25 +379,31 @@ type AgentSkillReviewDecisionRequest struct {
 
 // AgentSkillReviewPayload is a daemon API value.
 type AgentSkillReviewPayload struct {
-	ID                string                      `json:"id"`
-	InstanceID        string                      `json:"instance_id"`
-	ProfileID         string                      `json:"profile_id"`
-	WorkspaceID       string                      `json:"workspace_id"`
-	Agent             string                      `json:"agent"`
-	Name              string                      `json:"name"`
-	State             string                      `json:"state"`
-	Digest            string                      `json:"digest"`
-	RunsAutomatically AgentSkillAutomaticContents `json:"runs_automatically"`
-	Files             []AgentSkillDraftFile       `json:"files,omitempty"`
-	CreatedAt         time.Time                   `json:"created_at"`
-	DecidedAt         *time.Time                  `json:"decided_at,omitempty"`
-	DecidedBy         string                      `json:"decided_by,omitempty"`
-	Problem           string                      `json:"problem,omitempty"`
+	ID                 string                      `json:"id"`
+	InstanceID         string                      `json:"instance_id"`
+	ProfileID          string                      `json:"profile_id"`
+	WorkspaceID        string                      `json:"workspace_id"`
+	Agent              string                      `json:"agent"`
+	Name               string                      `json:"name"`
+	State              string                      `json:"state"`
+	Kind               string                      `json:"kind"`
+	Digest             string                      `json:"digest"`
+	BaseDigest         string                      `json:"base_digest,omitempty"`
+	Lesson             *AgentSkillLesson           `json:"lesson,omitempty"`
+	EvidenceSessionIDs []string                    `json:"evidence_session_ids"`
+	RunsAutomatically  AgentSkillAutomaticContents `json:"runs_automatically"`
+	Files              []AgentSkillDraftFile       `json:"files,omitempty"`
+	CreatedAt          time.Time                   `json:"created_at"`
+	DecidedAt          *time.Time                  `json:"decided_at,omitempty"`
+	DecidedBy          string                      `json:"decided_by,omitempty"`
+	DecidedVia         string                      `json:"decided_via,omitempty"`
+	Problem            string                      `json:"problem,omitempty"`
 }
 
 // AgentSkillReviewResponse is a daemon API value.
 type AgentSkillReviewResponse struct {
-	Review AgentSkillReviewPayload `json:"review"`
+	Review             AgentSkillReviewPayload `json:"review"`
+	DuplicateOfPending bool                    `json:"duplicate_of_pending,omitempty"`
 }
 
 // AgentSkillReviewsResponse is a daemon API value.
@@ -428,10 +442,4 @@ type AgentSoulFrontmatterPayload struct {
 type AgentSoulHistoryResponse struct {
 	Revisions  []AgentSoulRevisionPayload `json:"revisions"`
 	NextCursor string                     `json:"next_cursor,omitempty"`
-}
-
-// AgentSoulMutationResponse is a daemon API value.
-type AgentSoulMutationResponse struct {
-	Soul     AgentSoulPayload         `json:"soul"`
-	Revision AgentSoulRevisionPayload `json:"revision"`
 }

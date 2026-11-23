@@ -76,23 +76,26 @@ func (s *SkillProposalService) Approve(
 	if review.State != SkillReviewPending {
 		return nil
 	}
-	return s.recordApproval(ctx, instance.ID, id, digest, operator, target, published)
+	return s.recordApproval(ctx, instance.ID, review, operator, target, published)
 }
 
 // recordApproval writes the approved decision. If that fails, a skill this call installed is
 // removed again, so the review and the scan root never disagree.
 func (s *SkillProposalService) recordApproval(
 	ctx context.Context,
-	instanceID, id, digest, operator, target string,
+	instanceID string,
+	review SkillReview,
+	operator, target string,
 	published bool,
 ) error {
-	if err := s.Store.DecideReview(ctx, id, digest, "approved", operator); err != nil {
+	if err := s.Store.DecideReview(ctx, review.ID, review.Digest, "approved", operator); err != nil {
 		if published {
 			return errors.Join(err, os.RemoveAll(target))
 		}
 		return err
 	}
-	slog.InfoContext(ctx, "skill.review.decided", "instance_id", instanceID, "review_id", id, "decision", "approved")
+	slog.InfoContext(ctx, "skill.review.decided", "instance_id", instanceID, "review_id", review.ID,
+		"decision", "approved", "kind", string(review.Kind), "decided_via", "operator")
 	return nil
 }
 

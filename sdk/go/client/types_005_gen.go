@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// CmdPaletteViewSessionAccepted is a daemon API value.
+type CmdPaletteViewSessionAccepted struct {
+	Accepted bool `json:"accepted"`
+}
+
+// CmdPaletteViewSessionClosed is a daemon API value.
+type CmdPaletteViewSessionClosed struct {
+	Closed bool `json:"closed"`
+}
+
 // CmdPaletteViewSessionEventRequest is a daemon API value.
 type CmdPaletteViewSessionEventRequest struct {
 	Handler      string        `json:"handler"`
@@ -435,13 +445,3 @@ type DaemonIdentityPayload struct {
 	Version     string                  `json:"version"`
 	Readiness   *DaemonReadinessPayload `json:"readiness,omitzero"`
 }
-
-// DaemonReadinessPayload is a daemon API value.
-type DaemonReadinessPayload struct {
-	Phase DaemonReadinessPhase `json:"phase"`
-	Step  string               `json:"step,omitempty"`
-	Since time.Time            `json:"since"`
-}
-
-// DaemonReadinessPhase is a daemon API value.
-type DaemonReadinessPhase string

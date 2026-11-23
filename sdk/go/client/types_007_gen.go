@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// ExtensionKitChange is a daemon API value.
+type ExtensionKitChange string
+
 // ExtensionKitChangePayload is a daemon API value.
 type ExtensionKitChangePayload struct {
 	Kind   ResourceKind       `json:"kind"`

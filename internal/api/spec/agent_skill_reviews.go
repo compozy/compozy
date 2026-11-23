@@ -12,8 +12,10 @@ func agentSkillReviewOperations() []OperationSpec {
 			Parameters: []ParameterSpec{
 				queryParam("instance_id", "Instance ID", false),
 				queryParam("workspace", "Workspace reference", false),
-				queryParam("state", "pending, approved or rejected", false),
-				queryParam("cursor", "Page cursor", false),
+				queryParam("state", "pending, approved, rejected or reverted", false),
+				queryParam("kind", "new or edit", false),
+				queryParam("decided_via", "operator or auto_approve", false),
+				queryParam("cursor", "Page cursor bound to the filters it was issued for", false),
 				intQueryParam("limit", "Page size, 1-100; default 50"),
 			},
 			Responses: []ResponseSpec{

@@ -117,7 +117,9 @@ export function SkillReviewCardView({
       deciding={view.deciding}
       approveDisabled={view.invalid}
       error={view.decideError?.message}
+      evidenceSessionIds={review.evidence_session_ids}
       files={view.files}
+      lesson={review.lesson}
       initialPath={initialPath}
       key={review.digest}
       name={review.name}
@@ -166,6 +168,11 @@ export function SkillReviewCardView({
                   This changed after you opened it. Read the latest version before deciding.
                 </AlertDescription>
               </Alert>
+            ) : null}
+            {review.lesson ? (
+              <p className="text-small-body text-muted-foreground" data-testid="skill-review-cue">
+                When: {review.lesson.cue}
+              </p>
             ) : null}
             <RunsAutomatically items={view.automatic} />
           </div>

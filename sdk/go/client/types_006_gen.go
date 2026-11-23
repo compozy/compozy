@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// DaemonReadinessPayload is a daemon API value.
+type DaemonReadinessPayload struct {
+	Phase DaemonReadinessPhase `json:"phase"`
+	Step  string               `json:"step,omitempty"`
+	Since time.Time            `json:"since"`
+}
+
+// DaemonReadinessPhase is a daemon API value.
+type DaemonReadinessPhase string
+
 // DaemonStatusPayload is a daemon API value.
 type DaemonStatusPayload struct {
 	Status         string                  `json:"status"`
@@ -438,6 +448,3 @@ type ExtensionInventoryPayload struct {
 	Items       []ExtensionKitItemPayload `json:"items"`
 	Diagnostics []DiagnosticItem          `json:"diagnostics,omitempty"`
 }
-
-// ExtensionKitChange is a daemon API value.
-type ExtensionKitChange string

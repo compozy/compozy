@@ -9,6 +9,10 @@ Memory tools derive the profile, definition origin, and agent from the calling s
 - Remove: `match`; remove matching current notes and report the count. Operator rules are refused.
 - Search: `query`; search current notes, operator rules and archives. Check the live capability before requesting session transcript search.
 
+## Lesson or memory?
+
+A note is a quick, unreviewed record of context: a host name, a temporary state, a date. It never changes how a task is done. When the next run of a task should be done differently and finished sessions show why, propose a skill lesson with `compozy__agent_skill_propose` instead (`references/skill-authoring.md`); the operator reviews it before it is installed. Never promote a note into a lesson by copying it, and never copy a lesson waiting for review into memory to act on it early. Memory and lessons share no storage, tool, or review path.
+
 ## Notes and operator rules
 
 Memory holds two kinds of line. A **note** is data: something learned or recorded, which you weigh like any other reference. An **operator rule** is an instruction the operator wrote for the agent: a line that starts with `- [rule] `. Rules bind every turn and, where they conflict, take precedence over notes and over the default procedure in the definition. A rule never broadens tool authorization or approvals.

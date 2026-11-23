@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// AgentSoulMutationResponse is a daemon API value.
+type AgentSoulMutationResponse struct {
+	Soul     AgentSoulPayload         `json:"soul"`
+	Revision AgentSoulRevisionPayload `json:"revision"`
+}
+
 // AgentSoulPayload is a daemon API value.
 type AgentSoulPayload struct {
 	AgentName        string                             `json:"agent_name,omitempty"`
@@ -434,17 +440,4 @@ type AutomationSchedulerStatePayload struct {
 type AutomationSuggestionAcceptanceResponse struct {
 	Suggestion AutomationSuggestionPayload `json:"suggestion"`
 	Job        JobPayload                  `json:"job"`
-}
-
-// AutomationSuggestionPayload is a daemon API value.
-type AutomationSuggestionPayload struct {
-	ID          string           `json:"id"`
-	ProfileID   string           `json:"profile_id"`
-	WorkspaceID string           `json:"workspace_id"`
-	Source      SuggestionSource `json:"source"`
-	DedupKey    string           `json:"dedup_key"`
-	Status      SuggestionStatus `json:"status"`
-	Payload     JobPayload       `json:"payload"`
-	CreatedAt   time.Time        `json:"created_at"`
-	ResolvedAt  *time.Time       `json:"resolved_at,omitempty"`
 }

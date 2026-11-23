@@ -831,6 +831,45 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		)
 	})
 
+	t.Run("Should require a bounded lesson and evidence on skill proposals [UT-007]", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: the propose schema requires the lesson and 1-20 evidence sessions and bounds confidence.
+		propose := descriptors[toolspkg.ToolIDAgentSkillPropose]
+		input := compileNativeSchema(t, propose, propose.InputSchema, "input")
+		evidence := func(count int) string {
+			ids := make([]string, count)
+			for i := range ids {
+				ids[i] = fmt.Sprintf(`"sess-%d"`, i)
+			}
+			return "[" + strings.Join(ids, ",") + "]"
+		}
+		payload := func(lesson, ids string) string {
+			return `{"name":"release-checklist","description":"Use before tagging.","body":"Check the changelog.",` +
+				`"lesson":` + lesson + `,"evidence_session_ids":` + ids + `}`
+		}
+		lesson := `{"cue":"Tagging","lesson":"Check the changelog.","evidence":"sess-0 failed."}`
+		for _, testCase := range []struct {
+			payload string
+			valid   bool
+		}{
+			{payload(lesson, evidence(20)), true},
+			{payload(`{"cue":"Tagging","lesson":"Check.","evidence":"Failed.","confidence":"high"}`, evidence(1)), true},
+			{payload(lesson, evidence(21)), false},
+			{payload(lesson, evidence(0)), false},
+			{payload(`{"cue":"Tagging","lesson":"Check.","evidence":"Failed.","confidence":"certain"}`, evidence(1)), false},
+			{`{"name":"release-checklist","description":"d","body":"b","evidence_session_ids":["sess-0"]}`, false},
+		} {
+			instance, err := jsonschema.UnmarshalJSON(strings.NewReader(testCase.payload))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := input.Validate(instance); (err == nil) != testCase.valid {
+				t.Fatalf("agent_skill_propose schema on %s: valid=%v err=%v", testCase.payload, testCase.valid, err)
+			}
+		}
+	})
+
 	t.Run("Should advertise spawn worktree, inheritance, and first prompt contracts", func(t *testing.T) {
 		t.Parallel()
 

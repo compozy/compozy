@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
@@ -54,7 +55,7 @@ func newAgentSkillCommand(deps commandDeps) *cobra.Command {
 }
 
 func newAgentSkillReviewAction(deps commandDeps, action string) *cobra.Command {
-	var instance, state, cursor, digest string
+	var instance, state, kind, decidedVia, cursor, digest string
 	var limit int
 	cmd := &cobra.Command{
 		Use:   action + " <review-id>",
@@ -65,7 +66,9 @@ func newAgentSkillReviewAction(deps commandDeps, action string) *cobra.Command {
 		cmd.Use, cmd.Args = agentListKey, cobra.NoArgs
 		addWorkspaceFlag(cmd)
 		cmd.Flags().StringVar(&instance, "instance", "", "Filter by instance ID")
-		cmd.Flags().StringVar(&state, appTokenStateFlag, "", "pending, approved or rejected")
+		cmd.Flags().StringVar(&state, appTokenStateFlag, "", "pending, approved, rejected or reverted")
+		cmd.Flags().StringVar(&kind, "kind", "", "new or edit")
+		cmd.Flags().StringVar(&decidedVia, "decided-via", "", "operator or auto_approve")
 		cmd.Flags().StringVar(&cursor, "cursor", "", "Continue from next_cursor")
 		cmd.Flags().IntVar(&limit, "limit", 50, "Page size (1-100)")
 	}
@@ -90,6 +93,8 @@ func newAgentSkillReviewAction(deps commandDeps, action string) *cobra.Command {
 				"workspace":       {scope.Workspace},
 				"instance_id":     {instance},
 				appTokenStateFlag: {state},
+				"kind":            {kind},
+				"decided_via":     {decidedVia},
 				"cursor":          {cursor},
 				"limit":           {strconv.Itoa(limit)},
 			}
@@ -98,9 +103,7 @@ func newAgentSkillReviewAction(deps commandDeps, action string) *cobra.Command {
 				return err
 			}
 			var output strings.Builder
-			for _, row := range result.Reviews {
-				fmt.Fprintf(&output, "%s\t%s\t%s\t%s\n", row.ID, row.Agent, row.Name, row.State)
-			}
+			output.WriteString(agentSkillReviewTable(result.Reviews))
 			if result.NextCursor != "" {
 				fmt.Fprintf(&output, "Next cursor: %s\n", result.NextCursor)
 			}
@@ -125,20 +128,46 @@ func newAgentSkillReviewAction(deps commandDeps, action string) *cobra.Command {
 	return cmd
 }
 
+func agentSkillReviewTable(reviews []contract.AgentSkillReviewPayload) string {
+	rows := make([][]string, 0, len(reviews))
+	for _, review := range reviews {
+		decidedAt := ""
+		if review.DecidedAt != nil {
+			decidedAt = review.DecidedAt.UTC().Format(time.RFC3339)
+		}
+		rows = append(rows, []string{
+			review.ID, review.Name, review.Kind, review.State, review.DecidedVia, decidedAt,
+		})
+	}
+	headers := []string{"ID", "NAME", "KIND", "STATE", "DECIDED VIA", "DECIDED AT"}
+	return renderHumanTable("", headers, rows) + "\n"
+}
+
 func agentSkillReviewText(review contract.AgentSkillReviewPayload) string {
 	var text strings.Builder
+	kind := review.Kind
+	if kind == "" {
+		kind = "new"
+	}
+	fmt.Fprintf(&text, "%s (%s) · %s\nDigest: %s\n", review.Name, kind, review.State, review.Digest)
+	if lesson := review.Lesson; lesson != nil {
+		fmt.Fprintf(&text, "Lesson (%s confidence)\n  Cue:      %s\n  Lesson:   %s\n  Evidence: %s\n",
+			lesson.Confidence, lesson.Cue, lesson.Lesson, lesson.Evidence)
+	} else {
+		text.WriteString("No lesson recorded\n")
+	}
+	if len(review.EvidenceSessionIDs) > 0 {
+		fmt.Fprintf(&text, "  Sessions: %s\n", strings.Join(review.EvidenceSessionIDs, ", "))
+	}
 	fmt.Fprintf(
 		&text,
-		"%s (%s)\nDigest: %s\nRuns automatically: %d hooks, %d MCP servers\nSupporting scripts: %d\n",
-		review.Name,
-		review.State,
-		review.Digest,
+		"Runs automatically: %d hooks, %d MCP servers\nSupporting scripts: %d\n",
 		review.RunsAutomatically.Hooks,
 		review.RunsAutomatically.MCPServers,
 		review.RunsAutomatically.Scripts,
 	)
 	for _, file := range review.Files {
-		fmt.Fprintf(&text, "\n--- %s ---\n%s\n", file.Path, file.Content)
+		fmt.Fprintf(&text, "--- %s\n%s\n", file.Path, file.Content)
 	}
 	return text.String()
 }
