@@ -60,6 +60,7 @@ export function AgentSkillLesson({
       </p>
     );
   }
+  const unavailable = new Set(unavailableSessionIds);
   return (
     <section aria-label="Lesson" className="flex flex-col gap-2" data-testid="skill-review-lesson">
       <div className="flex items-center gap-2">
@@ -77,7 +78,7 @@ export function AgentSkillLesson({
             <ul className="flex flex-wrap gap-x-3 gap-y-1">
               {evidenceSessionIds.map(id => (
                 <li key={id}>
-                  <EvidenceSession id={id} unavailable={unavailableSessionIds.includes(id)} />
+                  <EvidenceSession id={id} unavailable={unavailable.has(id)} />
                 </li>
               ))}
             </ul>
