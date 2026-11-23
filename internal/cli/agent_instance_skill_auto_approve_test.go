@@ -2,12 +2,15 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 // Invariant: `agent instance skill-auto-approve on|off` sends exactly one PATCH field,
@@ -16,8 +19,16 @@ import (
 // Owning layer: CLI command over a stub daemon.
 func TestAgentInstanceSkillAutoApproveCLI(t *testing.T) {
 	t.Parallel()
-	const instanceJSON = `{"instance":{"id":"ainst-test","agent_name":"triage","label":"triage",` +
-		`"checks_enabled":true,"skill_auto_approve":%s}}`
+	// The daemon answers with the full contract payload, so -o json must print it unchanged.
+	instanceJSON := func(enabled bool) string {
+		body, err := json.Marshal(contract.AgentInstanceResponse{Instance: contract.AgentInstancePayload{
+			ID: "ainst-test", AgentName: "triage", Label: "triage", ChecksEnabled: true, SkillAutoApprove: enabled,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(body)
+	}
 	for _, tc := range []struct {
 		name, state, output string
 		refuse              bool
@@ -26,7 +37,7 @@ func TestAgentInstanceSkillAutoApproveCLI(t *testing.T) {
 		{name: "Should turn it on and say so", state: "on", want: "Skill auto-approve is on for triage.\n"},
 		{
 			name: "Should print the HTTP payload for off with -o json [IT-011]", state: "off", output: "json",
-			want: strings.Replace(instanceJSON, "%s", "false", 1),
+			want: instanceJSON(false),
 		},
 		{name: "Should surface the operator-only refusal", state: "on", refuse: true},
 	} {
@@ -55,8 +66,7 @@ func TestAgentInstanceSkillAutoApproveCLI(t *testing.T) {
 							`"error":"only an operator can turn on skill auto-approve"}`)
 						return
 					}
-					_, _ = io.WriteString(w, strings.Replace(instanceJSON, "%s", map[bool]string{true: "true",
-						false: "false"}[tc.state == "on"], 1))
+					_, _ = io.WriteString(w, instanceJSON(tc.state == "on"))
 				default:
 					t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 					w.WriteHeader(http.StatusNotFound)
@@ -80,7 +90,10 @@ func TestAgentInstanceSkillAutoApproveCLI(t *testing.T) {
 			}
 			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
 			if tc.refuse {
-				if err == nil || !strings.Contains(err.Error(), "skill_auto_approve_operator_only") {
+				// CLI errors print the daemon's message; the code stays on the structured payload.
+				apiErr, ok := errors.AsType[*daemonAPIError](err)
+				if !ok || apiErr.errorPayload().Code != "skill_auto_approve_operator_only" ||
+					!strings.Contains(err.Error(), "only an operator") {
 					t.Fatalf("error = %v, want skill_auto_approve_operator_only", err)
 				}
 				return
