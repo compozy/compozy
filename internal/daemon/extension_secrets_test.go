@@ -2056,6 +2056,31 @@ func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
 			t.Fatalf("rollback rows=%#v, want the region row and binding restored", rows)
 		}
 	})
+
+	t.Run("Should keep the typed row of an input whose binding is inactive on removal", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, _ := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		ctx := testutil.Context(t)
+		commit(t, service, manifest, initialValues)
+		region := bindingsByName(t, bindings)["REGION"]
+		region.Inactive = true
+		if err := bindings.PutEnvBinding(ctx, region); err != nil {
+			t.Fatalf("PutEnvBinding() error = %v", err)
+		}
+
+		scopes := []extensionpkg.InstallationScope{{ProfileID: profile.ID}}
+		if _, err := service.retireExtensionBindingScopes(ctx, key.Name, scopes); err != nil {
+			t.Fatalf("retireExtensionBindingScopes() error = %v", err)
+		}
+		rows, err := service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if string(rows["region"].Value) != `"eu-west"` {
+			t.Fatalf("removal rows=%#v, want the region row an inactive binding no longer mirrors", rows)
+		}
+	})
 }
 
 func extensionSubprocessInputManifest() *extensionpkg.Manifest {
