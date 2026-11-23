@@ -9,7 +9,6 @@ import {
   Timer,
   Webhook,
 } from "@compozy/ui/icons";
-import type { ComponentProps } from "react";
 
 import {
   Button,
@@ -61,10 +60,6 @@ export const SCHEDULE_EVERY_PICKS = ["5m", "15m", "30m", "1h", "4h", "24h"] as c
 const CRON_PARTS_HINT = "min · hour · day · month · weekday";
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 
-function RadarIcon(props: ComponentProps<typeof Radio>) {
-  return <Radio {...props} />;
-}
-
 export const AUTOMATION_START_CHOICES: readonly AutomationChoice<DraftAutomationStart>[] = [
   {
     value: "schedule",
@@ -95,7 +90,7 @@ export const AUTOMATION_DOES_CHOICES: readonly AutomationChoice<DraftAutomationD
   },
   {
     value: "always-on",
-    icon: RadarIcon,
+    icon: Radio,
     title: "Tell an always-on agent",
     description: "Its next check reads the event and proposes what to do.",
     lockedReason: "Only events and links can reach an always-on agent",
@@ -333,7 +328,9 @@ export function AutomationScheduleInset({
               </span>
             </div>
 
-            {readout ? <ScheduleReadout id="automation-schedule-readout" readout={readout} /> : null}
+            {readout ? (
+              <ScheduleReadout id="automation-schedule-readout" readout={readout} />
+            ) : null}
 
             <Collapsible onOpenChange={onExpressionOpenChange} open={expressionOpen}>
               <CollapsibleTrigger
@@ -376,7 +373,9 @@ export function AutomationScheduleInset({
                 </Toggle>
               ))}
             </div>
-            {readout ? <ScheduleReadout id="automation-schedule-readout" readout={readout} /> : null}
+            {readout ? (
+              <ScheduleReadout id="automation-schedule-readout" readout={readout} />
+            ) : null}
           </div>
         ) : null}
 

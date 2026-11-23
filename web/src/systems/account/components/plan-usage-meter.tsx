@@ -274,7 +274,7 @@ export function PlanUsageMeter({
       <div className="flex items-center justify-between gap-2">
         <Progress className="flex-1" tone="brand" value={pct}>
           <ProgressLabel>{label}</ProgressLabel>
-          <ProgressValue>{readout}</ProgressValue>
+          <ProgressValue>{() => readout}</ProgressValue>
         </Progress>
         {action}
       </div>

@@ -1,11 +1,4 @@
-import {
-  AlarmClock,
-  Check,
-  FolderOpen,
-  Info,
-  TriangleAlert,
-  Zap,
-} from "@compozy/ui/icons";
+import { AlarmClock, Check, FolderOpen, Info, TriangleAlert, Zap } from "@compozy/ui/icons";
 import { useMemo, useState } from "react";
 
 import {
@@ -92,7 +85,7 @@ export function RunOnAutomationEditorScene({
   const [expressionOpen, setExpressionOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [enabled, setEnabled] = useState(true);
-  const [retry, setRetry] = useState<AutomationRetry>({ strategy: "none" });
+  const [retry, setRetry] = useState<AutomationRetry>(() => retryDraftForStrategy("none"));
   const [fireLimit, setFireLimit] = useState<AutomationFireLimit>({ max: 12, window: "1h" });
 
   const projects = useMemo(() => projectsForTarget(target), [target]);

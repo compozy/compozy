@@ -128,7 +128,7 @@ export function ComputersSettingsPage({
           : item
       )
     );
-    toast(nextEnabled ? `Enabled ${target.name}` : `Turned off ${target.name}`);
+    toast.message(nextEnabled ? `Enabled ${target.name}` : `Turned off ${target.name}`);
   };
 
   const handleRemoveRoute = (target: ComputerFixture, routeId: string) => {
@@ -139,7 +139,7 @@ export function ComputersSettingsPage({
           : item
       )
     );
-    toast(`Removed route from ${target.name}`);
+    toast.message(`Removed route from ${target.name}`);
   };
 
   const handleConfirmRemove = (
@@ -251,8 +251,8 @@ export function ComputersSettingsPage({
     setLocal(current => ({ ...current, localRunAgents: next }));
   };
 
-  const openAddComputer = () => toast("Opens Add computer dialog (Screen 03)");
-  const openUpgrade = () => toast("Opens Upgrade sheet (Screen 01 · U9)");
+  const openAddComputer = () => toast.message("Opens Add computer dialog (Screen 03)");
+  const openUpgrade = () => toast.message("Opens Upgrade sheet (Screen 01 · U9)");
 
   const overlay = (
     <>
@@ -299,12 +299,12 @@ export function ComputersSettingsPage({
         account={account}
         onDismissUninstallWarning={() => setUninstallWarning(null)}
         onDismissUpgradeNotice={() => setUpgradeNotice(null)}
-        onLearnMoreUpgrade={() => toast("Opens https://compozy.com/docs/computers")}
+        onLearnMoreUpgrade={() => toast.message("Opens https://compozy.com/docs/computers")}
         onRetryCloud={() => {
           setAccount(current => ({ ...current, cloudUnreachable: false }));
           toast.success("Reconnected to Compozy Cloud.");
         }}
-        onReviewWebhooks={() => toast("Opens Automation triggers to confirm new addresses")}
+        onReviewWebhooks={() => toast.message("Opens Automation triggers to confirm new addresses")}
         uninstallWarning={uninstallWarning}
         upgradeNotice={upgradeNotice}
       />
@@ -317,7 +317,7 @@ export function ComputersSettingsPage({
         local={local}
         onApprovePending={id => handleDecideApproval(id, true)}
         onDenyPending={id => handleDecideApproval(id, false)}
-        onInspectHostedRoute={() => toast("Opens hosted route diagnosis details")}
+        onInspectHostedRoute={() => toast.message("Opens hosted route diagnosis details")}
         onRequestRevokeDevice={setRevokeTarget}
         onRequestToggleRunAgents={handleRequestToggleRunAgents}
         onToggleDeviceScope={handleToggleDeviceScope}
@@ -341,11 +341,11 @@ export function ComputersSettingsPage({
         computers={computers}
         onAddComputer={openAddComputer}
         onOpenDetails={(target, tab) =>
-          toast(`Opens Computer details for ${target.name} (${tab ?? "status"} tab)`)
+          toast.message(`Opens Computer details for ${target.name} (${tab ?? "status"} tab)`)
         }
         onRemove={setRemoveTarget}
         onRemoveRoute={handleRemoveRoute}
-        onRename={target => toast(`Rename ${target.name}`)}
+        onRename={target => toast.message(`Rename ${target.name}`)}
         onToggleEnabled={handleToggleComputer}
         onUpgrade={openUpgrade}
         selectedComputerId={selectedComputerId}
@@ -365,9 +365,7 @@ export function ComputersSettingsPage({
         local={local}
         onChangeComputerWeight={(id, weight: LoadBalancingWeight) =>
           setComputers(current =>
-            current.map(item =>
-              item.id === id ? { ...item, loadBalancingWeight: weight } : item
-            )
+            current.map(item => (item.id === id ? { ...item, loadBalancingWeight: weight } : item))
           )
         }
         onChangeLocalWeight={weight =>

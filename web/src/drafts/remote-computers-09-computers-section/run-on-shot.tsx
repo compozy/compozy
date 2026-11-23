@@ -213,7 +213,7 @@ export function RunOnShot({ pickerDefaultOpen }: { pickerDefaultOpen: boolean })
             <Button
               size="sm"
               type="button"
-              onClick={() => toast("Starts session on selected computer")}
+              onClick={() => toast.message("Starts session on selected computer")}
             >
               Start session
             </Button>
@@ -224,8 +224,8 @@ export function RunOnShot({ pickerDefaultOpen }: { pickerDefaultOpen: boolean })
           <div>
             <p className="m-0 text-eyebrow font-medium text-fg">Live fleet capacity</p>
             <p className="m-0 mt-1 text-meta text-muted-foreground">
-              Auto scores every connected computer that holds the project and picks the one with
-              the most free CPU and memory.
+              Auto scores every connected computer that holds the project and picks the one with the
+              most free CPU and memory.
             </p>
 
             <div className="mt-4 grid grid-cols-2 gap-3 border-y border-line-soft py-3">

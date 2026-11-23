@@ -197,7 +197,7 @@ export function SignInScreen({
             variant="card"
           >
             <p className="text-small-body leading-relaxed text-muted-foreground">
-              Restart Compozy with a new{" "}
+              Restart CompozyOS with a new{" "}
               <code className="font-mono text-meta text-fg">COMPOZY_ACCOUNT_TOKEN</code>, or sign in
               interactively from your terminal:
             </p>

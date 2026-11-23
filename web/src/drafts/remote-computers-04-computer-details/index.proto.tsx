@@ -165,7 +165,7 @@ export default function ComputerDetailsDraft({ state }: PrototypeProps) {
         {...config}
         onOpenChange={next => {
           setOpen(next);
-          if (!next) toast("Details panel closed — switch state to reopen.");
+          if (!next) toast.message("Details panel closed — switch state to reopen.");
         }}
         open={open}
       />

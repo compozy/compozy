@@ -229,7 +229,10 @@ export function LegalPage({
           >
             <p className="m-0 mb-4 text-[13px] text-subtle">On this page</p>
             <div className="relative">
-              <span aria-hidden className="absolute inset-y-0 left-0 w-px bg-[color:var(--light-120)]">
+              <span
+                aria-hidden
+                className="absolute inset-y-0 left-0 w-px bg-[color:var(--light-120)]"
+              >
                 <span aria-hidden className={cn("absolute inset-y-0 -left-px w-0.5", BEAM)} />
               </span>
               <LegalTocList toc={doc.toc} activeId={activeId} onSelect={setActiveId} />

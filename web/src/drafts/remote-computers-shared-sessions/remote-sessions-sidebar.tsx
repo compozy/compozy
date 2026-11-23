@@ -119,9 +119,9 @@ export function RemoteSessionsSidebar({
       if (row.state === "attention") needsYou += 1;
     }
     return {
-      total: filtered.length,
       working,
       needsYou,
+      idle: 0,
     };
   }, [filtered]);
 
@@ -136,7 +136,7 @@ export function RemoteSessionsSidebar({
         groupBy={groupBy}
         groupByOptions={["none", "project"]}
         onFoldAllChange={mode => {
-          if (mode === "collapse-all") {
+          if (mode === "collapsed") {
             setCollapsedGroups(Object.fromEntries(groups.map(g => [g.key, true])));
           } else {
             setCollapsedGroups({});

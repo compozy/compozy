@@ -187,7 +187,7 @@ export function AddComputerDialog({
 
   const handleRetryFailed = () => {
     setSshStage("running");
-    toast("Resuming setup from Installing Compozy 0.8.0…");
+    toast.message("Resuming setup from Installing CompozyOS 0.8.0…");
   };
 
   const steps = buildSshSetupSteps({
@@ -215,7 +215,7 @@ export function AddComputerDialog({
           mode="trust"
           onDecline={() => {
             setSshStage("picker");
-            toast("Setup cancelled. Host key was not trusted.");
+            toast.message("Setup cancelled. Host key was not trusted.");
           }}
           onTrust={() => {
             setSshStage("running");
@@ -411,7 +411,7 @@ export function AddComputerDialog({
             method={method}
             onClose={() => onClose?.()}
             onOpenComputer={onOpenComputer}
-            onRemoveLinked={() => toast(`Opens Remove dialog for ${hostLabel}`)}
+            onRemoveLinked={() => toast.message(`Opens Remove dialog for ${hostLabel}`)}
             onRequestCancel={handleRequestCancel}
             onRetry={handleRetryFailed}
             onStartSsh={handleStartSsh}
@@ -433,7 +433,7 @@ export function AddComputerDialog({
         onConfirm={() => {
           setCancelConfirmOpen(false);
           setSshStage("picker");
-          toast("Setup cancelled.");
+          toast.message("Setup cancelled.");
         }}
         onOpenChange={setCancelConfirmOpen}
         open={cancelConfirmOpen}

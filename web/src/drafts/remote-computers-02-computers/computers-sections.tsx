@@ -76,7 +76,7 @@ export function AccountComputersSection({
                 <span>Not added</span>
                 <ListingRow.MetaDot />
                 <span className="inline-flex items-center gap-1.5">
-                  <StatusDot size="sm" tone={computer.online ? "success" : "neutral"} />
+                  <StatusDot size="sm" tone={computer.online ? "success" : "faint"} />
                   <span>{computer.online ? "Online" : "Offline"}</span>
                 </span>
                 {hostedOnlyBlocked ? (
@@ -339,11 +339,11 @@ export function RemoveComputerDialog({
               />
               <span className="flex flex-col gap-0.5">
                 <span className="text-small-body font-medium text-fg">
-                  Also uninstall Compozy from{" "}
+                  Also uninstall CompozyOS from{" "}
                   <span className="font-mono text-mono-id">{computer.sshTarget}</span>
                 </span>
                 <span className="text-meta text-muted-foreground">
-                  Stops the remote Compozy service and removes its binary from the host.
+                  Stops the remote CompozyOS service and removes its binary from the host.
                 </span>
               </span>
             </label>

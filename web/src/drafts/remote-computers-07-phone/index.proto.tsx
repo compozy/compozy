@@ -78,20 +78,22 @@ function renderGate(kind: BrowserSignInGateKind) {
       onPrimaryAction={() => {
         switch (kind) {
           case "sign_in":
-            toast("Redirecting to Compozy Cloud sign-in…");
+            toast.message("Redirecting to Compozy Cloud sign-in…");
             break;
           case "approval_expired":
           case "not_approved":
-            toast(`Requested approval on ${PHONE_TARGET_COMPUTER.name}`);
+            toast.message(`Requested approval on ${PHONE_TARGET_COMPUTER.name}`);
             break;
           case "another_account":
-            toast("Signed out. Redirecting to Compozy Cloud sign-in…");
+            toast.message("Signed out. Redirecting to Compozy Cloud sign-in…");
             break;
           case "needs_pro":
-            toast(`Opening https://cloud.compozy.com/billing/upgrade?hostname=${PHONE_HOSTED_URL}`);
+            toast.message(
+              `Opening https://cloud.compozy.com/billing/upgrade?hostname=${PHONE_HOSTED_URL}`
+            );
             break;
           case "device_removed":
-            toast("Starting fresh device sign-in…");
+            toast.message("Starting fresh device sign-in…");
             break;
           default:
             break;
@@ -99,13 +101,13 @@ function renderGate(kind: BrowserSignInGateKind) {
       }}
       onSecondaryAction={() => {
         if (kind === "needs_pro") {
-          toast("Opening Hosted route docs…");
+          toast.message("Opening Hosted route docs…");
         } else {
-          toast("Switching account…");
+          toast.message("Switching account…");
         }
       }}
       onSignInProvider={provider =>
-        toast(
+        toast.message(
           `Redirecting to Compozy Cloud (${provider === "google" ? "Google" : "GitHub"}) sign-in…`
         )
       }

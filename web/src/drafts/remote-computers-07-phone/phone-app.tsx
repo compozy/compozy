@@ -48,7 +48,7 @@ export interface PhoneAppProps {
 }
 
 /**
- * Signed-in Compozy browser SPA served directly by one computer's hosted route
+ * Signed-in CompozyOS browser SPA served directly by one computer's hosted route
  * (`https://studio-1c9d.compozy.run`).
  *
  * Phone form only (<1024 px): compact header with the computer picker, bottom tab bar
@@ -95,7 +95,7 @@ export function PhoneApp({
 
   const handleSignOut = () => {
     setComputerMenuOpen(false);
-    toast(`Signed out on ${computer.name}. This device stays registered on your account.`);
+    toast.message(`Signed out on ${computer.name}. This device stays registered on your account.`);
   };
 
   const handleDecideApproval = (approvalId: string, decision: "approved" | "denied") => {
@@ -130,7 +130,7 @@ export function PhoneApp({
       <Button
         aria-label={`New session on ${computer.name}`}
         disabled={offline}
-        onClick={() => toast(`New session on ${computer.name}`)}
+        onClick={() => toast.message(`New session on ${computer.name}`)}
         size="icon-sm"
         variant="secondary"
       >
@@ -290,7 +290,7 @@ export function PhoneApp({
         onClose={() => setComputerMenuOpen(false)}
         onSelectPeer={peer => {
           setComputerMenuOpen(false);
-          toast(`Opening https://${peer.hostname}`);
+          toast.message(`Opening https://${peer.hostname}`);
         }}
         onSignOut={handleSignOut}
         open={computerMenuOpen}

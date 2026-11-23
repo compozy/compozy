@@ -219,7 +219,7 @@ export function AccountSettingsPage({
 
   const handleConfirmSignOut = () => {
     setSignOutOpen(false);
-    toast(
+    toast.message(
       account.installationLinked
         ? "Signed out and unlinked this computer. Returning to Sign in."
         : "Signed out. Returning to Sign in."
@@ -228,10 +228,10 @@ export function AccountSettingsPage({
 
   const handleConfirmDeleteAccount = () => {
     setDeleteOpen(false);
-    toast("Account deletion started. Returning to Sign in.");
+    toast.message("Account deletion started. Returning to Sign in.");
   };
 
-  const openBillingPortal = () => toast("Opens Stripe Customer Portal in your browser.");
+  const openBillingPortal = () => toast.message("Opens Stripe Customer Portal in your browser.");
 
   const overlay = (
     <>
@@ -239,13 +239,15 @@ export function AccountSettingsPage({
         initialInterval={initialUpgradeInterval}
         initialPhase={upgradePhase}
         key={`${upgradeOpen}-${upgradePhase}`}
-        onCheckAgain={() => toast("Checked plan status with Compozy Cloud.")}
+        onCheckAgain={() => toast.message("Checked plan status with Compozy Cloud.")}
         onClose={() => setUpgradeOpen(false)}
         onCompleteUpgrade={handleCompleteUpgrade}
         onContinueToCheckout={chosen =>
-          toast(`Opened Stripe Checkout (${chosen === "year" ? "Pro annual" : "Pro monthly"}).`)
+          toast.message(
+            `Opened Stripe Checkout (${chosen === "year" ? "Pro annual" : "Pro monthly"}).`
+          )
         }
-        onReopenCheckout={() => toast("Reopened Stripe Checkout in your browser.")}
+        onReopenCheckout={() => toast.message("Reopened Stripe Checkout in your browser.")}
         open={upgradeOpen}
       />
       <AccountRevokeDeviceDialog
@@ -303,11 +305,11 @@ export function AccountSettingsPage({
           account={account}
           currentDevice={currentDevice}
           linkMismatchNotice={linkMismatch}
-          onRequestSignIn={() => toast("Opening Compozy sign-in in your browser…")}
+          onRequestSignIn={() => toast.message("Opening CompozyOS sign-in in your browser…")}
           onRequestSignOut={() => setSignOutOpen(true)}
           onRequestUnlink={() => {
             setLinkMismatch(false);
-            toast("Unlinked this computer from remote access. Returning to Sign in.");
+            toast.message("Unlinked this computer from remote access. Returning to Sign in.");
           }}
         />
 
@@ -316,7 +318,7 @@ export function AccountSettingsPage({
             <AccountPlanSection
               account={account}
               downgradedNeedsProCount={downgradedNeedsProCount}
-              onContactSupport={() => toast("Opens support to raise the hosted-route cap.")}
+              onContactSupport={() => toast.message("Opens support to raise the hosted-route cap.")}
               onManageBilling={openBillingPortal}
               onUpgrade={() => openUpgradeSheet("select")}
             />

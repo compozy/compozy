@@ -2,30 +2,34 @@
 import type { TocItem } from "../docs/mdx";
 import type { DocPage, NavGroup } from "../docs/nav";
 
-export const SIGN_IN_DOC_TITLE = "Why Compozy asks you to sign in";
+export const SIGN_IN_DOC_TITLE = "Why CompozyOS asks you to sign in";
 export const SIGN_IN_DOC_DESCRIPTION =
   "What Compozy Cloud stores, what stays on your computers, how offline mode works, and how to delete your account.";
 
 export const SIGN_IN_DOC_TOC: readonly TocItem[] = [
   { id: "why-sign-in-is-required", text: "Why sign-in is required", depth: 2 },
-  { id: "what-compozy-stores", text: "What Compozy stores", depth: 2 },
-  { id: "what-compozy-never-stores", text: "What Compozy never stores", depth: 2 },
-  { id: "working-offline-after-first-sign-in", text: "Working offline after first sign-in", depth: 2 },
+  { id: "what-compozyos-stores", text: "What CompozyOS stores", depth: 2 },
+  { id: "what-compozyos-never-stores", text: "What CompozyOS never stores", depth: 2 },
+  {
+    id: "working-offline-after-first-sign-in",
+    text: "Working offline after first sign-in",
+    depth: 2,
+  },
   { id: "ci-and-headless-environments", text: "CI and headless environments", depth: 2 },
   { id: "deleting-your-account", text: "Deleting your account", depth: 2 },
 ];
 
-export const SIGN_IN_DOC_MARKDOWN = `Official CompozyOS releases ask you to sign in with Google or GitHub on first run. Your agents, code, and sessions still run on your own computers, never on Compozy servers.
+export const SIGN_IN_DOC_MARKDOWN = `Official CompozyOS releases ask you to sign in with Google or GitHub on first run. Your agents, code, and sessions still run on your own computers, never on CompozyOS servers.
 
 ## Why sign-in is required
 
 Sign-in solves three practical problems without tracking what you build:
 
 1. **Counting real installations:** Knowing how many developers use CompozyOS helps fund and prioritize the runtime without embedding invasive analytics inside the daemon.
-2. **Product news only with consent:** If you check **Email me product news and offers** on sign-in (unchecked by default), Compozy can email major releases and tips. Transactional security emails, like new device sign-in notices, do not require marketing opt-in.
+2. **Product news only with consent:** If you check **Email me product news and offers** on sign-in (unchecked by default), CompozyOS can email major releases and tips. Transactional security emails, like new device sign-in notices, do not require marketing opt-in.
 3. **Personal plans and remote computers:** One account links your laptop, desktop, Linux servers, and phone so Free (1 remote computer) and Pro (unlimited computers and hosted routes) work cleanly across every device you own.
 
-## What Compozy stores
+## What CompozyOS stores
 
 Compozy Cloud stores only the metadata needed to identify your account and connect your machines:
 
@@ -34,10 +38,10 @@ Compozy Cloud stores only the metadata needed to identify your account and conne
 | **Account** | Verified email, display name, sign-in provider (Google or GitHub), provider subject ID |
 | **Preferences** | Product news opt-in state, timestamp, and source |
 | **Devices** | Device name, kind (desktop, CLI, browser), public key thumbprint, admin trust flag, last-seen time |
-| **Computers** | Computer name, platform, Compozy version, route metadata |
+| **Computers** | Computer name, platform, CompozyOS version, route metadata |
 | **Billing** | Stripe customer ID and Free/Pro subscription state |
 
-## What Compozy never stores
+## What CompozyOS never stores
 
 Compozy Cloud never sees or persists your engineering work:
 
@@ -45,11 +49,11 @@ Compozy Cloud never sees or persists your engineering work:
 - Project files, git diffs, worktrees, or terminal output;
 - Your Claude, OpenAI, Cursor, or third-party API keys and subscriptions.
 
-Sessions run on your own hardware. On remote connections between your Compozy apps and computers, hosted-route traffic is encrypted end to end.
+Sessions run on your own hardware. On remote connections between your CompozyOS apps and computers, hosted-route traffic is encrypted end to end.
 
 ## Working offline after first sign-in
 
-Your **first sign-in** requires an internet connection to complete Google or GitHub authentication. After your device is enrolled, Compozy caches your signed-in state locally in SQLite:
+Your **first sign-in** requires an internet connection to complete Google or GitHub authentication. After your device is enrolled, CompozyOS caches your signed-in state locally in SQLite:
 
 - Local sessions, Loops, tasks, worktrees, and terminals keep working offline.
 - Temporary network drops or cloud outages never sign you out.
@@ -86,7 +90,7 @@ export const ACCOUNT_DOCS_GROUP: NavGroup = {
       t: "Account",
       c: [
         {
-          t: "Why Compozy asks you to sign in",
+          t: "Why CompozyOS asks you to sign in",
           s: "account/sign-in",
           d: SIGN_IN_DOC_DESCRIPTION,
         },

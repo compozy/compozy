@@ -24,7 +24,7 @@ export const meta = definePrototype({
   surface: "U0",
   route: "/sign-in",
   states: [
-    { id: "first-run", label: "First run · Sign in to Compozy" },
+    { id: "first-run", label: "First run · Sign in to CompozyOS" },
     { id: "existing-install", label: "Existing install · After updating, nothing lost" },
     { id: "waiting-browser", label: "Waiting for browser · Google code WDJB-MJHT" },
     { id: "cancelled", label: "Cancelled · Sign-in was cancelled" },
@@ -34,7 +34,7 @@ export const meta = definePrototype({
     { id: "account-token-revoked", label: "Account token revoked · CLI hint, no buttons" },
     { id: "account-deleting", label: "Account deleting · Try again in a few minutes" },
     { id: "cloud-activate", label: "Cloud browser · Activate MacBook Pro with code" },
-    { id: "cloud-signed-in", label: "Cloud browser · Signed in, return to Compozy" },
+    { id: "cloud-signed-in", label: "Cloud browser · Signed in, return to CompozyOS" },
     { id: "cloud-email-unverified", label: "Cloud browser · GitHub email not verified" },
     { id: "cloud-code-used", label: "Cloud browser · Code already used" },
     { id: "cloud-unsubscribe", label: "Cloud browser · Unsubscribe confirmation" },
@@ -112,11 +112,11 @@ function InteractiveDesktopSignIn({ preset }: { preset: SignInScreenPreset }) {
     const attempt = buildWaitingAttempt(provider);
     setNotice(undefined);
     setWaiting(attempt);
-    toast(`Opened ${attempt.verificationUri} in your browser`);
+    toast.message(`Opened ${attempt.verificationUri} in your browser`);
   };
 
   const handleReopenBrowser = (attempt: SignInWaitingAttemptFixture) => {
-    toast(`Reopened ${attempt.verificationUri} in your browser`);
+    toast.message(`Reopened ${attempt.verificationUri} in your browser`);
   };
 
   const handleCancelWaiting = () => {
@@ -131,7 +131,7 @@ function InteractiveDesktopSignIn({ preset }: { preset: SignInScreenPreset }) {
   };
 
   const handleOpenLegalLink = (kind: "terms" | "privacy") => {
-    toast(
+    toast.message(
       kind === "terms" ? "Opened Terms in your browser" : "Opened Privacy Policy in your browser"
     );
   };
@@ -175,7 +175,7 @@ function InteractiveCloudPage({ preset }: { preset: CloudPagePreset }) {
   };
 
   const handleOpenLegalLink = (linkKind: "terms" | "privacy" | "refunds") => {
-    toast(
+    toast.message(
       linkKind === "terms"
         ? "Opened Terms"
         : linkKind === "privacy"

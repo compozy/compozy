@@ -101,7 +101,7 @@ export function ComputerDetailsStatusTab({
   const handleRetry = () => {
     setRetrying(true);
     onRetry?.();
-    toast(`Retrying connection to ${computer.name}…`);
+    toast.message(`Retrying connection to ${computer.name}…`);
     setTimeout(() => setRetrying(false), 1200);
   };
 
@@ -155,7 +155,7 @@ export function ComputerDetailsStatusTab({
           <AlertTitle>{computer.name} needs an update</AlertTitle>
           <AlertDescription className="flex flex-col gap-2">
             <span>
-              Runs Compozy {computer.version}. This app requires 0.8.0 or newer to connect.
+              Runs CompozyOS {computer.version}. This app requires 0.8.0 or newer to connect.
             </span>
             <Button
               className="w-fit"
@@ -234,13 +234,15 @@ export function ComputerDetailsStatusTab({
             <Progress tone="brand" value={cpuPct}>
               <ProgressLabel className="text-meta">CPU</ProgressLabel>
               <ProgressValue className="text-meta">
-                {cpuPct}% · {load.cpuCount} cores
+                {() => `${cpuPct}% · ${load.cpuCount} cores`}
               </ProgressValue>
             </Progress>
             <Progress tone="brand" value={memPct}>
               <ProgressLabel className="text-meta">Memory</ProgressLabel>
               <ProgressValue className="text-meta">
-                {formatGb(load.memAvailableBytes)} / {formatGb(load.memTotalBytes)} GB free
+                {() =>
+                  `${formatGb(load.memAvailableBytes)} / ${formatGb(load.memTotalBytes)} GB free`
+                }
               </ProgressValue>
             </Progress>
             <p className="text-badge text-faint tabular-nums">
@@ -267,7 +269,7 @@ export function ComputerDetailsStatusTab({
       <section className="border-t border-line-soft pt-3">
         <Disclosure label="About" variant="inline">
           <div className="flex flex-col divide-y divide-line-soft">
-            <PropertyRow label="Version">Compozy {computer.version}</PropertyRow>
+            <PropertyRow label="Version">CompozyOS {computer.version}</PropertyRow>
             <PropertyRow label="Platform">{formatPlatform(computer.platform)}</PropertyRow>
             <PropertyRow label="Added via">
               {computer.originKind === "ssh" ? "SSH" : "Account link"}

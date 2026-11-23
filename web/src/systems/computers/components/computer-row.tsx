@@ -223,7 +223,7 @@ function InlineStatusNotice({
     return (
       <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-meta text-warning">
         <span>
-          {computer.name} runs Compozy {computer.version}. Update it to connect.
+          {computer.name} runs CompozyOS {computer.version}. Update it to connect.
         </span>
         <ListingRow.MetaDot />
         <button

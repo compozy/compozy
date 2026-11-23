@@ -103,16 +103,18 @@ export function HostedWebApp({
       hostConnectionLost={connectionLost}
       hostName={computer.name}
       isWorking={working}
-      onNewSession={() => toast(`New session on ${computer.name}`)}
+      onNewSession={() => toast.message(`New session on ${computer.name}`)}
       scope="api"
       sessions={sessions}
       topbarContext={
         <HostedComputerMenu
           computer={computer}
           defaultOpen={computerMenuOpen}
-          onSelectPeer={peer => toast(`Opening https://${peer.hostname}`)}
+          onSelectPeer={peer => toast.message(`Opening https://${peer.hostname}`)}
           onSignOut={() =>
-            toast(`Signed out on ${computer.name}. This device stays registered on your account.`)
+            toast.message(
+              `Signed out on ${computer.name}. This device stays registered on your account.`
+            )
           }
           peers={peers}
           reconnecting={connectionLost}

@@ -43,11 +43,11 @@ export function PhoneUpgradeCloudPage({
 
   const handleCheckout = (chosenInterval: UpgradeInterval) => {
     const planLabel = chosenInterval === "year" ? "Pro annual" : "Pro monthly";
-    toast(`Redirecting to Stripe Checkout (${planLabel}). Returns to https://${hostname}.`);
+    toast.message(`Redirecting to Stripe Checkout (${planLabel}). Returns to https://${hostname}.`);
   };
 
   const handleOpenLegalLink = (kind: CloudLegalLinkKind) => {
-    toast(
+    toast.message(
       kind === "terms"
         ? "Opened Terms"
         : kind === "privacy"

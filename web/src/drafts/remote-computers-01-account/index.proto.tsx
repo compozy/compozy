@@ -164,5 +164,7 @@ function propsFor(state: string, searchPhase: string | null): AccountPageProps {
 export default function RemoteComputersAccountDraft({ state }: PrototypeProps) {
   const search = useSearch();
   const phaseParam = new URLSearchParams(search).get("phase");
-  return <AccountSettingsPage key={`${state}-${phaseParam ?? ""}`} {...propsFor(state, phaseParam)} />;
+  return (
+    <AccountSettingsPage key={`${state}-${phaseParam ?? ""}`} {...propsFor(state, phaseParam)} />
+  );
 }

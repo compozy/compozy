@@ -74,7 +74,7 @@ export function AddComputerAccountPath({
                   <span>{isAdded ? "Added" : "Not added"}</span>
                   <ListingRow.MetaDot />
                   <span className="inline-flex items-center gap-1.5">
-                    <StatusDot size="sm" tone={item.online ? "success" : "neutral"} />
+                    <StatusDot size="sm" tone={item.online ? "success" : "faint"} />
                     <span>{item.online ? "Online" : "Offline"}</span>
                   </span>
                   {hostedBlocked ? (

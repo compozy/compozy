@@ -101,7 +101,7 @@ export function RunOnComputerItem({
                     ? "warning"
                     : isNeedsPro
                       ? "brand"
-                      : "neutral"
+                      : "faint"
               }
             />
           )}

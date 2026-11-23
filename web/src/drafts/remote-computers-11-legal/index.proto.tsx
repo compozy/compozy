@@ -28,13 +28,7 @@ function renderState(state: string) {
     case "privacy":
       return <LegalPage initialDocId="privacy" key={state} />;
     case "privacy-subprocessors":
-      return (
-        <LegalPage
-          initialDocId="privacy"
-          key={state}
-          scrollToSectionId="sub-processors"
-        />
-      );
+      return <LegalPage initialDocId="privacy" key={state} scrollToSectionId="sub-processors" />;
     case "refunds":
       return <LegalPage initialDocId="refunds" key={state} />;
     case "terms-mobile-toc":
