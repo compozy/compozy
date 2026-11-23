@@ -9,7 +9,8 @@ func agentSkillDescriptors() []toolspkg.Descriptor {
 			"agent_skill_propose",
 			"Propose Agent Skill",
 			"Propose a reusable skill for the calling always-on instance (experimental), with a lesson "+
-				"(cue, lesson, evidence, confidence) and 1-20 sessions of this workspace that show it. "+
+				"(cue, lesson, evidence, confidence) and 1-20 sessions that show it, from this instance's "+
+				"workspace (or its profile, for a User-scope instance). "+
 				"The draft stays inactive until an operator reviews and approves its exact digest. "+
 				"Agent credentials cannot approve it. Re-submitting the same contents returns the pending review "+
 				"with duplicate_of_pending; contents already rejected are refused. "+

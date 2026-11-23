@@ -215,23 +215,36 @@ func (api *AgentInstanceAPI) ProposeSkill(
 	return contract.AgentSkillReviewResponse{Review: payload, DuplicateOfPending: result.Duplicate}, err
 }
 
-func (h *BaseHandlers) skillReviewError(c *gin.Context, err error) {
-	for _, item := range []struct {
-		reason error
-		status int
-	}{
-		{agentinstance.ErrSkillReviewOperatorOnly, 403}, {agentinstance.ErrForbidden, 403},
-		{agentinstance.ErrSkillReviewNotFound, 404}, {agentinstance.ErrSkillReviewStale, 409},
-		{agentinstance.ErrSkillReviewNoTarget, 409}, {agentinstance.ErrSkillReviewLimit, 409},
-		{agentinstance.ErrSkillProposeUnverified, 422}, {agentinstance.ErrSkillReviewInvalid, 422},
-		{agentinstance.ErrSkillProposeLessonRequired, 422}, {agentinstance.ErrSkillProposeLessonTooLong, 422},
-		{agentinstance.ErrSkillProposeEvidenceRequired, 422}, {agentinstance.ErrSkillProposeEvidenceNotFound, 422},
-		{agentinstance.ErrSkillProposePreviouslyRejected, 409}, {errSkillReviewCursor, 422},
-	} {
+// skillReviewErrorStatuses is the one code-to-status table for skill review domain errors, shared by
+// the HTTP/UDS handlers and the native skill tools.
+var skillReviewErrorStatuses = []struct {
+	reason error
+	status int
+}{
+	{agentinstance.ErrSkillReviewOperatorOnly, 403}, {agentinstance.ErrForbidden, 403},
+	{agentinstance.ErrSkillReviewNotFound, 404}, {agentinstance.ErrSkillReviewStale, 409},
+	{agentinstance.ErrSkillReviewNoTarget, 409}, {agentinstance.ErrSkillReviewLimit, 409},
+	{agentinstance.ErrSkillProposeUnverified, 422}, {agentinstance.ErrSkillReviewInvalid, 422},
+	{agentinstance.ErrSkillProposeLessonRequired, 422}, {agentinstance.ErrSkillProposeLessonTooLong, 422},
+	{agentinstance.ErrSkillProposeEvidenceRequired, 422}, {agentinstance.ErrSkillProposeEvidenceNotFound, 422},
+	{agentinstance.ErrSkillProposePreviouslyRejected, 409}, {agentinstance.ErrSkillProposeNameTaken, 409},
+	{ErrSkillReviewInvalidCursor, 422},
+}
+
+// SkillReviewErrorStatus returns the stable code and HTTP status of a skill review domain error.
+func SkillReviewErrorStatus(err error) (string, int, bool) {
+	for _, item := range skillReviewErrorStatuses {
 		if errors.Is(err, item.reason) {
-			c.JSON(item.status, contract.ErrorPayload{Code: item.reason.Error(), Error: err.Error()})
-			return
+			return item.reason.Error(), item.status, true
 		}
+	}
+	return "", 0, false
+}
+
+func (h *BaseHandlers) skillReviewError(c *gin.Context, err error) {
+	if code, status, ok := SkillReviewErrorStatus(err); ok {
+		c.JSON(status, contract.ErrorPayload{Code: code, Error: err.Error()})
+		return
 	}
 	if errors.Is(err, errSkillReviewQuery) {
 		h.respondError(c, 422, err)

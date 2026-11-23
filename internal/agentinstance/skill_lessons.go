@@ -24,6 +24,7 @@ var (
 	ErrSkillProposeEvidenceRequired   = errors.New("skill_propose_evidence_required")
 	ErrSkillProposeEvidenceNotFound   = errors.New("skill_propose_evidence_not_found")
 	ErrSkillProposePreviouslyRejected = errors.New("skill_propose_previously_rejected")
+	ErrSkillProposeNameTaken          = errors.New("skill_propose_name_taken")
 )
 
 // SkillProposalMode is the review kind: a new skill or a change to an installed one.
@@ -71,7 +72,9 @@ func prepareSkillLesson(lesson SkillLesson) (SkillLesson, error) {
 		lesson.Confidence = SkillLessonConfidenceMed
 	case SkillLessonConfidenceLow, SkillLessonConfidenceMed, SkillLessonConfidenceHigh:
 	default:
-		return SkillLesson{}, fmt.Errorf("%w: confidence must be low, medium or high", ErrSkillProposeLessonRequired)
+		// The tool schema enumerates confidence; _dx.md defines no code for this, so it stays a plain
+		// validation error like the draft's own schema checks.
+		return SkillLesson{}, fmt.Errorf("lesson confidence %q must be low, medium or high", lesson.Confidence)
 	}
 	for _, field := range fields {
 		*field = redact.String(*field)

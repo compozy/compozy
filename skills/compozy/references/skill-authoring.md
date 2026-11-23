@@ -31,7 +31,7 @@ The experimental `compozy__agent_skill_propose` tool accepts `name`, `descriptio
 
 The daemon validates and verifies the content, redacts it and the lesson text, and stores the draft outside every skill scan root. A proposal report links to the review through `skill_review_id`. Pending drafts are not offered as skills and nothing in them runs. An instance may have at most five pending reviews; `skill_review_limit` means an existing review must be resolved first.
 
-Read the instance's reviews, with their lessons and evidence sessions, with `compozy__agent_skill_reviews`. Submitting the same contents again while the first review is pending returns that review unchanged with `duplicate_of_pending: true`; its lesson and evidence are not replaced. Contents that were already rejected are refused with `skill_propose_previously_rejected`, naming the rejected review, until the contents change. Do not treat a pending review as approval.
+Read the instance's reviews, with their lessons and evidence sessions, with `compozy__agent_skill_reviews`. Submitting the same contents again while the first review is pending returns that review unchanged with `duplicate_of_pending: true`; its lesson and evidence are not replaced. Contents that were already rejected are refused with `skill_propose_previously_rejected`, naming the rejected review, until the contents change. A new proposal whose name is already installed in the instance's skill root is refused with `skill_propose_name_taken`; re-proposing approved contents never opens another review. Do not treat a pending review as approval.
 
 ## Operator decision
 

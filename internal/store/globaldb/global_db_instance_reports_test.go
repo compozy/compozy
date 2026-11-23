@@ -208,6 +208,19 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 		if err != nil || approved.State != "approved" || approved.DecidedVia != "operator" {
 			t.Fatalf("approval ledger: %+v %v", approved, err)
 		}
+		// Business Rule 4: approved contents are installed, so proposing them again is refused
+		// instead of opening another pending review.
+		if again, err := service.Propose(ctx, operator, instance, scanRoot, input); !errors.Is(
+			err,
+			agentinstance.ErrSkillProposeNameTaken,
+		) {
+			t.Fatalf("reproposal of installed contents: %+v %v", again, err)
+		}
+		if pending, err := service.Reviews(
+			ctx, operator, instance, agentinstance.SkillReviewQuery{State: "pending", Limit: 10},
+		); err != nil || len(pending) != 0 {
+			t.Fatalf("pending after refused reproposal: %+v %v", pending, err)
+		}
 	})
 	t.Run("Should never leave an approved review without its installed skill", func(t *testing.T) {
 		t.Parallel()
