@@ -308,6 +308,15 @@ func Boundaries() error {
 		violations++
 	}
 
+	cloudViolations, err := cloudBoundaryViolations()
+	if err != nil {
+		return fmt.Errorf("inspect cloud import boundaries: %w", err)
+	}
+	for _, violation := range cloudViolations {
+		fmt.Printf("VIOLATION: %s\n", violation)
+		violations++
+	}
+
 	if violations > 0 {
 		return fmt.Errorf("found %d boundary violations", violations)
 	}

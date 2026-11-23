@@ -1,0 +1,189 @@
+package remoteproto
+
+import (
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/asn1"
+	"encoding/json/v2"
+	"errors"
+	"fmt"
+	"maps"
+	"math/big"
+	"net/url"
+	"strings"
+	"sync"
+	"time"
+)
+
+const (
+	dpopType           = "dpop+jwt"
+	DPoPLeeway         = 60 * time.Second
+	DPoPReplayWindow   = 120 * time.Second
+	defaultReplayLimit = 65_536
+	maxProofSize       = 8 << 10
+)
+
+var (
+	ErrDPoPInvalid  = errors.New("dpop_invalid")
+	ErrDPoPReplayed = errors.New("dpop_replayed")
+)
+
+type DPoPProof struct {
+	Method    string  `json:"htm"`
+	URL       string  `json:"htu"`
+	IssuedAt  int64   `json:"iat"`
+	JTI       string  `json:"jti"`
+	TokenHash *string `json:"ath,omitempty"`
+}
+
+type DPoPBinding struct {
+	Method     string
+	URL        string
+	JKT        string
+	Credential string
+}
+
+func BuildDPoP(signer crypto.Signer, method, target, credential string, now time.Time) (string, error) {
+	if signer == nil || method == "" {
+		return "", ErrDPoPInvalid
+	}
+	target, err := proofURL(target)
+	if err != nil {
+		return "", err
+	}
+	key, err := NewPublicJWK(signer.Public())
+	if err != nil || key.Kty != keyEC {
+		return "", ErrDPoPInvalid
+	}
+	proof := DPoPProof{Method: method, URL: target, IssuedAt: now.Unix(), JTI: rand.Text()}
+	if credential != "" {
+		proof.TokenHash = new(hashBase64([]byte(credential)))
+	}
+	return signDPoP(signer, key, proof)
+}
+
+func signDPoP(signer crypto.Signer, key JWK, proof DPoPProof) (string, error) {
+	input, err := signingInput(protectedHeader{Alg: algES256, Typ: dpopType, JWK: &key}, proof)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256([]byte(input))
+	raw, err := signer.Sign(rand.Reader, digest[:], crypto.SHA256)
+	if err != nil {
+		return "", fmt.Errorf("sign DPoP proof: %w", err)
+	}
+	var sig struct{ R, S *big.Int }
+	tail, err := asn1.Unmarshal(raw, &sig)
+	if err != nil || len(tail) != 0 || !validSignaturePart(sig.R) || !validSignaturePart(sig.S) {
+		return "", ErrDPoPInvalid
+	}
+	var encoded [64]byte
+	sig.R.FillBytes(encoded[:32])
+	sig.S.FillBytes(encoded[32:])
+	return input + "." + base64URL.EncodeToString(encoded[:]), nil
+}
+
+func validSignaturePart(value *big.Int) bool {
+	return value != nil && value.Sign() > 0 && value.BitLen() <= 256
+}
+
+type DPoPVerifier struct {
+	mu        sync.Mutex
+	seen      map[string]time.Time
+	nextSweep time.Time
+	maxSeen   int
+}
+
+func NewDPoPVerifier() *DPoPVerifier {
+	return &DPoPVerifier{seen: make(map[string]time.Time), maxSeen: defaultReplayLimit}
+}
+
+func (v *DPoPVerifier) VerifyDPoP(token string, binding DPoPBinding, now time.Time) (DPoPProof, error) {
+	if len(token) > maxProofSize || binding.JKT == "" || binding.Method == "" {
+		return DPoPProof{}, ErrDPoPInvalid
+	}
+	if jws, err := parseCompact(token); err == nil && verifyProofSignature(jws, binding.JKT) {
+		var proof DPoPProof
+		if err := json.Unmarshal(jws.body, &proof); err == nil && proof.matches(binding, now) {
+			if err := v.consume(proof.JTI, now); err != nil {
+				return DPoPProof{}, err
+			}
+			return proof, nil
+		}
+	}
+	return DPoPProof{}, ErrDPoPInvalid
+}
+
+func verifyProofSignature(jws compactJWS, jkt string) bool {
+	header := jws.header
+	if header.Alg != algES256 || header.Typ != dpopType || header.JWK == nil ||
+		header.JWK.Kty != keyEC || len(jws.signature) != 64 {
+		return false
+	}
+	key, err := header.JWK.ecKey()
+	if err != nil {
+		return false
+	}
+	thumbprint, err := header.JWK.Thumbprint()
+	if err != nil || subtle.ConstantTimeCompare([]byte(jkt), []byte(thumbprint)) != 1 {
+		return false
+	}
+	digest := sha256.Sum256([]byte(jws.input))
+	r := new(big.Int).SetBytes(jws.signature[:32])
+	s := new(big.Int).SetBytes(jws.signature[32:])
+	return ecdsa.Verify(key, digest[:], r, s)
+}
+
+func (p DPoPProof) matches(binding DPoPBinding, now time.Time) bool {
+	if p.Method != binding.Method || len(p.JTI) == 0 || len(p.JTI) > 128 || p.IssuedAt <= 0 ||
+		p.IssuedAt < now.Add(-DPoPLeeway).Unix() || p.IssuedAt > now.Add(DPoPLeeway).Unix() {
+		return false
+	}
+	target, err := proofURL(binding.URL)
+	if err != nil || p.URL != target {
+		return false
+	}
+	if binding.Credential == "" {
+		return p.TokenHash == nil
+	}
+	return p.TokenHash != nil &&
+		subtle.ConstantTimeCompare([]byte(*p.TokenHash), []byte(hashBase64([]byte(binding.Credential)))) == 1
+}
+
+func (v *DPoPVerifier) consume(jti string, now time.Time) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if !now.Before(v.nextSweep) {
+		maps.DeleteFunc(v.seen, func(_ string, expiry time.Time) bool { return now.After(expiry) })
+		v.nextSweep = now.Add(10 * time.Second)
+	}
+	if expiry, seen := v.seen[jti]; seen {
+		if !now.After(expiry) {
+			return ErrDPoPReplayed
+		}
+	} else if len(v.seen) >= v.maxSeen {
+		return ErrDPoPInvalid
+	}
+	v.seen[jti] = now.Add(DPoPReplayWindow)
+	return nil
+}
+
+func proofURL(target string) (string, error) {
+	u, err := url.Parse(target)
+	if err != nil || u.User != nil || u.Hostname() == "" || (u.Scheme != "https" && u.Scheme != "http") {
+		return "", ErrDPoPInvalid
+	}
+	u.Host = strings.ToLower(u.Host)
+	if (u.Scheme == "https" && u.Port() == "443") || (u.Scheme == "http" && u.Port() == "80") {
+		u.Host, _, _ = strings.CutLast(u.Host, ":")
+	}
+	if u.Path == "" {
+		u.Path = "/"
+	}
+	u.RawQuery, u.ForceQuery = "", false
+	u.Fragment, u.RawFragment = "", ""
+	return u.String(), nil
+}
