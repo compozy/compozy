@@ -951,6 +951,35 @@ func TestCreateFallbackChain(t *testing.T) {
 		}
 	})
 
+	t.Run("Should run the operator override chain instead of the authored chain", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		installFallbackAgent(t, h, claudeSeatOneRoute(h))
+		h.cfg.Agents.Overrides = map[string]compozyconfig.AgentOverride{
+			"reviewer": {FallbackChain: []compozyconfig.RoleFallback{codexRoute(h)}},
+		}
+		h.resolver.mu.Lock()
+		resolved := h.resolver.byRef[h.workspaceID]
+		resolved.Config = h.cfg
+		h.resolver.upsert(&resolved)
+		h.resolver.mu.Unlock()
+		refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
+		created, err := h.manager.Create(
+			testutil.Context(t),
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
+		)
+		if err != nil {
+			t.Fatalf("Create(reviewer) error = %v", err)
+		}
+		cleanupSessionStop(t, h, created.ID)
+		if info := created.Info(); info.Provider != "codex" {
+			t.Fatalf("created provider = %q, want the override codex route", info.Provider)
+		}
+		if slices.Contains(startCommands(h), fallbackSeatOne) {
+			t.Fatalf("start commands = %v, want the replaced authored route never launched", startCommands(h))
+		}
+	})
+
 	// refuseWithProcess makes the fake driver return a live process together with a
 	// pre-acceptance refusal for the given commands; stopping such a process fails.
 	refuseWithProcess := func(h *harness, commands map[string]bool, stopErr error) {

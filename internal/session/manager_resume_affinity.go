@@ -43,7 +43,7 @@ func (m *Manager) applyResumeRouteAffinity(
 		return
 	}
 	primary := FallbackRoute{Provider: spec.provider, Model: spec.model, ReasoningEffort: spec.reasoningEffort}
-	candidates := append([]FallbackRoute{primary}, fallbackRoutesForAgent(agentDef)...)
+	candidates := append([]FallbackRoute{primary}, fallbackRoutesForAgent(&spec.workspace.Config, agentDef)...)
 	if spec.sessionType == SessionTypeCoordinator {
 		role := spec.workspace.Config.Roles.Coordinator
 		primary = FallbackRoute{Provider: role.Provider, Model: role.Model, ReasoningEffort: role.ReasoningEffort,
