@@ -6004,6 +6004,68 @@
             },
             "type": "array"
           },
+          "on_result": {
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "continue",
+                    "done",
+                    "next_generation",
+                    "halt",
+                    "escalate"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "continue",
+                        "done",
+                        "next_generation",
+                        "escalate"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "halt"
+                      ],
+                      "type": "string"
+                    },
+                    "terminal_status": {
+                      "enum": [
+                        "done",
+                        "no-op",
+                        "blocked",
+                        "failed",
+                        "exhausted",
+                        "stalled",
+                        "canceled"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "type": "object"
+          },
           "on_stalled": {
             "items": {
               "$ref": "#/components/schemas/EffectSpec"
@@ -12641,7 +12703,78 @@
                   "type": "array"
                 },
                 "on_result": {
-                  "additionalProperties": {},
+                  "additionalProperties": {
+                    "oneOf": [
+                      {
+                        "enum": [
+                          "continue",
+                          "revise",
+                          "next_generation",
+                          "halt",
+                          "escalate"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "route": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "route"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "action": {
+                            "enum": [
+                              "continue",
+                              "revise",
+                              "next_generation",
+                              "escalate"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "action"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "action": {
+                            "enum": [
+                              "halt"
+                            ],
+                            "type": "string"
+                          },
+                          "terminal_status": {
+                            "enum": [
+                              "done",
+                              "no-op",
+                              "blocked",
+                              "failed",
+                              "exhausted",
+                              "stalled",
+                              "canceled"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "action"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
                   "type": "object"
                 },
                 "on_retry": {
@@ -15731,6 +15864,68 @@
             },
             "type": "array"
           },
+          "on_result": {
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "continue",
+                    "done",
+                    "next_generation",
+                    "halt",
+                    "escalate"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "continue",
+                        "done",
+                        "next_generation",
+                        "escalate"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "halt"
+                      ],
+                      "type": "string"
+                    },
+                    "terminal_status": {
+                      "enum": [
+                        "done",
+                        "no-op",
+                        "blocked",
+                        "failed",
+                        "exhausted",
+                        "stalled",
+                        "canceled"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "type": "object"
+          },
           "on_stalled": {
             "items": {
               "$ref": "#/components/schemas/LoopEffectSpec"
@@ -18132,6 +18327,19 @@
             ],
             "type": "string"
           },
+          "terminal": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LoopRunTerminal"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "tokens_used": {
             "format": "int64",
             "type": "integer"
@@ -18261,6 +18469,45 @@
           "requests",
           "run",
           "waits"
+        ],
+        "type": "object"
+      },
+      "LoopRunTerminal": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cause": {
+            "type": "string"
+          },
+          "gate_id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "done",
+              "no-op",
+              "blocked",
+              "failed",
+              "exhausted",
+              "stalled",
+              "canceled"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
         ],
         "type": "object"
       },

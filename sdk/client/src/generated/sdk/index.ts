@@ -2412,6 +2412,7 @@ export type {
   LoopRunResponse,
   LoopRunsAggregatePayload,
   LoopRunsResponse,
+  LoopRunTerminal,
   LoopRuntimeDefaults,
   LoopRuntimeMatch,
   LoopRuntimeProvenance,

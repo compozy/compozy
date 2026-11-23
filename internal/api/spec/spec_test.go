@@ -3486,6 +3486,14 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addLoopRunOutcomeDiagnosticSchemas(baseline) == 0 {
 			t.Fatal("approved Loop run outcome diagnostics: no historical outcome schemas found")
 		}
+		// Authored gate terminal status arrives as the constrained on_result route map.
+		if addLoopOnResultSchemas(baseline) == 0 {
+			t.Fatal("approved Loop on_result grammar: no historical gate or contract schemas found")
+		}
+		// Loop run reads add the optional settled terminal cause.
+		if addLoopRunTerminalSchemas(baseline, current) == 0 {
+			t.Fatal("approved Loop terminal read projection: no historical run payload schemas found")
+		}
 		// #1943: automation Loop targets carry the optional fire-time input command.
 		if addAutomationLoopInputCommandSchema(baseline) == 0 {
 			t.Fatal("approved automation Loop input command: no historical Loop target schemas found")
