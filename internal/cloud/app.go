@@ -17,11 +17,14 @@ import (
 )
 
 type Config struct {
-	Postgres store.Config
-	Keys     *api.SigningKeys
-	Issuer   string
-	Now      func() time.Time
-	Logger   *slog.Logger
+	Postgres       store.Config
+	Keys           *api.SigningKeys
+	Issuer         string
+	Now            func() time.Time
+	Logger         *slog.Logger
+	DeviceSessions api.DeviceSessionVerifier
+	MonthlyPrice   string
+	AnnualPrice    string
 }
 
 type App struct {
@@ -60,6 +63,14 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 	}
 	a.AccountLimit = api.NewAccountLimiter(a.now)
 	a.router = api.NewRouter(db, a.Keys, a.Control.Ready, a.draining.Load, a.now)
+	service := control.NewService(db, control.ServiceConfig{
+		Signer: a.Keys.Signer(), Issuer: a.Issuer, Now: a.now,
+		MonthlyPrice: cfg.MonthlyPrice, AnnualPrice: cfg.AnnualPrice,
+	})
+	a.router.RegisterControl(api.ControlRoutesConfig{
+		Service: service, Hub: a.Control, Sessions: cfg.DeviceSessions,
+		Limiter: a.AccountLimit, Issuer: a.Issuer, Logger: a.logger,
+	})
 	return a, nil
 }
 
@@ -91,7 +102,8 @@ func (a *App) runRetention(ctx context.Context) {
 	const interval = 24 * time.Hour
 	for {
 		job, cancel := context.WithTimeout(ctx, time.Minute)
-		err := a.Store.CompactSecurityEvents(job, a.now())
+		now := a.now()
+		err := errors.Join(a.Store.CompactSecurityEvents(job, now), a.Store.CompactControlRecords(job, now))
 		cancel()
 		if err != nil && ctx.Err() == nil {
 			a.logger.Warn("Cloud security event retention failed", "error", err)

@@ -27,9 +27,12 @@ func (e ControlEvent) Valid() bool {
 		return e.AccountID != "" && e.SecurityEpoch > 0
 	case remoteproto.ControlApprovalDecided:
 		return e.AccountID != "" && e.ComputerID != "" && e.SecurityEpoch > 0 && e.ResourceID != ""
+	case remoteproto.ControlApprovalPending, remoteproto.ControlApprovalApplied, remoteproto.ControlLinkReplaced:
+		return e.AccountID != "" && e.ComputerID != "" && e.ResourceID != ""
 	case remoteproto.ControlJWKS:
 		return true
-	case remoteproto.ControlPeers:
+	case remoteproto.ControlPeers, remoteproto.ControlDevicesChanged, remoteproto.ControlComputersChanged,
+		remoteproto.ControlPlanChanged:
 		return e.AccountID != ""
 	default:
 		return false

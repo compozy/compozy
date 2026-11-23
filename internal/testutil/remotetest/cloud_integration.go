@@ -18,6 +18,7 @@ import (
 
 	"github.com/compozy/compozy/internal/cloud"
 	"github.com/compozy/compozy/internal/cloud/api"
+	"github.com/compozy/compozy/internal/cloud/control"
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
@@ -153,4 +154,35 @@ func NewSigner(t *testing.T, kid string) *remoteproto.Signer {
 		t.Fatal(err)
 	}
 	return signer
+}
+
+type deviceSessions struct {
+	devices map[string]ControlDevice
+	now     func() time.Time
+	proofs  *remoteproto.DPoPVerifier
+}
+
+var _ api.DeviceSessionVerifier = (*deviceSessions)(nil)
+
+func NewDeviceSessions(now func() time.Time, devices ...ControlDevice) api.DeviceSessionVerifier {
+	byAccess := make(map[string]ControlDevice, len(devices))
+	for _, device := range devices {
+		byAccess[device.Access] = device
+	}
+	return &deviceSessions{devices: byAccess, now: now, proofs: remoteproto.NewDPoPVerifier()}
+}
+
+func (s *deviceSessions) VerifyDeviceSession(
+	_ context.Context, credentials api.DeviceSessionCredentials,
+) (control.DevicePrincipal, error) {
+	device, ok := s.devices[credentials.AccessToken]
+	if !ok {
+		return control.DevicePrincipal{}, control.ErrUnauthorized
+	}
+	_, err := s.proofs.VerifyDPoP(credentials.DPoP, remoteproto.DPoPBinding{
+		Method: credentials.Method, URL: credentials.URL, JKT: device.JKT, Credential: device.Access,
+	}, s.now())
+	return control.DevicePrincipal{
+		AccountID: device.AccountID, DeviceID: device.ID, JKT: device.JKT, SessionID: device.SessionID,
+	}, err
 }

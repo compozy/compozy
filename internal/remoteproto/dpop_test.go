@@ -71,7 +71,7 @@ func TestDPoP(t *testing.T) {
 					Method: binding.Method, URL: binding.URL, JTI: "one-proof-id",
 					IssuedAt: now.Add(tt.iat).Unix(), TokenHash: &ath,
 				}
-				token, err := signDPoP(private, jwk, proof)
+				token, err := signDeviceJWS(private, jwk, dpopType, proof)
 				if err != nil {
 					t.Fatal(err)
 				}
