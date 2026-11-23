@@ -57,6 +57,9 @@ type SkillInstallPayload struct {
 	OriginalCopyName string `json:"original_copy_name,omitempty"`
 	Keep             string `json:"keep,omitempty"`           // resolving only: current | previous
 	KeepCopyName     string `json:"keep_copy_name,omitempty"` // resolving only: ".skill-conflict-<op-id>"
+	// RetainedBackupName is ".skill-conflict-<op-id>-backup": unexplained contents found in the backup
+	// slot while the target also held unexplained contents. No resolution removes it.
+	RetainedBackupName string `json:"retained_backup_name,omitempty"`
 	// ConflictAt is when the conflict was first retained; ResolvedBy the operator resolving it.
 	ConflictAt time.Time `json:"conflict_at,omitzero"`
 	ResolvedBy string    `json:"resolved_by,omitempty"`

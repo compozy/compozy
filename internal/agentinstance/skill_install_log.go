@@ -52,7 +52,9 @@ type skillInstallLogEntry struct {
 	DecidedBy       string              `json:"decided_by"`
 	Current         *SkillInstallMarker `json:"current"`
 	Previous        *SkillInstallMarker `json:"previous"`
-	At              time.Time           `json:"at"`
+	// Keep is the operator's choice on a `resolve` entry: current | previous.
+	Keep string    `json:"keep,omitempty"`
+	At   time.Time `json:"at"`
 }
 
 func skillInstallLogPath(root, name string) string {
