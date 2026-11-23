@@ -50,6 +50,18 @@ export type CloudUpgradeStatus =
   | "suspended"
   | "deleting";
 
+/** Art-panel line per status: the offer only while buying, a neutral line when blocked. */
+const STAGE_STATEMENT: Record<CloudUpgradeStatus, string> = {
+  ready: "Free on your computer. Pro across all of them.",
+  redirecting: "Free on your computer. Pro across all of them.",
+  success: "Your computers, reachable from anywhere.",
+  already_pro: "Your computers, reachable from anywhere.",
+  rate_limited: "Your agents, on all your computers.",
+  cloud_unavailable: "Your agents, on all your computers.",
+  suspended: "Your agents, on all your computers.",
+  deleting: "Your agents, on all your computers.",
+};
+
 export interface CloudUpgradePageProps {
   /** Present on the hosted-route phone flow (`?hostname=<host>`, U8); omitted on `/billing/upgrade` (U12). */
   hostname?: string;
@@ -212,6 +224,8 @@ export function CloudUpgradePage({
       headerAccessory={headerAccessory}
       maxWidthClass="max-w-[440px]"
       onOpenLegalLink={onOpenLegalLink}
+      statement={STAGE_STATEMENT[status]}
+      visual={status === "success" ? "converge" : "cone"}
     >
       {status === "redirecting" ? (
         <CloudUpgradeRedirectingView
@@ -268,8 +282,8 @@ export function CloudUpgradePage({
               {isHostedFlow && computerName ? (
                 <>
                   Sign in to confirm you own{" "}
-                  <span className="font-medium text-fg">{computerName}</span>, then choose a plan
-                  to restore its hosted route.
+                  <span className="font-medium text-fg">{computerName}</span>, then choose a plan to
+                  restore its hosted route.
                 </>
               ) : (
                 "Unlimited remote computers, hosted routes, phone access and hosted webhooks."

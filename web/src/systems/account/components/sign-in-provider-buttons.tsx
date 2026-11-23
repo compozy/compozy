@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { GithubLogo, GoogleLogo } from "@compozy/ui/logos";
 
-import { Button, cn, CopyIconButton, Logo, Surface } from "@compozy/ui";
+import { Button, cn, CopyIconButton, Surface } from "@compozy/ui";
+
+import { BrandStage, type BrandStageVisual } from "@/systems/account/components/brand-stage";
 
 import {
   SIGN_IN_PRIVACY_URL,
@@ -185,6 +187,10 @@ export interface CloudPageChromeProps {
   belowCard?: ReactNode;
   maxWidthClass?: string;
   cardClassName?: string;
+  /** Brand Atmosphere on the art panel; sign-in pages use `swarm`, billing `cone`, success `converge`. */
+  visual?: BrandStageVisual;
+  /** One display line on the art panel (wide screens only). */
+  statement?: ReactNode;
   onOpenLegalLink?: (kind: CloudLegalLinkKind) => void;
   dataSlot?: string;
   dataCloudKind?: string;
@@ -192,8 +198,9 @@ export interface CloudPageChromeProps {
 }
 
 /**
- * Shared centered column chrome for `cloud.compozy.com` server-rendered pages:
- * Compozy logo, optional context pill, a single card surface, optional note, and legal footer.
+ * Shared chrome for `cloud.compozy.com` server-rendered pages: the brand art panel (wordmark,
+ * Atmosphere visual, one statement) beside a centered column with an optional context pill, a
+ * single card surface, an optional note and the legal footer.
  */
 export function CloudPageChrome({
   children,
@@ -201,34 +208,35 @@ export function CloudPageChrome({
   belowCard,
   maxWidthClass = "max-w-[440px]",
   cardClassName,
+  visual = "swarm",
+  statement = "Your agents, on all your computers.",
   onOpenLegalLink,
   dataSlot = "cloud-page",
   dataCloudKind,
   className,
 }: CloudPageChromeProps) {
   return (
-    <main
-      className={cn(
-        "flex min-h-0 flex-1 flex-col items-center justify-center bg-canvas px-4 py-8 text-fg sm:px-6 sm:py-10",
-        className
-      )}
+    <BrandStage
+      className={className}
       data-cloud-kind={dataCloudKind}
-      data-slot={dataSlot}
+      dataSlot={dataSlot}
+      statement={statement}
+      visual={visual}
     >
-      <div className={cn("flex w-full flex-col items-center gap-6", maxWidthClass)}>
-        <div className="flex flex-col items-center gap-2.5">
-          <Logo className="h-7" variant="logo" />
-          {headerAccessory}
-        </div>
+      <div className={cn("flex w-full flex-col items-center gap-5", maxWidthClass)}>
+        {headerAccessory}
 
-        <Surface className={cn("flex w-full flex-col gap-5 p-5 sm:p-7", cardClassName)} variant="card">
+        <Surface
+          className={cn("flex w-full flex-col gap-5 p-5 sm:p-7", cardClassName)}
+          variant="card"
+        >
           {children}
         </Surface>
 
         {belowCard}
 
-        <CloudPageFooter onOpenLegalLink={onOpenLegalLink} />
+        <CloudPageFooter className="mt-1" onOpenLegalLink={onOpenLegalLink} />
       </div>
-    </main>
+    </BrandStage>
   );
 }

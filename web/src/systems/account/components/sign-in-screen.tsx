@@ -16,7 +16,6 @@ import {
   Checkbox,
   cn,
   CodeBlock,
-  Logo,
   Spinner,
   Surface,
 } from "@compozy/ui";
@@ -31,6 +30,7 @@ import {
   type SignInWaitingAttemptFixture,
 } from "@/systems/computers/mocks/remote-computers-fixtures-sign-in";
 
+import { BrandStage } from "./brand-stage";
 import {
   providerDisplayName,
   SignInProviderButton,
@@ -129,7 +129,7 @@ function SignInWaitingPanel({ attempt, onReopenBrowser, onCancelWaiting }: Waiti
 /**
  * Full-window sign-in gate (`_uiux.md` U0, ADR-011).
  *
- * Centered single column on the app window canvas (no rail, no sidebar, no palette).
+ * Brand art panel beside a centered column on the app window (no rail, no sidebar, no palette).
  * Stays locked to `max-w-[380px]` at laptop (1396 px) and wide (2084 px+) widths.
  */
 export function SignInScreen({
@@ -153,12 +153,12 @@ export function SignInScreen({
   const consentId = useId();
 
   return (
-    <main
-      className={cn(
-        "flex min-h-0 flex-1 flex-col items-center justify-center px-6 pt-4 pb-12 text-fg",
-        className
-      )}
-      data-slot="sign-in-screen"
+    <BrandStage
+      className={className}
+      contentClassName="pb-12"
+      dataSlot="sign-in-screen"
+      statement="Your agents, on all your computers."
+      visual="swarm"
     >
       <p aria-live="polite" className="sr-only" role="status">
         {waiting ? "Waiting for sign-in in your browser" : ""}
@@ -166,8 +166,7 @@ export function SignInScreen({
 
       <div className="flex w-full max-w-[380px] flex-col">
         <div className="flex flex-col items-center text-center">
-          <Logo className="size-11" decorative variant="symbol" />
-          <h1 className="mt-6 text-display-2xl font-medium tracking-detail-h1 text-fg-strong text-balance">
+          <h1 className="text-display-2xl font-medium tracking-detail-h1 text-fg-strong text-balance">
             {title}
           </h1>
           {subtitle ? (
@@ -291,6 +290,6 @@ export function SignInScreen({
           </>
         )}
       </div>
-    </main>
+    </BrandStage>
   );
 }
