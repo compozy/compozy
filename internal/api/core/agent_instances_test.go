@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1945,11 +1946,16 @@ func TestAgentSkillReviews(t *testing.T) {
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
+		// targetErr makes SkillTarget fail while set.
+		var targetErr atomic.Pointer[error]
 		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
 			Store:          repo,
 			Authority:      authority,
 			SkillProposals: service,
 			SkillTarget: func(context.Context, agentinstance.Instance) (string, []string, error) {
+				if err := targetErr.Load(); err != nil {
+					return "", nil, *err
+				}
 				return scanRoot, []string{scanRoot}, nil
 			},
 		}
@@ -2072,10 +2078,25 @@ func TestAgentSkillReviews(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(scanRoot, "expected")); !os.IsNotExist(err) {
 			t.Fatalf("uninstallable draft installed: %v", err)
 		}
+		// A target lookup failure refuses the rejection: without the install log a committed approval
+		// whose projection is pending cannot be told apart. An instance with no target still rejects.
+		lookupFailure := errors.New("workspace unavailable")
+		targetErr.Store(&lookupFailure)
+		unresolved := request("POST", "/reviews/"+invalid.ID+"/reject", `{"digest":"`+invalid.Digest+`"}`, false)
+		if unresolved.Code == 200 {
+			t.Fatalf("reject without a resolvable target: %d %s", unresolved.Code, unresolved.Body.String())
+		}
+		if pending, err := db.SkillReviews().GetReview(t.Context(), invalid.ID); err != nil ||
+			pending.State != agentinstance.SkillReviewPending {
+			t.Fatalf("review after a refused rejection = %+v, %v", pending, err)
+		}
+		noTarget := agentinstance.ErrSkillReviewNoTarget
+		targetErr.Store(&noTarget)
 		rejected := request("POST", "/reviews/"+invalid.ID+"/reject", `{"digest":"`+invalid.Digest+`"}`, false)
 		if rejected.Code != 200 {
 			t.Fatalf("reject uninstallable: %d %s", rejected.Code, rejected.Body.String())
 		}
+		targetErr.Store(nil)
 
 		// UT-081 over HTTP: a `new` review whose name was created meanwhile is refused unchanged.
 		existing := filepath.Join(scanRoot, "second")

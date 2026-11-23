@@ -158,7 +158,13 @@ func (h *BaseHandlers) decideAgentSkillReview(c *gin.Context, approve bool) {
 		// Reconcile; the skill is installed either way.
 		_, err = api.SkillProposals.Approve(ctx, actor, instance, review.ID, input.Digest, operator, target)
 	} else {
-		// Without a resolvable target nothing can be installed, so no approval can race the rejection.
+		// An instance without an installation target never installs anything, so its reviews reject
+		// without the skill lock. Any other target failure refuses the rejection: without the install
+		// log, a committed approval whose projection is still pending cannot be told apart.
+		if targetErr != nil && !errors.Is(targetErr, agentinstance.ErrSkillReviewNoTarget) {
+			h.skillReviewError(c, targetErr)
+			return
+		}
 		if targetErr != nil {
 			target = ""
 		}
