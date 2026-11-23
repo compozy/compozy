@@ -3570,6 +3570,23 @@ func loadCachedSkills(t *testing.T, manager *Manager, ext *managedExtension) {
 // Owner: extension runtime lifecycle; canonical suite: manager instance input launch.
 func TestManagerInstanceInputLaunch(t *testing.T) {
 	t.Parallel()
+	t.Run("Should defer a development base restart to dev reload", func(t *testing.T) {
+		t.Parallel()
+		manager := NewManager(nil)
+		base := InstanceKey{Name: "dev-kit", WorkspaceID: "workspace-a"}
+		manager.devExtensions[base] = &managedExtension{
+			key: base, info: ExtensionInfo{Name: base.Name, Enabled: true, Source: SourceWorkspace},
+		}
+		ctx := testutil.Context(t)
+		deferred := InstanceKey{Name: base.Name, ProfileID: store.DefaultProfileID, WorkspaceID: base.WorkspaceID}
+		if err := manager.RestartInstance(ctx, deferred); !errors.Is(err, ErrDevelopmentRestartDeferred) {
+			t.Fatalf("RestartInstance(default profile) error = %v, want ErrDevelopmentRestartDeferred", err)
+		}
+		profile := InstanceKey{Name: base.Name, ProfileID: "marketing", WorkspaceID: base.WorkspaceID}
+		if err := manager.RestartInstance(ctx, profile); err != nil {
+			t.Fatalf("RestartInstance(profile runtime) error = %v, want the profile runtime invalidated", err)
+		}
+	})
 	t.Run("Should refuse a required invalid input at start and restart only that instance [R-7][R-2]",
 		func(t *testing.T) {
 			t.Parallel()

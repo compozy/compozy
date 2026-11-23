@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -550,6 +551,29 @@ func TestExtensionInputPrompterReadReportsOutputFailures(t *testing.T) {
 		value, err := prompter.read(t.Context(), true)
 		if !errors.Is(err, writeErr) || value != "" {
 			t.Fatalf("read() value=%q err=%v, want newline write failure and no value", value, err)
+		}
+	})
+
+	t.Run("Should not start a hidden terminal read once the prompt is cancelled", func(t *testing.T) {
+		t.Parallel()
+
+		input := openExtensionSecretTestInput(t)
+		var started atomic.Bool
+		prompter := &extensionInputPrompter{
+			input:  input,
+			output: io.Discard,
+			reader: bufio.NewReader(input),
+			readPassword: func(int) ([]byte, error) {
+				started.Store(true)
+				return []byte("secret-value"), nil
+			},
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		value, err := prompter.read(ctx, true)
+		if !errors.Is(err, errExtensionInputPromptAborted) || value != "" || started.Load() {
+			t.Fatalf("read() value=%q err=%v started=%v, want abort without a terminal read", value, err, started.Load())
 		}
 	})
 
@@ -2200,6 +2224,29 @@ func TestExtensionSetupCommand(t *testing.T) {
 				got.written[0],
 				got.reads[0],
 			)
+		}
+	})
+
+	t.Run("Should keep the instance selectors in the secrets set hint", func(t *testing.T) {
+		t.Parallel()
+		state := defaultState()
+		state.MissingEnv = []string{"LEGACY_KEY"}
+		workspace := state
+		workspace.WorkspaceID = "ws-alpha"
+		got := run(t, workspace, false, "", "--workspace", "alpha")
+		want := "Set them with: compozy extension secrets set acme-tool --workspace ws-alpha --env <KEY>"
+		if !strings.Contains(got.stdout, want) {
+			t.Fatalf("workspace setup output = %q, want %q", got.stdout, want)
+		}
+		rendered := renderExtensionSetupHuman(workspace, false, "dev")
+		want = "Set them with: compozy extension secrets set acme-tool --workspace ws-alpha --profile dev --env <KEY>"
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("profile setup output = %q, want %q", rendered, want)
+		}
+		got = run(t, state, false, "", "--scope", "global")
+		want = "Set them with: compozy extension secrets set acme-tool --env <KEY>"
+		if !strings.Contains(got.stdout, want) {
+			t.Fatalf("global setup output = %q, want %q without selectors", got.stdout, want)
 		}
 	})
 

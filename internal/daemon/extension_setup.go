@@ -148,15 +148,17 @@ func (s *daemonExtensionService) setInputsLocked(
 	valueChanged := len(changed) > 0 || len(plan.writes) > 0
 	reloaded := valueChanged && ext.Status.Enabled && !inputsBlockStart(payload)
 	if reloaded {
-		if err := s.reloadInputsInstance(ctx, instance); err != nil {
+		restarted, err := s.reloadInputsInstance(ctx, instance)
+		if err != nil {
 			rollbackErr := binder.Rollback(ctx, plan)
 			if rollbackErr == nil {
 				rollbackCtx, cancel := extensionSecretRollbackContext(ctx)
 				defer cancel()
-				rollbackErr = s.reloadInputsInstance(rollbackCtx, instance)
+				_, rollbackErr = s.reloadInputsInstance(rollbackCtx, instance)
 			}
 			return contract.ExtensionInputsPayload{}, errors.Join(err, rollbackErr)
 		}
+		reloaded = restarted
 	}
 	payload.Changed, payload.Reloaded = changed, reloaded
 	s.logger.Info("extension inputs updated",
@@ -260,19 +262,26 @@ type extensionInstanceRestarter interface {
 }
 
 // reloadInputsInstance restarts only the runtime serving the resolved instance so new values take
-// effect; other profiles, workspaces and extensions keep running (Safety Invariant 3).
-func (s *daemonExtensionService) reloadInputsInstance(ctx context.Context, instance extensionInputsInstance) error {
+// effect; other profiles, workspaces and extensions keep running (Safety Invariant 3). It reports false
+// when the runtime keeps its launch values, as a development base does until `extension dev reload`.
+func (s *daemonExtensionService) reloadInputsInstance(
+	ctx context.Context, instance extensionInputsInstance,
+) (bool, error) {
 	restarter, ok := s.runtime.(extensionInstanceRestarter)
 	if !ok {
-		return s.reloadExtensions(ctx, instance.key.Name)
+		return true, s.reloadExtensions(ctx, instance.key.Name)
 	}
 	key := extensionpkg.InstanceKey{
 		Name: instance.key.Name, ProfileID: instance.profile.ID, WorkspaceID: instance.key.WorkspaceID,
 	}
-	if err := restarter.RestartInstance(ctx, key); err != nil {
-		return err
+	err := restarter.RestartInstance(ctx, key)
+	if errors.Is(err, extensionpkg.ErrDevelopmentRestartDeferred) {
+		return false, nil
 	}
-	return s.syncExtensionConsumers(ctx)
+	if err != nil {
+		return false, err
+	}
+	return true, s.syncExtensionConsumers(ctx)
 }
 
 // inputsBlockStart mirrors the launch gate, which decides a dual-consumer input with the same readiness

@@ -115,7 +115,7 @@ func runExtensionSetup(cmd *cobra.Command, deps commandDeps, name string, f *ext
 			return err
 		}
 	}
-	if err := writeCommandOutput(cmd, extensionSetupBundle(result, wrote)); err != nil {
+	if err := writeCommandOutput(cmd, extensionSetupBundle(result, wrote, selected.profile)); err != nil {
 		return err
 	}
 	mode, err := resolveOutputFormat(cmd)
@@ -207,14 +207,14 @@ func extensionSetupAuthServers(result ExtensionInputsRecord) []string {
 	return servers
 }
 
-func extensionSetupBundle(result ExtensionInputsRecord, wrote bool) outputBundle {
+func extensionSetupBundle(result ExtensionInputsRecord, wrote bool, profile string) outputBundle {
 	return outputBundle{
 		jsonValue: result,
 		jsonl: func(cmd *cobra.Command) error {
 			return writeJSONLine(cmd, result)
 		},
 		human: func() (string, error) {
-			return renderExtensionSetupHuman(result, wrote), nil
+			return renderExtensionSetupHuman(result, wrote, profile), nil
 		},
 		toon: func() (string, error) {
 			rows := make([][]string, 0, len(result.Inputs))
@@ -230,7 +230,9 @@ func extensionSetupBundle(result ExtensionInputsRecord, wrote bool) outputBundle
 	}
 }
 
-func renderExtensionSetupHuman(result ExtensionInputsRecord, wrote bool) string {
+// renderExtensionSetupHuman prints the setup outcome. Its secrets set hint targets the same instance:
+// the instance's workspace (absent for a global installation) and the explicitly selected profile.
+func renderExtensionSetupHuman(result ExtensionInputsRecord, wrote bool, profile string) string {
 	var lines []string
 	name := result.Extension
 	pending := extensionSetupPending(result)
@@ -262,9 +264,16 @@ func renderExtensionSetupHuman(result ExtensionInputsRecord, wrote bool) string 
 		), "\n"))
 	}
 	if len(result.MissingEnv) > 0 {
+		selectors := ""
+		if result.WorkspaceID != "" {
+			selectors += " --" + workspaceFlagName + " " + result.WorkspaceID
+		}
+		if profile != "" {
+			selectors += " --" + profileFlagName + " " + profile
+		}
 		lines = append(lines, fmt.Sprintf(
-			"Environment keys without an input: %s. Set them with: compozy extension secrets set %s --env <KEY>",
-			strings.Join(result.MissingEnv, ", "), name,
+			"Environment keys without an input: %s. Set them with: compozy extension secrets set %s%s --env <KEY>",
+			strings.Join(result.MissingEnv, ", "), name, selectors,
 		))
 	}
 	for _, server := range extensionSetupAuthServers(result) {

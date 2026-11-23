@@ -1290,8 +1290,9 @@ func assertDistributionMissingInputs(
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.Code != "extension_inputs_required" || len(payload.Inputs) != 2 || len(payload.InputDefinitions) != 2 {
-		t.Fatalf("input refusal payload=%#v", payload)
+	if payload.Code != "extension_inputs_required" || len(payload.Inputs) != 2 || len(payload.InputDefinitions) != 2 ||
+		payload.FetchedDigest != install.ExpectedDigest {
+		t.Fatalf("input refusal payload=%#v, want the acquired package digest", payload)
 	}
 }
 

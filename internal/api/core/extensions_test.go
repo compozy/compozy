@@ -1110,6 +1110,7 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 			http.StatusConflict, diagnosticcontract.CodeExtensionNameConflict},
 		{"source changed", &extensionpkg.SourceChangedError{ListedDigest: strings.Repeat("a", 64), FetchedDigest: strings.Repeat("b", 64)}, http.StatusConflict, diagnosticcontract.CodeExtensionSourceChanged},
 		{"inputs required", &extensionpkg.InputsRequiredError{MissingInputs: []string{"workspace"}, MissingEnv: []string{"TOKEN"},
+			Digest: strings.Repeat("e", 64),
 			InputDefinitions: []extensionpkg.ManifestInput{{ID: "workspace", Prompt: "Workspace", Type: "identifier", Required: true,
 				Binding: marketplacepkg.InputBinding{Type: "url_query", Name: "workspace"}}}}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputsRequired},
 		{"invalid input", &extensionpkg.InputValidationError{InputID: "workspace", Reason: "value must be a string"}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputInvalid},
@@ -1154,7 +1155,8 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 				}
 			case diagnosticcontract.CodeExtensionInputsRequired:
 				if !reflect.DeepEqual(payload.Inputs, []string{"workspace"}) ||
-					!reflect.DeepEqual(payload.MissingEnv, []string{"TOKEN"}) {
+					!reflect.DeepEqual(payload.MissingEnv, []string{"TOKEN"}) ||
+					payload.FetchedDigest != strings.Repeat("e", 64) {
 					t.Fatalf("required inputs = %#v", payload)
 				}
 				if len(payload.InputDefinitions) != 1 || payload.InputDefinitions[0].ID != "workspace" ||

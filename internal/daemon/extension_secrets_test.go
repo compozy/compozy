@@ -2056,6 +2056,99 @@ func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
 			t.Fatalf("rollback rows=%#v, want the region row and binding restored", rows)
 		}
 	})
+
+	t.Run("Should keep the typed row of an input whose binding is inactive on removal", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, _ := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		ctx := testutil.Context(t)
+		commit(t, service, manifest, initialValues)
+		region := bindingsByName(t, bindings)["REGION"]
+		region.Inactive = true
+		if err := bindings.PutEnvBinding(ctx, region); err != nil {
+			t.Fatalf("PutEnvBinding() error = %v", err)
+		}
+
+		scopes := []extensionpkg.InstallationScope{{ProfileID: profile.ID}}
+		if _, err := service.retireExtensionBindingScopes(ctx, key.Name, scopes); err != nil {
+			t.Fatalf("retireExtensionBindingScopes() error = %v", err)
+		}
+		rows, err := service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if string(rows["region"].Value) != `"eu-west"` {
+			t.Fatalf("removal rows=%#v, want the region row an inactive binding no longer mirrors", rows)
+		}
+	})
+
+	t.Run("Should unset the typed row of the input the binding stores after a manifest rebind", func(t *testing.T) {
+		t.Parallel()
+		service, _, _ := newService(t)
+		ctx := testutil.Context(t)
+		commit(t, service, extensionSubprocessInputManifest(), initialValues)
+		rows, err := service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		zone := rows["region"]
+		if err := service.inputs.Apply(
+			ctx,
+			instance,
+			[]extensioninput.Mutation{{InputID: "zone", After: &zone}},
+		); err != nil {
+			t.Fatalf("Apply(zone) error = %v", err)
+		}
+		updated := extensionSubprocessInputManifest()
+		updated.Inputs[1].ID = "zone"
+		updated.Resources.MCPServers["server"].Env["REGION"] = "zone"
+		runtime, ok := service.runtime.(*fakeExtensionRuntime)
+		if !ok {
+			t.Fatal("extension runtime is not a fakeExtensionRuntime")
+		}
+		runtime.getExt.Manifest = updated
+
+		if err := service.deleteExtensionSecretForProfileInstance(ctx, key, profile.ID, "REGION"); err != nil {
+			t.Fatalf("deleteExtensionSecretForProfileInstance() error = %v", err)
+		}
+		rows, err = service.inputs.List(ctx, instance)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if _, exists := rows["region"]; exists {
+			t.Fatalf("unset kept the row of the stored region link: rows=%#v", rows)
+		}
+		if _, exists := rows["zone"]; !exists {
+			t.Fatalf("unset deleted the row of the manifest's current zone input: rows=%#v", rows)
+		}
+	})
+
+	t.Run("Should refuse a foreign Vault ref for an env binding linked to a typed input", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		runtime, ok := service.runtime.(*fakeExtensionRuntime)
+		if !ok {
+			t.Fatal("extension runtime is not a fakeExtensionRuntime")
+		}
+		runtime.getExt.Manifest = manifest
+		ctx := testutil.Context(t)
+		commit(t, service, manifest, initialValues)
+		before := bindingsByName(t, bindings)["REGION"]
+		foreignRef := vault.ExtensionProfileSecretRef(key.Name, "another-profile", "", "REGION")
+		secretVault.seed(foreignRef, "extension-env", "foreign-region")
+
+		_, err := service.setExtensionSecretsForProfileInstance(ctx, key, profile.ID,
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "REGION", VaultRef: &foreignRef},
+			}})
+		if !errors.Is(err, extensionpkg.ErrExtensionEnvBindingInvalid) {
+			t.Fatalf("foreign input-linked ref error = %v, want ErrExtensionEnvBindingInvalid", err)
+		}
+		if after := bindingsByName(t, bindings)["REGION"]; after.SecretRef != before.SecretRef {
+			t.Fatalf("refused bind changed the region binding: %#v", after)
+		}
+	})
 }
 
 func extensionSubprocessInputManifest() *extensionpkg.Manifest {

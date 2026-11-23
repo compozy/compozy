@@ -6,6 +6,10 @@ import (
 	"fmt"
 )
 
+// ErrDevelopmentRestartDeferred reports that a development base keeps its launch-time inputs: it
+// relaunches with the stored values only through `extension dev reload`.
+var ErrDevelopmentRestartDeferred = errors.New("extension: development base restarts through extension dev reload")
+
 func (m *Manager) startInstalledPackage(ctx context.Context, info *ExtensionInfo) error {
 	key := GlobalInstanceKey(info.Name)
 	ext := &managedExtension{
@@ -117,7 +121,8 @@ func (m *Manager) newInstalledInstance(ctx context.Context, key InstanceKey) (*m
 
 // RestartInstance restarts only the runtime that serves one instance after its launch inputs change.
 // A lazily started profile runtime is invalidated and relaunches on its next call; an installed base
-// or scoped runtime is stopped and started again from the registry. Every other runtime keeps running.
+// or scoped runtime is stopped and started again from the registry. A development base is not restarted
+// here and reports ErrDevelopmentRestartDeferred. Every other runtime keeps running.
 func (m *Manager) RestartInstance(ctx context.Context, key InstanceKey) error {
 	if ctx == nil {
 		return ErrContextRequired
@@ -136,6 +141,9 @@ func (m *Manager) RestartInstance(ctx context.Context, key InstanceKey) error {
 	runtimeKey := runtimeKeyForInstallation(key, source)
 	if development || (runtimeKey.IsProfileScoped() && !source.IsProfileScoped()) {
 		// A dev overlay base restarts through `extension dev reload`; this only drops profile runtimes.
+		if development && !runtimeKey.IsProfileScoped() {
+			return ErrDevelopmentRestartDeferred
+		}
 		return m.InvalidateProfileRuntime(ctx, key)
 	}
 	m.lifecycleMu.Lock()

@@ -141,7 +141,8 @@ archive returns `409 extension_source_changed` with `listed_digest` and `fetched
 current entry before retrying. In the Marketplace, a changed source reloads the listing and opens a
 new confirmation; it does not install the refreshed artifact automatically. A newly unverified publisher
 requires fresh consent. `422 extension_inputs_required` includes missing input IDs in `inputs` and their candidate-manifest
-field declarations in `input_definitions` (type, prompt, required, binding and non-secret default).
+field declarations in `input_definitions` (type, prompt, required, binding and non-secret default), and
+the digest of the package it acquired in `fetched_digest`; pin a retry to it with `expected_digest`.
 Clients can collect these fields and retry the same scoped update without another preview download.
 Stored values and secret references are excluded. Native batch-update partial results retain this
 metadata in `operation_error` alongside completed updates.

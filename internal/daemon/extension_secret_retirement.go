@@ -187,7 +187,8 @@ func (r *extensionSecretRetirement) rollback(ctx context.Context, s *daemonExten
 
 // retireSubprocessInputRows deletes the typed rows that mirror retiring subprocess input bindings, so a
 // reinstall in the same cell starts from defaults instead of carrying a removed value forward into a
-// new binding (rule 3a). Rows of inputs without an input binding keep their prior retention.
+// new binding (rule 3a). Rows of inputs without an active input binding keep their prior retention: an
+// inactive binding no longer mirrors its input, whose typed row may hold a later server-only value.
 func (s *daemonExtensionService) retireSubprocessInputRows(
 	ctx context.Context, name string, retirement *extensionSecretRetirement,
 ) error {
@@ -197,7 +198,7 @@ func (s *daemonExtensionService) retireSubprocessInputRows(
 	var instances []extensioninput.Instance
 	inputIDs := map[extensioninput.Instance][]string{}
 	for _, binding := range retirement.bindings {
-		if binding.InputID == "" || binding.MCPServer != "" {
+		if binding.InputID == "" || binding.MCPServer != "" || binding.Inactive {
 			continue
 		}
 		instance := extensioninput.Instance{

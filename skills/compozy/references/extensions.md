@@ -88,8 +88,9 @@ extension/profile/workspace under `vault:extensions/`; manual MCP references are
 Install typed values with `compozy extension install compozy/supabase --input project_ref=my-project`.
 Use `--input-file` for structured value/vault_ref envelopes; existing scoped extension-secret refs
 stay in that instance. The CLI derives types from the manifest. Required-field failures include
-`inputs` and candidate `input_definitions` in `extension_inputs_required`; prompt for those fields
-and retry the same scoped request. Inputs remain isolated by profile: an unconfigured profile
+`inputs` and candidate `input_definitions` in `extension_inputs_required`, plus the acquired package
+digest in `fetched_digest`; prompt for those fields and retry the same scoped request with
+`expected_digest` set to it, so the values reach only the package the refusal described. Inputs remain isolated by profile: an unconfigured profile
 publishes no packaged MCPs and does not block installation or restart in a configured profile.
 Subprocess inputs share this gate and the same `inputs`/`input_definitions` lists. Their values,
 non-secret ones included, are stored as instance env bindings in the Vault, so
@@ -222,7 +223,9 @@ Every catalog entry has exactly one category id: `productivity`, `communication`
   (`{"inputs": {...}}`, same value/vault_ref envelopes as install, same scope/workspace/profile
   selectors). Writes merge: omitted inputs keep their value. The result adds `changed` and `reloaded`;
   an enabled instance restarts only when a value changed, a disabled one stays disabled, and the
-  installed version, attachments and enablement never change. Only that instance's runtime restarts;
+  installed version, attachments and enablement never change. A development (`extension dev`) base
+  keeps its launch values and reports `reloaded: false` until `extension dev reload`. Only that
+  instance's runtime restarts;
   other profiles, workspaces and extensions keep running. A write that leaves a required subprocess
   input missing still succeeds with `missing` populated and does not restart. A global installation
   serves every workspace from one input cell, so a workspace-scoped write to it is refused; set it up
@@ -237,7 +240,8 @@ Every catalog entry has exactly one category id: `productivity`, `communication`
   `-o json|toon` never prompts. Exit 0 when nothing required is missing or for any structured read, 2
   when required inputs stay missing in human output or a value is invalid, 1 otherwise. The output ends
   with `Sign in: compozy mcp auth login <server>` when an input feeds an OAuth server. `compozy extension
-  install` on a terminal prompts for the inputs an `extension_inputs_required` refusal lists and retries;
+  install` on a terminal prompts for the inputs an `extension_inputs_required` refusal lists and retries,
+  pinned to the refused package's `fetched_digest` when no digest was pinned;
   without a terminal or with structured output it keeps the `--input` guidance and exit 2.
 
 Plugin sources accept `url` and `git-subdir` source objects and the Codex index
