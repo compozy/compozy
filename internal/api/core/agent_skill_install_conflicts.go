@@ -19,6 +19,11 @@ func (h *BaseHandlers) ListAgentSkillInstallConflicts(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// The list stays fail-closed: an incomplete root set is never presented as complete.
+	if scope.lookupErr != nil {
+		h.skillReviewError(c, scope.lookupErr)
+		return
+	}
 	conflicts, err := h.AgentInstances.SkillProposals.InstallConflicts(c.Request.Context(), scope.actor, scope.roots)
 	if err != nil {
 		h.skillReviewError(c, err)
@@ -60,6 +65,10 @@ func (h *BaseHandlers) ResolveAgentSkillInstallConflict(c *gin.Context) {
 	// publishes the catalog again.
 	result, err := h.AgentInstances.SkillProposals.ResolveInstallConflict(c.Request.Context(), scope.actor,
 		scope.roots, c.Param("op_id"), input.Keep, "operator:"+scope.profileID)
+	// Every root that could be located was searched; the op may live under one that could not.
+	if errors.Is(err, agentinstance.ErrSkillInstallConflictNotFound) && scope.lookupErr != nil {
+		err = scope.lookupErr
+	}
 	if err != nil {
 		h.skillReviewError(c, err)
 		return
@@ -74,6 +83,9 @@ type skillInstallConflictScope struct {
 	actor     workspaceaccess.ActorRef
 	profileID string
 	roots     []string
+	// lookupErr joins the root lookups that failed for a reason other than absence; roots holds the
+	// rest.
+	lookupErr error
 }
 
 // skillInstallConflictScope authorizes an operator caller and resolves the deduplicated skill target
@@ -114,31 +126,37 @@ func (h *BaseHandlers) skillInstallConflictScope(c *gin.Context, mutation bool) 
 		h.respondError(c, 422, err)
 		return result, false
 	}
-	roots, err := api.skillTargetRoots(c.Request.Context(), query)
+	roots, lookupErr, err := api.skillTargetRoots(c.Request.Context(), query)
 	if err != nil {
 		h.skillReviewError(c, err)
 		return result, false
 	}
-	return skillInstallConflictScope{actor: actor, profileID: profile.ProfileID, roots: roots}, true
+	return skillInstallConflictScope{actor: actor, profileID: profile.ProfileID, roots: roots, lookupErr: lookupErr},
+		true
 }
 
 // skillTargetRoots pages the instances of query, archived ones included, and returns their distinct
 // skill target roots, so a conflict stays reachable after the last instance on its root is archived.
-// Instances whose root is absent or out of scope are skipped; any other lookup failure fails the
-// discovery instead of presenting an incomplete root set as complete.
-func (api *AgentInstanceAPI) skillTargetRoots(ctx context.Context, query agentinstance.ListQuery) ([]string, error) {
+// Instances whose root is absent or out of scope are skipped. Any other lookup failure is joined into
+// lookupErr while the remaining roots are still collected, so callers decide whether a partial set is
+// acceptable; err reports a failed instance listing.
+func (api *AgentInstanceAPI) skillTargetRoots(
+	ctx context.Context,
+	query agentinstance.ListQuery,
+) (roots []string, lookupErr, listErr error) {
 	query.Limit, query.AfterID, query.IncludeArchived = 100, "", true
 	seen := map[string]bool{}
-	var roots []string
 	for {
 		page, err := api.Store.List(ctx, query)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, instance := range page {
 			root, err := api.skillRecoveryRoot(ctx, instance)
 			if err != nil {
-				return nil, fmt.Errorf("locate the skill root of instance %s: %w", instance.ID, err)
+				lookupErr = errors.Join(lookupErr, fmt.Errorf("locate the skill root of instance %s: %w",
+					instance.ID, err))
+				continue
 			}
 			if root == "" || seen[root] {
 				continue
@@ -147,7 +165,7 @@ func (api *AgentInstanceAPI) skillTargetRoots(ctx context.Context, query agentin
 			roots = append(roots, root)
 		}
 		if len(page) < query.Limit {
-			return roots, nil
+			return roots, lookupErr, nil
 		}
 		query.AfterID = page[len(page)-1].ID
 	}
