@@ -24,6 +24,42 @@ import { automationTimeZoneForTarget, RUN_ON_AGENTS } from "../run-on-fixtures";
 
 const FIXED_NOW = Date.parse("2026-11-22T15:00:00Z");
 
+function defaultScheduleForMode(mode: AutomationScheduleMode): AutomationSchedule {
+  if (mode === "cron") return { mode: "cron", expr: "0 9 * * 1-5" };
+  if (mode === "every") return { mode: "every", interval: "30m" };
+  return { mode: "at", time: "2026-11-23T09:00" };
+}
+
+function formatOptionsSummary(
+  retry: AutomationRetry,
+  fireLimit: AutomationFireLimit,
+  enabled: boolean
+): string {
+  const retryPart = retry.strategy === "backoff" ? `retry ${retry.max_retries ?? 3}×` : "no retry";
+  return `${retryPart} · ${fireLimit.max}/${fireLimit.window} · ${enabled ? "on" : "off"}`;
+}
+
+function isEditorReady(input: {
+  isOffline: boolean;
+  name: string;
+  agentName: string;
+  prompt: string;
+  readoutValid: boolean;
+}): boolean {
+  return (
+    !input.isOffline &&
+    input.name.trim().length > 0 &&
+    input.agentName.trim().length > 0 &&
+    input.prompt.trim().length > 0 &&
+    input.readoutValid
+  );
+}
+
+function resolveComputerDisplayName(target: RunOnTarget, selectedName: string | undefined): string {
+  if (target === "local") return LOCAL_COMPUTER.name;
+  return selectedName ?? "devbox";
+}
+
 export function useRunOnAutomationEditor(initialTarget: RunOnTarget) {
   const [target, setTarget] = useState<RunOnTarget>(initialTarget);
   const [start, setStart] = useState<DraftAutomationStart>("schedule");
@@ -33,10 +69,9 @@ export function useRunOnAutomationEditor(initialTarget: RunOnTarget) {
   const [prompt, setPrompt] = useState(
     "Run go test -race ./internal/pgpool/... and report any flake."
   );
-  const [schedule, setSchedule] = useState<AutomationSchedule>({
-    mode: "cron",
-    expr: "0 9 * * 1-5",
-  });
+  const [schedule, setSchedule] = useState<AutomationSchedule>(() =>
+    defaultScheduleForMode("cron")
+  );
   const [daysCleared, setDaysCleared] = useState(false);
   const [expressionOpen, setExpressionOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
@@ -50,12 +85,10 @@ export function useRunOnAutomationEditor(initialTarget: RunOnTarget) {
     projects.find(project => project.id === workspaceId) ?? projects[0] ?? null;
 
   const selectedRemote = COMPUTERS_PRO.find(computer => computer.id === target) ?? null;
-  const computerDisplayName =
-    target === "local" ? LOCAL_COMPUTER.name : (selectedRemote?.name ?? "devbox");
-  const isOffline = selectedRemote?.status === "offline";
+  const computerDisplayName = resolveComputerDisplayName(target, selectedRemote?.name);
   const targetTimeZone = automationTimeZoneForTarget(target);
-
   const agentLabel = RUN_ON_AGENTS.find(agent => agent.name === agentName)?.label ?? agentName;
+
   const readout = useMemo(
     () =>
       start === "schedule"
@@ -64,20 +97,19 @@ export function useRunOnAutomationEditor(initialTarget: RunOnTarget) {
     [start, schedule, daysCleared, targetTimeZone]
   );
 
-  const ready =
-    !isOffline &&
-    name.trim().length > 0 &&
-    agentName.trim().length > 0 &&
-    prompt.trim().length > 0 &&
-    (readout?.valid ?? true);
+  const ready = isEditorReady({
+    isOffline: selectedRemote?.status === "offline",
+    name,
+    agentName,
+    prompt,
+    readoutValid: readout?.valid ?? true,
+  });
 
   const schedulePhrase = describeSchedulePhrase(schedule, targetTimeZone);
 
   const handleScheduleMode = (mode: AutomationScheduleMode) => {
     setDaysCleared(false);
-    if (mode === "cron") setSchedule({ mode: "cron", expr: "0 9 * * 1-5" });
-    else if (mode === "every") setSchedule({ mode: "every", interval: "30m" });
-    else setSchedule({ mode: "at", time: "2026-11-23T09:00" });
+    setSchedule(defaultScheduleForMode(mode));
   };
 
   const handleTargetChange = (next: RunOnTarget) => {
@@ -101,7 +133,7 @@ export function useRunOnAutomationEditor(initialTarget: RunOnTarget) {
   const optionsForm = {
     does,
     retry: retryDraftForStrategy(retry.strategy ?? "none", retry),
-    optionsSummary: `${retry.strategy === "backoff" ? `retry ${retry.max_retries ?? 3}×` : "no retry"} · ${fireLimit.max}/${fireLimit.window} · ${enabled ? "on" : "off"}`,
+    optionsSummary: formatOptionsSummary(retry, fireLimit, enabled),
     onRetryChange: next => {
       if (does !== "task") setRetry(next);
     },

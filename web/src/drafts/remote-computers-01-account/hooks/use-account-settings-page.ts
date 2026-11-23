@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, type RefObject } from "react";
 
 import { toast } from "@compozy/ui";
 
@@ -27,6 +27,7 @@ interface UseAccountSettingsPageInput {
   initialSignOutOpen: boolean;
   initialDeleteOpen: boolean;
   initialLinkMismatch: boolean;
+  lowerSectionsRef: RefObject<HTMLDivElement | null>;
 }
 
 export function useAccountSettingsPage({
@@ -44,8 +45,8 @@ export function useAccountSettingsPage({
   initialSignOutOpen,
   initialDeleteOpen,
   initialLinkMismatch,
+  lowerSectionsRef,
 }: UseAccountSettingsPageInput) {
-  const lowerSectionsRef = useRef<HTMLDivElement | null>(null);
   const [account, setAccount] = useState(initialAccount);
   const [devices, setDevices] = useState<AccountDeviceFixture[]>([...initialDevices]);
   const [approvals, setApprovals] = useState<PendingApprovalFixture[]>([...initialApprovals]);
@@ -69,7 +70,7 @@ export function useAccountSettingsPage({
   useEffect(() => {
     if (!scrollToLower) return;
     lowerSectionsRef.current?.scrollIntoView({ block: "end", behavior: "instant" });
-  }, [scrollToLower]);
+  }, [lowerSectionsRef, scrollToLower]);
 
   const isSessionAccount = account.source === "session";
   const currentDevice = devices.find(device => device.thisDevice) ?? devices[0];
@@ -182,7 +183,6 @@ export function useAccountSettingsPage({
   };
 
   return {
-    lowerSectionsRef,
     account,
     devices,
     approvals,

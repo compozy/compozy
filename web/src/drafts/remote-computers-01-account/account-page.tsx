@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 import { toast } from "@compozy/ui";
 
 import {
@@ -114,6 +116,7 @@ export function AccountSettingsPage({
   initialDeleteOpen = false,
   initialLinkMismatch = false,
 }: AccountPageProps) {
+  const lowerSectionsRef = useRef<HTMLDivElement | null>(null);
   const page = useAccountSettingsPage({
     initialAccount,
     initialDevices,
@@ -129,6 +132,7 @@ export function AccountSettingsPage({
     initialSignOutOpen,
     initialDeleteOpen,
     initialLinkMismatch,
+    lowerSectionsRef,
   });
 
   const overlay = (
@@ -228,7 +232,7 @@ export function AccountSettingsPage({
               onToggleAdmin={page.handleToggleAdmin}
             />
 
-            <div className="flex flex-col gap-10" ref={page.lowerSectionsRef}>
+            <div className="flex flex-col gap-10" ref={lowerSectionsRef}>
               <AccountEmailSection
                 marketingOptIn={page.account.marketingOptIn}
                 onToggleMarketingOptIn={page.handleToggleMarketingOptIn}

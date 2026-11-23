@@ -12,6 +12,47 @@ import type {
   AddComputerSshStage,
 } from "../mocks/remote-computers-fixtures-lane-b";
 
+const ACTIVE_SSH_STAGES = new Set<AddComputerSshStage>([
+  "running",
+  "trust_host",
+  "password",
+  "agent_secret",
+  "cancel_confirm",
+]);
+
+function resolveSshTarget(
+  draft: SshTargetDraft,
+  sshSuggestions: readonly SshHostSuggestionFixture[]
+) {
+  const selectedSuggestion = sshSuggestions.find(
+    item => item.alias === draft.host || item.hostname === draft.host
+  );
+  const resolvedHost = selectedSuggestion ? selectedSuggestion.hostname : draft.host;
+  const resolvedUser = draft.user || selectedSuggestion?.user || "";
+  const resolvedPort = draft.port && draft.port !== "22" ? `:${draft.port}` : "";
+  const targetAddress = resolvedUser
+    ? `${resolvedUser}@${resolvedHost}${resolvedPort}`
+    : `${resolvedHost}${resolvedPort}`;
+  const hostLabel = draft.name || draft.host || "staging-box";
+  const pickerBlocked =
+    !draft.host.trim() ||
+    Boolean(selectedSuggestion?.alreadyAdded) ||
+    Boolean(selectedSuggestion?.unsupportedPlatform);
+
+  return { selectedSuggestion, targetAddress, hostLabel, pickerBlocked };
+}
+
+function nextSshStageOnStart(
+  draft: SshTargetDraft,
+  selectedSuggestion: SshHostSuggestionFixture | undefined,
+  isFreePlan: boolean
+): AddComputerSshStage | null {
+  if (!draft.host.trim() || selectedSuggestion?.alreadyAdded) return null;
+  if (selectedSuggestion?.unsupportedPlatform) return "unsupported";
+  if (isFreePlan) return "plan_limit";
+  return "running";
+}
+
 interface UseAddComputerDialogInput {
   isFreePlan: boolean;
   sshSuggestions: readonly SshHostSuggestionFixture[];
@@ -37,29 +78,12 @@ export function useAddComputerDialog({
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(initialSshStage === "cancel_confirm");
   const [addedIds, setAddedIds] = useState<string[]>([]);
 
-  const selectedSuggestion = sshSuggestions.find(
-    item => item.alias === draft.host || item.hostname === draft.host
+  const { selectedSuggestion, targetAddress, hostLabel, pickerBlocked } = resolveSshTarget(
+    draft,
+    sshSuggestions
   );
-  const resolvedHost = selectedSuggestion ? selectedSuggestion.hostname : draft.host;
-  const resolvedUser = draft.user || selectedSuggestion?.user || "";
-  const resolvedPort = draft.port && draft.port !== "22" ? `:${draft.port}` : "";
-  const targetAddress = resolvedUser
-    ? `${resolvedUser}@${resolvedHost}${resolvedPort}`
-    : `${resolvedHost}${resolvedPort}`;
-  const hostLabel = draft.name || draft.host || "staging-box";
-
   const isSshProgressView = method === "ssh" && sshStage !== "picker";
-  const isActivelyRunning =
-    sshStage === "running" ||
-    sshStage === "trust_host" ||
-    sshStage === "password" ||
-    sshStage === "agent_secret" ||
-    sshStage === "cancel_confirm";
-
-  const pickerBlocked =
-    !draft.host.trim() ||
-    Boolean(selectedSuggestion?.alreadyAdded) ||
-    Boolean(selectedSuggestion?.unsupportedPlatform);
+  const isActivelyRunning = ACTIVE_SSH_STAGES.has(sshStage);
 
   const handleRequestCancel = () => {
     if (isSshProgressView && isActivelyRunning && !linkedCommitReached) {
@@ -70,16 +94,8 @@ export function useAddComputerDialog({
   };
 
   const handleStartSsh = () => {
-    if (!draft.host.trim() || selectedSuggestion?.alreadyAdded) return;
-    if (selectedSuggestion?.unsupportedPlatform) {
-      setSshStage("unsupported");
-      return;
-    }
-    if (isFreePlan) {
-      setSshStage("plan_limit");
-      return;
-    }
-    setSshStage("running");
+    const nextStage = nextSshStageOnStart(draft, selectedSuggestion, isFreePlan);
+    if (nextStage) setSshStage(nextStage);
   };
 
   const handleAddAccountItem = (item: AccountUnaddedComputerFixture) => {
