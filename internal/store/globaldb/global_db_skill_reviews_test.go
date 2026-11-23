@@ -104,7 +104,7 @@ func TestSkillReviewRepo(t *testing.T) {
 		_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances
  (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
  VALUES ('identity-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z'),
- ('variant-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`,
+ ('variant-instance',?,'variant-coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`,
 			store.DefaultProfileID, store.DefaultProfileID)
 		if err != nil {
 			t.Fatal(err)
