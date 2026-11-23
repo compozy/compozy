@@ -93,9 +93,6 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		DeadEntities:                 cfg.deadEntities,
 		AppTokens:                    cfg.appTokens,
 		OpenAPI:                      cfg.openAPI,
-		Gateway:                      cfg.gateway,
-		Ingress:                      cfg.ingress,
-		GatewayPairingSource:         string(gateway.PairingSourceLocal),
 		HomePaths:                    cfg.homePaths,
 		Config:                       cfg.config,
 		Logger:                       cfg.logger,
@@ -109,6 +106,9 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 func withHandlerServices(cfg *handlerConfig, base *core.BaseHandlerConfig) *core.BaseHandlerConfig {
 	base.SessionChanges = cfg.sessionChanges
 	base.TelemetryStatus = cfg.telemetryStatus
+	base.Gateway = cfg.gateway
+	base.Ingress = cfg.ingress
+	base.GatewayPairingSource = string(gateway.PairingSourceLocal)
 	base.OnProviderAuthSuccess = cfg.onProviderAuthSuccess
 	base.ProviderAuthVerdicts = cfg.providerAuthVerdicts
 	return base

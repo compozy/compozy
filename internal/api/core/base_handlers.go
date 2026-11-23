@@ -243,6 +243,9 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	handlers := baseHandlersFromConfig(cfg, defaults)
 	handlers.SessionChanges = cfg.SessionChanges
 	handlers.TelemetryStatus = cfg.TelemetryStatus
+	handlers.Gateway = cfg.Gateway
+	handlers.Ingress = cfg.Ingress
+	handlers.GatewayPairingSource = strings.TrimSpace(cfg.GatewayPairingSource)
 	handlers.applyAuthoredContextConfig(cfg)
 	handlers.streamDone = cfg.StreamDone
 	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()
@@ -327,9 +330,6 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		DeadEntities:                 cfg.DeadEntities,
 		AppTokens:                    cfg.AppTokens,
 		OpenAPI:                      cfg.OpenAPI,
-		Gateway:                      cfg.Gateway,
-		Ingress:                      cfg.Ingress,
-		GatewayPairingSource:         strings.TrimSpace(cfg.GatewayPairingSource),
 		HomePaths:                    cfg.HomePaths,
 		Config:                       cfg.Config,
 		Logger:                       defaults.logger,

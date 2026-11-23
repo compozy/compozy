@@ -13,7 +13,12 @@ func TestStreamTickets(t *testing.T) {
 	t.Run("Should require a freshly minted ticket for reconnect (UT-048)", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-		tickets, err := NewStreamTicketStore(DefaultStreamTicketLimit, DefaultStreamTicketTTL, func() time.Time { return now }, rand.Reader)
+		tickets, err := NewStreamTicketStore(
+			DefaultStreamTicketLimit,
+			DefaultStreamTicketTTL,
+			func() time.Time { return now },
+			rand.Reader,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -26,7 +31,8 @@ func TestStreamTickets(t *testing.T) {
 		if !cached.ExpiresAt.Equal(now.Add(30 * time.Second)) {
 			t.Fatalf("ticket expiry = %s", cached.ExpiresAt)
 		}
-		if claim, err := tickets.Consume(cached.Ticket); err != nil || claim.DeviceID != deviceID || claim.Epoch != epoch {
+		claim, err := tickets.Consume(cached.Ticket)
+		if err != nil || claim.DeviceID != deviceID || claim.Epoch != epoch {
 			t.Fatalf("Consume(cached first) = (%#v, %v), want %s at epoch %d", claim, err, deviceID, epoch)
 		}
 		if _, err := tickets.Consume(cached.Ticket); !errors.Is(err, ErrStreamTicketInvalid) {

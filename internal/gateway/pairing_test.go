@@ -287,7 +287,8 @@ func TestDeviceCredentialsAndPairing(t *testing.T) {
 		if artifact.ManualCode != "654321" {
 			t.Fatalf("manual code = %q, want the collision-free retry", artifact.ManualCode)
 		}
-		if got := store.manual[remotehost.HashCredential("654321")]; got != remotehost.HashCredential(artifact.Artifact) {
+		want := remotehost.HashCredential(artifact.Artifact)
+		if got := store.manual[remotehost.HashCredential("654321")]; got != want {
 			t.Fatalf("manual index = %q, want the artifact digest", got)
 		}
 	})

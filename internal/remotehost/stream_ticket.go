@@ -30,7 +30,7 @@ type StreamTicketClaim struct {
 }
 
 type streamTicketEntry struct {
-	StreamTicketClaim
+	claim   StreamTicketClaim
 	expires time.Time
 }
 
@@ -88,7 +88,8 @@ func (s *StreamTicketStore) Mint(deviceID string, epoch uint64) (StreamTicket, e
 	}
 	expiresAt := now.Add(s.ttl)
 	s.entries[HashCredential(ticket)] = streamTicketEntry{
-		StreamTicketClaim: StreamTicketClaim{DeviceID: deviceID, Epoch: epoch}, expires: expiresAt,
+		claim:   StreamTicketClaim{DeviceID: deviceID, Epoch: epoch},
+		expires: expiresAt,
 	}
 	return StreamTicket{Ticket: ticket, ExpiresAt: expiresAt}, nil
 }
@@ -106,7 +107,7 @@ func (s *StreamTicketStore) Consume(ticket string) (StreamTicketClaim, error) {
 	if !ok || !s.now().Before(entry.expires) {
 		return StreamTicketClaim{}, ErrStreamTicketInvalid
 	}
-	return entry.StreamTicketClaim, nil
+	return entry.claim, nil
 }
 
 func (s *StreamTicketStore) sweepExpired(now time.Time) {
