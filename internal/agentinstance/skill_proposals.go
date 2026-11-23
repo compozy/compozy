@@ -54,6 +54,8 @@ type SkillProposalService struct {
 	crashAt func(step string) bool
 	// onStep is a test seam observing the proposal's lock and auto-approve evaluation order.
 	onStep func(step string, t *skillTarget)
+	// syncDir is a test seam for directory syncs that confirm a commit; nil uses fileutil.SyncDir.
+	syncDir func(path string) error
 }
 
 type SkillProposalResult struct {

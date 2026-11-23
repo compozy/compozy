@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"time"
 
 	"github.com/compozy/compozy/internal/dirpublish"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 // continueResolution idempotently finishes a resolving journal: move the trees for keep, commit the
@@ -276,6 +278,11 @@ func (s *SkillProposalService) commitResolution(
 		entries[n-1] = entry
 		err = writeSkillInstallLog(t.root, t.name, entries)
 	}
+	if err == nil {
+		// The log is the authority: confirm the entry is durable before publishing on every path,
+		// including a retry whose entry was already written by a run that failed after the write.
+		err = s.syncSkillDir(filepath.Join(t.root, skillInstallLogDir))
+	}
 	if err != nil {
 		return err
 	}
@@ -288,6 +295,13 @@ func (s *SkillProposalService) commitResolution(
 	}
 	journal.Payload = encoded
 	return dirpublish.AdvancePhase(t.parent, journal, dirpublish.PhasePublished)
+}
+
+func (s *SkillProposalService) syncSkillDir(path string) error {
+	if s.syncDir != nil {
+		return s.syncDir(path)
+	}
+	return fileutil.SyncDir(path)
 }
 
 func skillResolutionEntry(homeID string, payload SkillInstallPayload) skillInstallLogEntry {
