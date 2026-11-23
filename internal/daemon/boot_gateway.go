@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/compozy/compozy/internal/apptoken"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -53,37 +56,34 @@ func (d *Daemon) bootDeviceGateway(
 	deviceStore gateway.DeviceStore,
 	eventWriter store.EventSummaryStore,
 ) error {
+	connections := remotehost.NewConnectionRegistry()
+	mutations := remotehost.NewMutationGate(deviceStore.RevalidateDeviceEpoch)
 	deviceOptions := []gateway.DeviceServiceOption{
 		gateway.WithDeviceClock(d.now),
+		gateway.WithConnectionRegistry(connections),
+		gateway.WithMutationGate(mutations),
 		gateway.WithDeviceEvents(gatewayDeviceAuditSink{writer: eventWriter, now: d.now}),
 		gateway.WithPairingLimits(
 			state.cfg.Gateway.Pairing.MaxPending,
 			state.cfg.Gateway.Pairing.TTL,
 		),
-		gateway.WithStreamTicketLimits(gateway.DefaultStreamTicketLimit, state.cfg.Gateway.StreamTicket.TTL),
-	}
-	appTokenStore, hasAppTokens := state.registry.(gateway.AppTokenStore)
-	if hasAppTokens {
-		deviceOptions = append(deviceOptions, gateway.WithAppTokenStore(appTokenStore))
+		gateway.WithStreamTicketLimits(remotehost.DefaultStreamTicketLimit, state.cfg.Gateway.StreamTicket.TTL),
 	}
 	devices, err := gateway.NewDeviceService(deviceStore, deviceOptions...)
 	if err != nil {
 		return fmt.Errorf("daemon: create gateway device service: %w", err)
 	}
-	if hasAppTokens {
-		if err := devices.LoadAppTokenOrigins(ctx); err != nil {
-			return fmt.Errorf("daemon: load app token origins: %w", err)
-		}
-		state.deps.AppTokens = devices
+	if err := d.bootAppTokens(ctx, state, mutations, connections); err != nil {
+		return err
 	}
-	state.deps.GatewayAuthLimiter = gateway.NewAuthFailureLimiter(
+	state.deps.GatewayAuthLimiter = remotehost.NewAuthFailureLimiter(
 		state.cfg.Gateway.Auth.RateLimit.MaxFails,
 		state.cfg.Gateway.Auth.RateLimit.Window,
 		d.now,
 	)
 	// Pairing keeps its own budget: a successful device-authenticated request
 	// resets device-auth failures, and that must not forgive pairing attempts.
-	state.deps.GatewayPairingLimiter = gateway.NewAuthFailureLimiter(
+	state.deps.GatewayPairingLimiter = remotehost.NewAuthFailureLimiter(
 		state.cfg.Gateway.Auth.RateLimit.MaxFails,
 		state.cfg.Gateway.Auth.RateLimit.Window,
 		d.now,
@@ -105,19 +105,12 @@ func (d *Daemon) bootDeviceGateway(
 	if err != nil {
 		return fmt.Errorf("daemon: create gateway policy: %w", err)
 	}
-	ingressStore, ok := state.registry.(gateway.IngressStore)
-	if !ok {
-		return errors.New("daemon: registry does not implement the gateway ingress store")
+	ingressManager, err := d.newGatewayIngress(state, policy, eventWriter)
+	if err != nil {
+		return err
 	}
 	service, err := gateway.NewService(
-		policy,
-		devices,
-		gateway.WithIngress(
-			ingressStore,
-			state.accessPolicy,
-			gatewayIngressAuditSink{writer: eventWriter, now: d.now},
-			d.now,
-		),
+		policy, devices, gateway.WithBindingProjections(ingressManager.ListBindingProjections),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create gateway service: %w", err)
@@ -125,7 +118,63 @@ func (d *Daemon) bootDeviceGateway(
 	cleanup.add(policy.Close)
 	state.gateway = policy
 	state.deps.Gateway = service
+	state.deps.Ingress = ingressManager
 	return reconcileGatewayPolicy(ctx, state, policy)
+}
+
+func (d *Daemon) newGatewayIngress(
+	state *bootState,
+	policy gateway.Policy,
+	eventWriter store.EventSummaryStore,
+) (*ingress.Manager, error) {
+	ingressStore, ok := state.registry.(ingress.Store)
+	if !ok {
+		return nil, errors.New("daemon: registry does not implement the gateway ingress store")
+	}
+	return ingress.NewManager(
+		ingressStore,
+		func(ctx context.Context) (bool, error) {
+			status, err := policy.Status(ctx)
+			if err != nil {
+				return false, err
+			}
+			for _, surface := range status.Surfaces {
+				if surface.Surface == gateway.SurfaceWebhookIngress && surface.Tier == gateway.TierPublic &&
+					surface.Desired == gateway.DesiredEnabled && surface.Observed == gateway.SurfaceOn {
+					return true, nil
+				}
+			}
+			return false, nil
+		},
+		state.accessPolicy,
+		gatewayIngressAuditSink{writer: eventWriter, now: d.now},
+		d.now,
+		func(ctx context.Context) (string, string, bool) {
+			device, ok := gateway.DeviceFromContext(ctx)
+			return string(device.ActorKind), device.ID, ok
+		},
+	)
+}
+
+func (d *Daemon) bootAppTokens(
+	ctx context.Context,
+	state *bootState,
+	mutations *remotehost.MutationGate,
+	connections remotehost.ConnectionRegistry,
+) error {
+	appTokenStore, ok := state.registry.(apptoken.Store)
+	if !ok {
+		return nil
+	}
+	appTokens, err := apptoken.NewService(appTokenStore, mutations, connections, d.now)
+	if err != nil {
+		return fmt.Errorf("daemon: create app token service: %w", err)
+	}
+	if err := appTokens.LoadAppTokenOrigins(ctx); err != nil {
+		return fmt.Errorf("daemon: load app token origins: %w", err)
+	}
+	state.deps.AppTokens = appTokens
+	return nil
 }
 
 func reconcileGatewayPolicy(ctx context.Context, state *bootState, policy gateway.Policy) error {

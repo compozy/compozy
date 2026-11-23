@@ -15,8 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/apptoken"
 	"github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
@@ -150,27 +153,25 @@ func TestGlobalDBGatewayMutationCommitFence(t *testing.T) {
 		trigger.WebhookID = "wbh_gateway_fenced"
 		trigger.EndpointSlug = "gateway-fenced"
 		insertGatewayResourceRecord(ctx, t, database, "automation.trigger", trigger.ID, "user", "", trigger)
-		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: trigger.ID}
+		ref := ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: trigger.ID}
 		subject, err := database.ResolveIngressSubject(ctx, ref)
 		if err != nil {
 			t.Fatalf("ResolveIngressSubject() error = %v", err)
 		}
 		fencedCtx := store.ContextWithMutationCommitFence(ctx, func(context.Context) error {
-			return gateway.ErrDeviceRevoked
+			return remotehost.ErrDeviceRevoked
 		})
 
 		if _, err := database.Transition(fencedCtx, gateway.TransitionRequest{
 			Target: gateway.TargetSurface, Tier: gateway.TierPublic,
 			Surface: gateway.SurfaceOperatorUI, Desired: gateway.DesiredEnabled, Consent: true,
-		}, time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)); !errors.Is(err, gateway.ErrDeviceRevoked) {
+		}, time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)); !errors.Is(err, remotehost.ErrDeviceRevoked) {
 			t.Fatalf("Transition(fenced) error = %v, want ErrDeviceRevoked", err)
 		}
 		if _, _, err := database.SyncIngressEndpoint(
-			fencedCtx,
-			gateway.TierPublic,
-			"https://gateway.example.test",
+			fencedCtx, "https://gateway.example.test",
 			time.Date(2026, 8, 6, 12, 1, 0, 0, time.UTC),
-		); !errors.Is(err, gateway.ErrDeviceRevoked) {
+		); !errors.Is(err, remotehost.ErrDeviceRevoked) {
 			t.Fatalf("SyncIngressEndpoint(fenced) error = %v, want ErrDeviceRevoked", err)
 		}
 		if _, _, err := database.PutIngressBinding(
@@ -178,7 +179,7 @@ func TestGlobalDBGatewayMutationCommitFence(t *testing.T) {
 			subject,
 			1,
 			time.Date(2026, 8, 6, 12, 2, 0, 0, time.UTC),
-		); !errors.Is(err, gateway.ErrDeviceRevoked) {
+		); !errors.Is(err, remotehost.ErrDeviceRevoked) {
 			t.Fatalf("PutIngressBinding(fenced) error = %v, want ErrDeviceRevoked", err)
 		}
 
@@ -189,9 +190,9 @@ func TestGlobalDBGatewayMutationCommitFence(t *testing.T) {
 		if len(snapshot.Surfaces) != 0 {
 			t.Fatalf("snapshot surfaces = %#v, want rollback", snapshot.Surfaces)
 		}
-		if _, err := database.GetIngressEndpoint(ctx, gateway.TierPublic); !errors.Is(
+		if _, err := database.GetIngressEndpoint(ctx); !errors.Is(
 			err,
-			gateway.ErrEndpointUnverified,
+			ingress.ErrEndpointUnverified,
 		) {
 			t.Fatalf("GetIngressEndpoint() error = %v, want ErrEndpointUnverified", err)
 		}
@@ -212,7 +213,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		}
 		at := time.Date(2026, 8, 6, 11, 0, 0, 0, time.UTC)
 		endpoint, changed, err := first.SyncIngressEndpoint(
-			ctx, gateway.TierPublic, "https://gateway.example.test", at,
+			ctx, "https://gateway.example.test", at,
 		)
 		if err != nil || !changed || endpoint.Generation != 1 || !endpoint.Reachable {
 			t.Fatalf("SyncIngressEndpoint(first) = (%#v, %t, %v)", endpoint, changed, err)
@@ -230,7 +231,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})
-		persisted, err := reopened.GetIngressEndpoint(ctx, gateway.TierPublic)
+		persisted, err := reopened.GetIngressEndpoint(ctx)
 		if err != nil {
 			t.Fatalf("GetIngressEndpoint(reopened) error = %v", err)
 		}
@@ -238,7 +239,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 			t.Fatalf("reopened endpoint = %#v, want stable generation 1", persisted)
 		}
 		stable, changed, err := reopened.SyncIngressEndpoint(
-			ctx, gateway.TierPublic, endpoint.URL, at.Add(time.Minute),
+			ctx, endpoint.URL, at.Add(time.Minute),
 		)
 		if err != nil || changed || stable.Generation != 1 {
 			t.Fatalf("SyncIngressEndpoint(reopened stable) = (%#v, %t, %v)", stable, changed, err)
@@ -252,19 +253,19 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		at := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
 
 		first, changed, err := database.SyncIngressEndpoint(
-			ctx, gateway.TierPublic, "https://gateway.example.test", at,
+			ctx, "https://gateway.example.test", at,
 		)
 		if err != nil || !changed || first.Generation != 1 {
 			t.Fatalf("SyncIngressEndpoint(first) = (%#v, %t, %v), want generation 1 changed", first, changed, err)
 		}
 		stable, changed, err := database.SyncIngressEndpoint(
-			ctx, gateway.TierPublic, "https://gateway.example.test", at.Add(time.Minute),
+			ctx, "https://gateway.example.test", at.Add(time.Minute),
 		)
 		if err != nil || changed || stable.Generation != 1 {
 			t.Fatalf("SyncIngressEndpoint(stable) = (%#v, %t, %v), want generation 1 unchanged", stable, changed, err)
 		}
 		moved, changed, err := database.SyncIngressEndpoint(
-			ctx, gateway.TierPublic, "https://gateway-two.example.test", at.Add(2*time.Minute),
+			ctx, "https://gateway-two.example.test", at.Add(2*time.Minute),
 		)
 		if err != nil || !changed || moved.Generation != 2 {
 			t.Fatalf("SyncIngressEndpoint(changed) = (%#v, %t, %v), want generation 2 changed", moved, changed, err)
@@ -289,12 +290,12 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTrigger() error = %v", err)
 		}
-		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: created.ID}
+		ref := ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: created.ID}
 		subject, err := database.ResolveIngressSubject(ctx, ref)
 		if err != nil {
 			t.Fatalf("ResolveIngressSubject() error = %v", err)
 		}
-		if subject.Scope != gateway.IngressScopeWorkspace || subject.WorkspaceID != "workspace-owner" ||
+		if subject.Scope != ingress.ScopeWorkspace || subject.WorkspaceID != "workspace-owner" ||
 			!strings.Contains(subject.Path, "/workspaces/workspace-owner/gateway-owned--wbh_gateway_owned") {
 			t.Fatalf("resolved subject = %#v, want persisted workspace owner and formatted path", subject)
 		}
@@ -308,7 +309,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 			t.Fatalf("DeleteTrigger() error = %v", err)
 		}
 		assertNoIngressBindingRow(ctx, t, database, ref)
-		if _, err := database.GetIngressBinding(ctx, ref); !errors.Is(err, gateway.ErrIngressSubjectNotFound) {
+		if _, err := database.GetIngressBinding(ctx, ref); !errors.Is(err, ingress.ErrSubjectNotFound) {
 			t.Fatalf("GetIngressBinding(after delete) error = %v, want ErrIngressSubjectNotFound", err)
 		}
 	})
@@ -338,12 +339,12 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 			trigger,
 		)
 
-		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: trigger.ID}
+		ref := ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: trigger.ID}
 		subject, err := database.ResolveIngressSubject(ctx, ref)
 		if err != nil {
 			t.Fatalf("ResolveIngressSubject(resource trigger) error = %v", err)
 		}
-		if subject.Scope != gateway.IngressScopeWorkspace ||
+		if subject.Scope != ingress.ScopeWorkspace ||
 			subject.WorkspaceID != "workspace-resource-trigger" ||
 			!strings.HasSuffix(subject.Path, "/gateway-resource--wbh_gateway_resource") {
 			t.Fatalf("resource trigger subject = %#v", subject)
@@ -420,7 +421,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 				if err != nil {
 					t.Fatalf("CreateTrigger() error = %v", err)
 				}
-				ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: created.ID}
+				ref := ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: created.ID}
 				subject, err := database.ResolveIngressSubject(ctx, ref)
 				if err != nil {
 					t.Fatalf("ResolveIngressSubject() error = %v", err)
@@ -459,7 +460,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTrigger() error = %v", err)
 		}
-		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: created.ID}
+		ref := ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: created.ID}
 		subject, err := database.ResolveIngressSubject(ctx, ref)
 		if err != nil {
 			t.Fatalf("ResolveIngressSubject() error = %v", err)
@@ -485,7 +486,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		t.Parallel()
 		database := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
-		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: "trigger-orphan"}
+		ref := ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: "trigger-orphan"}
 		if _, err := database.db.ExecContext(
 			ctx,
 			`INSERT INTO gateway_ingress_bindings (
@@ -497,7 +498,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		); err != nil {
 			t.Fatalf("insert orphan binding: %v", err)
 		}
-		if _, err := database.GetIngressBinding(ctx, ref); !errors.Is(err, gateway.ErrIngressSubjectNotFound) {
+		if _, err := database.GetIngressBinding(ctx, ref); !errors.Is(err, ingress.ErrSubjectNotFound) {
 			t.Fatalf("GetIngressBinding(orphan) error = %v, want ErrIngressSubjectNotFound", err)
 		}
 		removed, err := database.SweepOrphanedIngressBindings(ctx)
@@ -525,7 +526,7 @@ func TestGlobalDBGatewayIngressLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTrigger() error = %v", err)
 		}
-		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: created.ID}
+		ref := ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: created.ID}
 		subject, err := database.ResolveIngressSubject(ctx, ref)
 		if err != nil {
 			t.Fatalf("ResolveIngressSubject() error = %v", err)
@@ -657,7 +658,7 @@ func assertNoIngressBindingRow(
 	ctx context.Context,
 	t *testing.T,
 	database *GlobalDB,
-	ref gateway.IngressSubjectRef,
+	ref ingress.SubjectRef,
 ) {
 	t.Helper()
 	var count int
@@ -722,6 +723,46 @@ func assertGatewayTierKey(t *testing.T, snapshot gateway.Snapshot, tier gateway.
 	if !surfaceFound {
 		t.Fatalf("snapshot surfaces = %#v, want enabled operator UI on %s", snapshot.Surfaces, tier)
 	}
+}
+
+func TestIngressEndpointFailsClosedAcrossRestart(t *testing.T) {
+	t.Parallel()
+	t.Run("Should mark the endpoint unavailable when restart reconciliation fails", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		database := openTestGlobalDB(t)
+		const baseURL = "https://gateway.example.test"
+		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+		initial, _, err := database.SyncIngressEndpoint(ctx, baseURL, now)
+		if err != nil || !initial.Reachable || initial.Generation != 1 {
+			t.Fatalf("initial endpoint = (%#v, %v), want reachable generation 1", initial, err)
+		}
+
+		reconciler := gateway.NewReconciler(database.GatewayRepo, nil)
+		t.Cleanup(func() {
+			if err := reconciler.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		err = reconciler.Reconcile(ctx, gateway.ExposurePlan{Tiers: []gateway.TierPlan{{
+			Tier: gateway.TierPublic, Enabled: true,
+		}}})
+		if err == nil {
+			t.Fatal("Reconcile(missing provider) error = nil")
+		}
+		endpoint, err := database.GetIngressEndpoint(ctx)
+		if err != nil || endpoint.Reachable {
+			t.Fatalf("endpoint after failed restart reconcile = (%#v, %v), want unavailable", endpoint, err)
+		}
+
+		restored, changed, err := database.SyncIngressEndpoint(ctx, baseURL, now.Add(3*time.Hour))
+		if err != nil || changed || restored.Generation != 1 || !restored.Reachable {
+			t.Fatalf(
+				"stable endpoint restore = (%#v, %t, %v), want reachable generation 1 unchanged [IT-051]",
+				restored, changed, err,
+			)
+		}
+	})
 }
 
 func TestGlobalDBGatewayDeviceLifecycle(t *testing.T) {
@@ -830,7 +871,7 @@ func TestGlobalDBGatewayDeviceLifecycle(t *testing.T) {
 			ctx,
 			actor.Session.ID,
 			actor.Session.RevokeEpoch,
-		); !errors.Is(err, gateway.ErrDeviceRevoked) {
+		); !errors.Is(err, remotehost.ErrDeviceRevoked) {
 			t.Fatalf("RevalidateDeviceEpoch() error = %v, want ErrDeviceRevoked", err)
 		}
 		snapshot, err := database.Snapshot(ctx)
@@ -857,7 +898,7 @@ func TestGlobalDBGatewayDeviceLifecycle(t *testing.T) {
 			target.Session.ID,
 			"Must not commit",
 		)
-		if !errors.Is(err, gateway.ErrDeviceRevoked) {
+		if !errors.Is(err, remotehost.ErrDeviceRevoked) {
 			t.Fatalf("RenameDeviceForActor(stale actor) error = %v, want ErrDeviceRevoked", err)
 		}
 		unchanged, err := database.GetDevice(ctx, target.Session.ID)
@@ -920,7 +961,7 @@ func TestGlobalDBGatewayDeviceLifecycle(t *testing.T) {
 			actor.Session.ID,
 			actor.Session.RevokeEpoch,
 			actor.Session.ID,
-		); !errors.Is(err, gateway.ErrDeviceRevoked) {
+		); !errors.Is(err, remotehost.ErrDeviceRevoked) {
 			t.Fatalf("DeleteDeviceForActor(stale actor) error = %v, want ErrDeviceRevoked", err)
 		}
 		if _, err := database.GetDevice(ctx, actor.Session.ID); err != nil {
@@ -929,7 +970,7 @@ func TestGlobalDBGatewayDeviceLifecycle(t *testing.T) {
 	})
 }
 
-// Invariant: app credentials remain hash-only, isolated, origin-scoped and revocable; owner: gateway with SQLite.
+// Invariant: app credentials remain hash-only, isolated, origin-scoped and revocable; owner: app token service with SQLite.
 func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 	t.Parallel()
 	t.Run("Should keep app token authentication separate from device inventory and last use", func(t *testing.T) {
@@ -937,11 +978,15 @@ func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 		ctx := t.Context()
 		database := openTestGlobalDB(t)
 		service := appTokenServiceForTest(t, database)
-		pairing, err := service.MintPairing(ctx, gateway.PairingRequest{Source: gateway.PairingSourceLocal})
+		deviceService, err := gateway.NewDeviceService(database)
 		if err != nil {
 			t.Fatal(err)
 		}
-		device, err := service.RedeemPairing(ctx, gateway.RedeemRequest{
+		pairing, err := deviceService.MintPairing(ctx, gateway.PairingRequest{Source: gateway.PairingSourceLocal})
+		if err != nil {
+			t.Fatal(err)
+		}
+		device, err := deviceService.RedeemPairing(ctx, gateway.RedeemRequest{
 			Artifact: pairing.Artifact,
 			Name:     "Operator",
 			Kind:     gateway.ActorKindOperatorDevice,
@@ -959,13 +1004,13 @@ func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !regexp.MustCompile(`^cpz_app_[A-Za-z0-9_-]{43}$`).MatchString(issued.Secret) ||
-			!strings.HasPrefix(issued.Token.Session.ID, "apt_") || issued.Token.Session.Name != "Dashboard" ||
+			!strings.HasPrefix(issued.Token.ID, "apt_") || issued.Token.Name != "Dashboard" ||
 			!reflect.DeepEqual(issued.Token.Origins, []string{"http://a.test", "https://b.test"}) {
 			t.Fatalf("unexpected issued token metadata: %#v", issued.Token)
 		}
 		digest := sha256.Sum256([]byte(issued.Secret))
 		var storedHash string
-		if err := database.db.QueryRowContext(ctx, "SELECT token_hash FROM gateway_device_sessions WHERE id = ?", issued.Token.Session.ID).
+		if err := database.db.QueryRowContext(ctx, "SELECT token_hash FROM gateway_device_sessions WHERE id = ?", issued.Token.ID).
 			Scan(&storedHash); err != nil {
 			t.Fatal(err)
 		}
@@ -973,7 +1018,7 @@ func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 			t.Fatal("app token secret was not stored exclusively as its hash")
 		}
 		token, err := service.AuthenticateAppToken(ctx, issued.Secret)
-		if err != nil || !token.Session.LastSeenAt.IsZero() {
+		if err != nil || !token.LastSeenAt.IsZero() {
 			t.Fatalf("read-only authentication = (%#v, %v)", token, err)
 		}
 		if _, err := service.AuthenticateAppToken(
@@ -981,22 +1026,22 @@ func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 			device.Credential,
 		); !errors.Is(
 			err,
-			gateway.ErrAppTokenUnauthenticated,
+			apptoken.ErrUnauthenticated,
 		) {
 			t.Fatalf("device credential authenticated as app token: %v", err)
 		}
-		if _, err := service.Authenticate(ctx, issued.Secret); !errors.Is(err, gateway.ErrDeviceUnauthenticated) {
+		if _, err := deviceService.Authenticate(ctx, issued.Secret); !errors.Is(err, gateway.ErrDeviceUnauthenticated) {
 			t.Fatalf("app token authenticated as device: %v", err)
 		}
 		for _, mutate := range []func() error{
-			func() error { _, err := service.RenameDevice(ctx, token.Session.ID, "No"); return err },
-			func() error { _, err := service.RevokeDevice(ctx, token.Session.ID); return err },
+			func() error { _, err := deviceService.RenameDevice(ctx, token.ID, "No"); return err },
+			func() error { _, err := deviceService.RevokeDevice(ctx, token.ID); return err },
 		} {
 			if err := mutate(); !errors.Is(err, gateway.ErrDeviceNotFound) {
 				t.Fatalf("device mutation reached app token: %v", err)
 			}
 		}
-		devices, err := service.ListDevices(ctx)
+		devices, err := deviceService.ListDevices(ctx)
 		if err != nil || len(devices) != 1 || devices[0].ID != device.Device.ID {
 			t.Fatalf("device inventory = (%#v, %v)", devices, err)
 		}
@@ -1012,11 +1057,11 @@ func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 		if err != nil || len(activeDevices) != 1 || activeDevices[0].ID != device.Device.ID {
 			t.Fatalf("active device inventory = %#v, %v", activeDevices, err)
 		}
-		if err := service.TouchAppTokenLastSeen(ctx, token.Session.ID, token.Session.RevokeEpoch); err != nil {
+		if err := service.TouchAppTokenLastSeen(ctx, token.ID, token.RevokeEpoch); err != nil {
 			t.Fatal(err)
 		}
 		tokens, err := service.ListAppTokens(ctx, "")
-		if err != nil || len(tokens) != 1 || tokens[0].Session.LastSeenAt.IsZero() {
+		if err != nil || len(tokens) != 1 || tokens[0].LastSeenAt.IsZero() {
 			t.Fatalf("last use was not recorded after authorization: (%#v, %v)", tokens, err)
 		}
 	})
@@ -1039,77 +1084,77 @@ func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 			origins := []string{"https://b.test"}
 			updated, err := service.UpdateAppToken(
 				ctx,
-				issued.Token.Session.ID,
-				gateway.AppTokenPatch{Name: new("Production"), Origins: &origins},
+				issued.Token.ID,
+				apptoken.Patch{Name: new("Production"), Origins: &origins},
 			)
-			if err != nil || updated.Session.Name != "Production" || service.AppTokenOriginAllowed("http://a.test") ||
+			if err != nil || updated.Name != "Production" || service.AppTokenOriginAllowed("http://a.test") ||
 				!service.AppTokenOriginAllowed("https://b.test") {
 				t.Fatalf("update origin union: (%#v, %v)", updated, err)
 			}
 			updated, err = service.UpdateAppToken(
 				ctx,
-				issued.Token.Session.ID,
-				gateway.AppTokenPatch{Origins: new([]string{})},
+				issued.Token.ID,
+				apptoken.Patch{Origins: new([]string{})},
 			)
-			if err != nil || len(updated.Origins) != 0 || updated.Session.Name != "Production" ||
+			if err != nil || len(updated.Origins) != 0 || updated.Name != "Production" ||
 				service.AppTokenOriginAllowed("https://b.test") {
 				t.Fatalf("clear origins = (%#v, %v)", updated, err)
 			}
 			updated, err = service.UpdateAppToken(
 				ctx,
-				issued.Token.Session.ID,
-				gateway.AppTokenPatch{Origins: &origins},
+				issued.Token.ID,
+				apptoken.Patch{Origins: &origins},
 			)
-			if err != nil || updated.Session.Name != "Production" {
+			if err != nil || updated.Name != "Production" {
 				t.Fatalf("replace origins = (%#v, %v)", updated, err)
 			}
 			stream, cancel := context.WithCancel(ctx)
 			defer cancel()
-			service.Connections().RegisterWaitable(issued.Token.Session.ID, cancel, stream.Done())
-			revoked, err := service.RevokeAppToken(ctx, issued.Token.Session.ID)
+			service.Connections().RegisterWaitable(issued.Token.ID, cancel, stream.Done())
+			revoked, err := service.RevokeAppToken(ctx, issued.Token.ID)
 			if err != nil || !revoked.Changed || revoked.Canceled != 1 || stream.Err() == nil ||
 				service.AppTokenOriginAllowed("https://b.test") {
 				t.Fatalf("revocation = (%#v, %v)", revoked, err)
 			}
-			again, err := service.RevokeAppToken(ctx, issued.Token.Session.ID)
+			again, err := service.RevokeAppToken(ctx, issued.Token.ID)
 			if err != nil || again.Changed || again.Canceled != 0 ||
-				again.Token.Session.RevokedAt != revoked.Token.Session.RevokedAt {
+				again.Token.RevokedAt != revoked.Token.RevokedAt {
 				t.Fatalf("repeat revocation = (%#v, %v)", again, err)
 			}
-			if _, err := service.AuthenticateAppToken(ctx, issued.Secret); !errors.Is(err, gateway.ErrAppTokenRevoked) {
+			if _, err := service.AuthenticateAppToken(ctx, issued.Secret); !errors.Is(err, apptoken.ErrRevoked) {
 				t.Fatalf("revoked token authentication: %v", err)
 			}
 			if err := service.TouchAppTokenLastSeen(
 				ctx,
-				issued.Token.Session.ID,
+				issued.Token.ID,
 				0,
 			); !errors.Is(
 				err,
-				gateway.ErrAppTokenRevoked,
+				apptoken.ErrRevoked,
 			) {
 				t.Fatalf("revoked token last use: %v", err)
 			}
 			if _, err := service.UpdateAppToken(
 				ctx,
-				issued.Token.Session.ID,
-				gateway.AppTokenPatch{Name: new("No"), Origins: new([]string{})},
+				issued.Token.ID,
+				apptoken.Patch{Name: new("No"), Origins: new([]string{})},
 			); !errors.Is(
 				err,
-				gateway.ErrAppTokenRevoked,
+				apptoken.ErrRevoked,
 			) {
 				t.Fatalf("revoked token update: %v", err)
 			}
-			for _, state := range []gateway.AppTokenState{gateway.AppTokenStateAll, gateway.AppTokenStateRevoked} {
+			for _, state := range []apptoken.State{apptoken.StateAll, apptoken.StateRevoked} {
 				tokens, err := service.ListAppTokens(ctx, state)
 				if err != nil || len(tokens) != 1 || !reflect.DeepEqual(tokens[0], again.Token) {
 					t.Fatalf("retained revoked inventory(%s) = (%#v, %v)", state, tokens, err)
 				}
 			}
-			active, err := service.ListAppTokens(ctx, gateway.AppTokenStateActive)
+			active, err := service.ListAppTokens(ctx, apptoken.StateActive)
 			if err != nil || len(active) != 0 {
 				t.Fatalf("active inventory = (%#v, %v)", active, err)
 			}
-			if _, err := service.ListAppTokens(ctx, "expired"); !errors.Is(err, gateway.ErrAppTokenStateInvalid) {
+			if _, err := service.ListAppTokens(ctx, "expired"); !errors.Is(err, apptoken.ErrStateInvalid) {
 				t.Fatalf("invalid state filter: %v", err)
 			}
 		},
@@ -1119,10 +1164,11 @@ func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 		t.Parallel()
 		database := openTestGlobalDB(t)
 		now := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
-		service, err := gateway.NewDeviceService(
+		service, err := apptoken.NewService(
 			database,
-			gateway.WithAppTokenStore(database),
-			gateway.WithDeviceClock(func() time.Time { return now }),
+			remotehost.NewMutationGate(database.RevalidateDeviceEpoch),
+			remotehost.NewConnectionRegistry(),
+			func() time.Time { return now },
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -1133,18 +1179,18 @@ func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			ids[index] = issued.Token.Session.ID
+			ids[index] = issued.Token.ID
 			now = now.Add(time.Minute)
 		}
 		if _, err := service.RevokeAppToken(t.Context(), ids[1]); err != nil {
 			t.Fatal(err)
 		}
-		tokens, err := service.ListAppTokens(t.Context(), gateway.AppTokenStateAll)
-		if err != nil || len(tokens) != 3 || tokens[0].Session.ID != ids[2] || tokens[1].Session.ID != ids[0] ||
-			tokens[2].Session.ID != ids[1] {
+		tokens, err := service.ListAppTokens(t.Context(), apptoken.StateAll)
+		if err != nil || len(tokens) != 3 || tokens[0].ID != ids[2] || tokens[1].ID != ids[0] ||
+			tokens[2].ID != ids[1] {
 			t.Fatalf("ordered inventory = %#v, %v", tokens, err)
 		}
-		if _, err := service.RevokeAppToken(t.Context(), "apt_missing"); !errors.Is(err, gateway.ErrAppTokenNotFound) {
+		if _, err := service.RevokeAppToken(t.Context(), "apt_missing"); !errors.Is(err, apptoken.ErrNotFound) {
 			t.Fatalf("unknown token revoke error = %v", err)
 		}
 	})
@@ -1158,15 +1204,15 @@ func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		lease, err := service.AcquireMutation(ctx, issued.Token.Session.ID, 0)
+		lease, err := service.AcquireMutation(ctx, issued.Token.ID, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer gateway.ReleaseMutation(lease)
+		defer remotehost.ReleaseMutation(lease)
 		fenced := store.ContextWithMutationCommitFence(lease, func(commitCtx context.Context) error {
-			return service.RevalidateForCommit(commitCtx, issued.Token.Session.ID, 0)
+			return service.RevalidateForCommit(commitCtx, issued.Token.ID, 0)
 		})
-		result, err := service.RevokeAppToken(fenced, issued.Token.Session.ID)
+		result, err := service.RevokeAppToken(fenced, issued.Token.ID)
 		if err != nil || !result.Changed {
 			t.Fatalf("self revoke = %#v, %v", result, err)
 		}
@@ -1180,14 +1226,14 @@ func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		lease, err := service.AcquireMutation(ctx, issued.Token.Session.ID, 0)
+		lease, err := service.AcquireMutation(ctx, issued.Token.ID, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer gateway.ReleaseMutation(lease)
+		defer remotehost.ReleaseMutation(lease)
 		done := make(chan error, 1)
 		go func() {
-			_, err := service.RevokeAppToken(ctx, issued.Token.Session.ID)
+			_, err := service.RevokeAppToken(ctx, issued.Token.ID)
 			done <- err
 		}()
 		select {
@@ -1204,8 +1250,8 @@ func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 		go func() {
 			_, err := service.UpdateAppToken(
 				lease,
-				issued.Token.Session.ID,
-				gateway.AppTokenPatch{Name: new("Canceled")},
+				issued.Token.ID,
+				apptoken.Patch{Name: new("Canceled")},
 			)
 			updateDone <- err
 		}()
@@ -1217,17 +1263,17 @@ func TestGlobalDBGatewayAppTokenLifecycle(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("revocation held a lock needed by the draining mutation")
 		}
-		gateway.ReleaseMutation(lease)
+		remotehost.ReleaseMutation(lease)
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
 		if _, err := service.AcquireMutation(
 			ctx,
-			issued.Token.Session.ID,
+			issued.Token.ID,
 			0,
 		); !errors.Is(
 			err,
-			gateway.ErrDeviceRevoked,
+			remotehost.ErrDeviceRevoked,
 		) {
 			t.Fatalf("revoked token acquired mutation lease: %v", err)
 		}
@@ -1247,7 +1293,7 @@ func TestGlobalDBGatewayAppTokenLimits(t *testing.T) {
 				nil,
 			); !errors.Is(
 				err,
-				gateway.ErrAppTokenNameInvalid,
+				apptoken.ErrNameInvalid,
 			) {
 				t.Fatalf("invalid token name: %v", err)
 			}
@@ -1270,7 +1316,7 @@ func TestGlobalDBGatewayAppTokenLimits(t *testing.T) {
 			append(origins, "https://another.test"),
 		); !errors.Is(
 			err,
-			gateway.ErrAppTokenOriginLimit,
+			apptoken.ErrOriginLimit,
 		) {
 			t.Fatalf("origin limit: %v", err)
 		}
@@ -1288,7 +1334,7 @@ func TestGlobalDBGatewayAppTokenLimits(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				firstID = issued.Token.Session.ID
+				firstID = issued.Token.ID
 			}
 			start := make(chan struct{})
 			results := make(chan error, 10)
@@ -1309,7 +1355,7 @@ func TestGlobalDBGatewayAppTokenLimits(t *testing.T) {
 				switch {
 				case err == nil:
 					success++
-				case errors.Is(err, gateway.ErrAppTokenLimit):
+				case errors.Is(err, apptoken.ErrLimit):
 					limited++
 				default:
 					t.Fatalf("concurrent create: %v", err)
@@ -1332,11 +1378,13 @@ func TestGlobalDBGatewayAppTokenLimits(t *testing.T) {
 	)
 }
 
-func appTokenServiceForTest(t *testing.T, database *GlobalDB) *gateway.DeviceService {
+func appTokenServiceForTest(t *testing.T, database *GlobalDB) *apptoken.Service {
 	t.Helper()
-	service, err := gateway.NewDeviceService(database,
-		gateway.WithAppTokenStore(database),
-		gateway.WithDeviceClock(func() time.Time { return time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC) }),
+	service, err := apptoken.NewService(
+		database,
+		remotehost.NewMutationGate(database.RevalidateDeviceEpoch),
+		remotehost.NewConnectionRegistry(),
+		func() time.Time { return time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC) },
 	)
 	if err != nil {
 		t.Fatal(err)

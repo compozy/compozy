@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/gin-gonic/gin"
 )
 
@@ -71,8 +72,8 @@ func TestGatewayRedeemRateLimiting(t *testing.T) {
 			surfaceSet:       SurfaceSetPrivate,
 			gatewayAdmission: gatewayHTTPServiceStub{},
 			boundHost:        "127.0.0.1",
-			authLimiter:      gateway.NewAuthFailureLimiter(1, time.Minute, clock),
-			pairingLimiter:   gateway.NewAuthFailureLimiter(1, time.Minute, clock),
+			authLimiter:      remotehost.NewAuthFailureLimiter(1, time.Minute, clock),
+			pairingLimiter:   remotehost.NewAuthFailureLimiter(1, time.Minute, clock),
 		})
 		router := gin.New()
 		RegisterSurfaceRoutes(router, handlers, SurfaceSetPrivate)
@@ -193,12 +194,12 @@ func newGatewayRedeemTestRouter(
 		surfaceSet:       surfaceSet,
 		gatewayAdmission: gatewayHTTPServiceStub{},
 		boundHost:        "127.0.0.1",
-		authLimiter: gateway.NewAuthFailureLimiter(
+		authLimiter: remotehost.NewAuthFailureLimiter(
 			failureLimit,
 			time.Minute,
 			func() time.Time { return time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC) },
 		),
-		pairingLimiter: gateway.NewAuthFailureLimiter(
+		pairingLimiter: remotehost.NewAuthFailureLimiter(
 			failureLimit,
 			time.Minute,
 			func() time.Time { return time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC) },

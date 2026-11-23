@@ -91,6 +91,7 @@ type daemonNativeToolsDeps struct {
 	Roles            core.RolesStatusProvider
 
 	Gateway               func() core.GatewayService
+	Ingress               func() core.IngressService
 	GatewayPermissionMode func(context.Context, string) (string, error)
 	HomePaths             compozyconfig.HomePaths
 	Observer              core.Observer
@@ -148,4 +149,11 @@ func (d *daemonNativeToolsDeps) gatewayService() core.GatewayService {
 		return nil
 	}
 	return d.Gateway()
+}
+
+func (d *daemonNativeToolsDeps) ingressService() core.IngressService {
+	if d == nil || d.Ingress == nil {
+		return nil
+	}
+	return d.Ingress()
 }

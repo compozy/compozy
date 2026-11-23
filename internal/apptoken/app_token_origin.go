@@ -1,4 +1,4 @@
-package gateway
+package apptoken
 
 import (
 	"fmt"
@@ -11,27 +11,32 @@ import (
 	"unicode/utf8"
 )
 
-func NormalizeAppOrigin(raw string) (string, error) {
+const (
+	schemeHTTP  = "http"
+	schemeHTTPS = "https"
+)
+
+func NormalizeOrigin(raw string) (string, error) {
 	parsed, err := parseAppOriginURL(raw)
 	if err != nil {
 		return "", err
 	}
 	scheme := strings.ToLower(parsed.Scheme)
-	if scheme != endpointSchemeHTTP && scheme != endpointSchemeHTTPS {
-		return "", ErrAppTokenOriginInvalid
+	if scheme != schemeHTTP && scheme != schemeHTTPS {
+		return "", ErrOriginInvalid
 	}
 	host := strings.ToLower(parsed.Hostname())
 	if host == "" || strings.ContainsAny(host, "%/") {
-		return "", ErrAppTokenOriginInvalid
+		return "", ErrOriginInvalid
 	}
 	if strings.Contains(host, ":") || strings.HasPrefix(parsed.Host, "[") {
 		addr, err := netip.ParseAddr(host)
 		if err != nil || !addr.Is6() || !strings.HasPrefix(parsed.Host, "[") {
-			return "", ErrAppTokenOriginInvalid
+			return "", ErrOriginInvalid
 		}
 	}
 	if strings.HasSuffix(parsed.Host, ":") {
-		return "", ErrAppTokenOriginInvalid
+		return "", ErrOriginInvalid
 	}
 	port, err := normalizeAppOriginPort(scheme, parsed.Port())
 	if err != nil {
@@ -48,13 +53,13 @@ func NormalizeAppOrigin(raw string) (string, error) {
 
 func parseAppOriginURL(raw string) (*url.URL, error) {
 	if len(raw) < 8 || len(raw) > 2048 || strings.ContainsFunc(raw, unicode.IsSpace) {
-		return nil, ErrAppTokenOriginInvalid
+		return nil, ErrOriginInvalid
 	}
 	parsed, err := url.Parse(raw)
 	if err != nil || parsed.Opaque != "" || parsed.User != nil || parsed.Host == "" ||
 		(parsed.Path != "" && parsed.Path != "/") || parsed.RawPath != "" || parsed.RawQuery != "" || parsed.ForceQuery ||
 		parsed.Fragment != "" || strings.ContainsAny(raw, "*?#\\") {
-		return nil, ErrAppTokenOriginInvalid
+		return nil, ErrOriginInvalid
 	}
 	return parsed, nil
 }
@@ -65,9 +70,9 @@ func normalizeAppOriginPort(scheme, port string) (string, error) {
 	}
 	number, err := strconv.Atoi(port)
 	if err != nil || number < 1 || number > 65535 {
-		return "", ErrAppTokenOriginInvalid
+		return "", ErrOriginInvalid
 	}
-	if scheme == endpointSchemeHTTP && number == 80 || scheme == endpointSchemeHTTPS && number == 443 {
+	if scheme == schemeHTTP && number == 80 || scheme == schemeHTTPS && number == 443 {
 		return "", nil
 	}
 	return strconv.Itoa(number), nil
@@ -76,7 +81,7 @@ func normalizeAppOriginPort(scheme, port string) (string, error) {
 func normalizeAppTokenOrigins(origins []string) ([]string, error) {
 	normalized := make([]string, 0, len(origins))
 	for _, origin := range origins {
-		value, err := NormalizeAppOrigin(origin)
+		value, err := NormalizeOrigin(origin)
 		if err != nil {
 			return nil, fmt.Errorf("origin %q is invalid: %w", origin, err)
 		}
@@ -84,8 +89,8 @@ func normalizeAppTokenOrigins(origins []string) ([]string, error) {
 	}
 	slices.Sort(normalized)
 	normalized = slices.Compact(normalized)
-	if len(normalized) > AppTokenOriginLimit {
-		return nil, ErrAppTokenOriginLimit
+	if len(normalized) > OriginLimit {
+		return nil, ErrOriginLimit
 	}
 	return normalized, nil
 }
@@ -93,12 +98,12 @@ func normalizeAppTokenOrigins(origins []string) ([]string, error) {
 func normalizeAppTokenName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if !utf8.ValidString(name) || utf8.RuneCountInString(name) == 0 ||
-		utf8.RuneCountInString(name) > AppTokenNameLimit {
-		return "", ErrAppTokenNameInvalid
+		utf8.RuneCountInString(name) > nameLimit {
+		return "", ErrNameInvalid
 	}
 	return name, nil
 }
 
-func HasAppTokenPrefix(secret string) bool {
+func HasPrefix(secret string) bool {
 	return strings.HasPrefix(secret, appTokenPrefix)
 }

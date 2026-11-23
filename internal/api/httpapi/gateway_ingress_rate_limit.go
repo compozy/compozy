@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,7 +27,7 @@ func (h *Handlers) gatewayIngressRateLimitMiddleware() gin.HandlerFunc {
 		}
 		seconds := max(int64(math.Ceil(retryAfter.Seconds())), int64(1))
 		c.Header("Retry-After", strconv.FormatInt(seconds, 10))
-		core.RespondError(c, http.StatusTooManyRequests, gateway.ErrIngressRateLimited, false)
+		core.RespondError(c, http.StatusTooManyRequests, ingress.ErrRateLimited, false)
 		c.Abort()
 	}
 }

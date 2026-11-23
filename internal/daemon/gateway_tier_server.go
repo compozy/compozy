@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/remotehost"
 )
 
 func defaultGatewayTierServerFactory(
@@ -28,7 +29,7 @@ func defaultGatewayTierServerFactory(
 	options := httpServerOptions(deps)
 	authLimiter := deps.GatewayAuthLimiter
 	if authLimiter == nil {
-		authLimiter = gateway.NewAuthFailureLimiter(
+		authLimiter = remotehost.NewAuthFailureLimiter(
 			deps.Config.Gateway.Auth.RateLimit.MaxFails,
 			deps.Config.Gateway.Auth.RateLimit.Window,
 			func() time.Time { return time.Now().UTC() },
@@ -36,7 +37,7 @@ func defaultGatewayTierServerFactory(
 	}
 	pairingLimiter := deps.GatewayPairingLimiter
 	if pairingLimiter == nil {
-		pairingLimiter = gateway.NewAuthFailureLimiter(
+		pairingLimiter = remotehost.NewAuthFailureLimiter(
 			deps.Config.Gateway.Auth.RateLimit.MaxFails,
 			deps.Config.Gateway.Auth.RateLimit.Window,
 			func() time.Time { return time.Now().UTC() },

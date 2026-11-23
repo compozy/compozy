@@ -5,32 +5,24 @@ import (
 	"errors"
 	"time"
 
-	"github.com/compozy/compozy/internal/workspaceaccess"
+	"github.com/compozy/compozy/internal/ingress"
+	"github.com/compozy/compozy/internal/remotehost"
 )
 
 // Service composes exposure policy with device authentication for API transports.
 type Service struct {
-	policy  Policy
-	devices *DeviceService
-	ingress *ingressManager
+	policy             Policy
+	devices            *DeviceService
+	bindingProjections func(context.Context) ([]ingress.Projection, error)
 }
 
 // ServiceOption adds optional gateway capabilities to the transport facade.
 type ServiceOption func(*Service) error
 
-// WithIngress configures workspace-authorized public ingress management.
-func WithIngress(
-	store IngressStore,
-	access workspaceaccess.Policy,
-	events IngressEventSink,
-	now func() time.Time,
-) ServiceOption {
+// WithBindingProjections supplies ingress data for the gateway status payload.
+func WithBindingProjections(list func(context.Context) ([]ingress.Projection, error)) ServiceOption {
 	return func(service *Service) error {
-		manager, err := newIngressManager(store, service.policy, access, events, now)
-		if err != nil {
-			return err
-		}
-		service.ingress = manager
+		service.bindingProjections = list
 		return nil
 	}
 }
@@ -68,27 +60,12 @@ func (s *Service) ReconfigureDeviceLimits(
 
 func (s *Service) Status(ctx context.Context) (Status, error) {
 	status, err := s.policy.Status(ctx)
-	if err != nil || s.ingress == nil {
+	if err != nil || s.bindingProjections == nil {
 		return status, err
 	}
-	bindings, err := s.ingress.store.ListIngressBindings(ctx)
+	status.Bindings, err = s.bindingProjections(ctx)
 	if err != nil {
 		return Status{}, err
-	}
-	status.Bindings = make([]IngressBindingStatus, 0, len(bindings))
-	readWorkspaceID, scopedRead := ingressReadWorkspace(ctx)
-	for _, binding := range bindings {
-		if scopedRead && binding.Scope == IngressScopeWorkspace && binding.WorkspaceID != readWorkspaceID {
-			continue
-		}
-		projection, projectErr := s.ingress.project(ctx, binding.Subject)
-		if errors.Is(projectErr, ErrIngressSubjectNotFound) {
-			continue
-		}
-		if projectErr != nil {
-			return Status{}, projectErr
-		}
-		status.Bindings = append(status.Bindings, projection)
 	}
 	return status, nil
 }
@@ -152,36 +129,8 @@ func (s *Service) RenameDevice(ctx context.Context, deviceID, name string) (Devi
 	return s.devices.RenameDevice(ctx, deviceID, name)
 }
 
-func (s *Service) MintStreamTicket(ctx context.Context, deviceID string) (StreamTicket, error) {
+func (s *Service) MintStreamTicket(ctx context.Context, deviceID string) (remotehost.StreamTicket, error) {
 	return s.devices.MintStreamTicket(ctx, deviceID)
-}
-
-func (s *Service) ResolveIngressSubject(ctx context.Context, ref IngressSubjectRef) (IngressSubject, error) {
-	if s == nil || s.ingress == nil {
-		return IngressSubject{}, ErrIngressSubjectNotFound
-	}
-	return s.ingress.store.ResolveIngressSubject(ctx, ref)
-}
-
-func (s *Service) BindIngress(ctx context.Context, req IngressBindRequest) (IngressBinding, error) {
-	if s == nil || s.ingress == nil {
-		return IngressBinding{}, ErrIngressSubjectNotFound
-	}
-	return s.ingress.bind(ctx, req)
-}
-
-func (s *Service) UnbindIngress(ctx context.Context, req IngressUnbindRequest) (UnbindResult, error) {
-	if s == nil || s.ingress == nil {
-		return UnbindResult{}, ErrIngressSubjectNotFound
-	}
-	return s.ingress.unbind(ctx, req)
-}
-
-func (s *Service) ProjectIngress(ctx context.Context, ref IngressSubjectRef) (IngressProjection, error) {
-	if s == nil || s.ingress == nil {
-		return IngressProjection{}, ErrIngressSubjectNotFound
-	}
-	return s.ingress.project(ctx, ref)
 }
 
 func (s *Service) Authenticate(ctx context.Context, credential string) (DeviceSession, error) {
@@ -200,7 +149,7 @@ func (s *Service) AcquireMutation(ctx context.Context, deviceID string, epoch ui
 	return s.devices.AcquireMutation(ctx, deviceID, epoch)
 }
 
-func (s *Service) Connections() ConnectionRegistry {
+func (s *Service) Connections() remotehost.ConnectionRegistry {
 	return s.devices.Connections()
 }
 

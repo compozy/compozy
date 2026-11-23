@@ -1,4 +1,4 @@
-package gateway
+package ingress
 
 import (
 	"context"
@@ -14,96 +14,93 @@ import (
 )
 
 const (
-	// IngressEnablePath is the operator API path used to enable public ingress.
-	IngressEnablePath          = "/api/gateway/surfaces"
+	// EnablePath is the operator API path used to enable public ingress.
+	EnablePath                 = "/api/gateway/surfaces"
 	ingressCompensationTimeout = 5 * time.Second
 )
 
-// IngressEventSink records durable binding lifecycle events.
-type IngressEventSink interface {
-	RecordIngressBound(context.Context, IngressMutationEvent) error
-	RecordIngressUnbound(context.Context, IngressMutationEvent) error
+// EventSink records durable binding lifecycle events.
+type EventSink interface {
+	RecordIngressBound(context.Context, MutationEvent) error
+	RecordIngressUnbound(context.Context, MutationEvent) error
 }
 
-type ingressManager struct {
-	store  IngressStore
-	policy Policy
-	access workspaceaccess.Policy
-	events IngressEventSink
-	now    func() time.Time
-	mu     sync.Mutex
+type Manager struct {
+	store       Store
+	publicOn    func(context.Context) (bool, error)
+	access      workspaceaccess.Policy
+	events      EventSink
+	now         func() time.Time
+	remoteActor func(context.Context) (kind, id string, ok bool)
+	mu          sync.Mutex
 }
 
-func newIngressManager(
-	store IngressStore,
-	policy Policy,
+func NewManager(
+	store Store,
+	publicOn func(context.Context) (bool, error),
 	access workspaceaccess.Policy,
-	events IngressEventSink,
+	events EventSink,
 	now func() time.Time,
-) (*ingressManager, error) {
+	remoteActor func(context.Context) (kind, id string, ok bool),
+) (*Manager, error) {
 	if store == nil {
 		return nil, errors.New("gateway: ingress store is required")
 	}
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	if policy == nil {
+	if publicOn == nil {
 		return nil, errors.New("gateway: ingress policy is required")
 	}
-	return &ingressManager{
-		store:  store,
-		policy: policy,
-		access: access,
-		events: events,
-		now:    now,
+	return &Manager{
+		store:       store,
+		publicOn:    publicOn,
+		access:      access,
+		events:      events,
+		now:         now,
+		remoteActor: remoteActor,
 	}, nil
 }
 
-func (m *ingressManager) bind(ctx context.Context, req IngressBindRequest) (IngressBinding, error) {
+func (m *Manager) Bind(ctx context.Context, req BindRequest) (Binding, error) {
 	if ctx == nil {
-		return IngressBinding{}, errors.New("gateway: bind ingress context is required")
+		return Binding{}, errors.New("gateway: bind ingress context is required")
 	}
 	if err := req.Subject.Validate(); err != nil {
-		return IngressBinding{}, err
+		return Binding{}, err
 	}
 	if !req.Confirmed {
-		return IngressBinding{}, errors.New("gateway: ingress endpoint confirmation is required")
+		return Binding{}, errors.New("gateway: ingress endpoint confirmation is required")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	subject, err := m.store.ResolveIngressSubject(ctx, req.Subject)
 	if err != nil {
-		return IngressBinding{}, err
+		return Binding{}, err
 	}
 	if subject.TargetUnavailable {
-		return IngressBinding{}, ErrIngressTargetUnavailable
+		return Binding{}, ErrTargetUnavailable
 	}
 	if err := m.authorize(ctx, req.Caller, subject); err != nil {
-		return IngressBinding{}, err
+		return Binding{}, err
 	}
-	publicOn, err := m.publicIngressOn(ctx)
+	publicOn, err := m.publicOn(ctx)
 	if err != nil {
-		return IngressBinding{}, err
+		return Binding{}, err
 	}
 	if !publicOn {
-		return IngressBinding{}, refusalError(
-			"public ingress is not reachable",
-			"enable the public webhook ingress surface and wait for a verified address",
-		)
+		return Binding{}, ErrUnreachable
 	}
-	endpoint, err := m.store.GetIngressEndpoint(ctx, TierPublic)
+	endpoint, err := m.store.GetIngressEndpoint(ctx)
 	if err != nil || !endpoint.Reachable || strings.TrimSpace(endpoint.URL) == "" {
 		if err != nil && !errors.Is(err, ErrEndpointUnverified) {
-			return IngressBinding{}, err
+			return Binding{}, err
 		}
-		return IngressBinding{}, refusalError(
-			"public ingress is not reachable",
-			"enable the public webhook ingress surface and wait for a verified address",
-		)
+		return Binding{}, ErrUnreachable
 	}
 	previous, previousErr := m.store.GetIngressBinding(ctx, req.Subject)
-	if previousErr != nil && !errors.Is(previousErr, ErrIngressSubjectNotFound) {
-		return IngressBinding{}, previousErr
+	if previousErr != nil && !errors.Is(previousErr, ErrSubjectNotFound) {
+		return Binding{}, previousErr
 	}
 	binding, changed, err := m.store.PutIngressBinding(
 		ctx,
@@ -112,13 +109,13 @@ func (m *ingressManager) bind(ctx context.Context, req IngressBindRequest) (Ingr
 		m.now().UTC(),
 	)
 	if err != nil {
-		return IngressBinding{}, err
+		return Binding{}, err
 	}
 	binding.Changed = changed
 	if changed && m.events != nil {
 		if eventErr := m.events.RecordIngressBound(
 			ctx,
-			ingressMutationEvent(ctx, req.Caller, binding),
+			m.mutationEvent(ctx, req.Caller, binding),
 		); eventErr != nil {
 			compensationCtx, cancelCompensation := ingressCompensationContext(ctx)
 			defer cancelCompensation()
@@ -128,7 +125,7 @@ func (m *ingressManager) bind(ctx context.Context, req IngressBindRequest) (Ingr
 				previous,
 				previousErr == nil,
 			)
-			return IngressBinding{}, errors.Join(
+			return Binding{}, errors.Join(
 				fmt.Errorf("gateway: record ingress bound event: %w", eventErr),
 				compensationErr,
 			)
@@ -137,9 +134,9 @@ func (m *ingressManager) bind(ctx context.Context, req IngressBindRequest) (Ingr
 	return binding, nil
 }
 
-func (m *ingressManager) unbind(
+func (m *Manager) Unbind(
 	ctx context.Context,
-	req IngressUnbindRequest,
+	req UnbindRequest,
 ) (UnbindResult, error) {
 	if ctx == nil {
 		return UnbindResult{}, errors.New("gateway: unbind ingress context is required")
@@ -157,7 +154,7 @@ func (m *ingressManager) unbind(
 		return UnbindResult{}, err
 	}
 	existing, existingErr := m.store.GetIngressBinding(ctx, req.Subject)
-	if existingErr != nil && !errors.Is(existingErr, ErrIngressSubjectNotFound) {
+	if existingErr != nil && !errors.Is(existingErr, ErrSubjectNotFound) {
 		return UnbindResult{}, existingErr
 	}
 	changed, err := m.store.DeleteIngressBinding(ctx, subject)
@@ -167,7 +164,7 @@ func (m *ingressManager) unbind(
 	if changed && m.events != nil {
 		if eventErr := m.events.RecordIngressUnbound(
 			ctx,
-			ingressMutationEvent(ctx, req.Caller, existing),
+			m.mutationEvent(ctx, req.Caller, existing),
 		); eventErr != nil {
 			compensationCtx, cancelCompensation := ingressCompensationContext(ctx)
 			defer cancelCompensation()
@@ -190,47 +187,47 @@ func ingressCompensationContext(ctx context.Context) (context.Context, context.C
 	return context.WithTimeout(context.WithoutCancel(ctx), ingressCompensationTimeout)
 }
 
-func (m *ingressManager) project(
+func (m *Manager) Project(
 	ctx context.Context,
-	ref IngressSubjectRef,
-) (IngressProjection, error) {
+	ref SubjectRef,
+) (Projection, error) {
 	subject, err := m.store.ResolveIngressSubject(ctx, ref)
 	if err != nil {
-		return IngressProjection{}, err
+		return Projection{}, err
 	}
-	projection := IngressProjection{
-		Subject: subject.IngressSubjectRef, Scope: subject.Scope,
-		WorkspaceID: subject.WorkspaceID, Reachability: IngressReachabilityOff,
-		EnablePath: IngressEnablePath,
+	projection := Projection{
+		Subject: subject.SubjectRef, Scope: subject.Scope,
+		WorkspaceID: subject.WorkspaceID, Reachability: ReachabilityOff,
+		EnablePath: EnablePath,
 	}
 	if readWorkspaceID, scopedRead := ingressReadWorkspace(ctx); scopedRead &&
-		subject.Scope == IngressScopeWorkspace && subject.WorkspaceID != readWorkspaceID {
-		return IngressProjection{}, ErrIngressForbidden
+		subject.Scope == ScopeWorkspace && subject.WorkspaceID != readWorkspaceID {
+		return Projection{}, ErrForbidden
 	}
 	if subject.TargetUnavailable {
-		projection.Reachability = IngressReachabilityBroken
+		projection.Reachability = ReachabilityBroken
 		return projection, nil
 	}
 	binding, bindingErr := m.store.GetIngressBinding(ctx, ref)
 	if bindingErr == nil {
 		projection.ConfirmedAt = binding.ConfirmedAt
 		projection.ConfirmedEndpointGeneration = binding.EndpointGeneration
-	} else if !errors.Is(bindingErr, ErrIngressSubjectNotFound) {
-		return IngressProjection{}, bindingErr
+	} else if !errors.Is(bindingErr, ErrSubjectNotFound) {
+		return Projection{}, bindingErr
 	}
-	publicOn, err := m.publicIngressOn(ctx)
+	publicOn, err := m.publicOn(ctx)
 	if err != nil {
-		return IngressProjection{}, err
+		return Projection{}, err
 	}
 	if !publicOn {
 		return projection, nil
 	}
-	endpoint, err := m.store.GetIngressEndpoint(ctx, TierPublic)
+	endpoint, err := m.store.GetIngressEndpoint(ctx)
 	if err != nil {
 		if errors.Is(err, ErrEndpointUnverified) {
 			return projection, nil
 		}
-		return IngressProjection{}, err
+		return Projection{}, err
 	}
 	projection.EndpointGeneration = endpoint.Generation
 	if !endpoint.Reachable {
@@ -238,27 +235,27 @@ func (m *ingressManager) project(
 	}
 	projection.URL, err = publicIngressURL(endpoint.URL, subject.Path)
 	if err != nil {
-		return IngressProjection{}, err
+		return Projection{}, err
 	}
-	projection.Reachability = IngressReachabilityUnconfirmed
+	projection.Reachability = ReachabilityUnconfirmed
 	if bindingErr != nil {
-		if errors.Is(bindingErr, ErrIngressSubjectNotFound) {
+		if errors.Is(bindingErr, ErrSubjectNotFound) {
 			return projection, nil
 		}
-		return IngressProjection{}, bindingErr
+		return Projection{}, bindingErr
 	}
 	if binding.EndpointGeneration == endpoint.Generation {
-		projection.Reachability = IngressReachabilityLive
+		projection.Reachability = ReachabilityLive
 	} else {
-		projection.Reachability = IngressReachabilityReconfirmation
+		projection.Reachability = ReachabilityReconfirmation
 	}
 	return projection, nil
 }
 
-func (m *ingressManager) restoreBinding(
+func (m *Manager) restoreBinding(
 	ctx context.Context,
-	subject IngressSubject,
-	previous IngressBinding,
+	subject Subject,
+	previous Binding,
 	hadPrevious bool,
 ) error {
 	if !hadPrevious {
@@ -274,54 +271,41 @@ func (m *ingressManager) restoreBinding(
 	return err
 }
 
-func ingressMutationEvent(
+func (m *Manager) mutationEvent(
 	ctx context.Context,
-	caller *IngressCaller,
-	binding IngressBinding,
-) IngressMutationEvent {
-	event := IngressMutationEvent{Binding: binding}
+	caller *Caller,
+	binding Binding,
+) MutationEvent {
+	event := MutationEvent{Binding: binding}
 	if caller != nil {
 		event.ActorKind = string(workspaceaccess.ActorAgentSession)
 		event.ActorID = strings.TrimSpace(caller.SessionID)
 		return event
 	}
-	if device, ok := DeviceFromContext(ctx); ok {
-		event.ActorKind = string(device.ActorKind)
-		event.ActorID = strings.TrimSpace(device.ID)
-		return event
+	if m.remoteActor != nil {
+		if kind, id, ok := m.remoteActor(ctx); ok {
+			event.ActorKind, event.ActorID = kind, strings.TrimSpace(id)
+			return event
+		}
 	}
 	event.ActorKind = string(workspaceaccess.ActorHuman)
 	event.ActorID = "local-user"
 	return event
 }
 
-func (m *ingressManager) publicIngressOn(ctx context.Context) (bool, error) {
-	status, err := m.policy.Status(ctx)
-	if err != nil {
-		return false, err
-	}
-	for _, surface := range status.Surfaces {
-		if surface.Surface == SurfaceWebhookIngress && surface.Tier == TierPublic &&
-			surface.Desired == DesiredEnabled && surface.Observed == SurfaceOn {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (m *ingressManager) authorize(
+func (m *Manager) authorize(
 	ctx context.Context,
-	caller *IngressCaller,
-	subject IngressSubject,
+	caller *Caller,
+	subject Subject,
 ) error {
 	if caller == nil {
 		return nil
 	}
 	if m.access == nil {
-		return ErrIngressForbidden
+		return ErrForbidden
 	}
 	target := workspaceaccess.ScopeTarget(subject.WorkspaceID, subject.ProfileID)
-	if subject.Scope == IngressScopeGlobal {
+	if subject.Scope == ScopeGlobal {
 		target = workspaceaccess.TargetRef{
 			Kind:      workspaceaccess.TargetAggregate,
 			ProfileID: subject.ProfileID,
@@ -337,10 +321,10 @@ func (m *ingressManager) authorize(
 		Seam:   workspaceaccess.SeamIdentity,
 	})
 	if err != nil {
-		return errors.Join(ErrIngressForbidden, err)
+		return errors.Join(ErrForbidden, err)
 	}
 	if !decision.Allowed {
-		return ErrIngressForbidden
+		return ErrForbidden
 	}
 	return nil
 }
@@ -354,4 +338,27 @@ func publicIngressURL(baseURL, subjectPath string) (string, error) {
 	parsed.Fragment = ""
 	parsed.Path = path.Join(parsed.Path, subjectPath)
 	return parsed.String(), nil
+}
+
+func (m *Manager) ListBindingProjections(ctx context.Context) ([]Projection, error) {
+	bindings, err := m.store.ListIngressBindings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	projections := make([]Projection, 0, len(bindings))
+	readWorkspaceID, scopedRead := ingressReadWorkspace(ctx)
+	for _, binding := range bindings {
+		if scopedRead && binding.Scope == ScopeWorkspace && binding.WorkspaceID != readWorkspaceID {
+			continue
+		}
+		projection, projectErr := m.Project(ctx, binding.Subject)
+		if errors.Is(projectErr, ErrSubjectNotFound) {
+			continue
+		}
+		if projectErr != nil {
+			return nil, projectErr
+		}
+		projections = append(projections, projection)
+	}
+	return projections, nil
 }

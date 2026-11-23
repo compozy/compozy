@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
@@ -306,7 +307,7 @@ func (g *GatewayRepo) RevalidateDeviceEpoch(ctx context.Context, deviceID string
 		return fmt.Errorf("store: revalidate gateway device epoch: %w", err)
 	}
 	if !matches {
-		return gateway.ErrDeviceRevoked
+		return remotehost.ErrDeviceRevoked
 	}
 	return nil
 }
@@ -324,7 +325,7 @@ func (g *GatewayRepo) classifyDeviceMutationMiss(
 		return fmt.Errorf("store: classify gateway actor epoch: %w", err)
 	}
 	if !matches {
-		return gateway.ErrDeviceRevoked
+		return remotehost.ErrDeviceRevoked
 	}
 	if _, err := g.readQueries.GetGatewayDevice(ctx, targetID); errors.Is(err, sql.ErrNoRows) {
 		return gateway.ErrDeviceNotFound

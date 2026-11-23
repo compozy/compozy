@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,7 +20,7 @@ var (
 func (h *BaseHandlers) GetGatewayStatus(c *gin.Context) {
 	ctx, err := h.gatewayStatusReadContext(c)
 	if err != nil {
-		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+		h.respondGatewayError(c, errors.Join(ingress.ErrForbidden, err))
 		return
 	}
 	payload, err := h.GatewayStatus(ctx)
@@ -33,7 +34,7 @@ func (h *BaseHandlers) GetGatewayStatus(c *gin.Context) {
 func (h *BaseHandlers) GetGatewayAudit(c *gin.Context) {
 	ctx, err := h.gatewayIngressReadContext(c, "gateway.audit")
 	if err != nil {
-		h.respondGatewayError(c, errors.Join(gateway.ErrIngressForbidden, err))
+		h.respondGatewayError(c, errors.Join(ingress.ErrForbidden, err))
 		return
 	}
 	if h == nil || h.Gateway == nil {
@@ -70,7 +71,7 @@ func (h *BaseHandlers) gatewayIngressReadContextForWorkspace(
 	if err != nil {
 		return nil, err
 	}
-	return gateway.WithIngressReadWorkspace(ctx, caller.Session.WorkspaceID), nil
+	return ingress.WithReadWorkspace(ctx, caller.Session.WorkspaceID), nil
 }
 
 func (h *BaseHandlers) requireGatewayIngressReadContext(

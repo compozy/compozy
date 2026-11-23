@@ -10,21 +10,21 @@ import (
 	"time"
 
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-var _ gateway.IngressStore = (*GatewayRepo)(nil)
+var _ ingress.Store = (*GatewayRepo)(nil)
 
 // ResolveIngressSubject loads scope and routing from the canonical subject table.
 func (g *GatewayRepo) ResolveIngressSubject(
 	ctx context.Context,
-	ref gateway.IngressSubjectRef,
-) (gateway.IngressSubject, error) {
+	ref ingress.SubjectRef,
+) (ingress.Subject, error) {
 	if err := g.checkReady(ctx, "resolve gateway ingress subject"); err != nil {
-		return gateway.IngressSubject{}, err
+		return ingress.Subject{}, err
 	}
 	return resolveGatewayIngressSubject(ctx, g.readQueries, ref)
 }
@@ -32,71 +32,71 @@ func (g *GatewayRepo) ResolveIngressSubject(
 func resolveGatewayIngressSubject(
 	ctx context.Context,
 	queries *sqlcgen.Queries,
-	ref gateway.IngressSubjectRef,
-) (gateway.IngressSubject, error) {
+	ref ingress.SubjectRef,
+) (ingress.Subject, error) {
 	if err := ref.Validate(); err != nil {
-		return gateway.IngressSubject{}, err
+		return ingress.Subject{}, err
 	}
 	ref.ID = strings.TrimSpace(ref.ID)
 	switch ref.Kind {
-	case gateway.IngressSubjectWebhookTrigger:
+	case ingress.SubjectWebhookTrigger:
 		row, err := queries.GetGatewayWebhookIngressSubject(ctx, ref.ID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return gateway.IngressSubject{}, gateway.ErrIngressSubjectNotFound
+			return ingress.Subject{}, ingress.ErrSubjectNotFound
 		}
 		if err != nil {
-			return gateway.IngressSubject{}, fmt.Errorf("store: resolve webhook ingress subject: %w", err)
+			return ingress.Subject{}, fmt.Errorf("store: resolve webhook ingress subject: %w", err)
 		}
 		endpoint, err := automationmodel.FormatWebhookEndpoint(row.EndpointSlug, row.WebhookID)
 		if err != nil {
-			return gateway.IngressSubject{}, fmt.Errorf("store: format webhook ingress endpoint: %w", err)
+			return ingress.Subject{}, fmt.Errorf("store: format webhook ingress endpoint: %w", err)
 		}
 		prefix := "/api/webhooks/global"
-		if row.ScopeKind == string(gateway.IngressScopeWorkspace) {
+		if row.ScopeKind == string(ingress.ScopeWorkspace) {
 			prefix = "/api/webhooks/workspaces/" + url.PathEscape(row.WorkspaceID.String)
 		}
 		subject, err := gatewayIngressSubject(ref, row.ScopeKind, row.WorkspaceID, prefix+"/"+endpoint)
 		if err != nil {
-			return gateway.IngressSubject{}, err
+			return ingress.Subject{}, err
 		}
 		profileID := strings.TrimSpace(row.ProfileID)
 		if profileID == "" {
-			return gateway.IngressSubject{}, errors.New("store: ingress subject profile is unavailable")
+			return ingress.Subject{}, errors.New("store: ingress subject profile is unavailable")
 		}
 		subject.ProfileID = profileID
 		return subject, nil
 	default:
-		return gateway.IngressSubject{}, gateway.ErrIngressSubjectNotFound
+		return ingress.Subject{}, ingress.ErrSubjectNotFound
 	}
 }
 
 func gatewayIngressSubject(
-	ref gateway.IngressSubjectRef,
+	ref ingress.SubjectRef,
 	scope string,
 	workspaceID sql.NullString,
 	callbackPath string,
-) (gateway.IngressSubject, error) {
+) (ingress.Subject, error) {
 	scope, workspaceID, err := gatewayIngressDomainScope(scope, workspaceID)
 	if err != nil {
-		return gateway.IngressSubject{}, err
+		return ingress.Subject{}, err
 	}
-	subject := gateway.IngressSubject{
-		IngressSubjectRef: ref,
-		Scope:             gateway.IngressScopeKind(scope),
-		WorkspaceID:       strings.TrimSpace(workspaceID.String),
-		Path:              callbackPath,
+	subject := ingress.Subject{
+		SubjectRef:  ref,
+		Scope:       ingress.ScopeKind(scope),
+		WorkspaceID: strings.TrimSpace(workspaceID.String),
+		Path:        callbackPath,
 	}
 	switch subject.Scope {
-	case gateway.IngressScopeGlobal:
+	case ingress.ScopeGlobal:
 		if subject.WorkspaceID != "" {
-			return gateway.IngressSubject{}, errors.New("store: global ingress subject has a workspace")
+			return ingress.Subject{}, errors.New("store: global ingress subject has a workspace")
 		}
-	case gateway.IngressScopeWorkspace:
+	case ingress.ScopeWorkspace:
 		if subject.WorkspaceID == "" {
-			return gateway.IngressSubject{}, errors.New("store: workspace ingress subject has no workspace")
+			return ingress.Subject{}, errors.New("store: workspace ingress subject has no workspace")
 		}
 	default:
-		return gateway.IngressSubject{}, fmt.Errorf("store: invalid ingress subject scope %q", subject.Scope)
+		return ingress.Subject{}, fmt.Errorf("store: invalid ingress subject scope %q", subject.Scope)
 	}
 	return subject, nil
 }
@@ -104,9 +104,9 @@ func gatewayIngressSubject(
 func gatewayIngressDomainScope(scope string, workspaceID sql.NullString) (string, sql.NullString, error) {
 	switch resources.ResourceScopeKind(scope) {
 	case resources.ResourceScopeKindUser, resources.ResourceScopeKindProfile:
-		return string(gateway.IngressScopeGlobal), sql.NullString{}, nil
+		return string(ingress.ScopeGlobal), sql.NullString{}, nil
 	case resources.ResourceScopeKindWorkspace:
-		return string(gateway.IngressScopeWorkspace), workspaceID, nil
+		return string(ingress.ScopeWorkspace), workspaceID, nil
 	case resources.ResourceScopeKindWorkspaceProfile:
 		resourceScope := resources.ResourceScope{
 			Kind: resources.ResourceScopeKindWorkspaceProfile,
@@ -116,29 +116,27 @@ func gatewayIngressDomainScope(scope string, workspaceID sql.NullString) (string
 			return "", sql.NullString{}, fmt.Errorf("store: invalid ingress resource scope: %w", err)
 		}
 		workspace, _, _ := strings.Cut(resourceScope.ID, "@pf:")
-		return string(gateway.IngressScopeWorkspace), sql.NullString{String: workspace, Valid: true}, nil
+		return string(ingress.ScopeWorkspace), sql.NullString{String: workspace, Valid: true}, nil
 	default:
 		return scope, workspaceID, nil
 	}
 }
 
-// GetIngressEndpoint loads the durable address identity for one tier.
+const ingressEndpointTier = "public"
+
+// GetIngressEndpoint loads the durable public address identity.
 func (g *GatewayRepo) GetIngressEndpoint(
 	ctx context.Context,
-	tier gateway.Tier,
-) (gateway.IngressEndpointState, error) {
+) (ingress.EndpointState, error) {
 	if err := g.checkReady(ctx, "load gateway ingress endpoint"); err != nil {
-		return gateway.IngressEndpointState{}, err
+		return ingress.EndpointState{}, err
 	}
-	if err := tier.Validate(); err != nil {
-		return gateway.IngressEndpointState{}, err
-	}
-	row, err := g.readQueries.GetGatewayEndpointState(ctx, string(tier))
+	row, err := g.readQueries.GetGatewayEndpointState(ctx, ingressEndpointTier)
 	if errors.Is(err, sql.ErrNoRows) {
-		return gateway.IngressEndpointState{}, gateway.ErrEndpointUnverified
+		return ingress.EndpointState{}, ingress.ErrEndpointUnverified
 	}
 	if err != nil {
-		return gateway.IngressEndpointState{}, fmt.Errorf("store: load gateway ingress endpoint: %w", err)
+		return ingress.EndpointState{}, fmt.Errorf("store: load gateway ingress endpoint: %w", err)
 	}
 	return gatewayEndpointStateFromGenerated(row)
 }
@@ -146,34 +144,30 @@ func (g *GatewayRepo) GetIngressEndpoint(
 // SyncIngressEndpoint preserves generation for a stable URL and advances it on change.
 func (g *GatewayRepo) SyncIngressEndpoint(
 	ctx context.Context,
-	tier gateway.Tier,
 	endpointURL string,
 	now time.Time,
-) (_ gateway.IngressEndpointState, changed bool, err error) {
+) (_ ingress.EndpointState, changed bool, err error) {
 	if err := g.checkReady(ctx, "sync gateway ingress endpoint"); err != nil {
-		return gateway.IngressEndpointState{}, false, err
-	}
-	if err := tier.Validate(); err != nil {
-		return gateway.IngressEndpointState{}, false, err
+		return ingress.EndpointState{}, false, err
 	}
 	endpointURL = strings.TrimSpace(endpointURL)
 	if endpointURL == "" {
-		return gateway.IngressEndpointState{}, false, gateway.ErrEndpointUnverified
+		return ingress.EndpointState{}, false, ingress.ErrEndpointUnverified
 	}
 	if now.IsZero() {
-		return gateway.IngressEndpointState{}, false, errors.New("store: gateway endpoint timestamp is required")
+		return ingress.EndpointState{}, false, errors.New("store: gateway endpoint timestamp is required")
 	}
-	var state gateway.IngressEndpointState
+	var state ingress.EndpointState
 	if err := store.ExecuteWrite(ctx, g.db, func(writeCtx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
-		previous, previousErr := queries.GetGatewayEndpointState(writeCtx, string(tier))
+		previous, previousErr := queries.GetGatewayEndpointState(writeCtx, ingressEndpointTier)
 		if previousErr != nil && !errors.Is(previousErr, sql.ErrNoRows) {
 			return fmt.Errorf("store: read prior ingress endpoint: %w", previousErr)
 		}
 		row, writeErr := queries.UpsertGatewayEndpointState(
 			writeCtx,
 			sqlcgen.UpsertGatewayEndpointStateParams{
-				Tier: string(tier), EndpointUrl: endpointURL, UpdatedAt: store.FormatTimestamp(now),
+				Tier: ingressEndpointTier, EndpointUrl: endpointURL, UpdatedAt: store.FormatTimestamp(now),
 			},
 		)
 		if writeErr != nil {
@@ -186,16 +180,13 @@ func (g *GatewayRepo) SyncIngressEndpoint(
 		changed = errors.Is(previousErr, sql.ErrNoRows) || previous.EndpointUrl != row.EndpointUrl
 		return nil
 	}); err != nil {
-		return gateway.IngressEndpointState{}, false, fmt.Errorf("store: sync gateway ingress endpoint: %w", err)
+		return ingress.EndpointState{}, false, fmt.Errorf("store: sync gateway ingress endpoint: %w", err)
 	}
 	return state, changed, nil
 }
 
-func (g *GatewayRepo) MarkIngressEndpointUnavailable(ctx context.Context, tier gateway.Tier, now time.Time) error {
+func (g *GatewayRepo) MarkIngressEndpointUnavailable(ctx context.Context, now time.Time) error {
 	if err := g.checkReady(ctx, "mark gateway ingress endpoint unavailable"); err != nil {
-		return err
-	}
-	if err := tier.Validate(); err != nil {
 		return err
 	}
 	if now.IsZero() {
@@ -206,7 +197,7 @@ func (g *GatewayRepo) MarkIngressEndpointUnavailable(ctx context.Context, tier g
 		if _, writeErr := queries.MarkGatewayEndpointUnavailable(
 			writeCtx,
 			sqlcgen.MarkGatewayEndpointUnavailableParams{
-				Tier: string(tier), UpdatedAt: store.FormatTimestamp(now),
+				Tier: ingressEndpointTier, UpdatedAt: store.FormatTimestamp(now),
 			},
 		); writeErr != nil {
 			return fmt.Errorf("store: mark gateway ingress endpoint unavailable: %w", writeErr)
@@ -218,17 +209,17 @@ func (g *GatewayRepo) MarkIngressEndpointUnavailable(ctx context.Context, tier g
 	return nil
 }
 
-func gatewayEndpointStateFromGenerated(row sqlcgen.GatewayEndpointState) (gateway.IngressEndpointState, error) {
+func gatewayEndpointStateFromGenerated(row sqlcgen.GatewayEndpointState) (ingress.EndpointState, error) {
 	generation, err := positiveGatewayUnsignedValue("endpoint generation", row.EndpointGeneration)
 	if err != nil {
-		return gateway.IngressEndpointState{}, err
+		return ingress.EndpointState{}, err
 	}
 	updatedAt, err := store.ParseTimestamp(row.UpdatedAt)
 	if err != nil {
-		return gateway.IngressEndpointState{}, fmt.Errorf("store: parse gateway endpoint timestamp: %w", err)
+		return ingress.EndpointState{}, fmt.Errorf("store: parse gateway endpoint timestamp: %w", err)
 	}
-	return gateway.IngressEndpointState{
-		Tier: gateway.Tier(row.Tier), URL: row.EndpointUrl,
+	return ingress.EndpointState{
+		URL:        row.EndpointUrl,
 		Generation: generation, Reachable: row.Reachable, UpdatedAt: updatedAt,
 	}, nil
 }

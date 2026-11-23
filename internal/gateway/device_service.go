@@ -8,26 +8,22 @@ import (
 	"io"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/remotehost"
 )
 
 const (
-	defaultPairingTTL                   = 5 * time.Minute
-	defaultPairingLimit                 = 32
-	defaultStreamTicketTTL              = 30 * time.Second
-	defaultConnectionTerminationTimeout = 5 * time.Second
+	defaultPairingTTL   = 5 * time.Minute
+	defaultPairingLimit = 32
 )
-
-// DefaultStreamTicketLimit bounds live single-use tickets held by one daemon process.
-const DefaultStreamTicketLimit = 256
 
 // DeviceService owns pairing, authentication, device inventory, tickets, and live revocation.
 type DeviceService struct {
 	store       DeviceStore
-	appTokens   appTokenService
 	pairings    *pairingStore
-	tickets     *streamTicketStore
-	connections ConnectionRegistry
-	mutations   *mutationGate
+	tickets     *remotehost.StreamTicketStore
+	connections remotehost.ConnectionRegistry
+	mutations   *remotehost.MutationGate
 	events      DeviceEventSink
 	now         func() time.Time
 	entropy     io.Reader
@@ -36,14 +32,14 @@ type DeviceService struct {
 type DeviceServiceOption func(*deviceServiceConfig) error
 
 type deviceServiceConfig struct {
-	appTokens         AppTokenStore
+	mutations         *remotehost.MutationGate
 	now               func() time.Time
 	entropy           io.Reader
 	pairingTTL        time.Duration
 	pairingLimit      int
 	streamTicketTTL   time.Duration
 	streamTicketLimit int
-	connections       ConnectionRegistry
+	connections       remotehost.ConnectionRegistry
 	events            DeviceEventSink
 }
 
@@ -54,19 +50,22 @@ func NewDeviceService(store DeviceStore, opts ...DeviceServiceOption) (*DeviceSe
 	config := deviceServiceConfig{
 		now: func() time.Time { return time.Now().UTC() }, entropy: defaultEntropy(),
 		pairingTTL: defaultPairingTTL, pairingLimit: defaultPairingLimit,
-		streamTicketTTL: defaultStreamTicketTTL, streamTicketLimit: DefaultStreamTicketLimit,
-		connections: NewConnectionRegistry(),
+		streamTicketTTL: remotehost.DefaultStreamTicketTTL, streamTicketLimit: remotehost.DefaultStreamTicketLimit,
+		connections: remotehost.NewConnectionRegistry(),
 	}
 	for _, option := range opts {
 		if err := option(&config); err != nil {
 			return nil, err
 		}
 	}
+	if config.mutations == nil {
+		config.mutations = remotehost.NewMutationGate(store.RevalidateDeviceEpoch)
+	}
 	pairings, err := newPairingStore(config.pairingLimit, config.pairingTTL, config.now, config.entropy)
 	if err != nil {
 		return nil, err
 	}
-	tickets, err := newStreamTicketStore(
+	tickets, err := remotehost.NewStreamTicketStore(
 		config.streamTicketLimit,
 		config.streamTicketTTL,
 		config.now,
@@ -77,8 +76,7 @@ func NewDeviceService(store DeviceStore, opts ...DeviceServiceOption) (*DeviceSe
 	}
 	return &DeviceService{
 		store: store, pairings: pairings, tickets: tickets,
-		appTokens:   appTokenService{store: config.appTokens},
-		connections: config.connections, mutations: newMutationGate(),
+		connections: config.connections, mutations: config.mutations,
 		events: config.events, now: config.now, entropy: config.entropy,
 	}, nil
 }
@@ -119,7 +117,17 @@ func WithStreamTicketLimits(maxEntries int, ttl time.Duration) DeviceServiceOpti
 	}
 }
 
-func WithConnectionRegistry(registry ConnectionRegistry) DeviceServiceOption {
+func WithMutationGate(gate *remotehost.MutationGate) DeviceServiceOption {
+	return func(config *deviceServiceConfig) error {
+		if gate == nil {
+			return errors.New("gateway: mutation gate is required")
+		}
+		config.mutations = gate
+		return nil
+	}
+}
+
+func WithConnectionRegistry(registry remotehost.ConnectionRegistry) DeviceServiceOption {
 	return func(config *deviceServiceConfig) error {
 		if registry == nil {
 			return errors.New("gateway: connection registry is required")
@@ -155,7 +163,7 @@ func (s *DeviceService) ReconfigureLimits(
 	if err := s.pairings.reconfigure(pairingMaxPending, pairingTTL); err != nil {
 		return fmt.Errorf("gateway: reconfigure pairing limits: %w", err)
 	}
-	if err := s.tickets.reconfigure(streamTicketTTL); err != nil {
+	if err := s.tickets.Reconfigure(streamTicketTTL); err != nil {
 		return fmt.Errorf("gateway: reconfigure stream ticket limits: %w", err)
 	}
 	return nil
@@ -191,7 +199,7 @@ func (s *DeviceService) RedeemPairing(ctx context.Context, req RedeemRequest) (I
 			if generateErr != nil {
 				return generateErr
 			}
-		} else if !validOpaqueSecret(credential, deviceCredentialPrefix) {
+		} else if !remotehost.ValidOpaqueSecret(credential, deviceCredentialPrefix) {
 			return ErrPairingInvalid
 		}
 		deviceID, generateErr := generateDeviceID(s.entropy)
@@ -204,7 +212,7 @@ func (s *DeviceService) RedeemPairing(ctx context.Context, req RedeemRequest) (I
 			CreatedAt: now,
 		}
 		if createErr := s.store.CreateDevice(ctx, StoredDeviceSession{
-			Session: device, TokenHash: hashCredential(credential),
+			Session: device, TokenHash: remotehost.HashCredential(credential),
 		}); createErr != nil {
 			return fmt.Errorf("gateway: create paired device: %w", createErr)
 		}
@@ -218,16 +226,16 @@ func (s *DeviceService) RedeemPairing(ctx context.Context, req RedeemRequest) (I
 }
 
 func (s *DeviceService) Authenticate(ctx context.Context, credential string) (DeviceSession, error) {
-	stored, err := s.store.FindDeviceByTokenHash(ctx, hashCredential(credential), s.now())
+	stored, err := s.store.FindDeviceByTokenHash(ctx, remotehost.HashCredential(credential), s.now())
 	if err != nil {
 		if errors.Is(err, ErrDeviceNotFound) {
-			constantTimeCredentialMatch(credential, "")
+			remotehost.ConstantTimeCredentialMatch(credential, "")
 			return DeviceSession{}, ErrDeviceUnauthenticated
 		}
 		return DeviceSession{}, fmt.Errorf("gateway: find device credential: %w", err)
 	}
-	valid := validOpaqueSecret(credential, deviceCredentialPrefix)
-	matched := constantTimeCredentialMatch(credential, stored.TokenHash)
+	valid := remotehost.ValidOpaqueSecret(credential, deviceCredentialPrefix)
+	matched := remotehost.ConstantTimeCredentialMatch(credential, stored.TokenHash)
 	if !valid || !matched || !stored.Session.RevokedAt.IsZero() {
 		return DeviceSession{}, ErrDeviceUnauthenticated
 	}
@@ -274,75 +282,52 @@ func (s *DeviceService) RevokeDevice(ctx context.Context, deviceID string) (Revo
 	})
 }
 
-func (s *DeviceService) MintStreamTicket(ctx context.Context, deviceID string) (StreamTicket, error) {
+func (s *DeviceService) MintStreamTicket(ctx context.Context, deviceID string) (remotehost.StreamTicket, error) {
 	device, ok := DeviceFromContext(ctx)
 	if ok {
 		if device.ID != deviceID {
-			return StreamTicket{}, ErrDeviceUnauthenticated
+			return remotehost.StreamTicket{}, ErrDeviceUnauthenticated
 		}
 		if err := s.store.RevalidateDeviceEpoch(ctx, device.ID, device.RevokeEpoch); err != nil {
-			return StreamTicket{}, ErrDeviceUnauthenticated
+			return remotehost.StreamTicket{}, ErrDeviceUnauthenticated
 		}
 	} else {
 		var err error
 		device, err = s.store.GetDevice(ctx, deviceID)
 		if err != nil {
-			return StreamTicket{}, fmt.Errorf("gateway: get stream-ticket device: %w", err)
+			return remotehost.StreamTicket{}, fmt.Errorf("gateway: get stream-ticket device: %w", err)
 		}
 	}
 	if !device.RevokedAt.IsZero() {
-		return StreamTicket{}, ErrDeviceUnauthenticated
+		return remotehost.StreamTicket{}, ErrDeviceUnauthenticated
 	}
-	return s.tickets.mint(device)
+	return s.tickets.Mint(device.ID, device.RevokeEpoch)
 }
 
 func (s *DeviceService) ConsumeStreamTicket(ctx context.Context, ticket string) (DeviceSession, error) {
-	entry, err := s.tickets.consume(ticket)
+	entry, err := s.tickets.Consume(ticket)
 	if err != nil {
 		return DeviceSession{}, err
 	}
-	if err := s.store.RevalidateDeviceEpoch(ctx, entry.deviceID, entry.epoch); err != nil {
-		return DeviceSession{}, ErrStreamTicketInvalid
+	if err := s.store.RevalidateDeviceEpoch(ctx, entry.DeviceID, entry.Epoch); err != nil {
+		return DeviceSession{}, remotehost.ErrStreamTicketInvalid
 	}
-	device, err := s.store.GetDevice(ctx, entry.deviceID)
+	device, err := s.store.GetDevice(ctx, entry.DeviceID)
 	if err != nil || !device.RevokedAt.IsZero() {
-		return DeviceSession{}, ErrStreamTicketInvalid
+		return DeviceSession{}, remotehost.ErrStreamTicketInvalid
 	}
 	return device, nil
 }
 
 func (s *DeviceService) RevalidateForCommit(ctx context.Context, deviceID string, epoch uint64) error {
-	// A self-revocation has surrendered its valid lease and sealed this identity before its final write.
-	if revokingID, ok := ctx.Value(selfRevocationContextKey{}).(string); ok && revokingID == deviceID {
-		return nil
-	}
-	if err := s.mutations.validate(deviceID); err != nil {
-		return fmt.Errorf("gateway: validate device mutation gate: %w", err)
-	}
-	if err := s.store.RevalidateDeviceEpoch(ctx, deviceID, epoch); err != nil {
-		return fmt.Errorf("gateway: revalidate device epoch: %w", err)
-	}
-	return nil
+	return s.mutations.RevalidateForCommit(ctx, deviceID, epoch)
 }
 
-// AcquireMutation admits one remote mutation and carries its revocation-aware lease in the returned context.
-func (s *DeviceService) AcquireMutation(
-	ctx context.Context,
-	deviceID string,
-	epoch uint64,
-) (context.Context, error) {
-	mutationCtx, err := s.mutations.acquire(ctx, deviceID)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.store.RevalidateDeviceEpoch(mutationCtx, deviceID, epoch); err != nil {
-		ReleaseMutation(mutationCtx)
-		return nil, fmt.Errorf("gateway: acquire device mutation: %w", err)
-	}
-	return mutationCtx, nil
+func (s *DeviceService) AcquireMutation(ctx context.Context, deviceID string, epoch uint64) (context.Context, error) {
+	return s.mutations.AcquireMutation(ctx, deviceID, epoch)
 }
 
-func (s *DeviceService) Connections() ConnectionRegistry {
+func (s *DeviceService) Connections() remotehost.ConnectionRegistry {
 	return s.connections
 }
 
