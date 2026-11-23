@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"time"
 
 	"github.com/compozy/compozy/internal/dirpublish"
@@ -37,7 +38,9 @@ type SkillInstallConflict struct {
 	State      string // conflict | resolving
 	Keep       string // resolving only
 	TargetRoot string
-	Since      time.Time
+	// RetainedCopy is the absolute path of a second edited tree retained from the backup slot.
+	RetainedCopy string
+	Since        time.Time
 }
 
 // SkillConflictResolution is the result of ResolveInstallConflict.
@@ -46,7 +49,9 @@ type SkillConflictResolution struct {
 	Skill string
 	Keep  string
 	// KeptCopy is the absolute path of the edited copy kept aside by keep=previous.
-	KeptCopy        string
+	KeptCopy string
+	// RetainedCopy is the absolute path of a second edited tree retained from the backup slot.
+	RetainedCopy    string
 	AlreadyResolved bool
 	// Warning carries a finalize or catalog-publication failure after the commit point.
 	Warning error
@@ -65,10 +70,14 @@ func (s *SkillProposalService) InstallConflicts(
 	conflicts := []SkillInstallConflict{}
 	err := walkSkillJournals(ctx, targetRoots, func(root, name string, payload SkillInstallPayload) bool {
 		if payload.State == skillInstallStateConflict || payload.State == skillInstallStateResolving {
-			conflicts = append(conflicts, SkillInstallConflict{
+			conflict := SkillInstallConflict{
 				OpID: payload.OpID, Skill: name, ReviewID: payload.ReviewID, Action: payload.Action,
 				State: payload.State, Keep: payload.Keep, TargetRoot: root, Since: payload.ConflictAt,
-			})
+			}
+			if payload.RetainedBackupName != "" {
+				conflict.RetainedCopy = filepath.Join(root, payload.RetainedBackupName)
+			}
+			conflicts = append(conflicts, conflict)
 		}
 		return false
 	})
@@ -185,6 +194,9 @@ func (s *SkillProposalService) ResolveInstallConflict(
 	}
 	if keep == SkillConflictKeepPrevious {
 		result.KeptCopy = t.path(payload.KeepCopyName)
+	}
+	if payload.RetainedBackupName != "" {
+		result.RetainedCopy = t.path(payload.RetainedBackupName)
 	}
 	result.Warning, err = s.continueResolution(ctx, t, journal, payload)
 	return result, err

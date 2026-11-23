@@ -15,8 +15,11 @@ type AgentSkillInstallConflictPayload struct {
 	// State is conflict, or resolving while an interrupted resolution waits to finish.
 	State string `json:"state"`
 	// Keep is the recorded choice of a resolving conflict: current or previous.
-	Keep  string     `json:"keep,omitempty"`
-	Since *time.Time `json:"since,omitempty"`
+	Keep string `json:"keep,omitempty"`
+	// RetainedCopy is the directory holding a second edited tree found in the backup slot; no
+	// resolution removes it.
+	RetainedCopy string     `json:"retained_copy,omitempty"`
+	Since        *time.Time `json:"since,omitempty"`
 }
 
 type AgentSkillInstallConflictsResponse struct {
@@ -33,6 +36,9 @@ type AgentSkillInstallConflictResolveResponse struct {
 	Skill string `json:"skill"`
 	Keep  string `json:"keep"`
 	// KeptCopy is the directory holding the edited copy after keep=previous.
-	KeptCopy        string `json:"kept_copy,omitempty"`
+	KeptCopy string `json:"kept_copy,omitempty"`
+	// RetainedCopy is the directory holding a second edited tree found in the backup slot; no
+	// resolution removes it.
+	RetainedCopy    string `json:"retained_copy,omitempty"`
 	AlreadyResolved bool   `json:"already_resolved,omitempty"`
 }

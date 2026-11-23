@@ -42,7 +42,8 @@ func TestAgentSkillInstallConflictCommands(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			if _, err := io.WriteString(w, `{"conflicts":[{"op_id":"sop_01JCA2W8NQ","skill":"release-checklist",`+
-				`"action":"install","state":"conflict","since":"2026-11-05T15:20:11Z"}]}`); err != nil {
+				`"action":"install","state":"conflict","since":"2026-11-05T15:20:11Z",`+
+				`"retained_copy":"/work/.compozy/skills/.skill-conflict-sop_01JCA2W8NQ-backup"}]}`); err != nil {
 				t.Error(err)
 			}
 		}, "list", "--workspace", "@user")
@@ -50,7 +51,8 @@ func TestAgentSkillInstallConflictCommands(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, want := range []string{"OP", "SINCE", "sop_01JCA2W8NQ", "release-checklist", "conflict",
-			"2026-11-05T15:20:11Z"} {
+			"2026-11-05T15:20:11Z", "sop_01JCA2W8NQ: another edited copy found during the conflict is kept in " +
+				"/work/.compozy/skills/.skill-conflict-sop_01JCA2W8NQ-backup/.\n"} {
 			if !strings.Contains(output, want) {
 				t.Fatalf("list output missing %q:\n%s", want, output)
 			}
@@ -69,7 +71,8 @@ func TestAgentSkillInstallConflictCommands(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			if _, err := io.WriteString(w, `{"op_id":"sop_01JCA2W8NQ","skill":"release-checklist","keep":"previous",`+
-				`"kept_copy":"/work/.compozy/skills/.skill-conflict-sop_01JCA2W8NQ"}`); err != nil {
+				`"kept_copy":"/work/.compozy/skills/.skill-conflict-sop_01JCA2W8NQ",`+
+				`"retained_copy":"/work/.compozy/skills/.skill-conflict-sop_01JCA2W8NQ-backup"}`); err != nil {
 				t.Error(err)
 			}
 		}, "resolve", "sop_01JCA2W8NQ", "--keep", "previous", "--workspace", "@user")
@@ -77,7 +80,9 @@ func TestAgentSkillInstallConflictCommands(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := "Restored the previous release-checklist. The edited copy is in " +
-			"/work/.compozy/skills/.skill-conflict-sop_01JCA2W8NQ/.\n"
+			"/work/.compozy/skills/.skill-conflict-sop_01JCA2W8NQ/.\n" +
+			"Also, another edited copy found during the conflict is kept in " +
+			"/work/.compozy/skills/.skill-conflict-sop_01JCA2W8NQ-backup/.\n"
 		if output != want {
 			t.Fatalf("resolve output = %q, want %q", output, want)
 		}

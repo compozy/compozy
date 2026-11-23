@@ -2622,6 +2622,9 @@
           "op_id": {
             "type": "string"
           },
+          "retained_copy": {
+            "type": "string"
+          },
           "review_id": {
             "type": "string"
           },
@@ -2668,6 +2671,9 @@
             "type": "string"
           },
           "op_id": {
+            "type": "string"
+          },
+          "retained_copy": {
             "type": "string"
           },
           "skill": {

@@ -366,13 +366,14 @@ type AgentSkillDraftFile struct {
 
 // AgentSkillInstallConflictPayload is a daemon API value.
 type AgentSkillInstallConflictPayload struct {
-	OpID     string     `json:"op_id"`
-	Skill    string     `json:"skill"`
-	ReviewID string     `json:"review_id,omitempty"`
-	Action   string     `json:"action"`
-	State    string     `json:"state"`
-	Keep     string     `json:"keep,omitempty"`
-	Since    *time.Time `json:"since,omitempty"`
+	OpID         string     `json:"op_id"`
+	Skill        string     `json:"skill"`
+	ReviewID     string     `json:"review_id,omitempty"`
+	Action       string     `json:"action"`
+	State        string     `json:"state"`
+	Keep         string     `json:"keep,omitempty"`
+	RetainedCopy string     `json:"retained_copy,omitempty"`
+	Since        *time.Time `json:"since,omitempty"`
 }
 
 // AgentSkillInstallConflictResolveRequest is a daemon API value.
@@ -386,6 +387,7 @@ type AgentSkillInstallConflictResolveResponse struct {
 	Skill           string `json:"skill"`
 	Keep            string `json:"keep"`
 	KeptCopy        string `json:"kept_copy,omitempty"`
+	RetainedCopy    string `json:"retained_copy,omitempty"`
 	AlreadyResolved bool   `json:"already_resolved,omitempty"`
 }
 
