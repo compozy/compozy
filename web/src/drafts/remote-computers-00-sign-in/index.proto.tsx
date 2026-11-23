@@ -102,6 +102,26 @@ function BrowserWindowFrame({ address, children }: { address: string; children: 
   );
 }
 
+function handleReopenBrowser(attempt: SignInWaitingAttemptFixture) {
+  toast.message(`Reopened ${attempt.verificationUri} in your browser`);
+}
+
+function handleOpenDesktopLegalLink(kind: "terms" | "privacy") {
+  toast.message(
+    kind === "terms" ? "Opened Terms in your browser" : "Opened Privacy Policy in your browser"
+  );
+}
+
+function handleOpenCloudLegalLink(linkKind: "terms" | "privacy" | "refunds") {
+  toast.message(
+    linkKind === "terms"
+      ? "Opened Terms"
+      : linkKind === "privacy"
+        ? "Opened Privacy Policy"
+        : "Opened Refund Policy"
+  );
+}
+
 function InteractiveDesktopSignIn({ preset }: { preset: SignInScreenPreset }) {
   const [waiting, setWaiting] = useState<SignInWaitingAttemptFixture | undefined>(preset.waiting);
   const [notice, setNotice] = useState<SignInNoticeFixture | undefined>(preset.notice);
@@ -115,10 +135,6 @@ function InteractiveDesktopSignIn({ preset }: { preset: SignInScreenPreset }) {
     toast.message(`Opened ${attempt.verificationUri} in your browser`);
   };
 
-  const handleReopenBrowser = (attempt: SignInWaitingAttemptFixture) => {
-    toast.message(`Reopened ${attempt.verificationUri} in your browser`);
-  };
-
   const handleCancelWaiting = () => {
     setWaiting(undefined);
     setNotice({ kind: "cancelled", message: "Sign-in was cancelled." });
@@ -130,12 +146,6 @@ function InteractiveDesktopSignIn({ preset }: { preset: SignInScreenPreset }) {
     toast.success("Connected to Compozy Cloud");
   };
 
-  const handleOpenLegalLink = (kind: "terms" | "privacy") => {
-    toast.message(
-      kind === "terms" ? "Opened Terms in your browser" : "Opened Privacy Policy in your browser"
-    );
-  };
-
   return (
     <DesktopAppWindowFrame>
       <SignInScreen
@@ -145,7 +155,7 @@ function InteractiveDesktopSignIn({ preset }: { preset: SignInScreenPreset }) {
         notice={notice}
         onCancelWaiting={handleCancelWaiting}
         onMarketingOptInChange={setMarketingOptIn}
-        onOpenLegalLink={handleOpenLegalLink}
+        onOpenLegalLink={handleOpenDesktopLegalLink}
         onReopenBrowser={handleReopenBrowser}
         onRetryConnection={handleRetryConnection}
         onSelectProvider={handleSelectProvider}
@@ -159,8 +169,10 @@ function InteractiveDesktopSignIn({ preset }: { preset: SignInScreenPreset }) {
 }
 
 function InteractiveCloudPage({ preset }: { preset: CloudPagePreset }) {
-  const [kind, setKind] = useState<CloudPageKind>(preset.kind);
-  const [address, setAddress] = useState(preset.browserAddress);
+  const initialKind = preset.kind;
+  const initialAddress = preset.browserAddress;
+  const [kind, setKind] = useState<CloudPageKind>(initialKind);
+  const [address, setAddress] = useState(initialAddress);
   const [unsubscribed, setUnsubscribed] = useState(Boolean(preset.initialUnsubscribed));
 
   const handleContinueProvider = (provider: SignInProvider) => {
@@ -174,16 +186,6 @@ function InteractiveCloudPage({ preset }: { preset: CloudPagePreset }) {
     toast.success("Unsubscribed from product news and offers");
   };
 
-  const handleOpenLegalLink = (linkKind: "terms" | "privacy" | "refunds") => {
-    toast.message(
-      linkKind === "terms"
-        ? "Opened Terms"
-        : linkKind === "privacy"
-          ? "Opened Privacy Policy"
-          : "Opened Refund Policy"
-    );
-  };
-
   return (
     <BrowserWindowFrame address={address}>
       <SignInCloudPage
@@ -192,7 +194,7 @@ function InteractiveCloudPage({ preset }: { preset: CloudPagePreset }) {
         kind={kind}
         onConfirmUnsubscribe={handleConfirmUnsubscribe}
         onContinueProvider={handleContinueProvider}
-        onOpenLegalLink={handleOpenLegalLink}
+        onOpenLegalLink={handleOpenCloudLegalLink}
         provider={preset.provider}
         unsubscribed={unsubscribed}
         userCode={preset.userCode}

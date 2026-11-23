@@ -20,6 +20,16 @@ export interface PhoneUpgradeCloudPageProps {
   initialSignedInProvider?: AccountProvider | null;
 }
 
+function handleOpenLegalLink(kind: CloudLegalLinkKind) {
+  toast.message(
+    kind === "terms"
+      ? "Opened Terms"
+      : kind === "privacy"
+        ? "Opened Privacy Policy"
+        : "Opened Refund Policy"
+  );
+}
+
 /**
  * Cloud-hosted upgrade page opened from an expired hosted route's "Upgrade to Pro"
  * button (`https://cloud.compozy.com/billing/upgrade?hostname=<host>`, `_uiux.md` U8, Q5):
@@ -44,16 +54,6 @@ export function PhoneUpgradeCloudPage({
   const handleCheckout = (chosenInterval: UpgradeInterval) => {
     const planLabel = chosenInterval === "year" ? "Pro annual" : "Pro monthly";
     toast.message(`Redirecting to Stripe Checkout (${planLabel}). Returns to https://${hostname}.`);
-  };
-
-  const handleOpenLegalLink = (kind: CloudLegalLinkKind) => {
-    toast.message(
-      kind === "terms"
-        ? "Opened Terms"
-        : kind === "privacy"
-          ? "Opened Privacy Policy"
-          : "Opened Refund Policy"
-    );
   };
 
   return (

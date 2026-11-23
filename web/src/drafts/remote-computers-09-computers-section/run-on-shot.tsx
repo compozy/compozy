@@ -36,10 +36,14 @@ const PICKER_COMPUTERS = COMPUTERS_PRO.slice(0, 4);
  * anchors the open menu inline directly beneath its trigger inside the window (using the real
  * `RunOnComputerItem` and `ComputerLoadMeter` components) so it never floats detached over page copy.
  */
-export function RunOnShot({ pickerDefaultOpen }: { pickerDefaultOpen: boolean }) {
+export function RunOnShot({
+  pickerDefaultOpen: initialPickerOpen,
+}: {
+  pickerDefaultOpen: boolean;
+}) {
   const [target, setTarget] = useState<RunOnTarget>("auto");
   const [query, setQuery] = useState("");
-  const [inlineMenuOpen, setInlineMenuOpen] = useState(pickerDefaultOpen);
+  const [inlineMenuOpen, setInlineMenuOpen] = useState(initialPickerOpen);
 
   const projects = useMemo(() => projectsForTarget(target), [target]);
   const activeProject = projects[0]?.name ?? "api";

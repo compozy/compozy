@@ -1,24 +1,20 @@
-import { useState } from "react";
 import { Plus } from "@compozy/ui/icons";
 
 import { Button, toast } from "@compozy/ui";
 
 import {
   ACCOUNT_DEVICES,
-  ALL_REMOTE_SCOPES,
   PENDING_APPROVALS,
   type AccountDeviceFixture,
   type AccountStateFixture,
   type AccountUnaddedComputerFixture,
   type ComputerFixture,
-  type LoadBalancingWeight,
   type LocalComputerFixture,
   type PendingApprovalFixture,
-  type RemoteScope,
   type UpgradeMigrationNoticeFixture,
 } from "@/systems/computers/mocks/remote-computers-fixtures";
 
-import { RemoteSettingsShell } from "../remote-computers-shared";
+import { RemoteSettingsShell } from "../remote-computers-shared/remote-settings-shell";
 import { ComputersBanners, ComputersListSection } from "./computers-list-section";
 import {
   AccountComputersSection,
@@ -27,6 +23,7 @@ import {
   RemoveComputerDialog,
   RevokeDeviceDialog,
 } from "./computers-sections";
+import { useComputersSettingsPage } from "./hooks/use-computers-settings-page";
 import { ThisComputerSection } from "./this-computer-section";
 
 export interface ComputersPageProps {
@@ -45,6 +42,14 @@ export interface ComputersPageProps {
   initialRevokeDeviceId?: string | null;
   selectedComputerId?: string | null;
   uninstallWarningMessage?: string | null;
+}
+
+function openAddComputer() {
+  toast.message("Opens Add computer dialog (Screen 03)");
+}
+
+function openUpgrade() {
+  toast.message("Opens Upgrade sheet (Screen 01 · U9)");
 }
 
 function buildSubheadMeta(
@@ -98,185 +103,41 @@ export function ComputersSettingsPage({
   selectedComputerId = null,
   uninstallWarningMessage: initialUninstallWarning = null,
 }: ComputersPageProps) {
-  const [account, setAccount] = useState(initialAccount);
-  const [local, setLocal] = useState(initialLocal);
-  const [computers, setComputers] = useState<ComputerFixture[]>([...initialComputers]);
-  const [unadded, setUnadded] = useState<AccountUnaddedComputerFixture[]>([...initialUnadded]);
-  const [devices, setDevices] = useState<AccountDeviceFixture[]>([...initialDevices]);
-  const [approvals, setApprovals] = useState<PendingApprovalFixture[]>([...initialApprovals]);
-  const [upgradeNotice, setUpgradeNotice] = useState(initialUpgradeNotice);
-  const [uninstallWarning, setUninstallWarning] = useState(initialUninstallWarning);
-  const [loadBalancingEnabled, setLoadBalancingEnabled] = useState(initialLoadBalancingEnabled);
-  const [confirmDisableLocal, setConfirmDisableLocal] = useState(initialDisableLocalOpen);
-
-  const [removeTarget, setRemoveTarget] = useState<ComputerFixture | null>(() =>
-    initialRemoveTargetId
-      ? (initialComputers.find(item => item.id === initialRemoveTargetId) ?? null)
-      : null
-  );
-  const [revokeTarget, setRevokeTarget] = useState<AccountDeviceFixture | null>(() =>
-    initialRevokeDeviceId
-      ? (initialDevices.find(item => item.id === initialRevokeDeviceId) ?? null)
-      : null
-  );
-
-  const handleToggleComputer = (target: ComputerFixture, nextEnabled: boolean) => {
-    setComputers(current =>
-      current.map(item =>
-        item.id === target.id
-          ? { ...item, enabled: nextEnabled, status: nextEnabled ? "connected" : "disabled" }
-          : item
-      )
-    );
-    toast.message(nextEnabled ? `Enabled ${target.name}` : `Turned off ${target.name}`);
-  };
-
-  const handleRemoveRoute = (target: ComputerFixture, routeId: string) => {
-    setComputers(current =>
-      current.map(item =>
-        item.id === target.id
-          ? { ...item, routes: item.routes.filter(route => route.id !== routeId) }
-          : item
-      )
-    );
-    toast.message(`Removed route from ${target.name}`);
-  };
-
-  const handleConfirmRemove = (
-    target: ComputerFixture,
-    options: { unlink: boolean; uninstall: boolean }
-  ) => {
-    setComputers(current => current.filter(item => item.id !== target.id));
-    setRemoveTarget(null);
-    if (options.unlink && account.plan === "free") {
-      setAccount(current => ({
-        ...current,
-        remoteComputersUsed: Math.max(0, current.remoteComputersUsed - 1),
-      }));
-    }
-    if (options.uninstall && target.status === "offline" && target.sshTarget) {
-      setUninstallWarning(
-        `Couldn't uninstall from ${target.sshTarget}; run compozy service uninstall there.`
-      );
-    } else {
-      toast.success(`Removed ${target.name}. Agents already running there keep running.`);
-    }
-  };
-
-  const handleAddAccountComputer = (item: AccountUnaddedComputerFixture) => {
-    setUnadded(current => current.filter(entry => entry.id !== item.id));
-    const addedRoute = {
-      id: `rt_${item.id}`,
-      kind: "direct" as const,
-      address: `${item.name}.local:47823`,
-      label: "via LAN",
-      inUse: item.online,
-      learned: true,
-      lastError: null,
-    };
-    setComputers(current => [
-      {
-        id: item.id,
-        name: item.name,
-        platform: item.platform,
-        iconKind: item.iconKind,
-        version: "0.8.0",
-        protocol: { min: 1, max: 1 },
-        status: item.online ? "connected" : "offline",
-        enabled: true,
-        planState: "ok",
-        originKind: "account",
-        routeInUse: item.online ? addedRoute : null,
-        routes: [addedRoute],
-        scopes: ALL_REMOTE_SCOPES,
-        load: null,
-        loadBalancingWeight: 50,
-        diagnosis: null,
-        providers: [],
-        projects: [],
-        addedAt: "2026-11-22T20:44:00Z",
-        lastConnectedAt: "2026-11-22T20:44:00Z",
-        lastConnectedLabel: item.online ? "just now" : "never",
-      },
-      ...current,
-    ]);
-    toast.success(`Added ${item.name}`);
-  };
-
-  const handleConfirmRevoke = (device: AccountDeviceFixture, enableApproval: boolean) => {
-    setDevices(current => current.filter(item => item.id !== device.id));
-    if (enableApproval && !local.requireDeviceApproval) {
-      setLocal(current => ({ ...current, requireDeviceApproval: true }));
-    }
-    setRevokeTarget(null);
-    toast.success(
-      enableApproval && !local.requireDeviceApproval
-        ? `Revoked ${device.name} and enabled approval for new devices.`
-        : `Revoked ${device.name}.`
-    );
-  };
-
-  const handleToggleDeviceScope = (deviceId: string, scope: RemoteScope, next: boolean) => {
-    setDevices(current =>
-      current.map(device => {
-        if (device.id !== deviceId) return device;
-        const set = new Set(device.scopesOnLocal);
-        if (next) set.add(scope);
-        else set.delete(scope);
-        return { ...device, scopesOnLocal: [...set] };
-      })
-    );
-  };
-
-  const handleDecideApproval = (approvalId: string, approve: boolean) => {
-    setApprovals(current =>
-      current.map(item =>
-        item.id === approvalId
-          ? {
-              ...item,
-              state: approve ? "approved" : "denied",
-              appliedResult: approve ? "approved" : "denied",
-            }
-          : item
-      )
-    );
-    toast.success(approve ? "Device approved." : "Device denied.");
-  };
-
-  const handleRequestToggleRunAgents = (next: boolean) => {
-    if (!next && local.activeLocalSessions > 0) {
-      setConfirmDisableLocal(true);
-      return;
-    }
-    setLocal(current => ({ ...current, localRunAgents: next }));
-  };
-
-  const openAddComputer = () => toast.message("Opens Add computer dialog (Screen 03)");
-  const openUpgrade = () => toast.message("Opens Upgrade sheet (Screen 01 · U9)");
+  const page = useComputersSettingsPage({
+    initialAccount,
+    initialLocal,
+    initialComputers,
+    initialUnadded,
+    initialDevices,
+    initialApprovals,
+    initialUpgradeNotice,
+    initialLoadBalancingEnabled,
+    initialDisableLocalOpen,
+    initialRemoveTargetId,
+    initialRevokeDeviceId,
+    initialUninstallWarning,
+  });
 
   const overlay = (
     <>
       <RemoveComputerDialog
-        computer={removeTarget}
-        isFreePlan={account.plan === "free"}
-        onClose={() => setRemoveTarget(null)}
-        onConfirm={handleConfirmRemove}
+        computer={page.removeTarget}
+        isFreePlan={page.account.plan === "free"}
+        onClose={() => page.setRemoveTarget(null)}
+        onConfirm={page.handleConfirmRemove}
       />
       <RevokeDeviceDialog
-        device={revokeTarget}
-        localRemoteEnabled={local.remoteEnabled}
-        onClose={() => setRevokeTarget(null)}
-        onConfirm={handleConfirmRevoke}
-        requireDeviceApproval={local.requireDeviceApproval}
+        device={page.revokeTarget}
+        localRemoteEnabled={page.local.remoteEnabled}
+        onClose={() => page.setRevokeTarget(null)}
+        onConfirm={page.handleConfirmRevoke}
+        requireDeviceApproval={page.local.requireDeviceApproval}
       />
       <DisableLocalAgentsDialog
-        local={local}
-        onClose={() => setConfirmDisableLocal(false)}
-        onConfirm={() => {
-          setLocal(current => ({ ...current, localRunAgents: false }));
-          setConfirmDisableLocal(false);
-        }}
-        open={confirmDisableLocal}
+        local={page.local}
+        onClose={() => page.setConfirmDisableLocal(false)}
+        onConfirm={page.handleConfirmDisableLocal}
+        open={page.confirmDisableLocal}
       />
     </>
   );
@@ -290,88 +151,71 @@ export function ComputersSettingsPage({
           Add computer
         </Button>
       }
-      meta={buildSubheadMeta(account, computers)}
+      meta={buildSubheadMeta(page.account, page.computers)}
       overlay={overlay}
       title="Computers"
       width="wide"
     >
       <ComputersBanners
-        account={account}
-        onDismissUninstallWarning={() => setUninstallWarning(null)}
-        onDismissUpgradeNotice={() => setUpgradeNotice(null)}
+        account={page.account}
+        onDismissUninstallWarning={() => page.setUninstallWarning(null)}
+        onDismissUpgradeNotice={() => page.setUpgradeNotice(null)}
         onLearnMoreUpgrade={() => toast.message("Opens https://compozy.com/docs/computers")}
-        onRetryCloud={() => {
-          setAccount(current => ({ ...current, cloudUnreachable: false }));
-          toast.success("Reconnected to Compozy Cloud.");
-        }}
+        onRetryCloud={page.handleRetryCloud}
         onReviewWebhooks={() => toast.message("Opens Automation triggers to confirm new addresses")}
-        uninstallWarning={uninstallWarning}
-        upgradeNotice={upgradeNotice}
+        uninstallWarning={page.uninstallWarning}
+        upgradeNotice={page.upgradeNotice}
       />
 
       <ThisComputerSection
-        account={account}
+        account={page.account}
         defaultDevicesOpen={devicesOpen}
-        devices={devices}
-        hasRemoteComputers={computers.length > 0}
-        local={local}
-        onApprovePending={id => handleDecideApproval(id, true)}
-        onDenyPending={id => handleDecideApproval(id, false)}
+        devices={page.devices}
+        hasRemoteComputers={page.computers.length > 0}
+        local={page.local}
+        onApprovePending={id => page.handleDecideApproval(id, true)}
+        onDenyPending={id => page.handleDecideApproval(id, false)}
         onInspectHostedRoute={() => toast.message("Opens hosted route diagnosis details")}
-        onRequestRevokeDevice={setRevokeTarget}
-        onRequestToggleRunAgents={handleRequestToggleRunAgents}
-        onToggleDeviceScope={handleToggleDeviceScope}
-        onToggleHostedRoute={next =>
-          setLocal(current => ({
-            ...current,
-            hostedRouteEnabled: next,
-            hostedRouteState: next ? "starting" : "off",
-          }))
-        }
-        onToggleRemoteEnabled={next => setLocal(current => ({ ...current, remoteEnabled: next }))}
-        onToggleRequireApproval={next =>
-          setLocal(current => ({ ...current, requireDeviceApproval: next }))
-        }
+        onRequestRevokeDevice={page.setRevokeTarget}
+        onRequestToggleRunAgents={page.handleRequestToggleRunAgents}
+        onToggleDeviceScope={page.handleToggleDeviceScope}
+        onToggleHostedRoute={page.handleToggleHostedRoute}
+        onToggleRemoteEnabled={page.handleToggleRemoteEnabled}
+        onToggleRequireApproval={page.handleToggleRequireApproval}
         onUpgrade={openUpgrade}
-        pendingApprovals={approvals}
+        pendingApprovals={page.approvals}
       />
 
       <ComputersListSection
-        account={account}
-        computers={computers}
+        account={page.account}
+        computers={page.computers}
         onAddComputer={openAddComputer}
         onOpenDetails={(target, tab) =>
           toast.message(`Opens Computer details for ${target.name} (${tab ?? "status"} tab)`)
         }
-        onRemove={setRemoveTarget}
-        onRemoveRoute={handleRemoveRoute}
+        onRemove={page.setRemoveTarget}
+        onRemoveRoute={page.handleRemoveRoute}
         onRename={target => toast.message(`Rename ${target.name}`)}
-        onToggleEnabled={handleToggleComputer}
+        onToggleEnabled={page.handleToggleComputer}
         onUpgrade={openUpgrade}
         selectedComputerId={selectedComputerId}
       />
 
       <AccountComputersSection
-        account={account}
-        computers={unadded}
-        onAddAccountComputer={handleAddAccountComputer}
+        account={page.account}
+        computers={page.unadded}
+        onAddAccountComputer={page.handleAddAccountComputer}
         onUpgrade={openUpgrade}
       />
 
       <LoadBalancingSection
-        computers={computers}
+        computers={page.computers}
         defaultOpen={loadBalancingOpen}
-        enabled={loadBalancingEnabled}
-        local={local}
-        onChangeComputerWeight={(id, weight: LoadBalancingWeight) =>
-          setComputers(current =>
-            current.map(item => (item.id === id ? { ...item, loadBalancingWeight: weight } : item))
-          )
-        }
-        onChangeLocalWeight={weight =>
-          setLocal(current => ({ ...current, loadBalancingWeight: weight }))
-        }
-        onToggleEnabled={setLoadBalancingEnabled}
+        enabled={page.loadBalancingEnabled}
+        local={page.local}
+        onChangeComputerWeight={page.handleChangeComputerWeight}
+        onChangeLocalWeight={page.handleChangeLocalWeight}
+        onToggleEnabled={page.setLoadBalancingEnabled}
       />
     </RemoteSettingsShell>
   );

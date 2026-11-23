@@ -20,10 +20,10 @@ import {
   PHONE_TARGET_COMPUTER,
 } from "@/systems/computers/mocks/remote-computers-fixtures-phone";
 
-import { DraftBrowserFrame } from "../remote-computers-shared";
+import { DraftBrowserFrame } from "../remote-computers-shared/browser-frame";
 import { HostedWebApp } from "./hosted-web-app";
+import { useIsWideBrowser } from "./hooks/use-is-wide-browser";
 import { PhoneApp } from "./phone-app";
-import { useIsWideBrowser } from "./phone-frame";
 import { PhoneUpgradeCloudPage } from "./phone-upgrade-cloud-page";
 
 export const meta = definePrototype({

@@ -1,4 +1,4 @@
-import { Pill, cn, toast } from "@compozy/ui";
+import { Eyebrow, Pill, cn, toast } from "@compozy/ui";
 import { ArrowRight, Check, ChevronDown, Download, Minus } from "@compozy/ui/icons";
 import { useState } from "react";
 
@@ -270,9 +270,9 @@ export function PricingComparison() {
           <div className="divide-y divide-[color:var(--light-080)]">
             {COMPARISON_GROUPS.map(group => (
               <div key={group.id} className="px-5 py-7 sm:px-7">
-                <p className="m-0 mb-5 font-mono text-[12px] tracking-[0.04em] text-subtle uppercase">
+                <Eyebrow className="mb-5 block text-subtle" variant="caps">
                   {group.title}
-                </p>
+                </Eyebrow>
                 <ul className="m-0 list-none divide-y divide-[color:var(--light-060)] p-0">
                   {group.rows.map(row => (
                     <li

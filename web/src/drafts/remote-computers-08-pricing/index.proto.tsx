@@ -41,7 +41,8 @@ const PRESETS: Record<string, PricingPreset> = {
 };
 
 function PricingPage({ preset }: { preset: PricingPreset }) {
-  const [interval, setInterval] = useState<BillingInterval>(preset.interval);
+  const initialInterval = preset.interval;
+  const [interval, setInterval] = useState<BillingInterval>(initialInterval);
 
   useLayoutEffect(() => {
     const scrollTarget = () => {

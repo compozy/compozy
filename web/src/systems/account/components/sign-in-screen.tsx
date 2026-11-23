@@ -30,12 +30,9 @@ import {
   type SignInWaitingAttemptFixture,
 } from "@/systems/computers/mocks/remote-computers-fixtures-sign-in";
 
+import { providerDisplayName } from "../lib/provider-display-name";
 import { BrandStage } from "./brand-stage";
-import {
-  providerDisplayName,
-  SignInProviderButton,
-  SignInVerificationCode,
-} from "./sign-in-provider-buttons";
+import { SignInProviderButton, SignInVerificationCode } from "./sign-in-provider-buttons";
 
 const PROVIDERS: readonly SignInProvider[] = ["google", "github"];
 

@@ -15,7 +15,7 @@ import {
   type AccountProvider,
 } from "@/systems/computers/mocks/remote-computers-fixtures";
 
-import { DraftBrowserFrame } from "../remote-computers-shared";
+import { DraftBrowserFrame } from "../remote-computers-shared/browser-frame";
 
 export const meta = definePrototype({
   title: "Buy Pro",
@@ -129,6 +129,16 @@ function resolveIntervalParam(search: string): UpgradeInterval | null {
   return null;
 }
 
+function handleOpenPurchaseLegalLink(kind: CloudLegalLinkKind) {
+  toast.message(
+    kind === "terms"
+      ? "Opened Terms (compozy.com/legal/terms)"
+      : kind === "privacy"
+        ? "Opened Privacy Policy (compozy.com/legal/privacy)"
+        : "Opened Refund Policy (compozy.com/legal/refunds)"
+  );
+}
+
 function InteractiveCloudPurchase({
   preset,
   queryInterval,
@@ -136,17 +146,20 @@ function InteractiveCloudPurchase({
   preset: PurchaseStatePreset;
   queryInterval: UpgradeInterval | null;
 }) {
+  const initialStatus = preset.status;
+  const initialProvider = preset.provider;
+  const initialAddress = preset.browserAddress;
   const initialInterval =
     preset.browserAddress.includes("interval=month") ||
     preset.browserAddress.includes("interval=year")
       ? preset.interval
       : (queryInterval ?? preset.interval);
 
-  const [status, setStatus] = useState<CloudUpgradeStatus>(preset.status);
-  const [provider, setProvider] = useState<AccountProvider | null>(preset.provider);
+  const [status, setStatus] = useState<CloudUpgradeStatus>(initialStatus);
+  const [provider, setProvider] = useState<AccountProvider | null>(initialProvider);
   const [interval, setInterval] = useState<UpgradeInterval>(initialInterval);
   const [checkoutCancelled, setCheckoutCancelled] = useState(Boolean(preset.checkoutCancelled));
-  const [address, setAddress] = useState(preset.browserAddress);
+  const [address, setAddress] = useState(initialAddress);
 
   const proPreset = ACCOUNT_PRESETS.pro;
   const hostedRoutesSummary = `${proPreset.cloudRoutesUsed} of ${proPreset.cloudRoutesLimit} used`;
@@ -199,16 +212,6 @@ function InteractiveCloudPurchase({
     toast.success("Connected to Compozy Cloud");
   };
 
-  const handleOpenLegalLink = (kind: CloudLegalLinkKind) => {
-    toast.message(
-      kind === "terms"
-        ? "Opened Terms (compozy.com/legal/terms)"
-        : kind === "privacy"
-          ? "Opened Privacy Policy (compozy.com/legal/privacy)"
-          : "Opened Refund Policy (compozy.com/legal/refunds)"
-    );
-  };
-
   return (
     <DraftBrowserFrame address={address} dataSlot="cloud-purchase-browser-window">
       <CloudUpgradePage
@@ -222,7 +225,7 @@ function InteractiveCloudPurchase({
         onIntervalChange={handleIntervalChange}
         onManageBilling={() => toast.message("Opening Stripe Customer Portal…")}
         onOpenApp={() => toast.message("Opening CompozyOS…")}
-        onOpenLegalLink={handleOpenLegalLink}
+        onOpenLegalLink={handleOpenPurchaseLegalLink}
         onOpenStatus={() => toast.message("Opened status.compozy.com")}
         onOpenStripe={handleOpenStripe}
         onSelectProvider={handleSelectProvider}

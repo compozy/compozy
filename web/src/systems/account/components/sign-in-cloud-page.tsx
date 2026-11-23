@@ -7,9 +7,9 @@ import type {
   SignInProvider,
 } from "@/systems/computers/mocks/remote-computers-fixtures-sign-in";
 
+import { providerDisplayName } from "../lib/provider-display-name";
 import {
   CloudPageChrome,
-  providerDisplayName,
   SignInProviderButton,
   SignInVerificationCode,
   type CloudLegalLinkKind,

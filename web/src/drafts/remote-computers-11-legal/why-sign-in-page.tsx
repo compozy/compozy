@@ -11,15 +11,16 @@ import { DocToc } from "../docs/toc";
 import { SiteFooter } from "../landing/sections-close";
 import { SIGN_IN_DOC_MARKDOWN, SIGN_IN_DOC_PAGE, SIGN_IN_DOC_TOC } from "./sign-in-doc-content";
 
+function handleNavigate(slug: string) {
+  toast.message(slug ? `Navigating to /docs/${slug}` : "Navigating to /docs");
+}
+
 /**
  * `/docs/account/sign-in` ("Why CompozyOS asks you to sign in") rendered inside the real CompozyOS
  * docs shell (`DocsHeader`, `DocsSidebar`, `DocMasthead`, `DocsProse`, `DocToc`, `SiteFooter`).
  */
 export function WhySignInDocsPage() {
   const body = useRef<HTMLElement>(null);
-  const handleNavigate = (slug: string) => {
-    toast.message(slug ? `Navigating to /docs/${slug}` : "Navigating to /docs");
-  };
 
   return (
     <div id="landing" className="rc-site-dark dark bg-[#0a0a0a] font-sans text-fg antialiased">

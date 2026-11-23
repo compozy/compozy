@@ -17,7 +17,7 @@ import type {
   TranscriptTurnFixture,
 } from "@/systems/computers/mocks/remote-computers-fixtures-sessions";
 
-import { RemoteSessionsWindow } from "../remote-computers-shared-sessions";
+import { RemoteSessionsWindow } from "../remote-computers-shared-sessions/remote-sessions-window";
 
 function minutesFromLabel(label: string): number {
   const value = Number.parseInt(label, 10);

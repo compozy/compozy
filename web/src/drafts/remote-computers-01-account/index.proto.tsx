@@ -8,7 +8,11 @@ import {
   CREATED_ACCOUNT_TOKEN_FIXTURE,
 } from "@/systems/computers/mocks/remote-computers-fixtures-lane-a";
 
-import { ACCOUNT_DEVICES, ACCOUNT_PRESETS, PENDING_APPROVALS } from "../remote-computers-shared";
+import {
+  ACCOUNT_DEVICES,
+  ACCOUNT_PRESETS,
+  PENDING_APPROVALS,
+} from "@/systems/computers/mocks/remote-computers-fixtures";
 import { AccountSettingsPage, type AccountPageProps } from "./account-page";
 
 export const meta = definePrototype({

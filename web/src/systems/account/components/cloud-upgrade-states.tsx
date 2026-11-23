@@ -21,7 +21,7 @@ import {
   CLOUD_SUPPORT_EMAIL,
 } from "@/systems/computers/mocks/remote-computers-fixtures-sign-in";
 
-import { providerDisplayName } from "./sign-in-provider-buttons";
+import { providerDisplayName } from "../lib/provider-display-name";
 
 function findPlanOption(interval: UpgradeInterval) {
   return (
@@ -194,6 +194,7 @@ export function CloudUpgradeSuccessView({
           nativeButton={false}
           render={
             <a
+              aria-label="Open CompozyOS"
               href={CLOUD_OPEN_APP_URL}
               onClick={event => {
                 if (onOpenApp) {
@@ -212,6 +213,7 @@ export function CloudUpgradeSuccessView({
           nativeButton={false}
           render={
             <a
+              aria-label="Download CompozyOS"
               href={CLOUD_DOWNLOAD_URL}
               onClick={event => {
                 if (onDownload) {
@@ -319,6 +321,7 @@ export function CloudUpgradeAlreadyProView({
             nativeButton={false}
             render={
               <a
+                aria-label="Open CompozyOS"
                 href={CLOUD_OPEN_APP_URL}
                 onClick={event => {
                   event.preventDefault();

@@ -49,64 +49,67 @@ export function AddComputerAccountPath({
       </div>
 
       <div className="overflow-hidden rounded-lg border border-line bg-card">
-        {unaddedComputers.map(item => {
-          const isAdded = addedIds.includes(item.id);
-          const hostedBlocked = isFreePlan && item.hostedOnly;
-          return (
-            <ListingRow
-              className="min-h-14 border-b border-line-soft py-3 last:border-b-0"
-              interactive={false}
-              key={item.id}
-            >
-              <ListingRow.Icon>
-                <ComputerPlatformIcon
-                  iconKind={item.iconKind}
-                  platform={item.platform}
-                  size="sm"
-                  tone="muted"
-                />
-              </ListingRow.Icon>
-              <ListingRow.Main>
-                <ListingRow.Name>
-                  <ListingRow.Title>{item.name}</ListingRow.Title>
-                </ListingRow.Name>
-                <ListingRow.Meta className="mt-1">
-                  <span>{isAdded ? "Added" : "Not added"}</span>
-                  <ListingRow.MetaDot />
-                  <span className="inline-flex items-center gap-1.5">
-                    <StatusDot size="sm" tone={item.online ? "success" : "faint"} />
-                    <span>{item.online ? "Online" : "Offline"}</span>
-                  </span>
-                  {hostedBlocked ? (
-                    <>
-                      <ListingRow.MetaDot />
-                      <span className="text-warning">
-                        Only reachable through the hosted route (Pro)
-                      </span>
-                    </>
-                  ) : null}
-                </ListingRow.Meta>
-              </ListingRow.Main>
-              <ListingRow.Trail>
-                {isAdded ? (
-                  <Pill size="xs" tone="success">
-                    Added
-                  </Pill>
-                ) : hostedBlocked ? (
-                  <Button onClick={onUpgrade} size="sm" type="button" variant="secondary">
-                    <Sparkles aria-hidden="true" />
-                    Upgrade
-                  </Button>
-                ) : (
-                  <Button onClick={() => onAdd(item)} size="sm" type="button" variant="secondary">
-                    <Plus aria-hidden="true" />
-                    Add
-                  </Button>
-                )}
-              </ListingRow.Trail>
-            </ListingRow>
-          );
-        })}
+        {(() => {
+          const addedSet = new Set(addedIds);
+          return unaddedComputers.map(item => {
+            const isAdded = addedSet.has(item.id);
+            const hostedBlocked = isFreePlan && item.hostedOnly;
+            return (
+              <ListingRow
+                className="min-h-14 border-b border-line-soft py-3 last:border-b-0"
+                interactive={false}
+                key={item.id}
+              >
+                <ListingRow.Icon>
+                  <ComputerPlatformIcon
+                    iconKind={item.iconKind}
+                    platform={item.platform}
+                    size="sm"
+                    tone="muted"
+                  />
+                </ListingRow.Icon>
+                <ListingRow.Main>
+                  <ListingRow.Name>
+                    <ListingRow.Title>{item.name}</ListingRow.Title>
+                  </ListingRow.Name>
+                  <ListingRow.Meta className="mt-1">
+                    <span>{isAdded ? "Added" : "Not added"}</span>
+                    <ListingRow.MetaDot />
+                    <span className="inline-flex items-center gap-1.5">
+                      <StatusDot size="sm" tone={item.online ? "success" : "faint"} />
+                      <span>{item.online ? "Online" : "Offline"}</span>
+                    </span>
+                    {hostedBlocked ? (
+                      <>
+                        <ListingRow.MetaDot />
+                        <span className="text-warning">
+                          Only reachable through the hosted route (Pro)
+                        </span>
+                      </>
+                    ) : null}
+                  </ListingRow.Meta>
+                </ListingRow.Main>
+                <ListingRow.Trail>
+                  {isAdded ? (
+                    <Pill size="xs" tone="success">
+                      Added
+                    </Pill>
+                  ) : hostedBlocked ? (
+                    <Button onClick={onUpgrade} size="sm" type="button" variant="secondary">
+                      <Sparkles aria-hidden="true" />
+                      Upgrade
+                    </Button>
+                  ) : (
+                    <Button onClick={() => onAdd(item)} size="sm" type="button" variant="secondary">
+                      <Plus aria-hidden="true" />
+                      Add
+                    </Button>
+                  )}
+                </ListingRow.Trail>
+              </ListingRow>
+            );
+          });
+        })()}
       </div>
     </div>
   );
