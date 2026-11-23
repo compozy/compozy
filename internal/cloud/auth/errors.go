@@ -22,7 +22,7 @@ func failure(status int, code, message string) *Failure {
 func reauth(reason string) *Failure {
 	message := "Your session ended. Sign in again."
 	switch reason {
-	case "device_revoked":
+	case errDeviceRevoked.Code:
 		message = "This computer was removed from your account. Sign in again."
 	case "account_deleted":
 		message = "Your account was deleted."
@@ -51,7 +51,10 @@ var (
 		"This account is suspended. Contact support@compozy.com.")
 	errAccountDeleting = failure(http.StatusConflict, "account_deleting",
 		"Your account is being deleted. Try again in a few minutes.")
-	errDenied = failure(
+	errAccountTokenLocalOnly = failure(http.StatusForbidden, "account_token_local_only",
+		"Account tokens unlock local use only. Sign in with Google or GitHub for this.")
+	errDeviceRevoked = failure(http.StatusForbidden, "device_revoked", "This device was removed from your account.")
+	errDenied        = failure(
 		http.StatusBadRequest,
 		"access_denied",
 		"Sign-in was cancelled.", //nolint:misspell // Spec copy.

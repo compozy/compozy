@@ -154,21 +154,27 @@ type Verifier interface {
 type ControlType string
 
 const (
-	ControlSnapshot        ControlType = "snapshot"
-	ControlLease           ControlType = "lease"
-	ControlRevokeDevice    ControlType = "revoke_device"
-	ControlScopesChanged   ControlType = "scopes_changed"
-	ControlUnlink          ControlType = "unlink"
-	ControlJWKS            ControlType = "jwks"
-	ControlApprovalDecided ControlType = "approval_decided"
-	ControlPeers           ControlType = "peers"
-	ControlGoingAway       ControlType = "going_away"
-	ControlAck             ControlType = "ack"
-	ControlSnapshotRequest ControlType = "snapshot_request"
-	ControlSessionMinted   ControlType = "session_minted"
-	ControlApprovalPending ControlType = "approval_pending"
-	ControlApprovalApplied ControlType = "approval_applied"
-	ControlApprovedKeys    ControlType = "approved_keys"
+	ControlSnapshot         ControlType = "snapshot"
+	ControlLease            ControlType = "lease"
+	ControlRevokeDevice     ControlType = "revoke_device"
+	ControlScopesChanged    ControlType = "scopes_changed"
+	ControlUnlink           ControlType = "unlink"
+	ControlJWKS             ControlType = "jwks"
+	ControlApprovalDecided  ControlType = "approval_decided"
+	ControlPeers            ControlType = "peers"
+	ControlGoingAway        ControlType = "going_away"
+	ControlAck              ControlType = "ack"
+	ControlSnapshotRequest  ControlType = "snapshot_request"
+	ControlSessionMinted    ControlType = "session_minted"
+	ControlApprovalPending  ControlType = "approval_pending"
+	ControlApprovalApplied  ControlType = "approval_applied"
+	ControlApprovedKeys     ControlType = "approved_keys"
+	ControlChallenge        ControlType = "challenge"
+	ControlAuthenticate     ControlType = "authenticate"
+	ControlDevicesChanged   ControlType = "devices_changed"
+	ControlComputersChanged ControlType = "computers_changed"
+	ControlPlanChanged      ControlType = "plan_changed"
+	ControlLinkReplaced     ControlType = "link_replaced"
 )
 
 // Snapshot and lease data contain compact JWS strings.
@@ -218,4 +224,12 @@ type ApprovalApplied struct {
 
 type ApprovedKeys struct {
 	JKTs []string `json:"jkts"`
+}
+
+type ComputerChallenge struct {
+	Nonce string `json:"nonce"`
+}
+
+type ComputerAuthentication struct {
+	Signature string `json:"signature"`
 }

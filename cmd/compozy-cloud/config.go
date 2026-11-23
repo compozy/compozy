@@ -88,10 +88,12 @@ func loadServeConfig(getenv func(string) string) (serveConfig, error) {
 	return serveConfig{
 		Address: cmp.Or(getenv(envAddress), ":8080"),
 		Cloud: cloud.Config{
-			Postgres: store.Config{PooledDSN: pooled, DirectDSN: direct},
-			Keys:     keys,
-			Issuer:   issuer,
-			Auth:     auth,
+			Postgres:     store.Config{PooledDSN: pooled, DirectDSN: direct},
+			Keys:         keys,
+			Issuer:       issuer,
+			Auth:         auth,
+			MonthlyPrice: getenv("STRIPE_PRICE_PRO_MONTHLY"),
+			AnnualPrice:  getenv("STRIPE_PRICE_PRO_ANNUAL"),
 		},
 	}, nil
 }

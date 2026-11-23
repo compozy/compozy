@@ -18,7 +18,9 @@ import (
 
 	"github.com/compozy/compozy/internal/cloud"
 	"github.com/compozy/compozy/internal/cloud/api"
+	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/cloud/store"
+	"github.com/compozy/compozy/internal/cloud/turnstile"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
@@ -153,4 +155,38 @@ func NewSigner(t *testing.T, kid string) *remoteproto.Signer {
 		t.Fatal(err)
 	}
 	return signer
+}
+
+func ControlConfig(t *testing.T, now func() time.Time, keys *api.SigningKeys) cloud.Config {
+	t.Helper()
+	if keys == nil {
+		var err error
+		keys, err = api.NewSigningKeys(NewSigner(t, "test-control"), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Control tests seed sessions and do not contact identity providers.
+	client := auth.OAuthClient{ID: "test-client", Secret: auth.Secret()}
+	oauth, err := auth.NewOAuth(client, client, auth.WithOAuthEndpoints(auth.OAuthEndpoints{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	botCheck, err := turnstile.New(
+		auth.Secret(),
+		"cloud.compozy.com",
+		turnstile.WithEndpoint("https://turnstile.invalid"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sealKey [32]byte
+	rand.Read(sealKey[:])
+	return cloud.Config{
+		Keys: keys, Now: now, Auth: &auth.Config{
+			OAuth: oauth, EncryptionKey: sealKey[:], Turnstile: botCheck,
+			TurnstileSiteKey: "test-site-key", HostedDomain: "compozy.run",
+		},
+	}
 }

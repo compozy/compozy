@@ -25,17 +25,6 @@ func (q *Queries) AdvanceAuthAccountActivity(ctx context.Context, arg AdvanceAut
 	return err
 }
 
-const advanceAuthSecurityEpoch = `-- name: AdvanceAuthSecurityEpoch :one
-UPDATE accounts SET security_epoch = security_epoch + 1 WHERE id = $1 RETURNING security_epoch
-`
-
-func (q *Queries) AdvanceAuthSecurityEpoch(ctx context.Context, id string) (int64, error) {
-	row := q.db.QueryRow(ctx, advanceAuthSecurityEpoch, id)
-	var security_epoch int64
-	err := row.Scan(&security_epoch)
-	return security_epoch, err
-}
-
 const findIdentityAccount = `-- name: FindIdentityAccount :one
 SELECT account_id FROM identities WHERE provider = $1 AND subject = $2
 `

@@ -62,18 +62,18 @@ func BuildDPoP(signer crypto.Signer, method, target, credential string, now time
 	if credential != "" {
 		proof.TokenHash = new(hashBase64([]byte(credential)))
 	}
-	return signDPoP(signer, key, proof)
+	return signDeviceJWS(signer, key, dpopType, proof)
 }
 
-func signDPoP(signer crypto.Signer, key JWK, proof DPoPProof) (string, error) {
-	input, err := signingInput(protectedHeader{Alg: algES256, Typ: dpopType, JWK: &key}, proof)
+func signDeviceJWS(signer crypto.Signer, key JWK, typ string, claims any) (string, error) {
+	input, err := signingInput(protectedHeader{Alg: algES256, Typ: typ, JWK: &key}, claims)
 	if err != nil {
 		return "", err
 	}
 	digest := sha256.Sum256([]byte(input))
 	raw, err := signer.Sign(rand.Reader, digest[:], crypto.SHA256)
 	if err != nil {
-		return "", fmt.Errorf("sign DPoP proof: %w", err)
+		return "", fmt.Errorf("sign device proof: %w", err)
 	}
 	var sig struct{ R, S *big.Int }
 	tail, err := asn1.Unmarshal(raw, &sig)
@@ -105,7 +105,7 @@ func (v *DPoPVerifier) VerifyDPoP(token string, binding DPoPBinding, now time.Ti
 	if len(token) > maxProofSize || binding.JKT == "" || binding.Method == "" {
 		return DPoPProof{}, ErrDPoPInvalid
 	}
-	if jws, err := parseCompact(token); err == nil && verifyProofSignature(jws, binding.JKT) {
+	if jws, err := parseCompact(token); err == nil && verifyDeviceSignature(jws, dpopType, binding.JKT) {
 		var proof DPoPProof
 		if err := json.Unmarshal(jws.body, &proof); err == nil && proof.matches(binding, now) {
 			if err := v.consume(proof.JTI, now); err != nil {
@@ -117,9 +117,9 @@ func (v *DPoPVerifier) VerifyDPoP(token string, binding DPoPBinding, now time.Ti
 	return DPoPProof{}, ErrDPoPInvalid
 }
 
-func verifyProofSignature(jws compactJWS, jkt string) bool {
+func verifyDeviceSignature(jws compactJWS, typ, jkt string) bool {
 	header := jws.header
-	if header.Alg != algES256 || header.Typ != dpopType || header.JWK == nil ||
+	if header.Alg != algES256 || header.Typ != typ || header.JWK == nil ||
 		header.JWK.Kty != keyEC || len(jws.signature) != 64 {
 		return false
 	}

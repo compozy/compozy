@@ -37,10 +37,14 @@ type DevicePrincipal struct {
 	DeviceID  remoteproto.DeviceID
 	JKT       string
 	Admin     bool
+	SessionID string `json:"-"`
 }
 
 func (s *Service) AuthenticateDevice(r *http.Request) (DevicePrincipal, error) {
 	credentials := RequestDeviceProof(r)
+	if strings.HasPrefix(credentials.Token, "cpzat_") {
+		return DevicePrincipal{}, errAccountTokenLocalOnly
+	}
 	if credentials.Token == "" || len(credentials.Token) > 4096 {
 		return DevicePrincipal{}, errSessionInvalid
 	}
@@ -62,14 +66,21 @@ func (s *Service) AuthenticateDevice(r *http.Request) (DevicePrincipal, error) {
 	if err := s.verifyDeviceProof(ctx, credentials, session.JKT, credentials.Token, now); err != nil {
 		return DevicePrincipal{}, err
 	}
-	if session.AccountState == stateSuspended {
-		return DevicePrincipal{}, errAccountSuspended
+	if err := requireActive(store.AuthAccount{State: session.AccountState}); err != nil {
+		return DevicePrincipal{}, err
+	}
+	if session.DeviceRevoked || session.KeyState == store.KeyRevoked {
+		return DevicePrincipal{}, errDeviceRevoked
 	}
 	if err := validSession(session); err != nil {
 		return DevicePrincipal{}, err
 	}
 	return DevicePrincipal{
-		AccountID: session.AccountID, DeviceID: claims.DeviceID, JKT: session.JKT, Admin: session.Admin,
+		AccountID: session.AccountID,
+		DeviceID:  claims.DeviceID,
+		JKT:       session.JKT,
+		Admin:     session.Admin,
+		SessionID: session.ID,
 	}, nil
 }
 
@@ -230,7 +241,7 @@ func validSession(d store.AuthDeviceSession) error {
 	case d.AccountState == stateDeleting:
 		return reauth("account_deleted")
 	case d.DeviceRevoked || d.KeyState == store.KeyRevoked:
-		return reauth("device_revoked")
+		return reauth(errDeviceRevoked.Code)
 	case d.AccountState != stateActive || d.KeyState != store.KeyActive || d.Revoked:
 		return errSessionInvalid
 	default:

@@ -26,8 +26,5 @@ RETURNING account_id;
 -- name: AdvanceAuthAccountActivity :exec
 UPDATE accounts SET last_seen_at = greatest(last_seen_at, sqlc.arg(as_of)) WHERE id = $1;
 
--- name: AdvanceAuthSecurityEpoch :one
-UPDATE accounts SET security_epoch = security_epoch + 1 WHERE id = $1 RETURNING security_epoch;
-
 -- name: HasDeletedAuthAccount :one
 SELECT EXISTS (SELECT 1 FROM deleted_accounts WHERE account_id = $1);

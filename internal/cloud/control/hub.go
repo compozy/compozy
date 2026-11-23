@@ -79,7 +79,7 @@ func (h *Hub) publish(event store.ControlEvent) {
 	defer h.mu.Unlock()
 	for sub := range h.subscriptions {
 		if sub.stopping || (event.AccountID != "" && event.AccountID != sub.account) ||
-			(event.ComputerID != "" && event.ComputerID != sub.computer) {
+			!routesToSubscription(event, sub.computer) {
 			continue
 		}
 		select {
@@ -88,6 +88,21 @@ func (h *Hub) publish(event store.ControlEvent) {
 			// A slow link must reconnect with a snapshot rather than miss an epoch.
 			stopSubscription(sub, Resync)
 		}
+	}
+}
+
+func routesToSubscription(event store.ControlEvent, computer remoteproto.ComputerID) bool {
+	switch event.Type {
+	case remoteproto.ControlDevicesChanged, remoteproto.ControlApprovalPending, remoteproto.ControlApprovalApplied:
+		return computer == ""
+	case remoteproto.ControlLinkReplaced:
+		return event.ComputerID == computer
+	case remoteproto.ControlSnapshot, remoteproto.ControlUnlink:
+		return true
+	case remoteproto.ControlPeers, remoteproto.ControlJWKS:
+		return computer != ""
+	default:
+		return computer == "" || event.ComputerID == "" || event.ComputerID == computer
 	}
 }
 

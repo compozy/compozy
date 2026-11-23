@@ -1,6 +1,6 @@
 ---
 title: Compozy Cloud service
-description: Cloud sign-in, readiness, signing keys, and the gate policy for Remote Computers.
+description: Cloud sign-in, device trust, computer links, and control events for Remote Computers.
 ---
 
 Compozy Cloud coordinates accounts and access to computers. Agent sessions run on the computers that host them. Their prompts, files, and traffic stay on those computers and the routes between them.
@@ -36,3 +36,35 @@ Send enrollment and refresh credentials in the `Authorization` header and use th
 Google and GitHub sign-ins link when their verified email addresses match. If the account has lost its active admins, choose **Recover admin access** on the Google activation page and authenticate again. Open the activation link in a private window if Google reuses an earlier sign-in.
 
 A hosted route starts browser sign-in at `GET /v1/browser/authorize`. Compozy Cloud can reuse a first-party web session for 30 days of inactivity, up to 90 days from sign-in. The route uses a short-lived code tied to the browser's key and the destination computer.
+
+## Devices, computers, and approvals
+
+Device-authenticated requests carry a bound access token and a fresh `DPoP` proof.
+
+| Endpoint                                         | Purpose                                                               |
+| ------------------------------------------------ | --------------------------------------------------------------------- |
+| `GET /v1/devices`                                | List account devices and identify the calling device                  |
+| `PATCH /v1/devices/{id}`                         | Change a device's name, admin trust, or scopes for a computer         |
+| `DELETE /v1/devices/{id}`                        | Revoke a device and all its keys                                      |
+| `GET /v1/computers`                              | List linked computers, their direct endpoints, and their online state |
+| `PATCH /v1/computers/{id}`                       | Change the name or remote access setting                              |
+| `DELETE /v1/computers/{id}`                      | Unlink a computer and release its slot                                |
+| `POST /v1/computers/reservations`                | Reserve a slot or revalidate `previous_reservation_id`                |
+| `DELETE /v1/computers/reservations/{id}`         | Release an unconsumed reservation                                     |
+| `POST /v1/computers/link-tokens`                 | Create a ten-minute token, optionally tied to a reservation           |
+| `POST /v1/computers/{id}/grants`                 | Issue a signed grant for the requested `route`                        |
+| `GET /v1/approvals` and `GET /v1/approvals/{id}` | Read pending approvals and the results of recent decisions            |
+| `POST /v1/approvals/{id}/decision`               | Relay a device-signed `decision_jws` to the computer                  |
+| `GET /v1/account/events`                         | Subscribe to account changes through server-sent events               |
+
+A trusted admin device can change admin trust and scopes or revoke another device. Decisions also require the deciding key to be approved on the computer. A `202` response confirms delivery was accepted. Read `applied_result` or wait for `approval.applied` to learn what the computer did. After an event stream reconnect, re-read the account and any approvals you were following.
+
+Free has one slot. An enabled computer or active reservation uses it. A reservation lasts 15 minutes. Revalidating an active reservation returns the same ID. Compozy Cloud consumes the reservation in the transaction that links the computer. A new grant expires in 60 seconds and carries the requesting device's key thumbprint and the account security epoch. Free grants allow `direct` and `ssh`. Compozy Pro adds `cloud`.
+
+## Computer authentication and control
+
+`POST /v1/computers/link` accepts the computer's name, platform, version, Ed25519 public JWK, and TLS root fingerprint. Supply the link token as a bearer credential or as `link_token` in the body. Repeating the token with the same computer key returns the original `computer_id` and `account_id`.
+
+A signed-in device can link with a computer key proof instead of a link token. A computer can also use its own key to patch its row and report its direct endpoints. Send the proof in `X-Compozy-Computer-Proof`. The proof signs the HTTP method, the public Compozy Cloud URL, a SHA-256 hash of the request body, its issue time, and a single-use ID.
+
+Connect to `GET /v1/computers/control?computer_id=…` over WebSocket. Reply to `challenge` with an `authenticate` frame signed by the computer key. The first authenticated frame is a signed `snapshot`. Apply it and acknowledge its epoch before accepting a lease. Leases expire in 15 minutes and refresh every 5 minutes. Send `snapshot_request` after a gap. Reconnect on `going_away` to receive a fresh snapshot from a ready replica.

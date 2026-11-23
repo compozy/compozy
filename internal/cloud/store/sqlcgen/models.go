@@ -80,6 +80,8 @@ type Computer struct {
 	LastControlAt pgtype.Timestamptz
 	LinkedAt      pgtype.Timestamptz
 	UnlinkedAt    pgtype.Timestamptz
+	LeaseSequence int64
+	ControlLinkID pgtype.Text
 }
 
 type ComputerApprovedKey struct {
@@ -93,6 +95,12 @@ type ComputerEndpoint struct {
 	Kind       string
 	Address    string
 	ReportedAt pgtype.Timestamptz
+}
+
+type ComputerProofReplay struct {
+	Jkt       string
+	Jti       string
+	ExpiresAt pgtype.Timestamptz
 }
 
 type DeletedAccount struct {

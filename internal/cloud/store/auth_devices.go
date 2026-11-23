@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"encoding/json/v2"
-	"errors"
 	"time"
 
 	"github.com/compozy/compozy/internal/cloud/store/sqlcgen"
@@ -75,18 +74,10 @@ func (q *Queries) PromoteRecoveredAdmin(ctx context.Context, deviceID string) er
 }
 
 func (q *Queries) RecordAuthDeviceChange(ctx context.Context, accountID string) error {
-	epoch, err := q.generated.AdvanceAuthSecurityEpoch(ctx, accountID)
-	if err != nil {
-		return err
-	}
-	if epoch <= 0 {
-		return errors.New("invalid cloud security epoch")
-	}
-	return q.NotifyControlEvent(ctx, ControlEvent{
-		Type:          remoteproto.ControlSnapshot,
-		AccountID:     accountID,
-		SecurityEpoch: uint64(epoch),
+	_, err := q.AdvanceSecurity(ctx, ControlEvent{
+		Type: remoteproto.ControlSnapshot, AccountID: accountID,
 	})
+	return err
 }
 
 func (q *Queries) AdvanceDeviceActivity(ctx context.Context, deviceID string, now time.Time) error {

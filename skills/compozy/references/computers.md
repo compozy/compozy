@@ -19,3 +19,12 @@ Start a device grant with `POST /v1/device-flow`. Show the operator the returned
 Enroll with `POST /v1/devices/enroll` using the single-use enrollment token and a DPoP proof from the per-account device key. `POST /v1/session/refresh` rotates the refresh credential. `POST /v1/session/logout` revokes that session and keeps its enrolled device. Keep device codes, enrollment and refresh credentials, and OAuth callback URLs out of tool results and logs.
 
 Use the Google activation page's **Recover admin access** action after losing the last active admin device. The provider must verify a fresh sign-in.
+
+## Cloud account and computer access
+
+- `GET /v1/devices` lists the account's devices. An admin can promote or demote another device, edit its scopes, or revoke it with the device routes. Each trust change increments the account's security epoch.
+- `GET /v1/computers` lists the account's linked computers. Use `POST /v1/computers/reservations` to reserve a slot before SSH setup. On resume, send `previous_reservation_id` again. Release the reservation when setup is cancelled. A link token can be redeemed again by the same computer key to recover the original link result.
+- Request a fresh grant for each connection attempt at `POST /v1/computers/{id}/grants` with the route kind. Use the bound device key. Free grants cover `direct` and `ssh`. Compozy Pro also covers `cloud`.
+- Follow `GET /v1/account/events` for device, computer, plan, and approval changes. After a reconnect, read the current state. A decision accepted for delivery can be checked at `GET /v1/approvals/{id}` until the computer provides its `applied_result`.
+
+Keep link tokens, grants, computer key proofs and private keys out of logs and tool results.

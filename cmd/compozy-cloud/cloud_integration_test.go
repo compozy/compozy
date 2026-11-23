@@ -23,19 +23,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
-
 	"github.com/compozy/compozy/internal/cloud"
-	"github.com/compozy/compozy/internal/cloud/api"
 	"github.com/compozy/compozy/internal/cloud/control"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
 
-const (
-	cloudProcessMode = "COMPOZY_TEST_CLOUD_PROCESS"
-	linkPath         = "/v1/computers/control"
-)
+const cloudProcessMode = "COMPOZY_TEST_CLOUD_PROCESS"
 
 func TestMain(m *testing.M) {
 	switch os.Getenv(cloudProcessMode) {
@@ -115,25 +109,54 @@ func TestCloudDrain(t *testing.T) {
 		t.Parallel()
 		db := remotetest.NewDatabase(t)
 		db.Migrate(t)
+		now := time.Now().UTC()
+		config := remotetest.ControlConfig(t, time.Now, nil)
+		db.SeedAccount(t, "acc_drain")
+		device := db.SeedControlDevice(t, "acc_drain", "dev_drain", true, config.Keys.Signer(), now)
+		computerKey := db.SeedControlComputer(t, device.AccountID, "cmp_drain", now)
 		ctx, cancel := context.WithTimeout(t.Context(), 65*time.Second)
 		defer cancel()
 		firstURL, process := startDrainFixture(t, ctx, db)
-		peer := remotetest.StartReplica(t, cloud.Config{Postgres: db.Config(t, "peer")}, registerDrainLink)
+		config.Postgres = db.Config(t, "peer")
+		peer := remotetest.StartReplica(t, config, nil)
 
-		link := dialCloudLink(t, ctx, firstURL)
-		if got := readControl(t, link); got.Type != remoteproto.ControlSnapshot || got.SecurityEpoch != 1 {
-			t.Fatalf("first frame of the retiring replica = %+v", got)
+		link := remotetest.AuthenticateControlLink(t, ctx, firstURL, "cmp_drain", computerKey)
+		first := remotetest.ReadControlMessage(t, link, 5*time.Second)
+		if first.Type != remoteproto.ControlSnapshot || first.SecurityEpoch != 1 {
+			t.Fatalf("first authenticated frame of the retiring replica = %s epoch %d", first.Type, first.SecurityEpoch)
+		}
+		remotetest.SendControl(
+			t,
+			link,
+			remoteproto.ControlAck,
+			remoteproto.SecurityAck{SecurityEpoch: first.SecurityEpoch},
+		)
+		lease := remotetest.ReadControlMessage(t, link, 5*time.Second)
+		if lease.Type != remoteproto.ControlLease || lease.SecurityEpoch != 1 {
+			t.Fatalf("retiring replica lease = %s epoch %d", lease.Type, lease.SecurityEpoch)
 		}
 		started := time.Now()
 		if err := process.Process.Signal(syscall.SIGTERM); err != nil {
 			t.Fatal(err)
 		}
-		if got := readControl(t, link); got.Type != remoteproto.ControlGoingAway {
-			t.Fatalf("drain did not send going_away: %+v", got)
+		verifyGrantDuringDrain(t, ctx, peer, device)
+		for {
+			if message := remotetest.ReadControlMessage(
+				t,
+				link,
+				5*time.Second,
+			); message.Type == remoteproto.ControlGoingAway {
+				break
+			}
 		}
-		reconnected := dialCloudLink(t, ctx, peer.Server.URL)
-		if got := readControl(t, reconnected); got.Type != remoteproto.ControlSnapshot || got.SecurityEpoch != 1 {
-			t.Fatalf("first frame after reconnect = %+v", got)
+		reconnected := remotetest.AuthenticateControlLink(t, ctx, peer.Server.URL, "cmp_drain", computerKey)
+		if got := remotetest.ReadControlMessage(
+			t,
+			reconnected,
+			5*time.Second,
+		); got.Type != remoteproto.ControlSnapshot ||
+			got.SecurityEpoch != first.SecurityEpoch {
+			t.Fatalf("first authenticated frame after reconnect = %s epoch %d", got.Type, got.SecurityEpoch)
 		}
 		if err := process.Wait(); err != nil || time.Since(started) > cloud.DrainTimeout {
 			t.Fatalf("retiring replica exited after %v with %v", time.Since(started), err)
@@ -159,6 +182,36 @@ func TestCloudDrain(t *testing.T) {
 			t.Fatalf("peer health = %d, %s, %v", resp.StatusCode, body, err)
 		}
 	})
+}
+
+func verifyGrantDuringDrain(
+	t *testing.T, ctx context.Context, peer *remotetest.Replica, device remotetest.ControlDevice,
+) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, peer.Server.URL+"/v1/computers/cmp_drain/grants",
+		strings.NewReader(`{"route":"direct"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	device.AuthorizeRequest(t, req, now)
+	response, err := peer.Server.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	var grant control.Grant
+	if err := json.UnmarshalRead(response.Body, &grant); err != nil || response.StatusCode != http.StatusOK {
+		t.Fatalf("grant through the ready replica status=%d, %v", response.StatusCode, err)
+	}
+	verifier, err := remoteproto.NewJWSVerifier(remoteproto.CloudIssuer, peer.App.Keys.JWKS(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := verifier.VerifyGrant(ctx, grant.Grant, now)
+	if err != nil || claims.Audience != "cmp_drain" || claims.Cnf.JKT != device.JKT {
+		t.Fatalf("grant through the ready replica = %+v, %v", claims, err)
+	}
 }
 
 func migrateCommand(t *testing.T, ctx context.Context, direct string) *exec.Cmd {
@@ -253,7 +306,6 @@ func serveDrainFixture() error {
 		listener.Close()
 		return closeErr
 	}
-	registerDrainLink(app)
 	go func() {
 		wait, cancel := context.WithTimeout(ctx, 8*time.Second)
 		defer cancel()
@@ -264,77 +316,4 @@ func serveDrainFixture() error {
 		}
 	}()
 	return app.Serve(ctx, listener)
-}
-
-func registerDrainLink(app *cloud.App) {
-	app.Routes().HandleFunc("GET "+linkPath, func(w http.ResponseWriter, r *http.Request) {
-		sub, ok := app.Control.Subscribe("acc_fixture", "cmp_fixture")
-		if !ok {
-			api.WriteError(w, http.StatusServiceUnavailable, api.CodeUnavailable, "Cloud is unavailable.")
-			return
-		}
-		defer app.Control.Release(sub)
-		upgrader := websocket.Upgrader{}
-		link, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			return
-		}
-		defer link.Close()
-		snapshot := remoteproto.SecuritySnapshot{AccountID: "acc_fixture", SecurityEpoch: 1, Linked: true}
-		token, err := app.Keys.Signer().SignSnapshot(snapshot)
-		if err != nil {
-			return
-		}
-		data, err := json.Marshal(token)
-		if err != nil {
-			return
-		}
-		if err := link.SetWriteDeadline(time.Now().Add(2 * time.Second)); err != nil {
-			return
-		}
-		first := remoteproto.ControlMessage{Type: remoteproto.ControlSnapshot, SecurityEpoch: 1, Data: data}
-		if err := link.WriteJSON(first); err != nil {
-			return
-		}
-		select {
-		case reason := <-sub.Closing:
-			if reason == control.GoingAway {
-				if err := link.SetWriteDeadline(time.Now().Add(2 * time.Second)); err != nil {
-					return
-				}
-				link.WriteJSON(remoteproto.ControlMessage{Type: remoteproto.ControlGoingAway})
-			}
-		case <-r.Context().Done():
-		}
-	})
-}
-
-func dialCloudLink(t *testing.T, ctx context.Context, base string) *websocket.Conn {
-	t.Helper()
-	dialer := websocket.Dialer{HandshakeTimeout: 3 * time.Second}
-	link, resp, err := dialer.DialContext(ctx, "ws"+strings.TrimPrefix(base, "http")+linkPath, nil)
-	if err != nil {
-		if resp != nil {
-			resp.Body.Close()
-		}
-		t.Fatalf("dial fixture control link: %v", err)
-	}
-	t.Cleanup(func() { link.Close() })
-	if err := link.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		t.Fatal(err)
-	}
-	return link
-}
-
-func readControl(t *testing.T, link *websocket.Conn) remoteproto.ControlMessage {
-	t.Helper()
-	_, body, err := link.ReadMessage()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var msg remoteproto.ControlMessage
-	if err := json.Unmarshal(body, &msg); err != nil {
-		t.Fatal(err)
-	}
-	return msg
 }
