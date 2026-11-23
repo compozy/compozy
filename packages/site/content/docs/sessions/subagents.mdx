@@ -161,8 +161,8 @@ compozy session list --subagents exclude
 
 ## How subagents behave
 
-- **The subagent sees only the task.** It doesn't get the parent's conversation or attachments, so a
-  good agent writes the task with everything the subagent needs.
+- **The subagent receives a self-contained brief.** Include the facts it needs in the task or a
+  structured handoff because the parent's conversation and attachments are unavailable.
 - **Permissions only narrow.** A subagent can do what its parent can do, or less. It never gets more.
   Conversation forks and continued sessions can delegate the tools authorized by their own agent
   definition. Their source-session link records provenance and does not remove that capability.
@@ -328,8 +328,9 @@ For independent code changes, ask the agent to delegate with `isolation: "worktr
 }
 ```
 
-`base_ref` is optional and only valid with worktree isolation. Without it, the new branch starts
-from the caller checkout's current HEAD commit. Uncommitted changes are not copied. The branch
+`base_ref` is optional and only valid with worktree isolation. A fresh delegation defaults to the
+caller checkout's current HEAD. A [corrective round](#corrective-rounds-and-handoff) can inherit the
+prior subagent's branch. A new worktree carries committed changes. The branch
 name combines the configured run namespace, task title and an ID suffix, so concurrent delegates
 with the same title have distinct branches. Shared children inherit the parent's checkout;
 isolated children of an isolated subagent start from that checkout's HEAD.
@@ -361,8 +362,8 @@ that no PR exists.
 
 ## Corrective rounds and handoff
 
-When a subagent's result fails verification or needs another pass, delegate again with `prior_subagent_id`
-and `handoff` instead of prompting the old child session:
+When a subagent's result fails verification or needs another pass, delegate a new `task` with
+`prior_subagent_id` and `handoff`. Use a prior subagent ID from the same parent session and workspace.
 
 ```json
 {
@@ -378,9 +379,14 @@ and `handoff` instead of prompting the old child session:
 }
 ```
 
-When using `isolation: "worktree"`, omitting `base_ref` automatically continues from the prior subagent's
-branch, so commits and changes made during the prior round remain in place while the model starts with a
-fresh, clean context window to avoid reasoning drift.
+Each of `handoff.objections` and `handoff.findings` accepts up to 40,000 characters. `handoff.files`
+accepts up to 64 paths of 1,024 characters each. The task and formatted handoff share the
+120,000-character prompt limit.
+
+With `isolation: "worktree"` and an omitted `base_ref`, the new worktree starts from the prior
+subagent's branch, including its committed changes. An explicit `base_ref` takes precedence. If the
+prior subagent used shared isolation, the caller's HEAD stays the default. If it used worktree
+isolation and has no associated branch yet, delegation returns `invalid_request`.
 
 ## Messages to always-on agents
 

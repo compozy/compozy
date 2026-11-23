@@ -6,7 +6,18 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-const subagentDelegateDescription = "Delegate one self-contained task to a subagent: a new agent session on any available provider/model that sees only `task`, not this conversation. Prefer mode=\"async\" for long work: when the subagent finishes, Compozy wakes this session with a message (steered into the running turn when supported, otherwise queued), so do not poll or wait in loops: keep working on steps that do not need the result, and end your turn only when every remaining step waits on a registered subagent or monitor; call compozy__subagent_status only when you need the result mid-turn. For a corrective or follow-up round, delegate again with prior_subagent_id, handoff (open objections and prior findings), and the brief — do not prompt the old child session. If using isolation \"worktree\", omitting base_ref automatically continues from the prior subagent's branch. A subagent waiting for approval does not wake you: the operator approves it, or you call compozy__session_approve on child_session_id after compozy__subagent_status reports status \"waiting\"." + " Use isolation \"worktree\" when the subagent should change code on its own branch, for example one PR per slice. Its worktree is kept after it finishes. Commit what you want the subagent to start from; uncommitted changes are not copied."
+const subagentDelegateDescription = "Delegate a self-contained task to a new agent session. " +
+	"Choose any available provider/model. The child receives the task and optional handoff. " +
+	"Prefer mode=\"async\" for long work. When the subagent finishes, " +
+	"CompozyOS wakes this session with a message (steered into a running turn when supported, otherwise queued). " +
+	"Keep working until every remaining step waits on a registered subagent or monitor, then end the turn. " +
+	"Call compozy__subagent_status only if you need the result mid-turn. For a corrective round, include " +
+	"prior_subagent_id from the same parent session and workspace and handoff with objections, findings, and files. " +
+	"With isolation=\"worktree\" and no base_ref, a linked prior worktree branch supplies the starting commit. " +
+	"Use isolation=\"worktree\" for a separate branch and checkout. It is retained when the child finishes. " +
+	"Commit any changes the new worktree should include. A subagent waiting for approval does not wake you. " +
+	"The operator approves it, or you call compozy__session_approve on child_session_id after " +
+	"compozy__subagent_status reports status \"waiting\"."
 
 func subagentDescriptors() []toolspkg.Descriptor {
 	return []toolspkg.Descriptor{

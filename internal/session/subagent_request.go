@@ -49,6 +49,14 @@ func validateHandoff(req *SubagentRequest) error {
 		if utf8.RuneCountInString(req.Handoff.Findings) > 40000 {
 			return invalidSubagent("handoff.findings exceeds 40000 characters.")
 		}
+		if len(handoff.Files) > 64 {
+			return invalidSubagent("handoff.files exceeds 64 items.")
+		}
+		for _, file := range handoff.Files {
+			if utf8.RuneCountInString(file) > 1024 {
+				return invalidSubagent("handoff.files item exceeds 1024 characters.")
+			}
+		}
 	}
 	return nil
 }

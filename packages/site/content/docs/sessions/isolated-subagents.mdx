@@ -69,8 +69,9 @@ The answer the agent gets back already names the branch and the worktree:
 ```
 
 Each branch is your `run_branch_namespace` (default `run/`), the title as a slug, and a short hash, so
-two subagents with the same title still get different branches. When the agent doesn't name a base,
-the worktree starts from the commit your session's checkout is on right now.
+two subagents with the same title still get different branches. A fresh delegation without a base
+starts from your session's current HEAD. A [corrective round](/docs/sessions/subagents#corrective-rounds-and-handoff)
+can start from a prior subagent's branch.
 
 The subagent's first prompt starts with one extra line from CompozyOS, so it knows where it is and how
 to deliver:

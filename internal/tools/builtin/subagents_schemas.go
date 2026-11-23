@@ -7,12 +7,12 @@ const subagentDelegateInputSchema = `{
       "type": "string",
       "minLength": 1,
       "maxLength": 120000,
-      "description": "Self-contained brief; the child sees only this task."
+      "description": "Self-contained brief. The task and formatted handoff must fit within 120000 characters."
     },
     "prior_subagent_id": {
       "type": "string",
       "maxLength": 64,
-      "description": "Optional ID of a prior subagent from this session being continued or corrected."
+      "description": "Optional ID of a prior subagent from the same parent session and workspace."
     },
     "handoff": {
       "type": "object",
@@ -29,8 +29,10 @@ const subagentDelegateInputSchema = `{
         },
         "files": {
           "type": "array",
+          "maxItems": 64,
           "items": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1024
           },
           "description": "Relevant file paths already inspected or modified."
         }
@@ -167,7 +169,7 @@ const subagentDelegateInputSchema = `{
     },
     "base_ref": {
       "type": "string",
-      "description": "Only with worktree. Omitted or blank uses the caller checkout HEAD commit at delegate time."
+      "description": "Worktree only. Defaults to the linked prior subagent's worktree branch or the caller HEAD."
     }
   },
   "required": [

@@ -57,6 +57,43 @@ func TestSubagentRequest(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	for _, tc := range []struct {
+		name  string
+		files []string
+		want  string
+	}{
+		{
+			name:  "Should accept handoff files at both limits",
+			files: slices.Repeat([]string{strings.Repeat("界", 1024)}, 64),
+		},
+		{
+			name:  "Should reject too many handoff files",
+			files: slices.Repeat([]string{"file.go"}, 65),
+			want:  "handoff.files exceeds 64 items.",
+		},
+		{
+			name:  "Should reject an oversized handoff file",
+			files: []string{strings.Repeat("界", 1025)},
+			want:  "handoff.files item exceeds 1024 characters.",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req := subagentTestRequest()
+			req.Handoff = &SubagentHandoff{Files: tc.files}
+			_, err := normalizeSubagentRequest(req)
+			if tc.want == "" {
+				if err != nil {
+					t.Fatalf("handoff at the limits was rejected: %v", err)
+				}
+				return
+			}
+			detail, ok := errors.AsType[*SubagentError](err)
+			if !ok || !errors.Is(err, ErrSubagentInvalidRequest) || detail.Message != tc.want {
+				t.Fatalf("error = %v, want invalid_request: %s", err, tc.want)
+			}
+		})
+	}
 	t.Run("Should prefix only non-general roles UT-009", func(t *testing.T) {
 		t.Parallel()
 		if subagentPrompt("review", "task") != "Act as the review subagent for this task.\n\ntask" ||
