@@ -193,15 +193,16 @@ type AutomationJobTriggerParams struct {
 }
 
 type AutomationJobUpdateParams struct {
-	ID         string           `json:"id"`
-	Name       *string          `json:"name,omitempty"`
-	Prompt     *string          `json:"prompt,omitempty"`
-	Schedule   *ScheduleSpec    `json:"schedule,omitempty"`
-	Task       *JobTaskConfig   `json:"task,omitempty"`
-	LoopTarget *LoopTarget      `json:"loop_target,omitempty"`
-	Enabled    *bool            `json:"enabled,omitempty"`
-	Retry      *RetryConfig     `json:"retry,omitempty"`
-	FireLimit  *FireLimitConfig `json:"fire_limit,omitempty"`
+	ID               string           `json:"id"`
+	Name             *string          `json:"name,omitempty"`
+	Prompt           *string          `json:"prompt,omitempty"`
+	Schedule         *ScheduleSpec    `json:"schedule,omitempty"`
+	Task             *JobTaskConfig   `json:"task,omitempty"`
+	LoopTarget       *LoopTarget      `json:"loop_target,omitempty"`
+	LoopInputCommand *string          `json:"loop_input_command,omitempty"`
+	Enabled          *bool            `json:"enabled,omitempty"`
+	Retry            *RetryConfig     `json:"retry,omitempty"`
+	FireLimit        *FireLimitConfig `json:"fire_limit,omitempty"`
 }
 
 type AutomationJobsParams struct {

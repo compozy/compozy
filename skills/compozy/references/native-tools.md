@@ -435,17 +435,18 @@ by another agent, provider, or model while you keep working:
    those hidden for unavailable providers). Any model id advertised by the provider is accepted
    even if absent from this preview; delegation validates against the full catalog.
 2. `compozy__subagent_delegate` takes a required, self-contained `task` (≤ 120,000 characters). The
-   subagent sees only `task`: no conversation history and no attachments, so include every fact it
-   needs. Optional `title` (≤ 512), `role` (`general`, `implementation`, `research`, `review`, `design`,
-   `test`), `target` (`agent`, `provider`, `model`, `reasoning_effort`, `speed`, `acp_options`; omitted
+   child receives the task and any structured handoff. Include the facts it needs because the parent
+   history and attachments are unavailable. Optional `title` (≤ 512), `role` (`general`, `implementation`,
+   `research`, `review`, `design`, `test`), `target` (`agent`, `provider`, `model`, `reasoning_effort`, `speed`, `acp_options`; omitted
    fields inherit from the caller, and the model is inherited only when the provider is unchanged),
    `mode`, `timeout_ms`, `idempotency_key` (defaults to the tool call id), `permission_mode` (in an always-on lineage it is bounded by the child's configured level, and `inherit` uses that level), and
    `tools`/`skills`/`mcp_servers`/`workspace_paths`. Unlike `session_spawn`, omitted permission lists
    inherit the caller's full budget, `[]` means none, and every value can only narrow
    (`permission_escalation_denied` otherwise). There is no TTL, depth, or count cap.
    `isolation` defaults to `shared`. Choose `worktree` for a separate branch; `base_ref` is valid only
-   with `worktree` and defaults to the caller checkout's current HEAD commit. Uncommitted changes
-   are not copied. Include "commit, then deliver with `compozy worktree deliver`" in a code task.
+   with `worktree`. For a fresh delegation it defaults to the caller checkout's current HEAD
+   commit. See corrective rounds below for linked delegations. Uncommitted changes are not copied.
+   Include "commit, then deliver with `compozy worktree deliver`" in a code task.
    Reusing an idempotency key requires the same isolation and requested base ref. Worktree/setup
    hook denial returns `capability_denied`; creation/setup failure returns `isolation_failed`.
    The first prompt names the isolated branch and delivery command. `spawn.pre_create` exposes
@@ -488,15 +489,25 @@ safe because an already stopped or missing child counts as success. Claude's own
 (`origin: "provider_native"`) return `subagent_not_cancelable`; a background one stays `running` until
 its own task finishes, then reads `completed`, `failed`, or `canceled` with the task's summary as
 `result` once Claude reports it (briefly `null` before that); one with no task report settles
-`completed` with `result: null` when its turn ends. For another review round, delegate again
-with the original brief, prior findings, and open objections instead of prompting the old child. A
-subagent may delegate its own subagents. Subagents share your workspace and worktree, so give
-concurrent subagents disjoint files or read-only tasks. Stopping your session cancels every live
+`completed` with `result: null` when its turn ends. A subagent may delegate its own subagents.
+Give concurrent shared subagents disjoint files or read-only tasks. Stopping your session cancels every live
 subagent depth-first; interrupting a turn keeps its subagents running, but their results no longer wake
 you. CLI and HTTP/UDS fallback for reads, cancel and delete: `compozy session subagents <session-id>`,
 `compozy session subagents show|cancel|delete <subagent-id>`. A delete permanently removes a delegated
 subagent and its child session transcript/history; provider-native rows refuse with
 `subagent_not_deletable`.
+
+For a corrective round, call `compozy__subagent_delegate` with a fresh `task` and the
+`prior_subagent_id` from the same parent session and workspace. Use `handoff.objections` for
+open verification failures, `handoff.findings` for established conclusions, and `handoff.files`
+for relevant inspected or modified paths. Each text field allows up to 40,000 characters, and
+`files` allows up to 64 paths of 1,024 characters each. The task and formatted handoff share the
+120,000-character prompt limit.
+
+With `isolation: "worktree"` and no `base_ref`, the new worktree starts from the prior
+subagent's branch and carries its committed changes. If the prior subagent used shared isolation,
+the caller's HEAD is the default. If the prior subagent is isolated and has no associated branch
+yet, the request returns `invalid_request`. An explicit `base_ref` takes precedence.
 
 `compozy__session_stop` stops another policy-authorized session and is destructive/approval-gated. It is
 idempotent for an already stopped target. `compozy__session_prompt_cancel` cancels only another

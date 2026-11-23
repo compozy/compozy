@@ -2,7 +2,7 @@
 SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, target_instance_scope, loop_workspace_id, loop_name,
-	   loop_inputs, loop_input_mapping, created_at, updated_at
+	   loop_inputs, loop_input_mapping, loop_input_command, created_at, updated_at
 FROM automation_triggers WHERE webhook_id = sqlc.arg(webhook_id);
 
 -- name: InsertAutomationRun :exec
@@ -81,7 +81,7 @@ INSERT INTO automation_jobs (
   profile_id,
   id, scope, name, agent_name, workspace_id, prompt, schedule, task,
   enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
-	loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
+	loop_name, loop_inputs, loop_input_mapping, loop_input_command, created_at, updated_at
 ) VALUES (
  sqlc.arg(grant_ceiling),
   sqlc.arg(profile_id),
@@ -89,7 +89,7 @@ INSERT INTO automation_jobs (
   sqlc.narg(workspace_id), sqlc.arg(prompt), sqlc.narg(schedule), sqlc.narg(task),
   sqlc.arg(enabled), sqlc.arg(retry), sqlc.arg(fire_limit), sqlc.arg(source),
   sqlc.arg(target_kind), sqlc.narg(loop_workspace_id), sqlc.narg(loop_name),
-	sqlc.arg(loop_inputs), sqlc.arg(loop_input_mapping), sqlc.arg(created_at), sqlc.arg(updated_at)
+	sqlc.arg(loop_inputs), sqlc.arg(loop_input_mapping), sqlc.arg(loop_input_command), sqlc.arg(created_at), sqlc.arg(updated_at)
 );
 
 -- name: UpdateAutomationJob :execrows
@@ -101,7 +101,8 @@ UPDATE automation_jobs SET
   retry = sqlc.arg(retry), fire_limit = sqlc.arg(fire_limit), source = sqlc.arg(source),
   target_kind = sqlc.arg(target_kind), loop_workspace_id = sqlc.narg(loop_workspace_id),
   loop_name = sqlc.narg(loop_name), loop_inputs = sqlc.arg(loop_inputs),
-	loop_input_mapping = sqlc.arg(loop_input_mapping), updated_at = sqlc.arg(updated_at)
+	loop_input_mapping = sqlc.arg(loop_input_mapping), loop_input_command = sqlc.arg(loop_input_command),
+  updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id);
 
 -- name: DeleteAutomationJob :execrows
@@ -110,7 +111,7 @@ DELETE FROM automation_jobs WHERE id = sqlc.arg(id);
 -- name: GetAutomationJob :one
 SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
        enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
-	   loop_name, loop_inputs, loop_input_mapping, created_at, updated_at, grant_ceiling
+	   loop_name, loop_inputs, loop_input_mapping, loop_input_command, created_at, updated_at, grant_ceiling
 FROM automation_jobs WHERE id = sqlc.arg(id);
 
 -- name: InsertAutomationTrigger :exec
@@ -120,6 +121,7 @@ INSERT INTO automation_triggers (
   id, scope, name, agent_name, workspace_id, prompt, event, filter,
   enabled, retry, fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref,
   target_kind, target_instance_scope, loop_workspace_id, loop_name, loop_inputs, loop_input_mapping,
+  loop_input_command,
 	created_at, updated_at
 ) VALUES (
  sqlc.arg(grant_ceiling),
@@ -129,7 +131,7 @@ INSERT INTO automation_triggers (
   sqlc.arg(enabled), sqlc.arg(retry), sqlc.arg(fire_limit), sqlc.arg(source),
   sqlc.narg(webhook_id), sqlc.narg(endpoint_slug), sqlc.narg(webhook_secret_ref),
   sqlc.arg(target_kind), sqlc.arg(target_instance_scope), sqlc.narg(loop_workspace_id), sqlc.narg(loop_name),
-	sqlc.arg(loop_inputs), sqlc.arg(loop_input_mapping), sqlc.arg(created_at), sqlc.arg(updated_at)
+	sqlc.arg(loop_inputs), sqlc.arg(loop_input_mapping), sqlc.arg(loop_input_command), sqlc.arg(created_at), sqlc.arg(updated_at)
 );
 
 -- name: UpdateAutomationTrigger :execrows
@@ -143,7 +145,7 @@ UPDATE automation_triggers SET
   webhook_secret_ref = sqlc.narg(webhook_secret_ref), target_kind = sqlc.arg(target_kind), target_instance_scope = sqlc.arg(target_instance_scope),
   loop_workspace_id = sqlc.narg(loop_workspace_id), loop_name = sqlc.narg(loop_name),
 	loop_inputs = sqlc.arg(loop_inputs), loop_input_mapping = sqlc.arg(loop_input_mapping),
-  updated_at = sqlc.arg(updated_at)
+  loop_input_command = sqlc.arg(loop_input_command), updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id);
 
 -- name: DeleteAutomationTrigger :execrows
@@ -153,7 +155,7 @@ DELETE FROM automation_triggers WHERE id = sqlc.arg(id);
 SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, target_instance_scope, loop_workspace_id, loop_name,
-	   loop_inputs, loop_input_mapping, created_at, updated_at
+	   loop_inputs, loop_input_mapping, loop_input_command, created_at, updated_at
 FROM automation_triggers WHERE id = sqlc.arg(id);
 
 -- name: SettleAutomationRun :execrows

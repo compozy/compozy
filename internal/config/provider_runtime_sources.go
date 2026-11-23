@@ -52,6 +52,10 @@ type ResolvedRuntimeSources struct {
 	ReasoningEffort RuntimeValueSource
 	Speed           RuntimeValueSource
 	Permissions     RuntimeValueSource
+	// FallbackChain is RuntimeValueSourceAgent for an authored chain, the config override
+	// source when [agents.overrides.<name>].fallback_chain replaced it, and unspecified when
+	// the effective definition has no chain.
+	FallbackChain RuntimeValueSource
 }
 
 func defaultSpeedForModel(provider ProviderConfig, modelID string) speedpkg.Speed {
@@ -86,4 +90,11 @@ func permissionsSource(authored string) RuntimeValueSource {
 		return RuntimeValueSourceAgent
 	}
 	return RuntimeValueSourceProjectDefault
+}
+
+func fallbackChainSource(authored []RoleFallback) RuntimeValueSource {
+	if len(authored) > 0 {
+		return RuntimeValueSourceAgent
+	}
+	return RuntimeValueSourceUnspecified
 }

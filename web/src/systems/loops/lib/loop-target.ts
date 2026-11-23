@@ -8,6 +8,11 @@ export interface LoopTargetDraft {
   loop_name: string;
   inputs?: Record<string, unknown>;
   input_mapping?: Record<string, string>;
+  /**
+   * Fire-time input command. Operator- and CLI-authored, so the editor round-trips
+   * it unchanged instead of offering a control that could clear it silently.
+   */
+  input_command?: string;
 }
 
 /** Switches the target loop, clearing inputs + mapping tied to the previous loop's schema. */

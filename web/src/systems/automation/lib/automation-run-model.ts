@@ -83,6 +83,7 @@ export function automationRunProject(
 const SKIP_TEXT = {
   self_overlap: "The previous run was still going",
   misfire_grace_exceeded: "CompozyOS was off at the start time",
+  "no inputs": "The input command found no work",
 } as const satisfies Record<AutomationSkipReason, string>;
 
 function firstLine(text: string): string {

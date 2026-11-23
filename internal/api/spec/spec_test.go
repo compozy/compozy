@@ -3344,6 +3344,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addAgentPolicyExcludedACPOptions(baseline) == 0 {
 			t.Fatal("approved policy_excluded_acp_options addition: no historical agent runtime schema found")
 		}
+		// #1928: agent effective runtime reports the effective fallback chain and its source.
+		if addAgentEffectiveFallbackChain(baseline) == 0 {
+			t.Fatal("approved effective_runtime fallback_chain addition: no historical agent runtime schema found")
+		}
 		// #1251: restart status reports a replacement daemon's data-migration progress.
 		addRestartProgressComponent(baseline)
 		if addRestartMigrationProgress(baseline) == 0 {
@@ -3483,6 +3487,22 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		// Loop run outcomes explain a terminal decision with optional reason_code, node_id, and message.
 		if addLoopRunOutcomeDiagnosticSchemas(baseline) == 0 {
 			t.Fatal("approved Loop run outcome diagnostics: no historical outcome schemas found")
+		}
+		// Authored gate terminal status arrives as the constrained on_result route map.
+		if addLoopOnResultSchemas(baseline) == 0 {
+			t.Fatal("approved Loop on_result grammar: no historical gate or contract schemas found")
+		}
+		// Loop run reads add the optional settled terminal cause.
+		if addLoopRunTerminalSchemas(baseline, current) == 0 {
+			t.Fatal("approved Loop terminal read projection: no historical run payload schemas found")
+		}
+		// #1943: automation Loop targets carry the optional fire-time input command.
+		if addAutomationLoopInputCommandSchema(baseline) == 0 {
+			t.Fatal("approved automation Loop input command: no historical Loop target schemas found")
+		}
+		// #1943: the job update request can patch only the fire-time command.
+		if addAutomationJobUpdateLoopInputCommandSchema(baseline) == 0 {
+			t.Fatal("approved automation job update command: no historical update request schemas found")
 		}
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
@@ -6577,6 +6597,43 @@ func addAgentPolicyExcludedACPOptions(value any) int {
 	return count
 }
 
+// addAgentEffectiveFallbackChain adds the authored fallback_chain schema of an agent payload to
+// its effective_runtime, and a string fallback_chain source to effective_runtime.sources.
+func addAgentEffectiveFallbackChain(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAgentEffectiveFallbackChain(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAgentEffectiveFallbackChain(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			return count
+		}
+		authored, hasChain := properties["fallback_chain"].(map[string]any)
+		runtime, hasRuntime := properties["effective_runtime"].(map[string]any)
+		if !hasChain || !hasRuntime {
+			return count
+		}
+		runtimeProperties, ok := runtime["properties"].(map[string]any)
+		if !ok || runtimeProperties["fallback_chain"] != nil {
+			return count
+		}
+		runtimeProperties["fallback_chain"] = maps.Clone(authored)
+		if sources, ok := runtimeProperties["sources"].(map[string]any); ok {
+			if sourceProperties, ok := sources["properties"].(map[string]any); ok {
+				sourceProperties["fallback_chain"] = map[string]any{"type": "string"}
+			}
+		}
+		count++
+	}
+	return count
+}
+
 func addRestartProgressComponent(baseline map[string]any) {
 	components := baseline["components"].(map[string]any)["schemas"].(map[string]any)
 	integer := func() map[string]any { return map[string]any{"type": "integer", "format": "int64"} }
@@ -7280,6 +7337,64 @@ func addSideChatLineageKind(value any) int {
 			kind["enum"] = append(legacy, "side")
 			count++
 		}
+	}
+	return count
+}
+
+// addAutomationLoopInputCommandSchema adds the optional input_command to every historical
+// automation Loop target schema (the objects carrying inputs/input_mapping). The field stays
+// optional, so stored jobs and triggers keep decoding unchanged.
+func addAutomationLoopInputCommandSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAutomationLoopInputCommandSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAutomationLoopInputCommandSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["inputs"] == nil || properties["input_mapping"] == nil ||
+			properties["loop_name"] == nil {
+			return count
+		}
+		if _, exists := properties["input_command"]; exists {
+			return count
+		}
+		properties["input_command"] = map[string]any{"type": "string"}
+		count++
+	}
+	return count
+}
+
+// addAutomationJobUpdateLoopInputCommandSchema adds the optional command-only update field to every
+// historical automation job update request (the payload carrying prompt/schedule/task plus a
+// loop_target, but none of the create-time scope fields).
+func addAutomationJobUpdateLoopInputCommandSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAutomationJobUpdateLoopInputCommandSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAutomationJobUpdateLoopInputCommandSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["loop_target"] == nil || properties["prompt"] == nil ||
+			properties["schedule"] == nil || properties["task"] == nil ||
+			properties["enabled"] == nil || properties["fire_limit"] == nil ||
+			properties["scope"] != nil || properties["target_kind"] != nil {
+			return count
+		}
+		if _, exists := properties["loop_input_command"]; exists {
+			return count
+		}
+		properties["loop_input_command"] = map[string]any{"nullable": true, "type": "string"}
+		count++
 	}
 	return count
 }

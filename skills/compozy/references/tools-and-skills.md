@@ -543,7 +543,7 @@ follow the returned body as if it were inlined. Oversized skills never fail prom
 
 The bundled `compozy` skill ships `SKILL.md` plus flat `references/*.md` resources.
 
-Bundled `spec-cycle` globally publishes exactly `cy-create-spec` and `git-rebase` to managed sessions. It provides the always-on `orchestrator` and on-demand `spec_conductor`, `code_implementer`, and `reviewer` agents, with no tools or Loops. Agents carry their own delivery procedure and require no skill. Operators inspect skills with `compozy skill list|view`; managed sessions use native skill tools. Workspace definitions shadow only locally.
+Bundled `spec-cycle` globally publishes exactly `cy-create-spec` and `git-rebase` to managed sessions. It provides the always-on `orchestrator` and on-demand `spec_conductor`, `code_implementer`, and `reviewer` agents, with no tools or Loops. Agents carry their own delivery procedure and require no skill; after the operator approves a spec, `cy-create-spec` offers to start `spec_conductor` and never starts it without an explicit yes. Operators inspect skills with `compozy skill list|view`; managed sessions use native skill tools. Workspace definitions shadow only locally.
 
 ## Skill Provenance And Shadows
 

@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/spf13/cobra"
 )
 
@@ -79,11 +81,12 @@ func newLoopForkCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			values, err := parseLoopInputFlags(inputs)
+			sourceRunID := strings.TrimSpace(runID)
+			values, err := normalizeLoopForkInputs(cmd.Context(), client, workspaceID, sourceRunID, inputs)
 			if err != nil {
 				return err
 			}
-			response, err := client.ForkLoopRun(cmd.Context(), workspaceID, strings.TrimSpace(runID),
+			response, err := client.ForkLoopRun(cmd.Context(), workspaceID, sourceRunID,
 				contract.ForkLoopRequest{Generation: generation, Inputs: values,
 					Reason: strings.TrimSpace(reason), RequestID: strings.TrimSpace(requestID)},
 				agentCredentialsFromEnv(deps))
@@ -107,4 +110,31 @@ func addLoopTimeTravelRunFlags(cmd *cobra.Command, workspaceRef, runID *string) 
 	cmd.Flags().StringVar(workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(runID, loopRunIDKey, "", "Loop run ID")
 	mustMarkFlagRequired(cmd, loopRunIDKey)
+}
+
+// normalizeLoopForkInputs coerces --input text against the definition the source
+// run executed, which is what the daemon revalidates fork overrides against.
+func normalizeLoopForkInputs(
+	ctx context.Context,
+	client loopCommandClient,
+	workspaceID string,
+	runID string,
+	flags []string,
+) (map[string]any, error) {
+	raw, err := parseLoopInputFlagText(flags)
+	if err != nil || len(raw) == 0 {
+		return nil, err
+	}
+	run, err := client.GetLoopRun(ctx, workspaceID, runID)
+	if err != nil {
+		return nil, err
+	}
+	if run.ExecutedDefinition == nil {
+		return nil, fmt.Errorf("cli: Loop run %q has no executed definition", runID)
+	}
+	var definition dsl.Definition
+	if err := run.ExecutedDefinition.Decode(&definition); err != nil {
+		return nil, fmt.Errorf("cli: decode Loop run %q input declarations: %w", runID, err)
+	}
+	return normalizeLoopRunInputs(definition, raw)
 }

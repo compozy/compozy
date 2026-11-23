@@ -73,22 +73,31 @@ type SubagentPermissionNarrowing struct {
 	WorkspacePaths []string
 }
 
+// SubagentHandoff carries structured context from a prior subagent round.
+type SubagentHandoff struct {
+	Objections string   `json:"objections,omitzero"`
+	Findings   string   `json:"findings,omitzero"`
+	Files      []string `json:"files,omitzero"`
+}
+
 // SubagentRequest is one delegation request.
 type SubagentRequest struct {
 	// Isolation and BaseRef are omitted from the idempotency fingerprint when zero, so a shared
 	// delegation keeps the fingerprint it had before isolation existed (subagentFingerprint).
-	Isolation      string `json:",omitzero"`
-	BaseRef        string `json:",omitzero"`
-	Caller         SubagentCaller
-	Task           string
-	Title          string
-	Role           string
-	Target         SubagentTarget
-	Mode           string                       // async|wait
-	Timeout        time.Duration                // wait only
-	IdempotencyKey string                       // "" → Caller.ToolCallID
-	PermissionMode compozyconfig.PermissionMode // "" = inherit
-	Narrowing      *SubagentPermissionNarrowing // nil = inherit
+	Isolation       string           `json:",omitzero"`
+	BaseRef         string           `json:",omitzero"`
+	PriorSubagentID string           `json:",omitzero"`
+	Handoff         *SubagentHandoff `json:",omitzero"`
+	Caller          SubagentCaller
+	Task            string
+	Title           string
+	Role            string
+	Target          SubagentTarget
+	Mode            string                       // async|wait
+	Timeout         time.Duration                // wait only
+	IdempotencyKey  string                       // "" → Caller.ToolCallID
+	PermissionMode  compozyconfig.PermissionMode // "" = inherit
+	Narrowing       *SubagentPermissionNarrowing // nil = inherit
 }
 
 // SubagentAgentOption is one delegable agent in the capabilities payload.
