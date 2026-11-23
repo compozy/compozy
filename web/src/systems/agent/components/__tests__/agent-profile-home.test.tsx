@@ -130,6 +130,7 @@ function pageFixture(overrides: Partial<UseAgentProfile> = {}): UseAgentProfile 
       onOpen: vi.fn(),
       onToggle: vi.fn(),
       onSkillAutoApprove: vi.fn(),
+      savingSkillAutoApprove: null,
     },
     onResumeAll: vi.fn(),
     onSaveIdentity: vi.fn(),
@@ -257,6 +258,7 @@ describe("AgentProfileHome", () => {
             onOpen: vi.fn(),
             onToggle,
             onSkillAutoApprove: vi.fn(),
+            savingSkillAutoApprove: null,
           },
         })}
       />
@@ -278,6 +280,7 @@ describe("AgentProfileHome", () => {
           onOpen: vi.fn(),
           onToggle: vi.fn(),
           onSkillAutoApprove,
+          savingSkillAutoApprove: null,
         },
       })
     );
@@ -308,7 +311,8 @@ describe("AgentProfileHome", () => {
     );
     const toggle = screen.getByRole("switch", { name: "Auto-approve skills" });
     expect(toggle).toBeChecked();
-    expect(toggle).toBeDisabled();
+    // The @compozy/ui Switch (base-ui) marks a disabled switch with aria-disabled, not `disabled`.
+    expect(toggle).toHaveAttribute("aria-disabled", "true");
   });
 
   it("Should say it can't resume when a failure report holds a deleted definition's place", () => {

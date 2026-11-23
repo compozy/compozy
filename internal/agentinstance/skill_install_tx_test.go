@@ -22,6 +22,8 @@ type memSkillReviewStore struct {
 	mu         sync.Mutex
 	reviews    map[string]SkillReview
 	projectErr error
+	// approvalFailures fails that many next ProjectApproval calls, as a transient UPDATE error.
+	approvalFailures int
 }
 
 var _ SkillReviewStore = (*memSkillReviewStore)(nil)
@@ -60,6 +62,10 @@ func (s *memSkillReviewStore) ProjectApproval(
 	defer s.mu.Unlock()
 	if s.projectErr != nil {
 		return s.projectErr
+	}
+	if s.approvalFailures > 0 {
+		s.approvalFailures--
+		return errors.New("database is locked")
 	}
 	review, ok := s.reviews[marker.ReviewID]
 	if !ok || review.State != SkillReviewPending {

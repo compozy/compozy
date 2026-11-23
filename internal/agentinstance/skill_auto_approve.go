@@ -33,15 +33,18 @@ type SkillAutoApproveReader func(ctx context.Context, instanceID string) (bool, 
 // lockInstance takes the per-instance proposal mutex. Every Propose holds it before the skill locks,
 // so the toggle and the daily count are read by one proposal of an instance at a time.
 func (s *SkillProposalService) lockInstance(ctx context.Context, instanceID string) (func(), error) {
-	locks := s.Locks
-	if locks == nil {
-		locks = defaultSkillInstallLocks
-	}
-	release, err := locks.lock(ctx, "instance:"+instanceID)
+	release, err := s.locks().lock(ctx, "instance:"+instanceID)
 	if err == nil {
 		s.step("instance_locked", nil)
 	}
 	return release, err
+}
+
+func (s *SkillProposalService) locks() *SkillInstallLocks {
+	if s.Locks == nil {
+		return defaultSkillInstallLocks
+	}
+	return s.Locks
 }
 
 // autoApprove evaluates Business Rule 9 for a freshly created review under the instance mutex and
@@ -69,13 +72,56 @@ func (s *SkillProposalService) autoApprove(
 	slog.InfoContext(ctx, "skill.review.decided", "instance_id", instance.ID, "review_id", review.ID,
 		"decision", "approved", "kind", string(review.Kind), "decided_via", skillDecidedViaAutoApprove,
 		"skill_key", string(review.SkillKey))
-	if projected, err := s.Store.GetReview(ctx, review.ID); err == nil && projected.State == skillReviewApproved {
+	if projected, ok := s.projectedAutoApproval(ctx, t, review.ID); ok {
 		return projected, ""
 	}
-	// Committed; the projection is retried by Reconcile.
+	// Committed but unprojected: the cap fails closed until Reconcile projects it.
+	s.locks().markUnprojected(instance.ID, review.ID)
 	review.State, review.DecidedVia, review.DecidedBy = skillReviewApproved, skillDecidedViaAutoApprove,
 		skillDecidedByAutoApprove
 	return review, ""
+}
+
+// projectedAutoApproval reads the projected review of a committed auto-approval, retrying the
+// projection once from the install log when the post-commit projection did not land.
+func (s *SkillProposalService) projectedAutoApproval(
+	ctx context.Context,
+	t *skillTarget,
+	reviewID string,
+) (SkillReview, bool) {
+	if projected, err := s.Store.GetReview(ctx, reviewID); err == nil && projected.State == skillReviewApproved {
+		return projected, true
+	}
+	entries, err := readSkillInstallLog(t.root, t.name)
+	if err != nil {
+		return SkillReview{}, false
+	}
+	for i := len(entries) - 1; i >= 0; i-- {
+		if entries[i].ReviewID == reviewID && entries[i].Action == SkillInstallActionInstall {
+			if err := s.projectSkillInstall(ctx, entries[i]); err != nil {
+				slog.WarnContext(ctx, "skill.review.auto_approve_projection_retry_failed", "review_id", reviewID,
+					"error", err)
+				return SkillReview{}, false
+			}
+			break
+		}
+	}
+	projected, err := s.Store.GetReview(ctx, reviewID)
+	return projected, err == nil && projected.State == skillReviewApproved
+}
+
+// hasUnprojectedAutoApproval reports whether the instance still has a committed auto-approval whose
+// review row is pending; a row that has been projected since is forgotten. A read error counts.
+func (s *SkillProposalService) hasUnprojectedAutoApproval(ctx context.Context, instanceID string) bool {
+	locks := s.locks()
+	for _, id := range locks.unprojectedReviews(instanceID) {
+		review, err := s.Store.GetReview(ctx, id)
+		if err != nil || review.State == SkillReviewPending {
+			return true
+		}
+		locks.clearUnprojected(instanceID, id)
+	}
+	return false
 }
 
 // autoApproveSkipReason returns the first failing Business Rule 9 check and the install log's current
@@ -112,6 +158,10 @@ func (s *SkillProposalService) autoApproveSkipReason(
 	}
 	entries, err := readSkillInstallLog(t.root, t.name)
 	if err != nil {
+		// Rule 9.4 is about edits; a new skill only needs the log to install.
+		if review.Kind != SkillProposalEdit {
+			return s.skipAutoApprove(ctx, review, SkillAutoApproveInstallFailed), nil
+		}
 		return s.skipAutoApprove(ctx, review, SkillAutoApproveOperatorAuthored), nil
 	}
 	current := currentSkillWriter(entries)
@@ -119,6 +169,10 @@ func (s *SkillProposalService) autoApproveSkipReason(
 		if reason := s.editProvenance(ctx, t, instance, review, current); reason != "" {
 			return s.skipAutoApprove(ctx, review, reason), nil
 		}
+	}
+	if s.hasUnprojectedAutoApproval(ctx, instance.ID) {
+		s.logAutoApproveSkipped(ctx, review, SkillAutoApproveDailyCapReached, "unprojected", true)
+		return SkillAutoApproveDailyCapReached, nil
 	}
 	day := s.clock().UTC().Truncate(24 * time.Hour)
 	count, err := s.Store.CountAutoApprovals(ctx, instance.ID, day)

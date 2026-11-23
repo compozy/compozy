@@ -113,15 +113,8 @@ function ApprovedSkillReview({
     <div className="flex min-w-0 flex-col gap-1.5" data-testid="skill-review-approved">
       <div className="flex min-w-0 items-center gap-2">
         <Receipt className="min-w-0 flex-1" icon={<Check aria-hidden="true" />} tone="allowed">
-          {onReview ? (
-            <>
-              Approved automatically: <b>{name}</b>. It's active now.
-            </>
-          ) : (
-            <>
-              You approved <b>{name}</b>. It's active now.
-            </>
-          )}
+          {onReview ? "Approved automatically: " : "You approved "}
+          <b>{name}</b>. It's active now.
         </Receipt>
         {onReview ? (
           <Button onClick={onReview} size="sm" type="button" variant="secondary">

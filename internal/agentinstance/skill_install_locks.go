@@ -22,10 +22,13 @@ var (
 )
 
 // SkillInstallLocks is the in-process keyed mutex per physical skill. It queues callers inside one
-// daemon; the dirpublish lock next to the skill serializes daemons of other homes.
+// daemon; the dirpublish lock next to the skill serializes daemons of other homes. It also remembers
+// the daemon's committed auto-approvals whose review row is still unprojected.
 type SkillInstallLocks struct {
 	mu   sync.Mutex
 	held map[string]*skillKeyLock
+	// unprojected maps an instance ID to its committed auto-approvals whose projection failed.
+	unprojected map[string]map[string]struct{}
 }
 
 type skillKeyLock struct {
@@ -67,6 +70,43 @@ func (l *SkillInstallLocks) lock(ctx context.Context, key string) (func(), error
 	}
 }
 
+// markUnprojected remembers a committed auto-approval whose review row is still pending, so the
+// instance's daily cap fails closed until Reconcile projects it (Business Rule 14).
+// ponytail: in memory, so a daemon restart forgets it; persist it if restarts with a failed
+// projection matter.
+func (l *SkillInstallLocks) markUnprojected(instanceID, reviewID string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.unprojected == nil {
+		l.unprojected = make(map[string]map[string]struct{})
+	}
+	if l.unprojected[instanceID] == nil {
+		l.unprojected[instanceID] = make(map[string]struct{})
+	}
+	l.unprojected[instanceID][reviewID] = struct{}{}
+}
+
+// unprojectedReviews lists the instance's remembered unprojected auto-approvals.
+func (l *SkillInstallLocks) unprojectedReviews(instanceID string) []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	ids := make([]string, 0, len(l.unprojected[instanceID]))
+	for id := range l.unprojected[instanceID] {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+// clearUnprojected forgets an auto-approval whose review row has been projected.
+func (l *SkillInstallLocks) clearUnprojected(instanceID, reviewID string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.unprojected[instanceID], reviewID)
+	if len(l.unprojected[instanceID]) == 0 {
+		delete(l.unprojected, instanceID)
+	}
+}
+
 // skillTarget is one physical skill held under both locks. parent is nil when the target root does
 // not exist and the caller did not ask to create it: nothing can be installed or in flight there.
 type skillTarget struct {
@@ -105,11 +145,7 @@ func (s *SkillProposalService) acquireSkill(
 	// operation (Lstat-based digests and reads refuse it; moves rename the link through the parent
 	// handle) instead of being followed or failing here with a path error.
 	dir := filepath.Join(root, name)
-	locks := s.Locks
-	if locks == nil {
-		locks = defaultSkillInstallLocks
-	}
-	release, err := locks.lock(ctx, dir)
+	release, err := s.locks().lock(ctx, dir)
 	if err != nil {
 		return nil, err
 	}

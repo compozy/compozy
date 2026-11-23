@@ -123,6 +123,40 @@ func TestCmdPaletteActionExecutor(t *testing.T) {
 	})
 }
 
+// Invariant: a palette tool action never runs an operator-only instance setter, even when the command
+// is bound to one, because palette actions dispatch with operator scope (PR #1968 D-02).
+func TestCmdPaletteDeniedTools(t *testing.T) {
+	t.Parallel()
+
+	for _, tool := range []toolspkg.ToolID{
+		toolspkg.ToolIDAgentInstanceSkillAutoApprove,
+		toolspkg.ToolIDAgentInstanceChecks,
+	} {
+		t.Run("Should refuse "+string(tool)+" before any approval or call", func(t *testing.T) {
+			t.Parallel()
+			registry := &recordingCmdPaletteToolRegistry{}
+			coordinator := &recordingCmdPaletteApprovalCoordinator{}
+			executor := &cmdPaletteActionExecutor{
+				tools: registry, approvals: coordinator, now: time.Now, approvalTTL: time.Minute,
+			}
+			request := cmdPaletteToolExecutionRequest()
+			request.Descriptor.Action.Tool = string(tool)
+			request.Args = map[string]any{"id": "inst-a", "enabled": true}
+			_, err := executor.ExecuteAction(t.Context(), request)
+			if !errors.Is(err, errCmdPaletteToolDenied) {
+				t.Fatalf("ExecuteAction() error = %v, want errCmdPaletteToolDenied", err)
+			}
+			if registry.call.ToolID != "" || registry.getCalls != 0 || coordinator.request.InvocationID != "" {
+				t.Fatalf("denied tool reached the registry or approvals: call %#v", registry.call)
+			}
+			if _, err := executor.dispatch(t.Context(), request, "approval-token"); !errors.Is(err,
+				errCmdPaletteToolDenied) {
+				t.Fatalf("dispatch() error = %v, want errCmdPaletteToolDenied on a resumed approval", err)
+			}
+		})
+	}
+}
+
 func TestCmdPaletteClientDirectory(t *testing.T) {
 	t.Parallel()
 

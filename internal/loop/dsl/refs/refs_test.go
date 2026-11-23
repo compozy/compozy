@@ -1212,7 +1212,7 @@ func TestBuiltinResultViewSchemaPaths(t *testing.T) {
 			walk(root, nil, 0)
 		}
 	}
-	if count != 100 {
+	if count != 101 {
 		t.Fatalf("view-bearing tools = %d", count)
 	}
 	t.Logf("tools=%d paths=%d forms=%v", count, paths, forms)

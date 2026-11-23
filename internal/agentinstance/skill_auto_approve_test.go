@@ -469,6 +469,67 @@ func TestSkillAutoApprove(t *testing.T) {
 		requireAutoApproved(t, svc, f.proposeAuto(t, svc, autoInput("skill-five", "body\n", SkillProposalNew)))
 	})
 
+	t.Run("Should fail the cap closed while an automatic approval is unprojected [N-01]", func(t *testing.T) {
+		t.Parallel()
+		setFailures := func(svc *SkillProposalService, n int) {
+			store := skillStore(svc)
+			store.mu.Lock()
+			store.approvalFailures = n
+			store.mu.Unlock()
+		}
+		t.Run("Should retry a failed projection once synchronously", func(t *testing.T) {
+			t.Parallel()
+			f, toggle := newSkillTxFixture(t), &autoApproveToggle{}
+			toggle.on.Store(true)
+			svc := f.autoService(t, toggle)
+			setFailures(svc, 1)
+			requireAutoApproved(t, svc, f.proposeAuto(t, svc, autoInput("skill-one", "body\n", SkillProposalNew)))
+			requireAutoApproved(t, svc, f.proposeAuto(t, svc, autoInput("skill-two", "body\n", SkillProposalNew)))
+		})
+		t.Run("Should report daily_cap until Reconcile projects the approval", func(t *testing.T) {
+			t.Parallel()
+			f, toggle := newSkillTxFixture(t), &autoApproveToggle{}
+			toggle.on.Store(true)
+			svc := f.autoService(t, toggle)
+			setFailures(svc, 2)
+			first := f.proposeAuto(t, svc, autoInput("skill-one", "body\n", SkillProposalNew))
+			if first.AutoApproveSkipped != "" || first.Review.State != skillReviewApproved {
+				t.Fatalf("Propose() = %+v (skipped %q), want a committed approval", first.Review,
+					first.AutoApproveSkipped)
+			}
+			requireReviewState(t, svc, first.Review.ID, SkillReviewPending)
+			capped := f.proposeAuto(t, svc, autoInput("skill-two", "body\n", SkillProposalNew))
+			requireAutoSkipped(t, svc, capped, SkillAutoApproveDailyCapReached)
+			f.requireSkillAbsent(t, "skill-two")
+			f.reconcile(t, svc)
+			requireReviewState(t, svc, first.Review.ID, skillReviewApproved)
+			requireAutoApproved(t, svc, f.proposeAuto(t, svc, autoInput("skill-three", "body\n", SkillProposalNew)))
+		})
+	})
+
+	t.Run("Should report install_failed for a new skill whose install log is unreadable [N-02]", func(t *testing.T) {
+		t.Parallel()
+		f, toggle := newSkillTxFixture(t), &autoApproveToggle{}
+		toggle.on.Store(true)
+		svc := f.autoService(t, toggle)
+		// The proposal's own Reconcile reads the log first, so it breaks between Reconcile and evaluation.
+		path := skillInstallLogPath(f.root, autoSkillName)
+		svc.onStep = func(step string, _ *skillTarget) {
+			if step != "auto_approve_eval" {
+				return
+			}
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Error(err)
+			}
+			if err := os.WriteFile(path, []byte("not json\n"), 0o600); err != nil {
+				t.Error(err)
+			}
+		}
+		result := f.proposeAuto(t, svc, autoInput(autoSkillName, "body\n", SkillProposalNew))
+		requireAutoSkipped(t, svc, result, SkillAutoApproveInstallFailed)
+		f.requireSkillAbsent(t, autoSkillName)
+	})
+
 	t.Run("Should serialize the cap of one instance across skills [UT-086]", func(t *testing.T) {
 		t.Parallel()
 		race := func(t *testing.T, svc *SkillProposalService, f *skillTxFixture, start func()) []string {
