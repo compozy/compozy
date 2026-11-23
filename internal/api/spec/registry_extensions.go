@@ -315,7 +315,7 @@ func installExtensionOperationSpec() OperationSpec {
 			{
 				Status:      409,
 				Description: "Source changed, acquisition name conflict, or package replacement refused",
-				Bodies: responseBodiesOf(
+				Bodies: overlappingResponseBodiesOf(
 					responseBodyOf[contract.ErrorPayload](), responseBodyOf[contract.ExtensionOperationErrorPayload](),
 				),
 			},
@@ -323,7 +323,7 @@ func installExtensionOperationSpec() OperationSpec {
 			{
 				Status:      422,
 				Description: "Extension trust decision or package validation failure",
-				Bodies: responseBodiesOf(
+				Bodies: overlappingResponseBodiesOf(
 					responseBodyOf[contract.ErrorPayload](),
 					responseBodyOf[contract.ExtensionOperationErrorPayload](),
 					responseBodyOf[contract.ExtensionValidationErrorPayload](),
@@ -423,7 +423,7 @@ func updateExtensionOperationSpec() OperationSpec {
 				Description: "Gateway confirmation required",
 				Body:        contract.ExtensionOperationErrorPayload{},
 			},
-			{Status: 422, Description: "Extension trust or input configuration is required", Bodies: responseBodiesOf(
+			{Status: 422, Description: "Extension trust or input configuration is required", Bodies: overlappingResponseBodiesOf(
 				responseBodyOf[contract.ErrorPayload](), responseBodyOf[contract.ExtensionOperationErrorPayload](),
 			)},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},

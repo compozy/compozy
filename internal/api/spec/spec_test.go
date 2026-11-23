@@ -3331,6 +3331,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addProviderUsageSettingsSection(t, baseline)
 		addAlwaysOnHardeningSchemas(t, baseline)
 		addPermanentExtensionRemoveParameter(t, baseline)
+		// #1845: extension error unions overlap because every alternative carries `error`.
+		relaxOverlappingExtensionErrorUnions(t, baseline)
 		// #1195: instance payloads label their owner profile.
 		if addAgentInstanceProfileName(baseline) == 0 {
 			t.Fatal("approved instance profile_name addition: no historical instance schemas found")
@@ -7084,6 +7086,29 @@ func addPermanentExtensionRemoveParameter(t *testing.T, baseline map[string]any)
 		"name":   "permanent",
 		"schema": map[string]any{"type": "boolean"},
 	}))
+}
+
+// relaxOverlappingExtensionErrorUnions turns the historical install and update error unions from
+// oneOf into anyOf. ErrorPayload is open and requires only `error`, so an extension operation or
+// validation error also matches it, and oneOf would reject every documented body.
+func relaxOverlappingExtensionErrorUnions(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	for _, response := range []struct{ path, method, status string }{
+		{"/api/extensions", "post", "409"},
+		{"/api/extensions", "post", "422"},
+		{"/api/extensions/{name}", "put", "422"},
+	} {
+		operation := paths[response.path].(map[string]any)[response.method].(map[string]any)
+		status := operation["responses"].(map[string]any)[response.status].(map[string]any)
+		schema := status["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+		alternatives, ok := schema["oneOf"]
+		if !ok {
+			t.Fatalf("historical %s %s %s has no oneOf error union", response.method, response.path, response.status)
+		}
+		delete(schema, "oneOf")
+		schema["anyOf"] = alternatives
+	}
 }
 
 func addManualJobWaitParameters(t *testing.T, baseline map[string]any) {
