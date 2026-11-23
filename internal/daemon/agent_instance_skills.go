@@ -134,8 +134,9 @@ func (r instanceDefinitions) skillRecoveryRoot(ctx context.Context, instance age
 }
 
 func skillRootAbsent(err error) bool {
-	return errors.Is(err, workspacepkg.ErrWorkspaceNotFound) || errors.Is(err, store.ErrWorkspaceArchived) ||
-		errors.Is(err, workspacepkg.ErrAgentNotAvailable) || errors.Is(err, agentinstance.ErrSkillReviewNoTarget)
+	return errors.Is(err, workspacepkg.ErrWorkspaceNotFound) || errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) ||
+		errors.Is(err, store.ErrWorkspaceArchived) || errors.Is(err, workspacepkg.ErrAgentNotAvailable) ||
+		errors.Is(err, agentinstance.ErrSkillReviewNoTarget)
 }
 
 func (r instanceDefinitions) locateSkillRecoveryRoot(
