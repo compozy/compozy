@@ -66,6 +66,9 @@ type SkillInstallPayload struct {
 	// RetainedBackupName is ".skill-conflict-<op-id>-backup": unexplained contents found in the backup
 	// slot while the target also held unexplained contents. No resolution removes it.
 	RetainedBackupName string `json:"retained_backup_name,omitempty"`
+	// RetainedUnverifiedName is ".skill-conflict-<op-id>-unverified": a tree a crashed verification
+	// left in the incoming slot while the target was occupied again. No resolution removes it.
+	RetainedUnverifiedName string `json:"retained_unverified_name,omitempty"`
 	// ConflictAt is when the conflict was first retained; ResolvedBy the operator resolving it.
 	ConflictAt time.Time `json:"conflict_at,omitzero"`
 	ResolvedBy string    `json:"resolved_by,omitempty"`
@@ -91,6 +94,7 @@ func decodeSkillInstallPayload(data []byte) (SkillInstallPayload, error) {
 		{payload.OriginalCopyName, skillOriginalCopyPrefix + payload.OpID},
 		{payload.KeepCopyName, skillConflictCopyPrefix + payload.OpID},
 		{payload.RetainedBackupName, skillConflictCopyPrefix + payload.OpID + "-backup"},
+		{payload.RetainedUnverifiedName, skillRetainedName(payload.OpID, "unverified")},
 	} {
 		if name.got != "" && name.got != name.want {
 			return SkillInstallPayload{}, fmt.Errorf("skill install payload name %q does not belong to op %s",
@@ -98,6 +102,16 @@ func decodeSkillInstallPayload(data []byte) (SkillInstallPayload, error) {
 		}
 	}
 	return payload, nil
+}
+
+// retainedCopyName is the second edited tree a conflict keeps beside the skill: the retained backup
+// contents, else the retained unverified tree. Both exist only after two independent external
+// edits; the backup is then reported and the unverified tree is logged when it is retained.
+func (p *SkillInstallPayload) retainedCopyName() string {
+	if p.RetainedBackupName != "" {
+		return p.RetainedBackupName
+	}
+	return p.RetainedUnverifiedName
 }
 
 // skillOpIDPattern matches the op IDs runSkillOp writes ("sop-<hex>") and keeps every name derived

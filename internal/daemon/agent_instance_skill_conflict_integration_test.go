@@ -214,7 +214,8 @@ func TestInstanceSkillInstallConflictIntegration(t *testing.T) {
 			Scan(&rootDir); err != nil {
 			t.Fatal(err)
 		}
-		opID := seedSkillInstallConflict(t, filepath.Join(rootDir, compozyconfig.DirName, compozyconfig.SkillsDirName))
+		skillsRoot := filepath.Join(rootDir, compozyconfig.DirName, compozyconfig.SkillsDirName)
+		opID := seedSkillInstallConflict(t, skillsRoot)
 		if _, err := db.Instances().Archive(t.Context(), instance.ID); err != nil {
 			t.Fatal(err)
 		}
@@ -231,8 +232,14 @@ func TestInstanceSkillInstallConflictIntegration(t *testing.T) {
 		}
 		status, raw = instanceIntegrationHTTP(t, d, http.MethodPost,
 			"/api/agent-skill-install-conflicts/"+opID+"/resolve?workspace="+workspace, body, nil)
-		if status != http.StatusOK || strings.Contains(string(raw), "already_resolved") {
+		var resolved contract.AgentSkillInstallConflictResolveResponse
+		if status != http.StatusOK || json.Unmarshal(raw, &resolved) != nil || resolved.OpID != opID ||
+			resolved.Skill != "release-checklist" || resolved.Keep != "previous" || resolved.AlreadyResolved {
 			t.Fatalf("resolve after archive = %d %s", status, raw)
+		}
+		live, err := os.ReadFile(filepath.Join(skillsRoot, "release-checklist", "SKILL.md"))
+		if err != nil || !strings.Contains(string(live), "Previous checklist") {
+			t.Fatalf("live SKILL.md after resolve = %q, %v; want the previous version restored", live, err)
 		}
 	})
 }

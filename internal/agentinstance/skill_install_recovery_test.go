@@ -634,6 +634,25 @@ func TestSkillInstallRecovery(t *testing.T) {
 		if f.digest(t, "release-checklist") != occupant {
 			t.Fatal("recovery changed the occupying target")
 		}
+		recorded, _ := f.journal(t, "release-checklist")
+		if recorded.RetainedUnverifiedName != filepath.Base(retained) {
+			t.Fatalf("journal retained unverified name = %q, want %q", recorded.RetainedUnverifiedName,
+				filepath.Base(retained))
+		}
+		conflicts, err := svc.InstallConflicts(t.Context(), skillOperator, []string{f.root})
+		if err != nil || len(conflicts) != 1 || conflicts[0].RetainedCopy != retained {
+			t.Fatalf("InstallConflicts() = %+v, %v; want retained copy %s", conflicts, err, retained)
+		}
+		result, err := f.resolve(t, svc, payload.OpID, SkillConflictKeepCurrent)
+		if err != nil || result.RetainedCopy != retained {
+			t.Fatalf("ResolveInstallConflict() = %+v, %v; want retained copy %s", result, err, retained)
+		}
+		if got, err := skillTreeState(retained); err != nil || got != unverified {
+			t.Fatalf("retained unverified tree after resolution = %s, %v; want it kept", got, err)
+		}
+		if f.digest(t, "release-checklist") != occupant {
+			t.Fatal("keep=current changed the occupying target")
+		}
 	})
 }
 

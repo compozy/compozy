@@ -52,7 +52,8 @@ type AgentInstanceAPI struct {
 	Profiles ProfileOwnerReader
 
 	// SkillRecoveryRoot locates an instance's skill target root for install recovery and conflict
-	// discovery, also for archived instances; nil falls back to SkillTarget.
+	// discovery, also for archived instances. It returns "" with no error when the root is absent or
+	// out of scope; nil falls back to SkillTarget.
 	SkillRecoveryRoot func(context.Context, agentinstance.Instance) (string, error)
 }
 

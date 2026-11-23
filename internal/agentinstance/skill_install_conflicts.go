@@ -74,8 +74,8 @@ func (s *SkillProposalService) InstallConflicts(
 				OpID: payload.OpID, Skill: name, ReviewID: payload.ReviewID, Action: payload.Action,
 				State: payload.State, Keep: payload.Keep, TargetRoot: root, Since: payload.ConflictAt,
 			}
-			if payload.RetainedBackupName != "" {
-				conflict.RetainedCopy = filepath.Join(root, payload.RetainedBackupName)
+			if retained := payload.retainedCopyName(); retained != "" {
+				conflict.RetainedCopy = filepath.Join(root, retained)
 			}
 			conflicts = append(conflicts, conflict)
 		}
@@ -181,8 +181,8 @@ func (s *SkillProposalService) ResolveInstallConflict(
 	if keep == SkillConflictKeepPrevious {
 		result.KeptCopy = t.path(payload.KeepCopyName)
 	}
-	if payload.RetainedBackupName != "" {
-		result.RetainedCopy = t.path(payload.RetainedBackupName)
+	if retained := payload.retainedCopyName(); retained != "" {
+		result.RetainedCopy = t.path(retained)
 	}
 	result.Warning, err = s.continueResolution(ctx, t, journal, payload)
 	return result, err
