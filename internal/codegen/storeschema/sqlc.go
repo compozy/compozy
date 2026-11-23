@@ -16,7 +16,10 @@ import (
 	"strings"
 )
 
+const cloudSQLCPackage = "internal/cloud/store"
+
 var sqlcPackagePaths = []string{
+	cloudSQLCPackage,
 	"internal/store/globaldb",
 	"internal/store/sessiondb",
 	"internal/store/telemetrydb",
@@ -141,7 +144,11 @@ func checkSQLCPackage(ctx context.Context, root string, tempRoot string, package
 	if err := copyFile(source, destination, "sqlc.yaml"); err != nil {
 		return err
 	}
-	if err := copySQLSchemaFiles(source, destination); err != nil {
+	schemaDir := "schema"
+	if packagePath == cloudSQLCPackage {
+		schemaDir = "migrations"
+	}
+	if err := copySQLSchemaFiles(source, destination, schemaDir); err != nil {
 		return err
 	}
 	if err := copySQLFiles(source, destination); err != nil {
@@ -215,8 +222,8 @@ func copySQLFiles(source, destination *os.Root) error {
 	return nil
 }
 
-func copySQLSchemaFiles(source, destination *os.Root) error {
-	if err := fs.WalkDir(source.FS(), "schema", func(name string, entry fs.DirEntry, walkErr error) error {
+func copySQLSchemaFiles(source, destination *os.Root, schemaDir string) error {
+	if err := fs.WalkDir(source.FS(), schemaDir, func(name string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}

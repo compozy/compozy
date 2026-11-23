@@ -1,0 +1,12 @@
+{
+    "keys": [
+        {
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": "0Enm5vDEVK-uxpgbtzSN6Avo_ZYgVTUMITi6xzQ4Vmo",
+            "kid": "fixture-grant-v1",
+            "alg": "EdDSA",
+            "use": "sig"
+        }
+    ]
+}
