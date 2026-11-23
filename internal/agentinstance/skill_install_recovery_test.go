@@ -534,6 +534,74 @@ func TestSkillInstallRecovery(t *testing.T) {
 		}
 		f.requireClean(t)
 	})
+	t.Run("Should retain a symlink found in a journal slot at finalize without following it", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		f.install(t, "release-checklist", skillBaseFiles...)
+		if err := f.runOp(t, crashAt(svc, "published"), "release-checklist",
+			f.replaceOp(t, "release-checklist")); !errors.Is(err, errSkillInstallCrashed) {
+			t.Fatalf("runSkillOp() = %v", err)
+		}
+		journal := f.rawJournal(t, "release-checklist")
+		payload, _ := f.journal(t, "release-checklist")
+		backup := filepath.Join(f.root, journal.BackupName)
+		if err := os.RemoveAll(backup); err != nil {
+			t.Fatal(err)
+		}
+		elsewhere := t.TempDir()
+		if err := os.WriteFile(filepath.Join(elsewhere, "SKILL.md"), []byte("outside"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(elsewhere, backup); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		installed := f.digest(t, "release-checklist")
+		f.reconcile(t, svc)
+		retained := filepath.Join(f.root, skillRetainedName(payload.OpID, "edited-backup"))
+		if info, err := os.Lstat(retained); err != nil || info.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("retained backup slot = %v; want the symlink kept as a link", err)
+		}
+		if data, err := os.ReadFile(filepath.Join(elsewhere, "SKILL.md")); err != nil || string(data) != "outside" {
+			t.Fatalf("finalize followed the symlink: %q, %v", data, err)
+		}
+		if f.digest(t, "release-checklist") != installed {
+			t.Fatal("finalize changed the committed tree")
+		}
+		f.requireClean(t)
+	})
+	t.Run("Should keep a conflict when a crash followed retaining the unverified tree", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		f.install(t, "release-checklist", skillBaseFiles...)
+		if err := f.runOp(t, crashAt(svc, "target_moved"), "release-checklist",
+			f.replaceOp(t, "release-checklist")); !errors.Is(err, errSkillInstallCrashed) {
+			t.Fatalf("runSkillOp() = %v", err)
+		}
+		payload, _ := f.journal(t, "release-checklist")
+		// The retain move completed (incoming slot empty), then the daemon stopped before the conflict.
+		retained := filepath.Join(f.root, skillRetainedName(payload.OpID, "unverified"))
+		if err := os.MkdirAll(retained, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(retained, "SKILL.md"), []byte("first edit"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		edit, err := skillTreeState(retained)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			f.reconcile(t, f.service(t, "home-b", nil))
+			if got, ok := f.journal(t, "release-checklist"); !ok || got.State != skillInstallStateConflict {
+				t.Fatalf("journal = %+v, %v; want the conflict kept so the retained tree stays discoverable", got, ok)
+			}
+		}
+		if got, err := skillTreeState(retained); err != nil || got != edit {
+			t.Fatalf("retained unverified tree = %s, %v; want it unchanged", got, err)
+		}
+	})
 	t.Run("Should record a conflict when an unverified tree meets an occupied target", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
