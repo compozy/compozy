@@ -39,6 +39,12 @@ func TestLoopOnResultSchemaShouldRequireHaltForTerminalStatus(t *testing.T) {
 			valid:  true,
 		},
 		{
+			name:   "Should accept a node route to a forward target",
+			schema: loopNodeOnResultSchema(),
+			value:  map[string]any{"route": "next_node"},
+			valid:  true,
+		},
+		{
 			name:   "Should reject a terminal status on a non-halt contract action",
 			schema: loopContractOnResultSchema(),
 			value:  map[string]any{"action": "continue", "terminal_status": "blocked"},
