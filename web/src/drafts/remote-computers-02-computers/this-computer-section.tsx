@@ -336,7 +336,7 @@ export function ThisComputerSection({
               />
             }
             description="Hold the first connection from an unknown device until you approve it here or on a device trusted for admin."
-            help="When off, any device signed in to your Compozy account can connect automatically."
+            help="When off, any device signed in to your CompozyOS account can connect automatically."
             label="Require approval for new devices"
           />
 

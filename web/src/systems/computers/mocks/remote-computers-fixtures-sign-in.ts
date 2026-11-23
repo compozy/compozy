@@ -101,20 +101,20 @@ export const SIGN_IN_WAITING_GOOGLE = buildWaitingAttempt("google");
 
 export const SIGN_IN_DESKTOP_PRESETS: Record<string, SignInScreenPreset> = {
   "first-run": {
-    title: "Sign in to Compozy",
+    title: "Sign in to CompozyOS",
     subtitle: "Run coding agents on all your computers.",
   },
   "existing-install": {
-    title: "Sign in to keep using Compozy",
+    title: "Sign in to keep using CompozyOS",
     subtitle: "Your sessions, projects and settings are still here.",
   },
   "waiting-browser": {
-    title: "Sign in to Compozy",
+    title: "Sign in to CompozyOS",
     subtitle: "Run coding agents on all your computers.",
     waiting: SIGN_IN_WAITING_GOOGLE,
   },
   cancelled: {
-    title: "Sign in to Compozy",
+    title: "Sign in to CompozyOS",
     subtitle: "Run coding agents on all your computers.",
     notice: {
       kind: "cancelled",
@@ -122,12 +122,12 @@ export const SIGN_IN_DESKTOP_PRESETS: Record<string, SignInScreenPreset> = {
     },
   },
   "cloud-unreachable": {
-    title: "Sign in to Compozy",
+    title: "Sign in to CompozyOS",
     subtitle: "Run coding agents on all your computers.",
     buttonsDisabled: true,
     notice: {
       kind: "cloud_unreachable",
-      message: "Can't reach Compozy. Check your connection.",
+      message: "Can't reach CompozyOS. Check your connection.",
       retryable: true,
     },
   },
@@ -139,7 +139,7 @@ export const SIGN_IN_DESKTOP_PRESETS: Record<string, SignInScreenPreset> = {
     },
   },
   "timed-out": {
-    title: "Sign in to Compozy",
+    title: "Sign in to CompozyOS",
     subtitle: "Run coding agents on all your computers.",
     notice: {
       kind: "timed_out",
@@ -156,7 +156,7 @@ export const SIGN_IN_DESKTOP_PRESETS: Record<string, SignInScreenPreset> = {
     },
   },
   "account-deleting": {
-    title: "Sign in to Compozy",
+    title: "Sign in to CompozyOS",
     subtitle: "Run coding agents on all your computers.",
     notice: {
       kind: "account_deleting",

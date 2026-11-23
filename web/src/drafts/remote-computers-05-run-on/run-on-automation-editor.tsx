@@ -1,12 +1,4 @@
-import {
-  AlarmClock,
-  Check,
-  FolderOpen,
-  Info,
-  TriangleAlert,
-  Zap,
-} from "@compozy/ui/icons";
-import { useMemo, useState } from "react";
+import { AlarmClock, Check, FolderOpen, Info, TriangleAlert, Zap } from "@compozy/ui/icons";
 
 import {
   Dialog,
@@ -28,133 +20,29 @@ import {
 import { AutomationChoiceCards } from "@/systems/automation/components/automation-form/automation-choice-cards";
 import { AutomationFormSection } from "@/systems/automation/components/automation-form/automation-form-section";
 import { AutomationOptions } from "@/systems/automation/components/automation-form/automation-options";
-import type { AutomationFormModel } from "@/systems/automation/hooks/use-automation-form";
-import { retryDraftForStrategy } from "@/systems/automation/lib/automation-drafts";
-import type { AutomationFormDraft } from "@/systems/automation/lib/automation-form-draft";
-import type {
-  AutomationCatchUpPolicy,
-  AutomationFireLimit,
-  AutomationRetry,
-  AutomationSchedule,
-  AutomationScheduleMode,
-} from "@/systems/automation/types";
 import { RunOnPicker, type RunOnTarget } from "@/systems/computers/components/run-on-picker";
 import { COMPUTERS_PRO, LOCAL_COMPUTER } from "@/systems/computers/mocks/remote-computers-fixtures";
-import { projectsForTarget } from "@/systems/computers/mocks/remote-computers-fixtures-sessions";
 
 import { DraftShell } from "../always-on-agents-shared/draft-shell";
-import {
-  AUTOMATION_DOES_CHOICES,
-  AUTOMATION_START_CHOICES,
-  AutomationAgentInset,
-  AutomationScheduleInset,
-  buildScheduleReadout,
-  describeSchedulePhrase,
-  type DraftAutomationDoes,
-  type DraftAutomationStart,
-} from "./run-on-automation-sections";
-import { automationTimeZoneForTarget, RUN_ON_AGENTS } from "./run-on-fixtures";
-
-const FIXED_NOW = Date.parse("2026-11-22T15:00:00Z");
+import { useRunOnAutomationEditor } from "./hooks/use-run-on-automation-editor";
+import { AUTOMATION_DOES_CHOICES, AUTOMATION_START_CHOICES } from "./run-on-automation-helpers";
+import { AutomationAgentInset, AutomationScheduleInset } from "./run-on-automation-sections";
+import { RUN_ON_AGENTS } from "./run-on-fixtures";
 
 const WIDE_CONTENT_CLASS = `grid-rows-[auto_minmax(0,1fr)] text-fg ${dialogShellClass("lg", {
   fill: true,
 })}`;
 
-/**
- * Screen 05 Host C: Automation job editor composing the real production automation chrome
- * (`EntityDialogHeader`, `EntityDialogToolbar`, `AutomationFormSection`, `AutomationChoiceCards`,
- * `AgentCommandSelect`, `ScheduleReadout`, `AutomationOptions`, `EntityDialogFooter`), with
- * concrete `Run on` (`allowAuto={false}`) before Project, the exact ownership hint, and the
- * target computer's effective automation timezone beside the schedule time
- * (`09:00 · America/Sao_Paulo`, `_uiux.md` U4).
- */
-export function RunOnAutomationEditorScene({
-  initialTarget = "cmp_7f3k2q9x",
-  pickerDefaultOpen = false,
+function RunOnAutomationEditorDialog({
+  initialTarget,
+  pickerDefaultOpen,
 }: {
-  initialTarget?: RunOnTarget;
-  pickerDefaultOpen?: boolean;
+  initialTarget: RunOnTarget;
+  pickerDefaultOpen: boolean;
 }) {
-  const [target, setTarget] = useState<RunOnTarget>(initialTarget);
-  const [start, setStart] = useState<DraftAutomationStart>("schedule");
-  const [does, setDoes] = useState<DraftAutomationDoes>("agent");
-  const [name, setName] = useState("morning-pg-pool-smoke");
-  const [agentName, setAgentName] = useState("general");
-  const [prompt, setPrompt] = useState(
-    "Run go test -race ./internal/pgpool/... and report any flake."
-  );
-  const [schedule, setSchedule] = useState<AutomationSchedule>({
-    mode: "cron",
-    expr: "0 9 * * 1-5",
-  });
-  const [daysCleared, setDaysCleared] = useState(false);
-  const [expressionOpen, setExpressionOpen] = useState(false);
-  const [optionsOpen, setOptionsOpen] = useState(false);
-  const [enabled, setEnabled] = useState(true);
-  const [retry, setRetry] = useState<AutomationRetry>({ strategy: "none" });
-  const [fireLimit, setFireLimit] = useState<AutomationFireLimit>({ max: 12, window: "1h" });
+  const editor = useRunOnAutomationEditor(initialTarget);
 
-  const projects = useMemo(() => projectsForTarget(target), [target]);
-  const [workspaceId, setWorkspaceId] = useState(projects[0]?.id ?? "ws_devbox_api");
-  const currentProject =
-    projects.find(project => project.id === workspaceId) ?? projects[0] ?? null;
-
-  const selectedRemote = COMPUTERS_PRO.find(computer => computer.id === target) ?? null;
-  const computerDisplayName =
-    target === "local" ? LOCAL_COMPUTER.name : (selectedRemote?.name ?? "devbox");
-  const isOffline = selectedRemote?.status === "offline";
-  const targetTimeZone = automationTimeZoneForTarget(target);
-
-  const agentLabel = RUN_ON_AGENTS.find(agent => agent.name === agentName)?.label ?? agentName;
-  const readout = useMemo(
-    () =>
-      start === "schedule"
-        ? buildScheduleReadout(schedule, FIXED_NOW, daysCleared, targetTimeZone)
-        : null,
-    [start, schedule, daysCleared, targetTimeZone]
-  );
-
-  const ready =
-    !isOffline &&
-    name.trim().length > 0 &&
-    agentName.trim().length > 0 &&
-    prompt.trim().length > 0 &&
-    (readout?.valid ?? true);
-
-  const schedulePhrase = describeSchedulePhrase(schedule, targetTimeZone);
-
-  const handleScheduleMode = (mode: AutomationScheduleMode) => {
-    setDaysCleared(false);
-    if (mode === "cron") setSchedule({ mode: "cron", expr: "0 9 * * 1-5" });
-    else if (mode === "every") setSchedule({ mode: "every", interval: "30m" });
-    else setSchedule({ mode: "at", time: "2026-11-23T09:00" });
-  };
-
-  const optionsDraft = {
-    start,
-    schedule,
-    enabled,
-    retry,
-    fire_limit: fireLimit,
-  } as AutomationFormDraft;
-
-  const optionsForm = {
-    does,
-    retry: retryDraftForStrategy(retry.strategy ?? "none", retry),
-    optionsSummary: `${retry.strategy === "backoff" ? `retry ${retry.max_retries ?? 3}×` : "no retry"} · ${fireLimit.max}/${fireLimit.window} · ${enabled ? "on" : "off"}`,
-    onRetryChange: next => {
-      if (does !== "task") setRetry(next);
-    },
-    onFireLimitChange: setFireLimit,
-    onEnabledChange: setEnabled,
-    onCatchUpPolicyChange: (catch_up_policy: AutomationCatchUpPolicy | undefined) =>
-      setSchedule(prev => ({ ...prev, catch_up_policy })),
-    onMisfireGraceChange: (misfire_grace_seconds: number | undefined) =>
-      setSchedule(prev => ({ ...prev, misfire_grace_seconds })),
-  } as AutomationFormModel;
-
-  const overlay = (
+  return (
     <Dialog onOpenChange={() => undefined} open>
       <DialogContent
         className={WIDE_CONTENT_CLASS}
@@ -189,16 +77,19 @@ export function RunOnAutomationEditorScene({
                 className="min-w-0 flex-1 text-small-body leading-snug text-muted-foreground"
                 data-testid="automation-editor-sentence"
               >
-                <em className="not-italic text-fg-2">{schedulePhrase}</em>, ask{" "}
-                <em className="not-italic text-fg-2">{agentLabel || "an agent"}</em> in{" "}
-                <em className="not-italic text-fg-2">{currentProject?.name ?? "api"}</em> on{" "}
-                <em className="not-italic text-fg-2">{computerDisplayName}</em>.
+                <em className="not-italic text-fg-2">{editor.schedulePhrase}</em>, ask{" "}
+                <em className="not-italic text-fg-2">{editor.agentLabel || "an agent"}</em> in{" "}
+                <em className="not-italic text-fg-2">{editor.currentProject?.name ?? "api"}</em> on{" "}
+                <em className="not-italic text-fg-2">{editor.computerDisplayName}</em>.
               </p>
             }
             trailing={
-              <Pill data-testid="automation-editor-status" tone={ready ? "success" : "warning"}>
-                {ready ? <Check aria-hidden="true" /> : <TriangleAlert aria-hidden="true" />}
-                {ready ? "Ready" : "Needs a fix"}
+              <Pill
+                data-testid="automation-editor-status"
+                tone={editor.ready ? "success" : "warning"}
+              >
+                {editor.ready ? <Check aria-hidden="true" /> : <TriangleAlert aria-hidden="true" />}
+                {editor.ready ? "Ready" : "Needs a fix"}
               </Pill>
             }
           />
@@ -218,9 +109,9 @@ export function RunOnAutomationEditorScene({
                   className="font-mono"
                   data-testid="automation-name-input"
                   id="automation-name"
-                  onChange={event => setName(event.target.value)}
+                  onChange={event => editor.setName(event.target.value)}
                   placeholder="morning-digest"
-                  value={name}
+                  value={editor.name}
                 />
               </Field>
             </AutomationFormSection>
@@ -241,13 +132,9 @@ export function RunOnAutomationEditorScene({
                       loadBalancingEnabled
                       localComputer={LOCAL_COMPUTER}
                       onAddComputer={() => undefined}
-                      onChange={next => {
-                        setTarget(next);
-                        const nextProjects = projectsForTarget(next);
-                        if (nextProjects[0]) setWorkspaceId(nextProjects[0].id);
-                      }}
+                      onChange={editor.handleTargetChange}
                       triggerId="automation-run-on"
-                      value={target}
+                      value={editor.target}
                     />
                   </Field>
 
@@ -255,18 +142,18 @@ export function RunOnAutomationEditorScene({
                     <FieldLabel htmlFor="automation-project">Project</FieldLabel>
                     <NativeSelect
                       id="automation-project"
-                      onChange={event => setWorkspaceId(event.target.value)}
-                      value={currentProject?.id ?? ""}
+                      onChange={event => editor.setWorkspaceId(event.target.value)}
+                      value={editor.currentProject?.id ?? ""}
                     >
-                      {projects.map(project => (
+                      {editor.projects.map(project => (
                         <NativeSelectOption key={project.id} value={project.id}>
                           {project.name}
                         </NativeSelectOption>
                       ))}
                     </NativeSelect>
-                    {currentProject ? (
+                    {editor.currentProject ? (
                       <FieldDescription className="truncate font-mono text-badge">
-                        {currentProject.path}
+                        {editor.currentProject.path}
                       </FieldDescription>
                     ) : null}
                   </Field>
@@ -279,8 +166,8 @@ export function RunOnAutomationEditorScene({
                   <Info aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
                   <span>
                     This job is saved on{" "}
-                    <span className="font-medium text-fg">{computerDisplayName}</span> and runs
-                    there, even when this app is closed.
+                    <span className="font-medium text-fg">{editor.computerDisplayName}</span> and
+                    runs there, even when this app is closed.
                   </span>
                 </p>
               </div>
@@ -295,20 +182,20 @@ export function RunOnAutomationEditorScene({
               <AutomationChoiceCards
                 choices={AUTOMATION_START_CHOICES}
                 label="When it starts"
-                onChange={setStart}
+                onChange={editor.setStart}
                 testIdPrefix="automation-start"
-                value={start}
+                value={editor.start}
               />
               <AutomationScheduleInset
-                daysCleared={daysCleared}
-                expressionOpen={expressionOpen}
-                onDaysClearedChange={setDaysCleared}
-                onExpressionOpenChange={setExpressionOpen}
-                onScheduleMode={handleScheduleMode}
-                onSchedulePatch={patch => setSchedule(prev => ({ ...prev, ...patch }))}
-                readout={readout}
-                schedule={schedule}
-                targetTimeZone={targetTimeZone}
+                daysCleared={editor.daysCleared}
+                expressionOpen={editor.expressionOpen}
+                onDaysClearedChange={editor.setDaysCleared}
+                onExpressionOpenChange={editor.setExpressionOpen}
+                onScheduleMode={editor.handleScheduleMode}
+                onSchedulePatch={editor.handleSchedulePatch}
+                readout={editor.readout}
+                schedule={editor.schedule}
+                targetTimeZone={editor.targetTimeZone}
               />
             </AutomationFormSection>
 
@@ -321,24 +208,24 @@ export function RunOnAutomationEditorScene({
               <AutomationChoiceCards
                 choices={AUTOMATION_DOES_CHOICES}
                 label="What it does"
-                onChange={setDoes}
+                onChange={editor.setDoes}
                 testIdPrefix="automation-does"
-                value={does}
+                value={editor.does}
               />
               <AutomationAgentInset
-                agentName={agentName}
+                agentName={editor.agentName}
                 agents={RUN_ON_AGENTS}
-                onAgentChange={setAgentName}
-                onPromptChange={setPrompt}
-                prompt={prompt}
+                onAgentChange={editor.setAgentName}
+                onPromptChange={editor.setPrompt}
+                prompt={editor.prompt}
               />
             </AutomationFormSection>
 
             <AutomationOptions
-              draft={optionsDraft}
-              form={optionsForm}
-              onOpenChange={setOptionsOpen}
-              open={optionsOpen}
+              draft={editor.optionsDraft}
+              form={editor.optionsForm}
+              onOpenChange={editor.setOptionsOpen}
+              open={editor.optionsOpen}
             />
           </EntityDialogBody>
 
@@ -346,12 +233,12 @@ export function RunOnAutomationEditorScene({
             hint={
               <span className="text-form-hint text-muted-foreground">
                 Creates in{" "}
-                <span className="font-medium text-fg">{currentProject?.name ?? "api"}</span> on{" "}
-                <span className="font-medium text-fg">{computerDisplayName}</span>.
+                <span className="font-medium text-fg">{editor.currentProject?.name ?? "api"}</span>{" "}
+                on <span className="font-medium text-fg">{editor.computerDisplayName}</span>.
               </span>
             }
             onCancel={() => undefined}
-            primaryDisabled={!ready}
+            primaryDisabled={!editor.ready}
             primaryIcon={Check}
             primaryLabel="Create automation"
             primaryTestId="automation-form-submit"
@@ -361,12 +248,33 @@ export function RunOnAutomationEditorScene({
       </DialogContent>
     </Dialog>
   );
+}
 
+/**
+ * Screen 05 Host C: Automation job editor composing the real production automation chrome
+ * (`EntityDialogHeader`, `EntityDialogToolbar`, `AutomationFormSection`, `AutomationChoiceCards`,
+ * `AgentCommandSelect`, `ScheduleReadout`, `AutomationOptions`, `EntityDialogFooter`), with
+ * concrete `Run on` (`allowAuto={false}`) before Project, the exact ownership hint, and the
+ * target computer's effective automation timezone beside the schedule time
+ * (`09:00 · America/Sao_Paulo`, `_uiux.md` U4).
+ */
+export function RunOnAutomationEditorScene({
+  initialTarget = "cmp_7f3k2q9x",
+  pickerDefaultOpen = false,
+}: {
+  initialTarget?: RunOnTarget;
+  pickerDefaultOpen?: boolean;
+}) {
   return (
     <DraftShell
       app="dashboard"
       glyph={<AlarmClock />}
-      overlay={overlay}
+      overlay={
+        <RunOnAutomationEditorDialog
+          initialTarget={initialTarget}
+          pickerDefaultOpen={pickerDefaultOpen}
+        />
+      }
       scope="All projects"
       title="Automations"
       topbar={{ crumb: "Automations" }}

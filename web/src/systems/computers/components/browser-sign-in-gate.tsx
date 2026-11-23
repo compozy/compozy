@@ -164,10 +164,10 @@ export function BrowserSignInGate({
             {kind === "sign_in" ? (
               <>
                 <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
-                  Sign in to Compozy
+                  Sign in to CompozyOS
                 </h1>
                 <p className="text-small-body leading-relaxed text-muted-foreground">
-                  Sign in with your Compozy account to open sessions and terminals on{" "}
+                  Sign in with your CompozyOS account to open sessions and terminals on{" "}
                   <span className="font-medium text-fg">{computerName}</span>.
                 </p>
               </>
@@ -222,7 +222,7 @@ export function BrowserSignInGate({
                 </h1>
                 <p className="text-small-body leading-relaxed text-muted-foreground">
                   <span className="font-medium text-fg">{computerName}</span> is linked to a
-                  different Compozy account. Sign out to switch to the account that owns it.
+                  different CompozyOS account. Sign out to switch to the account that owns it.
                 </p>
               </>
             ) : null}

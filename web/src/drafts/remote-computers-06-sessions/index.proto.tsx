@@ -9,7 +9,7 @@ import {
   WORKSTATION_OFFLINE_TRANSCRIPT,
 } from "@/systems/computers/mocks/remote-computers-fixtures-sessions";
 
-import { RemoteSessionsWindow } from "../remote-computers-shared-sessions";
+import { RemoteSessionsWindow } from "../remote-computers-shared-sessions/remote-sessions-window";
 import { RemoteKanbanView } from "./remote-kanban-view";
 import { RemoteSearchOverlayScene } from "./remote-search-overlay";
 

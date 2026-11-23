@@ -133,9 +133,7 @@ export function AccountIdentitySection({
           >
             <div className="flex min-w-0 flex-1 items-start gap-2.5 text-small-body text-fg">
               <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
-              <span>
-                To sign in with another account, unlink this computer first.
-              </span>
+              <span>To sign in with another account, unlink this computer first.</span>
             </div>
             <Button
               className="shrink-0"

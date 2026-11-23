@@ -526,9 +526,9 @@ export const COMPUTERS_PRO: readonly ComputerFixture[] = [
     diagnosis: {
       failingStep: "computer",
       code: "computer_incompatible",
-      message: "gpu-vm runs Compozy 0.7.9. Update it to connect.",
+      message: "gpu-vm runs CompozyOS 0.7.9. Update it to connect.",
       at: "2026-11-22T20:43:00Z",
-      whatToTry: ["Click Update to install Compozy 0.8.0 over SSH and restart its service."],
+      whatToTry: ["Click Update to install CompozyOS 0.8.0 over SSH and restart its service."],
       steps: [
         {
           step: "cloud",
@@ -548,7 +548,7 @@ export const COMPUTERS_PRO: readonly ComputerFixture[] = [
           step: "computer",
           label: "Computer",
           status: "failed",
-          message: "Runs Compozy 0.7.9 (this app requires 0.8.0+)",
+          message: "Runs CompozyOS 0.7.9 (this app requires 0.8.0+)",
           at: "1m ago",
         },
         { step: "sign_in", label: "Sign-in", status: "skipped", message: "Not checked" },

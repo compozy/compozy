@@ -167,14 +167,14 @@ export function PlanUsageMeter({
           data-slot="plan-usage-meter"
           data-state={used >= limit ? "at-limit" : "within-limit"}
         >
-          <div
+          <meter
             aria-label={`${ariaPrefix}: ${readout}`}
-            aria-valuemax={limit}
-            aria-valuemin={0}
-            aria-valuenow={used}
-            className="flex w-16 shrink-0 items-center gap-0.5"
-            role="meter"
-          >
+            className="sr-only"
+            max={limit}
+            min={0}
+            value={used}
+          />
+          <div aria-hidden="true" className="flex w-16 shrink-0 items-center gap-0.5">
             {Array.from({ length: limit }, (_, index) => {
               const filled = index < used;
               return (
@@ -209,14 +209,14 @@ export function PlanUsageMeter({
             {action}
           </div>
         </div>
-        <div
+        <meter
           aria-label={`${ariaPrefix}: ${readout}`}
-          aria-valuemax={limit}
-          aria-valuemin={0}
-          aria-valuenow={used}
-          className="flex w-full items-center gap-1"
-          role="meter"
-        >
+          className="sr-only"
+          max={limit}
+          min={0}
+          value={used}
+        />
+        <div aria-hidden="true" className="flex w-full items-center gap-1">
           {Array.from({ length: limit }, (_, index) => {
             const filled = index < used;
             return (
@@ -245,13 +245,16 @@ export function PlanUsageMeter({
         data-slot="plan-usage-meter"
         data-state={used >= limit ? "at-limit" : "within-limit"}
       >
-        <span
+        <meter
           aria-label={`${ariaPrefix}: ${readout}`}
-          aria-valuemax={limit}
-          aria-valuemin={0}
-          aria-valuenow={used}
+          className="sr-only"
+          max={limit}
+          min={0}
+          value={used}
+        />
+        <span
+          aria-hidden="true"
           className="relative inline-flex h-1 w-20 shrink-0 overflow-hidden rounded-full bg-surface-2"
-          role="meter"
         >
           <span
             aria-hidden="true"
@@ -274,7 +277,7 @@ export function PlanUsageMeter({
       <div className="flex items-center justify-between gap-2">
         <Progress className="flex-1" tone="brand" value={pct}>
           <ProgressLabel>{label}</ProgressLabel>
-          <ProgressValue>{readout}</ProgressValue>
+          <ProgressValue>{() => readout}</ProgressValue>
         </Progress>
         {action}
       </div>

@@ -143,7 +143,7 @@ export function ComputerDetailsProvidersTab({
             />
             <div className="flex flex-wrap items-center gap-2">
               <Button
-                onClick={() => toast("Opened sign-in link in your browser.")}
+                onClick={() => toast.message("Opened sign-in link in your browser.")}
                 size="xs"
                 type="button"
                 variant="secondary"
@@ -186,10 +186,10 @@ export function ComputerDetailsUpdateTab({
     return (
       <div className="flex flex-col gap-4" data-slot="computer-details-update-tab">
         <StatusCard className="border border-line bg-sunken/70 p-3.5 shadow-none" tone="warning">
-          <StatusCard.Header label={`${computer.name} runs Compozy ${computer.version}`} />
+          <StatusCard.Header label={`${computer.name} runs CompozyOS ${computer.version}`} />
           <StatusCard.Body>
-            This app requires Compozy 0.8.0 or newer. One-click updates are available for computers
-            added over SSH — run this command directly on{" "}
+            This app requires CompozyOS 0.8.0 or newer. One-click updates are available for
+            computers added over SSH — run this command directly on{" "}
             <span className="font-medium text-fg">{computer.name}</span> instead:
           </StatusCard.Body>
         </StatusCard>
@@ -198,7 +198,7 @@ export function ComputerDetailsUpdateTab({
 
         <div className="flex items-center gap-2">
           <Button
-            onClick={() => toast(`Checking version on ${computer.name}…`)}
+            onClick={() => toast.message(`Checking version on ${computer.name}…`)}
             size="sm"
             type="button"
             variant="secondary"
@@ -220,21 +220,21 @@ export function ComputerDetailsUpdateTab({
         <StatusCard.Header
           label={
             updateState === "done"
-              ? `${computer.name} updated to Compozy 0.8.0`
-              : `${computer.name} runs Compozy ${computer.version}`
+              ? `${computer.name} updated to CompozyOS 0.8.0`
+              : `${computer.name} runs CompozyOS ${computer.version}`
           }
         />
         <StatusCard.Body>
           {updateState === "done"
             ? "Service restarted and reconnected. Your running work stays available."
-            : "This app requires Compozy 0.8.0 or newer. Compozy verifies the release signature on this computer before installing anything remotely."}
+            : "This app requires CompozyOS 0.8.0 or newer. CompozyOS verifies the release signature on this computer before installing anything remotely."}
         </StatusCard.Body>
         {updateState === "idle" || updateState === "provenance_failed" ? (
           <StatusCard.Footer>
             <Button
               onClick={() => {
                 setUpdateState("running");
-                toast(`Updating ${computer.name} to 0.8.0…`);
+                toast.message(`Updating ${computer.name} to 0.8.0…`);
               }}
               size="sm"
               type="button"
@@ -250,7 +250,7 @@ export function ComputerDetailsUpdateTab({
 
       {updateState === "done" ? (
         <ActionResultBanner
-          description={`${computer.name} is now connected on Compozy 0.8.0.`}
+          description={`${computer.name} is now connected on CompozyOS 0.8.0.`}
           icon={CheckCircle2}
           title="Update complete"
           tone="success"
@@ -260,7 +260,7 @@ export function ComputerDetailsUpdateTab({
       {updateState === "provenance_failed" ? (
         <Alert variant="destructive">
           <TriangleAlert aria-hidden="true" />
-          <AlertTitle>Couldn't verify this Compozy release</AlertTitle>
+          <AlertTitle>Couldn't verify this CompozyOS release</AlertTitle>
           <AlertDescription>
             Nothing was installed on {computer.name}. Try again later or verify your network
             connection to releases.compozy.com.

@@ -69,7 +69,9 @@ verbatim_quotes='(?x: \bemployee\x20of\x20the\x20week\x20is\x20going\x20to\x20be
 # them; the site itself reads them from GitHub at build time.
 # Prototype review records keep reviewer comments word for word, like the agent-kind rule allows.
 history_snapshots=(--glob '!web/src/drafts/changelog/releases.json' --glob '!web/proto/review/**')
-pattern="${api_identifiers}(*SKIP)(*F)|${verbatim_quotes}(*SKIP)(*F)|(?<!X-)\bCompozy\b(?! Network)"
+# Approved proper names that keep the "Compozy" brand prefix: Compozy Network, Compozy Cloud,
+# Compozy Pro, and the legal entity Compozy, LLC.
+pattern="${api_identifiers}(*SKIP)(*F)|${verbatim_quotes}(*SKIP)(*F)|(?<!X-)\bCompozy\b(?! (?:Network|Cloud|Pro)\b|, LLC\b)"
 
 set +e
 matches="$(rg --multiline --with-filename --line-number --no-heading --pcre2 "${history_snapshots[@]}" "$pattern" -- "${paths[@]}" 2>&1)"

@@ -15,7 +15,7 @@ import {
   type AccountProvider,
 } from "@/systems/computers/mocks/remote-computers-fixtures";
 
-import { DraftBrowserFrame } from "../remote-computers-shared";
+import { DraftBrowserFrame } from "../remote-computers-shared/browser-frame";
 
 export const meta = definePrototype({
   title: "Buy Pro",
@@ -28,7 +28,7 @@ export const meta = definePrototype({
     { id: "signed-in-monthly", label: "Signed in · Monthly plan preselected" },
     { id: "promo-code", label: "Promotion code · Entered at Stripe Checkout" },
     { id: "redirecting", label: "Redirecting · Opening Stripe Checkout" },
-    { id: "success", label: "Success · You're on Pro, open or download Compozy" },
+    { id: "success", label: "Success · You're on Pro, open or download CompozyOS" },
     { id: "already-pro", label: "Already Pro · Active plan and Manage billing" },
     { id: "checkout-cancelled", label: "Checkout cancelled · Nothing was charged" },
     { id: "rate-limited", label: "Rate limited · Retry wait and status page link" },
@@ -129,6 +129,16 @@ function resolveIntervalParam(search: string): UpgradeInterval | null {
   return null;
 }
 
+function handleOpenPurchaseLegalLink(kind: CloudLegalLinkKind) {
+  toast.message(
+    kind === "terms"
+      ? "Opened Terms (compozy.com/legal/terms)"
+      : kind === "privacy"
+        ? "Opened Privacy Policy (compozy.com/legal/privacy)"
+        : "Opened Refund Policy (compozy.com/legal/refunds)"
+  );
+}
+
 function InteractiveCloudPurchase({
   preset,
   queryInterval,
@@ -136,17 +146,20 @@ function InteractiveCloudPurchase({
   preset: PurchaseStatePreset;
   queryInterval: UpgradeInterval | null;
 }) {
+  const initialStatus = preset.status;
+  const initialProvider = preset.provider;
+  const initialAddress = preset.browserAddress;
   const initialInterval =
     preset.browserAddress.includes("interval=month") ||
     preset.browserAddress.includes("interval=year")
       ? preset.interval
       : (queryInterval ?? preset.interval);
 
-  const [status, setStatus] = useState<CloudUpgradeStatus>(preset.status);
-  const [provider, setProvider] = useState<AccountProvider | null>(preset.provider);
+  const [status, setStatus] = useState<CloudUpgradeStatus>(initialStatus);
+  const [provider, setProvider] = useState<AccountProvider | null>(initialProvider);
   const [interval, setInterval] = useState<UpgradeInterval>(initialInterval);
   const [checkoutCancelled, setCheckoutCancelled] = useState(Boolean(preset.checkoutCancelled));
-  const [address, setAddress] = useState(preset.browserAddress);
+  const [address, setAddress] = useState(initialAddress);
 
   const proPreset = ACCOUNT_PRESETS.pro;
   const hostedRoutesSummary = `${proPreset.cloudRoutesUsed} of ${proPreset.cloudRoutesLimit} used`;
@@ -163,7 +176,7 @@ function InteractiveCloudPurchase({
     setCheckoutCancelled(false);
     setStatus("ready");
     setAddress("cloud.compozy.com/billing/upgrade");
-    toast("Signed out of Compozy Cloud");
+    toast.message("Signed out of Compozy Cloud");
   };
 
   const handleIntervalChange = (next: UpgradeInterval) => {
@@ -178,7 +191,7 @@ function InteractiveCloudPurchase({
     setStatus("redirecting");
     setAddress("cloud.compozy.com/billing/upgrade/checkout");
     const planLabel = chosenInterval === "year" ? "Pro annual" : "Pro monthly";
-    toast(`Creating Stripe Checkout session for ${planLabel}…`);
+    toast.message(`Creating Stripe Checkout session for ${planLabel}…`);
   };
 
   const handleOpenStripe = () => {
@@ -199,16 +212,6 @@ function InteractiveCloudPurchase({
     toast.success("Connected to Compozy Cloud");
   };
 
-  const handleOpenLegalLink = (kind: CloudLegalLinkKind) => {
-    toast(
-      kind === "terms"
-        ? "Opened Terms (compozy.com/legal/terms)"
-        : kind === "privacy"
-          ? "Opened Privacy Policy (compozy.com/legal/privacy)"
-          : "Opened Refund Policy (compozy.com/legal/refunds)"
-    );
-  };
-
   return (
     <DraftBrowserFrame address={address} dataSlot="cloud-purchase-browser-window">
       <CloudUpgradePage
@@ -218,12 +221,12 @@ function InteractiveCloudPurchase({
         interval={interval}
         onBackToPlans={handleBackToPlans}
         onContinueToCheckout={handleContinueToCheckout}
-        onDownload={() => toast("Opened compozy.com/download")}
+        onDownload={() => toast.message("Opened compozy.com/download")}
         onIntervalChange={handleIntervalChange}
-        onManageBilling={() => toast("Opening Stripe Customer Portal…")}
-        onOpenApp={() => toast("Opening Compozy…")}
-        onOpenLegalLink={handleOpenLegalLink}
-        onOpenStatus={() => toast("Opened status.compozy.com")}
+        onManageBilling={() => toast.message("Opening Stripe Customer Portal…")}
+        onOpenApp={() => toast.message("Opening CompozyOS…")}
+        onOpenLegalLink={handleOpenPurchaseLegalLink}
+        onOpenStatus={() => toast.message("Opened status.compozy.com")}
         onOpenStripe={handleOpenStripe}
         onSelectProvider={handleSelectProvider}
         onSignOut={handleSignOut}

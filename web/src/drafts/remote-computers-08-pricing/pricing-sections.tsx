@@ -1,4 +1,4 @@
-import { Pill, cn, toast } from "@compozy/ui";
+import { Eyebrow, Pill, cn, toast } from "@compozy/ui";
 import { ArrowRight, Check, ChevronDown, Download, Minus } from "@compozy/ui/icons";
 import { useState } from "react";
 
@@ -129,7 +129,7 @@ export function PricingHero({
                   href="#download"
                   onClick={event => {
                     event.preventDefault();
-                    toast("Opening /download");
+                    toast.message("Opening /download");
                   }}
                   className="block w-full [&>button]:w-full"
                 >
@@ -139,11 +139,11 @@ export function PricingHero({
 
               <ul className="m-0 mt-8 list-none space-y-3.5 border-t border-[color:var(--light-080)] p-0 pt-7">
                 {FREE_FEATURES.map(feature => (
-                  <li key={feature} className="flex items-start gap-3 text-[15px]/[1.45] text-fg/85">
-                    <Check
-                      aria-hidden
-                      className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                    />
+                  <li
+                    key={feature}
+                    className="flex items-start gap-3 text-[15px]/[1.45] text-fg/85"
+                  >
+                    <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     <span>{feature}</span>
                   </li>
                 ))}
@@ -197,7 +197,7 @@ export function PricingHero({
                   href={proCheckoutUrl}
                   onClick={event => {
                     event.preventDefault();
-                    toast(`Opening ${proCheckoutUrl}`);
+                    toast.message(`Opening ${proCheckoutUrl}`);
                   }}
                   className="block w-full [&>button]:w-full"
                 >
@@ -270,9 +270,9 @@ export function PricingComparison() {
           <div className="divide-y divide-[color:var(--light-080)]">
             {COMPARISON_GROUPS.map(group => (
               <div key={group.id} className="px-5 py-7 sm:px-7">
-                <p className="m-0 mb-5 font-mono text-[12px] tracking-[0.04em] text-subtle uppercase">
+                <Eyebrow className="mb-5 block text-subtle" variant="caps">
                   {group.title}
-                </p>
+                </Eyebrow>
                 <ul className="m-0 list-none divide-y divide-[color:var(--light-060)] p-0">
                   {group.rows.map(row => (
                     <li
@@ -415,7 +415,7 @@ export function PricingClosingCta({ interval }: { interval: BillingInterval }) {
                 href={proCheckoutUrl}
                 onClick={event => {
                   event.preventDefault();
-                  toast(`Opening ${proCheckoutUrl}`);
+                  toast.message(`Opening ${proCheckoutUrl}`);
                 }}
               >
                 <PrimaryCta icon={ArrowRight}>Get Pro</PrimaryCta>
@@ -424,7 +424,7 @@ export function PricingClosingCta({ interval }: { interval: BillingInterval }) {
                 href="#download"
                 onClick={event => {
                   event.preventDefault();
-                  toast("Opening /download");
+                  toast.message("Opening /download");
                 }}
               >
                 <SecondaryCta icon={Download}>Download</SecondaryCta>

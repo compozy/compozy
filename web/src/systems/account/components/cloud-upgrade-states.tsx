@@ -21,7 +21,7 @@ import {
   CLOUD_SUPPORT_EMAIL,
 } from "@/systems/computers/mocks/remote-computers-fixtures-sign-in";
 
-import { providerDisplayName } from "./sign-in-provider-buttons";
+import { providerDisplayName } from "../lib/provider-display-name";
 
 function findPlanOption(interval: UpgradeInterval) {
   return (
@@ -129,13 +129,7 @@ export function CloudUpgradeRedirectingView({
           <ExternalLink aria-hidden="true" className="size-3.5" />
         </Button>
         {onBack ? (
-          <Button
-            className="w-full"
-            onClick={onBack}
-            size="default"
-            type="button"
-            variant="ghost"
-          >
+          <Button className="w-full" onClick={onBack} size="default" type="button" variant="ghost">
             <ArrowLeft aria-hidden="true" className="size-3.5" />
             <span>Back to plans</span>
           </Button>
@@ -170,7 +164,7 @@ export function CloudUpgradeSuccessView({
           <CheckCircle2 className="size-5" />
         </span>
         <h1 className="text-detail-h1 font-medium tracking-detail-h1 text-fg-strong text-balance">
-          You&apos;re on Pro. Open Compozy to use your computers.
+          You&apos;re on Pro. Open CompozyOS to use your computers.
         </h1>
       </div>
 
@@ -200,6 +194,7 @@ export function CloudUpgradeSuccessView({
           nativeButton={false}
           render={
             <a
+              aria-label="Open CompozyOS"
               href={CLOUD_OPEN_APP_URL}
               onClick={event => {
                 if (onOpenApp) {
@@ -211,13 +206,14 @@ export function CloudUpgradeSuccessView({
           }
           size="cta-lg"
         >
-          Open Compozy
+          Open CompozyOS
         </Button>
         <Button
           className="w-full"
           nativeButton={false}
           render={
             <a
+              aria-label="Download CompozyOS"
               href={CLOUD_DOWNLOAD_URL}
               onClick={event => {
                 if (onDownload) {
@@ -233,7 +229,7 @@ export function CloudUpgradeSuccessView({
           variant="secondary"
         >
           <Download aria-hidden="true" className="size-4" />
-          <span>Download Compozy</span>
+          <span>Download CompozyOS</span>
         </Button>
       </div>
 
@@ -325,6 +321,7 @@ export function CloudUpgradeAlreadyProView({
             nativeButton={false}
             render={
               <a
+                aria-label="Open CompozyOS"
                 href={CLOUD_OPEN_APP_URL}
                 onClick={event => {
                   event.preventDefault();
@@ -335,7 +332,7 @@ export function CloudUpgradeAlreadyProView({
             size="default"
             variant="ghost"
           >
-            Open Compozy
+            Open CompozyOS
           </Button>
         ) : null}
       </div>
