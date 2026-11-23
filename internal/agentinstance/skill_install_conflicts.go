@@ -300,6 +300,11 @@ func (s *SkillProposalService) recordResolution(
 	payload.NextMarker = payload.PrevMarker
 	if keep == SkillConflictKeepCurrent {
 		edited, err := skillTreeState(t.dir)
+		if errors.Is(err, ErrSkillTreeUnsupported) {
+			return journal, payload, fmt.Errorf("%w: the current %s is a symlink or holds entries other than "+
+				"regular files; replace it with a real directory, or resolve %s with --keep previous",
+				ErrSkillInstallConflict, t.name, payload.OpID)
+		}
 		if err != nil {
 			return journal, payload, err
 		}
@@ -367,11 +372,13 @@ func (s *SkillProposalService) restorePrevious(
 	journal dirpublish.Journal,
 	payload SkillInstallPayload,
 ) error {
+	// An edited copy that is a symlink or holds other entries is moved aside as it is, never followed.
 	target, err := skillTreeState(t.dir)
-	if err != nil {
+	unsupported := errors.Is(err, ErrSkillTreeUnsupported)
+	if err != nil && !unsupported {
 		return err
 	}
-	if target != "" && target != expectedSkillOriginal(payload) {
+	if unsupported || (target != "" && target != expectedSkillOriginal(payload)) {
 		occupied, err := dirpublish.DirectoryExists(t.parent, payload.KeepCopyName)
 		if err != nil {
 			return err
@@ -382,7 +389,7 @@ func (s *SkillProposalService) restorePrevious(
 			return fmt.Errorf("%w: %s already exists; move it away and resolve %s again",
 				ErrSkillInstallConflict, t.path(payload.KeepCopyName), payload.OpID)
 		}
-		if err := moveSkillChild(t.parent, t.name, payload.KeepCopyName); err != nil {
+		if err := moveEditedAside(t, payload.KeepCopyName); err != nil {
 			return err
 		}
 		if s.crashed("edited_kept") {

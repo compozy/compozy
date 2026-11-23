@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"time"
@@ -364,6 +365,19 @@ func expectedSkillOriginal(payload SkillInstallPayload) string {
 		return ""
 	}
 	return payload.PreDigest
+}
+
+// moveEditedAside moves the skill entry at the target to name: a symlink entry is renamed itself,
+// never its referent; anything else moves as a directory.
+func moveEditedAside(t *skillTarget, name string) error {
+	info, err := os.Lstat(t.dir)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return t.parent.MoveSymlinkNoReplace(t.name, name)
+	}
+	return moveSkillChild(t.parent, t.name, name)
 }
 
 // moveSkillChild renames a direct child directory without replacing an existing name.
