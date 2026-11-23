@@ -182,7 +182,6 @@ export type ErrorPayload = {
   diagnostic?: DiagnosticItem | null;
   error: string;
   provider_error?: string;
-  reason?: string;
   retryable?: boolean;
   unknown_keys?: Array<string>;
 };

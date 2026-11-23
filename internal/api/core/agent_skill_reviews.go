@@ -289,8 +289,11 @@ func SkillReviewErrorStatus(err error) (string, int, bool) {
 
 func (h *BaseHandlers) skillReviewError(c *gin.Context, err error) {
 	if code, status, ok := SkillReviewErrorStatus(err); ok {
-		payload := contract.ErrorPayload{Code: code, Reason: agentinstance.SkillRevertReason(err), Error: err.Error()}
-		c.JSON(status, payload)
+		if reason := agentinstance.SkillRevertReason(err); reason != "" {
+			c.JSON(status, contract.AgentSkillRevertConflictPayload{Code: code, Reason: reason, Error: err.Error()})
+			return
+		}
+		c.JSON(status, contract.ErrorPayload{Code: code, Error: err.Error()})
 		return
 	}
 	if errors.Is(err, errSkillReviewQuery) {

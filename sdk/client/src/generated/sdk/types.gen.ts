@@ -2408,7 +2408,6 @@ export type ErrorPayload = {
   diagnostic?: DiagnosticItem | null;
   error: string;
   provider_error?: string;
-  reason?: string;
   retryable?: boolean;
   unknown_keys?: Array<string>;
 };
@@ -7829,7 +7828,6 @@ export type SessionDeriveErrorPayload = {
   diagnostic?: DiagnosticItem | null;
   error: string;
   provider_error?: string;
-  reason?: string;
   retryable?: boolean;
   unknown_keys?: Array<string>;
 };
@@ -8498,7 +8496,6 @@ export type SessionPullRequestErrorPayload = {
   error: string;
   message: string;
   provider_error?: string;
-  reason?: string;
   retryable?: boolean;
   unknown_keys?: Array<string>;
 };
@@ -11577,7 +11574,6 @@ export type TaskQueryErrorPayload = {
   error: string;
   field: string;
   provider_error?: string;
-  reason?: string;
   retryable?: boolean;
   unknown_keys?: Array<string>;
 };

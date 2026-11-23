@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -2069,7 +2070,7 @@ func TestAgentSkillReviews(t *testing.T) {
 			t.Fatalf("stale base approval: %d %s", staleBase.Code, staleBase.Body.String())
 		}
 		kept, err := os.ReadFile(filepath.Join(scanRoot, "first", "SKILL.md"))
-		if err != nil || string(kept) != string(installed) {
+		if err != nil || !bytes.Equal(kept, installed) {
 			t.Fatalf("stale edit changed the skill: %v", err)
 		}
 		rejectEdit := request("POST", "/reviews/"+edit.Review.ID+"/reject", editDigest, false)
@@ -2143,7 +2144,10 @@ func TestAgentSkillReviews(t *testing.T) {
 		if taken.Code != 409 || takenFailure.Code != "skill_review_target_exists" {
 			t.Fatalf("approval over an existing skill: %d %+v", taken.Code, takenFailure)
 		}
-		if kept, err := os.ReadFile(filepath.Join(existing, "SKILL.md")); err != nil || string(kept) != "operator skill" {
+		if kept, err := os.ReadFile(
+			filepath.Join(existing, "SKILL.md"),
+		); err != nil ||
+			string(kept) != "operator skill" {
 			t.Fatalf("existing skill changed: %q %v", kept, err)
 		}
 

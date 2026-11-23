@@ -116,3 +116,11 @@ type AgentSkillRevertEligibility struct {
 	Allowed bool   `json:"allowed"`
 	Reason  string `json:"reason,omitempty"`
 }
+
+// AgentSkillRevertConflictPayload is the 409 body of a refused revert: the stable code, the
+// eligibility reason (superseded, changed_on_disk, legacy, target_unavailable) and the message.
+type AgentSkillRevertConflictPayload struct {
+	Code   string `json:"code"`
+	Reason string `json:"reason"`
+	Error  string `json:"error"`
+}

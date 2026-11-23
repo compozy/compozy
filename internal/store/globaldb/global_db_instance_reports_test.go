@@ -372,7 +372,11 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 				}
 			}
 			service := newService()
-			instance := agentinstance.Instance{ID: "revert-instance", ProfileID: store.DefaultProfileID, AgentName: "coder"}
+			instance := agentinstance.Instance{
+				ID:        "revert-instance",
+				ProfileID: store.DefaultProfileID,
+				AgentName: "coder",
+			}
 			operator := workspaceaccess.ActorRef{Operator: true}
 			input := testSkillProposalInput("review-changes", "Review changes", "Read the diff twice.")
 			first, err := service.Propose(ctx, operator, instance, scanRoot, input)
@@ -402,10 +406,26 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 				t.Fatal(err)
 			}
 			editID, editDigest := approvedEdit.Review.ID, approvedEdit.Review.Digest
-			if _, err := service.Approve(ctx, operator, instance, editID, editDigest, "operator:p", scanRoot); err != nil {
+			if _, err := service.Approve(
+				ctx,
+				operator,
+				instance,
+				editID,
+				editDigest,
+				"operator:p",
+				scanRoot,
+			); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := service.Revert(ctx, operator, instance, editID, editDigest, "operator:p", scanRoot); err != nil {
+			if _, err := service.Revert(
+				ctx,
+				operator,
+				instance,
+				editID,
+				editDigest,
+				"operator:p",
+				scanRoot,
+			); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := service.Revert(ctx, operator, instance, review.ID, review.Digest, "operator:p",
@@ -413,7 +433,8 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 				t.Fatal(err)
 			}
 			reverted, err := db.SkillReviews().GetReview(ctx, review.ID)
-			if err != nil || reverted.State != agentinstance.SkillReviewReverted || reverted.RevertedBy != "operator:p" ||
+			if err != nil || reverted.State != agentinstance.SkillReviewReverted ||
+				reverted.RevertedBy != "operator:p" ||
 				reverted.RevertedAt == nil {
 				t.Fatalf("reverted review = %+v, %v", reverted, err)
 			}
@@ -463,8 +484,11 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 				t.Fatal(err)
 			}
 			homes[i] = home{db: db, service: agentinstance.SkillProposalService{
-				Store: db.SkillReviews(), Evidence: instanceScopedEvidence{}, DraftRoot: filepath.Join(t.TempDir(), "drafts"),
-				ScanRoots: []string{scanRoot}, HomeID: id,
+				Store:     db.SkillReviews(),
+				Evidence:  instanceScopedEvidence{},
+				DraftRoot: filepath.Join(t.TempDir(), "drafts"),
+				ScanRoots: []string{scanRoot},
+				HomeID:    id,
 			}}
 		}
 		input := testSkillProposalInput("review-changes", "Review changes", "Read the diff twice.")

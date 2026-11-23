@@ -141,7 +141,7 @@ func TestInstanceSkillRevertIntegration(t *testing.T) {
 				t.Fatalf("detail revert of %s = %+v, want %s", review.ID, got, reason)
 			}
 			status, raw := decide(uds, "http://unix", review, "revert")
-			var failure contract.ErrorPayload
+			var failure contract.AgentSkillRevertConflictPayload
 			if status != http.StatusConflict || json.Unmarshal(raw, &failure) != nil ||
 				failure.Code != "skill_review_revert_conflict" || failure.Reason != reason {
 				t.Fatalf("POST revert of %s = %d %s, want 409 %s", review.ID, status, raw, reason)

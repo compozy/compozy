@@ -1656,7 +1656,10 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 	}
 	t.Run("Should describe a reverted edit as its previous contents [E2E-004]", func(t *testing.T) {
 		t.Parallel()
-		got := agentSkillDecisionText("revert", contract.AgentSkillReviewPayload{Name: "release-checklist", Kind: "edit"})
+		got := agentSkillDecisionText(
+			"revert",
+			contract.AgentSkillReviewPayload{Name: "release-checklist", Kind: "edit"},
+		)
 		if got != "Reverted release-checklist to its previous contents.\n" {
 			t.Fatalf("revert text = %q", got)
 		}

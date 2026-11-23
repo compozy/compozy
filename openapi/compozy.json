@@ -2753,6 +2753,25 @@
         ],
         "type": "object"
       },
+      "AgentSkillRevertConflictPayload": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "error",
+          "reason"
+        ],
+        "type": "object"
+      },
       "AgentSkillRevertEligibility": {
         "properties": {
           "allowed": {
@@ -8854,9 +8873,6 @@
             "type": "string"
           },
           "provider_error": {
-            "type": "string"
-          },
-          "reason": {
             "type": "string"
           },
           "retryable": {
@@ -28103,9 +28119,6 @@
           "provider_error": {
             "type": "string"
           },
-          "reason": {
-            "type": "string"
-          },
           "retryable": {
             "type": "boolean"
           },
@@ -30789,9 +30802,6 @@
             "type": "string"
           },
           "provider_error": {
-            "type": "string"
-          },
-          "reason": {
             "type": "string"
           },
           "retryable": {
@@ -41330,9 +41340,6 @@
             "type": "string"
           },
           "provider_error": {
-            "type": "string"
-          },
-          "reason": {
             "type": "string"
           },
           "retryable": {

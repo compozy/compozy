@@ -9224,6 +9224,11 @@ export interface components {
       evidence: string;
       lesson: string;
     };
+    AgentSkillRevertConflictPayload: {
+      code: string;
+      error: string;
+      reason: string;
+    };
     AgentSkillRevertEligibility: {
       allowed: boolean;
       reason?: string;
@@ -10836,7 +10841,6 @@ export interface components {
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       provider_error?: string;
-      reason?: string;
       retryable?: boolean;
       unknown_keys?: string[];
     };
@@ -16424,7 +16428,6 @@ export interface components {
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       provider_error?: string;
-      reason?: string;
       retryable?: boolean;
       unknown_keys?: string[];
     };
@@ -17097,7 +17100,6 @@ export interface components {
       error: string;
       message: string;
       provider_error?: string;
-      reason?: string;
       retryable?: boolean;
       unknown_keys?: string[];
     };
@@ -20215,7 +20217,6 @@ export interface components {
       error: string;
       field: string;
       provider_error?: string;
-      reason?: string;
       retryable?: boolean;
       unknown_keys?: string[];
     };

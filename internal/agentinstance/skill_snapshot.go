@@ -47,7 +47,9 @@ func (t SkillTree) Digest() string {
 	manifest.Write([]byte(skillTreeDigestHeader))
 	for _, file := range t {
 		sum := sha256.Sum256(file.Data)
-		manifest.Write([]byte(skillManifestLine(file.Path, file.Perm, int64(len(file.Data)), hex.EncodeToString(sum[:]))))
+		manifest.Write(
+			[]byte(skillManifestLine(file.Path, file.Perm, int64(len(file.Data)), hex.EncodeToString(sum[:]))),
+		)
 	}
 	return "sha256:" + hex.EncodeToString(manifest.Sum(nil))
 }
