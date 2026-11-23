@@ -22,7 +22,7 @@ export const PHONE_TARGET_COMPUTER: ComputerFixture = COMPUTERS_PRO.find(
   item => item.id === "cmp_1c9d0a2b"
 )!;
 
-export const PHONE_HOSTED_URL = PHONE_TARGET_COMPUTER.hostedUrl ?? "studio-1c9d.remote.compozy.com";
+export const PHONE_HOSTED_URL = PHONE_TARGET_COMPUTER.hostedUrl ?? "studio-1c9d.compozy.run";
 
 export const PHONE_DEVICE = ACCOUNT_DEVICES.find(item => item.id === "dev_5k1p9z")!;
 

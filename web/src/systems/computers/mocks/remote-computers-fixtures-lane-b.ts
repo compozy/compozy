@@ -357,7 +357,7 @@ export const DETAILS_INCOMPATIBLE_MANUAL: ComputerFixture = {
     {
       id: "rt_gpu_cloud",
       kind: "cloud",
-      address: "gpu-vm-8e7f.remote.compozy.com",
+      address: "gpu-vm-8e7f.compozy.run",
       label: "via hosted route",
       inUse: false,
       learned: false,
@@ -447,7 +447,7 @@ const LONG_VOLUME_ROUTES: readonly ComputerRouteFixture[] = [
   {
     id: "rt_long_6",
     kind: "cloud",
-    address: "eu-central-prod-runner-04-9x2k.remote.compozy.com",
+    address: "eu-central-prod-runner-04-9x2k.compozy.run",
     label: "via hosted route",
     inUse: false,
     learned: false,
@@ -467,7 +467,7 @@ export const DETAILS_LONG_VOLUME: ComputerFixture = {
   routeInUse: LONG_VOLUME_ROUTES[0]!,
   routes: LONG_VOLUME_ROUTES,
   scopes: ALL_REMOTE_SCOPES,
-  hostedUrl: "eu-central-prod-runner-04-9x2k.remote.compozy.com",
+  hostedUrl: "eu-central-prod-runner-04-9x2k.compozy.run",
 };
 
 export type UpdateRunState = "idle" | "running" | "provenance_failed" | "done";

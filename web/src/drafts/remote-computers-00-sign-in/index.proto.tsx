@@ -174,8 +174,14 @@ function InteractiveCloudPage({ preset }: { preset: CloudPagePreset }) {
     toast.success("Unsubscribed from product news and offers");
   };
 
-  const handleOpenLegalLink = (linkKind: "terms" | "privacy") => {
-    toast(linkKind === "terms" ? "Opened Terms" : "Opened Privacy Policy");
+  const handleOpenLegalLink = (linkKind: "terms" | "privacy" | "refunds") => {
+    toast(
+      linkKind === "terms"
+        ? "Opened Terms"
+        : linkKind === "privacy"
+          ? "Opened Privacy Policy"
+          : "Opened Refund Policy"
+    );
   };
 
   return (

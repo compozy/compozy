@@ -50,7 +50,7 @@ export interface PhoneAppProps {
 
 /**
  * Signed-in Compozy browser SPA served directly by one computer's hosted route
- * (`https://studio-1c9d.remote.compozy.com`).
+ * (`https://studio-1c9d.compozy.run`).
  *
  * - Below 1024 px: single-column phone layout with compact header, bottom tab bar,
  *   and bottom-sheet computer menu.

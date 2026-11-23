@@ -187,7 +187,7 @@ export const LOCAL_COMPUTER: LocalComputerFixture = {
   remoteEnabled: true,
   hostedRouteEnabled: true,
   hostedRouteState: "ready",
-  hostedUrl: "macbook-2m8x.remote.compozy.com",
+  hostedUrl: "macbook-2m8x.compozy.run",
   requireDeviceApproval: true,
   load: {
     cpuCount: 12,
@@ -214,7 +214,7 @@ const STUDIO_ROUTES: readonly ComputerRouteFixture[] = [
   {
     id: "rt_studio_cloud",
     kind: "cloud",
-    address: "studio-1c9d.remote.compozy.com",
+    address: "studio-1c9d.compozy.run",
     label: "via hosted route",
     inUse: false,
     learned: false,
@@ -244,7 +244,7 @@ const DEVBOX_ROUTES: readonly ComputerRouteFixture[] = [
   {
     id: "rt_devbox_cloud",
     kind: "cloud",
-    address: "devbox-7f3k.remote.compozy.com",
+    address: "devbox-7f3k.compozy.run",
     label: "via hosted route",
     inUse: false,
     learned: false,
@@ -362,7 +362,7 @@ export const COMPUTERS_PRO: readonly ComputerFixture[] = [
     addedAt: "2026-10-12T15:00:00Z",
     lastConnectedAt: "2026-11-22T20:44:41Z",
     lastConnectedLabel: "just now",
-    hostedUrl: "studio-1c9d.remote.compozy.com",
+    hostedUrl: "studio-1c9d.compozy.run",
   },
   {
     id: "cmp_7f3k2q9x",
@@ -398,7 +398,7 @@ export const COMPUTERS_PRO: readonly ComputerFixture[] = [
     addedAt: "2026-10-15T11:20:00Z",
     lastConnectedAt: "2026-11-22T20:44:39Z",
     lastConnectedLabel: "just now",
-    hostedUrl: "devbox-7f3k.remote.compozy.com",
+    hostedUrl: "devbox-7f3k.compozy.run",
   },
   {
     id: "cmp_3v8q1z4m",

@@ -40,48 +40,90 @@ import {
   TextLink,
 } from "./primitives";
 
-export function SiteHeader() {
+const HEADER_NAV = [...NAV.slice(0, 2), "Pricing", ...NAV.slice(2)];
+
+export function SiteHeader({
+  active,
+  topOffsetClass,
+  scrolled = false,
+}: {
+  active?: string;
+  topOffsetClass?: string;
+  scrolled?: boolean;
+} = {}) {
+  const reduced = useReducedMotion();
   const { scrollY, scrollYProgress } = useScroll();
-  const [compact, setCompact] = useState(false);
-  useMotionValueEvent(scrollY, "change", value => setCompact(value > 80));
+  const [compact, setCompact] = useState(
+    () => scrolled || (typeof window !== "undefined" && window.scrollY > 80)
+  );
+  useMotionValueEvent(scrollY, "change", value => setCompact(scrolled || value > 80));
+  useEffect(() => {
+    const sync = () => setCompact(scrolled || window.scrollY > 80);
+    sync();
+    window.addEventListener("scroll", sync, { passive: true });
+    return () => window.removeEventListener("scroll", sync);
+  }, [scrolled]);
   const width = useSpring(scrollYProgress, { stiffness: 120, damping: 30 });
+  const isCompact = scrolled || compact;
   return (
-    <header className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-3">
-      <m.div
+    <header
+      className={cn(
+        "fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-3 text-[#ececec]",
+        topOffsetClass
+      )}
+    >
+      <div
         className={cn(
-          "relative flex h-14 w-full items-center justify-between overflow-hidden rounded-[18px] border pr-2.5 pl-5 transition-[max-width,background-color,border-color,backdrop-filter] duration-500",
-          compact
-            ? "max-w-[920px] border-[color:var(--light-120)] bg-[#101010]/75 backdrop-blur-2xl"
+          "relative flex h-14 w-full items-center justify-between overflow-hidden rounded-[18px] border pr-2.5 pl-5",
+          !reduced &&
+            "transition-[max-width,background-color,border-color,backdrop-filter] duration-500",
+          isCompact
+            ? "max-w-[920px] border-[color:var(--light-120)] bg-[#101010]/95 backdrop-blur-2xl"
             : "max-w-[1280px] border-transparent bg-transparent"
         )}
       >
-        <Logo variant="logo" className="h-[22px]" />
-        <nav className="hidden gap-7 md:flex">
-          {NAV.map(item => (
-            <a
-              key={item}
-              href="#"
-              className="text-[14px] text-fg/70 transition-colors hover:text-fg"
-            >
-              {item}
-            </a>
-          ))}
+        <Logo variant="logo" className="h-[22px] text-[#ececec]" />
+        <nav aria-label="Site" className="hidden gap-7 self-stretch md:flex">
+          {HEADER_NAV.map(item => {
+            const current = active === item;
+            return (
+              <a
+                key={item}
+                href="#"
+                aria-current={current ? "page" : undefined}
+                className={cn(
+                  "relative flex items-center text-[14px] transition-colors",
+                  current ? "text-[#ececec]" : "text-[#ececec]/70 hover:text-[#ececec]"
+                )}
+              >
+                {item}
+                {current ? (
+                  <span
+                    aria-hidden
+                    className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[linear-gradient(90deg,#1df0d7,#1f87fc)]"
+                  />
+                ) : null}
+              </a>
+            );
+          })}
         </nav>
         <a
           href="#"
-          className="inline-flex h-9 items-center gap-1.5 rounded-[11px] border border-[color:var(--light-150)] bg-[color:var(--light-050)] px-3.5 text-[13.5px] text-fg transition-colors hover:bg-[color:var(--light-100)]"
+          className="inline-flex h-9 items-center gap-1.5 rounded-[11px] border border-[color:var(--light-150)] bg-[color:var(--light-050)] px-3.5 text-[13.5px] text-[#ececec] transition-colors hover:bg-[color:var(--light-100)]"
         >
           <Star className="size-3.5" aria-hidden /> Star on GitHub
         </a>
-        <m.span
-          aria-hidden
-          style={{ scaleX: width }}
-          className={cn(
-            "absolute inset-x-0 bottom-0 h-px origin-left bg-[linear-gradient(90deg,#1f87fc,#1df0d7)] transition-opacity",
-            compact ? "opacity-100" : "opacity-0"
-          )}
-        />
-      </m.div>
+        {!reduced ? (
+          <m.span
+            aria-hidden
+            style={{ scaleX: width }}
+            className={cn(
+              "absolute inset-x-0 bottom-0 h-px origin-left bg-[linear-gradient(90deg,#1f87fc,#1df0d7)] transition-opacity",
+              isCompact ? "opacity-100" : "opacity-0"
+            )}
+          />
+        ) : null}
+      </div>
     </header>
   );
 }

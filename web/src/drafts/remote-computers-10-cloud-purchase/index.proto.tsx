@@ -1,0 +1,281 @@
+import { useState, type ReactNode } from "react";
+import { definePrototype, useSearch, type PrototypeProps } from "@compozy/proto";
+import { ChevronLeft, ChevronRight, Lock } from "@compozy/ui/icons";
+
+import { toast } from "@compozy/ui";
+
+import type { UpgradeInterval } from "@/systems/account/components/account-upgrade-sheet";
+import {
+  CloudUpgradePage,
+  type CloudUpgradeStatus,
+} from "@/systems/account/components/cloud-upgrade-page";
+import type { CloudLegalLinkKind } from "@/systems/account/components/sign-in-provider-buttons";
+import {
+  ACCOUNT_PRESETS,
+  OWNER_EMAIL,
+  type AccountProvider,
+} from "@/systems/computers/mocks/remote-computers-fixtures";
+
+export const meta = definePrototype({
+  title: "Buy Pro",
+  spec: "remote-computers",
+  surface: "U12",
+  route: "/billing/upgrade",
+  states: [
+    { id: "signed-out", label: "Signed out · Sign in first, checkout disabled" },
+    { id: "signed-in-annual", label: "Signed in · Annual plan preselected" },
+    { id: "signed-in-monthly", label: "Signed in · Monthly plan preselected" },
+    { id: "promo-code", label: "Promotion code · Entered at Stripe Checkout" },
+    { id: "redirecting", label: "Redirecting · Opening Stripe Checkout" },
+    { id: "success", label: "Success · You're on Pro, open or download Compozy" },
+    { id: "already-pro", label: "Already Pro · Active plan and Manage billing" },
+    { id: "checkout-cancelled", label: "Checkout cancelled · Nothing was charged" },
+    { id: "rate-limited", label: "Rate limited · Retry wait and status page link" },
+    { id: "cloud-unavailable", label: "Cloud unavailable · Try again and status link" },
+    { id: "suspended", label: "Account suspended · Support contact, no checkout" },
+  ],
+});
+
+interface PurchaseStatePreset {
+  status: CloudUpgradeStatus;
+  provider: AccountProvider | null;
+  interval: UpgradeInterval;
+  browserAddress: string;
+  checkoutCancelled?: boolean;
+  promoNoteOpen?: boolean;
+  retryAfterSeconds?: number;
+}
+
+const PURCHASE_PRESETS: Record<string, PurchaseStatePreset> = {
+  "signed-out": {
+    status: "ready",
+    provider: null,
+    interval: "year",
+    browserAddress: "cloud.compozy.com/billing/upgrade",
+  },
+  "signed-in-annual": {
+    status: "ready",
+    provider: "google",
+    interval: "year",
+    browserAddress: "cloud.compozy.com/billing/upgrade?interval=year",
+  },
+  "signed-in-monthly": {
+    status: "ready",
+    provider: "google",
+    interval: "month",
+    browserAddress: "cloud.compozy.com/billing/upgrade?interval=month",
+  },
+  "promo-code": {
+    status: "ready",
+    provider: "google",
+    interval: "year",
+    browserAddress: "cloud.compozy.com/billing/upgrade?interval=year",
+    promoNoteOpen: true,
+  },
+  redirecting: {
+    status: "redirecting",
+    provider: "google",
+    interval: "year",
+    browserAddress: "cloud.compozy.com/billing/upgrade/checkout",
+  },
+  success: {
+    status: "success",
+    provider: "google",
+    interval: "year",
+    browserAddress: "cloud.compozy.com/billing/upgrade/success",
+  },
+  "already-pro": {
+    status: "already_pro",
+    provider: "google",
+    interval: "year",
+    browserAddress: "cloud.compozy.com/billing/upgrade",
+  },
+  "checkout-cancelled": {
+    status: "ready",
+    provider: "google",
+    interval: "year",
+    browserAddress: "cloud.compozy.com/billing/upgrade?checkout=cancelled",
+    checkoutCancelled: true,
+  },
+  "rate-limited": {
+    status: "rate_limited",
+    provider: "google",
+    interval: "year",
+    browserAddress: "cloud.compozy.com/billing/upgrade",
+    retryAfterSeconds: 45,
+  },
+  "cloud-unavailable": {
+    status: "cloud_unavailable",
+    provider: null,
+    interval: "year",
+    browserAddress: "cloud.compozy.com/billing/upgrade",
+  },
+  suspended: {
+    status: "suspended",
+    provider: "google",
+    interval: "year",
+    browserAddress: "cloud.compozy.com/billing/upgrade",
+  },
+};
+
+/**
+ * Browser window chrome matching Screen 00 (`remote-computers-00-sign-in`),
+ * adapted so 390 px phone viewports keep the address pill centered without clipping.
+ */
+function CloudBrowserFrame({ address, children }: { address: string; children: ReactNode }) {
+  return (
+    <div
+      className="flex h-dvh min-h-dvh w-full flex-col overflow-hidden bg-canvas text-fg"
+      data-slot="cloud-purchase-browser-window"
+    >
+      <div
+        aria-label="Browser address bar"
+        className="flex h-12 shrink-0 items-center justify-center border-b border-line bg-rail px-3 select-none sm:grid sm:grid-cols-[1fr_minmax(0,440px)_1fr] sm:gap-3 sm:px-4"
+      >
+        <div aria-hidden="true" className="hidden items-center gap-3 sm:flex">
+          <div className="flex items-center gap-2">
+            <span className="size-3 rounded-full bg-line-strong" />
+            <span className="size-3 rounded-full bg-line-strong" />
+            <span className="size-3 rounded-full bg-line-strong" />
+          </div>
+          <div className="flex items-center gap-1 text-faint">
+            <ChevronLeft className="size-4" />
+            <ChevronRight className="size-4 opacity-50" />
+          </div>
+        </div>
+
+        <div className="flex h-7.5 w-full max-w-[440px] min-w-0 items-center justify-center gap-1.5 rounded-pill border border-line-soft bg-canvas px-3.5 text-eyebrow text-muted-foreground">
+          <Lock aria-hidden="true" className="size-3 shrink-0 text-subtle" />
+          <span className="truncate font-mono text-mono-id">{address}</span>
+        </div>
+
+        <div aria-hidden="true" className="hidden sm:block" />
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
+    </div>
+  );
+}
+
+function resolveIntervalParam(search: string): UpgradeInterval | null {
+  const raw = new URLSearchParams(search).get("interval");
+  if (raw === "month" || raw === "year") return raw;
+  return null;
+}
+
+function InteractiveCloudPurchase({
+  preset,
+  queryInterval,
+}: {
+  preset: PurchaseStatePreset;
+  queryInterval: UpgradeInterval | null;
+}) {
+  const initialInterval =
+    preset.browserAddress.includes("interval=month") ||
+    preset.browserAddress.includes("interval=year")
+      ? preset.interval
+      : (queryInterval ?? preset.interval);
+
+  const [status, setStatus] = useState<CloudUpgradeStatus>(preset.status);
+  const [provider, setProvider] = useState<AccountProvider | null>(preset.provider);
+  const [interval, setInterval] = useState<UpgradeInterval>(initialInterval);
+  const [checkoutCancelled, setCheckoutCancelled] = useState(Boolean(preset.checkoutCancelled));
+  const [address, setAddress] = useState(preset.browserAddress);
+
+  const proPreset = ACCOUNT_PRESETS.pro;
+  const hostedRoutesSummary = `${proPreset.cloudRoutesUsed} of ${proPreset.cloudRoutesLimit} used`;
+
+  const handleSelectProvider = (chosen: AccountProvider) => {
+    setProvider(chosen);
+    setStatus("ready");
+    setAddress(`cloud.compozy.com/billing/upgrade?interval=${interval}`);
+    toast.success(`Signed in with ${chosen === "google" ? "Google" : "GitHub"} as ${OWNER_EMAIL}.`);
+  };
+
+  const handleSignOut = () => {
+    setProvider(null);
+    setCheckoutCancelled(false);
+    setStatus("ready");
+    setAddress("cloud.compozy.com/billing/upgrade");
+    toast("Signed out of Compozy Cloud");
+  };
+
+  const handleIntervalChange = (next: UpgradeInterval) => {
+    setInterval(next);
+    if (status === "ready" && provider) {
+      setAddress(`cloud.compozy.com/billing/upgrade?interval=${next}`);
+    }
+  };
+
+  const handleContinueToCheckout = (chosenInterval: UpgradeInterval) => {
+    setCheckoutCancelled(false);
+    setStatus("redirecting");
+    setAddress("cloud.compozy.com/billing/upgrade/checkout");
+    const planLabel = chosenInterval === "year" ? "Pro annual" : "Pro monthly";
+    toast(`Creating Stripe Checkout session for ${planLabel}…`);
+  };
+
+  const handleOpenStripe = () => {
+    setStatus("success");
+    setAddress("cloud.compozy.com/billing/upgrade/success");
+    toast.success("Checkout completed. You're on Pro.");
+  };
+
+  const handleBackToPlans = () => {
+    setStatus("ready");
+    setCheckoutCancelled(true);
+    setAddress("cloud.compozy.com/billing/upgrade?checkout=cancelled");
+  };
+
+  const handleTryAgain = () => {
+    setStatus("ready");
+    setAddress("cloud.compozy.com/billing/upgrade");
+    toast.success("Connected to Compozy Cloud");
+  };
+
+  const handleOpenLegalLink = (kind: CloudLegalLinkKind) => {
+    toast(
+      kind === "terms"
+        ? "Opened Terms (compozy.com/legal/terms)"
+        : kind === "privacy"
+          ? "Opened Privacy Policy (compozy.com/legal/privacy)"
+          : "Opened Refund Policy (compozy.com/legal/refunds)"
+    );
+  };
+
+  return (
+    <CloudBrowserFrame address={address}>
+      <CloudUpgradePage
+        checkoutCancelled={checkoutCancelled}
+        hostedRoutesSummary={hostedRoutesSummary}
+        initialPromoNoteOpen={Boolean(preset.promoNoteOpen)}
+        interval={interval}
+        onBackToPlans={handleBackToPlans}
+        onContinueToCheckout={handleContinueToCheckout}
+        onDownload={() => toast("Opened compozy.com/download")}
+        onIntervalChange={handleIntervalChange}
+        onManageBilling={() => toast("Opening Stripe Customer Portal…")}
+        onOpenApp={() => toast("Opening Compozy…")}
+        onOpenLegalLink={handleOpenLegalLink}
+        onOpenStatus={() => toast("Opened status.compozy.com")}
+        onOpenStripe={handleOpenStripe}
+        onSelectProvider={handleSelectProvider}
+        onSignOut={handleSignOut}
+        onTryAgain={handleTryAgain}
+        ownerEmail={OWNER_EMAIL}
+        renewsLabel="Dec 22, 2026"
+        retryAfterSeconds={preset.retryAfterSeconds}
+        signedInProvider={provider}
+        status={status}
+      />
+    </CloudBrowserFrame>
+  );
+}
+
+export default function RemoteComputersCloudPurchaseDraft({ state }: PrototypeProps) {
+  const search = useSearch();
+  const queryInterval = resolveIntervalParam(search);
+  const preset = PURCHASE_PRESETS[state] ?? PURCHASE_PRESETS["signed-out"]!;
+
+  return <InteractiveCloudPurchase key={state} preset={preset} queryInterval={queryInterval} />;
+}

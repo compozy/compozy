@@ -99,7 +99,7 @@ function renderGateIcon(kind: BrowserSignInGateKind): GateIconVisual {
 }
 
 /**
- * Centered entry gate for a computer's hosted route (`https://<slug>.remote.compozy.com`, U8).
+ * Centered entry gate for a computer's hosted route (`https://<slug>.compozy.run`, U8).
  *
  * Works at mobile (390 px) and desktop (1396 px+) widths with a centered max-w-[420px] card:
  * icon + one title + plain body + optional context block + actions, with no redundant status pills.

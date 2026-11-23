@@ -70,8 +70,13 @@ export const SIGN_IN_PRIMARY_CODE = "WDJB-MJHT";
 export const SIGN_IN_SECONDARY_CODE = "QFTX-PLRN";
 export const SIGN_IN_OWNER_EMAIL = OWNER_EMAIL;
 export const SIGN_IN_CLI_LOGIN_COMMAND = "compozy account login";
-export const SIGN_IN_TERMS_URL = "https://compozy.com/terms";
-export const SIGN_IN_PRIVACY_URL = "https://compozy.com/privacy";
+export const SIGN_IN_TERMS_URL = "https://compozy.com/legal/terms";
+export const SIGN_IN_PRIVACY_URL = "https://compozy.com/legal/privacy";
+export const SIGN_IN_REFUNDS_URL = "https://compozy.com/legal/refunds";
+export const CLOUD_STATUS_URL = "https://status.compozy.com";
+export const CLOUD_DOWNLOAD_URL = "https://compozy.com/download";
+export const CLOUD_OPEN_APP_URL = "compozyos://open/";
+export const CLOUD_SUPPORT_EMAIL = "support@compozy.com";
 
 export const SIGN_IN_REAUTH_MESSAGES: Record<SignInReauthReason, string> = {
   device_revoked: "This computer was removed from your account.",

@@ -1,8 +1,14 @@
+import type { ReactNode } from "react";
 import { GithubLogo, GoogleLogo } from "@compozy/ui/logos";
 
-import { Button, cn, CopyIconButton } from "@compozy/ui";
+import { Button, cn, CopyIconButton, Logo, Surface } from "@compozy/ui";
 
-import type { SignInProvider } from "@/systems/computers/mocks/remote-computers-fixtures-sign-in";
+import {
+  SIGN_IN_PRIVACY_URL,
+  SIGN_IN_REFUNDS_URL,
+  SIGN_IN_TERMS_URL,
+  type SignInProvider,
+} from "@/systems/computers/mocks/remote-computers-fixtures-sign-in";
 
 const PROVIDER_LABEL: Record<SignInProvider, string> = {
   google: "Google",
@@ -117,5 +123,112 @@ export function SignInVerificationCode({
         />
       ) : null}
     </div>
+  );
+}
+
+export type CloudLegalLinkKind = "terms" | "privacy" | "refunds";
+
+export interface CloudPageFooterProps {
+  onOpenLegalLink?: (kind: CloudLegalLinkKind) => void;
+  className?: string;
+}
+
+const CLOUD_LEGAL_LINKS: ReadonlyArray<{
+  kind: CloudLegalLinkKind;
+  label: string;
+  href: string;
+}> = [
+  { kind: "terms", label: "Terms", href: SIGN_IN_TERMS_URL },
+  { kind: "privacy", label: "Privacy", href: SIGN_IN_PRIVACY_URL },
+  { kind: "refunds", label: "Refunds", href: SIGN_IN_REFUNDS_URL },
+];
+
+/**
+ * Shared legal footer rendered on every `cloud.compozy.com` browser page (`_uiux.md` U0, U12).
+ */
+export function CloudPageFooter({ onOpenLegalLink, className }: CloudPageFooterProps) {
+  return (
+    <footer
+      className={cn(
+        "flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-meta text-subtle",
+        className
+      )}
+      data-slot="cloud-page-footer"
+    >
+      <span>cloud.compozy.com</span>
+      {CLOUD_LEGAL_LINKS.map(link => (
+        <span className="inline-flex items-center gap-2.5" key={link.kind}>
+          <span aria-hidden="true">·</span>
+          <a
+            className="transition-colors hover:text-fg"
+            href={link.href}
+            onClick={event => {
+              if (onOpenLegalLink) {
+                event.preventDefault();
+                onOpenLegalLink(link.kind);
+              }
+            }}
+            rel="noreferrer"
+            target="_blank"
+          >
+            {link.label}
+          </a>
+        </span>
+      ))}
+    </footer>
+  );
+}
+
+export interface CloudPageChromeProps {
+  children: ReactNode;
+  headerAccessory?: ReactNode;
+  belowCard?: ReactNode;
+  maxWidthClass?: string;
+  cardClassName?: string;
+  onOpenLegalLink?: (kind: CloudLegalLinkKind) => void;
+  dataSlot?: string;
+  dataCloudKind?: string;
+  className?: string;
+}
+
+/**
+ * Shared centered column chrome for `cloud.compozy.com` server-rendered pages:
+ * Compozy logo, optional context pill, a single card surface, optional note, and legal footer.
+ */
+export function CloudPageChrome({
+  children,
+  headerAccessory,
+  belowCard,
+  maxWidthClass = "max-w-[440px]",
+  cardClassName,
+  onOpenLegalLink,
+  dataSlot = "cloud-page",
+  dataCloudKind,
+  className,
+}: CloudPageChromeProps) {
+  return (
+    <main
+      className={cn(
+        "flex min-h-0 flex-1 flex-col items-center justify-center bg-canvas px-4 py-8 text-fg sm:px-6 sm:py-10",
+        className
+      )}
+      data-cloud-kind={dataCloudKind}
+      data-slot={dataSlot}
+    >
+      <div className={cn("flex w-full flex-col items-center gap-6", maxWidthClass)}>
+        <div className="flex flex-col items-center gap-2.5">
+          <Logo className="h-7" variant="logo" />
+          {headerAccessory}
+        </div>
+
+        <Surface className={cn("flex w-full flex-col gap-5 p-5 sm:p-7", cardClassName)} variant="card">
+          {children}
+        </Surface>
+
+        {belowCard}
+
+        <CloudPageFooter onOpenLegalLink={onOpenLegalLink} />
+      </div>
+    </main>
   );
 }

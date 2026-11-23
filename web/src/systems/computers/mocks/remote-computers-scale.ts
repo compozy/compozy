@@ -51,7 +51,7 @@ export const HOSTED_PEERS: readonly HostedPeerFixture[] = [
     name: "studio",
     platform: "darwin_arm64",
     iconKind: "desktop",
-    hostname: "studio-1c9d.remote.compozy.com",
+    hostname: "studio-1c9d.compozy.run",
     online: true,
     current: true,
   },
@@ -60,7 +60,7 @@ export const HOSTED_PEERS: readonly HostedPeerFixture[] = [
     name: "devbox",
     platform: "linux_x86_64",
     iconKind: "server",
-    hostname: "devbox-7f3k.remote.compozy.com",
+    hostname: "devbox-7f3k.compozy.run",
     online: true,
   },
   {
@@ -68,7 +68,7 @@ export const HOSTED_PEERS: readonly HostedPeerFixture[] = [
     name: "MacBook Pro",
     platform: "darwin_arm64",
     iconKind: "laptop",
-    hostname: "macbook-2m8x.remote.compozy.com",
+    hostname: "macbook-2m8x.compozy.run",
     online: true,
   },
 ];
@@ -208,7 +208,7 @@ export function buildScaleComputers(
     const routeKind: ComputerRouteKind = isCloud ? "cloud" : index % 2 === 0 ? "direct" : "ssh";
     const address =
       routeKind === "cloud"
-        ? `${name}.remote.compozy.com`
+        ? `${name}.compozy.run`
         : routeKind === "direct"
           ? `10.12.0.${ipLast}:47823`
           : `deploy@10.12.0.${ipLast}`;

@@ -27,7 +27,7 @@ export const meta = definePrototype({
   title: "Phone browser",
   spec: "remote-computers",
   surface: "U8",
-  route: "https://<slug>.remote.compozy.com",
+  route: "https://<slug>.compozy.run",
   states: [
     { id: "signed-in-sessions", label: "Signed in · Sessions list on studio" },
     {
