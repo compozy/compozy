@@ -288,78 +288,81 @@ export function AccountSettingsPage({
       title="Account"
       width="form"
     >
-      <AccountBanners
-        account={account}
-        onManageBilling={openBillingPortal}
-        onRetryCloud={() => {
-          setAccount(current => ({ ...current, cloudUnreachable: false }));
-          toast.success("Reconnected to Compozy Cloud.");
-        }}
-      />
+      {/* Account stacks several dense sections, so it spaces them wider than the scaffold's 24 px. */}
+      <div className="flex flex-col gap-10" data-slot="account-sections">
+        <AccountBanners
+          account={account}
+          onManageBilling={openBillingPortal}
+          onRetryCloud={() => {
+            setAccount(current => ({ ...current, cloudUnreachable: false }));
+            toast.success("Reconnected to Compozy Cloud.");
+          }}
+        />
 
-      <AccountIdentitySection
-        account={account}
-        currentDevice={currentDevice}
-        linkMismatchNotice={linkMismatch}
-        onRequestSignIn={() => toast("Opening Compozy sign-in in your browser…")}
-        onRequestSignOut={() => setSignOutOpen(true)}
-        onRequestUnlink={() => {
-          setLinkMismatch(false);
-          toast("Unlinked this computer from remote access. Returning to Sign in.");
-        }}
-      />
+        <AccountIdentitySection
+          account={account}
+          currentDevice={currentDevice}
+          linkMismatchNotice={linkMismatch}
+          onRequestSignIn={() => toast("Opening Compozy sign-in in your browser…")}
+          onRequestSignOut={() => setSignOutOpen(true)}
+          onRequestUnlink={() => {
+            setLinkMismatch(false);
+            toast("Unlinked this computer from remote access. Returning to Sign in.");
+          }}
+        />
 
-      {isSessionAccount ? (
-        <>
-          <AccountPlanSection
-            account={account}
-            downgradedNeedsProCount={downgradedNeedsProCount}
-            onContactSupport={() => toast("Opens support to raise the hosted-route cap.")}
-            onManageBilling={openBillingPortal}
-            onUpgrade={() => openUpgradeSheet("select")}
-          />
-
-          <AccountPendingApprovalsSection
-            approvals={approvals}
-            onApprove={id => handleDecideApproval(id, true)}
-            onDeny={id => handleDecideApproval(id, false)}
-          />
-
-          <AccountDevicesSection
-            currentDeviceIsAdmin={currentDeviceIsAdmin}
-            devices={devices}
-            onRequestRevoke={setRevokeTarget}
-            onToggleAdmin={handleToggleAdmin}
-          />
-
-          <div className="flex flex-col gap-6" ref={lowerSectionsRef}>
-            <AccountEmailSection
-              marketingOptIn={account.marketingOptIn}
-              onToggleMarketingOptIn={next => {
-                setAccount(current => ({ ...current, marketingOptIn: next }));
-                toast.success(
-                  next
-                    ? "Subscribed to product news and offers."
-                    : "Unsubscribed from product news and offers."
-                );
-              }}
-            />
-
-            <AccountTokensSection
-              onCreateToken={() => setCreateTokenOpen(true)}
-              onRevokeToken={handleRevokeToken}
-              tokens={tokens}
-            />
-
-            <AccountDeleteSection
+        {isSessionAccount ? (
+          <>
+            <AccountPlanSection
               account={account}
-              currentDeviceIsAdmin={currentDeviceIsAdmin}
+              downgradedNeedsProCount={downgradedNeedsProCount}
+              onContactSupport={() => toast("Opens support to raise the hosted-route cap.")}
               onManageBilling={openBillingPortal}
-              onRequestDelete={() => setDeleteOpen(true)}
+              onUpgrade={() => openUpgradeSheet("select")}
             />
-          </div>
-        </>
-      ) : null}
+
+            <AccountPendingApprovalsSection
+              approvals={approvals}
+              onApprove={id => handleDecideApproval(id, true)}
+              onDeny={id => handleDecideApproval(id, false)}
+            />
+
+            <AccountDevicesSection
+              currentDeviceIsAdmin={currentDeviceIsAdmin}
+              devices={devices}
+              onRequestRevoke={setRevokeTarget}
+              onToggleAdmin={handleToggleAdmin}
+            />
+
+            <div className="flex flex-col gap-10" ref={lowerSectionsRef}>
+              <AccountEmailSection
+                marketingOptIn={account.marketingOptIn}
+                onToggleMarketingOptIn={next => {
+                  setAccount(current => ({ ...current, marketingOptIn: next }));
+                  toast.success(
+                    next
+                      ? "Subscribed to product news and offers."
+                      : "Unsubscribed from product news and offers."
+                  );
+                }}
+              />
+
+              <AccountTokensSection
+                onCreateToken={() => setCreateTokenOpen(true)}
+                onRevokeToken={handleRevokeToken}
+                tokens={tokens}
+              />
+
+              <AccountDeleteSection
+                account={account}
+                currentDeviceIsAdmin={currentDeviceIsAdmin}
+                onManageBilling={openBillingPortal}
+                onRequestDelete={() => setDeleteOpen(true)}
+              />
+            </div>
+          </>
+        ) : null}
+      </div>
     </RemoteSettingsShell>
   );
 }
