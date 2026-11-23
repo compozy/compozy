@@ -163,7 +163,8 @@ describe("UT-128 cloud edge Worker", () => {
     const worker = await mf.getWorker();
     const response = await worker.fetch(`${ORIGIN}/v1/account`, {
       headers: { "X-Compozy-Client-IP": "192.0.2.11", "X-Compozy-Location": "spoofed" },
-      cf: {},
+      // Miniflare merges overrides with its default geography before serializing cf.
+      cf: { city: undefined, region: undefined, country: undefined },
     });
     const { headers } = (await response.json()) as { headers: Record<string, string> };
     expect(headers).not.toHaveProperty("x-compozy-client-ip");
