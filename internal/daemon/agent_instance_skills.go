@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -63,8 +64,8 @@ func (d *Daemon) bindInstanceSkillReviews(
 }
 
 // reconcileSkillInstalls runs the skill install Reconcile for every target root of this home's
-// instances, archived ones included. Failures are logged per root and never block startup; a retained conflict stays
-// blocked until the operator resolves it.
+// instances, archived ones included. Root lookup and reconcile failures are logged per instance or
+// root and never block startup; a retained conflict stays blocked until the operator resolves it.
 func reconcileSkillInstalls(ctx context.Context, state *bootState, definitions instanceDefinitions) {
 	api := state.agentInstances
 	seen := map[string]bool{}
@@ -79,7 +80,12 @@ func reconcileSkillInstalls(ctx context.Context, state *bootState, definitions i
 		}
 		for _, instance := range page {
 			root, err := definitions.skillRecoveryRoot(ctx, instance)
-			if err != nil || seen[root] {
+			if err != nil {
+				state.logger.ErrorContext(ctx, "daemon: locate skill root for startup reconcile",
+					"instance_id", instance.ID, "error", err)
+				continue
+			}
+			if root == "" || seen[root] {
 				continue
 			}
 			seen[root] = true
@@ -114,10 +120,28 @@ func (r instanceDefinitions) skillTargetRoot(
 	return resolved, target, err
 }
 
-// skillRecoveryRoot is the target root startup recovery reconciles. A workspace root comes from the
-// workspace alone, so an interrupted install there is recovered even after the instance's agent
-// definition was removed; only a global instance needs its definition to locate the root.
+// skillRecoveryRoot is the target root startup recovery and conflict discovery reach. A workspace root
+// comes from the workspace alone, so it is found even after the instance's agent definition was
+// removed; only a global instance needs its definition to locate the root. An instance whose root is
+// absent or out of scope (workspace gone or archived, agent unavailable, no target) returns "" with no
+// error; any other lookup failure is returned so discovery is never silently incomplete.
 func (r instanceDefinitions) skillRecoveryRoot(ctx context.Context, instance agentinstance.Instance) (string, error) {
+	root, err := r.locateSkillRecoveryRoot(ctx, instance)
+	if skillRootAbsent(err) {
+		return "", nil
+	}
+	return root, err
+}
+
+func skillRootAbsent(err error) bool {
+	return errors.Is(err, workspacepkg.ErrWorkspaceNotFound) || errors.Is(err, store.ErrWorkspaceArchived) ||
+		errors.Is(err, workspacepkg.ErrAgentNotAvailable) || errors.Is(err, agentinstance.ErrSkillReviewNoTarget)
+}
+
+func (r instanceDefinitions) locateSkillRecoveryRoot(
+	ctx context.Context,
+	instance agentinstance.Instance,
+) (string, error) {
 	if instance.WorkspaceID == "" {
 		_, target, err := r.skillTargetRoot(ctx, instance)
 		return target, err
