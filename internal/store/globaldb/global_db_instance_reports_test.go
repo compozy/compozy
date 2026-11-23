@@ -375,8 +375,8 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 				t.Fatalf("insert %d: count=%d err=%v", i, count, err)
 			}
 		}
-		count, err := q.DecideAgentSkillReview(ctx, sqlcgen.DecideAgentSkillReviewParams{
-			ID: "review-0", Digest: "digest-0", State: "rejected", DecidedBy: "operator",
+		count, err := q.RejectAgentSkillReview(ctx, sqlcgen.RejectAgentSkillReviewParams{
+			ID: "review-0", Digest: "digest-0", DecidedBy: "operator",
 		})
 		if err != nil || count != 1 {
 			t.Fatalf("reject: count=%d err=%v", count, err)
