@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Bell,
   ChevronDown,
@@ -29,10 +28,11 @@ import {
   PHONE_STUDIO_SESSIONS,
 } from "@/systems/computers/mocks/remote-computers-fixtures-phone";
 
+import { usePhoneApp, type PhoneTabId } from "./hooks/use-phone-app";
 import { PhoneApprovalsPane, PhoneSessionList, PhoneTerminalPane } from "./phone-panes";
 import { PhoneSessionView } from "./phone-session-view";
 
-export type PhoneTabId = "sessions" | "terminal" | "approvals";
+export type { PhoneTabId };
 
 export interface PhoneAppProps {
   computer: ComputerFixture;
@@ -48,7 +48,7 @@ export interface PhoneAppProps {
 }
 
 /**
- * Signed-in Compozy browser SPA served directly by one computer's hosted route
+ * Signed-in CompozyOS browser SPA served directly by one computer's hosted route
  * (`https://studio-1c9d.compozy.run`).
  *
  * Phone form only (<1024 px): compact header with the computer picker, bottom tab bar
@@ -67,129 +67,36 @@ export function PhoneApp({
   offline: initialOffline = false,
   showInstallHint: initialShowInstallHint = true,
 }: PhoneAppProps) {
-  const canOperateTerminal = scopes.includes("terminal:operate");
+  const app = usePhoneApp({
+    computer,
+    sessions,
+    initialApprovals,
+    scopes,
+    initialTab,
+    initialOpenSessionId,
+    initialComputerMenuOpen,
+    initialOffline,
+    initialShowInstallHint,
+  });
 
-  const [activeTab, setActiveTab] = useState<PhoneTabId>(() =>
-    initialTab === "terminal" && !canOperateTerminal ? "sessions" : initialTab
-  );
-  const [openSessionId, setOpenSessionId] = useState<string | null>(initialOpenSessionId);
-  const [computerMenuOpen, setComputerMenuOpen] = useState(initialComputerMenuOpen);
-  const [projectFilter, setProjectFilter] = useState<string>("all");
-  const [offline, setOffline] = useState(initialOffline);
-  const [installHintVisible, setInstallHintVisible] = useState(initialShowInstallHint);
-  const [approvals, setApprovals] = useState<PendingApprovalFixture[]>([...initialApprovals]);
-
-  const openSession = openSessionId
-    ? (sessions.find(item => item.id === openSessionId) ?? null)
-    : null;
-
-  const projects = Array.from(new Set(sessions.map(item => item.project)));
-  const filteredSessions =
-    projectFilter === "all" ? sessions : sessions.filter(item => item.project === projectFilter);
-  const pendingApprovalCount = approvals.filter(item => item.state === "pending").length;
-
-  const handleRetry = () => {
-    setOffline(false);
-    toast.success(`Reconnected to ${computer.name}`);
-  };
-
-  const handleSignOut = () => {
-    setComputerMenuOpen(false);
-    toast(`Signed out on ${computer.name}. This device stays registered on your account.`);
-  };
-
-  const handleDecideApproval = (approvalId: string, decision: "approved" | "denied") => {
-    setApprovals(current =>
-      current.map(entry => (entry.id === approvalId ? { ...entry, state: decision } : entry))
-    );
-  };
-
-  const renderHeader = () => (
-    <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line-soft px-3">
-      <div className="flex min-w-0 items-center gap-2">
-        <Logo className="size-5" decorative variant="symbol" />
-        <button
-          aria-expanded={computerMenuOpen}
-          aria-haspopup="dialog"
-          className="relative inline-flex h-7 max-w-[200px] items-center gap-1.5 rounded-pill border border-line bg-surface-2 px-2.5 text-small-body font-medium text-fg transition-colors after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:bg-selected focus-visible:shadow-focus-ring focus-visible:outline-none"
-          onClick={() => setComputerMenuOpen(true)}
-          type="button"
-        >
-          <ComputerPlatformIcon
-            className="size-3.5 bg-transparent"
-            iconKind={computer.iconKind}
-            platform={computer.platform}
-            size="sm"
-          />
-          <span className="truncate">{computer.name}</span>
-          <StatusDot size="sm" tone={offline ? "warning" : "success"} />
-          <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
-        </button>
-      </div>
-
-      <Button
-        aria-label={`New session on ${computer.name}`}
-        disabled={offline}
-        onClick={() => toast(`New session on ${computer.name}`)}
-        size="icon-sm"
-        variant="secondary"
-      >
-        <Plus className="size-4" />
-      </Button>
-    </header>
-  );
-
-  const renderOfflineStrip = () =>
-    offline ? (
-      <div
-        className="flex shrink-0 items-center justify-between gap-2 border-b border-line-soft bg-warning-tint px-3.5 py-2"
-        data-slot="phone-offline-strip"
-        role="status"
-      >
-        <div className="flex min-w-0 items-center gap-2 text-eyebrow text-fg">
-          <WifiOff aria-hidden="true" className="size-3.5 shrink-0 text-warning" />
-          <span className="truncate">{computer.name} is offline. Reconnecting…</span>
-        </div>
-        <Button className="shrink-0" onClick={handleRetry} size="xs" variant="secondary">
-          <RefreshCw className="size-3" />
-          Retry now
-        </Button>
-      </div>
-    ) : null;
-
-  const renderSessionList = () => (
-    <PhoneSessionList
-      filteredSessions={filteredSessions}
-      offline={offline}
-      onOpenSession={sessionId => {
-        setOpenSessionId(sessionId);
-        setActiveTab("sessions");
-      }}
-      onSelectProject={setProjectFilter}
-      projectFilter={projectFilter}
-      projects={projects}
-      sessions={sessions}
-    />
-  );
-
-  if (openSession) {
+  if (app.openSession) {
     return (
       <div className="relative flex min-h-0 flex-1 flex-col" data-layout="phone">
         <PhoneSessionView
-          canOperateTerminal={canOperateTerminal}
+          canOperateTerminal={app.canOperateTerminal}
           computerName={computer.name}
-          offline={offline}
-          onBack={() => setOpenSessionId(null)}
+          offline={app.offline}
+          onBack={() => app.setOpenSessionId(null)}
           onOpenTerminal={
-            canOperateTerminal
+            app.canOperateTerminal
               ? () => {
-                  setOpenSessionId(null);
-                  setActiveTab("terminal");
+                  app.setOpenSessionId(null);
+                  app.setActiveTab("terminal");
                 }
               : undefined
           }
-          onRetryConnection={handleRetry}
-          session={openSession}
+          onRetryConnection={app.handleRetry}
+          session={app.openSession}
         />
       </div>
     );
@@ -201,10 +108,57 @@ export function PhoneApp({
       data-layout="phone"
       data-slot="phone-app"
     >
-      {renderHeader()}
-      {renderOfflineStrip()}
+      <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line-soft px-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Logo className="size-5" decorative variant="symbol" />
+          <button
+            aria-expanded={app.computerMenuOpen}
+            aria-haspopup="dialog"
+            className="relative inline-flex h-7 max-w-[200px] items-center gap-1.5 rounded-pill border border-line bg-surface-2 px-2.5 text-small-body font-medium text-fg transition-colors after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:bg-selected focus-visible:shadow-focus-ring focus-visible:outline-none"
+            onClick={() => app.setComputerMenuOpen(true)}
+            type="button"
+          >
+            <ComputerPlatformIcon
+              className="size-3.5 bg-transparent"
+              iconKind={computer.iconKind}
+              platform={computer.platform}
+              size="sm"
+            />
+            <span className="truncate">{computer.name}</span>
+            <StatusDot size="sm" tone={app.offline ? "warning" : "success"} />
+            <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
+          </button>
+        </div>
 
-      {installHintVisible && !offline && activeTab === "sessions" ? (
+        <Button
+          aria-label={`New session on ${computer.name}`}
+          disabled={app.offline}
+          onClick={() => toast.message(`New session on ${computer.name}`)}
+          size="icon-sm"
+          variant="secondary"
+        >
+          <Plus className="size-4" />
+        </Button>
+      </header>
+
+      {app.offline ? (
+        <div
+          className="flex shrink-0 items-center justify-between gap-2 border-b border-line-soft bg-warning-tint px-3.5 py-2"
+          data-slot="phone-offline-strip"
+          role="status"
+        >
+          <div className="flex min-w-0 items-center gap-2 text-eyebrow text-fg">
+            <WifiOff aria-hidden="true" className="size-3.5 shrink-0 text-warning" />
+            <span className="truncate">{computer.name} is offline. Reconnecting…</span>
+          </div>
+          <Button className="shrink-0" onClick={app.handleRetry} size="xs" variant="secondary">
+            <RefreshCw className="size-3" />
+            Retry now
+          </Button>
+        </div>
+      ) : null}
+
+      {app.installHintVisible && !app.offline && app.activeTab === "sessions" ? (
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line-soft bg-sunken px-3.5 py-2 text-eyebrow text-muted-foreground">
           <div className="flex min-w-0 items-center gap-2">
             <Smartphone aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
@@ -212,7 +166,7 @@ export function PhoneApp({
           </div>
           <Button
             aria-label="Dismiss install hint"
-            onClick={() => setInstallHintVisible(false)}
+            onClick={() => app.setInstallHintVisible(false)}
             size="icon-xs"
             variant="quiet"
           >
@@ -221,15 +175,28 @@ export function PhoneApp({
         </div>
       ) : null}
 
-      {activeTab === "sessions" ? renderSessionList() : null}
-      {activeTab === "terminal" && canOperateTerminal ? (
-        <PhoneTerminalPane computer={computer} offline={offline} />
+      {app.activeTab === "sessions" ? (
+        <PhoneSessionList
+          filteredSessions={app.filteredSessions}
+          offline={app.offline}
+          onOpenSession={sessionId => {
+            app.setOpenSessionId(sessionId);
+            app.setActiveTab("sessions");
+          }}
+          onSelectProject={app.setProjectFilter}
+          projectFilter={app.projectFilter}
+          projects={app.projects}
+          sessions={sessions}
+        />
       ) : null}
-      {activeTab === "approvals" ? (
+      {app.activeTab === "terminal" && app.canOperateTerminal ? (
+        <PhoneTerminalPane computer={computer} offline={app.offline} />
+      ) : null}
+      {app.activeTab === "approvals" ? (
         <PhoneApprovalsPane
-          approvals={approvals}
+          approvals={app.approvals}
           computer={computer}
-          onDecide={handleDecideApproval}
+          onDecide={app.handleDecideApproval}
         />
       ) : null}
 
@@ -239,26 +206,28 @@ export function PhoneApp({
         data-slot="phone-bottom-dock"
       >
         <button
-          aria-current={activeTab === "sessions" ? "page" : undefined}
+          aria-current={app.activeTab === "sessions" ? "page" : undefined}
           className={cn(
             "flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-micro transition-colors focus-visible:shadow-focus-ring focus-visible:outline-none",
-            activeTab === "sessions" ? "bg-selected font-medium text-fg-strong" : "text-subtle"
+            app.activeTab === "sessions" ? "bg-selected font-medium text-fg-strong" : "text-subtle"
           )}
-          onClick={() => setActiveTab("sessions")}
+          onClick={() => app.setActiveTab("sessions")}
           type="button"
         >
           <MessagesSquare className="size-4" />
           <span>Sessions</span>
         </button>
 
-        {canOperateTerminal ? (
+        {app.canOperateTerminal ? (
           <button
-            aria-current={activeTab === "terminal" ? "page" : undefined}
+            aria-current={app.activeTab === "terminal" ? "page" : undefined}
             className={cn(
               "flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-micro transition-colors focus-visible:shadow-focus-ring focus-visible:outline-none",
-              activeTab === "terminal" ? "bg-selected font-medium text-fg-strong" : "text-subtle"
+              app.activeTab === "terminal"
+                ? "bg-selected font-medium text-fg-strong"
+                : "text-subtle"
             )}
-            onClick={() => setActiveTab("terminal")}
+            onClick={() => app.setActiveTab("terminal")}
             type="button"
           >
             <Terminal className="size-4" />
@@ -267,18 +236,21 @@ export function PhoneApp({
         ) : null}
 
         <button
-          aria-current={activeTab === "approvals" ? "page" : undefined}
+          aria-current={app.activeTab === "approvals" ? "page" : undefined}
           className={cn(
             "relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-micro transition-colors focus-visible:shadow-focus-ring focus-visible:outline-none",
-            activeTab === "approvals" ? "bg-selected font-medium text-fg-strong" : "text-subtle"
+            app.activeTab === "approvals" ? "bg-selected font-medium text-fg-strong" : "text-subtle"
           )}
-          onClick={() => setActiveTab("approvals")}
+          onClick={() => app.setActiveTab("approvals")}
           type="button"
         >
           <span className="relative inline-flex">
             <Bell className="size-4" />
-            {pendingApprovalCount > 0 ? (
-              <PillCount className="absolute -top-1.5 -right-2.5" count={pendingApprovalCount} />
+            {app.pendingApprovalCount > 0 ? (
+              <PillCount
+                className="absolute -top-1.5 -right-2.5"
+                count={app.pendingApprovalCount}
+              />
             ) : null}
           </span>
           <span>Approvals</span>
@@ -287,13 +259,13 @@ export function PhoneApp({
 
       <PhoneComputerMenu
         currentComputerName={computer.name}
-        onClose={() => setComputerMenuOpen(false)}
+        onClose={() => app.setComputerMenuOpen(false)}
         onSelectPeer={peer => {
-          setComputerMenuOpen(false);
-          toast(`Opening https://${peer.hostname}`);
+          app.setComputerMenuOpen(false);
+          toast.message(`Opening https://${peer.hostname}`);
         }}
-        onSignOut={handleSignOut}
-        open={computerMenuOpen}
+        onSignOut={app.handleSignOut}
+        open={app.computerMenuOpen}
         peers={peers}
         presentation="sheet"
       />

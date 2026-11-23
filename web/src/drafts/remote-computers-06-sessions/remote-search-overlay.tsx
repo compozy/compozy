@@ -25,7 +25,7 @@ import {
 } from "@/systems/computers/mocks/remote-computers-fixtures-sessions";
 import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
 
-import { RemoteSessionsWindow } from "../remote-computers-shared-sessions";
+import { RemoteSessionsWindow } from "../remote-computers-shared-sessions/remote-sessions-window";
 
 function glyphFor(entry: RemoteSessionRowEntry): StateGlyphState {
   if (entry.computerOffline) return "idle";

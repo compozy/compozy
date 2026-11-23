@@ -94,7 +94,7 @@ export function RunOnKanbanNewScene({
   initialTarget?: RunOnTarget;
   pickerDefaultOpen?: boolean;
 }) {
-  const columns = useMemo(buildColumns, []);
+  const columns = useMemo(() => buildColumns(), []);
 
   const topbar: TopbarSlotValue = {
     crumb: "Sessions",

@@ -31,7 +31,7 @@ export function ComputerDetailsRoutesTab({
   return (
     <div className="flex flex-col gap-4" data-slot="computer-details-routes-tab">
       <p className="text-small-body text-muted-foreground">
-        Compozy tries routes in priority order and switches to LAN automatically when{" "}
+        CompozyOS tries routes in priority order and switches to LAN automatically when{" "}
         <span className="font-medium text-fg">{computerName}</span> is on the same network.
       </p>
 
@@ -207,7 +207,7 @@ export function ComputerDetailsPermissionsTab({
                   checked={allowed}
                   onCheckedChange={next => {
                     onToggleScope?.(item.scope, next);
-                    toast(
+                    toast.message(
                       next
                         ? `Allowed ${item.label} on ${computerName}.`
                         : `Turned off ${item.label} on ${computerName}.`

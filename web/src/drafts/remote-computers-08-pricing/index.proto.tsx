@@ -8,12 +8,7 @@ import { useLayoutEffect, useState } from "react";
 import { SiteFooter } from "../landing/sections-close";
 import { SiteHeader } from "../landing/sections-open";
 import type { BillingInterval } from "./pricing-data";
-import {
-  PricingClosingCta,
-  PricingComparison,
-  PricingFaq,
-  PricingHero,
-} from "./pricing-sections";
+import { PricingClosingCta, PricingComparison, PricingFaq, PricingHero } from "./pricing-sections";
 
 export const meta = definePrototype({
   title: "Pricing",
@@ -46,7 +41,8 @@ const PRESETS: Record<string, PricingPreset> = {
 };
 
 function PricingPage({ preset }: { preset: PricingPreset }) {
-  const [interval, setInterval] = useState<BillingInterval>(preset.interval);
+  const initialInterval = preset.interval;
+  const [interval, setInterval] = useState<BillingInterval>(initialInterval);
 
   useLayoutEffect(() => {
     const scrollTarget = () => {
@@ -57,10 +53,7 @@ function PricingPage({ preset }: { preset: PricingPreset }) {
       if (preset.scrollTo === "site-footer") {
         const footer = document.getElementById("site-footer");
         footer?.scrollIntoView({ behavior: "instant", block: "end" });
-        const maxTop = Math.max(
-          0,
-          document.documentElement.scrollHeight - window.innerHeight
-        );
+        const maxTop = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
         window.scrollTo({ top: maxTop, behavior: "instant" });
         return;
       }

@@ -77,10 +77,7 @@ function LandingWithComputers({ preset }: { preset: LandingSectionPreset }) {
         <Loops />
         <Automations />
         <Extensibility />
-        <ComputersLandingSection
-          initialTab={preset.tab}
-          openRunOnPicker={preset.openRunOnPicker}
-        />
+        <ComputersLandingSection initialTab={preset.tab} openRunOnPicker={preset.openRunOnPicker} />
         <UpdatedComparison />
         <UpdatedInstall />
         <FinalCta />

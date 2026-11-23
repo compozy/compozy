@@ -1,0 +1,52 @@
+name = "compozy-cloud-edge"
+main = "src/worker.ts"
+compatibility_date = "2026-07-30"
+workers_dev = false
+preview_urls = false
+routes = [{ pattern = "cloud.compozy.com", custom_domain = true }]
+
+[[durable_objects.bindings]]
+name = "CLOUD"
+class_name = "CloudContainer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CloudContainer"]
+
+[[containers]]
+class_name = "CloudContainer"
+image = "../../Dockerfile"
+image_build_context = "../.."
+instance_type = "basic"
+max_instances = 2
+rollout_step_percentage = [50, 100]
+
+[containers.constraints]
+regions = ["ENAM"]
+
+[triggers]
+crons = ["* * * * *"]
+
+[env.staging]
+name = "compozy-cloud-edge-staging"
+workers_dev = false
+preview_urls = false
+routes = [{ pattern = "staging.cloud.compozy.com", custom_domain = true }]
+
+[[env.staging.durable_objects.bindings]]
+name = "CLOUD"
+class_name = "CloudContainer"
+
+[[env.staging.containers]]
+class_name = "CloudContainer"
+image = "../../Dockerfile"
+image_build_context = "../.."
+instance_type = "basic"
+max_instances = 2
+rollout_step_percentage = [50, 100]
+
+[env.staging.containers.constraints]
+regions = ["ENAM"]
+
+[env.staging.triggers]
+crons = ["* * * * *"]

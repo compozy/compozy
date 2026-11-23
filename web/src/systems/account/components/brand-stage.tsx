@@ -57,7 +57,7 @@ export interface BrandStageProps {
 }
 
 /**
- * Split stage for Compozy's standalone pages (cloud sign-in and billing, the app's sign-in gate):
+ * Split stage for CompozyOS's standalone pages (cloud sign-in and billing, the app's sign-in gate):
  * the page's own column on the left and, on the right, an ink art panel carrying a brand Atmosphere
  * visual, the wordmark and one statement (operator, 2026-11-23: content left, image right). The
  * panel stays ink in both themes, because Atmosphere only sits on dark grounds, and no text is
