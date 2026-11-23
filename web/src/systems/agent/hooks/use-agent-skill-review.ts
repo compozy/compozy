@@ -25,6 +25,9 @@ import {
 import { agentKeys } from "../lib/query-keys";
 import { agentSkillReviewOptions } from "../lib/query-options";
 import type { AgentSkillReviewPayload } from "../types";
+import { useUnavailableEvidenceSessions } from "./use-agent-skill-evidence";
+
+const NO_EVIDENCE_SESSIONS: readonly string[] = [];
 
 /**
  * One proposed skill and the operator's decision on it (S9). `ref` is `null` until the caller
@@ -67,6 +70,9 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
       void queryClient.invalidateQueries({ queryKey: agentKeys.skillReview(ref.id, ref.profile) });
     },
   });
+  const unavailableEvidenceSessionIds = useUnavailableEvidenceSessions(
+    review?.evidence_session_ids ?? NO_EVIDENCE_SESSIONS
+  );
   const files = review ? skillReviewFiles(review) : [];
   const { unreadable, snapshotInvalid, invalid } = reviewProblems(review, mutation.error);
   const installConflictOp = skillInstallConflictOp(mutation.error);
@@ -79,6 +85,8 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     automatic: review ? skillAutomaticItems(review, files) : [],
     /** Edit reviews: proposed and installed "Runs automatically" counts. */
     automaticComparison: automaticComparison(review),
+    /** Evidence sessions the daemon no longer knows: shown as unavailable, not as links. */
+    unavailableEvidenceSessionIds,
     state: review ? skillReviewState(review) : "pending",
     /** The detail says this approval can be reverted now; the daemon stays authoritative. */
     revertAllowed: review?.revert?.allowed === true,

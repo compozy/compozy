@@ -159,6 +159,7 @@ export function skillReviewViewFixture(
     why: skillReviewWhy(payload),
     automatic: skillAutomaticItems(payload, files),
     automaticComparison: undefined,
+    unavailableEvidenceSessionIds: [],
     state: skillReviewState(payload),
     revertAllowed: payload.revert?.allowed === true,
     stale: false,
