@@ -2,6 +2,7 @@ package agentinstance
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 	"time"
@@ -60,6 +61,10 @@ func (s *SkillProposalService) autoApprove(
 	}
 	s.step("auto_approve_eligible", t)
 	if err := s.installAutomatically(ctx, t, instance, review, draft, current); err != nil {
+		if errors.Is(err, errSkillCommitUncertain) {
+			// The files may be committed and Reconcile would then project this approval for today.
+			s.installLocks().markUnprojected(instance.ID, review.ID)
+		}
 		s.logAutoApproveSkipped(ctx, review, SkillAutoApproveInstallFailed, "error", err)
 		return review, SkillAutoApproveInstallFailed
 	}

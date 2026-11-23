@@ -469,6 +469,23 @@ func TestSkillAutoApprove(t *testing.T) {
 		requireAutoApproved(t, svc, f.proposeAuto(t, svc, autoInput("skill-five", "body\n", SkillProposalNew)))
 	})
 
+	t.Run("Should count an uncertain automatic commit against the daily cap [UT-085] [N-03]", func(t *testing.T) {
+		t.Parallel()
+		f, toggle := newSkillTxFixture(t), &autoApproveToggle{}
+		toggle.on.Store(true)
+		svc := f.autoService(t, toggle)
+		requireAutoApproved(t, svc, f.proposeAuto(t, svc, autoInput("skill-one", "body\n", SkillProposalNew)))
+		requireAutoApproved(t, svc, f.proposeAuto(t, svc, autoInput("skill-two", "body\n", SkillProposalNew)))
+		uncertain := withHook(svc, func(step string) bool {
+			return step == "published_unsynced" || step == "published_sync_failed"
+		})
+		third := f.proposeAuto(t, uncertain, autoInput("skill-three", "body\n", SkillProposalNew))
+		requireAutoSkipped(t, svc, third, SkillAutoApproveInstallFailed)
+		capped := f.proposeAuto(t, svc, autoInput("skill-four", "body\n", SkillProposalNew))
+		requireAutoSkipped(t, svc, capped, SkillAutoApproveDailyCapReached)
+		f.requireSkillAbsent(t, "skill-four")
+	})
+
 	t.Run("Should fail the cap closed while an automatic approval is unprojected [N-01]", func(t *testing.T) {
 		t.Parallel()
 		setFailures := func(svc *SkillProposalService, n int) {
