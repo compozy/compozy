@@ -15,6 +15,7 @@ type httpExtendedServices struct {
 	appTokens         core.AppTokenManager
 	openAPI           *core.OpenAPIDocument
 	gateway           core.GatewayService
+	ingress           core.IngressService
 	gatewayAdmission  gateway.AdmissionController
 	gatewayChallenges gateway.ChallengeResolver
 	gatewayTier       gateway.Tier

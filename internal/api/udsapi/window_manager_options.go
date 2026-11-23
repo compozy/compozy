@@ -15,6 +15,7 @@ type udsExtendedServices struct {
 	appTokens     core.AppTokenManager
 	openAPI       *core.OpenAPIDocument
 	gateway       core.GatewayService
+	ingress       core.IngressService
 }
 
 // WithWindowManagerProvider injects the per-profile window managers.

@@ -68,6 +68,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		appTokens:             s.appTokens,
 		openAPI:               s.openAPI,
 		gateway:               s.gateway,
+		ingress:               s.ingress,
 		homePaths:             s.homePaths,
 		config:                s.config,
 		logger:                s.logger,
