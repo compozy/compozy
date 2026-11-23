@@ -395,8 +395,10 @@ func TestInstanceSkillApprovalIntegration(t *testing.T) {
 		if failure, ok := errors.AsType[*toolspkg.ToolError](
 			refused,
 		); !ok ||
-			string(failure.Code) != "skill_propose_unverified" {
-			t.Fatalf("native verification refusal: %v", refused)
+			string(failure.Code) != "skill_propose_unverified" ||
+			core.StatusForToolError(refused) != http.StatusUnprocessableEntity ||
+			!strings.Contains(failure.PublicMessage, "skill_propose_unverified") {
+			t.Fatalf("native verification refusal: %v (status %d)", refused, core.StatusForToolError(refused))
 		}
 		var proposed contract.AgentSkillReviewResponse
 		if err := json.Unmarshal(result.Structured, &proposed); err != nil {
@@ -490,8 +492,9 @@ func TestInstanceSkillApprovalIntegration(t *testing.T) {
 				ToolCallID: "read-with-bad-cursor",
 			},
 		)
-		if failure, ok := errors.AsType[*toolspkg.ToolError](badCursor); !ok || string(failure.Code) != "invalid_cursor" {
-			t.Fatalf("native reviews with a bad cursor: %v", badCursor)
+		if failure, ok := errors.AsType[*toolspkg.ToolError](badCursor); !ok || string(failure.Code) != "invalid_cursor" ||
+			core.StatusForToolError(badCursor) != http.StatusUnprocessableEntity {
+			t.Fatalf("native reviews with a bad cursor: %v (status %d)", badCursor, core.StatusForToolError(badCursor))
 		}
 		reportsReq, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
 			fmt.Sprintf("http://127.0.0.1:%d/api/agent-instances/%s/reports", d.info.Port, instance.ID), nil)
@@ -538,6 +541,28 @@ func TestInstanceSkillApprovalIntegration(t *testing.T) {
 		prompt(fresh.ID)
 		if !offered(fresh.ID) {
 			t.Fatal("approved skill absent from new session catalog")
+		}
+		// Proposing installed contents again is a 409 refusal that keeps its explanation.
+		_, taken := d.toolRegistry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentSkillPropose,
+				Input: []byte(
+					`{"name":"review-proposed","description":"Review proposed changes","body":"Read the diff and report findings.",` +
+						`"lesson":{"cue":"Reviewing a change","lesson":"Read the diff before the summary.",` +
+						`"evidence":"The main session missed a regression.","confidence":"high"},` +
+						`"evidence_session_ids":["` + main.ID + `"]}`,
+				),
+				ApprovalGranted: true,
+				ToolCallID:      "repropose-installed-skill",
+			},
+		)
+		failure, ok := errors.AsType[*toolspkg.ToolError](taken)
+		if !ok || string(failure.Code) != "skill_propose_name_taken" ||
+			core.StatusForToolError(taken) != http.StatusConflict ||
+			!strings.Contains(failure.PublicMessage, "a skill named review-proposed is already installed") {
+			t.Fatalf("native reproposal of an installed skill: %v (status %d)", taken, core.StatusForToolError(taken))
 		}
 	})
 }

@@ -101,19 +101,17 @@ func (n *daemonNativeTools) agentSkillReviews(
 	return structuredResult(response, "Skill reviews")
 }
 
+// nativeSkillReviewError keeps the domain code, HTTP status and message the HTTP/UDS handlers use, so a
+// hosted tool response reports the refusal instead of a masked 500.
 func nativeSkillReviewError(id toolspkg.ToolID, err error) error {
-	for _, domain := range []error{agentinstance.ErrSkillReviewLimit, agentinstance.ErrSkillProposeUnverified,
-		agentinstance.ErrSkillReviewNoTarget, agentinstance.ErrSkillReviewStale, agentinstance.ErrSkillReviewNotFound,
-		agentinstance.ErrSkillProposeLessonRequired, agentinstance.ErrSkillProposeLessonTooLong,
-		agentinstance.ErrSkillProposeEvidenceRequired, agentinstance.ErrSkillProposeEvidenceNotFound,
-		agentinstance.ErrSkillProposePreviouslyRejected, agentinstance.ErrSkillProposeNameTaken,
-		core.ErrSkillReviewInvalidCursor} {
-		if errors.Is(err, domain) {
-			return toolspkg.NewToolError(toolspkg.ErrorCode(domain.Error()), id, err.Error(), err)
-		}
-	}
 	if errors.Is(err, agentinstance.ErrForbidden) {
 		return nativeHTTPStatusToolError(id, err, 403)
+	}
+	if code, status, ok := core.SkillReviewErrorStatus(err); ok {
+		toolErr := toolspkg.NewToolError(toolspkg.ErrorCode(code), id, err.Error(), err)
+		toolErr.HTTPStatus = status
+		toolErr.PublicMessage = err.Error()
+		return toolErr
 	}
 	return err
 }
