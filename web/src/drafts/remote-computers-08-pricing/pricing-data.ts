@@ -129,12 +129,12 @@ export interface PricingFaqItem {
 export const PRICING_FAQ: readonly PricingFaqItem[] = [
   {
     id: "why-sign-in",
-    question: "Why does Compozy ask me to sign in?",
+    question: "Why does CompozyOS ask me to sign in?",
     answer: [
-      "Signing in with Google or GitHub links your installations to one personal account, manages your Free or Pro plan, and lets Compozy count active people without tracking your sessions.",
+      "Signing in with Google or GitHub links your installations to one personal account, manages your Free or Pro plan, and lets CompozyOS count active people without tracking your sessions.",
       "You only need an internet connection for the first sign-in. Local sessions and projects keep working offline after that, and product news emails are strictly opt-in.",
     ],
-    link: { label: "Why Compozy asks you to sign in", href: "/docs/account/sign-in" },
+    link: { label: "Why CompozyOS asks you to sign in", href: "/docs/account/sign-in" },
   },
   {
     id: "what-stays-free",
@@ -171,10 +171,10 @@ export const PRICING_FAQ: readonly PricingFaqItem[] = [
   },
   {
     id: "code-privacy",
-    question: "Does Compozy see my code or agent sessions?",
+    question: "Does CompozyOS see my code or agent sessions?",
     answer: [
       "No. Sessions, prompts, transcripts, and project files run on your own computers and never cross Compozy Cloud.",
-      "Compozy Cloud only handles sign-in, plan status, and connection handshakes between your devices. Hosted-route traffic between your Compozy apps and computers is encrypted end to end.",
+      "Compozy Cloud only handles sign-in, plan status, and connection handshakes between your devices. Hosted-route traffic between your CompozyOS apps and computers is encrypted end to end.",
     ],
   },
 ];

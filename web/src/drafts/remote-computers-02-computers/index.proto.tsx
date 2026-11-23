@@ -10,7 +10,7 @@ import {
   LOCAL_COMPUTER,
   UPGRADE_NOTICE_FIXTURE,
   makeScaleComputers,
-} from "../remote-computers-shared";
+} from "@/systems/computers/mocks/remote-computers-fixtures";
 import { ComputersSettingsPage, type ComputersPageProps } from "./computers-page";
 
 export const meta = definePrototype({

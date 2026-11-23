@@ -199,7 +199,7 @@ export function AddComputerSshPicker({
           </CommandSelectShell>
         </CommandSelect>
         <FieldDescription>
-          Compozy installs the verified release over SSH and keeps agents running after you quit.
+          CompozyOS installs the verified release over SSH and keeps agents running after you quit.
         </FieldDescription>
       </Field>
 
