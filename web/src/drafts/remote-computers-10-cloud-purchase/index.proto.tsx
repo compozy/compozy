@@ -1,6 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { definePrototype, useSearch, type PrototypeProps } from "@compozy/proto";
-import { ChevronLeft, ChevronRight, Lock } from "@compozy/ui/icons";
 
 import { toast } from "@compozy/ui";
 
@@ -15,6 +14,8 @@ import {
   OWNER_EMAIL,
   type AccountProvider,
 } from "@/systems/computers/mocks/remote-computers-fixtures";
+
+import { DraftBrowserFrame } from "../remote-computers-shared";
 
 export const meta = definePrototype({
   title: "Buy Pro",
@@ -122,41 +123,6 @@ const PURCHASE_PRESETS: Record<string, PurchaseStatePreset> = {
  * Browser window chrome matching Screen 00 (`remote-computers-00-sign-in`),
  * adapted so 390 px phone viewports keep the address pill centered without clipping.
  */
-function CloudBrowserFrame({ address, children }: { address: string; children: ReactNode }) {
-  return (
-    <div
-      className="flex h-dvh min-h-dvh w-full flex-col overflow-hidden bg-canvas text-fg"
-      data-slot="cloud-purchase-browser-window"
-    >
-      <div
-        aria-label="Browser address bar"
-        className="flex h-12 shrink-0 items-center justify-center border-b border-line bg-rail px-3 select-none sm:grid sm:grid-cols-[1fr_minmax(0,440px)_1fr] sm:gap-3 sm:px-4"
-      >
-        <div aria-hidden="true" className="hidden items-center gap-3 sm:flex">
-          <div className="flex items-center gap-2">
-            <span className="size-3 rounded-full bg-line-strong" />
-            <span className="size-3 rounded-full bg-line-strong" />
-            <span className="size-3 rounded-full bg-line-strong" />
-          </div>
-          <div className="flex items-center gap-1 text-faint">
-            <ChevronLeft className="size-4" />
-            <ChevronRight className="size-4 opacity-50" />
-          </div>
-        </div>
-
-        <div className="flex h-7.5 w-full max-w-[440px] min-w-0 items-center justify-center gap-1.5 rounded-pill border border-line-soft bg-canvas px-3.5 text-eyebrow text-muted-foreground">
-          <Lock aria-hidden="true" className="size-3 shrink-0 text-subtle" />
-          <span className="truncate font-mono text-mono-id">{address}</span>
-        </div>
-
-        <div aria-hidden="true" className="hidden sm:block" />
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
-    </div>
-  );
-}
-
 function resolveIntervalParam(search: string): UpgradeInterval | null {
   const raw = new URLSearchParams(search).get("interval");
   if (raw === "month" || raw === "year") return raw;
@@ -244,7 +210,7 @@ function InteractiveCloudPurchase({
   };
 
   return (
-    <CloudBrowserFrame address={address}>
+    <DraftBrowserFrame address={address} dataSlot="cloud-purchase-browser-window">
       <CloudUpgradePage
         checkoutCancelled={checkoutCancelled}
         hostedRoutesSummary={hostedRoutesSummary}
@@ -268,7 +234,7 @@ function InteractiveCloudPurchase({
         signedInProvider={provider}
         status={status}
       />
-    </CloudBrowserFrame>
+    </DraftBrowserFrame>
   );
 }
 

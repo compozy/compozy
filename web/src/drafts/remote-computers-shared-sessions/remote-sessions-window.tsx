@@ -66,6 +66,21 @@ export interface RemoteSessionsWindowProps {
   overlay?: ReactNode;
   onViewChange?: (view: "list" | "kanban") => void;
   onNewSession?: () => void;
+  /**
+   * Hosted-route web app (U8): the computer that serves this browser tab. It is "this computer"
+   * to the app, so its sessions stay local and copy names it instead of "This computer".
+   */
+  hostName?: string;
+  /** Hosted-route web app: the tab lost its connection to `hostName` (read-only, reconnecting). */
+  hostConnectionLost?: boolean;
+  /** Hosted-route web app: the browser device's scopes allow the terminal. */
+  canOperateTerminal?: boolean;
+  /** Replaces the session `ComputerChip` in the window topbar (the hosted computer picker). */
+  topbarContext?: ReactNode;
+  /** Project chip in the system bar. */
+  scope?: string;
+  /** Root sizing override, e.g. `h-full` inside a browser frame. */
+  className?: string;
 }
 
 /**
@@ -90,18 +105,25 @@ export function RemoteSessionsWindow({
   overlay,
   onViewChange,
   onNewSession,
+  hostName,
+  hostConnectionLost = false,
+  canOperateTerminal,
+  topbarContext,
+  scope = "All projects",
+  className,
 }: RemoteSessionsWindowProps) {
   const [railOpen, setRailOpen] = useState(true);
   const [selectedId, setSelectedId] = useState(activeSession.id);
   const [reconnecting, setReconnecting] = useState(false);
 
   const isRemote = activeComputer !== null;
-  const isOffline = activeComputer?.status === "offline";
-  const hasTerminalScope = !isRemote || activeComputer.scopes.includes("terminal:operate");
+  const isOffline = activeComputer?.status === "offline" || hostConnectionLost;
+  const hasTerminalScope =
+    canOperateTerminal ?? (!isRemote || activeComputer.scopes.includes("terminal:operate"));
   const hasFilesScope = !isRemote || activeComputer.scopes.includes("files:read");
   const composerDisabled = isOffline || entitlementPaused;
 
-  const computerName = activeComputer?.name ?? "This computer";
+  const computerName = activeComputer?.name ?? hostName ?? "This computer";
 
   const topbar: TopbarSlotValue = {
     glyph: (
@@ -120,21 +142,23 @@ export function RemoteSessionsWindow({
     ),
     glyphPresentation: "state",
     crumb: activeSession.title,
-    context: activeComputer ? (
-      <ComputerChip
-        computer={
-          entitlementPaused
-            ? { ...activeComputer, status: "needs_pro" }
-            : reconnecting
-              ? { ...activeComputer, status: "connecting" }
-              : activeComputer
-        }
-        defaultOpen={computerChipOpen}
-        onOpenDetails={() => undefined}
-        onReconnect={isOffline ? () => setReconnecting(true) : undefined}
-        onUpgrade={entitlementPaused ? () => undefined : undefined}
-      />
-    ) : undefined,
+    context:
+      topbarContext ??
+      (activeComputer ? (
+        <ComputerChip
+          computer={
+            entitlementPaused
+              ? { ...activeComputer, status: "needs_pro" }
+              : reconnecting
+                ? { ...activeComputer, status: "connecting" }
+                : activeComputer
+          }
+          defaultOpen={computerChipOpen}
+          onOpenDetails={() => undefined}
+          onReconnect={isOffline ? () => setReconnecting(true) : undefined}
+          onUpgrade={entitlementPaused ? () => undefined : undefined}
+        />
+      ) : undefined),
     actions: (
       <>
         {hasTerminalScope ? (
@@ -277,7 +301,8 @@ export function RemoteSessionsWindow({
         />
       }
       overlay={overlay}
-      scope="All projects"
+      className={className}
+      scope={scope}
       sessionBadge={2}
       title={activeSession.title}
       topbar={topbar}

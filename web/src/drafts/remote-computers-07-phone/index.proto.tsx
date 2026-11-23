@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
 import { toast } from "@compozy/ui";
@@ -19,17 +20,19 @@ import {
   PHONE_TARGET_COMPUTER,
 } from "@/systems/computers/mocks/remote-computers-fixtures-phone";
 
+import { DraftBrowserFrame } from "../remote-computers-shared";
+import { HostedWebApp } from "./hosted-web-app";
 import { PhoneApp } from "./phone-app";
-import { PhoneFrame } from "./phone-frame";
+import { useIsWideBrowser } from "./phone-frame";
 import { PhoneUpgradeCloudPage } from "./phone-upgrade-cloud-page";
 
 export const meta = definePrototype({
-  title: "Phone browser",
+  title: "Hosted route in a browser",
   spec: "remote-computers",
   surface: "U8",
   route: "https://<slug>.compozy.run",
   states: [
-    { id: "signed-in-sessions", label: "Signed in · Sessions list on studio" },
+    { id: "signed-in-sessions", label: "Signed in · Sessions on studio (web app, phone layout)" },
     {
       id: "signed-in-session-live",
       label: "Session open · Streaming transcript, approval & composer",
@@ -37,7 +40,7 @@ export const meta = definePrototype({
     { id: "computer-menu", label: "Computer menu · Hosted peers & Sign out" },
     { id: "computer-menu-only-host", label: "Computer menu · Only this computer reachable" },
     { id: "offline-reconnecting", label: "Offline · Reconnecting with read-only transcript" },
-    { id: "signed-in-no-terminal-scope", label: "Narrowed permissions · Terminal hidden on phone" },
+    { id: "signed-in-no-terminal-scope", label: "Narrowed permissions · Terminal hidden" },
     { id: "sign-in", label: "Sign in · Google or GitHub hosted-route gate" },
     { id: "waiting-approval", label: "Waiting for approval · Fingerprint & auto-polling" },
     { id: "approval-expired", label: "Approval expired · Request approval again" },
@@ -113,7 +116,62 @@ function renderGate(kind: BrowserSignInGateKind) {
   );
 }
 
-function renderPhoneState(state: string) {
+const SIGNED_IN_STATES = new Set([
+  "signed-in-sessions",
+  "signed-in-session-live",
+  "computer-menu",
+  "computer-menu-only-host",
+  "offline-reconnecting",
+  "signed-in-no-terminal-scope",
+]);
+
+function addressFor(state: string): string {
+  switch (state) {
+    case "upgrade-cloud-page":
+      return `cloud.compozy.com/billing/upgrade?hostname=${PHONE_HOSTED_URL}`;
+    case "signed-in-session-live":
+    case "offline-reconnecting":
+      return `${PHONE_HOSTED_URL}/sessions/sess-studio-1`;
+    case "sign-in":
+    case "another-account":
+    case "device-removed":
+      return `${PHONE_HOSTED_URL}/sign-in`;
+    case "waiting-approval":
+    case "approval-expired":
+    case "not-approved":
+      return `${PHONE_HOSTED_URL}/sign-in/approval`;
+    default:
+      return PHONE_HOSTED_URL;
+  }
+}
+
+/** Wide browsers (≥1024 px) get the CompozyOS web app shell; the phone form keeps its tabs. */
+function renderWideSignedIn(state: string) {
+  switch (state) {
+    case "signed-in-session-live":
+      return <HostedWebApp computer={PHONE_TARGET_COMPUTER} working />;
+    case "computer-menu":
+      return (
+        <HostedWebApp computer={PHONE_TARGET_COMPUTER} computerMenuOpen peers={PHONE_PEERS_MULTI} />
+      );
+    case "computer-menu-only-host":
+      return (
+        <HostedWebApp
+          computer={PHONE_TARGET_COMPUTER}
+          computerMenuOpen
+          peers={PHONE_PEERS_SINGLE}
+        />
+      );
+    case "offline-reconnecting":
+      return <HostedWebApp computer={PHONE_TARGET_COMPUTER} connectionLost />;
+    case "signed-in-no-terminal-scope":
+      return <HostedWebApp computer={PHONE_TARGET_COMPUTER} scopes={PHONE_NARROW_SCOPES} />;
+    default:
+      return <HostedWebApp computer={PHONE_TARGET_COMPUTER} />;
+  }
+}
+
+function renderState(state: string, isWide: boolean) {
   if (state === "upgrade-cloud-page") {
     return (
       <PhoneUpgradeCloudPage
@@ -129,6 +187,10 @@ function renderPhoneState(state: string) {
   const gateKind = GATE_STATES[state];
   if (gateKind) {
     return renderGate(gateKind);
+  }
+
+  if (isWide && SIGNED_IN_STATES.has(state)) {
+    return renderWideSignedIn(state);
   }
 
   switch (state) {
@@ -187,5 +249,16 @@ function renderPhoneState(state: string) {
 }
 
 export default function RemoteComputersPhoneDraft({ state }: PrototypeProps) {
-  return <PhoneFrame key={state}>{renderPhoneState(state)}</PhoneFrame>;
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const isWide = useIsWideBrowser(rootRef);
+
+  return (
+    <div className="w-full" ref={rootRef}>
+      <DraftBrowserFrame address={addressFor(state)} dataSlot="hosted-route-browser-window">
+        <div className="contents" key={`${state}-${isWide ? "wide" : "phone"}`}>
+          {renderState(state, isWide)}
+        </div>
+      </DraftBrowserFrame>
+    </div>
+  );
 }

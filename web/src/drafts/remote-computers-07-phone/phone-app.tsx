@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
   Bell,
   ChevronDown,
@@ -11,7 +11,7 @@ import {
   X,
 } from "@compozy/ui/icons";
 
-import { Button, cn, Empty, Logo, PillCount, StatusDot, toast } from "@compozy/ui";
+import { Button, cn, Logo, PillCount, StatusDot, toast } from "@compozy/ui";
 
 import { ComputerPlatformIcon } from "@/systems/computers/components/computer-platform-icon";
 import { PhoneComputerMenu } from "@/systems/computers/components/phone-computer-menu";
@@ -29,7 +29,6 @@ import {
   PHONE_STUDIO_SESSIONS,
 } from "@/systems/computers/mocks/remote-computers-fixtures-phone";
 
-import { useIsWideBrowser } from "./phone-frame";
 import { PhoneApprovalsPane, PhoneSessionList, PhoneTerminalPane } from "./phone-panes";
 import { PhoneSessionView } from "./phone-session-view";
 
@@ -52,11 +51,9 @@ export interface PhoneAppProps {
  * Signed-in Compozy browser SPA served directly by one computer's hosted route
  * (`https://studio-1c9d.compozy.run`).
  *
- * - Below 1024 px: single-column phone layout with compact header, bottom tab bar,
- *   and bottom-sheet computer menu.
- * - At 1024 px and wider: two-pane web app (360 px left column with computer picker,
- *   segmented nav, filters and session list; right pane with the open session or a
- *   calm "Pick a session" state) and top-left popover computer menu.
+ * Phone form only (<1024 px): compact header with the computer picker, bottom tab bar
+ * (Sessions, Terminal, Approvals) and a bottom-sheet computer menu. Wider browsers get the
+ * CompozyOS web app shell (`HostedWebApp`).
  */
 export function PhoneApp({
   computer,
@@ -70,8 +67,6 @@ export function PhoneApp({
   offline: initialOffline = false,
   showInstallHint: initialShowInstallHint = true,
 }: PhoneAppProps) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const isWide = useIsWideBrowser(rootRef);
   const canOperateTerminal = scopes.includes("terminal:operate");
 
   const [activeTab, setActiveTab] = useState<PhoneTabId>(() =>
@@ -110,18 +105,18 @@ export function PhoneApp({
   };
 
   const renderHeader = () => (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-line-soft px-3.5">
+    <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line-soft px-3">
       <div className="flex min-w-0 items-center gap-2">
-        <Logo className="size-5.5" decorative variant="symbol" />
+        <Logo className="size-5" decorative variant="symbol" />
         <button
           aria-expanded={computerMenuOpen}
           aria-haspopup="dialog"
-          className="inline-flex min-h-9 max-w-[200px] items-center gap-1.5 rounded-pill border border-line bg-surface-2 px-2.5 py-1 text-small-body font-medium text-fg transition-colors hover:bg-selected focus-visible:shadow-focus-ring focus-visible:outline-none"
+          className="relative inline-flex h-7 max-w-[200px] items-center gap-1.5 rounded-pill border border-line bg-surface-2 px-2.5 text-small-body font-medium text-fg transition-colors after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:bg-selected focus-visible:shadow-focus-ring focus-visible:outline-none"
           onClick={() => setComputerMenuOpen(true)}
           type="button"
         >
           <ComputerPlatformIcon
-            className="size-4 bg-transparent"
+            className="size-3.5 bg-transparent"
             iconKind={computer.iconKind}
             platform={computer.platform}
             size="sm"
@@ -136,7 +131,7 @@ export function PhoneApp({
         aria-label={`New session on ${computer.name}`}
         disabled={offline}
         onClick={() => toast(`New session on ${computer.name}`)}
-        size="icon"
+        size="icon-sm"
         variant="secondary"
       >
         <Plus className="size-4" />
@@ -164,155 +159,22 @@ export function PhoneApp({
 
   const renderSessionList = () => (
     <PhoneSessionList
-      activeTab={activeTab}
       filteredSessions={filteredSessions}
-      isWide={isWide}
       offline={offline}
       onOpenSession={sessionId => {
         setOpenSessionId(sessionId);
         setActiveTab("sessions");
       }}
       onSelectProject={setProjectFilter}
-      openSessionId={openSessionId}
       projectFilter={projectFilter}
       projects={projects}
       sessions={sessions}
     />
   );
 
-  if (isWide) {
-    return (
-      <div
-        className="relative flex min-h-0 flex-1 bg-canvas"
-        data-layout="wide"
-        data-slot="phone-app"
-        ref={rootRef}
-      >
-        <aside className="flex w-[360px] shrink-0 flex-col border-r border-line bg-sunken">
-          {renderHeader()}
-
-          <div
-            aria-label="Workspace views"
-            className="flex shrink-0 items-center gap-1 border-b border-line-soft px-3 py-2"
-            role="tablist"
-          >
-            <button
-              aria-selected={activeTab === "sessions"}
-              className={cn(
-                "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 text-small-body transition-colors focus-visible:shadow-focus-ring focus-visible:outline-none",
-                activeTab === "sessions"
-                  ? "bg-selected font-medium text-fg-strong"
-                  : "text-subtle hover:bg-surface-2 hover:text-fg"
-              )}
-              onClick={() => setActiveTab("sessions")}
-              role="tab"
-              type="button"
-            >
-              <MessagesSquare className="size-3.5" />
-              <span>Sessions</span>
-            </button>
-
-            {canOperateTerminal ? (
-              <button
-                aria-selected={activeTab === "terminal"}
-                className={cn(
-                  "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 text-small-body transition-colors focus-visible:shadow-focus-ring focus-visible:outline-none",
-                  activeTab === "terminal"
-                    ? "bg-selected font-medium text-fg-strong"
-                    : "text-subtle hover:bg-surface-2 hover:text-fg"
-                )}
-                onClick={() => setActiveTab("terminal")}
-                role="tab"
-                type="button"
-              >
-                <Terminal className="size-3.5" />
-                <span>Terminal</span>
-              </button>
-            ) : null}
-
-            <button
-              aria-selected={activeTab === "approvals"}
-              className={cn(
-                "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 text-small-body transition-colors focus-visible:shadow-focus-ring focus-visible:outline-none",
-                activeTab === "approvals"
-                  ? "bg-selected font-medium text-fg-strong"
-                  : "text-subtle hover:bg-surface-2 hover:text-fg"
-              )}
-              onClick={() => setActiveTab("approvals")}
-              role="tab"
-              type="button"
-            >
-              <Bell className="size-3.5" />
-              <span>Approvals</span>
-              {pendingApprovalCount > 0 ? <PillCount count={pendingApprovalCount} /> : null}
-            </button>
-          </div>
-
-          {!openSession ? renderOfflineStrip() : null}
-          {renderSessionList()}
-        </aside>
-
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-canvas">
-          {activeTab === "terminal" && canOperateTerminal ? (
-            <PhoneTerminalPane computer={computer} isWide offline={offline} />
-          ) : activeTab === "approvals" ? (
-            <PhoneApprovalsPane
-              approvals={approvals}
-              computer={computer}
-              isWide
-              onDecide={handleDecideApproval}
-            />
-          ) : openSession ? (
-            <PhoneSessionView
-              canOperateTerminal={canOperateTerminal}
-              computerName={computer.name}
-              offline={offline}
-              onOpenTerminal={canOperateTerminal ? () => setActiveTab("terminal") : undefined}
-              onRetryConnection={handleRetry}
-              session={openSession}
-              wide
-            />
-          ) : (
-            <div className="flex flex-1 items-center justify-center p-8">
-              <Empty
-                action={
-                  <Button
-                    disabled={offline}
-                    onClick={() => toast(`New session on ${computer.name}`)}
-                    size="default"
-                    variant="secondary"
-                  >
-                    <Plus className="size-4" />
-                    New session
-                  </Button>
-                }
-                description={`Choose a session on ${computer.name} from the list, or start a new one.`}
-                icon={MessagesSquare}
-                title="Pick a session"
-              />
-            </div>
-          )}
-        </main>
-
-        <PhoneComputerMenu
-          currentComputerName={computer.name}
-          onClose={() => setComputerMenuOpen(false)}
-          onSelectPeer={peer => {
-            setComputerMenuOpen(false);
-            toast(`Opening https://${peer.hostname}`);
-          }}
-          onSignOut={handleSignOut}
-          open={computerMenuOpen}
-          peers={peers}
-          presentation="popover"
-        />
-      </div>
-    );
-  }
-
   if (openSession) {
     return (
-      <div className="relative flex min-h-0 flex-1 flex-col" data-layout="phone" ref={rootRef}>
+      <div className="relative flex min-h-0 flex-1 flex-col" data-layout="phone">
         <PhoneSessionView
           canOperateTerminal={canOperateTerminal}
           computerName={computer.name}
@@ -338,7 +200,6 @@ export function PhoneApp({
       className="relative flex min-h-0 flex-1 flex-col bg-canvas"
       data-layout="phone"
       data-slot="phone-app"
-      ref={rootRef}
     >
       {renderHeader()}
       {renderOfflineStrip()}
@@ -362,13 +223,12 @@ export function PhoneApp({
 
       {activeTab === "sessions" ? renderSessionList() : null}
       {activeTab === "terminal" && canOperateTerminal ? (
-        <PhoneTerminalPane computer={computer} isWide={false} offline={offline} />
+        <PhoneTerminalPane computer={computer} offline={offline} />
       ) : null}
       {activeTab === "approvals" ? (
         <PhoneApprovalsPane
           approvals={approvals}
           computer={computer}
-          isWide={false}
           onDecide={handleDecideApproval}
         />
       ) : null}

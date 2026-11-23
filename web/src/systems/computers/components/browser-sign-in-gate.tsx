@@ -11,8 +11,10 @@ import {
   UserRound,
 } from "@compozy/ui/icons";
 
-import { Button, cn, Logo, Spinner, Surface } from "@compozy/ui";
+import { Button, cn, Spinner, Surface } from "@compozy/ui";
 import { GithubLogo, GoogleLogo } from "@compozy/ui/logos";
+
+import { BrandStage } from "@/systems/account/components/brand-stage";
 
 import type {
   AccountProvider,
@@ -101,7 +103,7 @@ function renderGateIcon(kind: BrowserSignInGateKind): GateIconVisual {
 /**
  * Centered entry gate for a computer's hosted route (`https://<slug>.compozy.run`, U8).
  *
- * Works at mobile (390 px) and desktop (1396 px+) widths with a centered max-w-[420px] card:
+ * Sits on the brand art stage (`BrandStage`, like the cloud pages) with a centered max-w-[420px] card:
  * icon + one title + plain body + optional context block + actions, with no redundant status pills.
  */
 export function BrowserSignInGate({
@@ -123,17 +125,15 @@ export function BrowserSignInGate({
   const iconVisual = renderGateIcon(kind);
 
   return (
-    <main
-      className={cn(
-        "flex min-h-dvh w-full flex-1 flex-col items-center justify-center bg-canvas px-5 py-10 text-fg",
-        className
-      )}
+    <BrandStage
+      className={className}
       data-gate-kind={kind}
-      data-slot="browser-sign-in-gate"
+      dataSlot="browser-sign-in-gate"
+      statement="Your computers, reachable from anywhere."
+      visual="swarm"
     >
-      <div className="flex w-full max-w-[420px] flex-col items-center gap-6">
-        <div className="flex flex-col items-center gap-2.5">
-          <Logo className="h-7" variant="logo" />
+      <div className="flex w-full max-w-[420px] flex-col items-center gap-5">
+        <div className="flex flex-col items-center">
           <div className="inline-flex max-w-full items-center gap-1.5 rounded-pill border border-line bg-sunken px-2.5 py-1 text-eyebrow text-muted-foreground">
             <ComputerPlatformIcon
               className="size-4 bg-transparent"
@@ -374,6 +374,6 @@ export function BrowserSignInGate({
           </div>
         ) : null}
       </div>
-    </main>
+    </BrandStage>
   );
 }

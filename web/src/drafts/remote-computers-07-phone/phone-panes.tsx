@@ -30,9 +30,6 @@ export function PhoneSessionList({
   projects,
   projectFilter,
   offline,
-  isWide,
-  activeTab,
-  openSessionId,
   onSelectProject,
   onOpenSession,
 }: {
@@ -41,9 +38,6 @@ export function PhoneSessionList({
   projects: readonly string[];
   projectFilter: string;
   offline: boolean;
-  isWide: boolean;
-  activeTab: string;
-  openSessionId: string | null;
   onSelectProject: (project: string) => void;
   onOpenSession: (sessionId: string) => void;
 }) {
@@ -81,13 +75,10 @@ export function PhoneSessionList({
       >
         {filteredSessions.map(item => {
           const needsYou = item.state === "attention";
-          const isSelected = isWide && activeTab === "sessions" && openSessionId === item.id;
           return (
             <button
-              aria-current={isSelected ? "true" : undefined}
               className={cn(
-                "flex min-h-15 w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none",
-                isSelected && "bg-selected hover:bg-selected"
+                "flex min-h-15 w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none"
               )}
               key={item.id}
               onClick={() => onOpenSession(item.id)}
@@ -101,7 +92,7 @@ export function PhoneSessionList({
                   <span
                     className={cn(
                       "min-w-0 truncate text-body text-fg",
-                      (needsYou || isSelected) && "font-medium text-fg-strong"
+                      needsYou && "font-medium text-fg-strong"
                     )}
                   >
                     {item.title}
@@ -133,20 +124,13 @@ export function PhoneSessionList({
 export function PhoneTerminalPane({
   computer,
   offline,
-  isWide,
 }: {
   computer: ComputerFixture;
   offline: boolean;
-  isWide: boolean;
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <div
-        className={cn(
-          "mx-auto flex w-full max-w-3xl flex-col gap-3",
-          isWide ? "px-6 py-6" : "px-3.5 py-3.5"
-        )}
-      >
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-3.5 py-3.5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-col">
             <span className="text-body font-medium text-fg-strong">zsh on {computer.name}</span>
@@ -176,22 +160,15 @@ export function PhoneTerminalPane({
 export function PhoneApprovalsPane({
   computer,
   approvals,
-  isWide,
   onDecide,
 }: {
   computer: ComputerFixture;
   approvals: readonly PendingApprovalFixture[];
-  isWide: boolean;
   onDecide: (approvalId: string, decision: "approved" | "denied", deviceName: string) => void;
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <div
-        className={cn(
-          "mx-auto flex w-full max-w-xl flex-col gap-3",
-          isWide ? "px-6 py-6" : "px-3.5 py-3.5"
-        )}
-      >
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-3 px-3.5 py-3.5">
         {approvals.length === 0 ? (
           <Empty
             description={`New device requests for ${computer.name} appear here.`}

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Lock } from "@compozy/ui/icons";
 
 import { toast } from "@compozy/ui";
 
@@ -24,7 +23,7 @@ export interface PhoneUpgradeCloudPageProps {
 /**
  * Cloud-hosted upgrade page opened from an expired hosted route's "Upgrade to Pro"
  * button (`https://cloud.compozy.com/billing/upgrade?hostname=<host>`, `_uiux.md` U8, Q5):
- * wraps the reusable `CloudUpgradePage` inside the mobile browser address bar.
+ * the reusable `CloudUpgradePage`; the draft browser frame shows its address.
  */
 export function PhoneUpgradeCloudPage({
   computerName,
@@ -59,18 +58,10 @@ export function PhoneUpgradeCloudPage({
 
   return (
     <div
-      className="flex min-h-dvh w-full flex-1 flex-col overflow-y-auto bg-canvas text-fg"
+      className="flex min-h-0 w-full flex-1 flex-col bg-canvas text-fg"
       data-slot="phone-upgrade-cloud-page"
     >
-      <div className="flex shrink-0 items-center justify-center border-b border-line-soft bg-sunken px-4 py-2">
-        <div className="inline-flex max-w-full items-center gap-1.5 rounded-pill border border-line bg-canvas px-3 py-1 font-mono text-micro text-muted-foreground">
-          <Lock aria-hidden="true" className="size-3 shrink-0 text-success" />
-          <span className="truncate">cloud.compozy.com/billing/upgrade</span>
-        </div>
-      </div>
-
       <CloudUpgradePage
-        className="py-6 sm:py-10"
         computerName={computerName}
         hostname={hostname}
         iconKind={iconKind}

@@ -4,3 +4,4 @@ export {
   type RemoteSettingsShellProps,
 } from "./remote-settings-shell";
 export * from "./fixtures";
+export { DraftBrowserFrame } from "./browser-frame";

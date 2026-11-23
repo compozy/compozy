@@ -1,13 +1,12 @@
-import { useLayoutEffect, useState, type ReactNode, type RefObject } from "react";
-
-import { cn } from "@compozy/ui";
+import { useLayoutEffect, useState, type RefObject } from "react";
 
 export const WIDE_BROWSER_BREAKPOINT_PX = 1024;
 
 /**
  * Observes the rendered container width (and initializes synchronously from
- * `window.innerWidth`) so phone (<1024 px) vs two-pane web app (≥1024 px)
- * switches reliably in both standalone viewports and gallery iframes.
+ * `window.innerWidth`) so phone (<1024 px) vs web app shell (≥1024 px)
+ * switches reliably in both standalone viewports and gallery iframes: phone layout below,
+ * the CompozyOS web app shell at and above the breakpoint.
  */
 export function useIsWideBrowser(
   containerRef: RefObject<HTMLElement | null>,
@@ -47,27 +46,4 @@ export function useIsWideBrowser(
   }, [containerRef, breakpointPx]);
 
   return isWide;
-}
-
-export interface PhoneFrameProps {
-  children: ReactNode;
-  className?: string;
-}
-
-/**
- * Full-viewport root container for the hosted-route browser SPA (Screen 07 / U8).
- * Works cleanly at 390 px (phone layout) and ≥1024 px (two-pane web app / centered gate).
- */
-export function PhoneFrame({ children, className }: PhoneFrameProps) {
-  return (
-    <div
-      className={cn(
-        "relative flex h-dvh min-h-dvh w-full flex-col overflow-hidden bg-canvas text-fg",
-        className
-      )}
-      data-slot="phone-frame"
-    >
-      {children}
-    </div>
-  );
 }

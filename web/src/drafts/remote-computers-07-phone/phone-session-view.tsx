@@ -38,7 +38,6 @@ export interface PhoneSessionViewProps {
   session: UnifiedSessionFixture;
   computerName: string;
   offline?: boolean;
-  wide?: boolean;
   canOperateTerminal: boolean;
   onBack?: () => void;
   onOpenTerminal?: () => void;
@@ -46,14 +45,13 @@ export interface PhoneSessionViewProps {
 }
 
 /**
- * Session transcript + inline approval + composer on the computer's hosted route.
- * Adapts cleanly between single-pane phone (<1024 px) and two-pane desktop (≥1024 px).
+ * Session transcript + inline approval + composer on the computer's hosted route, phone layout
+ * (<1024 px). Wider browsers get the CompozyOS web app shell instead.
  */
 export function PhoneSessionView({
   session,
   computerName,
   offline = false,
-  wide = false,
   canOperateTerminal,
   onBack,
   onOpenTerminal,
@@ -83,13 +81,8 @@ export function PhoneSessionView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-canvas" data-slot="phone-session-view">
-      <header
-        className={cn(
-          "flex h-14 shrink-0 items-center gap-2 border-b border-line-soft py-2",
-          wide ? "px-5" : "px-2.5"
-        )}
-      >
-        {!wide && onBack ? (
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line-soft px-2.5 py-1.5">
+        {onBack ? (
           <Button
             aria-label="Back to sessions"
             className="shrink-0"
@@ -129,21 +122,17 @@ export function PhoneSessionView({
             aria-label={`Open terminal on ${computerName}`}
             disabled={offline}
             onClick={onOpenTerminal}
-            size={wide ? "sm" : "icon"}
+            size="icon"
             variant="quiet"
           >
             <Terminal className="size-4" />
-            {wide ? <span>Terminal</span> : null}
           </Button>
         ) : null}
       </header>
 
       {offline ? (
         <div
-          className={cn(
-            "flex shrink-0 items-center justify-between gap-2 border-b border-line-soft bg-warning-tint py-2",
-            wide ? "px-5" : "px-3.5"
-          )}
+          className="flex shrink-0 items-center justify-between gap-2 border-b border-line-soft bg-warning-tint px-3.5 py-2"
           data-slot="phone-offline-strip"
           role="status"
         >
@@ -161,8 +150,7 @@ export function PhoneSessionView({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div
           className={cn(
-            "mx-auto flex w-full max-w-3xl flex-col gap-3.5 py-4",
-            wide ? "px-6" : "px-4",
+            "mx-auto flex w-full max-w-3xl flex-col gap-3.5 px-4 py-4",
             offline && "opacity-75"
           )}
         >
@@ -258,7 +246,7 @@ export function PhoneSessionView({
 
       {approvalDecision === "pending" && !offline ? (
         <div className="shrink-0 border-t border-line-soft bg-sunken/70 py-3">
-          <div className={cn("mx-auto w-full max-w-3xl", wide ? "px-6" : "px-3")}>
+          <div className="mx-auto w-full max-w-3xl px-3">
             <Surface className="flex flex-col gap-2.5 p-3.5" variant="card">
               <div className="flex items-center justify-between gap-2">
                 <Pill form="plain" tone="attn">
@@ -277,27 +265,25 @@ export function PhoneSessionView({
                 showPrompt
               />
               <p className="text-eyebrow text-muted-foreground">{PHONE_PENDING_COMMAND.reason}</p>
-              <div
-                className={cn("pt-0.5", wide ? "flex justify-end gap-2" : "grid grid-cols-2 gap-2")}
-              >
+              <div className="grid grid-cols-2 gap-2 pt-0.5">
                 <Button
-                  className={wide ? undefined : "w-full"}
+                  className="w-full"
                   onClick={() => {
                     setApprovalDecision("denied");
                     toast("Command denied");
                   }}
-                  size={wide ? "default" : "lg"}
+                  size="lg"
                   variant="outline"
                 >
                   Deny
                 </Button>
                 <Button
-                  className={wide ? undefined : "w-full"}
+                  className="w-full"
                   onClick={() => {
                     setApprovalDecision("allowed");
                     toast.success(`Approved on ${computerName}`);
                   }}
-                  size={wide ? "default" : "lg"}
+                  size="lg"
                 >
                   Allow once
                 </Button>
@@ -308,9 +294,7 @@ export function PhoneSessionView({
       ) : null}
 
       <footer className="shrink-0 border-t border-line-soft bg-canvas pt-2.5 pb-3.5">
-        <div
-          className={cn("mx-auto flex w-full max-w-3xl items-end gap-2", wide ? "px-6" : "px-3")}
-        >
+        <div className="mx-auto flex w-full max-w-3xl items-end gap-2 px-3">
           <Textarea
             aria-label={
               offline ? `${computerName} is offline` : `Message session on ${computerName}`
