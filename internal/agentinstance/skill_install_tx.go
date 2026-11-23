@@ -76,8 +76,15 @@ func decodeSkillInstallPayload(data []byte) (SkillInstallPayload, error) {
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return SkillInstallPayload{}, err
 	}
-	if payload.State == "" || !skillOpIDPattern.MatchString(payload.OpID) {
-		return SkillInstallPayload{}, errors.New("skill install payload is incomplete or names an invalid op")
+	if !skillOpIDPattern.MatchString(payload.OpID) {
+		return SkillInstallPayload{}, errors.New("skill install payload names an invalid op")
+	}
+	switch payload.State {
+	case skillInstallStateActive, skillInstallStateConflict, skillInstallStateResolving:
+	default:
+		// An unknown state is never guessed into a rollback: recovery leaves the journal as is.
+		return SkillInstallPayload{}, fmt.Errorf("skill install payload of op %s has unknown state %q",
+			payload.OpID, payload.State)
 	}
 	// Recovery removes and moves these names, so each must be exactly the one derived from the op.
 	for _, name := range []struct{ got, want string }{
@@ -337,11 +344,12 @@ func (tx *skillTx) abort(ctx context.Context, cause error) error {
 		return cause
 	}
 	blocked, err := tx.s.recoverSkill(ctx, tx.t)
+	// The cause stays in every result, so a failed read behind a raced or conflicting commit is visible.
 	if blocked != nil {
-		return errors.Join(skillInstallConflictError(tx.t.name, blocked.OpID), err)
+		return errors.Join(skillInstallConflictError(tx.t.name, blocked.OpID), cause, err)
 	}
 	if errors.Is(cause, errSkillInstallRaced) {
-		return errors.Join(tx.op.changed, err)
+		return errors.Join(tx.op.changed, cause, err)
 	}
 	return errors.Join(cause, err)
 }
@@ -362,18 +370,6 @@ func (s *SkillProposalService) afterCommit(
 			"review_id", entry.ReviewID, "action", entry.Action, "error", warning)
 	}
 	return warning
-}
-
-// publishSkills refreshes the catalog. A failure leaves the refresh pending for this daemon, and the
-// next Reconcile of any skill retries it without touching files; a daemon restart rebuilds the
-// catalog from disk.
-func (s *SkillProposalService) publishSkills(ctx context.Context) error {
-	if s.Publisher == nil {
-		return nil
-	}
-	err := s.Publisher.SkillPublished(ctx)
-	s.installLocks().publishPending.Store(err != nil)
-	return err
 }
 
 // projectSkillInstall projects one install-log entry of this home into the store; idempotent.
@@ -401,43 +397,6 @@ func (s *SkillProposalService) projectSkillInstall(ctx context.Context, entry sk
 	if err := s.Store.ProjectApproval(ctx, *entry.Current, entry.InstalledDigest, previous, entry.At); err != nil {
 		return fmt.Errorf("project skill install %s: %w", entry.OpID, err)
 	}
-	return nil
-}
-
-// finalizeSkillOp trims the install log, removes the backup (retaining it when it no longer holds
-// the verified original), the original copy, and then the journal of a committed operation.
-func finalizeSkillOp(t *skillTarget, journal dirpublish.Journal, payload SkillInstallPayload) error {
-	if err := trimSkillInstallLog(t.root, t.name); err != nil {
-		return err
-	}
-	if err := retainChangedBackup(t, journal, payload); err != nil {
-		return err
-	}
-	err := errors.Join(t.parent.RemoveAll(journal.BackupName), t.parent.RemoveAll(journal.IncomingName))
-	if payload.OriginalCopyName != "" {
-		err = errors.Join(err, t.parent.RemoveAll(payload.OriginalCopyName))
-	}
-	if err != nil {
-		return err
-	}
-	return dirpublish.RemoveJournal(t.parent, t.name)
-}
-
-// retainChangedBackup moves a backup edited after its verification to a sibling the operator can
-// inspect, instead of deleting the only copy of that edit.
-func retainChangedBackup(t *skillTarget, journal dirpublish.Journal, payload SkillInstallPayload) error {
-	backup, err := recoveryTreeState(t.path(journal.BackupName))
-	if err != nil {
-		return err
-	}
-	if backup == "" || backup == expectedSkillOriginal(payload) {
-		return nil
-	}
-	name := skillConflictCopyPrefix + payload.OpID + "-edited-backup"
-	if err := moveSkillChild(t.parent, journal.BackupName, name); err != nil {
-		return fmt.Errorf("retain edited skill backup: %w", err)
-	}
-	slog.Warn("skill.install.backup_retained", "op_id", payload.OpID, "skill", t.name, "retained", name)
 	return nil
 }
 

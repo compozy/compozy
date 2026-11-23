@@ -154,9 +154,8 @@ func recoverSettledInstallTarget(
 	journal dirpublish.Journal,
 	diagnostics []CleanupDiagnostic,
 ) ([]CleanupDiagnostic, error) {
-	if journal.Phase != dirpublish.PhasePrepared && journal.Phase != dirpublish.PhasePublished {
-		return nil, dirpublish.RecoveryError("resolve incomplete publication state", nil)
-	}
+	// Only the target is left: nothing remains to roll forward or back in any phase (a rollback that
+	// restored the target, or a finalize that removed the backup), so only the journal goes.
 	if err := dirpublish.RemoveJournal(parent, journal.TargetName); err != nil {
 		return nil, dirpublish.RecoveryError("remove settled publication journal", err)
 	}

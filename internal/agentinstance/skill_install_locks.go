@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/dirpublish"
 	"github.com/compozy/compozy/internal/fileutil"
@@ -28,8 +27,10 @@ var (
 type SkillInstallLocks struct {
 	mu   sync.Mutex
 	held map[string]*skillKeyLock
-	// publishPending is set while a catalog refresh after a committed change has failed.
-	publishPending atomic.Bool
+	// publishMu serializes a catalog refresh with its publishPending update; publishPending is set
+	// while a committed change still needs a catalog refresh.
+	publishMu      sync.Mutex
+	publishPending bool
 }
 
 type skillKeyLock struct {

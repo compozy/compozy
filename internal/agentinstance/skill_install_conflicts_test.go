@@ -633,8 +633,11 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 				}
 				f.reconcile(t, svc)
 				if _, err := f.resolve(t, svc, seeded.opID, SkillConflictKeepPrevious); !errors.Is(
-					err, ErrSkillInstallConflict) || !strings.Contains(err.Error(), original) {
-					t.Fatalf("keep=previous over a changed original = %v, want skill_install_conflict naming it", err)
+					err, ErrSkillInstallConflict) || !strings.Contains(err.Error(), original) ||
+					!strings.Contains(err.Error(), "--keep previous") ||
+					strings.Contains(err.Error(), "--keep current") {
+					t.Fatalf("keep=previous over a changed original = %v, want skill_install_conflict naming it "+
+						"and the --keep previous retry", err)
 				}
 				if f.digest(t, "release-checklist") != seeded.edited {
 					t.Fatal("the live edited tree was moved aside before the original was verified")
@@ -647,6 +650,86 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 					t.Fatalf("journal = %+v, %v; want it still resolving", payload, ok)
 				}
 			})
+		}
+	})
+	t.Run("Should confirm a published resolution before removing its copies [UT-075]", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		seeded := f.seedConflict(t, svc, skillOriginalInCopy)
+		if _, err := f.resolve(t, crashAt(svc, "published_sync"), seeded.opID, SkillConflictKeepCurrent); !errors.Is(
+			err, errSkillInstallCrashed) {
+			t.Fatalf("ResolveInstallConflict() = %v", err)
+		}
+		payload, ok := f.journal(t, "release-checklist")
+		if !ok || payload.State != skillInstallStateResolving {
+			t.Fatalf("journal = %+v, %v; want the published resolution kept until it is confirmed", payload, ok)
+		}
+		if f.digest(t, payload.OriginalCopyName) != seeded.base {
+			t.Fatal("the original copy was removed before the published resolution was confirmed")
+		}
+		f.reconcile(t, svc)
+		f.requireClean(t)
+		if entries := resolveEntries(t, f, seeded.opID); entries != 1 {
+			t.Fatalf("resolve entries for %s = %d, want 1", seeded.opID, entries)
+		}
+	})
+	t.Run("Should correct the resolve entry when the live tree changed before publishing [UT-076]",
+		func(t *testing.T) {
+			t.Parallel()
+			f := newSkillTxFixture(t)
+			svc := f.service(t, "home-a", nil)
+			seeded := f.seedConflict(t, svc, skillOriginalInBackup)
+			crashing := crashAt(svc, "resolve_logged")
+			if _, err := f.resolve(t, crashing, seeded.opID, SkillConflictKeepCurrent); !errors.Is(
+				err, errSkillInstallCrashed) {
+				t.Fatalf("ResolveInstallConflict() = %v", err)
+			}
+			if entry := f.lastInstallEntry(t); entry.Current == nil || entry.Current.InstalledDigest != seeded.edited {
+				t.Fatalf("logged entry = %+v; want the edited tree", entry)
+			}
+			changed := f.writeTree(t, "release-checklist", "edited again before restart")
+			f.reconcile(t, svc)
+			if entry := f.lastInstallEntry(t); entry.Current == nil || entry.Current.InstalledDigest != changed {
+				t.Fatalf("last log entry = %+v; want the writer of the live tree %s", entry, changed)
+			}
+			if entries := resolveEntries(t, f, seeded.opID); entries != 1 {
+				t.Fatalf("resolve entries for %s = %d, want 1", seeded.opID, entries)
+			}
+			f.requireClean(t)
+		})
+	t.Run("Should stop a canceled resolution before changing files [UT-076]", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
+		f.recordChoice(t, svc, seeded.opID, SkillConflictKeepCurrent)
+		target, err := svc.acquireSkill(t.Context(), f.root, "release-checklist", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		journal, _, err := dirpublish.ReadJournal(target.parent, "release-checklist")
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload, err := decodeSkillInstallPayload(journal.Payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		canceled, cancel := context.WithCancel(t.Context())
+		cancel()
+		_, resumeErr := svc.continueResolution(canceled, target, journal, payload)
+		if err := target.close(); err != nil {
+			t.Fatal(err)
+		}
+		if !errors.Is(resumeErr, context.Canceled) {
+			t.Fatalf("continueResolution(canceled) = %v, want context.Canceled", resumeErr)
+		}
+		if f.digest(t, f.backupName(t)) != seeded.base || f.digest(t, "release-checklist") != seeded.edited {
+			t.Fatal("a canceled resolution changed files")
+		}
+		if payload, ok := f.journal(t, "release-checklist"); !ok || payload.State != skillInstallStateResolving {
+			t.Fatalf("journal = %+v, %v; want it still resolving", payload, ok)
 		}
 	})
 	t.Run("Should leave a resolving journal with an unknown keep unchanged [UT-076]", func(t *testing.T) {
@@ -710,4 +793,20 @@ func (f *skillTxFixture) backupName(t *testing.T) string {
 	}
 	t.Fatal("no backup slot")
 	return ""
+}
+
+// resolveEntries counts the `resolve` install-log entries of opID.
+func resolveEntries(t *testing.T, f *skillTxFixture, opID string) int {
+	t.Helper()
+	entries, err := readSkillInstallLog(f.root, "release-checklist")
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, entry := range entries {
+		if entry.OpID == opID && entry.Action == SkillInstallActionResolve {
+			count++
+		}
+	}
+	return count
 }

@@ -599,6 +599,8 @@ func TestSkillInstallTransaction(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
 		svc := f.service(t, "home-a", nil)
+		publisher := &flakySkillPublisher{}
+		svc.Publisher = publisher
 		review := f.propose(t, svc, "release-checklist", "Check the changelog.")
 		unsynced := withHook(svc, func(step string) bool {
 			return step == "published_unsynced" || step == "published_sync_failed"
@@ -610,9 +612,15 @@ func TestSkillInstallTransaction(t *testing.T) {
 		if _, ok := f.journal(t, "release-checklist"); !ok || f.digest(t, "release-checklist") == "" {
 			t.Fatal("an unconfirmed commit was rolled back")
 		}
+		if calls := publisher.count(); calls != 0 {
+			t.Fatalf("an unconfirmed commit refreshed the catalog %d times", calls)
+		}
 		f.reconcile(t, svc)
 		requireReviewState(t, svc, review.ID, "approved")
 		f.requireClean(t)
+		if calls := publisher.count(); calls != 1 {
+			t.Fatalf("catalog refreshes after recovery confirmed the commit = %d, want 1", calls)
+		}
 		synced := f.propose(t, svc, "other-skill", "Another skill.")
 		if result, err := f.approve(t, crashAt(svc, "published_unsynced"), synced); err != nil || !result.Committed {
 			t.Fatalf("Approve() after a successful directory sync = %+v, %v", result, err)
@@ -664,6 +672,88 @@ func TestSkillInstallTransaction(t *testing.T) {
 		}
 		requireReviewState(t, svc, review.ID, SkillReviewPending)
 	})
+	t.Run("Should not let a late successful refresh clear a newer failure", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		entered, release := make(chan struct{}), make(chan struct{})
+		publisher := &orderedSkillPublisher{results: []error{nil, errSkillTestPublish, nil}, entered: entered,
+			release: release}
+		svc.Publisher = publisher
+		var wg sync.WaitGroup
+		wg.Go(func() {
+			if err := svc.publishSkills(t.Context()); err != nil {
+				t.Errorf("first refresh = %v, want success", err)
+			}
+		})
+		<-entered
+		wg.Go(func() {
+			if err := svc.publishSkills(t.Context()); !errors.Is(err, errSkillTestPublish) {
+				t.Errorf("second refresh = %v, want its failure", err)
+			}
+		})
+		close(release)
+		wg.Wait()
+		if err := svc.retryCatalogRefresh(t.Context()); err != nil {
+			t.Fatalf("retryCatalogRefresh() = %v", err)
+		}
+		if calls := publisher.count(); calls != 3 {
+			t.Fatalf("refreshes = %d; the failure that completed last must stay pending and be retried", calls)
+		}
+	})
+	t.Run("Should keep the read failure when a raced commit is refused", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		review := f.propose(t, svc, "release-checklist", "Check the changelog.")
+		if _, err := f.approve(t, crashAt(svc, "prepared"), review); !errors.Is(err, errSkillInstallCrashed) {
+			t.Fatalf("Approve() = %v", err)
+		}
+		target, err := svc.acquireSkill(t.Context(), f.root, "release-checklist", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := target.close(); err != nil {
+				t.Errorf("close target: %v", err)
+			}
+		})
+		readErr := errors.New("read live tree: input/output error")
+		tx := &skillTx{s: svc, t: target, op: skillOp{changed: errSkillTestChanged}}
+		// The rollback itself succeeds, so only the cause can carry the read failure.
+		err = tx.abort(t.Context(), errors.Join(errSkillInstallRaced, readErr))
+		if !errors.Is(err, errSkillTestChanged) || !errors.Is(err, readErr) {
+			t.Fatalf("abort() = %v, want the changed refusal joined with the read failure", err)
+		}
+		f.requireClean(t)
+	})
+}
+
+// orderedSkillPublisher returns results in call order; its first call waits for release.
+type orderedSkillPublisher struct {
+	mu      sync.Mutex
+	results []error
+	calls   int
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (p *orderedSkillPublisher) SkillPublished(context.Context) error {
+	p.mu.Lock()
+	call := p.calls
+	p.calls++
+	p.mu.Unlock()
+	if call == 0 {
+		close(p.entered)
+		<-p.release
+	}
+	return p.results[call]
+}
+
+func (p *orderedSkillPublisher) count() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.calls
 }
 
 var errSkillTestPublish = errors.New("catalog refresh failed")

@@ -24,6 +24,9 @@ func (s *SkillProposalService) continueResolution(
 		return nil, fmt.Errorf("%w: the journal of %s records an unknown keep %q (op %s); it is left unchanged",
 			ErrSkillInstallConflict, t.name, payload.Keep, payload.OpID)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if journal.Phase != dirpublish.PhasePublished {
 		if payload.Keep == SkillConflictKeepPrevious {
 			err = s.restorePrevious(ctx, t, journal, payload)
@@ -33,9 +36,17 @@ func (s *SkillProposalService) continueResolution(
 		if err != nil {
 			return nil, err
 		}
-		if err := s.commitResolution(t, &journal, payload); err != nil {
+		if err := s.commitResolution(ctx, t, &journal, payload); err != nil {
 			return nil, err
 		}
+	}
+	// A published resolution counts only once durable: confirm it before removing any copy, also when
+	// an earlier attempt published it and then failed.
+	if s.crashed("published_sync") {
+		return nil, errSkillInstallCrashed
+	}
+	if err := t.parent.Sync(); err != nil {
+		return nil, fmt.Errorf("confirm published skill conflict resolution: %w", err)
 	}
 	warning = errors.Join(finalizeSkillOp(t, journal, payload), s.publishSkills(ctx))
 	slog.InfoContext(ctx, "skill.install.conflict_resolved", "op_id", payload.OpID, "skill", t.name,
@@ -70,11 +81,11 @@ func (s *SkillProposalService) discardPrevious(
 			return payload, s.reopenConflict(ctx, t, journal, payload)
 		}
 		slog.WarnContext(ctx, "skill.install.conflict_current_changed", "op_id", payload.OpID, "skill", t.name)
-		if payload, err = s.recordCurrentWriter(t, journal, payload, live); err != nil {
+		if payload, err = s.recordCurrentWriter(ctx, t, journal, payload, live); err != nil {
 			return payload, err
 		}
 	}
-	if err := requireUnchangedOriginal(t, journal, payload); err != nil {
+	if err := requireUnchangedOriginal(ctx, t, journal, payload); err != nil {
 		return payload, err
 	}
 	if err := t.parent.RemoveAll(journal.BackupName); err != nil {
@@ -88,10 +99,18 @@ func (s *SkillProposalService) discardPrevious(
 
 // requireUnchangedOriginal refuses to discard a backup slot or original copy whose contents changed
 // after the conflict was recorded; finalize would otherwise delete an edit nobody chose to drop.
-func requireUnchangedOriginal(t *skillTarget, journal dirpublish.Journal, payload SkillInstallPayload) error {
+func requireUnchangedOriginal(
+	ctx context.Context,
+	t *skillTarget,
+	journal dirpublish.Journal,
+	payload SkillInstallPayload,
+) error {
 	for _, name := range []string{journal.BackupName, payload.OriginalCopyName} {
 		if name == "" {
 			continue
+		}
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 		digest, err := skillTreeState(t.path(name))
 		if err == nil && (digest == "" || digest == payload.PreDigest) {
@@ -112,7 +131,7 @@ func (s *SkillProposalService) reopenConflict(
 	payload SkillInstallPayload,
 ) error {
 	payload.State, payload.Keep, payload.KeepCopyName, payload.ResolvedBy = skillInstallStateConflict, "", "", ""
-	if err := writeSkillResolution(t, journal, payload); err != nil {
+	if err := writeSkillResolution(ctx, t, journal, payload); err != nil {
 		return err
 	}
 	slog.WarnContext(ctx, "skill.install.conflict_reopened", "op_id", payload.OpID, "skill", t.name)
@@ -123,6 +142,7 @@ func (s *SkillProposalService) reopenConflict(
 // recordCurrentWriter records the live tree as the operator-authored writer of a keep=current
 // resolution whose original is already gone.
 func (s *SkillProposalService) recordCurrentWriter(
+	ctx context.Context,
 	t *skillTarget,
 	journal dirpublish.Journal,
 	payload SkillInstallPayload,
@@ -135,10 +155,18 @@ func (s *SkillProposalService) recordCurrentWriter(
 			DecidedBy: payload.ResolvedBy, OpID: payload.OpID,
 		}
 	}
-	return payload, writeSkillResolution(t, journal, payload)
+	return payload, writeSkillResolution(ctx, t, journal, payload)
 }
 
-func writeSkillResolution(t *skillTarget, journal dirpublish.Journal, payload SkillInstallPayload) error {
+func writeSkillResolution(
+	ctx context.Context,
+	t *skillTarget,
+	journal dirpublish.Journal,
+	payload SkillInstallPayload,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -175,7 +203,8 @@ func (s *SkillProposalService) restorePrevious(
 		}
 		slog.WarnContext(ctx, "skill.install.conflict_original_changed", "op_id", payload.OpID, "skill", t.name)
 		return fmt.Errorf("%w: the previous %s at %s no longer matches what was installed (op %s); "+
-			"restore it there, or resolve with --keep current", ErrSkillInstallConflict, t.name, source, payload.OpID)
+			"restore it there and resolve %s again with --keep previous",
+			ErrSkillInstallConflict, t.name, source, payload.OpID, payload.OpID)
 	}
 	if unsupported || target != "" {
 		if err := s.moveEditedToKeepCopy(ctx, t, payload); err != nil {
@@ -221,32 +250,34 @@ func (s *SkillProposalService) moveEditedToKeepCopy(
 	return nil
 }
 
-// commitResolution appends the `resolve` log entry once, then sets the journal to published.
+// commitResolution records the `resolve` log entry, then sets the journal to published. An entry an
+// interrupted run already appended is kept when it names the same writer and corrected in place
+// otherwise, so the log never names a tree the resolution does not leave installed.
 func (s *SkillProposalService) commitResolution(
+	ctx context.Context,
 	t *skillTarget,
 	journal *dirpublish.Journal,
 	payload SkillInstallPayload,
 ) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	entries, err := readSkillInstallLog(t.root, t.name)
 	if err != nil {
 		return err
 	}
-	if n := len(
-		entries,
-	); n == 0 || entries[n-1].OpID != payload.OpID ||
-		entries[n-1].Action != SkillInstallActionResolve {
-		entry := skillInstallLogEntry{
-			OpID: payload.OpID, HomeID: s.HomeID, Action: SkillInstallActionResolve,
-			DecidedVia: skillDecidedViaOperator, DecidedBy: payload.ResolvedBy,
-			Current: payload.NextMarker, Previous: payload.PrevMarker, Keep: payload.Keep, At: time.Now().UTC(),
-		}
-		if entry.Current != nil {
-			entry.ReviewID, entry.InstanceID = entry.Current.ReviewID, entry.Current.InstanceID
-			entry.InstalledDigest = entry.Current.InstalledDigest
-		}
-		if err := appendSkillInstallLog(t.root, t.name, entry); err != nil {
-			return err
-		}
+	entry := skillResolutionEntry(s.HomeID, payload)
+	n := len(entries)
+	switch {
+	case n == 0 || entries[n-1].OpID != payload.OpID || entries[n-1].Action != SkillInstallActionResolve:
+		err = appendSkillInstallLog(t.root, t.name, entry)
+	case !sameSkillWriter(entries[n-1].Current, payload.NextMarker):
+		entry.At = entries[n-1].At
+		entries[n-1] = entry
+		err = writeSkillInstallLog(t.root, t.name, entries)
+	}
+	if err != nil {
+		return err
 	}
 	if s.crashed("resolve_logged") {
 		return errSkillInstallCrashed
@@ -257,6 +288,26 @@ func (s *SkillProposalService) commitResolution(
 	}
 	journal.Payload = encoded
 	return dirpublish.AdvancePhase(t.parent, journal, dirpublish.PhasePublished)
+}
+
+func skillResolutionEntry(homeID string, payload SkillInstallPayload) skillInstallLogEntry {
+	entry := skillInstallLogEntry{
+		OpID: payload.OpID, HomeID: homeID, Action: SkillInstallActionResolve,
+		DecidedVia: skillDecidedViaOperator, DecidedBy: payload.ResolvedBy,
+		Current: payload.NextMarker, Previous: payload.PrevMarker, Keep: payload.Keep, At: time.Now().UTC(),
+	}
+	if entry.Current != nil {
+		entry.ReviewID, entry.InstanceID = entry.Current.ReviewID, entry.Current.InstanceID
+		entry.InstalledDigest = entry.Current.InstalledDigest
+	}
+	return entry
+}
+
+func sameSkillWriter(a, b *SkillInstallMarker) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // resume is Reconcile for a resolving journal: it finishes the recorded choice. A resolution that
