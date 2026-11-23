@@ -19,7 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -658,9 +658,9 @@ func TestAutomationTriggerWritesKeepCommittedResultWhenIngressEnrichmentFails(t 
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			router := newAutomationCoreTestRouter(t, testCase.manager, func(config *BaseHandlerConfig) {
-				config.Gateway = gatewayServiceStub{
-					project: func(context.Context, gateway.IngressSubjectRef) (gateway.IngressProjection, error) {
-						return gateway.IngressProjection{}, projectionErr
+				config.Ingress = ingressServiceStub{
+					project: func(context.Context, ingress.SubjectRef) (ingress.Projection, error) {
+						return ingress.Projection{}, projectionErr
 					},
 				}
 			})

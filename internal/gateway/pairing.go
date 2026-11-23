@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/remotehost"
 )
 
 const pairingManualCodeAttempts = 8
@@ -83,9 +85,9 @@ func (p *pairingStore) Mint(source PairingSource) (PairingArtifact, error) {
 		return PairingArtifact{}, err
 	}
 	expiresAt := now.Add(p.ttl)
-	digest := hashCredential(artifact)
+	digest := remotehost.HashCredential(artifact)
 	p.entries[digest] = pairingEntry{expiresAt: expiresAt, source: source}
-	p.manual[hashCredential(manualCode)] = digest
+	p.manual[remotehost.HashCredential(manualCode)] = digest
 	return PairingArtifact{
 		Artifact: artifact, ManualCode: manualCode, ExpiresAt: expiresAt,
 	}, nil
@@ -97,7 +99,7 @@ func (p *pairingStore) mintManualCodeLocked() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if _, collides := p.manual[hashCredential(code)]; collides {
+		if _, collides := p.manual[remotehost.HashCredential(code)]; collides {
 			continue
 		}
 		return code, nil
@@ -156,14 +158,14 @@ func (p *pairingStore) Redeem(artifact, manualCode string, issue func(PairingSou
 
 // resolveLocked accepts the opaque artifact or the hand-typed code for one pending entry.
 func (p *pairingStore) resolveLocked(artifact, manualCode string) (string, bool) {
-	if candidate := strings.TrimSpace(artifact); validOpaqueSecret(candidate, pairingArtifactPrefix) {
-		return hashCredential(candidate), true
+	if candidate := strings.TrimSpace(artifact); remotehost.ValidOpaqueSecret(candidate, pairingArtifactPrefix) {
+		return remotehost.HashCredential(candidate), true
 	}
 	normalized := NormalizePairingManualCode(manualCode)
 	if !validPairingManualCode(normalized) {
 		return "", false
 	}
-	digest, exists := p.manual[hashCredential(normalized)]
+	digest, exists := p.manual[remotehost.HashCredential(normalized)]
 	return digest, exists
 }
 

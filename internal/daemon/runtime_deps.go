@@ -5,7 +5,11 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentmemory"
+	"github.com/compozy/compozy/internal/apptoken"
+	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/remotehost"
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/udsapi"
@@ -13,7 +17,6 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
-	"github.com/compozy/compozy/internal/gateway"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
@@ -96,11 +99,12 @@ type RuntimeDeps struct {
 	Resources             core.ResourceService
 	WindowManagers        *windowManagerRegistry
 	Terminals             *terminalpkg.Service
-	AppTokens             *gateway.DeviceService
+	AppTokens             *apptoken.Service
 	Gateway               *gateway.Service
+	Ingress               *ingress.Manager
 	GatewayChallenges     *gateway.ChallengeRegistry
-	GatewayAuthLimiter    *gateway.AuthFailureLimiter
-	GatewayPairingLimiter *gateway.AuthFailureLimiter
+	GatewayAuthLimiter    *remotehost.AuthFailureLimiter
+	GatewayPairingLimiter *remotehost.AuthFailureLimiter
 	StartedAt             time.Time
 
 	OnProviderAuthSuccess func()

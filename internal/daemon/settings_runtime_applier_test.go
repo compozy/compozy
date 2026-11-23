@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/marketplace"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/resources"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	skillspkg "github.com/compozy/compozy/internal/skills"
@@ -228,12 +229,12 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		next.Gateway.Auth.RateLimit.Window = 2 * time.Minute
 		next.Gateway.Verify.Timeout = 250 * time.Millisecond
 		next.Gateway.Verify.PublicDNSResolver = "8.8.8.8:853"
-		limiter := gateway.NewAuthFailureLimiter(
+		limiter := remotehost.NewAuthFailureLimiter(
 			previous.Gateway.Auth.RateLimit.MaxFails,
 			previous.Gateway.Auth.RateLimit.Window,
 			nil,
 		)
-		pairingLimiter := gateway.NewAuthFailureLimiter(
+		pairingLimiter := remotehost.NewAuthFailureLimiter(
 			previous.Gateway.Auth.RateLimit.MaxFails,
 			previous.Gateway.Auth.RateLimit.Window,
 			nil,

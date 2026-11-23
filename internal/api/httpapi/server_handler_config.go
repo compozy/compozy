@@ -10,6 +10,8 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 	config := s.handlerDependencies()
 	config.sessionChanges = s.sessionChanges
 	config.telemetryStatus = s.telemetryStatus
+	config.gateway = s.gateway
+	config.ingress = s.ingress
 	config.staticFS = staticFS
 	config.boundHost = s.host
 	config.httpPort = s.port
@@ -78,7 +80,6 @@ func (s *Server) handlerDependencies() handlerConfig {
 		deadEntities:          s.deadEntities,
 		appTokens:             s.appTokens,
 		openAPI:               s.openAPI,
-		gateway:               s.gateway,
 		gatewayAdmission:      s.gatewayAdmission,
 		deviceAuth:            s.deviceAuth,
 		authLimiter:           s.authLimiter,

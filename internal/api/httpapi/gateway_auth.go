@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
@@ -18,7 +19,7 @@ const (
 )
 
 type deviceConnectionRegistryProvider interface {
-	Connections() gateway.ConnectionRegistry
+	Connections() remotehost.ConnectionRegistry
 }
 
 func (h *Handlers) deviceAuthMiddleware() gin.HandlerFunc {
@@ -34,7 +35,7 @@ func (h *Handlers) deviceAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 		if !limiter.Allow(source, false) {
-			abortGatewayError(c, gateway.ErrAuthRateLimited)
+			abortGatewayError(c, remotehost.ErrAuthRateLimited)
 			return
 		}
 
@@ -55,13 +56,13 @@ func (h *Handlers) deviceAuthMiddleware() gin.HandlerFunc {
 			abortGatewayError(c, err)
 			return
 		}
-		defer gateway.ReleaseMutation(requestCtx)
+		defer remotehost.ReleaseMutation(requestCtx)
 		c.Request = c.Request.WithContext(requestCtx)
 		c.Next()
 	}
 }
 
-func (h *Handlers) authenticateGatewayStream(c *gin.Context, limiter *gateway.AuthFailureLimiter, source string) {
+func (h *Handlers) authenticateGatewayStream(c *gin.Context, limiter *remotehost.AuthFailureLimiter, source string) {
 	ticket := strings.TrimSpace(c.Query(gatewayStreamTicketKey))
 	device, err := h.deviceAuth.ConsumeStreamTicket(c.Request.Context(), ticket)
 	if err != nil {
@@ -92,10 +93,10 @@ func (h *Handlers) authenticateGatewayStream(c *gin.Context, limiter *gateway.Au
 		cancel()
 		close(done)
 		registry.Deregister(device.ID, handle)
-		gateway.ReleaseMutation(authenticatedCtx)
+		remotehost.ReleaseMutation(authenticatedCtx)
 	}()
 	if err := h.deviceAuth.RevalidateForCommit(streamContext, device.ID, device.RevokeEpoch); err != nil {
-		abortGatewayError(c, gateway.ErrStreamTicketInvalid)
+		abortGatewayError(c, remotehost.ErrStreamTicketInvalid)
 		return
 	}
 	limiter.Success(source)

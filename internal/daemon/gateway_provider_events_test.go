@@ -10,6 +10,7 @@ import (
 
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -136,14 +137,14 @@ func TestGatewayIngressAuditSink(t *testing.T) {
 			writer: writer,
 			now:    func() time.Time { return time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC) },
 		}
-		binding := gateway.IngressBinding{
-			Subject: gateway.IngressSubjectRef{
-				Kind: gateway.IngressSubjectWebhookTrigger,
+		binding := ingress.Binding{
+			Subject: ingress.SubjectRef{
+				Kind: ingress.SubjectWebhookTrigger,
 				ID:   "api_key=sk-ingress-audit-secret",
 			},
-			Scope: gateway.IngressScopeWorkspace, WorkspaceID: "ws-1", EndpointGeneration: 7,
+			Scope: ingress.ScopeWorkspace, WorkspaceID: "ws-1", EndpointGeneration: 7,
 		}
-		event := gateway.IngressMutationEvent{
+		event := ingress.MutationEvent{
 			Binding: binding, ActorKind: string(gateway.ActorKindOperatorDevice), ActorID: "device-1",
 		}
 		if err := sink.RecordIngressBound(testutil.Context(t), event); err != nil {
@@ -186,10 +187,10 @@ func TestGatewayIngressAuditSink(t *testing.T) {
 		const rawActorID = "cpz_gwd_actor-secret-material-0123456789"
 		writer := &gatewayAuditWriter{}
 		sink := gatewayIngressAuditSink{writer: writer}
-		if err := sink.RecordIngressBound(testutil.Context(t), gateway.IngressMutationEvent{
-			Binding: gateway.IngressBinding{
-				Subject: gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: "trigger-1"},
-				Scope:   gateway.IngressScopeGlobal,
+		if err := sink.RecordIngressBound(testutil.Context(t), ingress.MutationEvent{
+			Binding: ingress.Binding{
+				Subject: ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: "trigger-1"},
+				Scope:   ingress.ScopeGlobal,
 			},
 			ActorKind: string(gateway.ActorKindOperatorDevice), ActorID: rawActorID,
 		}); err != nil {

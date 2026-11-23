@@ -181,6 +181,20 @@ func Boundaries() error {
 		{"internal/worktree", "internal/api"},
 		{"internal/worktree", "internal/cli"},
 		{"internal/profile", "internal/api"},
+		{"internal/apptoken", "internal/gateway"},
+		{"internal/apptoken", "internal/daemon"},
+		{"internal/apptoken", "internal/api"},
+		{"internal/apptoken", "internal/cli"},
+		{"internal/ingress", "internal/gateway"},
+		{"internal/ingress", "internal/daemon"},
+		{"internal/ingress", "internal/api"},
+		{"internal/ingress", "internal/cli"},
+		{"internal/remotehost", "internal/gateway"},
+		{"internal/remotehost", "internal/daemon"},
+		{"internal/remotehost", "internal/api"},
+		{"internal/remotehost", "internal/cli"},
+		{"internal/computers", "internal/remotehost"},
+		{"internal/remotehost", "internal/computers"},
 	}
 	for _, rule := range prefixForbidden {
 		importerDir := rule.importer

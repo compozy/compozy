@@ -51,6 +51,12 @@ func (d *Daemon) nativeToolsDeps(
 			}
 			return state.deps.Gateway
 		},
+		Ingress: func() core.IngressService {
+			if state.deps.Ingress == nil {
+				return nil
+			}
+			return state.deps.Ingress
+		},
 		GatewayPermissionMode: nativeGatewayPermissionModeSource(state.sessions),
 		HomePaths:             d.homePaths,
 		Observer:              state.observer,

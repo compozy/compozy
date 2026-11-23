@@ -2,23 +2,19 @@ package gateway
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/compozy/compozy/internal/remotehost"
 )
 
 const (
 	// #nosec G101 -- this is a public protocol prefix, not credential material.
 	deviceCredentialPrefix = "cpz_gwd_"
 	pairingArtifactPrefix  = "cpz_gwp_"
-	streamTicketPrefix     = "cpz_gwt_"
-	secretEntropyBytes     = 32
 
 	pairingManualCodeDigits  = 6
 	pairingManualCodeModulus = 1_000_000
@@ -32,10 +28,8 @@ var pairingManualCodeSeparators = strings.NewReplacer(
 	"\u2014", "", "\u2015", "", "\u2212", "",
 )
 
-var dummyCredentialHash = sha256.Sum256([]byte("compozy gateway unknown credential"))
-
 func generateDeviceCredential(entropy io.Reader) (string, error) {
-	return generateOpaqueSecret(entropy, deviceCredentialPrefix)
+	return remotehost.GenerateOpaqueSecret(entropy, deviceCredentialPrefix)
 }
 
 // GenerateDeviceCredential creates a client-owned gateway credential.
@@ -44,7 +38,7 @@ func GenerateDeviceCredential() (string, error) {
 }
 
 func generatePairingArtifact(entropy io.Reader) (string, error) {
-	return generateOpaqueSecret(entropy, pairingArtifactPrefix)
+	return remotehost.GenerateOpaqueSecret(entropy, pairingArtifactPrefix)
 }
 
 // generatePairingManualCode returns a uniformly random 6-digit code from rejection sampling.
@@ -90,46 +84,9 @@ func validPairingManualCode(value string) bool {
 	return true
 }
 
-func generateStreamTicket(entropy io.Reader) (string, error) {
-	return generateOpaqueSecret(entropy, streamTicketPrefix)
-}
-
-func generateOpaqueSecret(entropy io.Reader, prefix string) (string, error) {
-	if entropy == nil {
-		return "", errors.New("gateway: secret entropy reader is required")
-	}
-	secret := make([]byte, secretEntropyBytes)
-	if _, err := io.ReadFull(entropy, secret); err != nil {
-		return "", fmt.Errorf("gateway: generate secret entropy: %w", err)
-	}
-	return prefix + base64.RawURLEncoding.EncodeToString(secret), nil
-}
-
-func hashCredential(credential string) string {
-	digest := sha256.Sum256([]byte(credential))
-	return hex.EncodeToString(digest[:])
-}
-
-func validOpaqueSecret(value, prefix string) bool {
-	if !strings.HasPrefix(value, prefix) {
-		return false
-	}
-	decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(value, prefix))
-	return err == nil && len(decoded) == secretEntropyBytes
-}
-
 // IsDeviceCredential reports whether a value has the canonical gateway device credential shape.
 func IsDeviceCredential(value string) bool {
-	return validOpaqueSecret(strings.TrimSpace(value), deviceCredentialPrefix)
-}
-
-func constantTimeCredentialMatch(credential, storedHash string) bool {
-	computed := sha256.Sum256([]byte(credential))
-	expected := dummyCredentialHash[:]
-	if decoded, err := hex.DecodeString(storedHash); err == nil && len(decoded) == sha256.Size {
-		expected = decoded
-	}
-	return subtle.ConstantTimeCompare(computed[:], expected) == 1
+	return remotehost.ValidOpaqueSecret(strings.TrimSpace(value), deviceCredentialPrefix)
 }
 
 func defaultEntropy() io.Reader {

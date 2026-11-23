@@ -66,12 +66,6 @@ type RemoveResult struct {
 	Canceled int
 }
 
-// StreamTicket is a short-lived, single-use stream credential.
-type StreamTicket struct {
-	Ticket    string
-	ExpiresAt time.Time
-}
-
 // StoredDeviceSession is the daemon-private persistence record.
 type StoredDeviceSession struct {
 	Session   DeviceSession
@@ -112,12 +106,4 @@ type DeviceAuthenticator interface {
 	ConsumeStreamTicket(context.Context, string) (DeviceSession, error)
 	AcquireMutation(context.Context, string, uint64) (context.Context, error)
 	RevalidateForCommit(context.Context, string, uint64) error
-}
-
-// ConnectionRegistry owns cancel functions for live device streams.
-type ConnectionRegistry interface {
-	Register(string, context.CancelFunc) uint64
-	RegisterWaitable(string, context.CancelFunc, <-chan struct{}) uint64
-	Deregister(string, uint64)
-	CancelDevice(context.Context, string) (int, error)
 }

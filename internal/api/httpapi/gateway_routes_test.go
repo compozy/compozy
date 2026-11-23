@@ -16,7 +16,10 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	apispec "github.com/compozy/compozy/internal/api/spec"
+	"github.com/compozy/compozy/internal/apptoken"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,7 +51,7 @@ type gatewayHTTPAuthenticatorStub struct {
 }
 
 type gatewayStreamAuthenticatorStub struct {
-	registry *gateway.LiveConnectionRegistry
+	registry *remotehost.LiveConnectionRegistry
 	device   gateway.DeviceSession
 }
 
@@ -82,7 +85,7 @@ func (s gatewayStreamAuthenticatorStub) AcquireMutation(
 	return ctx, nil
 }
 
-func (s gatewayStreamAuthenticatorStub) Connections() gateway.ConnectionRegistry {
+func (s gatewayStreamAuthenticatorStub) Connections() remotehost.ConnectionRegistry {
 	return s.registry
 }
 
@@ -100,7 +103,7 @@ func (gatewayHTTPAuthenticatorStub) ConsumeStreamTicket(
 	context.Context,
 	string,
 ) (gateway.DeviceSession, error) {
-	return gateway.DeviceSession{}, gateway.ErrStreamTicketInvalid
+	return gateway.DeviceSession{}, remotehost.ErrStreamTicketInvalid
 }
 
 func (gatewayHTTPAuthenticatorStub) RevalidateForCommit(context.Context, string, uint64) error {
@@ -340,7 +343,7 @@ func TestGatewayIngressRateLimit(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-		limiter := gateway.NewIngressRateLimiter(1, time.Minute, func() time.Time { return now })
+		limiter := ingress.NewRateLimiter(1, time.Minute, func() time.Time { return now })
 		handlers := newHandlers(&handlerConfig{
 			gatewayAdmission: gatewayHTTPServiceStub{},
 			ingressLimiter:   limiter,
@@ -897,7 +900,7 @@ func TestGatewayStreamRevocation(t *testing.T) {
 	t.Run("Should terminate and tear down an authenticated stream before cancellation returns", func(t *testing.T) {
 		t.Parallel()
 
-		registry := gateway.NewConnectionRegistry()
+		registry := remotehost.NewConnectionRegistry()
 		device := gateway.DeviceSession{ID: "device-stream", RevokeEpoch: 3}
 		authenticator := gatewayStreamAuthenticatorStub{registry: registry, device: device}
 		handlers := newHandlers(&handlerConfig{
@@ -964,20 +967,20 @@ func gatewayRouteKeys(routes gin.RoutesInfo) map[string]struct{} {
 }
 
 type appTokenHTTPAuthenticatorStub struct {
-	authenticate func(context.Context, string) (gateway.AppToken, error)
+	authenticate func(context.Context, string) (apptoken.Token, error)
 	origin       func(string) bool
 	touch        func(context.Context, string, uint64) error
 	acquire      func(context.Context, string, uint64) (context.Context, error)
 	revalidate   func(context.Context, string, uint64) error
-	registry     gateway.ConnectionRegistry
+	registry     remotehost.ConnectionRegistry
 }
 
 func (s appTokenHTTPAuthenticatorStub) AuthenticateAppToken(
 	ctx context.Context,
 	secret string,
-) (gateway.AppToken, error) {
+) (apptoken.Token, error) {
 	if s.authenticate == nil {
-		return gateway.AppToken{}, gateway.ErrAppTokenUnauthenticated
+		return apptoken.Token{}, apptoken.ErrUnauthenticated
 	}
 	return s.authenticate(ctx, secret)
 }
@@ -1011,7 +1014,7 @@ func (s appTokenHTTPAuthenticatorStub) RevalidateForCommit(ctx context.Context, 
 	return nil
 }
 
-func (s appTokenHTTPAuthenticatorStub) Connections() gateway.ConnectionRegistry { return s.registry }
+func (s appTokenHTTPAuthenticatorStub) Connections() remotehost.ConnectionRegistry { return s.registry }
 
 func TestAppTokenBrowserAdmission(t *testing.T) {
 	t.Parallel()
@@ -1038,7 +1041,7 @@ func TestAppTokenBrowserAdmission(t *testing.T) {
 			wantOrigin: "http://127.0.0.1:2123",
 		},
 		{name: "Should reject invalid app credentials without an Origin", method: http.MethodGet,
-			credential: "cpz_app_invalid", authError: gateway.ErrAppTokenUnauthenticated,
+			credential: "cpz_app_invalid", authError: apptoken.ErrUnauthenticated,
 			wantStatus: http.StatusUnauthorized, wantCode: "app_token_unauthenticated"},
 		{
 			name:          "Should accept normalized foreign-origin preflight without authentication",
@@ -1091,7 +1094,7 @@ func TestAppTokenBrowserAdmission(t *testing.T) {
 			origin:        "http://a.test",
 			credential:    "cpz_app_bad",
 			allowedOrigin: true,
-			authError:     gateway.ErrAppTokenUnauthenticated,
+			authError:     apptoken.ErrUnauthenticated,
 			wantStatus:    http.StatusUnauthorized,
 			wantCode:      "app_token_unauthenticated",
 			wantOrigin:    "http://a.test",
@@ -1102,7 +1105,7 @@ func TestAppTokenBrowserAdmission(t *testing.T) {
 			origin:        "http://a.test",
 			allowedOrigin: true,
 			credential:    "cpz_app_revoked",
-			authError:     gateway.ErrAppTokenRevoked,
+			authError:     apptoken.ErrRevoked,
 			wantStatus:    http.StatusUnauthorized,
 			wantCode:      "app_token_revoked",
 			wantOrigin:    "http://a.test",
@@ -1119,8 +1122,8 @@ func TestAppTokenBrowserAdmission(t *testing.T) {
 					}
 					return test.allowedOrigin
 				},
-				authenticate: func(context.Context, string) (gateway.AppToken, error) {
-					return gateway.AppToken{Session: gateway.DeviceSession{ID: "apt_browser", RevokeEpoch: 3},
+				authenticate: func(context.Context, string) (apptoken.Token, error) {
+					return apptoken.Token{ID: "apt_browser", RevokeEpoch: 3,
 						Origins: []string{"http://a.test"}}, test.authError
 				},
 				touch: func(_ context.Context, id string, epoch uint64) error {
@@ -1206,9 +1209,9 @@ func TestAppTokenRouteAuthorization(t *testing.T) {
 			calls, touches := 0, 0
 			auth := appTokenHTTPAuthenticatorStub{
 				origin: func(string) bool { return true },
-				authenticate: func(context.Context, string) (gateway.AppToken, error) {
-					return gateway.AppToken{
-						Session: gateway.DeviceSession{ID: "apt_routes"},
+				authenticate: func(context.Context, string) (apptoken.Token, error) {
+					return apptoken.Token{
+						ID:      "apt_routes",
 						Origins: []string{"http://a.test"},
 					}, nil
 				},
@@ -1240,13 +1243,13 @@ func TestAppTokenRequestLifecycle(t *testing.T) {
 	for _, stream := range []bool{false, true} {
 		t.Run(fmt.Sprintf("Should attribute local requests and register only streams=%t", stream), func(t *testing.T) {
 			t.Parallel()
-			registry := gateway.NewConnectionRegistry()
+			registry := remotehost.NewConnectionRegistry()
 			auth := appTokenHTTPAuthenticatorStub{
 				registry: registry,
 				origin:   func(string) bool { return true },
-				authenticate: func(context.Context, string) (gateway.AppToken, error) {
-					return gateway.AppToken{
-						Session: gateway.DeviceSession{ID: "apt_lifecycle"},
+				authenticate: func(context.Context, string) (apptoken.Token, error) {
+					return apptoken.Token{
+						ID:      "apt_lifecycle",
 						Origins: []string{"http://a.test"},
 					}, nil
 				},
@@ -1261,7 +1264,7 @@ func TestAppTokenRequestLifecycle(t *testing.T) {
 				if token, ok := core.AppTokenFromContext(
 					c.Request.Context(),
 				); !ok ||
-					token.Session.ID != "apt_lifecycle" {
+					token.ID != "apt_lifecycle" {
 					t.Error("app credential was not attributed")
 				}
 				if _, ok := gateway.DeviceFromContext(c.Request.Context()); ok {
@@ -1309,16 +1312,16 @@ func TestAppTokenAuthenticationFailureWindows(t *testing.T) {
 	t.Run("Should isolate origins and preserve ten failures until the sixty-second window expires", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, time.October, 17, 12, 0, 0, 0, time.UTC)
-		limiter := gateway.NewAuthFailureLimiter(10, time.Minute, func() time.Time { return now })
+		limiter := remotehost.NewAuthFailureLimiter(10, time.Minute, func() time.Time { return now })
 		lookups := 0
 		auth := appTokenHTTPAuthenticatorStub{
 			origin: func(string) bool { return true },
-			authenticate: func(_ context.Context, secret string) (gateway.AppToken, error) {
+			authenticate: func(_ context.Context, secret string) (apptoken.Token, error) {
 				lookups++
 				if secret != "cpz_app_valid" {
-					return gateway.AppToken{}, gateway.ErrAppTokenUnauthenticated
+					return apptoken.Token{}, apptoken.ErrUnauthenticated
 				}
-				return gateway.AppToken{Session: gateway.DeviceSession{ID: "apt_rate"},
+				return apptoken.Token{ID: "apt_rate",
 					Origins: []string{"http://a.test", "http://b.test"}}, nil
 			},
 		}
@@ -1367,13 +1370,13 @@ func TestAppTokenRequestLogging(t *testing.T) {
 		{
 			name:   "Should warn about invalid credentials without exposing the secret",
 			secret: "cpz_app_log_invalid_secret",
-			err:    gateway.ErrAppTokenUnauthenticated,
+			err:    apptoken.ErrUnauthenticated,
 			reason: "app_token_unauthenticated",
 		},
 		{
 			name:   "Should warn about revoked credentials without exposing the secret",
 			secret: "cpz_app_log_revoked_secret",
-			err:    gateway.ErrAppTokenRevoked,
+			err:    apptoken.ErrRevoked,
 			reason: "app_token_revoked",
 		},
 	} {
@@ -1382,8 +1385,8 @@ func TestAppTokenRequestLogging(t *testing.T) {
 			var logs bytes.Buffer
 			auth := appTokenHTTPAuthenticatorStub{
 				origin: func(string) bool { return true },
-				authenticate: func(context.Context, string) (gateway.AppToken, error) {
-					return gateway.AppToken{}, fmt.Errorf("authentication denied: %w", tc.err)
+				authenticate: func(context.Context, string) (apptoken.Token, error) {
+					return apptoken.Token{}, fmt.Errorf("authentication denied: %w", tc.err)
 				},
 			}
 			server := &Server{host: "127.0.0.1:2123", appTokenAuth: auth,
@@ -1417,13 +1420,13 @@ func TestAppTokenRequestLogging(t *testing.T) {
 		t.Parallel()
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-		auth := appTokenHTTPAuthenticatorStub{authenticate: func(context.Context, string) (gateway.AppToken, error) {
-			return gateway.AppToken{Session: gateway.DeviceSession{ID: "apt_logged"}}, nil
+		auth := appTokenHTTPAuthenticatorStub{authenticate: func(context.Context, string) (apptoken.Token, error) {
+			return apptoken.Token{ID: "apt_logged"}, nil
 		}}
 		router := gin.New()
 		router.Use(requestLoggingMiddleware(logger))
 		server := &Server{host: "127.0.0.1:2123", appTokenAuth: auth}
-		WithAppTokenAuthLimiter(gateway.NewAuthFailureLimiter(10, time.Minute, nil))(server)
+		WithAppTokenAuthLimiter(remotehost.NewAuthFailureLimiter(10, time.Minute, nil))(server)
 		router.Use(server.appTokenAuthMiddleware())
 		router.GET("/api/sessions", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"admitted": true}) })
 		response := httptest.NewRecorder()
@@ -1468,12 +1471,12 @@ func TestGatewayRejectsAppTokensBeforeAuthentication(t *testing.T) {
 	}
 }
 
-func newAppTokenTestRouter(t *testing.T, auth gateway.AppTokenAuthenticator,
-	allowed func(string, string) bool, limiter *gateway.AuthFailureLimiter,
+func newAppTokenTestRouter(t *testing.T, auth AppTokenAuthenticator,
+	allowed func(string, string) bool, limiter *remotehost.AuthFailureLimiter,
 ) *gin.Engine {
 	t.Helper()
 	if limiter == nil {
-		limiter = gateway.NewAuthFailureLimiter(10, time.Minute, nil)
+		limiter = remotehost.NewAuthFailureLimiter(10, time.Minute, nil)
 	}
 	router := gin.New()
 	server := &Server{host: "127.0.0.1:2123", appTokenAuth: auth, appAccess: allowed}
@@ -1525,9 +1528,9 @@ func TestAppTokenTaskBreadthAdmission(t *testing.T) {
 			t.Parallel()
 			auth := appTokenHTTPAuthenticatorStub{
 				origin: func(string) bool { return true },
-				authenticate: func(context.Context, string) (gateway.AppToken, error) {
-					return gateway.AppToken{
-						Session: gateway.DeviceSession{ID: "apt_breadth"},
+				authenticate: func(context.Context, string) (apptoken.Token, error) {
+					return apptoken.Token{
+						ID:      "apt_breadth",
 						Origins: []string{"http://a.test"},
 					}, nil
 				},
@@ -1591,9 +1594,9 @@ func TestAppTokenLoopAggregateAdmission(t *testing.T) {
 			t.Parallel()
 			auth := appTokenHTTPAuthenticatorStub{
 				origin: func(string) bool { return true },
-				authenticate: func(context.Context, string) (gateway.AppToken, error) {
-					return gateway.AppToken{
-						Session: gateway.DeviceSession{ID: "apt_loops"},
+				authenticate: func(context.Context, string) (apptoken.Token, error) {
+					return apptoken.Token{
+						ID:      "apt_loops",
 						Origins: []string{"http://a.test"},
 					}, nil
 				},

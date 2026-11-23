@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -16,11 +17,7 @@ func (s *DeviceService) RemoveDevice(ctx context.Context, deviceID string) (Remo
 	if deviceID == "" {
 		return RemoveResult{}, ErrDeviceNotFound
 	}
-	operationCtx := ctx
-	selfRemoval := releaseMutationForDevice(ctx, deviceID)
-	if selfRemoval {
-		operationCtx = context.WithValue(context.WithoutCancel(ctx), selfRevocationContextKey{}, deviceID)
-	}
+	operationCtx, selfRemoval := remotehost.PrepareRevocation(ctx, deviceID)
 	device, err := s.store.GetDevice(operationCtx, deviceID)
 	if err != nil {
 		return RemoveResult{}, fmt.Errorf("gateway: get device to remove: %w", err)

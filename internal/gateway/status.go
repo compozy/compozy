@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/ingress"
 )
 
 func projectStatus(
@@ -21,7 +22,7 @@ func projectStatus(
 		Providers: make([]ProviderStatus, 0, len(snapshot.Providers)),
 		Addresses: []AddressStatus{},
 		Devices:   append([]DeviceSession{}, snapshot.Devices...),
-		Bindings:  []IngressBindingStatus{},
+		Bindings:  []ingress.Projection{},
 		Refusal:   refusal,
 	}
 	runtimeByTier := make(map[Tier]RuntimeTier, len(runtime))

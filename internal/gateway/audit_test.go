@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/ingress"
 )
 
 func TestGatewayAudit(t *testing.T) {
@@ -40,9 +42,9 @@ func TestGatewayAudit(t *testing.T) {
 				{ID: "dev_recent", CreatedAt: now.Add(-time.Hour)},
 				{ID: "dev_revoked", CreatedAt: now.Add(-time.Hour), RevokedAt: now.Add(-time.Minute)},
 			},
-			Bindings: []IngressBindingStatus{{
-				Subject:      IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-1"},
-				Reachability: IngressReachabilityReconfirmation,
+			Bindings: []ingress.Projection{{
+				Subject:      ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: "trigger-1"},
+				Reachability: ingress.ReachabilityReconfirmation,
 			}},
 		}
 
@@ -140,6 +142,6 @@ func cloneAuditStatus(status Status) Status {
 	cloned.Providers = append([]ProviderStatus(nil), status.Providers...)
 	cloned.Addresses = append([]AddressStatus(nil), status.Addresses...)
 	cloned.Devices = append([]DeviceSession(nil), status.Devices...)
-	cloned.Bindings = append([]IngressBindingStatus(nil), status.Bindings...)
+	cloned.Bindings = append([]ingress.Projection(nil), status.Bindings...)
 	return cloned
 }

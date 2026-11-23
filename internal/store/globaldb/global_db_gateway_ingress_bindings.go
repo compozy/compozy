@@ -8,49 +8,49 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 func (g *GatewayRepo) GetIngressBinding(
 	ctx context.Context,
-	ref gateway.IngressSubjectRef,
-) (gateway.IngressBinding, error) {
+	ref ingress.SubjectRef,
+) (ingress.Binding, error) {
 	if err := g.checkReady(ctx, "load gateway ingress binding"); err != nil {
-		return gateway.IngressBinding{}, err
+		return ingress.Binding{}, err
 	}
 	row, err := g.readQueries.GetGatewayIngressBinding(ctx, ingressBindingKey(ref))
 	if errors.Is(err, sql.ErrNoRows) {
-		return gateway.IngressBinding{}, gateway.ErrIngressSubjectNotFound
+		return ingress.Binding{}, ingress.ErrSubjectNotFound
 	}
 	if err != nil {
-		return gateway.IngressBinding{}, fmt.Errorf("store: load gateway ingress binding: %w", err)
+		return ingress.Binding{}, fmt.Errorf("store: load gateway ingress binding: %w", err)
 	}
 	return gatewayIngressBindingFromGenerated(row)
 }
 
 func (g *GatewayRepo) PutIngressBinding(
 	ctx context.Context,
-	expected gateway.IngressSubject,
+	expected ingress.Subject,
 	endpointGeneration uint64,
 	confirmedAt time.Time,
-) (_ gateway.IngressBinding, changed bool, err error) {
+) (_ ingress.Binding, changed bool, err error) {
 	if err := g.checkReady(ctx, "put gateway ingress binding"); err != nil {
-		return gateway.IngressBinding{}, false, err
+		return ingress.Binding{}, false, err
 	}
 	generation, err := validateIngressBindingInput(endpointGeneration, confirmedAt)
 	if err != nil {
-		return gateway.IngressBinding{}, false, err
+		return ingress.Binding{}, false, err
 	}
-	var binding gateway.IngressBinding
+	var binding ingress.Binding
 	if err := store.ExecuteWrite(ctx, g.db, func(writeCtx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		actual, writeErr := resolveExpectedIngressSubject(writeCtx, queries, expected)
 		if writeErr != nil {
 			return writeErr
 		}
-		key := ingressBindingKey(actual.IngressSubjectRef)
+		key := ingressBindingKey(actual.SubjectRef)
 		current, currentErr := queries.GetGatewayIngressBinding(writeCtx, key)
 		if currentErr == nil && current.ScopeKind == string(actual.Scope) &&
 			current.WorkspaceID.String == actual.WorkspaceID && current.EndpointGeneration == generation {
@@ -76,14 +76,14 @@ func (g *GatewayRepo) PutIngressBinding(
 		changed = writeErr == nil
 		return writeErr
 	}); err != nil {
-		return gateway.IngressBinding{}, false, fmt.Errorf("store: put gateway ingress binding: %w", err)
+		return ingress.Binding{}, false, fmt.Errorf("store: put gateway ingress binding: %w", err)
 	}
 	return binding, changed, nil
 }
 
 func (g *GatewayRepo) DeleteIngressBinding(
 	ctx context.Context,
-	expected gateway.IngressSubject,
+	expected ingress.Subject,
 ) (bool, error) {
 	if err := g.checkReady(ctx, "delete gateway ingress binding"); err != nil {
 		return false, err
@@ -128,20 +128,20 @@ func validateIngressBindingInput(endpointGeneration uint64, confirmedAt time.Tim
 func resolveExpectedIngressSubject(
 	ctx context.Context,
 	queries *sqlcgen.Queries,
-	expected gateway.IngressSubject,
-) (gateway.IngressSubject, error) {
-	actual, err := resolveGatewayIngressSubject(ctx, queries, expected.IngressSubjectRef)
+	expected ingress.Subject,
+) (ingress.Subject, error) {
+	actual, err := resolveGatewayIngressSubject(ctx, queries, expected.SubjectRef)
 	if err != nil {
-		return gateway.IngressSubject{}, err
+		return ingress.Subject{}, err
 	}
 	if actual.Scope != expected.Scope || actual.WorkspaceID != expected.WorkspaceID ||
 		actual.ProfileID != expected.ProfileID {
-		return gateway.IngressSubject{}, gateway.ErrIngressForbidden
+		return ingress.Subject{}, ingress.ErrForbidden
 	}
 	return actual, nil
 }
 
-func (g *GatewayRepo) ListIngressBindings(ctx context.Context) ([]gateway.IngressBinding, error) {
+func (g *GatewayRepo) ListIngressBindings(ctx context.Context) ([]ingress.Binding, error) {
 	if err := g.checkReady(ctx, "list gateway ingress bindings"); err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (g *GatewayRepo) ListIngressBindings(ctx context.Context) ([]gateway.Ingres
 	if err != nil {
 		return nil, fmt.Errorf("store: list gateway ingress bindings: %w", err)
 	}
-	bindings := make([]gateway.IngressBinding, 0, len(rows))
+	bindings := make([]ingress.Binding, 0, len(rows))
 	for _, row := range rows {
 		binding, mapErr := gatewayIngressBindingFromGenerated(row)
 		if mapErr != nil {
@@ -180,30 +180,30 @@ func (g *GatewayRepo) SweepOrphanedIngressBindings(ctx context.Context) (int64, 
 
 func gatewayIngressBindingFromGenerated(
 	row sqlcgen.GatewayIngressBinding,
-) (gateway.IngressBinding, error) {
+) (ingress.Binding, error) {
 	generation, err := positiveGatewayUnsignedValue("ingress binding generation", row.EndpointGeneration)
 	if err != nil {
-		return gateway.IngressBinding{}, err
+		return ingress.Binding{}, err
 	}
 	confirmedAt, err := store.ParseTimestamp(row.ConfirmedAt)
 	if err != nil {
-		return gateway.IngressBinding{}, fmt.Errorf(
+		return ingress.Binding{}, fmt.Errorf(
 			"store: parse ingress binding confirmation: %w",
 			err,
 		)
 	}
-	return gateway.IngressBinding{
-		Subject: gateway.IngressSubjectRef{
-			Kind: gateway.IngressSubjectKind(row.SubjectKind), ID: strings.TrimSpace(row.SubjectID),
+	return ingress.Binding{
+		Subject: ingress.SubjectRef{
+			Kind: ingress.SubjectKind(row.SubjectKind), ID: strings.TrimSpace(row.SubjectID),
 		},
-		Scope: gateway.IngressScopeKind(
+		Scope: ingress.ScopeKind(
 			row.ScopeKind,
 		), WorkspaceID: strings.TrimSpace(row.WorkspaceID.String),
 		EndpointGeneration: generation, ConfirmedAt: confirmedAt,
 	}, nil
 }
 
-func ingressBindingKey(ref gateway.IngressSubjectRef) sqlcgen.GetGatewayIngressBindingParams {
+func ingressBindingKey(ref ingress.SubjectRef) sqlcgen.GetGatewayIngressBindingParams {
 	return sqlcgen.GetGatewayIngressBindingParams{
 		SubjectKind: string(ref.Kind), SubjectID: strings.TrimSpace(ref.ID),
 	}

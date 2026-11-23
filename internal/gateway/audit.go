@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/ingress"
 )
 
 const (
@@ -220,10 +222,10 @@ func auditSurfaceFindings(surfaces []SurfaceStatus) []AuditFinding {
 	return findings
 }
 
-func auditIngressFindings(bindings []IngressBindingStatus) []AuditFinding {
+func auditIngressFindings(bindings []ingress.Projection) []AuditFinding {
 	findings := make([]AuditFinding, 0)
 	for _, binding := range bindings {
-		if binding.Reachability == IngressReachabilityLive {
+		if binding.Reachability == ingress.ReachabilityLive {
 			continue
 		}
 		findings = append(findings, AuditFinding{

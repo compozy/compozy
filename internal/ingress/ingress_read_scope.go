@@ -1,4 +1,4 @@
-package gateway
+package ingress
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 
 type ingressReadWorkspaceKey struct{}
 
-// WithIngressReadWorkspace scopes binding projections to one validated agent workspace.
-func WithIngressReadWorkspace(ctx context.Context, workspaceID string) context.Context {
+// WithReadWorkspace scopes binding projections to one validated agent workspace.
+func WithReadWorkspace(ctx context.Context, workspaceID string) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}

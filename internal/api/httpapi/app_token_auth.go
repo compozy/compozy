@@ -10,7 +10,8 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/apptoken"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
@@ -24,36 +25,45 @@ const appTokenIDKey = "compozy.app_token_id"
 // AppAccessPolicy resolves a physical route to its canonical operation decisions.
 type AppAccessPolicy func(method, route string) bool
 
-func WithAppTokenAuth(auth gateway.AppTokenAuthenticator, policy AppAccessPolicy) Option {
+type AppTokenAuthenticator interface {
+	AuthenticateAppToken(context.Context, string) (apptoken.Token, error)
+	TouchAppTokenLastSeen(context.Context, string, uint64) error
+	AppTokenOriginAllowed(string) bool
+	AcquireMutation(context.Context, string, uint64) (context.Context, error)
+	RevalidateForCommit(context.Context, string, uint64) error
+	Connections() remotehost.ConnectionRegistry
+}
+
+func WithAppTokenAuth(auth AppTokenAuthenticator, policy AppAccessPolicy) Option {
 	return func(server *Server) { server.appTokenAuth = auth; server.appAccess = policy }
 }
 
-func WithAppTokenAuthLimiter(limiter *gateway.AuthFailureLimiter) Option {
+func WithAppTokenAuthLimiter(limiter *remotehost.AuthFailureLimiter) Option {
 	return func(server *Server) { server.appTokenLimiter = limiter }
 }
 
 func (s *Server) appTokenAuthMiddleware() gin.HandlerFunc {
 	limiter := s.appTokenLimiter
 	if limiter == nil {
-		limiter = gateway.NewAuthFailureLimiter(
-			gateway.AppTokenAuthFailureLimit,
-			gateway.AppTokenAuthFailureWindow,
+		limiter = remotehost.NewAuthFailureLimiter(
+			apptoken.AuthFailureLimit,
+			apptoken.AuthFailureWindow,
 			s.now,
 		)
 	}
 	return func(c *gin.Context) { s.admitAppTokenRequest(c, limiter) }
 }
 
-func (s *Server) admitAppTokenRequest(c *gin.Context, limiter *gateway.AuthFailureLimiter) {
+func (s *Server) admitAppTokenRequest(c *gin.Context, limiter *remotehost.AuthFailureLimiter) {
 	origin := strings.TrimSpace(c.GetHeader("Origin"))
 	_, ownOrigin := resolveAllowedOrigin(origin, requestSchemeForTarget(c.Request, false), c.Request.Host, s.host)
 	foreign := origin != "" && !ownOrigin
 	secret := appTokenBearer(c.Request)
-	if !foreign && !gateway.HasAppTokenPrefix(secret) {
+	if !foreign && !apptoken.HasPrefix(secret) {
 		c.Next()
 		return
 	}
-	normalized, normalizeErr := gateway.NormalizeAppOrigin(origin)
+	normalized, normalizeErr := apptoken.NormalizeOrigin(origin)
 	if foreign && !s.admitAppTokenOrigin(c, origin, normalized, normalizeErr, secret) {
 		return
 	}
@@ -78,7 +88,7 @@ func (s *Server) admitAppTokenOrigin(
 ) bool {
 	if normalizeErr != nil {
 		s.warnAppTokenAccess(c, "app_token.origin_denied", "invalid-origin", "")
-		core.RespondAppTokenError(c, gateway.ErrAppOriginNotAllowed, true)
+		core.RespondAppTokenError(c, apptoken.ErrOriginNotAllowed, true)
 		return false
 	}
 	allowed := s.appTokenAuth != nil && s.appTokenAuth.AppTokenOriginAllowed(normalized)
@@ -88,7 +98,7 @@ func (s *Server) admitAppTokenOrigin(
 	}
 	if !allowed && (c.Request.Method == http.MethodOptions || secret == "") {
 		s.warnAppTokenAccess(c, "app_token.origin_denied", normalized, "")
-		core.RespondAppTokenError(c, gateway.ErrAppOriginNotAllowed, true)
+		core.RespondAppTokenError(c, apptoken.ErrOriginNotAllowed, true)
 		return false
 	}
 	if c.Request.Method == http.MethodOptions {
@@ -101,13 +111,13 @@ func (s *Server) admitAppTokenOrigin(
 }
 
 func (s *Server) authenticateAppToken(
-	c *gin.Context, limiter *gateway.AuthFailureLimiter, source, secret string, foreign bool,
-) (gateway.AppToken, bool) {
+	c *gin.Context, limiter *remotehost.AuthFailureLimiter, source, secret string, foreign bool,
+) (apptoken.Token, bool) {
 	if !limiter.Allow(source, false) {
 		s.warnAppTokenAccess(c, "app_token.rate_limited", source, "")
 		c.Header("Retry-After", "60")
-		core.RespondAppTokenError(c, gateway.ErrAppTokenRateLimited, true)
-		return gateway.AppToken{}, false
+		core.RespondAppTokenError(c, apptoken.ErrRateLimited, true)
+		return apptoken.Token{}, false
 	}
 	failed := false
 	defer func() {
@@ -119,78 +129,77 @@ func (s *Server) authenticateAppToken(
 	}()
 	if secret == "" {
 		failed = true
-		s.warnAppTokenAuthFailure(c, source, gateway.ErrAppTokenRequired)
-		core.RespondAppTokenError(c, gateway.ErrAppTokenRequired, true)
-		return gateway.AppToken{}, false
+		s.warnAppTokenAuthFailure(c, source, apptoken.ErrRequired)
+		core.RespondAppTokenError(c, apptoken.ErrRequired, true)
+		return apptoken.Token{}, false
 	}
 	if s.appTokenAuth == nil {
 		failed = true
-		s.warnAppTokenAuthFailure(c, source, gateway.ErrAppTokenUnauthenticated)
-		core.RespondAppTokenError(c, gateway.ErrAppTokenUnauthenticated, true)
-		return gateway.AppToken{}, false
+		s.warnAppTokenAuthFailure(c, source, apptoken.ErrUnauthenticated)
+		core.RespondAppTokenError(c, apptoken.ErrUnauthenticated, true)
+		return apptoken.Token{}, false
 	}
 	token, err := s.appTokenAuth.AuthenticateAppToken(c.Request.Context(), secret)
 	if err != nil {
-		failed = errors.Is(err, gateway.ErrAppTokenUnauthenticated) || errors.Is(err, gateway.ErrAppTokenRevoked)
+		failed = errors.Is(err, apptoken.ErrUnauthenticated) || errors.Is(err, apptoken.ErrRevoked)
 		if failed {
 			s.warnAppTokenAuthFailure(c, source, err)
 		}
 		core.RespondAppTokenError(c, err, true)
-		return gateway.AppToken{}, false
+		return apptoken.Token{}, false
 	}
 	if foreign && !slices.Contains(token.Origins, source) {
 		failed = true
-		s.warnAppTokenAccess(c, "app_token.origin_denied", source, token.Session.ID)
-		core.RespondAppTokenError(c, gateway.ErrAppOriginNotAllowed, true)
-		return gateway.AppToken{}, false
+		s.warnAppTokenAccess(c, "app_token.origin_denied", source, token.ID)
+		core.RespondAppTokenError(c, apptoken.ErrOriginNotAllowed, true)
+		return apptoken.Token{}, false
 	}
 	if foreign && (s.appAccess == nil || !s.appAccess(c.Request.Method, c.FullPath())) {
-		s.warnAppTokenAccess(c, "app_token.route_forbidden", source, token.Session.ID)
-		core.RespondAppTokenError(c, gateway.ErrAppTokenRouteForbidden, true)
-		return gateway.AppToken{}, false
+		s.warnAppTokenAccess(c, "app_token.route_forbidden", source, token.ID)
+		core.RespondAppTokenError(c, apptoken.ErrRouteForbidden, true)
+		return apptoken.Token{}, false
 	}
 	return token, true
 }
 
-func (s *Server) serveAppTokenRequest(c *gin.Context, token gateway.AppToken, foreign bool, origin string) {
-	device := token.Session
+func (s *Server) serveAppTokenRequest(c *gin.Context, token apptoken.Token, foreign bool, origin string) {
 	ctx := core.ContextWithAppToken(c.Request.Context(), token)
 	if isGatewayMutationRequest(c.Request) {
-		mutationCtx, err := s.appTokenAuth.AcquireMutation(ctx, device.ID, device.RevokeEpoch)
+		mutationCtx, err := s.appTokenAuth.AcquireMutation(ctx, token.ID, token.RevokeEpoch)
 		if err != nil {
 			core.RespondAppTokenError(c, err, true)
 			return
 		}
-		defer gateway.ReleaseMutation(mutationCtx)
+		defer remotehost.ReleaseMutation(mutationCtx)
 		ctx = store.ContextWithMutationCommitFence(mutationCtx, func(commitCtx context.Context) error {
-			return s.appTokenAuth.RevalidateForCommit(commitCtx, device.ID, device.RevokeEpoch)
+			return s.appTokenAuth.RevalidateForCommit(commitCtx, token.ID, token.RevokeEpoch)
 		})
 	}
 	if isGatewayStreamRequest(c.Request) {
 		registry := s.appTokenAuth.Connections()
 		if registry == nil {
-			core.RespondAppTokenError(c, gateway.ErrAppTokenUnauthenticated, true)
+			core.RespondAppTokenError(c, apptoken.ErrUnauthenticated, true)
 			return
 		}
 		streamCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		done := make(chan struct{})
-		handle := registry.RegisterWaitable(device.ID, cancel, done)
-		defer func() { close(done); registry.Deregister(device.ID, handle) }()
+		handle := registry.RegisterWaitable(token.ID, cancel, done)
+		defer func() { close(done); registry.Deregister(token.ID, handle) }()
 		ctx = streamCtx
 	}
-	if err := s.appTokenAuth.RevalidateForCommit(ctx, device.ID, device.RevokeEpoch); err != nil {
+	if err := s.appTokenAuth.RevalidateForCommit(ctx, token.ID, token.RevokeEpoch); err != nil {
 		core.RespondAppTokenError(c, err, true)
 		return
 	}
-	if err := s.appTokenAuth.TouchAppTokenLastSeen(ctx, device.ID, device.RevokeEpoch); err != nil {
+	if err := s.appTokenAuth.TouchAppTokenLastSeen(ctx, token.ID, token.RevokeEpoch); err != nil {
 		core.RespondAppTokenError(c, err, true)
 		return
 	}
 	if foreign {
 		c.Set(appTokenOriginKey, origin)
 	}
-	c.Set(appTokenIDKey, device.ID)
+	c.Set(appTokenIDKey, token.ID)
 	c.Request = c.Request.WithContext(ctx)
 	c.Next()
 }
@@ -205,7 +214,7 @@ func appTokenBearer(request *http.Request) string {
 
 func rejectTierAppTokens() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if gateway.HasAppTokenPrefix(appTokenBearer(c.Request)) {
+		if apptoken.HasPrefix(appTokenBearer(c.Request)) {
 			abortAppTokenAccess(
 				c,
 				http.StatusForbidden,

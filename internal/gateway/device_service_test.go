@@ -3,13 +3,12 @@ package gateway
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -284,7 +283,7 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AcquireMutation() error = %v", err)
 		}
-		t.Cleanup(func() { ReleaseMutation(mutationCtx) })
+		t.Cleanup(func() { remotehost.ReleaseMutation(mutationCtx) })
 		removed, err := service.RemoveDevice(mutationCtx, issued.Device.ID)
 		if err != nil {
 			t.Fatalf("RemoveDevice(self) error = %v", err)
@@ -324,36 +323,11 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 			t.Fatalf("RevokeDevice(actor) error = %v", err)
 		}
 		staleCtx := ContextWithDevice(t.Context(), actor.Device)
-		if _, err := service.RemoveDevice(staleCtx, target.Device.ID); !errors.Is(err, ErrDeviceRevoked) {
-			t.Fatalf("RemoveDevice(stale actor) error = %v, want ErrDeviceRevoked", err)
+		if _, err := service.RemoveDevice(staleCtx, target.Device.ID); !errors.Is(err, remotehost.ErrDeviceRevoked) {
+			t.Fatalf("RemoveDevice(stale actor) error = %v, want remotehost.ErrDeviceRevoked", err)
 		}
 		if _, exists := store.byID[target.Device.ID]; !exists {
 			t.Fatal("a revoked actor deleted another device record")
-		}
-	})
-
-	t.Run("Should release idle mutation-gate state after repeated committed revocations", func(t *testing.T) {
-		t.Parallel()
-		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-		service := newDeviceServiceOnly(t, &now)
-
-		for index := range 8 {
-			issued, err := issueTestDevice(
-				t.Context(), service, fmt.Sprintf("Device %d", index), ActorKindOperatorDevice,
-			)
-			if err != nil {
-				t.Fatalf("issueTestDevice(%d) error = %v", index, err)
-			}
-			if _, err := service.RevokeDevice(t.Context(), issued.Device.ID); err != nil {
-				t.Fatalf("RevokeDevice(%d) error = %v", index, err)
-			}
-		}
-
-		service.mutations.mu.Lock()
-		tracked := len(service.mutations.devices)
-		service.mutations.mu.Unlock()
-		if tracked != 0 {
-			t.Fatalf("tracked mutation-gate devices = %d, want 0 after committed revocations", tracked)
 		}
 	})
 
@@ -399,7 +373,7 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 			t.Context(),
 			issued.Device.ID,
 			issued.Device.RevokeEpoch,
-		); !errors.Is(err, ErrDeviceRevoked) {
+		); !errors.Is(err, remotehost.ErrDeviceRevoked) {
 			t.Fatalf("RevalidateForCommit(stale) error = %v", err)
 		}
 	})
@@ -420,7 +394,7 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AcquireMutation() error = %v", err)
 		}
-		t.Cleanup(func() { ReleaseMutation(mutationCtx) })
+		t.Cleanup(func() { remotehost.ReleaseMutation(mutationCtx) })
 
 		type revokeOutcome struct {
 			result RevokeResult
@@ -445,17 +419,17 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 			context.WithoutCancel(mutationCtx),
 			issued.Device.ID,
 			issued.Device.RevokeEpoch,
-		); !errors.Is(err, ErrDeviceRevoked) {
-			t.Fatalf("RevalidateForCommit(sealed) error = %v, want ErrDeviceRevoked", err)
+		); !errors.Is(err, remotehost.ErrDeviceRevoked) {
+			t.Fatalf("RevalidateForCommit(sealed) error = %v, want remotehost.ErrDeviceRevoked", err)
 		}
-		ReleaseMutation(mutationCtx)
+		remotehost.ReleaseMutation(mutationCtx)
 		outcome := <-revoked
 		if outcome.err != nil || !outcome.result.Changed || outcome.result.Device.RevokeEpoch != 1 {
 			t.Fatalf("RevokeDevice() = (%#v, %v)", outcome.result, outcome.err)
 		}
 	})
 
-	t.Run("Should cancel epoch revalidation and release the mutation lease", func(t *testing.T) {
+	t.Run("Should propagate cancellation to the device epoch store", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
 		store := &cancelAwareDeviceStore{
@@ -493,13 +467,6 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 			close(store.release)
 			acquireErr := <-outcome
 			t.Fatalf("AcquireMutation() ignored cancellation; eventual error = %v", acquireErr)
-		}
-
-		service.mutations.mu.Lock()
-		tracked := len(service.mutations.devices)
-		service.mutations.mu.Unlock()
-		if tracked != 0 {
-			t.Fatalf("tracked mutation-gate devices = %d, want canceled lease released", tracked)
 		}
 	})
 
@@ -556,7 +523,13 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 		if _, err := service.Authenticate(t.Context(), issued.Credential); !errors.Is(err, ErrDeviceUnauthenticated) {
 			t.Fatalf("Authenticate(revoked) error = %v", err)
 		}
-		if _, err := service.ConsumeStreamTicket(t.Context(), ticket.Ticket); !errors.Is(err, ErrStreamTicketInvalid) {
+		if _, err := service.ConsumeStreamTicket(
+			t.Context(),
+			ticket.Ticket,
+		); !errors.Is(
+			err,
+			remotehost.ErrStreamTicketInvalid,
+		) {
 			t.Fatalf("ConsumeStreamTicket(revoked) error = %v", err)
 		}
 	})
@@ -575,118 +548,6 @@ func TestDeviceServiceLifecycle(t *testing.T) {
 	})
 }
 
-func TestAuthFailureLimiter(t *testing.T) {
-	t.Parallel()
-
-	// Invariant: successful app authentication does not reset failures; owner: gateway limiter.
-	t.Run("Should preserve failures while completing successful attempts", func(t *testing.T) {
-		t.Parallel()
-		now := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
-		limiter := NewAuthFailureLimiter(2, time.Minute, func() time.Time { return now })
-		for range 3 {
-			if !limiter.Allow("http://app.test", false) {
-				t.Fatal("successful attempts exhausted the failure budget")
-			}
-			limiter.Complete("http://app.test")
-		}
-		limiter.Failure("http://app.test", false)
-		if !limiter.Allow("http://app.test", false) {
-			t.Fatal("second attempt was rejected before the failure limit")
-		}
-		limiter.Complete("http://app.test")
-		limiter.Failure("http://app.test", false)
-		if limiter.Allow("http://app.test", false) {
-			t.Fatal("successful authentication erased a failure in the current window")
-		}
-		now = now.Add(time.Minute)
-		if !limiter.Allow("http://app.test", false) {
-			t.Fatal("expired failure window remained blocked")
-		}
-	})
-
-	t.Run("Should use the system clock when no clock is supplied", func(t *testing.T) {
-		t.Parallel()
-		limiter := NewAuthFailureLimiter(1, time.Minute, nil)
-		limiter.Failure("198.51.100.7", false)
-		if limiter.Allow("198.51.100.7", false) {
-			t.Fatal("Allow(remote over limit with default clock) = true")
-		}
-	})
-
-	t.Run("Should rate-limit each remote source while exempting local access (UT-045)", func(t *testing.T) {
-		t.Parallel()
-		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-		limiter := NewAuthFailureLimiter(2, time.Minute, func() time.Time { return now })
-		limiter.Failure("198.51.100.8", false)
-		limiter.Failure("198.51.100.8", false)
-		if limiter.Allow("198.51.100.8", false) {
-			t.Fatal("Allow(remote over limit) = true")
-		}
-		if !limiter.Allow("198.51.100.9", false) || !limiter.Allow("198.51.100.8", true) {
-			t.Fatal("independent remote source or local exemption was denied")
-		}
-		now = now.Add(2 * time.Minute)
-		if !limiter.Allow("198.51.100.8", false) {
-			t.Fatal("Allow(remote after window) = false")
-		}
-	})
-
-	t.Run("Should bound tracked remote sources under distributed probing", func(t *testing.T) {
-		t.Parallel()
-		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-		limiter := NewAuthFailureLimiter(2, time.Minute, func() time.Time { return now })
-		for index := range maxTrackedAuthSources {
-			limiter.Failure(fmt.Sprintf("source-%d", index), false)
-		}
-		if limiter.Allow("one-more-source", false) {
-			t.Fatal("Allow(new source at tracking capacity) = true")
-		}
-		if len(limiter.failures) != maxTrackedAuthSources {
-			t.Fatalf("tracked sources = %d, want bounded %d", len(limiter.failures), maxTrackedAuthSources)
-		}
-		now = now.Add(2 * time.Minute)
-		if !limiter.Allow("one-more-source", false) {
-			t.Fatal("Allow(new source after expiry pruning) = false")
-		}
-	})
-
-	t.Run("Should reserve the per-source budget across concurrent attempts", func(t *testing.T) {
-		t.Parallel()
-		const maximum = 2
-		limiter := NewAuthFailureLimiter(maximum, time.Minute, nil)
-		start := make(chan struct{})
-		var allowed atomic.Int64
-		var workers sync.WaitGroup
-		for range 32 {
-			workers.Go(func() {
-				<-start
-				if limiter.Allow("198.51.100.10", false) {
-					allowed.Add(1)
-				}
-			})
-		}
-		close(start)
-		workers.Wait()
-		if got := allowed.Load(); got != maximum {
-			t.Fatalf("concurrently allowed attempts = %d, want %d", got, maximum)
-		}
-	})
-
-	t.Run("Should apply live authentication limits without replacing the limiter", func(t *testing.T) {
-		t.Parallel()
-		limiter := NewAuthFailureLimiter(2, time.Minute, nil)
-		if err := limiter.Reconfigure(1, 2*time.Minute); err != nil {
-			t.Fatalf("Reconfigure() error = %v", err)
-		}
-		if !limiter.Allow("198.51.100.11", false) {
-			t.Fatal("Allow(first request after reconfigure) = false")
-		}
-		if limiter.Allow("198.51.100.11", false) {
-			t.Fatal("Allow(second request after reconfigure) = true, want live limit")
-		}
-	})
-}
-
 type cancelAwareDeviceStore struct {
 	*memoryDeviceStore
 	started sync.Once
@@ -701,66 +562,5 @@ func (s *cancelAwareDeviceStore) RevalidateDeviceEpoch(ctx context.Context, id s
 		return ctx.Err()
 	case <-s.release:
 		return s.memoryDeviceStore.RevalidateDeviceEpoch(ctx, id, epoch)
-	}
-}
-
-// Invariant: app origins have one strict canonical representation; owner: gateway validation.
-func TestNormalizeAppOrigin(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{name: "Should lowercase the host", input: "http://LOCALHOST:3000", want: "http://localhost:3000"},
-		{
-			name:  "Should remove default HTTPS port",
-			input: "https://dash.example.com:443",
-			want:  "https://dash.example.com",
-		},
-		{name: "Should remove default HTTP port", input: "http://example.com:80", want: "http://example.com"},
-		{name: "Should preserve bracketed IPv6", input: "http://[::1]:3000", want: "http://[::1]:3000"},
-		{
-			name:  "Should accept the maximum origin length",
-			input: "https://" + strings.Repeat("a", 2040),
-			want:  "https://" + strings.Repeat("a", 2040),
-		},
-		{name: "Should reject an oversized origin", input: "https://" + strings.Repeat("a", 2041)},
-		{name: "Should reject a path", input: "http://localhost:3000/app"},
-		{
-			name:  "Should canonicalize a root slash and uppercase scheme",
-			input: "HTTP://LocalHost:3000/",
-			want:  "http://localhost:3000",
-		},
-		{name: "Should reject a query", input: "http://x.test?a=1"},
-		{name: "Should reject an empty fragment", input: "http://x.test#"},
-		{name: "Should reject null", input: "null"},
-		{name: "Should reject a wildcard host", input: "https://*.example.com"},
-		{name: "Should reject a wildcard", input: "*"},
-		{name: "Should reject file URLs", input: "file:///tmp"},
-		{name: "Should reject extension URLs", input: "chrome-extension://abc"},
-		{name: "Should reject userinfo", input: "https://user@x.test"},
-		{name: "Should reject a nonnumeric port", input: "https://x.test:abc"},
-		{name: "Should reject an out of range port", input: "https://x.test:65536"},
-		{name: "Should reject an empty port", input: "https://x.test:"},
-		{name: "Should reject whitespace", input: " https://x.test"},
-		{name: "Should reject an invalid IPv6 host", input: "https://[invalid]:3000"},
-		{name: "Should reject a bracketed IPv4 host", input: "https://[127.0.0.1]:3000"},
-		{name: "Should reject an unbracketed IPv6 host", input: "http://::1:3000"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got, err := NormalizeAppOrigin(tc.input)
-			if tc.want == "" {
-				if !errors.Is(err, ErrAppTokenOriginInvalid) {
-					t.Fatalf("NormalizeAppOrigin(%q) = (%q, %v), want invalid origin", tc.input, got, err)
-				}
-				return
-			}
-			if err != nil || got != tc.want {
-				t.Fatalf("NormalizeAppOrigin(%q) = (%q, %v), want %q", tc.input, got, err, tc.want)
-			}
-		})
 	}
 }
