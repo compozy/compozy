@@ -822,6 +822,7 @@ export interface LoopTarget {
   loop_name: string;
   inputs?: Record<string, JSONValue>;
   input_mapping?: Record<string, string>;
+  input_command?: string;
 }
 
 export type RetryStrategy = string;
@@ -901,6 +902,7 @@ export interface AutomationJobUpdateParams {
   schedule?: ScheduleSpec;
   task?: JobTaskConfig;
   loop_target?: LoopTarget;
+  loop_input_command?: string;
   enabled?: boolean;
   retry?: RetryConfig;
   fire_limit?: FireLimitConfig;

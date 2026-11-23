@@ -3519,7 +3519,7 @@
     "read_only": false,
     "destructive": true,
     "open_world": true,
-    "input_schema_digest": "1c957d458c405380b2902e931827dec50e50c571e4248e51da6812f234049eae",
+    "input_schema_digest": "0bceb98911a31b74a33909c3dfb640ead93b66a14e79c1fbe2dd7cb140ce1c08",
     "output_schema_digest": "0e01a60f2ba3ccef7f8f0a011090028ce7a5e815192477f54215f1e91acdeb33",
     "result_contract": "single",
     "single_result_reason": "minimal"

@@ -20,7 +20,7 @@ func TestSkillReviewRepo(t *testing.T) {
 	t.Run("Should migrate every review losslessly and keep legacy rows approvable [IT-012 IT-003]", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00219_schema.sql"))
+		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00220_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

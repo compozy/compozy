@@ -15635,18 +15635,25 @@ func TestNativeSubagentBindings(t *testing.T) {
 	t.Run("Should report exact oversized field errors", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
+			name  string
 			input nativeSubagentDelegateInput
 			want  string
 		}{
-			{nativeSubagentDelegateInput{Task: strings.Repeat("界", 120001)}, "task exceeds 120000 characters."},
-			{nativeSubagentDelegateInput{Task: "work", Title: strings.Repeat("界", 513)}, "title exceeds 512 characters."},
-			{nativeSubagentDelegateInput{Task: "work", IdempotencyKey: strings.Repeat("界", 257)}, "idempotency_key exceeds 256 characters."},
+			{"task", nativeSubagentDelegateInput{Task: strings.Repeat("界", 120001)}, "task exceeds 120000 characters."},
+			{"title", nativeSubagentDelegateInput{Task: "work", Title: strings.Repeat("界", 513)}, "title exceeds 512 characters."},
+			{"idempotency_key", nativeSubagentDelegateInput{Task: "work", IdempotencyKey: strings.Repeat("界", 257)}, "idempotency_key exceeds 256 characters."},
+			{"prior_subagent_id", nativeSubagentDelegateInput{Task: "work", PriorSubagentID: strings.Repeat("a", 65)}, "prior_subagent_id exceeds 64 characters."},
+			{"handoff_objections", nativeSubagentDelegateInput{Task: "work", Handoff: &nativeSubagentHandoffInput{Objections: strings.Repeat("a", 40001)}}, "handoff.objections exceeds 40000 characters."},
+			{"handoff_findings", nativeSubagentDelegateInput{Task: "work", Handoff: &nativeSubagentHandoffInput{Findings: strings.Repeat("a", 40001)}}, "handoff.findings exceeds 40000 characters."},
 		} {
-			_, err := tc.input.request(session.SubagentCaller{ToolCallID: "call"})
-			detail, ok := errors.AsType[*session.SubagentError](err)
-			if !ok || detail.Message != tc.want {
-				t.Fatalf("error = %v, want %s", err, tc.want)
-			}
+			t.Run("Should reject oversized "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				_, err := tc.input.request(session.SubagentCaller{ToolCallID: "call"})
+				detail, ok := errors.AsType[*session.SubagentError](err)
+				if !ok || detail.Message != tc.want {
+					t.Fatalf("error = %v, want %s", err, tc.want)
+				}
+			})
 		}
 	})
 	t.Run(
