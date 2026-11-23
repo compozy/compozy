@@ -46,7 +46,8 @@ func TestSkillReviewRepo(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() {
-			if err := upgraded.Close(ctx); err != nil {
+			// t.Context is already canceled when cleanups run.
+			if err := upgraded.Close(context.WithoutCancel(ctx)); err != nil {
 				t.Error(err)
 			}
 		})

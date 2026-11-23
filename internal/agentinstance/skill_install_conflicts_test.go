@@ -377,8 +377,14 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 						payload.OriginalSource != skillOriginalInCopy {
 						t.Fatalf("journal = %+v, %v; want a conflict retaining %s", payload, ok, retained)
 					}
-					if _, err := f.resolve(t, svc, payload.OpID, keep); err != nil {
-						t.Fatalf("ResolveInstallConflict() = %v", err)
+					retainedPath := filepath.Join(f.root, retained)
+					conflicts, err := svc.InstallConflicts(t.Context(), skillOperator, []string{f.root})
+					if err != nil || len(conflicts) != 1 || conflicts[0].RetainedCopy != retainedPath {
+						t.Fatalf("InstallConflicts() = %+v, %v; want retained copy %s", conflicts, err, retainedPath)
+					}
+					result, err := f.resolve(t, svc, payload.OpID, keep)
+					if err != nil || result.RetainedCopy != retainedPath {
+						t.Fatalf("ResolveInstallConflict() = %+v, %v; want retained copy %s", result, err, retainedPath)
 					}
 					if f.digest(t, retained) != inBackup {
 						t.Fatal("the resolution removed the edit retained from the backup slot")

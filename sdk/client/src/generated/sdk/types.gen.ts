@@ -753,6 +753,7 @@ export type AgentSkillInstallConflictPayload = {
   action: string;
   keep?: string;
   op_id: string;
+  retained_copy?: string;
   review_id?: string;
   since?: string | null;
   skill: string;
@@ -768,6 +769,7 @@ export type AgentSkillInstallConflictResolveResponse = {
   keep: string;
   kept_copy?: string;
   op_id: string;
+  retained_copy?: string;
   skill: string;
 };
 

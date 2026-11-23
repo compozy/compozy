@@ -9199,6 +9199,7 @@ export interface components {
       action: string;
       keep?: string;
       op_id: string;
+      retained_copy?: string;
       review_id?: string;
       /** Format: date-time */
       since?: string | null;
@@ -9213,6 +9214,7 @@ export interface components {
       keep: string;
       kept_copy?: string;
       op_id: string;
+      retained_copy?: string;
       skill: string;
     };
     AgentSkillInstallConflictsResponse: {

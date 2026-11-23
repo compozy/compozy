@@ -29,7 +29,7 @@ func (h *BaseHandlers) ListAgentSkillInstallConflicts(c *gin.Context) {
 	for _, conflict := range conflicts {
 		payload := contract.AgentSkillInstallConflictPayload{
 			OpID: conflict.OpID, Skill: conflict.Skill, ReviewID: conflict.ReviewID,
-			Action: conflict.Action, State: conflict.State, Keep: conflict.Keep,
+			Action: conflict.Action, State: conflict.State, Keep: conflict.Keep, RetainedCopy: conflict.RetainedCopy,
 		}
 		if !conflict.Since.IsZero() {
 			since := conflict.Since
@@ -65,7 +65,7 @@ func (h *BaseHandlers) ResolveAgentSkillInstallConflict(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, contract.AgentSkillInstallConflictResolveResponse{
 		OpID: result.OpID, Skill: result.Skill, Keep: result.Keep, KeptCopy: result.KeptCopy,
-		AlreadyResolved: result.AlreadyResolved,
+		RetainedCopy: result.RetainedCopy, AlreadyResolved: result.AlreadyResolved,
 	})
 }
 
