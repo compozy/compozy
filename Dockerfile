@@ -10,6 +10,9 @@ RUN go mod download github.com/jackc/pgx/v5 github.com/pressly/goose/v3
 COPY cmd/compozy-cloud ./cmd/compozy-cloud
 COPY internal/cloud ./internal/cloud
 COPY internal/remoteproto ./internal/remoteproto
+COPY packages/brand/cloud_assets.go ./packages/brand/cloud_assets.go
+COPY packages/brand/public/brand/visuals/swarm-1280.jpg packages/brand/public/brand/visuals/swarm-portrait-1280.jpg ./packages/brand/public/brand/visuals/
+COPY packages/brand/public/brand/svg/compozy-wordmark-white.svg ./packages/brand/public/brand/svg/
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
     go build -trimpath -ldflags="-s -w" -o /out/compozy-cloud ./cmd/compozy-cloud
 

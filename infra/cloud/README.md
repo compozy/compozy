@@ -21,6 +21,16 @@ The edge Worker owns the Cloudflare Containers declaration and the `cloud-0` and
 
 Use separate OAuth clients, Stripe prices and webhook secrets, Turnstile credentials, and tunnel API credentials for staging. Use Stripe test mode and synthetic accounts in staging.
 
+## Sign-in
+
+- Set `COMPOZY_CLOUD_GOOGLE_CLIENT_ID` and `COMPOZY_CLOUD_GOOGLE_CLIENT_SECRET` for a Google Web application client. Set `COMPOZY_CLOUD_GITHUB_CLIENT_ID` and `COMPOZY_CLOUD_GITHUB_CLIENT_SECRET` for a GitHub OAuth App. Register `https://<cloud-host>/v1/auth/callback/google` and `https://<cloud-host>/v1/auth/callback/github` on the respective apps.
+- Enable the Google OIDC `auth_time` claim in the Google Auth Platform security settings. Admin recovery requires a fresh authentication timestamp for the current activation attempt.
+- Configure an invisible Turnstile widget for the cloud host. Set `COMPOZY_CLOUD_TURNSTILE_SITE_KEY` and `COMPOZY_CLOUD_TURNSTILE_SECRET_KEY` for the widget. The server checks the hostname and expects the actions `activate` and `browser_authorize`.
+- Set `COMPOZY_CLOUD_PKCE_ENC_KEY` to an unpadded base64url encoding of 32 random bytes. Both replicas in the environment use the same value for OAuth verifier and refresh credential encryption. Changing it invalidates outstanding provider callbacks and existing refresh credentials, so coordinate rotation across both replicas.
+- Set `STRIPE_PRICE_PRO_MONTHLY` and `STRIPE_PRICE_PRO_ANNUAL` to the same environment's Pro prices before enabling paid hosted routes.
+
+Apply the cloud schema migration before enabling sign-in. Cloudflare supplies the request location and client IP to private replicas. The service stores the coarse location and uses the IP only for Turnstile verification.
+
 ## Cloudflare rate limits
 
 Configure the following zone rules for the cloud host in each environment. Count requests by client IP.

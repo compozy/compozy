@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/cloud/api"
+	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/cloud/control"
 	"github.com/compozy/compozy/internal/cloud/store"
+	"github.com/compozy/compozy/internal/cloud/web"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
@@ -22,6 +24,7 @@ type Config struct {
 	Issuer   string
 	Now      func() time.Time
 	Logger   *slog.Logger
+	Auth     *auth.Config
 }
 
 type App struct {
@@ -30,6 +33,7 @@ type App struct {
 	Keys         *api.SigningKeys
 	AccountLimit *api.AccountLimiter
 	Issuer       string
+	Auth         *auth.Service
 
 	router   *api.Router
 	draining atomic.Bool
@@ -60,7 +64,26 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 	}
 	a.AccountLimit = api.NewAccountLimiter(a.now)
 	a.router = api.NewRouter(db, a.Keys, a.Control.Ready, a.draining.Load, a.now)
+	if cfg.Auth != nil {
+		if err := a.registerAuth(*cfg.Auth); err != nil {
+			db.Close()
+			return nil, err
+		}
+	}
 	return a, nil
+}
+
+func (a *App) registerAuth(cfg auth.Config) error {
+	service, err := auth.New(a.Store, cfg, a.Issuer, a.Keys.Signer(), a.Keys.JWKS(), a.AccountLimit.RetryAfter, a.now)
+	if err != nil {
+		return err
+	}
+	if err := web.Register(a.Routes(), service); err != nil {
+		return err
+	}
+	api.RegisterAuthRoutes(a.Routes(), service)
+	a.Auth = service
+	return nil
 }
 
 func (a *App) Routes() *http.ServeMux {
@@ -75,6 +98,9 @@ func (a *App) RunBackground(ctx context.Context) {
 	var group sync.WaitGroup
 	group.Go(func() { a.Control.Listen(ctx, a.Store.ConnectDirect, a.logger) })
 	group.Go(func() { a.runRetention(ctx) })
+	if a.Auth != nil {
+		group.Go(func() { a.runAuthCleanup(ctx) })
+	}
 	group.Wait()
 }
 
@@ -85,6 +111,24 @@ func (a *App) Close() {
 func (a *App) StartDrain() <-chan struct{} {
 	a.draining.Store(true)
 	return a.Control.Drain()
+}
+
+func (a *App) runAuthCleanup(ctx context.Context) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			job, cancel := context.WithTimeout(ctx, 10*time.Second)
+			err := a.Auth.Sweep(job)
+			cancel()
+			if err != nil && ctx.Err() == nil {
+				a.logger.Warn("Cloud auth cleanup failed")
+			}
+		}
+	}
 }
 
 func (a *App) runRetention(ctx context.Context) {
