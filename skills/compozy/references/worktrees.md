@@ -272,8 +272,10 @@ settle as explicit failures without session, Git, or forge effects.
 
 Use `compozy__subagent_delegate` with `isolation: "worktree"` when a child should change code on
 its own branch. The branch is `<run_branch_namespace><title-slug>-<8 hex>` (the suffix comes from
-the subagent ID). `base_ref` accepts a commit-ish; omitted or blank uses the caller checkout's
-HEAD at delegation time. Commit intended starting changes first: uncommitted files are not copied.
+the subagent ID). `base_ref` accepts a commit-ish. When it is omitted or blank, a linked prior
+subagent's worktree branch is the base. The prior subagent must belong to the same parent session
+and workspace. The base defaults to the caller checkout's HEAD for a fresh delegation or a linked
+prior subagent that used shared isolation. Commit intended starting changes first.
 A shared child of an isolated subagent inherits that checkout; another isolated child starts from
 its HEAD. The workspace and permission boundaries remain those of the parent.
 
