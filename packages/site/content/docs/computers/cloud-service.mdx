@@ -7,11 +7,11 @@ Compozy Cloud coordinates accounts and access to computers. Agent sessions run o
 
 ## Public endpoints
 
-| Endpoint | Response |
-| --- | --- |
-| `GET /healthz` | `200` with `{"status":"ok"}` when the replica can serve requests |
+| Endpoint                                        | Response                                                                          |
+| ----------------------------------------------- | --------------------------------------------------------------------------------- |
+| `GET /healthz`                                  | `200` with `{"status":"ok"}` when the replica can serve requests                  |
 | `GET /v1/jwks` and `GET /.well-known/jwks.json` | The same public Ed25519 key set, including verification keys kept during rotation |
-| `GET /v1/gate-policy` | A compact JWS (`application/jose`) with `mode`, `until`, `message`, and `iat` |
+| `GET /v1/gate-policy`                           | A compact JWS (`application/jose`) with `mode`, `until`, `message`, and `iat`     |
 
 The policy decides whether the sign-in gate is enforced or has a temporary grace period. Its `until` is UTC in RFC 3339 format for grace and `null` for enforcement. `iat` is a Unix timestamp in seconds. Verify the signature against the cloud JWKS before applying grace, and check that its deadline is still in the future.
 
