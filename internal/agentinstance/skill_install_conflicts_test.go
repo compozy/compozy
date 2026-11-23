@@ -669,8 +669,9 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
 		svc := f.service(t, "home-a", nil)
-		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
+		// Proposed before the skill exists, so the proposal stays a new skill in every later slice.
 		review := f.propose(t, svc, "release-checklist", "Another change.")
+		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
 		f.rewriteJournal(t, "release-checklist", func(payload *SkillInstallPayload) { payload.ReviewID = review.ID })
 		reject := func() error {
 			return svc.Reject(t.Context(), skillOperator, f.instance, review.ID, review.Digest,
