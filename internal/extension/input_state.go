@@ -112,6 +112,9 @@ type InputsRequiredError struct {
 	MissingEnv       []string
 	// InvalidInputs lists the required inputs among MissingInputs whose stored value fails the manifest type.
 	InvalidInputs []string
+	// Digest is the SHA-256 of the acquired package an install refusal describes, so a retry with the
+	// prompted values can pin the same bytes.
+	Digest string
 }
 
 func (e *InputsRequiredError) Unwrap() error { return ErrExtensionInputsRequired }

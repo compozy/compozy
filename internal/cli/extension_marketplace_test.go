@@ -368,9 +368,10 @@ func TestExtensionInstallPromptsForRequiredInputs(t *testing.T) {
 			statusCode: 422,
 			status:     "422 Unprocessable Entity",
 			payload: contract.ExtensionOperationErrorPayload{
-				Error:  "extension: inputs required",
-				Code:   diagnosticcontract.CodeExtensionInputsRequired,
-				Inputs: []string{"token"},
+				Error:         "extension: inputs required",
+				Code:          diagnosticcontract.CodeExtensionInputsRequired,
+				Inputs:        []string{"token"},
+				FetchedDigest: strings.Repeat("d", 64),
 				InputDefinitions: []contract.MarketplaceInputPayload{
 					{ID: "label", Prompt: "Label", Type: "string"},
 					{ID: "token", Prompt: "API token", Type: "secret", Required: true},
@@ -427,6 +428,25 @@ func TestExtensionInstallPromptsForRequiredInputs(t *testing.T) {
 		}
 		if strings.Contains(stderr, "s3cret-token") {
 			t.Fatal("prompt output echoed the secret value")
+		}
+		if calls[1].ExpectedDigest != strings.Repeat("c", 64) {
+			t.Fatalf("retry digest = %q, want the pinned listing digest kept", calls[1].ExpectedDigest)
+		}
+	})
+
+	t.Run("Should pin an unpinned retry to the refused package digest", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, true, &calls)
+		_, _, err := executeRootCommandWithInput(
+			t, deps, "s3cret-token\n",
+			"extension", "install", "git:https://example.com/r.git@v2", "--allow-unverified", "--yes",
+		)
+		if err != nil {
+			t.Fatalf("install with prompt error = %v", err)
+		}
+		if len(calls) != 2 || calls[0].ExpectedDigest != "" || calls[1].ExpectedDigest != strings.Repeat("d", 64) {
+			t.Fatalf("install calls = %#v, want an unpinned refusal and a retry pinned to its digest", calls)
 		}
 	})
 

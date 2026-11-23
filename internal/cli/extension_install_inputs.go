@@ -38,7 +38,9 @@ func (f *extensionInputFlags) registerValues(cmd *cobra.Command) {
 
 // promptExtensionInstallInputs answers an extension_inputs_required refusal on an interactive terminal. It
 // prompts for the listed inputs in input_definitions order and returns the plan to retry with the merged
-// values. It reports false when the refusal is not prompted, so the caller keeps the original error.
+// values. An unpinned retry pins the refused package's digest, so the prompted values reach only the
+// bytes the refusal described. It reports false when the refusal is not prompted, so the caller keeps
+// the original error.
 func promptExtensionInstallInputs(
 	cmd *cobra.Command, deps commandDeps, plan extensionInstallPlan, installErr error,
 ) (extensionInstallPlan, bool, error) {
@@ -75,6 +77,9 @@ func promptExtensionInstallInputs(
 		}
 		maps.Copy(merged, values)
 		retry.Attempts[index].Inputs = merged
+		if retry.Attempts[index].ExpectedDigest == "" {
+			retry.Attempts[index].ExpectedDigest = apiErr.payload.FetchedDigest
+		}
 	}
 	return retry, true, nil
 }

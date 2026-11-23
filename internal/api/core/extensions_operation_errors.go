@@ -257,6 +257,7 @@ func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErr
 		if required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err); ok {
 			payload.Inputs, payload.MissingEnv = slices.Clone(required.MissingInputs), slices.Clone(required.MissingEnv)
 			payload.Invalid = slices.Clone(required.InvalidInputs)
+			payload.FetchedDigest = required.Digest
 			for _, input := range required.InputDefinitions {
 				payload.InputDefinitions = append(payload.InputDefinitions, contract.MarketplaceInputPayload{
 					ID:       input.ID,
