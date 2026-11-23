@@ -26,7 +26,7 @@ export const meta = definePrototype({
   route: "/settings/computers",
   states: [
     { id: "ssh-picker", label: "SSH · Pick from ~/.ssh/config or enter a host" },
-    { id: "ssh-running", label: "SSH · Steps running (Installing Compozy 0.8.0)" },
+    { id: "ssh-running", label: "SSH · Steps running (Installing CompozyOS 0.8.0)" },
     { id: "ssh-trust-host", label: "SSH · Trust this host? (SHA256 fingerprint)" },
     { id: "ssh-host-key-changed", label: "SSH · Host key changed (blocked)" },
     { id: "ssh-password", label: "SSH · Password or one-time code prompt" },
@@ -196,13 +196,13 @@ export default function AddComputerDraft({ state }: PrototypeProps) {
         {...config.dialog}
         onClose={() => {
           setOpen(false);
-          toast("Dialog closed. Switch state to reopen.");
+          toast.message("Dialog closed. Switch state to reopen.");
         }}
         onOpenComputer={name => {
           setOpen(false);
           toast.success(`Opened ${name} details.`);
         }}
-        onUpgrade={() => toast("Opens Upgrade sheet (Screen 01 · U9)")}
+        onUpgrade={() => toast.message("Opens Upgrade sheet (Screen 01 · U9)")}
         open={open}
       />
     </>

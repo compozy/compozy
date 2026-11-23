@@ -21,7 +21,7 @@ export const LEGAL_DOCUMENTS: Record<LegalDocId, LegalDocument> = {
     title: "Terms of Service",
     route: "/legal/terms",
     summary:
-      "The terms that govern your Compozy account, the Compozy Cloud control plane, and Compozy Pro subscriptions.",
+      "The terms that govern your CompozyOS account, the Compozy Cloud control plane, and Compozy Pro subscriptions.",
     lastUpdated: "November 23, 2026",
     toc: [
       { id: "entity-and-governing-law", text: "Entity and governing law", depth: 2 },
@@ -39,13 +39,13 @@ export const LEGAL_DOCUMENTS: Record<LegalDocId, LegalDocument> = {
     ],
     markdown: `## Entity and governing law
 
-These Terms of Service form a binding agreement between you and **Compozy, LLC**, a Delaware limited liability company (Delaware file number 10308898) with its business address at 2261 Market Street, San Francisco, CA 94114, United States ("Compozy"), governing your access to Compozy Cloud, your Compozy account, and Compozy Pro subscriptions.
+These Terms of Service form a binding agreement between you and **Compozy, LLC**, a Delaware limited liability company (Delaware file number 10308898) with its business address at 2261 Market Street, San Francisco, CA 94114, United States, governing your access to Compozy Cloud, your CompozyOS account, and Compozy Pro subscriptions.
 
 These terms are governed by the laws of the State of Delaware, United States, without regard to conflict-of-law principles. Any dispute arising from these terms will be resolved in the state or federal courts located in Delaware, unless mandatory consumer protection laws in your country of residence require otherwise.
 
 ## Eligibility and accounts
 
-You must be at least **16 years old** to create a Compozy account or use Compozy Cloud. Accounts are personal and intended for one individual. You are responsible for keeping your Google or GitHub login credentials, your enrolled devices, and any account tokens secure.
+You must be at least **16 years old** to create a CompozyOS account or use Compozy Cloud. Accounts are personal and intended for one individual. You are responsible for keeping your Google or GitHub login credentials, your enrolled devices, and any account tokens secure.
 
 If you believe an unauthorized device has signed in to your account, revoke it immediately from **Settings → Account → Devices** or from the link in your new sign-in email notice.
 
@@ -53,7 +53,7 @@ If you believe an unauthorized device has signed in to your account, revoke it i
 
 The CompozyOS daemon, CLI, and desktop application are released under the **MIT License**. Your rights to inspect, modify, and build the open-source code come from the MIT License in the repository.
 
-Compozy Cloud is the hosted service operated by Compozy that handles account sign-in, device enrollment, plan entitlements, connection handshakes between your computers, and Pro hosted routes. Signing in with a Compozy account is required for official release builds.
+Compozy Cloud is the hosted service operated by Compozy, LLC that handles account sign-in, device enrollment, plan entitlements, connection handshakes between your computers, and Pro hosted routes. Signing in with a CompozyOS account is required for official release builds.
 
 ## Acceptable use and suspension
 
@@ -64,7 +64,7 @@ You agree not to misuse Compozy Cloud or hosted routes. Prohibited behavior incl
 - interfering with other customers, probing cloud infrastructure, or running automated abuse traffic;
 - violating applicable laws or third-party rights while using hosted routes or webhooks.
 
-Compozy may immediately suspend an account, revoke active sessions, or take down a hosted route if it detects abuse, security threats, fraud, or a violation of these terms. When an account is suspended, Compozy sends a notice to the account email and does not delete local data stored on your computers.
+Compozy, LLC may immediately suspend an account, revoke active sessions, or take down a hosted route if it detects abuse, security threats, fraud, or a violation of these terms. When an account is suspended, Compozy, LLC sends a notice to the account email and does not delete local data stored on your computers.
 
 ## Subscriptions, renewal, and cancellation
 
@@ -78,17 +78,17 @@ Refunds are governed by our [Refund Policy](/legal/refunds). Deleting your accou
 
 Compozy Pro includes hosted routes for up to **10 computers at once** per account. If you have a legitimate personal need above 10 simultaneous hosted routes, write to [support@compozy.com](mailto:support@compozy.com).
 
-To keep cloud resources healthy, a hosted-route tunnel for a computer that stays offline for **14 consecutive days** is removed automatically (Compozy emails you at day 10). Turning the computer back on provisions a fresh hosted route on demand. When a Pro subscription ends, existing hosted routes stay in entitlement-only mode for 7 days and are then deleted.
+To keep cloud resources healthy, a hosted-route tunnel for a computer that stays offline for **14 consecutive days** is removed automatically (Compozy Cloud emails you at day 10). Turning the computer back on provisions a fresh hosted route on demand. When a Pro subscription ends, existing hosted routes stay in entitlement-only mode for 7 days and are then deleted.
 
 ## No SLA and liability limits
 
-Compozy Cloud and hosted routes are provided **"as is"** and **"as available"**, with no uptime service-level agreement (SLA). Compozy publishes live operational status at \`status.compozy.com\`, and local sessions on your own computer remain usable offline after your first sign-in.
+Compozy Cloud and hosted routes are provided **"as is"** and **"as available"**, with no uptime service-level agreement (SLA). Compozy, LLC publishes live operational status at \`status.compozy.com\`, and local sessions on your own computer remain usable offline after your first sign-in.
 
-To the maximum extent permitted by law, Compozy is not liable for indirect, incidental, special, consequential, or punitive damages, or for lost profits, revenue, or data. Compozy's total aggregate liability for any claim arising out of these terms or the service will not exceed the fees you paid to Compozy in the **12 months** before the event giving rise to the claim, or USD 50 if you have not paid any fees.
+To the maximum extent permitted by law, Compozy, LLC is not liable for indirect, incidental, special, consequential, or punitive damages, or for lost profits, revenue, or data. Compozy, LLC's total aggregate liability for any claim arising out of these terms or the service will not exceed the fees you paid to Compozy, LLC in the **12 months** before the event giving rise to the claim, or USD 50 if you have not paid any fees.
 
 ## Changes and contact
 
-Compozy may update these terms as the product evolves. Material changes will be posted here with an updated date and emailed to active accounts before taking effect.
+Compozy, LLC may update these terms as the product evolves. Material changes will be posted here with an updated date and emailed to active accounts before taking effect.
 
 Questions about these terms? Contact [support@compozy.com](mailto:support@compozy.com), or write to Compozy, LLC, 2261 Market Street, San Francisco, CA 94114, United States.`,
   },
@@ -114,7 +114,7 @@ Questions about these terms? Contact [support@compozy.com](mailto:support@compoz
     ],
     markdown: `## Who we are
 
-This Privacy Policy explains how **Compozy, LLC** ("Compozy"), a Delaware limited liability company at 2261 Market Street, San Francisco, CA 94114, United States, collects, uses, and protects personal data when you sign in to CompozyOS, use Compozy Cloud, or purchase Compozy Pro.
+This Privacy Policy explains how **Compozy, LLC**, a Delaware limited liability company at 2261 Market Street, San Francisco, CA 94114, United States, collects, uses, and protects personal data when you sign in to CompozyOS, use Compozy Cloud, or purchase Compozy Pro.
 
 For privacy requests or data-protection questions, write to [privacy@compozy.com](mailto:privacy@compozy.com).
 
@@ -125,7 +125,7 @@ Compozy Cloud stores only the account and connectivity metadata required to oper
 - **Account identity:** your verified email address, display name, sign-in provider (Google or GitHub), and provider subject identifier.
 - **Email consent:** whether you opted in to product news and offers, together with the timestamp and source of each change.
 - **Devices:** device name, kind (desktop, CLI, or browser), public key thumbprint, admin trust flag, and last-seen timestamp.
-- **Computers:** computer name, operating system and architecture, Compozy version, and route metadata (such as hosted-route hostname and link state).
+- **Computers:** computer name, operating system and architecture, CompozyOS version, and route metadata (such as hosted-route hostname and link state).
 - **Billing:** Stripe customer identifier, subscription plan, billing interval, and entitlement dates. Card numbers are handled solely by Stripe.
 - **Security log:** sign-in notices (including coarse city and country at activation), revocations, and account lifecycle events.
 
@@ -155,7 +155,7 @@ We process personal data for four purposes:
 
 ## Sub-processors
 
-Compozy uses the following sub-processors to operate Compozy Cloud:
+Compozy, LLC uses the following sub-processors to operate Compozy Cloud:
 
 | Sub-processor | Role | Data handled |
 | --- | --- | --- |
@@ -168,7 +168,7 @@ Compozy uses the following sub-processors to operate Compozy Cloud:
 | **Sentry** | Cloud error tracking | Server error traces and request metadata (no session content) |
 | **Better Stack** | Uptime monitoring, alerting, and status page | Service health checks and operational incidents |
 
-**Hosted-route encryption note:** on connections between Compozy desktop or CLI apps and your remote computers, Cloudflare Tunnels carry inner TLS traffic that is **encrypted end to end** between your devices; Cloudflare sees ciphertext only. When you access a computer directly from a mobile or desktop web browser, browser TLS terminates at Cloudflare before reaching your computer over the tunnel.
+**Hosted-route encryption note:** on connections between CompozyOS desktop or CLI apps and your remote computers, Cloudflare Tunnels carry inner TLS traffic that is **encrypted end to end** between your devices; Cloudflare sees ciphertext only. When you access a computer directly from a mobile or desktop web browser, browser TLS terminates at Cloudflare before reaching your computer over the tunnel.
 
 ## Cookies and analytics
 
@@ -198,13 +198,21 @@ Compozy, LLC operates in the United States, and our sub-processors may process a
     toc: [
       { id: "14-day-full-refund-window", text: "14-day full refund window", depth: 2 },
       { id: "after-14-days-and-cancellations", text: "After 14 days and cancellations", depth: 2 },
-      { id: "deleting-your-account-while-on-pro", text: "Deleting your account while on Pro", depth: 2 },
-      { id: "switching-between-monthly-and-annual", text: "Switching between monthly and annual", depth: 2 },
+      {
+        id: "deleting-your-account-while-on-pro",
+        text: "Deleting your account while on Pro",
+        depth: 2,
+      },
+      {
+        id: "switching-between-monthly-and-annual",
+        text: "Switching between monthly and annual",
+        depth: 2,
+      },
       { id: "how-to-request-a-refund", text: "How to request a refund", depth: 2 },
     ],
     markdown: `## 14-day full refund window
 
-Compozy offers a **full refund on request within 14 days** of:
+Compozy, LLC offers a **full refund on request within 14 days** of:
 
 - your **first Compozy Pro payment** (monthly or annual); and
 - any **annual Pro renewal** payment.
@@ -223,8 +231,8 @@ When Pro ends, your hosted routes remain in entitlement-only mode for 7 days so 
 
 An active Pro subscription never blocks you from deleting your account. When you delete your account from Settings or \`compozy account delete\`:
 
-- Compozy cancels your Pro subscription immediately in Stripe;
-- if your last payment falls within the **14-day refund window**, Compozy refunds it in full automatically;
+- Compozy, LLC cancels your Pro subscription immediately in Stripe;
+- if your last payment falls within the **14-day refund window**, Compozy, LLC refunds it in full automatically;
 - if your last payment is older than 14 days, no refund applies and Pro ends immediately;
 - all local sessions, projects, and files on your computers stay untouched.
 
@@ -234,6 +242,6 @@ You can switch between monthly (USD 9.99/month) and annual (USD 79.99/year) plan
 
 ## How to request a refund
 
-Email [support@compozy.com](mailto:support@compozy.com) from the email address on your Compozy account (or include your Stripe receipt number). Once processed, Stripe returns the funds to your original payment method within 5 to 10 business days depending on your bank.`,
+Email [support@compozy.com](mailto:support@compozy.com) from the email address on your CompozyOS account (or include your Stripe receipt number). Once processed, Stripe returns the funds to your original payment method within 5 to 10 business days depending on your bank.`,
   },
 };

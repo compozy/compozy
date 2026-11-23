@@ -7,9 +7,9 @@ import type {
   SignInProvider,
 } from "@/systems/computers/mocks/remote-computers-fixtures-sign-in";
 
+import { providerDisplayName } from "../lib/provider-display-name";
 import {
   CloudPageChrome,
-  providerDisplayName,
   SignInProviderButton,
   SignInVerificationCode,
   type CloudLegalLinkKind,
@@ -32,7 +32,7 @@ export interface SignInCloudPageProps {
 /**
  * Browser-hosted pages on `cloud.compozy.com` (`_uiux.md` U0, ADR-011):
  * - `/activate`: code confirmation + provider continuation
- * - `/activate/done`: sign-in completed, return to Compozy
+ * - `/activate/done`: sign-in completed, return to CompozyOS
  * - `/activate/error`: unverified provider email
  * - `/activate` (code used): already-redeemed device code
  * - `/email/unsubscribe`: confirmation page (GET shows button; POST applies change)
@@ -63,7 +63,7 @@ export function SignInCloudPage({
         <>
           <div className="flex flex-col items-center gap-1.5 text-center">
             <h1 className="text-detail-h1 font-medium tracking-detail-h1 text-fg-strong text-balance">
-              Sign in to Compozy
+              Sign in to CompozyOS
             </h1>
             <p className="text-small-body text-muted-foreground">
               Signing in on <span className="font-medium text-fg">{installationName}</span>
@@ -73,7 +73,7 @@ export function SignInCloudPage({
           <SignInVerificationCode code={userCode} />
 
           <p className="text-center text-meta text-muted-foreground">
-            Confirm this code matches what Compozy shows on your computer.
+            Confirm this code matches what CompozyOS shows on your computer.
           </p>
 
           <SignInProviderButton
@@ -93,7 +93,7 @@ export function SignInCloudPage({
             <CheckCircle2 className="size-5" />
           </span>
           <h1 className="text-detail-h1 font-medium tracking-detail-h1 text-fg-strong text-balance">
-            You&apos;re signed in. Return to Compozy.
+            You&apos;re signed in. Return to CompozyOS.
           </h1>
           <p className="text-small-body leading-relaxed text-muted-foreground text-pretty">
             <span className="font-medium text-fg">{installationName}</span> is ready for{" "}
@@ -125,7 +125,7 @@ export function SignInCloudPage({
           />
 
           <p className="text-center text-meta text-subtle">
-            Compozy is still waiting on {installationName}.
+            CompozyOS is still waiting on {installationName}.
           </p>
         </>
       ) : null}
@@ -143,7 +143,7 @@ export function SignInCloudPage({
               This code was already used.
             </h1>
             <p className="text-small-body leading-relaxed text-muted-foreground text-pretty">
-              Start a new sign-in from Compozy on{" "}
+              Start a new sign-in from CompozyOS on{" "}
               <span className="font-medium text-fg">{installationName}</span> to get a fresh code.
             </p>
           </div>

@@ -62,7 +62,7 @@ export const SSH_SECRET_PROMPT_FIXTURE = {
 } as const;
 
 export const SSH_DOWNLOAD_FAILURE_FIXTURE = {
-  errorMessage: "Couldn't download Compozy on staging-box",
+  errorMessage: "Couldn't download CompozyOS on staging-box",
   outputLine: "curl: (6) Could not resolve host: releases.compozy.com",
 } as const;
 
@@ -113,8 +113,8 @@ export function buildSshSetupSteps({
   retryAction,
 }: BuildSshSetupStepsOptions): StepProgressItem[] {
   const installTitle = useExistingInstall
-    ? "Using installed Compozy 0.8.0"
-    : "Installing Compozy 0.8.0";
+    ? "Using installed CompozyOS 0.8.0"
+    : "Installing CompozyOS 0.8.0";
 
   if (stage === "plan_limit") {
     return [
@@ -129,7 +129,7 @@ export function buildSshSetupSteps({
       { id: "verify", title: "Verifying release", status: "pending" },
       { id: "connect", title: "Connecting over SSH", status: "pending" },
       { id: "install", title: installTitle, status: "pending" },
-      { id: "service", title: "Starting Compozy service", status: "pending" },
+      { id: "service", title: "Starting CompozyOS service", status: "pending" },
       { id: "link", title: "Linking to your account", status: "pending" },
       { id: "forward", title: "Opening the connection", status: "pending" },
     ];
@@ -149,7 +149,7 @@ export function buildSshSetupSteps({
         prompt: trustPromptNode,
       },
       { id: "install", title: installTitle, status: "pending" },
-      { id: "service", title: "Starting Compozy service", status: "pending" },
+      { id: "service", title: "Starting CompozyOS service", status: "pending" },
       { id: "link", title: "Linking to your account", status: "pending" },
       { id: "forward", title: "Opening the connection", status: "pending" },
     ];
@@ -168,7 +168,7 @@ export function buildSshSetupSteps({
         prompt: secretPromptNode,
       },
       { id: "install", title: installTitle, status: "pending" },
-      { id: "service", title: "Starting Compozy service", status: "pending" },
+      { id: "service", title: "Starting CompozyOS service", status: "pending" },
       { id: "link", title: "Linking to your account", status: "pending" },
       { id: "forward", title: "Opening the connection", status: "pending" },
     ];
@@ -188,7 +188,7 @@ export function buildSshSetupSteps({
         prompt: unsupportedPromptNode,
       },
       { id: "install", title: installTitle, status: "pending" },
-      { id: "service", title: "Starting Compozy service", status: "pending" },
+      { id: "service", title: "Starting CompozyOS service", status: "pending" },
       { id: "link", title: "Linking to your account", status: "pending" },
       { id: "forward", title: "Opening the connection", status: "pending" },
     ];
@@ -212,7 +212,7 @@ export function buildSshSetupSteps({
         outputLine: SSH_DOWNLOAD_FAILURE_FIXTURE.outputLine,
         action: retryAction,
       },
-      { id: "service", title: "Starting Compozy service", status: "pending" },
+      { id: "service", title: "Starting CompozyOS service", status: "pending" },
       { id: "link", title: "Linking to your account", status: "pending" },
       { id: "forward", title: "Opening the connection", status: "pending" },
     ];
@@ -231,7 +231,7 @@ export function buildSshSetupSteps({
       { id: "install", title: installTitle, status: "done", detail: "v0.8.0" },
       {
         id: "service",
-        title: "Starting Compozy service",
+        title: "Starting CompozyOS service",
         status: "done",
         detail: "systemd --user",
       },
@@ -261,7 +261,7 @@ export function buildSshSetupSteps({
       status: "running",
       detail: "Downloading binary…",
     },
-    { id: "service", title: "Starting Compozy service", status: "pending" },
+    { id: "service", title: "Starting CompozyOS service", status: "pending" },
     { id: "link", title: "Linking to your account", status: "pending" },
     { id: "forward", title: "Opening the connection", status: "pending" },
   ];
@@ -299,7 +299,7 @@ export const DETAILS_SIGNIN_APPROVAL: ComputerFixture = {
     message: "Waiting for approval on devbox.",
     at: "2026-11-22T20:43:30Z",
     whatToTry: [
-      "Open Compozy on devbox (or a device already trusted on devbox) and approve MacBook Pro under Settings → Account.",
+      "Open CompozyOS on devbox (or a device already trusted on devbox) and approve MacBook Pro under Settings → Account.",
       "Compare the key fingerprint on both screens before approving.",
       "This request expires automatically after 10 minutes if left unanswered.",
     ],
@@ -322,7 +322,7 @@ export const DETAILS_SIGNIN_APPROVAL: ComputerFixture = {
         step: "computer",
         label: "Computer",
         status: "done",
-        message: "Compozy 0.8.0",
+        message: "CompozyOS 0.8.0",
         at: "37s ago",
       },
       {
@@ -367,7 +367,7 @@ export const DETAILS_INCOMPATIBLE_MANUAL: ComputerFixture = {
   diagnosis: {
     failingStep: "computer",
     code: "computer_incompatible",
-    message: "gpu-vm runs Compozy 0.7.9. Update it to connect.",
+    message: "gpu-vm runs CompozyOS 0.7.9. Update it to connect.",
     at: "2026-11-22T20:43:00Z",
     whatToTry: ["Run `compozy update` directly on gpu-vm, then click Check version again."],
     steps: [
@@ -389,7 +389,7 @@ export const DETAILS_INCOMPATIBLE_MANUAL: ComputerFixture = {
         step: "computer",
         label: "Computer",
         status: "failed",
-        message: "Runs Compozy 0.7.9 (this app requires 0.8.0+)",
+        message: "Runs CompozyOS 0.7.9 (this app requires 0.8.0+)",
         at: "1m ago",
       },
       { step: "sign_in", label: "Sign-in", status: "skipped", message: "Not checked" },
@@ -482,9 +482,9 @@ export function buildSshUpdateSteps(
         id: "verify",
         title: "Verifying release 0.8.0",
         status: "failed",
-        caption: "Couldn't verify this Compozy release. Nothing was installed.",
+        caption: "Couldn't verify this CompozyOS release. Nothing was installed.",
       },
-      { id: "install", title: "Installing Compozy 0.8.0", status: "pending" },
+      { id: "install", title: "Installing CompozyOS 0.8.0", status: "pending" },
       { id: "restart", title: `Restarting service on ${computerName}`, status: "pending" },
       { id: "reconnect", title: "Opening the connection", status: "pending" },
     ];
@@ -497,7 +497,7 @@ export function buildSshUpdateSteps(
         status: "done",
         detail: "Sigstore verified",
       },
-      { id: "install", title: "Installing Compozy 0.8.0", status: "done", detail: "v0.8.0" },
+      { id: "install", title: "Installing CompozyOS 0.8.0", status: "done", detail: "v0.8.0" },
       {
         id: "restart",
         title: `Restarting service on ${computerName}`,
@@ -515,14 +515,19 @@ export function buildSshUpdateSteps(
         status: "done",
         detail: "Sigstore verified",
       },
-      { id: "install", title: "Installing Compozy 0.8.0", status: "running", detail: "Uploading…" },
+      {
+        id: "install",
+        title: "Installing CompozyOS 0.8.0",
+        status: "running",
+        detail: "Uploading…",
+      },
       { id: "restart", title: `Restarting service on ${computerName}`, status: "pending" },
       { id: "reconnect", title: "Opening the connection", status: "pending" },
     ];
   }
   return [
     { id: "verify", title: "Verifying release 0.8.0", status: "pending" },
-    { id: "install", title: "Installing Compozy 0.8.0", status: "pending" },
+    { id: "install", title: "Installing CompozyOS 0.8.0", status: "pending" },
     { id: "restart", title: `Restarting service on ${computerName}`, status: "pending" },
     { id: "reconnect", title: "Opening the connection", status: "pending" },
   ];
@@ -551,7 +556,7 @@ export function buildHealthyDiagnosisSteps(computer: ComputerFixture): StepProgr
       title: "Computer",
       status: "done",
       detail: "4s ago",
-      caption: `Compozy ${computer.version}`,
+      caption: `CompozyOS ${computer.version}`,
     },
     {
       id: "sign_in",

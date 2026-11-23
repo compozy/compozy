@@ -83,12 +83,12 @@ export function ComputerDetailsPanel({
       copy.splice(targetIndex, 0, moved);
       return copy;
     });
-    toast("Updated route priority order.");
+    toast.message("Updated route priority order.");
   };
 
   const handleRemoveRoute = (routeId: string) => {
     setRoutes(current => current.filter(item => item.id !== routeId));
-    toast(`Removed learned route from ${computer.name}.`);
+    toast.message(`Removed learned route from ${computer.name}.`);
   };
 
   const handleToggleScope = (scope: RemoteScope, next: boolean) => {
@@ -131,7 +131,7 @@ export function ComputerDetailsPanel({
             <ComputerStatusChip status={computer.status} />
           </div>
           <p className="truncate text-meta text-muted-foreground">
-            Compozy {computer.version}
+            CompozyOS {computer.version}
             {computer.routeInUse
               ? ` · ${computer.routeInUse.label}`
               : ` · Last connected ${computer.lastConnectedLabel}`}

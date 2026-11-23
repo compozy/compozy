@@ -92,13 +92,13 @@ export function ComputerLoadMeter({ load, computerName, className }: ComputerLoa
         <Progress tone="brand" value={cpuPct}>
           <ProgressLabel className="text-eyebrow">CPU</ProgressLabel>
           <ProgressValue className="text-eyebrow">
-            {cpuPct}% · {load.cpuCount} cores
+            {() => `${cpuPct}% · ${load.cpuCount} cores`}
           </ProgressValue>
         </Progress>
         <Progress tone="brand" value={memPct}>
           <ProgressLabel className="text-eyebrow">Memory</ProgressLabel>
           <ProgressValue className="text-eyebrow">
-            {formatGb(load.memAvailableBytes)} / {formatGb(load.memTotalBytes)} GB free
+            {() => `${formatGb(load.memAvailableBytes)} / ${formatGb(load.memTotalBytes)} GB free`}
           </ProgressValue>
         </Progress>
         <div className="flex items-center justify-between border-t border-line-soft pt-1.5 text-badge text-faint tabular-nums">
