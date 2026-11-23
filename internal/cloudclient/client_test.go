@@ -29,7 +29,11 @@ func TestCloudOrigin(t *testing.T) {
 				if got != tc.origin {
 					t.Errorf("cloud origin = %s, want %s", got, tc.origin)
 				}
-				return &http.Response{StatusCode: http.StatusNoContent, Body: http.NoBody, Header: make(http.Header)}, nil
+				return &http.Response{
+					StatusCode: http.StatusNoContent,
+					Body:       http.NoBody,
+					Header:     make(http.Header),
+				}, nil
 			})
 			if err := client.CancelDeviceFlow(t.Context(), "grant"); err != nil {
 				t.Fatal(err)
@@ -61,7 +65,11 @@ func TestCloudBackoff(t *testing.T) {
 			client.http.Transport = accountRoundTrip(func(_ *http.Request) (*http.Response, error) {
 				calls++
 				if calls == 1 {
-					return &http.Response{StatusCode: tc.status, Header: http.Header{"Retry-After": {"120"}}, Body: http.NoBody}, nil
+					return &http.Response{
+						StatusCode: tc.status,
+						Header:     http.Header{"Retry-After": {"120"}},
+						Body:       http.NoBody,
+					}, nil
 				}
 				return &http.Response{StatusCode: http.StatusNoContent, Body: http.NoBody}, nil
 			})

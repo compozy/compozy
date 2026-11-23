@@ -70,7 +70,11 @@ func (s *Service) ListApprovals(ctx context.Context, principal DevicePrincipal) 
 	return result, err
 }
 
-func (s *Service) GetApproval(ctx context.Context, principal DevicePrincipal, id string) (remoteproto.AccountApprovalDetails, error) {
+func (s *Service) GetApproval(
+	ctx context.Context,
+	principal DevicePrincipal,
+	id string,
+) (remoteproto.AccountApprovalDetails, error) {
 	var result remoteproto.AccountApprovalDetails
 	err := s.deviceTransaction(
 		ctx,

@@ -57,7 +57,11 @@ func TestAccountSignIn(t *testing.T) {
 		advanceSignIn(t, clock)
 		awaitAccountTest(t, polling)
 		clock.Advance(2 * time.Second)
-		expectSignIn(t, events, SignInEvent{AttemptID: attempt.AttemptID, State: "expired", Code: "account_login_expired"})
+		expectSignIn(
+			t,
+			events,
+			SignInEvent{AttemptID: attempt.AttemptID, State: "expired", Code: "account_login_expired"},
+		)
 		unblock()
 		s.Close()
 		if status := s.Status(); status.State != SignedOut || store.current().AuthGeneration != 0 {
@@ -119,65 +123,69 @@ func TestAccountSignIn(t *testing.T) {
 		}
 	})
 
-	t.Run("Should replace the key of a revoked device and keep the cloud's admin decision (UT-126)", func(t *testing.T) {
-		t.Parallel()
-		for _, tc := range []struct {
-			name  string
-			admin bool
-		}{
-			{name: "Should preserve ordinary device trust"},
-			{name: "Should honor admin recovery after fresh sign-in", admin: true},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				attempted := make(chan remoteproto.JWK, 2)
-				cloud := accountCloudStub{start: testGrant, poll: testAuthorized,
-					enroll: func(input remoteproto.DeviceEnrollRequest) (remoteproto.DeviceEnrollResponse, error) {
-						attempted <- input.PublicJWK
-						if len(attempted) == 1 {
-							return remoteproto.DeviceEnrollResponse{}, &cloudclient.Failure{
-								Status: http.StatusConflict, Code: "device_key_revoked",
+	t.Run(
+		"Should replace the key of a revoked device and keep the cloud's admin decision (UT-126)",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name  string
+				admin bool
+			}{
+				{name: "Should preserve ordinary device trust"},
+				{name: "Should honor admin recovery after fresh sign-in", admin: true},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					attempted := make(chan remoteproto.JWK, 2)
+					cloud := accountCloudStub{start: testGrant, poll: testAuthorized,
+						enroll: func(input remoteproto.DeviceEnrollRequest) (remoteproto.DeviceEnrollResponse, error) {
+							attempted <- input.PublicJWK
+							if len(attempted) == 1 {
+								return remoteproto.DeviceEnrollResponse{}, &cloudclient.Failure{
+									Status: http.StatusConflict, Code: "device_key_revoked",
+								}
 							}
-						}
-						device, err := testEnroll(input)
-						device.Admin = tc.admin
-						return device, err
-					},
-					profile: func() (remoteproto.AccountSummary, error) {
-						profile, err := testProfile()
-						profile.Device.Admin = tc.admin
-						return profile, err
-					},
-				}
-				s, _, clock := newAccountTest(t, &cloud, Installation{State: SignedOut})
-				oldKey, err := s.credentials.deviceKey(testAccountID, true)
-				if err != nil {
-					t.Fatal(err)
-				}
-				oldJWK, err := remoteproto.NewPublicJWK(oldKey.Public())
-				if err != nil {
-					t.Fatal(err)
-				}
-				events, stop := s.SubscribeSignIn()
-				defer stop()
-				attempt := startTestLogin(t, s, "google")
-				advanceSignIn(t, clock)
-				expectSignIn(t, events, SignInEvent{AttemptID: attempt.AttemptID, State: "signed_in"})
-				first, second := awaitAccountTest(t, attempted), awaitAccountTest(t, attempted)
-				updated, err := s.credentials.deviceKey(testAccountID, false)
-				if err != nil {
-					t.Fatal(err)
-				}
-				expected, err := remoteproto.NewPublicJWK(updated.Public())
-				if err != nil {
-					t.Fatal(err)
-				}
-				if first != oldJWK || second == first || second != expected || s.Status().Profile.Device.Admin != tc.admin {
-					t.Fatal("revoked key was not replaced or cloud admin decision was lost")
-				}
-			})
-		}
-	})
+							device, err := testEnroll(input)
+							device.Admin = tc.admin
+							return device, err
+						},
+						profile: func() (remoteproto.AccountSummary, error) {
+							profile, err := testProfile()
+							profile.Device.Admin = tc.admin
+							return profile, err
+						},
+					}
+					s, _, clock := newAccountTest(t, &cloud, Installation{State: SignedOut})
+					oldKey, err := s.credentials.deviceKey(testAccountID, true)
+					if err != nil {
+						t.Fatal(err)
+					}
+					oldJWK, err := remoteproto.NewPublicJWK(oldKey.Public())
+					if err != nil {
+						t.Fatal(err)
+					}
+					events, stop := s.SubscribeSignIn()
+					defer stop()
+					attempt := startTestLogin(t, s, "google")
+					advanceSignIn(t, clock)
+					expectSignIn(t, events, SignInEvent{AttemptID: attempt.AttemptID, State: "signed_in"})
+					first, second := awaitAccountTest(t, attempted), awaitAccountTest(t, attempted)
+					updated, err := s.credentials.deviceKey(testAccountID, false)
+					if err != nil {
+						t.Fatal(err)
+					}
+					expected, err := remoteproto.NewPublicJWK(updated.Public())
+					if err != nil {
+						t.Fatal(err)
+					}
+					if first != oldJWK || second == first || second != expected ||
+						s.Status().Profile.Device.Admin != tc.admin {
+						t.Fatal("revoked key was not replaced or cloud admin decision was lost")
+					}
+				})
+			}
+		},
+	)
 }
 
 func TestAccountRefresh(t *testing.T) {
@@ -219,7 +227,12 @@ func TestAccountRefresh(t *testing.T) {
 				clock.Advance(time.Second)
 				if _, err := s.refresh(s.generation, true); err != nil || calls.Load() != 2 ||
 					!store.current().LastValidatedAt.Equal(clock.Now()) {
-					t.Fatalf("refresh at retry deadline = %v, calls %d, persisted %#v", err, calls.Load(), store.current())
+					t.Fatalf(
+						"refresh at retry deadline = %v, calls %d, persisted %#v",
+						err,
+						calls.Load(),
+						store.current(),
+					)
 				}
 			})
 		}
@@ -271,7 +284,8 @@ func TestAccountRefresh(t *testing.T) {
 					t.Fatalf("reauth refresh = %v, previous lifetime error %v", err, g.ctx.Err())
 				}
 				state := store.current()
-				if state.State != ReauthRequired || state.SignedOutReason != tc.reason || state.AuthGeneration != previous+1 {
+				if state.State != ReauthRequired || state.SignedOutReason != tc.reason ||
+					state.AuthGeneration != previous+1 {
 					t.Fatalf("persisted reauth state = %#v", state)
 				}
 				expectSignIn(t, events, SignInEvent{State: "reauth_required", SignedOutReason: tc.reason})
@@ -291,7 +305,14 @@ func TestAccountRefresh(t *testing.T) {
 			t.Fatal(err)
 		}
 		s.Close()
-		reopened, err := New(t.Context(), store, &cloud, t.TempDir(), WithClock(clock), WithKeyring(&accountKeyringStub{}))
+		reopened, err := New(
+			t.Context(),
+			store,
+			&cloud,
+			t.TempDir(),
+			WithClock(clock),
+			WithKeyring(&accountKeyringStub{}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -354,7 +375,10 @@ type accountCloudStub struct {
 	refresh     func() (remoteproto.DeviceSessionTokens, error)
 }
 
-func (s *accountCloudStub) StartDeviceFlow(_ context.Context, input remoteproto.DeviceFlowRequest) (remoteproto.DeviceFlowResponse, error) {
+func (s *accountCloudStub) StartDeviceFlow(
+	_ context.Context,
+	input remoteproto.DeviceFlowRequest,
+) (remoteproto.DeviceFlowResponse, error) {
 	return s.start(input.Provider)
 }
 
@@ -367,7 +391,12 @@ func (s *accountCloudStub) CancelDeviceFlow(_ context.Context, code string) erro
 	return nil
 }
 
-func (s *accountCloudStub) Enroll(_ context.Context, _ string, _ crypto.Signer, input remoteproto.DeviceEnrollRequest) (remoteproto.DeviceEnrollResponse, error) {
+func (s *accountCloudStub) Enroll(
+	_ context.Context,
+	_ string,
+	_ crypto.Signer,
+	input remoteproto.DeviceEnrollRequest,
+) (remoteproto.DeviceEnrollResponse, error) {
 	return s.enroll(input)
 }
 
@@ -385,10 +414,20 @@ func accountTestTime() time.Time { return time.Date(2026, 11, 23, 12, 0, 0, 0, t
 
 func signedInInstallation() Installation {
 	profile, _ := testProfile()
-	return Installation{State: SignedIn, Source: "session", AccountID: testAccountID, Profile: profile, LastValidatedAt: accountTestTime()}
+	return Installation{
+		State:           SignedIn,
+		Source:          "session",
+		AccountID:       testAccountID,
+		Profile:         profile,
+		LastValidatedAt: accountTestTime(),
+	}
 }
 
-func newAccountTest(t *testing.T, cloud Cloud, initial Installation) (*Service, *accountStoreStub, *clockwork.FakeClock) {
+func newAccountTest(
+	t *testing.T,
+	cloud Cloud,
+	initial Installation,
+) (*Service, *accountStoreStub, *clockwork.FakeClock) {
 	t.Helper()
 	initial.InstallationID = "ins_test"
 	store := &accountStoreStub{state: initial}
@@ -414,7 +453,11 @@ func testGrant(provider string) (remoteproto.DeviceFlowResponse, error) {
 }
 
 func testAuthorized(string) (remoteproto.DeviceFlowTokenResponse, error) {
-	return remoteproto.DeviceFlowTokenResponse{AccountID: testAccountID, EnrollmentToken: "enroll", Email: "pedro@example.com"}, nil
+	return remoteproto.DeviceFlowTokenResponse{
+		AccountID:       testAccountID,
+		EnrollmentToken: "enroll",
+		Email:           "pedro@example.com",
+	}, nil
 }
 
 func testProfile() (remoteproto.AccountSummary, error) {
@@ -432,7 +475,8 @@ func testTokens() remoteproto.DeviceSessionTokens {
 
 func requireSignedIn(t *testing.T, installation Installation) {
 	t.Helper()
-	if installation.State != SignedIn || installation.Profile.Email != "pedro@example.com" || installation.Profile.Plan != "free" {
+	if installation.State != SignedIn || installation.Profile.Email != "pedro@example.com" ||
+		installation.Profile.Plan != "free" {
 		t.Fatalf("installation = %#v, want signed-in Free account", installation)
 	}
 }

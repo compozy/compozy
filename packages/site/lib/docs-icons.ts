@@ -115,6 +115,7 @@ export const DOCS_ICONS: Record<string, LucideIcon> = {
  * openapi/compozy.json must have an entry — enforced by docs-api-reference.test.ts.
  */
 export const API_TAG_ICONS: Record<string, string> = {
+  account: "Users",
   agent: "MessageSquare",
   "app-tokens": "Key",
   agents: "FileText",

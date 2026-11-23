@@ -98,7 +98,7 @@ type ApprovalResult struct {
 
 var (
 	ErrSignInRequired = &cloudclient.Failure{Status: http.StatusUnauthorized, Code: "sign_in_required",
-		Message: "Sign in to use Compozy: compozy account login"}
+		Message: "Sign in to use CompozyOS: compozy account login"}
 	errExpired = &cloudclient.Failure{Status: http.StatusBadRequest, Code: "account_login_expired",
 		Message: "Sign-in timed out. Try again."}
 	errCancelled = &cloudclient.Failure{Status: http.StatusConflict, Code: "access_denied",

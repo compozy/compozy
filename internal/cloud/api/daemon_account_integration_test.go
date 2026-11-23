@@ -36,89 +36,92 @@ import (
 const accountStreamPath = contract.AccountPath + "/stream"
 
 func TestDaemonCloudAccount(t *testing.T) {
-	t.Run("Should sign in, isolate approval streams, sign out, and admit local work during an outage", func(t *testing.T) {
-		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
-		d, ring := startDaemonAccountFixture(t, f)
+	t.Run(
+		"Should sign in, isolate approval streams, sign out, and admit local work during an outage",
+		func(t *testing.T) {
+			f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+			d, ring := startDaemonAccountFixture(t, f)
 
-		// IT-010, IT-099. The daemon owns the grant and the device credential.
-		progress := d.stream(t, contract.AccountSignInEventsPath, "")
-		first := signInDaemonAccount(t, f, d, progress, "first@example.test")
-		accountID, jkt := assertEnrolledAccount(t, f, first, ring)
-		d.uds(t, http.MethodGet, contract.AccountPath, nil).expect(t, http.StatusOK, first.Email)
-		devices := d.request(t, http.MethodGet, contract.AccountPath+"/devices", nil)
-		devices.expect(t, http.StatusOK, first.Device.ID)
-		list := authJSON[contract.AccountDevicesResponse](t, devices)
-		if len(list.Devices) != 1 || !list.Devices[0].ThisDevice {
-			t.Fatal("account device listing did not identify this installation")
-		}
-
-		// IT-103. Recover an already applied result, then deliver a live event in this generation.
-		const computer remoteproto.ComputerID = "cmp_stream_test"
-		f.db.SeedControlComputer(t, accountID, computer, f.clock.Now())
-		recordAccountApproval(t, f, accountID, computer, first.Device.ID, jkt, "apr_recovered", true)
-		eventsA := d.stream(t, accountStreamPath, "")
-		var recovered account.Event
-		eventsA.until(t, func(frame sse.Event) bool {
-			if frame.Event != "account.changed" {
-				return false
+			// IT-010, IT-099. The daemon owns the grant and the device credential.
+			progress := d.stream(t, contract.AccountSignInEventsPath, "")
+			first := signInDaemonAccount(t, f, d, progress, "first@example.test")
+			accountID, jkt := assertEnrolledAccount(t, f, first, ring)
+			d.uds(t, http.MethodGet, contract.AccountPath, nil).expect(t, http.StatusOK, first.Email)
+			devices := d.request(t, http.MethodGet, contract.AccountPath+"/devices", nil)
+			devices.expect(t, http.StatusOK, first.Device.ID)
+			list := authJSON[contract.AccountDevicesResponse](t, devices)
+			if len(list.Devices) != 1 || !list.Devices[0].ThisDevice {
+				t.Fatal("account device listing did not identify this installation")
 			}
-			recovered = decodeDaemonAccountEvent[account.Event](t, frame)
-			return recovered.Data.Kind == "approval.applied"
-		})
-		if recovered.Data.Approval == nil || recovered.Data.Approval.ID != "apr_recovered" ||
-			recovered.Data.Approval.Result != "approved" {
-			t.Fatalf("recovered result = %#v", recovered)
-		}
-		recordAccountApproval(t, f, accountID, computer, first.Device.ID, jkt, "apr_first", false)
-		last := eventsA.until(t, func(frame sse.Event) bool {
-			if frame.Event != "account.changed" {
-				return false
+
+			// IT-103. Recover an already applied result, then deliver a live event in this generation.
+			const computer remoteproto.ComputerID = "cmp_stream_test"
+			f.db.SeedControlComputer(t, accountID, computer, f.clock.Now())
+			recordAccountApproval(t, f, accountID, computer, first.Device.ID, jkt, "apr_recovered", true)
+			eventsA := d.stream(t, accountStreamPath, "")
+			var recovered account.Event
+			eventsA.until(t, func(frame sse.Event) bool {
+				if frame.Event != "account.changed" {
+					return false
+				}
+				recovered = decodeDaemonAccountEvent[account.Event](t, frame)
+				return recovered.Data.Kind == "approval.applied"
+			})
+			if recovered.Data.Approval == nil || recovered.Data.Approval.ID != "apr_recovered" ||
+				recovered.Data.Approval.Result != "approved" {
+				t.Fatalf("recovered result = %#v", recovered)
 			}
-			change := decodeDaemonAccountEvent[account.Event](t, frame).Data
-			return change.Kind == "approval.pending" && change.ApprovalID == "apr_first"
-		})
-		if last.ID == "" {
-			t.Fatal("account change lacked its SSE resume ID")
-		}
+			recordAccountApproval(t, f, accountID, computer, first.Device.ID, jkt, "apr_first", false)
+			last := eventsA.until(t, func(frame sse.Event) bool {
+				if frame.Event != "account.changed" {
+					return false
+				}
+				change := decodeDaemonAccountEvent[account.Event](t, frame).Data
+				return change.Kind == "approval.pending" && change.ApprovalID == "apr_first"
+			})
+			if last.ID == "" {
+				t.Fatal("account change lacked its SSE resume ID")
+			}
 
-		// IT-011. Voluntary sign-out closes the old stream and revokes the credential, keeping the device.
-		d.uds(t, http.MethodPost, contract.AccountLogoutPath, map[string]bool{"unlink": false}).
-			expect(t, http.StatusOK, "signed_out")
-		eventsA.expectEOF(t)
-		assertAuthRow(t, f, "SELECT count(*) FROM devices WHERE revoked_at IS NULL", 1)
-		assertAuthRow(t, f, "SELECT count(*) FROM device_sessions WHERE revoked_at IS NULL", 0)
+			// IT-011. Voluntary sign-out closes the old stream and revokes the credential, keeping the device.
+			d.uds(t, http.MethodPost, contract.AccountLogoutPath, map[string]bool{"unlink": false}).
+				expect(t, http.StatusOK, "signed_out")
+			eventsA.expectEOF(t)
+			assertAuthRow(t, f, "SELECT count(*) FROM devices WHERE revoked_at IS NULL", 1)
+			assertAuthRow(t, f, "SELECT count(*) FROM device_sessions WHERE revoked_at IS NULL", 0)
 
-		second := signInDaemonAccount(t, f, d, progress, "second@example.test")
-		if second.Device.ID == first.Device.ID {
-			t.Fatal("different accounts shared a device")
-		}
-		eventsB := d.stream(t, accountStreamPath, last.ID)
-		frame := eventsB.next(t)
-		if frame.Event != "stream_reset" || frame.ID == last.ID || bytes.Contains(frame.Data, []byte("apr_first")) {
-			t.Fatalf("foreign cursor response = %s %s", frame.Event, frame.Data)
-		}
-		eventsB.cancel()
-		approvals := d.request(t, http.MethodGet, contract.AccountPath+"/approvals", nil)
-		approvals.expect(t, http.StatusOK, "approvals")
-		if list := authJSON[contract.AccountApprovalsResponse](t, approvals); len(list.Approvals) != 0 {
-			t.Fatal("second account could read the previous account's approvals")
-		}
-		progress.cancel()
+			second := signInDaemonAccount(t, f, d, progress, "second@example.test")
+			if second.Device.ID == first.Device.ID {
+				t.Fatal("different accounts shared a device")
+			}
+			eventsB := d.stream(t, accountStreamPath, last.ID)
+			frame := eventsB.next(t)
+			if frame.Event != "stream_reset" || frame.ID == last.ID || bytes.Contains(frame.Data, []byte("apr_first")) {
+				t.Fatalf("foreign cursor response = %s %s", frame.Event, frame.Data)
+			}
+			eventsB.cancel()
+			approvals := d.request(t, http.MethodGet, contract.AccountPath+"/approvals", nil)
+			approvals.expect(t, http.StatusOK, "approvals")
+			if list := authJSON[contract.AccountApprovalsResponse](t, approvals); len(list.Approvals) != 0 {
+				t.Fatal("second account could read the previous account's approvals")
+			}
+			progress.cancel()
 
-		// IT-012. Stop the real cloud listener, then use a local session route.
-		f.replica.App.StartDrain()
-		f.replica.Server.Close()
-		d.request(t, http.MethodGet, contract.AccountPath+"/devices", nil).
-			expect(t, http.StatusServiceUnavailable, "account_cloud_unreachable")
-		d.uds(t, http.MethodGet, contract.AccountPath, nil).expect(t, http.StatusOK, second.Email)
-		local := d.request(t, http.MethodPost, "/api/sessions", contract.CreateSessionRequest{
-			Scope: "global", AgentName: config.DefaultAgentName,
-		})
-		local.expect(t, http.StatusCreated, "session")
-		if created := authJSON[contract.SessionResponse](t, local); created.Session.ID == "" {
-			t.Fatal("local session was not created")
-		}
-	})
+			// IT-012. Stop the real cloud listener, then use a local session route.
+			f.replica.App.StartDrain()
+			f.replica.Server.Close()
+			d.request(t, http.MethodGet, contract.AccountPath+"/devices", nil).
+				expect(t, http.StatusServiceUnavailable, "account_cloud_unreachable")
+			d.uds(t, http.MethodGet, contract.AccountPath, nil).expect(t, http.StatusOK, second.Email)
+			local := d.request(t, http.MethodPost, "/api/sessions", contract.CreateSessionRequest{
+				Scope: "global", AgentName: config.DefaultAgentName,
+			})
+			local.expect(t, http.StatusCreated, "session")
+			if created := authJSON[contract.SessionResponse](t, local); created.Session.ID == "" {
+				t.Fatal("local session was not created")
+			}
+		},
+	)
 }
 
 func signInDaemonAccount(

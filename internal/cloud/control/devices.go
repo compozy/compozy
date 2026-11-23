@@ -5,7 +5,6 @@ import (
 	"errors"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -38,7 +37,11 @@ func (s *Service) ListDevices(ctx context.Context, principal DevicePrincipal) ([
 	return devices, err
 }
 
-func (s *Service) GetDevice(ctx context.Context, principal DevicePrincipal, id remoteproto.DeviceID) (remoteproto.AccountDevice, error) {
+func (s *Service) GetDevice(
+	ctx context.Context,
+	principal DevicePrincipal,
+	id remoteproto.DeviceID,
+) (remoteproto.AccountDevice, error) {
 	var result remoteproto.AccountDevice
 	err := s.deviceTransaction(
 		ctx,
@@ -99,7 +102,11 @@ func (s *Service) PatchDevice(
 }
 
 func (s *Service) applyDevicePatch(
-	ctx context.Context, q *store.Queries, device *store.ControlDevice, patch remoteproto.AccountDevicePatch, caller remoteproto.DeviceID,
+	ctx context.Context,
+	q *store.Queries,
+	device *store.ControlDevice,
+	patch remoteproto.AccountDevicePatch,
+	caller remoteproto.DeviceID,
 	event *store.ControlEvent,
 ) error {
 	if patch.Name != nil {

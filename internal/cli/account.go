@@ -16,7 +16,7 @@ import (
 )
 
 func newAccountCommand(deps commandDeps) *cobra.Command {
-	cmd := &cobra.Command{Use: "account", Short: "Manage the Compozy account on this computer"}
+	cmd := &cobra.Command{Use: "account", Short: "Manage the Compozy Cloud account on this computer"}
 	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return newCLIUsageError(err.Error()) })
 	cmd.AddCommand(
 		accountVerb(
@@ -69,7 +69,7 @@ func runAccountStatus(cmd *cobra.Command, client accountCommandClient) error {
 	result := status.CLIStatus()
 	return writeCommandOutput(cmd, outputBundle{jsonValue: result, human: func() (string, error) {
 		if !status.SignedIn {
-			return "Sign in to use Compozy: compozy account login", nil
+			return "Sign in to use CompozyOS: compozy account login", nil
 		}
 		plan := accountPlanLabel(result.Plan)
 		if result.RemoteComputersLimit != nil {
@@ -98,7 +98,7 @@ func runAccountLogout(cmd *cobra.Command, client accountCommandClient) error {
 		return err
 	}
 	return writeCommandOutput(cmd, outputBundle{jsonValue: result, human: func() (string, error) {
-		return "Signed out. Compozy needs you to sign in again before it can be used on this computer.", nil
+		return "Signed out. CompozyOS needs you to sign in again before it can be used on this computer.", nil
 	}})
 }
 
@@ -167,7 +167,7 @@ func runAccountLogin(cmd *cobra.Command, deps commandDeps, client accountCommand
 		return err
 	}
 	if !status.SignedIn {
-		return errors.New("Sign in to use Compozy: compozy account login")
+		return errors.New("Sign in to use CompozyOS: compozy account login")
 	}
 	return writeCommandOutput(cmd, outputBundle{jsonValue: status.CLIStatus(), human: func() (string, error) {
 		return fmt.Sprintf("Signed in as %s (%s)", status.Email, accountPlanLabel(status.Plan)), nil
@@ -195,7 +195,11 @@ func announceAccountLogin(cmd *cobra.Command, deps commandDeps, attempt contract
 		return err
 	}
 	// The printed URL is also the continuation path on a headless computer.
-	if err := deps.openBrowser(cmd.Context(), attempt.VerificationURIComplete); err != nil && cmd.Context().Err() != nil {
+	if err := deps.openBrowser(
+		cmd.Context(),
+		attempt.VerificationURIComplete,
+	); err != nil &&
+		cmd.Context().Err() != nil {
 		return cmd.Context().Err()
 	}
 	return nil

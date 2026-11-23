@@ -16,24 +16,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RegisterAccountRoutes(api gin.IRouter, h *BaseHandlers, middleware ...gin.HandlerFunc) {
-	routes := api.Group("/account", middleware...)
-	routes.GET("", h.GetAccount)
-	routes.POST("/login", h.StartAccountLogin)
-	routes.DELETE("/login", h.CancelAccountLogin)
-	routes.GET("/sign-in/events", h.StreamAccountSignIn)
-	routes.POST("/logout", h.LogoutAccount)
-	routes.GET("/stream", h.StreamAccount)
-	routes.GET("/devices", h.ListAccountDevices)
-	routes.PATCH("/devices/:id", h.PatchAccountDevice)
-	routes.DELETE("/devices/:id", h.RevokeAccountDevice)
-	routes.GET("/approvals", h.ListAccountApprovals)
-	routes.GET("/approvals/:id", h.GetAccountApproval)
-	routes.POST("/approvals/:id/decision", h.DecideAccountApproval)
-	routes.POST("/checkout", h.CheckoutAccount)
-	routes.POST("/billing-portal", h.AccountBillingPortal)
-}
-
 func AccountStatus(installation account.Installation) contract.AccountStatusResponse {
 	status := contract.AccountStatusResponse{
 		Gate:     "off",

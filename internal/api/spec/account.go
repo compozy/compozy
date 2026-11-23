@@ -12,7 +12,9 @@ import (
 const specAccountKey = "account"
 
 func accountOperations() []OperationSpec {
-	return append(append(accountIdentityOperations(), accountDeviceOperations()...), accountApprovalBillingOperations()...)
+	return append(
+		append(accountIdentityOperations(), accountDeviceOperations()...),
+		accountApprovalBillingOperations()...)
 }
 
 func accountIdentityOperations() []OperationSpec {
