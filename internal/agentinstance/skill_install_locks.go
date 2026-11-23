@@ -100,12 +100,11 @@ func (s *SkillProposalService) acquireSkill(
 	if err != nil {
 		return nil, err
 	}
-	// The lexical path is kept: a symlinked skill directory is then refused as unsupported rather
-	// than followed.
+	// The leaf is never canonicalized: root is canonical and name is a validated single path element,
+	// so the lexical path cannot leave the root. A symlinked skill directory is then reported by each
+	// operation (Lstat-based digests and reads refuse it; moves rename the link through the parent
+	// handle) instead of being followed or failing here with a path error.
 	dir := filepath.Join(root, name)
-	if _, err := fileutil.ResolvePathWithinRoot(root, dir); err != nil {
-		return nil, err
-	}
 	locks := s.Locks
 	if locks == nil {
 		locks = defaultSkillInstallLocks
