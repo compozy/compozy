@@ -1,6 +1,7 @@
 package agentinstance
 
 import (
+	"bytes"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -371,7 +372,7 @@ func TestSkillInstallRecovery(t *testing.T) {
 		if f.digest(t, "victim-skill") != victim {
 			t.Fatal("recovery removed a sibling the operation does not own")
 		}
-		if after := f.journalBytes(t, "release-checklist"); string(after) != string(before) {
+		if after := f.journalBytes(t, "release-checklist"); !bytes.Equal(after, before) {
 			t.Fatal("recovery rewrote the corrupt journal instead of keeping it for diagnosis")
 		}
 	})
@@ -474,7 +475,7 @@ func TestSkillInstallRecovery(t *testing.T) {
 		if !errors.Is(err, dirpublish.ErrRecoveryRequired) || !strings.Contains(err.Error(), `unknown state "actve"`) {
 			t.Fatalf("ReconcileTargetRoot() = %v, want the unknown-state refusal", err)
 		}
-		if f.digest(t, "release-checklist") != staged || string(f.journalBytes(t, "release-checklist")) != string(before) {
+		if f.digest(t, "release-checklist") != staged || !bytes.Equal(f.journalBytes(t, "release-checklist"), before) {
 			t.Fatal("recovery changed files for a journal in an unknown state")
 		}
 	})
