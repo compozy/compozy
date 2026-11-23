@@ -7478,11 +7478,11 @@ func TestGlobalDBAppTokenMigration(t *testing.T) {
 		})
 		restarted := appTokenServiceForTest(t, reopened)
 		persisted, err := restarted.AuthenticateAppToken(ctx, issued.Secret)
-		if err != nil || persisted.Session.ID != issued.Token.Session.ID || len(persisted.Origins) != 1 ||
+		if err != nil || persisted.ID != issued.Token.ID || len(persisted.Origins) != 1 ||
 			persisted.Origins[0] != "https://app.test" {
 			t.Fatalf("token did not survive reopen: %#v, %v", persisted, err)
 		}
-		devices, err := restarted.ListDevices(ctx)
+		devices, err := reopened.ListDevices(ctx)
 		if err != nil || len(devices) != 3 {
 			t.Fatalf("device inventory after reopen: %#v, %v", devices, err)
 		}

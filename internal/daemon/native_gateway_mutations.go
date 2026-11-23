@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -148,13 +149,17 @@ func (n *daemonNativeTools) gatewayIngressBind(
 	if err != nil {
 		return nil, err
 	}
-	binding, err := n.deps.gatewayService().BindIngress(ctx, gateway.IngressBindRequest{
+	service := n.deps.ingressService()
+	if service == nil {
+		return nil, ingress.ErrSubjectNotFound
+	}
+	binding, err := service.Bind(ctx, ingress.BindRequest{
 		Subject: ref, Confirmed: input.Confirmed, Caller: nativeGatewayIngressCaller(scope),
 	})
 	if err != nil {
 		return nil, err
 	}
-	projection, err := n.deps.gatewayService().ProjectIngress(ctx, ref)
+	projection, err := service.Project(ctx, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +178,11 @@ func (n *daemonNativeTools) gatewayIngressUnbind(
 	if err != nil {
 		return nil, err
 	}
-	result, err := n.deps.gatewayService().UnbindIngress(ctx, gateway.IngressUnbindRequest{
+	service := n.deps.ingressService()
+	if service == nil {
+		return nil, ingress.ErrSubjectNotFound
+	}
+	result, err := service.Unbind(ctx, ingress.UnbindRequest{
 		Subject: ref, Caller: nativeGatewayIngressCaller(scope),
 	})
 	if err != nil {
@@ -186,22 +195,22 @@ func (n *daemonNativeTools) gatewayIngressUnbind(
 func nativeGatewayIngressRef(
 	toolID toolspkg.ToolID,
 	input nativeGatewayInput,
-) (gateway.IngressSubjectRef, error) {
-	ref := gateway.IngressSubjectRef{
-		Kind: gateway.IngressSubjectKind(strings.TrimSpace(input.SubjectKind)),
+) (ingress.SubjectRef, error) {
+	ref := ingress.SubjectRef{
+		Kind: ingress.SubjectKind(strings.TrimSpace(input.SubjectKind)),
 		ID:   strings.TrimSpace(input.SubjectID),
 	}
 	if err := ref.Validate(); err != nil {
-		return gateway.IngressSubjectRef{}, nativeGatewayInputError(toolID, "subject", err.Error())
+		return ingress.SubjectRef{}, nativeGatewayInputError(toolID, "subject", err.Error())
 	}
 	return ref, nil
 }
 
-func nativeGatewayIngressCaller(scope toolspkg.Scope) *gateway.IngressCaller {
+func nativeGatewayIngressCaller(scope toolspkg.Scope) *ingress.Caller {
 	if strings.TrimSpace(scope.SessionID) == "" {
 		return nil
 	}
-	return &gateway.IngressCaller{
+	return &ingress.Caller{
 		SessionID: strings.TrimSpace(scope.SessionID), WorkspaceID: strings.TrimSpace(scope.WorkspaceID),
 		AgentName: strings.TrimSpace(scope.AgentName),
 	}

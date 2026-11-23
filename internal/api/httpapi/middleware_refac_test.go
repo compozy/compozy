@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/apptoken"
 	"github.com/gin-gonic/gin"
 )
 
@@ -394,7 +394,7 @@ func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 
 		appEngine := gin.New()
 		appEngine.GET("/raw/*path", func(c *gin.Context) {
-			c.Request = c.Request.WithContext(core.ContextWithAppToken(c.Request.Context(), gateway.AppToken{}))
+			c.Request = c.Request.WithContext(core.ContextWithAppToken(c.Request.Context(), apptoken.Token{}))
 		}, sameOriginFetchGuard, func(c *gin.Context) { c.Status(http.StatusNoContent) })
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/raw/a.png", http.NoBody)

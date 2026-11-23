@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,7 +25,7 @@ func (h *Handlers) redeemGatewayPairing(c *gin.Context) {
 	source := gatewayAuthSource(c.Request)
 	localOperator := h.GatewayPairingSource == string(gateway.PairingSourceLocal)
 	if h.pairingLimiter != nil && !h.pairingLimiter.Allow(source, localOperator) {
-		abortGatewayError(c, gateway.ErrAuthRateLimited)
+		abortGatewayError(c, remotehost.ErrAuthRateLimited)
 		return
 	}
 	payload, err := h.GatewayRedeem(c.Request.Context(), request)

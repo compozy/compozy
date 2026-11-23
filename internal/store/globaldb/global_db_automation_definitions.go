@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -245,14 +245,14 @@ func reconcileAutomationIngressBinding(
 ) error {
 	if identityChanged {
 		_, err := queries.DeleteGatewayIngressBinding(ctx, sqlcgen.DeleteGatewayIngressBindingParams{
-			SubjectKind: string(gateway.IngressSubjectWebhookTrigger), SubjectID: trigger.ID,
+			SubjectKind: string(ingress.SubjectWebhookTrigger), SubjectID: trigger.ID,
 		})
 		return err
 	}
 	_, err := queries.DeleteMismatchedGatewayIngressBinding(
 		ctx,
 		sqlcgen.DeleteMismatchedGatewayIngressBindingParams{
-			SubjectKind: string(gateway.IngressSubjectWebhookTrigger),
+			SubjectKind: string(ingress.SubjectWebhookTrigger),
 			SubjectID:   trigger.ID,
 			ScopeKind:   string(trigger.Scope),
 			WorkspaceID: nullableAutomationString(trigger.WorkspaceID),
@@ -273,7 +273,7 @@ func (g *AutomationRepo) DeleteTrigger(ctx context.Context, id string) (err erro
 	return g.withImmediateTransaction(ctx, "delete automation trigger", func(exec globalSQLExecutor) error {
 		queries := sqlcgen.New(exec)
 		if _, err := queries.DeleteGatewayIngressBinding(ctx, sqlcgen.DeleteGatewayIngressBindingParams{
-			SubjectKind: string(gateway.IngressSubjectWebhookTrigger), SubjectID: trimmedID,
+			SubjectKind: string(ingress.SubjectWebhookTrigger), SubjectID: trimmedID,
 		}); err != nil {
 			return fmt.Errorf("store: delete webhook ingress binding %q: %w", trimmedID, err)
 		}

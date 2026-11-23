@@ -22,9 +22,12 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/apptoken"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/gin-gonic/gin"
@@ -35,6 +38,7 @@ const gatewayIntegrationClientTimeout = 5 * time.Second
 
 type gatewayIntegrationService struct {
 	*gateway.DeviceService
+	appTokens *apptoken.Service
 }
 
 func (s *gatewayIntegrationService) Acquire(gateway.Tier, gateway.Surface) (func(), error) {
@@ -88,34 +92,6 @@ func (s *gatewayIntegrationService) DisableProvider(
 	_ string,
 ) (gateway.Status, error) {
 	return s.Status(ctx)
-}
-
-func (*gatewayIntegrationService) ResolveIngressSubject(
-	context.Context,
-	gateway.IngressSubjectRef,
-) (gateway.IngressSubject, error) {
-	return gateway.IngressSubject{}, gateway.ErrIngressSubjectNotFound
-}
-
-func (*gatewayIntegrationService) BindIngress(
-	context.Context,
-	gateway.IngressBindRequest,
-) (gateway.IngressBinding, error) {
-	return gateway.IngressBinding{}, gateway.ErrIngressSubjectNotFound
-}
-
-func (*gatewayIntegrationService) UnbindIngress(
-	context.Context,
-	gateway.IngressUnbindRequest,
-) (gateway.UnbindResult, error) {
-	return gateway.UnbindResult{}, gateway.ErrIngressSubjectNotFound
-}
-
-func (*gatewayIntegrationService) ProjectIngress(
-	context.Context,
-	gateway.IngressSubjectRef,
-) (gateway.IngressProjection, error) {
-	return gateway.IngressProjection{}, gateway.ErrIngressSubjectNotFound
 }
 
 func TestGatewayPairingAndBrowserCredentialIntegration(t *testing.T) {
@@ -768,7 +744,7 @@ func TestGatewayRevocationFencesInflightMutationIntegration(t *testing.T) {
 func exerciseGatewayRevocationFencesInflightMutationIntegration(t *testing.T, appToken bool) {
 	t.Helper()
 	service := newGatewayIntegrationService(t)
-	issued, middleware, revoke, revokeRoute := gatewayIntegrationRevocableAuth(t, service, appToken)
+	credentialID, credential, middleware, revoke, revokeRoute := gatewayIntegrationRevocableAuth(t, service, appToken)
 	productDB, err := store.OpenSQLiteDatabase(
 		t.Context(),
 		filepath.Join(t.TempDir(), "product.db"),
@@ -822,7 +798,7 @@ func exerciseGatewayRevocationFencesInflightMutationIntegration(t *testing.T, ap
 			mutationDone <- responseOutcome{err: requestErr}
 			return
 		}
-		request.Header.Set("Authorization", "Bearer "+issued.Credential)
+		request.Header.Set("Authorization", "Bearer "+credential)
 		if appToken {
 			request.Header.Set("Origin", "http://app.test")
 		}
@@ -855,9 +831,9 @@ func exerciseGatewayRevocationFencesInflightMutationIntegration(t *testing.T, ap
 		t.Context(),
 		http.MethodDelete,
 		server.URL+strings.ReplaceAll(
-			strings.ReplaceAll(revokeRoute, ":app_token_id", issued.Device.ID),
+			strings.ReplaceAll(revokeRoute, ":app_token_id", credentialID),
 			":id",
-			issued.Device.ID,
+			credentialID,
 		),
 		http.NoBody,
 	)
@@ -865,7 +841,7 @@ func exerciseGatewayRevocationFencesInflightMutationIntegration(t *testing.T, ap
 		t.Fatalf("http.NewRequestWithContext(revoke) error = %v", err)
 	}
 	if !appToken {
-		revokeRequest.Header.Set("Authorization", "Bearer "+issued.Credential)
+		revokeRequest.Header.Set("Authorization", "Bearer "+credential)
 	}
 	revokeResponse, err := gatewayIntegrationHTTPClient().Do(revokeRequest)
 	if err != nil {
@@ -1001,11 +977,21 @@ func newGatewayIntegrationService(t *testing.T) *gatewayIntegrationService {
 			t.Errorf("GlobalDB.Close() error = %v", err)
 		}
 	})
-	devices, err := gateway.NewDeviceService(database, gateway.WithAppTokenStore(database))
+	connections := remotehost.NewConnectionRegistry()
+	mutations := remotehost.NewMutationGate(database.RevalidateDeviceEpoch)
+	devices, err := gateway.NewDeviceService(
+		database,
+		gateway.WithConnectionRegistry(connections),
+		gateway.WithMutationGate(mutations),
+	)
 	if err != nil {
 		t.Fatalf("NewDeviceService() error = %v", err)
 	}
-	return &gatewayIntegrationService{DeviceService: devices}
+	appTokens, err := apptoken.NewService(database, mutations, connections, nil)
+	if err != nil {
+		t.Fatalf("apptoken.NewService() error = %v", err)
+	}
+	return &gatewayIntegrationService{DeviceService: devices, appTokens: appTokens}
 }
 
 func newGatewayIntegrationServer(t *testing.T, service *gatewayIntegrationService) *httptest.Server {
@@ -1033,7 +1019,7 @@ func newGatewayPublicIngressIntegrationServer(
 
 	handlers := *runtime.server.handlers
 	handlers.gatewayAdmission = gatewayHTTPServiceStub{}
-	handlers.ingressLimiter = gateway.NewIngressRateLimiter(
+	handlers.ingressLimiter = ingress.NewRateLimiter(
 		requestLimit,
 		time.Minute,
 		func() time.Time { return time.Now().UTC() },
@@ -1276,7 +1262,7 @@ func mintGatewayIntegrationTicket(
 	t *testing.T,
 	service *gatewayIntegrationService,
 	issued gateway.IssuedCredential,
-) gateway.StreamTicket {
+) remotehost.StreamTicket {
 	t.Helper()
 
 	device, err := service.Authenticate(t.Context(), issued.Credential)
@@ -1317,7 +1303,7 @@ func TestLocalAppTokenIntegration(t *testing.T) {
 	t.Run("Should reject app tokens on gateway tiers before updating usage", func(t *testing.T) {
 		t.Parallel()
 		service := newGatewayIntegrationService(t)
-		issued, err := service.CreateAppToken(t.Context(), "Local app", nil)
+		issued, err := service.appTokens.CreateAppToken(t.Context(), "Local app", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1346,11 +1332,11 @@ func TestLocalAppTokenIntegration(t *testing.T) {
 		if response.StatusCode != 403 || !bytes.Contains(body, []byte("gateway_app_token_local_only")) {
 			t.Fatalf("tier = %d %s", response.StatusCode, body)
 		}
-		tokens, err := service.ListAppTokens(t.Context(), gateway.AppTokenStateActive)
+		tokens, err := service.appTokens.ListAppTokens(t.Context(), apptoken.StateActive)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(tokens) != 1 || !tokens[0].Session.LastSeenAt.IsZero() {
+		if len(tokens) != 1 || !tokens[0].LastSeenAt.IsZero() {
 			t.Fatalf("token usage = %#v", tokens)
 		}
 		device := issueGatewayIntegrationCredential(t, service, gateway.ActorKindOperatorDevice)
@@ -1371,21 +1357,21 @@ func TestLocalAppTokenIntegration(t *testing.T) {
 }
 
 func gatewayIntegrationRevocableAuth(t *testing.T, service *gatewayIntegrationService, appToken bool) (
-	gateway.IssuedCredential, gin.HandlerFunc, gin.HandlerFunc, string,
+	string, string, gin.HandlerFunc, gin.HandlerFunc, string,
 ) {
 	t.Helper()
 	handlers := newHandlers(&handlerConfig{
-		gateway: service, deviceAuth: service, appTokens: service, boundHost: "127.0.0.1",
+		gateway: service, deviceAuth: service, appTokens: service.appTokens, boundHost: "127.0.0.1",
 	})
 	if !appToken {
 		issued := issueGatewayIntegrationCredential(t, service, gateway.ActorKindOperatorDevice)
-		return issued, handlers.deviceAuthMiddleware(), handlers.RevokeGatewayDevice, "/api/gateway/devices/:id"
+		return issued.Device.ID, issued.Credential, handlers.deviceAuthMiddleware(), handlers.RevokeGatewayDevice, "/api/gateway/devices/:id"
 	}
-	issued, err := service.CreateAppToken(t.Context(), "Browser integration", []string{"http://app.test"})
+	issued, err := service.appTokens.CreateAppToken(t.Context(), "Browser integration", []string{"http://app.test"})
 	if err != nil {
 		t.Fatalf("CreateAppToken() error = %v", err)
 	}
-	server := &Server{host: "127.0.0.1", appTokenAuth: service, appAccess: func(string, string) bool { return true }}
-	return gateway.IssuedCredential{Device: issued.Token.Session, Credential: issued.Secret},
+	server := &Server{host: "127.0.0.1", appTokenAuth: service.appTokens, appAccess: func(string, string) bool { return true }}
+	return issued.Token.ID, issued.Secret,
 		server.appTokenAuthMiddleware(), handlers.RevokeAppToken, "/api/app-tokens/:app_token_id"
 }

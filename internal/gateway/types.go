@@ -7,6 +7,8 @@ import (
 	"net/netip"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/ingress"
 )
 
 var (
@@ -245,7 +247,7 @@ type Status struct {
 	Providers []ProviderStatus
 	Addresses []AddressStatus
 	Devices   []DeviceSession
-	Bindings  []IngressBindingStatus
+	Bindings  []ingress.Projection
 	Refusal   *Refusal
 }
 

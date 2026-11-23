@@ -8,7 +8,11 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/remotehost"
 )
+
+const testSecretEntropyBytes = 32
 
 func TestDeviceCredentialsAndPairing(t *testing.T) {
 	t.Parallel()
@@ -23,11 +27,11 @@ func TestDeviceCredentialsAndPairing(t *testing.T) {
 		}
 		encoded := strings.TrimPrefix(issued.Credential, deviceCredentialPrefix)
 		decoded, err := base64.RawURLEncoding.DecodeString(encoded)
-		if err != nil || len(decoded) != secretEntropyBytes {
+		if err != nil || len(decoded) != testSecretEntropyBytes {
 			t.Fatalf("credential entropy = %d bytes, error = %v", len(decoded), err)
 		}
 		record := store.byID[issued.Device.ID]
-		if record.TokenHash != hashCredential(issued.Credential) || record.TokenHash == issued.Credential ||
+		if record.TokenHash != remotehost.HashCredential(issued.Credential) || record.TokenHash == issued.Credential ||
 			len(record.TokenHash) != 64 {
 			t.Fatalf("stored credential = %#v, want SHA-256 hex only", record)
 		}
@@ -56,7 +60,7 @@ func TestDeviceCredentialsAndPairing(t *testing.T) {
 			t.Fatalf("issued credential differs from the client-provisioned credential")
 		}
 		record := store.byID[issued.Device.ID]
-		if record.TokenHash != hashCredential(credential) || record.TokenHash == credential {
+		if record.TokenHash != remotehost.HashCredential(credential) || record.TokenHash == credential {
 			t.Fatalf("stored credential = %#v, want only the client credential hash", record)
 		}
 		if _, err := service.Authenticate(t.Context(), credential); err != nil {
@@ -80,8 +84,8 @@ func TestDeviceCredentialsAndPairing(t *testing.T) {
 		if _, err := service.Authenticate(t.Context(), wrong); !errors.Is(err, ErrDeviceUnauthenticated) {
 			t.Fatalf("Authenticate(wrong) error = %v", err)
 		}
-		if constantTimeCredentialMatch(wrong, hashCredential(issued.Credential)) {
-			t.Fatal("constantTimeCredentialMatch(wrong) = true")
+		if remotehost.ConstantTimeCredentialMatch(wrong, remotehost.HashCredential(issued.Credential)) {
+			t.Fatal("remotehost.ConstantTimeCredentialMatch(wrong) = true")
 		}
 	})
 
@@ -267,7 +271,7 @@ func TestDeviceCredentialsAndPairing(t *testing.T) {
 	t.Run("Should retry a colliding manual code instead of reusing it", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-		stream := append(bytes.Repeat([]byte{0x02}, secretEntropyBytes), []byte{
+		stream := append(bytes.Repeat([]byte{0x02}, testSecretEntropyBytes), []byte{
 			0x00, 0x01, 0xe2, 0x40, // 123456 collides with the seeded code
 			0x00, 0x09, 0xfb, 0xf1, // 654321 is the retry
 		}...)
@@ -275,7 +279,7 @@ func TestDeviceCredentialsAndPairing(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newPairingStore() error = %v", err)
 		}
-		store.manual[hashCredential("123456")] = "seeded-digest"
+		store.manual[remotehost.HashCredential("123456")] = "seeded-digest"
 		artifact, err := store.Mint(PairingSourceLocal)
 		if err != nil {
 			t.Fatalf("Mint() error = %v", err)
@@ -283,7 +287,8 @@ func TestDeviceCredentialsAndPairing(t *testing.T) {
 		if artifact.ManualCode != "654321" {
 			t.Fatalf("manual code = %q, want the collision-free retry", artifact.ManualCode)
 		}
-		if got := store.manual[hashCredential("654321")]; got != hashCredential(artifact.Artifact) {
+		want := remotehost.HashCredential(artifact.Artifact)
+		if got := store.manual[remotehost.HashCredential("654321")]; got != want {
 			t.Fatalf("manual index = %q, want the artifact digest", got)
 		}
 	})
@@ -291,7 +296,7 @@ func TestDeviceCredentialsAndPairing(t *testing.T) {
 	t.Run("Should fail closed when every manual code draw collides", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-		stream := bytes.Repeat([]byte{0x02}, secretEntropyBytes)
+		stream := bytes.Repeat([]byte{0x02}, testSecretEntropyBytes)
 		for range pairingManualCodeAttempts {
 			stream = append(stream, 0x00, 0x01, 0xe2, 0x40)
 		}
@@ -299,7 +304,7 @@ func TestDeviceCredentialsAndPairing(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newPairingStore() error = %v", err)
 		}
-		store.manual[hashCredential("123456")] = "seeded-digest"
+		store.manual[remotehost.HashCredential("123456")] = "seeded-digest"
 		if _, err := store.Mint(PairingSourceLocal); err == nil ||
 			!strings.Contains(err.Error(), "collided") {
 			t.Fatalf("Mint() error = %v, want a wrapped collision failure", err)

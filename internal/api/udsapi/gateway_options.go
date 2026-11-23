@@ -8,3 +8,10 @@ func WithGatewayService(service core.GatewayService) Option {
 		server.gateway = service
 	}
 }
+
+// WithIngressService installs the webhook ingress binding service.
+func WithIngressService(service core.IngressService) Option {
+	return func(server *Server) {
+		server.ingress = service
+	}
+}

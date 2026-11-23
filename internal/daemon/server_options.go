@@ -76,17 +76,11 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithDeadEntitySource(deps.DeadEntities),
 		httpapi.WithExtensionService(deps.Extensions),
 		httpapi.WithOpenAPIDocument(runtimeOpenAPIDocument),
-		httpapi.WithGatewayService(deps.Gateway),
-		httpapi.WithDeviceAuth(deps.Gateway),
 	}
-	if deps.AppTokens != nil {
-		options = append(options,
-			httpapi.WithAppTokenManager(deps.AppTokens),
-			httpapi.WithAppTokenAuth(deps.AppTokens, appAccessPolicy()),
-		)
-	}
+	options = append(options, httpRemoteAccessOptions(deps)...)
 	return append(options, httpProjectFileOptions(deps)...)
 }
+
 func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 	options := []udsapi.Option{
 		udsapi.WithHomePaths(deps.HomePaths),
@@ -162,7 +156,33 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithHostedMCP(deps.HostedMCP),
 		udsapi.WithMCPHostAPI(deps.MCPHostAPI),
 		udsapi.WithOpenAPIDocument(runtimeOpenAPIDocument),
+	}
+	return append(options, udsRemoteAccessOptions(deps)...)
+}
+
+func httpRemoteAccessOptions(deps *RuntimeDeps) []httpapi.Option {
+	options := []httpapi.Option{
+		httpapi.WithGatewayService(deps.Gateway),
+		httpapi.WithDeviceAuth(deps.Gateway),
+	}
+	if deps.Ingress != nil {
+		options = append(options, httpapi.WithIngressService(deps.Ingress))
+	}
+	if deps.AppTokens != nil {
+		options = append(options,
+			httpapi.WithAppTokenManager(deps.AppTokens),
+			httpapi.WithAppTokenAuth(deps.AppTokens, appAccessPolicy()),
+		)
+	}
+	return options
+}
+
+func udsRemoteAccessOptions(deps *RuntimeDeps) []udsapi.Option {
+	options := []udsapi.Option{
 		udsapi.WithGatewayService(deps.Gateway),
+	}
+	if deps.Ingress != nil {
+		options = append(options, udsapi.WithIngressService(deps.Ingress))
 	}
 	if deps.AppTokens != nil {
 		options = append(options, udsapi.WithAppTokenManager(deps.AppTokens))

@@ -88,6 +88,7 @@ type handlerConfig struct {
 	appTokens             core.AppTokenManager
 	openAPI               *core.OpenAPIDocument
 	gateway               core.GatewayService
+	ingress               core.IngressService
 	homePaths             compozyconfig.HomePaths
 	config                compozyconfig.Config
 	logger                *slog.Logger

@@ -6,14 +6,14 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/gin-gonic/gin"
 )
 
 const gatewayIngressAction = "gateway.ingress"
 
 func gatewayIngressForbidden(err error) error {
-	return errors.Join(gateway.ErrIngressForbidden, err)
+	return errors.Join(ingress.ErrForbidden, err)
 }
 
 func (h *BaseHandlers) BindGatewayIngress(c *gin.Context) {
@@ -22,8 +22,8 @@ func (h *BaseHandlers) BindGatewayIngress(c *gin.Context) {
 		h.respondGatewayRequestError(c)
 		return
 	}
-	ref := gateway.IngressSubjectRef{
-		Kind: gateway.IngressSubjectKind(request.SubjectKind), ID: strings.TrimSpace(request.SubjectID),
+	ref := ingress.SubjectRef{
+		Kind: ingress.SubjectKind(request.SubjectKind), ID: strings.TrimSpace(request.SubjectID),
 	}
 	if err := ref.Validate(); err != nil || !request.Confirmed {
 		h.respondGatewayRequestError(c)
@@ -34,14 +34,18 @@ func (h *BaseHandlers) BindGatewayIngress(c *gin.Context) {
 		h.respondGatewayError(c, gatewayIngressForbidden(err))
 		return
 	}
-	binding, err := h.Gateway.BindIngress(c.Request.Context(), gateway.IngressBindRequest{
+	if h.Ingress == nil {
+		h.respondGatewayError(c, ingress.ErrSubjectNotFound)
+		return
+	}
+	binding, err := h.Ingress.Bind(c.Request.Context(), ingress.BindRequest{
 		Subject: ref, Confirmed: request.Confirmed, Caller: caller,
 	})
 	if err != nil {
 		h.respondGatewayError(c, err)
 		return
 	}
-	projection, err := h.Gateway.ProjectIngress(c.Request.Context(), ref)
+	projection, err := h.Ingress.Project(c.Request.Context(), ref)
 	if err != nil {
 		h.respondGatewayError(c, err)
 		return
@@ -56,8 +60,8 @@ func (h *BaseHandlers) BindGatewayIngress(c *gin.Context) {
 }
 
 func (h *BaseHandlers) UnbindGatewayIngress(c *gin.Context) {
-	ref := gateway.IngressSubjectRef{
-		Kind: gateway.IngressSubjectKind(c.Param("subject_kind")),
+	ref := ingress.SubjectRef{
+		Kind: ingress.SubjectKind(c.Param("subject_kind")),
 		ID:   strings.TrimSpace(c.Param("subject_id")),
 	}
 	if err := ref.Validate(); err != nil {
@@ -69,7 +73,11 @@ func (h *BaseHandlers) UnbindGatewayIngress(c *gin.Context) {
 		h.respondGatewayError(c, gatewayIngressForbidden(err))
 		return
 	}
-	result, err := h.Gateway.UnbindIngress(c.Request.Context(), gateway.IngressUnbindRequest{
+	if h.Ingress == nil {
+		h.respondGatewayError(c, ingress.ErrSubjectNotFound)
+		return
+	}
+	result, err := h.Ingress.Unbind(c.Request.Context(), ingress.UnbindRequest{
 		Subject: ref, Caller: caller,
 	})
 	if err != nil {
@@ -79,7 +87,7 @@ func (h *BaseHandlers) UnbindGatewayIngress(c *gin.Context) {
 	c.JSON(http.StatusOK, GatewayIngressUnbindPayload(result))
 }
 
-func (h *BaseHandlers) gatewayIngressCaller(c *gin.Context) (*gateway.IngressCaller, error) {
+func (h *BaseHandlers) gatewayIngressCaller(c *gin.Context) (*ingress.Caller, error) {
 	credentials := agentCallerCredentialsFromRequest(c)
 	if !hasAgentCallerIdentityCredentials(credentials) {
 		return nil, nil
@@ -88,7 +96,7 @@ func (h *BaseHandlers) gatewayIngressCaller(c *gin.Context) (*gateway.IngressCal
 	if err != nil {
 		return nil, err
 	}
-	return &gateway.IngressCaller{
+	return &ingress.Caller{
 		SessionID: caller.Session.ID, WorkspaceID: caller.Session.WorkspaceID,
 		AgentName: caller.Session.AgentName,
 	}, nil

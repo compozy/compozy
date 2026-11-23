@@ -9,7 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/diagnostics"
 	eventspkg "github.com/compozy/compozy/internal/events"
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -18,7 +18,7 @@ type gatewayIngressAuditSink struct {
 	now    func() time.Time
 }
 
-func (s gatewayIngressAuditSink) RecordIngressBound(ctx context.Context, event gateway.IngressMutationEvent) error {
+func (s gatewayIngressAuditSink) RecordIngressBound(ctx context.Context, event ingress.MutationEvent) error {
 	return s.record(
 		ctx,
 		eventspkg.GatewayIngressBound,
@@ -28,7 +28,7 @@ func (s gatewayIngressAuditSink) RecordIngressBound(ctx context.Context, event g
 	)
 }
 
-func (s gatewayIngressAuditSink) RecordIngressUnbound(ctx context.Context, event gateway.IngressMutationEvent) error {
+func (s gatewayIngressAuditSink) RecordIngressUnbound(ctx context.Context, event ingress.MutationEvent) error {
 	return s.record(
 		ctx,
 		eventspkg.GatewayIngressUnbound,
@@ -43,7 +43,7 @@ func (s gatewayIngressAuditSink) record(
 	eventType string,
 	outcome eventspkg.Outcome,
 	summary string,
-	event gateway.IngressMutationEvent,
+	event ingress.MutationEvent,
 ) error {
 	if s.writer == nil {
 		return errors.New("daemon: gateway ingress audit store is required")
@@ -96,4 +96,4 @@ func (s gatewayIngressAuditSink) record(
 	return nil
 }
 
-var _ gateway.IngressEventSink = gatewayIngressAuditSink{}
+var _ ingress.EventSink = gatewayIngressAuditSink{}

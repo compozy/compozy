@@ -5,7 +5,11 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/compozy/compozy/internal/apptoken"
+	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/remotehost"
 
 	"github.com/compozy/compozy/internal/agentmemory"
 
@@ -13,7 +17,6 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/doctor"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -96,11 +99,12 @@ type handlerConfig struct {
 	appTokens             core.AppTokenManager
 	openAPI               *core.OpenAPIDocument
 	gateway               core.GatewayService
+	ingress               core.IngressService
 	gatewayAdmission      gateway.AdmissionController
 	deviceAuth            gateway.DeviceAuthenticator
-	authLimiter           *gateway.AuthFailureLimiter
-	pairingLimiter        *gateway.AuthFailureLimiter
-	ingressLimiter        *gateway.IngressRateLimiter
+	authLimiter           *remotehost.AuthFailureLimiter
+	pairingLimiter        *remotehost.AuthFailureLimiter
+	ingressLimiter        *ingress.RateLimiter
 	surfaceSet            SurfaceSet
 	staticFS              fs.FS
 	homePaths             compozyconfig.HomePaths
@@ -128,9 +132,9 @@ type Handlers struct {
 	boundHost        string
 	deviceAuth       gateway.DeviceAuthenticator
 	gatewayAdmission gateway.AdmissionController
-	authLimiter      *gateway.AuthFailureLimiter
-	pairingLimiter   *gateway.AuthFailureLimiter
-	ingressLimiter   *gateway.IngressRateLimiter
+	authLimiter      *remotehost.AuthFailureLimiter
+	pairingLimiter   *remotehost.AuthFailureLimiter
+	ingressLimiter   *ingress.RateLimiter
 }
 
 const (
@@ -138,8 +142,8 @@ const (
 	defaultGatewayAuthFailureWindow = time.Minute
 )
 
-func newDefaultGatewayAuthFailureLimiter() *gateway.AuthFailureLimiter {
-	return gateway.NewAuthFailureLimiter(
+func newDefaultGatewayAuthFailureLimiter() *remotehost.AuthFailureLimiter {
+	return remotehost.NewAuthFailureLimiter(
 		defaultGatewayAuthFailureLimit,
 		defaultGatewayAuthFailureWindow,
 		func() time.Time { return time.Now().UTC() },
@@ -171,7 +175,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 	}
 	ingressLimiter := cfg.ingressLimiter
 	if ingressLimiter == nil {
-		ingressLimiter = gateway.NewIngressRateLimiter(
+		ingressLimiter = ingress.NewRateLimiter(
 			defaultGatewayIngressRequestLimit,
 			defaultGatewayIngressRequestWindow,
 			func() time.Time { return time.Now().UTC() },
@@ -290,6 +294,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		AppTokens:              cfg.appTokens,
 		OpenAPI:                cfg.openAPI,
 		Gateway:                cfg.gateway,
+		Ingress:                cfg.ingress,
 		HomePaths:              cfg.homePaths,
 		AgentLoader:            cfg.agentLoader,
 	}
@@ -341,7 +346,7 @@ func (h *Handlers) privilegedMutationGuard() gin.HandlerFunc {
 	loopback := loopbackMutationGuard(boundHost)
 	return func(c *gin.Context) {
 		if c.GetString(appTokenOriginKey) != "" {
-			core.RespondAppTokenError(c, gateway.ErrAppTokenRouteForbidden, true)
+			core.RespondAppTokenError(c, apptoken.ErrRouteForbidden, true)
 			return
 		}
 		loopback(c)
