@@ -112,8 +112,9 @@ export function RemoteSessionsWindow({
   scope = "All projects",
   className,
 }: RemoteSessionsWindowProps) {
+  const initialSelectedId = activeSession.id;
   const [railOpen, setRailOpen] = useState(true);
-  const [selectedId, setSelectedId] = useState(activeSession.id);
+  const [selectedId, setSelectedId] = useState(initialSelectedId);
   const [reconnecting, setReconnecting] = useState(false);
 
   const isRemote = activeComputer !== null;

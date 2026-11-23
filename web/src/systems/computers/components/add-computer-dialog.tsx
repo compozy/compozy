@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   CheckCircle2,
   Laptop,
@@ -28,6 +27,7 @@ import {
   type RadioCardGroupOption,
 } from "@compozy/ui";
 
+import { useAddComputerDialog } from "../hooks/use-add-computer-dialog";
 import type {
   AccountUnaddedComputerFixture,
   SshHostSuggestionFixture,
@@ -77,6 +77,154 @@ const DEFAULT_DRAFT: SshTargetDraft = {
   name: "staging-box",
 };
 
+function AddComputerSshProgressView({
+  sshStage,
+  hostLabel,
+  targetAddress,
+  onSetSshStage,
+  onSwitchToCommand,
+  onRequestCancel,
+}: {
+  sshStage: AddComputerSshStage;
+  hostLabel: string;
+  targetAddress: string;
+  onSetSshStage: (stage: AddComputerSshStage) => void;
+  onSwitchToCommand: () => void;
+  onRequestCancel: () => void;
+}) {
+  const steps = buildSshSetupSteps({
+    stage: sshStage,
+    hostLabel,
+    targetAddress,
+    trustPromptNode:
+      sshStage === "host_key_changed" ? (
+        <AddComputerHostKeyCard
+          fingerprint={SSH_HOST_KEY_CHANGED_FIXTURE.observedFingerprint}
+          hostLabel={hostLabel}
+          keyType={SSH_HOST_KEY_CHANGED_FIXTURE.keyType}
+          mode="changed"
+          pinEntry={SSH_HOST_KEY_CHANGED_FIXTURE.pinEntry}
+          previousFingerprint={SSH_HOST_KEY_CHANGED_FIXTURE.pinnedFingerprint}
+          recoveryCommand={SSH_HOST_KEY_CHANGED_FIXTURE.recoveryCommand}
+          target={SSH_HOST_KEY_CHANGED_FIXTURE.target}
+          verifyCommand={SSH_HOST_KEY_CHANGED_FIXTURE.verifyCommand}
+        />
+      ) : sshStage === "trust_host" ? (
+        <AddComputerHostKeyCard
+          fingerprint={SSH_HOST_TRUST_FIXTURE.fingerprint}
+          hostLabel={hostLabel}
+          keyType={SSH_HOST_TRUST_FIXTURE.keyType}
+          mode="trust"
+          onDecline={() => {
+            onSetSshStage("picker");
+            toast.message("Setup cancelled. Host key was not trusted.");
+          }}
+          onTrust={() => {
+            onSetSshStage("running");
+            toast.success(`Trusted ${hostLabel} and continued setup.`);
+          }}
+          target={SSH_HOST_TRUST_FIXTURE.target}
+          verifyCommand={SSH_HOST_TRUST_FIXTURE.verifyCommand}
+        />
+      ) : undefined,
+    secretPromptNode:
+      sshStage === "password" || sshStage === "agent_secret" ? (
+        <AddComputerSecretCard
+          agentSessionTitle={
+            sshStage === "agent_secret" ? SSH_SECRET_PROMPT_FIXTURE.agentSessionTitle : null
+          }
+          countdownSeconds={SSH_SECRET_PROMPT_FIXTURE.countdownSeconds}
+          onCancel={onRequestCancel}
+          onRetry={() => onSetSshStage("running")}
+          onSubmit={() => {
+            onSetSshStage("running");
+            toast.success("Authenticated with SSH.");
+          }}
+          promptLabel={SSH_SECRET_PROMPT_FIXTURE.promptLabel}
+          target={targetAddress}
+        />
+      ) : undefined,
+    planLimitPromptNode:
+      sshStage === "plan_limit" ? (
+        <Alert variant="warning">
+          <Sparkles aria-hidden="true" />
+          <AlertTitle>Free includes 1 remote computer</AlertTitle>
+          <AlertDescription>
+            Upgrade to Pro for unlimited computers. Nothing was installed or changed on {hostLabel}.
+          </AlertDescription>
+        </Alert>
+      ) : undefined,
+    unsupportedPromptNode:
+      sshStage === "unsupported" ? (
+        <Alert variant="warning">
+          <TriangleAlert aria-hidden="true" />
+          <AlertTitle>Link this computer with a command instead</AlertTitle>
+          <AlertDescription className="flex flex-col gap-2">
+            <span>
+              Windows, 32-bit, and FreeBSD computers connect through{" "}
+              <span className="font-mono text-mono-id text-fg">compozy remote link</span>.
+            </span>
+            <Button
+              className="w-fit"
+              onClick={onSwitchToCommand}
+              size="xs"
+              type="button"
+              variant="secondary"
+            >
+              Show link command
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : undefined,
+  });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft pb-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <ComputerPlatformIcon platform="linux_x86_64" size="sm" tone="muted" />
+          <div className="min-w-0">
+            <p className="truncate text-small-body font-medium text-fg-strong">{hostLabel}</p>
+            <p className="truncate font-mono text-mono-id text-muted-foreground">{targetAddress}</p>
+          </div>
+        </div>
+        {sshStage === "failed" || sshStage === "host_key_changed" || sshStage === "unsupported" ? (
+          <Button onClick={() => onSetSshStage("picker")} size="xs" type="button" variant="ghost">
+            Change host
+          </Button>
+        ) : null}
+      </div>
+
+      <StepProgressList data-testid="add-computer-ssh-steps" steps={steps} />
+
+      {sshStage === "done" ? (
+        <div className="flex flex-col gap-3">
+          <ActionResultBanner
+            description={`Connected via SSH (${targetAddress}). Sessions you start on ${hostLabel} keep running even if you close this app.`}
+            icon={CheckCircle2}
+            title={`${hostLabel} is ready`}
+            tone="success"
+          />
+          <Alert variant="info">
+            <TriangleAlert aria-hidden="true" />
+            <AlertTitle>{SSH_LINGER_NOTE_FIXTURE.summary}</AlertTitle>
+            <AlertDescription className="flex flex-col gap-2">
+              <span>{SSH_LINGER_NOTE_FIXTURE.detail}</span>
+              <CodeBlock
+                code={SSH_LINGER_NOTE_FIXTURE.command}
+                copyable
+                density="compact"
+                language="bash"
+                showPrompt
+              />
+            </AlertDescription>
+          </Alert>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * Add computer modal (`_uiux.md` U2):
  * - Three mutually exclusive paths via `RadioCardGroup` (SSH, On your account, Link with a command)
@@ -99,35 +247,15 @@ export function AddComputerDialog({
   onUpgrade,
   onOpenComputer,
 }: AddComputerDialogProps) {
-  const [method, setMethod] = useState<AddComputerMethod>(initialMethod);
-  const [sshStage, setSshStage] = useState<AddComputerSshStage>(initialSshStage);
-  const [draft, setDraft] = useState<SshTargetDraft>(initialHostDraft);
-  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(initialSshStage === "cancel_confirm");
-  const [addedIds, setAddedIds] = useState<string[]>([]);
-
-  const selectedSuggestion = sshSuggestions.find(
-    item => item.alias === draft.host || item.hostname === draft.host
-  );
-  const resolvedHost = selectedSuggestion ? selectedSuggestion.hostname : draft.host;
-  const resolvedUser = draft.user || selectedSuggestion?.user || "";
-  const resolvedPort = draft.port && draft.port !== "22" ? `:${draft.port}` : "";
-  const targetAddress = resolvedUser
-    ? `${resolvedUser}@${resolvedHost}${resolvedPort}`
-    : `${resolvedHost}${resolvedPort}`;
-  const hostLabel = draft.name || draft.host || "staging-box";
-
-  const isSshProgressView = method === "ssh" && sshStage !== "picker";
-  const isActivelyRunning =
-    sshStage === "running" ||
-    sshStage === "trust_host" ||
-    sshStage === "password" ||
-    sshStage === "agent_secret" ||
-    sshStage === "cancel_confirm";
-
-  const pickerBlocked =
-    !draft.host.trim() ||
-    Boolean(selectedSuggestion?.alreadyAdded) ||
-    Boolean(selectedSuggestion?.unsupportedPlatform);
+  const state = useAddComputerDialog({
+    isFreePlan,
+    sshSuggestions,
+    initialMethod,
+    initialSshStage,
+    initialHostDraft,
+    linkedCommitReached,
+    onClose,
+  });
 
   const accountCountLabel =
     unaddedComputers.length === 1
@@ -159,131 +287,11 @@ export function AddComputerDialog({
     },
   ];
 
-  const handleRequestCancel = () => {
-    if (isSshProgressView && isActivelyRunning && !linkedCommitReached) {
-      setCancelConfirmOpen(true);
-      return;
-    }
-    onClose?.();
-  };
-
-  const handleStartSsh = () => {
-    if (!draft.host.trim() || selectedSuggestion?.alreadyAdded) return;
-    if (selectedSuggestion?.unsupportedPlatform) {
-      setSshStage("unsupported");
-      return;
-    }
-    if (isFreePlan) {
-      setSshStage("plan_limit");
-      return;
-    }
-    setSshStage("running");
-  };
-
-  const handleAddAccountItem = (item: AccountUnaddedComputerFixture) => {
-    setAddedIds(current => [...current, item.id]);
-    toast.success(`Added ${item.name} to your computers.`);
-  };
-
-  const handleRetryFailed = () => {
-    setSshStage("running");
-    toast("Resuming setup from Installing Compozy 0.8.0…");
-  };
-
-  const steps = buildSshSetupSteps({
-    stage: sshStage,
-    hostLabel,
-    targetAddress,
-    trustPromptNode:
-      sshStage === "host_key_changed" ? (
-        <AddComputerHostKeyCard
-          fingerprint={SSH_HOST_KEY_CHANGED_FIXTURE.observedFingerprint}
-          hostLabel={hostLabel}
-          keyType={SSH_HOST_KEY_CHANGED_FIXTURE.keyType}
-          mode="changed"
-          pinEntry={SSH_HOST_KEY_CHANGED_FIXTURE.pinEntry}
-          previousFingerprint={SSH_HOST_KEY_CHANGED_FIXTURE.pinnedFingerprint}
-          recoveryCommand={SSH_HOST_KEY_CHANGED_FIXTURE.recoveryCommand}
-          target={SSH_HOST_KEY_CHANGED_FIXTURE.target}
-          verifyCommand={SSH_HOST_KEY_CHANGED_FIXTURE.verifyCommand}
-        />
-      ) : sshStage === "trust_host" ? (
-        <AddComputerHostKeyCard
-          fingerprint={SSH_HOST_TRUST_FIXTURE.fingerprint}
-          hostLabel={hostLabel}
-          keyType={SSH_HOST_TRUST_FIXTURE.keyType}
-          mode="trust"
-          onDecline={() => {
-            setSshStage("picker");
-            toast("Setup cancelled. Host key was not trusted.");
-          }}
-          onTrust={() => {
-            setSshStage("running");
-            toast.success(`Trusted ${hostLabel} and continued setup.`);
-          }}
-          target={SSH_HOST_TRUST_FIXTURE.target}
-          verifyCommand={SSH_HOST_TRUST_FIXTURE.verifyCommand}
-        />
-      ) : undefined,
-    secretPromptNode:
-      sshStage === "password" || sshStage === "agent_secret" ? (
-        <AddComputerSecretCard
-          agentSessionTitle={
-            sshStage === "agent_secret" ? SSH_SECRET_PROMPT_FIXTURE.agentSessionTitle : null
-          }
-          countdownSeconds={SSH_SECRET_PROMPT_FIXTURE.countdownSeconds}
-          onCancel={handleRequestCancel}
-          onRetry={() => setSshStage("running")}
-          onSubmit={() => {
-            setSshStage("running");
-            toast.success("Authenticated with SSH.");
-          }}
-          promptLabel={SSH_SECRET_PROMPT_FIXTURE.promptLabel}
-          target={targetAddress}
-        />
-      ) : undefined,
-    planLimitPromptNode:
-      sshStage === "plan_limit" ? (
-        <Alert variant="warning">
-          <Sparkles aria-hidden="true" />
-          <AlertTitle>Free includes 1 remote computer</AlertTitle>
-          <AlertDescription>
-            Upgrade to Pro for unlimited computers. Nothing was installed or changed on {hostLabel}.
-          </AlertDescription>
-        </Alert>
-      ) : undefined,
-    unsupportedPromptNode:
-      sshStage === "unsupported" ? (
-        <Alert variant="warning">
-          <TriangleAlert aria-hidden="true" />
-          <AlertTitle>Link this computer with a command instead</AlertTitle>
-          <AlertDescription className="flex flex-col gap-2">
-            <span>
-              Windows, 32-bit, and FreeBSD computers connect through{" "}
-              <span className="font-mono text-mono-id text-fg">compozy remote link</span>.
-            </span>
-            <Button
-              className="w-fit"
-              onClick={() => {
-                setMethod("command");
-                setSshStage("picker");
-              }}
-              size="xs"
-              type="button"
-              variant="secondary"
-            >
-              Show link command
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : undefined,
-  });
-
   return (
     <>
       <Dialog
         onOpenChange={next => {
-          if (!next) handleRequestCancel();
+          if (!next) state.handleRequestCancel();
         }}
         open={open}
       >
@@ -296,109 +304,66 @@ export function AddComputerDialog({
             description="Connect another machine so your sessions, terminals, and files run there."
             eyebrow="Computers"
             icon={Laptop}
-            onClose={handleRequestCancel}
+            onClose={state.handleRequestCancel}
             title="Add computer"
           />
 
           <EntityDialogBody className="flex flex-col gap-5">
-            {!isSshProgressView ? (
+            {!state.isSshProgressView ? (
               <RadioCardGroup
                 aria-label="How to add a computer"
                 className={methodOptions.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}
                 iconWellSize="lg"
                 onValueChange={next => {
-                  setMethod(next);
-                  setSshStage("picker");
+                  state.setMethod(next);
+                  state.setSshStage("picker");
                 }}
                 options={methodOptions}
-                value={method}
+                value={state.method}
               />
             ) : null}
 
-            {method === "ssh" && sshStage === "picker" ? (
+            {state.method === "ssh" && state.sshStage === "picker" ? (
               <AddComputerSshPicker
                 defaultPickerOpen={defaultHostPickerOpen}
-                onChange={setDraft}
-                onSwitchToCommand={() => setMethod("command")}
+                onChange={state.setDraft}
+                onSwitchToCommand={() => state.setMethod("command")}
                 suggestions={sshSuggestions}
-                value={draft}
+                value={state.draft}
               />
             ) : null}
 
-            {isSshProgressView ? (
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft pb-3">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <ComputerPlatformIcon platform="linux_x86_64" size="sm" tone="muted" />
-                    <div className="min-w-0">
-                      <p className="truncate text-small-body font-medium text-fg-strong">
-                        {hostLabel}
-                      </p>
-                      <p className="truncate font-mono text-mono-id text-muted-foreground">
-                        {targetAddress}
-                      </p>
-                    </div>
-                  </div>
-                  {sshStage === "failed" ||
-                  sshStage === "host_key_changed" ||
-                  sshStage === "unsupported" ? (
-                    <Button
-                      onClick={() => setSshStage("picker")}
-                      size="xs"
-                      type="button"
-                      variant="ghost"
-                    >
-                      Change host
-                    </Button>
-                  ) : null}
-                </div>
-
-                <StepProgressList data-testid="add-computer-ssh-steps" steps={steps} />
-
-                {sshStage === "done" ? (
-                  <div className="flex flex-col gap-3">
-                    <ActionResultBanner
-                      description={`Connected via SSH (${targetAddress}). Sessions you start on ${hostLabel} keep running even if you close this app.`}
-                      icon={CheckCircle2}
-                      title={`${hostLabel} is ready`}
-                      tone="success"
-                    />
-                    <Alert variant="info">
-                      <TriangleAlert aria-hidden="true" />
-                      <AlertTitle>{SSH_LINGER_NOTE_FIXTURE.summary}</AlertTitle>
-                      <AlertDescription className="flex flex-col gap-2">
-                        <span>{SSH_LINGER_NOTE_FIXTURE.detail}</span>
-                        <CodeBlock
-                          code={SSH_LINGER_NOTE_FIXTURE.command}
-                          copyable
-                          density="compact"
-                          language="bash"
-                          showPrompt
-                        />
-                      </AlertDescription>
-                    </Alert>
-                  </div>
-                ) : null}
-              </div>
+            {state.isSshProgressView ? (
+              <AddComputerSshProgressView
+                hostLabel={state.hostLabel}
+                onRequestCancel={state.handleRequestCancel}
+                onSetSshStage={state.setSshStage}
+                onSwitchToCommand={() => {
+                  state.setMethod("command");
+                  state.setSshStage("picker");
+                }}
+                sshStage={state.sshStage}
+                targetAddress={state.targetAddress}
+              />
             ) : null}
 
-            {method === "account" ? (
+            {state.method === "account" ? (
               <AddComputerAccountPath
                 accountEmail={accountEmail}
-                addedIds={addedIds}
+                addedIds={state.addedIds}
                 isFreePlan={isFreePlan}
-                onAdd={handleAddAccountItem}
+                onAdd={state.handleAddAccountItem}
                 onUpgrade={onUpgrade}
                 unaddedComputers={unaddedComputers}
               />
             ) : null}
 
-            {method === "command" ? (
+            {state.method === "command" ? (
               <AddComputerCommandPath
                 accountEmail={accountEmail}
-                addedIds={addedIds}
+                addedIds={state.addedIds}
                 detected={initialCommandDetected}
-                onAdd={handleAddAccountItem}
+                onAdd={state.handleAddAccountItem}
               />
             ) : null}
           </EntityDialogBody>
@@ -406,22 +371,22 @@ export function AddComputerDialog({
           <AddComputerFooter
             accountEmail={accountEmail}
             commandDetected={initialCommandDetected}
-            hostLabel={hostLabel}
+            hostLabel={state.hostLabel}
             linkedCommitReached={linkedCommitReached}
-            method={method}
+            method={state.method}
             onClose={() => onClose?.()}
             onOpenComputer={onOpenComputer}
-            onRemoveLinked={() => toast(`Opens Remove dialog for ${hostLabel}`)}
-            onRequestCancel={handleRequestCancel}
-            onRetry={handleRetryFailed}
-            onStartSsh={handleStartSsh}
+            onRemoveLinked={() => toast.message(`Opens Remove dialog for ${state.hostLabel}`)}
+            onRequestCancel={state.handleRequestCancel}
+            onRetry={state.handleRetryFailed}
+            onStartSsh={state.handleStartSsh}
             onSwitchToCommand={() => {
-              setMethod("command");
-              setSshStage("picker");
+              state.setMethod("command");
+              state.setSshStage("picker");
             }}
             onUpgrade={onUpgrade}
-            pickerBlocked={pickerBlocked}
-            sshStage={sshStage}
+            pickerBlocked={state.pickerBlocked}
+            sshStage={state.sshStage}
           />
         </DialogContent>
       </Dialog>
@@ -429,15 +394,15 @@ export function AddComputerDialog({
       <ConfirmDialog
         cancelLabel="Keep adding"
         confirmLabel="Stop setup"
-        description={`Stops adding ${hostLabel} right now and frees your computer slot. Nothing further will be changed on ${targetAddress}.`}
+        description={`Stops adding ${state.hostLabel} right now and frees your computer slot. Nothing further will be changed on ${state.targetAddress}.`}
         onConfirm={() => {
-          setCancelConfirmOpen(false);
-          setSshStage("picker");
-          toast("Setup cancelled.");
+          state.setCancelConfirmOpen(false);
+          state.setSshStage("picker");
+          toast.message("Setup cancelled.");
         }}
-        onOpenChange={setCancelConfirmOpen}
-        open={cancelConfirmOpen}
-        title={`Stop adding ${hostLabel}?`}
+        onOpenChange={state.setCancelConfirmOpen}
+        open={state.cancelConfirmOpen}
+        title={`Stop adding ${state.hostLabel}?`}
         tone="warning"
       />
     </>

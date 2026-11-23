@@ -10,8 +10,7 @@ import type { AgentPayload } from "@/systems/agent/types";
 import { buildWorktreeFixture } from "@/systems/workspace/mocks/worktree-fixtures";
 import type { WorktreePayload } from "@/systems/workspace/types";
 
-const FIXTURE_DIGEST =
-  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const FIXTURE_DIGEST = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 /** Realistic on-demand coding agents matching `UNIFIED_SESSIONS` (`general` default). */
 export const RUN_ON_AGENTS: AgentPayload[] = [

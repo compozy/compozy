@@ -9,30 +9,27 @@ import { DocsSidebar } from "../docs/sidebar";
 import { BELOW_HEADER, LINE } from "../docs/text";
 import { DocToc } from "../docs/toc";
 import { SiteFooter } from "../landing/sections-close";
-import {
-  SIGN_IN_DOC_MARKDOWN,
-  SIGN_IN_DOC_PAGE,
-  SIGN_IN_DOC_TOC,
-} from "./sign-in-doc-content";
+import { SIGN_IN_DOC_MARKDOWN, SIGN_IN_DOC_PAGE, SIGN_IN_DOC_TOC } from "./sign-in-doc-content";
+
+function handleNavigate(slug: string) {
+  toast.message(slug ? `Navigating to /docs/${slug}` : "Navigating to /docs");
+}
 
 /**
- * `/docs/account/sign-in` ("Why Compozy asks you to sign in") rendered inside the real Compozy
+ * `/docs/account/sign-in` ("Why CompozyOS asks you to sign in") rendered inside the real CompozyOS
  * docs shell (`DocsHeader`, `DocsSidebar`, `DocMasthead`, `DocsProse`, `DocToc`, `SiteFooter`).
  */
 export function WhySignInDocsPage() {
   const body = useRef<HTMLElement>(null);
-  const handleNavigate = (slug: string) => {
-    toast(slug ? `Navigating to /docs/${slug}` : "Navigating to /docs");
-  };
 
   return (
     <div id="landing" className="rc-site-dark dark bg-[#0a0a0a] font-sans text-fg antialiased">
       <DocsNavContext value={handleNavigate}>
         <DocsHeader
           groupId="account"
-          onMenu={() => toast("Opens mobile docs navigation")}
+          onMenu={() => toast.message("Opens mobile docs navigation")}
           onOpen={handleNavigate}
-          onSearch={() => toast("Opens docs search (⌘K)")}
+          onSearch={() => toast.message("Opens docs search (⌘K)")}
         />
 
         <main className="docs-root min-h-screen pt-[104px]">

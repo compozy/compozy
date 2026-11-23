@@ -13,7 +13,7 @@ import {
   VercelLogo,
   XAILogo,
 } from "@compozy/ui/logos";
-import { m, useMotionValueEvent, useReducedMotion, useScroll, useSpring } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import { useEffect, useState, type ComponentType, type SVGProps } from "react";
 
 import awayFull from "./assets/s-hero-away.jpg";
@@ -24,6 +24,7 @@ import { Dust } from "./fx/dust";
 import { INSTALL_COMMAND, LIVE, NAV } from "./content";
 import { CountUp, Marquee, Reveal, WordsIn } from "./motion";
 import { useHeroMotion } from "./hooks/use-hero-motion";
+import { useSiteHeader } from "./hooks/use-site-header";
 import { CONTAINER, HAIRLINE, type Focus } from "./layout";
 import {
   Camera,
@@ -51,20 +52,7 @@ export function SiteHeader({
   topOffsetClass?: string;
   scrolled?: boolean;
 } = {}) {
-  const reduced = useReducedMotion();
-  const { scrollY, scrollYProgress } = useScroll();
-  const [compact, setCompact] = useState(
-    () => scrolled || (typeof window !== "undefined" && window.scrollY > 80)
-  );
-  useMotionValueEvent(scrollY, "change", value => setCompact(scrolled || value > 80));
-  useEffect(() => {
-    const sync = () => setCompact(scrolled || window.scrollY > 80);
-    sync();
-    window.addEventListener("scroll", sync, { passive: true });
-    return () => window.removeEventListener("scroll", sync);
-  }, [scrolled]);
-  const width = useSpring(scrollYProgress, { stiffness: 120, damping: 30 });
-  const isCompact = scrolled || compact;
+  const { reduced, width, isCompact } = useSiteHeader(scrolled);
   return (
     <header
       className={cn(

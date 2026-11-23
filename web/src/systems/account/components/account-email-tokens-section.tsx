@@ -53,7 +53,7 @@ export function AccountEmailSection({
             size="sm"
           />
         }
-        description="What's new in Compozy, tips and occasional offers."
+        description="What's new in CompozyOS, tips and occasional offers."
         label="Product news and offers"
       />
     </SettingsGroup>

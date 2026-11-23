@@ -89,18 +89,16 @@ export function AccountSignOutDialog({
     <ConfirmDialog
       cancelLabel="Cancel"
       confirmLabel="Sign out"
-      description="Compozy needs you to sign in again before you can use it on this computer. Running agents finish their current work."
+      description="CompozyOS needs you to sign in again before you can use it on this computer. Running agents finish their current work."
       icon={Unplug}
-      note={
-        installationLinked ? "This also unlinks this computer from remote access." : undefined
-      }
+      note={installationLinked ? "This also unlinks this computer from remote access." : undefined}
       noteTone="warning"
       onConfirm={onConfirm}
       onOpenChange={next => {
         if (!next) onClose();
       }}
       open={open}
-      title="Sign out of Compozy?"
+      title="Sign out of CompozyOS?"
       tone="warning"
     />
   );
@@ -128,9 +126,7 @@ export function AccountDeleteDialog({
   if (!open) return null;
 
   const unlinkLabel =
-    linkedComputersCount === 1
-      ? "Unlinks 1 computer"
-      : `Unlinks ${linkedComputersCount} computers`;
+    linkedComputersCount === 1 ? "Unlinks 1 computer" : `Unlinks ${linkedComputersCount} computers`;
 
   return (
     <ConfirmDialog
@@ -164,7 +160,7 @@ export function AccountDeleteDialog({
         if (!next) onClose();
       }}
       open={open}
-      title="Delete your Compozy account?"
+      title="Delete your CompozyOS account?"
       tone="destructive"
     />
   );

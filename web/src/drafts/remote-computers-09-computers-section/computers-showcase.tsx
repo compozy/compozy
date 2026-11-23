@@ -60,7 +60,7 @@ const COMPUTERS_HIGHLIGHTS: ReadonlyArray<{
   {
     icon: Terminal,
     title: "No manual daemon setup",
-    body: "Pick any host from your SSH config. Compozy verifies the checksum and starts the background service for you.",
+    body: "Pick any host from your SSH config. CompozyOS verifies the checksum and starts the background service for you.",
   },
   {
     icon: Globe,
@@ -111,7 +111,7 @@ function ComputersListShot() {
           size="xs"
           variant="secondary"
           type="button"
-          onClick={() => toast("Opens Add computer dialog")}
+          onClick={() => toast.message("Opens Add computer dialog")}
         >
           <Plus aria-hidden className="size-3.5" />
           Add computer
@@ -141,9 +141,9 @@ function ComputersListShot() {
               <ComputerRow
                 computer={computer}
                 key={computer.id}
-                onOpenDetails={item => toast(`Inspecting ${item.name}`)}
-                onRemove={item => toast(`Remove ${item.name}`)}
-                onRename={item => toast(`Rename ${item.name}`)}
+                onOpenDetails={item => toast.message(`Inspecting ${item.name}`)}
+                onRemove={item => toast.message(`Remove ${item.name}`)}
+                onRename={item => toast.message(`Rename ${item.name}`)}
                 onToggleEnabled={handleToggle}
               />
             ))}
@@ -227,7 +227,11 @@ export function ComputersLandingSection({
       />
 
       <div className={cn(CONTAINER, "relative")}>
-        <Tabs value={active} onValueChange={value => setActive(value as ShowcaseTab)} className="gap-0">
+        <Tabs
+          value={active}
+          onValueChange={value => setActive(value as ShowcaseTab)}
+          className="gap-0"
+        >
           <div className="grid items-end gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)] lg:gap-10">
             <div>
               <LandingEyebrow icon={ServerIcon} className="mb-3.5">

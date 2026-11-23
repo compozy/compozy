@@ -1,12 +1,6 @@
-import { useMemo, useState } from "react";
-
 import { Button, cn, Eyebrow, SearchInput } from "@compozy/ui";
 
 import { ComputerPlatformIcon } from "@/systems/computers/components/computer-platform-icon";
-import type {
-  ComputerIconKind,
-  ComputerPlatform,
-} from "@/systems/computers/mocks/remote-computers-fixtures";
 import type { RemoteSessionRowEntry } from "@/systems/computers/mocks/remote-computers-fixtures-sessions";
 import { SessionListGroupToggle } from "@/systems/session/components/session-list/session-list-group-toggle";
 import { SessionListToolbar } from "@/systems/session/components/session-list/session-list-toolbar";
@@ -14,6 +8,7 @@ import { SessionListTotals } from "@/systems/session/components/session-list/ses
 import { SESSION_SIDEBAR_DEFAULT_WIDTH } from "@/systems/session/lib/session-sidebar-width";
 import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
 
+import { useRemoteSessionsSidebar } from "./hooks/use-remote-sessions-sidebar";
 import {
   RemoteSessionRow,
   ScopedComputerError,
@@ -41,17 +36,6 @@ export interface RemoteSessionsSidebarProps {
   onOpenSearch?: () => void;
 }
 
-interface ProjectComputerGroup {
-  key: string;
-  project: string;
-  computerName: string;
-  isLocal: boolean;
-  offline: boolean;
-  iconKind: ComputerIconKind;
-  platform: ComputerPlatform;
-  rows: RemoteSessionRowEntry[];
-}
-
 /**
  * Multi-computer Sessions sidebar (`_uiux.md` U5):
  * - Unified flat list with muted computer label on remote rows and dimmed `Offline` rows
@@ -68,62 +52,7 @@ export function RemoteSessionsSidebar({
   perComputerMore = [],
   onNewSession,
 }: RemoteSessionsSidebarProps) {
-  const [groupBy, setGroupBy] = useState<"none" | "project">(initialGroupBy);
-  const [query, setQuery] = useState("");
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  const [retryingIds, setRetryingIds] = useState<string[]>([]);
-  const [loadedMoreIds, setLoadedMoreIds] = useState<string[]>([]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return sessions;
-    return sessions.filter(item =>
-      `${item.title} ${item.project} ${item.computerName} ${item.model}`.toLowerCase().includes(q)
-    );
-  }, [sessions, query]);
-
-  const groups = useMemo<ProjectComputerGroup[]>(() => {
-    const map = new Map<string, ProjectComputerGroup>();
-    for (const item of filtered) {
-      const key = `${item.project}::${item.computerId}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.rows.push(item);
-      } else {
-        map.set(key, {
-          key,
-          project: item.project,
-          computerName: item.isLocal ? "This computer" : item.computerName,
-          isLocal: item.isLocal,
-          offline: Boolean(item.computerOffline),
-          iconKind: item.iconKind,
-          platform: item.platform,
-          rows: [item],
-        });
-      }
-    }
-    return [...map.values()].sort((a, b) => {
-      const proj = a.project.localeCompare(b.project);
-      if (proj !== 0) return proj;
-      if (a.isLocal !== b.isLocal) return a.isLocal ? -1 : 1;
-      return a.computerName.localeCompare(b.computerName);
-    });
-  }, [filtered]);
-
-  const totals = useMemo(() => {
-    let working = 0;
-    let needsYou = 0;
-    for (const row of filtered) {
-      if (row.computerOffline) continue;
-      if (row.state === "running") working += 1;
-      if (row.state === "attention") needsYou += 1;
-    }
-    return {
-      total: filtered.length,
-      working,
-      needsYou,
-    };
-  }, [filtered]);
+  const sidebar = useRemoteSessionsSidebar(sessions, initialGroupBy);
 
   return (
     <aside
@@ -133,16 +62,16 @@ export function RemoteSessionsSidebar({
     >
       <SessionListToolbar
         foldAll={null}
-        groupBy={groupBy}
+        groupBy={sidebar.groupBy}
         groupByOptions={["none", "project"]}
         onFoldAllChange={mode => {
-          if (mode === "collapse-all") {
-            setCollapsedGroups(Object.fromEntries(groups.map(g => [g.key, true])));
+          if (mode === "collapsed") {
+            sidebar.setCollapsedGroups(Object.fromEntries(sidebar.groups.map(g => [g.key, true])));
           } else {
-            setCollapsedGroups({});
+            sidebar.setCollapsedGroups({});
           }
         }}
-        onGroupByChange={next => setGroupBy(next === "project" ? "project" : "none")}
+        onGroupByChange={next => sidebar.setGroupBy(next === "project" ? "project" : "none")}
         onNewSession={() => onNewSession?.()}
         onShelfChange={() => undefined}
         onShowAutomationChange={() => undefined}
@@ -159,16 +88,16 @@ export function RemoteSessionsSidebar({
         <SearchInput
           aria-label="Filter sessions"
           containerClassName="min-w-0"
-          onChange={setQuery}
+          onChange={sidebar.setQuery}
           placeholder="Filter sessions or computers…"
-          value={query}
+          value={sidebar.query}
         />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2.5 pt-0.5 pb-2">
-        {groupBy === "none" ? (
+        {sidebar.groupBy === "none" ? (
           <div className="flex flex-col gap-0.5">
-            {filtered.map(entry => (
+            {sidebar.filtered.map(entry => (
               <RemoteSessionRow
                 current={entry.id === activeSessionId}
                 entry={entry}
@@ -179,8 +108,8 @@ export function RemoteSessionsSidebar({
           </div>
         ) : (
           <div className="flex flex-col gap-1.5">
-            {groups.map(group => {
-              const collapsed = Boolean(collapsedGroups[group.key]);
+            {sidebar.groups.map(group => {
+              const collapsed = Boolean(sidebar.collapsedGroups[group.key]);
               return (
                 <section
                   className={cn(group.offline && "opacity-70")}
@@ -218,7 +147,7 @@ export function RemoteSessionsSidebar({
                         </span>
                       }
                       onToggle={() =>
-                        setCollapsedGroups(prev => ({ ...prev, [group.key]: !collapsed }))
+                        sidebar.setCollapsedGroups(prev => ({ ...prev, [group.key]: !collapsed }))
                       }
                     />
                   </div>
@@ -246,13 +175,13 @@ export function RemoteSessionsSidebar({
           <div className="mt-1 flex flex-col gap-1 border-t border-line-soft pt-2">
             <Eyebrow className="px-2 text-faint">More by computer</Eyebrow>
             {perComputerMore.map(pager => {
-              const loaded = loadedMoreIds.includes(pager.computerId);
+              const loaded = sidebar.loadedMoreSet.has(pager.computerId);
               return (
                 <Button
                   className="h-7 justify-between px-2 text-eyebrow text-muted-foreground"
                   disabled={loaded}
                   key={pager.computerId}
-                  onClick={() => setLoadedMoreIds(prev => [...prev, pager.computerId])}
+                  onClick={() => sidebar.setLoadedMoreIds(prev => [...prev, pager.computerId])}
                   size="xs"
                   type="button"
                   variant="quiet"
@@ -280,14 +209,14 @@ export function RemoteSessionsSidebar({
             block={block}
             key={block.computerId}
             onRetry={() => {
-              setRetryingIds(prev => [...prev, block.computerId]);
+              sidebar.setRetryingIds(prev => [...prev, block.computerId]);
             }}
-            retrying={retryingIds.includes(block.computerId)}
+            retrying={sidebar.retryingSet.has(block.computerId)}
           />
         ))}
       </div>
 
-      <SessionListTotals testIdPrefix="remote-rail" totals={totals} />
+      <SessionListTotals testIdPrefix="remote-rail" totals={sidebar.totals} />
     </aside>
   );
 }
