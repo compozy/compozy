@@ -28,6 +28,8 @@ describe("UT-128 cloud edge Worker", () => {
 
     mf = new Miniflare({
       compatibilityDate: "2026-07-30",
+      // Per-request cf overrides travel in an HTTP header and cannot carry Unicode.
+      cf: { city: "東京", region: "Tokyo", country: "JP" },
       modules: [{ type: "ESModule", path: "worker.js", contents: entry.text }],
       durableObjects: { CLOUD: { className: "StubContainer", useSQLite: true } },
     });
@@ -148,7 +150,6 @@ describe("UT-128 cloud edge Worker", () => {
         "X-Compozy-Location": "spoofed",
         "CF-Container-Target-Port": "12345",
       },
-      cf: { city: "東京", region: "Tokyo", country: "JP" },
     });
     const { headers } = (await response.json()) as { headers: Record<string, string> };
 
@@ -158,7 +159,9 @@ describe("UT-128 cloud edge Worker", () => {
   });
 
   it("removes caller-supplied metadata when Cloudflare metadata is absent", async () => {
-    const response = await mf.dispatchFetch(`${ORIGIN}/v1/account`, {
+    // The public Miniflare gateway injects the loopback peer IP when it is absent.
+    const worker = await mf.getWorker();
+    const response = await worker.fetch(`${ORIGIN}/v1/account`, {
       headers: { "X-Compozy-Client-IP": "192.0.2.11", "X-Compozy-Location": "spoofed" },
       cf: {},
     });
