@@ -1,4 +1,4 @@
-package gateway
+package ingress
 
 import (
 	"context"
@@ -18,15 +18,15 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 	t.Run("Should UT-090 project webhook URLs for existing subjects", func(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, true, nil)
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-existing"}
-		store.subjects[ref] = IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeWorkspace,
-			WorkspaceID:       "workspace-a",
-			Path:              "/api/webhooks/workspaces/workspace-a/deploy--wbh_existing",
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-existing"}
+		store.subjects[ref] = Subject{
+			SubjectRef:  ref,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "workspace-a",
+			Path:        "/api/webhooks/workspaces/workspace-a/deploy--wbh_existing",
 		}
 
-		projection, err := manager.project(testContext(t), ref)
+		projection, err := manager.Project(t.Context(), ref)
 		if err != nil {
 			t.Fatalf("project() error = %v", err)
 		}
@@ -34,7 +34,7 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 			"https://gateway.example.test/api/webhooks/workspaces/workspace-a/deploy--wbh_existing"; got != want {
 			t.Fatalf("projection.URL = %q, want %q", got, want)
 		}
-		if projection.Reachability != IngressReachabilityUnconfirmed || projection.EndpointGeneration != 1 {
+		if projection.Reachability != ReachabilityUnconfirmed || projection.EndpointGeneration != 1 {
 			t.Fatalf("projection = %#v, want unconfirmed generation 1", projection)
 		}
 	})
@@ -42,22 +42,22 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 	t.Run("Should UT-091 report an honest off state and explicit empty bindings", func(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, false, nil)
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-off"}
-		store.subjects[ref] = IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeGlobal,
-			Path:              "/api/webhooks/global/deploy--wbh_off",
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-off"}
+		store.subjects[ref] = Subject{
+			SubjectRef: ref,
+			Scope:      ScopeGlobal,
+			Path:       "/api/webhooks/global/deploy--wbh_off",
 		}
 
-		projection, err := manager.project(testContext(t), ref)
+		projection, err := manager.Project(t.Context(), ref)
 		if err != nil {
 			t.Fatalf("project() error = %v", err)
 		}
-		if projection.URL != "" || projection.Reachability != IngressReachabilityOff ||
-			projection.EnablePath != IngressEnablePath {
+		if projection.URL != "" || projection.Reachability != ReachabilityOff ||
+			projection.EnablePath != EnablePath {
 			t.Fatalf("projection = %#v, want off with enable path and no URL", projection)
 		}
-		bindings, err := store.ListIngressBindings(testContext(t))
+		bindings, err := store.ListIngressBindings(t.Context())
 		if err != nil {
 			t.Fatalf("ListIngressBindings() error = %v", err)
 		}
@@ -69,22 +69,22 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 	t.Run("Should UT-092 bind one webhook trigger to the verified generation", func(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, true, nil)
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-a"}
-		store.subjects[ref] = IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeWorkspace,
-			WorkspaceID:       "workspace-a",
-			Path:              "/api/webhooks/workspaces/workspace-a/deploy--wbh_a",
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-a"}
+		store.subjects[ref] = Subject{
+			SubjectRef:  ref,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "workspace-a",
+			Path:        "/api/webhooks/workspaces/workspace-a/deploy--wbh_a",
 		}
 
-		binding, err := manager.bind(testContext(t), IngressBindRequest{Subject: ref, Confirmed: true})
+		binding, err := manager.Bind(t.Context(), BindRequest{Subject: ref, Confirmed: true})
 		if err != nil {
 			t.Fatalf("bind() error = %v", err)
 		}
 		if binding.Subject != ref || binding.EndpointGeneration != 1 || !binding.Changed {
 			t.Fatalf("binding = %#v, want trigger-a at generation 1", binding)
 		}
-		stored, err := store.GetIngressBinding(testContext(t), ref)
+		stored, err := store.GetIngressBinding(t.Context(), ref)
 		if err != nil {
 			t.Fatalf("GetIngressBinding() error = %v", err)
 		}
@@ -96,23 +96,23 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 	t.Run("Should UT-093 mark a bound webhook off without changing its subject", func(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, false, nil)
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-external"}
-		subject := IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeWorkspace,
-			WorkspaceID:       "workspace-a",
-			Path:              "/api/webhooks/workspaces/workspace-a/external--wbh_external",
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-external"}
+		subject := Subject{
+			SubjectRef:  ref,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "workspace-a",
+			Path:        "/api/webhooks/workspaces/workspace-a/external--wbh_external",
 		}
 		store.subjects[ref] = subject
-		store.bindings[ref] = IngressBinding{
+		store.bindings[ref] = Binding{
 			Subject: ref, Scope: subject.Scope, WorkspaceID: subject.WorkspaceID, EndpointGeneration: 1,
 		}
 
-		projection, err := manager.project(testContext(t), ref)
+		projection, err := manager.Project(t.Context(), ref)
 		if err != nil {
 			t.Fatalf("project() error = %v", err)
 		}
-		if projection.Reachability != IngressReachabilityOff || projection.URL != "" {
+		if projection.Reachability != ReachabilityOff || projection.URL != "" {
 			t.Fatalf("projection = %#v, want off without a dead URL", projection)
 		}
 		if projection.ConfirmedEndpointGeneration != 1 {
@@ -126,41 +126,41 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 	t.Run("Should surface an invalid local webhook target as broken and refuse confirmation", func(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, true, nil)
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-invalid-target"}
-		store.subjects[ref] = IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeGlobal,
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-invalid-target"}
+		store.subjects[ref] = Subject{
+			SubjectRef:        ref,
+			Scope:             ScopeGlobal,
 			Path:              "/api/webhooks/global/invalid--wbh_invalid",
 			TargetUnavailable: true,
 		}
 
-		projection, err := manager.project(testContext(t), ref)
+		projection, err := manager.Project(t.Context(), ref)
 		if err != nil {
 			t.Fatalf("project() error = %v", err)
 		}
-		if projection.Reachability != IngressReachabilityBroken || projection.URL != "" {
+		if projection.Reachability != ReachabilityBroken || projection.URL != "" {
 			t.Fatalf("projection = %#v, want broken without a callback URL", projection)
 		}
-		if _, err := manager.bind(testContext(t), IngressBindRequest{
+		if _, err := manager.Bind(t.Context(), BindRequest{
 			Subject: ref, Confirmed: true,
-		}); !errors.Is(err, ErrIngressTargetUnavailable) {
-			t.Fatalf("bind() error = %v, want ErrIngressTargetUnavailable", err)
+		}); !errors.Is(err, ErrTargetUnavailable) {
+			t.Fatalf("bind() error = %v, want ErrTargetUnavailable", err)
 		}
 	})
 
 	t.Run("Should deny a scoped projection from another workspace", func(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, true, nil)
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-foreign-read"}
-		store.subjects[ref] = IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeWorkspace,
-			WorkspaceID:       "workspace-b",
-			Path:              "/api/webhooks/workspaces/workspace-b/foreign--wbh_read",
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-foreign-read"}
+		store.subjects[ref] = Subject{
+			SubjectRef:  ref,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "workspace-b",
+			Path:        "/api/webhooks/workspaces/workspace-b/foreign--wbh_read",
 		}
-		_, err := manager.project(WithIngressReadWorkspace(testContext(t), "workspace-a"), ref)
-		if !errors.Is(err, ErrIngressForbidden) {
-			t.Fatalf("project(foreign workspace) error = %v, want ErrIngressForbidden", err)
+		_, err := manager.Project(WithReadWorkspace(t.Context(), "workspace-a"), ref)
+		if !errors.Is(err, ErrForbidden) {
+			t.Fatalf("project(foreign workspace) error = %v, want ErrForbidden", err)
 		}
 	})
 
@@ -168,15 +168,15 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, true, nil)
 		manager.events = &ingressEventSinkStub{err: errors.New("injected event failure")}
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-event-failure"}
-		subject := IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeWorkspace,
-			WorkspaceID:       "workspace-a",
-			Path:              "/api/webhooks/workspaces/workspace-a/event-failure--wbh_failure",
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-event-failure"}
+		subject := Subject{
+			SubjectRef:  ref,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "workspace-a",
+			Path:        "/api/webhooks/workspaces/workspace-a/event-failure--wbh_failure",
 		}
 		store.subjects[ref] = subject
-		if _, err := manager.bind(testContext(t), IngressBindRequest{Subject: ref, Confirmed: true}); err == nil {
+		if _, err := manager.Bind(t.Context(), BindRequest{Subject: ref, Confirmed: true}); err == nil {
 			t.Fatal("bind(event failure) error = nil")
 		}
 		if _, exists := store.bindings[ref]; exists {
@@ -184,11 +184,11 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		}
 
 		confirmedAt := time.Date(2026, 8, 6, 12, 45, 0, 0, time.UTC)
-		store.bindings[ref] = IngressBinding{
+		store.bindings[ref] = Binding{
 			Subject: ref, Scope: subject.Scope, WorkspaceID: subject.WorkspaceID,
 			EndpointGeneration: 1, ConfirmedAt: confirmedAt,
 		}
-		if _, err := manager.unbind(testContext(t), IngressUnbindRequest{Subject: ref}); err == nil {
+		if _, err := manager.Unbind(t.Context(), UnbindRequest{Subject: ref}); err == nil {
 			t.Fatal("unbind(event failure) error = nil")
 		}
 		restored, exists := store.bindings[ref]
@@ -202,19 +202,23 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		store, manager := newIngressTestManager(t, true, nil)
 		sink := &ingressEventSinkStub{}
 		manager.events = sink
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-device-actor"}
-		store.subjects[ref] = IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeGlobal,
-			Path:              "/api/webhooks/global/device--wbh_actor",
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-device-actor"}
+		store.subjects[ref] = Subject{
+			SubjectRef: ref,
+			Scope:      ScopeGlobal,
+			Path:       "/api/webhooks/global/device--wbh_actor",
 		}
-		ctx := ContextWithDevice(testContext(t), DeviceSession{
-			ID: "device-actor", ActorKind: ActorKindOperatorDevice,
-		})
-		if _, err := manager.bind(ctx, IngressBindRequest{Subject: ref, Confirmed: true}); err != nil {
+		type deviceActorKey struct{}
+		const actorKind = "operator_device"
+		manager.remoteActor = func(ctx context.Context) (string, string, bool) {
+			id, ok := ctx.Value(deviceActorKey{}).(string)
+			return actorKind, id, ok
+		}
+		ctx := context.WithValue(t.Context(), deviceActorKey{}, "device-actor")
+		if _, err := manager.Bind(ctx, BindRequest{Subject: ref, Confirmed: true}); err != nil {
 			t.Fatalf("bind() error = %v", err)
 		}
-		if len(sink.bound) != 1 || sink.bound[0].ActorKind != string(ActorKindOperatorDevice) ||
+		if len(sink.bound) != 1 || sink.bound[0].ActorKind != actorKind ||
 			sink.bound[0].ActorID != "device-actor" {
 			t.Fatalf("bound events = %#v, want authenticated device attribution", sink.bound)
 		}
@@ -225,13 +229,13 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		store, manager := newIngressTestManager(t, true, nil)
 		sink := &ingressEventSinkStub{}
 		manager.events = sink
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-local-actor"}
-		store.subjects[ref] = IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeGlobal,
-			Path:              "/api/webhooks/global/local--wbh_actor",
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-local-actor"}
+		store.subjects[ref] = Subject{
+			SubjectRef: ref,
+			Scope:      ScopeGlobal,
+			Path:       "/api/webhooks/global/local--wbh_actor",
 		}
-		if _, err := manager.bind(testContext(t), IngressBindRequest{Subject: ref, Confirmed: true}); err != nil {
+		if _, err := manager.Bind(t.Context(), BindRequest{Subject: ref, Confirmed: true}); err != nil {
 			t.Fatalf("bind() error = %v", err)
 		}
 		if len(sink.bound) != 1 || sink.bound[0].ActorKind != string(workspaceaccess.ActorHuman) ||
@@ -245,38 +249,38 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 			store, manager := newIngressTestManager(t, true, nil)
-			refs := []IngressSubjectRef{
-				{Kind: IngressSubjectWebhookTrigger, ID: "trigger-generation"},
-				{Kind: IngressSubjectWebhookTrigger, ID: "trigger-generation-secondary"},
+			refs := []SubjectRef{
+				{Kind: SubjectWebhookTrigger, ID: "trigger-generation"},
+				{Kind: SubjectWebhookTrigger, ID: "trigger-generation-secondary"},
 			}
 			paths := []string{
 				"/api/webhooks/global/deploy--wbh_generation",
 				"/api/webhooks/global/secondary--wbh_generation_secondary",
 			}
 			for index, ref := range refs {
-				store.subjects[ref] = IngressSubject{
-					IngressSubjectRef: ref,
-					Scope:             IngressScopeGlobal,
-					Path:              paths[index],
+				store.subjects[ref] = Subject{
+					SubjectRef: ref,
+					Scope:      ScopeGlobal,
+					Path:       paths[index],
 				}
-				if _, err := manager.bind(testContext(t), IngressBindRequest{
+				if _, err := manager.Bind(t.Context(), BindRequest{
 					Subject: ref, Confirmed: true,
 				}); err != nil {
 					t.Fatalf("bind(%s) error = %v", ref.Kind, err)
 				}
 			}
 			if _, changed, err := store.SyncIngressEndpoint(
-				testContext(t), TierPublic, "https://gateway-two.example.test", time.Now().UTC(),
+				t.Context(), "https://gateway-two.example.test", time.Now().UTC(),
 			); err != nil || !changed {
 				t.Fatalf("SyncIngressEndpoint() = changed:%t error:%v, want changed", changed, err)
 			}
 
 			for _, ref := range refs {
-				projection, err := manager.project(testContext(t), ref)
+				projection, err := manager.Project(t.Context(), ref)
 				if err != nil {
 					t.Fatalf("project(%s) error = %v", ref.Kind, err)
 				}
-				if projection.Reachability != IngressReachabilityReconfirmation ||
+				if projection.Reachability != ReachabilityReconfirmation ||
 					projection.EndpointGeneration != 2 || projection.ConfirmedEndpointGeneration != 1 ||
 					!strings.HasPrefix(projection.URL, "https://gateway-two.example.test/") {
 					t.Fatalf("projection(%s) = %#v, want generation 2 requiring reconfirmation", ref.Kind, projection)
@@ -288,18 +292,18 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 	t.Run("Should UT-095 persist only the server-resolved owner", func(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, true, nil)
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-owner"}
-		store.subjects[ref] = IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeWorkspace,
-			WorkspaceID:       "workspace-owner",
-			Path:              "/api/webhooks/workspaces/workspace-owner/deploy--wbh_owner",
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-owner"}
+		store.subjects[ref] = Subject{
+			SubjectRef:  ref,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "workspace-owner",
+			Path:        "/api/webhooks/workspaces/workspace-owner/deploy--wbh_owner",
 		}
 
-		if _, err := manager.bind(testContext(t), IngressBindRequest{Subject: ref, Confirmed: true}); err != nil {
+		if _, err := manager.Bind(t.Context(), BindRequest{Subject: ref, Confirmed: true}); err != nil {
 			t.Fatalf("bind() error = %v", err)
 		}
-		if store.lastPut.Scope != IngressScopeWorkspace || store.lastPut.WorkspaceID != "workspace-owner" {
+		if store.lastPut.Scope != ScopeWorkspace || store.lastPut.WorkspaceID != "workspace-owner" {
 			t.Fatalf("PutIngressBinding() subject = %#v, want server-resolved owner", store.lastPut)
 		}
 	})
@@ -308,20 +312,20 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		t.Parallel()
 		access := &ingressAccessPolicy{}
 		store, manager := newIngressTestManager(t, true, access)
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-foreign"}
-		store.subjects[ref] = IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeWorkspace,
-			WorkspaceID:       "workspace-owner",
-			Path:              "/api/webhooks/workspaces/workspace-owner/deploy--wbh_foreign",
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-foreign"}
+		store.subjects[ref] = Subject{
+			SubjectRef:  ref,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "workspace-owner",
+			Path:        "/api/webhooks/workspaces/workspace-owner/deploy--wbh_foreign",
 		}
-		caller := &IngressCaller{SessionID: "session-agent", WorkspaceID: "workspace-other", AgentName: "coder"}
+		caller := &Caller{SessionID: "session-agent", WorkspaceID: "workspace-other", AgentName: "coder"}
 
-		_, err := manager.bind(testContext(t), IngressBindRequest{
+		_, err := manager.Bind(t.Context(), BindRequest{
 			Subject: ref, Confirmed: true, Caller: caller,
 		})
-		if !errors.Is(err, ErrIngressForbidden) {
-			t.Fatalf("bind(cross-workspace) error = %v, want ErrIngressForbidden", err)
+		if !errors.Is(err, ErrForbidden) {
+			t.Fatalf("bind(cross-workspace) error = %v, want ErrForbidden", err)
 		}
 		if access.calls != 1 || len(store.bindings) != 0 {
 			t.Fatalf(
@@ -339,18 +343,18 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 			Source:  workspaceaccess.SourceSameWorkspace,
 		}}
 		store, manager := newIngressTestManager(t, true, access)
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-same-workspace"}
-		store.subjects[ref] = IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeWorkspace,
-			WorkspaceID:       "workspace-owner",
-			Path:              "/api/webhooks/workspaces/workspace-owner/deploy--wbh_same",
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-same-workspace"}
+		store.subjects[ref] = Subject{
+			SubjectRef:  ref,
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "workspace-owner",
+			Path:        "/api/webhooks/workspaces/workspace-owner/deploy--wbh_same",
 		}
-		caller := &IngressCaller{
+		caller := &Caller{
 			SessionID: "session-agent", WorkspaceID: "workspace-owner", AgentName: "coder",
 		}
 
-		if _, err := manager.bind(testContext(t), IngressBindRequest{
+		if _, err := manager.Bind(t.Context(), BindRequest{
 			Subject: ref, Confirmed: true, Caller: caller,
 		}); err != nil {
 			t.Fatalf("bind(same workspace) error = %v", err)
@@ -367,21 +371,21 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 			Source:  workspaceaccess.SourceDenied,
 		}}
 		store, manager := newIngressTestManager(t, true, access)
-		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-global-agent"}
-		store.subjects[ref] = IngressSubject{
-			IngressSubjectRef: ref,
-			Scope:             IngressScopeGlobal,
-			Path:              "/api/webhooks/global/deploy--wbh_global_agent",
+		ref := SubjectRef{Kind: SubjectWebhookTrigger, ID: "trigger-global-agent"}
+		store.subjects[ref] = Subject{
+			SubjectRef: ref,
+			Scope:      ScopeGlobal,
+			Path:       "/api/webhooks/global/deploy--wbh_global_agent",
 		}
-		caller := &IngressCaller{
+		caller := &Caller{
 			SessionID: "session-agent", WorkspaceID: "workspace-owner", AgentName: "coder",
 		}
 
-		_, err := manager.bind(testContext(t), IngressBindRequest{
+		_, err := manager.Bind(t.Context(), BindRequest{
 			Subject: ref, Confirmed: true, Caller: caller,
 		})
-		if !errors.Is(err, ErrIngressForbidden) {
-			t.Fatalf("bind(global agent) error = %v, want ErrIngressForbidden", err)
+		if !errors.Is(err, ErrForbidden) {
+			t.Fatalf("bind(global agent) error = %v, want ErrForbidden", err)
 		}
 		if access.calls != 1 || len(store.bindings) != 0 {
 			t.Fatalf(
@@ -395,56 +399,47 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 	t.Run("Should filter binding reads to the validated agent workspace", func(t *testing.T) {
 		t.Parallel()
 		store, manager := newIngressTestManager(t, true, nil)
-		for _, subject := range []IngressSubject{
+		for _, subject := range []Subject{
 			{
-				Kind: IngressSubjectWebhookTrigger, ID: "trigger-global",
-				Scope: IngressScopeGlobal,
+				Kind: SubjectWebhookTrigger, ID: "trigger-global",
+				Scope: ScopeGlobal,
 				Path:  "/api/webhooks/global/global--wbh_global",
 			},
 			{
-				Kind: IngressSubjectWebhookTrigger, ID: "trigger-a",
-				Scope:       IngressScopeWorkspace,
+				Kind: SubjectWebhookTrigger, ID: "trigger-a",
+				Scope:       ScopeWorkspace,
 				WorkspaceID: "workspace-a",
 				Path:        "/api/webhooks/workspaces/workspace-a/a--wbh_a",
 			},
 			{
-				Kind: IngressSubjectWebhookTrigger, ID: "trigger-b",
-				Scope:       IngressScopeWorkspace,
+				Kind: SubjectWebhookTrigger, ID: "trigger-b",
+				Scope:       ScopeWorkspace,
 				WorkspaceID: "workspace-b",
 				Path:        "/api/webhooks/workspaces/workspace-b/b--wbh_b",
 			},
 		} {
-			store.subjects[subject.IngressSubjectRef] = subject
-			store.bindings[subject.IngressSubjectRef] = IngressBinding{
-				Subject: subject.IngressSubjectRef, Scope: subject.Scope, WorkspaceID: subject.WorkspaceID,
+			store.subjects[subject.SubjectRef] = subject
+			store.bindings[subject.SubjectRef] = Binding{
+				Subject: subject.SubjectRef, Scope: subject.Scope, WorkspaceID: subject.WorkspaceID,
 				EndpointGeneration: 1,
 			}
 		}
-		now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-		service, err := NewService(manager.policy, newDeviceServiceOnly(t, &now), func(service *Service) error {
-			service.ingress = manager
-			return nil
-		})
+		operatorBindings, err := manager.ListBindingProjections(t.Context())
 		if err != nil {
-			t.Fatalf("NewService() error = %v", err)
+			t.Fatalf("ListBindingProjections(operator) error = %v", err)
 		}
-
-		operatorStatus, err := service.Status(testContext(t))
-		if err != nil {
-			t.Fatalf("Status(operator) error = %v", err)
-		}
-		if got := len(operatorStatus.Bindings); got != 3 {
+		if got := len(operatorBindings); got != 3 {
 			t.Fatalf("operator binding count = %d, want 3", got)
 		}
-		agentStatus, err := service.Status(WithIngressReadWorkspace(testContext(t), "workspace-a"))
+		agentBindings, err := manager.ListBindingProjections(WithReadWorkspace(t.Context(), "workspace-a"))
 		if err != nil {
-			t.Fatalf("Status(agent) error = %v", err)
+			t.Fatalf("ListBindingProjections(agent) error = %v", err)
 		}
-		if got := len(agentStatus.Bindings); got != 2 {
+		if got := len(agentBindings); got != 2 {
 			t.Fatalf("agent binding count = %d, want global plus workspace-a", got)
 		}
-		for _, binding := range agentStatus.Bindings {
-			if binding.Scope == IngressScopeWorkspace && binding.WorkspaceID != "workspace-a" {
+		for _, binding := range agentBindings {
+			if binding.Scope == ScopeWorkspace && binding.WorkspaceID != "workspace-a" {
 				t.Fatalf("agent status leaked foreign binding %#v", binding)
 			}
 		}
@@ -457,7 +452,7 @@ func TestIngressRateLimiterHighCardinalityCannotResetAnActiveBudget(t *testing.T
 		t.Parallel()
 
 		now := time.Date(2026, 8, 6, 15, 0, 0, 0, time.UTC)
-		limiter := NewIngressRateLimiter(1, time.Minute, func() time.Time { return now })
+		limiter := NewRateLimiter(1, time.Minute, func() time.Time { return now })
 		victimEndpoint := "/api/webhooks/global/valid--wbh_live"
 		victimSource := "203.0.113.11"
 		if allowed, _ := limiter.Allow(victimEndpoint, victimSource); !allowed {
@@ -479,118 +474,69 @@ func TestIngressRateLimiterHighCardinalityCannotResetAnActiveBudget(t *testing.T
 	})
 }
 
-func TestIngressEndpointFailsClosedAcrossRestart(t *testing.T) {
-	t.Parallel()
-	t.Run("Should mark the endpoint unavailable when restart reconciliation fails", func(t *testing.T) {
-		t.Parallel()
-
-		store, _ := newIngressTestManager(t, true, nil)
-		if !store.endpoint.Reachable || store.endpoint.Generation != 1 {
-			t.Fatalf("initial endpoint = %#v, want reachable generation 1", store.endpoint)
-		}
-		reconciler := NewReconciler(store, newTestEffects(nil))
-		err := reconciler.Reconcile(testContext(t), ExposurePlan{Tiers: []TierPlan{{
-			Tier: TierPublic, Enabled: true,
-		}}})
-		if err == nil {
-			t.Fatal("Reconcile(missing provider) error = nil")
-		}
-		if store.endpoint.Reachable {
-			t.Fatalf("endpoint remained reachable after failed restart reconcile: %#v", store.endpoint)
-		}
-		restored, changed, err := store.SyncIngressEndpoint(
-			testContext(t),
-			TierPublic,
-			"https://gateway.example.test",
-			time.Date(2026, 8, 6, 15, 1, 0, 0, time.UTC),
-		)
-		if err != nil || changed || restored.Generation != 1 || !restored.Reachable {
-			t.Fatalf(
-				"stable endpoint restore = (%#v, %t, %v), want reachable generation 1 unchanged [IT-051]",
-				restored,
-				changed,
-				err,
-			)
-		}
-	})
-}
-
 type ingressTestStore struct {
-	*testStore
 	mu       sync.Mutex
-	subjects map[IngressSubjectRef]IngressSubject
-	bindings map[IngressSubjectRef]IngressBinding
-	endpoint IngressEndpointState
-	lastPut  IngressSubject
+	subjects map[SubjectRef]Subject
+	bindings map[SubjectRef]Binding
+	endpoint EndpointState
+	lastPut  Subject
 }
 
 func newIngressTestManager(
 	t *testing.T,
 	publicOn bool,
 	access workspaceaccess.Policy,
-) (*ingressTestStore, *ingressManager) {
+) (*ingressTestStore, *Manager) {
 	t.Helper()
-	surface := SurfaceExposure{
-		Surface:  SurfaceWebhookIngress,
-		Tier:     TierPublic,
-		Desired:  DesiredDisabled,
-		Observed: SurfaceOff,
-	}
-	if publicOn {
-		surface.Desired = DesiredEnabled
-		surface.Observed = SurfaceOn
-	}
 	store := &ingressTestStore{
-		testStore: &testStore{snapshot: Snapshot{Surfaces: []SurfaceExposure{surface}}},
-		subjects:  make(map[IngressSubjectRef]IngressSubject),
-		bindings:  make(map[IngressSubjectRef]IngressBinding),
-		endpoint: IngressEndpointState{
-			Tier: TierPublic, URL: "https://gateway.example.test", Generation: 1,
+		subjects: make(map[SubjectRef]Subject),
+		bindings: make(map[SubjectRef]Binding),
+		endpoint: EndpointState{
+			URL: "https://gateway.example.test", Generation: 1,
 			Reachable: true, UpdatedAt: time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC),
 		},
 	}
-	policy := newTestPolicy(t, store, newTestEffects(nil), true)
-	manager, err := newIngressManager(
+	manager, err := NewManager(
 		store,
-		policy,
+		func(context.Context) (bool, error) { return publicOn, nil },
 		access,
 		nil,
 		func() time.Time { return time.Date(2026, 8, 6, 12, 30, 0, 0, time.UTC) },
+		nil,
 	)
 	if err != nil {
-		t.Fatalf("newIngressManager() error = %v", err)
+		t.Fatalf("NewManager() error = %v", err)
 	}
 	return store, manager
 }
 
 func (s *ingressTestStore) ResolveIngressSubject(
 	_ context.Context,
-	ref IngressSubjectRef,
-) (IngressSubject, error) {
+	ref SubjectRef,
+) (Subject, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	subject, ok := s.subjects[ref]
 	if !ok {
-		return IngressSubject{}, ErrIngressSubjectNotFound
+		return Subject{}, ErrSubjectNotFound
 	}
 	return subject, nil
 }
 
-func (s *ingressTestStore) GetIngressEndpoint(context.Context, Tier) (IngressEndpointState, error) {
+func (s *ingressTestStore) GetIngressEndpoint(context.Context) (EndpointState, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.endpoint.Reachable || strings.TrimSpace(s.endpoint.URL) == "" {
-		return IngressEndpointState{}, ErrEndpointUnverified
+		return EndpointState{}, ErrEndpointUnverified
 	}
 	return s.endpoint, nil
 }
 
 func (s *ingressTestStore) SyncIngressEndpoint(
 	_ context.Context,
-	tier Tier,
 	endpointURL string,
 	now time.Time,
-) (IngressEndpointState, bool, error) {
+) (EndpointState, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	changed := s.endpoint.URL != endpointURL
@@ -599,14 +545,13 @@ func (s *ingressTestStore) SyncIngressEndpoint(
 	} else if changed {
 		s.endpoint.Generation++
 	}
-	s.endpoint.Tier = tier
 	s.endpoint.URL = endpointURL
 	s.endpoint.Reachable = true
 	s.endpoint.UpdatedAt = now
 	return s.endpoint, changed, nil
 }
 
-func (s *ingressTestStore) MarkIngressEndpointUnavailable(context.Context, Tier, time.Time) error {
+func (s *ingressTestStore) MarkIngressEndpointUnavailable(context.Context, time.Time) error {
 	s.mu.Lock()
 	s.endpoint.Reachable = false
 	s.mu.Unlock()
@@ -615,52 +560,52 @@ func (s *ingressTestStore) MarkIngressEndpointUnavailable(context.Context, Tier,
 
 func (s *ingressTestStore) GetIngressBinding(
 	_ context.Context,
-	ref IngressSubjectRef,
-) (IngressBinding, error) {
+	ref SubjectRef,
+) (Binding, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.subjects[ref]; !ok {
-		return IngressBinding{}, ErrIngressSubjectNotFound
+		return Binding{}, ErrSubjectNotFound
 	}
 	binding, ok := s.bindings[ref]
 	if !ok {
-		return IngressBinding{}, ErrIngressSubjectNotFound
+		return Binding{}, ErrSubjectNotFound
 	}
 	return binding, nil
 }
 
 func (s *ingressTestStore) PutIngressBinding(
 	_ context.Context,
-	subject IngressSubject,
+	subject Subject,
 	generation uint64,
 	confirmedAt time.Time,
-) (IngressBinding, bool, error) {
+) (Binding, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lastPut = subject
-	current, exists := s.bindings[subject.IngressSubjectRef]
+	current, exists := s.bindings[subject.SubjectRef]
 	changed := !exists || current.EndpointGeneration != generation || current.Scope != subject.Scope ||
 		current.WorkspaceID != subject.WorkspaceID
-	binding := IngressBinding{
-		Subject: subject.IngressSubjectRef, Scope: subject.Scope, WorkspaceID: subject.WorkspaceID,
+	binding := Binding{
+		Subject: subject.SubjectRef, Scope: subject.Scope, WorkspaceID: subject.WorkspaceID,
 		EndpointGeneration: generation, ConfirmedAt: confirmedAt,
 	}
-	s.bindings[subject.IngressSubjectRef] = binding
+	s.bindings[subject.SubjectRef] = binding
 	return binding, changed, nil
 }
 
-func (s *ingressTestStore) DeleteIngressBinding(_ context.Context, subject IngressSubject) (bool, error) {
+func (s *ingressTestStore) DeleteIngressBinding(_ context.Context, subject Subject) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, exists := s.bindings[subject.IngressSubjectRef]
-	delete(s.bindings, subject.IngressSubjectRef)
+	_, exists := s.bindings[subject.SubjectRef]
+	delete(s.bindings, subject.SubjectRef)
 	return exists, nil
 }
 
-func (s *ingressTestStore) ListIngressBindings(context.Context) ([]IngressBinding, error) {
+func (s *ingressTestStore) ListIngressBindings(context.Context) ([]Binding, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	bindings := make([]IngressBinding, 0, len(s.bindings))
+	bindings := make([]Binding, 0, len(s.bindings))
 	for ref, binding := range s.bindings {
 		if _, ok := s.subjects[ref]; ok {
 			bindings = append(bindings, binding)
@@ -691,16 +636,16 @@ type ingressAccessPolicy struct {
 
 type ingressEventSinkStub struct {
 	err     error
-	bound   []IngressMutationEvent
-	unbound []IngressMutationEvent
+	bound   []MutationEvent
+	unbound []MutationEvent
 }
 
-func (s *ingressEventSinkStub) RecordIngressBound(_ context.Context, event IngressMutationEvent) error {
+func (s *ingressEventSinkStub) RecordIngressBound(_ context.Context, event MutationEvent) error {
 	s.bound = append(s.bound, event)
 	return s.err
 }
 
-func (s *ingressEventSinkStub) RecordIngressUnbound(_ context.Context, event IngressMutationEvent) error {
+func (s *ingressEventSinkStub) RecordIngressUnbound(_ context.Context, event MutationEvent) error {
 	s.unbound = append(s.unbound, event)
 	return s.err
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/gorilla/websocket"
@@ -546,7 +547,7 @@ func assertGatewayPublicIngressStartsLoopE2E(
 	}
 
 	bindBody := gatewayDaemonMarshalJSON(t, contract.GatewayIngressBindRequest{
-		SubjectKind: string(gateway.IngressSubjectWebhookTrigger),
+		SubjectKind: string(ingress.SubjectWebhookTrigger),
 		SubjectID:   trigger.Trigger.ID,
 		Confirmed:   true,
 	})
@@ -593,7 +594,7 @@ func assertGatewayPublicIngressStartsLoopE2E(
 	)
 	gatewayDaemonDecodeBody(t, getTrigger, &trigger)
 	if getTrigger.StatusCode != http.StatusOK || trigger.Trigger.Ingress == nil ||
-		trigger.Trigger.Ingress.Reachability != string(gateway.IngressReachabilityLive) ||
+		trigger.Trigger.Ingress.Reachability != string(ingress.ReachabilityLive) ||
 		strings.TrimSpace(trigger.Trigger.Ingress.URL) == "" {
 		t.Fatalf(
 			"[E2E-003] displayed trigger ingress = %d/%#v, want live URL",

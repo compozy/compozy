@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/store"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -17,7 +18,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
-	"github.com/compozy/compozy/internal/gateway"
 	looppkg "github.com/compozy/compozy/internal/loop"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -76,7 +76,7 @@ var ErrRequestBodyTooLarge = errors.New("request body too large")
 func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool) {
 	status, err = requestErrorStatus(c, status, err)
 	if c.Request != nil {
-		if _, ok := AppTokenFromContext(c.Request.Context()); ok && errors.Is(err, gateway.ErrDeviceRevoked) {
+		if _, ok := AppTokenFromContext(c.Request.Context()); ok && errors.Is(err, remotehost.ErrDeviceRevoked) {
 			RespondAppTokenError(c, err, true)
 			return
 		}
@@ -96,7 +96,7 @@ func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool
 }
 
 func requestErrorStatus(c *gin.Context, status int, err error) (int, error) {
-	if errors.Is(err, gateway.ErrDeviceRevoked) {
+	if errors.Is(err, remotehost.ErrDeviceRevoked) {
 		return status, err
 	}
 	if errors.Is(err, context.Canceled) ||
@@ -145,7 +145,7 @@ func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normal
 		status = http.StatusServiceUnavailable
 		maskInternalErrors = false
 	}
-	if errors.Is(err, gateway.ErrDeviceRevoked) {
+	if errors.Is(err, remotehost.ErrDeviceRevoked) {
 		status = http.StatusUnauthorized
 		maskInternalErrors = false
 	}

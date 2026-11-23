@@ -3,6 +3,8 @@ package httpapi
 import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
+	"github.com/compozy/compozy/internal/remotehost"
 )
 
 type httpExtendedServices struct {
@@ -16,13 +18,13 @@ type httpExtendedServices struct {
 	gatewayAdmission  gateway.AdmissionController
 	gatewayChallenges gateway.ChallengeResolver
 	gatewayTier       gateway.Tier
-	appTokenAuth      gateway.AppTokenAuthenticator
-	appTokenLimiter   *gateway.AuthFailureLimiter
+	appTokenAuth      AppTokenAuthenticator
+	appTokenLimiter   *remotehost.AuthFailureLimiter
 	appAccess         AppAccessPolicy
 	deviceAuth        gateway.DeviceAuthenticator
-	authLimiter       *gateway.AuthFailureLimiter
-	pairingLimiter    *gateway.AuthFailureLimiter
-	ingressLimiter    *gateway.IngressRateLimiter
+	authLimiter       *remotehost.AuthFailureLimiter
+	pairingLimiter    *remotehost.AuthFailureLimiter
+	ingressLimiter    *ingress.RateLimiter
 	surfaceSet        SurfaceSet
 }
 

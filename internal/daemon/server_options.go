@@ -79,6 +79,9 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithGatewayService(deps.Gateway),
 		httpapi.WithDeviceAuth(deps.Gateway),
 	}
+	if deps.Ingress != nil {
+		options = append(options, httpapi.WithIngressService(deps.Ingress))
+	}
 	if deps.AppTokens != nil {
 		options = append(options,
 			httpapi.WithAppTokenManager(deps.AppTokens),
@@ -163,6 +166,9 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithMCPHostAPI(deps.MCPHostAPI),
 		udsapi.WithOpenAPIDocument(runtimeOpenAPIDocument),
 		udsapi.WithGatewayService(deps.Gateway),
+	}
+	if deps.Ingress != nil {
+		options = append(options, udsapi.WithIngressService(deps.Ingress))
 	}
 	if deps.AppTokens != nil {
 		options = append(options, udsapi.WithAppTokenManager(deps.AppTokens))

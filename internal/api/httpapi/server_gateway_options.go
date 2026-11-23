@@ -5,6 +5,8 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
+	"github.com/compozy/compozy/internal/remotehost"
 )
 
 // SurfaceSet identifies the route inventory fixed at listener construction.
@@ -72,7 +74,7 @@ func WithGatewayChallenge(tier gateway.Tier, resolver gateway.ChallengeResolver)
 }
 
 // WithGatewayAuthLimiter overrides failed-auth throttling, primarily for deterministic tests.
-func WithGatewayAuthLimiter(limiter *gateway.AuthFailureLimiter) Option {
+func WithGatewayAuthLimiter(limiter *remotehost.AuthFailureLimiter) Option {
 	return func(server *Server) {
 		server.authLimiter = limiter
 	}
@@ -81,15 +83,22 @@ func WithGatewayAuthLimiter(limiter *gateway.AuthFailureLimiter) Option {
 // WithGatewayPairingLimiter overrides pairing-redemption throttling. The budget
 // is separate from device authentication so an authenticated request cannot
 // forgive pairing failures for the same source.
-func WithGatewayPairingLimiter(limiter *gateway.AuthFailureLimiter) Option {
+func WithGatewayPairingLimiter(limiter *remotehost.AuthFailureLimiter) Option {
 	return func(server *Server) {
 		server.pairingLimiter = limiter
 	}
 }
 
 // WithGatewayIngressLimiter overrides public ingress throttling, primarily for deterministic tests.
-func WithGatewayIngressLimiter(limiter *gateway.IngressRateLimiter) Option {
+func WithGatewayIngressLimiter(limiter *ingress.RateLimiter) Option {
 	return func(server *Server) {
 		server.ingressLimiter = limiter
+	}
+}
+
+// WithIngressService installs the webhook ingress binding service.
+func WithIngressService(service core.IngressService) Option {
+	return func(server *Server) {
+		server.ingress = service
 	}
 }

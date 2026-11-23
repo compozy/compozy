@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -97,7 +97,7 @@ func (n *daemonNativeTools) gatewayCall(
 	}
 	workspaceID := strings.TrimSpace(firstNonEmpty(scope.WorkspaceID, req.WorkspaceID))
 	if workspaceID != "" {
-		ctx = gateway.WithIngressReadWorkspace(ctx, workspaceID)
+		ctx = ingress.WithReadWorkspace(ctx, workspaceID)
 	}
 
 	result, err := n.executeGatewayAction(ctx, nativeGatewayActionRequest{

@@ -13,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/apptoken"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -872,7 +873,7 @@ func TestProviderUsageIntent(t *testing.T) {
 					gateway.ContextWithDevice(c.Request.Context(), gateway.DeviceSession{}),
 				)
 			case "app":
-				c.Request = c.Request.WithContext(ContextWithAppToken(c.Request.Context(), gateway.AppToken{}))
+				c.Request = c.Request.WithContext(ContextWithAppToken(c.Request.Context(), apptoken.Token{}))
 			}
 			want := providerusage.IntentBackground
 			if caller == "operator" {

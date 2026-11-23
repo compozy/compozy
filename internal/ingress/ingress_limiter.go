@@ -1,4 +1,4 @@
-package gateway
+package ingress
 
 import (
 	"hash/fnv"
@@ -16,8 +16,8 @@ type ingressRateBucket struct {
 	occupied    bool
 }
 
-// IngressRateLimiter bounds public requests independently for each endpoint and transport source.
-type IngressRateLimiter struct {
+// RateLimiter bounds public requests independently for each endpoint and transport source.
+type RateLimiter struct {
 	mu      sync.Mutex
 	buckets []ingressRateBucket
 	maximum int
@@ -25,12 +25,12 @@ type IngressRateLimiter struct {
 	now     func() time.Time
 }
 
-// NewIngressRateLimiter constructs a bounded fixed-window limiter.
-func NewIngressRateLimiter(maximum int, window time.Duration, now func() time.Time) *IngressRateLimiter {
+// NewRateLimiter constructs a bounded fixed-window limiter.
+func NewRateLimiter(maximum int, window time.Duration, now func() time.Time) *RateLimiter {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	return &IngressRateLimiter{
+	return &RateLimiter{
 		buckets: make([]ingressRateBucket, maxTrackedIngressBudgets),
 		maximum: maximum,
 		window:  window,
@@ -39,7 +39,7 @@ func NewIngressRateLimiter(maximum int, window time.Duration, now func() time.Ti
 }
 
 // Allow consumes one request budget and returns retry guidance when denied.
-func (l *IngressRateLimiter) Allow(endpoint string, source string) (bool, time.Duration) {
+func (l *RateLimiter) Allow(endpoint string, source string) (bool, time.Duration) {
 	if l == nil || l.maximum <= 0 || l.window <= 0 {
 		return true, 0
 	}

@@ -115,6 +115,7 @@ type BaseHandlerConfig struct {
 	AppTokens                   AppTokenManager
 	OpenAPI                     *OpenAPIDocument
 	Gateway                     GatewayService
+	Ingress                     IngressService
 	GatewayPairingSource        string
 	HomePaths                   compozyconfig.HomePaths
 	Config                      compozyconfig.Config
@@ -211,6 +212,7 @@ type BaseHandlers struct {
 	AppTokens                    AppTokenManager
 	OpenAPI                      *OpenAPIDocument
 	Gateway                      GatewayService
+	Ingress                      IngressService
 	GatewayPairingSource         string
 	HomePaths                    compozyconfig.HomePaths
 	Config                       compozyconfig.Config
@@ -326,6 +328,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		AppTokens:                    cfg.AppTokens,
 		OpenAPI:                      cfg.OpenAPI,
 		Gateway:                      cfg.Gateway,
+		Ingress:                      cfg.Ingress,
 		GatewayPairingSource:         strings.TrimSpace(cfg.GatewayPairingSource),
 		HomePaths:                    cfg.HomePaths,
 		Config:                       cfg.Config,

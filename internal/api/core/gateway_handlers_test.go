@@ -13,19 +13,19 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/apptoken"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
 type gatewayServiceStub struct {
-	revoke  func(context.Context, string) (gateway.RevokeResult, error)
-	remove  func(context.Context, string) (gateway.RemoveResult, error)
-	bind    func(context.Context, gateway.IngressBindRequest) (gateway.IngressBinding, error)
-	unbind  func(context.Context, gateway.IngressUnbindRequest) (gateway.UnbindResult, error)
-	project func(context.Context, gateway.IngressSubjectRef) (gateway.IngressProjection, error)
-	calls   *atomic.Int32
+	revoke func(context.Context, string) (gateway.RevokeResult, error)
+	remove func(context.Context, string) (gateway.RemoveResult, error)
+	calls  *atomic.Int32
 }
 
 func (s gatewayServiceStub) Status(context.Context) (gateway.Status, error) {
@@ -99,45 +99,44 @@ func (s gatewayServiceStub) RenameDevice(context.Context, string, string) (gatew
 	return gateway.DeviceSession{}, nil
 }
 
-func (s gatewayServiceStub) MintStreamTicket(context.Context, string) (gateway.StreamTicket, error) {
-	return gateway.StreamTicket{}, nil
+func (s gatewayServiceStub) MintStreamTicket(context.Context, string) (remotehost.StreamTicket, error) {
+	return remotehost.StreamTicket{}, nil
 }
 
-func (s gatewayServiceStub) ResolveIngressSubject(
-	context.Context,
-	gateway.IngressSubjectRef,
-) (gateway.IngressSubject, error) {
-	return gateway.IngressSubject{}, gateway.ErrIngressSubjectNotFound
+type ingressServiceStub struct {
+	bind    func(context.Context, ingress.BindRequest) (ingress.Binding, error)
+	unbind  func(context.Context, ingress.UnbindRequest) (ingress.UnbindResult, error)
+	project func(context.Context, ingress.SubjectRef) (ingress.Projection, error)
 }
 
-func (s gatewayServiceStub) BindIngress(
+func (s ingressServiceStub) Bind(
 	ctx context.Context,
-	request gateway.IngressBindRequest,
-) (gateway.IngressBinding, error) {
+	request ingress.BindRequest,
+) (ingress.Binding, error) {
 	if s.bind != nil {
 		return s.bind(ctx, request)
 	}
-	return gateway.IngressBinding{}, gateway.ErrIngressSubjectNotFound
+	return ingress.Binding{}, ingress.ErrSubjectNotFound
 }
 
-func (s gatewayServiceStub) UnbindIngress(
+func (s ingressServiceStub) Unbind(
 	ctx context.Context,
-	request gateway.IngressUnbindRequest,
-) (gateway.UnbindResult, error) {
+	request ingress.UnbindRequest,
+) (ingress.UnbindResult, error) {
 	if s.unbind != nil {
 		return s.unbind(ctx, request)
 	}
-	return gateway.UnbindResult{}, gateway.ErrIngressSubjectNotFound
+	return ingress.UnbindResult{}, ingress.ErrSubjectNotFound
 }
 
-func (s gatewayServiceStub) ProjectIngress(
+func (s ingressServiceStub) Project(
 	ctx context.Context,
-	ref gateway.IngressSubjectRef,
-) (gateway.IngressProjection, error) {
+	ref ingress.SubjectRef,
+) (ingress.Projection, error) {
 	if s.project != nil {
 		return s.project(ctx, ref)
 	}
-	return gateway.IngressProjection{}, gateway.ErrIngressSubjectNotFound
+	return ingress.Projection{}, ingress.ErrSubjectNotFound
 }
 
 func TestGatewayPayloadMappings(t *testing.T) {
@@ -169,7 +168,7 @@ func TestGatewayPayloadMappings(t *testing.T) {
 			t.Fatalf("GatewayIssuedCredentialPayload() = %#v", issued)
 		}
 
-		ticket := GatewayStreamTicketPayload(gateway.StreamTicket{
+		ticket := GatewayStreamTicketPayload(remotehost.StreamTicket{
 			Ticket: "cmp_stream_ticket", ExpiresAt: expiresAt,
 		})
 		if ticket.Ticket != "cmp_stream_ticket" || ticket.ExpiresAt != expiresAt {
@@ -392,8 +391,8 @@ func TestGatewayPayloadMappings(t *testing.T) {
 		if strings.Contains(string(data), secret) {
 			t.Fatalf("gateway audit payload leaked wrong-field secret: %s", data)
 		}
-		unbind, err := json.Marshal(GatewayIngressUnbindPayload(gateway.UnbindResult{
-			Subject: gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: secret},
+		unbind, err := json.Marshal(GatewayIngressUnbindPayload(ingress.UnbindResult{
+			Subject: ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: secret},
 			Changed: true,
 		}))
 		if err != nil {
@@ -418,10 +417,10 @@ func gatewayAuditReportWithSecret(secret string) gateway.AuditReport {
 		Devices: []gateway.DeviceSession{{
 			ID: "dev-safe", Name: secret, PairingOrigin: secret,
 		}},
-		Bindings: []gateway.IngressBindingStatus{{
-			Subject:     gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: secret},
+		Bindings: []ingress.Projection{{
+			Subject:     ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: secret},
 			WorkspaceID: secret, URL: "https://gateway.test/" + secret,
-			Reachability: gateway.IngressReachabilityReconfirmation,
+			Reachability: ingress.ReachabilityReconfirmation,
 		}},
 		Refusal: &gateway.Refusal{Cause: secret, Fix: "remove " + secret},
 	}
@@ -564,7 +563,7 @@ func TestGatewayIngressAgentCallerBoundary(t *testing.T) {
 	t.Run("Should pass only the daemon-validated agent workspace into a binding mutation", func(t *testing.T) {
 		t.Parallel()
 
-		ref := gateway.IngressSubjectRef{Kind: gateway.IngressSubjectWebhookTrigger, ID: "trigger-1"}
+		ref := ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: "trigger-1"}
 		handlers := &BaseHandlers{
 			TransportName: "uds-api",
 			Sessions: sessionManagerStub{status: func(_ context.Context, id string) (*session.Info, error) {
@@ -576,18 +575,18 @@ func TestGatewayIngressAgentCallerBoundary(t *testing.T) {
 					State:       session.StateActive,
 				}, nil
 			}},
-			Gateway: gatewayServiceStub{
-				bind: func(_ context.Context, request gateway.IngressBindRequest) (gateway.IngressBinding, error) {
+			Ingress: ingressServiceStub{
+				bind: func(_ context.Context, request ingress.BindRequest) (ingress.Binding, error) {
 					if request.Caller == nil || request.Caller.SessionID != "sess-agent" ||
 						request.Caller.AgentName != "coder" || request.Caller.WorkspaceID != "ws-agent" {
 						t.Fatalf("BindIngress() caller = %#v", request.Caller)
 					}
-					return gateway.IngressBinding{Subject: request.Subject, Changed: true}, nil
+					return ingress.Binding{Subject: request.Subject, Changed: true}, nil
 				},
-				project: func(context.Context, gateway.IngressSubjectRef) (gateway.IngressProjection, error) {
-					return gateway.IngressProjection{
+				project: func(context.Context, ingress.SubjectRef) (ingress.Projection, error) {
+					return ingress.Projection{
 						Subject:      ref,
-						Reachability: gateway.IngressReachabilityUnconfirmed,
+						Reachability: ingress.ReachabilityUnconfirmed,
 					}, nil
 				},
 			},
@@ -627,24 +626,24 @@ func TestGatewayIngressAgentCallerBoundary(t *testing.T) {
 						State:       session.StateActive,
 					}, nil
 				}},
-				Gateway: gatewayServiceStub{
+				Ingress: ingressServiceStub{
 					bind: func(
 						_ context.Context,
-						request gateway.IngressBindRequest,
-					) (gateway.IngressBinding, error) {
+						request ingress.BindRequest,
+					) (ingress.Binding, error) {
 						if request.Caller == nil || request.Caller.WorkspaceID != "ws-agent" {
 							t.Fatalf("BindIngress() caller = %#v", request.Caller)
 						}
-						return gateway.IngressBinding{}, gateway.ErrIngressForbidden
+						return ingress.Binding{}, ingress.ErrForbidden
 					},
 					unbind: func(
 						_ context.Context,
-						request gateway.IngressUnbindRequest,
-					) (gateway.UnbindResult, error) {
+						request ingress.UnbindRequest,
+					) (ingress.UnbindResult, error) {
 						if request.Caller == nil || request.Caller.WorkspaceID != "ws-agent" {
 							t.Fatalf("UnbindIngress() caller = %#v", request.Caller)
 						}
-						return gateway.UnbindResult{}, gateway.ErrIngressForbidden
+						return ingress.UnbindResult{}, ingress.ErrForbidden
 					},
 				},
 			}
@@ -694,21 +693,21 @@ func TestAppTokenErrorContract(t *testing.T) {
 		status         int
 		code           string
 	}{
-		{"Should reject invalid names", gateway.ErrAppTokenNameInvalid, false, http.StatusBadRequest, "app_token_name_invalid"},
-		{"Should reject invalid origins", gateway.ErrAppTokenOriginInvalid, false, http.StatusBadRequest, "app_token_origin_invalid"},
-		{"Should report too many origins", gateway.ErrAppTokenOriginLimit, false, http.StatusBadRequest, "app_token_origin_limit"},
-		{"Should report the active token limit", gateway.ErrAppTokenLimit, false, http.StatusConflict, "app_token_limit"},
-		{"Should report missing tokens", gateway.ErrAppTokenNotFound, false, http.StatusNotFound, "app_token_not_found"},
-		{"Should reject invalid state filters", gateway.ErrAppTokenStateInvalid, false, http.StatusBadRequest, "app_token_state_invalid"},
-		{"Should reject unknown credentials", gateway.ErrAppTokenUnauthenticated, true, http.StatusUnauthorized, "app_token_unauthenticated"},
-		{"Should require browser bearer credentials", gateway.ErrAppTokenRequired, true, http.StatusUnauthorized, "app_token_required"},
-		{"Should reject unauthorized browser origins", gateway.ErrAppOriginNotAllowed, true, http.StatusForbidden, "app_origin_not_allowed"},
-		{"Should reject forbidden browser routes", gateway.ErrAppTokenRouteForbidden, true, http.StatusForbidden, "app_token_route_forbidden"},
-		{"Should reject excessive failed authentication", gateway.ErrAppTokenRateLimited, true, http.StatusTooManyRequests, "app_token_rate_limited"},
-		{"Should reject tokens on gateway tiers", gateway.ErrAppTokenLocalOnly, true, http.StatusForbidden, "gateway_app_token_local_only"},
-		{"Should reject revoked authentication", gateway.ErrAppTokenRevoked, true, http.StatusUnauthorized, "app_token_revoked"},
-		{"Should reject updates to revoked tokens", gateway.ErrAppTokenRevoked, false, http.StatusConflict, "app_token_revoked"},
-		{"Should translate the shared revocation fence for authentication", gateway.ErrDeviceRevoked, true, http.StatusUnauthorized, "app_token_revoked"},
+		{"Should reject invalid names", apptoken.ErrNameInvalid, false, http.StatusBadRequest, "app_token_name_invalid"},
+		{"Should reject invalid origins", apptoken.ErrOriginInvalid, false, http.StatusBadRequest, "app_token_origin_invalid"},
+		{"Should report too many origins", apptoken.ErrOriginLimit, false, http.StatusBadRequest, "app_token_origin_limit"},
+		{"Should report the active token limit", apptoken.ErrLimit, false, http.StatusConflict, "app_token_limit"},
+		{"Should report missing tokens", apptoken.ErrNotFound, false, http.StatusNotFound, "app_token_not_found"},
+		{"Should reject invalid state filters", apptoken.ErrStateInvalid, false, http.StatusBadRequest, "app_token_state_invalid"},
+		{"Should reject unknown credentials", apptoken.ErrUnauthenticated, true, http.StatusUnauthorized, "app_token_unauthenticated"},
+		{"Should require browser bearer credentials", apptoken.ErrRequired, true, http.StatusUnauthorized, "app_token_required"},
+		{"Should reject unauthorized browser origins", apptoken.ErrOriginNotAllowed, true, http.StatusForbidden, "app_origin_not_allowed"},
+		{"Should reject forbidden browser routes", apptoken.ErrRouteForbidden, true, http.StatusForbidden, "app_token_route_forbidden"},
+		{"Should reject excessive failed authentication", apptoken.ErrRateLimited, true, http.StatusTooManyRequests, "app_token_rate_limited"},
+		{"Should reject tokens on gateway tiers", apptoken.ErrLocalOnly, true, http.StatusForbidden, "gateway_app_token_local_only"},
+		{"Should reject revoked authentication", apptoken.ErrRevoked, true, http.StatusUnauthorized, "app_token_revoked"},
+		{"Should reject updates to revoked tokens", apptoken.ErrRevoked, false, http.StatusConflict, "app_token_revoked"},
+		{"Should translate the shared revocation fence for authentication", remotehost.ErrDeviceRevoked, true, http.StatusUnauthorized, "app_token_revoked"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()

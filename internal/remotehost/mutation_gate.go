@@ -1,4 +1,4 @@
-package gateway
+package remotehost
 
 import (
 	"context"
@@ -7,10 +7,12 @@ import (
 	"sync"
 )
 
-type mutationGate struct {
-	mu      sync.Mutex
-	next    uint64
-	devices map[string]*deviceMutationState
+// MutationGate drains admitted writes before credential revocation commits.
+type MutationGate struct {
+	validateEpoch func(context.Context, string, uint64) error
+	mu            sync.Mutex
+	next          uint64
+	devices       map[string]*deviceMutationState
 }
 
 type deviceMutationState struct {
@@ -22,18 +24,49 @@ type deviceMutationState struct {
 
 type mutationLease struct {
 	once     sync.Once
-	gate     *mutationGate
+	gate     *MutationGate
 	deviceID string
 	handle   uint64
 }
 
 type mutationLeaseContextKey struct{}
 
-func newMutationGate() *mutationGate {
-	return &mutationGate{devices: make(map[string]*deviceMutationState)}
+func NewMutationGate(validateEpoch func(context.Context, string, uint64) error) *MutationGate {
+	return &MutationGate{validateEpoch: validateEpoch, devices: make(map[string]*deviceMutationState)}
 }
 
-func (g *mutationGate) acquire(ctx context.Context, deviceID string) (context.Context, error) {
+func (g *MutationGate) RevalidateForCommit(ctx context.Context, deviceID string, epoch uint64) error {
+	// A self-revocation has surrendered its valid lease and sealed this identity before its final write.
+	if revokingID, ok := ctx.Value(selfRevocationContextKey{}).(string); ok && revokingID == deviceID {
+		return nil
+	}
+	if err := g.validate(deviceID); err != nil {
+		return fmt.Errorf("gateway: validate device mutation gate: %w", err)
+	}
+	if err := g.validateEpoch(ctx, deviceID, epoch); err != nil {
+		return fmt.Errorf("gateway: revalidate device epoch: %w", err)
+	}
+	return nil
+}
+
+// AcquireMutation admits one remote mutation and carries its revocation-aware lease in the returned context.
+func (g *MutationGate) AcquireMutation(
+	ctx context.Context,
+	deviceID string,
+	epoch uint64,
+) (context.Context, error) {
+	mutationCtx, err := g.acquire(ctx, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := g.validateEpoch(mutationCtx, deviceID, epoch); err != nil {
+		ReleaseMutation(mutationCtx)
+		return nil, fmt.Errorf("gateway: acquire device mutation: %w", err)
+	}
+	return mutationCtx, nil
+}
+
+func (g *MutationGate) acquire(ctx context.Context, deviceID string) (context.Context, error) {
 	if g == nil || ctx == nil || deviceID == "" {
 		return nil, errors.New("gateway: mutation gate dependencies are required")
 	}
@@ -57,7 +90,7 @@ func (g *mutationGate) acquire(ctx context.Context, deviceID string) (context.Co
 	return context.WithValue(mutationCtx, mutationLeaseContextKey{}, lease), nil
 }
 
-func (g *mutationGate) validate(deviceID string) error {
+func (g *MutationGate) validate(deviceID string) error {
 	if g == nil || deviceID == "" {
 		return ErrDeviceRevoked
 	}
@@ -70,7 +103,7 @@ func (g *mutationGate) validate(deviceID string) error {
 	return nil
 }
 
-func (g *mutationGate) beginRevocation(ctx context.Context, deviceID string) (func(bool), error) {
+func (g *MutationGate) beginRevocation(ctx context.Context, deviceID string) (func(bool), error) {
 	if g == nil || ctx == nil || deviceID == "" {
 		return nil, errors.New("gateway: revocation gate dependencies are required")
 	}
@@ -101,7 +134,7 @@ func (g *mutationGate) beginRevocation(ctx context.Context, deviceID string) (fu
 	}, nil
 }
 
-func (g *mutationGate) finishRevocation(deviceID string, committed bool) {
+func (g *MutationGate) finishRevocation(deviceID string, committed bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	state := g.devices[deviceID]
@@ -119,7 +152,7 @@ func (g *mutationGate) finishRevocation(deviceID string, committed bool) {
 	}
 }
 
-func (g *mutationGate) release(deviceID string, handle uint64) {
+func (g *MutationGate) release(deviceID string, handle uint64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	state := g.devices[deviceID]
@@ -141,7 +174,7 @@ func (g *mutationGate) release(deviceID string, handle uint64) {
 	}
 }
 
-func (g *mutationGate) deviceState(deviceID string) *deviceMutationState {
+func (g *MutationGate) deviceState(deviceID string) *deviceMutationState {
 	state := g.devices[deviceID]
 	if state == nil {
 		state = &deviceMutationState{active: make(map[uint64]context.CancelFunc)}

@@ -94,6 +94,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		AppTokens:                    cfg.appTokens,
 		OpenAPI:                      cfg.openAPI,
 		Gateway:                      cfg.gateway,
+		Ingress:                      cfg.ingress,
 		GatewayPairingSource:         string(gateway.PairingSourceLocal),
 		HomePaths:                    cfg.homePaths,
 		Config:                       cfg.config,

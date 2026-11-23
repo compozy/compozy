@@ -4,6 +4,8 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/ingress"
+	"github.com/compozy/compozy/internal/remotehost"
 )
 
 func GatewayStatusPayload(status gateway.Status) contract.GatewayStatusPayload {
@@ -93,7 +95,7 @@ func GatewayAuditPayload(report gateway.AuditReport) contract.GatewayAuditPayloa
 	return payload
 }
 
-func GatewayIngressPayload(projection gateway.IngressProjection) contract.GatewayIngressPayload {
+func GatewayIngressPayload(projection ingress.Projection) contract.GatewayIngressPayload {
 	payload := contract.GatewayIngressPayload{
 		SubjectKind:                 string(projection.Subject.Kind),
 		SubjectID:                   diagnostics.RedactAndBound(projection.Subject.ID, maxDiagnosticPayloadBytes),
@@ -112,7 +114,7 @@ func GatewayIngressPayload(projection gateway.IngressProjection) contract.Gatewa
 	return payload
 }
 
-func GatewayIngressUnbindPayload(result gateway.UnbindResult) contract.GatewayIngressUnbindResponse {
+func GatewayIngressUnbindPayload(result ingress.UnbindResult) contract.GatewayIngressUnbindResponse {
 	return contract.GatewayIngressUnbindResponse{
 		SubjectKind: string(result.Subject.Kind),
 		SubjectID: diagnostics.RedactAndBound(
@@ -169,7 +171,7 @@ func GatewayRemovedDevicePayload(result gateway.RemoveResult) contract.GatewayRe
 	}
 }
 
-func GatewayStreamTicketPayload(ticket gateway.StreamTicket) contract.GatewayStreamTicketPayload {
+func GatewayStreamTicketPayload(ticket remotehost.StreamTicket) contract.GatewayStreamTicketPayload {
 	return contract.GatewayStreamTicketPayload{
 		Ticket: ticket.Ticket, ExpiresAt: ticket.ExpiresAt,
 	}

@@ -79,6 +79,7 @@ func (s *Server) handlerDependencies() handlerConfig {
 		appTokens:             s.appTokens,
 		openAPI:               s.openAPI,
 		gateway:               s.gateway,
+		ingress:               s.ingress,
 		gatewayAdmission:      s.gatewayAdmission,
 		deviceAuth:            s.deviceAuth,
 		authLimiter:           s.authLimiter,

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/ingress"
 )
 
 const maxPersistedGatewayDiagnosticBytes = 2048
@@ -155,8 +156,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, plan ExposurePlan) error {
 		byTier[tierPlan.Tier] = tierPlan
 	}
 	var errs []error
-	if ingress, ok := r.store.(IngressStore); ok {
-		if _, err := ingress.SweepOrphanedIngressBindings(ctx); err != nil {
+	if ingressStore, ok := r.store.(ingress.Store); ok {
+		if _, err := ingressStore.SweepOrphanedIngressBindings(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("gateway: sweep orphaned ingress bindings: %w", err))
 		}
 	}
@@ -326,11 +327,11 @@ func (r *Reconciler) markIngressEndpointUnavailable(ctx context.Context, tier Ti
 	if tier != TierPublic {
 		return nil
 	}
-	ingress, ok := r.store.(IngressStore)
+	ingressStore, ok := r.store.(ingress.Store)
 	if !ok {
 		return nil
 	}
-	return ingress.MarkIngressEndpointUnavailable(ctx, tier, r.now().UTC())
+	return ingressStore.MarkIngressEndpointUnavailable(ctx, r.now().UTC())
 }
 
 func (r *Reconciler) syncIngressEndpoint(
@@ -341,7 +342,7 @@ func (r *Reconciler) syncIngressEndpoint(
 	if tier != TierPublic {
 		return nil
 	}
-	ingress, ok := r.store.(IngressStore)
+	ingressStore, ok := r.store.(ingress.Store)
 	if !ok {
 		return nil
 	}
@@ -355,7 +356,7 @@ func (r *Reconciler) syncIngressEndpoint(
 	if len(urls) == 0 {
 		return ErrEndpointUnverified
 	}
-	_, _, err := ingress.SyncIngressEndpoint(ctx, tier, urls[0], r.now().UTC())
+	_, _, err := ingressStore.SyncIngressEndpoint(ctx, urls[0], r.now().UTC())
 	return err
 }
 

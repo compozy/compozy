@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/remotehost"
 )
 
 type incrementingReader struct {
@@ -235,7 +237,7 @@ func (s *memoryDeviceStore) revokeLocked(id string, now time.Time) (DeviceSessio
 func (s *memoryDeviceStore) revalidateLocked(id string, epoch uint64) error {
 	record, ok := s.byID[id]
 	if !ok || !record.Session.RevokedAt.IsZero() || record.Session.RevokeEpoch != epoch {
-		return ErrDeviceRevoked
+		return remotehost.ErrDeviceRevoked
 	}
 	return nil
 }

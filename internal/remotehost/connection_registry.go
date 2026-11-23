@@ -1,4 +1,4 @@
-package gateway
+package remotehost
 
 import (
 	"context"
@@ -6,6 +6,14 @@ import (
 	"maps"
 	"sync"
 )
+
+// ConnectionRegistry owns cancel functions for live device streams.
+type ConnectionRegistry interface {
+	Register(string, context.CancelFunc) uint64
+	RegisterWaitable(string, context.CancelFunc, <-chan struct{}) uint64
+	Deregister(string, uint64)
+	CancelDevice(context.Context, string) (int, error)
+}
 
 type liveConnection struct {
 	cancel context.CancelFunc
