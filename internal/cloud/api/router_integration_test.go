@@ -494,14 +494,12 @@ func newComputerLinkRequest(t *testing.T, token string) any {
 		control.LinkRequest
 		LinkToken string `json:"link_token"`
 	}{
-		LinkRequest: control.LinkRequest{
-			Name:          "host",
-			Platform:      "linux_x86_64",
-			Version:       "0.8.0",
-			ComputerJWK:   jwk,
-			TLSRootSHA256: strings.Repeat("a", 64),
-		},
-		LinkToken: token,
+		Name:          "host",
+		Platform:      "linux_x86_64",
+		Version:       "0.8.0",
+		ComputerJWK:   jwk,
+		TLSRootSHA256: strings.Repeat("a", 64),
+		LinkToken:     token,
 	}
 }
 
