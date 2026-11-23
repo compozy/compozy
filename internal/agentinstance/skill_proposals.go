@@ -41,6 +41,8 @@ type SkillProposalService struct {
 	// crashAt is a test seam: returning true at a named transaction step stops the transaction there
 	// as a crash would, leaving disk state for the next Reconcile.
 	crashAt func(step string) bool
+	// syncDir is a test seam for directory syncs that confirm a commit; nil uses fileutil.SyncDir.
+	syncDir func(path string) error
 }
 
 type SkillProposalResult struct {

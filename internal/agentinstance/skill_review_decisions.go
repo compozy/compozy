@@ -5,7 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path"
+	"path/filepath"
+	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -63,9 +67,19 @@ func (s *SkillProposalService) reviewRow(ctx context.Context, instance Instance,
 	return review, nil
 }
 
+// recordedAgentSkillRoot is the agent-local skills root an "agent-dir:" review was proposed against;
+// "" for workspace keys and reviews created before skill keys.
+func recordedAgentSkillRoot(key SkillKey) string {
+	rest, ok := strings.CutPrefix(string(key), "agent-dir:")
+	if !ok || !strings.Contains(rest, "/") {
+		return ""
+	}
+	return filepath.Join(filepath.FromSlash(path.Dir(rest)), compozyconfig.SkillsDirName)
+}
+
 // Reject records an operator rejection under both skill locks, after Reconcile, so it can never
 // race an approval of the same physical skill. targetRoot may be empty when the instance has no
-// installation target; nothing can be installed there.
+// installation target now; an agent-local root recorded in the review's skill key is still checked.
 func (s *SkillProposalService) Reject(
 	ctx context.Context,
 	actor workspaceaccess.ActorRef,
@@ -91,6 +105,11 @@ func (s *SkillProposalService) Reject(
 	}
 	if review.State != SkillReviewPending || review.Digest != digest {
 		return ErrSkillReviewStale
+	}
+	if targetRoot == "" {
+		// The instance resolves no target now, but its agent may have had one when the review was
+		// proposed (a deleted agent file falls back to a builtin of the same name): check that root.
+		targetRoot = recordedAgentSkillRoot(review.SkillKey)
 	}
 	if targetRoot != "" && proposedSkillName.MatchString(review.SkillName) {
 		target, lockErr := s.acquireSkill(ctx, targetRoot, review.SkillName, false)
