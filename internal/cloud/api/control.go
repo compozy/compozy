@@ -8,11 +8,10 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/cloud/control"
-	"github.com/compozy/compozy/internal/remoteproto"
 )
 
 const (
@@ -21,25 +20,13 @@ const (
 	authorizationHeader   = "Authorization"
 )
 
-type DeviceSessionCredentials struct {
-	AccessToken string
-	DPoP        string
-	Method      string
-	URL         string
-}
-
-// DeviceSessionVerifier verifies the bound access token and returns its persisted device session.
-type DeviceSessionVerifier interface {
-	VerifyDeviceSession(context.Context, DeviceSessionCredentials) (control.DevicePrincipal, error)
-}
-
 type ControlRoutesConfig struct {
-	Service  *control.Service
-	Hub      *control.Hub
-	Sessions DeviceSessionVerifier
-	Limiter  *AccountLimiter
-	Issuer   string
-	Logger   *slog.Logger
+	Service       *control.Service
+	Hub           *control.Hub
+	Authenticator DeviceAuthenticator
+	Limiter       *AccountLimiter
+	Issuer        string
+	Logger        *slog.Logger
 }
 
 type controlRoutes struct {
@@ -90,28 +77,21 @@ func (r *controlRoutes) accountRequest(w http.ResponseWriter, req *http.Request,
 }
 
 func (r *controlRoutes) authenticateDevice(req *http.Request) (control.DevicePrincipal, error) {
-	if r.config.Sessions == nil {
+	if r.config.Authenticator == nil {
 		return control.DevicePrincipal{}, control.ErrUnauthorized
 	}
-	scheme, token, ok := strings.Cut(req.Header.Get(authorizationHeader), " ")
-	if !ok || token == "" || (!strings.EqualFold(scheme, "Bearer") && !strings.EqualFold(scheme, "DPoP")) {
-		return control.DevicePrincipal{}, control.ErrUnauthorized
-	}
-	if strings.HasPrefix(token, "cpzat_") {
-		return control.DevicePrincipal{}, &control.Error{
-			Status: http.StatusForbidden, Code: "account_token_local_only",
-			Message: "Account tokens unlock local use only. Sign in with Google or GitHub for this.",
-		}
-	}
-	proof := req.Header.Get("DPoP")
-	if proof == "" {
-		return control.DevicePrincipal{}, remoteproto.ErrDPoPInvalid
-	}
-	ctx, cancel := context.WithTimeout(req.Context(), controlRequestTimeout)
+	ctx, cancel := controlContext(req)
 	defer cancel()
-	return r.config.Sessions.VerifyDeviceSession(ctx, DeviceSessionCredentials{
-		AccessToken: token, DPoP: proof, Method: req.Method, URL: r.targetURL(req),
-	})
+	principal, err := r.config.Authenticator.AuthenticateDevice(req.WithContext(ctx))
+	if err != nil {
+		return control.DevicePrincipal{}, err
+	}
+	return control.DevicePrincipal{
+		AccountID: principal.AccountID,
+		DeviceID:  principal.DeviceID,
+		JKT:       principal.JKT,
+		SessionID: principal.SessionID,
+	}, nil
 }
 
 func (r *controlRoutes) targetURL(req *http.Request) string {
@@ -123,29 +103,23 @@ func (r *controlRoutes) fail(w http.ResponseWriter, req *http.Request, err error
 		WriteError(w, failure.Status, failure.Code, failure.Message)
 		return
 	}
-	switch {
-	case errors.Is(err, remoteproto.ErrDPoPInvalid):
-		WriteError(w, http.StatusUnauthorized, remoteproto.ErrDPoPInvalid.Error(), "Invalid proof of possession.")
-	case errors.Is(err, remoteproto.ErrDPoPReplayed):
-		WriteError(
-			w,
-			http.StatusUnauthorized,
-			remoteproto.ErrDPoPReplayed.Error(),
-			"This proof of possession was already used.",
-		)
-	case errors.Is(err, context.DeadlineExceeded):
-		writeUnavailable(w)
-	default:
-		r.config.Logger.ErrorContext(
-			req.Context(),
-			"Cloud control request failed",
-			"method",
-			req.Method,
-			"route",
-			req.Pattern,
-		)
-		WriteError(w, http.StatusInternalServerError, "internal_error", "The request could not be completed.")
+	if _, ok := errors.AsType[*auth.Failure](err); ok {
+		WriteAuthError(w, err)
+		return
 	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		writeUnavailable(w)
+		return
+	}
+	r.config.Logger.ErrorContext(
+		req.Context(),
+		"Cloud control request failed",
+		"method",
+		req.Method,
+		"route",
+		req.Pattern,
+	)
+	WriteError(w, http.StatusInternalServerError, "internal_error", "The request could not be completed.")
 }
 
 func (r *controlRoutes) respond(w http.ResponseWriter, req *http.Request, status int, data any, err error) {

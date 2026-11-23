@@ -31,7 +31,6 @@ type ControlDevice struct {
 	AccountID string
 	ID        remoteproto.DeviceID
 	JKT       string
-	SessionID string
 	Access    string
 	Key       *ecdsa.PrivateKey
 }
@@ -46,7 +45,9 @@ func (d ControlDevice) AuthorizeRequest(t *testing.T, req *http.Request, now tim
 	req.Header.Set("DPoP", proof)
 }
 
-func (db *Database) SeedControlDevice(t *testing.T, account string, id remoteproto.DeviceID, admin bool) ControlDevice {
+func (db *Database) SeedControlDevice(
+	t *testing.T, account string, id remoteproto.DeviceID, admin bool, signer *remoteproto.Signer, now time.Time,
+) ControlDevice {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -61,13 +62,21 @@ func (db *Database) SeedControlDevice(t *testing.T, account string, id remotepro
 		t.Fatal(err)
 	}
 	session := "ds_" + string(id)
+	access, err := signer.SignDeviceAccess(remoteproto.DeviceAccessClaims{
+		Issuer: remoteproto.CloudIssuer, AccountID: account, DeviceID: id, SessionID: session,
+		Cnf: remoteproto.Confirmation{JKT: jkt}, JTI: rand.Text(), IssuedAt: now.Unix(),
+		ExpiresAt: now.Add(remoteproto.DeviceAccessTTL).Unix(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	db.Exec(t, "INSERT INTO %s.devices (id, account_id, name, kind, admin) VALUES ($1, $2, $1, 'desktop', $3)",
 		string(id), account, admin)
 	db.Exec(t, "INSERT INTO %s.device_keys (jkt, device_id, public_jwk, state) VALUES ($1, $2, $3, 'active')",
 		jkt, string(id), jwkJSON(t, jwk))
 	db.Exec(t, `INSERT INTO %s.device_sessions (id, account_id, device_id, jkt, refresh_token_sha256, provider)
 		VALUES ($1, $2, $3, $4, $5, 'google')`, session, account, string(id), jkt, []byte(session))
-	return ControlDevice{AccountID: account, ID: id, JKT: jkt, SessionID: session, Access: rand.Text(), Key: key}
+	return ControlDevice{AccountID: account, ID: id, JKT: jkt, Access: access, Key: key}
 }
 
 func (db *Database) SeedControlComputer(

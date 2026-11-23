@@ -9,6 +9,17 @@ import (
 	"context"
 )
 
+const advanceSecurityEpoch = `-- name: AdvanceSecurityEpoch :one
+UPDATE accounts SET security_epoch = security_epoch + 1 WHERE id = $1 RETURNING security_epoch
+`
+
+func (q *Queries) AdvanceSecurityEpoch(ctx context.Context, id string) (int64, error) {
+	row := q.db.QueryRow(ctx, advanceSecurityEpoch, id)
+	var security_epoch int64
+	err := row.Scan(&security_epoch)
+	return security_epoch, err
+}
+
 const notifyControlEvent = `-- name: NotifyControlEvent :exec
 SELECT pg_notify('cloud_events', jsonb_build_object('schema', current_schema(), 'event', $1::text::jsonb)::text)
 `

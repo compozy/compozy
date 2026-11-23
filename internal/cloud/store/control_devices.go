@@ -35,22 +35,6 @@ func (q *Queries) ControlAccount(ctx context.Context, id string) (ControlAccount
 	return ControlAccount{ID: row.ID, State: row.State, SecurityEpoch: uint64(row.SecurityEpoch)}, nil
 }
 
-// AdvanceSecurity makes additions and incremental changes use the same commit fence.
-func (q *Queries) AdvanceSecurity(ctx context.Context, event ControlEvent) (uint64, error) {
-	if !q.inTx {
-		return 0, errors.New("advancing the security epoch requires a transaction")
-	}
-	epoch, err := q.generated.BumpControlEpoch(ctx, event.AccountID)
-	if err != nil {
-		return 0, err
-	}
-	if epoch <= 0 {
-		return 0, errInvalidEpoch
-	}
-	event.SecurityEpoch = uint64(epoch)
-	return event.SecurityEpoch, q.NotifyControlEvent(ctx, event)
-}
-
 type ControlDevice struct {
 	ID         remoteproto.DeviceID
 	Name       string

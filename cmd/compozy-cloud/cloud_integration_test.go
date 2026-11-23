@@ -110,15 +110,15 @@ func TestCloudDrain(t *testing.T) {
 		db := remotetest.NewDatabase(t)
 		db.Migrate(t)
 		now := time.Now().UTC()
+		config := remotetest.ControlConfig(t, time.Now, nil)
 		db.SeedAccount(t, "acc_drain")
-		device := db.SeedControlDevice(t, "acc_drain", "dev_drain", true)
+		device := db.SeedControlDevice(t, "acc_drain", "dev_drain", true, config.Keys.Signer(), now)
 		computerKey := db.SeedControlComputer(t, device.AccountID, "cmp_drain", now)
 		ctx, cancel := context.WithTimeout(t.Context(), 65*time.Second)
 		defer cancel()
 		firstURL, process := startDrainFixture(t, ctx, db)
-		peer := remotetest.StartReplica(t, cloud.Config{
-			Postgres: db.Config(t, "peer"), DeviceSessions: remotetest.NewDeviceSessions(time.Now, device),
-		}, nil)
+		config.Postgres = db.Config(t, "peer")
+		peer := remotetest.StartReplica(t, config, nil)
 
 		link := remotetest.AuthenticateControlLink(t, ctx, firstURL, "cmp_drain", computerKey)
 		first := remotetest.ReadControlMessage(t, link, 5*time.Second)

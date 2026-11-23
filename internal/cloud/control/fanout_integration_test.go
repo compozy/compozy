@@ -122,9 +122,10 @@ func TestCloudFanout(t *testing.T) {
 			now := time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC)
 			const account = "acc_links"
 			db.SeedAccount(t, account)
-			admin := db.SeedControlDevice(t, account, "dev_admin", true)
-			revoked := db.SeedControlDevice(t, account, "dev_revoked", false)
-			waiting := db.SeedControlDevice(t, account, "dev_waiting", false)
+			signer := remotetest.NewSigner(t, "active")
+			admin := db.SeedControlDevice(t, account, "dev_admin", true, signer, now)
+			revoked := db.SeedControlDevice(t, account, "dev_revoked", false, signer, now)
+			waiting := db.SeedControlDevice(t, account, "dev_waiting", false, signer, now)
 			oneKey := db.SeedControlComputer(t, account, "cmp_one", now)
 			twoKey := db.SeedControlComputer(t, account, "cmp_two", now)
 			db.Exec(
@@ -133,14 +134,13 @@ func TestCloudFanout(t *testing.T) {
 				account,
 				now.Add(time.Hour),
 			)
-			keys, err := api.NewSigningKeys(remotetest.NewSigner(t, "active"), []remoteproto.JWK{
+			keys, err := api.NewSigningKeys(signer, []remoteproto.JWK{
 				remotetest.NewSigner(t, "overlap").PublicJWK(),
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			config := cloud.Config{Keys: keys, Now: func() time.Time { return now }}
-			config.DeviceSessions = remotetest.NewDeviceSessions(config.Now, admin, revoked, waiting)
+			config := remotetest.ControlConfig(t, func() time.Time { return now }, keys)
 			config.Postgres = db.Config(t, "fanout_one")
 			first := remotetest.StartReplica(t, config, nil)
 			config.Postgres = db.Config(t, "fanout_two")

@@ -2,7 +2,8 @@ package api
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"log/slog"
@@ -105,11 +106,12 @@ func (r *Router) gatePolicy(w http.ResponseWriter, req *http.Request) {
 type ErrorResponse struct {
 	Error   string         `json:"error"`
 	Code    string         `json:"code"`
+	Reason  string         `json:"reason,omitempty"`
 	Details map[string]any `json:"details,omitempty"`
 }
 
 func WriteJSON(w http.ResponseWriter, status int, value any) {
-	body, err := json.Marshal(value)
+	body, err := json.Marshal(value, jsontext.EscapeForHTML(true))
 	if err != nil {
 		slog.Error("Cloud response encoding failed")
 		http.Error(w, "Internal server error.", http.StatusInternalServerError)
@@ -117,6 +119,7 @@ func WriteJSON(w http.ResponseWriter, status int, value any) {
 	}
 	w.Header().Set(contentType, jsonType)
 	w.WriteHeader(status)
+	// #nosec G705 -- The JSON encoder escapes HTML and the router sets nosniff.
 	if _, err := w.Write(body); err != nil {
 		slog.Debug("Cloud response interrupted", "status", status)
 	}

@@ -39,6 +39,22 @@ func (e ControlEvent) Valid() bool {
 	}
 }
 
+// AdvanceSecurity commits an epoch increment with the corresponding replica notification.
+func (q *Queries) AdvanceSecurity(ctx context.Context, event ControlEvent) (uint64, error) {
+	if !q.inTx {
+		return 0, errors.New("advancing the security epoch requires a transaction")
+	}
+	epoch, err := q.generated.AdvanceSecurityEpoch(ctx, event.AccountID)
+	if err != nil {
+		return 0, err
+	}
+	if epoch <= 0 {
+		return 0, errInvalidEpoch
+	}
+	event.SecurityEpoch = uint64(epoch)
+	return event.SecurityEpoch, q.NotifyControlEvent(ctx, event)
+}
+
 // NotifyControlEvent emits a routing hint only after the surrounding transaction commits.
 func (q *Queries) NotifyControlEvent(ctx context.Context, event ControlEvent) error {
 	if !q.inTx {

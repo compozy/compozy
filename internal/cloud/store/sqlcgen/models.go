@@ -36,6 +36,26 @@ type BrowserCode struct {
 	UsedAt        pgtype.Timestamptz
 }
 
+type CloudDpopReplay struct {
+	Jkt       string
+	Jti       string
+	ExpiresAt pgtype.Timestamptz
+}
+
+type CloudOauthAttempt struct {
+	StateSha256      []byte
+	DeviceCodeSha256 []byte
+	BrowserRequest   []byte
+	Provider         string
+	CookieSha256     []byte
+	PkceVerifierEnc  []byte
+	NonceSha256      []byte
+	MaxAgeZero       bool
+	CreatedAt        pgtype.Timestamptz
+	ExpiresAt        pgtype.Timestamptz
+	ConsumedAt       pgtype.Timestamptz
+}
+
 type CloudWebSession struct {
 	IDSha256        []byte
 	AccountID       string
@@ -83,6 +103,11 @@ type ComputerProofReplay struct {
 	ExpiresAt pgtype.Timestamptz
 }
 
+type DeletedAccount struct {
+	AccountID string
+	DeletedAt pgtype.Timestamptz
+}
+
 type Device struct {
 	ID                   string
 	AccountID            string
@@ -125,6 +150,10 @@ type DeviceGrant struct {
 	FailedEntries         int32
 	ExpiresAt             pgtype.Timestamptz
 	LastPollAt            pgtype.Timestamptz
+	NewAccount            bool
+	MaxAgeZero            bool
+	FailureCode           pgtype.Text
+	PollIntervalSeconds   int32
 }
 
 type DeviceKey struct {

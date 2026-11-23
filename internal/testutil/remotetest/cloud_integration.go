@@ -18,8 +18,9 @@ import (
 
 	"github.com/compozy/compozy/internal/cloud"
 	"github.com/compozy/compozy/internal/cloud/api"
-	"github.com/compozy/compozy/internal/cloud/control"
+	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/cloud/store"
+	"github.com/compozy/compozy/internal/cloud/turnstile"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
@@ -156,33 +157,36 @@ func NewSigner(t *testing.T, kid string) *remoteproto.Signer {
 	return signer
 }
 
-type deviceSessions struct {
-	devices map[string]ControlDevice
-	now     func() time.Time
-	proofs  *remoteproto.DPoPVerifier
-}
-
-var _ api.DeviceSessionVerifier = (*deviceSessions)(nil)
-
-func NewDeviceSessions(now func() time.Time, devices ...ControlDevice) api.DeviceSessionVerifier {
-	byAccess := make(map[string]ControlDevice, len(devices))
-	for _, device := range devices {
-		byAccess[device.Access] = device
+func ControlConfig(t *testing.T, now func() time.Time, keys *api.SigningKeys) cloud.Config {
+	t.Helper()
+	if keys == nil {
+		var err error
+		keys, err = api.NewSigningKeys(NewSigner(t, "test-control"), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
-	return &deviceSessions{devices: byAccess, now: now, proofs: remoteproto.NewDPoPVerifier()}
-}
 
-func (s *deviceSessions) VerifyDeviceSession(
-	_ context.Context, credentials api.DeviceSessionCredentials,
-) (control.DevicePrincipal, error) {
-	device, ok := s.devices[credentials.AccessToken]
-	if !ok {
-		return control.DevicePrincipal{}, control.ErrUnauthorized
+	// Control tests seed sessions and do not contact identity providers.
+	client := auth.OAuthClient{ID: "test-client", Secret: auth.Secret()}
+	oauth, err := auth.NewOAuth(client, client, auth.WithOAuthEndpoints(auth.OAuthEndpoints{}))
+	if err != nil {
+		t.Fatal(err)
 	}
-	_, err := s.proofs.VerifyDPoP(credentials.DPoP, remoteproto.DPoPBinding{
-		Method: credentials.Method, URL: credentials.URL, JKT: device.JKT, Credential: device.Access,
-	}, s.now())
-	return control.DevicePrincipal{
-		AccountID: device.AccountID, DeviceID: device.ID, JKT: device.JKT, SessionID: device.SessionID,
-	}, err
+	botCheck, err := turnstile.New(
+		auth.Secret(),
+		"cloud.compozy.com",
+		turnstile.WithEndpoint("https://turnstile.invalid"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sealKey [32]byte
+	rand.Read(sealKey[:])
+	return cloud.Config{
+		Keys: keys, Now: now, Auth: &auth.Config{
+			OAuth: oauth, EncryptionKey: sealKey[:], Turnstile: botCheck,
+			TurnstileSiteKey: "test-site-key", HostedDomain: "compozy.run",
+		},
+	}
 }

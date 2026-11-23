@@ -45,7 +45,7 @@ func (l *AccountLimiter) AccountWrites(
 			WriteError(w, http.StatusUnauthorized, "unauthorized", "Account authentication required.")
 			return
 		}
-		if retry := l.retryAfter(id); retry > 0 {
+		if retry := l.RetryAfter(id); retry > 0 {
 			setRetryAfter(w, retry)
 			WriteError(w, http.StatusTooManyRequests, CodeRateLimited,
 				fmt.Sprintf("Too many requests. Try again in %d seconds.", retry))
@@ -55,7 +55,8 @@ func (l *AccountLimiter) AccountWrites(
 	})
 }
 
-func (l *AccountLimiter) retryAfter(accountID string) int {
+// RetryAfter charges one authenticated write and returns its retry delay if limited.
+func (l *AccountLimiter) RetryAfter(accountID string) int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 

@@ -1,6 +1,6 @@
 ---
 title: Compozy Cloud service
-description: Devices, computer links, grants, and control events for Remote Computers.
+description: Cloud sign-in, device trust, computer links, and control events for Remote Computers.
 ---
 
 Compozy Cloud coordinates accounts and access to computers. Agent sessions run on the computers that host them. Their prompts, files, and traffic stay on those computers and the routes between them.
@@ -16,6 +16,26 @@ Compozy Cloud coordinates accounts and access to computers. Agent sessions run o
 The policy decides whether the sign-in gate is enforced or has a temporary grace period. Its `until` is UTC in RFC 3339 format for grace and `null` for enforcement. `iat` is a Unix timestamp in seconds. Verify the signature against the cloud JWKS before applying grace, and check that its deadline is still in the future.
 
 A replica that is draining or unavailable can return `503 cloud_unavailable`. Account-scoped writes can return `429 rate_limited`. Both responses include `Retry-After` in seconds.
+
+## Device sign-in
+
+| Endpoint                               | Purpose                                                                                                        |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/device-flow`                 | Start sign-in with an optional `provider` of `google` or `github`, an installation ID, a name, and a platform. |
+| `GET /activate`                        | Enter or confirm the code displayed by CompozyOS and continue with Google or GitHub.                           |
+| `POST /v1/device-flow/token`           | Poll with the device code and redeem an authorized grant for a one-time enrollment token.                      |
+| `DELETE /v1/device-flow/{device_code}` | Cancel a pending or authorized grant.                                                                          |
+| `POST /v1/devices/enroll`              | Exchange the enrollment token and a proof from the requested P-256 key for a device session.                   |
+| `POST /v1/session/refresh`             | Rotate the device's refresh credential and receive a new access token.                                         |
+| `POST /v1/session/logout`              | Revoke the device session. A later sign-in can reuse the same device and key.                                  |
+
+Check the displayed code, computer name, and request location before continuing. The displayed code expires after 15 minutes. Start polling after five seconds and add five seconds to the interval when the service returns `slow_down`. Enrollment tokens expire after five minutes.
+
+Send enrollment and refresh credentials in the `Authorization` header and use the `DPoP` header for the proof. An access token lasts 15 minutes. For access-token calls, the proof includes the token hash in `ath`. Keep the device code, enrollment token, and session credentials private.
+
+Google and GitHub sign-ins link when their verified email addresses match. If the account has lost its active admins, choose **Recover admin access** on the Google activation page and authenticate again. Open the activation link in a private window if Google reuses an earlier sign-in.
+
+A hosted route starts browser sign-in at `GET /v1/browser/authorize`. Compozy Cloud can reuse a first-party web session for 30 days of inactivity, up to 90 days from sign-in. The route uses a short-lived code tied to the browser's key and the destination computer.
 
 ## Devices, computers, and approvals
 

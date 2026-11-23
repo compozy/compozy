@@ -138,12 +138,13 @@ func TestCloudComputerAdmission(t *testing.T) {
 
 	t.Run("Should bind grants to the owning account and active device key (IT-013)", func(t *testing.T) {
 		t.Parallel()
-		db, now := controlDatabase(t)
+		db, config := controlDatabase(t)
+		now, signer := config.Now, config.Keys.Signer()
 		db.SeedAccount(t, "acc_other")
-		owner := db.SeedControlDevice(t, "acc_owner", "dev_owner", true)
-		other := db.SeedControlDevice(t, "acc_other", "dev_other", true)
+		owner := db.SeedControlDevice(t, "acc_owner", "dev_owner", true, signer, now())
+		other := db.SeedControlDevice(t, "acc_other", "dev_other", true, signer, now())
 		db.SeedControlComputer(t, owner.AccountID, "cmp_owner", now())
-		replica := startControlReplica(t, db, "grants", now, owner, other)
+		replica := startControlReplica(t, db, "grants", config)
 		const path = "/v1/computers/cmp_owner/grants"
 
 		result := controlRequest(t, replica, now(), other, http.MethodPost, path, map[string]string{"route": "ssh"})
@@ -171,9 +172,10 @@ func TestCloudComputerAdmission(t *testing.T) {
 
 	t.Run("Should move the Free slot from a revalidated reservation into the link (IT-014)", func(t *testing.T) {
 		t.Parallel()
-		db, now := controlDatabase(t)
-		owner := db.SeedControlDevice(t, "acc_owner", "dev_owner", true)
-		replica := startControlReplica(t, db, "reservation", now, owner)
+		db, config := controlDatabase(t)
+		now := config.Now
+		owner := db.SeedControlDevice(t, "acc_owner", "dev_owner", true, config.Keys.Signer(), now())
+		replica := startControlReplica(t, db, "reservation", config)
 		const reservations = "/v1/computers/reservations"
 		var first, previous store.SlotReservation
 		controlRequest(t, replica, now(), owner, http.MethodPost, reservations, nil).
@@ -238,10 +240,11 @@ func TestCloudComputerAdmission(t *testing.T) {
 
 	t.Run("Should give concurrent Free requests at most one slot across replicas (IT-015)", func(t *testing.T) {
 		t.Parallel()
-		db, now := controlDatabase(t)
-		owner := db.SeedControlDevice(t, "acc_owner", "dev_owner", true)
-		first := startControlReplica(t, db, "first", now, owner)
-		second := startControlReplica(t, db, "second", now, owner)
+		db, config := controlDatabase(t)
+		now := config.Now
+		owner := db.SeedControlDevice(t, "acc_owner", "dev_owner", true, config.Keys.Signer(), now())
+		first := startControlReplica(t, db, "first", config)
+		second := startControlReplica(t, db, "second", config)
 		barrier := make(chan struct{})
 		type response struct {
 			result controlTestResponse
@@ -294,8 +297,9 @@ func TestCloudComputerPlan(t *testing.T) {
 		"Should retain the most recently used computer on Free and promote the next when it is disabled",
 		func(t *testing.T) {
 			t.Parallel()
-			db, now := controlDatabase(t)
-			owner := db.SeedControlDevice(t, "acc_owner", "dev_owner", true)
+			db, config := controlDatabase(t)
+			now := config.Now
+			owner := db.SeedControlDevice(t, "acc_owner", "dev_owner", true, config.Keys.Signer(), now())
 			firstKey := db.SeedControlComputer(t, owner.AccountID, "cmp_first", now())
 			db.SeedControlComputer(t, owner.AccountID, "cmp_second", now().Add(-time.Hour))
 			db.Exec(
@@ -304,7 +308,7 @@ func TestCloudComputerPlan(t *testing.T) {
 				owner.AccountID,
 				now().Add(time.Hour),
 			)
-			replica := startControlReplica(t, db, "plan", now, owner)
+			replica := startControlReplica(t, db, "plan", config)
 			host := remotetest.AuthenticateControlLink(t, t.Context(), replica.Server.URL, "cmp_first", firstKey)
 			initial := remotetest.ReadControlMessage(t, host, 2*time.Second)
 			if initial.Type != remoteproto.ControlSnapshot {
@@ -394,11 +398,12 @@ func TestCloudDeviceTrust(t *testing.T) {
 
 	t.Run("Should require current admin trust and issue narrowed grants after an epoch change", func(t *testing.T) {
 		t.Parallel()
-		db, now := controlDatabase(t)
-		owner := db.SeedControlDevice(t, "acc_owner", "dev_owner", true)
-		member := db.SeedControlDevice(t, "acc_owner", "dev_member", false)
+		db, config := controlDatabase(t)
+		now, signer := config.Now, config.Keys.Signer()
+		owner := db.SeedControlDevice(t, "acc_owner", "dev_owner", true, signer, now())
+		member := db.SeedControlDevice(t, "acc_owner", "dev_member", false, signer, now())
 		db.SeedControlComputer(t, owner.AccountID, "cmp_owner", now())
-		replica := startControlReplica(t, db, "devices", now, owner, member)
+		replica := startControlReplica(t, db, "devices", config)
 		const path = "/v1/devices/dev_member"
 		patch := control.DevicePatch{
 			Admin: new(true), Scopes: map[remoteproto.ComputerID][]remoteproto.Scope{
@@ -463,21 +468,21 @@ func assertPlanLimited(
 	}
 }
 
-func controlDatabase(t *testing.T) (*remotetest.Database, func() time.Time) {
+func controlDatabase(t *testing.T) (*remotetest.Database, cloud.Config) {
 	t.Helper()
 	db := remotetest.NewDatabase(t)
 	db.Migrate(t)
 	db.SeedAccount(t, "acc_owner")
-	return db, clockwork.NewFakeClockAt(time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC)).Now
+	clock := clockwork.NewFakeClockAt(time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC))
+	return db, remotetest.ControlConfig(t, clock.Now, nil)
 }
 
 func startControlReplica(
-	t *testing.T, db *remotetest.Database, name string, now func() time.Time, devices ...remotetest.ControlDevice,
+	t *testing.T, db *remotetest.Database, name string, config cloud.Config,
 ) *remotetest.Replica {
 	t.Helper()
-	return remotetest.StartReplica(t, cloud.Config{
-		Postgres: db.Config(t, name), DeviceSessions: remotetest.NewDeviceSessions(now, devices...), Now: now,
-	}, nil)
+	config.Postgres = db.Config(t, name)
+	return remotetest.StartReplica(t, config, nil)
 }
 
 func newComputerLinkRequest(t *testing.T, token string) any {

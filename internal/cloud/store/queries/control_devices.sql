@@ -1,9 +1,6 @@
 -- name: ControlAccount :one
 SELECT id, state, security_epoch FROM accounts WHERE id = $1;
 
--- name: BumpControlEpoch :one
-UPDATE accounts SET security_epoch = security_epoch + 1 WHERE id = $1 RETURNING security_epoch;
-
 -- name: ControlDevice :one
 SELECT id, name, kind, admin, last_seen_at
 FROM devices

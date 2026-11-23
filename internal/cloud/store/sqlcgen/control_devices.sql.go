@@ -11,17 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const bumpControlEpoch = `-- name: BumpControlEpoch :one
-UPDATE accounts SET security_epoch = security_epoch + 1 WHERE id = $1 RETURNING security_epoch
-`
-
-func (q *Queries) BumpControlEpoch(ctx context.Context, id string) (int64, error) {
-	row := q.db.QueryRow(ctx, bumpControlEpoch, id)
-	var security_epoch int64
-	err := row.Scan(&security_epoch)
-	return security_epoch, err
-}
-
 const controlAccount = `-- name: ControlAccount :one
 SELECT id, state, security_epoch FROM accounts WHERE id = $1
 `
