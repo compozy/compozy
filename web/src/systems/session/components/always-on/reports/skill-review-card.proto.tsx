@@ -1,4 +1,5 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import type { ReactNode } from "react";
 
 import { ThreadContentRail } from "@/components/assistant-ui/session-thread-content-rail";
 
@@ -52,70 +53,64 @@ function card(view: Parameters<typeof SkillReviewCardView>[0]["view"], extra = {
   );
 }
 
-export default function SkillReviewPrototype({ state }: PrototypeProps) {
-  switch (state) {
-    case "automatic":
-      return card(skillReviewViewFixture(SKILL_REVIEW_AUTOMATIC));
-    case "viewer":
-      return card(skillReviewViewFixture(SKILL_REVIEW_PLAIN), { defaultOpen: true });
-    case "viewer-script":
-      return card(skillReviewViewFixture(SKILL_REVIEW_AUTOMATIC), {
-        defaultOpen: true,
-        initialPath: "scripts/sync-board.sh",
-      });
-    case "viewer-hidden":
-      return card(skillReviewViewFixture(SKILL_REVIEW_HIDDEN_TEXT), { defaultOpen: true });
-    case "viewer-legacy":
-      return card(skillReviewViewFixture(SKILL_REVIEW_LEGACY), { defaultOpen: true });
-    case "viewer-evidence-unavailable":
-      return card(
-        skillReviewViewFixture(SKILL_REVIEW_PLAIN, {
-          unavailableEvidenceSessionIds: ["sess-4f1c0b2a9d3e4f51"],
-        }),
-        { defaultOpen: true }
-      );
-    case "stale":
-      return card(skillReviewViewFixture(SKILL_REVIEW_PLAIN, { stale: true }));
-    case "approved":
-      return card(skillReviewViewFixture({ ...SKILL_REVIEW_PLAIN, state: "approved" }));
-    case "rejected":
-      return card(skillReviewViewFixture({ ...SKILL_REVIEW_PLAIN, state: "rejected" }));
-    case "approved-revert":
-      return card(skillReviewViewFixture(SKILL_REVIEW_APPROVED_REVERTIBLE));
-    case "auto-approved":
-      return card(skillReviewViewFixture(SKILL_REVIEW_AUTO_APPROVED));
-    case "approved-superseded":
-      return card(skillReviewViewFixture(SKILL_REVIEW_APPROVED_SUPERSEDED));
-    case "revert-conflict":
-      return card(
-        skillReviewViewFixture(SKILL_REVIEW_APPROVED_SUPERSEDED, {
-          decideError: new Error("A newer change to this skill exists. Revert that one first."),
-        })
-      );
-    case "reverted":
-      return card(skillReviewViewFixture(SKILL_REVIEW_REVERTED_EDIT));
-    case "event-proposal":
-      return (
-        <ThreadContentRail inset="px-8">
-          <ShoulderTap
-            agent={REPORT_TRIAGE}
-            ask="I found two things worth doing. Which one first?"
-            choices={REPORT_CHOICES}
-            onChoose={() => undefined}
-            source={
-              <ReportEventSourceLine
-                source={{
-                  triggerName: "deploy-failed",
-                  event: "webhook",
-                  summary: "Deploy 412 to production failed at the migration step.",
-                }}
-              />
-            }
-            when="09:20"
+function EventProposal() {
+  return (
+    <ThreadContentRail inset="px-8">
+      <ShoulderTap
+        agent={REPORT_TRIAGE}
+        ask="I found two things worth doing. Which one first?"
+        choices={REPORT_CHOICES}
+        onChoose={() => undefined}
+        source={
+          <ReportEventSourceLine
+            source={{
+              triggerName: "deploy-failed",
+              event: "webhook",
+              summary: "Deploy 412 to production failed at the migration step.",
+            }}
           />
-        </ThreadContentRail>
-      );
-    default:
-      return card(skillReviewViewFixture(SKILL_REVIEW_PLAIN));
-  }
+        }
+        when="09:20"
+      />
+    </ThreadContentRail>
+  );
+}
+
+const STATES: Readonly<Record<string, () => ReactNode>> = {
+  automatic: () => card(skillReviewViewFixture(SKILL_REVIEW_AUTOMATIC)),
+  viewer: () => card(skillReviewViewFixture(SKILL_REVIEW_PLAIN), { defaultOpen: true }),
+  "viewer-script": () =>
+    card(skillReviewViewFixture(SKILL_REVIEW_AUTOMATIC), {
+      defaultOpen: true,
+      initialPath: "scripts/sync-board.sh",
+    }),
+  "viewer-hidden": () =>
+    card(skillReviewViewFixture(SKILL_REVIEW_HIDDEN_TEXT), { defaultOpen: true }),
+  "viewer-legacy": () => card(skillReviewViewFixture(SKILL_REVIEW_LEGACY), { defaultOpen: true }),
+  "viewer-evidence-unavailable": () =>
+    card(
+      skillReviewViewFixture(SKILL_REVIEW_PLAIN, {
+        unavailableEvidenceSessionIds: ["sess-4f1c0b2a9d3e4f51"],
+      }),
+      { defaultOpen: true }
+    ),
+  stale: () => card(skillReviewViewFixture(SKILL_REVIEW_PLAIN, { stale: true })),
+  approved: () => card(skillReviewViewFixture({ ...SKILL_REVIEW_PLAIN, state: "approved" })),
+  rejected: () => card(skillReviewViewFixture({ ...SKILL_REVIEW_PLAIN, state: "rejected" })),
+  "approved-revert": () => card(skillReviewViewFixture(SKILL_REVIEW_APPROVED_REVERTIBLE)),
+  "auto-approved": () => card(skillReviewViewFixture(SKILL_REVIEW_AUTO_APPROVED)),
+  "approved-superseded": () => card(skillReviewViewFixture(SKILL_REVIEW_APPROVED_SUPERSEDED)),
+  "revert-conflict": () =>
+    card(
+      skillReviewViewFixture(SKILL_REVIEW_APPROVED_SUPERSEDED, {
+        decideError: new Error("A newer change to this skill exists. Revert that one first."),
+      })
+    ),
+  reverted: () => card(skillReviewViewFixture(SKILL_REVIEW_REVERTED_EDIT)),
+  "event-proposal": () => <EventProposal />,
+};
+
+export default function SkillReviewPrototype({ state }: PrototypeProps) {
+  const render = STATES[state];
+  return render ? render() : card(skillReviewViewFixture(SKILL_REVIEW_PLAIN));
 }
