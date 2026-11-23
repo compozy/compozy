@@ -175,22 +175,8 @@ func (s *SkillProposalService) ResolveInstallConflict(
 	if !exists || payload.OpID != opID {
 		return s.repeatResolution(ctx, t, result)
 	}
-	switch payload.State {
-	case skillInstallStateConflict:
-		if keep == SkillConflictKeepPrevious && !previousRestorable(t, journal, payload) {
-			return SkillConflictResolution{}, fmt.Errorf(
-				"%w: the previous %s is no longer available to restore; resolve %s with --keep current",
-				ErrSkillInstallConflict, name, opID)
-		}
-		if journal, payload, err = s.recordResolution(t, journal, payload, keep, operator); err != nil {
-			return SkillConflictResolution{}, err
-		}
-	case skillInstallStateResolving:
-		if payload.Keep != keep {
-			return SkillConflictResolution{}, skillConflictResolvingError(payload.Keep)
-		}
-	default:
-		return SkillConflictResolution{}, ErrSkillInstallConflictNotFound
+	if journal, payload, err = s.startResolution(t, journal, payload, keep, operator); err != nil {
+		return SkillConflictResolution{}, err
 	}
 	if keep == SkillConflictKeepPrevious {
 		result.KeptCopy = t.path(payload.KeepCopyName)
@@ -200,6 +186,31 @@ func (s *SkillProposalService) ResolveInstallConflict(
 	}
 	result.Warning, err = s.continueResolution(ctx, t, journal, payload)
 	return result, err
+}
+
+// startResolution records keep on a conflict journal, or checks it against the keep recorded by an
+// interrupted resolution.
+func (s *SkillProposalService) startResolution(
+	t *skillTarget,
+	journal dirpublish.Journal,
+	payload SkillInstallPayload,
+	keep, operator string,
+) (dirpublish.Journal, SkillInstallPayload, error) {
+	switch payload.State {
+	case skillInstallStateConflict:
+		if keep == SkillConflictKeepPrevious && !previousRestorable(t, journal, payload) {
+			return journal, payload, fmt.Errorf(
+				"%w: the previous %s is no longer available to restore; resolve %s with --keep current",
+				ErrSkillInstallConflict, t.name, payload.OpID)
+		}
+		return s.recordResolution(t, journal, payload, keep, operator)
+	case skillInstallStateResolving:
+		if payload.Keep != keep {
+			return journal, payload, skillConflictResolvingError(payload.Keep)
+		}
+		return journal, payload, nil
+	}
+	return journal, payload, ErrSkillInstallConflictNotFound
 }
 
 // previousRestorable reports whether keep=previous can restore what was installed before: nothing
