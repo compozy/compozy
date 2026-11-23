@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -110,7 +111,8 @@ func nativeSkillReviewError(id toolspkg.ToolID, err error) error {
 	if code, status, ok := core.SkillReviewErrorStatus(err); ok {
 		toolErr := toolspkg.NewToolError(toolspkg.ErrorCode(code), id, err.Error(), err)
 		toolErr.HTTPStatus = status
-		toolErr.PublicMessage = err.Error()
+		// The code travels in its own field; the public text drops the "<code>: " prefix of the wrap.
+		toolErr.PublicMessage = strings.TrimPrefix(err.Error(), code+": ")
 		return toolErr
 	}
 	return err

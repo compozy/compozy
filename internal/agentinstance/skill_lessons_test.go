@@ -184,38 +184,51 @@ func TestSkillProposalLessons(t *testing.T) {
 	t.Run("Should refuse a confidence outside low, medium and high without blaming the lesson", func(t *testing.T) {
 		t.Parallel()
 		_, reviews, _, err := propose(t, func(input *SkillProposalInput) { input.Lesson.Confidence = "certain" })
-		if err == nil || errors.Is(err, ErrSkillProposeLessonRequired) || !strings.Contains(err.Error(), "certain") ||
+		if !errors.Is(err, ErrSkillProposeLessonInvalid) || errors.Is(err, ErrSkillProposeLessonRequired) ||
+			!strings.Contains(err.Error(), "certain") ||
 			len(reviews.created) != 0 {
 			t.Fatalf("Propose() error = %v, reviews = %d", err, len(reviews.created))
 		}
 	})
 	t.Run("Should refuse a new skill whose name is already installed [UT-012]", func(t *testing.T) {
 		t.Parallel()
-		root := t.TempDir()
-		target := filepath.Join(root, "skills")
-		if err := os.MkdirAll(filepath.Join(target, "release-checklist"), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		reviews := &recordingSkillReviewStore{}
-		service := SkillProposalService{
-			Store:     reviews,
-			Evidence:  evidence,
-			DraftRoot: filepath.Join(root, "drafts"),
-			ScanRoots: []string{target},
-		}
-		_, err := service.Propose(t.Context(), workspaceaccess.ActorRef{Operator: true}, instance, target,
-			SkillProposalInput{
-				Name:               "release-checklist",
-				Description:        "Use before tagging a release.",
-				Body:               "1. Confirm CHANGELOG.md has the new version.\n",
-				Lesson:             validLesson,
-				EvidenceSessionIDs: []string{"sess-a"},
-			})
-		if !errors.Is(err, ErrSkillProposeNameTaken) || len(reviews.created) != 0 {
-			t.Fatalf("Propose() error = %v, reviews = %d", err, len(reviews.created))
-		}
-		if _, statErr := os.Stat(service.DraftRoot); !errors.Is(statErr, os.ErrNotExist) {
-			t.Fatalf("refused proposal wrote a draft: %v", statErr)
+		outside := t.TempDir()
+		for _, entry := range []struct {
+			name   string
+			create func(path string) error
+		}{
+			{"directory", func(path string) error { return os.MkdirAll(path, 0o700) }},
+			{"symlink outside the root", func(path string) error { return os.Symlink(outside, path) }},
+		} {
+			root := t.TempDir()
+			target := filepath.Join(root, "skills")
+			if err := os.MkdirAll(target, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := entry.create(filepath.Join(target, "release-checklist")); err != nil {
+				t.Fatal(err)
+			}
+			reviews := &recordingSkillReviewStore{}
+			service := SkillProposalService{
+				Store:     reviews,
+				Evidence:  evidence,
+				DraftRoot: filepath.Join(root, "drafts"),
+				ScanRoots: []string{target},
+			}
+			_, err := service.Propose(t.Context(), workspaceaccess.ActorRef{Operator: true}, instance, target,
+				SkillProposalInput{
+					Name:               "release-checklist",
+					Description:        "Use before tagging a release.",
+					Body:               "1. Confirm CHANGELOG.md has the new version.\n",
+					Lesson:             validLesson,
+					EvidenceSessionIDs: []string{"sess-a"},
+				})
+			if !errors.Is(err, ErrSkillProposeNameTaken) || len(reviews.created) != 0 {
+				t.Fatalf("%s: Propose() error = %v, reviews = %d", entry.name, err, len(reviews.created))
+			}
+			if _, statErr := os.Stat(service.DraftRoot); !errors.Is(statErr, os.ErrNotExist) {
+				t.Fatalf("%s: refused proposal wrote a draft: %v", entry.name, statErr)
+			}
 		}
 	})
 }
