@@ -58,10 +58,11 @@ export interface BrandStageProps {
 
 /**
  * Split stage for Compozy's standalone pages (cloud sign-in and billing, the app's sign-in gate):
- * an ink art panel carrying a brand Atmosphere visual, the wordmark and one statement, beside the
- * page's own column. The panel stays ink in both themes, because Atmosphere only sits on dark
- * grounds, and no text is laid over the bright part of the visual. Below `lg` the panel becomes a
- * short band above the content.
+ * the page's own column on the left and, on the right, an ink art panel carrying a brand Atmosphere
+ * visual, the wordmark and one statement (operator, 2026-11-23: content left, image right). The
+ * panel stays ink in both themes, because Atmosphere only sits on dark grounds, and no text is
+ * laid over the bright part of the visual. Below `lg` the panel becomes a short band above the
+ * content.
  */
 export function BrandStage({
   children,
@@ -76,7 +77,10 @@ export function BrandStage({
 
   return (
     <main
-      className={cn("flex min-h-0 flex-1 flex-col bg-canvas text-fg lg:flex-row", className)}
+      className={cn(
+        "flex min-h-0 flex-1 flex-col bg-canvas text-fg lg:flex-row-reverse",
+        className
+      )}
       data-slot={dataSlot}
       data-visual={visual}
       {...dataAttributes}
