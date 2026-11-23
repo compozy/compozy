@@ -36,10 +36,14 @@ const PICKER_COMPUTERS = COMPUTERS_PRO.slice(0, 4);
  * anchors the open menu inline directly beneath its trigger inside the window (using the real
  * `RunOnComputerItem` and `ComputerLoadMeter` components) so it never floats detached over page copy.
  */
-export function RunOnShot({ pickerDefaultOpen }: { pickerDefaultOpen: boolean }) {
+export function RunOnShot({
+  pickerDefaultOpen: initialPickerOpen,
+}: {
+  pickerDefaultOpen: boolean;
+}) {
   const [target, setTarget] = useState<RunOnTarget>("auto");
   const [query, setQuery] = useState("");
-  const [inlineMenuOpen, setInlineMenuOpen] = useState(pickerDefaultOpen);
+  const [inlineMenuOpen, setInlineMenuOpen] = useState(initialPickerOpen);
 
   const projects = useMemo(() => projectsForTarget(target), [target]);
   const activeProject = projects[0]?.name ?? "api";
@@ -213,7 +217,7 @@ export function RunOnShot({ pickerDefaultOpen }: { pickerDefaultOpen: boolean })
             <Button
               size="sm"
               type="button"
-              onClick={() => toast("Starts session on selected computer")}
+              onClick={() => toast.message("Starts session on selected computer")}
             >
               Start session
             </Button>
@@ -224,8 +228,8 @@ export function RunOnShot({ pickerDefaultOpen }: { pickerDefaultOpen: boolean })
           <div>
             <p className="m-0 text-eyebrow font-medium text-fg">Live fleet capacity</p>
             <p className="m-0 mt-1 text-meta text-muted-foreground">
-              Auto scores every connected computer that holds the project and picks the one with
-              the most free CPU and memory.
+              Auto scores every connected computer that holds the project and picks the one with the
+              most free CPU and memory.
             </p>
 
             <div className="mt-4 grid grid-cols-2 gap-3 border-y border-line-soft py-3">

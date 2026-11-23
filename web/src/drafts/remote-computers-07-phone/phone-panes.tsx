@@ -102,9 +102,7 @@ export function PhoneSessionList({
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-eyebrow text-subtle">
-                  <WorkspaceBadge
-                    identity={{ id: item.project, kind: "workspace", name: item.project }}
-                  />
+                  <WorkspaceBadge identity={{ kind: "project", name: item.project }} />
                   <span aria-hidden="true">·</span>
                   <span className={cn(needsYou && !offline && "font-medium text-attn")}>
                     {offline ? "Offline" : sessionStateLabel(item.state)}
@@ -219,7 +217,7 @@ export function PhoneApprovalsPane({
                     disabled={item.state !== "pending"}
                     onClick={() => {
                       onDecide(item.id, "denied", item.deviceName);
-                      toast(`Denied ${item.deviceName}`);
+                      toast.message(`Denied ${item.deviceName}`);
                     }}
                     size="lg"
                     variant="outline"

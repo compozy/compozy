@@ -12,14 +12,7 @@ import {
   type SignInProvider,
 } from "@/systems/computers/mocks/remote-computers-fixtures-sign-in";
 
-const PROVIDER_LABEL: Record<SignInProvider, string> = {
-  google: "Google",
-  github: "GitHub",
-};
-
-export function providerDisplayName(provider: SignInProvider): string {
-  return PROVIDER_LABEL[provider];
-}
+import { providerDisplayName } from "../lib/provider-display-name";
 
 export interface SignInProviderGlyphProps {
   provider: SignInProvider;
@@ -54,7 +47,7 @@ export function SignInProviderButton({
   onClick,
   className,
 }: SignInProviderButtonProps) {
-  const label = `Continue with ${PROVIDER_LABEL[provider]}`;
+  const label = `Continue with ${providerDisplayName(provider)}`;
 
   return (
     <Button
@@ -108,9 +101,10 @@ export function SignInVerificationCode({
     >
       <span
         className={cn(
-          "font-mono text-display-2xl font-semibold tracking-[0.22em] whitespace-nowrap tabular-nums select-all",
+          "font-mono text-display-2xl font-semibold whitespace-nowrap tabular-nums select-all",
           struck ? "text-subtle line-through" : "text-fg-strong"
         )}
+        style={{ letterSpacing: "0.22em" }}
       >
         {code}
       </span>

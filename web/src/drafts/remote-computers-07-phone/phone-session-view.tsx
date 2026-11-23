@@ -104,9 +104,7 @@ export function PhoneSessionView({
             <h1 className="truncate text-body font-medium text-fg-strong">{session.title}</h1>
           </div>
           <div className="flex items-center gap-1.5 text-micro text-subtle">
-            <WorkspaceBadge
-              identity={{ id: session.project, kind: "workspace", name: session.project }}
-            />
+            <WorkspaceBadge identity={{ kind: "project", name: session.project }} />
             <span aria-hidden="true">·</span>
             <span>{session.model}</span>
             <span aria-hidden="true">·</span>
@@ -270,7 +268,7 @@ export function PhoneSessionView({
                   className="w-full"
                   onClick={() => {
                     setApprovalDecision("denied");
-                    toast("Command denied");
+                    toast.message("Command denied");
                   }}
                   size="lg"
                   variant="outline"

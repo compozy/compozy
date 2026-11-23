@@ -387,19 +387,22 @@ export function RunOnPicker({
             <>
               {showAuto || localComputer.localRunAgents ? <CommandSeparator /> : null}
               <CommandSelectGroup heading="Computers">
-                {enabledComputers.map(computer => (
-                  <RunOnComputerItem
-                    computer={computer}
-                    highlightReconnect={highlightedReconnectId === computer.id}
-                    key={computer.id}
-                    onReconnect={onReconnect}
-                    onSelect={handleSelect}
-                    onUpgrade={onUpgrade}
-                    reconnecting={reconnectingIds.includes(computer.id)}
-                    selected={value === computer.id}
-                    testIdPrefix={testId}
-                  />
-                ))}
+                {(() => {
+                  const reconnectingSet = new Set(reconnectingIds);
+                  return enabledComputers.map(computer => (
+                    <RunOnComputerItem
+                      computer={computer}
+                      highlightReconnect={highlightedReconnectId === computer.id}
+                      key={computer.id}
+                      onReconnect={onReconnect}
+                      onSelect={handleSelect}
+                      onUpgrade={onUpgrade}
+                      reconnecting={reconnectingSet.has(computer.id)}
+                      selected={value === computer.id}
+                      testIdPrefix={testId}
+                    />
+                  ));
+                })()}
               </CommandSelectGroup>
             </>
           ) : null}

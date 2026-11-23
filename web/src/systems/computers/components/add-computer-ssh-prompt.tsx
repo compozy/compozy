@@ -94,7 +94,7 @@ export function AddComputerHostKeyCard({
           <ShieldAlert aria-hidden="true" />
           <AlertTitle>{hostLabel}&apos;s key changed since you trusted it.</AlertTitle>
           <AlertDescription>
-            Compozy blocked this connection to protect your credentials. Check the key directly on{" "}
+            CompozyOS blocked this connection to protect your credentials. Check the key directly on{" "}
             <span className="font-mono text-mono-id text-fg">{target}</span> before clearing the old
             pin.
           </AlertDescription>
@@ -103,8 +103,7 @@ export function AddComputerHostKeyCard({
         <div className="overflow-hidden rounded-md border border-line bg-code-bg divide-y divide-line-soft">
           <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-eyebrow">
             <span className="text-subtle">
-              Pin entry{" "}
-              <span className="font-mono text-mono-id text-fg">{pinEntry ?? target}</span>
+              Pin entry <span className="font-mono text-mono-id text-fg">{pinEntry ?? target}</span>
             </span>
             <span className="font-mono text-micro text-faint">{keyType} · SHA256</span>
           </div>
@@ -145,8 +144,8 @@ export function AddComputerHostKeyCard({
         <span className="font-mono text-mono-id text-muted-foreground">{target}</span>
       </div>
       <p className="text-meta text-muted-foreground">
-        Compozy hasn't connected to <span className="font-medium text-fg">{hostLabel}</span> before.
-        Confirm this fingerprint matches the computer you expect.
+        CompozyOS hasn't connected to <span className="font-medium text-fg">{hostLabel}</span>{" "}
+        before. Confirm this fingerprint matches the computer you expect.
       </p>
       <KeyFingerprint
         columns={3}

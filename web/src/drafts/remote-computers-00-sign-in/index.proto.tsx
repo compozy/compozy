@@ -24,7 +24,7 @@ export const meta = definePrototype({
   surface: "U0",
   route: "/sign-in",
   states: [
-    { id: "first-run", label: "First run · Sign in to Compozy" },
+    { id: "first-run", label: "First run · Sign in to CompozyOS" },
     { id: "existing-install", label: "Existing install · After updating, nothing lost" },
     { id: "waiting-browser", label: "Waiting for browser · Google code WDJB-MJHT" },
     { id: "cancelled", label: "Cancelled · Sign-in was cancelled" },
@@ -34,7 +34,7 @@ export const meta = definePrototype({
     { id: "account-token-revoked", label: "Account token revoked · CLI hint, no buttons" },
     { id: "account-deleting", label: "Account deleting · Try again in a few minutes" },
     { id: "cloud-activate", label: "Cloud browser · Activate MacBook Pro with code" },
-    { id: "cloud-signed-in", label: "Cloud browser · Signed in, return to Compozy" },
+    { id: "cloud-signed-in", label: "Cloud browser · Signed in, return to CompozyOS" },
     { id: "cloud-email-unverified", label: "Cloud browser · GitHub email not verified" },
     { id: "cloud-code-used", label: "Cloud browser · Code already used" },
     { id: "cloud-unsubscribe", label: "Cloud browser · Unsubscribe confirmation" },
@@ -102,6 +102,26 @@ function BrowserWindowFrame({ address, children }: { address: string; children: 
   );
 }
 
+function handleReopenBrowser(attempt: SignInWaitingAttemptFixture) {
+  toast.message(`Reopened ${attempt.verificationUri} in your browser`);
+}
+
+function handleOpenDesktopLegalLink(kind: "terms" | "privacy") {
+  toast.message(
+    kind === "terms" ? "Opened Terms in your browser" : "Opened Privacy Policy in your browser"
+  );
+}
+
+function handleOpenCloudLegalLink(linkKind: "terms" | "privacy" | "refunds") {
+  toast.message(
+    linkKind === "terms"
+      ? "Opened Terms"
+      : linkKind === "privacy"
+        ? "Opened Privacy Policy"
+        : "Opened Refund Policy"
+  );
+}
+
 function InteractiveDesktopSignIn({ preset }: { preset: SignInScreenPreset }) {
   const [waiting, setWaiting] = useState<SignInWaitingAttemptFixture | undefined>(preset.waiting);
   const [notice, setNotice] = useState<SignInNoticeFixture | undefined>(preset.notice);
@@ -112,11 +132,7 @@ function InteractiveDesktopSignIn({ preset }: { preset: SignInScreenPreset }) {
     const attempt = buildWaitingAttempt(provider);
     setNotice(undefined);
     setWaiting(attempt);
-    toast(`Opened ${attempt.verificationUri} in your browser`);
-  };
-
-  const handleReopenBrowser = (attempt: SignInWaitingAttemptFixture) => {
-    toast(`Reopened ${attempt.verificationUri} in your browser`);
+    toast.message(`Opened ${attempt.verificationUri} in your browser`);
   };
 
   const handleCancelWaiting = () => {
@@ -130,12 +146,6 @@ function InteractiveDesktopSignIn({ preset }: { preset: SignInScreenPreset }) {
     toast.success("Connected to Compozy Cloud");
   };
 
-  const handleOpenLegalLink = (kind: "terms" | "privacy") => {
-    toast(
-      kind === "terms" ? "Opened Terms in your browser" : "Opened Privacy Policy in your browser"
-    );
-  };
-
   return (
     <DesktopAppWindowFrame>
       <SignInScreen
@@ -145,7 +155,7 @@ function InteractiveDesktopSignIn({ preset }: { preset: SignInScreenPreset }) {
         notice={notice}
         onCancelWaiting={handleCancelWaiting}
         onMarketingOptInChange={setMarketingOptIn}
-        onOpenLegalLink={handleOpenLegalLink}
+        onOpenLegalLink={handleOpenDesktopLegalLink}
         onReopenBrowser={handleReopenBrowser}
         onRetryConnection={handleRetryConnection}
         onSelectProvider={handleSelectProvider}
@@ -159,8 +169,10 @@ function InteractiveDesktopSignIn({ preset }: { preset: SignInScreenPreset }) {
 }
 
 function InteractiveCloudPage({ preset }: { preset: CloudPagePreset }) {
-  const [kind, setKind] = useState<CloudPageKind>(preset.kind);
-  const [address, setAddress] = useState(preset.browserAddress);
+  const initialKind = preset.kind;
+  const initialAddress = preset.browserAddress;
+  const [kind, setKind] = useState<CloudPageKind>(initialKind);
+  const [address, setAddress] = useState(initialAddress);
   const [unsubscribed, setUnsubscribed] = useState(Boolean(preset.initialUnsubscribed));
 
   const handleContinueProvider = (provider: SignInProvider) => {
@@ -174,16 +186,6 @@ function InteractiveCloudPage({ preset }: { preset: CloudPagePreset }) {
     toast.success("Unsubscribed from product news and offers");
   };
 
-  const handleOpenLegalLink = (linkKind: "terms" | "privacy" | "refunds") => {
-    toast(
-      linkKind === "terms"
-        ? "Opened Terms"
-        : linkKind === "privacy"
-          ? "Opened Privacy Policy"
-          : "Opened Refund Policy"
-    );
-  };
-
   return (
     <BrowserWindowFrame address={address}>
       <SignInCloudPage
@@ -192,7 +194,7 @@ function InteractiveCloudPage({ preset }: { preset: CloudPagePreset }) {
         kind={kind}
         onConfirmUnsubscribe={handleConfirmUnsubscribe}
         onContinueProvider={handleContinueProvider}
-        onOpenLegalLink={handleOpenLegalLink}
+        onOpenLegalLink={handleOpenCloudLegalLink}
         provider={preset.provider}
         unsubscribed={unsubscribed}
         userCode={preset.userCode}
