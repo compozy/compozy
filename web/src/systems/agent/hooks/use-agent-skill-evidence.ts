@@ -9,12 +9,12 @@ const NO_SESSIONS: readonly string[] = [];
  * any other failure keeps it linkable, because the session may still exist.
  */
 export function useUnavailableEvidenceSessions(
-  evidenceSessionIds: readonly string[] | null | undefined,
+  evidenceSessionIds: readonly string[] | null | undefined
 ): readonly string[] {
   const ids = evidenceSessionIds ?? NO_SESSIONS;
   return useQueries({
-    queries: ids.map((id) => ({ ...sessionOwnerOptions(id), refetchOnWindowFocus: false })),
-    combine: (results) =>
+    queries: ids.map(id => ({ ...sessionOwnerOptions(id), refetchOnWindowFocus: false })),
+    combine: results =>
       ids.filter((_, index) => results[index]?.error instanceof SessionNotFoundError),
   });
 }

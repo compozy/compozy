@@ -30,7 +30,7 @@ const NO_EVIDENCE_SESSIONS: readonly string[] = [];
 function ReadToggle({ mode, onMode }: { mode: ReadMode; onMode: (mode: ReadMode) => void }) {
   return (
     <div className="ml-auto flex items-center gap-1">
-      {(["read", "source"] as const).map((value) => (
+      {(["read", "source"] as const).map(value => (
         <Button
           aria-pressed={mode === value}
           key={value}
@@ -144,7 +144,7 @@ export function AgentSkillViewerDialog({
   onReject: () => void;
 }) {
   const [selected, setSelected] = useState(initialPath ?? SKILL_DEFINITION_FILE);
-  const file = files.find((item) => item.path === selected) ?? files[0];
+  const file = files.find(item => item.path === selected) ?? files[0];
   const count = files.length;
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>

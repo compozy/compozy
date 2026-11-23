@@ -54,7 +54,7 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     },
   });
   const unavailableEvidenceSessionIds = useUnavailableEvidenceSessions(
-    review?.evidence_session_ids,
+    review?.evidence_session_ids
   );
   const files = review ? skillReviewFiles(review) : [];
   // The daemon marks a review whose stored draft no longer verifies; it can only be rejected.
@@ -79,7 +79,7 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     unreadable,
     decideError: isSkillReviewInvalid(mutation.error)
       ? new Error(
-          "CompozyOS can't install this version. Reject it, or wait for the agent to propose it again.",
+          "CompozyOS can't install this version. Reject it, or wait for the agent to propose it again."
         )
       : mutation.error && !isSkillReviewStale(mutation.error)
         ? mutation.error
