@@ -121,6 +121,7 @@ export function SkillReviewCardView({
       evidenceSessionIds={review.evidence_session_ids}
       files={view.files}
       lesson={review.lesson}
+      unavailableEvidenceSessionIds={view.unavailableEvidenceSessionIds}
       initialPath={initialPath}
       key={review.digest}
       name={review.name}
