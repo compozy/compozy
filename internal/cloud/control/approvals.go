@@ -157,7 +157,7 @@ func (s *Service) saveDecision(
 		return err
 	}
 	if err := s.securityEvent(ctx, q, account, actor, "device_approval_decided",
-		map[string]any{"approval_id": approval.ID, "computer_id": approval.ComputerID}); err != nil {
+		map[string]any{"approval_id": approval.ID, auditComputerID: approval.ComputerID}); err != nil {
 		return err
 	}
 	epoch, err := q.AdvanceSecurity(ctx, store.ControlEvent{Type: remoteproto.ControlSnapshot, AccountID: account})
@@ -204,9 +204,9 @@ func (s *Service) reportApprovalApplied(
 		Type:      "device_approval_applied",
 		At:        now,
 		Details: map[string]any{
-			"computer_id": computer.ID,
-			"approval_id": applied.ApprovalID,
-			"result":      applied.Result,
+			auditComputerID: computer.ID,
+			"approval_id":   applied.ApprovalID,
+			"result":        applied.Result,
 		},
 	}); err != nil {
 		return err

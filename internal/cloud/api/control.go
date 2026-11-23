@@ -94,7 +94,7 @@ func (r *controlRoutes) authenticateDevice(req *http.Request) (control.DevicePri
 		return control.DevicePrincipal{}, control.ErrUnauthorized
 	}
 	scheme, token, ok := strings.Cut(req.Header.Get(authorizationHeader), " ")
-	if !ok || token == "" || !(strings.EqualFold(scheme, "Bearer") || strings.EqualFold(scheme, "DPoP")) {
+	if !ok || token == "" || (!strings.EqualFold(scheme, "Bearer") && !strings.EqualFold(scheme, "DPoP")) {
 		return control.DevicePrincipal{}, control.ErrUnauthorized
 	}
 	if strings.HasPrefix(token, "cpzat_") {

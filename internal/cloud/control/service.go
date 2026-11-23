@@ -16,6 +16,8 @@ const (
 	approvalPending  = "pending"
 	approvalApproved = "approved"
 	approvalDenied   = "denied"
+	auditComputerID  = "computer_id"
+	auditDeviceID    = "device_id"
 )
 
 type DevicePrincipal struct {

@@ -210,7 +210,7 @@ func (s *Service) linkComputer(
 			return store.ControlComputer{}, err
 		}
 		if err := s.securityEvent(ctx, q, computer.AccountID, creator, "computer_linked",
-			map[string]any{"computer_id": result.ID}); err != nil {
+			map[string]any{auditComputerID: result.ID}); err != nil {
 			return store.ControlComputer{}, err
 		}
 		return result, notifyComputerChanged(ctx, q, result)
@@ -339,7 +339,7 @@ func (s *Service) patchComputer(
 			Actor:     computerActor(computer.ID, actor),
 			Type:      "computer_remote_access_changed",
 			At:        now,
-			Details:   map[string]any{"computer_id": computer.ID, "remote_enabled": updated.RemoteEnabled},
+			Details:   map[string]any{auditComputerID: computer.ID, "remote_enabled": updated.RemoteEnabled},
 		}); err != nil {
 			return Computer{}, err
 		}
@@ -433,7 +433,7 @@ func (s *Service) UnlinkComputer(ctx context.Context, principal DevicePrincipal,
 				return err
 			}
 			if err := s.securityEvent(ctx, q, account.ID, device.ID, "computer_unlinked",
-				map[string]any{"computer_id": id}); err != nil {
+				map[string]any{auditComputerID: id}); err != nil {
 				return err
 			}
 			_, err = q.AdvanceSecurity(ctx, store.ControlEvent{

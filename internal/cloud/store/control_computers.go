@@ -158,7 +158,13 @@ func (q *Queries) AdvanceControlLease(
 		ComputerID: string(computer.ID), AccountID: computer.AccountID,
 		LinkID: linkID, SequenceFloor: at.UnixMicro(), ControlAt: timestamp(at),
 	})
-	return uint64(sequence), err
+	if err != nil {
+		return 0, err
+	}
+	if sequence <= 0 {
+		return 0, errors.New("stored lease sequence must be positive")
+	}
+	return uint64(sequence), nil
 }
 
 func (q *Queries) RecordControlMint(

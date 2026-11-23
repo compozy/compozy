@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"encoding/json/v2"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"

@@ -13,7 +13,10 @@ import (
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
-var ErrNotFound = pgx.ErrNoRows
+var (
+	ErrNotFound     = pgx.ErrNoRows
+	errInvalidEpoch = errors.New("stored security epoch must be positive")
+)
 
 type ControlAccount struct {
 	ID            string
@@ -23,7 +26,13 @@ type ControlAccount struct {
 
 func (q *Queries) ControlAccount(ctx context.Context, id string) (ControlAccount, error) {
 	row, err := q.generated.ControlAccount(ctx, id)
-	return ControlAccount{ID: row.ID, State: row.State, SecurityEpoch: uint64(row.SecurityEpoch)}, err
+	if err != nil {
+		return ControlAccount{}, err
+	}
+	if row.SecurityEpoch <= 0 {
+		return ControlAccount{}, errInvalidEpoch
+	}
+	return ControlAccount{ID: row.ID, State: row.State, SecurityEpoch: uint64(row.SecurityEpoch)}, nil
 }
 
 // AdvanceSecurity makes additions and incremental changes use the same commit fence.
@@ -34,6 +43,9 @@ func (q *Queries) AdvanceSecurity(ctx context.Context, event ControlEvent) (uint
 	epoch, err := q.generated.BumpControlEpoch(ctx, event.AccountID)
 	if err != nil {
 		return 0, err
+	}
+	if epoch <= 0 {
+		return 0, errInvalidEpoch
 	}
 	event.SecurityEpoch = uint64(epoch)
 	return event.SecurityEpoch, q.NotifyControlEvent(ctx, event)

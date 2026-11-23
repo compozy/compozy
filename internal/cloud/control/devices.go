@@ -131,7 +131,7 @@ func (s *Service) applyDevicePatch(
 		device.Admin = *patch.Admin
 		event.Type = remoteproto.ControlSnapshot
 		if err := s.securityEvent(ctx, q, event.AccountID, caller, "device_admin_changed",
-			map[string]any{"device_id": device.ID, "admin": device.Admin}); err != nil {
+			map[string]any{auditDeviceID: device.ID, "admin": device.Admin}); err != nil {
 			return err
 		}
 	}
@@ -153,7 +153,7 @@ func (s *Service) applyDevicePatch(
 		event.AccountID,
 		caller,
 		"device_scopes_changed",
-		map[string]any{"device_id": device.ID},
+		map[string]any{auditDeviceID: device.ID},
 	)
 }
 
@@ -199,7 +199,7 @@ func (s *Service) RevokeDevice(ctx context.Context, principal DevicePrincipal, i
 				account.ID,
 				caller.ID,
 				"device_revoked",
-				map[string]any{"device_id": id},
+				map[string]any{auditDeviceID: id},
 			); err != nil {
 				return err
 			}
