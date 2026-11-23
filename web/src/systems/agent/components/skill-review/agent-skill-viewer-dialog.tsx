@@ -129,18 +129,56 @@ function FileBody({
   return <CodeBlock code={file.body} language={file.language} />;
 }
 
+/** The modes a text file offers, first one the default: Changes for an edit, Read for Markdown, Source. */
+function fileReadModes(file: SkillReviewFile): ReadMode[] {
+  const modes: ReadMode[] = [];
+  if (file.baseBody !== undefined) modes.push("diff");
+  if (file.language === "markdown") modes.push("read");
+  modes.push("source");
+  return modes;
+}
+
+/** The file's change and "Runs automatically" pills. */
+function FilePills({ file }: { file: SkillReviewFile }) {
+  const change = file.change && file.change !== "unchanged" ? CHANGE_LABEL[file.change] : null;
+  return (
+    <>
+      {change ? <Pill size="sm">{change}</Pill> : null}
+      {file.automatic ? (
+        <Pill size="sm" tone="warning">
+          Runs automatically
+        </Pill>
+      ) : null}
+    </>
+  );
+}
+
+/** Rendered Markdown hides some of the file's text: point at the source. */
+function HiddenTextNotice({ onReadSource }: { onReadSource: () => void }) {
+  return (
+    <Alert data-testid="skill-review-hidden-text" variant="warning">
+      <AlertDescription>
+        This file has text that doesn't show here.{" "}
+        <button
+          className="rounded-xs underline outline-none focus-visible:shadow-focus-ring"
+          onClick={onReadSource}
+          type="button"
+        >
+          Read the source
+        </button>{" "}
+        before you decide.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 function FileView({ file }: { file: SkillReviewFile }) {
   // Only the operator's choice is state; the default mode follows the file (the first one offered).
   const [chosen, setChosen] = useState<ReadMode | null>(null);
   if (file.binarySize !== undefined) return <BinaryFileView file={file} />;
-  const markdown = file.language === "markdown";
-  const modes: ReadMode[] = [
-    ...(file.baseBody !== undefined ? (["diff"] as const) : []),
-    ...(markdown ? (["read"] as const) : []),
-    "source",
-  ];
+  const modes = fileReadModes(file);
   const mode = chosen !== null && modes.includes(chosen) ? chosen : (modes[0] ?? "source");
-  const read = markdown ? skillMarkdownRead(file.body) : null;
+  const read = file.language === "markdown" ? skillMarkdownRead(file.body) : null;
   const readHides = read?.hidesText === true && mode === "read";
   const invisible = !readHides && hasInvisibleCharacters(file.body);
   return (
@@ -149,32 +187,11 @@ function FileView({ file }: { file: SkillReviewFile }) {
         <span className="min-w-0 truncate font-mono text-small-body text-muted-foreground">
           {file.path}
         </span>
-        {file.change && file.change !== "unchanged" ? (
-          <Pill size="sm">{CHANGE_LABEL[file.change]}</Pill>
-        ) : null}
-        {file.automatic ? (
-          <Pill size="sm" tone="warning">
-            Runs automatically
-          </Pill>
-        ) : null}
+        <FilePills file={file} />
         {modes.length > 1 ? <ReadToggle mode={mode} modes={modes} onMode={setChosen} /> : null}
       </div>
       {invisible ? <InvisibleCharactersNotice /> : null}
-      {readHides ? (
-        <Alert data-testid="skill-review-hidden-text" variant="warning">
-          <AlertDescription>
-            This file has text that doesn't show here.{" "}
-            <button
-              className="rounded-xs underline outline-none focus-visible:shadow-focus-ring"
-              onClick={() => setChosen("source")}
-              type="button"
-            >
-              Read the source
-            </button>{" "}
-            before you decide.
-          </AlertDescription>
-        </Alert>
-      ) : null}
+      {readHides ? <HiddenTextNotice onReadSource={() => setChosen("source")} /> : null}
       <FileBody file={file} mode={mode} read={read} />
     </div>
   );
