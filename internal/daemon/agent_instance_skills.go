@@ -111,7 +111,7 @@ func (r instanceDefinitions) skillTargetRoot(
 	if err != nil {
 		return resolved, "", err
 	}
-	target, err := skillTargetFor(resolved, instance, agent.SourcePath)
+	target, err := skillTargetFor(resolved.RootDir, instance, agent.SourcePath)
 	return resolved, target, err
 }
 
@@ -127,18 +127,18 @@ func (r instanceDefinitions) skillRecoveryRoot(ctx context.Context, instance age
 	if err != nil {
 		return "", err
 	}
-	return skillTargetFor(resolved, instance, "")
+	return skillTargetFor(resolved.RootDir, instance, "")
 }
 
 // skillTargetFor derives the target root: the workspace skills root for a workspace instance, the
 // skills directory beside the agent definition (agentSource) for a global one.
 func skillTargetFor(
-	resolved workspacepkg.ResolvedWorkspace,
+	workspaceRoot string,
 	instance agentinstance.Instance,
 	agentSource string,
 ) (string, error) {
 	if instance.WorkspaceID != "" {
-		return filepath.Join(resolved.RootDir, compozyconfig.DirName, compozyconfig.SkillsDirName), nil
+		return filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.SkillsDirName), nil
 	}
 	if !filepath.IsAbs(agentSource) {
 		return "", agentinstance.ErrSkillReviewNoTarget
