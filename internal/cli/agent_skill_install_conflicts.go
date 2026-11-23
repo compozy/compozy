@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -117,13 +118,14 @@ func agentSkillInstallConflictTable(conflicts []contract.AgentSkillInstallConfli
 		}
 		rows = append(rows, []string{conflict.OpID, conflict.Skill, conflict.Action, conflict.State, since})
 	}
-	text := renderHumanTable("", []string{"OP", "SKILL", "ACTION", cliStateHeader, "SINCE"}, rows) + "\n"
+	var text strings.Builder
+	text.WriteString(renderHumanTable("", []string{"OP", "SKILL", "ACTION", cliStateHeader, "SINCE"}, rows) + "\n")
 	for _, conflict := range conflicts {
 		if conflict.RetainedCopy != "" {
-			text += fmt.Sprintf("%s: %s\n", conflict.OpID, agentSkillRetainedCopyText(conflict.RetainedCopy))
+			fmt.Fprintf(&text, "%s: %s\n", conflict.OpID, agentSkillRetainedCopyText(conflict.RetainedCopy))
 		}
 	}
-	return text
+	return text.String()
 }
 
 func agentSkillRetainedCopyText(path string) string {

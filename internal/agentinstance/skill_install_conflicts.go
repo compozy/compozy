@@ -175,22 +175,8 @@ func (s *SkillProposalService) ResolveInstallConflict(
 	if !exists || payload.OpID != opID {
 		return s.repeatResolution(ctx, t, result)
 	}
-	switch payload.State {
-	case skillInstallStateConflict:
-		if keep == SkillConflictKeepPrevious && !previousRestorable(t, journal, payload) {
-			return SkillConflictResolution{}, fmt.Errorf(
-				"%w: the previous %s is no longer available to restore; resolve %s with --keep current",
-				ErrSkillInstallConflict, name, opID)
-		}
-		if journal, payload, err = s.recordResolution(t, journal, payload, keep, operator); err != nil {
-			return SkillConflictResolution{}, err
-		}
-	case skillInstallStateResolving:
-		if payload.Keep != keep {
-			return SkillConflictResolution{}, skillConflictResolvingError(payload.Keep)
-		}
-	default:
-		return SkillConflictResolution{}, ErrSkillInstallConflictNotFound
+	if journal, payload, err = s.startResolution(t, journal, payload, keep, operator); err != nil {
+		return SkillConflictResolution{}, err
 	}
 	if keep == SkillConflictKeepPrevious {
 		result.KeptCopy = t.path(payload.KeepCopyName)
@@ -200,6 +186,31 @@ func (s *SkillProposalService) ResolveInstallConflict(
 	}
 	result.Warning, err = s.continueResolution(ctx, t, journal, payload)
 	return result, err
+}
+
+// startResolution records keep on a conflict journal, or checks it against the keep recorded by an
+// interrupted resolution.
+func (s *SkillProposalService) startResolution(
+	t *skillTarget,
+	journal dirpublish.Journal,
+	payload SkillInstallPayload,
+	keep, operator string,
+) (dirpublish.Journal, SkillInstallPayload, error) {
+	switch payload.State {
+	case skillInstallStateConflict:
+		if keep == SkillConflictKeepPrevious && !previousRestorable(t, journal, payload) {
+			return journal, payload, fmt.Errorf(
+				"%w: the previous %s is no longer available to restore; resolve %s with --keep current",
+				ErrSkillInstallConflict, t.name, payload.OpID)
+		}
+		return s.recordResolution(t, journal, payload, keep, operator)
+	case skillInstallStateResolving:
+		if payload.Keep != keep {
+			return journal, payload, skillConflictResolvingError(payload.Keep)
+		}
+		return journal, payload, nil
+	}
+	return journal, payload, ErrSkillInstallConflictNotFound
 }
 
 // previousRestorable reports whether keep=previous can restore what was installed before: nothing
@@ -300,6 +311,11 @@ func (s *SkillProposalService) recordResolution(
 	payload.NextMarker = payload.PrevMarker
 	if keep == SkillConflictKeepCurrent {
 		edited, err := skillTreeState(t.dir)
+		if errors.Is(err, ErrSkillTreeUnsupported) {
+			return journal, payload, fmt.Errorf("%w: the current %s is a symlink or holds entries other than "+
+				"regular files; replace it with a real directory, or resolve %s with --keep previous",
+				ErrSkillInstallConflict, t.name, payload.OpID)
+		}
 		if err != nil {
 			return journal, payload, err
 		}
@@ -367,11 +383,13 @@ func (s *SkillProposalService) restorePrevious(
 	journal dirpublish.Journal,
 	payload SkillInstallPayload,
 ) error {
+	// An edited copy that is a symlink or holds other entries is moved aside as it is, never followed.
 	target, err := skillTreeState(t.dir)
-	if err != nil {
+	unsupported := errors.Is(err, ErrSkillTreeUnsupported)
+	if err != nil && !unsupported {
 		return err
 	}
-	if target != "" && target != expectedSkillOriginal(payload) {
+	if unsupported || (target != "" && target != expectedSkillOriginal(payload)) {
 		occupied, err := dirpublish.DirectoryExists(t.parent, payload.KeepCopyName)
 		if err != nil {
 			return err
@@ -382,7 +400,7 @@ func (s *SkillProposalService) restorePrevious(
 			return fmt.Errorf("%w: %s already exists; move it away and resolve %s again",
 				ErrSkillInstallConflict, t.path(payload.KeepCopyName), payload.OpID)
 		}
-		if err := moveSkillChild(t.parent, t.name, payload.KeepCopyName); err != nil {
+		if err := moveEditedAside(t, payload.KeepCopyName); err != nil {
 			return err
 		}
 		if s.crashed("edited_kept") {
