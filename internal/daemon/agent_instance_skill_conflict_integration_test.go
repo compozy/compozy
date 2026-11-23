@@ -183,6 +183,58 @@ func TestInstanceSkillInstallConflictIntegration(t *testing.T) {
 			t.Fatalf("catalog description = %q, want the restored previous version", description)
 		}
 	})
+	t.Run("Should list and resolve a conflict after the last instance on its root is archived", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
+			path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+			body, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body = []byte(
+				strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: always_on\n", 1),
+			)
+			if err := os.WriteFile(path, body, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		})
+		main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		db := d.registry.(*globaldb.GlobalDB)
+		instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rootDir string
+		if err := db.DB().QueryRowContext(t.Context(), "SELECT root_dir FROM workspaces WHERE id = ?", workspace).
+			Scan(&rootDir); err != nil {
+			t.Fatal(err)
+		}
+		opID := seedSkillInstallConflict(t, filepath.Join(rootDir, compozyconfig.DirName, compozyconfig.SkillsDirName))
+		if _, err := db.Instances().Archive(t.Context(), instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		status, raw := instanceIntegrationHTTP(t, d, http.MethodGet,
+			"/api/agent-skill-install-conflicts?workspace="+workspace, nil, nil)
+		var conflicts contract.AgentSkillInstallConflictsResponse
+		if status != http.StatusOK || json.Unmarshal(raw, &conflicts) != nil || len(conflicts.Conflicts) != 1 ||
+			conflicts.Conflicts[0].OpID != opID {
+			t.Fatalf("list after archive = %d %s", status, raw)
+		}
+		body, err := json.Marshal(contract.AgentSkillInstallConflictResolveRequest{Keep: "previous"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, raw = instanceIntegrationHTTP(t, d, http.MethodPost,
+			"/api/agent-skill-install-conflicts/"+opID+"/resolve?workspace="+workspace, body, nil)
+		if status != http.StatusOK || strings.Contains(string(raw), "already_resolved") {
+			t.Fatalf("resolve after archive = %d %s", status, raw)
+		}
+	})
 }
 
 // seedSkillInstallConflict leaves release-checklist as a retained conflict: the edited copy at the

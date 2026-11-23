@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -304,6 +305,26 @@ func TestInstanceLifecycle(t *testing.T) {
 			}
 			if _, err := repo.Archive(t.Context(), first.ID); err != nil {
 				t.Fatal(err)
+			}
+			// Skill install recovery still reaches the archived instance's target root.
+			listed := func(includeArchived bool) []string {
+				page, err := repo.List(t.Context(), agentinstance.ListQuery{
+					ProfileID: first.ProfileID, AllWorkspaces: true, IncludeArchived: includeArchived, Limit: 10,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				ids := make([]string, 0, len(page))
+				for _, instance := range page {
+					ids = append(ids, instance.ID)
+				}
+				return ids
+			}
+			if live := listed(false); slices.Contains(live, first.ID) {
+				t.Fatalf("live instances = %v, want the archived %s excluded", live, first.ID)
+			}
+			if all := listed(true); !slices.Contains(all, first.ID) {
+				t.Fatalf("instances including archived = %v, want %s", all, first.ID)
 			}
 			input.AgentName = "coder"
 			replacement, created, err := repo.AdmitCreate(t.Context(), input, 1)

@@ -17,7 +17,10 @@ type ListQuery struct {
 	AllWorkspaces                   bool
 	// AllProfiles reads the owner-labeled aggregate; ProfileID is then empty.
 	AllProfiles bool
-	Limit       int
+	// IncludeArchived also returns archived instances; skill install recovery uses it to reach target
+	// roots whose last live instance was archived.
+	IncludeArchived bool
+	Limit           int
 }
 
 type InstanceStore interface {

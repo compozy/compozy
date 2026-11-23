@@ -2292,10 +2292,12 @@ func TestAgentSkillReviews(t *testing.T) {
 		}
 		// A target lookup failure refuses the rejection: without the install log a committed approval
 		// whose projection is pending cannot be told apart. An instance with no target still rejects.
-		lookupFailure := errors.New("workspace unavailable")
+		lookupFailure := fmt.Errorf("resolve skill target: %w", store.ErrWorkspaceArchived)
 		targetErr.Store(&lookupFailure)
 		unresolved := request("POST", "/reviews/"+invalid.ID+"/reject", `{"digest":"`+invalid.Digest+`"}`, false)
-		if unresolved.Code == 200 {
+		var unresolvedFailure contract.ErrorPayload
+		decodeJSON(t, unresolved.Body.Bytes(), &unresolvedFailure)
+		if unresolved.Code != http.StatusConflict || unresolvedFailure.Code != "workspace_archived" {
 			t.Fatalf("reject without a resolvable target: %d %s", unresolved.Code, unresolved.Body.String())
 		}
 		if pending, err := db.SkillReviews().GetReview(t.Context(), invalid.ID); err != nil ||

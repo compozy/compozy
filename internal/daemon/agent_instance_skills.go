@@ -45,6 +45,7 @@ func (d *Daemon) bindInstanceSkillReviews(
 			return err == nil && instance.ArchivedAt == nil && instance.SkillAutoApprove, err
 		},
 	}
+	api.SkillRecoveryRoot = definitions.skillRecoveryRoot
 	api.SkillTarget = func(ctx context.Context, instance agentinstance.Instance) (string, []string, error) {
 		resolved, target, err := definitions.skillTargetRoot(ctx, instance)
 		if err != nil {
@@ -66,12 +67,14 @@ func (d *Daemon) bindInstanceSkillReviews(
 }
 
 // reconcileSkillInstalls runs the skill install Reconcile for every target root of this home's
-// instances. Failures are logged per root and never block startup; a retained conflict stays
+// instances, archived ones included. Failures are logged per root and never block startup; a retained conflict stays
 // blocked until the operator resolves it.
 func reconcileSkillInstalls(ctx context.Context, state *bootState, definitions instanceDefinitions) {
 	api := state.agentInstances
 	seen := map[string]bool{}
-	query := agentinstance.ListQuery{AllProfiles: true, AllWorkspaces: true, Limit: 100}
+	// Archived instances are included: an interrupted install under a root whose last instance was
+	// archived is still recovered.
+	query := agentinstance.ListQuery{AllProfiles: true, AllWorkspaces: true, IncludeArchived: true, Limit: 100}
 	for {
 		page, err := api.Store.List(ctx, query)
 		if err != nil {

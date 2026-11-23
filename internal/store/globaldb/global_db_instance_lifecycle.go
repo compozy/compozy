@@ -311,24 +311,28 @@ func (r *InstanceRepo) List(ctx context.Context, query agentinstance.ListQuery) 
 	if oneProfile == query.AllProfiles || query.Limit < 1 || query.Limit > 100 {
 		return nil, errors.New("instance list requires one profile or all profiles and limit from 1 to 100")
 	}
-	all, allProfiles := 0, 0
+	all, allProfiles, includeArchived := 0, 0, 0
 	if query.AllWorkspaces {
 		all = 1
 	}
 	if query.AllProfiles {
 		allProfiles = 1
 	}
+	if query.IncludeArchived {
+		includeArchived = 1
+	}
 	rows, err := r.readQueries.ListAgentInstances(
 		ctx,
 		sqlcgen.ListAgentInstancesParams{
-			AllProfiles:   allProfiles,
-			ProfileID:     query.ProfileID,
-			WorkspaceID:   query.WorkspaceID,
-			AllWorkspaces: all,
-			AfterID:       query.AfterID,
-			AgentName:     query.AgentName,
-			State:         query.State,
-			PageLimit:     int64(query.Limit),
+			AllProfiles:     allProfiles,
+			ProfileID:       query.ProfileID,
+			WorkspaceID:     query.WorkspaceID,
+			AllWorkspaces:   all,
+			AfterID:         query.AfterID,
+			AgentName:       query.AgentName,
+			State:           query.State,
+			IncludeArchived: includeArchived,
+			PageLimit:       int64(query.Limit),
 		},
 	)
 	if err != nil {

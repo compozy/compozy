@@ -50,6 +50,10 @@ type AgentInstanceAPI struct {
 	Authority             agentinstance.Authority
 	// Profiles labels each instance with its owner's profile_name.
 	Profiles ProfileOwnerReader
+
+	// SkillRecoveryRoot locates an instance's skill target root for install recovery and conflict
+	// discovery, also for archived instances; nil falls back to SkillTarget.
+	SkillRecoveryRoot func(context.Context, agentinstance.Instance) (string, error)
 }
 
 func (h *BaseHandlers) instanceActor(c *gin.Context) (workspaceaccess.ActorRef, bool) {

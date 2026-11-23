@@ -121,10 +121,11 @@ func (h *BaseHandlers) skillInstallConflictScope(c *gin.Context, mutation bool) 
 	return skillInstallConflictScope{actor: actor, profileID: profile.ProfileID, roots: roots}, true
 }
 
-// skillTargetRoots pages the instances of query and returns their distinct skill target roots.
-// Instances without a resolvable target have nothing installed and are skipped.
+// skillTargetRoots pages the instances of query, archived ones included, and returns their distinct
+// skill target roots, so a conflict stays reachable after the last instance on its root is archived.
+// Instances without a resolvable root have nothing installed and are skipped.
 func (api *AgentInstanceAPI) skillTargetRoots(ctx context.Context, query agentinstance.ListQuery) ([]string, error) {
-	query.Limit, query.AfterID = 100, ""
+	query.Limit, query.AfterID, query.IncludeArchived = 100, "", true
 	seen := map[string]bool{}
 	var roots []string
 	for {
@@ -133,7 +134,7 @@ func (api *AgentInstanceAPI) skillTargetRoots(ctx context.Context, query agentin
 			return nil, err
 		}
 		for _, instance := range page {
-			root, _, err := api.SkillTarget(ctx, instance)
+			root, err := api.skillRecoveryRoot(ctx, instance)
 			if err != nil || seen[root] {
 				continue
 			}
@@ -145,4 +146,12 @@ func (api *AgentInstanceAPI) skillTargetRoots(ctx context.Context, query agentin
 		}
 		query.AfterID = page[len(page)-1].ID
 	}
+}
+
+func (api *AgentInstanceAPI) skillRecoveryRoot(ctx context.Context, instance agentinstance.Instance) (string, error) {
+	if api.SkillRecoveryRoot != nil {
+		return api.SkillRecoveryRoot(ctx, instance)
+	}
+	root, _, err := api.SkillTarget(ctx, instance)
+	return root, err
 }

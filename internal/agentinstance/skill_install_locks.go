@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/dirpublish"
 	"github.com/compozy/compozy/internal/fileutil"
@@ -31,8 +30,10 @@ type SkillInstallLocks struct {
 	held map[string]*skillKeyLock
 	// unprojected maps an instance ID to its committed auto-approvals whose projection failed.
 	unprojected map[string]map[string]struct{}
-	// publishPending is set while a catalog refresh after a committed change has failed.
-	publishPending atomic.Bool
+	// publishMu serializes a catalog refresh with its publishPending update; publishPending is set
+	// while a committed change still needs a catalog refresh.
+	publishMu      sync.Mutex
+	publishPending bool
 }
 
 type skillKeyLock struct {
