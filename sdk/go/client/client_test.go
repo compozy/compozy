@@ -206,7 +206,8 @@ func TestClientRequests(t *testing.T) {
 			t.Fatalf("Do() error = %#v, want preserved API error", err)
 		}
 		want := []ExtensionDependent{{Name: "acme-tool", WorkspaceID: "ws1", Profile: "default"}}
-		if !slices.Equal(apiErr.Dependents, want) || !slices.Equal(apiErr.DependenciesInstalled, []string{"acme-core"}) {
+		if !slices.Equal(apiErr.Dependents, want) ||
+			!slices.Equal(apiErr.DependenciesInstalled, []string{"acme-core"}) {
 			t.Fatalf("APIError dependents = %#v, dependencies_installed = %v", apiErr.Dependents,
 				apiErr.DependenciesInstalled)
 		}
