@@ -43,3 +43,9 @@ WHERE id = sqlc.arg(id) AND state = 'pending';
 
 -- name: GetAgentSkillEvidenceSession :one
 SELECT profile_id, workspace_id FROM sessions WHERE id = sqlc.arg(id);
+
+-- name: ProjectAgentSkillRevert :exec
+-- Projection of a committed revert install-log entry; only an approved review changes.
+UPDATE agent_skill_reviews SET state = 'reverted', reverted_by = sqlc.arg(reverted_by),
+reverted_at = sqlc.arg(reverted_at)
+WHERE id = sqlc.arg(id) AND state = 'approved';

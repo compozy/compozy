@@ -71,6 +71,21 @@ func (s *memSkillReviewStore) ProjectApproval(
 	return nil
 }
 
+func (s *memSkillReviewStore) ProjectRevert(_ context.Context, id, operator string, revertedAt time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.projectErr != nil {
+		return s.projectErr
+	}
+	review, ok := s.reviews[id]
+	if !ok || review.State != "approved" {
+		return nil
+	}
+	review.State, review.RevertedBy, review.RevertedAt = SkillReviewReverted, operator, &revertedAt
+	s.reviews[id] = review
+	return nil
+}
+
 func (s *memSkillReviewStore) DecideReject(_ context.Context, id, digest, operator string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

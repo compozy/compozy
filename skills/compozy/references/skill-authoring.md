@@ -57,6 +57,16 @@ For a workspace instance, approval installs into the workspace skills root. For 
 
 After approval, the skill behaves like any other skill in its tier. Change it later with an edit proposal.
 
+The operator can revert the latest approval of a skill (operator or automatic): a reverted `new`
+skill is removed, and a reverted edit restores the contents it replaced byte- and mode-exact, after
+re-verifying the stored base snapshot. Only the install log's current writer can be reverted, and
+only while the skill on disk still matches what that approval installed; otherwise revert fails
+with `skill_review_revert_conflict` and a `reason`: `superseded` (a newer approval of the skill
+exists, from any instance or home; revert that one first), `changed_on_disk`, `legacy` (approved
+before this feature), or `target_unavailable`. After a revert the approval it replaced becomes
+revertible again. Reverting a reverted review succeeds without changes; a pending or rejected
+review fails with `skill_review_stale`. Contents that were reverted can be proposed again.
+
 ## Boundary
 
 This approval path applies to proposals submitted through the tool. Skills written directly through file tools retain their existing behavior, including hooks. There is no folder watcher, baseline, or catalog filter enforcing proposal approval on file writes. A proposal never grants permission for unrelated actions.
@@ -70,7 +80,13 @@ compozy agent skill review list --workspace my-project
 compozy agent skill review show <review-id>
 compozy agent skill review approve <review-id> --expected-digest <reviewed-digest>
 compozy agent skill review reject <review-id> --expected-digest <reviewed-digest>
+compozy agent skill review revert <review-id> --expected-digest <reviewed-digest>
 ```
+
+`revert` takes the review's `digest` (shown as `Digest:`), calls `POST
+/api/agent-skill-reviews/<id>/revert`, and prints `Reverted <name>. The skill was removed.` or
+`Reverted <name> to its previous contents.`. `GET /api/agent-skill-reviews/<id>` reports
+`revert: {allowed, reason}`, the same rule the revert applies.
 
 For a User-scope instance, select `--workspace @user`. Review output shows the lesson (cue,
 lesson, evidence, confidence, and evidence sessions), then **Runs automatically**, before the exact

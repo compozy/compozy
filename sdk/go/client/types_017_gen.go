@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+// RetryConfig is a daemon API value.
+type RetryConfig struct {
+	Strategy   RetryStrategy `json:"strategy"`
+	MaxRetries int           `json:"max_retries"`
+	BaseDelay  string        `json:"base_delay"`
+}
+
+// RetrySpec is a daemon API value.
+type RetrySpec struct {
+	MaxAttempts  int          `json:"max_attempts,omitzero"`
+	OnFailure    string       `json:"on_failure,omitempty"`
+	Backoff      *BackoffSpec `json:"backoff,omitzero"`
+	NonRetryable []string     `json:"non_retryable,omitempty"`
+}
+
+// RetryStrategy is a daemon API value.
+type RetryStrategy string
+
+// RetryTaskRunRequest is a daemon API value.
+type RetryTaskRunRequest struct {
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
 // RetryTaskRunResponse is a daemon API value.
 type RetryTaskRunResponse struct {
 	PreviousRun TaskRunPayload `json:"previous_run"`
@@ -421,27 +444,4 @@ type RuntimeMCPImportResponse struct {
 	Notes     []string                     `json:"notes"`
 	Partial   bool                         `json:"partial"`
 	Warnings  []string                     `json:"warnings,omitempty"`
-}
-
-// RuntimeMCPRow is a daemon API value.
-type RuntimeMCPRow struct {
-	Name      string `json:"name"`
-	Scope     string `json:"scope"`
-	Transport string `json:"transport"`
-	State     string `json:"state"`
-}
-
-// RuntimeMatch is a daemon API value.
-type RuntimeMatch struct {
-	ID         string `json:"id,omitempty"`
-	Type       string `json:"type,omitempty"`
-	Complexity string `json:"complexity,omitempty"`
-}
-
-// RuntimeMode is a daemon API value.
-type RuntimeMode string
-
-// RuntimePolicy is a daemon API value.
-type RuntimePolicy struct {
-	Mode RuntimeMode `json:"mode"`
 }

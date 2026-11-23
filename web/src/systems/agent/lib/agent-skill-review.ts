@@ -199,5 +199,7 @@ export function skillAutomaticItems(
 }
 
 export function skillReviewState(review: AgentSkillReviewPayload): AgentSkillReviewState {
-  return review.state === "approved" || review.state === "rejected" ? review.state : "pending";
+  return review.state === "approved" || review.state === "rejected" || review.state === "reverted"
+    ? review.state
+    : "pending";
 }

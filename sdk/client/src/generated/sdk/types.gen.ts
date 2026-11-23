@@ -782,6 +782,11 @@ export type AgentSkillLesson = {
   lesson: string;
 };
 
+export type AgentSkillRevertEligibility = {
+  allowed: boolean;
+  reason?: string;
+};
+
 export type AgentSkillReviewDecisionRequest = {
   digest: string;
 };
@@ -806,6 +811,9 @@ export type AgentSkillReviewPayload = {
   name: string;
   problem?: string;
   profile_id: string;
+  revert?: AgentSkillRevertEligibility | null;
+  reverted_at?: string | null;
+  reverted_by?: string;
   runs_automatically: AgentSkillAutomaticContents;
   state: string;
   workspace_id: string;
@@ -2400,6 +2408,7 @@ export type ErrorPayload = {
   diagnostic?: DiagnosticItem | null;
   error: string;
   provider_error?: string;
+  reason?: string;
   retryable?: boolean;
   unknown_keys?: Array<string>;
 };
@@ -7820,6 +7829,7 @@ export type SessionDeriveErrorPayload = {
   diagnostic?: DiagnosticItem | null;
   error: string;
   provider_error?: string;
+  reason?: string;
   retryable?: boolean;
   unknown_keys?: Array<string>;
 };
@@ -8488,6 +8498,7 @@ export type SessionPullRequestErrorPayload = {
   error: string;
   message: string;
   provider_error?: string;
+  reason?: string;
   retryable?: boolean;
   unknown_keys?: Array<string>;
 };
@@ -11566,6 +11577,7 @@ export type TaskQueryErrorPayload = {
   error: string;
   field: string;
   provider_error?: string;
+  reason?: string;
   retryable?: boolean;
   unknown_keys?: Array<string>;
 };
@@ -15723,6 +15735,74 @@ export type RejectAgentSkillReviewResponses = {
 
 export type RejectAgentSkillReviewResponse =
   RejectAgentSkillReviewResponses[keyof RejectAgentSkillReviewResponses];
+
+export type RevertAgentSkillReviewData = {
+  /**
+   * JSON request body
+   */
+  body: AgentSkillReviewDecisionRequest;
+  path: {
+    /**
+     * Review ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-skill-reviews/{id}/revert";
+};
+
+export type RevertAgentSkillReviewErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type RevertAgentSkillReviewError =
+  RevertAgentSkillReviewErrors[keyof RevertAgentSkillReviewErrors];
+
+export type RevertAgentSkillReviewResponses = {
+  /**
+   * Decided review
+   */
+  200: AgentSkillReviewResponse;
+};
+
+export type RevertAgentSkillReviewResponse =
+  RevertAgentSkillReviewResponses[keyof RevertAgentSkillReviewResponses];
 
 export type GetAgentContextData = {
   body?: never;

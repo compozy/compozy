@@ -3,10 +3,13 @@ import { definePrototype, type PrototypeProps } from "@compozy/proto";
 import { ThreadContentRail } from "@/components/assistant-ui/session-thread-content-rail";
 
 import {
+  SKILL_REVIEW_APPROVED_REVERTIBLE,
+  SKILL_REVIEW_APPROVED_SUPERSEDED,
   SKILL_REVIEW_AUTOMATIC,
   SKILL_REVIEW_HIDDEN_TEXT,
   SKILL_REVIEW_LEGACY,
   SKILL_REVIEW_PLAIN,
+  SKILL_REVIEW_REVERTED_EDIT,
   skillReviewViewFixture,
 } from "@/systems/agent/mocks";
 
@@ -30,6 +33,10 @@ export const meta = definePrototype({
     { id: "stale", label: "S9 · Changed since shown" },
     { id: "approved", label: "S9 · Approved" },
     { id: "rejected", label: "S9 · Rejected" },
+    { id: "approved-revert", label: "S1 · Approved, revertible" },
+    { id: "approved-superseded", label: "S1 · Approved, a newer change exists" },
+    { id: "revert-conflict", label: "S1 · Revert refused" },
+    { id: "reverted", label: "S1 · Reverted edit" },
     { id: "event-proposal", label: "S13 · Proposal from an event" },
   ],
 });
@@ -63,6 +70,20 @@ export default function SkillReviewPrototype({ state }: PrototypeProps) {
       return card(skillReviewViewFixture({ ...SKILL_REVIEW_PLAIN, state: "approved" }));
     case "rejected":
       return card(skillReviewViewFixture({ ...SKILL_REVIEW_PLAIN, state: "rejected" }));
+    case "approved-revert":
+      return card(skillReviewViewFixture(SKILL_REVIEW_APPROVED_REVERTIBLE));
+    case "approved-superseded":
+      return card(skillReviewViewFixture(SKILL_REVIEW_APPROVED_SUPERSEDED));
+    case "revert-conflict":
+      return card(
+        skillReviewViewFixture(SKILL_REVIEW_APPROVED_SUPERSEDED, {
+          decideError: new Error(
+            "skill_review_revert_conflict: triage-labels has a newer approved change; revert that one first"
+          ),
+        })
+      );
+    case "reverted":
+      return card(skillReviewViewFixture(SKILL_REVIEW_REVERTED_EDIT));
     case "event-proposal":
       return (
         <ThreadContentRail inset="px-8">

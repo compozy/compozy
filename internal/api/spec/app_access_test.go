@@ -247,8 +247,9 @@ func TestAppAccessPolicy(t *testing.T) {
 			"addSessionWorkLink", "refreshSessionWorkLink", "removeSessionWorkLink",
 			// Archived-history cleanup deletes in bulk: operators and the approved native tool only.
 			"planSessionHistoryCleanup", "getSessionHistoryCleanup", "stopSessionHistoryCleanup",
-			// Skill review: drafts an agent proposed and the operator-only approve/reject decision.
+			// Skill review: drafts an agent proposed and the operator-only approve/reject/revert decision.
 			"listAgentSkillReviews", "getAgentSkillReview", "approveAgentSkillReview", "rejectAgentSkillReview",
+			"revertAgentSkillReview",
 			// Install conflicts: listing and resolving retained conflicts is operator-only.
 			"listAgentSkillInstallConflicts", "resolveAgentSkillInstallConflict",
 			"searchSessionWorkCandidates",

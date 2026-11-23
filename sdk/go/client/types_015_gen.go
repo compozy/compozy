@@ -2,10 +2,31 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// ProfileCredentialRequirement is a daemon API value.
+type ProfileCredentialRequirement struct {
+	Provider        string `json:"provider"`
+	Slot            string `json:"slot"`
+	SourceExtension string `json:"source_extension"`
+	Missing         bool   `json:"missing"`
+}
+
+// ProfileFolderRef is a daemon API value.
+type ProfileFolderRef struct {
+	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceName string `json:"workspace"`
+	Path          string `json:"path"`
+}
+
+// ProfileLens is a daemon API value.
+type ProfileLens struct {
+	ID   ProfileLensID `json:"profile_lens_id"`
+	Name string        `json:"profile_name"`
+}
+
+// ProfileLensID is a daemon API value.
+type ProfileLensID string
 
 // ProfileOperation is a daemon API value.
 type ProfileOperation struct {
@@ -426,23 +447,4 @@ type PutLoopAnnotationsRequest struct {
 // PutLoopConfigRequest is a daemon API value.
 type PutLoopConfigRequest struct {
 	Config LoopConfig `json:"config"`
-}
-
-// PutLoopInputDefaultRequest is a daemon API value.
-type PutLoopInputDefaultRequest struct {
-	Scope LoopInputDefaultsScope `json:"scope"`
-	Value any                    `json:"value"`
-}
-
-// PutLoopInputDefaultsRequest is a daemon API value.
-type PutLoopInputDefaultsRequest struct {
-	Scope  LoopInputDefaultsScope `json:"scope"`
-	Values map[string]any         `json:"values"`
-}
-
-// PutResourceRequest is a daemon API value.
-type PutResourceRequest struct {
-	Scope           ResourceScope   `json:"scope"`
-	ExpectedVersion int64           `json:"expected_version,omitzero"`
-	Spec            json.RawMessage `json:"spec"`
 }

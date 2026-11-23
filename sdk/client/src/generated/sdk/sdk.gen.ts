@@ -1491,6 +1491,9 @@ import type {
   RetryTaskRunData,
   RetryTaskRunErrors,
   RetryTaskRunResponses,
+  RevertAgentSkillReviewData,
+  RevertAgentSkillReviewErrors,
+  RevertAgentSkillReviewResponses,
   RevokeAgentHeartbeatAuthorityData,
   RevokeAgentHeartbeatAuthorityErrors,
   RevokeAgentHeartbeatAuthorityResponses,
@@ -2290,6 +2293,33 @@ export class agents extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/agent-skill-reviews/{id}/reject",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Decide a skill review as the operator (experimental)
+   */
+  public revertAgentSkillReview<ThrowOnError extends boolean = true>(
+    options: Options<RevertAgentSkillReviewData, ThrowOnError>
+  ): RequestResult<
+    RevertAgentSkillReviewResponses,
+    RevertAgentSkillReviewErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      RevertAgentSkillReviewResponses,
+      RevertAgentSkillReviewErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-skill-reviews/{id}/revert",
       ...options,
       headers: {
         "Content-Type": "application/json",

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -82,7 +83,7 @@ func (h *BaseHandlers) ListAgentSkillReviews(c *gin.Context) {
 }
 
 func (h *BaseHandlers) GetAgentSkillReview(c *gin.Context) {
-	review, _, ok := h.skillReviewTarget(c)
+	review, instance, ok := h.skillReviewTarget(c)
 	if !ok {
 		return
 	}
@@ -91,7 +92,28 @@ func (h *BaseHandlers) GetAgentSkillReview(c *gin.Context) {
 		h.skillReviewError(c, err)
 		return
 	}
+	payload.Revert = h.AgentInstances.skillRevertEligibility(c.Request.Context(), review, instance)
 	c.JSON(http.StatusOK, contract.AgentSkillReviewResponse{Review: payload})
+}
+
+// skillRevertEligibility is the detail's revert field: the same rule Revert evaluates under the lock.
+func (api *AgentInstanceAPI) skillRevertEligibility(
+	ctx context.Context,
+	review agentinstance.SkillReview,
+	instance agentinstance.Instance,
+) *contract.AgentSkillRevertEligibility {
+	target := ""
+	if api.SkillTarget != nil {
+		if resolved, _, err := api.SkillTarget(ctx, instance); err == nil {
+			target = resolved
+		}
+	}
+	eligibility, err := api.SkillProposals.RevertEligibility(ctx, review, target)
+	if err != nil {
+		slog.WarnContext(ctx, "skill.review.revert_eligibility_failed", "review_id", review.ID, "error", err)
+		eligibility = agentinstance.RevertEligibility{Reason: agentinstance.SkillRevertTargetUnavailable}
+	}
+	return &contract.AgentSkillRevertEligibility{Allowed: eligibility.Allowed, Reason: eligibility.Reason}
 }
 
 func (h *BaseHandlers) skillReviewTarget(c *gin.Context) (agentinstance.SkillReview, agentinstance.Instance, bool) {
@@ -107,10 +129,24 @@ func (h *BaseHandlers) skillReviewTarget(c *gin.Context) (agentinstance.SkillRev
 	return review, instance, ok
 }
 
-func (h *BaseHandlers) ApproveAgentSkillReview(c *gin.Context) { h.decideAgentSkillReview(c, true) }
-func (h *BaseHandlers) RejectAgentSkillReview(c *gin.Context)  { h.decideAgentSkillReview(c, false) }
+// Skill review decisions on POST /agent-skill-reviews/:id/<decision>.
+const (
+	skillReviewApprove = "approve"
+	skillReviewReject  = "reject"
+	skillReviewRevert  = "revert"
+)
 
-func (h *BaseHandlers) decideAgentSkillReview(c *gin.Context, approve bool) {
+func (h *BaseHandlers) ApproveAgentSkillReview(c *gin.Context) {
+	h.decideAgentSkillReview(c, skillReviewApprove)
+}
+func (h *BaseHandlers) RejectAgentSkillReview(c *gin.Context) {
+	h.decideAgentSkillReview(c, skillReviewReject)
+}
+func (h *BaseHandlers) RevertAgentSkillReview(c *gin.Context) {
+	h.decideAgentSkillReview(c, skillReviewRevert)
+}
+
+func (h *BaseHandlers) decideAgentSkillReview(c *gin.Context, decision string) {
 	actor, ok := h.instanceActor(c)
 	if !ok {
 		return
@@ -149,7 +185,8 @@ func (h *BaseHandlers) decideAgentSkillReview(c *gin.Context, approve bool) {
 	}
 	ctx := c.Request.Context()
 	target, _, targetErr := api.SkillTarget(ctx, instance)
-	if approve {
+	switch decision {
+	case skillReviewApprove:
 		if targetErr != nil {
 			h.skillReviewError(c, targetErr)
 			return
@@ -157,7 +194,13 @@ func (h *BaseHandlers) decideAgentSkillReview(c *gin.Context, approve bool) {
 		// A post-commit projection or publication warning is logged by the service and retried by
 		// Reconcile; the skill is installed either way.
 		_, err = api.SkillProposals.Approve(ctx, actor, instance, review.ID, input.Digest, operator, target)
-	} else {
+	case skillReviewRevert:
+		// Without a resolvable target the revert is refused as target_unavailable by the service.
+		if targetErr != nil {
+			target = ""
+		}
+		_, err = api.SkillProposals.Revert(ctx, actor, instance, review.ID, input.Digest, operator, target)
+	default:
 		// Without a resolvable target nothing can be installed, so no approval can race the rejection.
 		if targetErr != nil {
 			target = ""
@@ -231,7 +274,7 @@ var skillReviewErrorStatuses = []struct {
 	{agentinstance.ErrSkillInstallConflictResolving, 409},
 	{agentinstance.ErrSkillReviewBaseStale, 409}, {agentinstance.ErrSkillReviewBaseMissing, 409},
 	{agentinstance.ErrSkillReviewBaseUnsupported, 422}, {agentinstance.ErrSkillProposeNoChange, 409},
-	{agentinstance.ErrSkillProposeInvalidRemove, 422},
+	{agentinstance.ErrSkillProposeInvalidRemove, 422}, {agentinstance.ErrSkillReviewRevertConflict, 409},
 }
 
 // SkillReviewErrorStatus returns the stable code and HTTP status of a skill review domain error.
@@ -246,7 +289,8 @@ func SkillReviewErrorStatus(err error) (string, int, bool) {
 
 func (h *BaseHandlers) skillReviewError(c *gin.Context, err error) {
 	if code, status, ok := SkillReviewErrorStatus(err); ok {
-		c.JSON(status, contract.ErrorPayload{Code: code, Error: err.Error()})
+		payload := contract.ErrorPayload{Code: code, Reason: agentinstance.SkillRevertReason(err), Error: err.Error()}
+		c.JSON(status, payload)
 		return
 	}
 	if errors.Is(err, errSkillReviewQuery) {

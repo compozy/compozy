@@ -150,6 +150,8 @@ export function agentSkillReviewOptions(ref: AgentSkillReviewRef) {
     queryKey: agentKeys.skillReview(ref.id, ref.profile),
     queryFn: ({ signal }) => fetchAgentSkillReview(ref, signal),
     staleTime: 30_000,
+    // Revert eligibility changes with other reviews and the skill on disk: reread on focus.
+    refetchOnWindowFocus: "always",
     retry: false,
   });
 }

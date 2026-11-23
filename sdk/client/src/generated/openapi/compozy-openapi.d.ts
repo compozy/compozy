@@ -314,6 +314,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent-skill-reviews/{id}/revert": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Decide a skill review as the operator (experimental) */
+    post: operations["revertAgentSkillReview"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent/context": {
     parameters: {
       query?: never;
@@ -9207,6 +9224,10 @@ export interface components {
       evidence: string;
       lesson: string;
     };
+    AgentSkillRevertEligibility: {
+      allowed: boolean;
+      reason?: string;
+    };
     AgentSkillReviewDecisionRequest: {
       digest: string;
     };
@@ -9232,6 +9253,10 @@ export interface components {
       name: string;
       problem?: string;
       profile_id: string;
+      revert?: components["schemas"]["AgentSkillRevertEligibility"] | null;
+      /** Format: date-time */
+      reverted_at?: string | null;
+      reverted_by?: string;
       runs_automatically: components["schemas"]["AgentSkillAutomaticContents"];
       state: string;
       workspace_id: string;
@@ -10811,6 +10836,7 @@ export interface components {
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       provider_error?: string;
+      reason?: string;
       retryable?: boolean;
       unknown_keys?: string[];
     };
@@ -16398,6 +16424,7 @@ export interface components {
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       provider_error?: string;
+      reason?: string;
       retryable?: boolean;
       unknown_keys?: string[];
     };
@@ -17070,6 +17097,7 @@ export interface components {
       error: string;
       message: string;
       provider_error?: string;
+      reason?: string;
       retryable?: boolean;
       unknown_keys?: string[];
     };
@@ -20187,6 +20215,7 @@ export interface components {
       error: string;
       field: string;
       provider_error?: string;
+      reason?: string;
       retryable?: boolean;
       unknown_keys?: string[];
     };
@@ -25552,6 +25581,109 @@ export interface operations {
     };
   };
   rejectAgentSkillReview: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Review ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentSkillReviewDecisionRequest"];
+      };
+    };
+    responses: {
+      /** @description Decided review */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentSkillReviewResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  revertAgentSkillReview: {
     parameters: {
       query?: {
         /** @description Act as this profile by name */

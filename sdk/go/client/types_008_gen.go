@@ -7,6 +7,45 @@ import (
 	"time"
 )
 
+// FileSearchResponse is a daemon API value.
+type FileSearchResponse struct {
+	Root              FileRootPayload  `json:"root"`
+	Query             FileSearchQuery  `json:"query"`
+	Engine            string           `json:"engine"`
+	Files             []FileSearchFile `json:"files"`
+	Totals            FileSearchTotals `json:"totals"`
+	Truncated         bool             `json:"truncated"`
+	TimedOut          bool             `json:"timed_out"`
+	SensitiveExcluded int              `json:"sensitive_excluded"`
+}
+
+// FileSearchTotals is a daemon API value.
+type FileSearchTotals struct {
+	Files   int `json:"files"`
+	Matches int `json:"matches"`
+}
+
+// FireLimitConfig is a daemon API value.
+type FireLimitConfig struct {
+	Max    int    `json:"max"`
+	Window string `json:"window"`
+}
+
+// FocusPolicy is a daemon API value.
+type FocusPolicy string
+
+// ForceFailTaskRunRequest is a daemon API value.
+type ForceFailTaskRunRequest struct {
+	Reason   string          `json:"reason"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// ForceReleaseTaskRunRequest is a daemon API value.
+type ForceReleaseTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
 // ForkLoopRequest is a daemon API value.
 type ForkLoopRequest struct {
 	Generation int64          `json:"generation"`
@@ -408,18 +447,3 @@ type GoalSnapshot struct {
 	LastVerdict     *GoalVerdictSummary `json:"last_verdict"`
 	Context         GoalContextSnapshot `json:"context"`
 }
-
-// GoalSnapshotChangeCause is a daemon API value.
-type GoalSnapshotChangeCause string
-
-// GoalSnapshotChangedPayload is a daemon API value.
-type GoalSnapshotChangedPayload struct {
-	SessionID      string                  `json:"session_id"`
-	RunID          *string                 `json:"run_id"`
-	BoundSessionID *string                 `json:"bound_session_id"`
-	Revision       int64                   `json:"revision"`
-	Cause          GoalSnapshotChangeCause `json:"cause"`
-}
-
-// GoalStatus is a daemon API value.
-type GoalStatus string

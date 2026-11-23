@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// ToolsetID is a daemon API value.
+type ToolsetID string
+
 // ToolsetPayload is a daemon API value.
 type ToolsetPayload struct {
 	ID            ToolsetID    `json:"id"`
@@ -442,9 +445,4 @@ type WaitingOn string
 type WebhookDeliveryPayload struct {
 	Matched int          `json:"matched"`
 	Runs    []RunPayload `json:"runs,omitempty"`
-}
-
-// WebhookDeliveryResponse is a daemon API value.
-type WebhookDeliveryResponse struct {
-	Result WebhookDeliveryPayload `json:"result"`
 }

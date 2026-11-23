@@ -327,8 +327,16 @@ func (s *SkillProposalService) publishSkills(ctx context.Context) error {
 
 // projectSkillInstall projects one install-log entry of this home into the store; idempotent.
 func (s *SkillProposalService) projectSkillInstall(ctx context.Context, entry skillInstallLogEntry) error {
-	if entry.HomeID != s.HomeID || entry.Action != SkillInstallActionInstall || entry.Current == nil ||
-		entry.Current.ReviewID == "" {
+	if entry.HomeID != s.HomeID {
+		return nil
+	}
+	if entry.Action == SkillInstallActionRevert && entry.ReviewID != "" {
+		if err := s.Store.ProjectRevert(ctx, entry.ReviewID, entry.DecidedBy, entry.At); err != nil {
+			return fmt.Errorf("project skill revert %s: %w", entry.OpID, err)
+		}
+		return nil
+	}
+	if entry.Action != SkillInstallActionInstall || entry.Current == nil || entry.Current.ReviewID == "" {
 		return nil
 	}
 	var previous []byte

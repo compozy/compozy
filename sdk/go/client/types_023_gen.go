@@ -4,6 +4,35 @@ package client
 
 import "time"
 
+// SettingsMCPServerItemPayload is a daemon API value.
+type SettingsMCPServerItemPayload struct {
+	Disabled           bool                                   `json:"disabled,omitzero"`
+	DefinitionSource   string                                 `json:"definition_source,omitempty"`
+	Approval           SettingsMCPApprovalStatePayload        `json:"approval"`
+	CallableInSessions bool                                   `json:"callable_in_sessions"`
+	ReadOnlyTools      []string                               `json:"read_only_tools,omitempty"`
+	HeadersConfigured  bool                                   `json:"headers_configured,omitzero"`
+	Owner              string                                 `json:"owner,omitempty"`
+	RuntimeName        string                                 `json:"runtime_name,omitempty"`
+	Override           *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
+	Name               string                                 `json:"name"`
+	Transport          string                                 `json:"transport"`
+	Command            string                                 `json:"command,omitempty"`
+	Args               []string                               `json:"args,omitempty"`
+	EnvKeys            []string                               `json:"env_keys,omitempty"`
+	SecretEnvKeys      []string                               `json:"secret_env_keys,omitempty"`
+	URL                string                                 `json:"url,omitempty"`
+	Auth               *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
+	AuthStatus         *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
+	RuntimeStatus      *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
+	Scope              SettingsScopeKind                      `json:"scope"`
+	WorkspaceID        string                                 `json:"workspace_id,omitempty"`
+	Profile            string                                 `json:"profile,omitempty"`
+	CatalogEntry       string                                 `json:"catalog_entry,omitempty"`
+	CatalogVersion     string                                 `json:"catalog_version,omitempty"`
+	SourceMetadata     SettingsSourceMetadataPayload          `json:"source_metadata"`
+}
+
 // SettingsMCPServerPayload is a daemon API value.
 type SettingsMCPServerPayload struct {
 	ReadOnlyTools []string                      `json:"read_only_tools,omitempty"`
@@ -415,32 +444,3 @@ type SettingsShellPayload struct {
 	Sessions   SettingsShellSessionsPayload    `json:"sessions"`
 	Appearance *SettingsShellAppearancePayload `json:"appearance,omitempty"`
 }
-
-// SettingsShellResponse is a daemon API value.
-type SettingsShellResponse struct {
-	Warnings        []string                        `json:"warnings"`
-	LegacyScope     SettingsShellLegacyScopePayload `json:"legacy_scope"`
-	Section         SettingsSectionName             `json:"section"`
-	Scope           SettingsUserScopeKind           `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind         `json:"available_scopes"`
-	Config          SettingsShellPayload            `json:"config"`
-}
-
-// SettingsShellSessionGroupBy is a daemon API value.
-type SettingsShellSessionGroupBy string
-
-// SettingsShellSessionScope is a daemon API value.
-type SettingsShellSessionScope string
-
-// SettingsShellSessionSort is a daemon API value.
-type SettingsShellSessionSort string
-
-// SettingsShellSessionsPayload is a daemon API value.
-type SettingsShellSessionsPayload struct {
-	GroupBy SettingsShellSessionGroupBy `json:"group_by,omitempty"`
-	Sort    SettingsShellSessionSort    `json:"sort,omitempty"`
-	Scope   SettingsShellSessionScope   `json:"scope,omitempty"`
-}
-
-// SettingsShellTextSize is a daemon API value.
-type SettingsShellTextSize string

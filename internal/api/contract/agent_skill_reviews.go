@@ -85,6 +85,11 @@ type AgentSkillReviewPayload struct {
 	DecidedBy string               `json:"decided_by,omitempty"`
 	// DecidedVia is operator or auto_approve once decided.
 	DecidedVia string `json:"decided_via,omitempty"`
+	// RevertedBy and RevertedAt record the operator revert of an approved review.
+	RevertedBy string     `json:"reverted_by,omitempty"`
+	RevertedAt *time.Time `json:"reverted_at,omitempty"`
+	// Revert says whether the review can be reverted now (detail only).
+	Revert *AgentSkillRevertEligibility `json:"revert,omitempty"`
 	// Problem is set when the stored draft no longer verifies: `skill_review_invalid`. The review then
 	// carries no files and no automatic contents, and it can only be rejected. For an edit whose base
 	// snapshot fails verification it is `skill_review_snapshot_invalid`: no base files or changes.
@@ -103,4 +108,11 @@ type AgentSkillReviewsResponse struct {
 
 type AgentSkillReviewDecisionRequest struct {
 	Digest string `json:"digest"`
+}
+
+// AgentSkillRevertEligibility is the outcome a revert would have now. Reason is one of not_approved,
+// legacy, superseded, changed_on_disk, or target_unavailable, and is absent when Allowed.
+type AgentSkillRevertEligibility struct {
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason,omitempty"`
 }

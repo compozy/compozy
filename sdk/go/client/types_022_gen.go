@@ -4,6 +4,25 @@ package client
 
 import "time"
 
+// SettingsAutomationRuntimePayload is a daemon API value.
+type SettingsAutomationRuntimePayload struct {
+	HostTimezone     string     `json:"host_timezone,omitempty"`
+	Available        bool       `json:"available"`
+	Running          bool       `json:"running"`
+	SchedulerRunning bool       `json:"scheduler_running"`
+	JobTotal         int        `json:"job_total"`
+	JobEnabled       int        `json:"job_enabled"`
+	TriggerTotal     int        `json:"trigger_total"`
+	TriggerEnabled   int        `json:"trigger_enabled"`
+	NextFire         *time.Time `json:"next_fire,omitempty"`
+	LastSyncedAt     *time.Time `json:"last_synced_at,omitempty"`
+}
+
+// SettingsBusyInputPayload is a daemon API value.
+type SettingsBusyInputPayload struct {
+	DefaultMode string `json:"default_mode"`
+}
+
 // SettingsCmdPaletteResponse is a daemon API value.
 type SettingsCmdPaletteResponse struct {
 	Section              SettingsSectionName        `json:"section"`
@@ -405,33 +424,4 @@ type SettingsMCPSecretValuesPayload struct {
 // SettingsMCPServerEnabledRequest is a daemon API value.
 type SettingsMCPServerEnabledRequest struct {
 	Enabled bool `json:"enabled"`
-}
-
-// SettingsMCPServerItemPayload is a daemon API value.
-type SettingsMCPServerItemPayload struct {
-	Disabled           bool                                   `json:"disabled,omitzero"`
-	DefinitionSource   string                                 `json:"definition_source,omitempty"`
-	Approval           SettingsMCPApprovalStatePayload        `json:"approval"`
-	CallableInSessions bool                                   `json:"callable_in_sessions"`
-	ReadOnlyTools      []string                               `json:"read_only_tools,omitempty"`
-	HeadersConfigured  bool                                   `json:"headers_configured,omitzero"`
-	Owner              string                                 `json:"owner,omitempty"`
-	RuntimeName        string                                 `json:"runtime_name,omitempty"`
-	Override           *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
-	Name               string                                 `json:"name"`
-	Transport          string                                 `json:"transport"`
-	Command            string                                 `json:"command,omitempty"`
-	Args               []string                               `json:"args,omitempty"`
-	EnvKeys            []string                               `json:"env_keys,omitempty"`
-	SecretEnvKeys      []string                               `json:"secret_env_keys,omitempty"`
-	URL                string                                 `json:"url,omitempty"`
-	Auth               *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
-	AuthStatus         *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
-	RuntimeStatus      *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
-	Scope              SettingsScopeKind                      `json:"scope"`
-	WorkspaceID        string                                 `json:"workspace_id,omitempty"`
-	Profile            string                                 `json:"profile,omitempty"`
-	CatalogEntry       string                                 `json:"catalog_entry,omitempty"`
-	CatalogVersion     string                                 `json:"catalog_version,omitempty"`
-	SourceMetadata     SettingsSourceMetadataPayload          `json:"source_metadata"`
 }

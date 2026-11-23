@@ -285,6 +285,24 @@ func (q *Queries) ProjectAgentSkillApproval(ctx context.Context, arg ProjectAgen
 	return err
 }
 
+const projectAgentSkillRevert = `-- name: ProjectAgentSkillRevert :exec
+UPDATE agent_skill_reviews SET state = 'reverted', reverted_by = ?1,
+reverted_at = ?2
+WHERE id = ?3 AND state = 'approved'
+`
+
+type ProjectAgentSkillRevertParams struct {
+	RevertedBy string         `json:"reverted_by"`
+	RevertedAt sql.NullString `json:"reverted_at"`
+	ID         string         `json:"id"`
+}
+
+// Projection of a committed revert install-log entry; only an approved review changes.
+func (q *Queries) ProjectAgentSkillRevert(ctx context.Context, arg ProjectAgentSkillRevertParams) error {
+	_, err := q.db.ExecContext(ctx, projectAgentSkillRevert, arg.RevertedBy, arg.RevertedAt, arg.ID)
+	return err
+}
+
 const rejectAgentSkillReview = `-- name: RejectAgentSkillReview :execrows
 UPDATE agent_skill_reviews SET state = 'rejected', decided_by = ?1,
 decided_at = ?2, decided_via = 'operator'

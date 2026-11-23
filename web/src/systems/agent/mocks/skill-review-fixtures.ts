@@ -120,6 +120,31 @@ export const SKILL_REVIEW_AUTOMATIC = review({
   ],
 });
 
+/** An operator approval the daemon would revert now. */
+export const SKILL_REVIEW_APPROVED_REVERTIBLE = review({
+  state: "approved",
+  decided_via: "operator",
+  revert: { allowed: true },
+  files: SKILL_REVIEW_PLAIN.files,
+});
+
+/** An approval a newer change of the same skill superseded: no Revert. */
+export const SKILL_REVIEW_APPROVED_SUPERSEDED = review({
+  state: "approved",
+  decided_via: "operator",
+  revert: { allowed: false, reason: "superseded" },
+  files: SKILL_REVIEW_PLAIN.files,
+});
+
+/** A reverted edit: the previous contents are back. */
+export const SKILL_REVIEW_REVERTED_EDIT = review({
+  kind: "edit",
+  state: "reverted",
+  decided_via: "operator",
+  revert: { allowed: false, reason: "not_approved" },
+  files: SKILL_REVIEW_PLAIN.files,
+});
+
 /** The hook's view for a loaded review, for stories and prototypes. */
 export function skillReviewViewFixture(
   payload: AgentSkillReviewPayload,
@@ -135,6 +160,7 @@ export function skillReviewViewFixture(
     automatic: skillAutomaticItems(payload, files),
     automaticComparison: undefined,
     state: skillReviewState(payload),
+    revertAllowed: payload.revert?.allowed === true,
     stale: false,
     deciding: false,
     invalid: false,

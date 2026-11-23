@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+// LoopDefinitionPayload is a daemon API value.
+type LoopDefinitionPayload struct {
+	Name               string                       `json:"name"`
+	Version            int                          `json:"version"`
+	Description        string                       `json:"description,omitempty"`
+	Source             LoopSource                   `json:"source"`
+	Catalog            LoopCatalogResourceSpec      `json:"catalog"`
+	Definition         LoopDefinitionDocument       `json:"definition"`
+	EffectiveConfig    *LoopEffectiveConfig         `json:"effective_config,omitzero"`
+	EffectiveLifecycle *LoopResolvedLifecycleConfig `json:"effective_lifecycle,omitzero"`
+}
+
+// LoopDiffEndpoint is a daemon API value.
+type LoopDiffEndpoint struct {
+	RunID      string        `json:"run_id"`
+	Generation int64         `json:"generation"`
+	Status     LoopRunStatus `json:"status"`
+	AsOf       bool          `json:"as_of,omitzero"`
+}
+
+// LoopDiffInputRow is a daemon API value.
+type LoopDiffInputRow struct {
+	Key     string        `json:"key"`
+	Base    LoopDiffValue `json:"base"`
+	Against LoopDiffValue `json:"against"`
+}
+
 // LoopDiffNodeRow is a daemon API value.
 type LoopDiffNodeRow struct {
 	NodeID    string        `json:"node_id"`
@@ -418,33 +445,4 @@ type LoopNodeResumeRequest struct {
 	Mode      string          `json:"mode"`
 	ItemIndex *int            `json:"item_index,omitzero"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
-}
-
-// LoopNodeWaitPayload is a daemon API value.
-type LoopNodeWaitPayload struct {
-	LoopRunID         string          `json:"loop_run_id"`
-	Generation        int             `json:"generation"`
-	NodeID            string          `json:"node_id"`
-	ItemIndex         int             `json:"item_index"`
-	Kind              string          `json:"kind"`
-	ResumeAt          *time.Time      `json:"resume_at,omitempty"`
-	NextEscalationAt  *time.Time      `json:"next_escalation_at,omitempty"`
-	EscalationCursor  int             `json:"escalation_cursor"`
-	ClaimState        string          `json:"claim_state"`
-	ClaimedByKind     string          `json:"claimed_by_kind,omitempty"`
-	ClaimedByID       string          `json:"claimed_by_id,omitempty"`
-	ClaimedAt         *time.Time      `json:"claimed_at,omitempty"`
-	AdmissionFailures int             `json:"admission_failures"`
-	Expect            json.RawMessage `json:"expect,omitempty"`
-	IssuedEpoch       int64           `json:"issued_epoch"`
-	CreatedAt         time.Time       `json:"created_at"`
-	AgeSeconds        int64           `json:"age_seconds"`
-}
-
-// LoopPlanNodePreview is a daemon API value.
-type LoopPlanNodePreview struct {
-	ID        string        `json:"id"`
-	Class     LoopNodeClass `json:"class"`
-	Kind      string        `json:"kind"`
-	DependsOn []string      `json:"depends_on,omitempty"`
 }

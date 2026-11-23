@@ -1578,7 +1578,7 @@ func TestAgentDraftCommand(t *testing.T) {
 // Invariant: CLI decisions bind the shown digest, and explicit digests remain authoritative.
 // Owning layer: CLI transport; canonical suite: TestAgentSkillReviewCommands.
 func TestAgentSkillReviewCommands(t *testing.T) {
-	for _, action := range []string{"list", "show", "approve", "reject"} {
+	for _, action := range []string{"list", "show", "approve", "reject", "revert"} {
 		t.Run("Should forward skill review "+action, func(t *testing.T) {
 			t.Parallel()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1603,7 +1603,7 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 						t.Error(err)
 					}
 					want := "sha256:shown"
-					if action == "reject" {
+					if action == "reject" || action == "revert" {
 						want = "sha256:expected"
 					}
 					if input.Digest != want {
@@ -1637,7 +1637,7 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 			} else {
 				args = append(args, "skr-test")
 			}
-			if action == "reject" {
+			if action == "reject" || action == "revert" {
 				args = append(args, "--expected-digest", "sha256:expected")
 			}
 			output, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
@@ -1648,8 +1648,19 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 				(!strings.Contains(output, "Runs automatically") || !strings.Contains(output, "Review changes.")) {
 				t.Fatalf("review: %s", output)
 			}
+			// E2E-004 output contract: a reverted new skill says it was removed.
+			if action == "revert" && output != "Reverted review. The skill was removed.\n" {
+				t.Fatalf("revert output = %q", output)
+			}
 		})
 	}
+	t.Run("Should describe a reverted edit as its previous contents [E2E-004]", func(t *testing.T) {
+		t.Parallel()
+		got := agentSkillDecisionText("revert", contract.AgentSkillReviewPayload{Name: "release-checklist", Kind: "edit"})
+		if got != "Reverted release-checklist to its previous contents.\n" {
+			t.Fatalf("revert text = %q", got)
+		}
+	})
 	showReview := func(t *testing.T, review string) string {
 		t.Helper()
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

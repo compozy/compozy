@@ -7,6 +7,35 @@ import (
 	"time"
 )
 
+// AgentSkillReviewPayload is a daemon API value.
+type AgentSkillReviewPayload struct {
+	ID                    string                       `json:"id"`
+	InstanceID            string                       `json:"instance_id"`
+	ProfileID             string                       `json:"profile_id"`
+	WorkspaceID           string                       `json:"workspace_id"`
+	Agent                 string                       `json:"agent"`
+	Name                  string                       `json:"name"`
+	State                 string                       `json:"state"`
+	Kind                  string                       `json:"kind"`
+	Digest                string                       `json:"digest"`
+	BaseDigest            string                       `json:"base_digest,omitempty"`
+	Lesson                *AgentSkillLesson            `json:"lesson,omitempty"`
+	EvidenceSessionIDs    []string                     `json:"evidence_session_ids"`
+	RunsAutomatically     AgentSkillAutomaticContents  `json:"runs_automatically"`
+	BaseRunsAutomatically *AgentSkillAutomaticContents `json:"base_runs_automatically,omitempty"`
+	Changes               []AgentSkillFileChange       `json:"changes,omitempty"`
+	Files                 []AgentSkillDraftFile        `json:"files,omitempty"`
+	BaseFiles             []AgentSkillBaseFile         `json:"base_files,omitempty"`
+	CreatedAt             time.Time                    `json:"created_at"`
+	DecidedAt             *time.Time                   `json:"decided_at,omitempty"`
+	DecidedBy             string                       `json:"decided_by,omitempty"`
+	DecidedVia            string                       `json:"decided_via,omitempty"`
+	RevertedBy            string                       `json:"reverted_by,omitempty"`
+	RevertedAt            *time.Time                   `json:"reverted_at,omitempty"`
+	Revert                *AgentSkillRevertEligibility `json:"revert,omitempty"`
+	Problem               string                       `json:"problem,omitempty"`
+}
+
 // AgentSkillReviewResponse is a daemon API value.
 type AgentSkillReviewResponse struct {
 	Review             AgentSkillReviewPayload `json:"review"`
@@ -408,43 +437,4 @@ type AttentionNotificationsResponse struct {
 type AuthoredContextActorPayload struct {
 	Kind string `json:"kind"`
 	Ref  string `json:"ref,omitempty"`
-}
-
-// AuthoredContextDiagnosticPayload is a daemon API value.
-type AuthoredContextDiagnosticPayload struct {
-	Code         string                     `json:"code"`
-	Severity     AuthoredDiagnosticSeverity `json:"severity"`
-	Message      string                     `json:"message"`
-	Field        string                     `json:"field,omitempty"`
-	Section      string                     `json:"section,omitempty"`
-	SourcePath   string                     `json:"source_path,omitempty"`
-	Line         int                        `json:"line,omitempty"`
-	Column       int                        `json:"column,omitempty"`
-	OwnerSurface string                     `json:"owner_surface,omitempty"`
-}
-
-// AuthoredContextLimitsPayload is a daemon API value.
-type AuthoredContextLimitsPayload struct {
-	MaxBodyBytes           int64 `json:"max_body_bytes"`
-	ContextProjectionBytes int64 `json:"context_projection_bytes,omitempty"`
-	MaxBytes               int64 `json:"max_bytes,omitempty"`
-}
-
-// AuthoredDiagnosticSeverity is a daemon API value.
-type AuthoredDiagnosticSeverity string
-
-// AuthoredValidationStatus is a daemon API value.
-type AuthoredValidationStatus string
-
-// AutoAcceptStatus is a daemon API value.
-type AutoAcceptStatus string
-
-// AutomationHealthPayload is a daemon API value.
-type AutomationHealthPayload struct {
-	Enabled          bool                              `json:"enabled"`
-	Jobs             AutomationResourceStatusPayload   `json:"jobs"`
-	Triggers         AutomationResourceStatusPayload   `json:"triggers"`
-	SchedulerRunning bool                              `json:"scheduler_running"`
-	NextFire         *time.Time                        `json:"next_fire,omitempty"`
-	ScheduledJobs    []AutomationSchedulerStatePayload `json:"scheduled_jobs,omitempty"`
 }

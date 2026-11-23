@@ -431,6 +431,13 @@ for the installed skill, how many files are modified, added and removed, and a d
 file. Approval applies only while the installed skill still matches that base; if it changed, approval
 fails with `skill_review_base_stale` and you can only reject.
 
+To undo the latest approval of a skill, run `compozy agent skill review revert <review-id>
+--expected-digest <reviewed-digest>`. A reverted new skill is removed; a reverted edit restores the
+previous files exactly, including their permissions. Only the newest approval of a skill can be
+reverted, and only while the installed files still match it; otherwise revert fails with
+`skill_review_revert_conflict` and a reason (`superseded`, `changed_on_disk`, `legacy` or
+`target_unavailable`). The review detail reports whether revert is allowed now.
+
 Approval installs workspace skills in `.compozy/skills/` and User-scope skills beside the owning
 agent definition, in its `skills/` directory. The installed skill then follows normal discovery and
 activation. Direct file authoring and marketplace installation keep their existing behavior.

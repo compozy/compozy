@@ -3459,6 +3459,13 @@
             "resource": "tasks",
             "app_access": "denied"
         },
+        "revertAgentSkillReview": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.revertAgentSkillReview({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RevertAgentSkillReview(ctx, client.RevertAgentSkillReviewParams{ID: \"id\"}, client.AgentSkillReviewDecisionRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "agents",
+            "app_access": "denied"
+        },
         "revokeAgentHeartbeatAuthority": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.revokeAgentHeartbeatAuthority({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.RevokeAgentHeartbeatAuthority(ctx, client.RevokeAgentHeartbeatAuthorityParams{Name: \"name\"})\nif err != nil { return err }",

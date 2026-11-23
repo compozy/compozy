@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// HookCatalogPayload is a daemon API value.
+type HookCatalogPayload struct {
+	Order        int               `json:"order"`
+	Name         string            `json:"name"`
+	Event        string            `json:"event"`
+	Source       string            `json:"source"`
+	SkillSource  string            `json:"skill_source,omitempty"`
+	Mode         string            `json:"mode"`
+	Required     bool              `json:"required"`
+	Priority     int               `json:"priority"`
+	TimeoutMS    int64             `json:"timeout_ms,omitzero"`
+	ExecutorKind string            `json:"executor_kind,omitempty"`
+	Matcher      HookMatcher       `json:"matcher"`
+	Metadata     map[string]string `json:"metadata,omitempty"`
+}
+
+// HookCatalogResponse is a daemon API value.
+type HookCatalogResponse struct {
+	Hooks []HookCatalogPayload `json:"hooks"`
+}
+
+// HookEvent is a daemon API value.
+type HookEvent string
+
 // HookEventPayload is a daemon API value.
 type HookEventPayload struct {
 	Event         string `json:"event"`
@@ -414,30 +438,3 @@ type LoopControlProvenancePayload struct {
 // LoopDefinitionDocument is a daemon API value.
 // LoopDefinitionDocument preserves its custom JSON wire representation.
 type LoopDefinitionDocument = json.RawMessage
-
-// LoopDefinitionPayload is a daemon API value.
-type LoopDefinitionPayload struct {
-	Name               string                       `json:"name"`
-	Version            int                          `json:"version"`
-	Description        string                       `json:"description,omitempty"`
-	Source             LoopSource                   `json:"source"`
-	Catalog            LoopCatalogResourceSpec      `json:"catalog"`
-	Definition         LoopDefinitionDocument       `json:"definition"`
-	EffectiveConfig    *LoopEffectiveConfig         `json:"effective_config,omitzero"`
-	EffectiveLifecycle *LoopResolvedLifecycleConfig `json:"effective_lifecycle,omitzero"`
-}
-
-// LoopDiffEndpoint is a daemon API value.
-type LoopDiffEndpoint struct {
-	RunID      string        `json:"run_id"`
-	Generation int64         `json:"generation"`
-	Status     LoopRunStatus `json:"status"`
-	AsOf       bool          `json:"as_of,omitzero"`
-}
-
-// LoopDiffInputRow is a daemon API value.
-type LoopDiffInputRow struct {
-	Key     string        `json:"key"`
-	Base    LoopDiffValue `json:"base"`
-	Against LoopDiffValue `json:"against"`
-}

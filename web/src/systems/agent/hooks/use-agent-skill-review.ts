@@ -7,6 +7,7 @@ import {
   decideAgentSkillReview,
   isSkillReviewBaseStale,
   isSkillReviewInvalid,
+  isSkillReviewRevertConflict,
   isSkillReviewStale,
   skillInstallConflictOp,
   type AgentSkillReviewDecision,
@@ -48,10 +49,20 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
       void queryClient.invalidateQueries({
         queryKey: agentKeys.instanceReports(decided.instance_id),
       });
-      if (decision === "approve") void queryClient.invalidateQueries({ queryKey: skillKeys.all });
+      if (decision === "reject") return;
+      // A new approval or a revert changes which review of the skill can be reverted, and the catalog.
+      void queryClient.invalidateQueries({ queryKey: agentKeys.skillReviews() });
+      void queryClient.invalidateQueries({ queryKey: skillKeys.all });
     },
     onError: (error, { digest }) => {
-      if (!isSkillReviewStale(error) || !ref) return;
+      if (!ref) return;
+      if (isSkillReviewRevertConflict(error)) {
+        void queryClient.invalidateQueries({
+          queryKey: agentKeys.skillReview(ref.id, ref.profile),
+        });
+        return;
+      }
+      if (!isSkillReviewStale(error)) return;
       setStaleDigest(digest);
       void queryClient.invalidateQueries({ queryKey: agentKeys.skillReview(ref.id, ref.profile) });
     },
@@ -80,6 +91,8 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
           }
         : undefined,
     state: review ? skillReviewState(review) : "pending",
+    /** The detail says this approval can be reverted now; the daemon stays authoritative. */
+    revertAllowed: review?.revert?.allowed === true,
     /** A stale refusal brought a different digest: this is the newer version. The decision waits for the reread. */
     stale: staleDigest !== null && review?.digest !== staleDigest,
     deciding: mutation.isPending || query.isFetching,

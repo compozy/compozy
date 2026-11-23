@@ -274,6 +274,27 @@ func (r *SkillReviewRepo) ProjectApproval(
 	)
 }
 
+// ProjectRevert projects a committed revert install-log entry. reverted_at is the entry's commit
+// time; a review that is not approved is left unchanged (idempotent).
+func (r *SkillReviewRepo) ProjectRevert(ctx context.Context, reviewID, operator string, revertedAt time.Time) error {
+	if err := r.checkReady(ctx, "project skill revert"); err != nil {
+		return err
+	}
+	if reviewID == "" || operator == "" || revertedAt.IsZero() {
+		return errors.New("skill revert projection requires review, operator and commit time")
+	}
+	return r.executeWriteQuery(
+		ctx,
+		"globaldb.ProjectAgentSkillRevert",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.ProjectAgentSkillRevert(ctx, sqlcgen.ProjectAgentSkillRevertParams{
+				ID: reviewID, RevertedBy: operator,
+				RevertedAt: sql.NullString{String: store.FormatTimestamp(revertedAt), Valid: true},
+			})
+		},
+	)
+}
+
 func skillReview(row sqlcgen.AgentSkillReview) (agentinstance.SkillReview, error) {
 	created, err := store.ParseTimestamp(row.CreatedAt)
 	if err != nil {
@@ -315,6 +336,13 @@ func skillReview(row sqlcgen.AgentSkillReview) (agentinstance.SkillReview, error
 			return agentinstance.SkillReview{}, err
 		}
 		result.DecidedAt = &decided
+	}
+	if row.RevertedAt.Valid {
+		reverted, err := store.ParseTimestamp(row.RevertedAt.String)
+		if err != nil {
+			return agentinstance.SkillReview{}, err
+		}
+		result.RevertedBy, result.RevertedAt = row.RevertedBy, &reverted
 	}
 	return result, nil
 }

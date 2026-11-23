@@ -9,6 +9,31 @@ import (
 	"strings"
 )
 
+// ValidateAgentHeartbeat Validate a proposed HEARTBEAT.md body
+func (c *Client) ValidateAgentHeartbeat(ctx context.Context, params ValidateAgentHeartbeatParams, body HeartbeatValidateByPathRequest) (*HeartbeatPolicyPayload, error) {
+	path := "/api/agents/{name}/heartbeat/validate"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatPolicyPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ValidateAgentMemoryParams carries the path, query, and header parameters.
+type ValidateAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
 // ValidateAgentMemory Validate proposed memory content (experimental) Experimental: pin the exact SDK version.
 func (c *Client) ValidateAgentMemory(ctx context.Context, params ValidateAgentMemoryParams, body AgentMemoryValidateRequest) (*AgentMemoryValidateResponse, error) {
 	path := "/api/agents/{name}/memory/validate"

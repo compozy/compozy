@@ -416,33 +416,13 @@ type AgentSkillLesson struct {
 	Confidence string `json:"confidence,omitempty"`
 }
 
+// AgentSkillRevertEligibility is a daemon API value.
+type AgentSkillRevertEligibility struct {
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason,omitempty"`
+}
+
 // AgentSkillReviewDecisionRequest is a daemon API value.
 type AgentSkillReviewDecisionRequest struct {
 	Digest string `json:"digest"`
-}
-
-// AgentSkillReviewPayload is a daemon API value.
-type AgentSkillReviewPayload struct {
-	ID                    string                       `json:"id"`
-	InstanceID            string                       `json:"instance_id"`
-	ProfileID             string                       `json:"profile_id"`
-	WorkspaceID           string                       `json:"workspace_id"`
-	Agent                 string                       `json:"agent"`
-	Name                  string                       `json:"name"`
-	State                 string                       `json:"state"`
-	Kind                  string                       `json:"kind"`
-	Digest                string                       `json:"digest"`
-	BaseDigest            string                       `json:"base_digest,omitempty"`
-	Lesson                *AgentSkillLesson            `json:"lesson,omitempty"`
-	EvidenceSessionIDs    []string                     `json:"evidence_session_ids"`
-	RunsAutomatically     AgentSkillAutomaticContents  `json:"runs_automatically"`
-	BaseRunsAutomatically *AgentSkillAutomaticContents `json:"base_runs_automatically,omitempty"`
-	Changes               []AgentSkillFileChange       `json:"changes,omitempty"`
-	Files                 []AgentSkillDraftFile        `json:"files,omitempty"`
-	BaseFiles             []AgentSkillBaseFile         `json:"base_files,omitempty"`
-	CreatedAt             time.Time                    `json:"created_at"`
-	DecidedAt             *time.Time                   `json:"decided_at,omitempty"`
-	DecidedBy             string                       `json:"decided_by,omitempty"`
-	DecidedVia            string                       `json:"decided_via,omitempty"`
-	Problem               string                       `json:"problem,omitempty"`
 }

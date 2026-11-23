@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -344,6 +345,176 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 			changed.Review.State != "pending" || changed.Review.Digest != stored.Digest ||
 			changed.Review.BaseDigest == stored.BaseDigest {
 			t.Fatalf("changed base: %+v %v", changed, err)
+		}
+	})
+
+	t.Run("Should project reverts, accept reverted contents again and keep snapshots [UT-051 IT-020]",
+		func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			ctx := t.Context()
+			_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances
+ (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
+ VALUES ('revert-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`,
+				store.DefaultProfileID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			root := t.TempDir()
+			scanRoot := filepath.Join(root, "skills")
+			newService := func() agentinstance.SkillProposalService {
+				return agentinstance.SkillProposalService{
+					Store:     db.SkillReviews(),
+					Evidence:  instanceScopedEvidence{},
+					DraftRoot: filepath.Join(root, "drafts"),
+					ScanRoots: []string{scanRoot},
+					HomeID:    "home-a",
+				}
+			}
+			service := newService()
+			instance := agentinstance.Instance{ID: "revert-instance", ProfileID: store.DefaultProfileID, AgentName: "coder"}
+			operator := workspaceaccess.ActorRef{Operator: true}
+			input := testSkillProposalInput("review-changes", "Review changes", "Read the diff twice.")
+			first, err := service.Propose(ctx, operator, instance, scanRoot, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			review := first.Review
+			if _, err := service.Approve(ctx, operator, instance, review.ID, review.Digest, "operator:p",
+				scanRoot); err != nil {
+				t.Fatal(err)
+			}
+			// An edit approved and reverted, and one rejected: both keep their base snapshots.
+			edit := testSkillProposalInput("review-changes", "Review changes", "Read the diff three times.")
+			edit.Mode = agentinstance.SkillProposalEdit
+			approvedEdit, err := service.Propose(ctx, operator, instance, scanRoot, edit)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rejectInput := testSkillProposalInput("review-changes", "Review changes", "Skip the diff.")
+			rejectInput.Mode = agentinstance.SkillProposalEdit
+			rejectedEdit, err := service.Propose(ctx, operator, instance, scanRoot, rejectInput)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := service.Reject(ctx, operator, instance, rejectedEdit.Review.ID, rejectedEdit.Review.Digest,
+				"operator:p", scanRoot); err != nil {
+				t.Fatal(err)
+			}
+			editID, editDigest := approvedEdit.Review.ID, approvedEdit.Review.Digest
+			if _, err := service.Approve(ctx, operator, instance, editID, editDigest, "operator:p", scanRoot); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Revert(ctx, operator, instance, editID, editDigest, "operator:p", scanRoot); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.Revert(ctx, operator, instance, review.ID, review.Digest, "operator:p",
+				scanRoot); err != nil {
+				t.Fatal(err)
+			}
+			reverted, err := db.SkillReviews().GetReview(ctx, review.ID)
+			if err != nil || reverted.State != agentinstance.SkillReviewReverted || reverted.RevertedBy != "operator:p" ||
+				reverted.RevertedAt == nil {
+				t.Fatalf("reverted review = %+v, %v", reverted, err)
+			}
+			if _, err := os.Stat(filepath.Join(scanRoot, "review-changes")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("reverted skill still installed: %v", err)
+			}
+			again, err := service.Propose(ctx, operator, instance, scanRoot, input)
+			if err != nil || again.Duplicate || again.Review.ID == review.ID || again.Review.State != "pending" ||
+				again.Review.Digest != review.Digest {
+				t.Fatalf("re-proposal after revert = %+v, %v", again, err)
+			}
+			// A restarted home reconciles the target root; terminal reviews keep their snapshots.
+			restarted := newService()
+			if err := restarted.ReconcileTargetRoot(ctx, scanRoot); err != nil {
+				t.Fatal(err)
+			}
+			for _, id := range []string{approvedEdit.Review.ID, rejectedEdit.Review.ID} {
+				stored, err := db.SkillReviews().GetReview(ctx, id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				contents, err := agentinstance.ReadSkillReviewContents(stored)
+				if err != nil || contents.SnapshotProblem != nil || len(contents.Base) == 0 {
+					t.Fatalf("%s review %s contents = %+v, %v", stored.State, id, contents, err)
+				}
+			}
+		})
+
+	t.Run("Should order two homes' approvals by the shared install log [IT-015]", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		scanRoot := filepath.Join(t.TempDir(), "skills")
+		operator := workspaceaccess.ActorRef{Operator: true}
+		instance := agentinstance.Instance{ID: "home-instance", ProfileID: store.DefaultProfileID, AgentName: "coder"}
+		type home struct {
+			db      *GlobalDB
+			service agentinstance.SkillProposalService
+		}
+		homes := make([]home, 2)
+		for i, id := range []string{"home-a", "home-b"} {
+			db := openTestGlobalDB(t)
+			_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances
+ (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
+ VALUES ('home-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`,
+				store.DefaultProfileID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			homes[i] = home{db: db, service: agentinstance.SkillProposalService{
+				Store: db.SkillReviews(), Evidence: instanceScopedEvidence{}, DraftRoot: filepath.Join(t.TempDir(), "drafts"),
+				ScanRoots: []string{scanRoot}, HomeID: id,
+			}}
+		}
+		input := testSkillProposalInput("review-changes", "Review changes", "Read the diff twice.")
+		ids := make([]string, 2)
+		for i := range homes {
+			if i == 1 {
+				input.Mode, input.Body = agentinstance.SkillProposalEdit, "Read the diff three times."
+			}
+			proposed, err := homes[i].service.Propose(ctx, operator, instance, scanRoot, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids[i] = proposed.Review.ID
+			if _, err := homes[i].service.Approve(ctx, operator, instance, ids[i], proposed.Review.Digest, "operator:p",
+				scanRoot); err != nil {
+				t.Fatal(err)
+			}
+		}
+		data, err := os.ReadFile(filepath.Join(scanRoot, ".skill-installs", "review-changes.jsonl"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var writers []string
+		for line := range bytes.Lines(data) {
+			var entry struct {
+				HomeID  string `json:"home_id"`
+				Current struct {
+					ReviewID string `json:"review_id"`
+				} `json:"current"`
+			}
+			if err := json.Unmarshal(bytes.TrimSpace(line), &entry); err != nil {
+				t.Fatal(err)
+			}
+			writers = append(writers, entry.HomeID+"/"+entry.Current.ReviewID)
+		}
+		if want := []string{"home-a/" + ids[0], "home-b/" + ids[1]}; !slices.Equal(writers, want) {
+			t.Fatalf("install log writers = %v, want %v", writers, want)
+		}
+		for i := range homes {
+			own, err := homes[i].db.SkillReviews().GetReview(ctx, ids[i])
+			if err != nil || own.State != "approved" || own.InstalledDigest == "" {
+				t.Fatalf("home %d own review = %+v, %v", i, own, err)
+			}
+			if err := homes[i].service.ReconcileTargetRoot(ctx, scanRoot); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := homes[i].db.SkillReviews().GetReview(ctx, ids[1-i]); !errors.Is(err,
+				agentinstance.ErrSkillReviewNotFound) {
+				t.Fatalf("home %d projected the other home's review: %v", i, err)
+			}
 		}
 	})
 

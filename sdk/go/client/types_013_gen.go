@@ -7,6 +7,32 @@ import (
 	"time"
 )
 
+// ManagedExtensionUpdatePayload is a daemon API value.
+type ManagedExtensionUpdatePayload struct {
+	Name           string           `json:"name"`
+	Slug           string           `json:"slug"`
+	Registry       string           `json:"registry"`
+	CurrentVersion string           `json:"current_version,omitempty"`
+	LatestVersion  string           `json:"latest_version,omitempty"`
+	Path           string           `json:"path"`
+	Status         string           `json:"status"`
+	Warnings       []DiagnosticItem `json:"warnings,omitempty"`
+	Error          *DiagnosticItem  `json:"error,omitzero"`
+}
+
+// MarketplaceCategoryCount is a daemon API value.
+type MarketplaceCategoryCount struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+
+// MarketplaceEntryResponse is a daemon API value.
+type MarketplaceEntryResponse struct {
+	Entry     MarketplaceListingPayload          `json:"entry"`
+	Extension *MarketplaceExtensionDetailPayload `json:"extension,omitzero"`
+}
+
 // MarketplaceExtensionDetailPayload is a daemon API value.
 type MarketplaceExtensionDetailPayload struct {
 	ResolvedRef  string                     `json:"resolved_ref,omitempty"`
@@ -417,28 +443,4 @@ type OTelStatusPayload struct {
 	Traces             OTelSignalStatusPayload `json:"traces"`
 	Metrics            OTelSignalStatusPayload `json:"metrics"`
 	DroppedSpans       int64                   `json:"dropped_spans"`
-}
-
-// ObserveFailureHealthPayload is a daemon API value.
-type ObserveFailureHealthPayload struct {
-	Status string                        `json:"status"`
-	Total  int                           `json:"total"`
-	ByKind map[FailureKind]int           `json:"by_kind,omitempty"`
-	Recent []SessionFailureHealthPayload `json:"recent,omitempty"`
-}
-
-// ObserveHealthPayload is a daemon API value.
-type ObserveHealthPayload struct {
-	Status             string                          `json:"status"`
-	UptimeSeconds      int64                           `json:"uptime_seconds"`
-	ActiveSessions     int                             `json:"active_sessions"`
-	ActiveAgents       int                             `json:"active_agents"`
-	GlobalDBSizeBytes  int64                           `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64                           `json:"session_db_size_bytes"`
-	Persistence        ObservePersistenceHealthPayload `json:"persistence"`
-	Retention          ObserveRetentionHealthPayload   `json:"retention"`
-	Failures           ObserveFailureHealthPayload     `json:"failures"`
-	AgentProbes        []AgentProbeHealthPayload       `json:"agent_probes,omitempty"`
-	Activities         []SessionActivityHealthPayload  `json:"activities,omitempty"`
-	Version            string                          `json:"version"`
 }

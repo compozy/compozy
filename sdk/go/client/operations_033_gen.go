@@ -222,6 +222,30 @@ func (c *Client) RetryTaskRun(ctx context.Context, params RetryTaskRunParams, bo
 	return &out, nil
 }
 
+// RevertAgentSkillReviewParams carries the path, query, and header parameters.
+type RevertAgentSkillReviewParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// RevertAgentSkillReview Decide a skill review as the operator (experimental)
+func (c *Client) RevertAgentSkillReview(ctx context.Context, params RevertAgentSkillReviewParams, body AgentSkillReviewDecisionRequest) (*AgentSkillReviewResponse, error) {
+	path := "/api/agent-skill-reviews/{id}/revert"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSkillReviewResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // RevokeAgentHeartbeatAuthorityParams carries the path, query, and header parameters.
 type RevokeAgentHeartbeatAuthorityParams struct {
 	Name        string  `url:"name"`
@@ -422,12 +446,4 @@ func (c *Client) RollbackAgentSoul(ctx context.Context, params RollbackAgentSoul
 		return nil, err
 	}
 	return &out, nil
-}
-
-// RunLoopParams carries the path, query, and header parameters.
-type RunLoopParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Name        string  `url:"name"`
-	Dry         *bool   `url:"dry"`
-	Profile     *string `url:"profile"`
 }

@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// ObserveFailureHealthPayload is a daemon API value.
+type ObserveFailureHealthPayload struct {
+	Status string                        `json:"status"`
+	Total  int                           `json:"total"`
+	ByKind map[FailureKind]int           `json:"by_kind,omitempty"`
+	Recent []SessionFailureHealthPayload `json:"recent,omitempty"`
+}
+
+// ObserveHealthPayload is a daemon API value.
+type ObserveHealthPayload struct {
+	Status             string                          `json:"status"`
+	UptimeSeconds      int64                           `json:"uptime_seconds"`
+	ActiveSessions     int                             `json:"active_sessions"`
+	ActiveAgents       int                             `json:"active_agents"`
+	GlobalDBSizeBytes  int64                           `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64                           `json:"session_db_size_bytes"`
+	Persistence        ObservePersistenceHealthPayload `json:"persistence"`
+	Retention          ObserveRetentionHealthPayload   `json:"retention"`
+	Failures           ObserveFailureHealthPayload     `json:"failures"`
+	AgentProbes        []AgentProbeHealthPayload       `json:"agent_probes,omitempty"`
+	Activities         []SessionActivityHealthPayload  `json:"activities,omitempty"`
+	Version            string                          `json:"version"`
+}
+
 // ObserveOverviewPayload is a daemon API value.
 type ObserveOverviewPayload struct {
 	SchemaVersion string                        `json:"schema_version"`
@@ -417,27 +441,3 @@ type Profile struct {
 	NeedsSetup             bool                           `json:"needs_setup,omitzero"`
 	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
 }
-
-// ProfileCredentialRequirement is a daemon API value.
-type ProfileCredentialRequirement struct {
-	Provider        string `json:"provider"`
-	Slot            string `json:"slot"`
-	SourceExtension string `json:"source_extension"`
-	Missing         bool   `json:"missing"`
-}
-
-// ProfileFolderRef is a daemon API value.
-type ProfileFolderRef struct {
-	WorkspaceID   string `json:"workspace_id"`
-	WorkspaceName string `json:"workspace"`
-	Path          string `json:"path"`
-}
-
-// ProfileLens is a daemon API value.
-type ProfileLens struct {
-	ID   ProfileLensID `json:"profile_lens_id"`
-	Name string        `json:"profile_name"`
-}
-
-// ProfileLensID is a daemon API value.
-type ProfileLensID string

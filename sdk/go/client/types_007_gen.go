@@ -7,6 +7,48 @@ import (
 	"time"
 )
 
+// ExtensionCommandsResponse is a daemon API value.
+type ExtensionCommandsResponse struct {
+	Commands []ExtensionCommandPayload      `json:"commands"`
+	Groups   []ExtensionCommandGroupPayload `json:"groups"`
+}
+
+// ExtensionContentsPayload is a daemon API value.
+type ExtensionContentsPayload struct {
+	Skills     int `json:"skills"`
+	MCPServers int `json:"mcp_servers"`
+	Hooks      int `json:"hooks"`
+	Loops      int `json:"loops"`
+	Agents     int `json:"agents"`
+}
+
+// ExtensionDeclaredProfilePayload is a daemon API value.
+type ExtensionDeclaredProfilePayload struct {
+	Name                   string                         `json:"name"`
+	Exists                 bool                           `json:"exists"`
+	CreatedByExtension     bool                           `json:"created_by_extension"`
+	NeedsSetup             bool                           `json:"needs_setup"`
+	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
+}
+
+// ExtensionEnableError is a daemon API value.
+type ExtensionEnableError struct {
+	Error string `json:"error"`
+	Code  string `json:"code"`
+}
+
+// ExtensionEnablePreviewPayload is a daemon API value.
+type ExtensionEnablePreviewPayload struct {
+	MissingInputs               []string                    `json:"missing_inputs"`
+	Extension                   string                      `json:"extension"`
+	Changes                     []ExtensionKitChangePayload `json:"changes"`
+	AgentConflicts              []string                    `json:"agent_conflicts"`
+	MissingEnv                  []string                    `json:"missing_env"`
+	AutomationStarting          []string                    `json:"automation_starting"`
+	GatewayRequirementDigest    string                      `json:"gateway_requirement_digest"`
+	GatewayConfirmationRequired bool                        `json:"gateway_confirmation_required"`
+}
+
 // ExtensionEnablementPayload is a daemon API value.
 type ExtensionEnablementPayload struct {
 	Profile string `json:"profile"`
@@ -404,43 +446,4 @@ type FileSearchQuery struct {
 	WholeWord     bool     `json:"whole_word"`
 	Include       []string `json:"include"`
 	Exclude       []string `json:"exclude"`
-}
-
-// FileSearchResponse is a daemon API value.
-type FileSearchResponse struct {
-	Root              FileRootPayload  `json:"root"`
-	Query             FileSearchQuery  `json:"query"`
-	Engine            string           `json:"engine"`
-	Files             []FileSearchFile `json:"files"`
-	Totals            FileSearchTotals `json:"totals"`
-	Truncated         bool             `json:"truncated"`
-	TimedOut          bool             `json:"timed_out"`
-	SensitiveExcluded int              `json:"sensitive_excluded"`
-}
-
-// FileSearchTotals is a daemon API value.
-type FileSearchTotals struct {
-	Files   int `json:"files"`
-	Matches int `json:"matches"`
-}
-
-// FireLimitConfig is a daemon API value.
-type FireLimitConfig struct {
-	Max    int    `json:"max"`
-	Window string `json:"window"`
-}
-
-// FocusPolicy is a daemon API value.
-type FocusPolicy string
-
-// ForceFailTaskRunRequest is a daemon API value.
-type ForceFailTaskRunRequest struct {
-	Reason   string          `json:"reason"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ForceReleaseTaskRunRequest is a daemon API value.
-type ForceReleaseTaskRunRequest struct {
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
 }

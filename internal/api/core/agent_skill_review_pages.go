@@ -190,6 +190,8 @@ func skillReviewMetadata(review agentinstance.SkillReview) contract.AgentSkillRe
 		DecidedAt:          review.DecidedAt,
 		DecidedBy:          review.DecidedBy,
 		DecidedVia:         review.DecidedVia,
+		RevertedBy:         review.RevertedBy,
+		RevertedAt:         review.RevertedAt,
 	}
 }
 

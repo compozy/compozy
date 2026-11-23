@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// TerminalRecordingState is a daemon API value.
+type TerminalRecordingState string
+
+// TerminalRejectInputRequest is a daemon API value.
+type TerminalRejectInputRequest struct {
+	Reason string `json:"reason"`
+}
+
 // TerminalResolvedInputRequest is a daemon API value.
 type TerminalResolvedInputRequest struct {
 	ID          string                         `json:"id"`
@@ -439,6 +447,3 @@ type ToolsResponse struct {
 	NextOffset int           `json:"next_offset,omitzero"`
 	HasMore    bool          `json:"has_more"`
 }
-
-// ToolsetID is a daemon API value.
-type ToolsetID string
