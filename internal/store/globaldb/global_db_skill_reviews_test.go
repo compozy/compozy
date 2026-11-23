@@ -103,8 +103,9 @@ func TestSkillReviewRepo(t *testing.T) {
 		ctx := t.Context()
 		_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances
  (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
- VALUES ('identity-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`,
-			store.DefaultProfileID)
+ VALUES ('identity-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z'),
+ ('variant-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`,
+			store.DefaultProfileID, store.DefaultProfileID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -120,10 +121,10 @@ func TestSkillReviewRepo(t *testing.T) {
 			t.Fatal(err)
 		}
 		repo := db.SkillReviews()
-		create := func(id, skill, digest, baseDigest string) (agentinstance.SkillReview, bool, error) {
+		createFor := func(instanceID, id, skill, digest, baseDigest string) (agentinstance.SkillReview, bool, error) {
 			t.Helper()
 			return repo.CreateReview(ctx, agentinstance.SkillReview{
-				ID: id, InstanceID: "identity-instance", ProfileID: store.DefaultProfileID, SkillName: skill,
+				ID: id, InstanceID: instanceID, ProfileID: store.DefaultProfileID, SkillName: skill,
 				Digest: digest, BaseDigest: baseDigest, DraftPath: "/drafts/" + id,
 				Lesson: agentinstance.SkillLesson{
 					Cue: "cue", Lesson: "lesson", Evidence: "evidence", Confidence: "high",
@@ -137,6 +138,10 @@ func TestSkillReviewRepo(t *testing.T) {
 				),
 			})
 		}
+		create := func(id, skill, digest, baseDigest string) (agentinstance.SkillReview, bool, error) {
+			t.Helper()
+			return createFor("identity-instance", id, skill, digest, baseDigest)
+		}
 		first, duplicate, err := create("fresh", "fresh", "sha256:fresh", "")
 		if err != nil || duplicate || first.Lesson.Confidence != "high" || first.EvidenceSessionIDs[0] != "sess-a" {
 			t.Fatalf("fresh review = %+v, %v, %v", first, duplicate, err)
@@ -145,13 +150,17 @@ func TestSkillReviewRepo(t *testing.T) {
 		if err != nil || !duplicate || again.ID != "fresh" {
 			t.Fatalf("pending duplicate = %+v, %v, %v", again, duplicate, err)
 		}
-		// Each identity field alone makes a new review; only an exact match is a duplicate.
+		// Each identity field alone makes a new review; only an exact match is a duplicate. The variants
+		// use their own instance so the pending-review limit stays out of the way.
+		if _, _, err := createFor("variant-instance", "variant", "variant", "sha256:variant", ""); err != nil {
+			t.Fatal(err)
+		}
 		for _, tc := range []struct{ id, skill, digest, base string }{
-			{id: "fresh-skill", skill: "fresh-other", digest: "sha256:fresh"},
-			{id: "fresh-digest", skill: "fresh", digest: "sha256:fresh-other"},
-			{id: "fresh-base", skill: "fresh", digest: "sha256:fresh", base: "sha256:base"},
+			{id: "variant-skill", skill: "variant-other", digest: "sha256:variant"},
+			{id: "variant-digest", skill: "variant", digest: "sha256:variant-other"},
+			{id: "variant-base", skill: "variant", digest: "sha256:variant", base: "sha256:base"},
 		} {
-			created, duplicate, err := create(tc.id, tc.skill, tc.digest, tc.base)
+			created, duplicate, err := createFor("variant-instance", tc.id, tc.skill, tc.digest, tc.base)
 			if err != nil || duplicate || created.ID != tc.id {
 				t.Fatalf("%s identity = %+v, %v, %v; want a new review", tc.id, created, duplicate, err)
 			}
@@ -175,7 +184,7 @@ func TestSkillReviewRepo(t *testing.T) {
 		}
 		var reports int
 		if err := db.DB().QueryRowContext(ctx, "SELECT count(*) FROM agent_instance_reports WHERE instance_id = ?",
-			"identity-instance").Scan(&reports); err != nil || reports != 6 {
+			"identity-instance").Scan(&reports); err != nil || reports != 3 {
 			t.Fatalf("reports = %d, %v; want one per new review", reports, err)
 		}
 	})
