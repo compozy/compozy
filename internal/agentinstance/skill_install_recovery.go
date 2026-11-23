@@ -23,8 +23,11 @@ func (s *SkillProposalService) reconcileSkill(
 	ctx context.Context,
 	t *skillTarget,
 ) (blocked *SkillInstallPayload, warning error, err error) {
+	if s.installLocks().publishPending.Load() {
+		warning = s.publishSkills(ctx)
+	}
 	if t.parent == nil {
-		return nil, nil, nil
+		return nil, warning, nil
 	}
 	if blocked, err = s.recoverSkill(ctx, t); err != nil {
 		return nil, nil, err
@@ -144,6 +147,10 @@ func (p *skillRecoveryPolicy) RecoverLayout(
 	case payload.State == skillInstallStateResolving:
 		return p.resume(journal, payload)
 	case journal.Phase == dirpublish.PhasePublished:
+		// A published journal counts only once durable: sync before finalizing or projecting it.
+		if err := p.t.parent.Sync(); err != nil {
+			return dirpublish.RecoveryError("confirm published skill install", err)
+		}
 		if err := finalizeSkillOp(p.t, journal, payload); err != nil {
 			return dirpublish.RecoveryError("finalize committed skill install", err)
 		}
@@ -160,12 +167,15 @@ func (p *skillRecoveryPolicy) rollback(journal dirpublish.Journal, payload Skill
 	if journal.Phase == dirpublish.PhasePrepared || journal.Phase == dirpublish.PhaseIncoming {
 		return p.finishRollback(journal, payload)
 	}
+	if err := p.restoreAsideTree(journal, payload); err != nil {
+		return err
+	}
 	original := expectedSkillOriginal(payload)
-	target, err := skillTreeState(p.t.dir)
+	target, err := recoveryTreeState(p.t.dir)
 	if err != nil {
 		return dirpublish.RecoveryError("inspect skill target", err)
 	}
-	backup, err := skillTreeState(p.t.path(journal.BackupName))
+	backup, err := recoveryTreeState(p.t.path(journal.BackupName))
 	if err != nil {
 		return dirpublish.RecoveryError("inspect skill backup", err)
 	}
@@ -191,6 +201,31 @@ func (p *skillRecoveryPolicy) rollback(journal dirpublish.Journal, payload Skill
 		return p.conflict(journal, payload)
 	}
 	return p.finishRollback(journal, payload)
+}
+
+// restoreAsideTree handles the incoming slot after backup_staged. It then holds nothing, the complete
+// staged tree, or a tree a crashed verification moved aside from the target. Such a tree goes back to
+// an empty target so the rollback table classifies it; with the target occupied again it stays
+// untouched for the operator rather than being removed as staging.
+func (p *skillRecoveryPolicy) restoreAsideTree(journal dirpublish.Journal, payload SkillInstallPayload) error {
+	aside, err := recoveryTreeState(p.t.path(journal.IncomingName))
+	if err != nil {
+		return dirpublish.RecoveryError("inspect skill incoming slot", err)
+	}
+	if aside == "" || aside == payload.StagedDigest {
+		return nil
+	}
+	target, err := recoveryTreeState(p.t.dir)
+	if err != nil {
+		return dirpublish.RecoveryError("inspect skill target", err)
+	}
+	if target != "" {
+		return dirpublish.RecoveryError("retain an unverified skill tree in the incoming slot", nil)
+	}
+	if err := moveSkillChild(p.t.parent, journal.IncomingName, p.t.name); err != nil {
+		return dirpublish.RecoveryError("restore unverified skill tree", err)
+	}
+	return nil
 }
 
 func (p *skillRecoveryPolicy) finishRollback(journal dirpublish.Journal, payload SkillInstallPayload) error {
@@ -262,11 +297,11 @@ func (p *skillRecoveryPolicy) normalizeConflictLayout(
 	journal dirpublish.Journal,
 	payload SkillInstallPayload,
 ) (SkillInstallPayload, error) {
-	target, err := skillTreeState(p.t.dir)
+	target, err := recoveryTreeState(p.t.dir)
 	if err != nil {
 		return payload, dirpublish.RecoveryError("inspect conflicting skill target", err)
 	}
-	backup, err := skillTreeState(p.t.path(journal.BackupName))
+	backup, err := recoveryTreeState(p.t.path(journal.BackupName))
 	if err != nil {
 		return payload, dirpublish.RecoveryError("inspect conflicting skill backup", err)
 	}

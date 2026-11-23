@@ -75,7 +75,7 @@ func reconcileSkillInstalls(ctx context.Context, state *bootState, definitions i
 			return
 		}
 		for _, instance := range page {
-			_, root, err := definitions.skillTargetRoot(ctx, instance)
+			root, err := definitions.skillRecoveryRoot(ctx, instance)
 			if err != nil || seen[root] {
 				continue
 			}
@@ -93,7 +93,8 @@ func reconcileSkillInstalls(ctx context.Context, state *bootState, definitions i
 }
 
 // skillTargetRoot is the root an instance installs approved skills into: the workspace skills root,
-// or the definition's agent-local skills directory for a global instance.
+// or the definition's agent-local skills directory for a global instance. Live requests resolve the
+// agent definition for both.
 func (r instanceDefinitions) skillTargetRoot(
 	ctx context.Context,
 	instance agentinstance.Instance,
@@ -106,14 +107,39 @@ func (r instanceDefinitions) skillTargetRoot(
 	if err != nil {
 		return resolved, "", err
 	}
-	target := filepath.Join(resolved.RootDir, compozyconfig.DirName, compozyconfig.SkillsDirName)
+	target, err := skillTargetFor(resolved, instance, agent.SourcePath)
+	return resolved, target, err
+}
+
+// skillRecoveryRoot is the target root startup recovery reconciles. A workspace root comes from the
+// workspace alone, so an interrupted install there is recovered even after the instance's agent
+// definition was removed; only a global instance needs its definition to locate the root.
+func (r instanceDefinitions) skillRecoveryRoot(ctx context.Context, instance agentinstance.Instance) (string, error) {
 	if instance.WorkspaceID == "" {
-		if !filepath.IsAbs(agent.SourcePath) {
-			return resolved, "", agentinstance.ErrSkillReviewNoTarget
-		}
-		target = filepath.Join(filepath.Dir(agent.SourcePath), compozyconfig.SkillsDirName)
+		_, target, err := r.skillTargetRoot(ctx, instance)
+		return target, err
 	}
-	return resolved, target, nil
+	resolved, err := r.resolveWorkspace(ctx, instance.ProfileID, instance.WorkspaceID)
+	if err != nil {
+		return "", err
+	}
+	return skillTargetFor(resolved, instance, "")
+}
+
+// skillTargetFor derives the target root: the workspace skills root for a workspace instance, the
+// skills directory beside the agent definition (agentSource) for a global one.
+func skillTargetFor(
+	resolved workspacepkg.ResolvedWorkspace,
+	instance agentinstance.Instance,
+	agentSource string,
+) (string, error) {
+	if instance.WorkspaceID != "" {
+		return filepath.Join(resolved.RootDir, compozyconfig.DirName, compozyconfig.SkillsDirName), nil
+	}
+	if !filepath.IsAbs(agentSource) {
+		return "", agentinstance.ErrSkillReviewNoTarget
+	}
+	return filepath.Join(filepath.Dir(agentSource), compozyconfig.SkillsDirName), nil
 }
 
 // skillCatalogPublisher refreshes the skill catalog after a committed skill change.

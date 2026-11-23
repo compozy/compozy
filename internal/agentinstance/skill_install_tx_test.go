@@ -557,6 +557,124 @@ func TestSkillInstallTransaction(t *testing.T) {
 			t.Fatalf("Approve() after release = %+v, %v", result, err)
 		}
 	})
+	t.Run("Should stop before the swap when the request is canceled during staging", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		review := f.propose(t, svc, "release-checklist", "Check the changelog.")
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		canceling := withHook(svc, func(step string) bool {
+			if step == "incoming_created" {
+				cancel()
+			}
+			return false
+		})
+		_, err := canceling.Approve(ctx, skillOperator, f.instance, review.ID, review.Digest, "operator:prof-a", f.root)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Approve() = %v, want the cancellation", err)
+		}
+		if f.digest(t, "release-checklist") != "" {
+			t.Fatal("a canceled approval installed the skill")
+		}
+		f.requireClean(t)
+		requireReviewState(t, svc, review.ID, SkillReviewPending)
+	})
+	t.Run("Should neither project nor roll back a published journal that is not durable", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		review := f.propose(t, svc, "release-checklist", "Check the changelog.")
+		unsynced := withHook(svc, func(step string) bool {
+			return step == "published_unsynced" || step == "published_sync_failed"
+		})
+		if _, err := f.approve(t, unsynced, review); !errors.Is(err, errSkillCommitUncertain) {
+			t.Fatalf("Approve() = %v, want an unconfirmed commit", err)
+		}
+		requireReviewState(t, svc, review.ID, SkillReviewPending)
+		if _, ok := f.journal(t, "release-checklist"); !ok || f.digest(t, "release-checklist") == "" {
+			t.Fatal("an unconfirmed commit was rolled back")
+		}
+		f.reconcile(t, svc)
+		requireReviewState(t, svc, review.ID, "approved")
+		f.requireClean(t)
+		synced := f.propose(t, svc, "other-skill", "Another skill.")
+		if result, err := f.approve(t, crashAt(svc, "published_unsynced"), synced); err != nil || !result.Committed {
+			t.Fatalf("Approve() after a successful directory sync = %+v, %v", result, err)
+		}
+	})
+	t.Run("Should retry a failed catalog refresh on the next reconcile without reinstalling", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		publisher := &flakySkillPublisher{fails: 1}
+		svc.Publisher = publisher
+		review := f.propose(t, svc, "release-checklist", "Check the changelog.")
+		result, err := f.approve(t, svc, review)
+		if err != nil || !result.Committed || !errors.Is(result.Warning, errSkillTestPublish) {
+			t.Fatalf("Approve() = %+v, %v; want committed with the publication warning", result, err)
+		}
+		writers := installLogWriters(t, f.root, "release-checklist")
+		f.reconcile(t, svc)
+		f.reconcile(t, svc)
+		if calls := publisher.count(); calls != 2 {
+			t.Fatalf("publisher calls = %d, want one retry after the failure and none after success", calls)
+		}
+		if again := installLogWriters(t, f.root, "release-checklist"); len(again) != len(writers) {
+			t.Fatalf("retrying publication appended install entries: %v", again)
+		}
+	})
+	t.Run("Should route an edit made after the swap through conflict recovery, not commit it", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		review := f.propose(t, svc, "release-checklist", "Check the changelog.")
+		skillFile := filepath.Join(f.root, "release-checklist", "SKILL.md")
+		editing := withHook(svc, func(step string) bool {
+			if step == "target_moved" {
+				if err := os.WriteFile(skillFile, []byte("edited after the swap"), 0o600); err != nil {
+					t.Error(err)
+				}
+			}
+			return false
+		})
+		if _, err := f.approve(t, editing, review); !errors.Is(err, ErrSkillInstallConflict) {
+			t.Fatalf("Approve() = %v, want skill_install_conflict", err)
+		}
+		if writers := installLogWriters(t, f.root, "release-checklist"); len(writers) != 0 {
+			t.Fatalf("an edited tree was committed: %v", writers)
+		}
+		if got, err := os.ReadFile(skillFile); err != nil || string(got) != "edited after the swap" {
+			t.Fatalf("edited tree = %q, %v; want it kept at the target", got, err)
+		}
+		requireReviewState(t, svc, review.ID, SkillReviewPending)
+	})
+}
+
+var errSkillTestPublish = errors.New("catalog refresh failed")
+
+// flakySkillPublisher fails its first refreshes, then succeeds, counting every call.
+type flakySkillPublisher struct {
+	mu    sync.Mutex
+	fails int
+	calls int
+}
+
+func (p *flakySkillPublisher) SkillPublished(context.Context) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls++
+	if p.fails > 0 {
+		p.fails--
+		return errSkillTestPublish
+	}
+	return nil
+}
+
+func (p *flakySkillPublisher) count() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.calls
 }
 
 func installLogWriters(t *testing.T, root, name string) []string {
