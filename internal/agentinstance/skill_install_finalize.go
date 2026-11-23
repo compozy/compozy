@@ -43,6 +43,13 @@ func skillRetainedName(opID, suffix string) string {
 // moved entry that is not want is kept under retain and logged. A symlink entry digests as
 // unexplained (SkillTreeDigest refuses it as unsupported), so it is always retained, moved as a link
 // and never followed.
+//
+// Residual risk: a process that already holds a writable descriptor on a file in the old tree can
+// still write through it after the digest, because a rename moves the inode, not the descriptor, and
+// no portable mechanism excludes such a writer (POSIX locks are advisory). Such a write is lost only
+// if it lands between this digest and the unlink, after the tree already passed the pre-move check,
+// the backup check and this check. Editors that save by rename write to the live skill path, not
+// here. Retaining every verified backup instead would leave a hidden copy of the skill per install.
 func disposeVerified(t *skillTarget, name, aside, want, retain string) error {
 	state, err := recoveryTreeState(t.path(name))
 	if err != nil || state == "" {

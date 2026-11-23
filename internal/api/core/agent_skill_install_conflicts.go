@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -123,7 +124,8 @@ func (h *BaseHandlers) skillInstallConflictScope(c *gin.Context, mutation bool) 
 
 // skillTargetRoots pages the instances of query, archived ones included, and returns their distinct
 // skill target roots, so a conflict stays reachable after the last instance on its root is archived.
-// Instances without a resolvable root have nothing installed and are skipped.
+// Instances whose root is absent or out of scope are skipped; any other lookup failure fails the
+// discovery instead of presenting an incomplete root set as complete.
 func (api *AgentInstanceAPI) skillTargetRoots(ctx context.Context, query agentinstance.ListQuery) ([]string, error) {
 	query.Limit, query.AfterID, query.IncludeArchived = 100, "", true
 	seen := map[string]bool{}
@@ -135,7 +137,10 @@ func (api *AgentInstanceAPI) skillTargetRoots(ctx context.Context, query agentin
 		}
 		for _, instance := range page {
 			root, err := api.skillRecoveryRoot(ctx, instance)
-			if err != nil || seen[root] {
+			if err != nil {
+				return nil, fmt.Errorf("locate the skill root of instance %s: %w", instance.ID, err)
+			}
+			if root == "" || seen[root] {
 				continue
 			}
 			seen[root] = true
@@ -153,5 +158,8 @@ func (api *AgentInstanceAPI) skillRecoveryRoot(ctx context.Context, instance age
 		return api.SkillRecoveryRoot(ctx, instance)
 	}
 	root, _, err := api.SkillTarget(ctx, instance)
+	if errors.Is(err, agentinstance.ErrSkillReviewNoTarget) {
+		return "", nil
+	}
 	return root, err
 }

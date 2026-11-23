@@ -327,9 +327,12 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 		f := newSkillTxFixture(t)
 		svc := f.service(t, "home-a", nil)
 		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
-		if _, err := f.resolve(t, crashAt(svc, "backup_removed"), seeded.opID, SkillConflictKeepCurrent); !errors.Is(
+		if _, err := f.resolve(t, crashAt(svc, "resolve_logged"), seeded.opID, SkillConflictKeepCurrent); !errors.Is(
 			err, errSkillInstallCrashed) {
 			t.Fatalf("ResolveInstallConflict() = %v", err)
+		}
+		if f.digest(t, f.backupName(t)) != seeded.base {
+			t.Fatal("keep=current removed the backup before its commit")
 		}
 		if _, err := f.resolve(t, svc, seeded.opID, SkillConflictKeepPrevious); !errors.Is(
 			err, ErrSkillInstallConflictResolving) {
@@ -571,16 +574,19 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 			t.Fatalf("last log entry = %+v; want the writer of the live tree %s", entry, changed)
 		}
 	})
-	t.Run("Should record the live tree when keep=current already discarded the original [UT-076]",
+	t.Run("Should correct the resolve entry when keep=current lost the original [UT-076]",
 		func(t *testing.T) {
 			t.Parallel()
 			f := newSkillTxFixture(t)
 			svc := f.service(t, "home-a", nil)
 			seeded := f.seedConflict(t, svc, skillOriginalInBackup)
-			crashing := crashAt(svc, "backup_removed")
+			crashing := crashAt(svc, "resolve_logged")
 			if _, err := f.resolve(t, crashing, seeded.opID, SkillConflictKeepCurrent); !errors.Is(
 				err, errSkillInstallCrashed) {
 				t.Fatalf("ResolveInstallConflict() = %v", err)
+			}
+			if err := os.RemoveAll(filepath.Join(f.root, f.backupName(t))); err != nil {
+				t.Fatal(err)
 			}
 			changed := f.writeTree(t, "release-checklist", "edited again before restart")
 			f.reconcile(t, svc)
@@ -590,7 +596,35 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 			if entry := f.lastInstallEntry(t); entry.Current == nil || entry.Current.InstalledDigest != changed {
 				t.Fatalf("last log entry = %+v; want the writer of the live tree %s", entry, changed)
 			}
+			if entries := resolveEntries(t, f, seeded.opID); entries != 1 {
+				t.Fatalf("resolve entries for %s = %d, want 1", seeded.opID, entries)
+			}
 		})
+	t.Run("Should retain a backup edited after it was verified for keep=current [UT-076]", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
+		backup := f.backupName(t)
+		var edited string
+		racing := withHook(svc, func(step string) bool {
+			if step == "resolve_logged" {
+				edited = f.writeTree(t, backup, "backup edited after its check")
+			}
+			return false
+		})
+		if _, err := f.resolve(t, racing, seeded.opID, SkillConflictKeepCurrent); err != nil {
+			t.Fatalf("ResolveInstallConflict() = %v", err)
+		}
+		retained := skillRetainedName(seeded.opID, "edited-backup")
+		if f.digest(t, retained) != edited {
+			t.Fatalf("retained %s does not hold the backup edited after its check", retained)
+		}
+		if f.digest(t, "release-checklist") != seeded.edited {
+			t.Fatal("keep=current changed the current version")
+		}
+		f.requireClean(t)
+	})
 	t.Run("Should keep a backup edited after keep=current was recorded [UT-076]", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
@@ -657,17 +691,32 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 		f := newSkillTxFixture(t)
 		svc := f.service(t, "home-a", nil)
 		seeded := f.seedConflict(t, svc, skillOriginalInCopy)
-		if _, err := f.resolve(t, crashAt(svc, "published_sync"), seeded.opID, SkillConflictKeepCurrent); !errors.Is(
-			err, errSkillInstallCrashed) {
-			t.Fatalf("ResolveInstallConflict() = %v", err)
+		var failRoot atomic.Bool
+		failRoot.Store(true)
+		svc.syncDir = func(path string) error {
+			if failRoot.Load() && !strings.HasSuffix(path, skillInstallLogDir) {
+				return errors.New("target root sync failed")
+			}
+			return nil
 		}
-		payload, ok := f.journal(t, "release-checklist")
-		if !ok || payload.State != skillInstallStateResolving {
-			t.Fatalf("journal = %+v, %v; want the published resolution kept until it is confirmed", payload, ok)
+		if _, err := f.resolve(t, svc, seeded.opID, SkillConflictKeepCurrent); err == nil ||
+			!strings.Contains(err.Error(), "target root sync failed") {
+			t.Fatalf("ResolveInstallConflict() with a failing sync = %v", err)
 		}
-		if f.digest(t, payload.OriginalCopyName) != seeded.base {
-			t.Fatal("the original copy was removed before the published resolution was confirmed")
+		requireUnconfirmed := func(when string) {
+			t.Helper()
+			payload, ok := f.journal(t, "release-checklist")
+			if !ok || payload.State != skillInstallStateResolving {
+				t.Fatalf("journal %s = %+v, %v; want the published resolution kept", when, payload, ok)
+			}
+			if f.digest(t, payload.OriginalCopyName) != seeded.base {
+				t.Fatalf("the original copy was removed %s", when)
+			}
 		}
+		requireUnconfirmed("after the first failed sync")
+		f.reconcile(t, svc)
+		requireUnconfirmed("after a resumed failed sync")
+		failRoot.Store(false)
 		f.reconcile(t, svc)
 		f.requireClean(t)
 		if entries := resolveEntries(t, f, seeded.opID); entries != 1 {
@@ -690,6 +739,15 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 			}
 			changed := f.writeTree(t, "release-checklist", "edited again before restart")
 			f.reconcile(t, svc)
+			if payload, ok := f.journal(t, "release-checklist"); !ok || payload.State != skillInstallStateConflict {
+				t.Fatalf("journal = %+v, %v; want the conflict reopened", payload, ok)
+			}
+			if entries := resolveEntries(t, f, seeded.opID); entries != 0 {
+				t.Fatalf("resolve entries for %s = %d, want the withdrawn entry gone", seeded.opID, entries)
+			}
+			if _, err := f.resolve(t, svc, seeded.opID, SkillConflictKeepCurrent); err != nil {
+				t.Fatal(err)
+			}
 			if entry := f.lastInstallEntry(t); entry.Current == nil || entry.Current.InstalledDigest != changed {
 				t.Fatalf("last log entry = %+v; want the writer of the live tree %s", entry, changed)
 			}
@@ -704,25 +762,7 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 		svc := f.service(t, "home-a", nil)
 		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
 		f.recordChoice(t, svc, seeded.opID, SkillConflictKeepCurrent)
-		target, err := svc.acquireSkill(t.Context(), f.root, "release-checklist", false)
-		if err != nil {
-			t.Fatal(err)
-		}
-		journal, _, err := dirpublish.ReadJournal(target.parent, "release-checklist")
-		if err != nil {
-			t.Fatal(err)
-		}
-		payload, err := decodeSkillInstallPayload(journal.Payload)
-		if err != nil {
-			t.Fatal(err)
-		}
-		canceled, cancel := context.WithCancel(t.Context())
-		cancel()
-		_, resumeErr := svc.continueResolution(canceled, target, journal, payload)
-		if err := target.close(); err != nil {
-			t.Fatal(err)
-		}
-		if !errors.Is(resumeErr, context.Canceled) {
+		if resumeErr := f.continueCanceledResolution(t, svc); !errors.Is(resumeErr, context.Canceled) {
 			t.Fatalf("continueResolution(canceled) = %v, want context.Canceled", resumeErr)
 		}
 		if f.digest(t, f.backupName(t)) != seeded.base || f.digest(t, "release-checklist") != seeded.edited {
@@ -849,4 +889,31 @@ func resolveEntries(t *testing.T, f *skillTxFixture, opID string) int {
 		}
 	}
 	return count
+}
+
+// continueCanceledResolution runs continueResolution on release-checklist's journal under both locks
+// with a canceled context, releasing the target on every exit.
+func (f *skillTxFixture) continueCanceledResolution(t *testing.T, svc *SkillProposalService) error {
+	t.Helper()
+	target, err := svc.acquireSkill(t.Context(), f.root, "release-checklist", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := target.close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	journal, _, err := dirpublish.ReadJournal(target.parent, "release-checklist")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := decodeSkillInstallPayload(journal.Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	canceled, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, resumeErr := svc.continueResolution(canceled, target, journal, payload)
+	return resumeErr
 }

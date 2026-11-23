@@ -44,10 +44,7 @@ func (s *SkillProposalService) continueResolution(
 	}
 	// A published resolution counts only once durable: confirm it before removing any copy, also when
 	// an earlier attempt published it and then failed.
-	if s.crashed("published_sync") {
-		return nil, errSkillInstallCrashed
-	}
-	if err := t.parent.Sync(); err != nil {
+	if err := s.syncSkillParent(t); err != nil {
 		return nil, fmt.Errorf("confirm published skill conflict resolution: %w", err)
 	}
 	warning = errors.Join(finalizeSkillOp(t, journal, payload), s.publishSkills(ctx))
@@ -60,10 +57,11 @@ func (s *SkillProposalService) continueResolution(
 	return warning, nil
 }
 
-// discardPrevious finishes keep=current: it removes the backup slot only while the live tree is still
-// the one the operator chose. A tree changed since the choice was recorded reopens the conflict while
-// the original can still be restored; once the original is gone, the live tree is the current version
-// and the writer is recorded with its digest.
+// discardPrevious prepares keep=current while the live tree is still the one the operator chose. A
+// tree changed since the choice was recorded reopens the conflict while the original can still be
+// restored; once the original is gone, the live tree is the current version and the writer is
+// recorded with its digest. The backup is kept through the commit: finalize disposes of it only after
+// verifying it, and retains it when it changed.
 func (s *SkillProposalService) discardPrevious(
 	ctx context.Context,
 	t *skillTarget,
@@ -87,16 +85,7 @@ func (s *SkillProposalService) discardPrevious(
 			return payload, err
 		}
 	}
-	if err := requireUnchangedOriginal(ctx, t, journal, payload); err != nil {
-		return payload, err
-	}
-	if err := t.parent.RemoveAll(journal.BackupName); err != nil {
-		return payload, err
-	}
-	if s.crashed("backup_removed") {
-		return payload, errSkillInstallCrashed
-	}
-	return payload, nil
+	return payload, requireUnchangedOriginal(ctx, t, journal, payload)
 }
 
 // requireUnchangedOriginal refuses to discard a backup slot or original copy whose contents changed
@@ -133,6 +122,11 @@ func (s *SkillProposalService) reopenConflict(
 	payload SkillInstallPayload,
 ) error {
 	payload.State, payload.Keep, payload.KeepCopyName, payload.ResolvedBy = skillInstallStateConflict, "", "", ""
+	// A `resolve` entry an interrupted run appended is withdrawn first: the log must not name a writer
+	// for a resolution that is no longer happening.
+	if err := removeSkillInstallLogOp(t.root, t.name, payload.OpID); err != nil {
+		return err
+	}
 	if err := writeSkillResolution(ctx, t, journal, payload); err != nil {
 		return err
 	}
@@ -295,6 +289,14 @@ func (s *SkillProposalService) commitResolution(
 	}
 	journal.Payload = encoded
 	return dirpublish.AdvancePhase(t.parent, journal, dirpublish.PhasePublished)
+}
+
+// syncSkillParent confirms the target root directory, where the journal lives.
+func (s *SkillProposalService) syncSkillParent(t *skillTarget) error {
+	if s.syncDir != nil {
+		return s.syncDir(t.root)
+	}
+	return t.parent.Sync()
 }
 
 func (s *SkillProposalService) syncSkillDir(path string) error {
