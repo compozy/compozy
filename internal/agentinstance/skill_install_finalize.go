@@ -40,14 +40,16 @@ func skillRetainedName(opID, suffix string) string {
 
 // disposeVerified removes the entry name only after moving it to the aside slot and digesting the
 // moved entry: a write that lands between a check and the removal can then never be deleted. A
-// moved entry that is not want is kept under retain and logged.
+// moved entry that is not want is kept under retain and logged. A symlink entry digests as
+// unexplained (SkillTreeDigest refuses it as unsupported), so it is always retained, moved as a link
+// and never followed.
 func disposeVerified(t *skillTarget, name, aside, want, retain string) error {
 	state, err := recoveryTreeState(t.path(name))
 	if err != nil || state == "" {
 		return err
 	}
 	if name != aside {
-		if err := moveSkillChild(t.parent, name, aside); err != nil {
+		if err := moveSkillEntry(t, name, aside); err != nil {
 			return fmt.Errorf("set aside %s for verification: %w", name, err)
 		}
 	}
@@ -58,7 +60,7 @@ func disposeVerified(t *skillTarget, name, aside, want, retain string) error {
 	if moved == want {
 		return t.parent.RemoveAll(aside)
 	}
-	if err := moveSkillChild(t.parent, aside, retain); err != nil {
+	if err := moveSkillEntry(t, aside, retain); err != nil {
 		return fmt.Errorf("retain changed skill tree %s: %w", name, err)
 	}
 	slog.Warn("skill.install.tree_retained", "skill", t.name, "slot", name, "retained", retain)

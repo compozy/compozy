@@ -229,8 +229,18 @@ func (p *skillRecoveryPolicy) restoreAsideTree(
 	if err != nil {
 		return false, dirpublish.RecoveryError("inspect skill incoming slot", err)
 	}
+	name := skillRetainedName(payload.OpID, "unverified")
 	if aside == "" || aside == payload.StagedDigest {
-		return false, nil
+		// A crash between retaining the tree and recording the conflict leaves only the retained slot;
+		// it still makes this operation a conflict, so the tree stays discoverable.
+		_, statErr := os.Lstat(p.t.path(name))
+		switch {
+		case statErr == nil:
+			return true, nil
+		case errors.Is(statErr, os.ErrNotExist):
+			return false, nil
+		}
+		return false, dirpublish.RecoveryError("inspect retained unverified skill tree", statErr)
 	}
 	target, err := recoveryTreeState(p.t.dir)
 	if err != nil {
@@ -242,7 +252,6 @@ func (p *skillRecoveryPolicy) restoreAsideTree(
 		}
 		return false, nil
 	}
-	name := skillRetainedName(payload.OpID, "unverified")
 	if err := moveSkillChild(p.t.parent, journal.IncomingName, name); err != nil {
 		return false, dirpublish.RecoveryError(fmt.Sprintf("op %s: retain the unverified skill tree at %s",
 			payload.OpID, p.t.path(journal.IncomingName)), err)

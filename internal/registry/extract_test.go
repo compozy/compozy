@@ -853,8 +853,10 @@ func TestMoveInstalledDir(t *testing.T) {
 		})
 
 		diagnostics, err := finalizeCommittedInstallPublication(root, journal)
-		if err == nil || len(diagnostics) != 1 || diagnostics[0].Operation != CleanupOperationPublication {
-			t.Fatalf("finalizeCommittedInstallPublication() = %#v, %v; want a publication diagnostic", diagnostics, err)
+		if !errors.Is(err, os.ErrPermission) || len(diagnostics) != 1 ||
+			diagnostics[0].Operation != CleanupOperationPublication {
+			t.Fatalf("finalizeCommittedInstallPublication() = %#v, %v; want the permission failure diagnostic",
+				diagnostics, err)
 		}
 		if data, err := os.ReadFile(filepath.Join(parent, journal.BackupName, "SKILL.md")); err != nil ||
 			string(data) != "old" {
