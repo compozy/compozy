@@ -198,7 +198,7 @@ func extensionInputPromptLabel(input extensionPromptInput) string {
 
 // read returns one answer. A hidden answer on a terminal file disables echo. The blocking terminal read
 // cannot be interrupted, so cancellation (Ctrl-C) restores the terminal and abandons the read; the CLI
-// exits right after and the reading goroutine ends with the process. A context already cancelled at
+// exits right after and the reading goroutine ends with the process. A context already canceled at
 // entry never starts the read, so no late echo disable can follow the restore.
 func (p *extensionInputPrompter) read(ctx context.Context, hidden bool) (string, error) {
 	readLine := func() (string, error) {

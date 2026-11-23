@@ -554,7 +554,7 @@ func TestExtensionInputPrompterReadReportsOutputFailures(t *testing.T) {
 		}
 	})
 
-	t.Run("Should not start a hidden terminal read once the prompt is cancelled", func(t *testing.T) {
+	t.Run("Should not start a hidden terminal read once the prompt is canceled", func(t *testing.T) {
 		t.Parallel()
 
 		input := openExtensionSecretTestInput(t)
@@ -573,7 +573,12 @@ func TestExtensionInputPrompterReadReportsOutputFailures(t *testing.T) {
 
 		value, err := prompter.read(ctx, true)
 		if !errors.Is(err, errExtensionInputPromptAborted) || value != "" || started.Load() {
-			t.Fatalf("read() value=%q err=%v started=%v, want abort without a terminal read", value, err, started.Load())
+			t.Fatalf(
+				"read() value=%q err=%v started=%v, want abort without a terminal read",
+				value,
+				err,
+				started.Load(),
+			)
 		}
 	})
 

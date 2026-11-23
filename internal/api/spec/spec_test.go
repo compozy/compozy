@@ -7094,7 +7094,7 @@ func addPermanentExtensionRemoveParameter(t *testing.T, baseline map[string]any)
 	}))
 }
 
-// relaxOverlappingExtensionErrorUnions turns the historical install and update error unions from
+// relaxOverlappingExtensionErrorUnions turns the historical install and update (single and batch) error unions from
 // oneOf into anyOf. ErrorPayload is open and requires only `error`, so an extension operation or
 // validation error also matches it, and oneOf would reject every documented body.
 func relaxOverlappingExtensionErrorUnions(t *testing.T, baseline map[string]any) {
@@ -7104,6 +7104,7 @@ func relaxOverlappingExtensionErrorUnions(t *testing.T, baseline map[string]any)
 		{"/api/extensions", "post", "409"},
 		{"/api/extensions", "post", "422"},
 		{"/api/extensions/{name}", "put", "422"},
+		{"/api/extensions/update", "post", "422"},
 	} {
 		operation := paths[response.path].(map[string]any)[response.method].(map[string]any)
 		status := operation["responses"].(map[string]any)[response.status].(map[string]any)
