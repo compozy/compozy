@@ -27,6 +27,7 @@ export const meta = definePrototype({
     { id: "viewer-script", label: "S9 · Reading a script" },
     { id: "viewer-hidden", label: "S9 · Text that Read doesn't show" },
     { id: "viewer-legacy", label: "S2 · No lesson recorded" },
+    { id: "viewer-evidence-unavailable", label: "S2 · Evidence session unavailable" },
     { id: "stale", label: "S9 · Changed since shown" },
     { id: "approved", label: "S9 · Approved" },
     { id: "rejected", label: "S9 · Rejected" },
@@ -57,6 +58,13 @@ export default function SkillReviewPrototype({ state }: PrototypeProps) {
       return card(skillReviewViewFixture(SKILL_REVIEW_HIDDEN_TEXT), { defaultOpen: true });
     case "viewer-legacy":
       return card(skillReviewViewFixture(SKILL_REVIEW_LEGACY), { defaultOpen: true });
+    case "viewer-evidence-unavailable":
+      return card(
+        skillReviewViewFixture(SKILL_REVIEW_PLAIN, {
+          unavailableEvidenceSessionIds: ["sess-4f1c0b2a9d3e4f51"],
+        }),
+        { defaultOpen: true }
+      );
     case "stale":
       return card(skillReviewViewFixture(SKILL_REVIEW_PLAIN, { stale: true }));
     case "approved":

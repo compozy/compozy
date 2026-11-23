@@ -3,6 +3,7 @@ package agentinstance
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,8 +94,12 @@ func TestSkillProposalLessons(t *testing.T) {
 		if len(reviews.created) != 0 {
 			t.Fatalf("refused proposal created reviews: %+v", reviews.created)
 		}
-		if entries, readErr := os.ReadDir(draftRoot); !errors.Is(readErr, os.ErrNotExist) && len(entries) != 0 {
-			t.Fatalf("refused proposal left drafts: %d %v", len(entries), readErr)
+		entries, readErr := os.ReadDir(draftRoot)
+		if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+			t.Fatalf("read draft root: %v", readErr)
+		}
+		if len(entries) != 0 {
+			t.Fatalf("refused proposal left drafts: %d", len(entries))
 		}
 		return err
 	}
@@ -229,6 +234,21 @@ func TestSkillProposalLessons(t *testing.T) {
 			if _, statErr := os.Stat(service.DraftRoot); !errors.Is(statErr, os.ErrNotExist) {
 				t.Fatalf("%s: refused proposal wrote a draft: %v", entry.name, statErr)
 			}
+		}
+	})
+	t.Run("Should count only distinct evidence sessions toward the limit of 20", func(t *testing.T) {
+		t.Parallel()
+		distinct := make([]string, 0, maxSkillEvidenceSessions+1)
+		for i := range maxSkillEvidenceSessions + 1 {
+			distinct = append(distinct, fmt.Sprintf("sess-%02d", i))
+		}
+		withDuplicates := append(append([]string{}, distinct[:maxSkillEvidenceSessions]...), distinct[0], distinct[1])
+		got, err := distinctEvidenceSessions(withDuplicates)
+		if err != nil || len(got) != maxSkillEvidenceSessions {
+			t.Fatalf("20 distinct with duplicates = %d, %v", len(got), err)
+		}
+		if _, err := distinctEvidenceSessions(distinct); !errors.Is(err, ErrSkillProposeEvidenceRequired) {
+			t.Fatalf("21 distinct = %v, want the evidence limit error", err)
 		}
 	})
 }

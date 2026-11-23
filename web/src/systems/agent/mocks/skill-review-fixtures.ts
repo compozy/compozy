@@ -133,6 +133,7 @@ export function skillReviewViewFixture(
     files,
     why: skillReviewWhy(payload),
     automatic: skillAutomaticItems(payload, files),
+    unavailableEvidenceSessionIds: [],
     state: skillReviewState(payload),
     stale: false,
     deciding: false,

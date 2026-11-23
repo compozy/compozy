@@ -18,6 +18,9 @@ import {
 } from "../lib/agent-skill-review";
 import { agentKeys } from "../lib/query-keys";
 import { agentSkillReviewOptions } from "../lib/query-options";
+import { useUnavailableEvidenceSessions } from "./use-agent-skill-evidence";
+
+const NO_EVIDENCE_SESSIONS: readonly string[] = [];
 
 /**
  * One proposed skill and the operator's decision on it (S9). `ref` is `null` until the caller
@@ -52,6 +55,9 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
       void queryClient.invalidateQueries({ queryKey: agentKeys.skillReview(ref.id, ref.profile) });
     },
   });
+  const unavailableEvidenceSessionIds = useUnavailableEvidenceSessions(
+    review?.evidence_session_ids ?? NO_EVIDENCE_SESSIONS
+  );
   const files = review ? skillReviewFiles(review) : [];
   // The daemon marks a review whose stored draft no longer verifies; it can only be rejected.
   const unreadable = review?.problem === "skill_review_invalid";
@@ -63,6 +69,8 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     files,
     why: review ? skillReviewWhy(review) : undefined,
     automatic: review ? skillAutomaticItems(review, files) : [],
+    /** Evidence sessions the daemon no longer knows: shown as unavailable, not as links. */
+    unavailableEvidenceSessionIds,
     state: review ? skillReviewState(review) : "pending",
     /** A stale refusal brought a different digest: this is the newer version. The decision waits for the reread. */
     stale: staleDigest !== null && review?.digest !== staleDigest,
