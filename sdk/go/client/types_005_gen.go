@@ -7,6 +7,34 @@ import (
 	"time"
 )
 
+// CmdPaletteUsageRequest is a daemon API value.
+type CmdPaletteUsageRequest struct {
+	Workspace string    `json:"workspace"`
+	CommandID CommandID `json:"command_id"`
+	Query     string    `json:"query"`
+}
+
+// CmdPaletteViewEnvelope is a daemon API value.
+type CmdPaletteViewEnvelope struct {
+	ProfileLens ProfileLens `json:"profile_lens"`
+	ViewID      string      `json:"view_id"`
+	Title       string      `json:"title"`
+	Kind        ViewKind    `json:"kind"`
+	Revision    string      `json:"revision"`
+	StreamEpoch string      `json:"stream_epoch"`
+	Payload     ViewPayload `json:"payload"`
+}
+
+// CmdPaletteViewPatch is a daemon API value.
+type CmdPaletteViewPatch struct {
+	Sequence    int64        `json:"sequence"`
+	StreamEpoch string       `json:"stream_epoch"`
+	Patch       *ViewPatch   `json:"patch,omitzero"`
+	Payload     *ViewPayload `json:"payload,omitzero"`
+	Revision    string       `json:"revision"`
+	Reset       bool         `json:"reset,omitzero"`
+}
+
 // CmdPaletteViewSessionAccepted is a daemon API value.
 type CmdPaletteViewSessionAccepted struct {
 	Accepted bool `json:"accepted"`
@@ -414,34 +442,4 @@ type CreateWorkspaceRequest struct {
 	Name         string   `json:"name,omitempty"`
 	AddDirs      []string `json:"add_dirs,omitempty"`
 	DefaultAgent string   `json:"default_agent,omitempty"`
-}
-
-// CreateWorktreeRequest is a daemon API value.
-type CreateWorktreeRequest struct {
-	Name           string `json:"name,omitempty"`
-	Branch         string `json:"branch,omitempty"`
-	BaseRef        string `json:"base_ref,omitempty"`
-	ExistingBranch string `json:"existing_branch,omitempty"`
-	Path           string `json:"path,omitempty"`
-}
-
-// CriterionType is a daemon API value.
-type CriterionType string
-
-// CursorPagePayload is a daemon API value.
-type CursorPagePayload struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-	Limit      int    `json:"limit"`
-}
-
-// DaemonIdentityPayload is a daemon API value.
-type DaemonIdentityPayload struct {
-	PID         int                     `json:"pid"`
-	StartedAt   time.Time               `json:"started_at"`
-	HTTPHost    string                  `json:"http_host"`
-	HTTPPort    int                     `json:"http_port"`
-	UserHomeDir string                  `json:"user_home_dir"`
-	Version     string                  `json:"version"`
-	Readiness   *DaemonReadinessPayload `json:"readiness,omitzero"`
 }

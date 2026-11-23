@@ -244,6 +244,32 @@ func (c *Client) ListAgentMemoryHistory(ctx context.Context, params ListAgentMem
 	return &out, nil
 }
 
+// ListAgentSkillInstallConflictsParams carries the path, query, and header parameters.
+type ListAgentSkillInstallConflictsParams struct {
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// ListAgentSkillInstallConflicts List skills left with two versions by an external edit (experimental)
+func (c *Client) ListAgentSkillInstallConflicts(ctx context.Context, params ListAgentSkillInstallConflictsParams) (*AgentSkillInstallConflictsResponse, error) {
+	path := "/api/agent-skill-install-conflicts"
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSkillInstallConflictsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListAgentSkillReviewsParams carries the path, query, and header parameters.
 type ListAgentSkillReviewsParams struct {
 	InstanceID *string `url:"instance_id"`
@@ -419,30 +445,4 @@ func (c *Client) ListAgentsAggregate(ctx context.Context, params ListAgentsAggre
 // ListAppTokensParams carries the path, query, and header parameters.
 type ListAppTokensParams struct {
 	State *string `url:"state"`
-}
-
-// ListAppTokens List app tokens without their bearer secrets Experimental: pin the exact SDK version.
-func (c *Client) ListAppTokens(ctx context.Context, params ListAppTokensParams) (*AppTokensResponse, error) {
-	path := "/api/app-tokens"
-	query := url.Values{}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AppTokensResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAttentionNotificationsParams carries the path, query, and header parameters.
-type ListAttentionNotificationsParams struct {
-	ReceiptProfile *string `url:"receipt_profile"`
-	Workspace      *string `url:"workspace"`
-	AllWorkspaces  *bool   `url:"all_workspaces"`
-	Profile        *string `url:"profile"`
-	AllProfiles    *bool   `url:"all_profiles"`
 }

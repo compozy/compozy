@@ -225,7 +225,8 @@ var skillReviewErrorStatuses = []struct {
 	{agentinstance.ErrSkillProposePreviouslyRejected, 409}, {agentinstance.ErrSkillProposeNameTaken, 409},
 	{ErrSkillReviewInvalidCursor, 422},
 	{agentinstance.ErrSkillReviewTargetExists, 409}, {agentinstance.ErrSkillInstallBusy, 409},
-	{agentinstance.ErrSkillInstallConflict, 409},
+	{agentinstance.ErrSkillInstallConflict, 409}, {agentinstance.ErrSkillInstallConflictNotFound, 404},
+	{agentinstance.ErrSkillInstallConflictResolving, 409},
 }
 
 // SkillReviewErrorStatus returns the stable code and HTTP status of a skill review domain error.

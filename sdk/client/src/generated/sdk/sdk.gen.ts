@@ -872,6 +872,9 @@ import type {
   ListAgentsAggregateResponses,
   ListAgentsData,
   ListAgentsErrors,
+  ListAgentSkillInstallConflictsData,
+  ListAgentSkillInstallConflictsErrors,
+  ListAgentSkillInstallConflictsResponses,
   ListAgentSkillReviewsData,
   ListAgentSkillReviewsErrors,
   ListAgentSkillReviewsResponses,
@@ -1449,6 +1452,9 @@ import type {
   ResetOnboardingData,
   ResetOnboardingErrors,
   ResetOnboardingResponses,
+  ResolveAgentSkillInstallConflictData,
+  ResolveAgentSkillInstallConflictErrors,
+  ResolveAgentSkillInstallConflictResponses,
   ResolvePendingToolApprovalData,
   ResolvePendingToolApprovalErrors,
   ResolvePendingToolApprovalResponses,
@@ -2144,6 +2150,56 @@ export class agents extends HeyApiClient {
       responseStyle: "data",
       url: "/api/agent-instances/{id}/resume",
       ...options,
+    });
+  }
+
+  /**
+   * List skills left with two versions by an external edit (experimental)
+   */
+  public listAgentSkillInstallConflicts<ThrowOnError extends boolean = true>(
+    options?: Options<ListAgentSkillInstallConflictsData, ThrowOnError>
+  ): RequestResult<
+    ListAgentSkillInstallConflictsResponses,
+    ListAgentSkillInstallConflictsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListAgentSkillInstallConflictsResponses,
+      ListAgentSkillInstallConflictsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-skill-install-conflicts",
+      ...options,
+    });
+  }
+
+  /**
+   * Keep the current or previous version of a conflicted skill as the operator (experimental)
+   */
+  public resolveAgentSkillInstallConflict<ThrowOnError extends boolean = true>(
+    options: Options<ResolveAgentSkillInstallConflictData, ThrowOnError>
+  ): RequestResult<
+    ResolveAgentSkillInstallConflictResponses,
+    ResolveAgentSkillInstallConflictErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ResolveAgentSkillInstallConflictResponses,
+      ResolveAgentSkillInstallConflictErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-skill-install-conflicts/{op_id}/resolve",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 

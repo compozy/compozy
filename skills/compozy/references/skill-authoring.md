@@ -73,7 +73,17 @@ An install interrupted by a crash is rolled back (or, after its commit point, fi
 time any daemon touches the skill or starts. If the skill directory was edited in the middle of an
 install, the daemon keeps both versions (your edit at the skill path, the original next to it) and
 refuses further approvals of that skill with `skill_install_conflict` until the operator resolves
-it. A repeated approval of an already installed review is safe, writes nothing, and retries catalog
+it. Resolution is operator only (agent credentials get `skill_review_operator_only`):
+`compozy agent skill install-conflict list` shows the open conflicts (`GET
+/api/agent-skill-install-conflicts`), and `compozy agent skill install-conflict resolve <op>
+--keep current|previous` (`POST /api/agent-skill-install-conflicts/<op>/resolve`) keeps the edited
+version and discards the original, or restores the original and moves the edited copy to
+`<skills root>/.skill-conflict-<op>/`. The choice is recorded before any file moves, so a resolution
+interrupted by a daemon stop is listed as `resolving` and finished at the next start. Repeating it
+with the same `--keep` returns `already_resolved` and publishes the catalog again; the other
+`--keep` fails with `skill_install_conflict_resolving`, and an unknown op with
+`skill_install_conflict_not_found`. A conflict resolved with `--keep current` leaves the skill
+operator-authored. A repeated approval of an already installed review is safe, writes nothing, and retries catalog
 publication after an interrupted response.
 
 The tool represents supporting files as `{path, content}`. Paths are relative; the daemon generates

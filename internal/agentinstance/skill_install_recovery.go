@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/dirpublish"
 	"github.com/compozy/compozy/internal/fileutil"
@@ -137,9 +138,11 @@ func (p *skillRecoveryPolicy) RecoverLayout(
 		return dirpublish.RecoveryError("decode skill install payload", err)
 	}
 	switch {
-	case payload.State == skillInstallStateConflict || payload.State == skillInstallStateResolving:
+	case payload.State == skillInstallStateConflict:
 		p.blocked = &payload
 		return nil
+	case payload.State == skillInstallStateResolving:
+		return p.resume(journal, payload)
 	case journal.Phase == dirpublish.PhasePublished:
 		if err := finalizeSkillOp(p.t, journal, payload); err != nil {
 			return dirpublish.RecoveryError("finalize committed skill install", err)
@@ -234,6 +237,9 @@ func (p *skillRecoveryPolicy) conflict(journal dirpublish.Journal, payload Skill
 		return dirpublish.RecoveryError("clean conflicting skill install", err)
 	}
 	payload.State = skillInstallStateConflict
+	if payload.ConflictAt.IsZero() {
+		payload.ConflictAt = time.Now().UTC()
+	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return err

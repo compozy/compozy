@@ -57,6 +57,9 @@ type SkillInstallPayload struct {
 	OriginalCopyName string `json:"original_copy_name,omitempty"`
 	Keep             string `json:"keep,omitempty"`           // resolving only: current | previous
 	KeepCopyName     string `json:"keep_copy_name,omitempty"` // resolving only: ".skill-conflict-<op-id>"
+	// ConflictAt is when the conflict was first retained; ResolvedBy the operator resolving it.
+	ConflictAt time.Time `json:"conflict_at,omitzero"`
+	ResolvedBy string    `json:"resolved_by,omitempty"`
 }
 
 func decodeSkillInstallPayload(data []byte) (SkillInstallPayload, error) {

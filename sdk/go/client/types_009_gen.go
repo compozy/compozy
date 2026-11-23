@@ -2,10 +2,38 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// GoalTurnPage is a daemon API value.
+type GoalTurnPage struct {
+	Turns        []GoalTurn `json:"turns"`
+	NextAfterSeq *int64     `json:"next_after_seq"`
+}
+
+// GoalTurnResultStatus is a daemon API value.
+type GoalTurnResultStatus string
+
+// GoalVerdictOutcome is a daemon API value.
+type GoalVerdictOutcome string
+
+// GoalVerdictSummary is a daemon API value.
+type GoalVerdictSummary struct {
+	Outcome        GoalVerdictOutcome  `json:"outcome"`
+	BlockingIssues []GoalBlockingIssue `json:"blocking_issues"`
+	EvidenceRef    *string             `json:"evidence_ref"`
+	EvaluatedAt    time.Time           `json:"evaluated_at"`
+}
+
+// Graph is a daemon API value.
+type Graph struct {
+	Nodes []Node `json:"nodes"`
+	Edges []Edge `json:"edges"`
+}
+
+// GridBody is a daemon API value.
+type GridBody struct {
+	Sections []GridSection `json:"sections"`
+}
 
 // GridSection is a daemon API value.
 type GridSection struct {
@@ -404,47 +432,3 @@ type HookEventsResponse struct {
 
 // HookExecutorKind is a daemon API value.
 type HookExecutorKind string
-
-// HookMatcher is a daemon API value.
-type HookMatcher struct {
-	AgentName        string           `json:"agent_name,omitempty"`
-	AgentType        string           `json:"agent_type,omitempty"`
-	WorkspaceID      string           `json:"workspace_id,omitempty"`
-	WorktreeID       string           `json:"worktree_id,omitempty"`
-	WorkspaceRoot    string           `json:"workspace_root,omitempty"`
-	SessionType      string           `json:"session_type,omitempty"`
-	InputClass       string           `json:"input_class,omitempty"`
-	ACPEventType     string           `json:"acp_event_type,omitempty"`
-	TurnID           string           `json:"turn_id,omitempty"`
-	ToolID           string           `json:"tool_id,omitempty"`
-	ToolName         string           `json:"tool_name,omitempty"`
-	ToolReadOnly     *bool            `json:"tool_read_only,omitempty"`
-	DecisionClass    string           `json:"decision_class,omitempty"`
-	MessageRole      string           `json:"message_role,omitempty"`
-	MessageDeltaType string           `json:"message_delta_type,omitempty"`
-	Trigger          string           `json:"compaction_trigger,omitempty"`
-	Autonomy         *AutonomyMatcher `json:"autonomy,omitempty"`
-}
-
-// HookMode is a daemon API value.
-type HookMode string
-
-// HookRunPayload is a daemon API value.
-type HookRunPayload struct {
-	HookName      string          `json:"hook_name"`
-	Event         string          `json:"event"`
-	Source        string          `json:"source"`
-	Mode          string          `json:"mode"`
-	DurationMS    int64           `json:"duration_ms"`
-	Outcome       string          `json:"outcome"`
-	DispatchDepth int             `json:"dispatch_depth"`
-	PatchApplied  json.RawMessage `json:"patch_applied,omitempty"`
-	Error         string          `json:"error,omitempty"`
-	Required      bool            `json:"required,omitzero"`
-	RecordedAt    time.Time       `json:"recorded_at"`
-}
-
-// HookRunsResponse is a daemon API value.
-type HookRunsResponse struct {
-	Runs []HookRunPayload `json:"runs"`
-}

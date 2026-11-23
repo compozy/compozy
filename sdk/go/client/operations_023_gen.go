@@ -9,6 +9,36 @@ import (
 	"strings"
 )
 
+// ListSessionClarifications List the live pending clarification for a session
+func (c *Client) ListSessionClarifications(ctx context.Context, params ListSessionClarificationsParams) (*ClarificationsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ClarificationsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionDescendantsParams carries the path, query, and header parameters.
+type ListSessionDescendantsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ListSessionDescendants List a session's child sessions, recursively
 func (c *Client) ListSessionDescendants(ctx context.Context, params ListSessionDescendantsParams) (*SessionsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/descendants"
@@ -389,42 +419,6 @@ type ListSessionPendingInteractionsParams struct {
 	SessionID   string  `url:"session_id"`
 	Descendants *bool   `url:"descendants"`
 	Status      *string `url:"status"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListSessionPendingInteractions List pending session interactions
-func (c *Client) ListSessionPendingInteractions(ctx context.Context, params ListSessionPendingInteractionsParams) (*SessionInteractionsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Descendants != nil {
-		query.Set("descendants", strconv.FormatBool(*params.Descendants))
-	}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionInteractionsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionProcessesParams carries the path, query, and header parameters.
-type ListSessionProcessesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }

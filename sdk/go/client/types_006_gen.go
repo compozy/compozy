@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+// CreateWorktreeRequest is a daemon API value.
+type CreateWorktreeRequest struct {
+	Name           string `json:"name,omitempty"`
+	Branch         string `json:"branch,omitempty"`
+	BaseRef        string `json:"base_ref,omitempty"`
+	ExistingBranch string `json:"existing_branch,omitempty"`
+	Path           string `json:"path,omitempty"`
+}
+
+// CriterionType is a daemon API value.
+type CriterionType string
+
+// CursorPagePayload is a daemon API value.
+type CursorPagePayload struct {
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore    bool   `json:"has_more"`
+	Limit      int    `json:"limit"`
+}
+
+// DaemonIdentityPayload is a daemon API value.
+type DaemonIdentityPayload struct {
+	PID         int                     `json:"pid"`
+	StartedAt   time.Time               `json:"started_at"`
+	HTTPHost    string                  `json:"http_host"`
+	HTTPPort    int                     `json:"http_port"`
+	UserHomeDir string                  `json:"user_home_dir"`
+	Version     string                  `json:"version"`
+	Readiness   *DaemonReadinessPayload `json:"readiness,omitzero"`
+}
+
 // DaemonReadinessPayload is a daemon API value.
 type DaemonReadinessPayload struct {
 	Phase DaemonReadinessPhase `json:"phase"`
@@ -413,38 +443,4 @@ type ExtensionEnablePreviewPayload struct {
 type ExtensionEnablementPayload struct {
 	Profile string `json:"profile"`
 	Enabled bool   `json:"enabled"`
-}
-
-// ExtensionInputStatePayload is a daemon API value.
-type ExtensionInputStatePayload struct {
-	ID     string `json:"id"`
-	Type   string `json:"type"`
-	Set    bool   `json:"set"`
-	Active bool   `json:"active"`
-}
-
-// ExtensionInstallDeclaredProfilePayload is a daemon API value.
-type ExtensionInstallDeclaredProfilePayload struct {
-	Name        string                         `json:"name"`
-	Create      bool                           `json:"create"`
-	Credentials []ProfileCredentialRequirement `json:"credentials,omitempty"`
-}
-
-// ExtensionInstallPreviewPayload is a daemon API value.
-type ExtensionInstallPreviewPayload struct {
-	DigestSHA256             string                                   `json:"digest_sha256,omitempty"`
-	Inputs                   []MarketplaceInputPayload                `json:"inputs"`
-	Name                     string                                   `json:"name"`
-	DeclaredProfiles         []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
-	Placements               []ExtensionPlacementPayload              `json:"placements"`
-	GatewayRequirementDigest string                                   `json:"gateway_requirement_digest,omitempty"`
-}
-
-// ExtensionInventoryPayload is a daemon API value.
-type ExtensionInventoryPayload struct {
-	Extension   string                    `json:"extension"`
-	Format      string                    `json:"format"`
-	Enabled     bool                      `json:"enabled"`
-	Items       []ExtensionKitItemPayload `json:"items"`
-	Diagnostics []DiagnosticItem          `json:"diagnostics,omitempty"`
 }

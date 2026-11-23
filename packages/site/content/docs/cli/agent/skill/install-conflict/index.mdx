@@ -1,0 +1,40 @@
+---
+title: "compozy agent skill install-conflict"
+description: "Resolve skills changed while the daemon was replacing them (operator only)"
+---
+
+## compozy agent skill install-conflict
+
+Resolve skills changed while the daemon was replacing them (operator only)
+
+### Options
+
+```
+  -h, --help   help for install-conflict
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                                                        | Description                                                    |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| [compozy agent skill install-conflict list](/docs/cli/agent/skill/install-conflict/list)       | List skills with an unresolved install conflict                |
+| [compozy agent skill install-conflict resolve](/docs/cli/agent/skill/install-conflict/resolve) | Keep the current or the previous version of a conflicted skill |

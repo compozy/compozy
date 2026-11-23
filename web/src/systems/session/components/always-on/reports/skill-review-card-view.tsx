@@ -117,6 +117,7 @@ export function SkillReviewCardView({
       deciding={view.deciding}
       approveDisabled={view.invalid}
       error={view.decideError?.message}
+      installConflictOp={view.installConflictOp}
       evidenceSessionIds={review.evidence_session_ids}
       files={view.files}
       lesson={review.lesson}

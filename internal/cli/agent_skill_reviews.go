@@ -47,7 +47,7 @@ func (c *daemonClient) DecideAgentSkillReview(
 func newAgentSkillCommand(deps commandDeps) *cobra.Command {
 	root := &cobra.Command{Use: "skill", Short: "Manage proposed agent skills (experimental)"}
 	review := &cobra.Command{Use: "review", Short: "Review proposed skill contents before activation"}
-	root.AddCommand(review)
+	root.AddCommand(review, newAgentSkillInstallConflictCommand(deps))
 	for _, action := range []string{agentListKey, configShowKey, loopApproveKey, "reject"} {
 		review.AddCommand(newAgentSkillReviewAction(deps, action))
 	}

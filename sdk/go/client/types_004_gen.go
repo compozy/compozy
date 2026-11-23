@@ -7,6 +7,34 @@ import (
 	"time"
 )
 
+// AutomationResourceStatusPayload is a daemon API value.
+type AutomationResourceStatusPayload struct {
+	Total   int `json:"total"`
+	Enabled int `json:"enabled"`
+}
+
+// AutomationSchedulerStatePayload is a daemon API value.
+type AutomationSchedulerStatePayload struct {
+	JobID                     string                 `json:"job_id"`
+	Registered                bool                   `json:"registered"`
+	NextRunAt                 *time.Time             `json:"next_run_at,omitempty"`
+	LastRunAt                 *time.Time             `json:"last_run_at,omitempty"`
+	LastScheduledAt           *time.Time             `json:"last_scheduled_at,omitempty"`
+	LastFireID                string                 `json:"last_fire_id,omitempty"`
+	CatchUpPolicy             SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
+	MisfireGraceSeconds       int                    `json:"misfire_grace_seconds,omitzero"`
+	ConsecutiveResumeFailures int                    `json:"consecutive_resume_failures,omitzero"`
+	LastMisfireAt             *time.Time             `json:"last_misfire_at,omitempty"`
+	MisfireCount              int                    `json:"misfire_count,omitzero"`
+	UpdatedAt                 *time.Time             `json:"updated_at,omitempty"`
+}
+
+// AutomationSuggestionAcceptanceResponse is a daemon API value.
+type AutomationSuggestionAcceptanceResponse struct {
+	Suggestion AutomationSuggestionPayload `json:"suggestion"`
+	Job        JobPayload                  `json:"job"`
+}
+
 // AutomationSuggestionPayload is a daemon API value.
 type AutomationSuggestionPayload struct {
 	ID          string           `json:"id"`
@@ -418,32 +446,4 @@ type CmdPaletteRankSignalsResponse struct {
 	QueryHits   []QueryHit    `json:"query_hits"`
 	Pins        []CommandID   `json:"pins"`
 	Revision    string        `json:"revision"`
-}
-
-// CmdPaletteUsageRequest is a daemon API value.
-type CmdPaletteUsageRequest struct {
-	Workspace string    `json:"workspace"`
-	CommandID CommandID `json:"command_id"`
-	Query     string    `json:"query"`
-}
-
-// CmdPaletteViewEnvelope is a daemon API value.
-type CmdPaletteViewEnvelope struct {
-	ProfileLens ProfileLens `json:"profile_lens"`
-	ViewID      string      `json:"view_id"`
-	Title       string      `json:"title"`
-	Kind        ViewKind    `json:"kind"`
-	Revision    string      `json:"revision"`
-	StreamEpoch string      `json:"stream_epoch"`
-	Payload     ViewPayload `json:"payload"`
-}
-
-// CmdPaletteViewPatch is a daemon API value.
-type CmdPaletteViewPatch struct {
-	Sequence    int64        `json:"sequence"`
-	StreamEpoch string       `json:"stream_epoch"`
-	Patch       *ViewPatch   `json:"patch,omitzero"`
-	Payload     *ViewPayload `json:"payload,omitzero"`
-	Revision    string       `json:"revision"`
-	Reset       bool         `json:"reset,omitzero"`
 }

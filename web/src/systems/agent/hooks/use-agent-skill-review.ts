@@ -7,6 +7,7 @@ import {
   decideAgentSkillReview,
   isSkillReviewInvalid,
   isSkillReviewStale,
+  skillInstallConflictOp,
   type AgentSkillReviewDecision,
   type AgentSkillReviewRef,
 } from "../adapters/agent-skill-review-api";
@@ -25,7 +26,8 @@ import { agentSkillReviewOptions } from "../lib/query-options";
  * A decision names the digest that was read; when the agent changed the contents since, the daemon
  * refuses with `skill_review_stale` and the review rereads. The decision waits for the reread, and
  * only a different digest is called the latest version. A draft CompozyOS can't install
- * (`skill_review_invalid`) keeps Approve off and Reject available.
+ * (`skill_review_invalid`) keeps Approve off and Reject available. A skill left with two versions
+ * (`skill_install_conflict`) names the operation to resolve.
  */
 export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
   const queryClient = useQueryClient();
@@ -56,6 +58,7 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
   // The daemon marks a review whose stored draft no longer verifies; it can only be rejected.
   const unreadable = review?.problem === "skill_review_invalid";
   const invalid = unreadable || isSkillReviewInvalid(mutation.error);
+  const installConflictOp = skillInstallConflictOp(mutation.error);
   return {
     review,
     loading: ref === null || (query.isPending && Boolean(ref.id)),
@@ -71,11 +74,13 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     invalid,
     /** CompozyOS can't read the draft at all: there is nothing to show, only Reject. */
     unreadable,
+    /** The skill changed while it was being replaced; the operator resolves this op from the CLI. */
+    installConflictOp,
     decideError: isSkillReviewInvalid(mutation.error)
       ? new Error(
           "CompozyOS can't install this version. Reject it, or wait for the agent to propose it again."
         )
-      : mutation.error && !isSkillReviewStale(mutation.error)
+      : mutation.error && !isSkillReviewStale(mutation.error) && installConflictOp === null
         ? mutation.error
         : null,
     decide: (decision: AgentSkillReviewDecision) => {

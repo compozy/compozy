@@ -9,6 +9,31 @@ import (
 	"strings"
 )
 
+// RenameSessionFolder Rename a session folder
+func (c *Client) RenameSessionFolder(ctx context.Context, params RenameSessionFolderParams, body RenameSessionFolderRequest) (*SessionFolderResponse, error) {
+	path := "/api/workspaces/{workspace_id}/session-folders/{folder_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionFolderResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RenameWorkspaceFolderParams carries the path, query, and header parameters.
+type RenameWorkspaceFolderParams struct {
+	FolderID string  `url:"folder_id"`
+	Profile  *string `url:"profile"`
+}
+
 // RenameWorkspaceFolder Rename a workspace folder
 func (c *Client) RenameWorkspaceFolder(ctx context.Context, params RenameWorkspaceFolderParams, body RenameWorkspaceFolderRequest) (*WorkspaceFolderResponse, error) {
 	path := "/api/workspace-folders/{folder_id}"
@@ -345,6 +370,34 @@ func (c *Client) ResetOnboarding(ctx context.Context) (*OnboardingStatusResponse
 	return &out, nil
 }
 
+// ResolveAgentSkillInstallConflictParams carries the path, query, and header parameters.
+type ResolveAgentSkillInstallConflictParams struct {
+	OpID      string  `url:"op_id"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// ResolveAgentSkillInstallConflict Keep the current or previous version of a conflicted skill as the operator (experimental)
+func (c *Client) ResolveAgentSkillInstallConflict(ctx context.Context, params ResolveAgentSkillInstallConflictParams, body AgentSkillInstallConflictResolveRequest) (*AgentSkillInstallConflictResolveResponse, error) {
+	path := "/api/agent-skill-install-conflicts/{op_id}/resolve"
+	path = strings.ReplaceAll(path, "{op_id}", url.PathEscape(params.OpID))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSkillInstallConflictResolveResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ResolvePendingToolApprovalParams carries the path, query, and header parameters.
 type ResolvePendingToolApprovalParams struct {
 	ID      string  `url:"id"`
@@ -385,64 +438,4 @@ type RespondLoopRequestParams struct {
 	RunID       string  `url:"run_id"`
 	NodeID      string  `url:"node_id"`
 	Profile     *string `url:"profile"`
-}
-
-// RespondLoopRequest Answer one Loop human request
-func (c *Client) RespondLoopRequest(ctx context.Context, params RespondLoopRequestParams, body RespondLoopRequest) (*RespondLoopRequestResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/respond"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	path = strings.ReplaceAll(path, "{node_id}", url.PathEscape(params.NodeID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RespondLoopRequestResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RestoreExtensionParams carries the path, query, and header parameters.
-type RestoreExtensionParams struct {
-	Name string `url:"name"`
-}
-
-// RestoreExtension Restore one permanently removed built-in extension
-func (c *Client) RestoreExtension(ctx context.Context, params RestoreExtensionParams) (*ExtensionRestorePayload, error) {
-	path := "/api/extensions/{name}/restore"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out ExtensionRestorePayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResumeAgentInstanceParams carries the path, query, and header parameters.
-type ResumeAgentInstanceParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ResumeAgentInstance Resume an agent instance
-func (c *Client) ResumeAgentInstance(ctx context.Context, params ResumeAgentInstanceParams) (*AgentInstanceResponse, error) {
-	path := "/api/agent-instances/{id}/resume"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

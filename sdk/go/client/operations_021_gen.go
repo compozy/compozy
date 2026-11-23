@@ -9,6 +9,51 @@ import (
 	"strings"
 )
 
+// ListLoopNodes List workspace Loop node state
+func (c *Client) ListLoopNodes(ctx context.Context, params ListLoopNodesParams) (*LoopNodeInventoryResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loop-nodes"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	query.Set("state", params.State)
+	if params.Loop != nil {
+		query.Set("loop", *params.Loop)
+	}
+	if params.RunID != nil {
+		query.Set("run_id", *params.RunID)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopNodeInventoryResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListLoopRequestsParams carries the path, query, and header parameters.
+type ListLoopRequestsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       *string `url:"run_id"`
+	State       *string `url:"state"`
+	Cursor      *string `url:"cursor"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ListLoopRequests List Loop human requests
 func (c *Client) ListLoopRequests(ctx context.Context, params ListLoopRequestsParams) (*LoopRequestsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loop-requests"
@@ -397,30 +442,4 @@ func (c *Client) ListMarketplaceSources(ctx context.Context) (*MarketplaceSource
 // ListOpenAIModelsParams carries the path, query, and header parameters.
 type ListOpenAIModelsParams struct {
 	ProviderID *string `url:"provider_id"`
-}
-
-// ListOpenAIModels List provider models using the OpenAI-compatible model shape
-func (c *Client) ListOpenAIModels(ctx context.Context, params ListOpenAIModelsParams) (*OpenAIModelListResponse, error) {
-	path := "/api/openai/v1/models"
-	query := url.Values{}
-	if params.ProviderID != nil {
-		query.Set("provider_id", *params.ProviderID)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out OpenAIModelListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListPermissionEntriesParams carries the path, query, and header parameters.
-type ListPermissionEntriesParams struct {
-	Days        *string `url:"days"`
-	Agent       *string `url:"agent"`
-	Unattended  *bool   `url:"unattended"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

@@ -7,6 +7,42 @@ import (
 	"time"
 )
 
+// ProfileRemovalSummary is a daemon API value.
+type ProfileRemovalSummary struct {
+	AgentInstances      int `json:"agent_instances"`
+	AgentMemoryFiles    int `json:"agent_memory_files"`
+	Agents              int `json:"agents"`
+	Skills              int `json:"skills"`
+	Loops               int `json:"loops"`
+	MCPServers          int `json:"mcp_servers"`
+	ConfigKeys          int `json:"config_keys"`
+	CredentialOverrides int `json:"credential_overrides"`
+	DesktopPartitions   int `json:"desktop_partitions"`
+	PaletteUsage        int `json:"palette_usage"`
+	PaletteQueryHits    int `json:"palette_query_hits"`
+	PalettePins         int `json:"palette_pins"`
+	TerminalApprovals   int `json:"terminal_approvals"`
+	EventSummaries      int `json:"event_summaries"`
+}
+
+// ProfileRepoRenameOutcome is a daemon API value.
+type ProfileRepoRenameOutcome struct {
+	WorkspaceID string `json:"workspace_id"`
+	Renamed     bool   `json:"renamed"`
+	Reason      string `json:"reason,omitempty"`
+}
+
+// ProfileSelection is a daemon API value.
+type ProfileSelection struct {
+	Scope       ProfileSelectionScope `json:"scope"`
+	WorkspaceID string                `json:"workspace_id,omitempty"`
+	Profile     string                `json:"profile"`
+	Note        string                `json:"note,omitempty"`
+}
+
+// ProfileSelectionScope is a daemon API value.
+type ProfileSelectionScope string
+
 // PromoteSessionInputRequest is a daemon API value.
 type PromoteSessionInputRequest struct {
 	Text           string `json:"text"`
@@ -408,42 +444,4 @@ type PutSettingsProviderRequest struct {
 	Settings      SettingsProviderWritePayload         `json:"settings"`
 	ModelCuration *ProviderModelCurationRequest        `json:"model_curation,omitzero"`
 	Secrets       []SettingsProviderSecretWritePayload `json:"secrets,omitempty"`
-}
-
-// PutVaultSecretRequest is a daemon API value.
-type PutVaultSecretRequest struct {
-	Ref         string `json:"ref"`
-	Kind        string `json:"kind,omitempty"`
-	SecretValue string `json:"secret_value"`
-}
-
-// QueryHit is a daemon API value.
-type QueryHit struct {
-	Query     string    `json:"query"`
-	CommandID CommandID `json:"command_id"`
-	Weight    float64   `json:"weight"`
-}
-
-// QuietWarning is a daemon API value.
-type QuietWarning struct {
-	QuietSince time.Time  `json:"quiet_since"`
-	WarnedAt   time.Time  `json:"warned_at"`
-	StopAt     *time.Time `json:"stop_at"`
-}
-
-// ReasonCode is a daemon API value.
-type ReasonCode string
-
-// ReasoningSource is a daemon API value.
-type ReasoningSource string
-
-// RecapPayload is a daemon API value.
-type RecapPayload struct {
-	Session        SessionPayload            `json:"session"`
-	ActiveRun      *TaskRunPayload           `json:"active_run,omitzero"`
-	RecentMarkers  []TranscriptMarkerPayload `json:"recent_markers"`
-	RecentMessages []UIMessage               `json:"recent_messages"`
-	PendingInputs  int                       `json:"pending_inputs"`
-	PendingMarkers int                       `json:"pending_markers"`
-	Snapshot       RecapSnapshotPayload      `json:"snapshot"`
 }
