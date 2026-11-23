@@ -1,6 +1,6 @@
 # Remote Computers
 
-## Compozy Cloud
+## Cloud service
 
 `https://cloud.compozy.com` serves the Remote Computers control plane. Agent sessions and their data stay on their computers.
 
