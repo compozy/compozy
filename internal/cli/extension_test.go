@@ -2193,6 +2193,29 @@ func TestExtensionSetupCommand(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the instance selectors in the secrets set hint", func(t *testing.T) {
+		t.Parallel()
+		state := defaultState()
+		state.MissingEnv = []string{"LEGACY_KEY"}
+		workspace := state
+		workspace.WorkspaceID = "ws-alpha"
+		got := run(t, workspace, false, "", "--workspace", "alpha")
+		want := "Set them with: compozy extension secrets set acme-tool --workspace ws-alpha --env <KEY>"
+		if !strings.Contains(got.stdout, want) {
+			t.Fatalf("workspace setup output = %q, want %q", got.stdout, want)
+		}
+		rendered := renderExtensionSetupHuman(workspace, false, "dev")
+		want = "Set them with: compozy extension secrets set acme-tool --workspace ws-alpha --profile dev --env <KEY>"
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("profile setup output = %q, want %q", rendered, want)
+		}
+		got = run(t, state, false, "", "--scope", "global")
+		want = "Set them with: compozy extension secrets set acme-tool --env <KEY>"
+		if !strings.Contains(got.stdout, want) {
+			t.Fatalf("global setup output = %q, want %q without selectors", got.stdout, want)
+		}
+	})
+
 	t.Run("Should say an MCP-only daemon_env value is stored for the MCP server [F-5]", func(t *testing.T) {
 		t.Parallel()
 		state := defaultState()
