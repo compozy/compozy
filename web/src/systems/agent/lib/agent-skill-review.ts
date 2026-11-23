@@ -203,3 +203,15 @@ export function skillReviewState(review: AgentSkillReviewPayload): AgentSkillRev
     ? review.state
     : "pending";
 }
+
+const REVERT_REFUSED: Record<string, string> = {
+  superseded: "A newer change to this skill exists. Revert that one first.",
+  changed_on_disk: "This skill changed after it was approved. Edit it directly instead.",
+  legacy: "This skill was approved before reverts were recorded, so it can't be reverted.",
+  target_unavailable: "The previous version of this skill can't be read, so it can't be reverted.",
+};
+
+/** Product copy for a refused revert, by the daemon's `reason`; never the raw code. */
+export function skillRevertRefusedMessage(reason: string) {
+  return REVERT_REFUSED[reason] ?? "This change can't be reverted now.";
+}

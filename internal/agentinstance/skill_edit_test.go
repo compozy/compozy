@@ -52,6 +52,32 @@ func (f *skillTxFixture) mustProposeEdit(t *testing.T, svc *SkillProposalService
 	return result.Review
 }
 
+// linkSkillOutside moves the installed skill name to a directory outside the target root and leaves
+// a symlink to it at the skill path. It returns the outside directory.
+func (f *skillTxFixture) linkSkillOutside(t *testing.T, name string) string {
+	t.Helper()
+	outside := filepath.Join(t.TempDir(), name)
+	if err := os.Rename(filepath.Join(f.root, name), outside); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(f.root, name)); err != nil {
+		t.Fatal(err)
+	}
+	return outside
+}
+
+// requireLinkedOutside checks that the skill path is still the symlink and its target is untouched.
+func (f *skillTxFixture) requireLinkedOutside(t *testing.T, name, outside string) {
+	t.Helper()
+	if target, err := os.Readlink(filepath.Join(f.root, name)); err != nil || target != outside {
+		t.Fatalf("skill link = %q, %v; want %q", target, err, outside)
+	}
+	data, mode := readSkillFileMode(t, filepath.Join(outside, "scripts", "check.sh"))
+	if string(data) != skillEditBase[1].content || mode != skillEditBase[1].mode {
+		t.Fatalf("outside directory changed: %q %o", data, mode)
+	}
+}
+
 func requireNoReviews(t *testing.T, svc *SkillProposalService) {
 	t.Helper()
 	if reviews := skillStore(svc).reviews; len(reviews) != 0 {
@@ -152,6 +178,18 @@ func TestSkillEditProposals(t *testing.T) {
 		}
 		requireNoReviews(t, svc)
 
+		// The whole skill directory is a symlink to a directory outside the target root.
+		linked := newSkillTxFixture(t)
+		linked.install(t, skillEditName, skillEditBase...)
+		outside := linked.linkSkillOutside(t, skillEditName)
+		linkedSvc := linked.service(t, "home-a", nil)
+		if _, err := linked.proposeEdit(t, linkedSvc, "Changed.\n", nil); !errors.Is(err,
+			ErrSkillReviewBaseUnsupported) {
+			t.Fatalf("symlinked skill directory: Propose() = %v, want skill_review_base_unsupported", err)
+		}
+		requireNoReviews(t, linkedSvc)
+		linked.requireLinkedOutside(t, skillEditName, outside)
+
 		many := newSkillTxFixture(t)
 		files := append([]skillTestFile{}, skillEditBase...)
 		for i := range maxSkillBaseFiles {
@@ -164,6 +202,30 @@ func TestSkillEditProposals(t *testing.T) {
 		manySvc := many.service(t, "home-a", nil)
 		if _, err := many.proposeEdit(t, manySvc, "Changed.\n", nil); !errors.Is(err, ErrSkillReviewBaseUnsupported) {
 			t.Fatalf("too many files: Propose() = %v", err)
+		}
+	})
+
+	t.Run("Should refuse agent-reachable overlay inputs with skill_review_invalid [UT-015]", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name   string
+			mutate func(*SkillProposalInput)
+		}{
+			{"case-only collision", func(input *SkillProposalInput) {
+				input.Files = []SkillDraftFile{{Path: "Scripts/check.sh", Content: "echo other\n"}}
+			}},
+			{"file over a base directory", func(input *SkillProposalInput) {
+				input.Files = []SkillDraftFile{{Path: "scripts", Content: "not a directory\n"}}
+			}},
+			{"unknown mode", func(input *SkillProposalInput) { input.Mode = "replace" }},
+		} {
+			f := newSkillTxFixture(t)
+			f.install(t, skillEditName, skillEditBase...)
+			svc := f.service(t, "home-a", nil)
+			if _, err := f.proposeEdit(t, svc, "Changed.\n", tc.mutate); !errors.Is(err, ErrSkillReviewInvalid) {
+				t.Fatalf("%s: Propose() = %v, want skill_review_invalid", tc.name, err)
+			}
+			requireNoReviews(t, svc)
 		}
 	})
 

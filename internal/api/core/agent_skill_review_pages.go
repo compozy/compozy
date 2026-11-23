@@ -160,6 +160,10 @@ func addSkillReviewFiles(result *contract.AgentSkillReviewPayload, contents agen
 	for _, change := range contents.Changes {
 		result.Changes = append(result.Changes, contract.AgentSkillFileChange{Path: change.Path, Change: change.Change})
 	}
+	if contents.SnapshotProblem != nil {
+		// The edit's base cannot be shown: present and empty, next to problem skill_review_snapshot_invalid.
+		result.BaseFiles = []contract.AgentSkillBaseFile{}
+	}
 	for _, file := range contents.Base {
 		item := contract.AgentSkillBaseFile{Path: file.Path}
 		if utf8.Valid(file.Data) {

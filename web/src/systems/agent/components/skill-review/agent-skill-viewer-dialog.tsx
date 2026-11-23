@@ -76,6 +76,21 @@ function InvisibleCharactersNotice() {
   );
 }
 
+/** Approve or Revert refused because the skill changed while it was being replaced: the op to resolve. */
+export function SkillInstallConflictAlert({ op }: { op: string }) {
+  return (
+    <Alert data-testid="skill-review-install-conflict" variant="warning">
+      <AlertDescription>
+        This skill changed while it was being replaced. Resolve it with{" "}
+        <code className="font-mono">
+          compozy agent skill install-conflict resolve {op || "<op>"}
+        </code>
+        .
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 /** An installed file that isn't text: name and size only. */
 function BinaryFileView({ file }: { file: SkillReviewFile }) {
   return (
@@ -91,16 +106,40 @@ function BinaryFileView({ file }: { file: SkillReviewFile }) {
   );
 }
 
+/** The body of a text file in the chosen mode: the diff of an edit, rendered Markdown, or source. */
+function FileBody({
+  file,
+  mode,
+  read,
+}: {
+  file: SkillReviewFile;
+  mode: ReadMode;
+  read: ReturnType<typeof skillMarkdownRead> | null;
+}) {
+  if (mode === "diff") {
+    return (
+      <ToolDiffBody
+        lines={alignLines(splitLines(file.baseBody ?? ""), splitLines(file.body))}
+        path={file.path}
+        testId="skill-review-diff"
+      />
+    );
+  }
+  if (read && mode === "read") return <Markdown>{read.text}</Markdown>;
+  return <CodeBlock code={file.body} language={file.language} />;
+}
+
 function FileView({ file }: { file: SkillReviewFile }) {
-  const changed = file.baseBody !== undefined;
-  const [mode, setMode] = useState<ReadMode>(changed ? "diff" : "read");
+  // Only the operator's choice is state; the default mode follows the file (the first one offered).
+  const [chosen, setChosen] = useState<ReadMode | null>(null);
   if (file.binarySize !== undefined) return <BinaryFileView file={file} />;
   const markdown = file.language === "markdown";
   const modes: ReadMode[] = [
-    ...(changed ? (["diff"] as const) : []),
+    ...(file.baseBody !== undefined ? (["diff"] as const) : []),
     ...(markdown ? (["read"] as const) : []),
     "source",
   ];
+  const mode = chosen !== null && modes.includes(chosen) ? chosen : (modes[0] ?? "source");
   const read = markdown ? skillMarkdownRead(file.body) : null;
   const readHides = read?.hidesText === true && mode === "read";
   const invisible = !readHides && hasInvisibleCharacters(file.body);
@@ -118,7 +157,7 @@ function FileView({ file }: { file: SkillReviewFile }) {
             Runs automatically
           </Pill>
         ) : null}
-        {modes.length > 1 ? <ReadToggle mode={mode} modes={modes} onMode={setMode} /> : null}
+        {modes.length > 1 ? <ReadToggle mode={mode} modes={modes} onMode={setChosen} /> : null}
       </div>
       {invisible ? <InvisibleCharactersNotice /> : null}
       {readHides ? (
@@ -127,7 +166,7 @@ function FileView({ file }: { file: SkillReviewFile }) {
             This file has text that doesn't show here.{" "}
             <button
               className="rounded-xs underline outline-none focus-visible:shadow-focus-ring"
-              onClick={() => setMode("source")}
+              onClick={() => setChosen("source")}
               type="button"
             >
               Read the source
@@ -136,17 +175,7 @@ function FileView({ file }: { file: SkillReviewFile }) {
           </AlertDescription>
         </Alert>
       ) : null}
-      {mode === "diff" ? (
-        <ToolDiffBody
-          lines={alignLines(splitLines(file.baseBody ?? ""), splitLines(file.body))}
-          path={file.path}
-          testId="skill-review-diff"
-        />
-      ) : read && mode === "read" ? (
-        <Markdown>{read.text}</Markdown>
-      ) : (
-        <CodeBlock code={file.body} language={file.language} />
-      )}
+      <FileBody file={file} mode={mode} read={read} />
     </div>
   );
 }
@@ -242,15 +271,7 @@ export function AgentSkillViewerDialog({
               </Alert>
             ) : null}
             {installConflictOp !== null ? (
-              <Alert data-testid="skill-review-install-conflict" variant="warning">
-                <AlertDescription>
-                  This skill changed while it was being replaced. Resolve it with{" "}
-                  <code className="font-mono">
-                    compozy agent skill install-conflict resolve {installConflictOp || "<op>"}
-                  </code>
-                  .
-                </AlertDescription>
-              </Alert>
+              <SkillInstallConflictAlert op={installConflictOp} />
             ) : null}
             {error ? (
               <Alert variant="destructive">

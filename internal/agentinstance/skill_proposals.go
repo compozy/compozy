@@ -151,7 +151,8 @@ func prepareProposalDraft(input SkillProposalInput) (SkillDraft, error) {
 	switch input.Mode {
 	case "", SkillProposalNew, SkillProposalEdit:
 	default:
-		return SkillDraft{}, fmt.Errorf("skill proposal mode %q must be new or edit", input.Mode)
+		return SkillDraft{}, fmt.Errorf("%w: skill proposal mode %q must be new or edit",
+			ErrSkillReviewInvalid, input.Mode)
 	}
 	removals, err := prepareSkillRemovePaths(input.Mode, input.RemovePaths, input.Files)
 	if err != nil {

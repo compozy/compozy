@@ -652,7 +652,11 @@ describe("SessionReportPart skill review", () => {
 
   it("Should warn when Read hides text and approve the digest that was read [UT-059]", async () => {
     skillReviews.fetch.mockResolvedValue(skillReview());
-    skillReviews.decide.mockResolvedValue(skillReview({ state: "approved" }));
+    // The daemon reads the review as approved once the decision lands; an approval rereads it.
+    skillReviews.decide.mockImplementationOnce(async () => {
+      skillReviews.fetch.mockResolvedValue(skillReview({ state: "approved" }));
+      return skillReview({ state: "approved" });
+    });
     render(<SessionReportPart data={SKILL_REPORT} />, { wrapper: harness(vi.fn()) });
 
     await userEvent.click(await screen.findByRole("button", { name: "Review skill" }));
@@ -816,14 +820,19 @@ describe("SessionReportPart skill review", () => {
       throw new AgentSkillReviewApiError(
         "skill_review_revert_conflict: triage-sync changed after this review was approved; revert the latest change or edit the skill directly",
         409,
-        "skill_review_revert_conflict"
+        "skill_review_revert_conflict",
+        "changed_on_disk"
       );
     });
     render(<SessionReportPart data={SKILL_REPORT} />, { wrapper: harness(vi.fn()) });
 
     await userEvent.click(await screen.findByRole("button", { name: "Revert" }));
 
-    expect(await screen.findByText(/changed after this review was approved/)).toBeInTheDocument();
+    // Product copy by reason; the daemon's code never reaches the UI.
+    expect(
+      await screen.findByText("This skill changed after it was approved. Edit it directly instead.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/skill_review_revert_conflict/)).toBeNull();
     await waitFor(() => expect(screen.queryByRole("button", { name: "Revert" })).toBeNull());
     expect(skillReviews.fetch).toHaveBeenCalledTimes(2);
   });
@@ -899,6 +908,23 @@ describe("SessionReportPart skill review", () => {
     expect(await screen.findByTestId("skill-review-automatic-counts")).toHaveTextContent(
       "Runs automatically: 1 hook, 0 MCP servers, 1 script (installed now: 1 hook, 0 MCP servers, 2 scripts)"
     );
+  });
+
+  it("Should keep only Reject when the base snapshot of an edit can't be read [UT-044]", async () => {
+    skillReviews.fetch.mockResolvedValue(
+      editReview({ problem: "skill_review_snapshot_invalid", base_files: [], changes: undefined })
+    );
+    render(<SessionReportPart data={SKILL_REPORT} />, { wrapper: harness(vi.fn()) });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Review skill" }));
+
+    expect(
+      await screen.findByText(
+        "The installed contents this change was based on can't be read. Reject it and ask for a new proposal."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Approve/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled();
   });
 
   it("Should keep only Reject when the installed skill changed after an edit [UT-044]", async () => {

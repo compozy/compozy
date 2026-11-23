@@ -10,6 +10,7 @@ import {
   isSkillReviewRevertConflict,
   isSkillReviewStale,
   skillInstallConflictOp,
+  AgentSkillReviewApiError,
   type AgentSkillReviewDecision,
   type AgentSkillReviewRef,
 } from "../adapters/agent-skill-review-api";
@@ -19,6 +20,7 @@ import {
   skillReviewFiles,
   skillReviewState,
   skillReviewWhy,
+  skillRevertRefusedMessage,
 } from "../lib/agent-skill-review";
 import { agentKeys } from "../lib/query-keys";
 import { agentSkillReviewOptions } from "../lib/query-options";
@@ -29,7 +31,9 @@ import { agentSkillReviewOptions } from "../lib/query-options";
  * A decision names the digest that was read; when the agent changed the contents since, the daemon
  * refuses with `skill_review_stale` and the review rereads. The decision waits for the reread, and
  * only a different digest is called the latest version. A draft CompozyOS can't install
- * (`skill_review_invalid`) keeps Approve off and Reject available. A skill left with two versions
+ * (`skill_review_invalid`), or an edit whose base snapshot can't be read
+ * (`skill_review_snapshot_invalid`), keeps Approve off and Reject available. A refused revert reads
+ * in product copy by its reason and rereads the review. A skill left with two versions
  * (`skill_install_conflict`) names the operation to resolve.
  */
 export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
@@ -72,7 +76,11 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
   const unreadable = review?.problem === "skill_review_invalid";
   // An edit whose installed skill changed since the proposal can only be rejected.
   const baseStale = isSkillReviewBaseStale(mutation.error);
-  const invalid = unreadable || baseStale || isSkillReviewInvalid(mutation.error);
+  // A pending edit whose base snapshot can't be read can't be reviewed, so it can only be rejected.
+  const snapshotInvalid =
+    review?.problem === "skill_review_snapshot_invalid" && skillReviewState(review) === "pending";
+  const invalid =
+    unreadable || baseStale || snapshotInvalid || isSkillReviewInvalid(mutation.error);
   const installConflictOp = skillInstallConflictOp(mutation.error);
   const baseAutomatic = review?.base_runs_automatically;
   return {
@@ -102,21 +110,41 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     unreadable,
     /** The skill changed while it was being replaced; the operator resolves this op from the CLI. */
     installConflictOp,
-    decideError: baseStale
-      ? new Error("This skill changed after the proposal. Reject it and ask for a new one.")
-      : isSkillReviewInvalid(mutation.error)
-        ? new Error(
-            "CompozyOS can't install this version. Reject it, or wait for the agent to propose it again."
-          )
-        : mutation.error && !isSkillReviewStale(mutation.error) && installConflictOp === null
-          ? mutation.error
-          : null,
+    decideError: decisionError(mutation.error, installConflictOp, snapshotInvalid),
     decide: (decision: AgentSkillReviewDecision) => {
       if (review && !query.isFetching && !(invalid && decision === "approve")) {
         mutation.mutate({ decision, digest: review.digest });
       }
     },
   };
+}
+
+/** What the card or viewer says about a refused decision, in product copy; null when nothing applies. */
+function decisionError(
+  error: Error | null,
+  installConflictOp: string | null,
+  snapshotInvalid: boolean
+) {
+  if (isSkillReviewBaseStale(error)) {
+    return new Error("This skill changed after the proposal. Reject it and ask for a new one.");
+  }
+  if (isSkillReviewInvalid(error)) {
+    return new Error(
+      "CompozyOS can't install this version. Reject it, or wait for the agent to propose it again."
+    );
+  }
+  if (isSkillReviewRevertConflict(error)) {
+    return new Error(
+      skillRevertRefusedMessage(error instanceof AgentSkillReviewApiError ? error.reason : "")
+    );
+  }
+  if (error && !isSkillReviewStale(error) && installConflictOp === null) return error;
+  if (snapshotInvalid) {
+    return new Error(
+      "The installed contents this change was based on can't be read. Reject it and ask for a new proposal."
+    );
+  }
+  return null;
 }
 
 export type AgentSkillReviewView = ReturnType<typeof useAgentSkillReview>;

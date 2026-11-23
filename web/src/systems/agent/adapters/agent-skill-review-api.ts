@@ -12,13 +12,21 @@ import type { AgentSkillReviewPayload } from "../types";
 export class AgentSkillReviewApiError extends Error {
   readonly status: number;
   readonly code: string;
+  /** Why a revert was refused (`superseded`, `changed_on_disk`, ...); empty for other refusals. */
+  readonly reason: string;
 
-  constructor(message: string, status: number, code = "") {
+  constructor(message: string, status: number, code = "", reason = "") {
     super(message);
     this.name = "AgentSkillReviewApiError";
     this.status = status;
     this.code = code;
+    this.reason = reason;
   }
+}
+
+function errorReason(error: unknown) {
+  const reason = error && typeof error === "object" ? Reflect.get(error, "reason") : undefined;
+  return typeof reason === "string" ? reason : "";
 }
 
 /** Which review, and the profile that owns its instance: the route refuses any other. */
@@ -35,7 +43,8 @@ function failure(fallback: string, response: Response, error: unknown) {
   return new AgentSkillReviewApiError(
     defaultApiErrorMessage(fallback, response, error),
     response.status,
-    apiErrorCode(error) ?? ""
+    apiErrorCode(error) ?? "",
+    errorReason(error)
   );
 }
 

@@ -7,7 +7,10 @@ import { useState } from "react";
 
 import { Alert, AlertDescription, Button, Eyebrow, Item, Receipt } from "@compozy/ui";
 
-import { AgentSkillViewerDialog } from "@/systems/agent/components/skill-review/agent-skill-viewer-dialog";
+import {
+  AgentSkillViewerDialog,
+  SkillInstallConflictAlert,
+} from "@/systems/agent/components/skill-review/agent-skill-viewer-dialog";
 import type { AgentSkillReviewView } from "@/systems/agent/hooks/use-agent-skill-review";
 import type { SkillAutomaticItem } from "@/systems/agent/lib/agent-skill-review";
 
@@ -116,15 +119,7 @@ function ApprovedSkillReview({ name, view }: { name: string; view: AgentSkillRev
         ) : null}
       </div>
       {view.installConflictOp !== null ? (
-        <Alert data-testid="skill-review-install-conflict" variant="warning">
-          <AlertDescription>
-            This skill changed while it was being replaced. Resolve it with{" "}
-            <code className="font-mono">
-              compozy agent skill install-conflict resolve {view.installConflictOp || "<op>"}
-            </code>
-            .
-          </AlertDescription>
-        </Alert>
+        <SkillInstallConflictAlert op={view.installConflictOp} />
       ) : null}
       {view.decideError ? (
         <Alert variant="destructive">

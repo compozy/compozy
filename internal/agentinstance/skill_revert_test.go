@@ -493,6 +493,46 @@ func TestSkillRevert(t *testing.T) {
 		}
 	})
 
+	t.Run("Should map a skill directory replaced by an outside symlink [UT-015 UT-035 UT-062]", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		_, approved := f.approvedEditOverBase(t, svc)
+		pending := f.mustProposeEdit(t, svc, "A later change.\n")
+		rejectMe := f.mustProposeEdit(t, svc, "Another later change.\n")
+		installed := filepath.Join(f.root, skillEditName, "SKILL.md")
+		before, _ := readSkillFileMode(t, installed)
+		outside := filepath.Join(t.TempDir(), skillEditName)
+		if err := os.Rename(filepath.Join(f.root, skillEditName), outside); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, filepath.Join(f.root, skillEditName)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.approve(t, svc, pending); !errors.Is(err, ErrSkillReviewBaseStale) {
+			t.Fatalf("Approve() over a symlinked skill = %v, want skill_review_base_stale", err)
+		}
+		if got := f.eligibility(t, svc, approved.ID); got.Reason != SkillRevertChangedOnDisk {
+			t.Fatalf("eligibility over a symlinked skill = %+v, want changed_on_disk", got)
+		}
+		_, err := f.revert(t, svc, approved)
+		requireRevertConflict(t, err, SkillRevertChangedOnDisk)
+		if err := svc.Reject(t.Context(), skillOperator, f.instance, rejectMe.ID, rejectMe.Digest, "operator",
+			f.root); err != nil {
+			t.Fatalf("Reject() over a symlinked skill = %v", err)
+		}
+		requireReviewState(t, svc, rejectMe.ID, "rejected")
+		requireReviewState(t, svc, pending.ID, SkillReviewPending)
+		requireReviewState(t, svc, approved.ID, skillReviewApproved)
+		if target, err := os.Readlink(filepath.Join(f.root, skillEditName)); err != nil || target != outside {
+			t.Fatalf("skill link = %q, %v; want it untouched", target, err)
+		}
+		if after, _ := readSkillFileMode(t, filepath.Join(outside, "SKILL.md")); !bytes.Equal(after, before) {
+			t.Fatal("the outside directory changed")
+		}
+		f.requireClean(t)
+	})
+
 	t.Run("Should return an edit of an operator-authored skill to no writer [UT-080]", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)

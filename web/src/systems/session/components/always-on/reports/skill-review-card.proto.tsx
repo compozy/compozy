@@ -77,9 +77,7 @@ export default function SkillReviewPrototype({ state }: PrototypeProps) {
     case "revert-conflict":
       return card(
         skillReviewViewFixture(SKILL_REVIEW_APPROVED_SUPERSEDED, {
-          decideError: new Error(
-            "skill_review_revert_conflict: triage-labels has a newer approved change; revert that one first"
-          ),
+          decideError: new Error("A newer change to this skill exists. Revert that one first."),
         })
       );
     case "reverted":

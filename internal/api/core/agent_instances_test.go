@@ -2076,6 +2076,17 @@ func TestAgentSkillReviews(t *testing.T) {
 		if rejectEdit.Code != 200 {
 			t.Fatalf("reject stale edit: %d %s", rejectEdit.Code, rejectEdit.Body.String())
 		}
+		// A base snapshot that no longer verifies is reported with base_files present and empty.
+		if err := os.WriteFile(filepath.Join(edit.Review.SnapshotPath, "SKILL.md"), []byte("tampered"),
+			0o600); err != nil {
+			t.Fatal(err)
+		}
+		tampered := request("GET", "/reviews/"+edit.Review.ID, "", true)
+		if tampered.Code != 200 || !strings.Contains(tampered.Body.String(), `"base_files":[]`) ||
+			!strings.Contains(tampered.Body.String(), `"problem":"skill_review_snapshot_invalid"`) ||
+			strings.Contains(tampered.Body.String(), `"changes"`) {
+			t.Fatalf("tampered snapshot detail: %d %s", tampered.Code, tampered.Body.String())
+		}
 
 		// A draft whose digest still matches but cannot be installed is invalid, not stale, and
 		// stays rejectable.

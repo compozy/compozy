@@ -25,7 +25,7 @@ type AgentSkillReviewPayload struct {
 	BaseRunsAutomatically *AgentSkillAutomaticContents `json:"base_runs_automatically,omitempty"`
 	Changes               []AgentSkillFileChange       `json:"changes,omitempty"`
 	Files                 []AgentSkillDraftFile        `json:"files,omitempty"`
-	BaseFiles             []AgentSkillBaseFile         `json:"base_files,omitempty"`
+	BaseFiles             []AgentSkillBaseFile         `json:"base_files,omitzero"`
 	CreatedAt             time.Time                    `json:"created_at"`
 	DecidedAt             *time.Time                   `json:"decided_at,omitempty"`
 	DecidedBy             string                       `json:"decided_by,omitempty"`
