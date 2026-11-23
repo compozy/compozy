@@ -50,7 +50,8 @@ func TestSkillTreeDigest(t *testing.T) {
 			renamed := writeTree(t, map[string]string{"SKILL.md": "body", "scripts/run.sh": "echo run", "y.txt": "z"},
 				[]string{"SKILL.md", "scripts/run.sh", "y.txt"})
 			chmodded := writeTree(t, files, []string{"SKILL.md", "scripts/run.sh", "z.txt"})
-			if err := os.Chmod(filepath.Join(chmodded, "scripts", "run.sh"), 0o700); err != nil {
+			// 0o400 clears the owner-write bit, the one permission Windows honors too.
+			if err := os.Chmod(filepath.Join(chmodded, "scripts", "run.sh"), 0o400); err != nil {
 				t.Fatal(err)
 			}
 			for name, dir := range map[string]string{"byte": changedByte, "path": renamed, "mode": chmodded} {
@@ -95,6 +96,46 @@ func TestSkillTreeDigest(t *testing.T) {
 		}
 		if digest(t, dst) != digest(t, src) {
 			t.Fatal("copy differs from its source")
+		}
+	})
+	t.Run("Should take each record's mode from the file whose bytes it hashed", func(t *testing.T) {
+		t.Parallel()
+		dir := writeTree(t, files, []string{"SKILL.md", "scripts/run.sh", "z.txt"})
+		root, err := os.OpenRoot(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := root.Close(); err != nil {
+				t.Errorf("close root: %v", err)
+			}
+		})
+		// The enumeration's modes are stale, as after a replacement between listing and opening.
+		stale := []skillTreeFile{{path: "SKILL.md", perm: 0o777}, {path: "scripts/run.sh", perm: 0o777},
+			{path: "z.txt", perm: 0o777}}
+		got, err := hashSkillTreeFiles(root, stale)
+		if err != nil || got != digest(t, dir) {
+			t.Fatalf("hashSkillTreeFiles() = %s, %v; want the digest of the opened files", got, err)
+		}
+	})
+	t.Run("Should report a file vanishing mid-digest as a changed tree, not an absent one", func(t *testing.T) {
+		t.Parallel()
+		dir := writeTree(t, files, []string{"SKILL.md"})
+		root, err := os.OpenRoot(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := root.Close(); err != nil {
+				t.Errorf("close root: %v", err)
+			}
+		})
+		_, err = hashSkillTreeFiles(root, []skillTreeFile{{path: "SKILL.md", perm: 0o600}, {path: "gone.md"}})
+		if !errors.Is(err, errSkillTreeChanged) || errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("hashSkillTreeFiles() = %v, want a changed tree without not-exist identity", err)
+		}
+		if state, err := skillTreeState(filepath.Join(dir, "missing-skill")); err != nil || state != "" {
+			t.Fatalf("skillTreeState(absent dir) = %q, %v; want absent", state, err)
 		}
 	})
 }

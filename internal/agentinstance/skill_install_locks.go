@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/dirpublish"
 	"github.com/compozy/compozy/internal/fileutil"
@@ -22,10 +23,13 @@ var (
 )
 
 // SkillInstallLocks is the in-process keyed mutex per physical skill. It queues callers inside one
-// daemon; the dirpublish lock next to the skill serializes daemons of other homes.
+// daemon; the dirpublish lock next to the skill serializes daemons of other homes. It also carries
+// the daemon's pending catalog refresh, shared by every copy of the skill service.
 type SkillInstallLocks struct {
 	mu   sync.Mutex
 	held map[string]*skillKeyLock
+	// publishPending is set while a catalog refresh after a committed change has failed.
+	publishPending atomic.Bool
 }
 
 type skillKeyLock struct {
@@ -40,6 +44,13 @@ func NewSkillInstallLocks() *SkillInstallLocks {
 
 // defaultSkillInstallLocks serves services built without wiring, such as tests of one home.
 var defaultSkillInstallLocks = NewSkillInstallLocks()
+
+func (s *SkillProposalService) installLocks() *SkillInstallLocks {
+	if s.Locks == nil {
+		return defaultSkillInstallLocks
+	}
+	return s.Locks
+}
 
 func (l *SkillInstallLocks) lock(ctx context.Context, key string) (func(), error) {
 	l.mu.Lock()
@@ -105,11 +116,7 @@ func (s *SkillProposalService) acquireSkill(
 	// operation (Lstat-based digests and reads refuse it; moves rename the link through the parent
 	// handle) instead of being followed or failing here with a path error.
 	dir := filepath.Join(root, name)
-	locks := s.Locks
-	if locks == nil {
-		locks = defaultSkillInstallLocks
-	}
-	release, err := locks.lock(ctx, dir)
+	release, err := s.installLocks().lock(ctx, dir)
 	if err != nil {
 		return nil, err
 	}

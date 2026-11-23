@@ -203,7 +203,7 @@ export function AgentSkillViewerDialog({
   files,
   lesson,
   evidenceSessionIds = NO_EVIDENCE_SESSIONS,
-  unavailableEvidenceSessionIds = NO_EVIDENCE_SESSIONS,
+  unavailableEvidenceSessionIds,
   open,
   onOpenChange,
   stale = false,

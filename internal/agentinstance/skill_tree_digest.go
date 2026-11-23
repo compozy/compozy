@@ -19,6 +19,9 @@ import (
 // ErrSkillTreeUnsupported reports a skill tree with a symlink or another non-regular entry.
 var ErrSkillTreeUnsupported = errors.New("skill_tree_unsupported")
 
+// errSkillTreeChanged reports a tree that changed while it was digested.
+var errSkillTreeChanged = errors.New("skill tree changed while it was read")
+
 const skillTreeDigestHeader = "compozy-skill-tree-v1\n"
 
 // SkillTreeDigest returns "sha256:<hex>" over the v1 manifest (ADR-002):
@@ -54,14 +57,24 @@ func skillTreeDigest(root *os.Root) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return hashSkillTreeFiles(root, files)
+}
+
+// hashSkillTreeFiles builds the manifest from the enumerated files. Each record takes its mode, size
+// and hash from the one file it opened, and a file that vanished since enumeration is a changed
+// tree, never an absent one.
+func hashSkillTreeFiles(root *os.Root, files []skillTreeFile) (string, error) {
 	manifest := sha256.New()
 	manifest.Write([]byte(skillTreeDigestHeader))
 	for _, file := range files {
-		size, sum, err := hashRootFile(root, file.path)
+		perm, size, sum, err := hashRootFile(root, file.path)
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", fmt.Errorf("%w: %s disappeared while it was read", errSkillTreeChanged, file.path)
+		}
 		if err != nil {
 			return "", err
 		}
-		manifest.Write([]byte(skillManifestLine(file.path, file.perm, size, sum)))
+		manifest.Write([]byte(skillManifestLine(file.path, perm, size, sum)))
 	}
 	return "sha256:" + hex.EncodeToString(manifest.Sum(nil)), nil
 }
@@ -99,31 +112,46 @@ func skillTreeFiles(root *os.Root) ([]skillTreeFile, error) {
 	return files, nil
 }
 
-func hashRootFile(root *os.Root, path string) (int64, string, error) {
+func hashRootFile(root *os.Root, path string) (fs.FileMode, int64, string, error) {
 	file, err := root.Open(path)
 	if err != nil {
-		return 0, "", err
+		return 0, 0, "", err
 	}
 	info, err := file.Stat()
 	if err == nil && !info.Mode().IsRegular() {
 		err = fmt.Errorf("%w: %s", ErrSkillTreeUnsupported, path)
 	}
 	if err != nil {
-		return 0, "", errors.Join(err, file.Close())
+		return 0, 0, "", errors.Join(err, file.Close())
 	}
 	sum := sha256.New()
 	size, err := io.Copy(sum, file)
 	if err := errors.Join(err, file.Close()); err != nil {
-		return 0, "", err
+		return 0, 0, "", err
 	}
-	return size, hex.EncodeToString(sum.Sum(nil)), nil
+	return info.Mode().Perm(), size, hex.EncodeToString(sum.Sum(nil)), nil
 }
 
-// skillTreeState returns the tree digest of dir, or "" when dir does not exist.
+// skillTreeState returns the tree digest of dir, or "" when dir itself does not exist. Only that
+// first check classifies a skill as absent; a tree that changes while it is read is an error.
 func skillTreeState(dir string) (string, error) {
-	digest, err := SkillTreeDigest(dir)
-	if errors.Is(err, fs.ErrNotExist) {
+	if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) {
 		return "", nil
+	}
+	return SkillTreeDigest(dir)
+}
+
+// skillTreeUnexplained stands for a tree recovery cannot digest (a symlink or other unsupported
+// entry was added). It never equals a digest or absence, so recovery retains such a tree as a
+// conflict instead of failing on it.
+const skillTreeUnexplained = "unexplained"
+
+// recoveryTreeState is skillTreeState for recovery classification, mapping an unsupported tree to
+// skillTreeUnexplained; every other inspection failure stays an error.
+func recoveryTreeState(dir string) (string, error) {
+	digest, err := skillTreeState(dir)
+	if errors.Is(err, ErrSkillTreeUnsupported) {
+		return skillTreeUnexplained, nil
 	}
 	return digest, err
 }
