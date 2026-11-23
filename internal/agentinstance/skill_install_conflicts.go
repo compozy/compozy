@@ -409,7 +409,7 @@ func (s *SkillProposalService) commitResolution(
 // resume is Reconcile for a resolving journal: it finishes the recorded choice. A resolution that
 // cannot finish (such as an occupied keep-copy) stays resolving and keeps the skill blocked.
 func (p *skillRecoveryPolicy) resume(journal dirpublish.Journal, payload SkillInstallPayload) error {
-	_, err := p.s.continueResolution(p.ctx, p.t, journal, payload)
+	warning, err := p.s.continueResolution(p.ctx, p.t, journal, payload)
 	if errors.Is(err, errSkillInstallCrashed) {
 		return err
 	}
@@ -417,6 +417,10 @@ func (p *skillRecoveryPolicy) resume(journal dirpublish.Journal, payload SkillIn
 		slog.WarnContext(p.ctx, "skill.install.conflict_resolution_blocked", "op_id", payload.OpID,
 			"skill", p.t.name, "keep", payload.Keep, "error", err)
 		p.blocked = &payload
+		return nil
+	}
+	if warning != nil {
+		p.logged(payload, "resolved_with_warning")
 		return nil
 	}
 	p.logged(payload, "resolved")

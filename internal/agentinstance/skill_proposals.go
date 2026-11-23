@@ -77,6 +77,11 @@ func (s *SkillProposalService) Propose(
 	if err != nil {
 		return SkillProposalResult{}, err
 	}
+	// Checked before the lock too, whose path resolution would reject a symlink leaving the root
+	// before the name is judged.
+	if err := refuseInstalledName(targetRoot, draft.Name); err != nil {
+		return SkillProposalResult{}, err
+	}
 	if err := s.checkEvidenceSessions(ctx, instance, evidence); err != nil {
 		return SkillProposalResult{}, err
 	}
@@ -85,7 +90,7 @@ func (s *SkillProposalService) Propose(
 		return SkillProposalResult{}, err
 	}
 	defer func() { err = errors.Join(err, t.close()) }()
-	// Checked after Reconcile so an interrupted install is settled before the name is judged.
+	// Checked again after Reconcile so an interrupted install is settled before the name is judged.
 	if err := refuseInstalledName(targetRoot, draft.Name); err != nil {
 		return SkillProposalResult{}, err
 	}

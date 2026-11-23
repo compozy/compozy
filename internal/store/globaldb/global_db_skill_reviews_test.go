@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -228,7 +229,7 @@ func TestSkillReviewRepo(t *testing.T) {
 		}
 		approved, err := repo.GetReview(ctx, "skr-projected")
 		if err != nil || approved.State != "approved" || approved.InstalledDigest != "sha256:tree" ||
-			string(approved.PrevInstallMarker) != string(previous) || approved.DecidedBy != "operator:prof" ||
+			!bytes.Equal(approved.PrevInstallMarker, previous) || approved.DecidedBy != "operator:prof" ||
 			approved.DecidedAt == nil || !approved.DecidedAt.Equal(committedAt) {
 			t.Fatalf("projected review = %+v, %v", approved, err)
 		}

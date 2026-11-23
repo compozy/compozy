@@ -117,7 +117,7 @@ func agentSkillInstallConflictTable(conflicts []contract.AgentSkillInstallConfli
 		}
 		rows = append(rows, []string{conflict.OpID, conflict.Skill, conflict.Action, conflict.State, since})
 	}
-	return renderHumanTable("", []string{"OP", "SKILL", "ACTION", "STATE", "SINCE"}, rows) + "\n"
+	return renderHumanTable("", []string{"OP", "SKILL", "ACTION", cliStateHeader, "SINCE"}, rows) + "\n"
 }
 
 func agentSkillInstallConflictResolvedText(result contract.AgentSkillInstallConflictResolveResponse) string {

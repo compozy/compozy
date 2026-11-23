@@ -55,14 +55,14 @@ func skillTreeDigest(root *os.Root) (string, error) {
 		return "", err
 	}
 	manifest := sha256.New()
-	_, _ = io.WriteString(manifest, skillTreeDigestHeader)
+	manifest.Write([]byte(skillTreeDigestHeader))
 	for _, file := range files {
 		size, sum, err := hashRootFile(root, file.path)
 		if err != nil {
 			return "", err
 		}
-		_, _ = io.WriteString(manifest, strconv.Itoa(len(file.path))+":"+file.path+"\n"+
-			strconv.FormatUint(uint64(file.perm), 8)+"\n"+strconv.FormatInt(size, 10)+"\n"+sum+"\n")
+		manifest.Write([]byte(strconv.Itoa(len(file.path)) + ":" + file.path + "\n" +
+			strconv.FormatUint(uint64(file.perm), 8) + "\n" + strconv.FormatInt(size, 10) + "\n" + sum + "\n"))
 	}
 	return "sha256:" + hex.EncodeToString(manifest.Sum(nil)), nil
 }

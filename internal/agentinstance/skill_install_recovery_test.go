@@ -17,6 +17,8 @@ func TestSkillInstallRecovery(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
 		svc := f.service(t, "home-a", nil)
+		// Proposed before the skill exists: a new proposal of an installed name is refused.
+		review := f.propose(t, svc, "release-checklist", "Another change.")
 		base := f.install(t, "release-checklist", skillBaseFiles...)
 		op := f.replaceOp(t, "release-checklist")
 		if err := f.runOp(t, crashAt(svc, "target_moved"), "release-checklist", op); !errors.Is(
@@ -50,7 +52,6 @@ func TestSkillInstallRecovery(t *testing.T) {
 		if backups != 1 {
 			t.Fatalf("backup slots = %d, want 1", backups)
 		}
-		review := f.propose(t, svc, "release-checklist", "Another change.")
 		if _, err := f.approve(t, svc, review); !errors.Is(err, ErrSkillInstallConflict) {
 			t.Fatalf("Approve() during a conflict = %v, want skill_install_conflict", err)
 		}

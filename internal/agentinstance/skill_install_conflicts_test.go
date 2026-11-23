@@ -166,8 +166,9 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 		svc := f.service(t, "home-a", nil)
 		publisher := &countingPublisher{}
 		svc.Publisher = publisher
-		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
+		// Proposed before the skill exists: a new proposal of an installed name is refused.
 		review := f.propose(t, svc, "release-checklist", "Another change.")
+		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
 		if _, err := f.approve(t, svc, review); !errors.Is(err, ErrSkillInstallConflict) ||
 			!strings.Contains(err.Error(), "install-conflict resolve "+seeded.opID) {
 			t.Fatalf("Approve() during a conflict = %v, want skill_install_conflict naming the op", err)

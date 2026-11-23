@@ -249,6 +249,8 @@ func TestAppAccessPolicy(t *testing.T) {
 			"planSessionHistoryCleanup", "getSessionHistoryCleanup", "stopSessionHistoryCleanup",
 			// Skill review: drafts an agent proposed and the operator-only approve/reject decision.
 			"listAgentSkillReviews", "getAgentSkillReview", "approveAgentSkillReview", "rejectAgentSkillReview",
+			// Install conflicts: listing and resolving retained conflicts is operator-only.
+			"listAgentSkillInstallConflicts", "resolveAgentSkillInstallConflict",
 			"searchSessionWorkCandidates",
 			"draftAgentInstructions",
 			"getPermissionRollup",
