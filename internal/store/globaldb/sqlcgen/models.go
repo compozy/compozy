@@ -338,6 +338,7 @@ type AutomationJob struct {
 	LoopName         sql.NullString `json:"loop_name"`
 	LoopInputs       sql.NullString `json:"loop_inputs"`
 	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
+	LoopInputCommand sql.NullString `json:"loop_input_command"`
 	CreatedAt        string         `json:"created_at"`
 	UpdatedAt        string         `json:"updated_at"`
 	GrantCeiling     string         `json:"grant_ceiling"`
@@ -445,6 +446,7 @@ type AutomationTrigger struct {
 	LoopName            sql.NullString `json:"loop_name"`
 	LoopInputs          sql.NullString `json:"loop_inputs"`
 	LoopInputMapping    sql.NullString `json:"loop_input_mapping"`
+	LoopInputCommand    sql.NullString `json:"loop_input_command"`
 	CreatedAt           string         `json:"created_at"`
 	UpdatedAt           string         `json:"updated_at"`
 }

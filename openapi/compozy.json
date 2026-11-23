@@ -18698,6 +18698,9 @@
       },
       "LoopTarget": {
         "properties": {
+          "input_command": {
+            "type": "string"
+          },
           "input_mapping": {
             "additionalProperties": {
               "type": "string"
@@ -46218,6 +46221,10 @@
                 "nullable": true
               }
             ]
+          },
+          "loop_input_command": {
+            "nullable": true,
+            "type": "string"
           },
           "loop_target": {
             "oneOf": [

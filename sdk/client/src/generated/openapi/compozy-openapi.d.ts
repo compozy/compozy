@@ -13750,6 +13750,7 @@ export interface components {
       kind: string;
     };
     LoopTarget: {
+      input_command?: string;
       input_mapping?: {
         [key: string]: string;
       };
@@ -21979,6 +21980,7 @@ export interface components {
     UpdateJobRequest: {
       enabled?: boolean | null;
       fire_limit?: components["schemas"]["FireLimitConfig"] | null;
+      loop_input_command?: string | null;
       loop_target?: components["schemas"]["LoopTarget"] | null;
       name?: string | null;
       prompt?: string | null;
