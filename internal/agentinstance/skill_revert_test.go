@@ -533,6 +533,52 @@ func TestSkillRevert(t *testing.T) {
 		f.requireClean(t)
 	})
 
+	t.Run("Should restore no writer whose digest does not describe the restored tree [UT-079]", func(t *testing.T) {
+		t.Parallel()
+		// A new skill approved after the previous one was deleted by hand: revert removes it and
+		// leaves no writer, so the deleted approval is not made current again.
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		first := f.mustApprove(t, svc, f.propose(t, svc, skillEditName, "Check the changelog."))
+		if err := os.RemoveAll(filepath.Join(f.root, skillEditName)); err != nil {
+			t.Fatal(err)
+		}
+		second := f.mustApprove(t, svc, f.propose(t, svc, skillEditName, "Check the calendar."))
+		if len(second.PrevInstallMarker) == 0 {
+			t.Fatal("the second approval recorded no previous writer")
+		}
+		f.mustRevert(t, svc, second)
+		if writer := f.currentWriter(t, skillEditName); writer != nil {
+			t.Fatalf("current writer after reverting a new skill = %+v, want none", writer)
+		}
+		if got := f.eligibility(t, svc, first.ID); got.Reason != SkillRevertSuperseded {
+			t.Fatalf("deleted approval eligibility = %+v, want superseded", got)
+		}
+
+		// An edit over a hand-edited base: revert restores the hand-edited bytes with no writer.
+		g := newSkillTxFixture(t)
+		other := g.service(t, "home-a", nil)
+		approved := g.mustApprove(t, other, g.propose(t, other, skillEditName, "Check the changelog."))
+		notes := filepath.Join(g.root, skillEditName, "notes.md")
+		if err := os.WriteFile(notes, []byte("operator notes"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		handEdited := g.digest(t, skillEditName)
+		edit := g.mustApprove(t, other, g.mustProposeEdit(t, other, "Check the calendar.\n"))
+		var previous SkillInstallMarker
+		if err := json.Unmarshal(edit.PrevInstallMarker, &previous); err != nil || previous.ReviewID != approved.ID ||
+			previous.InstalledDigest == handEdited {
+			t.Fatalf("prev_install_marker = %s, %v", edit.PrevInstallMarker, err)
+		}
+		g.mustRevert(t, other, edit)
+		if g.digest(t, skillEditName) != handEdited {
+			t.Fatal("revert did not restore the hand-edited base")
+		}
+		if writer := g.currentWriter(t, skillEditName); writer != nil {
+			t.Fatalf("current writer after the revert = %+v, want none (operator-authored)", writer)
+		}
+	})
+
 	t.Run("Should return an edit of an operator-authored skill to no writer [UT-080]", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)

@@ -448,10 +448,10 @@ func TestSkillEditProposals(t *testing.T) {
 		}
 	})
 
-	t.Run("Should report a tampered snapshot without failing the review read", func(t *testing.T) {
+	t.Run("Should report a tampered snapshot and refuse to approve it [UT-016]", func(t *testing.T) {
 		t.Parallel()
 		f := newSkillTxFixture(t)
-		f.install(t, skillEditName, skillEditBase...)
+		base := f.install(t, skillEditName, skillEditBase...)
 		svc := f.service(t, "home-a", nil)
 		review := f.mustProposeEdit(t, svc, "Changed.\n")
 		if err := os.WriteFile(filepath.Join(review.SnapshotPath, "SKILL.md"), []byte("tampered"), 0o600); err != nil {
@@ -462,5 +462,15 @@ func TestSkillEditProposals(t *testing.T) {
 			contents.Base != nil || contents.Changes != nil {
 			t.Fatalf("contents = %+v %v", contents, err)
 		}
+		// The live base still matches, but revert could never restore it: approval is refused.
+		if _, err := f.approve(t, svc, review); !errors.Is(err, ErrSkillReviewInvalid) ||
+			!errors.Is(err, ErrSkillReviewSnapshotInvalid) {
+			t.Fatalf("Approve() with a tampered snapshot = %v, want skill_review_invalid", err)
+		}
+		if f.digest(t, skillEditName) != base {
+			t.Fatal("the refused approval changed the skill")
+		}
+		requireReviewState(t, svc, review.ID, SkillReviewPending)
+		f.requireClean(t)
 	})
 }

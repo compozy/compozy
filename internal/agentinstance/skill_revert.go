@@ -227,9 +227,10 @@ func (s *SkillProposalService) revertLocked(
 	return result, nil
 }
 
-// revertOp builds the revert transaction: the live tree must still be the review's installed tree;
-// a `new` review stages nothing (the skill is removed), an `edit` stages its base snapshot, verified
-// again, and the review's previous writer is recorded as the next current writer.
+// revertOp builds the revert transaction: the live tree must still be the review's installed tree.
+// A `new` review stages nothing (the skill is removed) and leaves no writer. An `edit` stages its base
+// snapshot, verified again, and restores the review's previous writer only when that writer's installed
+// digest is the restored base; otherwise the restored contents have no writer (operator-authored).
 func (s *SkillProposalService) revertOp(
 	t *skillTarget,
 	instance Instance,
@@ -247,15 +248,17 @@ func (s *SkillProposalService) revertOp(
 		preExists: true, preDigest: review.InstalledDigest, changed: changed,
 		prev: currentSkillWriter(current),
 	}
+	if review.Kind != SkillProposalEdit {
+		return op, nil
+	}
 	if len(review.PrevInstallMarker) > 0 {
 		var previous SkillInstallMarker
 		if err := json.Unmarshal(review.PrevInstallMarker, &previous); err != nil {
 			return skillOp{}, fmt.Errorf("decode previous install marker of %s: %w", review.ID, err)
 		}
-		op.next = &previous
-	}
-	if review.Kind != SkillProposalEdit {
-		return op, nil
+		if previous.InstalledDigest == review.BaseDigest {
+			op.next = &previous
+		}
 	}
 	base, err := readSkillSnapshot(review)
 	if err != nil {
@@ -273,9 +276,6 @@ func (s *SkillProposalService) revertOp(
 			return errors.Join(&SkillRevertConflictError{Name: t.name, Reason: SkillRevertTargetUnavailable}, err)
 		}
 		return nil
-	}
-	if op.next != nil && op.next.InstalledDigest == "" {
-		op.next.InstalledDigest = review.BaseDigest
 	}
 	return op, nil
 }
