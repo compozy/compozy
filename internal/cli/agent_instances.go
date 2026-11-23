@@ -191,6 +191,8 @@ func instanceText(instance contract.AgentInstancePayload) string {
 		instance.UnattendedTurnLimit,
 		instance.HeldWakes,
 	)
+	result += fmt.Sprintf("Checks: %s\nSkill auto-approve: %s\n",
+		onOffState(instance.ChecksEnabled), onOffState(instance.SkillAutoApprove))
 	if instance.DailyBudget != nil {
 		tokens, usd := "unlimited", "unlimited"
 		if instance.DailyBudget.Tokens != nil {

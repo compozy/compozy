@@ -157,8 +157,8 @@ func (s *SkillProposalService) proposeLocked(
 		EvidenceSessionIDs: evidence,
 	}, report)
 	result := SkillProposalResult{Review: review, Duplicate: duplicate}
-	if err = s.settleProposalFiles(ctx, id, path, snapshot, review, err); err != nil {
-		return result, err
+	if settleErr := s.settleProposalFiles(ctx, id, path, snapshot, review, err); settleErr != nil {
+		return result, settleErr
 	}
 	slog.InfoContext(ctx, "skill.review.created", "instance_id", instance.ID, "review_id", review.ID,
 		"kind", string(review.Kind), "decided_via", review.DecidedVia)

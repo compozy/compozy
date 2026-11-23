@@ -758,7 +758,12 @@ func TestAgentInstanceSkillAutoApproveSettings(t *testing.T) {
 			stored(t, own.ID).ChecksEnabled || stored(t, own.ID).SkillAutoApprove {
 			t.Fatalf("checks PATCH status=%d body=%s", response.Code, response.Body.String())
 		}
-		if response, _ := patch(t, own.ID, "operator", `{"daily_budget":{"tokens":5}}`); response.Code != http.StatusOK ||
+		if response, _ := patch(
+			t,
+			own.ID,
+			"operator",
+			`{"daily_budget":{"tokens":5}}`,
+		); response.Code != http.StatusOK ||
 			stored(t, own.ID).SkillAutoApprove {
 			t.Fatalf("budget PATCH status=%d body=%s", response.Code, response.Body.String())
 		}

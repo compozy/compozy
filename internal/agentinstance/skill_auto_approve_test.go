@@ -527,7 +527,13 @@ func TestSkillAutoApprove(t *testing.T) {
 		}
 		result := f.proposeAuto(t, svc, autoInput(autoSkillName, "body\n", SkillProposalNew))
 		requireAutoSkipped(t, svc, result, SkillAutoApproveInstallFailed)
-		f.requireSkillAbsent(t, autoSkillName)
+		// The corrupt log cannot be decoded, so check it directly: no files and nothing appended.
+		if _, err := os.Lstat(filepath.Join(f.root, autoSkillName)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("skill %s exists (%v), want no files written", autoSkillName, err)
+		}
+		if data, err := os.ReadFile(path); err != nil || string(data) != "not json\n" {
+			t.Fatalf("install log = %q, %v; want the corrupt log unchanged", data, err)
+		}
 	})
 
 	t.Run("Should serialize the cap of one instance across skills [UT-086]", func(t *testing.T) {

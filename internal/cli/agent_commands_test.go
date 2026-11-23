@@ -1188,7 +1188,7 @@ func TestAgentInstanceCommands(t *testing.T) {
 		{"clear-main", []string{"clear-main", "ainst-test"}, "Triage Lead main session cleared in Global. " +
 			"Queued inputs and memory are kept.\nMain session: sess-main\n"},
 		{"show", []string{"show", "ainst-test", "--all-profiles"}, "ainst-test\ttriage\tactive\nProfile: work\nMain session: sess-main\n" +
-			"Pause reason: \nUnattended turns: 0/0\nHeld wakes: 0\n"},
+			"Pause reason: \nUnattended turns: 0/0\nHeld wakes: 0\nChecks: off\nSkill auto-approve: off\n"},
 		{
 			"authorization-filtered peer list",
 			[]string{"list", "--peers", "--all-workspaces", "--profile", "default"},

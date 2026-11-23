@@ -286,15 +286,23 @@ func TestSkillReviewRepo(t *testing.T) {
  WHERE id='inst-old'`).Scan(&row, &autoApprove)
 		want := "inst-old|" + store.DefaultProfileID + "|coder|paused|manual|0|2026-11-01T00:00:00Z|2026-11-02T00:00:00Z"
 		if err != nil || row != want || autoApprove != 0 {
-			t.Fatalf("migrated instance = %q auto=%d, %v; want %q with skill auto-approve off", row, autoApprove, err, want)
+			t.Fatalf(
+				"migrated instance = %q auto=%d, %v; want %q with skill auto-approve off",
+				row,
+				autoApprove,
+				err,
+				want,
+			)
 		}
 	})
 
-	t.Run("Should count and filter this instance's automatic approvals of one UTC day [IT-021 UT-030 UT-031]", func(t *testing.T) {
-		t.Parallel()
-		db := openTestGlobalDB(t)
-		ctx := t.Context()
-		_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_skill_reviews
+	t.Run(
+		"Should count and filter this instance's automatic approvals of one UTC day [IT-021 UT-030 UT-031]",
+		func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			ctx := t.Context()
+			_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_skill_reviews
  (id,instance_id,profile_id,skill_name,digest,state,draft_path,decided_by,created_at,decided_at,decided_via)
  VALUES
  ('skr-auto','inst','prof','a','sha256:1','approved','/d/1','auto-approve','2026-11-22T00:00:00Z','2026-11-22T08:00:00.000000000Z','auto_approve'),
@@ -305,66 +313,67 @@ func TestSkillReviewRepo(t *testing.T) {
  ('skr-operator','inst','prof','f','sha256:6','approved','/d/6','operator:prof','2026-11-22T00:00:00Z','2026-11-22T09:00:00.000000000Z','operator'),
  ('skr-other','inst-b','prof','g','sha256:7','approved','/d/7','auto-approve','2026-11-22T00:00:00Z','2026-11-22T09:00:00.000000000Z','auto_approve'),
  ('skr-pending','inst','prof','h','sha256:8','pending','/d/8','','2026-11-22T00:00:00Z',NULL,'')`)
-		if err != nil {
-			t.Fatal(err)
-		}
-		day := time.Date(2026, 11, 22, 0, 0, 0, 0, time.UTC)
-		for _, tc := range []struct {
-			instance string
-			day      time.Time
-			want     int
-		}{
-			{"inst", day, 3}, {"inst", day.AddDate(0, 0, -1), 1}, {"inst", day.AddDate(0, 0, 1), 1},
-			{"inst-b", day, 1}, {"inst-none", day, 0},
-		} {
-			got, err := db.SkillReviews().CountAutoApprovals(ctx, tc.instance, tc.day)
-			if err != nil || got != tc.want {
-				t.Fatalf("CountAutoApprovals(%s, %s) = %d, %v; want %d", tc.instance, tc.day, got, err, tc.want)
-			}
-		}
-		// UT-030, UT-031: the decided_via filter returns only automatic decisions, and an empty match is
-		// an empty page.
-		automatic, err := db.SkillReviews().ListReviews(ctx, agentinstance.SkillReviewQuery{
-			ProfileID: "prof", DecidedVia: "auto_approve", Limit: 100,
-		})
-		var ids []string
-		for _, review := range automatic {
-			ids = append(ids, review.ID)
-		}
-		slices.Sort(ids)
-		wantIDs := []string{"skr-auto", "skr-other", "skr-reverted", "skr-start", "skr-tomorrow", "skr-yesterday"}
-		if err != nil || !slices.Equal(ids, wantIDs) {
-			t.Fatalf("ListReviews(decided_via=auto_approve) = %v, %v; want %v [UT-030]", ids, err, wantIDs)
-		}
-		none, err := db.SkillReviews().ListReviews(ctx, agentinstance.SkillReviewQuery{
-			ProfileID: "prof", InstanceID: "inst-none", DecidedVia: "auto_approve", Limit: 100,
-		})
-		if err != nil || none == nil || len(none) != 0 {
-			t.Fatalf("ListReviews(no automatic decisions) = %#v, %v; want an empty slice [UT-031]", none, err)
-		}
-		rows, err := db.DB().QueryContext(ctx, `EXPLAIN QUERY PLAN SELECT count(*) FROM agent_skill_reviews
- WHERE instance_id = 'inst' AND state IN ('approved', 'reverted') AND decided_via = 'auto_approve'
- AND decided_at >= '2026-11-22T00:00:00.000000000Z' AND decided_at < '2026-11-23T00:00:00.000000000Z'`)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var plan []string
-		for rows.Next() {
-			var id, parent, unused int
-			var detail string
-			if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+			if err != nil {
 				t.Fatal(err)
 			}
-			plan = append(plan, detail)
-		}
-		if err := errors.Join(rows.Err(), rows.Close()); err != nil {
-			t.Fatal(err)
-		}
-		if joined := strings.Join(plan, "\n"); !strings.Contains(joined, "idx_agent_skill_reviews_instance") ||
-			strings.Contains(joined, "SCAN agent_skill_reviews") {
-			t.Fatalf("query plan = %s; want the instance index, no table scan", joined)
-		}
-	})
+			day := time.Date(2026, 11, 22, 0, 0, 0, 0, time.UTC)
+			for _, tc := range []struct {
+				instance string
+				day      time.Time
+				want     int
+			}{
+				{"inst", day, 3}, {"inst", day.AddDate(0, 0, -1), 1}, {"inst", day.AddDate(0, 0, 1), 1},
+				{"inst-b", day, 1}, {"inst-none", day, 0},
+			} {
+				got, err := db.SkillReviews().CountAutoApprovals(ctx, tc.instance, tc.day)
+				if err != nil || got != tc.want {
+					t.Fatalf("CountAutoApprovals(%s, %s) = %d, %v; want %d", tc.instance, tc.day, got, err, tc.want)
+				}
+			}
+			// UT-030, UT-031: the decided_via filter returns only automatic decisions, and an empty match is
+			// an empty page.
+			automatic, err := db.SkillReviews().ListReviews(ctx, agentinstance.SkillReviewQuery{
+				ProfileID: "prof", DecidedVia: "auto_approve", Limit: 100,
+			})
+			var ids []string
+			for _, review := range automatic {
+				ids = append(ids, review.ID)
+			}
+			slices.Sort(ids)
+			wantIDs := []string{"skr-auto", "skr-other", "skr-reverted", "skr-start", "skr-tomorrow", "skr-yesterday"}
+			if err != nil || !slices.Equal(ids, wantIDs) {
+				t.Fatalf("ListReviews(decided_via=auto_approve) = %v, %v; want %v [UT-030]", ids, err, wantIDs)
+			}
+			none, err := db.SkillReviews().ListReviews(ctx, agentinstance.SkillReviewQuery{
+				ProfileID: "prof", InstanceID: "inst-none", DecidedVia: "auto_approve", Limit: 100,
+			})
+			if err != nil || none == nil || len(none) != 0 {
+				t.Fatalf("ListReviews(no automatic decisions) = %#v, %v; want an empty slice [UT-031]", none, err)
+			}
+			rows, err := db.DB().QueryContext(ctx, `EXPLAIN QUERY PLAN SELECT count(*) FROM agent_skill_reviews
+ WHERE instance_id = 'inst' AND state IN ('approved', 'reverted') AND decided_via = 'auto_approve'
+ AND decided_at >= '2026-11-22T00:00:00.000000000Z' AND decided_at < '2026-11-23T00:00:00.000000000Z'`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var plan []string
+			for rows.Next() {
+				var id, parent, unused int
+				var detail string
+				if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+					t.Fatal(err)
+				}
+				plan = append(plan, detail)
+			}
+			if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+				t.Fatal(err)
+			}
+			if joined := strings.Join(plan, "\n"); !strings.Contains(joined, "idx_agent_skill_reviews_instance") ||
+				strings.Contains(joined, "SCAN agent_skill_reviews") {
+				t.Fatalf("query plan = %s; want the instance index, no table scan", joined)
+			}
+		},
+	)
 
 	t.Run("Should count an automatic approval on its commit day after a late projection [IT-023]",
 		func(t *testing.T) {
@@ -393,14 +402,20 @@ func TestSkillReviewRepo(t *testing.T) {
 				},
 				Now: func() time.Time { return commitAt },
 			}
-			instance := agentinstance.Instance{ID: "auto-instance", ProfileID: store.DefaultProfileID, AgentName: "coder"}
+			instance := agentinstance.Instance{
+				ID:        "auto-instance",
+				ProfileID: store.DefaultProfileID,
+				AgentName: "coder",
+			}
 			input := testSkillProposalInput("late-projection", "Late", "Check the projection.")
 			input.Lesson.Confidence = "high"
 			proposed, err := failing.Propose(ctx, workspaceaccess.ActorRef{Operator: true}, instance, scanRoot, input)
 			if err != nil || proposed.AutoApproveSkipped != "" {
 				t.Fatalf("Propose() = %+v, %v; want an automatic approval", proposed, err)
 			}
-			if pending, err := db.SkillReviews().GetReview(ctx, proposed.Review.ID); err != nil || pending.State != "pending" {
+			if pending, err := db.SkillReviews().
+				GetReview(ctx, proposed.Review.ID); err != nil ||
+				pending.State != "pending" {
 				t.Fatalf("review after the failed projection = %+v, %v; want pending", pending, err)
 			}
 			healthy := failing

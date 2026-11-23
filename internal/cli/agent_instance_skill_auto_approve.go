@@ -24,7 +24,7 @@ func newAgentInstanceSkillAutoApproveCommand(deps commandDeps) *cobra.Command {
 	}
 	for _, action := range []string{agentInstanceSkillAutoApproveOn, agentInstanceSkillAutoApproveOff} {
 		cmd := newAgentInstanceAction(deps, action)
-		state := skillAutoApproveState(action == agentInstanceSkillAutoApproveOn)
+		state := onOffState(action == agentInstanceSkillAutoApproveOn)
 		cmd.Use = state + " <agent-or-instance-id>"
 		cmd.Short = "Turn skill auto-approve " + state + " for an always-on instance"
 		parent.AddCommand(cmd)
@@ -58,14 +58,14 @@ func skillAutoApproveText(instance contract.AgentInstancePayload) string {
 	if label == "" {
 		label = instance.AgentName
 	}
-	return fmt.Sprintf("Skill auto-approve is %s for %s.\n", skillAutoApproveState(instance.SkillAutoApprove), label)
+	return fmt.Sprintf("Skill auto-approve is %s for %s.\n", onOffState(instance.SkillAutoApprove), label)
 }
 
-func skillAutoApproveState(on bool) string {
+func onOffState(on bool) string {
 	if on {
 		return "on"
 	}
-	return "off"
+	return agentInstanceChecksOff
 }
 
 type agentInstanceSkillAutoApproveClient interface {

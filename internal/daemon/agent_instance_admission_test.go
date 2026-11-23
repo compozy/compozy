@@ -428,8 +428,12 @@ func TestNativeInstanceSkillAutoApprove(t *testing.T) {
 			ToolID: toolspkg.ToolIDAgentInstanceSkillAutoApprove, Input: []byte(`{"id":"own","enabled":true}`),
 			ApprovalGranted: true,
 		})
-		if !errors.Is(err, agentinstance.ErrSkillAutoApproveOperatorOnly) || len(writes) != 0 {
-			t.Fatalf("agent on = %v, writes %v; want skill_auto_approve_operator_only and no write", err, writes)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !errors.Is(err, agentinstance.ErrSkillAutoApproveOperatorOnly) || len(writes) != 0 || !ok ||
+			toolErr.Code != "skill_auto_approve_operator_only" || toolErr.HTTPStatus != 403 ||
+			toolErr.PublicMessage != "only an operator can turn on skill auto-approve" {
+			t.Fatalf("agent on = %v, writes %v; want a 403 skill_auto_approve_operator_only tool error and no write",
+				err, writes)
 		}
 		result, err := native.agentInstanceCall(t.Context(), agentScope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentInstanceSkillAutoApprove, Input: []byte(`{"id":"own","enabled":false}`),

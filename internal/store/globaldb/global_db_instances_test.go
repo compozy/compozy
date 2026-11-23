@@ -3647,10 +3647,24 @@ func TestInstanceChecksToggle(t *testing.T) {
 			if _, err := repo.Archive(t.Context(), instance.ID); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := repo.SetSkillAutoApprove(t.Context(), instance.ID, false); !errors.Is(err, agentinstance.ErrNotFound) {
+			if _, err := repo.SetSkillAutoApprove(
+				t.Context(),
+				instance.ID,
+				false,
+			); !errors.Is(
+				err,
+				agentinstance.ErrNotFound,
+			) {
 				t.Fatalf("SetSkillAutoApprove(archived) = %v, want agent_instance_not_found", err)
 			}
-			if _, err := repo.SetSkillAutoApprove(t.Context(), "ainst-missing", true); !errors.Is(err, agentinstance.ErrNotFound) {
+			if _, err := repo.SetSkillAutoApprove(
+				t.Context(),
+				"ainst-missing",
+				true,
+			); !errors.Is(
+				err,
+				agentinstance.ErrNotFound,
+			) {
 				t.Fatalf("SetSkillAutoApprove(missing) = %v, want agent_instance_not_found", err)
 			}
 		})

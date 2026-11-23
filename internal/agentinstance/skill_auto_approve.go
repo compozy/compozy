@@ -3,6 +3,7 @@ package agentinstance
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"time"
 )
 
@@ -96,9 +97,9 @@ func (s *SkillProposalService) projectedAutoApproval(
 	if err != nil {
 		return SkillReview{}, false
 	}
-	for i := len(entries) - 1; i >= 0; i-- {
-		if entries[i].ReviewID == reviewID && entries[i].Action == SkillInstallActionInstall {
-			if err := s.projectSkillInstall(ctx, entries[i]); err != nil {
+	for _, entry := range slices.Backward(entries) {
+		if entry.ReviewID == reviewID && entry.Action == SkillInstallActionInstall {
+			if err := s.projectSkillInstall(ctx, entry); err != nil {
 				slog.WarnContext(ctx, "skill.review.auto_approve_projection_retry_failed", "review_id", reviewID,
 					"error", err)
 				return SkillReview{}, false
@@ -225,7 +226,7 @@ func (s *SkillProposalService) logAutoApproveSkipped(
 	args ...any,
 ) {
 	attrs := append([]any{"instance_id", review.InstanceID, "review_id", review.ID, "kind", string(review.Kind),
-		"skill_key", string(review.SkillKey), "reason", reason}, args...)
+		"skill_key", string(review.SkillKey), reasonKey, reason}, args...)
 	slog.InfoContext(ctx, "skill.review.auto_approve_skipped", attrs...)
 }
 

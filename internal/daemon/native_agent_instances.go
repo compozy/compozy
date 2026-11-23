@@ -301,6 +301,14 @@ func nativeInstanceError(id toolspkg.ToolID, err error, maxActive int) error {
 		return toolspkg.NewToolError(toolspkg.ErrorCodeAgentInstanceNotFound, id,
 			"This agent instance was not found in the selected scope.", err)
 	}
+	if errors.Is(err, agentinstance.ErrSkillAutoApproveOperatorOnly) {
+		// The domain code travels in its own field with the HTTP route's status and human message.
+		code := agentinstance.ErrSkillAutoApproveOperatorOnly.Error()
+		toolErr := toolspkg.NewToolError(toolspkg.ErrorCode(code), id, agentinstance.ErrorMessage(err, maxActive), err)
+		toolErr.HTTPStatus = 403
+		toolErr.PublicMessage = toolErr.Message
+		return toolErr
+	}
 	if message := agentinstance.ErrorMessage(err, maxActive); message != "" {
 		return fmt.Errorf("%w: %s", err, message)
 	}
