@@ -227,6 +227,7 @@ var skillReviewErrorStatuses = []struct {
 	{agentinstance.ErrSkillProposeUnverified, 422}, {agentinstance.ErrSkillReviewInvalid, 422},
 	{agentinstance.ErrSkillProposeLessonRequired, 422}, {agentinstance.ErrSkillProposeLessonTooLong, 422},
 	{agentinstance.ErrSkillProposeEvidenceRequired, 422}, {agentinstance.ErrSkillProposeEvidenceNotFound, 422},
+	{agentinstance.ErrSkillProposeLessonInvalid, 422},
 	{agentinstance.ErrSkillProposePreviouslyRejected, 409}, {agentinstance.ErrSkillProposeNameTaken, 409},
 	{ErrSkillReviewInvalidCursor, 422},
 }

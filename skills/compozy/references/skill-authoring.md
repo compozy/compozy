@@ -26,7 +26,7 @@ Never promote a note into a lesson by copying it, and never copy a lesson waitin
 
 The experimental `compozy__agent_skill_propose` tool accepts `name`, `description`, `body`, optional `files`, a required `lesson`, and required `evidence_session_ids`. Discover its live descriptor for the exact file representation and limits before calling it.
 
-- `lesson` has `cue` (when it applies), `lesson` (what to do differently), `evidence` (what the sessions showed), and optional `confidence` (`low`, `medium`, or `high`; default `medium`). `cue`, `lesson`, and `evidence` must be non-blank and at most 2,000 characters each (`skill_propose_lesson_required`, `skill_propose_lesson_too_long`).
+- `lesson` has `cue` (when it applies), `lesson` (what to do differently), `evidence` (what the sessions showed), and optional `confidence` (`low`, `medium`, or `high`; default `medium`; any other value fails with `skill_propose_lesson_invalid`). `cue`, `lesson`, and `evidence` must be non-blank and at most 2,000 characters each (`skill_propose_lesson_required`, `skill_propose_lesson_too_long`).
 - `evidence_session_ids` lists 1–20 sessions that show the lesson. Each must exist in the instance's profile and, for a workspace instance, in its workspace (`skill_propose_evidence_required`, `skill_propose_evidence_not_found` naming the first offending session). Duplicates are collapsed.
 
 The daemon validates and verifies the content, redacts it and the lesson text, and stores the draft outside every skill scan root. A proposal report links to the review through `skill_review_id`. Pending drafts are not offered as skills and nothing in them runs. An instance may have at most five pending reviews; `skill_review_limit` means an existing review must be resolved first.

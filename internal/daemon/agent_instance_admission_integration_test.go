@@ -561,7 +561,7 @@ func TestInstanceSkillApprovalIntegration(t *testing.T) {
 		failure, ok := errors.AsType[*toolspkg.ToolError](taken)
 		if !ok || string(failure.Code) != "skill_propose_name_taken" ||
 			core.StatusForToolError(taken) != http.StatusConflict ||
-			!strings.Contains(failure.PublicMessage, "a skill named review-proposed is already installed") {
+			failure.PublicMessage != "a skill named review-proposed is already installed for this instance" {
 			t.Fatalf("native reproposal of an installed skill: %v (status %d)", taken, core.StatusForToolError(taken))
 		}
 	})

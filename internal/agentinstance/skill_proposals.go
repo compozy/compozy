@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -124,14 +123,11 @@ func (s *SkillProposalService) Propose(
 	return result, err
 }
 
-// refuseInstalledName applies Business Rule 4 for a new skill: a name already present in the target
-// root is refused, so re-proposing installed contents never opens another review.
+// refuseInstalledName applies Business Rule 4 for a new skill: any entry already at the name in the
+// target root, a symlink included, is refused, so re-proposing installed contents never opens another
+// review. The name is validated by PrepareSkillDraft and cannot leave the root.
 func refuseInstalledName(targetRoot, name string) error {
-	target, err := fileutil.ResolvePathWithinRoot(targetRoot, filepath.Join(targetRoot, name))
-	if err != nil {
-		return err
-	}
-	if _, err := os.Lstat(target); err == nil {
+	if _, err := os.Lstat(filepath.Join(targetRoot, name)); err == nil {
 		return fmt.Errorf("%w: a skill named %s is already installed for this instance", ErrSkillProposeNameTaken, name)
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
