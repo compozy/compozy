@@ -2081,6 +2081,33 @@ func TestExtensionInputBinderSubprocessInputs(t *testing.T) {
 			t.Fatalf("removal rows=%#v, want the region row an inactive binding no longer mirrors", rows)
 		}
 	})
+
+	t.Run("Should refuse a foreign Vault ref for an env binding linked to a typed input", func(t *testing.T) {
+		t.Parallel()
+		service, bindings, secretVault := newService(t)
+		manifest := extensionSubprocessInputManifest()
+		runtime, ok := service.runtime.(*fakeExtensionRuntime)
+		if !ok {
+			t.Fatal("extension runtime is not a fakeExtensionRuntime")
+		}
+		runtime.getExt.Manifest = manifest
+		ctx := testutil.Context(t)
+		commit(t, service, manifest, initialValues)
+		before := bindingsByName(t, bindings)["REGION"]
+		foreignRef := vault.ExtensionProfileSecretRef(key.Name, "another-profile", "", "REGION")
+		secretVault.seed(foreignRef, "extension-env", "foreign-region")
+
+		_, err := service.setExtensionSecretsForProfileInstance(ctx, key, profile.ID,
+			contract.SetExtensionSecretsRequest{Bindings: []contract.ExtensionSecretBindingInput{
+				{EnvName: "REGION", VaultRef: &foreignRef},
+			}})
+		if !errors.Is(err, extensionpkg.ErrExtensionEnvBindingInvalid) {
+			t.Fatalf("foreign input-linked ref error = %v, want ErrExtensionEnvBindingInvalid", err)
+		}
+		if after := bindingsByName(t, bindings)["REGION"]; after.SecretRef != before.SecretRef {
+			t.Fatalf("refused bind changed the region binding: %#v", after)
+		}
+	})
 }
 
 func extensionSubprocessInputManifest() *extensionpkg.Manifest {
