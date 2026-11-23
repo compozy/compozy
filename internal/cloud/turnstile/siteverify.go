@@ -32,7 +32,7 @@ func WithEndpoint(endpoint string) Option {
 
 func New(secret, hostname string, options ...Option) (*Client, error) {
 	if strings.TrimSpace(secret) == "" || strings.TrimSpace(hostname) == "" {
-		return nil, errors.New("Turnstile secret and hostname are required")
+		return nil, errors.New("missing Turnstile secret or hostname")
 	}
 	c := &Client{
 		endpoint: siteverifyURL,
@@ -68,7 +68,14 @@ func (c *Client) Verify(ctx context.Context, token, clientIP, action string) err
 	if err != nil {
 		return ErrRequired
 	}
-	defer closeResponse(resp.Body)
+	const responseLimit = 8 << 10
+	defer func() {
+		// Bound the drain even when the provider returns an unexpectedly large body.
+		_, drainErr := io.Copy(io.Discard, io.LimitReader(resp.Body, responseLimit))
+		if err := errors.Join(drainErr, resp.Body.Close()); err != nil {
+			slog.Debug("Turnstile response cleanup interrupted")
+		}
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return ErrRequired
 	}
@@ -77,18 +84,9 @@ func (c *Client) Verify(ctx context.Context, token, clientIP, action string) err
 		Hostname string `json:"hostname"`
 		Action   string `json:"action"`
 	}
-	const responseLimit = 8 << 10
 	if err := json.UnmarshalRead(io.LimitReader(resp.Body, responseLimit), &result); err != nil ||
 		!result.Success || result.Hostname != c.hostname || (action != "" && result.Action != action) {
 		return ErrRequired
 	}
 	return nil
-}
-
-func closeResponse(body io.ReadCloser) {
-	// Bound the drain even if a provider returns an unexpectedly large body.
-	_, err := io.Copy(io.Discard, io.LimitReader(body, 8<<10))
-	if err := errors.Join(err, body.Close()); err != nil {
-		slog.Debug("Turnstile response cleanup interrupted")
-	}
 }

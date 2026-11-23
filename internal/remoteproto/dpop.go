@@ -138,7 +138,7 @@ func verifyProofSignature(jws compactJWS, jkt string) bool {
 }
 
 func (p DPoPProof) matches(binding DPoPBinding, now time.Time) bool {
-	if p.Method != binding.Method || len(p.JTI) == 0 || len(p.JTI) > 128 || p.IssuedAt <= 0 ||
+	if p.Method != binding.Method || p.JTI == "" || len(p.JTI) > 128 || p.IssuedAt <= 0 ||
 		p.IssuedAt < now.Add(-DPoPLeeway).Unix() || p.IssuedAt > now.Add(DPoPLeeway).Unix() {
 		return false
 	}

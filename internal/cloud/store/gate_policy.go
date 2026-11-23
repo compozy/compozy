@@ -30,8 +30,8 @@ func (s *Store) SetGatePolicy(ctx context.Context, actor string, policy remotepr
 	if !admin || strings.TrimSpace(email) == "" {
 		return errors.New("gate policy changes require an admin actor")
 	}
-	if len(policy.Message) > 2_048 ||
-		!(policy.Mode == remoteproto.GateEnforce && policy.Until == nil || policy.GraceAt(now)) {
+	enforce := policy.Mode == remoteproto.GateEnforce && policy.Until == nil
+	if len(policy.Message) > 2_048 || (!enforce && !policy.GraceAt(now)) {
 		return remoteproto.ErrGatePolicyInvalid
 	}
 	return s.Transaction(ctx, func(q *Queries) error {

@@ -9,17 +9,19 @@ import (
 	"encoding/base64"
 	"encoding/json/v2"
 	"errors"
-	"math/big"
 	"strings"
 )
 
 const (
-	algEdDSA = "EdDSA"
-	algES256 = "ES256"
-	curveEd  = "Ed25519"
-	curveEC  = "P-256"
-	keyOKP   = "OKP"
-	keyEC    = "EC"
+	algEdDSA       = "EdDSA"
+	algES256       = "ES256"
+	curveEd        = "Ed25519"
+	curveEC        = "P-256"
+	keyOKP         = "OKP"
+	keyEC          = "EC"
+	useSignature   = "sig"
+	coordinateSize = 32
+	p256YStart     = 1 + coordinateSize
 )
 
 var (
@@ -45,14 +47,17 @@ type JWKS struct {
 func NewPublicJWK(key crypto.PublicKey) (JWK, error) {
 	switch public := key.(type) {
 	case *ecdsa.PublicKey:
-		if public == nil || public.Curve != elliptic.P256() ||
-			public.X == nil || public.Y == nil || !public.Curve.IsOnCurve(public.X, public.Y) {
+		if public == nil || public.Curve != elliptic.P256() {
+			return JWK{}, errJWK
+		}
+		point, err := public.Bytes()
+		if err != nil {
 			return JWK{}, errJWK
 		}
 		return JWK{
 			Kty: keyEC, Crv: curveEC,
-			X: base64URL.EncodeToString(public.X.FillBytes(make([]byte, 32))),
-			Y: base64URL.EncodeToString(public.Y.FillBytes(make([]byte, 32))),
+			X: base64URL.EncodeToString(point[1:p256YStart]),
+			Y: base64URL.EncodeToString(point[p256YStart:]),
 		}, nil
 	case ed25519.PublicKey:
 		if len(public) != ed25519.PublicKeySize {
@@ -65,7 +70,7 @@ func NewPublicJWK(key crypto.PublicKey) (JWK, error) {
 }
 
 func (j JWK) PublicKey() (crypto.PublicKey, error) {
-	if j.D != "" || (j.Use != "" && j.Use != "sig") {
+	if j.D != "" || (j.Use != "" && j.Use != useSignature) {
 		return nil, errJWK
 	}
 	switch j.Kty {
@@ -83,7 +88,7 @@ func (j JWK) PublicKey() (crypto.PublicKey, error) {
 }
 
 func (j JWK) ecKey() (*ecdsa.PublicKey, error) {
-	if j.Crv != curveEC || (j.Alg != "" && j.Alg != algES256) || j.D != "" || (j.Use != "" && j.Use != "sig") {
+	if j.Crv != curveEC || (j.Alg != "" && j.Alg != algES256) || j.D != "" || (j.Use != "" && j.Use != useSignature) {
 		return nil, errJWK
 	}
 	x, err := decodeCoordinate(j.X)
@@ -94,8 +99,12 @@ func (j JWK) ecKey() (*ecdsa.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	key := &ecdsa.PublicKey{Curve: elliptic.P256(), X: new(big.Int).SetBytes(x), Y: new(big.Int).SetBytes(y)}
-	if !key.Curve.IsOnCurve(key.X, key.Y) {
+	var point [1 + 2*coordinateSize]byte
+	point[0] = 0x04 // SEC 1 uncompressed point prefix.
+	copy(point[1:p256YStart], x)
+	copy(point[p256YStart:], y)
+	key, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), point[:])
+	if err != nil {
 		return nil, errJWK
 	}
 	return key, nil
@@ -120,11 +129,11 @@ func (j JWK) Thumbprint() (string, error) {
 }
 
 func decodeCoordinate(value string) ([]byte, error) {
-	if len(value) != base64URL.EncodedLen(32) {
+	if len(value) != base64URL.EncodedLen(coordinateSize) {
 		return nil, errJWK
 	}
 	key, err := decodeBase64URL(value)
-	if err != nil || len(key) != 32 {
+	if err != nil || len(key) != coordinateSize {
 		return nil, errJWK
 	}
 	return key, nil

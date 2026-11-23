@@ -95,7 +95,10 @@ func NewSigner(kid string, key ed25519.PrivateKey) (*Signer, error) {
 
 func (s *Signer) PublicJWK() JWK {
 	public := s.key[ed25519.SeedSize:]
-	return JWK{Kty: keyOKP, Crv: curveEd, X: base64URL.EncodeToString(public), Kid: s.kid, Alg: algEdDSA, Use: "sig"}
+	return JWK{
+		Kty: keyOKP, Crv: curveEd, X: base64URL.EncodeToString(public),
+		Kid: s.kid, Alg: algEdDSA, Use: useSignature,
+	}
 }
 
 func (s *Signer) sign(typ string, claims any) (string, error) {
