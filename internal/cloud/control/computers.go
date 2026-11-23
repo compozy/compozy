@@ -336,7 +336,7 @@ func (s *Service) patchComputer(
 		}
 		if err := q.AppendSecurityEvent(ctx, store.SecurityEvent{
 			AccountID: computer.AccountID,
-			Actor:     computerActor(computer.ID, actor),
+			Actor:     auditActor(actor),
 			Type:      "computer_remote_access_changed",
 			At:        now,
 			Details:   map[string]any{auditComputerID: computer.ID, "remote_enabled": updated.RemoteEnabled},
@@ -407,13 +407,6 @@ func invalidEndpoint(address string) bool {
 	number, portErr := strconv.ParseUint(port, 10, 16)
 	return err != nil || portErr != nil || number == 0 || host == "" || len(address) > 255 ||
 		strings.ContainsAny(host, " /\\?#@\r\n\t")
-}
-
-func computerActor(id remoteproto.ComputerID, device remoteproto.DeviceID) string {
-	if device != "" {
-		return "account:" + string(device)
-	}
-	return "computer:" + string(id)
 }
 
 func (s *Service) UnlinkComputer(ctx context.Context, principal DevicePrincipal, id remoteproto.ComputerID) error {

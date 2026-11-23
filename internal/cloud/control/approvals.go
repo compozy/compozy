@@ -200,7 +200,7 @@ func (s *Service) reportApprovalApplied(
 	}
 	if err := q.AppendSecurityEvent(ctx, store.SecurityEvent{
 		AccountID: computer.AccountID,
-		Actor:     computerActor(computer.ID, ""),
+		Actor:     auditSystem,
 		Type:      "device_approval_applied",
 		At:        now,
 		Details: map[string]any{

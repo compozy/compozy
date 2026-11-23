@@ -296,8 +296,8 @@ func TestCloudComputerPlan(t *testing.T) {
 			t.Parallel()
 			db, now := controlDatabase(t)
 			owner := db.SeedControlDevice(t, "acc_owner", "dev_owner", true)
-			firstKey := db.SeedControlComputer(t, owner.AccountID, "cmp_first", now().Add(-time.Hour))
-			db.SeedControlComputer(t, owner.AccountID, "cmp_second", now())
+			firstKey := db.SeedControlComputer(t, owner.AccountID, "cmp_first", now())
+			db.SeedControlComputer(t, owner.AccountID, "cmp_second", now().Add(-time.Hour))
 			db.Exec(
 				t,
 				"INSERT INTO %s.subscriptions (id, source, account_id, status, ends_at) VALUES ('sub', 'complimentary', $1, 'active', $2)",

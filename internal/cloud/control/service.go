@@ -18,6 +18,7 @@ const (
 	approvalDenied   = "denied"
 	auditComputerID  = "computer_id"
 	auditDeviceID    = "device_id"
+	auditSystem      = "system"
 )
 
 type DevicePrincipal struct {
@@ -227,6 +228,13 @@ func (s *Service) securityEvent(
 	details map[string]any,
 ) error {
 	return q.AppendSecurityEvent(ctx, store.SecurityEvent{
-		AccountID: account, Type: kind, Actor: "account:" + string(actor), At: s.config.Now(), Details: details,
+		AccountID: account, Type: kind, Actor: auditActor(actor), At: s.config.Now(), Details: details,
 	})
+}
+
+func auditActor(device remoteproto.DeviceID) string {
+	if device == "" {
+		return auditSystem
+	}
+	return "account:" + string(device)
 }
