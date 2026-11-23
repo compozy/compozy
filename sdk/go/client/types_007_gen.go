@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// ExtensionEnablementPayload is a daemon API value.
+type ExtensionEnablementPayload struct {
+	Profile string `json:"profile"`
+	Enabled bool   `json:"enabled"`
+}
+
 // ExtensionInputStatePayload is a daemon API value.
 type ExtensionInputStatePayload struct {
 	ID     string `json:"id"`
@@ -437,12 +443,4 @@ type ForceFailTaskRunRequest struct {
 type ForceReleaseTaskRunRequest struct {
 	Reason   string          `json:"reason,omitempty"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ForkLoopRequest is a daemon API value.
-type ForkLoopRequest struct {
-	Generation int64          `json:"generation"`
-	Inputs     map[string]any `json:"inputs,omitempty"`
-	Reason     string         `json:"reason,omitempty"`
-	RequestID  string         `json:"request_id,omitempty"`
 }

@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -107,31 +109,66 @@ func (api *AgentInstanceAPI) SkillReviewsPage(ctx context.Context, query agentin
 
 func skillReviewPayload(review agentinstance.SkillReview, detail bool) (contract.AgentSkillReviewPayload, error) {
 	result := skillReviewMetadata(review)
-	draft, err := agentinstance.ReadSkillDraft(review.DraftPath, review.Digest)
+	contents, err := agentinstance.ReadSkillReviewContents(review)
 	if err != nil && !errors.Is(err, agentinstance.ErrSkillReviewInvalid) {
 		return contract.AgentSkillReviewPayload{}, err
 	}
 	var automatic agentinstance.SkillAutomaticContents
 	if err == nil {
-		automatic, err = draft.AutomaticContents()
+		// For an edit with an unverifiable snapshot only the draft can be inventoried.
+		automatic, err = contents.Draft.AutomaticContents()
+		if contents.Result != nil {
+			automatic, err = contents.Result.AutomaticContents()
+		}
+	}
+	if err == nil && contents.Base != nil {
+		var base agentinstance.SkillAutomaticContents
+		base, err = contents.Base.AutomaticContents()
+		result.BaseRunsAutomatically = automaticContentsPayload(base)
 	}
 	if err != nil {
 		// A draft that no longer verifies still reads as a review, so it can be seen and rejected.
+		result.BaseRunsAutomatically = nil
 		result.Problem = agentinstance.ErrSkillReviewInvalid.Error()
 		return result, nil
 	}
-	result.RunsAutomatically = contract.AgentSkillAutomaticContents{
+	result.RunsAutomatically = *automaticContentsPayload(automatic)
+	if contents.SnapshotProblem != nil {
+		result.Problem = agentinstance.ErrSkillReviewSnapshotInvalid.Error()
+	}
+	if detail {
+		addSkillReviewFiles(&result, contents)
+	}
+	return result, nil
+}
+
+func automaticContentsPayload(automatic agentinstance.SkillAutomaticContents) *contract.AgentSkillAutomaticContents {
+	return &contract.AgentSkillAutomaticContents{
 		Hooks:      automatic.Hooks,
 		MCPServers: automatic.MCPServers,
 		Scripts:    automatic.Scripts,
 	}
-	if detail {
-		result.Files = make([]contract.AgentSkillDraftFile, 0, len(draft.Files))
-		for _, file := range draft.Files {
-			result.Files = append(result.Files, contract.AgentSkillDraftFile{Path: file.Path, Content: file.Content})
-		}
+}
+
+// addSkillReviewFiles adds the proposed files and, for an edit, the per-path changes and the base
+// snapshot: text redacted like drafts, non-UTF-8 files as name and size.
+func addSkillReviewFiles(result *contract.AgentSkillReviewPayload, contents agentinstance.SkillReviewContents) {
+	result.Files = make([]contract.AgentSkillDraftFile, 0, len(contents.Draft.Files))
+	for _, file := range contents.Draft.Files {
+		result.Files = append(result.Files, contract.AgentSkillDraftFile{Path: file.Path, Content: file.Content})
 	}
-	return result, nil
+	for _, change := range contents.Changes {
+		result.Changes = append(result.Changes, contract.AgentSkillFileChange{Path: change.Path, Change: change.Change})
+	}
+	for _, file := range contents.Base {
+		item := contract.AgentSkillBaseFile{Path: file.Path}
+		if utf8.Valid(file.Data) {
+			item.Content = redact.String(string(file.Data))
+		} else {
+			item.Binary, item.Size = true, int64(len(file.Data))
+		}
+		result.BaseFiles = append(result.BaseFiles, item)
+	}
 }
 
 func skillReviewMetadata(review agentinstance.SkillReview) contract.AgentSkillReviewPayload {

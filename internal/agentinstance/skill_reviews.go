@@ -34,7 +34,11 @@ type SkillReview struct {
 	DecidedAt       *time.Time
 	Kind            SkillProposalMode
 	// BaseDigest is the tree digest of the captured base of an edit; "" for new skills and legacy rows.
-	BaseDigest         string
+	BaseDigest string
+	// SnapshotPath is the lossless base snapshot of an edit, kept for the review's lifetime; "" for new.
+	SnapshotPath string
+	// ProposedDigest is the tree digest of what approval installs; display and install check only.
+	ProposedDigest     string
 	Lesson             SkillLesson
 	EvidenceSessionIDs []string
 	// DecidedVia is "" while pending, "operator" or "auto_approve" once decided.

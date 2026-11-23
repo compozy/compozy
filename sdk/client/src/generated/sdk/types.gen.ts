@@ -732,8 +732,20 @@ export type AgentSkillAutomaticContents = {
   scripts: number;
 };
 
+export type AgentSkillBaseFile = {
+  binary?: boolean;
+  content?: string;
+  path: string;
+  size?: number;
+};
+
 export type AgentSkillDraftFile = {
   content: string;
+  path: string;
+};
+
+export type AgentSkillFileChange = {
+  change: string;
   path: string;
 };
 
@@ -777,6 +789,9 @@ export type AgentSkillReviewDecisionRequest = {
 export type AgentSkillReviewPayload = {
   agent: string;
   base_digest?: string;
+  base_files?: Array<AgentSkillBaseFile>;
+  base_runs_automatically?: AgentSkillAutomaticContents | null;
+  changes?: Array<AgentSkillFileChange>;
   created_at: string;
   decided_at?: string | null;
   decided_by?: string;

@@ -114,6 +114,8 @@ func skillReviewInsertParams(input agentinstance.SkillReview) (sqlcgen.InsertAge
 		Kind:               string(kind),
 		SkillKey:           string(input.SkillKey),
 		BaseDigest:         input.BaseDigest,
+		SnapshotPath:       input.SnapshotPath,
+		ProposedDigest:     input.ProposedDigest,
 		Lesson:             lesson,
 		EvidenceSessionIds: evidence,
 	}, nil
@@ -292,6 +294,8 @@ func skillReview(row sqlcgen.AgentSkillReview) (agentinstance.SkillReview, error
 		CreatedAt:       created,
 		Kind:            agentinstance.SkillProposalMode(row.Kind),
 		BaseDigest:      row.BaseDigest,
+		SnapshotPath:    row.SnapshotPath,
+		ProposedDigest:  row.ProposedDigest,
 		DecidedVia:      row.DecidedVia,
 		SkillKey:        agentinstance.SkillKey(row.SkillKey),
 		InstalledDigest: row.InstalledDigest,

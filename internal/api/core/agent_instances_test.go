@@ -2036,6 +2036,47 @@ func TestAgentSkillReviews(t *testing.T) {
 			t.Fatal("installed bytes differ from review")
 		}
 
+		// An edit review details its changes and base; IT-004: approving it after the installed
+		// skill changed on disk is refused with base_stale, nothing installed, and Reject still works.
+		edit, err := service.Propose(t.Context(), workspaceaccess.ActorRef{Operator: true}, instance, scanRoot,
+			agentinstance.SkillProposalInput{
+				Name: "first", Description: "Review changes", Body: "Read the diff twice.",
+				Mode: agentinstance.SkillProposalEdit, Lesson: lesson,
+				EvidenceSessionIDs: []string{"sess-4f1c0b2a9d3e4f51"},
+			})
+		if err != nil {
+			t.Fatal(err)
+		}
+		editDetail := request("GET", "/reviews/"+edit.Review.ID, "", true)
+		var editShown contract.AgentSkillReviewResponse
+		decodeJSON(t, editDetail.Body.Bytes(), &editShown)
+		if editDetail.Code != 200 || editShown.Review.Kind != "edit" || editShown.Review.BaseDigest == "" ||
+			len(editShown.Review.Changes) != 2 || editShown.Review.Changes[0] != (contract.AgentSkillFileChange{
+			Path: "SKILL.md", Change: "modified",
+		}) || editShown.Review.Changes[1].Change != "unchanged" || len(editShown.Review.BaseFiles) != 2 ||
+			editShown.Review.BaseRunsAutomatically == nil || editShown.Review.BaseRunsAutomatically.Scripts != 1 ||
+			editShown.Review.RunsAutomatically.Scripts != 1 {
+			t.Fatalf("edit detail: %d %s", editDetail.Code, editDetail.Body.String())
+		}
+		if err := os.WriteFile(filepath.Join(scanRoot, "first", "notes.md"), []byte("operator"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		editDigest := `{"digest":"` + edit.Review.Digest + `"}`
+		staleBase := request("POST", "/reviews/"+edit.Review.ID+"/approve", editDigest, false)
+		var staleBaseFailure contract.ErrorPayload
+		decodeJSON(t, staleBase.Body.Bytes(), &staleBaseFailure)
+		if staleBase.Code != 409 || staleBaseFailure.Code != "skill_review_base_stale" {
+			t.Fatalf("stale base approval: %d %s", staleBase.Code, staleBase.Body.String())
+		}
+		kept, err := os.ReadFile(filepath.Join(scanRoot, "first", "SKILL.md"))
+		if err != nil || string(kept) != string(installed) {
+			t.Fatalf("stale edit changed the skill: %v", err)
+		}
+		rejectEdit := request("POST", "/reviews/"+edit.Review.ID+"/reject", editDigest, false)
+		if rejectEdit.Code != 200 {
+			t.Fatalf("reject stale edit: %d %s", rejectEdit.Code, rejectEdit.Body.String())
+		}
+
 		// A draft whose digest still matches but cannot be installed is invalid, not stale, and
 		// stays rejectable.
 		mismatched, err := agentinstance.PrepareSkillDraft("renamed", "Review changes", "Read the diff.", nil)

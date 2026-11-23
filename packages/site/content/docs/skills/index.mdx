@@ -424,6 +424,13 @@ those contents. Changed contents require a new decision; an agent cannot approve
 even with Approve all permissions. Repeating a rejected proposal keeps it rejected until its
 contents change.
 
+An agent can also propose a change to a skill already installed for it (`mode: "edit"`). The edit
+changes only the files it names; every other installed file, including binary and executable files,
+is kept exactly. `show` prints the installed digest as `Base:`, Runs automatically for the change and
+for the installed skill, how many files are modified, added and removed, and a diff of each changed
+file. Approval applies only while the installed skill still matches that base; if it changed, approval
+fails with `skill_review_base_stale` and you can only reject.
+
 Approval installs workspace skills in `.compozy/skills/` and User-scope skills beside the owning
 agent definition, in its `skills/` directory. The installed skill then follows normal discovery and
 activation. Direct file authoring and marketplace installation keep their existing behavior.

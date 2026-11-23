@@ -1707,6 +1707,35 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 			t.Fatalf("show output:\n%s\nwant:\n%s", output, want)
 		}
 	})
+	t.Run("Should print base counts, change counts and the diff of an edit [UT-044 UT-045]", func(t *testing.T) {
+		t.Parallel()
+		output := showReview(t, `{"id":"skr-test","name":"release-checklist","kind":"edit","state":"pending",`+
+			`"digest":"sha256:a90b","base_digest":"sha256:5c2d","evidence_session_ids":[],`+
+			`"runs_automatically":{"hooks":0,"mcp_servers":0,"scripts":1},`+
+			`"base_runs_automatically":{"hooks":0,"mcp_servers":0,"scripts":2},`+
+			`"changes":[{"path":"SKILL.md","change":"modified"},{"path":"assets/flow.png","change":"unchanged"},`+
+			`{"path":"scripts/old.sh","change":"removed"}],`+
+			`"files":[{"path":"SKILL.md","content":"1. Run make gate.\n2. Confirm the freeze calendar.\n"}],`+
+			`"base_files":[{"path":"SKILL.md","content":"1. Run make gate.\n"},`+
+			`{"path":"assets/flow.png","binary":true,"size":18234},{"path":"scripts/old.sh","content":"echo old\n"}]}`)
+		for _, want := range []string{
+			"release-checklist (edit) · pending\nDigest: sha256:a90b   Base: sha256:5c2d\n",
+			"Runs automatically: 0 hooks, 0 MCP servers (base: 0 hooks, 0 MCP servers)\n",
+			"Supporting scripts: 1 (base: 2)\n",
+			"Files: 1 modified, 0 added, 1 removed\n",
+			"--- a/SKILL.md\n+++ b/SKILL.md\n",
+			"+2. Confirm the freeze calendar.\n",
+			"--- a/scripts/old.sh\n+++ /dev/null\n",
+			"-echo old\n",
+		} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("edit show output missing %q:\n%s", want, output)
+			}
+		}
+		if strings.Contains(output, "flow.png") {
+			t.Fatalf("unchanged binary file printed:\n%s", output)
+		}
+	})
 	t.Run("Should say no lesson was recorded for a legacy review [UT-042]", func(t *testing.T) {
 		t.Parallel()
 		output := showReview(t, `{"id":"skr-test","name":"legacy","kind":"new","state":"approved","digest":"sha256:1",`+

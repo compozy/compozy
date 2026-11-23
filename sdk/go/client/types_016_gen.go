@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// PutSettingsHookRequest is a daemon API value.
+type PutSettingsHookRequest struct {
+	Declaration SettingsHookDeclarationPayload `json:"declaration"`
+}
+
+// PutSettingsMCPServerRequest is a daemon API value.
+type PutSettingsMCPServerRequest struct {
+	Server          SettingsMCPServerPayload              `json:"server"`
+	SecretValues    *SettingsMCPSecretValuesPayload       `json:"secret_values,omitzero"`
+	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
+	PreserveHeaders bool                                  `json:"preserve_headers,omitzero"`
+	PreserveEnv     []string                              `json:"preserve_env,omitempty"`
+}
+
+// PutSettingsProviderRequest is a daemon API value.
+type PutSettingsProviderRequest struct {
+	Settings      SettingsProviderWritePayload         `json:"settings"`
+	ModelCuration *ProviderModelCurationRequest        `json:"model_curation,omitzero"`
+	Secrets       []SettingsProviderSecretWritePayload `json:"secrets,omitempty"`
+}
+
 // PutVaultSecretRequest is a daemon API value.
 type PutVaultSecretRequest struct {
 	Ref         string `json:"ref"`
@@ -427,23 +448,3 @@ type RetryStrategy string
 type RetryTaskRunRequest struct {
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
-
-// RetryTaskRunResponse is a daemon API value.
-type RetryTaskRunResponse struct {
-	PreviousRun TaskRunPayload `json:"previous_run"`
-	Run         TaskRunPayload `json:"run"`
-}
-
-// ReviewContinuation is a daemon API value.
-type ReviewContinuation struct {
-	ReviewID          string   `json:"review_id"`
-	ReviewedRunID     string   `json:"reviewed_run_id"`
-	ReviewRound       int      `json:"review_round"`
-	Outcome           string   `json:"outcome"`
-	Reason            string   `json:"reason"`
-	MissingWork       []string `json:"missing_work"`
-	NextRoundGuidance string   `json:"next_round_guidance"`
-}
-
-// ReviewDecision is a daemon API value.
-type ReviewDecision string

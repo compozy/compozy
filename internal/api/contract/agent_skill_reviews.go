@@ -9,12 +9,16 @@ type AgentSkillDraftFile struct {
 }
 
 type AgentSkillProposeRequest struct {
-	Name               string                `json:"name"`
-	Description        string                `json:"description"`
-	Body               string                `json:"body"`
-	Files              []AgentSkillDraftFile `json:"files,omitempty"`
-	Lesson             AgentSkillLesson      `json:"lesson"`
-	EvidenceSessionIDs []string              `json:"evidence_session_ids"`
+	Name        string                `json:"name"`
+	Description string                `json:"description"`
+	Body        string                `json:"body"`
+	Files       []AgentSkillDraftFile `json:"files,omitempty"`
+	// Mode is new (default) or edit. An edit is an overlay on the installed skill: SKILL.md is
+	// regenerated, Files add or replace text files, RemovePaths delete files, the rest is kept.
+	Mode               string           `json:"mode,omitempty"`
+	RemovePaths        []string         `json:"remove_paths,omitempty"`
+	Lesson             AgentSkillLesson `json:"lesson"`
+	EvidenceSessionIDs []string         `json:"evidence_session_ids"`
 }
 
 // AgentSkillLesson is the structured, evidence-backed claim a skill proposal carries.
@@ -32,6 +36,22 @@ type AgentSkillAutomaticContents struct {
 	Scripts    int `json:"scripts"`
 }
 
+// AgentSkillBaseFile is one file of an edit's base snapshot: text files carry their (redacted)
+// content; non-UTF-8 files carry only binary and size.
+type AgentSkillBaseFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content,omitempty"`
+	Binary  bool   `json:"binary,omitempty"`
+	Size    int64  `json:"size,omitempty"`
+}
+
+// AgentSkillFileChange marks one path of an edit's base or resulting tree as added, removed,
+// modified, or unchanged.
+type AgentSkillFileChange struct {
+	Path   string `json:"path"`
+	Change string `json:"change"`
+}
+
 type AgentSkillReviewPayload struct {
 	ID          string `json:"id"`
 	InstanceID  string `json:"instance_id"`
@@ -46,17 +66,28 @@ type AgentSkillReviewPayload struct {
 	// BaseDigest is the digest of the installed skill an edit was proposed against.
 	BaseDigest string `json:"base_digest,omitempty"`
 	// Lesson is absent for reviews created before lessons existed.
-	Lesson             *AgentSkillLesson           `json:"lesson,omitempty"`
-	EvidenceSessionIDs []string                    `json:"evidence_session_ids"`
-	RunsAutomatically  AgentSkillAutomaticContents `json:"runs_automatically"`
-	Files              []AgentSkillDraftFile       `json:"files,omitempty"`
-	CreatedAt          time.Time                   `json:"created_at"`
-	DecidedAt          *time.Time                  `json:"decided_at,omitempty"`
-	DecidedBy          string                      `json:"decided_by,omitempty"`
+	Lesson             *AgentSkillLesson `json:"lesson,omitempty"`
+	EvidenceSessionIDs []string          `json:"evidence_session_ids"`
+	// RunsAutomatically counts the tree approval installs; for an edit, kept base files count.
+	RunsAutomatically AgentSkillAutomaticContents `json:"runs_automatically"`
+	// BaseRunsAutomatically counts the base snapshot of an edit.
+	BaseRunsAutomatically *AgentSkillAutomaticContents `json:"base_runs_automatically,omitempty"`
+	// Changes covers every path of an edit's base and resulting tree (detail only).
+	Changes []AgentSkillFileChange `json:"changes,omitempty"`
+	// Files lists the proposed text files; for an edit, the regenerated SKILL.md plus added or
+	// replaced files (detail only).
+	Files []AgentSkillDraftFile `json:"files,omitempty"`
+	// BaseFiles is the base snapshot of an edit (detail only); empty when the snapshot fails
+	// verification, with Problem `skill_review_snapshot_invalid`.
+	BaseFiles []AgentSkillBaseFile `json:"base_files,omitempty"`
+	CreatedAt time.Time            `json:"created_at"`
+	DecidedAt *time.Time           `json:"decided_at,omitempty"`
+	DecidedBy string               `json:"decided_by,omitempty"`
 	// DecidedVia is operator or auto_approve once decided.
 	DecidedVia string `json:"decided_via,omitempty"`
 	// Problem is set when the stored draft no longer verifies: `skill_review_invalid`. The review then
-	// carries no files and no automatic contents, and it can only be rejected.
+	// carries no files and no automatic contents, and it can only be rejected. For an edit whose base
+	// snapshot fails verification it is `skill_review_snapshot_invalid`: no base files or changes.
 	Problem string `json:"problem,omitempty"`
 }
 

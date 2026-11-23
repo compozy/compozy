@@ -8,12 +8,20 @@ export const SKILL_DEFINITION_FILE = "SKILL.md";
 const MCP_JSON_NAME = "mcp.json";
 const SCRIPTS_DIR = "scripts/";
 
+export type SkillFileChange = "added" | "removed" | "modified" | "unchanged";
+
 export interface SkillReviewFile {
   path: string;
   language: string;
   body: string;
   /** A file that declares or is something that runs on its own. */
   automatic: boolean;
+  /** Edit reviews: how this path differs from the installed skill. */
+  change?: SkillFileChange;
+  /** Edit reviews: the installed text of a modified file, for the diff. */
+  baseBody?: string;
+  /** An installed file that isn't text: only its name and size are shown. */
+  binarySize?: number;
 }
 
 export type SkillAutomaticKind = "hook" | "mcp" | "script";
@@ -81,8 +89,41 @@ function isAutomatic(path: string, content: string) {
   return found.hooks + found.mcp > 0;
 }
 
+function definitionFirst(a: SkillReviewFile, b: SkillReviewFile) {
+  return a.path === SKILL_DEFINITION_FILE ? -1 : b.path === SKILL_DEFINITION_FILE ? 1 : 0;
+}
+
+/**
+ * An edit's resulting and removed paths, as the daemon compares them: proposed text for added and
+ * modified files, the installed contents for the rest, binary installed files as name and size.
+ */
+function editReviewFiles(review: AgentSkillReviewPayload): SkillReviewFile[] {
+  const proposed = new Map((review.files ?? []).map(file => [file.path, file.content]));
+  const base = new Map((review.base_files ?? []).map(file => [file.path, file]));
+  return (review.changes ?? []).map(({ path, change }) => {
+    const installed = base.get(path);
+    const text = proposed.get(path);
+    const binary = text === undefined && installed?.binary === true;
+    const body = text ?? installed?.content ?? "";
+    return {
+      path,
+      language: skillFileLanguage(path),
+      body,
+      automatic: change !== "removed" && isAutomatic(path, body),
+      change: change as SkillFileChange,
+      ...(change === "modified" && installed && !installed.binary
+        ? { baseBody: installed.content ?? "" }
+        : {}),
+      ...(binary ? { binarySize: installed?.size ?? 0 } : {}),
+    };
+  });
+}
+
 /** Every file, SKILL.md first, then by path, as the daemon stores them. */
 export function skillReviewFiles(review: AgentSkillReviewPayload): SkillReviewFile[] {
+  if (review.kind === "edit" && (review.changes?.length ?? 0) > 0) {
+    return editReviewFiles(review).sort(definitionFirst);
+  }
   return (review.files ?? [])
     .map(file => ({
       path: file.path,
@@ -90,9 +131,24 @@ export function skillReviewFiles(review: AgentSkillReviewPayload): SkillReviewFi
       body: file.content,
       automatic: isAutomatic(file.path, file.content),
     }))
-    .sort((a, b) =>
-      a.path === SKILL_DEFINITION_FILE ? -1 : b.path === SKILL_DEFINITION_FILE ? 1 : 0
-    );
+    .sort(definitionFirst);
+}
+
+/** How many files an edit adds, removes and modifies. */
+export function skillReviewChangeCounts(files: readonly SkillReviewFile[]) {
+  const count = (change: SkillFileChange) => files.filter(file => file.change === change).length;
+  return { added: count("added"), removed: count("removed"), modified: count("modified") };
+}
+
+type AutomaticCounts = AgentSkillReviewPayload["runs_automatically"];
+
+/** "1 hook, 0 MCP servers, 2 scripts": the counts an edit compares, proposed against installed. */
+export function skillAutomaticSummary(counts: AutomaticCounts) {
+  return [
+    plural(counts.hooks, "hook", "hooks"),
+    plural(counts.mcp_servers, "MCP server", "MCP servers"),
+    plural(counts.scripts, "script", "scripts"),
+  ].join(", ");
 }
 
 /** Why the agent proposed it: the description it wrote into SKILL.md. */

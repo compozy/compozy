@@ -119,12 +119,12 @@ func (q *Queries) GetAgentSkillReviewByIdentity(ctx context.Context, arg GetAgen
 const insertAgentSkillReview = `-- name: InsertAgentSkillReview :execrows
 INSERT INTO agent_skill_reviews
 (id, instance_id, profile_id, workspace_id, agent_name, skill_name, digest, state, draft_path, source_session_id,
-created_at, kind, skill_key, base_digest, lesson, evidence_session_ids)
+created_at, kind, skill_key, base_digest, snapshot_path, proposed_digest, lesson, evidence_session_ids)
 SELECT ?1, ?2, ?3, ?4,
 ?5, ?6, ?7, 'pending', ?8,
 ?9, ?10, ?11, ?12, ?13,
-?14,
-?15
+?14, ?15, ?16,
+?17
 WHERE (SELECT count(*) FROM agent_skill_reviews WHERE instance_id = ?2 AND state = 'pending') < 5
 `
 
@@ -142,6 +142,8 @@ type InsertAgentSkillReviewParams struct {
 	Kind               string         `json:"kind"`
 	SkillKey           string         `json:"skill_key"`
 	BaseDigest         string         `json:"base_digest"`
+	SnapshotPath       string         `json:"snapshot_path"`
+	ProposedDigest     string         `json:"proposed_digest"`
 	Lesson             string         `json:"lesson"`
 	EvidenceSessionIds string         `json:"evidence_session_ids"`
 }
@@ -161,6 +163,8 @@ func (q *Queries) InsertAgentSkillReview(ctx context.Context, arg InsertAgentSki
 		arg.Kind,
 		arg.SkillKey,
 		arg.BaseDigest,
+		arg.SnapshotPath,
+		arg.ProposedDigest,
 		arg.Lesson,
 		arg.EvidenceSessionIds,
 	)

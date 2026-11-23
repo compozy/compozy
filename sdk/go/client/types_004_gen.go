@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// AutomationLastRunPayload is a daemon API value.
+type AutomationLastRunPayload struct {
+	ID         string              `json:"id"`
+	Status     RunStatus           `json:"status"`
+	StartedAt  *time.Time          `json:"started_at,omitzero"`
+	EndedAt    *time.Time          `json:"ended_at,omitzero"`
+	SkipReason SchedulerSkipReason `json:"skip_reason,omitempty"`
+}
+
 // AutomationResourceStatusPayload is a daemon API value.
 type AutomationResourceStatusPayload struct {
 	Total   int `json:"total"`
@@ -436,14 +445,4 @@ type CmdPalettePersonalizationResponse struct {
 // CmdPalettePinResponse is a daemon API value.
 type CmdPalettePinResponse struct {
 	Pinned bool `json:"pinned"`
-}
-
-// CmdPaletteRankSignalsResponse is a daemon API value.
-type CmdPaletteRankSignalsResponse struct {
-	ProfileLens ProfileLens   `json:"profile_lens"`
-	Weights     Weights       `json:"weights"`
-	Usage       []UsageSignal `json:"usage"`
-	QueryHits   []QueryHit    `json:"query_hits"`
-	Pins        []CommandID   `json:"pins"`
-	Revision    string        `json:"revision"`
 }

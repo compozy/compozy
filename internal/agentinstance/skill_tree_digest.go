@@ -61,10 +61,15 @@ func skillTreeDigest(root *os.Root) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		manifest.Write([]byte(strconv.Itoa(len(file.path)) + ":" + file.path + "\n" +
-			strconv.FormatUint(uint64(file.perm), 8) + "\n" + strconv.FormatInt(size, 10) + "\n" + sum + "\n"))
+		manifest.Write([]byte(skillManifestLine(file.path, file.perm, size, sum)))
 	}
 	return "sha256:" + hex.EncodeToString(manifest.Sum(nil)), nil
+}
+
+// skillManifestLine is one file's v1 manifest record.
+func skillManifestLine(path string, perm fs.FileMode, size int64, sum string) string {
+	return strconv.Itoa(len(path)) + ":" + path + "\n" + strconv.FormatUint(uint64(perm), 8) + "\n" +
+		strconv.FormatInt(size, 10) + "\n" + sum + "\n"
 }
 
 // skillTreeFiles lists the regular files of root sorted by path bytes, refusing any other entry type.

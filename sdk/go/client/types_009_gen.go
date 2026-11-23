@@ -4,6 +4,34 @@ package client
 
 import "time"
 
+// GoalTurn is a daemon API value.
+type GoalTurn struct {
+	Seq            int64                   `json:"seq"`
+	Generation     int64                   `json:"generation"`
+	NodeID         string                  `json:"node_id"`
+	ItemIndex      int                     `json:"item_index"`
+	Turn           int                     `json:"turn"`
+	PromptAttempt  int                     `json:"prompt_attempt"`
+	SessionID      string                  `json:"session_id"`
+	BindingHandle  string                  `json:"binding_handle"`
+	BindingEpoch   int64                   `json:"binding_epoch"`
+	PromptID       string                  `json:"prompt_id"`
+	ResultStatus   *GoalTurnResultStatus   `json:"result_status"`
+	ReasonCode     *GoalReasonCode         `json:"reason_code"`
+	StopReason     *ACPPromptStopReason    `json:"stop_reason"`
+	VerdictOutcome *GoalVerdictOutcome     `json:"verdict_outcome"`
+	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues"`
+	Criteria       []GoalCriterionResult   `json:"criteria"`
+	Warnings       []GoalDiagnosticWarning `json:"warnings"`
+	EvidenceRef    *string                 `json:"evidence_ref"`
+	PromptRef      *string                 `json:"prompt_ref"`
+	TokensUsed     *int64                  `json:"tokens_used"`
+	ActorKind      string                  `json:"actor_kind"`
+	ActorID        string                  `json:"actor_id"`
+	StartedAt      time.Time               `json:"started_at"`
+	EndedAt        *time.Time              `json:"ended_at"`
+}
+
 // GoalTurnPage is a daemon API value.
 type GoalTurnPage struct {
 	Turns        []GoalTurn `json:"turns"`
@@ -415,20 +443,3 @@ type HookCatalogResponse struct {
 
 // HookEvent is a daemon API value.
 type HookEvent string
-
-// HookEventPayload is a daemon API value.
-type HookEventPayload struct {
-	Event         string `json:"event"`
-	Family        string `json:"family"`
-	SyncEligible  bool   `json:"sync_eligible"`
-	PayloadSchema string `json:"payload_schema"`
-	PatchSchema   string `json:"patch_schema,omitempty"`
-}
-
-// HookEventsResponse is a daemon API value.
-type HookEventsResponse struct {
-	Events []HookEventPayload `json:"events"`
-}
-
-// HookExecutorKind is a daemon API value.
-type HookExecutorKind string

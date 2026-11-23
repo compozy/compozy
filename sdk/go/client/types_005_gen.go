@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// CmdPaletteRankSignalsResponse is a daemon API value.
+type CmdPaletteRankSignalsResponse struct {
+	ProfileLens ProfileLens   `json:"profile_lens"`
+	Weights     Weights       `json:"weights"`
+	Usage       []UsageSignal `json:"usage"`
+	QueryHits   []QueryHit    `json:"query_hits"`
+	Pins        []CommandID   `json:"pins"`
+	Revision    string        `json:"revision"`
+}
+
 // CmdPaletteUsageRequest is a daemon API value.
 type CmdPaletteUsageRequest struct {
 	Workspace string    `json:"workspace"`
@@ -434,12 +444,4 @@ type CreateTriggerRequest struct {
 // CreateWorkspaceFolderRequest is a daemon API value.
 type CreateWorkspaceFolderRequest struct {
 	Name string `json:"name"`
-}
-
-// CreateWorkspaceRequest is a daemon API value.
-type CreateWorkspaceRequest struct {
-	RootDir      string   `json:"root_dir"`
-	Name         string   `json:"name,omitempty"`
-	AddDirs      []string `json:"add_dirs,omitempty"`
-	DefaultAgent string   `json:"default_agent,omitempty"`
 }

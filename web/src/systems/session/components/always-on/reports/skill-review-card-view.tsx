@@ -116,6 +116,7 @@ export function SkillReviewCardView({
       decided={view.state !== "pending"}
       deciding={view.deciding}
       approveDisabled={view.invalid}
+      automaticComparison={view.automaticComparison}
       error={view.decideError?.message}
       installConflictOp={view.installConflictOp}
       evidenceSessionIds={review.evidence_session_ids}
@@ -179,7 +180,11 @@ export function SkillReviewCardView({
           </div>
         }
         state="needs-you"
-        title={`New skill to review: ${review.name}`}
+        title={
+          review.kind === "edit"
+            ? `Change to review: ${review.name}`
+            : `New skill to review: ${review.name}`
+        }
         when={when}
       />
       {dialog}

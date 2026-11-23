@@ -1,11 +1,11 @@
 -- name: InsertAgentSkillReview :execrows
 INSERT INTO agent_skill_reviews
 (id, instance_id, profile_id, workspace_id, agent_name, skill_name, digest, state, draft_path, source_session_id,
-created_at, kind, skill_key, base_digest, lesson, evidence_session_ids)
+created_at, kind, skill_key, base_digest, snapshot_path, proposed_digest, lesson, evidence_session_ids)
 SELECT sqlc.arg(id), sqlc.arg(instance_id), sqlc.arg(profile_id), sqlc.arg(workspace_id),
 sqlc.arg(agent_name), sqlc.arg(skill_name), sqlc.arg(digest), 'pending', sqlc.arg(draft_path),
 sqlc.narg(source_session_id), sqlc.arg(created_at), sqlc.arg(kind), sqlc.arg(skill_key), sqlc.arg(base_digest),
-sqlc.arg(lesson),
+sqlc.arg(snapshot_path), sqlc.arg(proposed_digest), sqlc.arg(lesson),
 sqlc.arg(evidence_session_ids)
 WHERE (SELECT count(*) FROM agent_skill_reviews WHERE instance_id = sqlc.arg(instance_id) AND state = 'pending') < 5;
 

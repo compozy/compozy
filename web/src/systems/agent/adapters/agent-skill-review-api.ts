@@ -98,3 +98,8 @@ export function skillInstallConflictOp(error: unknown) {
   }
   return /\(op ([^)\s]+)\)/.exec(error.message)?.[1] ?? "";
 }
+
+/** The installed skill changed after an edit was proposed: Approve can never apply, Reject still can. */
+export function isSkillReviewBaseStale(error: unknown) {
+  return error instanceof AgentSkillReviewApiError && error.code === "skill_review_base_stale";
+}

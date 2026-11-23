@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// CreateWorkspaceRequest is a daemon API value.
+type CreateWorkspaceRequest struct {
+	RootDir      string   `json:"root_dir"`
+	Name         string   `json:"name,omitempty"`
+	AddDirs      []string `json:"add_dirs,omitempty"`
+	DefaultAgent string   `json:"default_agent,omitempty"`
+}
+
 // CreateWorktreeRequest is a daemon API value.
 type CreateWorktreeRequest struct {
 	Name           string `json:"name,omitempty"`
@@ -437,10 +445,4 @@ type ExtensionEnablePreviewPayload struct {
 	AutomationStarting          []string                    `json:"automation_starting"`
 	GatewayRequirementDigest    string                      `json:"gateway_requirement_digest"`
 	GatewayConfirmationRequired bool                        `json:"gateway_confirmation_required"`
-}
-
-// ExtensionEnablementPayload is a daemon API value.
-type ExtensionEnablementPayload struct {
-	Profile string `json:"profile"`
-	Enabled bool   `json:"enabled"`
 }

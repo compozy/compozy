@@ -33,6 +33,20 @@ The daemon validates and verifies the content, redacts it and the lesson text, a
 
 Read the instance's reviews, with their lessons and evidence sessions, with `compozy__agent_skill_reviews`. Submitting the same contents again while the first review is pending returns that review unchanged with `duplicate_of_pending: true`; its lesson and evidence are not replaced. Contents that were already rejected are refused with `skill_propose_previously_rejected`, naming the rejected review, until the contents change. A new proposal whose name is already installed in the instance's skill root is refused with `skill_propose_name_taken`; re-proposing approved contents never opens another review. Do not treat a pending review as approval.
 
+## Change an installed skill (edit mode)
+
+Pass `mode: "edit"` to change a skill already installed in this instance's skill root (the same root approval installs into; other tiers are never read or written). An edit is an **overlay**: `SKILL.md` is regenerated from `name`, `description`, and `body`; `files` adds or replaces text files; `remove_paths` deletes installed files; every other installed file, binary and executable ones included, is kept byte- and mode-exact. A replaced file keeps its installed mode.
+
+- No skill of that name in the root: `skill_review_base_missing` (use `mode: "new"`). A `new` proposal for an installed name: `skill_propose_name_taken` (use `mode: "edit"`).
+- The installed skill has a symlink or another non-regular entry, more than 64 files, or more than 1 MiB: `skill_review_base_unsupported`; it can only be edited directly.
+- A result identical to the installed skill: `skill_propose_no_change`.
+- `remove_paths` naming a file the installed skill does not have, naming `SKILL.md` or a file the proposal also writes, or used with `mode: "new"`: `skill_propose_invalid_remove`.
+- While the skill has an unresolved install conflict: `skill_install_conflict`.
+
+The daemon captures the installed contents as the review's base: an unredacted, lossless snapshot kept outside every scan root for as long as the review exists, with its tree digest as `base_digest`. The review shows each path as added, removed, modified, or unchanged, a diff for modified text files, binary files by name and size, and **Runs automatically** for both the resulting tree (kept files count, so a body-only edit of a skill with `scripts/` still reports them) and the installed base. The stored draft records `mode` and `remove_paths`, so the review digest covers them. Proposal identity is the digest plus `base_digest`: rejected contents are refused with `skill_propose_previously_rejected` only against the same base, and may be proposed again once the installed skill changes.
+
+Approval of an edit succeeds only while the installed skill still equals its base. If it changed (or was deleted) after the proposal, approval fails with `skill_review_base_stale` and the review stays pending; reject it and propose again against the current contents. Two pending edits of one base cannot both be approved: after the first, the second is stale.
+
 ## Operator decision
 
 Only an operator may approve or reject, through the review UI, CLI, HTTP, or UDS. There is no agent approval tool. Agent-credentialed decisions fail with `skill_review_operator_only`.
@@ -41,7 +55,7 @@ The operator inspects the exact contents and automatic execution details before 
 
 For a workspace instance, approval installs into the workspace skills root. For a global instance, it installs into the definition's agent-local `skills/` directory, where hooks do not run. A global definition without a source path cannot receive a draft (`skill_review_no_target`). Content refused by verification returns `skill_propose_unverified`.
 
-After approval, the skill behaves like any other skill in its tier. It is not tracked for further reviews.
+After approval, the skill behaves like any other skill in its tier. Change it later with an edit proposal.
 
 ## Boundary
 
@@ -60,7 +74,8 @@ compozy agent skill review reject <review-id> --expected-digest <reviewed-digest
 
 For a User-scope instance, select `--workspace @user`. Review output shows the lesson (cue,
 lesson, evidence, confidence, and evidence sessions), then **Runs automatically**, before the exact
-proposed files. A review created before lessons existed shows `No lesson recorded` and is decided
+proposed files. For an edit, `show` prints `Base:` beside the digest, the proposed and base
+automatic counts, `Files: N modified, N added, N removed`, and a unified diff of every changed file. A review created before lessons existed shows `No lesson recorded` and is decided
 as before. `list` accepts `--state pending|approved|rejected|reverted`, `--kind new|edit`, and
 `--decided-via operator|auto_approve`; a `--cursor` only continues the filters it was issued for. Agent credentials cannot decide even with `approve-all`.
 Approval of a new skill never replaces anything: if a skill with that name now exists, approval

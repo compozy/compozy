@@ -284,6 +284,69 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse rejected edit contents against the same base only [UT-050]", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances
+ (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
+ VALUES ('edit-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`, store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		scanRoot := filepath.Join(root, "skills")
+		skillDir := filepath.Join(scanRoot, "review-changes")
+		if err := os.MkdirAll(skillDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("---\nname: review-changes\n"+
+			"description: Base\n---\n\nBase body"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		service := agentinstance.SkillProposalService{
+			Store:     db.SkillReviews(),
+			Evidence:  instanceScopedEvidence{},
+			DraftRoot: filepath.Join(root, "drafts"),
+			ScanRoots: []string{scanRoot},
+			HomeID:    "home-a",
+		}
+		instance := agentinstance.Instance{ID: "edit-instance", ProfileID: store.DefaultProfileID, AgentName: "coder"}
+		operator := workspaceaccess.ActorRef{Operator: true}
+		input := testSkillProposalInput("review-changes", "Review changes", "Read the diff twice.")
+		input.Mode = agentinstance.SkillProposalEdit
+		first, err := service.Propose(ctx, operator, instance, scanRoot, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stored, err := db.SkillReviews().GetReview(ctx, first.Review.ID)
+		if err != nil || stored.Kind != agentinstance.SkillProposalEdit || stored.SnapshotPath == "" ||
+			stored.SnapshotPath != first.Review.SnapshotPath || stored.ProposedDigest != first.Review.ProposedDigest ||
+			stored.BaseDigest != first.Review.BaseDigest {
+			t.Fatalf("stored edit review = %+v, %v", stored, err)
+		}
+		if err := service.Reject(ctx, operator, instance, stored.ID, stored.Digest, "operator", scanRoot); err != nil {
+			t.Fatal(err)
+		}
+		again, err := service.Propose(ctx, operator, instance, scanRoot, input)
+		if !errors.Is(err, agentinstance.ErrSkillProposePreviouslyRejected) || again.Review.ID != stored.ID {
+			t.Fatalf("same base: %+v %v", again, err)
+		}
+		// Snapshots live as long as their review: the refused proposal leaves only the first draft and snapshot.
+		if entries, err := os.ReadDir(service.DraftRoot); err != nil || len(entries) != 2 {
+			t.Fatalf("drafts after a refused edit: %d %v", len(entries), err)
+		}
+		if err := os.WriteFile(filepath.Join(skillDir, "notes.md"), []byte("operator notes"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		changed, err := service.Propose(ctx, operator, instance, scanRoot, input)
+		if err != nil || changed.Duplicate || changed.Review.ID == stored.ID ||
+			changed.Review.State != "pending" || changed.Review.Digest != stored.Digest ||
+			changed.Review.BaseDigest == stored.BaseDigest {
+			t.Fatalf("changed base: %+v %v", changed, err)
+		}
+	})
+
 	t.Run("Should atomically create reviews and reports and reject stale decisions", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)

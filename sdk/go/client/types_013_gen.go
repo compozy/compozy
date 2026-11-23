@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// MarketplaceExtensionDetailPayload is a daemon API value.
+type MarketplaceExtensionDetailPayload struct {
+	ResolvedRef  string                     `json:"resolved_ref,omitempty"`
+	Layout       string                     `json:"layout,omitempty"`
+	Inputs       []MarketplaceInputPayload  `json:"inputs"`
+	MCPServers   []MarketplaceServerPayload `json:"mcp_servers"`
+	Contents     ExtensionContentsPayload   `json:"contents"`
+	Diagnostics  []DiagnosticItem           `json:"diagnostics,omitempty"`
+	InstallSlug  string                     `json:"install_slug"`
+	ArtifactURL  string                     `json:"artifact_url,omitempty"`
+	DigestSHA256 string                     `json:"digest_sha256"`
+	Repository   string                     `json:"repository,omitempty"`
+}
+
+// MarketplaceInputBindingPayload is a daemon API value.
+type MarketplaceInputBindingPayload struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
 // MarketplaceInputPayload is a daemon API value.
 type MarketplaceInputPayload struct {
 	ID       string                         `json:"id"`
@@ -421,29 +441,4 @@ type ObserveHealthPayload struct {
 	AgentProbes        []AgentProbeHealthPayload       `json:"agent_probes,omitempty"`
 	Activities         []SessionActivityHealthPayload  `json:"activities,omitempty"`
 	Version            string                          `json:"version"`
-}
-
-// ObserveOverviewPayload is a daemon API value.
-type ObserveOverviewPayload struct {
-	SchemaVersion string                        `json:"schema_version"`
-	GeneratedAt   time.Time                     `json:"generated_at"`
-	Attention     OverviewAttentionPayload      `json:"attention"`
-	Today         OverviewTodayPayload          `json:"today"`
-	Outcomes      OverviewOutcomesPayload       `json:"outcomes"`
-	Usage         OverviewUsagePayload          `json:"usage"`
-	Pulse         OverviewPulsePayload          `json:"pulse"`
-	System        OverviewSystemPayload         `json:"system"`
-	Freshness     TaskDashboardFreshnessPayload `json:"freshness"`
-}
-
-// ObserveOverviewResponse is a daemon API value.
-type ObserveOverviewResponse struct {
-	Overview ObserveOverviewPayload `json:"overview"`
-}
-
-// ObservePersistenceHealthPayload is a daemon API value.
-type ObservePersistenceHealthPayload struct {
-	Status             string `json:"status"`
-	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
 }

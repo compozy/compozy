@@ -17,20 +17,38 @@ import {
   Pill,
 } from "@compozy/ui";
 
+import { alignLines, splitLines, ToolDiffBody } from "@/systems/session";
+
 import { hasInvisibleCharacters, skillMarkdownRead } from "../../lib/agent-skill-markdown-read";
-import { SKILL_DEFINITION_FILE, type SkillReviewFile } from "../../lib/agent-skill-review";
+import {
+  SKILL_DEFINITION_FILE,
+  skillReviewChangeCounts,
+  type SkillReviewFile,
+} from "../../lib/agent-skill-review";
 import type { AgentSkillLessonPayload } from "../../types";
 import { AgentSkillFileTree } from "./agent-skill-file-tree";
 import { AgentSkillLesson } from "./agent-skill-lesson";
 
-type ReadMode = "read" | "source";
+type ReadMode = "read" | "source" | "diff";
+
+const MODE_LABEL: Record<ReadMode, string> = { read: "Read", source: "Source", diff: "Changes" };
+
+const CHANGE_LABEL = { added: "Added", removed: "Removed", modified: "Modified" } as const;
 
 const NO_EVIDENCE_SESSIONS: readonly string[] = [];
 
-function ReadToggle({ mode, onMode }: { mode: ReadMode; onMode: (mode: ReadMode) => void }) {
+function ReadToggle({
+  modes,
+  mode,
+  onMode,
+}: {
+  modes: readonly ReadMode[];
+  mode: ReadMode;
+  onMode: (mode: ReadMode) => void;
+}) {
   return (
     <div className="ml-auto flex items-center gap-1">
-      {(["read", "source"] as const).map(value => (
+      {modes.map(value => (
         <Button
           aria-pressed={mode === value}
           key={value}
@@ -39,7 +57,7 @@ function ReadToggle({ mode, onMode }: { mode: ReadMode; onMode: (mode: ReadMode)
           type="button"
           variant={mode === value ? "secondary" : "quiet"}
         >
-          {value === "read" ? "Read" : "Source"}
+          {MODE_LABEL[value]}
         </Button>
       ))}
     </div>
@@ -58,9 +76,31 @@ function InvisibleCharactersNotice() {
   );
 }
 
+/** An installed file that isn't text: name and size only. */
+function BinaryFileView({ file }: { file: SkillReviewFile }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-3" data-testid="skill-review-binary">
+      <span className="min-w-0 truncate font-mono text-small-body text-muted-foreground">
+        {file.path}
+      </span>
+      <p className="text-small-body text-muted-foreground">
+        Not a text file · {file.binarySize ?? 0} bytes
+        {file.change === "removed" ? " · Removed" : " · Kept as it is"}
+      </p>
+    </div>
+  );
+}
+
 function FileView({ file }: { file: SkillReviewFile }) {
-  const [mode, setMode] = useState<ReadMode>("read");
+  const changed = file.baseBody !== undefined;
+  const [mode, setMode] = useState<ReadMode>(changed ? "diff" : "read");
+  if (file.binarySize !== undefined) return <BinaryFileView file={file} />;
   const markdown = file.language === "markdown";
+  const modes: ReadMode[] = [
+    ...(changed ? (["diff"] as const) : []),
+    ...(markdown ? (["read"] as const) : []),
+    "source",
+  ];
   const read = markdown ? skillMarkdownRead(file.body) : null;
   const readHides = read?.hidesText === true && mode === "read";
   const invisible = !readHides && hasInvisibleCharacters(file.body);
@@ -70,12 +110,15 @@ function FileView({ file }: { file: SkillReviewFile }) {
         <span className="min-w-0 truncate font-mono text-small-body text-muted-foreground">
           {file.path}
         </span>
+        {file.change && file.change !== "unchanged" ? (
+          <Pill size="sm">{CHANGE_LABEL[file.change]}</Pill>
+        ) : null}
         {file.automatic ? (
           <Pill size="sm" tone="warning">
             Runs automatically
           </Pill>
         ) : null}
-        {markdown ? <ReadToggle mode={mode} onMode={setMode} /> : null}
+        {modes.length > 1 ? <ReadToggle mode={mode} modes={modes} onMode={setMode} /> : null}
       </div>
       {invisible ? <InvisibleCharactersNotice /> : null}
       {readHides ? (
@@ -93,7 +136,13 @@ function FileView({ file }: { file: SkillReviewFile }) {
           </AlertDescription>
         </Alert>
       ) : null}
-      {read && mode === "read" ? (
+      {mode === "diff" ? (
+        <ToolDiffBody
+          lines={alignLines(splitLines(file.baseBody ?? ""), splitLines(file.body))}
+          path={file.path}
+          testId="skill-review-diff"
+        />
+      ) : read && mode === "read" ? (
         <Markdown>{read.text}</Markdown>
       ) : (
         <CodeBlock code={file.body} language={file.language} />
@@ -119,7 +168,10 @@ export function AgentSkillViewerDialog({
   onApprove,
   onReject,
   initialPath,
+  automaticComparison,
 }: {
+  /** Edit reviews: "Runs automatically" for this version and for the installed skill. */
+  automaticComparison?: { proposed: string; installed: string };
   /** The file shown first; SKILL.md when absent. */
   initialPath?: string;
   name: string;
@@ -146,6 +198,11 @@ export function AgentSkillViewerDialog({
   const [selected, setSelected] = useState(initialPath ?? SKILL_DEFINITION_FILE);
   const file = files.find(item => item.path === selected) ?? files[0];
   const count = files.length;
+  const changes = skillReviewChangeCounts(files);
+  const edit = files.some(item => item.change !== undefined);
+  const description = edit
+    ? `${changes.modified} modified, ${changes.added} added, ${changes.removed} removed · Proposed by ${agentLabel}`
+    : `${count} ${count === 1 ? "file" : "files"} · Proposed by ${agentLabel}`;
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
@@ -154,7 +211,7 @@ export function AgentSkillViewerDialog({
         unframed
       >
         <EntityDialogHeader
-          description={`${count} ${count === 1 ? "file" : "files"} · Proposed by ${agentLabel}`}
+          description={description}
           icon={FileText}
           onClose={() => onOpenChange(false)}
           title={name}
@@ -168,6 +225,15 @@ export function AgentSkillViewerDialog({
           </nav>
           <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto px-6 pt-4 pb-6">
             <AgentSkillLesson evidenceSessionIds={evidenceSessionIds} lesson={lesson} />
+            {automaticComparison ? (
+              <p
+                className="text-small-body text-muted-foreground"
+                data-testid="skill-review-automatic-counts"
+              >
+                Runs automatically: {automaticComparison.proposed} (installed now:{" "}
+                {automaticComparison.installed})
+              </p>
+            ) : null}
             {stale ? (
               <Alert data-testid="skill-review-stale" variant="warning">
                 <AlertDescription>

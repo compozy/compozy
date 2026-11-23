@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// AgentSkillReviewResponse is a daemon API value.
+type AgentSkillReviewResponse struct {
+	Review             AgentSkillReviewPayload `json:"review"`
+	DuplicateOfPending bool                    `json:"duplicate_of_pending,omitempty"`
+}
+
+// AgentSkillReviewsResponse is a daemon API value.
+type AgentSkillReviewsResponse struct {
+	Reviews    []AgentSkillReviewPayload `json:"reviews"`
+	NextCursor string                    `json:"next_cursor,omitempty"`
+}
+
 // AgentSoulConfigProvenancePayload is a daemon API value.
 type AgentSoulConfigProvenancePayload struct {
 	Digest                 string `json:"digest"`
@@ -435,13 +447,4 @@ type AutomationHealthPayload struct {
 	SchedulerRunning bool                              `json:"scheduler_running"`
 	NextFire         *time.Time                        `json:"next_fire,omitempty"`
 	ScheduledJobs    []AutomationSchedulerStatePayload `json:"scheduled_jobs,omitempty"`
-}
-
-// AutomationLastRunPayload is a daemon API value.
-type AutomationLastRunPayload struct {
-	ID         string              `json:"id"`
-	Status     RunStatus           `json:"status"`
-	StartedAt  *time.Time          `json:"started_at,omitzero"`
-	EndedAt    *time.Time          `json:"ended_at,omitzero"`
-	SkipReason SchedulerSkipReason `json:"skip_reason,omitempty"`
 }

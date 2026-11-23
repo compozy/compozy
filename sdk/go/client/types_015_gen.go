@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+// ProfileOperation is a daemon API value.
+type ProfileOperation struct {
+	ID      string `json:"id"`
+	Kind    string `json:"kind"`
+	Profile string `json:"profile"`
+	Status  string `json:"status"`
+	Step    string `json:"step"`
+	Error   string `json:"error,omitempty"`
+}
+
+// ProfilePlacement is a daemon API value.
+type ProfilePlacement struct {
+	Extension string `json:"extension"`
+	Resource  string `json:"resource"`
+	Profile   string `json:"profile"`
+}
+
+// ProfilePlanRequest is a daemon API value.
+type ProfilePlanRequest struct {
+	PlanRevision string `json:"plan_revision"`
+}
+
 // ProfileRemovalSummary is a daemon API value.
 type ProfileRemovalSummary struct {
 	AgentInstances      int `json:"agent_instances"`
@@ -423,25 +445,4 @@ type PutResourceRequest struct {
 	Scope           ResourceScope   `json:"scope"`
 	ExpectedVersion int64           `json:"expected_version,omitzero"`
 	Spec            json.RawMessage `json:"spec"`
-}
-
-// PutSettingsHookRequest is a daemon API value.
-type PutSettingsHookRequest struct {
-	Declaration SettingsHookDeclarationPayload `json:"declaration"`
-}
-
-// PutSettingsMCPServerRequest is a daemon API value.
-type PutSettingsMCPServerRequest struct {
-	Server          SettingsMCPServerPayload              `json:"server"`
-	SecretValues    *SettingsMCPSecretValuesPayload       `json:"secret_values,omitzero"`
-	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
-	PreserveHeaders bool                                  `json:"preserve_headers,omitzero"`
-	PreserveEnv     []string                              `json:"preserve_env,omitempty"`
-}
-
-// PutSettingsProviderRequest is a daemon API value.
-type PutSettingsProviderRequest struct {
-	Settings      SettingsProviderWritePayload         `json:"settings"`
-	ModelCuration *ProviderModelCurationRequest        `json:"model_curation,omitzero"`
-	Secrets       []SettingsProviderSecretWritePayload `json:"secrets,omitempty"`
 }

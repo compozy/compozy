@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// LoopDiffNodeRow is a daemon API value.
+type LoopDiffNodeRow struct {
+	NodeID    string        `json:"node_id"`
+	ItemIndex int           `json:"item_index,omitzero"`
+	Change    string        `json:"change"`
+	Base      LoopDiffValue `json:"base,omitzero"`
+	Against   LoopDiffValue `json:"against,omitzero"`
+	Cause     string        `json:"cause,omitempty"`
+}
+
+// LoopDiffResponse is a daemon API value.
+type LoopDiffResponse struct {
+	Kind                 string               `json:"kind"`
+	Base                 LoopDiffEndpoint     `json:"base"`
+	Against              LoopDiffEndpoint     `json:"against"`
+	Inputs               []LoopDiffInputRow   `json:"inputs"`
+	Nodes                []LoopDiffNodeRow    `json:"nodes"`
+	Terminal             *LoopDiffTerminalRow `json:"terminal,omitzero"`
+	DefinitionDivergence bool                 `json:"definition_divergence,omitzero"`
+}
+
 // LoopDiffTerminalRow is a daemon API value.
 type LoopDiffTerminalRow struct {
 	Base    LoopRunStatus `json:"base"`
@@ -426,16 +447,4 @@ type LoopPlanNodePreview struct {
 	Class     LoopNodeClass `json:"class"`
 	Kind      string        `json:"kind"`
 	DependsOn []string      `json:"depends_on,omitempty"`
-}
-
-// LoopPlanPayload is a daemon API value.
-type LoopPlanPayload struct {
-	LoopName             string                     `json:"loop_name"`
-	ResolvedInputs       map[string]any             `json:"resolved_inputs"`
-	InputOrigins         map[string]LoopInputOrigin `json:"input_origins"`
-	Generation           int                        `json:"generation"`
-	Nodes                []LoopPlanNodePreview      `json:"nodes"`
-	Contract             LoopContract               `json:"contract"`
-	MaterializedContract LoopContract               `json:"materialized_contract"`
-	EffectiveConfig      LoopEffectiveConfig        `json:"effective_config"`
 }

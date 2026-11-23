@@ -358,10 +358,24 @@ type AgentSkillAutomaticContents struct {
 	Scripts    int `json:"scripts"`
 }
 
+// AgentSkillBaseFile is a daemon API value.
+type AgentSkillBaseFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content,omitempty"`
+	Binary  bool   `json:"binary,omitempty"`
+	Size    int64  `json:"size,omitempty"`
+}
+
 // AgentSkillDraftFile is a daemon API value.
 type AgentSkillDraftFile struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
+}
+
+// AgentSkillFileChange is a daemon API value.
+type AgentSkillFileChange struct {
+	Path   string `json:"path"`
+	Change string `json:"change"`
 }
 
 // AgentSkillInstallConflictPayload is a daemon API value.
@@ -409,35 +423,26 @@ type AgentSkillReviewDecisionRequest struct {
 
 // AgentSkillReviewPayload is a daemon API value.
 type AgentSkillReviewPayload struct {
-	ID                 string                      `json:"id"`
-	InstanceID         string                      `json:"instance_id"`
-	ProfileID          string                      `json:"profile_id"`
-	WorkspaceID        string                      `json:"workspace_id"`
-	Agent              string                      `json:"agent"`
-	Name               string                      `json:"name"`
-	State              string                      `json:"state"`
-	Kind               string                      `json:"kind"`
-	Digest             string                      `json:"digest"`
-	BaseDigest         string                      `json:"base_digest,omitempty"`
-	Lesson             *AgentSkillLesson           `json:"lesson,omitempty"`
-	EvidenceSessionIDs []string                    `json:"evidence_session_ids"`
-	RunsAutomatically  AgentSkillAutomaticContents `json:"runs_automatically"`
-	Files              []AgentSkillDraftFile       `json:"files,omitempty"`
-	CreatedAt          time.Time                   `json:"created_at"`
-	DecidedAt          *time.Time                  `json:"decided_at,omitempty"`
-	DecidedBy          string                      `json:"decided_by,omitempty"`
-	DecidedVia         string                      `json:"decided_via,omitempty"`
-	Problem            string                      `json:"problem,omitempty"`
-}
-
-// AgentSkillReviewResponse is a daemon API value.
-type AgentSkillReviewResponse struct {
-	Review             AgentSkillReviewPayload `json:"review"`
-	DuplicateOfPending bool                    `json:"duplicate_of_pending,omitempty"`
-}
-
-// AgentSkillReviewsResponse is a daemon API value.
-type AgentSkillReviewsResponse struct {
-	Reviews    []AgentSkillReviewPayload `json:"reviews"`
-	NextCursor string                    `json:"next_cursor,omitempty"`
+	ID                    string                       `json:"id"`
+	InstanceID            string                       `json:"instance_id"`
+	ProfileID             string                       `json:"profile_id"`
+	WorkspaceID           string                       `json:"workspace_id"`
+	Agent                 string                       `json:"agent"`
+	Name                  string                       `json:"name"`
+	State                 string                       `json:"state"`
+	Kind                  string                       `json:"kind"`
+	Digest                string                       `json:"digest"`
+	BaseDigest            string                       `json:"base_digest,omitempty"`
+	Lesson                *AgentSkillLesson            `json:"lesson,omitempty"`
+	EvidenceSessionIDs    []string                     `json:"evidence_session_ids"`
+	RunsAutomatically     AgentSkillAutomaticContents  `json:"runs_automatically"`
+	BaseRunsAutomatically *AgentSkillAutomaticContents `json:"base_runs_automatically,omitempty"`
+	Changes               []AgentSkillFileChange       `json:"changes,omitempty"`
+	Files                 []AgentSkillDraftFile        `json:"files,omitempty"`
+	BaseFiles             []AgentSkillBaseFile         `json:"base_files,omitempty"`
+	CreatedAt             time.Time                    `json:"created_at"`
+	DecidedAt             *time.Time                   `json:"decided_at,omitempty"`
+	DecidedBy             string                       `json:"decided_by,omitempty"`
+	DecidedVia            string                       `json:"decided_via,omitempty"`
+	Problem               string                       `json:"problem,omitempty"`
 }

@@ -4,6 +4,37 @@ package client
 
 import "time"
 
+// SettingsMCPServerPayload is a daemon API value.
+type SettingsMCPServerPayload struct {
+	ReadOnlyTools []string                      `json:"read_only_tools,omitempty"`
+	Headers       map[string]string             `json:"headers,omitempty"`
+	Name          string                        `json:"name"`
+	Transport     string                        `json:"transport,omitempty"`
+	Command       string                        `json:"command,omitempty"`
+	Args          []string                      `json:"args,omitempty"`
+	Env           map[string]string             `json:"env,omitempty"`
+	SecretEnv     map[string]string             `json:"secret_env,omitempty"`
+	URL           string                        `json:"url,omitempty"`
+	Auth          *SettingsMCPAuthConfigPayload `json:"auth,omitzero"`
+}
+
+// SettingsMCPServerResponse is a daemon API value.
+type SettingsMCPServerResponse struct {
+	Server SettingsMCPServerItemPayload `json:"server"`
+}
+
+// SettingsMCPServerRuntimeStatusPayload is a daemon API value.
+type SettingsMCPServerRuntimeStatusPayload struct {
+	Configured      bool   `json:"configured"`
+	Initialized     bool   `json:"initialized"`
+	State           string `json:"state"`
+	Probe           string `json:"probe"`
+	ToolCount       int    `json:"tool_count"`
+	ProtocolVersion string `json:"protocol_version,omitempty"`
+	Reason          string `json:"reason,omitempty"`
+	Diagnostic      string `json:"diagnostic,omitempty"`
+}
+
 // SettingsMCPServersResponse is a daemon API value.
 type SettingsMCPServersResponse struct {
 	Collection      SettingsCollectionName         `json:"collection"`
@@ -413,30 +444,3 @@ type SettingsShellSessionsPayload struct {
 
 // SettingsShellTextSize is a daemon API value.
 type SettingsShellTextSize string
-
-// SettingsSkillSourceCollisionPayload is a daemon API value.
-type SettingsSkillSourceCollisionPayload struct {
-	Name          string `json:"name"`
-	WinnerRootID  string `json:"winner_root_id"`
-	QualifiedForm string `json:"qualified_form"`
-}
-
-// SettingsSkillSourceInheritancePayload is a daemon API value.
-type SettingsSkillSourceInheritancePayload struct {
-	Sources       bool `json:"sources"`
-	CustomSources bool `json:"custom_sources"`
-}
-
-// SettingsSkillSourcePayload is a daemon API value.
-type SettingsSkillSourcePayload struct {
-	Slug          string                           `json:"slug"`
-	Label         string                           `json:"label"`
-	Kind          string                           `json:"kind"`
-	Enabled       bool                             `json:"enabled"`
-	AlwaysOn      bool                             `json:"always_on"`
-	Default       bool                             `json:"default,omitzero"`
-	WorkspacePath string                           `json:"workspace_path,omitempty"`
-	GlobalPath    string                           `json:"global_path,omitempty"`
-	Path          string                           `json:"path,omitempty"`
-	Roots         []SettingsSkillSourceRootPayload `json:"roots"`
-}

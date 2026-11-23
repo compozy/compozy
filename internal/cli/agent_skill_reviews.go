@@ -149,7 +149,11 @@ func agentSkillReviewText(review contract.AgentSkillReviewPayload) string {
 	if kind == "" {
 		kind = "new"
 	}
-	fmt.Fprintf(&text, "%s (%s) · %s\nDigest: %s\n", review.Name, kind, review.State, review.Digest)
+	fmt.Fprintf(&text, "%s (%s) · %s\nDigest: %s", review.Name, kind, review.State, review.Digest)
+	if review.BaseDigest != "" {
+		fmt.Fprintf(&text, "   Base: %s", review.BaseDigest)
+	}
+	text.WriteString("\n")
 	if lesson := review.Lesson; lesson != nil {
 		fmt.Fprintf(&text, "Lesson (%s confidence)\n  Cue:      %s\n  Lesson:   %s\n  Evidence: %s\n",
 			lesson.Confidence, lesson.Cue, lesson.Lesson, lesson.Evidence)
@@ -158,6 +162,10 @@ func agentSkillReviewText(review contract.AgentSkillReviewPayload) string {
 	}
 	if len(review.EvidenceSessionIDs) > 0 {
 		fmt.Fprintf(&text, "  Sessions: %s\n", strings.Join(review.EvidenceSessionIDs, ", "))
+	}
+	if kind == skillReviewKindEdit {
+		agentSkillEditText(&text, review)
+		return text.String()
 	}
 	fmt.Fprintf(
 		&text,

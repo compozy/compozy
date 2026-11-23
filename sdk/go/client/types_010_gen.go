@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+// HookEventPayload is a daemon API value.
+type HookEventPayload struct {
+	Event         string `json:"event"`
+	Family        string `json:"family"`
+	SyncEligible  bool   `json:"sync_eligible"`
+	PayloadSchema string `json:"payload_schema"`
+	PatchSchema   string `json:"patch_schema,omitempty"`
+}
+
+// HookEventsResponse is a daemon API value.
+type HookEventsResponse struct {
+	Events []HookEventPayload `json:"events"`
+}
+
+// HookExecutorKind is a daemon API value.
+type HookExecutorKind string
+
 // HookMatcher is a daemon API value.
 type HookMatcher struct {
 	AgentName        string           `json:"agent_name,omitempty"`
@@ -423,25 +440,4 @@ type LoopDiffInputRow struct {
 	Key     string        `json:"key"`
 	Base    LoopDiffValue `json:"base"`
 	Against LoopDiffValue `json:"against"`
-}
-
-// LoopDiffNodeRow is a daemon API value.
-type LoopDiffNodeRow struct {
-	NodeID    string        `json:"node_id"`
-	ItemIndex int           `json:"item_index,omitzero"`
-	Change    string        `json:"change"`
-	Base      LoopDiffValue `json:"base,omitzero"`
-	Against   LoopDiffValue `json:"against,omitzero"`
-	Cause     string        `json:"cause,omitempty"`
-}
-
-// LoopDiffResponse is a daemon API value.
-type LoopDiffResponse struct {
-	Kind                 string               `json:"kind"`
-	Base                 LoopDiffEndpoint     `json:"base"`
-	Against              LoopDiffEndpoint     `json:"against"`
-	Inputs               []LoopDiffInputRow   `json:"inputs"`
-	Nodes                []LoopDiffNodeRow    `json:"nodes"`
-	Terminal             *LoopDiffTerminalRow `json:"terminal,omitzero"`
-	DefinitionDivergence bool                 `json:"definition_divergence,omitzero"`
 }

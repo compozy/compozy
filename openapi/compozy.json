@@ -2596,6 +2596,27 @@
         ],
         "type": "object"
       },
+      "AgentSkillBaseFile": {
+        "properties": {
+          "binary": {
+            "type": "boolean"
+          },
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
       "AgentSkillDraftFile": {
         "properties": {
           "content": {
@@ -2607,6 +2628,21 @@
         },
         "required": [
           "content",
+          "path"
+        ],
+        "type": "object"
+      },
+      "AgentSkillFileChange": {
+        "properties": {
+          "change": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "change",
           "path"
         ],
         "type": "object"
@@ -2735,6 +2771,31 @@
           },
           "base_digest": {
             "type": "string"
+          },
+          "base_files": {
+            "items": {
+              "$ref": "#/components/schemas/AgentSkillBaseFile"
+            },
+            "type": "array"
+          },
+          "base_runs_automatically": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentSkillAutomaticContents"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/AgentSkillFileChange"
+            },
+            "type": "array"
           },
           "created_at": {
             "format": "date-time",

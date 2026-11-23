@@ -5,6 +5,7 @@ import { skillKeys } from "@/systems/skill";
 
 import {
   decideAgentSkillReview,
+  isSkillReviewBaseStale,
   isSkillReviewInvalid,
   isSkillReviewStale,
   skillInstallConflictOp,
@@ -13,6 +14,7 @@ import {
 } from "../adapters/agent-skill-review-api";
 import {
   skillAutomaticItems,
+  skillAutomaticSummary,
   skillReviewFiles,
   skillReviewState,
   skillReviewWhy,
@@ -57,8 +59,11 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
   const files = review ? skillReviewFiles(review) : [];
   // The daemon marks a review whose stored draft no longer verifies; it can only be rejected.
   const unreadable = review?.problem === "skill_review_invalid";
-  const invalid = unreadable || isSkillReviewInvalid(mutation.error);
+  // An edit whose installed skill changed since the proposal can only be rejected.
+  const baseStale = isSkillReviewBaseStale(mutation.error);
+  const invalid = unreadable || baseStale || isSkillReviewInvalid(mutation.error);
   const installConflictOp = skillInstallConflictOp(mutation.error);
+  const baseAutomatic = review?.base_runs_automatically;
   return {
     review,
     loading: ref === null || (query.isPending && Boolean(ref.id)),
@@ -66,6 +71,14 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     files,
     why: review ? skillReviewWhy(review) : undefined,
     automatic: review ? skillAutomaticItems(review, files) : [],
+    /** Edit reviews: proposed and installed "Runs automatically" counts. */
+    automaticComparison:
+      review?.kind === "edit" && baseAutomatic
+        ? {
+            proposed: skillAutomaticSummary(review.runs_automatically),
+            installed: skillAutomaticSummary(baseAutomatic),
+          }
+        : undefined,
     state: review ? skillReviewState(review) : "pending",
     /** A stale refusal brought a different digest: this is the newer version. The decision waits for the reread. */
     stale: staleDigest !== null && review?.digest !== staleDigest,
@@ -76,13 +89,15 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     unreadable,
     /** The skill changed while it was being replaced; the operator resolves this op from the CLI. */
     installConflictOp,
-    decideError: isSkillReviewInvalid(mutation.error)
-      ? new Error(
-          "CompozyOS can't install this version. Reject it, or wait for the agent to propose it again."
-        )
-      : mutation.error && !isSkillReviewStale(mutation.error) && installConflictOp === null
-        ? mutation.error
-        : null,
+    decideError: baseStale
+      ? new Error("This skill changed after the proposal. Reject it and ask for a new one.")
+      : isSkillReviewInvalid(mutation.error)
+        ? new Error(
+            "CompozyOS can't install this version. Reject it, or wait for the agent to propose it again."
+          )
+        : mutation.error && !isSkillReviewStale(mutation.error) && installConflictOp === null
+          ? mutation.error
+          : null,
     decide: (decision: AgentSkillReviewDecision) => {
       if (review && !query.isFetching && !(invalid && decision === "approve")) {
         mutation.mutate({ decision, digest: review.digest });

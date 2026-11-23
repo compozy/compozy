@@ -7,6 +7,45 @@ import (
 	"time"
 )
 
+// SkillDiagnosticPayload is a daemon API value.
+type SkillDiagnosticPayload struct {
+	Name               string                            `json:"name"`
+	State              SkillDiagnosticState              `json:"state"`
+	Source             string                            `json:"source,omitempty"`
+	Path               string                            `json:"path,omitempty"`
+	WinningSource      string                            `json:"winning_source,omitempty"`
+	WinningPath        string                            `json:"winning_path,omitempty"`
+	VerificationStatus SkillVerificationStatus           `json:"verification_status"`
+	Warnings           []SkillVerificationWarningPayload `json:"warnings,omitempty"`
+	Failure            *SkillVerificationFailurePayload  `json:"failure,omitzero"`
+	ActivationReasons  []SkillActivationReasonPayload    `json:"activation_reasons,omitempty"`
+}
+
+// SkillDiagnosticState is a daemon API value.
+type SkillDiagnosticState string
+
+// SkillExposeResponse is a daemon API value.
+type SkillExposeResponse struct {
+	Name        string                             `json:"name"`
+	WorkspaceID string                             `json:"workspace_id,omitempty"`
+	Results     []SkillExposureTargetResultPayload `json:"results"`
+	RolledBack  bool                               `json:"rolled_back"`
+}
+
+// SkillExposureErrorPayload is a daemon API value.
+type SkillExposureErrorPayload struct {
+	Code       string `json:"code"`
+	Message    string `json:"message,omitempty"`
+	OccupiedBy string `json:"occupied_by,omitempty"`
+}
+
+// SkillExposurePayload is a daemon API value.
+type SkillExposurePayload struct {
+	Target string              `json:"target"`
+	Path   string              `json:"path"`
+	Status SkillExposureStatus `json:"status"`
+}
+
 // SkillExposureRequest is a daemon API value.
 type SkillExposureRequest struct {
 	Targets     []string `json:"targets"`
@@ -405,41 +444,4 @@ type SubagentUpdatedEvent struct {
 type SubagentUsagePayload struct {
 	TotalTokens int64 `json:"total_tokens"`
 	ToolUses    int64 `json:"tool_uses"`
-}
-
-// SubagentWorktreePayload is a daemon API value.
-type SubagentWorktreePayload struct {
-	ID                string                      `json:"id"`
-	Name              string                      `json:"name"`
-	Branch            string                      `json:"branch"`
-	BaseRef           string                      `json:"base_ref"`
-	BaseSHA           string                      `json:"base_sha,omitempty"`
-	Path              string                      `json:"path"`
-	HeadSHA           string                      `json:"head_sha,omitempty"`
-	CommitsAhead      *int                        `json:"commits_ahead,omitempty"`
-	DirtyFiles        *int                        `json:"dirty_files,omitempty"`
-	ObservedAt        *time.Time                  `json:"observed_at,omitempty"`
-	PullRequestStatus string                      `json:"pull_request_status,omitempty"`
-	PullRequest       *SubagentPullRequestPayload `json:"pull_request,omitempty"`
-}
-
-// SubagentsSnapshotEvent is a daemon API value.
-type SubagentsSnapshotEvent struct {
-	SessionID string            `json:"session_id"`
-	Subagents []SubagentPayload `json:"subagents"`
-}
-
-// SubmitTaskRunReviewVerdictRequest is a daemon API value.
-type SubmitTaskRunReviewVerdictRequest struct {
-	RunID   string           `json:"run_id"`
-	Verdict RunReviewVerdict `json:"verdict"`
-}
-
-// SubprocessHealthAggregatePayload is a daemon API value.
-type SubprocessHealthAggregatePayload struct {
-	Status    string                           `json:"status"`
-	Monitored int                              `json:"monitored"`
-	Healthy   int                              `json:"healthy"`
-	Unhealthy int                              `json:"unhealthy"`
-	Sessions  []SubprocessHealthSessionPayload `json:"sessions,omitempty"`
 }
