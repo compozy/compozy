@@ -507,4 +507,46 @@ func TestSkillInstallConflictResolution(t *testing.T) {
 			t.Fatalf("ResolveInstallConflict() after release = %v", err)
 		}
 	})
+	t.Run("Should resolve an edited copy replaced by a symlink without following it [UT-065]", func(t *testing.T) {
+		t.Parallel()
+		f := newSkillTxFixture(t)
+		svc := f.service(t, "home-a", nil)
+		seeded := f.seedConflict(t, svc, skillOriginalInBackup)
+		outside := t.TempDir()
+		if err := os.WriteFile(filepath.Join(outside, "SKILL.md"), []byte("outside"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		target := filepath.Join(f.root, "release-checklist")
+		if err := os.RemoveAll(target); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, target); err != nil {
+			t.Fatal(err)
+		}
+		_, err := f.resolve(t, svc, seeded.opID, SkillConflictKeepCurrent)
+		if !errors.Is(err, ErrSkillInstallConflict) || !strings.Contains(err.Error(), "--keep previous") {
+			t.Fatalf("keep=current over a symlink = %v, want skill_install_conflict naming --keep previous", err)
+		}
+		if payload, ok := f.journal(t, "release-checklist"); !ok || payload.State != skillInstallStateConflict {
+			t.Fatalf("journal = %+v, %v; want it still in conflict", payload, ok)
+		}
+		if info, err := os.Lstat(target); err != nil || info.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("refused keep=current changed the target: %v, %v", info, err)
+		}
+		result, err := f.resolve(t, svc, seeded.opID, SkillConflictKeepPrevious)
+		if err != nil || result.KeptCopy != filepath.Join(f.root, skillConflictCopyPrefix+seeded.opID) {
+			t.Fatalf("keep=previous over a symlink = %+v, %v", result, err)
+		}
+		if f.digest(t, "release-checklist") != seeded.base {
+			t.Fatal("keep=previous did not restore the original")
+		}
+		if link, err := os.Readlink(result.KeptCopy); err != nil || link != outside {
+			t.Fatalf("keep-copy = %q, %v; want the symlink itself moved aside", link, err)
+		}
+		content, err := os.ReadFile(filepath.Join(outside, "SKILL.md"))
+		if err != nil || string(content) != "outside" {
+			t.Fatalf("the symlink's referent changed: %q, %v", content, err)
+		}
+		f.requireClean(t)
+	})
 }
