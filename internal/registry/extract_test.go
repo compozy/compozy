@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/dirpublish"
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
@@ -730,17 +731,17 @@ func TestMoveInstalledDir(t *testing.T) {
 		t.Parallel()
 
 		parent := t.TempDir()
-		journal, err := newInstallPublicationJournal("target")
+		journal, err := dirpublish.NewJournal("target", nil)
 		if err != nil {
-			t.Fatalf("newInstallPublicationJournal() error = %v", err)
+			t.Fatalf("dirpublish.NewJournal() error = %v", err)
 		}
-		journal.Phase = installPublicationPhaseBackup
+		journal.Phase = dirpublish.PhaseBackup
 		writeTestFile(t, filepath.Join(parent, journal.IncomingName, "SKILL.md"), "new")
 		writeTestFile(t, filepath.Join(parent, journal.BackupName, "SKILL.md"), "old")
 		root := openPublicationTestRoot(t, parent)
-		journalName := installPublicationJournalName("target")
-		if err := writeInstallPublicationJournal(root, journalName, journal, false); err != nil {
-			t.Fatalf("writeInstallPublicationJournal() error = %v", err)
+		journalName := dirpublish.JournalName("target")
+		if err := dirpublish.WriteJournal(root, journal, false); err != nil {
+			t.Fatalf("dirpublish.WriteJournal() error = %v", err)
 		}
 
 		diagnostics, err := recoverInstalledDirPublication(root, "target")
@@ -768,17 +769,16 @@ func TestMoveInstalledDir(t *testing.T) {
 		t.Parallel()
 
 		parent := t.TempDir()
-		journal, err := newInstallPublicationJournal("target")
+		journal, err := dirpublish.NewJournal("target", nil)
 		if err != nil {
-			t.Fatalf("newInstallPublicationJournal() error = %v", err)
+			t.Fatalf("dirpublish.NewJournal() error = %v", err)
 		}
-		journal.Phase = installPublicationPhasePublished
+		journal.Phase = dirpublish.PhasePublished
 		writeTestFile(t, filepath.Join(parent, "target", "SKILL.md"), "new")
 		writeTestFile(t, filepath.Join(parent, journal.BackupName, "SKILL.md"), "old")
 		root := openPublicationTestRoot(t, parent)
-		journalName := installPublicationJournalName("target")
-		if err := writeInstallPublicationJournal(root, journalName, journal, false); err != nil {
-			t.Fatalf("writeInstallPublicationJournal() error = %v", err)
+		if err := dirpublish.WriteJournal(root, journal, false); err != nil {
+			t.Fatalf("dirpublish.WriteJournal() error = %v", err)
 		}
 
 		if _, err := recoverInstalledDirPublication(root, "target"); err != nil {
@@ -800,22 +800,22 @@ func TestMoveInstalledDir(t *testing.T) {
 		t.Parallel()
 
 		parent := t.TempDir()
-		journal, err := newInstallPublicationJournal("target")
+		journal, err := dirpublish.NewJournal("target", nil)
 		if err != nil {
-			t.Fatalf("newInstallPublicationJournal() error = %v", err)
+			t.Fatalf("dirpublish.NewJournal() error = %v", err)
 		}
-		journal.Phase = installPublicationPhaseBackup
+		journal.Phase = dirpublish.PhaseBackup
 		writeTestFile(t, filepath.Join(parent, "target", "SKILL.md"), "concurrent")
 		writeTestFile(t, filepath.Join(parent, journal.BackupName, "SKILL.md"), "old")
 		root := openPublicationTestRoot(t, parent)
-		journalName := installPublicationJournalName("target")
-		if err := writeInstallPublicationJournal(root, journalName, journal, false); err != nil {
-			t.Fatalf("writeInstallPublicationJournal() error = %v", err)
+		journalName := dirpublish.JournalName("target")
+		if err := dirpublish.WriteJournal(root, journal, false); err != nil {
+			t.Fatalf("dirpublish.WriteJournal() error = %v", err)
 		}
 
 		_, err = recoverInstalledDirPublication(root, "target")
-		if !errors.Is(err, ErrInstallPublicationRecoveryRequired) {
-			t.Fatalf("recoverInstalledDirPublication() error = %v, want %v", err, ErrInstallPublicationRecoveryRequired)
+		if !errors.Is(err, dirpublish.ErrRecoveryRequired) {
+			t.Fatalf("recoverInstalledDirPublication() error = %v, want %v", err, dirpublish.ErrRecoveryRequired)
 		}
 		for path, want := range map[string]string{
 			"target":           "concurrent",
@@ -838,25 +838,24 @@ func TestMoveInstalledDir(t *testing.T) {
 		t.Parallel()
 
 		parent := t.TempDir()
-		journal, err := newInstallPublicationJournal("target")
+		journal, err := dirpublish.NewJournal("target", nil)
 		if err != nil {
-			t.Fatalf("newInstallPublicationJournal() error = %v", err)
+			t.Fatalf("dirpublish.NewJournal() error = %v", err)
 		}
-		journal.Phase = installPublicationPhaseBackup
+		journal.Phase = dirpublish.PhaseBackup
 		writeTestFile(t, filepath.Join(parent, "target", "SKILL.md"), "concurrent")
 		writeTestFile(t, filepath.Join(parent, journal.IncomingName, "SKILL.md"), "new")
 		writeTestFile(t, filepath.Join(parent, journal.BackupName, "SKILL.md"), "old")
 		root := openPublicationTestRoot(t, parent)
-		journalName := installPublicationJournalName("target")
-		if err := writeInstallPublicationJournal(root, journalName, journal, false); err != nil {
-			t.Fatalf("writeInstallPublicationJournal() error = %v", err)
+		journalName := dirpublish.JournalName("target")
+		if err := dirpublish.WriteJournal(root, journal, false); err != nil {
+			t.Fatalf("dirpublish.WriteJournal() error = %v", err)
 		}
 
 		_, err = publishInstallReplacementTarget(
 			root,
 			root,
 			"source",
-			journalName,
 			journal,
 			true,
 			nil,
@@ -886,27 +885,22 @@ func TestMoveInstalledDir(t *testing.T) {
 		t.Parallel()
 
 		parent := t.TempDir()
-		journal, err := newInstallPublicationJournal("target")
+		journal, err := dirpublish.NewJournal("target", nil)
 		if err != nil {
-			t.Fatalf("newInstallPublicationJournal() error = %v", err)
+			t.Fatalf("dirpublish.NewJournal() error = %v", err)
 		}
-		journal.Phase = installPublicationPhaseBackup
+		journal.Phase = dirpublish.PhaseBackup
 		writeTestFile(t, filepath.Join(parent, "target", "SKILL.md"), "unknown")
 		writeTestFile(t, filepath.Join(parent, journal.IncomingName, "SKILL.md"), "new")
 		writeTestFile(t, filepath.Join(parent, journal.BackupName, "SKILL.md"), "old")
 		root := openPublicationTestRoot(t, parent)
-		if err := writeInstallPublicationJournal(
-			root,
-			installPublicationJournalName("target"),
-			journal,
-			false,
-		); err != nil {
-			t.Fatalf("writeInstallPublicationJournal() error = %v", err)
+		if err := dirpublish.WriteJournal(root, journal, false); err != nil {
+			t.Fatalf("dirpublish.WriteJournal() error = %v", err)
 		}
 
 		_, err = recoverInstalledDirPublication(root, "target")
-		if !errors.Is(err, ErrInstallPublicationRecoveryRequired) {
-			t.Fatalf("recoverInstalledDirPublication() error = %v, want %v", err, ErrInstallPublicationRecoveryRequired)
+		if !errors.Is(err, dirpublish.ErrRecoveryRequired) {
+			t.Fatalf("recoverInstalledDirPublication() error = %v, want %v", err, dirpublish.ErrRecoveryRequired)
 		}
 		for path, want := range map[string]string{
 			"target":             "unknown",
@@ -932,19 +926,19 @@ func TestMoveInstalledDir(t *testing.T) {
 		writeTestFile(t, filepath.Join(source, "SKILL.md"), "new")
 		writeTestFile(t, filepath.Join(target, "SKILL.md"), "old")
 		root := openPublicationTestRoot(t, parent)
-		publicationLock, err := acquireInstallPublicationLock(root, "target")
+		publicationLock, err := dirpublish.AcquireLock(root, "target")
 		if err != nil {
-			t.Fatalf("acquireInstallPublicationLock() error = %v", err)
+			t.Fatalf("dirpublish.AcquireLock() error = %v", err)
 		}
 		t.Cleanup(func() {
 			if closeErr := publicationLock.Close(); closeErr != nil {
-				t.Errorf("installPublicationLock.Close() error = %v", closeErr)
+				t.Errorf("dirpublish.Lock.Close() error = %v", closeErr)
 			}
 		})
 
 		result, err := MoveInstalledDir(source, target, true)
-		if !errors.Is(err, ErrInstallPublicationBusy) {
-			t.Fatalf("MoveInstalledDir(concurrent) error = %v, want %v", err, ErrInstallPublicationBusy)
+		if !errors.Is(err, dirpublish.ErrBusy) {
+			t.Fatalf("MoveInstalledDir(concurrent) error = %v, want %v", err, dirpublish.ErrBusy)
 		}
 		if result != nil {
 			t.Fatalf("MoveInstalledDir(concurrent) result = %#v, want nil", result)

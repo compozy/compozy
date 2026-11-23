@@ -238,6 +238,12 @@ func Boundaries() error {
 		{importer: "internal/workspaceaccess", allowed: map[string]struct{}{}},
 		{importer: "internal/mention", allowed: map[string]struct{}{}},
 		{
+			importer: "internal/dirpublish",
+			allowed: map[string]struct{}{
+				"github.com/compozy/compozy/internal/fileutil": {},
+			},
+		},
+		{
 			importer: "internal/workspacefiles",
 			allowed: map[string]struct{}{
 				"github.com/compozy/compozy/internal/fileutil": {},
