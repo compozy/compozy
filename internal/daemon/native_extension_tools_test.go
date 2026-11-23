@@ -443,6 +443,49 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		}
 	})
 
+	// Invariant: a failure after completed dependency installs keeps its code and reports dependencies_installed
+	// in the structured partial result, like HTTP (rule 13). Owner: native extension boundary.
+	t.Run("Should report installed dependencies in a native install failure", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name  string
+			cause error
+			code  string
+		}{
+			{
+				name:  "dependent gate",
+				cause: &extensionpkg.InputsRequiredError{MissingInputs: []string{"token"}},
+				code:  "extension_inputs_required",
+			},
+			{
+				name: "dependency gate",
+				cause: &extensionpkg.DependencyGateError{
+					Dependency: "dep-next", Err: extensionpkg.ErrExtensionChecksumUnverified,
+				},
+				code: "extension_checksum_unverified",
+			},
+		}
+		for _, tc := range cases {
+			cause := &extensionpkg.DependenciesInstalledError{Installed: []string{"dep-core"}, Err: tc.cause}
+			err := nativeExtensionToolError(toolspkg.ToolIDExtensionsInstall, cause)
+			toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || string(toolErr.Code) != tc.code || toolErr.PartialResult == nil {
+				t.Fatalf("native install failure (%s) = %#v, want %s with a payload", tc.name, err, tc.code)
+			}
+			var payload contract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(toolErr.PartialResult.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(payload.DependenciesInstalled, []string{"dep-core"}) {
+				t.Fatalf(
+					"native install failure (%s) dependencies_installed = %v",
+					tc.name,
+					payload.DependenciesInstalled,
+				)
+			}
+		}
+	})
+
 	// Invariant: per-dependency consent is a closed object forwarded to the dependency's own gate [T-17].
 	// Owner: native extension boundary; canonical suite: TestDaemonNativeExtensionTools.
 	t.Run("Should reject unknown per-dependency consent keys", func(t *testing.T) {
