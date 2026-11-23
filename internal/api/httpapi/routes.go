@@ -1,6 +1,9 @@
 package httpapi
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/gin-gonic/gin"
+)
 
 // RegisterRoutes registers the shared Compozy API routes on the supplied Gin router.
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
@@ -24,6 +27,7 @@ func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 	}
 
 	registerAppSDKRoutes(api, handlers)
+	core.RegisterAccountRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
 	registerOperatorRoutes(api, handlers, true)
 	registerAgentKernelRoutes(api, handlers)
 	registerResourceRoutes(api, handlers)

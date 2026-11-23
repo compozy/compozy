@@ -4,7 +4,7 @@ area: RT
 title: Sign in to CompozyOS for the first time
 journey: J-sign-in-first-run
 expected: A first sign-in binds the operator-confirmed grant to one installation and its key. The installation can refresh and sign out with explicit rejection reasons.
-entry_points: CompozyOS sign-in; Compozy Cloud activation; hosted browser sign-in
+entry_points: CompozyOS sign-in; compozy account; local HTTP and UDS; Compozy Cloud activation; hosted browser sign-in
 qa_status: planned
 ---
 
@@ -15,6 +15,10 @@ Run this scenario on staging after the cloud and daemon sign-in slices are integ
 3. Open the same code in two browser contexts. Confirm that a mismatched callback cookie is refused and that only one browser completes sign-in. Submit five wrong codes from one browser and verify that the next request returns `429` with `Retry-After`.
 4. Block Turnstile, then unblock it and continue. Check that the failed attempt stays on the Compozy Cloud page without creating an OAuth request or a pending browser key. In staging, also verify the Cloudflare zone limits for device-flow starts, activation, callbacks, and browser authorization.
 5. Sign out and sign in again with the same account on the same installation. Check that sign-out revokes the session and the next sign-in reuses the device. Revoke the last admin device from an authorized staging surface and recover with a fresh Google sign-in. An ordinary sign-in must leave the device without admin access.
-6. Open an owned hosted route from two origins in the same browser, then repeat with the browser binding cookie cleared. Check that a registered key stays with its original device and that the hosted route can start again with a new key.
+6. Sign out with an account stream open and check that it closes. Sign in to a different account and resume with the prior account's event ID. Confirm the daemon returns `stream_reset` and only the new account's approvals are visible.
+7. Stop the staging cloud during a signed-in run. Confirm an account action reports `account_cloud_unreachable`, the installation still reports signed in, and a local session can be started.
+8. Open an owned hosted route from two origins in the same browser, then repeat with the browser binding cookie cleared. Check that a registered key stays with its original device and that the hosted route can start again with a new key.
 
 The S1b HTTP and Postgres integration suite covers the cloud portion with fake provider and Turnstile endpoints. Keep the staging walk pending until the real OAuth apps, Turnstile widget, and hosted listener are available.
+
+The daemon and Postgres integration suite covers enrollment, sign-out, cloud unavailability, and account stream isolation (IT-010, IT-011, IT-012, IT-099, IT-103).

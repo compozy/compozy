@@ -1,0 +1,41 @@
+---
+title: Sign in to CompozyOS
+description: Sign in from the CLI, check the installation's account, and manage trusted devices.
+---
+
+## Sign in from the CLI
+
+Run `compozy account login` on the computer you want to sign in to. CompozyOS opens the activation page in your browser when one is available. On a headless computer, copy the printed URL into a browser. Compare the code and computer details on the page with your sign-in before continuing with Google or GitHub.
+
+The sign-in code expires in 15 minutes. Press Ctrl-C to cancel the attempt. If you lose the last trusted admin device, choose **Recover admin access** on the Google activation page and authenticate again.
+
+Run `compozy account status` to see your plan, remote computer usage, and this computer's device. Use `compozy account status --json` for scripts. The device key and refresh credential are scoped to your account and CompozyOS home in the system keyring. Linux installations without an available desktop keyring use encrypted storage under that home.
+
+## Manage your account
+
+- `compozy account logout` revokes the session and closes its account stream. Signing in again with the same account reuses the device unless it was revoked.
+- `compozy account upgrade` opens monthly Pro checkout when billing is available. Use `compozy account upgrade --annual` for annual billing.
+- A temporary cloud outage leaves an existing sign-in intact. Local sessions remain available and account operations resume when the cloud is reachable.
+
+## Use the local API
+
+The same account routes are available over the daemon's local HTTP and Unix socket transports.
+
+| Route                                                               | Purpose                                                                               |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `GET /api/account`                                                  | Read the installation's account and device status.                                    |
+| `POST /api/account/login`                                           | Start a browser sign-in and receive its attempt ID, activation URL, code, and expiry. |
+| `DELETE /api/account/login`                                         | Cancel a sign-in attempt. Pass its `attempt_id` to cancel a specific attempt.         |
+| `GET /api/account/sign-in/events`                                   | Read `sign_in.progress` and `account.state` without an account session.               |
+| `POST /api/account/logout`                                          | Sign out of the installation.                                                         |
+| `GET /api/account/devices`                                          | List account devices and identify this computer.                                      |
+| `PATCH /api/account/devices/{id}`                                   | Update a device's name, admin trust, or computer scopes.                              |
+| `DELETE /api/account/devices/{id}`                                  | Revoke a device.                                                                      |
+| `GET /api/account/approvals` and `GET /api/account/approvals/{id}`  | Read device approvals and recent results.                                             |
+| `POST /api/account/approvals/{id}/decision`                         | Submit an approval decision from a trusted admin device.                              |
+| `GET /api/account/stream`                                           | Follow account changes, including approval results.                                   |
+| `POST /api/account/checkout` and `POST /api/account/billing-portal` | Open hosted checkout or the billing portal.                                           |
+
+Subscribe to the sign-in events before starting a login to receive progress for its attempt ID. Start a new account stream after signing in. The signed-in stream accepts `Last-Event-ID` or `after_sequence` from the same sign-in. On `stream_reset`, read the current account and approvals again. A `202` approval decision confirms delivery was accepted. Wait for the applied result or read the approval to confirm the outcome.
+
+Development builds can use `COMPOZY_CLOUD_URL` to select a cloud origin. Builds that require sign-in use `https://cloud.compozy.com`.

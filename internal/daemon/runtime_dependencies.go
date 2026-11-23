@@ -54,6 +54,7 @@ func (d *Daemon) runtimeDeps(
 		WindowManagers:        state.windowManagers,
 		Terminals:             state.terminals,
 		ModelCatalog:          state.modelCatalog,
+		Account:               accountRuntimeService(state),
 		ProviderUsage:         state.providerUsage,
 		MarketplaceCatalog:    state.marketplace,
 		AgentCatalog:          agentCatalog,

@@ -680,6 +680,58 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	t.Run("Should assign a stable installation identity and preserve pre-account data", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00219_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		const workspace = `INSERT INTO workspaces(id,root_dir,name,created_at,updated_at)
+			VALUES ('before-account','/before-account','Existing','2026-11-22','2026-11-22')`
+		if _, err := prior.ExecContext(ctx, workspace); err != nil {
+			t.Fatal(err)
+		}
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		bindErr := bindTelemetryDestination(ctx, prior, target.DB())
+		if err := errors.Join(bindErr, target.Close(ctx), prior.Close()); err != nil {
+			t.Fatal(err)
+		}
+
+		var installationID string
+		for range 2 {
+			db, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			installation, readErr := db.ReadInstallationAccount(ctx)
+			var name string
+			workspaceErr := db.DB().
+				QueryRowContext(ctx, "SELECT name FROM workspaces WHERE id = 'before-account'").
+				Scan(&name)
+			if err := errors.Join(readErr, workspaceErr, db.Close(ctx)); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.HasPrefix(installation.InstallationID, "ins_") || !installation.PreAccountInstall ||
+				string(installation.State) != "signed_out" || name != "Existing" {
+				t.Fatalf("migrated installation = %#v, retained workspace = %q", installation, name)
+			}
+			if installationID != "" && installation.InstallationID != installationID {
+				t.Fatal("reopening the database changed its installation ID")
+			}
+			installationID = installation.InstallationID
+		}
+	})
+
 	t.Run("Should preserve native subagent usage through the run identity migration", func(t *testing.T) {
 		t.Parallel()
 		ctx := globalMigrationTestContext(t)

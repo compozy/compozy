@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/internal/heartbeat"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/retention"
 
@@ -13,6 +14,7 @@ import (
 )
 
 type daemonRuntimeWorkers struct {
+	account               *account.Service
 	proactiveChecks       *heartbeat.CheckService
 	instanceMaintenance   *retention.PeriodicWorker
 	supervision           *retention.PeriodicWorker
@@ -30,6 +32,9 @@ type daemonRuntimeWorkers struct {
 }
 
 func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
+	if w.account != nil {
+		w.account.Close()
+	}
 	appendWrappedError(errs, "daemon: stop terminal window retirement",
 		stopOwnedWorker(ctx, "terminal window retirement", w.terminalWindows))
 	appendWrappedError(errs, "daemon: stop MCP declarations watcher",

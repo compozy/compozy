@@ -75,6 +75,7 @@ type handlerConfig struct {
 	agentSync             core.AgentDefinitionSync
 	contextWindowResolver core.ContextWindowResolver
 	modelCatalog          core.ModelCatalogService
+	account               core.AccountService
 	providerUsage         core.ProviderUsageService
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService
@@ -280,6 +281,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		AgentDefinitionSync:    cfg.agentSync,
 		ContextWindowResolver:  cfg.contextWindowResolver,
 		ModelCatalog:           cfg.modelCatalog,
+		Account:                cfg.account,
 		ProviderUsage:          cfg.providerUsage,
 		MarketplaceCatalog:     cfg.marketplaceCatalog,
 		AgentContextService:    cfg.agentContext,

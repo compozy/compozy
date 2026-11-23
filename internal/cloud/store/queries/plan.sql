@@ -12,3 +12,7 @@ SELECT
 
 -- name: PlanSubscriptions :many
 SELECT source, price_id, status, ends_at FROM subscriptions WHERE account_id = $1;
+
+-- name: AccountHostedRouteUsage :one
+SELECT count(*) FROM tunnels t JOIN computers c ON c.id = t.computer_id
+WHERE c.account_id = $1 AND c.unlinked_at IS NULL AND t.state IN ('reserved', 'provisioning', 'active');

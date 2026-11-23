@@ -64,6 +64,7 @@ type handlerConfig struct {
 	agentSync             core.AgentDefinitionSync
 	contextWindowResolver core.ContextWindowResolver
 	modelCatalog          core.ModelCatalogService
+	account               core.AccountService
 	providerUsage         core.ProviderUsageService
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService

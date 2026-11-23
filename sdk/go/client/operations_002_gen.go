@@ -9,6 +9,24 @@ import (
 	"strings"
 )
 
+// ApproveAgentSkillReview Decide a skill review as the operator (experimental)
+func (c *Client) ApproveAgentSkillReview(ctx context.Context, params ApproveAgentSkillReviewParams, body AgentSkillReviewDecisionRequest) (*AgentSkillReviewResponse, error) {
+	path := "/api/agent-skill-reviews/{id}/approve"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSkillReviewResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ApproveLoopRunParams carries the path, query, and header parameters.
 type ApproveLoopRunParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -419,28 +437,5 @@ func (c *Client) BulkForceFailTaskRuns(ctx context.Context, params BulkForceFail
 
 // BulkForceReleaseTaskRunsParams carries the path, query, and header parameters.
 type BulkForceReleaseTaskRunsParams struct {
-	Profile *string `url:"profile"`
-}
-
-// BulkForceReleaseTaskRuns Force release a bounded set of claimed task runs
-func (c *Client) BulkForceReleaseTaskRuns(ctx context.Context, params BulkForceReleaseTaskRunsParams, body BulkForceTaskRunRequest) (*BulkForceTaskRunResponse, error) {
-	path := "/api/runs/bulk/release"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out BulkForceTaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CancelAutomationRunParams carries the path, query, and header parameters.
-type CancelAutomationRunParams struct {
-	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
 }

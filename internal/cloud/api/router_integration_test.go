@@ -405,14 +405,14 @@ func TestCloudDeviceTrust(t *testing.T) {
 		db.SeedControlComputer(t, owner.AccountID, "cmp_owner", now())
 		replica := startControlReplica(t, db, "devices", config)
 		const path = "/v1/devices/dev_member"
-		patch := control.DevicePatch{
+		patch := remoteproto.AccountDevicePatch{
 			Admin: new(true), Scopes: map[remoteproto.ComputerID][]remoteproto.Scope{
 				"cmp_owner": {remoteproto.ScopeSessions},
 			},
 		}
 		controlRequest(t, replica, now(), member, http.MethodPatch, path, patch).
 			requireError(t, http.StatusForbidden, "account_admin_required")
-		var updated control.Device
+		var updated remoteproto.AccountDevice
 		for range 2 {
 			controlRequest(t, replica, now(), owner, http.MethodPatch, path, patch).decode(t, http.StatusOK, &updated)
 			if updated.ID != member.ID || !updated.Admin || updated.ThisDevice {

@@ -4,10 +4,131 @@ package client
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// InvokeCmdPaletteCommand Invoke one command palette command
+func (c *Client) InvokeCmdPaletteCommand(ctx context.Context, params InvokeCmdPaletteCommandParams, body CmdPaletteInvokeRequest) (*CmdPaletteInvokeResult, error) {
+	path := "/api/cmd-palette/commands/{id}/invoke"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	headers := http.Header{}
+	headers.Set("X-Compozy-Client-Token", params.XCompozyClientToken)
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out CmdPaletteInvokeResult
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InvokeToolParams carries the path, query, and header parameters.
+type InvokeToolParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// InvokeToolFrame preserves each response payload; select its variant using the event name or HTTP status.
+type InvokeToolFrame struct {
+	Raw        json.RawMessage
+	StatusCode int `json:"-"`
+}
+
+var _ json.Unmarshaler = (*InvokeToolFrame)(nil)
+
+var _ json.Marshaler = InvokeToolFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *InvokeToolFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f InvokeToolFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+func (f *InvokeToolFrame) setResponseStatus(status int) {
+	f.StatusCode = status
+}
+
+// AsToolInvokeResponse decodes this payload as ToolInvokeResponse.
+func (f InvokeToolFrame) AsToolInvokeResponse() (*ToolInvokeResponse, error) {
+	var out ToolInvokeResponse
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsToolErrorResponse decodes this payload as ToolErrorResponse.
+func (f InvokeToolFrame) AsToolErrorResponse() (*ToolErrorResponse, error) {
+	var out ToolErrorResponse
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InvokeTool Invoke a registry tool through executable dispatch
+func (c *Client) InvokeTool(ctx context.Context, params InvokeToolParams, body ToolInvokeRequest) (*InvokeToolFrame, error) {
+	path := "/api/tools/{id}/invoke"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out InvokeToolFrame
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListAccountApprovals List pending and recently decided approvals
+func (c *Client) ListAccountApprovals(ctx context.Context) (*AccountApprovalsResponse, error) {
+	path := "/api/account/approvals"
+	var out AccountApprovalsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListAccountDevices List the account's devices
+func (c *Client) ListAccountDevices(ctx context.Context) (*AccountDevicesResponse, error) {
+	path := "/api/account/devices"
+	var out AccountDevicesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListAgentCatalogParams carries the path, query, and header parameters.
+type ListAgentCatalogParams struct {
+	Workspace *string `url:"workspace"`
+	Group     *string `url:"group"`
+	Name      *string `url:"name"`
+	Q         *string `url:"q"`
+	Category  *string `url:"category"`
+	Status    *string `url:"status"`
+	Cursor    *string `url:"cursor"`
+	Limit     *int    `url:"limit"`
+	Profile   *string `url:"profile"`
+}
 
 // ListAgentCatalog List a filtered agent fleet with exact session metrics
 func (c *Client) ListAgentCatalog(ctx context.Context, params ListAgentCatalogParams) (*AgentCatalogResponse, error) {
@@ -326,115 +447,4 @@ func (c *Client) ListAgentSoulHistory(ctx context.Context, params ListAgentSoulH
 type ListAgentsParams struct {
 	Workspace *string `url:"workspace"`
 	Profile   *string `url:"profile"`
-}
-
-// ListAgents List all readable agent definitions, optionally resolved for a workspace
-func (c *Client) ListAgents(ctx context.Context, params ListAgentsParams) (*AgentsResponse, error) {
-	path := "/api/agents"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentsAggregateParams carries the path, query, and header parameters.
-type ListAgentsAggregateParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Group         *string   `url:"group"`
-	Name          *string   `url:"name"`
-	Q             *string   `url:"q"`
-	Category      *string   `url:"category"`
-	Status        *string   `url:"status"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-}
-
-// ListAgentsAggregate List a filtered agent fleet with exact session metrics
-func (c *Client) ListAgentsAggregate(ctx context.Context, params ListAgentsAggregateParams) (*AgentCatalogResponse, error) {
-	path := "/api/agents/aggregate"
-	query := url.Values{}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.WorkspaceIds != nil {
-		for _, value := range *params.WorkspaceIds {
-			query.Add("workspace_ids", value)
-		}
-	}
-	if params.Group != nil {
-		query.Set("group", *params.Group)
-	}
-	if params.Name != nil {
-		query.Set("name", *params.Name)
-	}
-	if params.Q != nil {
-		query.Set("q", *params.Q)
-	}
-	if params.Category != nil {
-		query.Set("category", *params.Category)
-	}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentCatalogResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAppTokensParams carries the path, query, and header parameters.
-type ListAppTokensParams struct {
-	State *string `url:"state"`
-}
-
-// ListAppTokens List app tokens without their bearer secrets Experimental: pin the exact SDK version.
-func (c *Client) ListAppTokens(ctx context.Context, params ListAppTokensParams) (*AppTokensResponse, error) {
-	path := "/api/app-tokens"
-	query := url.Values{}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AppTokensResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAttentionNotificationsParams carries the path, query, and header parameters.
-type ListAttentionNotificationsParams struct {
-	ReceiptProfile *string `url:"receipt_profile"`
-	Workspace      *string `url:"workspace"`
-	AllWorkspaces  *bool   `url:"all_workspaces"`
-	Profile        *string `url:"profile"`
-	AllProfiles    *bool   `url:"all_profiles"`
 }

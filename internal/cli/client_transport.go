@@ -351,7 +351,8 @@ func (c *daemonClient) withFreshStreamTicket(ctx context.Context, query url.Valu
 func isLocalOnlyClientOperation(method string, path string) bool {
 	method = strings.ToUpper(strings.TrimSpace(method))
 	normalized := "/" + strings.TrimLeft(strings.TrimSpace(path), "/")
-	if hasAPIPathPrefix(normalized, "/api/agent") || hasAPIPathPrefix(normalized, "/api/internal") {
+	if hasAPIPathPrefix(normalized, "/api/agent") || hasAPIPathPrefix(normalized, "/api/internal") ||
+		hasAPIPathPrefix(normalized, "/api/account") {
 		return true
 	}
 	if hasAPIPathPrefix(normalized, "/api/scheduler") {

@@ -4,10 +4,108 @@ package client
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// GetAgentMeParams carries the path, query, and header parameters.
+type GetAgentMeParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+}
+
+// GetAgentMe Resolve the calling agent session
+func (c *Client) GetAgentMe(ctx context.Context, params GetAgentMeParams) (*AgentMeResponse, error) {
+	path := "/api/agent/me"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	var out AgentMeResponse
+	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentMemoryParams carries the path, query, and header parameters.
+type GetAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// GetAgentMemory Inspect agent memory (experimental) Experimental: pin the exact SDK version.
+func (c *Client) GetAgentMemory(ctx context.Context, params GetAgentMemoryParams) (*AgentMemoryDocument, error) {
+	path := "/api/agents/{name}/memory"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentMemoryDocument
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentSkillReviewParams carries the path, query, and header parameters.
+type GetAgentSkillReviewParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// GetAgentSkillReview Read exact proposed skill contents (experimental)
+func (c *Client) GetAgentSkillReview(ctx context.Context, params GetAgentSkillReviewParams) (*AgentSkillReviewResponse, error) {
+	path := "/api/agent-skill-reviews/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSkillReviewResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentSoulParams carries the path, query, and header parameters.
+type GetAgentSoulParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+}
+
+// GetAgentSoul Inspect the resolved Soul read model for the calling agent
+func (c *Client) GetAgentSoul(ctx context.Context, params GetAgentSoulParams) (*AgentSoulPayload, error) {
+	path := "/api/agent/soul"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	var out AgentSoulPayload
+	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAutomationJobParams carries the path, query, and header parameters.
+type GetAutomationJobParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
 
 // GetAutomationJob Get one automation job
 func (c *Client) GetAutomationJob(ctx context.Context, params GetAutomationJobParams) (*JobResponse, error) {
@@ -344,103 +442,4 @@ func (c *Client) GetGatewayStatus(ctx context.Context) (*GatewayStatusPayload, e
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetGlobalSessionHistoryParams carries the path, query, and header parameters.
-type GetGlobalSessionHistoryParams struct {
-	SessionID     string  `url:"session_id"`
-	Since         *string `url:"since"`
-	Limit         *int    `url:"limit"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Type          *string `url:"type"`
-	AgentName     *string `url:"agent_name"`
-	TurnID        *string `url:"turn_id"`
-	Archive       *string `url:"archive"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// GetGlobalSessionHistory List grouped session turn history for a Global session
-func (c *Client) GetGlobalSessionHistory(ctx context.Context, params GetGlobalSessionHistoryParams) (*SessionHistoryResponse, error) {
-	path := "/api/sessions/{session_id}/history"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if params.TurnID != nil {
-		query.Set("turn_id", *params.TurnID)
-	}
-	if params.Archive != nil {
-		query.Set("archive", *params.Archive)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionHistoryResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetGlobalSessionInheritedTranscriptParams carries the path, query, and header parameters.
-type GetGlobalSessionInheritedTranscriptParams struct {
-	SessionID      string  `url:"session_id"`
-	Limit          *int    `url:"limit"`
-	BeforeSequence *int64  `url:"before_sequence"`
-	Profile        *string `url:"profile"`
-	AllProfiles    *bool   `url:"all_profiles"`
-}
-
-// GetGlobalSessionInheritedTranscript Get a bounded page of a derived session's source transcript through the derive cut for a Global session
-func (c *Client) GetGlobalSessionInheritedTranscript(ctx context.Context, params GetGlobalSessionInheritedTranscriptParams) (*SessionTranscriptResponse, error) {
-	path := "/api/sessions/{session_id}/transcript/inherited"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.BeforeSequence != nil {
-		query.Set("before_sequence", strconv.FormatInt(*params.BeforeSequence, 10))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionTranscriptResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetGlobalSessionStatusParams carries the path, query, and header parameters.
-type GetGlobalSessionStatusParams struct {
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

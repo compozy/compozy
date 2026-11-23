@@ -10,6 +10,110 @@ import (
 	"strings"
 )
 
+// ForkLoopRun Fork a linked Loop run from history
+func (c *Client) ForkLoopRun(ctx context.Context, params ForkLoopRunParams, body ForkLoopRequest) (*ForkLoopResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/fork"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ForkLoopResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ForkSessionParams carries the path, query, and header parameters.
+type ForkSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ForkSession Fork a session with the same agent, whole or through one user message and its turn
+func (c *Client) ForkSession(ctx context.Context, params ForkSessionParams, body ForkSessionRequest) (*SessionDeriveResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/fork"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionDeriveResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ForkSessionToWorktreeParams carries the path, query, and header parameters.
+type ForkSessionToWorktreeParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ForkSessionToWorktree Fork a live session into a worktree
+func (c *Client) ForkSessionToWorktree(ctx context.Context, params ForkSessionToWorktreeParams, body ForkSessionWorktreeRequest) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAccount Read the installation account
+func (c *Client) GetAccount(ctx context.Context) (*AccountStatusResponse, error) {
+	path := "/api/account"
+	var out AccountStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAccountApprovalParams carries the path, query, and header parameters.
+type GetAccountApprovalParams struct {
+	ID string `url:"id"`
+}
+
+// GetAccountApproval Read an approval and its applied result
+func (c *Client) GetAccountApproval(ctx context.Context, params GetAccountApprovalParams) (*AccountApproval, error) {
+	path := "/api/account/approvals/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out AccountApproval
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentParams carries the path, query, and header parameters.
+type GetAgentParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
 // GetAgent Get one agent definition by name, optionally resolved for a workspace
 func (c *Client) GetAgent(ctx context.Context, params GetAgentParams) (*AgentResponse, error) {
 	path := "/api/agents/{name}"
@@ -341,101 +445,4 @@ func (c *Client) GetAgentInstanceOccurrence(ctx context.Context, params GetAgent
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetAgentMeParams carries the path, query, and header parameters.
-type GetAgentMeParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-}
-
-// GetAgentMe Resolve the calling agent session
-func (c *Client) GetAgentMe(ctx context.Context, params GetAgentMeParams) (*AgentMeResponse, error) {
-	path := "/api/agent/me"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentMeResponse
-	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentMemoryParams carries the path, query, and header parameters.
-type GetAgentMemoryParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// GetAgentMemory Inspect agent memory (experimental) Experimental: pin the exact SDK version.
-func (c *Client) GetAgentMemory(ctx context.Context, params GetAgentMemoryParams) (*AgentMemoryDocument, error) {
-	path := "/api/agents/{name}/memory"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentMemoryDocument
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentSkillReviewParams carries the path, query, and header parameters.
-type GetAgentSkillReviewParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// GetAgentSkillReview Read exact proposed skill contents (experimental)
-func (c *Client) GetAgentSkillReview(ctx context.Context, params GetAgentSkillReviewParams) (*AgentSkillReviewResponse, error) {
-	path := "/api/agent-skill-reviews/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSkillReviewResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentSoulParams carries the path, query, and header parameters.
-type GetAgentSoulParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-}
-
-// GetAgentSoul Inspect the resolved Soul read model for the calling agent
-func (c *Client) GetAgentSoul(ctx context.Context, params GetAgentSoulParams) (*AgentSoulPayload, error) {
-	path := "/api/agent/soul"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentSoulPayload
-	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAutomationJobParams carries the path, query, and header parameters.
-type GetAutomationJobParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

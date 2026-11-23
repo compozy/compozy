@@ -101,6 +101,495 @@
         ],
         "type": "object"
       },
+      "AccountApproval": {
+        "properties": {
+          "applied_result": {
+            "nullable": true,
+            "type": "string"
+          },
+          "can_decide": {
+            "type": "boolean"
+          },
+          "computer_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "device_name": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "key_fingerprint": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "applied_result",
+          "can_decide",
+          "computer_id",
+          "created_at",
+          "device_name",
+          "id",
+          "key_fingerprint",
+          "state"
+        ],
+        "type": "object"
+      },
+      "AccountApprovalDecisionRequest": {
+        "properties": {
+          "approve": {
+            "nullable": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "approve"
+        ],
+        "type": "object"
+      },
+      "AccountApprovalsResponse": {
+        "properties": {
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/AccountApproval"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "approvals"
+        ],
+        "type": "object"
+      },
+      "AccountBillingResponse": {
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "AccountCheckoutRequest": {
+        "properties": {
+          "interval": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "interval"
+        ],
+        "type": "object"
+      },
+      "AccountDevice": {
+        "properties": {
+          "admin": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "this_device": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "admin",
+          "id",
+          "kind",
+          "last_seen_at",
+          "name",
+          "this_device"
+        ],
+        "type": "object"
+      },
+      "AccountDevicePatch": {
+        "properties": {
+          "admin": {
+            "nullable": true,
+            "type": "boolean"
+          },
+          "name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "scopes": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "AccountDeviceSummary": {
+        "properties": {
+          "admin": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "admin",
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "AccountDevicesResponse": {
+        "properties": {
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/AccountDevice"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "devices"
+        ],
+        "type": "object"
+      },
+      "AccountGrace": {
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "until": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "source",
+          "until"
+        ],
+        "type": "object"
+      },
+      "AccountLoginRequest": {
+        "properties": {
+          "marketing_opt_in": {
+            "type": "boolean"
+          },
+          "provider": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "marketing_opt_in",
+          "provider"
+        ],
+        "type": "object"
+      },
+      "AccountLoginResponse": {
+        "properties": {
+          "attempt_id": {
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "user_code": {
+            "type": "string"
+          },
+          "verification_uri": {
+            "type": "string"
+          },
+          "verification_uri_complete": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "attempt_id",
+          "expires_at",
+          "user_code",
+          "verification_uri",
+          "verification_uri_complete"
+        ],
+        "type": "object"
+      },
+      "AccountLogoutRequest": {
+        "properties": {
+          "unlink": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "unlink"
+        ],
+        "type": "object"
+      },
+      "AccountLogoutResponse": {
+        "properties": {
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "AccountSignInNotice": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "device_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "device_id",
+          "kind",
+          "location",
+          "name"
+        ],
+        "type": "object"
+      },
+      "AccountSignInProgress": {
+        "properties": {
+          "attempt_id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "attempt_id",
+          "state"
+        ],
+        "type": "object"
+      },
+      "AccountStatePayload": {
+        "properties": {
+          "signed_out_reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "signed_out_reason",
+          "state"
+        ],
+        "type": "object"
+      },
+      "AccountStatusResponse": {
+        "properties": {
+          "cloud_routes_limit": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cloud_routes_used": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "device": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AccountDeviceSummary"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "email": {
+            "type": "string"
+          },
+          "gate": {
+            "type": "string"
+          },
+          "grace": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AccountGrace"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "installation_linked": {
+            "type": "boolean"
+          },
+          "marketing_opt_in": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "payment_issue": {
+            "type": "boolean"
+          },
+          "plan": {
+            "type": "string"
+          },
+          "pre_account_install": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "recent_sign_ins": {
+            "items": {
+              "$ref": "#/components/schemas/AccountSignInNotice"
+            },
+            "type": "array"
+          },
+          "remote_computers_limit": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
+          "remote_computers_used": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "signed_in": {
+            "type": "boolean"
+          },
+          "signed_out_reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "source": {
+            "nullable": true,
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "subscription": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AccountSubscription"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "token_name": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "cloud_routes_limit",
+          "cloud_routes_used",
+          "device",
+          "gate",
+          "grace",
+          "installation_linked",
+          "marketing_opt_in",
+          "payment_issue",
+          "plan",
+          "pre_account_install",
+          "recent_sign_ins",
+          "remote_computers_limit",
+          "remote_computers_used",
+          "signed_in",
+          "signed_out_reason",
+          "source",
+          "state",
+          "subscription",
+          "token_name"
+        ],
+        "type": "object"
+      },
+      "AccountSubscription": {
+        "properties": {
+          "cancel_at_period_end": {
+            "type": "boolean"
+          },
+          "current_period_end": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "interval": {
+            "nullable": true,
+            "type": "string"
+          },
+          "refund_eligible_until": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cancel_at_period_end",
+          "current_period_end",
+          "interval",
+          "refund_eligible_until",
+          "source"
+        ],
+        "type": "object"
+      },
       "AcknowledgeAttentionRequest": {
         "properties": {
           "id": {
@@ -3548,6 +4037,36 @@
         ],
         "type": "object"
       },
+      "ApprovalDelivery": {
+        "properties": {
+          "approval_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_id",
+          "state"
+        ],
+        "type": "object"
+      },
+      "ApprovalResult": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "result"
+        ],
+        "type": "object"
+      },
       "ApproveLoopRunRequest": {
         "properties": {
           "decision": {
@@ -4521,6 +5040,41 @@
           },
           "use_when": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Change": {
+        "properties": {
+          "approval": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ApprovalResult"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "approval_id": {
+            "type": "string"
+          },
+          "computer_id": {
+            "type": "string"
+          },
+          "device_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "security_epoch": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "type": "object"
@@ -8633,6 +9187,25 @@
         },
         "required": [
           "error"
+        ],
+        "type": "object"
+      },
+      "Event": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Change"
+          },
+          "event": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "event",
+          "id"
         ],
         "type": "object"
       },
@@ -51577,6 +52150,1456 @@
   },
   "openapi": "3.0.3",
   "paths": {
+    "/api/account": {
+      "get": {
+        "operationId": "getAccount",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusResponse"
+                }
+              }
+            },
+            "description": "Installation account status"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "Read the installation account",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/account/approvals": {
+      "get": {
+        "operationId": "listAccountApprovals",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountApprovalsResponse"
+                }
+              }
+            },
+            "description": "Account approvals"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "List pending and recently decided approvals",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/account/approvals/{id}": {
+      "get": {
+        "operationId": "getAccountApproval",
+        "parameters": [
+          {
+            "description": "Account resource ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountApproval"
+                }
+              }
+            },
+            "description": "Device approval"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "Read an approval and its applied result",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/account/approvals/{id}/decision": {
+      "post": {
+        "operationId": "decideAccountApproval",
+        "parameters": [
+          {
+            "description": "Account resource ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountApprovalDecisionRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalDelivery"
+                }
+              }
+            },
+            "description": "Decision queued for the computer"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "Deliver an approval decision",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/account/billing-portal": {
+      "post": {
+        "operationId": "accountBillingPortal",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountBillingResponse"
+                }
+              }
+            },
+            "description": "Billing portal URL"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "Open account billing",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/account/checkout": {
+      "post": {
+        "operationId": "checkoutAccount",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountCheckoutRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountBillingResponse"
+                }
+              }
+            },
+            "description": "Checkout URL"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "Start a Pro checkout",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/account/devices": {
+      "get": {
+        "operationId": "listAccountDevices",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDevicesResponse"
+                }
+              }
+            },
+            "description": "Account devices"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "List the account's devices",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/account/devices/{id}": {
+      "delete": {
+        "operationId": "revokeAccountDevice",
+        "parameters": [
+          {
+            "description": "Account resource ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Device revoked"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "Revoke a device on this account",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "patch": {
+        "operationId": "patchAccountDevice",
+        "parameters": [
+          {
+            "description": "Account resource ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDevicePatch"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDevice"
+                }
+              }
+            },
+            "description": "Updated device"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "Update a device on this account",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/account/login": {
+      "delete": {
+        "operationId": "cancelAccountLogin",
+        "parameters": [
+          {
+            "description": "Cancel only the named sign-in attempt",
+            "in": "query",
+            "name": "attempt_id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sign-in attempt ended"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "Cancel account sign-in",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "post": {
+        "operationId": "startAccountLogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountLoginRequest"
+              }
+            }
+          },
+          "description": "JSON request body"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountLoginResponse"
+                }
+              }
+            },
+            "description": "Device activation"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "Start account sign-in",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/account/logout": {
+      "post": {
+        "operationId": "logoutAccount",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountLogoutRequest"
+              }
+            }
+          },
+          "description": "JSON request body"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountLogoutResponse"
+                }
+              }
+            },
+            "description": "Signed out"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "Sign out this installation",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/account/sign-in/events": {
+      "get": {
+        "operationId": "streamAccountSignIn",
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AccountSignInProgress"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AccountStatePayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Sign-in progress and account state"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "Stream anonymous sign-in progress",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/account/stream": {
+      "get": {
+        "operationId": "streamAccount",
+        "parameters": [
+          {
+            "description": "Last account event ID in this auth generation",
+            "in": "query",
+            "name": "after_sequence",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            },
+            "description": "Account changes and stream resets"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid account request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required or session rejected"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Device or account permission required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account operation conflicts with current state"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Cloud rate limit"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Account or cloud unavailable"
+          }
+        },
+        "summary": "Stream changes for the active account",
+        "tags": [
+          "account"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/agent-instances": {
       "get": {
         "operationId": "listAgentInstances",
@@ -116990,6 +119013,9 @@
     },
     {
       "name": "gateway"
+    },
+    {
+      "name": "account"
     },
     {
       "name": "notifications"

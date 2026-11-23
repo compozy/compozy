@@ -13,18 +13,7 @@ import (
 
 const recentDecisions = 24 * time.Hour
 
-type Approval struct {
-	ID             string                 `json:"id"`
-	ComputerID     remoteproto.ComputerID `json:"computer_id"`
-	DeviceName     string                 `json:"device_name"`
-	KeyFingerprint string                 `json:"key_fingerprint"`
-	CreatedAt      time.Time              `json:"created_at"`
-	State          string                 `json:"state"`
-	AppliedResult  *string                `json:"applied_result"`
-	CanDecide      bool                   `json:"can_decide"`
-}
-
-func approvalView(row store.CloudApproval, eligible bool, now time.Time) Approval {
+func approvalView(row store.CloudApproval, eligible bool, now time.Time) remoteproto.AccountApproval {
 	state := row.State
 	if state == approvalPending && !now.Before(row.CreatedAt.Add(remoteproto.ApprovalTTL)) {
 		state = "expired"
@@ -33,7 +22,7 @@ func approvalView(row store.CloudApproval, eligible bool, now time.Time) Approva
 	if row.AppliedResult != "" {
 		result = new(row.AppliedResult)
 	}
-	return Approval{
+	return remoteproto.AccountApproval{
 		ID: row.ID, ComputerID: row.ComputerID, DeviceName: row.DeviceName, KeyFingerprint: row.JKT,
 		CreatedAt: row.CreatedAt, State: state, AppliedResult: result,
 		CanDecide: eligible && state == approvalPending && (row.DecisionJWS == "" || row.AppliedResult != ""),
@@ -48,8 +37,8 @@ func findApproval(ctx context.Context, q *store.Queries, account, id string) (st
 	return approval, err
 }
 
-func (s *Service) ListApprovals(ctx context.Context, principal DevicePrincipal) ([]Approval, error) {
-	var result []Approval
+func (s *Service) ListApprovals(ctx context.Context, principal DevicePrincipal) ([]remoteproto.AccountApproval, error) {
+	var result []remoteproto.AccountApproval
 	err := s.deviceTransaction(
 		ctx,
 		principal,
@@ -71,7 +60,7 @@ func (s *Service) ListApprovals(ctx context.Context, principal DevicePrincipal) 
 					return err
 				}
 			}
-			result = make([]Approval, 0, len(rows))
+			result = make([]remoteproto.AccountApproval, 0, len(rows))
 			for _, row := range rows {
 				result = append(result, approvalView(row, slices.Contains(approved, string(row.ComputerID)), now))
 			}
@@ -81,8 +70,8 @@ func (s *Service) ListApprovals(ctx context.Context, principal DevicePrincipal) 
 	return result, err
 }
 
-func (s *Service) GetApproval(ctx context.Context, principal DevicePrincipal, id string) (Approval, error) {
-	var result Approval
+func (s *Service) GetApproval(ctx context.Context, principal DevicePrincipal, id string) (remoteproto.AccountApprovalDetails, error) {
+	var result remoteproto.AccountApprovalDetails
 	err := s.deviceTransaction(
 		ctx,
 		principal,
@@ -98,7 +87,9 @@ func (s *Service) GetApproval(ctx context.Context, principal DevicePrincipal, id
 					return err
 				}
 			}
-			result = approvalView(approval, eligible, s.config.Now())
+			result = remoteproto.AccountApprovalDetails{
+				AccountApproval: approvalView(approval, eligible, s.config.Now()), DeviceID: approval.DeviceID,
+			}
 			return nil
 		},
 	)

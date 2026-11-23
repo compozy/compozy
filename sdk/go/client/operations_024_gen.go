@@ -9,6 +9,140 @@ import (
 	"strings"
 )
 
+// ListSessionInteractions List pending session interactions
+func (c *Client) ListSessionInteractions(ctx context.Context, params ListSessionInteractionsParams) (*SessionInteractionsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Descendants != nil {
+		query.Set("descendants", strconv.FormatBool(*params.Descendants))
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionInteractionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionLinkedWorkParams carries the path, query, and header parameters.
+type ListSessionLinkedWorkParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListSessionLinkedWork List session linked work
+func (c *Client) ListSessionLinkedWork(ctx context.Context, params ListSessionLinkedWorkParams) (*SessionLinkedWorkResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/links"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionLinkedWorkResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionMonitorsParams carries the path, query, and header parameters.
+type ListSessionMonitorsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListSessionMonitors List a session's monitors
+func (c *Client) ListSessionMonitors(ctx context.Context, params ListSessionMonitorsParams) (*SessionMonitorsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionMonitorsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionPendingInteractionsParams carries the path, query, and header parameters.
+type ListSessionPendingInteractionsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Descendants *bool   `url:"descendants"`
+	Status      *string `url:"status"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListSessionPendingInteractions List pending session interactions
+func (c *Client) ListSessionPendingInteractions(ctx context.Context, params ListSessionPendingInteractionsParams) (*SessionInteractionsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Descendants != nil {
+		query.Set("descendants", strconv.FormatBool(*params.Descendants))
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionInteractionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionProcessesParams carries the path, query, and header parameters.
+type ListSessionProcessesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ListSessionProcesses List attributed session processes
 func (c *Client) ListSessionProcesses(ctx context.Context, params ListSessionProcessesParams) (*SessionProcessesResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/processes"
@@ -300,135 +434,4 @@ type ListSettingsApplyRecordsParams struct {
 	Status *string `url:"status"`
 	Actor  *string `url:"actor"`
 	Limit  *int    `url:"limit"`
-}
-
-// ListSettingsApplyRecords List config apply records for desired and active generation reconciliation
-func (c *Client) ListSettingsApplyRecords(ctx context.Context, params ListSettingsApplyRecordsParams) (*ConfigApplyRecordsResponse, error) {
-	path := "/api/settings/apply"
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Actor != nil {
-		query.Set("actor", *params.Actor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ConfigApplyRecordsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSettingsHooksParams carries the path, query, and header parameters.
-type ListSettingsHooksParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ListSettingsHooks List settings-backed hook declarations
-func (c *Client) ListSettingsHooks(ctx context.Context, params ListSettingsHooksParams) (*SettingsHooksResponse, error) {
-	path := "/api/settings/hooks"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsHooksResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSettingsMCPServersParams carries the path, query, and header parameters.
-type ListSettingsMCPServersParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ListSettingsMCPServers List manual and extension-owned MCP servers
-func (c *Client) ListSettingsMCPServers(ctx context.Context, params ListSettingsMCPServersParams) (*SettingsMCPServersResponse, error) {
-	path := "/api/settings/mcp-servers"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsMCPServersResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSettingsProviders List settings-backed providers
-func (c *Client) ListSettingsProviders(ctx context.Context) (*SettingsProvidersResponse, error) {
-	path := "/api/settings/providers"
-	var out SettingsProvidersResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSkillsParams carries the path, query, and header parameters.
-type ListSkillsParams struct {
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-	ForAgent  *string `url:"for_agent"`
-}
-
-// ListSkills List effective skills for the selected global, workspace, or agent scope
-func (c *Client) ListSkills(ctx context.Context, params ListSkillsParams) (*SkillsResponse, error) {
-	path := "/api/skills"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListTaskBlocksParams carries the path, query, and header parameters.
-type ListTaskBlocksParams struct {
-	ID             string  `url:"id"`
-	IncludeCleared *bool   `url:"include_cleared"`
-	Profile        *string `url:"profile"`
-	AllProfiles    *bool   `url:"all_profiles"`
 }

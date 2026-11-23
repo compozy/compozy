@@ -60,6 +60,14 @@ type authFixture struct {
 
 func newAuthFixture(t *testing.T) authFixture {
 	t.Helper()
+	return newAuthFixtureWithReplica(t, remotetest.StartReplica)
+}
+
+func newAuthFixtureWithReplica(
+	t *testing.T,
+	start func(*testing.T, cloud.Config, func(*cloud.App)) *remotetest.Replica,
+) authFixture {
+	t.Helper()
 	db := remotetest.NewDatabase(t)
 	db.Migrate(t)
 	clock := clockwork.NewFakeClockAt(time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC))
@@ -95,7 +103,7 @@ func newAuthFixture(t *testing.T) authFixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.Close(t.Context()) })
-	replica := remotetest.StartReplica(t, config, registerAuthProbe)
+	replica := start(t, config, registerAuthProbe)
 	return authFixture{db: db, conn: conn, replica: replica, cfg: config, clock: clock, provider: provider}
 }
 

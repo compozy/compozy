@@ -13,6 +13,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	api.GET("/daemon/profile/:kind", handlers.CaptureDaemonProfile)
 
 	registerAppSDKRoutes(api, handlers)
+	core.RegisterAccountRoutes(api, handlers.BaseHandlers)
 	registerStatusRoutes(api, handlers)
 	registerOnboardingRoutes(api, handlers)
 	registerFilesystemRoutes(api, handlers)

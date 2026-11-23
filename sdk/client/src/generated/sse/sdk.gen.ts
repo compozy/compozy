@@ -9,6 +9,14 @@ import type {
   TDataShape,
 } from "./client/index.js";
 import type {
+  StreamAccountData,
+  StreamAccountErrors,
+  StreamAccountResponse,
+  StreamAccountResponses,
+  StreamAccountSignInData,
+  StreamAccountSignInErrors,
+  StreamAccountSignInResponse,
+  StreamAccountSignInResponses,
   StreamCmdPaletteData,
   StreamCmdPaletteErrors,
   StreamCmdPaletteResponse,
@@ -88,6 +96,40 @@ export type Options<
    */
   meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+/**
+ * Stream anonymous sign-in progress
+ */
+export const streamAccountSignIn = <ThrowOnError extends boolean = true>(
+  options?: Options<StreamAccountSignInData, ThrowOnError, StreamAccountSignInResponse>
+): Promise<ServerSentEventsResult<StreamAccountSignInResponses>> =>
+  (options?.client ?? client).sse.get<
+    StreamAccountSignInResponses,
+    StreamAccountSignInErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseStyle: "data",
+    url: "/api/account/sign-in/events",
+    ...options,
+  });
+
+/**
+ * Stream changes for the active account
+ */
+export const streamAccount = <ThrowOnError extends boolean = true>(
+  options?: Options<StreamAccountData, ThrowOnError, StreamAccountResponse>
+): Promise<ServerSentEventsResult<StreamAccountResponses>> =>
+  (options?.client ?? client).sse.get<
+    StreamAccountResponses,
+    StreamAccountErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseStyle: "data",
+    url: "/api/account/stream",
+    ...options,
+  });
 
 /**
  * Stream command palette catalog invalidations
