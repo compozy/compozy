@@ -13,13 +13,13 @@ tokens:
     colors:
       rail: "#0a0a0a"
       rail-hover: "#232323"
-      rail-selected: "#262626"
+      rail-selected: "#2e2e2e"
       desk: "#131313"
       canvas: "#131313"
       canvas-soft: "#1a1a1a"
       sunken: "#0a0a0a"
       surface-2: "#232323"
-      selected: "#262626"
+      selected: "#2e2e2e"
       code-bg: "#1a1a1a"
       sidebar: "var(--color-sunken)"
       elevated: "#1b1b1b"
@@ -29,15 +29,15 @@ tokens:
       line-soft: "#202020"
       line-strong: "#383838"
       line-focus: "#3df2e0"
-      indicator: "#707070"
+      indicator: "#777777"
       knob: "#ececec"
       fg: "#ececec"
       fg-strong: "#ffffff"
       fg-2: "#bababa"
       fg-3: "#d3d3d3"
       muted-foreground: "#989898"
-      subtle: "#8e8e8e"
-      faint: "#8d8d8d"
+      subtle: "#969696"
+      faint: "#959595"
       primary: "#f5f5f5"
       primary-hover: "#ffffff"
       primary-foreground: "#0a0a0a"
@@ -156,7 +156,7 @@ tokens:
       canvas-soft: "#ffffff"
       sunken: "#f7f7f8"
       surface-2: "#f4f4f5"
-      selected: "#efeff1"
+      selected: "#ededef"
       code-bg: "#f6f6f7"
       elevated: "#ffffff"
       disabled: "#c4c7cc"
@@ -596,13 +596,13 @@ token or component at the source; do not locally override one callsite.
 | ----------------------- | ------------------------ | ------------------------ |
 | `--color-rail`          | `#0a0a0a`                | `#f2f2f3`                |
 | `--color-rail-hover`    | `#232323`                | `#e8e8ea`                |
-| `--color-rail-selected` | `#262626`                | `#e3e3e6`                |
+| `--color-rail-selected` | `#2e2e2e`                | `#e3e3e6`                |
 | `--color-desk`          | `#131313`                | `#ffffff`                |
 | `--color-canvas`        | `#131313`                | `#ffffff`                |
 | `--color-canvas-soft`   | `#1a1a1a`                | `#ffffff`                |
 | `--color-sunken`        | `#0a0a0a`                | `#f7f7f8`                |
 | `--color-surface-2`     | `#232323`                | `#f4f4f5`                |
-| `--color-selected`      | `#262626`                | `#efeff1`                |
+| `--color-selected`      | `#2e2e2e`                | `#ededef`                |
 | `--color-code-bg`       | `#1a1a1a`                | `#f6f6f7`                |
 | `--color-sidebar`       | `var(--color-sunken)`    | `var(--color-sunken)`    |
 | `--color-elevated`      | `#1b1b1b`                | `#ffffff`                |
@@ -636,8 +636,8 @@ token or component at the source; do not locally override one callsite.
 | `--color-fg-2`             | `#bababa` | `#4c4c4c` |
 | `--color-fg-3`             | `#d3d3d3` | `#333333` |
 | `--color-muted-foreground` | `#989898` | `#6b6b6b` |
-| `--color-subtle`           | `#8e8e8e` | `#6b6b6b` |
-| `--color-faint`            | `#8d8d8d` | `#6b6b6b` |
+| `--color-subtle`           | `#969696` | `#6b6b6b` |
+| `--color-faint`            | `#959595` | `#6b6b6b` |
 
 <!-- END:tokens:text-ladder -->
 
