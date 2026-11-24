@@ -144,7 +144,13 @@ describe("sessionProcessesOptions", () => {
 describe("sessionCommandsOptions", () => {
   it("Should key the command catalog by workspace and session", () => {
     const options = sessionCommandsOptions(" ws_alpha ", "sess_1");
-    expect(options.queryKey).toEqual(["session-commands", "ws_alpha", "sess_1"]);
+    expect(options.queryKey).toEqual([
+      "computer",
+      "local",
+      "session-commands",
+      "ws_alpha",
+      "sess_1",
+    ]);
     expect(options.enabled).toBe(true);
     expect(sessionCommandsOptions("", "sess_1").enabled).toBe(false);
     expect(sessionCommandsOptions("   ", "sess_1").enabled).toBe(false);
@@ -155,6 +161,8 @@ describe("sessionCommandsOptions", () => {
 describe("sessionScopedDetailOptions", () => {
   it("Should key the profile-enforced read by the lens so two profiles never share an entry", () => {
     expect(sessionScopedDetailOptions("sess_1", { profile: "marketing" }).queryKey).toEqual([
+      "computer",
+      "local",
       "sessions",
       "by-id",
       "sess_1",
@@ -170,8 +178,8 @@ describe("sessionScopedDetailOptions", () => {
     const aggregate = sessionAcrossProfilesOptions("sess_1").queryKey;
     // Both live under the same by-id prefix; a mutation knows the session, never
     // which lens some other surface is looking through.
-    expect(scoped.slice(0, 3)).toEqual(["sessions", "by-id", "sess_1"]);
-    expect(aggregate.slice(0, 3)).toEqual(["sessions", "by-id", "sess_1"]);
+    expect(scoped.slice(0, 5)).toEqual(["computer", "local", "sessions", "by-id", "sess_1"]);
+    expect(aggregate.slice(0, 5)).toEqual(["computer", "local", "sessions", "by-id", "sess_1"]);
     expect(scoped).not.toEqual(aggregate);
   });
 
@@ -308,6 +316,8 @@ describe("sessionResolvedInteractionsOptions", () => {
       decidedRequestIds: new Set(["b", "a"]),
     });
     expect(options.queryKey).toEqual([
+      "computer",
+      "local",
       "sessions",
       "workspace",
       "ws_alpha",

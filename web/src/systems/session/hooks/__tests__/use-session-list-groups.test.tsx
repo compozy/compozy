@@ -311,7 +311,7 @@ describe("useSessionListGroups", () => {
       sessionCatalogOptions({ workspace_id: "ws-alpha", subagents });
     const facets = (subagents: "include" | "exclude") =>
       sessionFacetsOptions({ workspace_id: "ws-alpha", subagents });
-    expect(page("exclude").queryKey[4]).toMatchObject({ subagents: "exclude" });
+    expect(page("exclude").queryKey[6]).toMatchObject({ subagents: "exclude" });
     expect(page("exclude").queryKey).not.toEqual(page("include").queryKey);
     expect(facets("exclude").queryKey).not.toEqual(facets("include").queryKey);
 

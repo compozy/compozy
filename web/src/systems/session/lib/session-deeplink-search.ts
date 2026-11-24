@@ -29,6 +29,8 @@ export interface SessionDeepLinkSearch {
    * proven by the loader, never taken from the URL.
    */
   workspace?: string;
+  /** Remote computer id when the session lives on a linked remote computer (Remote Computers S7). */
+  computer?: string;
   /** `open`: the window's board shows this session in its drawer. */
   drawer?: typeof SESSION_BOARD_DRAWER_OPEN;
 }
@@ -44,12 +46,14 @@ export function validateSessionDeepLinkSearch(
 ): SessionDeepLinkSearch {
   const workspaceSwitch = search.workspaceSwitch;
   const workspace = typeof search.workspace === "string" ? search.workspace.trim() : "";
+  const computer = typeof search.computer === "string" ? search.computer.trim() : "";
   return {
     ...(typeof workspaceSwitch === "string" &&
     (SESSION_WORKSPACE_SWITCH_STATES as readonly string[]).includes(workspaceSwitch)
       ? { workspaceSwitch: workspaceSwitch as SessionWorkspaceSwitchState }
       : {}),
     ...(workspace !== "" ? { workspace } : {}),
+    ...(computer !== "" && computer !== "local" ? { computer } : {}),
     ...(sessionBoardDrawerOpen(search as Record<string, unknown>)
       ? { drawer: SESSION_BOARD_DRAWER_OPEN }
       : {}),

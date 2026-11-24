@@ -1,10 +1,15 @@
+import { Alert, AlertDescription, Field, FieldLabel } from "@compozy/ui";
+import { WifiOff } from "@compozy/ui/icons";
+
+import { RunOnPicker } from "@/systems/computers";
+import type { AgentPayload } from "@/systems/agent";
+import type { DataScope, WorkspacePayload } from "@/systems/workspace";
+
 import {
   useSessionCreateDialogViewModel,
   type SessionCreateDialogController,
 } from "../hooks/use-session-create-dialog";
 import { SessionCreateDialog } from "./session-create-dialog";
-import type { AgentPayload } from "@/systems/agent";
-import type { DataScope, WorkspacePayload } from "@/systems/workspace";
 
 interface SessionCreateDialogHostProps extends SessionCreateDialogController {
   agents: AgentPayload[] | undefined;
@@ -28,6 +33,9 @@ export function SessionCreateDialogHost({
     { agents, activeWorkspace, dataScope, projectWorkspaceId, focusedBinding },
     store
   );
+  const showRunOn =
+    sessionCreate.computers.some(computer => computer.enabled) ||
+    !sessionCreate.localComputer.localRunAgents;
 
   return (
     <SessionCreateDialog
@@ -41,6 +49,17 @@ export function SessionCreateDialogHost({
       isAwaitingEnvironment={sessionCreate.isAwaitingEnvironment}
       isSubmitting={sessionCreate.isSubmitting}
       mode={sessionCreate.mode}
+      notice={
+        sessionCreate.offlineComputerName ? (
+          <Alert data-testid="session-create-offline-notice" variant="warning">
+            <WifiOff aria-hidden="true" />
+            <AlertDescription>
+              {sessionCreate.offlineComputerName} is offline. Your draft is saved; reconnect or pick
+              another computer to start this session.
+            </AlertDescription>
+          </Alert>
+        ) : undefined
+      }
       onAgentChange={sessionCreate.onAgentChange}
       onCancelEnvironment={sessionCreate.onCancelEnvironment}
       onModeChange={sessionCreate.onModeChange}
@@ -49,10 +68,31 @@ export function SessionCreateDialogHost({
       onSubmit={sessionCreate.submit}
       open={sessionCreate.open}
       restoreFocusOnClose={sessionCreate.restoreFocusOnClose}
+      runOn={
+        showRunOn ? (
+          <Field>
+            <FieldLabel htmlFor="session-create-run-on">Run on</FieldLabel>
+            <RunOnPicker
+              allowAuto={false}
+              computers={sessionCreate.computers}
+              disabled={sessionCreate.isSubmitting}
+              hideWhenSingleComputer
+              loadBalancingEnabled={false}
+              localComputer={sessionCreate.localComputer}
+              locked={sessionCreate.computerLocked}
+              onChange={sessionCreate.onComputerChange}
+              testId="session-create-run-on"
+              triggerId="session-create-run-on"
+              value={sessionCreate.computerId}
+            />
+          </Field>
+        ) : undefined
+      }
       scope={sessionCreate.scope}
       selectedAgentName={sessionCreate.selectedAgentName}
       sessionName={sessionCreate.sessionName}
       sessionRoot={sessionCreate.sessionRoot}
+      submitDisabled={sessionCreate.submitDisabled}
       submitError={sessionCreate.submitError}
     />
   );
