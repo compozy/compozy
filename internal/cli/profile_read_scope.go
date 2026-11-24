@@ -89,7 +89,7 @@ func configureSingleProfileReadCommand(cmd *cobra.Command, deps commandDeps) {
 			return err
 		}
 		if err := prepareProfileReadSelection(
-			cmd, deps, optionalProfileResolutionClient(client), client, false,
+			cmd, deps, optionalProfileResolutionClient(client), client,
 		); err != nil {
 			return err
 		}
@@ -108,7 +108,7 @@ func configureSingleProfileCommand(cmd *cobra.Command, deps commandDeps) {
 			return err
 		}
 		profiles := optionalProfileResolutionClient(client)
-		if err := prepareProfileReadSelection(cmd, deps, profiles, client, false); err != nil {
+		if err := prepareProfileReadSelection(cmd, deps, profiles, client); err != nil {
 			return err
 		}
 		return original(cmd, args)
@@ -128,9 +128,8 @@ func prepareProfileReadSelection(
 	deps commandDeps,
 	profiles profileResolutionClient,
 	workspaces workspaceLookupClient,
-	allProfiles bool,
 ) error {
-	return prepareProfileReadSelectionMode(cmd, deps, profiles, workspaces, allProfiles, false)
+	return prepareProfileReadSelectionMode(cmd, deps, profiles, workspaces, false, false)
 }
 
 func prepareProfileReadSelectionMode(

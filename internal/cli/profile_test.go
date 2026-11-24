@@ -397,7 +397,7 @@ func TestRemoteProfileSelection(t *testing.T) {
 			}
 			client := &daemonClient{target: test.target}
 			deps := newTestDeps(t, client)
-			if err := prepareProfileReadSelection(command, deps, client, client, false); err != nil {
+			if err := prepareProfileReadSelection(command, deps, client, client); err != nil {
 				t.Fatalf("prepare profile selection without a catalog client: %v", err)
 			}
 			values := profileQueryValues(command.Context(), nil)
