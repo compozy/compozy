@@ -206,7 +206,10 @@ export function AddComputerSecretCard({
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (expired || !value.trim()) return;
-    onSubmit?.(value);
+    const secret = value;
+    setValue("");
+    setRevealed(false);
+    onSubmit?.(secret);
   };
 
   return (

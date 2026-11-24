@@ -78,9 +78,17 @@ const SECTION_LOADERS = {
     import("@/routes/_app/settings/-automation-settings-page").then(m => ({
       default: m.AutomationSettingsPage,
     })),
+  computers: () =>
+    import("@/routes/_app/settings/-computers-settings-page").then(m => ({
+      default: m.ComputersSettingsPage,
+    })),
+  account: () =>
+    import("@/routes/_app/settings/-account-settings-page").then(m => ({
+      default: m.AccountSettingsPage,
+    })),
   gateway: () =>
-    import("@/routes/_app/settings/-gateway-settings-page").then(m => ({
-      default: m.GatewaySettingsPage,
+    import("@/routes/_app/settings/-computers-settings-page").then(m => ({
+      default: m.ComputersSettingsPage,
     })),
   profiles: () =>
     import("@/routes/_app/settings/-profiles-settings-page").then(m => ({

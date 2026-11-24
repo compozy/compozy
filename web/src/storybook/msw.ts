@@ -1,7 +1,9 @@
 import { HttpResponse, http, type HttpHandler } from "msw";
 
+import { accountHandlers } from "@/systems/account/mocks/handlers";
 import { handlers as agentHandlers } from "@/systems/agent/mocks";
 import { handlers as automationHandlers } from "@/systems/automation/mocks";
+import { computersHandlers } from "@/systems/computers/mocks/handlers";
 import { handlers as daemonHandlers } from "@/systems/status/mocks";
 import { handlers as dashboardHandlers } from "@/systems/dashboard/mocks";
 import { handlers as extensionHandlers } from "@/systems/extensions/mocks";
@@ -72,9 +74,9 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   profiles: profileHandlers,
   "provider-usage": providerUsageHandlers,
   session: sessionHandlers,
-  // Gateway is a settings section, so its reads ride the settings group rather
-  // than opening a system of their own.
-  settings: [...settingsHandlers, ...gatewayHandlers],
+  // Account, Computers, and retired Gateway reads ride the settings group rather
+  // than opening separate handler groups.
+  settings: [...settingsHandlers, ...gatewayHandlers, ...accountHandlers, ...computersHandlers],
   skill: skillHandlers,
   scheduler: schedulerHandlers,
   tasks: tasksHandlers,

@@ -1,7 +1,9 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
+import { accountStatusOptions } from "@/systems/account";
 import { agentsListOptions } from "@/systems/agent";
+import { computersListOptions, remoteStatusOptions } from "@/systems/computers";
 import { readActingProfile } from "@/systems/profiles";
 import {
   settingsApplyRecordsOptions,
@@ -86,4 +88,16 @@ export function preloadSettingsMCPRoute(queryClient: QueryClient): Promise<void>
       )
     ),
   ]);
+}
+
+export function preloadSettingsComputersRoute(queryClient: QueryClient): Promise<void> {
+  return settleRouteQueries([
+    queryClient.ensureQueryData(accountStatusOptions()),
+    queryClient.ensureQueryData(computersListOptions()),
+    queryClient.ensureQueryData(remoteStatusOptions()),
+  ]);
+}
+
+export function preloadSettingsAccountRoute(queryClient: QueryClient): Promise<void> {
+  return settleRouteQueries([queryClient.ensureQueryData(accountStatusOptions())]);
 }

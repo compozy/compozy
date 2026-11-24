@@ -118,6 +118,7 @@ export function AddComputerAccountPath({
 export interface AddComputerCommandPathProps {
   accountEmail: string;
   detected: boolean;
+  detectedComputer?: AccountUnaddedComputerFixture | null;
   addedIds: readonly string[];
   onAdd: (computer: AccountUnaddedComputerFixture) => void;
 }
@@ -126,10 +127,11 @@ export interface AddComputerCommandPathProps {
 export function AddComputerCommandPath({
   accountEmail,
   detected,
+  detectedComputer: detectedComputerProp,
   addedIds,
   onAdd,
 }: AddComputerCommandPathProps) {
-  const detectedComputer = LINK_WITH_COMMAND_FIXTURE.detectedComputer;
+  const detectedComputer = detectedComputerProp ?? LINK_WITH_COMMAND_FIXTURE.detectedComputer;
   const isAdded = addedIds.includes(detectedComputer.id);
 
   return (
@@ -302,6 +304,16 @@ export function AddComputerFooter({
   }
 
   if (sshStage === "plan_limit") {
+    if (!onUpgrade) {
+      return (
+        <SingleActionFooter
+          actionLabel="Close"
+          hint="Unlinking your existing remote computer frees your Free slot."
+          onAction={onClose}
+          variant="outline"
+        />
+      );
+    }
     return (
       <EntityDialogFooter
         cancelLabel="Cancel"

@@ -94,8 +94,16 @@ export function AccountDevicesSection({
                 <span>{DEVICE_KIND_LABEL[device.kind]}</span>
                 <ListingRow.MetaDot />
                 <span>Last seen {device.lastSeenLabel}</span>
-                <ListingRow.MetaDot />
-                <KeyFingerprint copyable={false} layout="inline" value={device.keyFingerprint} />
+                {device.keyFingerprint ? (
+                  <>
+                    <ListingRow.MetaDot />
+                    <KeyFingerprint
+                      copyable={false}
+                      layout="inline"
+                      value={device.keyFingerprint}
+                    />
+                  </>
+                ) : null}
               </ListingRow.Meta>
             </ListingRow.Main>
 
@@ -146,6 +154,10 @@ export interface AccountRevokeDeviceDialogProps {
   device: AccountDeviceFixture | null;
   localRemoteEnabled?: boolean;
   requireDeviceApproval: boolean;
+  isPending?: boolean;
+  /** Shown when the device was revoked but enabling local approval failed (`_uiux.md` U1 Q3). */
+  approvalFailure?: string | null;
+  onRetryEnableApproval?: () => void;
   onClose: () => void;
   onConfirm: (device: AccountDeviceFixture, enableApproval: boolean) => void;
 }
@@ -159,6 +171,9 @@ export function AccountRevokeDeviceDialog({
   device,
   localRemoteEnabled = true,
   requireDeviceApproval,
+  isPending = false,
+  approvalFailure = null,
+  onRetryEnableApproval,
   onClose,
   onConfirm,
 }: AccountRevokeDeviceDialogProps) {
@@ -166,6 +181,25 @@ export function AccountRevokeDeviceDialog({
   const [enableApproval, setEnableApproval] = useState(showApprovalCheckbox);
 
   if (!device) return null;
+
+  if (approvalFailure) {
+    return (
+      <ConfirmDialog
+        cancelLabel="Close"
+        confirmLabel="Try again"
+        description={`Device removed. Couldn't turn on approval: ${approvalFailure}`}
+        icon={ShieldAlert}
+        isPending={isPending}
+        onConfirm={() => onRetryEnableApproval?.()}
+        onOpenChange={open => {
+          if (!open) onClose();
+        }}
+        open
+        title={`Revoked ${device.name}`}
+        tone="warning"
+      />
+    );
+  }
 
   return (
     <ConfirmDialog
@@ -196,8 +230,13 @@ export function AccountRevokeDeviceDialog({
       cancelLabel="Cancel"
       confirmLabel="Revoke device"
       description={`${device.name} loses access across your account. Every connected computer closes its streams within 2 seconds; offline computers apply the revoke when they reconnect.`}
-      footNote={<KeyFingerprint copyable={false} layout="inline" value={device.keyFingerprint} />}
+      footNote={
+        device.keyFingerprint ? (
+          <KeyFingerprint copyable={false} layout="inline" value={device.keyFingerprint} />
+        ) : undefined
+      }
       icon={ShieldAlert}
+      isPending={isPending}
       onConfirm={() => onConfirm(device, showApprovalCheckbox && enableApproval)}
       onOpenChange={open => {
         if (!open) onClose();
