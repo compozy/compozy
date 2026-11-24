@@ -58,9 +58,7 @@ export function setSessionDraftComputer(
 }
 
 /** Marks a draft as sent so its target computer can no longer change (UT-082). */
-export function markSessionDraftSent(
-  current: SessionCreateDialogDraft
-): SessionCreateDialogDraft {
+export function markSessionDraftSent(current: SessionCreateDialogDraft): SessionCreateDialogDraft {
   return current.sent ? current : { ...current, sent: true };
 }
 

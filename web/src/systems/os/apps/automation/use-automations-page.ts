@@ -79,8 +79,7 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
       timeZone: page.timeZone,
       workspaceName: id => workspaceNames.get(id),
       agentLabel: name => identityOf(name, entity).label,
-      computerOf: item =>
-        "event" in item ? undefined : jobsQuery.computerByJobId.get(item.id),
+      computerOf: item => ("event" in item ? undefined : jobsQuery.computerByJobId.get(item.id)),
       ...(profile.aggregate ? { ownerOf: profile.ownerOf } : {}),
       ...(allProjects
         ? { projectOf: item => workspaceBadgeIdentity(item.workspace_id, workspaceNames) }

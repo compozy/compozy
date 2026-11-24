@@ -87,9 +87,9 @@ export interface AutomationViewContext extends SentenceContext {
   /** Resolves the project badge; supplied only under All projects. */
   projectOf?: (entity: AutomationJob | AutomationTrigger) => WorkspaceBadgeIdentity;
   /** Resolves remote-computer provenance for a merged job row. */
-  computerOf?: (entity: AutomationJob | AutomationTrigger) =>
-    | { id: string; name: string; offline: boolean }
-    | undefined;
+  computerOf?: (
+    entity: AutomationJob | AutomationTrigger
+  ) => { id: string; name: string; offline: boolean } | undefined;
 }
 
 function nonEmpty(value: string | null | undefined): string | undefined {

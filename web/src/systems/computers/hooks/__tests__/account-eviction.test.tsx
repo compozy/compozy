@@ -22,14 +22,14 @@ describe("useAccountRemoteEviction (IT-026 web adapter)", () => {
 
   it("IT-026: Should evict all ['computer', 'C1', ...] queries on account switch and sign-out while keeping local cache", async () => {
     let streamHandlers: accountApi.AccountStreamHandlers | null = null;
-    let currentAccount: accountApi.AccountStatusPayload = {
+    let currentAccount = {
       signed_in: true,
       state: "signed_in",
       gate: "off",
       pre_account_install: false,
       email: "a@example.test",
       plan: "free",
-    };
+    } as unknown as accountApi.AccountStatusPayload;
 
     vi.spyOn(accountApi, "fetchAccountStatus").mockImplementation(async () => currentAccount);
     vi.spyOn(accountApi, "openAccountStream").mockImplementation(handlers => {
@@ -67,7 +67,7 @@ describe("useAccountRemoteEviction (IT-026 web adapter)", () => {
       pre_account_install: false,
       email: "b@example.test",
       plan: "free",
-    };
+    } as unknown as accountApi.AccountStatusPayload;
 
     act(() => {
       streamHandlers?.onAccountChanged({ evict_remote: true });

@@ -264,7 +264,13 @@ function SessionBoardCardMetaRow({
   status: SessionBoardCardStatus | null;
   extra?: ReactNode;
 }) {
-  if (!computer && meta.shape === null && meta.workspaceName === null && status === null && !extra) {
+  if (
+    !computer &&
+    meta.shape === null &&
+    meta.workspaceName === null &&
+    status === null &&
+    !extra
+  ) {
     return null;
   }
   const Icon = meta.shape ? SHAPE_ICON[meta.shape] : null;

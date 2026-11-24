@@ -6,10 +6,21 @@ export {
   patchComputer,
   type ComputersStreamHandlers,
 } from "./adapters/computers-api";
-export { ComputerChip, ComputerMetaLabel, type ComputerChipProps, type ComputerMetaLabelProps } from "./components/computer-chip";
+export {
+  ComputerChip,
+  ComputerMetaLabel,
+  type ComputerChipProps,
+  type ComputerMetaLabelProps,
+} from "./components/computer-chip";
 export { ComputerLoadMeter, type ComputerLoadMeterProps } from "./components/computer-load-meter";
-export { ComputerPlatformIcon, type ComputerPlatformIconProps } from "./components/computer-platform-icon";
-export { ComputerStatusChip, type ComputerStatusChipProps } from "./components/computer-status-chip";
+export {
+  ComputerPlatformIcon,
+  type ComputerPlatformIconProps,
+} from "./components/computer-platform-icon";
+export {
+  ComputerStatusChip,
+  type ComputerStatusChipProps,
+} from "./components/computer-status-chip";
 export {
   RunOnPicker,
   type AutoResolutionSummary,
@@ -51,6 +62,7 @@ export {
   type MergeableSession,
   type MergedSessionRow,
   type MergeSessionComputer,
+  type NextComputerPageSelection,
   type ProjectComputerGroup,
 } from "./lib/merge-sessions";
 export { computerRegistryKeys } from "./lib/query-keys";

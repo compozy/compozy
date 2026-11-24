@@ -1,50 +1,10 @@
 import { Button } from "@compozy/ui";
 
 import {
-  mergeSessionPages,
   ScopedComputerError,
   ScopedComputerSkeleton,
-  type MergedSessionRow,
   type ScopedComputerFailureItem,
 } from "@/systems/computers";
-
-import { buildSessionListThreads } from "../../lib/session-list-threads";
-import type { SessionPayload } from "../../types";
-
-/** Merges local thread sessions with remote fan-out rows ordered by `updated_at` desc. */
-export function mergeLocalAndRemoteThreads(
-  localThreads: ReturnType<typeof buildSessionListThreads>,
-  remoteSessions: readonly MergedSessionRow<SessionPayload>[]
-): ReturnType<typeof buildSessionListThreads> {
-  if (remoteSessions.length === 0) return localThreads;
-  const grouped = new Map<
-    string,
-    { computer: { id: string; name: string; status: string }; sessions: SessionPayload[] }
-  >();
-  for (const row of remoteSessions) {
-    const entry = grouped.get(row.computerId) ?? {
-      computer: {
-        id: row.computerId,
-        name: row.computerName,
-        status: row.offline ? "offline" : "connected",
-      },
-      sessions: [],
-    };
-    entry.sessions.push(row.session);
-    grouped.set(row.computerId, entry);
-  }
-  const merged = mergeSessionPages([
-    {
-      computer: { id: "local", name: "This computer", status: "connected" },
-      sessions: localThreads.flatMap(thread => [thread.root, ...thread.children]),
-    },
-    ...grouped.values(),
-  ]);
-  return buildSessionListThreads(
-    merged.map(row => row.session),
-    ""
-  );
-}
 
 /** Per-computer loading skeletons, inline retryable failures, and oldest-cursor Load more. */
 export function SessionListRemoteFooter({

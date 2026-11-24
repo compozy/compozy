@@ -63,6 +63,66 @@ interface Picks {
   profile: string | null;
 }
 
+function buildTargetProjection({
+  activeProjectWorkspaces,
+  activeBreadthMode,
+  activePending,
+  activeDataScope,
+  remoteWorkspaces,
+  isRemote,
+  profileAggregate,
+  profileDestination,
+  profilesData,
+  current,
+  focusedBinding,
+}: {
+  activeProjectWorkspaces: readonly WorkspacePayload[];
+  activeBreadthMode: string;
+  activePending: boolean;
+  activeDataScope: DataScope | null;
+  remoteWorkspaces: readonly WorkspacePayload[] | undefined;
+  isRemote: boolean;
+  profileAggregate: boolean;
+  profileDestination: string;
+  profilesData: Parameters<typeof sessionProfileOptions>[0];
+  current: Picks;
+  focusedBinding: string | null | undefined;
+}) {
+  const projectWorkspaces = isRemote
+    ? (remoteWorkspaces ?? []).filter(workspace => !workspace.archived_at)
+    : activeProjectWorkspaces;
+  const projectAxis = isRemote ? true : activeBreadthMode === "all" && !activePending;
+  const profileAxis = !isRemote && profileAggregate;
+  const projectOptions = projectAxis ? sessionProjectOptions(projectWorkspaces) : [];
+  const projectValue = resolveProjectPick(
+    projectAxis,
+    projectOptions,
+    current.project,
+    isRemote ? null : focusedBinding
+  );
+  const profileOptions = profileAxis ? sessionProfileOptions(profilesData) : [];
+  const profile = resolveProfilePick(profileOptions, current.profile, profileDestination);
+  const named = resolveNamedProject(projectAxis, current.project, projectWorkspaces);
+  const scope = named.workspace
+    ? sessionTargetScope(named.workspace.id)
+    : resolveCreateScope(projectValue, isRemote ? null : activeDataScope);
+  const workspace = projectWorkspaceOf(scope, projectWorkspaces);
+
+  return {
+    projectAxis,
+    namedProject: named.workspace !== undefined,
+    namedProjectUnresolved: named.unresolved,
+    profileAxis,
+    projectOptions,
+    projectValue,
+    profileOptions,
+    profile,
+    scope,
+    workspace,
+    projectLabel: workspace?.name ?? DESTINATION_COPY.user,
+  };
+}
+
 /**
  * The create target for one opening of a session surface. Each axis gets a
  * picker only while it is aggregated; a bounded axis is its own target. Picks
@@ -89,15 +149,9 @@ export function useSessionCreateTarget({
   const scopedComputerId = normalizeComputerId(computerId);
   const isRemote = isRemoteComputerId(scopedComputerId);
   const remoteWorkspacesQuery = useComputerWorkspaces(scopedComputerId, open && isRemote);
-  const remoteProjectWorkspaces = (remoteWorkspacesQuery.data?.workspaces ?? []).filter(
-    workspace => !workspace.archived_at
-  );
-  const projectWorkspaces = isRemote ? remoteProjectWorkspaces : active.projectWorkspaces;
-  const projectAxis = isRemote ? true : active.breadthMode === "all" && !active.pending;
-  const profileAxis = !isRemote && profileScope.aggregate;
-  const profiles = useProfiles(profileAxis);
+  const profiles = useProfiles(!isRemote && profileScope.aggregate);
   const pickKey = `${String(resetKey)}:${scopedComputerId}`;
-  const opening = {
+  const opening: Picks = {
     key: pickKey,
     project: isRemote ? null : (seed?.project ?? null),
     profile: seed?.profile ?? null,
@@ -106,33 +160,22 @@ export function useSessionCreateTarget({
   const current = picks.key === pickKey ? picks : opening;
   if (current !== picks) setPicks(current);
 
-  const projectOptions = projectAxis ? sessionProjectOptions(projectWorkspaces) : [];
-  const projectValue = resolveProjectPick(
-    projectAxis,
-    projectOptions,
-    current.project,
-    isRemote ? null : focusedBinding
-  );
-  const profileOptions = profileAxis ? sessionProfileOptions(profiles.data ?? []) : [];
-  const profile = resolveProfilePick(profileOptions, current.profile, profileScope.destination);
-  const named = resolveNamedProject(projectAxis, current.project, projectWorkspaces);
-  const scope = named.workspace
-    ? sessionTargetScope(named.workspace.id)
-    : resolveCreateScope(projectValue, isRemote ? null : active.dataScope);
-  const workspace = projectWorkspaceOf(scope, projectWorkspaces);
+  const projected = buildTargetProjection({
+    activeProjectWorkspaces: active.projectWorkspaces,
+    activeBreadthMode: active.breadthMode,
+    activePending: active.pending,
+    activeDataScope: active.dataScope,
+    remoteWorkspaces: remoteWorkspacesQuery.data,
+    isRemote,
+    profileAggregate: profileScope.aggregate,
+    profileDestination: profileScope.destination,
+    profilesData: profiles.data ?? [],
+    current,
+    focusedBinding,
+  });
 
   return {
-    projectAxis,
-    namedProject: named.workspace !== undefined,
-    namedProjectUnresolved: named.unresolved,
-    profileAxis,
-    projectOptions,
-    projectValue,
-    profileOptions,
-    profile,
-    scope,
-    workspace,
-    projectLabel: workspace?.name ?? DESTINATION_COPY.user,
+    ...projected,
     selectProject: value => setPicks({ ...current, project: value }),
     selectProfile: value => setPicks({ ...current, profile: value }),
   };

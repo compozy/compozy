@@ -274,7 +274,13 @@ describe("tasksKeys", () => {
   });
 
   it("Should bind profile keys to a task id", () => {
-    expect(tasksKeys.profile("task_1")).toEqual(["computer", "local", "tasks", "profile", "task_1"]);
+    expect(tasksKeys.profile("task_1")).toEqual([
+      "computer",
+      "local",
+      "tasks",
+      "profile",
+      "task_1",
+    ]);
   });
 
   it("Should distinguish run, task, and detail review keys", () => {

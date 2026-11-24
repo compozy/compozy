@@ -135,7 +135,9 @@ function catalogReadAffected(key: QueryKey, change: CatalogChange | undefined): 
   if (keyedWorkspace && keyedWorkspace !== workspace) return false;
   const family = key[listsBase + 1];
   if (family === "folders")
-    return !change.profile_name || !key[listsBase + 2] || key[listsBase + 2] === change.profile_name;
+    return (
+      !change.profile_name || !key[listsBase + 2] || key[listsBase + 2] === change.profile_name
+    );
   const scope = (typeof family === "object" ? family : key[listsBase + 2]) as
     | { profile?: string; all_profiles?: boolean; workspace_ids?: string[] }
     | undefined;
@@ -164,6 +166,7 @@ function isStreamCoveredInteractionRead(
   everyWorkspace: boolean
 ): boolean {
   const base = sessionKeys.all.length;
+  const workspaceKey = key[base + 1];
   return (
     queryKeyHasScope(key, sessionKeys.all) &&
     key[base] === "workspace" &&
@@ -171,7 +174,8 @@ function isStreamCoveredInteractionRead(
     key[base + 4] === "interactions" &&
     STREAM_COVERED_INTERACTIONS.has(key[base + 5]) &&
     // The User scope reaches the wake as `@user`; its reads may key it either way.
-    (everyWorkspace || (typeof key[base + 1] === "string" && workspaces.has(key[base + 1] || "@user")))
+    (everyWorkspace ||
+      (typeof workspaceKey === "string" && workspaces.has(workspaceKey || "@user")))
   );
 }
 

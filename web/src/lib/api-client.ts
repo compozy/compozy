@@ -2,12 +2,7 @@ import createClient, { type Client } from "openapi-fetch";
 
 import type { paths as compozyPaths } from "@compozy/client";
 import { createClientId } from "./client-id";
-import {
-  isRemoteComputerId,
-  LOCAL_COMPUTER_ID,
-  normalizeComputerId,
-  type ComputerId,
-} from "./computer-scope";
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, normalizeComputerId } from "./computer-scope";
 import { reportGatewayResponse } from "./gateway-access-signal";
 
 export { LOCAL_COMPUTER_ID, type ComputerId } from "./computer-scope";

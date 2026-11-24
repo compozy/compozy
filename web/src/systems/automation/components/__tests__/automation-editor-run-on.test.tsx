@@ -29,6 +29,7 @@ describe("Automation job editor Run on (UT-094)", () => {
       local: { run_agents: true },
       computers: [
         {
+          account_id: "acct_1",
           id: "cmp_7f3k2q9x",
           name: "devbox",
           platform: "linux_x86_64",

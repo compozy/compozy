@@ -39,6 +39,50 @@ export interface SessionWindowResolution {
   crossesWorkspace: boolean;
 }
 
+function projectSessionWindowResolution({
+  isRemote,
+  session,
+  isLoading,
+  isFetching,
+  error,
+  retry,
+  scopedMiss,
+  foreign,
+  focusedScope,
+}: {
+  isRemote: boolean;
+  session: SessionPayload | undefined;
+  isLoading: boolean;
+  isFetching: boolean;
+  error: Error | null;
+  retry: () => void;
+  scopedMiss: boolean;
+  foreign: ForeignProfileSessionState;
+  focusedScope: FocusedDataScope | null;
+}): SessionWindowResolution {
+  const foreignSession = foreign.status === "found" ? foreign.session : undefined;
+  const shownSession = session ?? foreignSession;
+  const sessionWorkspaceId = shownSession ? (shownSession.workspace_id?.trim() ?? "") : null;
+  const sessionScope = sessionWorkspaceId === null ? null : ownerDataScope(sessionWorkspaceId);
+  return {
+    session,
+    shownSession,
+    workspaceId: sessionWorkspaceId ?? focusedWorkspaceId(focusedScope),
+    isLoading,
+    isFetching: isFetching || (foreign.status === "found" && foreign.isFetching),
+    error,
+    retry,
+    scopedMiss,
+    foreign,
+    // A remote session lives in its own computer's workspace; local project bounds don't apply.
+    crossesWorkspace:
+      !isRemote &&
+      sessionScope !== null &&
+      focusedScope !== null &&
+      !sameDataScope(sessionScope, focusedScope),
+  };
+}
+
 /**
  * Resolves a session on both ownership axes before the window commits to a view.
  *
@@ -74,27 +118,17 @@ export function useSessionWindowResolution({
   );
   const scopedMiss = query.isError && isSessionUnavailable(query.error);
   const foreign = useForeignProfileSession(sessionId, !isRemote && scopedMiss && enabled);
-  const foreignSession = foreign.status === "found" ? foreign.session : undefined;
-  const resolvedSession = query.data ?? foreignSession;
-  const sessionWorkspaceId = resolvedSession ? (resolvedSession.workspace_id?.trim() ?? "") : null;
-  const sessionScope = sessionWorkspaceId === null ? null : ownerDataScope(sessionWorkspaceId);
-  return {
+  return projectSessionWindowResolution({
+    isRemote,
     session: query.data,
-    shownSession: resolvedSession,
-    workspaceId: sessionWorkspaceId ?? focusedWorkspaceId(focusedScope),
     isLoading: query.isLoading,
-    isFetching: query.isFetching || (foreign.status === "found" && foreign.isFetching),
+    isFetching: query.isFetching,
     error: query.error,
     retry: () => {
       void query.refetch();
     },
     scopedMiss,
     foreign,
-    // A remote session lives in its own computer's workspace; local project bounds don't apply.
-    crossesWorkspace:
-      !isRemote &&
-      sessionScope !== null &&
-      focusedScope !== null &&
-      !sameDataScope(sessionScope, focusedScope),
-  };
+    focusedScope,
+  });
 }

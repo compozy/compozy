@@ -9,6 +9,7 @@ import {
   automationJobDetailOptions,
   automationJobRunsOptions,
   automationJobsListOptions,
+  automationJobsPageOptions,
   automationRunsListOptions,
   automationTriggerDetailOptions,
   automationTriggerRunsOptions,
@@ -49,11 +50,11 @@ export function useAutomationJobs(
     ...automationJobsListOptions({ ...filters, ...params }),
     enabled,
   });
-  const computers = useComputers({ enabled });
+  const computers = useComputers({ enabled, passive: true });
   const remoteComputers = computers.enabledComputers;
   const remoteQueries = useQueries({
     queries: remoteComputers.map(computer => ({
-      ...automationJobsListOptions({ ...filters, ...params }, computer.id),
+      ...automationJobsPageOptions({ ...filters, ...params }, computer.id),
       enabled: enabled && computer.status === "connected",
     })),
   });
@@ -74,8 +75,8 @@ export function useAutomationJobs(
       const computer = remoteComputers[index];
       const remoteQuery = remoteQueries[index];
       if (!computer || !remoteQuery) continue;
-      const remoteJobs = flattenAutomationJobPages(remoteQuery.data);
-      remoteTotal += remoteQuery.data?.pages[0]?.page.total ?? remoteJobs.length;
+      const remoteJobs = remoteQuery.data?.jobs ?? [];
+      remoteTotal += remoteQuery.data?.page.total ?? remoteJobs.length;
       inputs.push({
         computer: { id: computer.id, name: computer.name, status: computer.status },
         jobs: remoteJobs,

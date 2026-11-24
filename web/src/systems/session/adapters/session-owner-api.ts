@@ -16,10 +16,13 @@ async function fetchSessionByIDWithQuery(
   signal?: AbortSignal,
   computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClientFor(computerId).GET("/api/sessions/{session_id}", {
-    params: { path: { session_id: sessionId }, query },
-    signal,
-  });
+  const { data, error, response } = await apiClientFor(computerId).GET(
+    "/api/sessions/{session_id}",
+    {
+      params: { path: { session_id: sessionId }, query },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, fallback, sessionId);
   }

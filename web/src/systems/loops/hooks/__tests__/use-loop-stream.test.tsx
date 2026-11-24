@@ -623,14 +623,8 @@ describe("useLoopStream", () => {
       expect(onEvent).toHaveBeenCalledTimes(100);
       expect(observer.getCurrentResult().data).toEqual({ revision: 100 });
       expect(
-        queryClient.getQueryState([
-          "computer",
-          "local",
-          "loops",
-          "run-detail",
-          "ws_2",
-          "looprun_2",
-        ])?.isInvalidated
+        queryClient.getQueryState(["computer", "local", "loops", "run-detail", "ws_2", "looprun_2"])
+          ?.isInvalidated
       ).toBe(false);
       console.log(`[loop-stream-burst] ${JSON.stringify({ frames: 100, reads, canceled })}`);
       expect(reads).toBe(3);

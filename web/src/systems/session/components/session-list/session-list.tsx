@@ -5,11 +5,11 @@ import { SearchInput } from "@compozy/ui";
 import { useRemoteSessionsFanout } from "../../hooks/use-remote-sessions-fanout";
 import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
-import { SessionListComputerContext } from "../../lib/session-list-computer";
 import {
   mergeLocalAndRemoteThreads,
-  SessionListRemoteFooter,
-} from "./session-list-remote-body";
+  SessionListComputerContext,
+} from "../../lib/session-list-computer";
+import { SessionListRemoteFooter } from "./session-list-remote-body";
 import { SessionMenuOpenContext } from "../../contexts/session-menu-open-context-value";
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";

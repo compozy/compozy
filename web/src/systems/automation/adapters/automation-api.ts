@@ -1,4 +1,5 @@
 import {
+  apiClient,
   apiClientFor,
   apiRequestFailed,
   defaultApiErrorMessage,
@@ -103,10 +104,13 @@ export async function getAutomationJob(
   signal?: AbortSignal,
   computerId?: ComputerId
 ): Promise<AutomationJob> {
-  const { data, error, response } = await apiClientFor(computerId).GET("/api/automation/jobs/{id}", {
-    params: { path: { id }, query: scope },
-    signal,
-  });
+  const { data, error, response } = await apiClientFor(computerId).GET(
+    "/api/automation/jobs/{id}",
+    {
+      params: { path: { id }, query: scope },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {

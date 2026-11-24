@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useContext, useEffect } from "react";
+import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
 
 import { openComputersStream } from "../adapters/computers-api";
 import { computerRegistryKeys } from "../lib/query-keys";
@@ -7,26 +7,37 @@ import { computerDetailOptions, computersListOptions } from "../lib/query-option
 import { toComputerView, toLocalComputerView } from "../lib/computer-view";
 import type { ComputerPayload } from "../types";
 
+const NOOP_QUERY_CLIENT = new QueryClient({
+  defaultOptions: { queries: { enabled: false, retry: false } },
+});
+
 /**
  * Reads `/api/computers` and stays synchronized with `/api/computers/stream` (`computer.changed`).
+ *
+ * When `passive` is true, observes the cache populated by the shell-level stream without
+ * triggering a standalone HTTP request on mount (avoids redundant fetches in list/palette views).
  */
-export function useComputers(options: { enabled?: boolean; stream?: boolean } = {}) {
-  const enabled = options.enabled ?? true;
+export function useComputers(
+  options: { enabled?: boolean; stream?: boolean; passive?: boolean } = {}
+) {
+  const contextClient = useContext(QueryClientContext);
+  const queryClient = contextClient ?? NOOP_QUERY_CLIENT;
+  const enabled = (options.enabled ?? true) && contextClient !== undefined;
+  const passive = options.passive ?? false;
   const stream = options.stream ?? false;
-  const queryClient = useQueryClient();
-  const query = useQuery(computersListOptions(enabled));
+  const query = useQuery(computersListOptions(enabled && !passive), queryClient);
 
   useEffect(() => {
-    if (!enabled || !stream) return;
+    if (!enabled || !stream || !contextClient) return;
     return openComputersStream({
       onComputerChanged: () => {
-        void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
+        void contextClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
       },
       onReset: () => {
-        void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
+        void contextClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
       },
     });
-  }, [enabled, queryClient, stream]);
+  }, [contextClient, enabled, stream]);
 
   const computers = query.data?.computers ?? [];
   const enabledComputers = computers.filter(computer => computer.enabled);
@@ -43,8 +54,15 @@ export function useComputers(options: { enabled?: boolean; stream?: boolean } = 
 }
 
 export function useComputer(id: string | null | undefined, enabled = true) {
+  const contextClient = useContext(QueryClientContext);
   const normalized = id?.trim() ?? "";
-  return useQuery(computerDetailOptions(normalized, enabled && normalized !== "" && normalized !== "local"));
+  return useQuery(
+    computerDetailOptions(
+      normalized,
+      contextClient !== undefined && enabled && normalized !== "" && normalized !== "local"
+    ),
+    contextClient ?? NOOP_QUERY_CLIENT
+  );
 }
 
 export function findComputerById(

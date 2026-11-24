@@ -1,5 +1,5 @@
-import { useQueries } from "@tanstack/react-query";
-import { useState } from "react";
+import { QueryClient, QueryClientContext, useQueries } from "@tanstack/react-query";
+import { useContext, useState } from "react";
 
 import {
   COMPUTER_SESSION_PAGE_LIMIT,
@@ -9,23 +9,39 @@ import {
   normalizeComputerPlatform,
   selectNextComputerToLoadMore,
   useComputers,
+  type ComputerPayload,
   type ComputerSessionPageInput,
   type MergedSessionRow,
+  type NextComputerPageSelection,
   type ProjectComputerGroup,
   type ScopedComputerFailureItem,
 } from "@/systems/computers";
 
 import { fetchSessionCatalogPage } from "../adapters/session-catalog-api";
-import { sessionCatalogOptions } from "../lib/session-catalog-options";
+import { sessionCatalogFirstPageOptions } from "../lib/session-catalog-options";
 import type { SessionRowComputerInfo } from "../lib/session-list-computer";
-import type { SessionListFilters, SessionPayload } from "../types";
+import type { SessionListFilters, SessionListResponse, SessionPayload } from "../types";
+
+const NOOP_QUERY_CLIENT = new QueryClient({
+  defaultOptions: { queries: { enabled: false, retry: false } },
+});
+
+interface RemoteExtraPageEntry {
+  sessions: SessionPayload[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
 
 interface RemoteExtraPagesState {
   key: string;
-  pagesByComputer: Record<
-    string,
-    { sessions: SessionPayload[]; nextCursor: string | null; hasMore: boolean }
-  >;
+  pagesByComputer: Record<string, RemoteExtraPageEntry>;
+}
+
+interface RemoteQuerySlice {
+  data?: SessionListResponse;
+  isLoading: boolean;
+  isError: boolean;
+  refetch: () => Promise<unknown>;
 }
 
 export interface RemoteSessionsFanoutResult {
@@ -40,39 +56,17 @@ export interface RemoteSessionsFanoutResult {
   projectComputerGroups: ProjectComputerGroup<SessionPayload>[];
 }
 
-/**
- * Fans out session catalog reads across enabled remote computers (`limit = 50` per computer,
- * UT-087), retains cached rows with `offline: true` when a computer goes offline (UT-086),
- * merges rows by `updated_at` desc (UT-085), and advances only the oldest cursor on "load more".
- */
-export function useRemoteSessionsFanout(options: {
-  enabled?: boolean;
-  filters?: SessionListFilters;
-}): RemoteSessionsFanoutResult {
-  const enabled = options.enabled ?? true;
-  const filters: SessionListFilters = {
-    ...options.filters,
-    limit: options.filters?.limit ?? COMPUTER_SESSION_PAGE_LIMIT,
-  };
-  const filterKey = JSON.stringify(filters);
-  const computers = useComputers({ enabled });
-  const remoteComputers = computers.enabledComputers;
-  const [extraState, setExtraState] = useState<RemoteExtraPagesState>({
-    key: filterKey,
-    pagesByComputer: {},
-  });
-  const currentExtra = extraState.key === filterKey ? extraState.pagesByComputer : {};
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  const queries = useQueries({
-    queries: remoteComputers.map(computer => ({
-      ...sessionCatalogOptions(filters, computer.id),
-      // Only fetch while connected; offline computers keep their cached TanStack Query data
-      // so rows remain visible with `offline: true` (UT-086).
-      enabled: enabled && computer.status === "connected",
-    })),
-  });
-
+function projectRemoteFanout(
+  remoteComputers: readonly ComputerPayload[],
+  queries: readonly RemoteQuerySlice[],
+  currentExtra: Record<string, RemoteExtraPageEntry>
+): {
+  remoteSessions: MergedSessionRow<SessionPayload>[];
+  computerBySessionId: ReadonlyMap<string, SessionRowComputerInfo>;
+  loadingComputers: { id: string; name: string }[];
+  failedComputers: ScopedComputerFailureItem[];
+  nextToLoad: NextComputerPageSelection | null;
+} {
   const pageInputs: ComputerSessionPageInput<SessionPayload>[] = [];
   const loadingComputers: { id: string; name: string }[] = [];
   const failedComputers: ScopedComputerFailureItem[] = [];
@@ -96,18 +90,11 @@ export function useRemoteSessionsFanout(options: {
     }
     const baseSessions = query.data?.sessions ?? [];
     const extra = currentExtra[computer.id];
-    const combinedSessions = extra ? [...baseSessions, ...extra.sessions] : baseSessions;
-    const hasMore = extra ? extra.hasMore : Boolean(query.data?.page.has_more);
-    const nextCursor = extra ? extra.nextCursor : (query.data?.page.next_cursor ?? null);
     pageInputs.push({
-      computer: {
-        id: computer.id,
-        name: computer.name,
-        status: computer.status,
-      },
-      sessions: combinedSessions,
-      nextCursor,
-      hasMore,
+      computer: { id: computer.id, name: computer.name, status: computer.status },
+      sessions: extra ? [...baseSessions, ...extra.sessions] : baseSessions,
+      nextCursor: extra ? extra.nextCursor : (query.data?.page.next_cursor ?? null),
+      hasMore: extra ? extra.hasMore : Boolean(query.data?.page.has_more),
     });
   }
 
@@ -115,8 +102,7 @@ export function useRemoteSessionsFanout(options: {
   const computerBySessionId = new Map<string, SessionRowComputerInfo>();
   const computerMetaById = new Map(remoteComputers.map(computer => [computer.id, computer]));
   for (const row of remoteSessions) {
-    const payload = computerMetaById.get(row.computerId);
-    const platform = normalizeComputerPlatform(payload?.platform);
+    const platform = normalizeComputerPlatform(computerMetaById.get(row.computerId)?.platform);
     computerBySessionId.set(row.session.id, {
       id: row.computerId,
       name: row.computerName,
@@ -129,25 +115,66 @@ export function useRemoteSessionsFanout(options: {
   const nextToLoad = selectNextComputerToLoadMore(
     pageInputs.filter(entry => entry.computer.status === "connected")
   );
-  const hasMore = nextToLoad !== null;
+  return { remoteSessions, computerBySessionId, loadingComputers, failedComputers, nextToLoad };
+}
+
+/**
+ * Fans out session catalog reads across enabled remote computers (`limit = 50` per computer,
+ * UT-087), retains cached rows with `offline: true` when a computer goes offline (UT-086),
+ * merges rows by `updated_at` desc (UT-085), and advances only the oldest cursor on "load more".
+ */
+export function useRemoteSessionsFanout(options: {
+  enabled?: boolean;
+  filters?: SessionListFilters;
+}): RemoteSessionsFanoutResult {
+  const contextClient = useContext(QueryClientContext);
+  const enabled = (options.enabled ?? true) && contextClient !== undefined;
+  const filters: SessionListFilters = {
+    ...options.filters,
+    limit: options.filters?.limit ?? COMPUTER_SESSION_PAGE_LIMIT,
+  };
+  const filterKey = JSON.stringify(filters);
+  const computers = useComputers({ enabled, passive: true });
+  const remoteComputers = computers.enabledComputers;
+  const [extraState, setExtraState] = useState<RemoteExtraPagesState>({
+    key: filterKey,
+    pagesByComputer: {},
+  });
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const queries = useQueries(
+    {
+      queries: remoteComputers.map(computer => ({
+        ...sessionCatalogFirstPageOptions(filters, computer.id),
+        // Only fetch while connected; offline computers keep their cached TanStack Query data
+        // so rows remain visible with `offline: true` (UT-086).
+        enabled: enabled && computer.status === "connected",
+      })),
+    },
+    contextClient ?? NOOP_QUERY_CLIENT
+  );
+
+  const currentExtra = extraState.key === filterKey ? extraState.pagesByComputer : {};
+  const projection = projectRemoteFanout(remoteComputers, queries, currentExtra);
 
   const loadMore = async () => {
-    if (!nextToLoad || !nextToLoad.nextCursor || loadingMore) return;
+    const target = projection.nextToLoad;
+    if (!target || !target.nextCursor || loadingMore) return;
     setLoadingMore(true);
     try {
       const page = await fetchSessionCatalogPage(
-        { ...filters, cursor: nextToLoad.nextCursor, limit: COMPUTER_SESSION_PAGE_LIMIT },
+        { ...filters, cursor: target.nextCursor, limit: COMPUTER_SESSION_PAGE_LIMIT },
         undefined,
-        nextToLoad.computerId
+        target.computerId
       );
       setExtraState(prev => {
         const baseMap = prev.key === filterKey ? prev.pagesByComputer : {};
-        const existing = baseMap[nextToLoad.computerId];
+        const existing = baseMap[target.computerId];
         return {
           key: filterKey,
           pagesByComputer: {
             ...baseMap,
-            [nextToLoad.computerId]: {
+            [target.computerId]: {
               sessions: [...(existing?.sessions ?? []), ...page.sessions],
               nextCursor: page.page.next_cursor ?? null,
               hasMore: page.page.has_more,
@@ -162,13 +189,13 @@ export function useRemoteSessionsFanout(options: {
 
   return {
     hasRemoteComputers: remoteComputers.length > 0,
-    remoteSessions,
-    computerBySessionId,
-    loadingComputers,
-    failedComputers,
-    hasMore,
+    remoteSessions: projection.remoteSessions,
+    computerBySessionId: projection.computerBySessionId,
+    loadingComputers: projection.loadingComputers,
+    failedComputers: projection.failedComputers,
+    hasMore: projection.nextToLoad !== null,
     loadingMore,
     loadMore,
-    projectComputerGroups: groupSessionsByProjectAndComputer(remoteSessions),
+    projectComputerGroups: groupSessionsByProjectAndComputer(projection.remoteSessions),
   };
 }

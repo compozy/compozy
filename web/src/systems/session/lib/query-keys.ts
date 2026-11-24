@@ -53,7 +53,8 @@ export function sessionKeysFor(computerId: ComputerId = LOCAL_COMPUTER_ID) {
      * The catalog stream's connection status for one stream scope, written by the stream
      * and read by the polls it covers. The stream URL carries the profile scope.
      */
-    catalogStreamStatus: (streamUrl: string) => [...all, "catalog-stream-status", streamUrl] as const,
+    catalogStreamStatus: (streamUrl: string) =>
+      [...all, "catalog-stream-status", streamUrl] as const,
     /** Processes left running by stopped, archived, or unknown sessions — operator scope. */
     processesLeftRunning: () => [...all, "processes-left-running"] as const,
     /** Archived-history cleanup (#1717): one profile's run, and the dry runs the dialog previews. */
@@ -95,7 +96,8 @@ export function sessionKeysFor(computerId: ComputerId = LOCAL_COMPUTER_ID) {
     inheritedTranscript: (ws: string, id: string) =>
       [...detail(ws, id), "inherited-transcript"] as const,
     /** Operator-message outline over full retained history (S9). */
-    transcriptOutline: (ws: string, id: string) => [...detail(ws, id), "transcript-outline"] as const,
+    transcriptOutline: (ws: string, id: string) =>
+      [...detail(ws, id), "transcript-outline"] as const,
     /** Every committed full-history search of one session (S8). */
     transcriptSearchRoot,
     transcriptSearch: (ws: string, id: string, query: string, limit: number) =>

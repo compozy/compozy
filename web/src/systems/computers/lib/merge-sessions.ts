@@ -85,7 +85,8 @@ export function mergeSessionPages<T extends MergeableSession>(
     }
   }
   merged.sort((left, right) => {
-    const delta = parseTimestamp(right.session.updated_at) - parseTimestamp(left.session.updated_at);
+    const delta =
+      parseTimestamp(right.session.updated_at) - parseTimestamp(left.session.updated_at);
     if (delta !== 0) return delta;
     if (left.computerId !== right.computerId) {
       return left.computerId.localeCompare(right.computerId);
@@ -109,24 +110,32 @@ function oldestCursorTimestamp<T extends MergeableSession>(
   return oldest;
 }
 
+export interface NextComputerPageSelection {
+  readonly computerId: ComputerId;
+  readonly nextCursor: string | null;
+  readonly oldestTimestamp: number;
+}
+
 /**
  * Chooses the single computer that "Load more" should request next (UT-087):
  * among computers with `hasMore` (and not offline), picks the one whose cursor is the oldest.
  */
 export function selectNextComputerToLoadMore<T extends MergeableSession>(
   pages: readonly ComputerSessionPageInput<T>[]
-): ComputerId | null {
-  let chosenId: ComputerId | null = null;
-  let chosenCursor = Number.POSITIVE_INFINITY;
+): NextComputerPageSelection | null {
+  let chosen: NextComputerPageSelection | null = null;
   for (const page of pages) {
     if (!page.hasMore || isComputerOffline(page.computer)) continue;
     const cursorTs = oldestCursorTimestamp(page);
-    if (chosenId === null || cursorTs < chosenCursor) {
-      chosenId = page.computer.id;
-      chosenCursor = cursorTs;
+    if (chosen === null || cursorTs < chosen.oldestTimestamp) {
+      chosen = {
+        computerId: page.computer.id,
+        nextCursor: page.nextCursor ?? null,
+        oldestTimestamp: cursorTs,
+      };
     }
   }
-  return chosenId;
+  return chosen;
 }
 
 function resolveProjectName(

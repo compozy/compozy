@@ -126,7 +126,7 @@ func TestDaemonComputersS7(t *testing.T) {
 			http.MethodPost,
 			bridgeAPI(devboxID, s7JobsPath),
 			contract.CreateJobRequest{
-				Scope:     automationpkg.ScopeGlobal,
+				Scope:     automationpkg.AutomationScopeGlobal,
 				Name:      "devbox-nightly-audit",
 				AgentName: computerFixtureAgent,
 				Prompt:    computerFixturePrompt,

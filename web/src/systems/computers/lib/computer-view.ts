@@ -9,11 +9,7 @@ import type {
   LocalComputerFixture,
   RemoteScope,
 } from "../mocks/remote-computers-types";
-import type {
-  ComputerPayload,
-  ComputerRoutePayload,
-  LocalComputerPayload,
-} from "../types";
+import type { ComputerPayload, ComputerRoutePayload, LocalComputerPayload } from "../types";
 
 const KNOWN_PLATFORMS: ReadonlySet<ComputerPlatform> = new Set([
   "darwin_arm64",

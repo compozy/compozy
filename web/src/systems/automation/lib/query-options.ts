@@ -1,5 +1,5 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
-import { LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 
 import {
   getAutomationJob,
@@ -78,12 +78,29 @@ export function automationJobsListOptions(
   return infiniteQueryOptions({
     queryKey: keys.jobList(normalizedFilters),
     queryFn: ({ pageParam, signal }) =>
-      listAutomationJobs(automationJobRequest(normalizedFilters, pageParam), signal, computerId),
+      isRemoteComputerId(computerId)
+        ? listAutomationJobs(automationJobRequest(normalizedFilters, pageParam), signal, computerId)
+        : listAutomationJobs(automationJobRequest(normalizedFilters, pageParam), signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     meta: { population },
     placeholderData: (previousData, previousQuery) =>
       previousQuery?.meta?.population === population ? previousData : undefined,
+    staleTime: DEFAULT_STALE_TIME,
+  });
+}
+
+/** Single-page automation job list query used by multi-computer fan-out (`useQueries`). */
+export function automationJobsPageOptions(
+  filters: AutomationJobStableFilter = {},
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const normalizedFilters = normalizeAutomationJobFilter(filters);
+  const keys = automationKeys.forComputer(computerId);
+  return queryOptions({
+    queryKey: [...keys.jobList(normalizedFilters), "page"] as const,
+    queryFn: ({ signal }) =>
+      listAutomationJobs(automationJobRequest(normalizedFilters), signal, computerId),
     staleTime: DEFAULT_STALE_TIME,
   });
 }

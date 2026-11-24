@@ -102,7 +102,7 @@ export function useSessionCreateSubmit({
         executeCreatedSession(
           createSessionAsync({
             ...request,
-            computerId: scopedComputerId,
+            ...(isRemote ? { computerId: scopedComputerId } : {}),
             worktree: worktreeId,
             ...(profile ? { profile } : {}),
           }),
@@ -174,7 +174,7 @@ export function useSessionCreateSubmit({
         executeCreatedSession(
           createSessionAsync({
             ...validated.request,
-            computerId: scopedComputerId,
+            ...(isRemote ? { computerId: scopedComputerId } : {}),
             ...(scope === "project" && !isRemote && worktreeId ? { worktree: worktreeId } : {}),
             ...(profile ? { profile } : {}),
           }),

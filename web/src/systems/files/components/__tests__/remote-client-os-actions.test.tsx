@@ -21,13 +21,19 @@ vi.mock("@tanstack/react-router", () => ({
 
 describe("Remote client-OS action suppression (UT-090)", () => {
   beforeEach(() => {
-    vi.spyOn(osSystem, "desktopShellBridge").mockReturnValue({
+    window.compozyShell = {
+      platform: "darwin",
+      on: () => () => undefined,
+      globalShortcuts: {
+        sync: vi.fn().mockResolvedValue([]),
+        status: vi.fn().mockResolvedValue([]),
+      },
       files: {
         listOpenTargets: vi.fn().mockResolvedValue([]),
         openInEditor: vi.fn().mockResolvedValue({ status: "opened" }),
-        openInTarget: vi.fn().mockResolvedValue({ status: "opened" }),
+        openWith: vi.fn().mockResolvedValue({ status: "opened" }),
       },
-    } as never);
+    };
     vi.spyOn(openInTargets, "canOpenInTargets").mockReturnValue(true);
     vi.spyOn(openInHook, "useOpenIn").mockReturnValue({
       busy: false,
@@ -41,6 +47,7 @@ describe("Remote client-OS action suppression (UT-090)", () => {
   });
 
   afterEach(() => {
+    delete window.compozyShell;
     vi.restoreAllMocks();
   });
 

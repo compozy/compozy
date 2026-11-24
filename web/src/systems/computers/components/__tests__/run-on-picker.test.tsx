@@ -89,10 +89,7 @@ describe("RunOnPicker (UT-081, UT-083, UT-084)", () => {
 
   it("UT-081: Should re-query projects with key ['computer', 'cmp_7f3k2q9x', 'workspaces'] when choosing devbox", async () => {
     const user = userEvent.setup();
-    const fetchWorkspacesSpy = vi.spyOn(workspaceApi, "fetchWorkspaces").mockResolvedValue({
-      workspaces: [],
-      active_workspace_id: "",
-    });
+    const fetchWorkspacesSpy = vi.spyOn(workspaceApi, "fetchWorkspaces").mockResolvedValue([]);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -120,7 +117,11 @@ describe("RunOnPicker (UT-081, UT-083, UT-084)", () => {
     await user.click(screen.getByTestId("run-on-picker-item-cmp_7f3k2q9x"));
 
     await waitFor(() => {
-      expect(fetchWorkspacesSpy).toHaveBeenCalledWith(expect.any(AbortSignal), "cmp_7f3k2q9x");
+      expect(fetchWorkspacesSpy).toHaveBeenCalledWith(
+        expect.any(AbortSignal),
+        false,
+        "cmp_7f3k2q9x"
+      );
     });
 
     const remoteQuery = queryClient

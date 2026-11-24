@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import { LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import { fetchWorkspace, fetchWorkspaces } from "../adapters/workspace-api";
 import {
   fetchWorktrees,
@@ -25,7 +25,10 @@ export function workspacesListOptions(
   const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
     queryKey: archived ? keys.archived() : keys.list(),
-    queryFn: ({ signal }) => fetchWorkspaces(signal, archived, computerId),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchWorkspaces(signal, archived, computerId)
+        : fetchWorkspaces(signal, archived),
     enabled,
     staleTime: 60_000,
     refetchInterval: WORKSPACE_REFETCH_INTERVAL,
@@ -42,7 +45,10 @@ export function computerWorkspacesOptions(
   const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
     queryKey: keys.all,
-    queryFn: ({ signal }) => fetchWorkspaces(signal, false, computerId),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchWorkspaces(signal, false, computerId)
+        : fetchWorkspaces(signal, false),
     enabled,
     staleTime: 30_000,
     retry: false,

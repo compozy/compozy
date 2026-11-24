@@ -10,9 +10,7 @@ import { EDITOR_SETTINGS_PATH, reportOpenInEditorResult } from "../lib/open-in-e
  * browser and remote sessions/computers (US-012.AC-2, UT-090) and on shells without the
  * `files` bridge, so the page hides it.
  */
-export function useOpenFileInEditor(
-  computerId?: ComputerId
-): ((path: string) => void) | undefined {
+export function useOpenFileInEditor(computerId?: ComputerId): ((path: string) => void) | undefined {
   const navigate = useNavigate();
   const effectiveComputerId = useCurrentComputerId(computerId);
   const files = desktopShellBridge()?.files;

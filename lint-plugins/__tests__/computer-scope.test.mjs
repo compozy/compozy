@@ -123,7 +123,7 @@ describe("compozy/query-key-computer-scope lint rule (UT-092)", () => {
         filename: "web/src/systems/session/lib/query-options.ts",
         source:
           'import { queryOptions } from "@tanstack/react-query";\n' +
-          'export const opts = (id: string) => queryOptions({ queryKey: [...sessionKeys.all, id], queryFn: fetchSessions });\n',
+          "export const opts = (id: string) => queryOptions({ queryKey: [...sessionKeys.all, id], queryFn: fetchSessions });\n",
       },
       {
         filename: "web/src/systems/computers/hooks/use-computers.ts",

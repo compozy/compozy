@@ -119,7 +119,7 @@ export function useAutomationEditor({
     editor !== null && isRemoteComputer
   );
   const effectiveWorkspaces: ReadonlyArray<WorkspaceOption> | undefined = isRemoteComputer
-    ? (remoteWorkspacesQuery.data?.workspaces ?? [])
+    ? (remoteWorkspacesQuery.data ?? [])
         .filter(workspace => !workspace.archived_at)
         .map(workspace => ({ id: workspace.id, name: workspace.name }))
     : workspaces;

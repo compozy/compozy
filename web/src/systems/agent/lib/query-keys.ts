@@ -57,7 +57,8 @@ export function agentKeysFor(computerId: ComputerId = LOCAL_COMPUTER_ID) {
     instanceReports,
     skillReviews,
     skillReview: (id: string, profile = "") => [...skillReviews(), id, profile] as const,
-    instanceIndeterminateReports: (id: string) => [...instanceReports(id), "indeterminate"] as const,
+    instanceIndeterminateReports: (id: string) =>
+      [...instanceReports(id), "indeterminate"] as const,
     instanceProjectedReports: (id: string) => [...instanceReports(id), "projected"] as const,
     instanceOccurrenceCheckIn: (id: string, occurrence: string) =>
       [...instanceCheckIns(id), "occurrence", occurrence] as const,

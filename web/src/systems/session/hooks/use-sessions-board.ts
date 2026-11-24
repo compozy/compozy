@@ -292,8 +292,15 @@ function deriveBoardColumnForRemote(session: SessionPayload): SessionBoardColumn
   ) {
     return column;
   }
-  if (session.badge === "needs_you") return "needs_you";
-  if (session.state === "running" || session.state === "starting") return "working";
+  if (
+    session.badge === "needs-attention" ||
+    session.badge === "waiting-for-input" ||
+    session.badge === "waiting-for-auth"
+  ) {
+    return "needs_you";
+  }
+  if (session.badge === "running" || session.state === "starting") return "working";
+  if (session.badge === "waiting") return "waiting";
   return "done";
 }
 
