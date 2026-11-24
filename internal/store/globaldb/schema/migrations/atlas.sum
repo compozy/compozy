@@ -1,4 +1,4 @@
-h1:dJAQj/gaJyffJIlX3mbffPWWrbCZO9IqtNr/opzSbjk=
+h1:Ng2Sl49dICYFuSlXx+a+2CPcZBRqwfEKCrgneCGYlt8=
 00001_baseline.sql h1:S/Hl9w8PyqMpsW5NP7g/7u/VnQI84pVFJZUUBi0MMy0=
 00002_schema.sql h1:PBK6FCjEVDmfxcoY4whqvHExe4llHojr9bZjNymgtHw=
 00003_schema.sql h1:x8VmofWOLCS5ARICKEemtVqBU1zUxT7fJSwOeC8yV18=
@@ -221,4 +221,5 @@ h1:dJAQj/gaJyffJIlX3mbffPWWrbCZO9IqtNr/opzSbjk=
 00220_schema.sql h1:LIMhFrJKh6PEIX6Q96NCik6q/OAHq7tJ0hlP7GPmx7E=
 00221_schema.sql h1:uegUjJ/xzsguZn6DklohmPdJoLE0/WpJU42s69BzoDk=
 00222_schema.sql h1:3c9nWBIu3MwtqpAn+sJP02/UCOQpLRLJOkMaYpeh9mk=
-00223_schema.sql h1:Pkgb6rNr43NY/CealOwIv4NSHypak7vQJnUfQeUQvYA=
+00223_ingress_endpoint.sql h1:mSVBBXldzYIAfG8t011+fD6N9RhKvRGjqRQckmW6DKk=
+00224_schema.sql h1:B9Ttv9DaVx14x5EAPQoakLBgFcYV7gaM4OqC3seCAMM=

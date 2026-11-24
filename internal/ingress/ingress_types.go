@@ -105,6 +105,7 @@ type EndpointState struct {
 	URL        string
 	Generation uint64
 	Reachable  bool
+	Remote     bool
 	UpdatedAt  time.Time
 }
 

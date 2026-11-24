@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/gin-gonic/gin"
 )
 
@@ -355,15 +356,23 @@ func (h *BaseHandlers) AutomationTriggerRuns(c *gin.Context) {
 
 // DeliverGlobalWebhook handles external webhook delivery for global triggers.
 func (h *BaseHandlers) DeliverGlobalWebhook(c *gin.Context) {
-	h.deliverWebhook(c, automationpkg.AutomationScopeGlobal)
+	h.deliverWebhook(c, automationpkg.AutomationScopeGlobal, nil)
 }
 
 // DeliverWorkspaceWebhook handles external webhook delivery for workspace-scoped triggers.
 func (h *BaseHandlers) DeliverWorkspaceWebhook(c *gin.Context) {
-	h.deliverWebhook(c, automationpkg.AutomationScopeWorkspace)
+	h.deliverWebhook(c, automationpkg.AutomationScopeWorkspace, nil)
 }
 
-func (h *BaseHandlers) deliverWebhook(c *gin.Context, scope automationpkg.Scope) {
+func (h *BaseHandlers) RemoteWebhookHandler(
+	scope automationpkg.Scope, admit func(context.Context, automationpkg.Trigger) error,
+) gin.HandlerFunc {
+	return func(c *gin.Context) { h.deliverWebhook(c, scope, admit) }
+}
+
+func (h *BaseHandlers) deliverWebhook(
+	c *gin.Context, scope automationpkg.Scope, admit func(context.Context, automationpkg.Trigger) error,
+) {
 	manager, ok := h.requireAutomationManager(c)
 	if !ok {
 		return
@@ -375,9 +384,22 @@ func (h *BaseHandlers) deliverWebhook(c *gin.Context, scope automationpkg.Scope)
 		return
 	}
 
+	request.Admit = admit
 	result, err := manager.HandleWebhook(c.Request.Context(), request)
 	if err != nil {
-		h.respondError(c, StatusForAutomationError(err), err)
+		switch {
+		case errors.Is(err, ingress.ErrUnavailable):
+			c.JSON(http.StatusServiceUnavailable, contract.ErrorPayload{
+				Error: "Webhook ingress is unavailable.", Code: ingress.ErrUnavailable.Error(), Retryable: true,
+			})
+		case errors.Is(err, ingress.ErrNotConfirmed):
+			c.JSON(http.StatusConflict, contract.ErrorPayload{
+				Error: "Confirm this webhook's current endpoint before accepting deliveries.",
+				Code:  ingress.ErrNotConfirmed.Error(),
+			})
+		default:
+			h.respondError(c, StatusForAutomationError(err), err)
+		}
 		return
 	}
 	c.JSON(http.StatusOK, contract.WebhookDeliveryResponse{Result: WebhookDeliveryPayloadFromResult(result)})

@@ -12,12 +12,19 @@ import (
 )
 
 func (h *Handlers) gatewayIngressRateLimitMiddleware() gin.HandlerFunc {
+	if h == nil {
+		return ingressRateLimit(nil)
+	}
+	return ingressRateLimit(h.ingressLimiter)
+}
+
+func ingressRateLimit(limiter *ingress.RateLimiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if h == nil || h.ingressLimiter == nil || c.Request == nil || c.Request.URL == nil {
+		if limiter == nil || c.Request == nil || c.Request.URL == nil {
 			c.Next()
 			return
 		}
-		allowed, retryAfter := h.ingressLimiter.Allow(
+		allowed, retryAfter := limiter.Allow(
 			strings.TrimSpace(c.Request.URL.Path),
 			gatewayAuthSource(c.Request),
 		)

@@ -264,6 +264,20 @@ func (c *Client) UnbindGatewayIngress(ctx context.Context, params UnbindGatewayI
 	return &out, nil
 }
 
+// UnbindIngressParams carries the path, query, and header parameters.
+type UnbindIngressParams struct {
+	SubjectKind string `url:"subject_kind"`
+	SubjectID   string `url:"subject_id"`
+}
+
+// UnbindIngress Remove one public ingress confirmation
+func (c *Client) UnbindIngress(ctx context.Context, params UnbindIngressParams) error {
+	path := "/api/ingress/bindings/{subject_kind}/{subject_id}"
+	path = strings.ReplaceAll(path, "{subject_kind}", url.PathEscape(params.SubjectKind))
+	path = strings.ReplaceAll(path, "{subject_id}", url.PathEscape(params.SubjectID))
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
 // UnbindSessionWorktreeParams carries the path, query, and header parameters.
 type UnbindSessionWorktreeParams struct {
 	WorkspaceID        string  `url:"workspace_id"`
@@ -415,29 +429,5 @@ func (c *Client) UnregisterWindowManagerClient(ctx context.Context, params Unreg
 // UpdateAgentParams carries the path, query, and header parameters.
 type UpdateAgentParams struct {
 	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateAgent Replace one effective AGENT.md definition with digest CAS
-func (c *Client) UpdateAgent(ctx context.Context, params UpdateAgentParams, body UpdateAgentRequest) (*AgentResponse, error) {
-	path := "/api/agents/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateAgentInstanceParams carries the path, query, and header parameters.
-type UpdateAgentInstanceParams struct {
-	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
 }

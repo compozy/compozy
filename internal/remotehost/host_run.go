@@ -2,6 +2,7 @@ package remotehost
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -22,15 +23,17 @@ func (h *Host) start(ctx context.Context, cfg config.RemoteConfig, syncCloud boo
 	}
 	// #nosec G118 -- the run owns cancel until its listeners and workers have joined.
 	lifetime, cancel := context.WithCancel(h.ctx)
-	run := &hostRun{ctx: lifetime, cancel: cancel, authority: keys.ca}
+	run := &hostRun{ctx: lifetime, cancel: cancel, authority: keys.ca, syncEndpoint: h.opts.SyncIngress}
+	run.setIngressConfig(cfg)
 	link := &controlLink{
 		cloud: h.cloud, id: identity.ComputerID, key: keys.signing, verifier: verifier,
 		logger: h.opts.Logger, outgoing: make(chan remoteproto.ControlMessage, 256),
 		unlink: func(ctx context.Context) {
 			keys.ca.retire()
-			run.listeners.close()
-			h.deleteKeys(ctx, identity)
 			run.unlinked.Store(true)
+			run.listeners.close()
+			run.syncIngress(ctx)
+			h.deleteKeys(ctx, identity)
 		},
 	}
 	sessions, err := NewSessions(ctx, h.store, identity, verifier, SessionOptions{
@@ -42,18 +45,42 @@ func (h *Host) start(ctx context.Context, cfg config.RemoteConfig, syncCloud boo
 	}
 	link.sessions = sessions
 	run.sessions, run.control = sessions, link
-	run.handler = h.newListenerHandler(identity, keys, sessions)
-	publish := func(endpoints []string) error {
+	link.onLease = func(ctx context.Context) {
+		run.syncIngress(ctx)
+		if hosted := run.hosted.Load(); hosted != nil {
+			select {
+			case hosted.refresh <- struct{}{}:
+			default:
+			}
+		}
+	}
+	run.handler = h.newListenerHandler(identity, keys, run)
+	var hosted string
+	var initial remoteproto.HostedTunnel
+	publish := func(endpoints []string, bound string) error {
+		hosted = bound
 		if !syncCloud {
 			return nil
 		}
-		return h.cloud.UpdateRemoteAccess(ctx, identity.ComputerID, keys.signing, true, endpoints)
+		if err := h.cloud.UpdateRemoteAccess(ctx, identity.ComputerID, keys.signing, true, endpoints); err != nil {
+			return err
+		}
+		if cfg.CloudRoute.Enabled && !h.config.CloudRoute.Enabled {
+			var err error
+			initial, err = h.provisionHosted(ctx, run, bound)
+			if err != nil {
+				return errors.Join(err, h.cloud.UpdateRemoteAccess(ctx, identity.ComputerID, keys.signing, false, nil))
+			}
+		}
+		return nil
 	}
 	if err := run.listeners.apply(run.ctx, cfg, run.handler, publish); err != nil {
 		cancel()
 		return err
 	}
 	h.run = run
+	h.replaceHostedRoute(run, hosted, initial)
+	run.syncIngress(ctx)
 	run.workers.Go(func() {
 		link.run(run.ctx)
 		if run.unlinked.Load() {
@@ -64,7 +91,7 @@ func (h *Host) start(ctx context.Context, cfg config.RemoteConfig, syncCloud boo
 	return nil
 }
 
-func (h *Host) newListenerHandler(identity Identity, keys hostKeys, sessions *Sessions) func(Listener) http.Handler {
+func (h *Host) newListenerHandler(identity Identity, keys hostKeys, run *hostRun) func(Listener) http.Handler {
 	var leafMu sync.Mutex
 	savedExpiry := identity.TLSLeafNotAfter
 	tlsConfig := keys.ca.serverTLS(h.opts.Now, func(ctx context.Context, expiry time.Time) error {
@@ -86,7 +113,13 @@ func (h *Host) newListenerHandler(identity Identity, keys hostKeys, sessions *Se
 				Protocol: remoteproto.CurrentProtocol, TLSRootSHA256: identity.TLSRootSHA256,
 				BrowserSignIn: kind == ListenerHosted,
 			},
-			kind: kind, tls: tlsConfig, sessions: sessions, operator: h.opts.Operator,
+			kind: kind, tls: tlsConfig, sessions: run.sessions, operator: h.opts.Operator, run: run,
+			webhook: func() http.Handler {
+				if handler := h.webhook.Load(); handler != nil {
+					return *handler
+				}
+				return nil
+			},
 		}
 		return handler.outer()
 	}
@@ -102,6 +135,7 @@ func (h *Host) sweepSessions(run *hostRun) {
 		case <-run.ctx.Done():
 			return
 		case <-expiry.C:
+			run.syncIngress(run.ctx)
 			if err := run.sessions.Expire(run.ctx); err != nil {
 				h.opts.Logger.Warn("Remote session expiry failed", "error", err)
 			}
@@ -118,6 +152,7 @@ func (h *Host) sweepSessions(run *hostRun) {
 func (r *hostRun) close() {
 	r.sessions.Stop()
 	r.cancel()
+	r.stopHostedRoute()
 	r.listeners.close()
 	r.workers.Wait()
 }

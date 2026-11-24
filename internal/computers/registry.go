@@ -22,6 +22,10 @@ type Option func(*Registry)
 
 func WithClock(clock clockwork.Clock) Option { return func(r *Registry) { r.clock = clock } }
 func WithLogger(logger *slog.Logger) Option  { return func(r *Registry) { r.logger = logger } }
+func WithRouteHTTP(client func(remoteproto.RouteKind) *http.Client) Option {
+	return func(r *Registry) { r.routeHTTP = client }
+}
+
 func WithSSHForward(resolve ForwardResolver) Option {
 	return func(r *Registry) { r.forward = resolve }
 }

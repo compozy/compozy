@@ -9,10 +9,18 @@ var singleResultRemoteHost = map[toolspkg.ToolID]SingleResultReason{
 
 func remoteHostDescriptors() []toolspkg.Descriptor {
 	descriptor := nativeDescriptor(
-		toolspkg.ToolIDRemoteStatus, "remote_status", "Remote status",
-		"Read remote access status for this computer.", `{"type":"object","additionalProperties":false}`,
-		toolspkg.RiskRead, true, false, false, nil,
-		[]string{"remote access", "computer", "listeners"}, []string{"remote status", "is remote access enabled"},
+		toolspkg.ToolIDRemoteStatus,
+		"remote_status",
+		"Remote status",
+		"Read remote access and hosted-route readiness for this computer.",
+		`{"type":"object","additionalProperties":false}`,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		nil,
+		[]string{"remote access", "computer", "listeners"},
+		[]string{"remote status", "is remote access enabled"},
 	)
 	descriptor.OutputSchema = []byte(remoteStatusOutput)
 	cancel := nativeDescriptor(
@@ -45,7 +53,12 @@ const remoteStatusOutput = `{
 		"direct":{"type":"object","required":["enabled"],"additionalProperties":false,
 			"properties":{"enabled":{"type":"boolean"},"addresses":{"type":"array","items":{"type":"string"}}}},
 		"cloud_route":{"type":"object","required":["enabled","state","hostname"],"additionalProperties":false,
-			"properties":{"enabled":{"type":"boolean"},"state":{"type":"string"},"hostname":{"type":["string","null"]}}},
+			"properties":{
+				"enabled":{"type":"boolean"},
+				"state":{"type":"string"},
+				"hostname":{"type":["string","null"]},
+				"diagnosis":{"type":"string"}
+			}},
 		"entitlement":{"type":["object","null"],"required":["valid_until","plan"],"additionalProperties":false,
 			"properties":{"valid_until":{"type":"string","format":"date-time"},"plan":{"type":"string"}}},
 		"control_link":{"type":"string"},
