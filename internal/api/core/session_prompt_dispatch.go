@@ -101,7 +101,7 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 func (h *BaseHandlers) RespondPromptV1(c *gin.Context, dispatch *PromptDispatch) {
 	defer dispatch.cancelDelivery()
 	result := dispatch.result
-	resultOnly := c.Query("format") == contract.PromptResponseFormatResult
+	resultOnly := c.GetHeader("Accept") == gin.MIMEJSON
 	if resultOnly {
 		result.TargetSessionID = cmp.Or(result.TargetSessionID, dispatch.sessionID)
 	}

@@ -368,11 +368,10 @@ func (c *daemonClient) SendSessionPromptAs(
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}
-	format := "raw"
-	if c.target.computerID != "" {
-		format = contract.PromptResponseFormatResult
+	var query url.Values
+	if c.target.computerID == "" {
+		query = url.Values{cliFormatKey: {"raw"}}
 	}
-	query := url.Values{cliFormatKey: {format}}
 	return c.doSessionPromptAs(ctx, http.MethodPost, path, query, request, credentials)
 }
 

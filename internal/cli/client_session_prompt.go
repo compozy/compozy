@@ -72,16 +72,13 @@ func (c *daemonClient) doSessionPromptAs(
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}
-	response, err := c.doRequestWithCredentialsAndClient(
-		ctx,
-		method,
-		path,
-		query,
-		requestBody,
-		"",
-		credentials,
-		c.streamHTTPClient(),
-	)
+	options := clientReaderRequest{
+		Method: method, Path: path, Query: query, Credentials: credentials, Client: c.streamHTTPClient(),
+	}
+	if c.target.computerID != "" {
+		options.Accept = clientJSONMediaType
+	}
+	response, err := c.doRequestWithJSON(ctx, options, requestBody)
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}

@@ -24,6 +24,7 @@ import (
 )
 
 const clientTasksPath = "/api/tasks"
+const clientJSONMediaType = "application/json"
 
 func (c *daemonClient) doJSON(
 	ctx context.Context,
@@ -225,26 +226,28 @@ func (c *daemonClient) doRequestWithCredentialsAndClient(
 	credentials agentidentity.Credentials,
 	client *http.Client,
 ) (*http.Response, error) {
-	var body io.Reader
-	contentType := ""
-	if requestBody != nil {
-		payload, err := json.Marshal(requestBody)
-		if err != nil {
-			return nil, fmt.Errorf("cli: encode %s %s request: %w", method, path, err)
-		}
-		body = bytes.NewReader(payload)
-		contentType = "application/json"
-	}
-	return c.doRequestWithReaderAndClient(ctx, clientReaderRequest{
+	return c.doRequestWithJSON(ctx, clientReaderRequest{
 		Method:      method,
 		Path:        path,
 		Query:       query,
-		Body:        body,
-		ContentType: contentType,
 		LastEventID: lastEventID,
 		Credentials: credentials,
 		Client:      client,
-	})
+	}, requestBody)
+}
+
+func (c *daemonClient) doRequestWithJSON(
+	ctx context.Context, options clientReaderRequest, requestBody any,
+) (*http.Response, error) {
+	if requestBody != nil {
+		payload, err := json.Marshal(requestBody)
+		if err != nil {
+			return nil, fmt.Errorf("cli: encode %s %s request: %w", options.Method, options.Path, err)
+		}
+		options.Body = bytes.NewReader(payload)
+		options.ContentType = clientJSONMediaType
+	}
+	return c.doRequestWithReaderAndClient(ctx, options)
 }
 
 type clientReaderRequest struct {
@@ -252,6 +255,7 @@ type clientReaderRequest struct {
 	Path           string
 	Query          url.Values
 	Body           io.Reader
+	Accept         string
 	ContentType    string
 	ContentLength  int64
 	ExpectContinue bool
@@ -290,6 +294,9 @@ func (c *daemonClient) doRequestWithReaderAndClient(
 	}
 	if options.ExpectContinue {
 		req.Header.Set("Expect", "100-continue")
+	}
+	if options.Accept != "" {
+		req.Header.Set("Accept", options.Accept)
 	}
 	if strings.TrimSpace(options.ContentType) != "" {
 		req.Header.Set("Content-Type", options.ContentType)

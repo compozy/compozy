@@ -64297,8 +64297,6 @@ export interface operations {
   sendSessionPrompt: {
     parameters: {
       query?: {
-        /** @description Use result to return the admission result without streaming turn events */
-        format?: string;
         /** @description Act as this profile by name */
         profile?: string;
       };

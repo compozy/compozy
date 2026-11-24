@@ -28,3 +28,5 @@ The setup starts a user service through systemd or launchd. The remote prompt co
 ## Use the setup API
 
 Local HTTP and UDS expose `GET /api/computers/ssh-hosts`, `POST /api/computers` with `kind: "ssh"`, and `POST /api/computers/{id}/update`. Use the returned setup ID with `GET /api/computers/setups/{setup_id}?wait_ms=30000` for progress and with `DELETE /api/computers/setups/{setup_id}` to cancel. The controller stream emits `computer.setup` events. Answers go to `POST /api/computers/setups/{setup_id}/answer`.
+
+When sending a session prompt through the controller's `/c/{computer_id}` bridge, set `Accept: application/json` to receive the host's admission result and let the turn continue independently.
