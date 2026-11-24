@@ -259,6 +259,7 @@ type Daemon struct {
 	restartRequested bool
 	config           compozyconfig.Config
 	admission        admission.Gate
+	localComputers   atomic.Pointer[compozyconfig.ComputersConfig]
 	readiness        readinessTracker
 	// serving is set once the listeners are up; later boot steps run in the serving phase.
 	serving            atomic.Bool

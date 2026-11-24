@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// SessionChangePatchesResponse is a daemon API value.
+type SessionChangePatchesResponse struct {
+	Revision string               `json:"revision"`
+	Patches  []ChangePatchPayload `json:"patches"`
+}
+
+// SessionChangesResponse is a daemon API value.
+type SessionChangesResponse struct {
+	Scope       string                     `json:"scope"`
+	Root        FileRootPayload            `json:"root"`
+	Head        ChangeHeadPayload          `json:"head"`
+	Base        ChangeBasePayload          `json:"base"`
+	PullRequest *SessionPullRequestPayload `json:"pull_request,omitempty"`
+	Totals      ChangeTotalsPayload        `json:"totals"`
+	Files       []FileChangePayload        `json:"files"`
+	Truncated   bool                       `json:"truncated"`
+	Revision    string                     `json:"revision"`
+}
+
 // SessionChildrenPayload is a daemon API value.
 type SessionChildrenPayload struct {
 	Total    int `json:"total"`
@@ -423,27 +442,3 @@ type SessionHealthState string
 
 // SessionHealthStatus is a daemon API value.
 type SessionHealthStatus string
-
-// SessionHistoryCleanupChoices is a daemon API value.
-type SessionHistoryCleanupChoices struct {
-	Everything int `json:"everything"`
-	Children   int `json:"children"`
-	Subagents  int `json:"subagents"`
-}
-
-// SessionHistoryCleanupCounts is a daemon API value.
-type SessionHistoryCleanupCounts struct {
-	Sessions  int `json:"sessions"`
-	Children  int `json:"children"`
-	Subagents int `json:"subagents"`
-	Total     int `json:"total"`
-}
-
-// SessionHistoryCleanupFailure is a daemon API value.
-type SessionHistoryCleanupFailure struct {
-	SessionID   string `json:"session_id"`
-	WorkspaceID string `json:"workspace_id"`
-	Title       string `json:"title"`
-	Code        string `json:"code"`
-	Message     string `json:"message"`
-}

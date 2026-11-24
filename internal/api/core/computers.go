@@ -11,11 +11,14 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/computers"
 	"github.com/compozy/compozy/internal/computers/sshsetup"
+	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/store"
 )
 
 type ComputersService interface {
+	LocalSettings() config.ComputersConfig
+	PatchLocalSettings(context.Context, computers.LocalSettingsPatch) (config.ComputersConfig, error)
 	List(context.Context) ([]computers.View, error)
 	Available(context.Context) ([]remoteproto.AccountComputer, error)
 	Get(context.Context, remoteproto.ComputerID) (computers.View, error)
@@ -33,14 +36,40 @@ func (h *BaseHandlers) ListComputers(c *gin.Context) {
 	if !h.computersReady(c) {
 		return
 	}
-	views, err := h.Computers.List(c.Request.Context())
+	result, err := ComputerList(c.Request.Context(), h.Computers)
+	h.computerResult(c, http.StatusOK, result, err)
+}
+
+func ComputerList(ctx context.Context, service ComputersService) (contract.ComputerListResponse, error) {
+	views, err := service.List(ctx)
 	rows := make([]contract.Computer, 0, len(views))
 	for _, view := range views {
-		rows = append(rows, computerDTO(view))
+		rows = append(rows, ComputerDTO(view))
 	}
-	h.computerResult(c, http.StatusOK, contract.ComputerListResponse{
-		Computers: rows, Local: contract.LocalComputer{RunAgents: true},
-	}, err)
+	return contract.ComputerListResponse{Computers: rows, Local: localComputerDTO(service.LocalSettings())}, err
+}
+
+func (h *BaseHandlers) PatchLocalComputer(c *gin.Context) {
+	if !h.computersReady(c) {
+		return
+	}
+	var input contract.PatchLocalComputerRequest
+	if err := decodeStrictJSONBody(c, &input); err != nil || input == (contract.PatchLocalComputerRequest{}) {
+		invalidComputerBody(c)
+		return
+	}
+	config, err := h.Computers.PatchLocalSettings(c.Request.Context(), computers.LocalSettingsPatch{
+		RunAgents: input.RunAgents, LoadBalancing: input.LoadBalancing, Weight: input.LoadBalancingWeight,
+	})
+	h.computerResult(c, http.StatusOK, localComputerDTO(config), err)
+}
+
+func localComputerDTO(cfg config.ComputersConfig) contract.LocalComputer {
+	return contract.LocalComputer{
+		RunAgents:           cfg.LocalRunAgents,
+		LoadBalancing:       cfg.LoadBalancing,
+		LoadBalancingWeight: cfg.LocalLoadBalancingWeight,
+	}
 }
 
 func (h *BaseHandlers) AvailableComputers(c *gin.Context) {
@@ -60,7 +89,7 @@ func (h *BaseHandlers) GetComputer(c *gin.Context) {
 		return
 	}
 	view, err := h.Computers.Get(c.Request.Context(), computerID(c))
-	h.computerResult(c, http.StatusOK, computerDTO(view), err)
+	h.computerResult(c, http.StatusOK, ComputerDTO(view), err)
 }
 
 func (h *BaseHandlers) AddComputer(c *gin.Context) {
@@ -81,7 +110,7 @@ func (h *BaseHandlers) AddComputer(c *gin.Context) {
 		return
 	}
 	view, err := h.Computers.AddFromAccount(c.Request.Context(), input.ComputerID)
-	h.computerResult(c, http.StatusCreated, computerDTO(view), err)
+	h.computerResult(c, http.StatusCreated, ComputerDTO(view), err)
 }
 
 func (h *BaseHandlers) PatchComputer(c *gin.Context) {
@@ -94,7 +123,7 @@ func (h *BaseHandlers) PatchComputer(c *gin.Context) {
 		return
 	}
 	view, err := h.Computers.Update(c.Request.Context(), computerID(c), store.ComputerPatch(input))
-	h.computerResult(c, http.StatusOK, computerDTO(view), err)
+	h.computerResult(c, http.StatusOK, ComputerDTO(view), err)
 }
 
 func (h *BaseHandlers) RemoveComputer(c *gin.Context) {
@@ -135,13 +164,13 @@ func (h *BaseHandlers) StreamComputers(c *gin.Context) {
 	serveAccountEvents(c, h, sub.Done, sub.Events, sub.Replay, nil, func(event computers.Event) SSEMessage {
 		change := contract.ComputerChange{ComputerID: event.Data.ComputerID, Removed: event.Data.Removed}
 		if event.Data.Setup != nil {
-			setup := setupDTO(*event.Data.Setup)
+			setup := ComputerSetupDTO(*event.Data.Setup)
 			change.SetupID, change.Step, change.State = setup.SetupID, setup.Step, setup.State
 			change.Prompt, change.Error, change.Answered = setup.Prompt, setup.Error, event.Data.Setup.Answered
 			change.ComputerID = event.Data.Setup.ComputerID
 		}
 		if event.Data.Computer != nil {
-			change.Computer = new(computerDTO(*event.Data.Computer))
+			change.Computer = new(ComputerDTO(*event.Data.Computer))
 		}
 		return SSEMessage{ID: event.ID, Name: event.Event, Data: contract.ComputerEvent{
 			ID: event.ID, Event: event.Event, Data: change,
@@ -181,7 +210,7 @@ func (h *BaseHandlers) computerResult(c *gin.Context, status int, body any, err 
 	h.accountResult(c, status, body, err)
 }
 
-func computerDTO(view computers.View) contract.Computer {
+func ComputerDTO(view computers.View) contract.Computer {
 	result := contract.Computer{
 		ID: view.ID, AccountID: view.AccountID, Name: view.Name, Enabled: view.Enabled,
 		Status: string(view.Status), PlanState: view.PlanState, Version: view.Version, Platform: view.Platform,

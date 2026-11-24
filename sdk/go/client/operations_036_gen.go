@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+// SetExtensionSecretsParams carries the path, query, and header parameters.
+type SetExtensionSecretsParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
 // SetExtensionSecrets Set or bind extension environment secrets
 func (c *Client) SetExtensionSecrets(ctx context.Context, params SetExtensionSecretsParams, body SetExtensionSecretsRequest) (*ExtensionSecretsPayload, error) {
 	path := "/api/extensions/{name}/secrets"
@@ -426,21 +433,4 @@ func (c *Client) StopSession(ctx context.Context, params StopSessionParams, body
 // StopSessionHistoryCleanupParams carries the path, query, and header parameters.
 type StopSessionHistoryCleanupParams struct {
 	Profile *string `url:"profile"`
-}
-
-// StopSessionHistoryCleanup Stop the selected profile's running cleanup; sessions already deleted stay deleted
-func (c *Client) StopSessionHistoryCleanup(ctx context.Context, params StopSessionHistoryCleanupParams) (*SessionHistoryCleanupRunResponse, error) {
-	path := "/api/sessions/history-cleanup/stop"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionHistoryCleanupRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

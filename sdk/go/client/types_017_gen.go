@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// PutSettingsProviderRequest is a daemon API value.
+type PutSettingsProviderRequest struct {
+	Settings      SettingsProviderWritePayload         `json:"settings"`
+	ModelCuration *ProviderModelCurationRequest        `json:"model_curation,omitzero"`
+	Secrets       []SettingsProviderSecretWritePayload `json:"secrets,omitempty"`
+}
+
+// PutVaultSecretRequest is a daemon API value.
+type PutVaultSecretRequest struct {
+	Ref         string `json:"ref"`
+	Kind        string `json:"kind,omitempty"`
+	SecretValue string `json:"secret_value"`
+}
+
+// QueryHit is a daemon API value.
+type QueryHit struct {
+	Query     string    `json:"query"`
+	CommandID CommandID `json:"command_id"`
+	Weight    float64   `json:"weight"`
+}
+
 // QuietWarning is a daemon API value.
 type QuietWarning struct {
 	QuietSince time.Time  `json:"quiet_since"`
@@ -425,24 +446,3 @@ type RestartProgress struct {
 
 // RestartProgressPhase is a daemon API value.
 type RestartProgressPhase string
-
-// ResultContract is a daemon API value.
-type ResultContract struct {
-	FailureField string `json:"failure_field"`
-	MessageField string `json:"message_field,omitempty"`
-}
-
-// ResultTrust is a daemon API value.
-type ResultTrust string
-
-// ResultViewContract is a daemon API value.
-type ResultViewContract struct {
-	Schema json.RawMessage `json:"schema"`
-	Digest string          `json:"digest,omitempty"`
-}
-
-// ResultViews is a daemon API value.
-type ResultViews struct {
-	Compact ResultViewContract `json:"compact"`
-	Full    ResultViewContract `json:"full"`
-}

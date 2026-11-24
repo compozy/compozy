@@ -26,7 +26,7 @@ describe("Automation job editor Run on (UT-094)", () => {
   it("UT-094: Should omit Auto in Run on and post saved job to apiClientFor('cmp_7f3k2q9x') /api/automation/jobs", async () => {
     const user = userEvent.setup();
     vi.spyOn(computersApi, "fetchComputers").mockResolvedValue({
-      local: { run_agents: true },
+      local: { run_agents: true, load_balancing: false, load_balancing_weight: 50 },
       computers: [
         {
           account_id: "acct_1",

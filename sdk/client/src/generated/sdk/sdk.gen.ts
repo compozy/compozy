@@ -598,6 +598,8 @@ import type {
   GetHookRunsData,
   GetHookRunsErrors,
   GetHookRunsResponses,
+  GetHostResourcesData,
+  GetHostResourcesResponses,
   GetLoopAnnotationsData,
   GetLoopAnnotationsErrors,
   GetLoopAnnotationsResponses,
@@ -1257,6 +1259,9 @@ import type {
   PatchComputerData,
   PatchComputerErrors,
   PatchComputerResponses,
+  PatchLocalComputerData,
+  PatchLocalComputerErrors,
+  PatchLocalComputerResponses,
   PatchLoopData,
   PatchLoopErrors,
   PatchLoopResponses,
@@ -1305,6 +1310,9 @@ import type {
   PrepareWorktreeExitPlanData,
   PrepareWorktreeExitPlanErrors,
   PrepareWorktreeExitPlanResponses,
+  PreviewComputerPlacementData,
+  PreviewComputerPlacementErrors,
+  PreviewComputerPlacementResponses,
   PreviewExtensionEnableData,
   PreviewExtensionEnableErrors,
   PreviewExtensionEnableResponses,
@@ -4769,6 +4777,55 @@ export class computers extends HeyApiClient {
   }
 
   /**
+   * Update local execution and load balancing
+   */
+  public patchLocalComputer<ThrowOnError extends boolean = true>(
+    options: Options<PatchLocalComputerData, ThrowOnError>
+  ): RequestResult<PatchLocalComputerResponses, PatchLocalComputerErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchLocalComputerResponses,
+      PatchLocalComputerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/local",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Resolve Auto placement for a project
+   */
+  public previewComputerPlacement<ThrowOnError extends boolean = true>(
+    options: Options<PreviewComputerPlacementData, ThrowOnError>
+  ): RequestResult<
+    PreviewComputerPlacementResponses,
+    PreviewComputerPlacementErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      PreviewComputerPlacementResponses,
+      PreviewComputerPlacementErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/placement",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * Cancel an unlinked SSH setup
    */
   public cancelComputerSetup<ThrowOnError extends boolean = true>(
@@ -5002,6 +5059,24 @@ export class diagnostics extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/drain",
+      ...options,
+    });
+  }
+
+  /**
+   * Get the latest host resource sample
+   */
+  public getHostResources<ThrowOnError extends boolean = true>(
+    options?: Options<GetHostResourcesData, ThrowOnError>
+  ): RequestResult<GetHostResourcesResponses, unknown, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      GetHostResourcesResponses,
+      unknown,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/host/resources",
       ...options,
     });
   }

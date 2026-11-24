@@ -10,6 +10,30 @@ import (
 	"strings"
 )
 
+// RegisterWindowManagerClient Register a window-manager client view
+func (c *Client) RegisterWindowManagerClient(ctx context.Context, params RegisterWindowManagerClientParams, body WindowManagerClientRegistration) (*WindowManagerClientView, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/clients"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WindowManagerClientView
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RejectAgentSkillReviewParams carries the path, query, and header parameters.
+type RejectAgentSkillReviewParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // RejectAgentSkillReview Decide a skill review as the operator (experimental)
 func (c *Client) RejectAgentSkillReview(ctx context.Context, params RejectAgentSkillReviewParams, body AgentSkillReviewDecisionRequest) (*AgentSkillReviewResponse, error) {
 	path := "/api/agent-skill-reviews/{id}/reject"
@@ -418,22 +442,4 @@ func (c *Client) RenameGatewayDevice(ctx context.Context, params RenameGatewayDe
 // RenameProfileParams carries the path, query, and header parameters.
 type RenameProfileParams struct {
 	Name string `url:"name"`
-}
-
-// RenameProfile Rename a profile
-func (c *Client) RenameProfile(ctx context.Context, params RenameProfileParams, body RenameProfileRequest) (*RenameProfileResponse, error) {
-	path := "/api/profiles/{name}/rename"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out RenameProfileResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RenameSessionParams carries the path, query, and header parameters.
-type RenameSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

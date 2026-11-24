@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// ResultContract is a daemon API value.
+type ResultContract struct {
+	FailureField string `json:"failure_field"`
+	MessageField string `json:"message_field,omitempty"`
+}
+
+// ResultTrust is a daemon API value.
+type ResultTrust string
+
+// ResultViewContract is a daemon API value.
+type ResultViewContract struct {
+	Schema json.RawMessage `json:"schema"`
+	Digest string          `json:"digest,omitempty"`
+}
+
+// ResultViews is a daemon API value.
+type ResultViews struct {
+	Compact ResultViewContract `json:"compact"`
+	Full    ResultViewContract `json:"full"`
+}
+
 // ResumeSessionFromLaterRequest is a daemon API value.
 type ResumeSessionFromLaterRequest struct {
 	WithChildren bool `json:"with_children,omitempty"`
@@ -421,23 +442,4 @@ type RuntimeActivityPayload struct {
 type RuntimeDefaults struct {
 	Worker RuntimeSpec `json:"worker,omitzero"`
 	Judge  RuntimeSpec `json:"judge,omitzero"`
-}
-
-// RuntimeIdentityPayload is a daemon API value.
-type RuntimeIdentityPayload struct {
-	SchemaVersion string                `json:"schema_version"`
-	Daemon        DaemonIdentityPayload `json:"daemon"`
-}
-
-// RuntimeLimits is a daemon API value.
-type RuntimeLimits struct {
-	MaxRuntimeSeconds int64 `json:"max_runtime_seconds"`
-	SummaryMaxBytes   int   `json:"summary_max_bytes"`
-	ContextMaxBytes   int   `json:"context_body_max_bytes"`
-}
-
-// RuntimeMCP is a daemon API value.
-type RuntimeMCP struct {
-	RuntimeMCP string          `json:"runtime_mcp"`
-	Servers    []RuntimeMCPRow `json:"servers"`
 }

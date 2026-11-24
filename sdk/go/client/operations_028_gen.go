@@ -232,6 +232,16 @@ func (c *Client) PatchComputer(ctx context.Context, params PatchComputerParams, 
 	return &out, nil
 }
 
+// PatchLocalComputer Update local execution and load balancing
+func (c *Client) PatchLocalComputer(ctx context.Context, body PatchLocalComputerRequest) (*LocalComputer, error) {
+	path := "/api/computers/local"
+	var out LocalComputer
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PatchLoopParams carries the path, query, and header parameters.
 type PatchLoopParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -427,23 +437,4 @@ type PinCmdPaletteCommandParams struct {
 	ID        string  `url:"id"`
 	Workspace string  `url:"workspace"`
 	Profile   *string `url:"profile"`
-}
-
-// PinCmdPaletteCommand Pin one command palette command
-func (c *Client) PinCmdPaletteCommand(ctx context.Context, params PinCmdPaletteCommandParams) (*CmdPalettePinResponse, error) {
-	path := "/api/cmd-palette/pins/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPalettePinResponse
-	if err := c.doContent(ctx, "PUT", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

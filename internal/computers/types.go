@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/cloudclient"
+	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -25,7 +26,7 @@ const (
 )
 
 const (
-	DefaultWeight = 50
+	DefaultWeight = config.DefaultComputerWeight
 	PlanOK        = "ok"
 	PlanLimited   = "limited"
 )

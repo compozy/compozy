@@ -18,6 +18,11 @@ func (s *Scheduler) claimScheduledJob(
 	ctx context.Context,
 	registration scheduledRegistration,
 ) (scheduledJobClaimResult, error) {
+	if s.localExecution != nil {
+		if err := s.localExecution(); err != nil {
+			return scheduledJobClaimResult{}, err
+		}
+	}
 	job := registration.definition
 	state := registration.state
 	scheduledAt := *schedulerDueAt(state)

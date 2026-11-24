@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// ComputerSetupStarted is a daemon API value.
+type ComputerSetupStarted struct {
+	SetupID    string      `json:"setup_id"`
+	ComputerID *ComputerID `json:"computer_id"`
+}
+
 // ComputerSetupStatus is a daemon API value.
 type ComputerSetupStatus struct {
 	SetupID    string               `json:"setup_id"`
@@ -269,16 +275,18 @@ type CreateSessionFolderRequest struct {
 
 // CreateSessionRequest is a daemon API value.
 type CreateSessionRequest struct {
-	Scope           string                     `json:"scope,omitempty"`
-	AgentName       string                     `json:"agent_name,omitempty"`
-	Name            string                     `json:"name,omitempty"`
-	Workspace       string                     `json:"workspace,omitempty"`
-	WorkspacePath   string                     `json:"workspace_path,omitempty"`
-	Worktree        string                     `json:"worktree,omitempty"`
-	NewWorktree     *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
-	ParentSessionID string                     `json:"parent_session_id,omitempty"`
-	LineageKind     string                     `json:"lineage_kind,omitempty"`
-	FolderID        string                     `json:"folder_id,omitempty"`
+	Computer          string                     `json:"computer,omitempty"`
+	ProjectComputerID ComputerID                 `json:"project_computer_id,omitempty"`
+	Scope             string                     `json:"scope,omitempty"`
+	AgentName         string                     `json:"agent_name,omitempty"`
+	Name              string                     `json:"name,omitempty"`
+	Workspace         string                     `json:"workspace,omitempty"`
+	WorkspacePath     string                     `json:"workspace_path,omitempty"`
+	Worktree          string                     `json:"worktree,omitempty"`
+	NewWorktree       *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
+	ParentSessionID   string                     `json:"parent_session_id,omitempty"`
+	LineageKind       string                     `json:"lineage_kind,omitempty"`
+	FolderID          string                     `json:"folder_id,omitempty"`
 }
 
 // CreateSupportBundleRequest is a daemon API value.
@@ -436,12 +444,4 @@ type DeleteLoopInputDefaultResponse struct {
 	Key      string                 `json:"key"`
 	Scope    LoopInputDefaultsScope `json:"scope"`
 	Deleted  bool                   `json:"deleted"`
-}
-
-// DeleteProfilePlan is a daemon API value.
-type DeleteProfilePlan struct {
-	Revision          string                `json:"revision"`
-	Removed           ProfileRemovalSummary `json:"removed"`
-	SelectionsToSweep int                   `json:"selections_to_sweep"`
-	ApprovalBlockers  []string              `json:"approval_blockers"`
 }

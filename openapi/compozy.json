@@ -6577,6 +6577,39 @@
         ],
         "type": "object"
       },
+      "ComputerPlacementRequest": {
+        "properties": {
+          "project_computer_id": {
+            "type": "string"
+          },
+          "workspace": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace"
+        ],
+        "type": "object"
+      },
+      "ComputerPlacementResponse": {
+        "properties": {
+          "computer_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "computer_id",
+          "name",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
       "ComputerRoute": {
         "properties": {
           "address": {
@@ -8488,6 +8521,9 @@
             "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
             "type": "string"
           },
+          "computer": {
+            "type": "string"
+          },
           "folder_id": {
             "type": "string"
           },
@@ -8511,6 +8547,9 @@
             ]
           },
           "parent_session_id": {
+            "type": "string"
+          },
+          "project_computer_id": {
             "type": "string"
           },
           "scope": {
@@ -15879,6 +15918,42 @@
         ],
         "type": "object"
       },
+      "HostResourcesResponse": {
+        "properties": {
+          "cpu_count": {
+            "type": "integer"
+          },
+          "cpu_util": {
+            "format": "double",
+            "nullable": true,
+            "type": "number"
+          },
+          "mem_available": {
+            "format": "uint64",
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "mem_total": {
+            "format": "uint64",
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "sampled_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cpu_count",
+          "cpu_util",
+          "mem_available",
+          "mem_total",
+          "sampled_at"
+        ],
+        "type": "object"
+      },
       "HostedPeer": {
         "properties": {
           "computer_id": {
@@ -16353,11 +16428,19 @@
       },
       "LocalComputer": {
         "properties": {
+          "load_balancing": {
+            "type": "boolean"
+          },
+          "load_balancing_weight": {
+            "type": "integer"
+          },
           "run_agents": {
             "type": "boolean"
           }
         },
         "required": [
+          "load_balancing",
+          "load_balancing_weight",
           "run_agents"
         ],
         "type": "object"
@@ -22531,6 +22614,23 @@
           "name": {
             "nullable": true,
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PatchLocalComputerRequest": {
+        "properties": {
+          "load_balancing": {
+            "nullable": true,
+            "type": "boolean"
+          },
+          "load_balancing_weight": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "run_agents": {
+            "nullable": true,
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -32401,6 +32501,9 @@
       },
       "SessionResponse": {
         "properties": {
+          "computer_id": {
+            "type": "string"
+          },
           "session": {
             "$ref": "#/components/schemas/SessionPayload"
           }
@@ -45869,6 +45972,7 @@
               "input_request_superseded",
               "invalid_cwd",
               "journal_unavailable",
+              "local_execution_disabled",
               "message_hop_limit",
               "message_rate_limited",
               "model_not_found",
@@ -45881,6 +45985,8 @@
               "recording_already_started",
               "recording_not_active",
               "recording_unavailable",
+              "remote_scope_denied",
+              "secret_answer_operator_only",
               "session_archive_stop_failed",
               "session_busy",
               "session_in_later",
@@ -45904,7 +46010,9 @@
               "tool_canceled",
               "tool_conflict",
               "tool_denied",
+              "tool_forward_denied",
               "tool_invalid_input",
+              "tool_not_forwardable",
               "tool_not_found",
               "tool_result_persistence_failed",
               "tool_result_too_large",
@@ -46266,6 +46374,7 @@
               "input_request_superseded",
               "invalid_cwd",
               "journal_unavailable",
+              "local_execution_disabled",
               "message_hop_limit",
               "message_rate_limited",
               "model_not_found",
@@ -46278,6 +46387,8 @@
               "recording_already_started",
               "recording_not_active",
               "recording_unavailable",
+              "remote_scope_denied",
+              "secret_answer_operator_only",
               "session_archive_stop_failed",
               "session_busy",
               "session_in_later",
@@ -46301,7 +46412,9 @@
               "tool_canceled",
               "tool_conflict",
               "tool_denied",
+              "tool_forward_denied",
               "tool_invalid_input",
+              "tool_not_forwardable",
               "tool_not_found",
               "tool_result_persistence_failed",
               "tool_result_too_large",
@@ -46460,6 +46573,17 @@
         ],
         "type": "object"
       },
+      "ToolInvokeMetadata": {
+        "properties": {
+          "computer_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "computer_id"
+        ],
+        "type": "object"
+      },
       "ToolInvokeRequest": {
         "properties": {
           "agent_name": {
@@ -46498,6 +46622,19 @@
       },
       "ToolInvokeResponse": {
         "properties": {
+          "_meta": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ToolInvokeMetadata"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "duration_ms": {
             "format": "int64",
             "type": "integer"
@@ -52218,6 +52355,9 @@
             "type": "string"
           },
           "name": {
+            "type": "string"
+          },
+          "repository_key": {
             "type": "string"
           },
           "root_dir": {
@@ -67631,6 +67771,240 @@
         ]
       }
     },
+    "/api/computers/local": {
+      "patch": {
+        "operationId": "patchLocalComputer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchLocalComputerRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalComputer"
+                }
+              }
+            },
+            "description": "Local computer settings"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Payment Required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Update local execution and load balancing",
+        "tags": [
+          "computers"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/computers/placement": {
+      "post": {
+        "operationId": "previewComputerPlacement",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComputerPlacementRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComputerPlacementResponse"
+                }
+              }
+            },
+            "description": "Selected computer and workspace"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Payment Required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Resolve Auto placement for a project",
+        "tags": [
+          "computers"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/computers/setups/{setup_id}": {
       "delete": {
         "operationId": "cancelComputerSetup",
@@ -72385,6 +72759,32 @@
         "summary": "List supported hook taxonomy metadata",
         "tags": [
           "hooks"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/host/resources": {
+      "get": {
+        "operationId": "getHostResources",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostResourcesResponse"
+                }
+              }
+            },
+            "description": "Host resource sample"
+          }
+        },
+        "summary": "Get the latest host resource sample",
+        "tags": [
+          "diagnostics"
         ],
         "x-compozy-app-access": "denied",
         "x-compozy-transports": [
@@ -97706,6 +98106,14 @@
             "description": "List archived projects instead of active projects",
             "in": "query",
             "name": "archived",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Include normalized Git repository identities",
+            "in": "query",
+            "name": "include_repository",
             "schema": {
               "type": "boolean"
             }

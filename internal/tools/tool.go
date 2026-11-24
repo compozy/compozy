@@ -325,6 +325,7 @@ type ToolView struct {
 
 // CallRequest is the canonical dispatch request.
 type CallRequest struct {
+	ForwardComputer      string          `json:"-"`
 	View                 ResultView      `json:"-"`
 	PinnedView           ResultView      `json:"-"`
 	ToolID               ToolID          `json:"tool_id"`

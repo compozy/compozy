@@ -6215,6 +6215,7 @@ export interface ToolCallPatch {
 }
 
 export interface ToolCallRef {
+  computer_id?: string;
   tool_call_id?: string;
   tool_id?: string;
   read_only?: boolean;
@@ -6242,6 +6243,7 @@ export interface ToolPostCallPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
+  computer_id?: string;
   tool_call_id?: string;
   tool_id?: string;
   read_only?: boolean;
@@ -6281,6 +6283,7 @@ export interface ToolPostErrorPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
+  computer_id?: string;
   tool_call_id?: string;
   tool_id?: string;
   read_only?: boolean;
@@ -6311,6 +6314,7 @@ export interface ToolPreCallPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
+  computer_id?: string;
   tool_call_id?: string;
   tool_id?: string;
   read_only?: boolean;

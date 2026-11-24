@@ -383,6 +383,19 @@ type ComputerListResponse struct {
 	Local     LocalComputer `json:"local"`
 }
 
+// ComputerPlacementRequest is a daemon API value.
+type ComputerPlacementRequest struct {
+	Workspace         string     `json:"workspace"`
+	ProjectComputerID ComputerID `json:"project_computer_id,omitempty"`
+}
+
+// ComputerPlacementResponse is a daemon API value.
+type ComputerPlacementResponse struct {
+	ComputerID  ComputerID `json:"computer_id"`
+	Name        string     `json:"name"`
+	WorkspaceID string     `json:"workspace_id"`
+}
+
 // ComputerRoute is a daemon API value.
 type ComputerRoute struct {
 	ID        string    `json:"id"`
@@ -432,10 +445,4 @@ type ComputerSetupPrompt struct {
 	Kind        string `json:"kind"`
 	Host        string `json:"host,omitempty"`
 	Fingerprint string `json:"fingerprint,omitempty"`
-}
-
-// ComputerSetupStarted is a daemon API value.
-type ComputerSetupStarted struct {
-	SetupID    string      `json:"setup_id"`
-	ComputerID *ComputerID `json:"computer_id"`
 }

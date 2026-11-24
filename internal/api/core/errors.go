@@ -143,6 +143,9 @@ func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normal
 	if _, ok := errors.AsType[*session.MCPReloadError](err); ok {
 		return normalizedErrorStatus{status: http.StatusConflict, err: err}
 	}
+	if errors.Is(err, admission.ErrLocalExecutionDisabled) {
+		return normalizedErrorStatus{status: http.StatusConflict, err: err}
+	}
 	if errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid) {
 		status = http.StatusUnprocessableEntity
 		maskInternalErrors = false
@@ -297,7 +300,7 @@ func NewAutomationValidationError(err error) error {
 
 // StatusForAutomationError maps automation-domain failures to transport statuses.
 func StatusForAutomationError(err error) int {
-	if errors.Is(err, store.ErrWorkspaceArchived) {
+	if errors.Is(err, store.ErrWorkspaceArchived) || errors.Is(err, admission.ErrLocalExecutionDisabled) {
 		return http.StatusConflict
 	}
 	if err == nil {

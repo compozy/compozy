@@ -76,6 +76,7 @@ type daemonLoopAPIService struct {
 	publishMu         sync.Mutex
 	// goalToolsChanged invalidates hosted tool projections after Goal state commands.
 	goalToolsChanged func()
+	localExecution   func() error
 }
 
 var _ core.LoopService = (*daemonLoopAPIService)(nil)
@@ -97,6 +98,7 @@ func newDaemonLoopAPIService(
 	state *bootState,
 	homePaths compozyconfig.HomePaths,
 	now func() time.Time,
+	localExecution func() error,
 ) (core.LoopService, error) {
 	if state == nil {
 		return nil, errors.New("daemon: loop api state is required")
@@ -138,7 +140,8 @@ func newDaemonLoopAPIService(
 		persistence,
 		resolver,
 		newGoalRunPolicyResolver(homePaths, state.workspaceResolver),
-		loopAPIServiceOptions(state, homePaths, now, logger, runtimeCatalog, responderPolicy)...,
+		append(loopAPIServiceOptions(state, homePaths, now, logger, runtimeCatalog, responderPolicy),
+			looppkg.WithLocalExecutionChecker(localExecution))...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create loop aggregate api service: %w", err)
@@ -164,6 +167,7 @@ func newDaemonLoopAPIService(
 		runReads:          looppkg.NewRunReadService(readStore, now),
 		logger:            logger,
 		goalToolsChanged:  goalToolProjectionInvalidator(state),
+		localExecution:    localExecution,
 	}, nil
 }
 
@@ -226,6 +230,11 @@ func (s *daemonLoopAPIService) CreateLoop(
 	profileID string,
 	req contract.CreateLoopRequest,
 ) (contract.LoopResponse, error) {
+	if s.localExecution != nil {
+		if err := s.localExecution(); err != nil {
+			return contract.LoopResponse{}, err
+		}
+	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return contract.LoopResponse{}, err

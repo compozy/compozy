@@ -9,6 +9,24 @@ import (
 	"strings"
 )
 
+// RollbackAgentSoul Rollback SOUL.md through managed authoring
+func (c *Client) RollbackAgentSoul(ctx context.Context, params RollbackAgentSoulParams, body AgentSoulRollbackByPathRequest) (*AgentSoulMutationResponse, error) {
+	path := "/api/agents/{name}/soul/rollback"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSoulMutationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // RunLoopParams carries the path, query, and header parameters.
 type RunLoopParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -423,11 +441,4 @@ func (c *Client) SetExtensionEnablement(ctx context.Context, params SetExtension
 		return nil, err
 	}
 	return &out, nil
-}
-
-// SetExtensionSecretsParams carries the path, query, and header parameters.
-type SetExtensionSecretsParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
 }

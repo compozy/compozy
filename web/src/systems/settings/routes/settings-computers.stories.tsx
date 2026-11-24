@@ -45,7 +45,10 @@ export const Empty: Story = {
     ...storybookMswParameters({
       settings: [
         http.get("/api/computers", () =>
-          HttpResponse.json({ local: { run_agents: true }, computers: [] })
+          HttpResponse.json({
+            local: { run_agents: true, load_balancing: false, load_balancing_weight: 50 },
+            computers: [],
+          })
         ),
         http.get("/api/computers/available", () => HttpResponse.json({ computers: [] })),
       ],

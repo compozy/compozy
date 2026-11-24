@@ -4,6 +4,30 @@ package client
 
 import "time"
 
+// SessionHistoryCleanupChoices is a daemon API value.
+type SessionHistoryCleanupChoices struct {
+	Everything int `json:"everything"`
+	Children   int `json:"children"`
+	Subagents  int `json:"subagents"`
+}
+
+// SessionHistoryCleanupCounts is a daemon API value.
+type SessionHistoryCleanupCounts struct {
+	Sessions  int `json:"sessions"`
+	Children  int `json:"children"`
+	Subagents int `json:"subagents"`
+	Total     int `json:"total"`
+}
+
+// SessionHistoryCleanupFailure is a daemon API value.
+type SessionHistoryCleanupFailure struct {
+	SessionID   string `json:"session_id"`
+	WorkspaceID string `json:"workspace_id"`
+	Title       string `json:"title"`
+	Code        string `json:"code"`
+	Message     string `json:"message"`
+}
+
 // SessionHistoryCleanupPlan is a daemon API value.
 type SessionHistoryCleanupPlan struct {
 	ArchivedBefore *time.Time                       `json:"archived_before,omitempty"`
@@ -421,25 +445,4 @@ type SessionProcessTreePayload struct {
 	Wrappers []SessionProcessTarget `json:"wrappers"`
 	Members  []SessionProcessTarget `json:"members"`
 	Ports    []int                  `json:"ports"`
-}
-
-// SessionProcessesResponse is a daemon API value.
-type SessionProcessesResponse struct {
-	Supported bool                        `json:"supported"`
-	ScannedAt time.Time                   `json:"scanned_at"`
-	Items     []SessionProcessPayload     `json:"items"`
-	Trees     []SessionProcessTreePayload `json:"trees,omitempty"`
-}
-
-// SessionProfileFacetsPayload is a daemon API value.
-type SessionProfileFacetsPayload struct {
-	ProfileID string                      `json:"profile_id"`
-	Facets    SessionCatalogFacetsPayload `json:"facets"`
-}
-
-// SessionPromptCancelResponse is a daemon API value.
-type SessionPromptCancelResponse struct {
-	SessionID string `json:"session_id"`
-	Outcome   string `json:"outcome"`
-	TurnID    string `json:"turn_id,omitempty"`
 }

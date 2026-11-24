@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// ProfileRemovalSummary is a daemon API value.
+type ProfileRemovalSummary struct {
+	AgentInstances      int `json:"agent_instances"`
+	AgentMemoryFiles    int `json:"agent_memory_files"`
+	Agents              int `json:"agents"`
+	Skills              int `json:"skills"`
+	Loops               int `json:"loops"`
+	MCPServers          int `json:"mcp_servers"`
+	ConfigKeys          int `json:"config_keys"`
+	CredentialOverrides int `json:"credential_overrides"`
+	DesktopPartitions   int `json:"desktop_partitions"`
+	PaletteUsage        int `json:"palette_usage"`
+	PaletteQueryHits    int `json:"palette_query_hits"`
+	PalettePins         int `json:"palette_pins"`
+	TerminalApprovals   int `json:"terminal_approvals"`
+	EventSummaries      int `json:"event_summaries"`
+}
+
 // ProfileRepoRenameOutcome is a daemon API value.
 type ProfileRepoRenameOutcome struct {
 	WorkspaceID string `json:"workspace_id"`
@@ -425,25 +443,4 @@ type PutSettingsMCPServerRequest struct {
 	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
 	PreserveHeaders bool                                  `json:"preserve_headers,omitzero"`
 	PreserveEnv     []string                              `json:"preserve_env,omitempty"`
-}
-
-// PutSettingsProviderRequest is a daemon API value.
-type PutSettingsProviderRequest struct {
-	Settings      SettingsProviderWritePayload         `json:"settings"`
-	ModelCuration *ProviderModelCurationRequest        `json:"model_curation,omitzero"`
-	Secrets       []SettingsProviderSecretWritePayload `json:"secrets,omitempty"`
-}
-
-// PutVaultSecretRequest is a daemon API value.
-type PutVaultSecretRequest struct {
-	Ref         string `json:"ref"`
-	Kind        string `json:"kind,omitempty"`
-	SecretValue string `json:"secret_value"`
-}
-
-// QueryHit is a daemon API value.
-type QueryHit struct {
-	Query     string    `json:"query"`
-	CommandID CommandID `json:"command_id"`
-	Weight    float64   `json:"weight"`
 }

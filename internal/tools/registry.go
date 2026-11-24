@@ -27,6 +27,7 @@ type RuntimeRegistry struct {
 	approvalBridge        ApprovalBridge
 	callInputBinder       CallInputBinder
 	callInputAuthorizer   CallInputAuthorizer
+	computerForwarder     ComputerForwarder
 	workspaceAccess       workspaceaccess.Policy
 	workspaceIDResolver   WorkspaceIDResolver
 	processor             ResultProcessor

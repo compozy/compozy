@@ -71,7 +71,7 @@ func (h *BaseHandlers) ComputerSetupStatus(c *gin.Context) {
 		wait = time.Duration(min(millis, int(sshsetup.MaxStatusWait.Milliseconds()))) * time.Millisecond
 	}
 	status, err := manager.Status(c.Request.Context(), c.Param("setup_id"), wait)
-	h.computerResult(c, http.StatusOK, setupDTO(status), err)
+	h.computerResult(c, http.StatusOK, ComputerSetupDTO(status), err)
 }
 
 func (h *BaseHandlers) CancelComputerSetup(c *gin.Context) {
@@ -113,7 +113,7 @@ func validSetupAnswer(input contract.ComputerSetupAnswer) bool {
 	}
 }
 
-func setupDTO(status sshsetup.Status) contract.ComputerSetupStatus {
+func ComputerSetupDTO(status sshsetup.Status) contract.ComputerSetupStatus {
 	result := contract.ComputerSetupStatus{SetupID: status.ID, Step: status.Step, State: status.State}
 	if status.ComputerID != "" {
 		result.ComputerID = new(status.ComputerID)
