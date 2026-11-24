@@ -4,21 +4,14 @@ package api_test
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json/v2"
 	"io"
-	"math/big"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -28,7 +21,6 @@ import (
 	"github.com/compozy/compozy/internal/cloud"
 	"github.com/compozy/compozy/internal/cloud/api"
 	"github.com/compozy/compozy/internal/cloud/auth"
-	"github.com/compozy/compozy/internal/cloud/turnstile"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
@@ -44,8 +36,7 @@ const (
 	activationCookie     = "__Host-compozy_act"
 	webSessionCookie     = "__Host-compozy_ws"
 	browserCookie        = "__Host-compozy_bd"
-	googleClient         = "google-client"
-	googleIssuer         = "https://accounts.google.com"
+	googleClient         = remotetest.GoogleClient
 	testInstallation     = "test-installation"
 )
 
@@ -55,7 +46,7 @@ type authFixture struct {
 	replica  *remotetest.Replica
 	cfg      cloud.Config
 	clock    *clockwork.FakeClock
-	provider *providerFixture
+	provider *remotetest.IdentityProvider
 }
 
 func newAuthFixture(t *testing.T) authFixture {
@@ -82,7 +73,7 @@ func newAuthFixtureWithTime(
 	t.Helper()
 	db := remotetest.NewDatabase(t)
 	db.Migrate(t)
-	provider, endpoints := newProviderFixture(t, now)
+	provider, endpoints := remotetest.StartIdentityProvider(t, now, nil, "cloud.test")
 	oauth, err := auth.NewOAuth(
 		auth.OAuthClient{ID: googleClient, Secret: "google-secret"},
 		auth.OAuthClient{ID: "github-client", Secret: "github-secret"}, auth.WithOAuthEndpoints(endpoints),
@@ -90,11 +81,7 @@ func newAuthFixtureWithTime(
 	if err != nil {
 		t.Fatal(err)
 	}
-	check, err := turnstile.New(
-		"test-turnstile-secret",
-		"cloud.test",
-		turnstile.WithEndpoint(provider.origin+"/verify"),
-	)
+	check, err := provider.Turnstile()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,140 +121,6 @@ type providerProfile struct {
 	githubID                                int64
 	verified                                bool
 	authTime                                *time.Time
-}
-
-type providerExchange struct {
-	profile   providerProfile
-	challenge string
-	nonce     string
-}
-
-type providerFixture struct {
-	mu        sync.Mutex
-	exchanges map[string]providerExchange
-	key       *rsa.PrivateKey
-	now       func() time.Time
-	origin    string
-}
-
-func newProviderFixture(t *testing.T, now func() time.Time) (*providerFixture, auth.OAuthEndpoints) {
-	t.Helper()
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatal(err)
-	}
-	p := &providerFixture{key: key, now: now, exchanges: make(map[string]providerExchange)}
-	server := httptest.NewServer(http.HandlerFunc(p.serve))
-	t.Cleanup(server.Close)
-	p.origin = server.URL
-	return p, auth.OAuthEndpoints{
-		GoogleAuthorize: p.origin + "/google/authorize", GoogleToken: p.origin + "/google/token",
-		GoogleJWKS:      p.origin + "/google/keys",
-		GitHubAuthorize: p.origin + "/github/authorize", GitHubToken: p.origin + "/github/token",
-		GitHubUser: p.origin + "/github/user", GitHubEmails: p.origin + "/github/emails",
-	}
-}
-
-func (p *providerFixture) serve(w http.ResponseWriter, r *http.Request) {
-	switch r.URL.Path {
-	case "/google/keys":
-		api.WriteJSON(w, http.StatusOK, map[string]any{"keys": []map[string]string{{
-			"kty": "RSA", "alg": "RS256", "use": "sig", "kid": "test",
-			"n": base64.RawURLEncoding.EncodeToString(p.key.N.Bytes()),
-			"e": base64.RawURLEncoding.EncodeToString(big.NewInt(int64(p.key.E)).Bytes()),
-		}}})
-	case "/google/token", "/github/token":
-		p.exchange(w, r)
-	case "/github/user", "/github/emails":
-		p.github(w, r)
-	case "/verify":
-		if err := r.ParseForm(); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		pass := strings.HasPrefix(r.Form.Get("response"), "pass-")
-		api.WriteJSON(w, http.StatusOK, map[string]any{
-			"success": pass, "hostname": "cloud.test", "action": strings.TrimPrefix(r.Form.Get("response"), "pass-"),
-		})
-	default:
-		http.NotFound(w, r)
-	}
-}
-
-func (p *providerFixture) exchange(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	code := r.Form.Get("code")
-	exchange := p.profile(code)
-	actual := sha256.Sum256([]byte(r.Form.Get("code_verifier")))
-	if exchange.challenge == "" || base64.RawURLEncoding.EncodeToString(actual[:]) != exchange.challenge {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if r.URL.Path == "/github/token" {
-		api.WriteJSON(w, http.StatusOK, map[string]string{"access_token": code})
-		return
-	}
-	token, err := p.googleJWT(exchange)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	api.WriteJSON(w, http.StatusOK, map[string]string{"id_token": token})
-}
-
-func (p *providerFixture) github(w http.ResponseWriter, r *http.Request) {
-	profile := p.profile(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")).profile
-	if profile.githubID == 0 {
-		profile.githubID = 42
-	}
-	if r.URL.Path == "/github/user" {
-		api.WriteJSON(w, http.StatusOK, map[string]any{"id": profile.githubID, "name": "Test User"})
-		return
-	}
-	api.WriteJSON(w, http.StatusOK, []map[string]any{
-		{"email": "other@example.test", "primary": false, "verified": true},
-		{"email": profile.email, "primary": true, "verified": profile.verified},
-	})
-}
-
-func (p *providerFixture) profile(code string) providerExchange {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.exchanges[code]
-}
-
-func (p *providerFixture) googleJWT(exchange providerExchange) (string, error) {
-	profile := exchange.profile
-	now := p.now()
-	if profile.issuer == "" {
-		profile.issuer = googleIssuer
-	}
-	if profile.audience == "" {
-		profile.audience = googleClient
-	}
-	if profile.nonce == "" {
-		profile.nonce = exchange.nonce
-	}
-	claims := map[string]any{
-		"iss": profile.issuer, "aud": profile.audience, "sub": profile.subject, "nonce": profile.nonce,
-		"email": profile.email, "email_verified": profile.verified, "name": "Test User",
-		"iat": now.Unix(), "exp": now.Add(time.Hour).Unix(),
-	}
-	if profile.authTime != nil {
-		claims["auth_time"] = profile.authTime.Unix()
-	}
-	body, err := json.Marshal(claims)
-	if err != nil {
-		return "", err
-	}
-	b64 := base64.RawURLEncoding
-	input := b64.EncodeToString([]byte(`{"alg":"RS256","kid":"test"}`)) + "." + b64.EncodeToString(body)
-	hash := sha256.Sum256([]byte(input))
-	sig, err := rsa.SignPKCS1v15(nil, p.key, crypto.SHA256, hash[:])
-	return input + "." + b64.EncodeToString(sig), err
 }
 
 type authReply struct {

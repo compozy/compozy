@@ -87,13 +87,14 @@ export { isLiveSessionState };
 
 function sessionDetailRefetchInterval(
   sessionId: string,
-  session: SessionPayload | undefined
+  session: SessionPayload | undefined,
+  computerId?: ComputerId
 ): number | false {
   const state = session?.state;
   const interval =
     state === "starting"
       ? SESSION_STARTING_REFETCH_INTERVAL_MS
-      : sessionStreamBackedRefetchInterval(sessionId, state);
+      : sessionStreamBackedRefetchInterval(sessionId, state, computerId);
   return withPullRequestReread(interval, session);
 }
 
@@ -121,14 +122,14 @@ export function sessionAttentionSummaryOptions() {
   });
 }
 
-export function sessionDetailOptions(workspace: string, id: string) {
+export function sessionDetailOptions(workspace: string, id: string, computerId?: ComputerId) {
   return queryOptions({
-    queryKey: sessionKeys.detail(workspace, id),
-    queryFn: ({ signal }) => fetchSession(workspace, id, signal),
+    queryKey: sessionKeys.forComputer(computerId).detail(workspace, id),
+    queryFn: ({ signal }) => fetchSession(workspace, id, signal, computerId),
     refetchInterval: query =>
       isSessionUnavailable(query.state.error)
         ? false
-        : sessionDetailRefetchInterval(id, query.state.data),
+        : sessionDetailRefetchInterval(id, query.state.data, computerId),
     retry: (count, error) => !isSessionUnavailable(error) && count < 1,
     staleTime: SESSION_DETAIL_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
@@ -431,7 +432,7 @@ export function sessionScopedDetailOptions(
         : fetchSessionById(id, normalizedScope, signal),
     refetchInterval: query => {
       if (!liveTail || isSessionUnavailable(query.state.error)) return false;
-      return sessionDetailRefetchInterval(id, query.state.data);
+      return sessionDetailRefetchInterval(id, query.state.data, scopedComputerId);
     },
     staleTime: SESSION_DETAIL_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,

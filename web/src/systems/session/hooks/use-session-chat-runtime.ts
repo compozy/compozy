@@ -5,6 +5,8 @@ import type { UIMessage } from "ai";
 
 import { authorizeStreamFetchInput } from "@/lib/gateway-stream-auth";
 import { reportGatewayResponse } from "@/lib/gateway-access-signal";
+import { computerApiPath } from "@/lib/api-client";
+import { isRemoteComputerId } from "@/lib/computer-scope";
 import { modelCatalogKeys } from "@/systems/model-catalog";
 
 import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
@@ -16,6 +18,7 @@ import {
 import { promptRebindsRuntime } from "../lib/session-prompt-rebind";
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
 import {
+  completeWhenResponseBodySettles,
   createSessionPromptChatTransport,
   type SessionPromptRequestBody,
 } from "../lib/session-prompt-chat-transport";
@@ -28,6 +31,7 @@ import { applyTerminalQuoteToPromptMessage } from "../lib/session-terminal-quote
 import {
   discardRefusedPromptMessage,
   type SessionPromptRecovery,
+  type SessionPromptRecoveryScope,
 } from "../lib/session-prompt-recovery";
 import {
   dismissSessionPromptNotSent,
@@ -49,49 +53,6 @@ import {
 } from "../lib/session-transcript-query";
 
 type QueryClient = ReturnType<typeof useQueryClient>;
-
-function completeWhenResponseBodySettles(response: Response, onComplete: () => void): Response {
-  if (response.body === null) {
-    onComplete();
-    return response;
-  }
-
-  const reader = response.body.getReader();
-  let completed = false;
-  const complete = () => {
-    if (completed) return;
-    completed = true;
-    onComplete();
-  };
-  const body = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const chunk = await reader.read();
-        if (chunk.done) {
-          complete();
-          controller.close();
-          return;
-        }
-        controller.enqueue(chunk.value);
-      } catch (error) {
-        complete();
-        controller.error(error);
-      }
-    },
-    async cancel(reason) {
-      try {
-        await reader.cancel(reason);
-      } finally {
-        complete();
-      }
-    },
-  });
-  return new Response(body, {
-    headers: response.headers,
-    status: response.status,
-    statusText: response.statusText,
-  });
-}
 
 /**
  * Settles the composer draft a prompt POST took. The draft is consumed only
@@ -179,8 +140,7 @@ function envelopeFromPromptBody(
 
 function buildSessionRuntimeConfig(
   queryClient: QueryClient,
-  workspaceId: string,
-  sessionId: string,
+  recoveryScope: SessionPromptRecoveryScope,
   promptDispatch: SessionPromptDispatchStore,
   promptRecovery: SessionPromptRecovery,
   promptOutcome: SessionPromptOutcome,
@@ -189,7 +149,8 @@ function buildSessionRuntimeConfig(
   preparedUserMessages?: Map<string, UIMessage>,
   readOnly = false
 ) {
-  const recoveryScope = { workspaceId, sessionId };
+  const { computerId, workspaceId, sessionId } = recoveryScope;
+  const keys = sessionKeys.forComputer(computerId);
   const goalAwareFetch = createGoalAwareFetch({
     onRequest: () => {
       sessionStore.trigger.goalErrorAcknowledged({ sessionId });
@@ -201,10 +162,11 @@ function buildSessionRuntimeConfig(
         ...(requestText === null || requestText === undefined ? {} : { command: requestText }),
       });
       if (result.snapshot !== null || result.outcome === "cleared") {
-        queryClient.setQueryData(sessionKeys.goal(workspaceId, sessionId), {
+        queryClient.setQueryData(keys.goal(workspaceId, sessionId), {
           goal: result.snapshot,
         });
       }
+      if (isRemoteComputerId(computerId)) return;
       const runId = result.snapshot?.run_id;
       if (runId) {
         void queryClient.invalidateQueries({
@@ -224,7 +186,7 @@ function buildSessionRuntimeConfig(
     // Read before dispatch: the 1s control poll may land the new binding before the answer.
     const rebindsRuntime = promptRebindsRuntime(
       init?.body,
-      queryClient.getQueryData<SessionPayload>(sessionKeys.detail(workspaceId, sessionId))?.runtime
+      queryClient.getQueryData<SessionPayload>(keys.detail(workspaceId, sessionId))?.runtime
         .effective
     );
     let answered = false;
@@ -286,22 +248,24 @@ function buildSessionRuntimeConfig(
         promptOutcome.accepted(messageId);
         // The catalog rows show the bound runtime; reread them now rather than
         // waiting for the turn to end or the throttled catalog-stream wake.
-        if (rebindsRuntime) void invalidateSessionLiveQueries(queryClient, workspaceId, sessionId);
+        if (rebindsRuntime) {
+          void invalidateSessionLiveQueries(queryClient, workspaceId, sessionId, computerId);
+        }
         // The POST streams the assistant, not the daemon's verified user-input
         // metadata. Read that input once while the parallel transcript SSE is
         // suspended, retaining its cursor and every streaming assistant message.
         if (messageId !== null) {
-          void fetchSessionTranscript(workspaceId, sessionId, {}, controller.signal)
+          void fetchSessionTranscript(workspaceId, sessionId, {}, controller.signal, computerId)
             .then(async transcript => {
               // A cold composer may send before its first history read finishes.
               // Join that canonical read before merging, so its older snapshot
               // cannot discard the admitted input and its verified directives.
               await queryClient.ensureInfiniteQueryData(
-                sessionTranscriptOptions(workspaceId, sessionId)
+                sessionTranscriptOptions(workspaceId, sessionId, computerId)
               );
               if (controller.signal.aborted) return;
               queryClient.setQueryData<SessionTranscriptData>(
-                sessionKeys.transcript(workspaceId, sessionId),
+                keys.transcript(workspaceId, sessionId),
                 current => reconcileAdmittedPrompt(current, transcript, messageId)
               );
             })
@@ -334,7 +298,10 @@ function buildSessionRuntimeConfig(
   };
   return {
     transport: createSessionPromptChatTransport({
-      api: `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`,
+      api: computerApiPath(
+        computerId,
+        `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`
+      ),
       fetch: trackedFetch,
       ...(getRuntimeSnapshot ? { getRuntimeSnapshot } : {}),
       ...(idempotencyKeys ? { idempotencyKeys } : {}),
@@ -350,7 +317,7 @@ function buildSessionRuntimeConfig(
     }),
     onFinish: () => {
       startTransition(() => {
-        void invalidateSessionMutationQueries(queryClient, workspaceId, sessionId);
+        void invalidateSessionMutationQueries(queryClient, workspaceId, sessionId, computerId);
       });
     },
   };
@@ -358,14 +325,13 @@ function buildSessionRuntimeConfig(
 
 /** Connects session dispatch and recovery to chat streaming and session-scoped completion events. */
 export function useSessionChatRuntime({
+  computerId,
   sessionId,
   workspaceId,
   promptDispatch,
   promptRecovery,
   readOnly = false,
-}: {
-  sessionId: string;
-  workspaceId: string;
+}: SessionPromptRecoveryScope & {
   promptDispatch: SessionPromptDispatchStore;
   promptRecovery: SessionPromptRecovery;
   readOnly?: boolean;
@@ -375,7 +341,7 @@ export function useSessionChatRuntime({
   const [idempotencyKeys] = useState(() => new Map<string, string>());
   const [preparedUserMessages] = useState(() => new Map<string, UIMessage>());
   const attachmentAdapter = useSessionAttachmentAdapter(workspaceId, sessionId);
-  const recoveryScope = { workspaceId, sessionId };
+  const recoveryScope = { computerId, workspaceId, sessionId };
   const consumeDraft = (messageId: string | null) => {
     if (messageId !== null) promptRecovery.acknowledge(recoveryScope, messageId);
     attachmentAdapter.acknowledgeSentFiles();
@@ -398,8 +364,7 @@ export function useSessionChatRuntime({
   };
   const runtimeConfig = buildSessionRuntimeConfig(
     queryClient,
-    workspaceId,
-    sessionId,
+    recoveryScope,
     promptDispatch,
     promptRecovery,
     promptOutcome,

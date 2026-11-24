@@ -330,7 +330,7 @@ export function useLiveAddComputer({
   const handleTrustHost = useCallback(async () => {
     if (!setupId) return;
     try {
-      await answerComputerSetup(setupId, { kind: "host_key", accept: true });
+      await answerComputerSetup(setupId, { kind: "trust_host", accept: true });
       toast.success(`Trusted ${draft.name || draft.host} and continued setup.`);
       await syncSetupStatus(setupId);
     } catch (err) {
@@ -344,7 +344,7 @@ export function useLiveAddComputer({
       return;
     }
     try {
-      await answerComputerSetup(setupId, { kind: "host_key", accept: false });
+      await answerComputerSetup(setupId, { kind: "trust_host", accept: false });
     } catch {
       // Ignore error on decline; reset local dialog view.
     }

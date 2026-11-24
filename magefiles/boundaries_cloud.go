@@ -20,8 +20,15 @@ func cloudBoundaryViolations() ([]string, error) {
 		}
 		for _, path := range files {
 			name := filepath.ToSlash(path)
-			if hasPackagePrefix(name, cloudDir) || hasPackagePrefix(name, cloudCommand) ||
-				name == "internal/testutil/remotetest/cloud_integration.go" {
+			if hasPackagePrefix(name, cloudDir) || hasPackagePrefix(name, cloudCommand) {
+				continue
+			}
+			// The integration-tagged harness runs its own cloud and provider fixture.
+			switch name {
+			case "internal/testutil/remotetest/cloud_integration.go",
+				"internal/testutil/remotetest/identity_integration.go",
+				"internal/testutil/remotetest/cmd/remotetest/activation.go",
+				"internal/testutil/remotetest/cmd/remotetest/scenarios.go":
 				continue
 			}
 			violations = append(violations, fmt.Sprintf("%s imports cloud runtime outside the cloud binary", name))

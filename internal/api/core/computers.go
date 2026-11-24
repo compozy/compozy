@@ -218,6 +218,9 @@ func ComputerDTO(view computers.View) contract.Computer {
 		AddedAt: view.AddedAt, LastConnectedAt: view.LastConnAt,
 		Routes: make([]contract.ComputerRoute, 0, len(view.Routes)),
 	}
+	if result.Scopes == nil {
+		result.Scopes = []remoteproto.Scope{}
+	}
 	if route := view.RouteInUse; route != nil {
 		result.RouteInUse = &contract.ComputerRouteInUse{ID: route.ID, Kind: route.Kind, Label: route.Address}
 	}

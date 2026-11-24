@@ -1,4 +1,9 @@
-import { computerQueryKey, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
+import {
+  computerQueryKey,
+  isRemoteComputerId,
+  LOCAL_COMPUTER_ID,
+  type ComputerId,
+} from "@/lib/computer-scope";
 import type { FetchSessionEventsParams, SessionListFilters } from "../types";
 import { normalizeSessionListFilters } from "./session-list-query";
 
@@ -152,7 +157,10 @@ export function sessionKeysFor(computerId: ComputerId = LOCAL_COMPUTER_ID) {
   };
 }
 
+const localSessionKeys = sessionKeysFor();
+
 export const sessionKeys = {
-  ...sessionKeysFor(LOCAL_COMPUTER_ID),
-  forComputer: sessionKeysFor,
+  ...localSessionKeys,
+  forComputer: (computerId?: ComputerId) =>
+    isRemoteComputerId(computerId) ? sessionKeysFor(computerId) : localSessionKeys,
 };

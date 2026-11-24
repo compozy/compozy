@@ -320,9 +320,10 @@ export async function sendSessionPrompt(
   workspaceId: string,
   id: string,
   params: SessionPromptRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPromptSendResult> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt",
     {
       params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },

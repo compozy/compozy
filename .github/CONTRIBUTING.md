@@ -44,6 +44,24 @@ The 500 ms restore assertion and functional assertions still apply to every samp
 It also stays outside Release publishing dependencies. Run its focused local equivalent
 with `COMPOZY_E2E_PERF=1 make test-e2e-web` when local E2E execution is authorized.
 
+### Remote Computers browser scenarios
+
+`make test-e2e-web` builds the `remotetest` harness in `magefiles/e2e.go`.
+Each Remote Computers Playwright test selects a scenario by name. The fixture starts
+the binary, reads its JSON manifest, uses the controller's web URL as Playwright's
+base URL, and sends SIGTERM after the test. CI provides Postgres and uses the Ubuntu
+runner's Docker and OpenSSH for the systemd container shared with the Go SSH suite.
+For a local run, set `COMPOZY_CLOUD_TEST_POSTGRES` to a disposable Postgres URL whose
+user can create schemas. The SSH scenario requires Linux with a Docker bridge.
+
+To add a scenario, extend `prepareScenario` in
+`internal/testutil/remotetest/cmd/remotetest/scenarios.go`. Use the shared cloud,
+identity provider, and daemon startup, and arrange the prerequisite state through
+the CLI or HTTP/UDS APIs. Publish the controller, computer and device references
+the scenario needs in the manifest. Add the scenario name to the Playwright fixture
+and select it with `test.use({ scenario: "…" })`. Interact with the public UI or CLI
+in the test. The harness owns the isolated homes, sockets, schema and containers.
+
 ### Merge latency and revisit policy
 
 `scripts/ci-merge-latency.py` makes one paginated GraphQL list call through `gh`.

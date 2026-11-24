@@ -18,4 +18,6 @@ qa_status: pending
 7. With Pro on the linked computer, enable the hosted route and remove direct and SSH reachability. Check that the controller uses `cloud` and can list the host's sessions. Block the host's outbound port 7844 and verify the connector diagnosis and recovery. Turn off the hosted route and confirm that its hostname disappears from the account directory.
 8. On two linked Pro computers, enable the hosted route and sign in from the same browser profile at both addresses. Open a session stream and a terminal on the first computer and a session stream on the second. Revoke the browser device from an approved account admin installation. Check that the streams close within two seconds and the browser shows **This device was removed from your account** within three seconds.
 
+E2E-007 revokes the second signed-in CLI device from Settings → Account. Its `compozy computer status testhost --json` must show `device_revoked` within three seconds of the revoke response.
+
 Walk this scenario after integrating the host, controller, and hosted browser UI. `IT-072` and `IT-077` cover hosted browser authorization and stream closure in the daemon integration suite. Record timestamps and redacted event IDs in the QA report.

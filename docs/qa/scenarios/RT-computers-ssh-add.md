@@ -15,4 +15,6 @@ qa_status: pending
 4. Interrupt a second setup before linking. Repeat the add command and verify it resumes at the first incomplete step. Cancel it and verify the slot becomes available before another add proceeds.
 5. Rotate a trusted VM host key and verify the controller reports `ssh_host_key_changed`. Confirm the previously trusted key stays pinned.
 
+E2E-002 trusts the SSH host key, starts a session on the new computer through Run on, and verifies the reply to `echo` and the computer name in the sidebar. E2E-003 adds an account-linked computer and finds one of its sessions in the project-grouped sidebar and Search, including when the controller has no local projects.
+
 Walk this scenario after the Remote Computers slices are integrated.
