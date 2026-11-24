@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// SupportBundleManifestArtifactPayload is a daemon API value.
+type SupportBundleManifestArtifactPayload struct {
+	Path             string `json:"path"`
+	Included         bool   `json:"included"`
+	OmittedReason    string `json:"omitted_reason,omitempty"`
+	Bytes            int64  `json:"bytes"`
+	Truncated        bool   `json:"truncated"`
+	RedactionVersion string `json:"redaction_version,omitempty"`
+}
+
 // SupportBundleManifestPayload is a daemon API value.
 type SupportBundleManifestPayload struct {
 	SchemaVersion        string                                 `json:"schema_version"`
@@ -432,19 +442,4 @@ type TaskInboxLaneGroupPayload struct {
 	Count       int                    `json:"count"`
 	UnreadCount int                    `json:"unread_count"`
 	Items       []TaskInboxItemPayload `json:"items,omitempty"`
-}
-
-// TaskInboxPayload is a daemon API value.
-type TaskInboxPayload struct {
-	UnreadTotal   int                         `json:"unread_total"`
-	ArchivedTotal int                         `json:"archived_total"`
-	Groups        []TaskInboxLaneGroupPayload `json:"groups"`
-	Page          CountedCursorPagePayload    `json:"page"`
-	Facets        TaskInboxFacetsPayload      `json:"facets"`
-}
-
-// TaskInboxPriorityFacetPayload is a daemon API value.
-type TaskInboxPriorityFacetPayload struct {
-	Priority Priority `json:"priority"`
-	Count    int      `json:"count"`
 }

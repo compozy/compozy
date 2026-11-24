@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// SkillPayload is a daemon API value.
+type SkillPayload struct {
+	Name        string                   `json:"name"`
+	Description string                   `json:"description"`
+	Version     string                   `json:"version,omitempty"`
+	Source      string                   `json:"source"`
+	Origin      string                   `json:"origin"`
+	OwnerScope  string                   `json:"owner_scope"`
+	OwnerID     string                   `json:"owner_id,omitempty"`
+	Enabled     bool                     `json:"enabled"`
+	Activation  SkillActivationPayload   `json:"activation"`
+	Dir         string                   `json:"dir"`
+	Metadata    map[string]any           `json:"metadata,omitempty"`
+	Provenance  *ProvenancePayload       `json:"provenance,omitzero"`
+	Diagnostics []SkillDiagnosticPayload `json:"diagnostics,omitempty"`
+	Exposures   *[]SkillExposurePayload  `json:"exposures,omitzero"`
+}
+
 // SkillResponse is a daemon API value.
 type SkillResponse struct {
 	Skill SkillPayload `json:"skill"`
@@ -429,14 +447,4 @@ type SupervisionState struct {
 	WorkSignals  []WorkSignal        `json:"work_signals"`
 	Sources      []SignalSourceState `json:"sources"`
 	QuietWarning *QuietWarning       `json:"quiet_warning"`
-}
-
-// SupportBundleManifestArtifactPayload is a daemon API value.
-type SupportBundleManifestArtifactPayload struct {
-	Path             string `json:"path"`
-	Included         bool   `json:"included"`
-	OmittedReason    string `json:"omitted_reason,omitempty"`
-	Bytes            int64  `json:"bytes"`
-	Truncated        bool   `json:"truncated"`
-	RedactionVersion string `json:"redaction_version,omitempty"`
 }
