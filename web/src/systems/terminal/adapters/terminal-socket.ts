@@ -1,10 +1,11 @@
 /**
  * The terminal stream socket.
  *
- * Local listeners use the terminal's own `?ticket=` attach pass directly.
- * Hosted browser origins additionally mint a single-use `?remote_ticket=` via
- * `POST /remote/v1/stream-tickets`, keeping the two parameters distinct so the
- * hosted listener authenticates the upgrade without colliding with `?ticket=`.
+ * Local and remote (`/c/{computer_id}/...`) listeners use the terminal's own
+ * `?ticket=` attach pass directly. Hosted browser origins additionally mint a
+ * single-use `?remote_ticket=` via `POST /remote/v1/stream-tickets`, keeping
+ * the two parameters distinct so the hosted listener authenticates the upgrade
+ * without colliding with `?ticket=`.
  */
 
 import { acquireHostedStreamTicket, appendHostedStreamTicket } from "@/lib/gateway-stream-auth";

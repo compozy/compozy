@@ -36,6 +36,11 @@ export interface ComputerDetailsPanelProps {
   currentDeviceName?: string;
   /** Optional provider already expanded with the inline remote sign-in terminal preview. */
   initialSignInProviderId?: ComputerProviderAuthFixture["id"] | null;
+  providersLoading?: boolean;
+  providersError?: Error | null;
+  onRetryProviders?: () => void;
+  signingInProviderId?: string | null;
+  onSignInProvider?: (provider: ComputerProviderAuthFixture, command: string) => void;
   /** Initial state of the SSH update stepper when `status === "incompatible"`. */
   initialUpdateState?: UpdateRunState;
   liveUpdateState?: UpdateRunState;
@@ -63,6 +68,11 @@ export function ComputerDetailsPanel({
   editablePermissions = false,
   currentDeviceName,
   initialSignInProviderId = null,
+  providersLoading = false,
+  providersError = null,
+  onRetryProviders,
+  signingInProviderId = null,
+  onSignInProvider,
   initialUpdateState = "idle",
   liveUpdateState,
   liveUpdateSteps,
@@ -205,9 +215,15 @@ export function ComputerDetailsPanel({
 
           {panel.activeTab === "providers" ? (
             <ComputerDetailsProvidersTab
+              canOperateTerminal={panel.scopes.includes("terminal:operate")}
               computerName={computer.name}
               initialSignInProviderId={initialSignInProviderId}
+              onRetryProviders={onRetryProviders}
+              onSignInProvider={onSignInProvider}
               providers={computer.providers}
+              providersError={providersError}
+              providersLoading={providersLoading}
+              signingInProviderId={signingInProviderId}
             />
           ) : null}
 

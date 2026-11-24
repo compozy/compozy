@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
+import { apiClient, apiRequestFailed } from "@/lib/api-client";
 import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 
 import {
@@ -112,6 +113,34 @@ export function hostResourcesOptions(computerId: ComputerId, enabled = true) {
   return queryOptions({
     queryKey: computerRegistryKeys.hostResources(computerId),
     queryFn: ({ signal }) => fetchHostResources(computerId, signal),
+    enabled,
+    staleTime: 10_000,
+    retry: false,
+  });
+}
+
+async function fetchActiveLocalSessionCount(signal?: AbortSignal): Promise<number> {
+  const { data, error, response } = await apiClient.GET("/api/sessions", {
+    params: {
+      query: {
+        all_workspaces: true,
+        all_profiles: true,
+        state: "active",
+        limit: 1,
+      },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error) || !data) {
+    return 0;
+  }
+  return data.page.total ?? data.sessions.length;
+}
+
+export function activeLocalSessionsCountOptions(enabled = true) {
+  return queryOptions({
+    queryKey: computerRegistryKeys.activeLocalSessionsCount(),
+    queryFn: ({ signal }) => fetchActiveLocalSessionCount(signal),
     enabled,
     staleTime: 10_000,
     retry: false,

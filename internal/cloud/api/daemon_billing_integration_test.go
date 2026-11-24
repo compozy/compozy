@@ -178,7 +178,7 @@ func TestDaemonBilling(t *testing.T) {
 				f.clock.Now().Add(time.Second),
 			)
 			lapseStripe(t, f, stripe, sub)
-			assertPlanLimited(t, f, map[remoteproto.ComputerID]bool{a: true, b: false, c: true})
+			assertBillingPlanLimited(t, f, map[remoteproto.ComputerID]bool{a: true, b: false, c: true})
 			testutil.Eventually(t, "two previously connected computers are limited", 9*time.Second, func() bool {
 				f.clock.Advance(100 * time.Millisecond)
 				return readControllerComputer(t, controller, a).Status == string(computers.NeedsPro) &&
@@ -201,7 +201,7 @@ func TestDaemonBilling(t *testing.T) {
 				expect(t, http.StatusOK, "checkout.stripe.com")
 			checkout := stripe.Complete(stripe.Checkouts()[0].ID)
 			deliverStripeEvent(t, f, "evt_resubscribe", "checkout.session.completed", checkout.Sub)
-			assertPlanLimited(t, f, map[remoteproto.ComputerID]bool{a: false, b: false, c: false})
+			assertBillingPlanLimited(t, f, map[remoteproto.ComputerID]bool{a: false, b: false, c: false})
 			testutil.Eventually(t, "the same computers reconnect on the restored plan", 9*time.Second, func() bool {
 				f.clock.Advance(time.Second)
 				return readControllerComputer(t, controller, a).Status == string(computers.Connected) &&

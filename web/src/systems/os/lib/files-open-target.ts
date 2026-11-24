@@ -1,3 +1,5 @@
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import { FILES_APP_PATH, filesAppRoute, matchFilesInstance } from "./app-catalog";
 import type { OsOpenTarget, OsWindow, OsWindowRoute } from "./os-types";
 
@@ -28,10 +30,20 @@ export function filesProjectForOpen(
  * second open focuses the same window (US-002.AC-5); with no project the bare route opens the
  * window's "No projects yet" state.
  */
-export function filesOpenTarget(workspaceId: string | null): OsOpenTarget {
-  if (workspaceId === null)
-    return { app: "files", route: { pathname: FILES_APP_PATH, search: {} } };
-  return { app: "files", instanceKey: workspaceId, route: filesAppRoute(workspaceId) };
+export function filesOpenTarget(workspaceId: string | null, computerId?: ComputerId): OsOpenTarget {
+  if (workspaceId === null) {
+    return {
+      app: "files",
+      route: {
+        pathname: FILES_APP_PATH,
+        search: isRemoteComputerId(computerId) ? { computer: normalizeComputerId(computerId) } : {},
+      },
+    };
+  }
+  const instanceKey = isRemoteComputerId(computerId)
+    ? `${normalizeComputerId(computerId)}:${workspaceId}`
+    : workspaceId;
+  return { app: "files", instanceKey, route: filesAppRoute(workspaceId, computerId) };
 }
 
 /** The project a palette or agent route names (`/files/<id>`), if any. */

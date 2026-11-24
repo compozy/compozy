@@ -201,10 +201,10 @@
             </form>
             {{ end }} {{ if .Success }}
             <p>Sign in with <strong>{{ .Email }}</strong> in the app.</p>
-            <a class="purchase-action primary" href="compozyos://open/">Open Compozy</a>
-            <a class="purchase-action" href="https://compozy.com/download">Download Compozy</a>
+            <a class="purchase-action primary" href="compozyos://open/">Open CompozyOS</a>
+            <a class="purchase-action" href="https://compozy.com/download">Download CompozyOS</a>
             {{ end }} {{ if and .AlreadyPro (not .Overview.HostedURL) }}
-            <a class="purchase-action" href="compozyos://open/">Open Compozy</a>
+            <a class="purchase-action" href="compozyos://open/">Open CompozyOS</a>
             {{ end }} {{ if .Overview.HostedURL }}{{ if not .ShowPlans }}
             <a class="purchase-action" href="{{ .Overview.HostedURL }}">Open this computer</a>
             {{ end }}{{ end }} {{ if .Redirecting }}

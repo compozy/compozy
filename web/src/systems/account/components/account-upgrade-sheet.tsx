@@ -227,9 +227,7 @@ export function UpgradeSheet({
                   variant="info"
                 >
                   <Info aria-hidden="true" />
-                  <AlertDescription>
-                    Checkout was cancelled. Nothing was charged.
-                  </AlertDescription>
+                  <AlertDescription>Checkout was cancelled. Nothing was charged.</AlertDescription>
                 </Alert>
               ) : null}
 

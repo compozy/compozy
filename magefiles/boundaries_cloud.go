@@ -27,9 +27,12 @@ func cloudBoundaryViolations() ([]string, error) {
 			switch name {
 			case "internal/testutil/remotetest/cloud_integration.go",
 				"internal/testutil/remotetest/identity_integration.go",
+				"internal/testutil/remotetest/resend_integration.go",
 				"internal/testutil/remotetest/stripe_integration.go",
 				"internal/testutil/remotetest/cmd/remotetest/activation.go",
 				"internal/testutil/remotetest/cmd/remotetest/billing.go",
+				"internal/testutil/remotetest/cmd/remotetest/hosted.go",
+				"internal/testutil/remotetest/cmd/remotetest/hosted_cloudflare.go",
 				"internal/testutil/remotetest/cmd/remotetest/scenarios.go":
 				continue
 			}

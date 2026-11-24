@@ -93,7 +93,7 @@ export function LoadBalancingSection({
               aria-label="Enable load balancing"
               checked={enabled}
               disabled={isPending}
-              onCheckedChange={onToggleEnabled}
+              onCheckedChange={checked => onToggleEnabled(checked)}
               size="sm"
             />
           }

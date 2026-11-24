@@ -108,10 +108,10 @@ func (h *BaseHandlers) samplePlacementCandidate(
 	source remoteproto.ComputerID,
 	project, sourceWorkspace string,
 ) {
-	switch {
-	case c.ComputerID == source:
+	switch c.ComputerID {
+	case source:
 		c.WorkspaceID = sourceWorkspace
-	case c.ComputerID == computers.LocalID:
+	case computers.LocalID:
 		c.WorkspaceID = h.localWorkspaceForPlacement(ctx, project)
 	default:
 		var catalog contract.WorkspacesResponse

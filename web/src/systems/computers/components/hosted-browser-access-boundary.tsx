@@ -44,7 +44,7 @@ function HostedBrowserAccessActive({
     );
   }
 
-  if (access.state.kind !== "ready" || !access.contextValue) {
+  if (access.state.kind !== "ready") {
     return (
       <BrowserSignInGate
         browserFingerprint={
@@ -66,6 +66,20 @@ function HostedBrowserAccessActive({
     );
   }
 
+  if (!access.contextValue) {
+    return (
+      <div
+        className="flex min-h-dvh items-center justify-center bg-background text-muted-foreground"
+        data-testid="hosted-browser-checking"
+      >
+        <div className="flex items-center gap-2 text-small-body">
+          <Spinner aria-hidden="true" className="size-4" />
+          <span>Connecting to {access.computerName}…</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <HostedBrowserContext value={access.contextValue}>
       {isWide ? children : (phoneApp ?? <HostedPhoneApp />)}
@@ -76,7 +90,7 @@ function HostedBrowserAccessActive({
 /**
  * Root access boundary for hosted computer origins (`https://<slug>.compozy.run`, U8).
  *
- * On hosted origins, owns the Sign in to Compozy gate (WebCrypto P-256 + PKCE + DPoP),
+ * On hosted origins, owns the Sign in to CompozyOS gate (WebCrypto P-256 + PKCE + DPoP),
  * renders the desktop web shell at wide widths (`>= 1024 px`), and switches to the
  * compact phone layout below `1024 px`. On non-hosted origins, delegates transparently
  * to `fallbackBoundary` (legacy gateway boundary until S14) or renders `children`.

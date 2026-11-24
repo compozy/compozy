@@ -121,7 +121,12 @@ export {
 } from "./components/scoped-computer-status";
 export { useAccountRemoteEviction } from "./hooks/use-account-eviction";
 export { useComputerPlacement, type ComputerPlacementState } from "./hooks/use-computer-placement";
+export {
+  useComputerProviders,
+  type ComputerProvidersController,
+} from "./hooks/use-computer-providers";
 export { useComputerWorkspaces } from "./hooks/use-computer-workspaces";
+export { providerLoginCommand, toComputerProviderAuthView } from "./lib/provider-view";
 export { findComputerById, useComputer, useComputers } from "./hooks/use-computers";
 export { useComputersSettingsPage } from "./hooks/use-computers-settings-page";
 export {

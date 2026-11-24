@@ -387,7 +387,7 @@ func TestStripeLeaseUpdate(t *testing.T) {
 		owner := newBillingDevice(t, f, "lease@example.test")
 		computer := remoteproto.ComputerID("cmp_billing_lease")
 		key := f.db.SeedControlComputer(t, owner.account, computer, f.clock.Now())
-		link := remotetest.AuthenticateControl(t, f.replica, computer, key)
+		link := remotetest.AuthenticateControlLink(t, t.Context(), f.replica.Server.URL, computer, key)
 		snapshot := remotetest.ReadControlMessage(t, link, 2*time.Second)
 		if snapshot.Type != remoteproto.ControlSnapshot {
 			t.Fatalf("first frame = %s, want snapshot", snapshot.Type)
@@ -467,7 +467,7 @@ func TestStripePlanLapse(t *testing.T) {
 			stripe.Put(sub)
 			deliverStripeEvent(t, f, "evt_rank_end", stripeSubDeleted, sub.ID)
 			assertAuthRow(t, f, "SELECT count(*) FROM slot_reservations WHERE released_at IS NULL", 0)
-			assertPlanLimited(t, f, map[remoteproto.ComputerID]bool{a: true, b: false, c: true})
+			assertBillingPlanLimited(t, f, map[remoteproto.ComputerID]bool{a: true, b: false, c: true})
 			for _, id := range []remoteproto.ComputerID{a, b, c} {
 				var deadline time.Time
 				if err := f.conn.QueryRow(t.Context(), "SELECT delete_after FROM tunnels WHERE computer_id = $1", id).
@@ -477,14 +477,14 @@ func TestStripePlanLapse(t *testing.T) {
 			}
 			remoteCloudRequest(t, f, owner, http.MethodDelete, "/v1/computers/"+string(b), nil).
 				expect(t, http.StatusNoContent, "")
-			assertPlanLimited(t, f, map[remoteproto.ComputerID]bool{a: false, c: true})
+			assertBillingPlanLimited(t, f, map[remoteproto.ComputerID]bool{a: false, c: true})
 			remoteCloudRequest(t, f, owner, http.MethodPost, "/v1/computers/reservations", nil).
 				expect(t, http.StatusPaymentRequired, "plan_limit_reached")
 		})
 	}
 }
 
-func assertPlanLimited(t *testing.T, f authFixture, want map[remoteproto.ComputerID]bool) {
+func assertBillingPlanLimited(t *testing.T, f authFixture, want map[remoteproto.ComputerID]bool) {
 	t.Helper()
 	for id, limited := range want {
 		computer, err := f.replica.App.Store.ControlComputer(t.Context(), id)

@@ -15,7 +15,7 @@ func loadStripe(getenv func(string) string) (*billing.Stripe, error) {
 		return nil, nil
 	}
 	if getenv("STRIPE_PRICE_PRO_ANNUAL") == "" || getenv("STRIPE_PRICE_PRO_MONTHLY") == "" {
-		return nil, errors.New("Stripe requires STRIPE_PRICE_PRO_ANNUAL and STRIPE_PRICE_PRO_MONTHLY")
+		return nil, errors.New("stripe requires STRIPE_PRICE_PRO_ANNUAL and STRIPE_PRICE_PRO_MONTHLY")
 	}
 	return billing.NewStripe(config)
 }

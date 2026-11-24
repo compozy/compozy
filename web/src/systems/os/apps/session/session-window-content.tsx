@@ -22,7 +22,11 @@ import { useForkDeadSession } from "./use-fork-dead-session";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { useSessionWindowDerivedSessions } from "./hooks/use-session-window-derived-sessions";
 import type { useSessionWindowDerive } from "./use-session-window-derive";
+import { useQueryClient } from "@tanstack/react-query";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
+import { OsShellContext } from "../../contexts/os-shell-context";
+import { computerRegistryKeys } from "@/systems/computers";
+import { RemoteEntitlementPausedBanner } from "@/systems/session/components/remote-entitlement-paused-banner";
 import { RemoteOfflineComposerBanner } from "@/systems/session/components/remote-offline-composer-banner";
 import { sessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import { requestSessionInspectorSection } from "@/systems/session/hooks/use-session-inspector-focus";
@@ -151,6 +155,46 @@ function subagentOriginProps(
   };
 }
 
+/** Remote offline / Pro-plan pause banner rendered directly below the session composer. */
+function SessionRemoteComposerBanner({
+  offlineComputerName,
+  entitlementPausedComputerName,
+}: {
+  offlineComputerName: string | null;
+  entitlementPausedComputerName: string | null;
+}) {
+  const shell = use(OsShellContext);
+  const queryClient = useQueryClient();
+
+  if (offlineComputerName) {
+    return (
+      <RemoteOfflineComposerBanner
+        computerName={offlineComputerName}
+        onReconnect={() =>
+          void queryClient.invalidateQueries({
+            queryKey: computerRegistryKeys.all,
+          })
+        }
+      />
+    );
+  }
+  if (!entitlementPausedComputerName) return null;
+  return (
+    <RemoteEntitlementPausedBanner
+      computerName={entitlementPausedComputerName}
+      onUpgrade={
+        shell
+          ? () =>
+              void shell.coordinator.userOpen({
+                app: "settings",
+                route: { pathname: "/settings/account", search: {} },
+              })
+          : undefined
+      }
+    />
+  );
+}
+
 /** Compose the active session window and the sidebar-owned single or batch lifecycle dialogs. */
 export function SessionWindowContent({
   windowId,
@@ -203,7 +247,10 @@ export function SessionWindowContent({
     successorId,
     alwaysOnMain,
     remoteOfflineComputerName,
+    remoteEntitlementPausedComputerName,
   } = page;
+  const remoteComposerBlocked =
+    remoteOfflineComputerName !== null || remoteEntitlementPausedComputerName !== null;
   const environmentControl = useRef<SessionEnvironmentControlHandle>(null);
   const deadSession = useForkDeadSession(session, sessionId, workspaceId, sidebar.onSelectSession);
   const promptImageCapability = sessionPromptCapability(
@@ -216,8 +263,9 @@ export function SessionWindowContent({
     "prompt_embedded_context",
     promptRuntimeSnapshot
   );
-
   const openSubagent = subagentOpener(sidebar.openSession, workspaceId);
+  const sessionTitle = session.name ?? sessionId;
+  const workspaceName = session.workspace_path ?? workspaceId;
 
   return (
     <SessionDeriveHost
@@ -275,8 +323,8 @@ export function SessionWindowContent({
                       />
                       <SessionReportSendContext value={successorId ? null : onSendPrompt}>
                         <SessionThread
-                          liveDataEnabled={liveDataEnabled && remoteOfflineComputerName === null}
-                          readOnly={successorId !== null || remoteOfflineComputerName !== null}
+                          liveDataEnabled={liveDataEnabled && !remoteComposerBlocked}
+                          readOnly={successorId !== null || remoteComposerBlocked}
                           sessionId={sessionId}
                           workspaceId={workspaceId}
                           agentName={agentName}
@@ -285,7 +333,7 @@ export function SessionWindowContent({
                           failure={session.failure}
                           statusSession={session}
                           stopCompletionNote={controls.stopCompletionNote}
-                          canPrompt={controls.canPrompt && remoteOfflineComputerName === null}
+                          canPrompt={controls.canPrompt && !remoteComposerBlocked}
                           onCancelPrompt={controls.handleCancelPrompt}
                           onQueuePrompt={controls.handleQueuePrompt}
                           onSteerPrompt={controls.handleSteerPrompt}
@@ -328,9 +376,9 @@ export function SessionWindowContent({
                               ref={environmentControl}
                               binding={worktreeBinding}
                               sessionId={sessionId}
-                              sessionTitle={session.name ?? sessionId}
+                              sessionTitle={sessionTitle}
                               workspaceId={workspaceId}
-                              workspaceName={session.workspace_path ?? workspaceId}
+                              workspaceName={workspaceName}
                             />
                           }
                           commandCatalog={commandCatalog}
@@ -357,9 +405,10 @@ export function SessionWindowContent({
                           )}
                         />
                       </SessionReportSendContext>
-                      {remoteOfflineComputerName ? (
-                        <RemoteOfflineComposerBanner computerName={remoteOfflineComputerName} />
-                      ) : null}
+                      <SessionRemoteComposerBanner
+                        entitlementPausedComputerName={remoteEntitlementPausedComputerName}
+                        offlineComputerName={remoteOfflineComputerName}
+                      />
                       {successorId ? (
                         <SupersededNotice
                           onOpenCurrent={() =>
@@ -376,7 +425,7 @@ export function SessionWindowContent({
                   profile={session.profile_name}
                   sessionId={sessionId}
                   workspaceId={workspaceId}
-                  workspaceName={session.workspace_path ?? workspaceId}
+                  workspaceName={workspaceName}
                 />
                 <SessionWindowRowDialogs sidebar={sidebar} />
                 <SessionWindowClearDialog clearDialog={clearDialog} controls={controls} />

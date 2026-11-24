@@ -67,7 +67,7 @@ func (s *Stripe) subscription(ctx context.Context, id, monthly, annual string) (
 		return plan.Subscription{}, errors.New("invalid Stripe subscription")
 	}
 	sub := plan.Subscription{
-		ID: id, AccountID: result.Metadata[accountMetadata], Source: "stripe", Status: result.Status,
+		ID: id, AccountID: result.Metadata[accountMetadata], Source: stripeSource, Status: result.Status,
 		CustomerID: result.Customer, CancelAtPeriodEnd: result.CancelAtPeriodEnd, EndsAt: stripeTime(result.EndedAt),
 	}
 	for _, item := range result.Items.Data {
@@ -105,7 +105,7 @@ func (i stripeInvoice) annualRenewal(annual string) bool {
 }
 
 func (s *Stripe) lastPaidInvoice(ctx context.Context, subscription string) (stripeInvoice, bool, error) {
-	params := url.Values{"status": {"paid"}, "subscription": {subscription}, "limit": {"100"}}
+	params := url.Values{"status": {stripeStatusPaid}, "subscription": {subscription}, "limit": {"100"}}
 	var latest stripeInvoice
 	paid := 0
 	for {

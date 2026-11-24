@@ -53,11 +53,13 @@ func Derive(subscriptions []Subscription, monthlyPrice, annualPrice string, now 
 	return Free
 }
 
+const stripeSource = "stripe"
+
 func (s Subscription) Entitled(monthlyPrice, annualPrice string, now time.Time) bool {
 	switch s.Source {
 	case "complimentary":
 		return now.Before(s.EndsAt)
-	case "stripe":
+	case stripeSource:
 		return s.PriceID != "" && (s.PriceID == monthlyPrice || s.PriceID == annualPrice) &&
 			(s.Status == "active" || s.Status == "trialing" || s.Status == "past_due")
 	default:

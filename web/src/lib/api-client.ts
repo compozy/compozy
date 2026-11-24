@@ -66,7 +66,7 @@ async function fetchWithHostedDPoP(
 ): Promise<Response> {
   if (input instanceof Request && init === undefined) {
     applyTraceparent(input.url, input.headers);
-    if (!input.headers.has("DPoP")) {
+    if (!input.headers.get("DPoP")?.trim()) {
       input.headers.set("DPoP", await buildBrowserDPoP(input.method || "GET", input.url));
     }
     const response = await globalThis.fetch(input);
@@ -79,7 +79,7 @@ async function fetchWithHostedDPoP(
     init?.headers ?? (input instanceof Request ? input.headers : undefined)
   );
   applyTraceparent(url, headers);
-  if (!headers.has("DPoP")) {
+  if (!headers.get("DPoP")?.trim()) {
     headers.set("DPoP", await buildBrowserDPoP(method, url));
   }
   const response = await globalThis.fetch(input, { ...init, headers });

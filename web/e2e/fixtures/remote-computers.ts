@@ -17,6 +17,7 @@ type Scenario =
   | "ssh-add"
   | "account-add"
   | "revoke-device"
+  | "remote-session"
   | "browser-purchase"
   | "hosted-purchase"
   | "hosted-browser"
@@ -47,6 +48,9 @@ interface RemoteComputersLab {
   session_id?: string;
   session_title?: string;
   workspace_id?: string;
+  hostname?: string;
+  project_file?: string;
+  project_file_content?: string;
   edge_port?: number;
   hosted_url?: string;
   hosted_proxy?: string;

@@ -46,16 +46,18 @@ function collectPhoneApprovals(
       const requestId = interaction.provider_request_id?.trim() ?? "";
       const kind = interaction.kind === "permission" ? "permission" : "clarify";
       if (kind === "permission" && (!requestId || !workspaceId)) continue;
+      const interactionTitle =
+        interaction.title?.trim() || (kind === "permission" ? "Approval needed" : "Input needed");
       items.push({
-        id: `${session.id}:${requestId || interaction.title}`,
+        id: `${session.id}:${requestId || interactionTitle}`,
         requestId,
         turnId: interaction.turn_id ?? "",
         sessionId: session.id,
         workspaceId,
         sessionTitle,
         projectName,
-        title: interaction.title,
-        command: interaction.title,
+        title: interactionTitle,
+        command: interactionTitle,
         kind,
       });
     }
@@ -82,7 +84,7 @@ export function useHostedPhoneApp() {
   const workspacesQuery = useQuery(workspacesListOptions(true));
   useSessionCatalogStreams({ enabled: true });
 
-  const workspaces = workspacesQuery.data?.workspaces ?? [];
+  const workspaces = workspacesQuery.data ?? [];
   const workspaceNameById = new Map<string, string>(
     workspaces.map(workspace => [workspace.id, workspace.name])
   );

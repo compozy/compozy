@@ -6,6 +6,8 @@
  * label. `project` is the surface alias for a workspace, per the glossary.
  */
 
+import { remoteRejectionCopy } from "@/lib/remote-error-copy";
+
 import type {
   TerminalApproval,
   TerminalDetectedBy,
@@ -180,7 +182,7 @@ export function terminalErrorCopy(
   title: string;
   detail: string;
 } {
-  return TERMINAL_ERROR_COPY[code] ?? { title: message, detail: "" };
+  return TERMINAL_ERROR_COPY[code] ?? remoteRejectionCopy(code) ?? { title: message, detail: "" };
 }
 
 /** "content was skipped · 48 KB" — the seam, never a silent splice. */

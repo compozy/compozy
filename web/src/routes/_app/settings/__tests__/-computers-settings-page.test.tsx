@@ -1,7 +1,7 @@
 // Suite: Settings → Computers route page composition (S8 / U1, U2, U7)
 // Invariant: ComputersSettingsPage renders loading/error, cloud-unreachable + uninstall banners,
 // This computer controls, Computers list, On your account, Add computer dialog, and Details panel.
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -148,7 +148,7 @@ describe("ComputersSettingsPage", () => {
     expect(screen.getByTestId("computers-this-computer")).toBeInTheDocument();
     expect(screen.getByTestId("computers-list")).toBeInTheDocument();
     expect(screen.getByTestId("computers-on-account")).toBeInTheDocument();
-    expect(screen.getByText("devbox")).toBeInTheDocument();
+    expect(within(screen.getByTestId("computers-list")).getByText("devbox")).toBeInTheDocument();
     expect(state.topbarSpy).toHaveBeenCalled();
   });
 
@@ -188,7 +188,10 @@ describe("ComputersSettingsPage", () => {
     render(<ComputersSettingsPage />);
 
     expect(screen.getByTestId("computers-empty")).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Run agents on this computer" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Run agents on this computer" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
     expect(screen.getByText(/Add a computer first/i)).toBeInTheDocument();
     expect(screen.queryByTestId("computers-load-balancing")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Add computer/i }));
@@ -275,9 +278,7 @@ describe("ComputersSettingsPage", () => {
     });
     rerender(<ComputersSettingsPage />);
 
-    expect(
-      screen.getByText(/Hosted route is part of Pro/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Hosted route is part of Pro/i)).toBeInTheDocument();
     expect(screen.getByText("1 active · 2 need Pro")).toBeInTheDocument();
     expect(
       screen.getByText("This computer can only be reached through the hosted route (Pro)")
@@ -285,6 +286,16 @@ describe("ComputersSettingsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Upgrade to Pro" }));
     expect(openUpgradeFromAdd).toHaveBeenCalledTimes(1);
+
+    state.view = makeView({
+      account: ACCOUNT_PRESETS.downgraded,
+      computers: COMPUTERS_DOWNGRADED,
+      unaddedComputers: ACCOUNT_UNADDED_FREE,
+      handleOpenUpgrade: openUpgrade,
+      handleOpenUpgradeFromAdd: openUpgradeFromAdd,
+      addDialogOpen: false,
+    });
+    rerender(<ComputersSettingsPage />);
 
     const upgradeButtons = screen.getAllByRole("button", { name: /^Upgrade$/i });
     expect(upgradeButtons.length).toBeGreaterThanOrEqual(4);

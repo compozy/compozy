@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
 
 type hostedBrowser struct {
@@ -147,7 +147,7 @@ func startBrowserEdge(
 	cloudProxy.ModifyResponse = func(response *http.Response) error {
 		if query, matched := strings.CutPrefix(
 			response.Header.Get("Location"),
-			f.provider.origin+"/google/authorize?",
+			f.provider.Origin+"/google/authorize?",
 		); matched {
 			response.Header.Set("Location", providerPath+"?"+query)
 		}
@@ -189,15 +189,11 @@ func browserProxy(t *testing.T, endpoint string) *httputil.ReverseProxy {
 	}}
 }
 
-func serveBrowserProvider(w http.ResponseWriter, r *http.Request, provider *providerFixture, email string) {
+func serveBrowserProvider(w http.ResponseWriter, r *http.Request, provider *remotetest.IdentityProvider, email string) {
 	query := r.URL.Query()
-	code := auth.Secret()
-	provider.mu.Lock()
-	provider.exchanges[code] = providerExchange{
-		profile:   providerProfile{email: email, subject: email, verified: true},
-		challenge: query.Get("code_challenge"), nonce: query.Get("nonce"),
-	}
-	provider.mu.Unlock()
+	code := provider.IssueCode(query, remotetest.ProviderProfile{
+		Email: email, Subject: email, Verified: true,
+	})
 	callback := url.Values{"state": {query.Get("state")}, "code": {code}}
 	w.Header().Set("Location", "/v1/auth/callback/google?"+callback.Encode())
 	w.WriteHeader(http.StatusOK)

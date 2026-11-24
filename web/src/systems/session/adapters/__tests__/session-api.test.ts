@@ -334,7 +334,7 @@ describe("createSession", () => {
   });
 
   it("preserves placed computer_id returned when creating a session with Auto", async () => {
-    mockJsonResponse({ session: mockSession, computer_id: "cmp_studio" }, 201);
+    mockJsonResponse({ session: mockSession, computer_id: "cmp_studio" }, { status: 201 });
 
     const result = await createSession({
       agent_name: "claude-agent",

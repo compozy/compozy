@@ -190,7 +190,7 @@ describe("HostedBrowserAccessBoundary & phone layout (UT-072, U8)", () => {
   });
 
   it("polls waiting_approval every 5s and auto re-authorizes with the SAME public_jwk and fresh state/PKCE on approved (UT-072)", async () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     setHostedBrowserMode(true);
     const navigate = vi.fn<(url: string) => void>();
 
@@ -234,19 +234,16 @@ describe("HostedBrowserAccessBoundary & phone layout (UT-072, U8)", () => {
       </QueryClientProvider>
     );
 
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(screen.getByRole("heading", { name: /Waiting for approval/i })).toBeInTheDocument();
+    await expect(
+      screen.findByRole("heading", { name: /Waiting for approval/i })
+    ).resolves.toBeInTheDocument();
 
     // Advance 5 seconds for the approval poll tick.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
 
-    expect(navigate).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1));
     const secondUrl = new URL(navigate.mock.calls[0]![0]);
     // Same persisted P-256 public key, fresh state and PKCE challenge!
     expect(secondUrl.searchParams.get("public_jwk")).toBe(firstUrl.searchParams.get("public_jwk"));

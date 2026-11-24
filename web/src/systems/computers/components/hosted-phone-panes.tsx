@@ -47,20 +47,26 @@ function formatUpdatedAge(iso: string | undefined): string {
 function sessionStatusTone(
   session: SessionPayload
 ): "success" | "warning" | "destructive" | "faint" {
-  const badge = toSessionBadge(session);
-  if (badge === "waiting-for-auth" || badge === "waiting-for-input") return "warning";
-  if (session.state === "running" || session.state === "starting") return "success";
-  if (session.state === "error") return "destructive";
+  const badge = toSessionBadge(session.badge);
+  if (
+    badge === "waiting-for-auth" ||
+    badge === "waiting-for-input" ||
+    badge === "needs-attention"
+  ) {
+    return "warning";
+  }
+  if (badge === "failed" || badge === "hung" || badge === "unhealthy") return "destructive";
+  if (badge === "running" || session.state === "starting") return "success";
   return "faint";
 }
 
 function sessionStatusLabel(session: SessionPayload): string {
-  const badge = toSessionBadge(session);
+  const badge = toSessionBadge(session.badge);
   if (badge === "waiting-for-auth") return "Needs approval";
   if (badge === "waiting-for-input") return "Needs input";
-  if (session.state === "running" || session.state === "starting") return "Running";
-  if (session.state === "error") return "Error";
-  if (session.state === "stopped") return "Stopped";
+  if (badge === "failed" || badge === "hung" || badge === "unhealthy") return "Error";
+  if (badge === "running" || session.state === "starting") return "Running";
+  if (session.state === "stopped" || badge === "stopped") return "Stopped";
   return "Idle";
 }
 
@@ -149,7 +155,7 @@ export function HostedPhoneSessionList({
             onClick={() => onOpenSession(session)}
             type="button"
           >
-            <StatusDot className="shrink-0" size="md" tone={tone} />
+            <StatusDot className="shrink-0" size="default" tone={tone} />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-body font-medium text-fg-strong">{title}</span>

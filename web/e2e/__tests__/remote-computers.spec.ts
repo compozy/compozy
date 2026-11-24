@@ -1,6 +1,6 @@
 import { chromium, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
-import { appWindow, openCommandPalette } from "../fixtures/os-navigation";
+import { appWindow, openCommandPalette, windowID } from "../fixtures/os-navigation";
 import { cliComputerStatus, cliSessionPrompt, expect, test } from "../fixtures/remote-computers";
 
 async function openSettings(page: Page, section: "computers" | "account"): Promise<Locator> {
@@ -38,7 +38,7 @@ async function installPurchaseTurnstile(context: BrowserContext) {
 test.describe("Purchase from the cloud", () => {
   test.use({ scenario: "browser-purchase" });
 
-  test("E2E-013 and IT-109 buy annual Pro before installing, then use the same account in Compozy", async ({
+  test("E2E-013 and IT-109 buy annual Pro before installing, then use the same account in CompozyOS", async ({
     page,
     context,
     browser,
@@ -58,9 +58,9 @@ test.describe("Purchase from the cloud", () => {
     await page.getByRole("button", { name: "Continue to checkout" }).click();
     await page.getByRole("button", { name: "Complete payment" }).click();
     await expect(page.getByRole("heading")).toHaveText(
-      "You're on Pro. Open Compozy to use your computers."
+      "You're on Pro. Open CompozyOS to use your computers."
     );
-    await expect(page.getByRole("link", { name: "Open Compozy", exact: true })).toHaveAttribute(
+    await expect(page.getByRole("link", { name: "Open CompozyOS", exact: true })).toHaveAttribute(
       "href",
       "compozyos://open/"
     );
@@ -320,6 +320,65 @@ test.describe("Device revocation", () => {
     await expect(row).toBeHidden();
   });
 });
+
+test.describe("Remote session terminal and files", () => {
+  test.use({ scenario: "remote-session" });
+
+  test("E2E-004 open Terminal and Files on a remote session", async ({ page, lab }) => {
+    const host = lab.computers[0];
+    const {
+      session_title: title,
+      hostname,
+      project_file: projectFile,
+      project_file_content: projectFileContent,
+    } = lab;
+    if (!host.id || !title || !hostname || !projectFile || !projectFileContent) {
+      throw new Error("The remote-session scenario did not seed required fixture fields.");
+    }
+
+    await page.goto("/sessions", { waitUntil: "domcontentloaded" });
+    const session = appWindow(page, "session");
+    await expect(session).toBeVisible();
+    const sidebar = await sessionSidebar(session);
+    const remoteRow = sidebar
+      .locator(`[data-slot="session-list-row"][data-computer-id="${host.id}"]`)
+      .filter({ hasText: title });
+    await expect(remoteRow).toBeVisible({ timeout: 20_000 });
+    await remoteRow.click();
+
+    await expect(session.getByTestId(`session-computer-chip-${host.id}`)).toBeVisible();
+    const sessionWindowId = await windowID(session);
+
+    await session.getByTestId("session-remote-terminal-action").click();
+    const terminal = appWindow(page, "terminal");
+    await expect(terminal).toBeVisible();
+    const log = terminal.locator('[role="log"]:visible').last();
+    await expect(log).toBeVisible({ timeout: 20_000 });
+    await expect(log).toHaveAttribute("data-readonly", "false", { timeout: 20_000 });
+    await log.click();
+    await page.keyboard.type("uname -n");
+    await page.keyboard.press("Enter");
+    await expect(log).toContainText(hostname, { timeout: 15_000 });
+
+    await page
+      .getByTestId("os-tab-bar")
+      .locator(`[role="tab"][data-lead-window-id="${sessionWindowId}"]`)
+      .click();
+    await expect(session).toBeVisible();
+
+    await session.getByTestId("session-remote-files-action").click();
+    const files = appWindow(page, "files");
+    await expect(files).toBeVisible();
+    const tree = files.getByTestId("files-tree");
+    await expect(tree).toBeVisible({ timeout: 20_000 });
+    await tree.locator(`[data-type="item"][data-item-path="${projectFile}"]`).click();
+    await expect(files.getByTestId("file-viewer-header")).toContainText(projectFile);
+    await expect(files.getByTestId("file-viewer")).toContainText(projectFileContent, {
+      timeout: 15_000,
+    });
+  });
+});
+
 test.describe("Hosted browser", () => {
   test.use({ scenario: "hosted-browser" });
 
@@ -487,8 +546,6 @@ test.describe("Free limit upgrade", () => {
     await expect(
       accountSettings.getByTestId("account-identity").getByText("Pro", { exact: true })
     ).toBeVisible();
-    await expect(
-      accountSettings.getByRole("button", { name: "Manage billing" })
-    ).toBeVisible();
+    await expect(accountSettings.getByRole("button", { name: "Manage billing" })).toBeVisible();
   });
 });

@@ -1,4 +1,4 @@
-import { computerQueryKey, type ComputerId } from "@/lib/computer-scope";
+import { computerQueryKey, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 
 export const computerRegistryKeys = {
   all: ["computers"] as const,
@@ -17,4 +17,5 @@ export const computerRegistryKeys = {
       projectComputerId ?? "local",
     ] as const,
   hostResources: (computerId: ComputerId) => computerQueryKey(computerId, "host-resources"),
+  activeLocalSessionsCount: () => computerQueryKey(LOCAL_COMPUTER_ID, "sessions", "active-count"),
 };

@@ -54,7 +54,10 @@ export {
   AccountPendingApprovalsSection,
   type AccountPendingApprovalsSectionProps,
 } from "./components/account-pending-approvals";
-export { AccountPlanSection, type AccountPlanSectionProps } from "./components/account-plan-section";
+export {
+  AccountPlanSection,
+  type AccountPlanSectionProps,
+} from "./components/account-plan-section";
 export {
   AccountBanners,
   AccountIdentitySection,

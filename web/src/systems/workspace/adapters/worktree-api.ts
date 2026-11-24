@@ -1,8 +1,10 @@
 import {
   apiClient,
+  apiClientFor,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
+  type ComputerId,
 } from "@/lib/api-client";
 import type { OperationRequestBody } from "@/lib/api-contract";
 
@@ -28,10 +30,10 @@ export class WorktreeApiError extends Error {
 
 export async function fetchWorktrees(
   workspaceID: string,
-  options: { refresh?: boolean } = {},
+  options: { refresh?: boolean; computerId?: ComputerId } = {},
   signal?: AbortSignal
 ): Promise<WorktreesResponse> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(options.computerId).GET(
     "/api/workspaces/{workspace_id}/worktrees",
     {
       params: {

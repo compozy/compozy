@@ -1,9 +1,16 @@
-import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+import { computerQueryKey, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
+
+export function providerKeysFor(computerId: ComputerId = LOCAL_COMPUTER_ID) {
+  const all = computerQueryKey(computerId, "providers");
+  return {
+    all,
+    lists: () => [...all, "list"] as const,
+    detail: (providerId: string) => [...all, "detail", providerId.trim()] as const,
+    authProbe: (providerId: string) => [...all, "auth-probe", providerId.trim()] as const,
+  };
+}
 
 export const providerKeys = {
-  all: computerQueryKey(LOCAL_COMPUTER_ID, "providers"),
-  lists: () => [...providerKeys.all, "list"] as const,
-  detail: (providerId: string) => [...providerKeys.all, "detail", providerId.trim()] as const,
-  authProbe: (providerId: string) =>
-    [...providerKeys.all, "auth-probe", providerId.trim()] as const,
+  ...providerKeysFor(LOCAL_COMPUTER_ID),
+  forComputer: providerKeysFor,
 };

@@ -2,7 +2,7 @@ import type { AccountApprovalPayload, AccountDevicePayload } from "@/systems/acc
 
 import type {
   AccountDeviceFixture,
-  AccountDeviceKind,
+  DeviceKind,
   PendingApprovalFixture,
   RemoteScope,
 } from "../mocks/remote-computers-types";
@@ -31,7 +31,7 @@ function formatRelativeLabel(iso: string | null | undefined, emptyFallback = "ne
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function normalizeRemoteDeviceKind(kind: string | undefined, name: string): AccountDeviceKind {
+function normalizeRemoteDeviceKind(kind: string | undefined, name: string): DeviceKind {
   if (kind === "browser" || kind === "cli" || kind === "desktop") return kind;
   const lower = name.toLowerCase();
   if (
@@ -107,9 +107,8 @@ export function extractLocalPendingApprovals(
 
   for (const approval of options.accountApprovals ?? []) {
     if (localComputerId && approval.computer_id !== localComputerId) continue;
-    if (approval.state !== "pending" && approval.state !== "decided") continue;
-    const isDelivering = approval.state === "decided" && approval.delivery?.state === "delivering";
-    if (approval.state === "decided" && !isDelivering) continue;
+    if (approval.state !== "pending" && approval.state !== "delivering") continue;
+    const isDelivering = approval.state === "delivering";
     const existing = byId.get(approval.id);
     const deviceName = approval.device_name || existing?.deviceName || "Unknown device";
     byId.set(approval.id, {
@@ -117,8 +116,8 @@ export function extractLocalPendingApprovals(
       computerId: approval.computer_id,
       computerName: localComputerName,
       deviceName,
-      deviceKind: normalizeRemoteDeviceKind(approval.device_kind, deviceName),
-      keyFingerprint: approval.jkt || existing?.keyFingerprint || "",
+      deviceKind: normalizeRemoteDeviceKind(undefined, deviceName),
+      keyFingerprint: approval.key_fingerprint || existing?.keyFingerprint || "",
       createdAt: approval.created_at,
       createdLabel: formatRelativeLabel(approval.created_at),
       state: isDelivering ? "delivering" : "pending",

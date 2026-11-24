@@ -39,7 +39,7 @@ export function useHostedPhoneTerminal(workspaceId: string, enabled: boolean) {
     enabled: active,
   });
 
-  useTerminalCatalogStream({ scope, enabled: active });
+  useTerminalCatalogStream({ workspaceId, profileKey: profile, enabled: active });
 
   const closeMutation = useMutation({
     mutationFn: (terminalId: string) => closeTerminal(workspaceId, terminalId, { profile }),
@@ -65,7 +65,7 @@ export function useHostedPhoneTerminal(workspaceId: string, enabled: boolean) {
 
   const answerMutation = useMutation({
     mutationFn: ({ request, value }: { request: TerminalInputRequest; value: string }) =>
-      answerTerminalInputRequest(workspaceId, request.id, value, { profile }),
+      answerTerminalInputRequest(workspaceId, request.terminal_id, request.id, value, { profile }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: terminalKeys.inputRequests(scope.key) });
     },
@@ -76,7 +76,9 @@ export function useHostedPhoneTerminal(workspaceId: string, enabled: boolean) {
 
   const rejectMutation = useMutation({
     mutationFn: (request: TerminalInputRequest) =>
-      rejectTerminalInputRequest(workspaceId, request.id, { profile }),
+      rejectTerminalInputRequest(workspaceId, request.terminal_id, request.id, "dismissed", {
+        profile,
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: terminalKeys.inputRequests(scope.key) });
     },

@@ -1665,7 +1665,7 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: toolspkg.ToolIDComputerAdd, risk: toolspkg.RiskOpenWorld, openWorld: true},
 		{id: toolspkg.ToolIDComputerRemove, risk: toolspkg.RiskDestructive, destructive: true},
 		{id: toolspkg.ToolIDComputerSetupStatus, risk: toolspkg.RiskRead, readOnly: true},
-		{id: toolspkg.ToolIDComputerSetupAnswer, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDComputerSetupAnswer, risk: toolspkg.RiskOpenWorld, openWorld: true},
 		{id: toolspkg.ToolIDAccountStatus, risk: toolspkg.RiskRead, readOnly: true},
 		{id: "compozy__resources_info", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},

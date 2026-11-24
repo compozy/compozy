@@ -4,6 +4,7 @@ import { hashKey, useQueryClient } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
 
 import { useSecondClock } from "@/hooks/use-second-clock";
+import type { ComputerId } from "@/lib/computer-scope";
 import type { TerminalRecordingState } from "../components/terminal-header";
 import { terminalKeys } from "../lib/query-keys";
 import { formatRecordingElapsed, type TerminalRecordingMap } from "../lib/terminal-recording-state";
@@ -29,14 +30,16 @@ function getEmptyRecordings(): TerminalRecordingMap {
  */
 export function useTerminalRecordings(
   scope: TerminalScopeKey,
-  enabled: boolean
+  enabled: boolean,
+  computerId?: ComputerId
 ): Readonly<Record<string, TerminalRecordingState>> {
   const queryClient = useQueryClient();
   const workspaceId = scope.workspaceId;
   const profileKey = scope.profileKey;
+  const keys = terminalKeys.forComputer(computerId);
   const canRead = enabled && workspaceId !== "";
   function subscribe(onStoreChange: () => void) {
-    const queryKey = terminalKeys.recordings({ workspaceId, profileKey });
+    const queryKey = keys.recordings({ workspaceId, profileKey });
     const hash = hashKey(queryKey);
     return queryClient.getQueryCache().subscribe(event => {
       if (event.query.queryHash === hash) onStoreChange();
@@ -46,7 +49,7 @@ export function useTerminalRecordings(
     if (!canRead) return EMPTY_RECORDINGS;
     return (
       queryClient.getQueryData<TerminalRecordingMap>(
-        terminalKeys.recordings({ workspaceId, profileKey })
+        keys.recordings({ workspaceId, profileKey })
       ) ?? EMPTY_RECORDINGS
     );
   }

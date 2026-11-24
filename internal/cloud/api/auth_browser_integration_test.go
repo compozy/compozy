@@ -105,8 +105,9 @@ func TestCloudBrowserSignIn(t *testing.T) {
 		form, verifier, jkt := browserAuthorization(t, "testbox-a1b2.compozy.run")
 		callback := browserOAuth(t, f, form, "browser@example.test")
 		code := redirectQuery(t, callback).Get("code")
+		sessionReq := remoteproto.BrowserSessionRequest{Code: code, CodeVerifier: verifier}
 		input := remoteproto.BrowserTokenRequest{
-			BrowserSessionRequest: {Code: code, CodeVerifier: verifier},
+			BrowserSessionRequest: sessionReq,
 			JKT:                   jkt,
 		}
 		assertAuthRow(t, f, "SELECT count(*) FROM device_keys WHERE state = 'pending'", 1)

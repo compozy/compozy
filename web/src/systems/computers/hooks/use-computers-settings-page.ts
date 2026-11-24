@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "@compozy/ui";
 
+import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import {
   accountKeys,
   accountStatusOptions,
@@ -42,7 +43,7 @@ import type {
   RemoteScope,
 } from "../mocks/remote-computers-types";
 import type { ComputerSetupStatusPayload } from "../types";
-import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+import { useComputerProviders, type UseComputerProvidersOptions } from "./use-computer-providers";
 import { useComputers } from "./use-computers";
 import { useLiveAddComputer } from "./use-live-add-computer";
 import { useLocalComputerSettings } from "./use-local-computer-settings";
@@ -72,7 +73,7 @@ const FALLBACK_ACCOUNT: AccountStateFixture = {
   hostedRouteGraceDaysLeft: null,
 };
 
-export function useComputersSettingsPage() {
+export function useComputersSettingsPage(options: UseComputerProvidersOptions = {}) {
   const queryClient = useQueryClient();
   const sharedUpgradeSheet = useOptionalUpgradeSheetActions();
   const localUpgradeSheet = useUpgradeSheet();
@@ -168,9 +169,17 @@ export function useComputersSettingsPage() {
     return items;
   }, [availableQuery.data?.computers]);
 
-  const selectedComputer = useMemo(
+  const selectedComputerBase = useMemo(
     () => computers.find(item => item.id === selectedComputerId) ?? null,
     [computers, selectedComputerId]
+  );
+  const selectedProviders = useComputerProviders(selectedComputerBase, options);
+  const selectedComputer = useMemo<ComputerFixture | null>(
+    () =>
+      selectedComputerBase
+        ? { ...selectedComputerBase, providers: selectedProviders.providers }
+        : null,
+    [selectedComputerBase, selectedProviders.providers]
   );
 
   const openDetails = useCallback(
@@ -415,6 +424,7 @@ export function useComputersSettingsPage() {
     },
     addComputer,
     selectedComputer,
+    selectedProviders,
     detailsTab,
     openDetails,
     closeDetails: () => setSelectedComputerId(null),

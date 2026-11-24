@@ -99,7 +99,8 @@ export class TerminalProtocolClient {
           this.options.terminalId,
           { view: "screen" },
           this.options.scope,
-          this.abort.signal
+          this.abort.signal,
+          this.options.computerId
         ),
       commit: seqEnd => this.replay.commit(seqEnd),
       currentEpoch: () => this.connectionEpoch,
@@ -204,6 +205,7 @@ export class TerminalProtocolClient {
       socket = await openTerminalStream({
         workspaceId: this.options.workspaceId,
         terminalId: this.options.terminalId,
+        computerId: this.options.computerId,
         scope: this.options.scope,
         mode: this.options.mode,
         viewer: this.options.viewer,
@@ -251,7 +253,7 @@ export class TerminalProtocolClient {
     };
     socket.onmessage = event => this.handleMessage(event);
     socket.onerror = () => this.setStatus("reconnecting");
-    socket.onclose = () => {
+    socket.onclose = event => {
       if (this.stopped || this.socket !== socket) return;
       this.clearAttachDeadline();
       this.socket = null;
@@ -261,6 +263,28 @@ export class TerminalProtocolClient {
       this.setInputEnabled(false);
       // A detached client asked to be closed.
       if (this.sender.detachSent) return;
+      if (event.code === 4402) {
+        this.ended = true;
+        this.options.handlers?.onStreamError?.({
+          error: {
+            code: "remote_entitlement_unavailable",
+            message: event.reason || "Remote access paused: your Pro plan is inactive.",
+          },
+        });
+        this.setStatus("closed");
+        return;
+      }
+      if (event.code === 4403) {
+        this.ended = true;
+        this.options.handlers?.onStreamError?.({
+          error: {
+            code: "remote_scope_denied",
+            message: event.reason || "Permission denied on this computer.",
+          },
+        });
+        this.setStatus("closed");
+        return;
+      }
       if (this.ended) {
         this.setStatus("closed");
         return;

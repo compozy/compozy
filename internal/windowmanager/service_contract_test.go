@@ -1446,6 +1446,59 @@ func TestWindowBindingValidation(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should allow remote computer workspace binding without local workspace registration", func(t *testing.T) {
+		t.Parallel()
+		env := newTestEnvironment(t, DefaultConfig(), GlobalDesktopWorkspaceID, "workspace-a")
+		request := CommandRequest{
+			WorkspaceID: GlobalDesktopWorkspaceID,
+			Payload: OpenWindowCommand{
+				Window: WindowSpec{
+					ID:        "remote-bound",
+					App:       "session",
+					DesktopID: "desktop-default",
+					Route: RouteIntent{
+						Pathname: "/agents/claude/sessions/sess-remote",
+						Search: RouteSearch{
+							"computer":  json.RawMessage(`"cmp_remote1"`),
+							"workspace": json.RawMessage(`"ws-remote-only"`),
+						},
+					},
+				},
+			},
+		}
+		if _, err := env.manager.Preview(t.Context(), request); err != nil {
+			t.Fatalf("Preview(remote binding) error = %v", err)
+		}
+		if _, err := env.manager.Execute(t.Context(), request); err != nil {
+			t.Fatalf("Execute(remote binding) error = %v", err)
+		}
+	})
+	t.Run("Should reject non-string computer search parameter in global command binding", func(t *testing.T) {
+		t.Parallel()
+		env := newTestEnvironment(t, DefaultConfig(), GlobalDesktopWorkspaceID, "workspace-a")
+		request := CommandRequest{
+			WorkspaceID: GlobalDesktopWorkspaceID,
+			Payload: OpenWindowCommand{
+				Window: WindowSpec{
+					ID:        "bad-computer",
+					App:       "session",
+					DesktopID: "desktop-default",
+					Route: RouteIntent{
+						Pathname: "/sessions",
+						Search: RouteSearch{
+							"computer":  json.RawMessage(`42`),
+							"workspace": json.RawMessage(`"ws-remote-only"`),
+						},
+					},
+				},
+			},
+		}
+		_, previewErr := env.manager.Preview(t.Context(), request)
+		_, executeErr := env.manager.Execute(t.Context(), request)
+		if !errors.Is(previewErr, ErrWindowBindingInvalid) || !errors.Is(executeErr, ErrWindowBindingInvalid) {
+			t.Fatalf("preview=%v execute=%v, want %v", previewErr, executeErr, ErrWindowBindingInvalid)
+		}
+	})
 }
 
 func TestWindowBindingLifecycleValidation(t *testing.T) {

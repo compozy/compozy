@@ -1,3 +1,4 @@
+import { use } from "react";
 import { Plus } from "@compozy/ui/icons";
 
 import { Button } from "@compozy/ui";
@@ -16,6 +17,7 @@ import {
   RenameComputerDialog,
   useComputersSettingsPage,
 } from "@/systems/computers";
+import { OsShellContext } from "@/systems/os";
 import { SettingsPageFrame, SettingsPageState, useSettingsTopbar } from "@/systems/settings";
 
 /**
@@ -29,7 +31,10 @@ import { SettingsPageFrame, SettingsPageState, useSettingsTopbar } from "@/syste
  * - Right-docked Computer details panel
  */
 export function ComputersSettingsPage() {
-  const view = useComputersSettingsPage();
+  const shell = use(OsShellContext);
+  const view = useComputersSettingsPage({
+    openTerminalWindow: spec => shell?.coordinator.userOpen(spec),
+  });
 
   useSettingsTopbar({
     actions: (
@@ -190,6 +195,10 @@ export function ComputersSettingsPage() {
             }
           }}
           onRetryConnection={view.handleRetryConnection}
+          onRetryProviders={view.selectedProviders.refetch}
+          onSignInProvider={(provider, command) => {
+            void view.selectedProviders.signInProvider(provider, command);
+          }}
           onStartUpdate={() => {
             if (view.selectedComputer) {
               void view.handleStartUpdate(view.selectedComputer);
@@ -202,7 +211,10 @@ export function ComputersSettingsPage() {
           }}
           open
           placement="pane"
+          providersError={view.selectedProviders.error}
+          providersLoading={view.selectedProviders.isLoading}
           showRouteReorder={false}
+          signingInProviderId={view.selectedProviders.signingInProviderId}
         />
       ) : null}
 
