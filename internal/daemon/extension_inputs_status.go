@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -48,8 +49,21 @@ func (s *daemonExtensionService) populateExtensionInputStatus(
 	payload.Inputs = extensionpkg.DescribeInputState(ext.Manifest, state, s.getenv)
 	if ext.Manifest != nil && len(ext.Manifest.Inputs) > 0 {
 		readiness := extensionpkg.InputReadiness(ext.Manifest, state, s.getenv)
-		payload.MissingInputs = readiness.MissingInputs
+		payload.MissingInputs = statusMissingInputs(ext.Manifest, readiness)
 		payload.MissingEnv = readiness.MissingEnv
 	}
 	return nil
+}
+
+// statusMissingInputs adds required subprocess inputs that readiness tracks by env name, so status
+// reports them by id like RequiredError does; MCP-only env inputs keep their missing_env shape.
+func statusMissingInputs(manifest *extensionpkg.Manifest, readiness extensionpkg.Readiness) []string {
+	missing := slices.Clone(readiness.MissingInputs)
+	for _, input := range manifest.SubprocessInputs() {
+		if input.Required && slices.Contains(readiness.MissingEnv, input.Binding.Name) {
+			missing = append(missing, input.ID)
+		}
+	}
+	slices.Sort(missing)
+	return slices.Compact(missing)
 }

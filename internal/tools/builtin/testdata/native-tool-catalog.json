@@ -1114,9 +1114,9 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "3fcd0eddd7d9f40a5d1ae87e302275d98b4dbe91081318a866eef5d61d1f9f2c",
-    "output_schema_digest": "7efbc9ce035f3297b95e02432c4e1e9e9d4394c4cef35535f70857821e648fea",
+    "output_schema_digest": "1c286aa4bb30b97d67f65cda9fe48993e8d8294943fbc3bab3fd19f77b529b9a",
     "result_contract": "compact_full",
-    "compact_output_schema_digest": "7efbc9ce035f3297b95e02432c4e1e9e9d4394c4cef35535f70857821e648fea",
+    "compact_output_schema_digest": "1c286aa4bb30b97d67f65cda9fe48993e8d8294943fbc3bab3fd19f77b529b9a",
     "full_output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -1160,9 +1160,9 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "8f09ee5990384a9972bdf83364733955999f9362f81a276a9b2a73e4bf2a2cdd",
-    "output_schema_digest": "7efbc9ce035f3297b95e02432c4e1e9e9d4394c4cef35535f70857821e648fea",
+    "output_schema_digest": "1c286aa4bb30b97d67f65cda9fe48993e8d8294943fbc3bab3fd19f77b529b9a",
     "result_contract": "compact_full",
-    "compact_output_schema_digest": "7efbc9ce035f3297b95e02432c4e1e9e9d4394c4cef35535f70857821e648fea",
+    "compact_output_schema_digest": "1c286aa4bb30b97d67f65cda9fe48993e8d8294943fbc3bab3fd19f77b529b9a",
     "full_output_schema_digest": "848e75972db001f3a0819fa4e7a1180cbd33086a71811dc01d4581d82d4aa9c3"
   },
   {
@@ -1191,9 +1191,9 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "8de13ed15ecd1619419e63d6135f14f3058fa88e5db59ab9514054b392fe778b",
-    "output_schema_digest": "7efbc9ce035f3297b95e02432c4e1e9e9d4394c4cef35535f70857821e648fea",
+    "output_schema_digest": "1c286aa4bb30b97d67f65cda9fe48993e8d8294943fbc3bab3fd19f77b529b9a",
     "result_contract": "compact_full",
-    "compact_output_schema_digest": "7efbc9ce035f3297b95e02432c4e1e9e9d4394c4cef35535f70857821e648fea",
+    "compact_output_schema_digest": "1c286aa4bb30b97d67f65cda9fe48993e8d8294943fbc3bab3fd19f77b529b9a",
     "full_output_schema_digest": "848e75972db001f3a0819fa4e7a1180cbd33086a71811dc01d4581d82d4aa9c3"
   },
   {
@@ -1222,9 +1222,9 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "d6a53008090bbdb2098b91058c2803dcdc6b18f69550a30886a63951b57bc852",
-    "output_schema_digest": "9c75490c598f760c629e71c2ccac3df6ef41cc5b7ba7b8d233ad586602535ac4",
+    "output_schema_digest": "98933fdcee52cc13f44325eff05041d939e4e4f2bf3d7ab4320ec904c361186b",
     "result_contract": "compact_full",
-    "compact_output_schema_digest": "9c75490c598f760c629e71c2ccac3df6ef41cc5b7ba7b8d233ad586602535ac4",
+    "compact_output_schema_digest": "98933fdcee52cc13f44325eff05041d939e4e4f2bf3d7ab4320ec904c361186b",
     "full_output_schema_digest": "bfea139cfd4f91161bf7502231caf6e216e0f6ed8689bbff0303f031559d167d"
   },
   {
@@ -1283,9 +1283,9 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "24b1bac5ee5d9a858b8943a65e8d35e556b4a8253c06279a9c8dfd51be99e529",
-    "output_schema_digest": "7efbc9ce035f3297b95e02432c4e1e9e9d4394c4cef35535f70857821e648fea",
+    "output_schema_digest": "1c286aa4bb30b97d67f65cda9fe48993e8d8294943fbc3bab3fd19f77b529b9a",
     "result_contract": "compact_full",
-    "compact_output_schema_digest": "7efbc9ce035f3297b95e02432c4e1e9e9d4394c4cef35535f70857821e648fea",
+    "compact_output_schema_digest": "1c286aa4bb30b97d67f65cda9fe48993e8d8294943fbc3bab3fd19f77b529b9a",
     "full_output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -1347,6 +1347,21 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "result_contract": "single",
     "single_result_reason": "caller_bounded"
+  },
+  {
+    "tool_id": "compozy__extensions_setup",
+    "native_name": "extensions_setup",
+    "toolsets": [
+      "compozy__extensions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "69061a6e2dc0267d89841e2b9d49ad261934cdcee7a10c926e05e0c8d65e021e",
+    "output_schema_digest": "98b31e6c49a5638d549014ec4a4d88e685645ed697e7d47261d0c839fc87d506",
+    "result_contract": "single",
+    "single_result_reason": "content"
   },
   {
     "tool_id": "compozy__extensions_update",

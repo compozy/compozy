@@ -9,6 +9,29 @@ import (
 	"strings"
 )
 
+// SubmitTaskRunReviewVerdict Submit one task-run review verdict
+func (c *Client) SubmitTaskRunReviewVerdict(ctx context.Context, params SubmitTaskRunReviewVerdictParams, body SubmitTaskRunReviewVerdictRequest) (*TaskRunReviewVerdictResponse, error) {
+	path := "/api/task-reviews/{id}/verdict"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunReviewVerdictResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// TerminateProcessesParams carries the path, query, and header parameters.
+type TerminateProcessesParams struct {
+	Profile *string `url:"profile"`
+}
+
 // TerminateProcesses Terminate identity-verified processes with missing or retained session owners
 func (c *Client) TerminateProcesses(ctx context.Context, params TerminateProcessesParams, body TerminateProcessesRequest) (*TerminateSessionProcessesResponse, error) {
 	path := "/api/processes/terminate"
@@ -419,30 +442,6 @@ func (c *Client) UpdateAutomationTrigger(ctx context.Context, params UpdateAutom
 	}
 	var out TriggerResponse
 	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateExtensionParams carries the path, query, and header parameters.
-type UpdateExtensionParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateExtension Update one marketplace-installed extension
-func (c *Client) UpdateExtension(ctx context.Context, params UpdateExtensionParams, body UpdateExtensionRequest) (*ExtensionUpdateResponse, error) {
-	path := "/api/extensions/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionUpdateResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

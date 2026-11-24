@@ -3301,6 +3301,14 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addMCPReloadErrorFields(baseline) == 0 {
 			t.Fatal("approved MCP reload error fields: no historical error schemas found")
 		}
+		// #1845: extension operation errors name refused input ids and the invalid ones among them.
+		if addExtensionInputErrorFields(baseline) == 0 {
+			t.Fatal("approved extension input error fields: no historical extension error schemas found")
+		}
+		// #1845: extension input status items gain the optional setup state classification.
+		if addExtensionInputStateField(baseline) == 0 {
+			t.Fatal("approved extension input state field: no historical extension input schemas found")
+		}
 		addNativeReadPagingSchemas(t, baseline)
 		addManualJobWaitParameters(t, baseline)
 		if addNativeResultViewSchemas(baseline) == 0 {
@@ -3323,6 +3331,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addProviderUsageSettingsSection(t, baseline)
 		addAlwaysOnHardeningSchemas(t, baseline)
 		addPermanentExtensionRemoveParameter(t, baseline)
+		// #1845: extension error unions overlap because every alternative carries `error`.
+		relaxOverlappingExtensionErrorUnions(t, baseline)
 		// #1195: instance payloads label their owner profile.
 		if addAgentInstanceProfileName(baseline) == 0 {
 			t.Fatal("approved instance profile_name addition: no historical instance schemas found")
@@ -7118,6 +7128,30 @@ func addPermanentExtensionRemoveParameter(t *testing.T, baseline map[string]any)
 	}))
 }
 
+// relaxOverlappingExtensionErrorUnions turns the historical install and update (single and batch) error unions from
+// oneOf into anyOf. ErrorPayload is open and requires only `error`, so an extension operation or
+// validation error also matches it, and oneOf would reject every documented body.
+func relaxOverlappingExtensionErrorUnions(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	for _, response := range []struct{ path, method, status string }{
+		{"/api/extensions", "post", "409"},
+		{"/api/extensions", "post", "422"},
+		{"/api/extensions/{name}", "put", "422"},
+		{"/api/extensions/update", "post", "422"},
+	} {
+		operation := paths[response.path].(map[string]any)[response.method].(map[string]any)
+		status := operation["responses"].(map[string]any)[response.status].(map[string]any)
+		schema := status["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+		alternatives, ok := schema["oneOf"]
+		if !ok {
+			t.Fatalf("historical %s %s %s has no oneOf error union", response.method, response.path, response.status)
+		}
+		delete(schema, "oneOf")
+		schema["anyOf"] = alternatives
+	}
+}
+
 func addManualJobWaitParameters(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	paths := baseline["paths"].(map[string]any)
@@ -7177,6 +7211,52 @@ func addWindowManagerTabHookSchemas(t *testing.T, baseline map[string]any) {
 	if changes != 5 {
 		t.Fatalf("approved window-manager tab hooks: updated %d historical enums, want 5", changes)
 	}
+}
+
+// Extension operation errors gain the optional input_ids and invalid string lists.
+func addExtensionInputErrorFields(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addExtensionInputErrorFields(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addExtensionInputErrorFields(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["listed_digest"] != nil && properties["declared_env"] != nil &&
+			properties["input_id"] != nil {
+			stringList := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+			properties["input_ids"] = stringList
+			properties["invalid"] = maps.Clone(stringList)
+			count++
+		}
+	}
+	return count
+}
+
+// Extension input status items gain the optional state string next to set and active.
+func addExtensionInputStateField(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addExtensionInputStateField(child)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addExtensionInputStateField(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && len(properties) == 4 && properties["id"] != nil && properties["type"] != nil &&
+			properties["set"] != nil && properties["active"] != nil {
+			properties["state"] = map[string]any{"type": "string"}
+			count++
+		}
+	}
+	return count
 }
 
 // MCP reload failures return retry information before prompt acceptance.

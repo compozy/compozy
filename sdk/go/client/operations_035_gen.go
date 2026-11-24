@@ -33,6 +33,38 @@ func (c *Client) SetExtensionEnablement(ctx context.Context, params SetExtension
 	return &out, nil
 }
 
+// SetExtensionInputsParams carries the path, query, and header parameters.
+type SetExtensionInputsParams struct {
+	Name      string  `url:"name"`
+	Scope     *string `url:"scope"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// SetExtensionInputs Write extension input values for one installed instance
+func (c *Client) SetExtensionInputs(ctx context.Context, params SetExtensionInputsParams, body SetExtensionInputsRequest) (*ExtensionInputsPayload, error) {
+	path := "/api/extensions/{name}/inputs"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionInputsPayload
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // SetExtensionSecretsParams carries the path, query, and header parameters.
 type SetExtensionSecretsParams struct {
 	Name      string  `url:"name"`
@@ -414,28 +446,4 @@ func (c *Client) StopSession(ctx context.Context, params StopSessionParams, body
 // StopSessionHistoryCleanupParams carries the path, query, and header parameters.
 type StopSessionHistoryCleanupParams struct {
 	Profile *string `url:"profile"`
-}
-
-// StopSessionHistoryCleanup Stop the selected profile's running cleanup; sessions already deleted stay deleted
-func (c *Client) StopSessionHistoryCleanup(ctx context.Context, params StopSessionHistoryCleanupParams) (*SessionHistoryCleanupRunResponse, error) {
-	path := "/api/sessions/history-cleanup/stop"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionHistoryCleanupRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamCmdPaletteParams carries the path, query, and header parameters.
-type StreamCmdPaletteParams struct {
-	Workspace   string  `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

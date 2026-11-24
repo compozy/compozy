@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type Ownership struct {
+	Kind OwnerKind `json:"kind"`
+	Ref  string    `json:"ref"`
+}
+
+type Pagination struct {
+	HasMore  bool `json:"has_more"`
+	PageSize int  `json:"page_size,omitempty"`
+}
+
 type PatchOp struct {
 	Op    string          `json:"op"`
 	Path  string          `json:"path"`
@@ -225,37 +235,4 @@ type PromptPatch struct {
 	DenyReason    string         `json:"deny_reason,omitempty"`
 	Prompt        *string        `json:"prompt,omitempty"`
 	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type PromptPayload struct {
-	Event           HookEvent      `json:"event"`
-	Timestamp       time.Time      `json:"timestamp"`
-	LineageKind     string         `json:"lineage_kind,omitempty"`
-	ParentSessionID string         `json:"parent_session_id,omitempty"`
-	ProfileID       string         `json:"profile_id,omitempty"`
-	SessionID       string         `json:"session_id,omitempty"`
-	SessionName     string         `json:"session_name,omitempty"`
-	SessionType     string         `json:"session_type,omitempty"`
-	AgentName       string         `json:"agent_name,omitempty"`
-	WorkspaceID     string         `json:"workspace_id,omitempty"`
-	Workspace       string         `json:"workspace,omitempty"`
-	WorktreeID      string         `json:"worktree_id,omitempty"`
-	ACPSessionID    string         `json:"acp_session_id,omitempty"`
-	State           string         `json:"state,omitempty"`
-	SoulSnapshotID  string         `json:"soul_snapshot_id,omitempty"`
-	SoulDigest      string         `json:"soul_digest,omitempty"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
-	TurnID          string         `json:"turn_id,omitempty"`
-	InputClass      string         `json:"input_class,omitempty"`
-	Prompt          string         `json:"prompt,omitempty"`
-	ContextBlocks   []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type PromptRuntimeSelectionPayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
 }

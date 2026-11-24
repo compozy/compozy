@@ -5,8 +5,74 @@ package client
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+// GetSessionUsageTurns Get per-turn session usage and native compaction markers
+func (c *Client) GetSessionUsageTurns(ctx context.Context, params GetSessionUsageTurnsParams) (*SessionUsageTurnsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionUsageTurnsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsAttentionParams carries the path, query, and header parameters.
+type GetSettingsAttentionParams struct {
+	Scope   *string `url:"scope"`
+	Profile *string `url:"profile"`
+}
+
+// GetSettingsAttention Read the operator attention settings section
+func (c *Client) GetSettingsAttention(ctx context.Context, params GetSettingsAttentionParams) (*SettingsAttentionResponse, error) {
+	path := "/api/settings/attention"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsAttentionResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsAutomation Read the automation settings section
+func (c *Client) GetSettingsAutomation(ctx context.Context) (*SettingsAutomationResponse, error) {
+	path := "/api/settings/automation"
+	var out SettingsAutomationResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsCmdPaletteParams carries the path, query, and header parameters.
+type GetSettingsCmdPaletteParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
 
 // GetSettingsCmdPalette Read command-palette settings
 func (c *Client) GetSettingsCmdPalette(ctx context.Context, params GetSettingsCmdPaletteParams) (*SettingsCmdPaletteResponse, error) {
@@ -381,61 +447,4 @@ type GetSkillShadowsParams struct {
 	Workspace *string `url:"workspace"`
 	Profile   *string `url:"profile"`
 	ForAgent  *string `url:"for_agent"`
-}
-
-// GetSkillShadows Get resolver provenance and shadow declarations for one skill
-func (c *Client) GetSkillShadows(ctx context.Context, params GetSkillShadowsParams) (*SkillShadowsResponse, error) {
-	path := "/api/skills/{name}/shadows"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillShadowsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetStatus Get the runtime status snapshot
-func (c *Client) GetStatus(ctx context.Context) (*StatusPayload, error) {
-	path := "/api/status"
-	var out StatusPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSubagentParams carries the path, query, and header parameters.
-type GetSubagentParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SubagentID  string `url:"subagent_id"`
-}
-
-// GetSubagent Read one subagent
-func (c *Client) GetSubagent(ctx context.Context, params GetSubagentParams) (*SubagentPayload, error) {
-	path := "/api/workspaces/{workspace_id}/subagents/{subagent_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{subagent_id}", url.PathEscape(params.SubagentID))
-	var out SubagentPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSupportBundleParams carries the path, query, and header parameters.
-type GetSupportBundleParams struct {
-	OperationID string `url:"operation_id"`
 }

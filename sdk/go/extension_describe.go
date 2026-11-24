@@ -5,6 +5,7 @@ import (
 	"io"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/sdk/go/contracts"
@@ -57,8 +58,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 		permissions = append(permissions, string(method))
 	}
 
-	minCompozyVersion := e.describeMinCompozyVersion()
-
+	inputs := normalizeDescribeInputs(e.definition.Inputs)
 	return contracts.DescribePayload{
 		Name:        strings.TrimSpace(e.definition.Name),
 		Version:     strings.TrimSpace(e.definition.Version),
@@ -66,6 +66,7 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 		Provides:    requiredStringList(e.definition.Capabilities.Provides),
 		Permissions: requiredStringList(permissions),
 		RequiresEnv: normalizeStrings(e.definition.RequiresEnv),
+		Inputs:      inputs,
 		Profiles:    normalizeDescribeProfiles(e.definition.Profiles),
 		Resources: contracts.DescribeResources{
 			Skills:     normalizeDescribeResourcePaths(e.definition.Resources.Skills),
@@ -91,9 +92,66 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			Name:              SDKName,
 			Version:           e.sdkVersion,
 			ProtocolVersion:   ProtocolVersion,
-			MinCompozyVersion: minCompozyVersion,
+			MinCompozyVersion: describeInputsFloor(e.describeMinCompozyVersion(), inputs),
 		},
 	}, nil
+}
+
+// describeInputsFloor raises floor to InputsMinCompozyVersion when inputs are emitted, since released
+// daemons reject them; a higher declared floor wins.
+func describeInputsFloor(floor string, inputs []Input) string {
+	if len(inputs) > 0 && versionCoreLess(floor, InputsMinCompozyVersion) {
+		return InputsMinCompozyVersion
+	}
+	return floor
+}
+
+// versionCoreLess orders two versions by their numeric major.minor.patch cores; under SemVer a
+// prerelease of the same core precedes the release, and build metadata never affects the order.
+func versionCoreLess(left, right string) bool {
+	l, r := versionCore(left), versionCore(right)
+	for i := range l {
+		if l[i] != r[i] {
+			return l[i] < r[i]
+		}
+	}
+	return versionPrerelease(left) && !versionPrerelease(right)
+}
+
+// versionBase strips the v prefix and build metadata, keeping the core and any prerelease tag.
+func versionBase(version string) string {
+	base, _, _ := strings.Cut(strings.TrimPrefix(strings.TrimSpace(version), "v"), "+")
+	return base
+}
+
+func versionPrerelease(version string) bool {
+	return strings.Contains(versionBase(version), "-")
+}
+
+func versionCore(version string) [3]int {
+	var core [3]int
+	base, _, _ := strings.Cut(versionBase(version), "-")
+	for i, part := range strings.SplitN(base, ".", 3) {
+		if n, err := strconv.Atoi(part); err == nil {
+			core[i] = n
+		}
+	}
+	return core
+}
+
+func normalizeDescribeInputs(inputs []Input) []Input {
+	if len(inputs) == 0 {
+		return nil
+	}
+	normalized := make([]Input, 0, len(inputs))
+	for _, input := range inputs {
+		normalized = append(normalized, Input{
+			ID: strings.TrimSpace(input.ID), Prompt: strings.TrimSpace(input.Prompt), Type: input.Type,
+			Required: input.Required, Default: cloneRawMessage(input.Default),
+			Binding: InputBinding{Type: input.Binding.Type, Name: strings.TrimSpace(input.Binding.Name)},
+		})
+	}
+	return normalized
 }
 
 func cmdPaletteViewIDs(config contracts.CmdPaletteConfig) []string {

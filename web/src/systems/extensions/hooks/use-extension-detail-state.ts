@@ -13,7 +13,7 @@ import {
 import { useExtensionLogs, type ExtensionLogEventSource } from "./use-extension-logs";
 import { useExtensionDetail, useExtensionKitInventory } from "./use-extensions";
 
-export type ExtensionDetailDialog = "provenance" | "remove" | "update" | null;
+export type ExtensionDetailDialog = "provenance" | "remove" | "setup" | "update" | null;
 
 /**
  * A refused lifecycle mutation is resumed, not rebuilt: the pending record carries the exact
@@ -109,6 +109,7 @@ export function useExtensionDetailState(
     gatewayConfirm,
     requestProvenance: () => setDialogState({ type: "dialog", dialog: "provenance" }),
     requestRemoval: () => setDialogState({ type: "dialog", dialog: "remove" }),
+    requestSetup: () => setDialogState({ type: "dialog", dialog: "setup" }),
     requestToggle: async (enabled: boolean) => {
       if (!extension) return;
       await runToggle({

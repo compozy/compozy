@@ -16,6 +16,20 @@ type DescribeHookEvent struct {
 	Profile string    `json:"profile,omitempty"`
 }
 
+type DescribeInput struct {
+	ID       string               `json:"id"`
+	Prompt   string               `json:"prompt"`
+	Type     string               `json:"type"`
+	Required bool                 `json:"required"`
+	Binding  DescribeInputBinding `json:"binding"`
+	Default  json.RawMessage      `json:"default,omitempty"`
+}
+
+type DescribeInputBinding struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
 type DescribePayload struct {
 	Name                 string                           `json:"name"`
 	Version              string                           `json:"version"`
@@ -23,6 +37,7 @@ type DescribePayload struct {
 	Provides             []string                         `json:"provides"`
 	Permissions          []string                         `json:"permissions"`
 	RequiresEnv          []string                         `json:"requires_env,omitempty"`
+	Inputs               []DescribeInput                  `json:"inputs,omitempty"`
 	Profiles             []DescribeProfile                `json:"profiles,omitempty"`
 	Resources            DescribeResources                `json:"resources"`
 	Subprocess           DescribeSubprocess               `json:"subprocess"`
@@ -168,34 +183,5 @@ type EventPostRecordPayload struct {
 }
 
 type EventPreRecordPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type EventPreRecordPayload struct {
-	Event           HookEvent       `json:"event"`
-	Timestamp       time.Time       `json:"timestamp"`
-	LineageKind     string          `json:"lineage_kind,omitempty"`
-	ParentSessionID string          `json:"parent_session_id,omitempty"`
-	ProfileID       string          `json:"profile_id,omitempty"`
-	SessionID       string          `json:"session_id,omitempty"`
-	SessionName     string          `json:"session_name,omitempty"`
-	SessionType     string          `json:"session_type,omitempty"`
-	AgentName       string          `json:"agent_name,omitempty"`
-	WorkspaceID     string          `json:"workspace_id,omitempty"`
-	Workspace       string          `json:"workspace,omitempty"`
-	WorktreeID      string          `json:"worktree_id,omitempty"`
-	ACPSessionID    string          `json:"acp_session_id,omitempty"`
-	State           string          `json:"state,omitempty"`
-	SoulSnapshotID  string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest      string          `json:"soul_digest,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
-	TurnID          string          `json:"turn_id,omitempty"`
-	RecordType      string          `json:"record_type,omitempty"`
-	Sequence        int64           `json:"sequence,omitempty"`
-	Content         json.RawMessage `json:"content,omitempty"`
-}
-
-type EventRecordPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }

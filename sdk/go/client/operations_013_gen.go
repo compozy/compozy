@@ -4,10 +4,69 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+func (f *GetProfileSelectionsFrame) setResponseStatus(status int) {
+	f.StatusCode = status
+}
+
+// AsVariant1 decodes this payload as Variant1.
+func (f GetProfileSelectionsFrame) AsVariant1() (*[]ProfileSelection, error) {
+	var out []ProfileSelection
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsProfileSelection decodes this payload as ProfileSelection.
+func (f GetProfileSelectionsFrame) AsProfileSelection() (*ProfileSelection, error) {
+	var out ProfileSelection
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetProfileSelections Read profile selections
+func (c *Client) GetProfileSelections(ctx context.Context, params GetProfileSelectionsParams) (*GetProfileSelectionsFrame, error) {
+	path := "/api/profiles/selection"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out GetProfileSelectionsFrame
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetProviderParams carries the path, query, and header parameters.
+type GetProviderParams struct {
+	ProviderID string `url:"provider_id"`
+}
+
+// GetProvider Get one provider and declared auth status
+func (c *Client) GetProvider(ctx context.Context, params GetProviderParams) (*ProviderSummaryPayload, error) {
+	path := "/api/providers/{provider_id}"
+	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
+	var out ProviderSummaryPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // GetProviderModelStatus List provider model catalog source status across providers
 func (c *Client) GetProviderModelStatus(ctx context.Context) (*ProviderModelStatusResponse, error) {
@@ -375,66 +434,6 @@ func (c *Client) GetSessionChanges(ctx context.Context, params GetSessionChanges
 
 // GetSessionCommandsParams carries the path, query, and header parameters.
 type GetSessionCommandsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionCommands List commands available to a session
-func (c *Client) GetSessionCommands(ctx context.Context, params GetSessionCommandsParams) (*SessionCommandsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/commands"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionCommandsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionGoalParams carries the path, query, and header parameters.
-type GetSessionGoalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionGoal Get the newest visible session Goal
-func (c *Client) GetSessionGoal(ctx context.Context, params GetSessionGoalParams) (*SessionGoalResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/goal"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionGoalResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionHealthParams carries the path, query, and header parameters.
-type GetSessionHealthParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`

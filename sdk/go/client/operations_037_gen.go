@@ -11,6 +11,24 @@ import (
 	"strings"
 )
 
+// StreamProviderUsageParams carries the path, query, and header parameters.
+type StreamProviderUsageParams struct {
+	Profile *string `url:"profile"`
+}
+
+// StreamProviderUsage Stream provider usage invalidations (experimental) Experimental: pin the exact SDK version.
+func (c *Client) StreamProviderUsage(ctx context.Context, params StreamProviderUsageParams) (*Stream[ProviderUsageStreamEvent], error) {
+	path := "/api/provider-usage/stream"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[ProviderUsageStreamEvent](ctx, c, "GET", path, nil, nil, "streamProviderUsage")
+}
+
 // StreamSessionParams carries the path, query, and header parameters.
 type StreamSessionParams struct {
 	WorkspaceID   string  `url:"workspace_id"`
@@ -418,28 +436,5 @@ func (c *Client) StreamWorktreeCatalog(ctx context.Context) (*Stream[WorktreeCat
 // SubmitTaskRunReviewVerdictParams carries the path, query, and header parameters.
 type SubmitTaskRunReviewVerdictParams struct {
 	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// SubmitTaskRunReviewVerdict Submit one task-run review verdict
-func (c *Client) SubmitTaskRunReviewVerdict(ctx context.Context, params SubmitTaskRunReviewVerdictParams, body SubmitTaskRunReviewVerdictRequest) (*TaskRunReviewVerdictResponse, error) {
-	path := "/api/task-reviews/{id}/verdict"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunReviewVerdictResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// TerminateProcessesParams carries the path, query, and header parameters.
-type TerminateProcessesParams struct {
 	Profile *string `url:"profile"`
 }

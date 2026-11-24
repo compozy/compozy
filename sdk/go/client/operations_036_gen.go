@@ -11,6 +11,30 @@ import (
 	"strings"
 )
 
+// StopSessionHistoryCleanup Stop the selected profile's running cleanup; sessions already deleted stay deleted
+func (c *Client) StopSessionHistoryCleanup(ctx context.Context, params StopSessionHistoryCleanupParams) (*SessionHistoryCleanupRunResponse, error) {
+	path := "/api/sessions/history-cleanup/stop"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionHistoryCleanupRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StreamCmdPaletteParams carries the path, query, and header parameters.
+type StreamCmdPaletteParams struct {
+	Workspace   string  `url:"workspace"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // StreamCmdPalette Stream command palette catalog invalidations
 func (c *Client) StreamCmdPalette(ctx context.Context, params StreamCmdPaletteParams) (*Stream[CmdPaletteCatalogChangedEvent], error) {
 	path := "/api/cmd-palette/stream"
@@ -421,22 +445,4 @@ func (c *Client) StreamLoopRunEvents(ctx context.Context, params StreamLoopRunEv
 		path += "?" + query.Encode()
 	}
 	return newStream[StreamLoopRunEventsFrame](ctx, c, "GET", path, headers, nil, "streamLoopRunEvents")
-}
-
-// StreamProviderUsageParams carries the path, query, and header parameters.
-type StreamProviderUsageParams struct {
-	Profile *string `url:"profile"`
-}
-
-// StreamProviderUsage Stream provider usage invalidations (experimental) Experimental: pin the exact SDK version.
-func (c *Client) StreamProviderUsage(ctx context.Context, params StreamProviderUsageParams) (*Stream[ProviderUsageStreamEvent], error) {
-	path := "/api/provider-usage/stream"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[ProviderUsageStreamEvent](ctx, c, "GET", path, nil, nil, "streamProviderUsage")
 }

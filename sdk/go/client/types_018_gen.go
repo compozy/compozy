@@ -4,6 +4,45 @@ package client
 
 import "time"
 
+// RuntimeSpec is a daemon API value.
+type RuntimeSpec struct {
+	Provider   string      `json:"provider,omitempty"`
+	Model      string      `json:"model,omitempty"`
+	Reasoning  string      `json:"reasoning,omitempty"`
+	Speed      Speed       `json:"speed,omitempty"`
+	ACPOptions []Selection `json:"acp_options,omitempty"`
+}
+
+// RuntimemcpRuntimeMode is a daemon API value.
+type RuntimemcpRuntimeMode struct {
+	Mode       string `json:"mode"`
+	CanDisable bool   `json:"can_disable"`
+}
+
+// ScheduleMode is a daemon API value.
+type ScheduleMode string
+
+// ScheduleSpec is a daemon API value.
+type ScheduleSpec struct {
+	Mode                ScheduleMode           `json:"mode"`
+	Expr                string                 `json:"expr,omitempty"`
+	Interval            string                 `json:"interval,omitempty"`
+	Time                string                 `json:"time,omitempty"`
+	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
+	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
+}
+
+// SchedulerBacklogPayload is a daemon API value.
+type SchedulerBacklogPayload struct {
+	Runs  []SchedulerBacklogRunPayload `json:"runs"`
+	Total int                          `json:"total"`
+}
+
+// SchedulerBacklogResponse is a daemon API value.
+type SchedulerBacklogResponse struct {
+	Backlog SchedulerBacklogPayload `json:"backlog"`
+}
+
 // SchedulerBacklogRunPayload is a daemon API value.
 type SchedulerBacklogRunPayload struct {
 	Task TaskSummaryPayload `json:"task"`
@@ -409,41 +448,3 @@ type SessionChildrenPayload struct {
 	InReview int `json:"in_review"`
 	Done     int `json:"done"`
 }
-
-// SessionCommandPayload is a daemon API value.
-type SessionCommandPayload struct {
-	ID                string               `json:"id"`
-	CanonicalToken    string               `json:"canonical_token"`
-	DisplayName       string               `json:"display_name"`
-	Description       string               `json:"description"`
-	Lane              string               `json:"lane"`
-	Source            SessionCommandSource `json:"source"`
-	Placements        []string             `json:"placements"`
-	InputHint         string               `json:"input_hint,omitempty"`
-	Available         bool                 `json:"available"`
-	UnavailableReason string               `json:"unavailable_reason,omitempty"`
-}
-
-// SessionCommandSource is a daemon API value.
-type SessionCommandSource struct {
-	Kind   string `json:"kind"`
-	ID     string `json:"id,omitempty"`
-	Key    string `json:"key,omitempty"`
-	Scope  string `json:"scope"`
-	Origin string `json:"origin,omitempty"`
-}
-
-// SessionCommandsChangedPayload is a daemon API value.
-type SessionCommandsChangedPayload struct {
-	SessionID string `json:"session_id"`
-	Revision  string `json:"revision"`
-}
-
-// SessionCommandsResponse is a daemon API value.
-type SessionCommandsResponse struct {
-	Commands []SessionCommandPayload `json:"commands"`
-	Revision string                  `json:"revision"`
-}
-
-// SessionCompactRequest is a daemon API value.
-type SessionCompactRequest struct{}

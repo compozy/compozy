@@ -78,6 +78,9 @@ func (s *daemonExtensionService) Install(
 	} else {
 		err = s.lifecycle.withInstances(ctx, extensionMutationKeys([]string{prepared.name}, prepared.target), mutation)
 	}
+	if required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err); ok && required.Digest == "" {
+		required.Digest = prepared.digest
+	}
 	if err = s.finishPreparedInstall(prepared, err); err != nil {
 		return contract.ExtensionPayload{}, errors.Join(
 			err,

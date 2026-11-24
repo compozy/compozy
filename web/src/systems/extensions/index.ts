@@ -1,6 +1,8 @@
 export type {
   ExtensionEnablement,
   ExtensionEntry,
+  ExtensionInputsState,
+  ExtensionInputStatus,
   ExtensionInstallRequest,
   ExtensionInstallPreview,
   ExtensionInstanceScope,
@@ -21,11 +23,13 @@ export {
 } from "./hooks/use-extensions";
 export {
   useRemoveExtension,
+  useSetExtensionInputs,
   useToggleExtension,
   useUpdateExtension,
 } from "./hooks/use-extension-actions";
 export type {
   RemoveExtensionVariables,
+  SetExtensionInputsVariables,
   ToggleExtensionVariables,
   UpdateExtensionVariables,
 } from "./hooks/use-extension-actions";
@@ -83,7 +87,7 @@ export {
   extensionProfileKey,
   extensionWorkspaceKey,
 } from "./lib/query-keys";
-export { extensionsListOptions } from "./lib/query-options";
+export { extensionInputsOptions, extensionsListOptions } from "./lib/query-options";
 export {
   previewExtensionInstall,
   updateExtension,

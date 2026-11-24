@@ -8,6 +8,30 @@ import (
 	"strings"
 )
 
+// UpdateExtensionParams carries the path, query, and header parameters.
+type UpdateExtensionParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
+// UpdateExtension Update one marketplace-installed extension
+func (c *Client) UpdateExtension(ctx context.Context, params UpdateExtensionParams, body UpdateExtensionRequest) (*ExtensionUpdateResponse, error) {
+	path := "/api/extensions/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionUpdateResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UpdateExtensionsParams carries the path, query, and header parameters.
 type UpdateExtensionsParams struct {
 	Profile *string `url:"profile"`
@@ -419,30 +443,6 @@ func (c *Client) UploadSessionAttachment(ctx context.Context, params UploadSessi
 	}
 	var out SessionAttachmentUploadResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "multipart/form-data", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ValidateAgentDefinitionSoulParams carries the path, query, and header parameters.
-type ValidateAgentDefinitionSoulParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// ValidateAgentDefinitionSoul Validate a proposed Soul body for an agent definition
-func (c *Client) ValidateAgentDefinitionSoul(ctx context.Context, params ValidateAgentDefinitionSoulParams, body AgentSoulValidateByPathRequest) (*AgentSoulPayload, error) {
-	path := "/api/agents/{name}/soul/validate"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSoulPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

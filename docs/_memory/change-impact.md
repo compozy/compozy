@@ -1,5 +1,27 @@
 # Compozy Change Impact
 
+## Extension inputs for subprocesses, setup and dependencies (GH-1845)
+
+- **Native tools.** New `compozy__extensions_setup` (stable): read input state or write missing,
+  invalid or `daemon_env` inputs in the caller's trusted instance. `compozy__extensions_info` and
+  `compozy__extensions_list` compact results gain an optional per-input `state`.
+  `compozy__extensions_install`/`update` refusals list subprocess inputs.
+- **CLI/HTTP/UDS.** New `compozy extension setup` and `GET/PUT /api/extensions/{name}/inputs`
+  (stable). Install prompts for missing inputs on a human TTY; without a TTY it keeps the `--input`
+  guidance and exit code 2. Additive `state`, `input_ids` and `invalid` fields; new code
+  `extension_input_overwrite_denied`. Generated OpenAPI and both SDK clients.
+- **Extensibility, hooks and config.** `[[inputs]]` env bindings may target author-declared
+  `requires_env` (stable) with a `min_compozy_version` floor of 0.7.9; TS/Go SDK `inputs` (stable).
+  No hook or config key.
+- **State and isolation.** No schema change; subprocess values are instance env bindings in Vault.
+  Setup is bound to one extension/profile/workspace instance; agents cannot overwrite set inputs;
+  app tokens are denied.
+- **Web, official skill, docs and QA.** Installed Setup dialog and missing-inputs notice; Add renders
+  subprocess inputs. `extensions.md`, `extension-authoring.md`, `native-tools.md`, site install,
+  develop and CLI docs. ET-ext-secrets-binding, ET-web-marketplace-installed-management,
+  ET-web-extension-union-install, and new ET-extension-setup-inputs.
+- **Dependencies (experimental).** Delivered separately; this entry is updated when they land.
+
 ## Authored terminal status on Loop gates (GH-1944) — 2026-11-21
 
 - **DSL.** Gate `on_result` values keep the string action and `{route: node_id}` forms unchanged

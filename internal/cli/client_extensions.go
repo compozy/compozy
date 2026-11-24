@@ -113,7 +113,7 @@ func (c *daemonClient) RemovePermanentExtension(
 	ctx context.Context,
 	name string,
 ) (ManagedExtensionRemoveRecord, error) {
-	return c.deleteExtension(ctx, name, url.Values{extensionPermanentQueryKey: []string{"true"}})
+	return c.deleteExtension(ctx, name, url.Values{extensionPermanentQueryKey: []string{toolBoolTrue}})
 }
 
 // RestoreExtensionBuiltin restores one permanently removed built-in at its bundled version, enabled.

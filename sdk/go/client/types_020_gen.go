@@ -4,6 +4,43 @@ package client
 
 import "time"
 
+// SessionHistoryCleanupPreviewResponse is a daemon API value.
+type SessionHistoryCleanupPreviewResponse struct {
+	Plan SessionHistoryCleanupPlan `json:"plan"`
+}
+
+// SessionHistoryCleanupRequest is a daemon API value.
+type SessionHistoryCleanupRequest struct {
+	WorkspaceID    string                         `json:"workspace_id,omitempty"`
+	AllWorkspaces  bool                           `json:"all_workspaces,omitempty"`
+	Delete         SessionHistoryCleanupSelection `json:"delete"`
+	OlderThanDays  *int                           `json:"older_than_days,omitempty"`
+	ArchivedBefore *time.Time                     `json:"archived_before,omitempty"`
+	SessionIDs     []string                       `json:"session_ids,omitempty"`
+	CountedAt      *time.Time                     `json:"counted_at,omitempty"`
+	DryRun         bool                           `json:"dry_run,omitempty"`
+}
+
+// SessionHistoryCleanupRun is a daemon API value.
+type SessionHistoryCleanupRun struct {
+	ID             string                         `json:"id"`
+	ProfileID      string                         `json:"profile_id"`
+	WorkspaceID    string                         `json:"workspace_id,omitempty"`
+	AllWorkspaces  bool                           `json:"all_workspaces,omitempty"`
+	Delete         SessionHistoryCleanupSelection `json:"delete"`
+	ArchivedBefore *time.Time                     `json:"archived_before,omitempty"`
+	CountedAt      time.Time                      `json:"counted_at"`
+	State          string                         `json:"state"`
+	Total          int                            `json:"total"`
+	Done           int                            `json:"done"`
+	Deleted        int                            `json:"deleted"`
+	Skipped        int                            `json:"skipped"`
+	FailedThreads  int                            `json:"failed_threads"`
+	Failures       []SessionHistoryCleanupFailure `json:"failures"`
+	StartedAt      time.Time                      `json:"started_at"`
+	FinishedAt     *time.Time                     `json:"finished_at,omitempty"`
+}
+
 // SessionHistoryCleanupRunResponse is a daemon API value.
 type SessionHistoryCleanupRunResponse struct {
 	Run *SessionHistoryCleanupRun `json:"run"`
@@ -407,37 +444,4 @@ type SessionProviderOptionPayload struct {
 	AuthMode         string                   `json:"auth_mode,omitempty"`
 	EnvPolicy        string                   `json:"env_policy,omitempty"`
 	HomePolicy       string                   `json:"home_policy,omitempty"`
-}
-
-// SessionPullRequestChecksPayload is a daemon API value.
-type SessionPullRequestChecksPayload struct {
-	State       ChecksState `json:"state"`
-	Passed      int         `json:"passed"`
-	Failed      int         `json:"failed"`
-	Pending     int         `json:"pending"`
-	FailedNames []string    `json:"failed_names"`
-}
-
-// SessionPullRequestLookupPayload is a daemon API value.
-type SessionPullRequestLookupPayload struct {
-	State      LookupState `json:"state"`
-	Cause      string      `json:"cause"`
-	ObservedAt *time.Time  `json:"observed_at"`
-	Stale      bool        `json:"stale"`
-	RetryAfter *time.Time  `json:"retry_after,omitempty"`
-}
-
-// SessionPullRequestPayload is a daemon API value.
-type SessionPullRequestPayload struct {
-	Title          string                          `json:"title,omitempty"`
-	Provider       string                          `json:"provider"`
-	Number         int                             `json:"number"`
-	URL            string                          `json:"url"`
-	State          PullRequestState                `json:"state"`
-	Draft          *bool                           `json:"draft"`
-	HeadSHA        string                          `json:"head_sha"`
-	Checks         SessionPullRequestChecksPayload `json:"checks"`
-	ReviewDecision SessionReviewDecision           `json:"review_decision"`
-	Mergeable      Mergeable                       `json:"mergeable"`
-	ReadyToMerge   bool                            `json:"ready_to_merge"`
 }

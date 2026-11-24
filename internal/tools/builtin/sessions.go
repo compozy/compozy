@@ -15,6 +15,7 @@ const (
 	sessionsEventsKey    = "events"
 	sessionsHistoryKey   = "history"
 	sessionsInputKey     = "input"
+	inputsTagKey         = "inputs"
 	sessionsInterruptKey = "interrupt"
 	sessionsListKey      = "list"
 	sessionsPromptKey    = "prompt"
@@ -206,7 +207,7 @@ func sessionInputsListDescriptor() toolspkg.Descriptor {
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, "inputs", sessionsListKey},
+		[]string{sessionsSessionsKey, inputsTagKey, sessionsListKey},
 		[]string{"pending session input", "queued session input"},
 	)
 	descriptor.OutputSchema = json.RawMessage(sessionInputsListOutputSchema)

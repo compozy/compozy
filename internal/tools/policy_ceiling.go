@@ -105,19 +105,15 @@ func isOwnAgentMemoryWrite(d Descriptor) bool {
 	}
 }
 
-// inputSkipsPermissionCeiling reports a call whose input keeps it within what
-// the permission mode lets through without asking, whatever the tool's declared
-// risk: an always-on instance's self-service call at approve-reads, and a
-// session cleanup that only previews or reads its run, or stops it; and an
-// Archive stopped dry run, which only reads.
+// inputSkipsPermissionCeiling reports calls whose input qualifies for approval without asking.
 func (e *EffectivePolicyEvaluator) inputSkipsPermissionCeiling(d Descriptor, input json.RawMessage) bool {
 	switch e.permissionMode() {
 	case PermissionModeApproveReads:
 		return isInstanceSelfServiceCall(d, input) || classifySessionCleanupCall(d, input) == sessionCleanupReads ||
-			isSessionArchiveStoppedPreview(d, input)
+			isExtensionSetupRead(d, input) || isSessionArchiveStoppedPreview(d, input)
 	case PermissionModeApproveEdits, PermissionModeAuto:
 		return classifySessionCleanupCall(d, input) != sessionCleanupDeletes ||
-			isSessionArchiveStoppedPreview(d, input)
+			isExtensionSetupRead(d, input) || isSessionArchiveStoppedPreview(d, input)
 	default:
 		return false
 	}
@@ -168,6 +164,22 @@ func classifySessionCleanupCall(d Descriptor, input json.RawMessage) sessionClea
 		}
 	}
 	return sessionCleanupDeletes
+}
+
+// isExtensionSetupRead reports an extensions_setup call that writes no inputs: only an inputs entry
+// mutates. Like session cleanup, an evaluation without input (a catalog view) keeps the mutating class,
+// so the tool advertises the approval its writes need.
+func isExtensionSetupRead(d Descriptor, input json.RawMessage) bool {
+	if d.Source.Kind != SourceBuiltin || d.ID != ToolIDExtensionsSetup || len(input) == 0 {
+		return false
+	}
+	var call struct {
+		Inputs map[string]json.RawMessage `json:"inputs"`
+	}
+	if json.Unmarshal(input, &call) != nil {
+		return false
+	}
+	return len(call.Inputs) == 0
 }
 
 // isSessionArchiveStoppedPreview reports an Archive stopped call with

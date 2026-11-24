@@ -1,0 +1,52 @@
+---
+title: "compozy extension setup"
+description: "Complete or change the inputs of one installed extension"
+---
+
+## compozy extension setup
+
+Complete or change the inputs of one installed extension
+
+### Synopsis
+
+Prompt for required inputs that are missing or invalid, and for inputs that only the daemon environment satisfies, then write them and restart the instance when it is enabled. --all revisits every input. --input and --input-file write without prompting. Structured output never prompts.
+
+```
+compozy extension setup <name> [flags]
+```
+
+### Options
+
+```
+      --all                 Prompt for every declared input, including optional ones
+  -h, --help                help for setup
+      --input stringArray   Set a manifest input as id=value (repeatable)
+      --input-file string   Read input values from a JSON object of {value} or {vault_ref} envelopes
+      --scope string        Select the global or workspace installation: global, workspace
+      --workspace string    Override workspace context
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy extension setup <name> -o json
+```

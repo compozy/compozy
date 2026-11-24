@@ -1914,6 +1914,16 @@ func TestInstanceCallApproval(t *testing.T) {
 		{"cleanup stop at approve-reads", ToolIDSessionCleanup, `{"action":"stop"}`, "", PermissionModeApproveReads, false, false},
 		{"hook escalates cleanup preview", ToolIDSessionCleanup, `{}`, `{"dry_run":false}`, PermissionModeApproveEdits, false, false},
 		{"cleanup at deny all", ToolIDSessionCleanup, `{}`, "", PermissionModeDenyAll, false, false},
+		{"setup read", ToolIDExtensionsSetup, `{"name":"kit"}`, "", PermissionModeApproveReads, false, true},
+		{"setup empty inputs", ToolIDExtensionsSetup, `{"name":"kit","inputs":{}}`, "", PermissionModeApproveEdits, false, true},
+		{"setup write", ToolIDExtensionsSetup, `{"name":"kit","inputs":{"project":{}}}`, "", PermissionModeApproveReads, false, false},
+		{"setup write at auto", ToolIDExtensionsSetup, `{"name":"kit","inputs":{"project":{}}}`, "", PermissionModeAuto, false, false},
+		{"setup name-only read", ToolIDExtensionsSetup, `{"name":"kit"}`, "", PermissionModeApproveEdits, false, true},
+		{"setup write at approve-edits", ToolIDExtensionsSetup, `{"name":"kit","inputs":{"project":{}}}`, "",
+			PermissionModeApproveEdits, false, false},
+		{"hook escalates setup read", ToolIDExtensionsSetup, `{"name":"kit"}`, `{"name":"kit","inputs":{"project":{}}}`,
+			PermissionModeApproveReads, false, false},
+		{"setup at deny all", ToolIDExtensionsSetup, `{"name":"kit"}`, "", PermissionModeDenyAll, false, false},
 		{"archive stopped dry run", ToolIDSessionArchiveStopped, `{"dry_run":true}`, "", PermissionModeApproveReads, false, true},
 		{"archive stopped dry run at auto", ToolIDSessionArchiveStopped, `{"dry_run":true}`, "", PermissionModeAuto, false, true},
 		{"archive stopped default", ToolIDSessionArchiveStopped, `{}`, "", PermissionModeApproveReads, false, false},
@@ -1933,7 +1943,8 @@ func TestInstanceCallApproval(t *testing.T) {
 			}
 			d.InputSchema = json.RawMessage(
 				`{"type":"object","properties":{"enabled":{"type":"boolean"},"dry_run":{"type":"boolean"},` +
-					`"action":{"type":"string"}},"additionalProperties":false}`,
+					`"action":{"type":"string"},"name":{"type":"string"},"inputs":{"type":"object"}},` +
+					`"additionalProperties":false}`,
 			)
 			provider := providerWithDescriptors(d.Source, d)
 			called := false
@@ -1969,6 +1980,10 @@ func TestInstanceCallApproval(t *testing.T) {
 			)
 			if called != tc.wantCall || (err == nil) != tc.wantCall {
 				t.Fatalf("called=%v error=%v want call=%v", called, err, tc.wantCall)
+			}
+			// A refused call must fail at the permission gate, not on input validation.
+			if !tc.wantCall && !errors.Is(err, ErrToolApprovalRequired) && !errors.Is(err, ErrToolDenied) {
+				t.Fatalf("error = %v, want a permission denial (approval required or denied)", err)
 			}
 		})
 	}

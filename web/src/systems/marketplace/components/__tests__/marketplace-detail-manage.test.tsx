@@ -45,6 +45,14 @@ const mocks = vi.hoisted(() => ({
     severity: string;
     title: string;
   }>,
+  extensionInputs: [] as Array<{
+    active: boolean;
+    id: string;
+    set: boolean;
+    state?: string;
+    type: string;
+  }>,
+  extensionMissingInputs: [] as string[],
   extensionGatewayConfirmationRequired: false,
   extensionGatewayDigest: undefined as string | undefined,
   extensionLogs: [] as Array<{
@@ -95,7 +103,8 @@ function extensionPayload(): ExtensionEntry {
         title: "Healthy",
       },
     ],
-    inputs: [],
+    inputs: mocks.extensionInputs,
+    missing_inputs: mocks.extensionMissingInputs,
     declared_profiles: mocks.extensionDeclaredProfiles,
     dormant_placements: mocks.extensionPlacements.filter(item => item.dormant),
     enabled: mocks.extensionEnabled,
@@ -152,6 +161,30 @@ const server = setupServer(
       extension: "ops-extension",
       format: mocks.extensionFormat,
       items: mocks.extensionInventory,
+    })
+  ),
+  http.get("*/api/extensions/:name/inputs", () =>
+    HttpResponse.json({
+      extension: "ops-extension",
+      workspace_id: "",
+      profile: "default",
+      enabled: true,
+      inputs: [
+        {
+          id: "pager_token",
+          prompt: "Pager token",
+          type: "secret",
+          required: true,
+          binding: { type: "env", name: "PAGER_TOKEN" },
+          targets: ["subprocess"],
+          state: "missing",
+        },
+      ],
+      missing: ["pager_token"],
+      invalid: [],
+      daemon_env: [],
+      missing_env: [],
+      mcp_auth_servers: [],
     })
   ),
   http.get("*/api/extensions/:name/logs", () =>
@@ -254,6 +287,8 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionInventoryDiagnostics = [];
     mocks.extensionGatewayConfirmationRequired = false;
     mocks.extensionGatewayDigest = undefined;
+    mocks.extensionInputs = [];
+    mocks.extensionMissingInputs = [];
     mocks.extensionPlacements = [];
     mocks.extensionUpdateAvailable = false;
     mocks.extensionWorkspaceId = null;
@@ -477,6 +512,48 @@ describe("Marketplace installed-detail management", () => {
 
     expect(await screen.findByRole("menuitem", { name: "Unlink local copy…" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Provenance" })).not.toBeInTheDocument();
+  });
+
+  // T-13: Setup… is offered only for an extension that declares inputs.
+  it("Should hide Setup… when the extension declares no inputs", async () => {
+    const user = userEvent.setup();
+    await renderDetail(extensionDetailData());
+
+    await user.click(screen.getByRole("button", { name: "Actions for ops-extension" }));
+
+    expect(await screen.findByRole("menuitem", { name: "Provenance" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Setup…" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-extension-setup-notice")).not.toBeInTheDocument();
+  });
+
+  it("Should open the Setup dialog from Actions when the extension declares inputs", async () => {
+    const user = userEvent.setup();
+    mocks.extensionInputs = [
+      { active: true, id: "pager_token", set: true, state: "set", type: "secret" },
+    ];
+    await renderDetail(extensionDetailData());
+
+    await user.click(screen.getByRole("button", { name: "Actions for ops-extension" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Setup…" }));
+
+    expect(await screen.findByTestId("extension-setup-dialog")).toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-extension-setup-notice")).not.toBeInTheDocument();
+  });
+
+  it("Should open the Setup dialog from the missing-inputs notice", async () => {
+    const user = userEvent.setup();
+    mocks.extensionInputs = [
+      { active: false, id: "pager_token", set: false, state: "missing", type: "secret" },
+    ];
+    mocks.extensionMissingInputs = ["pager_token"];
+    await renderDetail(extensionDetailData());
+
+    const notice = screen.getByTestId("marketplace-extension-setup-notice");
+    expect(notice).toHaveTextContent("Needs setup: 1 required input");
+    await user.click(within(notice).getByRole("button", { name: "Set up" }));
+
+    const dialog = await screen.findByTestId("extension-setup-dialog");
+    expect(await within(dialog).findByTestId("extension-input-pager_token")).toHaveFocus();
   });
 
   it("Should show a recoverable state when installed extension management fails", async () => {

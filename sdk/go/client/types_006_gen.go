@@ -411,6 +411,35 @@ type ExtensionInputStatePayload struct {
 	Type   string `json:"type"`
 	Set    bool   `json:"set"`
 	Active bool   `json:"active"`
+	State  string `json:"state,omitempty"`
+}
+
+// ExtensionInputStatusPayload is a daemon API value.
+type ExtensionInputStatusPayload struct {
+	ID       string                         `json:"id"`
+	Prompt   string                         `json:"prompt"`
+	Type     string                         `json:"type"`
+	Required bool                           `json:"required"`
+	Binding  MarketplaceInputBindingPayload `json:"binding"`
+	Default  json.RawMessage                `json:"default,omitempty"`
+	Targets  []string                       `json:"targets"`
+	State    string                         `json:"state"`
+}
+
+// ExtensionInputsPayload is a daemon API value.
+type ExtensionInputsPayload struct {
+	Extension      string                        `json:"extension"`
+	WorkspaceID    string                        `json:"workspace_id"`
+	Profile        string                        `json:"profile"`
+	Enabled        bool                          `json:"enabled"`
+	Inputs         []ExtensionInputStatusPayload `json:"inputs"`
+	Missing        []string                      `json:"missing"`
+	Invalid        []string                      `json:"invalid"`
+	DaemonEnv      []string                      `json:"daemon_env"`
+	MissingEnv     []string                      `json:"missing_env"`
+	MCPAuthServers []string                      `json:"mcp_auth_servers"`
+	Changed        []string                      `json:"changed,omitempty"`
+	Reloaded       bool                          `json:"reloaded,omitzero"`
 }
 
 // ExtensionInstallDeclaredProfilePayload is a daemon API value.
@@ -419,25 +448,3 @@ type ExtensionInstallDeclaredProfilePayload struct {
 	Create      bool                           `json:"create"`
 	Credentials []ProfileCredentialRequirement `json:"credentials,omitempty"`
 }
-
-// ExtensionInstallPreviewPayload is a daemon API value.
-type ExtensionInstallPreviewPayload struct {
-	DigestSHA256             string                                   `json:"digest_sha256,omitempty"`
-	Inputs                   []MarketplaceInputPayload                `json:"inputs"`
-	Name                     string                                   `json:"name"`
-	DeclaredProfiles         []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
-	Placements               []ExtensionPlacementPayload              `json:"placements"`
-	GatewayRequirementDigest string                                   `json:"gateway_requirement_digest,omitempty"`
-}
-
-// ExtensionInventoryPayload is a daemon API value.
-type ExtensionInventoryPayload struct {
-	Extension   string                    `json:"extension"`
-	Format      string                    `json:"format"`
-	Enabled     bool                      `json:"enabled"`
-	Items       []ExtensionKitItemPayload `json:"items"`
-	Diagnostics []DiagnosticItem          `json:"diagnostics,omitempty"`
-}
-
-// ExtensionKitChange is a daemon API value.
-type ExtensionKitChange string

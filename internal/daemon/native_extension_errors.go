@@ -217,8 +217,11 @@ func nativeExtensionAcquisitionError(
 	payload contract.ExtensionOperationErrorPayload,
 ) error {
 	cause := toolspkg.ErrToolInvalidInput
-	if core.ExtensionStatusCode(err) == http.StatusConflict {
+	switch core.ExtensionStatusCode(err) {
+	case http.StatusConflict:
 		cause = toolspkg.ErrToolConflict
+	case http.StatusForbidden:
+		cause = toolspkg.ErrToolDenied
 	}
 	result := toolspkg.NewToolError(toolspkg.ErrorCode(payload.Code), id, payload.Error,
 		fmt.Errorf("%w: %w", cause, err), toolspkg.ReasonExtensionValidationFailed)
