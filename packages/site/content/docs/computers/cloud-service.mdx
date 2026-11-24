@@ -35,7 +35,11 @@ Send enrollment and refresh credentials in the `Authorization` header and use th
 
 Google and GitHub sign-ins link when their verified email addresses match. If the account has lost its active admins, choose **Recover admin access** on the Google activation page and authenticate again. Open the activation link in a private window if Google reuses an earlier sign-in.
 
-A hosted route starts browser sign-in at `GET /v1/browser/authorize`. Compozy Cloud can reuse a first-party web session for 30 days of inactivity, up to 90 days from sign-in. The route uses a short-lived code tied to the browser's key and the destination computer.
+## Hosted browser sign-in
+
+A hosted route starts browser sign-in at `GET /v1/browser/authorize` with the hostname, the browser's `public_jwk`, OAuth state, and PKCE challenge. Compozy Cloud can reuse a first-party web session for 30 days of inactivity, up to 90 days from sign-in. The first-party `__Host-compozy_bd` cookie associates the browser's separate origin keys with one account device.
+
+The destination computer verifies the browser's `DPoP` proof, then calls `POST /v1/browser/token` using its own computer key. The request supplies `code`, `code_verifier`, and the proof key's `jkt`. A code expires after 60 seconds. Redemption with the matching key activates it, advances the account's security epoch, and returns a key-bound browser grant. A mismatched key returns `browser_key_mismatch`. If authorization redirects with `browser_key_rebind_required`, the browser needs a new key. The original key stays with its original device.
 
 ## Devices, computers, and approvals
 

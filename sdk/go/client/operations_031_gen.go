@@ -9,6 +9,29 @@ import (
 	"strings"
 )
 
+// ReadSessionFileBytes Stream session file bytes
+func (c *Client) ReadSessionFileBytes(ctx context.Context, params ReadSessionFileBytesParams) (*[]byte, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/raw/{path}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	path = strings.ReplaceAll(path, "{path}", url.PathEscape(params.Path))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ReadSessionFileContentParams carries the path, query, and header parameters.
 type ReadSessionFileContentParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -419,28 +442,4 @@ func (c *Client) RefreshSessionWorkLink(ctx context.Context, params RefreshSessi
 type RegisterWindowManagerClientParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// RegisterWindowManagerClient Register a window-manager client view
-func (c *Client) RegisterWindowManagerClient(ctx context.Context, params RegisterWindowManagerClientParams, body WindowManagerClientRegistration) (*WindowManagerClientView, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/clients"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WindowManagerClientView
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RejectAgentSkillReviewParams carries the path, query, and header parameters.
-type RejectAgentSkillReviewParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

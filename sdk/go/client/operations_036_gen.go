@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+// SetExtensionSecretsParams carries the path, query, and header parameters.
+type SetExtensionSecretsParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
 // SetExtensionSecrets Set or bind extension environment secrets
 func (c *Client) SetExtensionSecrets(ctx context.Context, params SetExtensionSecretsParams, body SetExtensionSecretsRequest) (*ExtensionSecretsPayload, error) {
 	path := "/api/extensions/{name}/secrets"
@@ -290,6 +297,23 @@ func (c *Client) StartAgentTaskRun(ctx context.Context, params StartAgentTaskRun
 	return &out, nil
 }
 
+// StartBrowserSessionParams carries the path, query, and header parameters.
+type StartBrowserSessionParams struct {
+	DPoP string `url:"DPoP"`
+}
+
+// StartBrowserSession Redeem a hosted sign-in code
+func (c *Client) StartBrowserSession(ctx context.Context, params StartBrowserSessionParams, body BrowserSessionRequest) (*BrowserSessionResponse, error) {
+	path := "/remote/v1/browser/session"
+	headers := http.Header{}
+	headers.Set("DPoP", params.DPoP)
+	var out BrowserSessionResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // StartComputerUpdateParams carries the path, query, and header parameters.
 type StartComputerUpdateParams struct {
 	ID string `url:"id"`
@@ -409,39 +433,4 @@ func (c *Client) StopSession(ctx context.Context, params StopSessionParams, body
 // StopSessionHistoryCleanupParams carries the path, query, and header parameters.
 type StopSessionHistoryCleanupParams struct {
 	Profile *string `url:"profile"`
-}
-
-// StopSessionHistoryCleanup Stop the selected profile's running cleanup; sessions already deleted stay deleted
-func (c *Client) StopSessionHistoryCleanup(ctx context.Context, params StopSessionHistoryCleanupParams) (*SessionHistoryCleanupRunResponse, error) {
-	path := "/api/sessions/history-cleanup/stop"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionHistoryCleanupRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamAccountParams carries the path, query, and header parameters.
-type StreamAccountParams struct {
-	AfterSequence *string `url:"after_sequence"`
-}
-
-// StreamAccount Stream changes for the active account
-func (c *Client) StreamAccount(ctx context.Context, params StreamAccountParams) (*Stream[Event], error) {
-	path := "/api/account/stream"
-	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", *params.AfterSequence)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[Event](ctx, c, "GET", path, nil, nil, "streamAccount")
 }

@@ -10,6 +10,34 @@ import (
 	"strings"
 )
 
+// GetTaskRunParams carries the path, query, and header parameters.
+type GetTaskRunParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetTaskRun Get one task run detail
+func (c *Client) GetTaskRun(ctx context.Context, params GetTaskRunParams) (*TaskRunDetailResponse, error) {
+	path := "/api/task-runs/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunDetailResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetTaskRunReviewParams carries the path, query, and header parameters.
 type GetTaskRunReviewParams struct {
 	ID          string  `url:"id"`
@@ -413,23 +441,4 @@ func (c *Client) HeartbeatAgentTaskRun(ctx context.Context, params HeartbeatAgen
 type ImportRuntimeMCPServerParams struct {
 	Runtime string `url:"runtime"`
 	Name    string `url:"name"`
-}
-
-// ImportRuntimeMCPServer Copy a runtime MCP server into CompozyOS
-func (c *Client) ImportRuntimeMCPServer(ctx context.Context, params ImportRuntimeMCPServerParams, body RuntimeMCPImportRequest) (*RuntimeMCPImportResponse, error) {
-	path := "/api/settings/runtime-mcp-servers/{runtime}/{name}/import"
-	path = strings.ReplaceAll(path, "{runtime}", url.PathEscape(params.Runtime))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out RuntimeMCPImportResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// InspectRunParams carries the path, query, and header parameters.
-type InspectRunParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

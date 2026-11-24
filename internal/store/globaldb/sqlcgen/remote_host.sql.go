@@ -92,6 +92,27 @@ func (q *Queries) GetRemoteApproval(ctx context.Context, arg GetRemoteApprovalPa
 	return i, err
 }
 
+const getRemoteApprovalByID = `-- name: GetRemoteApprovalByID :one
+SELECT id, device_id, jkt, name, state, created_at, expires_at, decided_at, decision_jti FROM remote_device_approvals WHERE id = ?
+`
+
+func (q *Queries) GetRemoteApprovalByID(ctx context.Context, id string) (RemoteDeviceApproval, error) {
+	row := q.db.QueryRowContext(ctx, getRemoteApprovalByID, id)
+	var i RemoteDeviceApproval
+	err := row.Scan(
+		&i.ID,
+		&i.DeviceID,
+		&i.Jkt,
+		&i.Name,
+		&i.State,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.DecidedAt,
+		&i.DecisionJti,
+	)
+	return i, err
+}
+
 const getRemoteIdentity = `-- name: GetRemoteIdentity :one
 SELECT id, computer_id, account_id, computer_key_ref, tls_root_ref, tls_root_sha256, tls_leaf_not_after, linked_at FROM remote_identity WHERE id = 1
 `

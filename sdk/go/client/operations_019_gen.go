@@ -9,6 +9,19 @@ import (
 	"strings"
 )
 
+// ListAgentInstancesParams carries the path, query, and header parameters.
+type ListAgentInstancesParams struct {
+	Workspace     *string `url:"workspace"`
+	AllWorkspaces *string `url:"all_workspaces"`
+	Peers         *string `url:"peers"`
+	Agent         *string `url:"agent"`
+	State         *string `url:"state"`
+	Cursor        *string `url:"cursor"`
+	Limit         *string `url:"limit"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // ListAgentInstances List agent instances
 func (c *Client) ListAgentInstances(ctx context.Context, params ListAgentInstancesParams) (*AgentInstanceListResponse, error) {
 	path := "/api/agent-instances"
@@ -420,20 +433,4 @@ func (c *Client) ListAutomationJobs(ctx context.Context, params ListAutomationJo
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListAutomationRunsParams carries the path, query, and header parameters.
-type ListAutomationRunsParams struct {
-	WorkspaceID   *string   `url:"workspace_id"`
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Cursor        *string   `url:"cursor"`
-	JobID         *string   `url:"job_id"`
-	TriggerID     *string   `url:"trigger_id"`
-	Status        *string   `url:"status"`
-	Since         *string   `url:"since"`
-	Until         *string   `url:"until"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
 }

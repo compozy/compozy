@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// GapsConfig is a daemon API value.
+type GapsConfig struct {
+	Inner  float64 `json:"inner"`
+	Top    float64 `json:"top"`
+	Right  float64 `json:"right"`
+	Bottom float64 `json:"bottom"`
+	Left   float64 `json:"left"`
+}
+
 // GateCriterion is a daemon API value.
 type GateCriterion struct {
 	ID       string         `json:"id"`
@@ -436,14 +445,3 @@ type GridTile struct {
 
 // GroupID is a daemon API value.
 type GroupID string
-
-// GroupedAgentCatalogItemPayload is a daemon API value.
-type GroupedAgentCatalogItemPayload struct {
-	Name             string       `json:"name"`
-	Label            string       `json:"label"`
-	Kind             string       `json:"kind"`
-	DefinitionDigest string       `json:"definition_digest"`
-	Scopes           []string     `json:"scopes"`
-	Active           int          `json:"active"`
-	Agent            AgentPayload `json:"agent"`
-}

@@ -34,6 +34,9 @@ type listenerHandler struct {
 	run               *hostRun
 	webhook           func() http.Handler
 	wrapTunnelHandler func(http.Handler) http.Handler
+	hostedApp         http.Handler
+	redeemBrowserCode func(context.Context, remoteproto.BrowserTokenRequest) (remoteproto.GrantResponse, error)
+	browserTickets    *StreamTicketStore
 }
 
 func (h listenerHandler) outer() http.Handler {
@@ -46,6 +49,7 @@ func (h listenerHandler) outer() http.Handler {
 		routes.HandleFunc("/api/webhooks/", h.webhookRoutes())
 	}
 	if h.run != nil && h.kind == ListenerHosted {
+		h.registerBrowserRoutes(routes)
 		return h.guardHosted(routes)
 	}
 	return routes
@@ -166,14 +170,18 @@ func (h listenerHandler) serveOperator(w http.ResponseWriter, req *http.Request)
 }
 
 func (h listenerHandler) endSession(w http.ResponseWriter, req *http.Request) {
-	p, _ := PrincipalFromContext(req.Context())
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(req.Context()), headerTimeout)
-	defer cancel()
-	if err := h.sessions.RevokeSession(ctx, p.SessionID); err != nil {
+	if err := h.revokeRequestSession(req); err != nil {
 		writeFailure(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h listenerHandler) revokeRequestSession(req *http.Request) error {
+	p, _ := PrincipalFromContext(req.Context())
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(req.Context()), headerTimeout)
+	defer cancel()
+	return h.sessions.RevokeSession(ctx, p.SessionID)
 }
 
 func requestProof(req *http.Request, kind Listener, token string) DPoPProof {

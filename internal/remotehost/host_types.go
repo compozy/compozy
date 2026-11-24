@@ -113,6 +113,7 @@ type Store interface {
 	RemoteGrantUsed(context.Context, string) (bool, error)
 	RemoteDeviceConnections(context.Context) (map[remoteproto.DeviceID]time.Time, error)
 	RemoteApprovals(context.Context) ([]Approval, error)
+	RemoteApprovalByID(context.Context, string) (Approval, error)
 	RemoteApproval(context.Context, remoteproto.DeviceID, string) (Approval, error)
 	WriteRemote(context.Context, func(context.Context, Tx) error) error
 }

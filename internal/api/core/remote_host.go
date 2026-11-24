@@ -78,6 +78,10 @@ func (h *BaseHandlers) PatchRemoteDevice(c *gin.Context) {
 	if !h.remoteReady(c) || !decodeRemoteRequest(c, &input) {
 		return
 	}
+	if _, remote := remotehost.PrincipalFromContext(c.Request.Context()); remote && input.Approved != nil {
+		RespondRemoteError(c, remotehost.ErrApprovalLocalOnly)
+		return
+	}
 	result, err := h.Remote.PatchDevice(
 		c.Request.Context(),
 		remoteproto.DeviceID(c.Param("id")),

@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// GroupedAgentCatalogItemPayload is a daemon API value.
+type GroupedAgentCatalogItemPayload struct {
+	Name             string       `json:"name"`
+	Label            string       `json:"label"`
+	Kind             string       `json:"kind"`
+	DefinitionDigest string       `json:"definition_digest"`
+	Scopes           []string     `json:"scopes"`
+	Active           int          `json:"active"`
+	Agent            AgentPayload `json:"agent"`
+}
+
 // HarvestSpec is a daemon API value.
 type HarvestSpec struct {
 	Kind string `json:"kind,omitempty"`
@@ -427,17 +438,9 @@ type HostResourcesResponse struct {
 	SampledAt    time.Time `json:"sampled_at"`
 }
 
-// HostedStatus is a daemon API value.
-type HostedStatus struct {
-	Enabled   bool    `json:"enabled"`
-	State     string  `json:"state"`
-	Hostname  *string `json:"hostname"`
-	Diagnosis string  `json:"diagnosis,omitempty"`
-}
-
-// Image is a daemon API value.
-type Image struct {
-	URL   string `json:"url,omitempty"`
-	Token string `json:"token,omitempty"`
-	Emoji string `json:"emoji,omitempty"`
+// HostedPeer is a daemon API value.
+type HostedPeer struct {
+	ComputerID ComputerID `json:"computer_id"`
+	Name       string     `json:"name"`
+	HostedURL  string     `json:"hosted_url"`
 }

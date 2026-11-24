@@ -7,6 +7,41 @@ import (
 	"time"
 )
 
+// ChangeHeadPayload is a daemon API value.
+type ChangeHeadPayload struct {
+	Branch string `json:"branch"`
+	SHA    string `json:"sha"`
+}
+
+// ChangePatchPayload is a daemon API value.
+type ChangePatchPayload struct {
+	Path        string `json:"path"`
+	Patch       string `json:"patch,omitempty"`
+	TooLarge    bool   `json:"too_large,omitzero"`
+	Sensitive   bool   `json:"sensitive,omitzero"`
+	Fingerprint string `json:"fingerprint"`
+}
+
+// ChangeSet is a daemon API value.
+type ChangeSet struct {
+	TabIDs         []TabID                 `json:"tab_ids,omitempty"`
+	TabSplit       []TabID                 `json:"tab_split,omitempty"`
+	TabUnsplit     []TabID                 `json:"tab_unsplit,omitempty"`
+	DesktopIDs     []DesktopID             `json:"desktop_ids,omitempty"`
+	WindowIDs      []WindowID              `json:"window_ids,omitempty"`
+	GroupIDs       []GroupID               `json:"group_ids,omitempty"`
+	NodeIDs        []WindowmanagerNodeID   `json:"node_ids,omitempty"`
+	ClientIDs      []WindowmanagerClientID `json:"client_ids,omitempty"`
+	StackGrouped   []WindowmanagerNodeID   `json:"stack_grouped,omitempty"`
+	StackUngrouped []WindowmanagerNodeID   `json:"stack_ungrouped,omitempty"`
+}
+
+// ChangeSidePayload is a daemon API value.
+type ChangeSidePayload struct {
+	Text      *string `json:"text,omitempty"`
+	Sensitive bool    `json:"sensitive,omitzero"`
+}
+
 // ChangeTotalsPayload is a daemon API value.
 type ChangeTotalsPayload struct {
 	Files     int  `json:"files"`
@@ -411,28 +446,3 @@ type ComputerSetupPrompt struct {
 	Host        string `json:"host,omitempty"`
 	Fingerprint string `json:"fingerprint,omitempty"`
 }
-
-// ComputerSetupStarted is a daemon API value.
-type ComputerSetupStarted struct {
-	SetupID    string      `json:"setup_id"`
-	ComputerID *ComputerID `json:"computer_id"`
-}
-
-// ComputerSetupStatus is a daemon API value.
-type ComputerSetupStatus struct {
-	SetupID    string               `json:"setup_id"`
-	Step       string               `json:"step"`
-	State      string               `json:"state"`
-	Prompt     *ComputerSetupPrompt `json:"prompt"`
-	PromptKind string               `json:"prompt_kind,omitempty"`
-	Error      *ErrorPayload        `json:"error"`
-	ComputerID *ComputerID          `json:"computer_id"`
-}
-
-// ComputerUpdateStarted is a daemon API value.
-type ComputerUpdateStarted struct {
-	SetupID string `json:"setup_id"`
-}
-
-// ConcurrencyPolicy is a daemon API value.
-type ConcurrencyPolicy string

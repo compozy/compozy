@@ -7,6 +7,31 @@ import (
 	"time"
 )
 
+// ComputerSetupStarted is a daemon API value.
+type ComputerSetupStarted struct {
+	SetupID    string      `json:"setup_id"`
+	ComputerID *ComputerID `json:"computer_id"`
+}
+
+// ComputerSetupStatus is a daemon API value.
+type ComputerSetupStatus struct {
+	SetupID    string               `json:"setup_id"`
+	Step       string               `json:"step"`
+	State      string               `json:"state"`
+	Prompt     *ComputerSetupPrompt `json:"prompt"`
+	PromptKind string               `json:"prompt_kind,omitempty"`
+	Error      *ErrorPayload        `json:"error"`
+	ComputerID *ComputerID          `json:"computer_id"`
+}
+
+// ComputerUpdateStarted is a daemon API value.
+type ComputerUpdateStarted struct {
+	SetupID string `json:"setup_id"`
+}
+
+// ConcurrencyPolicy is a daemon API value.
+type ConcurrencyPolicy string
+
 // ConfigApplyRecordPayload is a daemon API value.
 type ConfigApplyRecordPayload struct {
 	ID                string                  `json:"id"`
@@ -420,25 +445,3 @@ type DeleteLoopInputDefaultResponse struct {
 	Scope    LoopInputDefaultsScope `json:"scope"`
 	Deleted  bool                   `json:"deleted"`
 }
-
-// DeleteProfilePlan is a daemon API value.
-type DeleteProfilePlan struct {
-	Revision          string                `json:"revision"`
-	Removed           ProfileRemovalSummary `json:"removed"`
-	SelectionsToSweep int                   `json:"selections_to_sweep"`
-	ApprovalBlockers  []string              `json:"approval_blockers"`
-}
-
-// DeleteProfileResponse is a daemon API value.
-type DeleteProfileResponse struct {
-	Deleted bool                  `json:"deleted"`
-	Removed ProfileRemovalSummary `json:"removed"`
-}
-
-// DeleteResourceRequest is a daemon API value.
-type DeleteResourceRequest struct {
-	ExpectedVersion int64 `json:"expected_version"`
-}
-
-// DependencyKind is a daemon API value.
-type DependencyKind string

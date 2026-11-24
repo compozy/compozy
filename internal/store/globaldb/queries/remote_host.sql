@@ -72,6 +72,9 @@ SELECT * FROM remote_device_approvals WHERE device_id = ? AND jkt = ?;
 -- name: ListRemoteApprovals :many
 SELECT * FROM remote_device_approvals ORDER BY created_at, id;
 
+-- name: GetRemoteApprovalByID :one
+SELECT * FROM remote_device_approvals WHERE id = ?;
+
 -- name: PutRemoteApproval :exec
 INSERT INTO remote_device_approvals (id, device_id, jkt, name, state, created_at, expires_at, decided_at, decision_jti)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

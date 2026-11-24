@@ -15,10 +15,9 @@ import (
 )
 
 const (
-	WebSessionTTL       = 90 * 24 * time.Hour
-	WebSessionIdle      = 30 * 24 * time.Hour
-	browserCodeTTL      = time.Minute
-	browserCallbackPath = "/remote/v1/browser/callback"
+	WebSessionTTL  = 90 * 24 * time.Hour
+	WebSessionIdle = 30 * 24 * time.Hour
+	browserCodeTTL = time.Minute
 )
 
 type BrowserRequest struct {
@@ -315,7 +314,7 @@ func (s *Service) bindBrowserSession(
 
 func browserRedirect(req BrowserRequest, key, value string) string {
 	query := url.Values{key: {value}, oauthStateField: {req.State}}
-	return "https://" + req.Hostname + browserCallbackPath + "?" + query.Encode()
+	return "https://" + req.Hostname + remoteproto.BrowserCallbackPath + "?" + query.Encode()
 }
 
 func browserName(agent string) string {

@@ -99,19 +99,9 @@ func NewSessions(
 
 func (s *Sessions) Mint(ctx context.Context, in MintInput) (MintResult, error) {
 	now := s.now()
-	grant, err := s.verifier.VerifyGrant(ctx, in.Grant, now)
+	grant, err := s.verifyMintGrant(ctx, in.Grant, now)
 	if err != nil {
 		return MintResult{}, err
-	}
-	if grant.Audience != s.identity.ComputerID || grant.AccountID != s.identity.AccountID {
-		return MintResult{}, remoteproto.ErrGrantInvalid
-	}
-	used, err := s.store.RemoteGrantUsed(ctx, grant.JTI)
-	if err != nil {
-		return MintResult{}, err
-	}
-	if used {
-		return MintResult{}, ErrGrantReplay
 	}
 	_, err = s.proofs.VerifyDPoP(in.Proof.Token, remoteproto.DPoPBinding{
 		Method: in.Proof.Method, URL: in.Proof.URL, JKT: grant.Cnf.JKT,
@@ -123,6 +113,24 @@ func (s *Sessions) Mint(ctx context.Context, in MintInput) (MintResult, error) {
 		return MintResult{}, ErrRouteMismatch
 	}
 	return s.mintWhenReady(ctx, grant)
+}
+
+func (s *Sessions) verifyMintGrant(ctx context.Context, token string, now time.Time) (remoteproto.GrantClaims, error) {
+	grant, err := s.verifier.VerifyGrant(ctx, token, now)
+	if err != nil {
+		return remoteproto.GrantClaims{}, err
+	}
+	if grant.Audience != s.identity.ComputerID || grant.AccountID != s.identity.AccountID {
+		return remoteproto.GrantClaims{}, remoteproto.ErrGrantInvalid
+	}
+	used, err := s.store.RemoteGrantUsed(ctx, grant.JTI)
+	if err != nil {
+		return remoteproto.GrantClaims{}, err
+	}
+	if used {
+		return remoteproto.GrantClaims{}, ErrGrantReplay
+	}
+	return grant, nil
 }
 
 func (s *Sessions) mintWhenReady(ctx context.Context, grant remoteproto.GrantClaims) (MintResult, error) {
@@ -229,6 +237,12 @@ func (s *Sessions) Authenticate(
 	proof DPoPProof,
 	now time.Time,
 ) (Principal, error) {
+	return s.authenticate(ctx, credential, proof, now, false)
+}
+
+func (s *Sessions) authenticate(
+	ctx context.Context, credential string, proof DPoPProof, now time.Time, ticketVerified bool,
+) (Principal, error) {
 	if !ValidOpaqueSecret(credential, "rc_") {
 		return Principal{}, ErrSessionInvalid
 	}
@@ -244,12 +258,14 @@ func (s *Sessions) Authenticate(
 	if proof.Listener.Route() != session.Route || proof.Browser != session.Browser {
 		return Principal{}, ErrRouteMismatch
 	}
-	binding := remoteproto.DPoPBinding{Method: proof.Method, URL: proof.URL, JKT: session.JKT}
-	if !proof.Browser {
-		binding.Credential = credential
-	}
-	if _, err := s.proofs.VerifyDPoP(proof.Token, binding, now); err != nil {
-		return Principal{}, err
+	if !ticketVerified {
+		binding := remoteproto.DPoPBinding{Method: proof.Method, URL: proof.URL, JKT: session.JKT}
+		if !proof.Browser {
+			binding.Credential = credential
+		}
+		if _, err := s.proofs.VerifyDPoP(proof.Token, binding, now); err != nil {
+			return Principal{}, err
+		}
 	}
 	if err := s.checkDevice(ctx, session); err != nil {
 		return Principal{}, err

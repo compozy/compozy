@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+// DeleteProfilePlan is a daemon API value.
+type DeleteProfilePlan struct {
+	Revision          string                `json:"revision"`
+	Removed           ProfileRemovalSummary `json:"removed"`
+	SelectionsToSweep int                   `json:"selections_to_sweep"`
+	ApprovalBlockers  []string              `json:"approval_blockers"`
+}
+
+// DeleteProfileResponse is a daemon API value.
+type DeleteProfileResponse struct {
+	Deleted bool                  `json:"deleted"`
+	Removed ProfileRemovalSummary `json:"removed"`
+}
+
+// DeleteResourceRequest is a daemon API value.
+type DeleteResourceRequest struct {
+	ExpectedVersion int64 `json:"expected_version"`
+}
+
+// DependencyKind is a daemon API value.
+type DependencyKind string
+
 // Deprecation is a daemon API value.
 type Deprecation struct {
 	Code           string `json:"code"`
@@ -423,19 +445,4 @@ type ExtensionKitItemPayload struct {
 	ID   string       `json:"id"`
 	Name string       `json:"name"`
 	Live bool         `json:"live"`
-}
-
-// ExtensionLogPayload is a daemon API value.
-type ExtensionLogPayload struct {
-	Sequence       int64     `json:"sequence"`
-	Timestamp      time.Time `json:"timestamp"`
-	Message        string    `json:"message"`
-	GenerationHash string    `json:"generation_hash,omitempty"`
-	StreamEpoch    string    `json:"stream_epoch"`
-}
-
-// ExtensionLogsResponse is a daemon API value.
-type ExtensionLogsResponse struct {
-	Logs        []ExtensionLogPayload `json:"logs"`
-	StreamEpoch string                `json:"stream_epoch"`
 }
