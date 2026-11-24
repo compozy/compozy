@@ -1,0 +1,163 @@
+.purchase-shell {
+  display: grid;
+  gap: 0.75rem;
+  width: min(100%, 27.5rem);
+}
+
+.purchase-panel {
+  width: 100%;
+  gap: 0.875rem;
+  padding: clamp(1rem, 4vw, 1.5rem);
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+  background: var(--card);
+  text-align: left;
+}
+
+.purchase-panel > p,
+.purchase-account p,
+.purchase-plan {
+  overflow-wrap: anywhere;
+}
+
+.purchase-terms {
+  text-align: center;
+}
+
+.purchase-account,
+.purchase-notice {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--sunken);
+}
+
+.purchase-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem;
+}
+
+button.purchase-switch {
+  padding-inline: 0.375rem;
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.purchase-plans {
+  display: grid;
+  min-width: 0;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.purchase-plans legend {
+  margin-bottom: 0.5rem;
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.purchase-plan {
+  display: flex;
+  align-items: start;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.purchase-plan:has(:checked) {
+  border-color: var(--muted);
+  background: var(--hover);
+}
+
+.purchase-plan input {
+  accent-color: var(--primary);
+}
+
+.purchase-plan > span:first-of-type {
+  display: grid;
+  flex: 1;
+}
+
+.purchase-price {
+  color: var(--strong);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.purchase-saving {
+  padding-inline: 0.5rem;
+  border-radius: 999px;
+  background: var(--sunken);
+  color: var(--ink);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.purchase-promotion {
+  color: var(--ink);
+  font-size: 0.875rem;
+}
+
+.purchase-promotion summary {
+  cursor: pointer;
+}
+
+.purchase-promotion p {
+  padding-block-start: 0.375rem;
+}
+
+.purchase-summary {
+  margin: 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.875rem;
+}
+
+.purchase-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-block: 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.purchase-summary dt {
+  color: var(--muted);
+}
+
+.purchase-summary dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.purchase-action {
+  display: grid;
+  min-height: 2.75rem;
+  place-items: center;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.purchase-action.primary {
+  background: var(--primary);
+  color: var(--sunken);
+}
+
+.purchase-panel button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

@@ -1,6 +1,8 @@
 import {
   apiClient,
   apiClientFor,
+  apiErrorCode,
+  apiErrorMessage,
   apiRequestFailed,
   daemonFetch,
   requireResponseData,
@@ -86,13 +88,18 @@ export type {
 } from "../types";
 import { sessionWorkspacePath } from "./session-workspace-path";
 
+/** Session creation result; carries `computer_id` when the daemon resolved `computer: "auto"`. */
+export type CreatedSessionPayload = SessionPayload & {
+  computer_id?: ComputerId;
+};
+
 export async function createSession(
   params: CreateSessionParams,
   /** The profile that will own the session. Omitting it files into `default`. */
   profile?: string,
   signal?: AbortSignal,
   computerId?: ComputerId
-): Promise<SessionPayload> {
+): Promise<CreatedSessionPayload> {
   const { data, error, response } = await apiClientFor(computerId).POST("/api/sessions", {
     body: params,
     params: { query: profile ? { profile } : {} },
@@ -100,11 +107,18 @@ export async function createSession(
   });
   if (apiRequestFailed(response, error)) {
     if (response.status === 409) {
+      if (apiErrorCode(error) || apiErrorMessage(error)) {
+        throwSessionRequestError(response, error, "Max sessions reached");
+      }
       throw new SessionApiError("Max sessions reached", 409);
     }
     throwSessionRequestError(response, error, "Failed to create session");
   }
-  return requireResponseData(data, response, "Failed to create session").session;
+  const payload = requireResponseData(data, response, "Failed to create session");
+  if (payload.computer_id) {
+    return { ...payload.session, computer_id: payload.computer_id };
+  }
+  return payload.session;
 }
 
 export async function fetchSession(

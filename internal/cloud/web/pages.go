@@ -14,6 +14,7 @@ import (
 
 	"github.com/compozy/compozy/internal/cloud/api"
 	"github.com/compozy/compozy/internal/cloud/auth"
+	"github.com/compozy/compozy/internal/cloud/billing"
 	"github.com/compozy/compozy/packages/brand"
 )
 
@@ -26,20 +27,25 @@ const (
 	revalidateBrowserTTL = 365 * 24 * time.Hour
 )
 
-//go:embed sign-in.html assets/*
+//go:embed sign-in.html billing.html assets/*
 var pages embed.FS
 
 type signInPages struct {
 	service  *auth.Service
 	template *template.Template
+	billing  billingPages
 }
 
-func Register(mux *http.ServeMux, service *auth.Service) error {
+func Register(mux *http.ServeMux, service *auth.Service, bills *billing.Service, limiter *api.AccountLimiter) error {
 	t, err := template.ParseFS(pages, "sign-in.html")
 	if err != nil {
 		return err
 	}
-	p := signInPages{service: service, template: t}
+	purchase, err := registerBilling(mux, service, bills, limiter)
+	if err != nil {
+		return err
+	}
+	p := signInPages{service: service, template: t, billing: purchase}
 	mux.HandleFunc("GET "+activatePath, p.activate)
 	mux.HandleFunc("POST "+activatePath, p.continueActivation)
 	mux.HandleFunc("GET /v1/auth/callback/{provider}", p.callback)
@@ -83,19 +89,23 @@ func providerButtons(selected string) []providerButton {
 	}
 }
 
-func setPageHeaders(w http.ResponseWriter) {
+func setPageHeaders(w http.ResponseWriter, formOrigins ...string) {
 	h := w.Header()
 	h.Set("Cache-Control", "no-store")
 	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("X-Frame-Options", "DENY")
+	formAction := "'self' https://accounts.google.com https://github.com " +
+		"https://*.compozy.run https://*.staging.compozy.run"
+	if len(formOrigins) > 0 {
+		formAction += " " + strings.Join(formOrigins, " ")
+	}
 	h.Set("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; "+
 		"script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; "+
-		"style-src 'self'; img-src 'self'; form-action 'self' https://accounts.google.com https://github.com "+
-		"https://*.compozy.run https://*.staging.compozy.run")
+		"style-src 'self'; img-src 'self'; form-action "+formAction)
 }
 
 func (p signInPages) render(w http.ResponseWriter, page signInPage, err error) {
-	setPageHeaders(w)
+	setPageHeaders(w, p.service.OAuthFormOrigins()...)
 	status := http.StatusOK
 	switch f, ok := errors.AsType[*auth.Failure](err); {
 	case ok:

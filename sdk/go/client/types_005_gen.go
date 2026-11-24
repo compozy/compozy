@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// ChangeBaseRefPayload is a daemon API value.
+type ChangeBaseRefPayload struct {
+	Ref       string `json:"ref"`
+	Kind      string `json:"kind"`
+	IsDefault bool   `json:"is_default,omitzero"`
+	Source    string `json:"source,omitempty"`
+}
+
 // ChangeHeadPayload is a daemon API value.
 type ChangeHeadPayload struct {
 	Branch string `json:"branch"`
@@ -438,11 +446,4 @@ type ComputerSetupAnswer struct {
 type ComputerSetupCanceled struct {
 	SetupID string `json:"setup_id"`
 	State   string `json:"state"`
-}
-
-// ComputerSetupPrompt is a daemon API value.
-type ComputerSetupPrompt struct {
-	Kind        string `json:"kind"`
-	Host        string `json:"host,omitempty"`
-	Fingerprint string `json:"fingerprint,omitempty"`
 }

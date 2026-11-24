@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// HostResourcesResponse is a daemon API value.
+type HostResourcesResponse struct {
+	CPUCount     int       `json:"cpu_count"`
+	CPUUtil      *float64  `json:"cpu_util"`
+	MemTotal     *uint64   `json:"mem_total"`
+	MemAvailable *uint64   `json:"mem_available"`
+	SampledAt    time.Time `json:"sampled_at"`
+}
+
+// HostedPeer is a daemon API value.
+type HostedPeer struct {
+	ComputerID ComputerID `json:"computer_id"`
+	Name       string     `json:"name"`
+	HostedURL  string     `json:"hosted_url"`
+}
+
 // HostedStatus is a daemon API value.
 type HostedStatus struct {
 	Enabled   bool    `json:"enabled"`
@@ -428,11 +444,4 @@ type LoopDiffValue struct {
 	Inline json.RawMessage `json:"inline,omitempty"`
 	Size   int             `json:"size,omitzero"`
 	Hash   string          `json:"hash,omitempty"`
-}
-
-// LoopEffectSpec is a daemon API value.
-type LoopEffectSpec struct {
-	Emit *LoopEmitSpec  `json:"emit,omitzero"`
-	Tool string         `json:"tool,omitempty"`
-	With map[string]any `json:"with,omitempty"`
 }

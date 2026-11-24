@@ -10458,6 +10458,8 @@ export interface components {
       device_id?: string;
       evict_remote?: boolean;
       kind?: string;
+      payment_issue?: boolean | null;
+      plan?: string;
       /** Format: uint64 */
       security_epoch?: number;
     };

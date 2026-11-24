@@ -315,6 +315,36 @@ describe("createSession", () => {
     );
   });
 
+  it("preserves structured 409 error codes such as local_execution_disabled", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: "local_execution_disabled",
+          error: "Running agents on this computer is turned off.",
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    await expect(createSession({ agent_name: "claude-agent" })).rejects.toMatchObject({
+      status: 409,
+      code: "local_execution_disabled",
+      message: "Running agents on this computer is turned off.",
+    });
+  });
+
+  it("preserves placed computer_id returned when creating a session with Auto", async () => {
+    mockJsonResponse({ session: mockSession, computer_id: "cmp_studio" }, 201);
+
+    const result = await createSession({
+      agent_name: "claude-agent",
+      computer: "auto",
+      workspace: WORKSPACE_ID,
+    });
+
+    expect(result).toEqual({ ...mockSession, computer_id: "cmp_studio" });
+  });
+
   it("throws generic error for other failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 

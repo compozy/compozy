@@ -89,6 +89,10 @@ func loadServeConfig(getenv func(string) string) (serveConfig, error) {
 	if err != nil {
 		return serveConfig{}, err
 	}
+	stripe, err := loadStripe(getenv)
+	if err != nil {
+		return serveConfig{}, err
+	}
 	return serveConfig{
 		Address: cmp.Or(getenv(envAddress), ":8080"),
 		Cloud: cloud.Config{
@@ -99,6 +103,7 @@ func loadServeConfig(getenv func(string) string) (serveConfig, error) {
 			MonthlyPrice:  getenv("STRIPE_PRICE_PRO_MONTHLY"),
 			AnnualPrice:   getenv("STRIPE_PRICE_PRO_ANNUAL"),
 			HostedTunnels: tunnels,
+			Stripe:        stripe,
 		},
 	}, nil
 }

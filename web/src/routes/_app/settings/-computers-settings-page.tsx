@@ -11,6 +11,7 @@ import {
   ComputersListSection,
   ComputersThisComputerSection,
   DisableLocalAgentsDialog,
+  LoadBalancingSection,
   RemoveComputerDialog,
   RenameComputerDialog,
   useComputersSettingsPage,
@@ -128,6 +129,16 @@ export function ComputersSettingsPage() {
           computers={view.unaddedComputers}
           onAddAccountComputer={view.handleAddAccountComputer}
         />
+
+        <LoadBalancingSection
+          computers={view.computers}
+          enabled={view.loadBalancingEnabled}
+          isPending={view.isUpdatingLoadBalancing}
+          local={view.local}
+          onChangeComputerWeight={view.handleChangeComputerWeight}
+          onChangeLocalWeight={view.handleChangeLocalWeight}
+          onToggleEnabled={view.handleToggleLoadBalancing}
+        />
       </SettingsPageFrame>
 
       {view.selectedComputer ? (
@@ -213,6 +224,7 @@ export function ComputersSettingsPage() {
       />
 
       <DisableLocalAgentsDialog
+        isPending={view.isUpdatingLocalSettings}
         local={view.local}
         onClose={() => view.setDisableAgentsOpen(false)}
         onConfirm={view.handleConfirmDisableAgents}

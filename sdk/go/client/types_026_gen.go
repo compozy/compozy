@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// SettingsWindowManagerResponse is a daemon API value.
+type SettingsWindowManagerResponse struct {
+	Section            SettingsSectionName                      `json:"section"`
+	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
+	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
+	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
+	Config             SettingsWindowManagerConfigPayload       `json:"config"`
+	Defaults           map[string][]string                      `json:"defaults"`
+	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
+	Aliases            map[string]string                        `json:"aliases"`
+	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
+	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
+	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
+	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
+}
+
+// SettingsWindowManagerSnapPayload is a daemon API value.
+type SettingsWindowManagerSnapPayload struct {
+	EdgeBand     int       `json:"edge_band"`
+	CornerReach  int       `json:"corner_reach"`
+	ExitSlack    int       `json:"exit_slack"`
+	RepeatRatios []float64 `json:"repeat_ratios"`
+}
+
 // SettingsWindowNewPolicy is a daemon API value.
 type SettingsWindowNewPolicy string
 

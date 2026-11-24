@@ -303,6 +303,7 @@ export function RenameComputerDialog({
 export interface DisableLocalAgentsDialogProps {
   open: boolean;
   local: LocalComputerFixture;
+  isPending?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }
@@ -310,6 +311,7 @@ export interface DisableLocalAgentsDialogProps {
 export function DisableLocalAgentsDialog({
   open,
   local,
+  isPending = false,
   onClose,
   onConfirm,
 }: DisableLocalAgentsDialogProps) {
@@ -324,6 +326,7 @@ export function DisableLocalAgentsDialog({
           ? `${count} ${count === 1 ? "session is" : "sessions are"} running here. They keep running until they finish; new sessions go to your other computers.`
           : "Existing local sessions stay readable; new sessions go to your other computers."
       }
+      isPending={isPending}
       onConfirm={onConfirm}
       onOpenChange={next => {
         if (!next) onClose();

@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// SessionCatalogResponse is a daemon API value.
+type SessionCatalogResponse struct {
+	Sessions []SessionPayload          `json:"sessions"`
+	Page     SessionCatalogPagePayload `json:"page"`
+}
+
+// SessionChangeBasesResponse is a daemon API value.
+type SessionChangeBasesResponse struct {
+	Default    *ChangeBaseRefPayload  `json:"default"`
+	Resolvable bool                   `json:"resolvable"`
+	Refs       []ChangeBaseRefPayload `json:"refs"`
+	Truncated  bool                   `json:"truncated"`
+}
+
+// SessionChangeContentsResponse is a daemon API value.
+type SessionChangeContentsResponse struct {
+	Revision    string             `json:"revision"`
+	Path        string             `json:"path"`
+	OldPath     string             `json:"old_path,omitempty"`
+	Fingerprint string             `json:"fingerprint"`
+	Old         *ChangeSidePayload `json:"old,omitempty"`
+	New         *ChangeSidePayload `json:"new,omitempty"`
+}
+
 // SessionChangePatchesResponse is a daemon API value.
 type SessionChangePatchesResponse struct {
 	Revision string               `json:"revision"`
@@ -410,35 +434,3 @@ type SessionGoalResponse struct {
 
 // SessionHealthIneligibilityReason is a daemon API value.
 type SessionHealthIneligibilityReason string
-
-// SessionHealthPayload is a daemon API value.
-type SessionHealthPayload struct {
-	LifecycleState      SessionState                     `json:"lifecycle_state,omitempty"`
-	Verified            *bool                            `json:"verified,omitempty"`
-	Escalated           *bool                            `json:"escalated,omitempty"`
-	Attention           string                           `json:"attention,omitempty"`
-	SessionID           string                           `json:"session_id"`
-	WorkspaceID         string                           `json:"workspace_id"`
-	AgentName           string                           `json:"agent_name"`
-	State               SessionHealthState               `json:"state"`
-	Health              SessionHealthStatus              `json:"health"`
-	ActivePrompt        bool                             `json:"active_prompt"`
-	Attachable          bool                             `json:"attachable"`
-	EligibleForWake     bool                             `json:"eligible_for_wake"`
-	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
-	LastActivityAt      *time.Time                       `json:"last_activity_at,omitempty"`
-	LastPresenceAt      *time.Time                       `json:"last_presence_at,omitempty"`
-	LastError           string                           `json:"last_error,omitempty"`
-	UpdatedAt           time.Time                        `json:"updated_at"`
-}
-
-// SessionHealthResponse is a daemon API value.
-type SessionHealthResponse struct {
-	Health SessionHealthPayload `json:"health"`
-}
-
-// SessionHealthState is a daemon API value.
-type SessionHealthState string
-
-// SessionHealthStatus is a daemon API value.
-type SessionHealthStatus string

@@ -35,30 +35,37 @@ func (q *Queries) LockPlanAccount(ctx context.Context, id string) (string, error
 }
 
 const planSubscriptions = `-- name: PlanSubscriptions :many
-SELECT source, price_id, status, ends_at FROM subscriptions WHERE account_id = $1
+SELECT id, source, account_id, stripe_customer_id, status, price_id, interval, current_period_end, cancel_at_period_end, last_payment_at, ends_at, granted_by, stripe_synced_at, updated_at, last_invoice_id, refundable_payment FROM subscriptions WHERE account_id = $1
+ORDER BY (source = 'stripe') DESC, last_payment_at DESC NULLS LAST,
+    coalesce(ends_at, current_period_end) DESC NULLS LAST, id
 `
 
-type PlanSubscriptionsRow struct {
-	Source  string
-	PriceID pgtype.Text
-	Status  string
-	EndsAt  pgtype.Timestamptz
-}
-
-func (q *Queries) PlanSubscriptions(ctx context.Context, accountID string) ([]PlanSubscriptionsRow, error) {
+func (q *Queries) PlanSubscriptions(ctx context.Context, accountID string) ([]Subscription, error) {
 	rows, err := q.db.Query(ctx, planSubscriptions, accountID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []PlanSubscriptionsRow{}
+	items := []Subscription{}
 	for rows.Next() {
-		var i PlanSubscriptionsRow
+		var i Subscription
 		if err := rows.Scan(
+			&i.ID,
 			&i.Source,
-			&i.PriceID,
+			&i.AccountID,
+			&i.StripeCustomerID,
 			&i.Status,
+			&i.PriceID,
+			&i.Interval,
+			&i.CurrentPeriodEnd,
+			&i.CancelAtPeriodEnd,
+			&i.LastPaymentAt,
 			&i.EndsAt,
+			&i.GrantedBy,
+			&i.StripeSyncedAt,
+			&i.UpdatedAt,
+			&i.LastInvoiceID,
+			&i.RefundablePayment,
 		); err != nil {
 			return nil, err
 		}

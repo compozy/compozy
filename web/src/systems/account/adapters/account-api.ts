@@ -24,12 +24,10 @@ export type ApprovalDeliveryPayload = components["schemas"]["ApprovalDelivery"];
 export type AccountSignInProgressPayload = components["schemas"]["AccountSignInProgress"];
 export type AccountStateEventPayload = components["schemas"]["AccountStatePayload"];
 
-export interface AccountChangedEventData {
-  evict_remote?: boolean;
-  plan?: string;
+export type AccountChangedEventData = Omit<components["schemas"]["Change"], "approval"> & {
   state?: string;
-  approval?: { id?: string; result?: string };
-}
+  approval?: Partial<components["schemas"]["ApprovalResult"]>;
+};
 
 export class AccountApiError extends Error {
   constructor(

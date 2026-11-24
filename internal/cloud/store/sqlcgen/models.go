@@ -23,6 +23,14 @@ type Account struct {
 	SecurityEpoch          int64
 	CreatedAt              pgtype.Timestamptz
 	LastSeenAt             pgtype.Timestamptz
+	BillingReconciledAt    pgtype.Timestamptz
+}
+
+type BillingCheckout struct {
+	ID        string
+	AccountID string
+	Interval  string
+	Hostname  pgtype.Text
 }
 
 type BrowserCode struct {
@@ -261,6 +269,13 @@ type SlotReservation struct {
 	ReleasedAt pgtype.Timestamptz
 }
 
+type StripeEvent struct {
+	EventID     string
+	Type        string
+	ReceivedAt  pgtype.Timestamptz
+	ProcessedAt pgtype.Timestamptz
+}
+
 type Subscription struct {
 	ID                string
 	Source            string
@@ -276,6 +291,8 @@ type Subscription struct {
 	GrantedBy         pgtype.Text
 	StripeSyncedAt    pgtype.Timestamptz
 	UpdatedAt         pgtype.Timestamptz
+	LastInvoiceID     pgtype.Text
+	RefundablePayment bool
 }
 
 type Tunnel struct {

@@ -91,7 +91,24 @@ func browserKey(encoded string) (remoteproto.JWK, string, error) {
 }
 
 func (s *Service) BeginBrowserOAuth(ctx context.Context, request BrowserRequest, cookie string) (string, error) {
-	if !SupportedProvider(request.Provider) || !ValidSecret(cookie) {
+	return s.beginWebOAuth(ctx, webOAuthRequest{BrowserRequest: request}, request.Provider, cookie)
+}
+
+type webOAuthRequest struct {
+	BrowserRequest
+	PurchaseReturn string `json:"purchase_return,omitempty"`
+}
+
+func (s *Service) BeginPurchaseOAuth(ctx context.Context, provider, cookie, returnURL string) (string, error) {
+	target, err := url.ParseRequestURI(returnURL)
+	if err != nil || target.IsAbs() || target.Host != "" || target.Path != "/billing/upgrade" {
+		return "", ErrInvalidRequest
+	}
+	return s.beginWebOAuth(ctx, webOAuthRequest{PurchaseReturn: returnURL}, provider, cookie)
+}
+
+func (s *Service) beginWebOAuth(ctx context.Context, request webOAuthRequest, provider, cookie string) (string, error) {
+	if !SupportedProvider(provider) || !ValidSecret(cookie) {
 		return "", ErrInvalidRequest
 	}
 	data, err := json.Marshal(request)
@@ -100,21 +117,43 @@ func (s *Service) BeginBrowserOAuth(ctx context.Context, request BrowserRequest,
 	}
 	now := s.now()
 	return s.beginOAuth(ctx, store.OAuthAttempt{
-		BrowserRequest: data, Provider: request.Provider, CookieHash: hashSecret(cookie),
+		BrowserRequest: data, Provider: provider, CookieHash: hashSecret(cookie),
 		CreatedAt: now, ExpiresAt: now.Add(oauthAttemptTTL),
 	})
 }
 
 func (s *Service) WebSession(ctx context.Context, token string) (store.CloudWebSession, error) {
+	return s.readWebSession(ctx, s.db.Queries, token)
+}
+
+func (s *Service) CheckWebSession(ctx context.Context, q *store.Queries, token, accountID string) error {
+	session, err := s.readWebSession(ctx, q, token)
+	if err == nil && session.AccountID != accountID {
+		return ErrWebSession
+	}
+	return err
+}
+
+func (s *Service) EndWebSession(ctx context.Context, token string) error {
+	if !ValidSecret(token) {
+		return nil
+	}
+	return s.db.RevokePurchaseWebSession(ctx, hashSecret(token), s.now())
+}
+
+func (s *Service) readWebSession(ctx context.Context, q *store.Queries, token string) (store.CloudWebSession, error) {
 	if !ValidSecret(token) {
 		return store.CloudWebSession{}, ErrWebSession
 	}
 	now := s.now()
-	session, err := s.db.TouchWebSession(ctx, hashSecret(token), now, now.Add(-WebSessionIdle))
+	session, err := q.TouchWebSession(ctx, hashSecret(token), now, now.Add(-WebSessionIdle))
 	if errors.Is(err, store.ErrAuthNotFound) {
 		return store.CloudWebSession{}, ErrWebSession
 	}
-	return session, err
+	if err != nil {
+		return store.CloudWebSession{}, err
+	}
+	return session, requireActive(store.AuthAccount{State: session.State})
 }
 
 func (s *Service) ReuseBrowserSession(
@@ -128,12 +167,8 @@ func (s *Service) ReuseBrowserSession(
 }
 
 func (s *Service) finishBrowserOAuth(
-	ctx context.Context, a store.OAuthAttempt, identity store.VerifiedIdentity, cb Callback,
+	ctx context.Context, a store.OAuthAttempt, request webOAuthRequest, identity store.VerifiedIdentity, cb Callback,
 ) (CallbackResult, error) {
-	var request BrowserRequest
-	if err := json.Unmarshal(a.BrowserRequest, &request); err != nil {
-		return CallbackResult{}, errOAuthState
-	}
 	token := Secret()
 	account, err := s.signIn(ctx, identity, func(q *store.Queries, now time.Time) (signInCommit, error) {
 		return func(account store.AuthAccount, _ bool) error {
@@ -141,10 +176,13 @@ func (s *Service) finishBrowserOAuth(
 		}, nil
 	})
 	if err != nil {
-		return CallbackResult{}, s.failOAuth(ctx, a, err)
+		return CallbackResult{PurchaseReturn: request.PurchaseReturn}, s.failOAuth(ctx, a, err)
+	}
+	if request.PurchaseReturn != "" {
+		return CallbackResult{Account: account, WebSession: token, PurchaseReturn: request.PurchaseReturn}, nil
 	}
 	session := store.CloudWebSession{AccountID: account.ID, Email: account.Email}
-	result, err := s.issueBrowserCode(ctx, request, session, token, cb.BrowserBinding, cb.UserAgent)
+	result, err := s.issueBrowserCode(ctx, request.BrowserRequest, session, token, cb.BrowserBinding, cb.UserAgent)
 	return CallbackResult{Account: account, Browser: result, WebSession: token}, err
 }
 

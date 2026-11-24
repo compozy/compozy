@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// DeleteLoopInputDefaultResponse is a daemon API value.
+type DeleteLoopInputDefaultResponse struct {
+	LoopName string                 `json:"loop_name"`
+	Key      string                 `json:"key"`
+	Scope    LoopInputDefaultsScope `json:"scope"`
+	Deleted  bool                   `json:"deleted"`
+}
+
 // DeleteProfilePlan is a daemon API value.
 type DeleteProfilePlan struct {
 	Revision          string                `json:"revision"`
@@ -437,12 +445,4 @@ type ExtensionKitChangePayload struct {
 	ID     string             `json:"id"`
 	Name   string             `json:"name"`
 	Change ExtensionKitChange `json:"change"`
-}
-
-// ExtensionKitItemPayload is a daemon API value.
-type ExtensionKitItemPayload struct {
-	Kind ResourceKind `json:"kind"`
-	ID   string       `json:"id"`
-	Name string       `json:"name"`
-	Live bool         `json:"live"`
 }

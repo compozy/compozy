@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// LoopRequestAggregates is a daemon API value.
+type LoopRequestAggregates struct {
+	Pending int `json:"pending"`
+}
+
 // LoopRequestPayload is a daemon API value.
 type LoopRequestPayload struct {
 	WorkspaceID      string          `json:"workspace_id,omitempty"`
@@ -431,18 +436,4 @@ type MarketplaceInputPayload struct {
 	Required bool                           `json:"required"`
 	Binding  MarketplaceInputBindingPayload `json:"binding"`
 	Default  json.RawMessage                `json:"default,omitempty"`
-}
-
-// MarketplaceListResponse is a daemon API value.
-type MarketplaceListResponse struct {
-	Categories []MarketplaceCategoryCount  `json:"categories"`
-	Refreshing bool                        `json:"refreshing,omitzero"`
-	Total      int                         `json:"total"`
-	NextCursor string                      `json:"next_cursor,omitempty"`
-	Revision   string                      `json:"revision"`
-	Stale      bool                        `json:"stale"`
-	ErrorClass string                      `json:"error_class,omitempty"`
-	Error      string                      `json:"error,omitempty"`
-	Sources    []MarketplaceSourceSummary  `json:"sources"`
-	Items      []MarketplaceListingPayload `json:"items"`
 }

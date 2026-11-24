@@ -19,11 +19,12 @@ import {
   ROOT_ENVIRONMENT_TARGET,
   type SessionEnvironmentTarget,
 } from "../lib/session-environment-target";
-import type { CreateSessionParams, SessionPayload } from "../types";
+import type { CreatedSessionPayload } from "../adapters/session-api";
+import type { CreateSessionParams } from "../types";
 
 interface SessionCreateNavigationTarget {
   attempt: number;
-  session: SessionPayload;
+  session: CreatedSessionPayload;
 }
 
 type SessionCreateOperation =
@@ -106,11 +107,11 @@ type SessionCreateStoreEvents = {
   submissionFailed: { attempt: number; message: string };
   submissionRequested: {
     agentName: string;
-    execute: () => Promise<SessionPayload>;
-    navigate: (session: SessionPayload) => Promise<void>;
+    execute: () => Promise<CreatedSessionPayload>;
+    navigate: (session: CreatedSessionPayload) => Promise<void>;
     workspaceId: string;
   };
-  sessionCreated: { attempt: number; session: SessionPayload };
+  sessionCreated: { attempt: number; session: CreatedSessionPayload };
   /**
    * Palette prompt fallback: same single-flight submitting state as the dialog,
    * without opening it or asking the dialog to navigate.

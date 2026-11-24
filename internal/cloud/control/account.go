@@ -43,17 +43,23 @@ func (s *Service) accountPlan(
 ) (remoteproto.AccountPlan, error) {
 	var result remoteproto.AccountPlan
 	now := s.config.Now()
-	tier, err := s.reconcilePlan(ctx, q, account.ID, now)
+	subscriptions, err := q.Subscriptions(ctx, account.ID)
 	if err != nil {
+		return result, err
+	}
+	billing := plan.BillingStatus(subscriptions, s.config.MonthlyPrice, s.config.AnnualPrice, now)
+	if err := q.ApplyAccountPlan(ctx, account.ID, billing.Plan, now, false); err != nil {
 		return result, err
 	}
 	usage, err := q.PlanUsage(ctx, account.ID, now)
 	if err != nil {
 		return result, err
 	}
-	result.Plan = string(tier)
+	result.Plan = string(billing.Plan)
+	result.PaymentIssue = billing.PaymentIssue
+	result.Subscription = billing.AccountSubscription()
 	result.RemoteComputersUsed = usage.EnabledComputers + usage.ActiveReservations
-	if tier == plan.Free {
+	if billing.Plan == plan.Free {
 		result.RemoteComputersLimit = new(int64(1))
 		return result, nil
 	}

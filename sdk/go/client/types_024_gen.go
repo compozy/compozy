@@ -4,6 +4,34 @@ package client
 
 import "time"
 
+// SettingsMCPAuthStatusPayload is a daemon API value.
+type SettingsMCPAuthStatusPayload struct {
+	ServerName   string     `json:"server_name"`
+	Owner        string     `json:"owner"`
+	Scope        string     `json:"scope"`
+	WorkspaceID  string     `json:"workspace_id,omitempty"`
+	Profile      string     `json:"profile,omitempty"`
+	Status       string     `json:"status"`
+	RemoteURL    string     `json:"remote_url,omitempty"`
+	AuthType     string     `json:"auth_type,omitempty"`
+	ClientID     string     `json:"client_id,omitempty"`
+	Issuer       string     `json:"issuer,omitempty"`
+	Scopes       []string   `json:"scopes,omitempty"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	UpdatedAt    *time.Time `json:"updated_at,omitempty"`
+	Refreshable  bool       `json:"refreshable"`
+	TokenPresent bool       `json:"token_present"`
+	Diagnostic   string     `json:"diagnostic,omitempty"`
+	Inherited    bool       `json:"inherited,omitempty"`
+}
+
+// SettingsMCPExtensionOverridePayload is a daemon API value.
+type SettingsMCPExtensionOverridePayload struct {
+	Env     map[string]string `json:"env,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+	URL     string            `json:"url,omitempty"`
+}
+
 // SettingsMCPSecretPreservationPayload is a daemon API value.
 type SettingsMCPSecretPreservationPayload struct {
 	SecretEnv         []string `json:"secret_env,omitempty"`
@@ -413,21 +441,3 @@ type SettingsScopeKind string
 
 // SettingsSectionName is a daemon API value.
 type SettingsSectionName string
-
-// SettingsShellAppearancePayload is a daemon API value.
-type SettingsShellAppearancePayload struct {
-	UIFont        *string                     `json:"ui_font,omitempty"`
-	MonoFont      *string                     `json:"mono_font,omitempty"`
-	TextSize      *SettingsShellTextSize      `json:"text_size,omitempty"`
-	LetterSpacing *SettingsShellLetterSpacing `json:"letter_spacing,omitempty"`
-}
-
-// SettingsShellLegacyScopePayload is a daemon API value.
-type SettingsShellLegacyScopePayload struct {
-	Value    SettingsShellSessionScope `json:"value"`
-	Explicit bool                      `json:"explicit"`
-	Revision uint64                    `json:"revision"`
-}
-
-// SettingsShellLetterSpacing is a daemon API value.
-type SettingsShellLetterSpacing string

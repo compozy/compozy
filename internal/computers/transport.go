@@ -83,6 +83,9 @@ func fetchDescriptor(
 		return remoteproto.Descriptor{}, ErrOffline
 	}
 	defer resp.Body.Close()
+	if planRequiredResponse(resp) {
+		return remoteproto.Descriptor{}, ErrPlanRequired
+	}
 	var descriptor remoteproto.Descriptor
 	if resp.StatusCode != http.StatusOK ||
 		json.UnmarshalRead(io.LimitReader(resp.Body, maxTunnelResponse), &descriptor) != nil {
@@ -102,7 +105,13 @@ func dialTunnel(
 	})
 	if err != nil {
 		if response != nil && response.Body != nil {
-			_ = response.Body.Close()
+			planRequired := planRequiredResponse(response)
+			if closeErr := response.Body.Close(); closeErr != nil {
+				slog.DebugContext(ctx, "Could not close remote tunnel refusal", "error", closeErr)
+			}
+			if planRequired {
+				return nil, ErrPlanRequired
+			}
 		}
 		return nil, ErrOffline
 	}
@@ -116,6 +125,17 @@ func dialTunnel(
 		return nil, errors.Join(err, socket.CloseNow())
 	}
 	return multiplexTunnel(inner, socket)
+}
+
+func planRequiredResponse(response *http.Response) bool {
+	if response.StatusCode != http.StatusPaymentRequired {
+		return false
+	}
+	var failure struct {
+		Code string `json:"code"`
+	}
+	return json.UnmarshalRead(io.LimitReader(response.Body, maxTunnelResponse), &failure) == nil &&
+		failure.Code == CodePlanRequired
 }
 
 func verifyTunnelRoot(state tls.ConnectionState, pin string, now time.Time) error {

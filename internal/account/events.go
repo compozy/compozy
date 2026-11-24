@@ -118,6 +118,10 @@ func (s *Service) emitLocked(g *generation, change Change) {
 	if s.closed || g != s.generation {
 		return
 	}
+	if change.Kind == "profile" || change.Kind == "plan.changed" {
+		change.Plan = s.installation.Profile.Plan
+		change.PaymentIssue = new(s.installation.Profile.PaymentIssue)
+	}
 	g.sequence++
 	event := Event{ID: strconv.FormatUint(g.sequence, 10), Event: "account.changed", Data: change}
 	g.rendered[g.sequence%accountReplayLimit] = event

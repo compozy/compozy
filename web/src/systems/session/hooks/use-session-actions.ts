@@ -30,7 +30,7 @@ import type { SessionPayload, SessionRepairQuery } from "../types";
 import { useActiveWorkspace, workspaceBadgeIdentity } from "@/systems/workspace";
 import { useProfileReadScope } from "@/systems/profiles";
 import { sessionStartedToast } from "../lib/session-create-target";
-import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import { isAutoComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
 import { useAbortableMutationRequest } from "./use-abortable-mutation-request";
 import {
@@ -90,11 +90,14 @@ export function useCreateSession() {
 
   return useMutation({
     mutationFn: ({ profile, computerId, ...params }: CreateSessionVariables) =>
-      computerId
+      computerId && !isAutoComputerId(computerId)
         ? createSession(params, profile ?? destination, undefined, computerId)
         : createSession(params, profile ?? destination),
     onSuccess: (session, variables) => {
-      const scopedComputerId = normalizeComputerId(variables.computerId);
+      const scopedComputerId = normalizeComputerId(
+        session.computer_id ??
+          (isAutoComputerId(variables.computer) ? undefined : variables.computerId)
+      );
       const keys = sessionKeys.forComputer(scopedComputerId);
       // Only while an axis is aggregated: a scoped view already shows where the
       // session is, so announcing it there would be noise. Here it is the

@@ -1,9 +1,11 @@
 import {
   apiClient,
+  apiClientFor,
   apiErrorCode,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
+  type ComputerId,
 } from "@/lib/api-client";
 
 import type {
@@ -12,13 +14,18 @@ import type {
   ComputerChangePayload,
   ComputerListResponse,
   ComputerPayload,
+  ComputerPlacementRequest,
+  ComputerPlacementResponse,
   ComputerSetupAnswerRequest,
   ComputerSetupCanceledPayload,
   ComputerSetupStartedPayload,
   ComputerSetupStatusPayload,
   ComputerSSHHostsResponse,
   ComputerUpdateStartedPayload,
+  HostResourcesResponse,
+  LocalComputerPayload,
   PatchComputerRequest,
+  PatchLocalComputerRequest,
   RemoveComputerResponse,
 } from "../types";
 
@@ -89,6 +96,47 @@ export async function patchComputer(
     throwComputersError(`Failed to update computer "${id}"`, response, error);
   }
   return requireResponseData(data, response, `Failed to update computer "${id}"`);
+}
+
+export async function patchLocalComputer(
+  body: PatchLocalComputerRequest,
+  signal?: AbortSignal
+): Promise<LocalComputerPayload> {
+  const { data, error, response } = await apiClient.PATCH("/api/computers/local", {
+    body,
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throwComputersError("Failed to update local computer settings", response, error);
+  }
+  return requireResponseData(data, response, "Failed to update local computer settings");
+}
+
+export async function previewComputerPlacement(
+  body: ComputerPlacementRequest,
+  signal?: AbortSignal
+): Promise<ComputerPlacementResponse> {
+  const { data, error, response } = await apiClient.POST("/api/computers/placement", {
+    body,
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throwComputersError("Failed to preview Auto placement", response, error);
+  }
+  return requireResponseData(data, response, "Failed to preview Auto placement");
+}
+
+export async function fetchHostResources(
+  computerId?: ComputerId,
+  signal?: AbortSignal
+): Promise<HostResourcesResponse> {
+  const { data, error, response } = await apiClientFor(computerId).GET("/api/host/resources", {
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throwComputersError("Failed to read host resources", response, error);
+  }
+  return requireResponseData(data, response, "Failed to read host resources");
 }
 
 export async function fetchAvailableComputers(

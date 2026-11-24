@@ -1,7 +1,6 @@
-import { Alert, AlertDescription, Field, FieldLabel } from "@compozy/ui";
-import { WifiOff } from "@compozy/ui/icons";
+import { Field, FieldLabel } from "@compozy/ui";
 
-import { RunOnPicker } from "@/systems/computers";
+import { RunOnNotices, RunOnPicker } from "@/systems/computers";
 import type { AgentPayload } from "@/systems/agent";
 import type { DataScope, WorkspacePayload } from "@/systems/workspace";
 
@@ -50,15 +49,19 @@ export function SessionCreateDialogHost({
       isSubmitting={sessionCreate.isSubmitting}
       mode={sessionCreate.mode}
       notice={
-        sessionCreate.offlineComputerName ? (
-          <Alert data-testid="session-create-offline-notice" variant="warning">
-            <WifiOff aria-hidden="true" />
-            <AlertDescription>
-              {sessionCreate.offlineComputerName} is offline. Your draft is saved; reconnect or pick
-              another computer to start this session.
-            </AlertDescription>
-          </Alert>
-        ) : undefined
+        <RunOnNotices
+          autoCandidates={sessionCreate.autoCandidates}
+          autoNoEligible={sessionCreate.autoNoEligible}
+          autoNoEligibleReason={sessionCreate.autoNoEligibleReason}
+          isReconnectingOffline={
+            sessionCreate.offlineComputer !== null &&
+            sessionCreate.reconnectingComputerIds.includes(sessionCreate.offlineComputer.id)
+          }
+          localExecutionBlocked={sessionCreate.localExecutionBlocked}
+          offlineComputer={sessionCreate.offlineComputer}
+          onReconnectOffline={sessionCreate.onReconnectComputer}
+          projectName={sessionCreate.destinationLabel}
+        />
       }
       onAgentChange={sessionCreate.onAgentChange}
       onCancelEnvironment={sessionCreate.onCancelEnvironment}
@@ -73,14 +76,20 @@ export function SessionCreateDialogHost({
           <Field>
             <FieldLabel htmlFor="session-create-run-on">Run on</FieldLabel>
             <RunOnPicker
-              allowAuto={false}
+              allowAuto
+              autoLoading={sessionCreate.autoLoading}
+              autoResolution={sessionCreate.autoResolution}
               computers={sessionCreate.computers}
               disabled={sessionCreate.isSubmitting}
               hideWhenSingleComputer
-              loadBalancingEnabled={false}
+              loadBalancingEnabled={sessionCreate.loadBalancingEnabled}
               localComputer={sessionCreate.localComputer}
               locked={sessionCreate.computerLocked}
+              onAddComputer={sessionCreate.onAddComputer}
               onChange={sessionCreate.onComputerChange}
+              onReconnect={sessionCreate.onReconnectComputer}
+              onUpgrade={sessionCreate.onUpgradeComputer}
+              reconnectingIds={sessionCreate.reconnectingComputerIds}
               testId="session-create-run-on"
               triggerId="session-create-run-on"
               value={sessionCreate.computerId}

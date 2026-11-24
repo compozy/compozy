@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// ExtensionKitItemPayload is a daemon API value.
+type ExtensionKitItemPayload struct {
+	Kind ResourceKind `json:"kind"`
+	ID   string       `json:"id"`
+	Name string       `json:"name"`
+	Live bool         `json:"live"`
+}
+
 // ExtensionLogPayload is a daemon API value.
 type ExtensionLogPayload struct {
 	Sequence       int64     `json:"sequence"`
@@ -422,23 +430,4 @@ type FormBody struct {
 	Fields   []FormField `json:"fields"`
 	Submit   *RowAction  `json:"submit,omitempty"`
 	OnSubmit string      `json:"on_submit,omitempty"`
-}
-
-// FormField is a daemon API value.
-type FormField struct {
-	ID          string            `json:"id"`
-	Type        string            `json:"type"`
-	Label       string            `json:"label"`
-	Placeholder string            `json:"placeholder,omitempty"`
-	Required    bool              `json:"required,omitempty"`
-	Options     []string          `json:"options,omitempty"`
-	Directories bool              `json:"directories,omitempty"`
-	Default     any               `json:"default,omitempty"`
-	Error       string            `json:"error,omitempty"`
-	EmptyHint   string            `json:"empty_hint,omitempty"`
-	OnChange    string            `json:"on_change,omitempty"`
-	OnBlur      string            `json:"on_blur,omitempty"`
-	EventCount  int64             `json:"event_count,omitempty"`
-	Requires    map[string]string `json:"requires,omitempty"`
-	Fallback    string            `json:"fallback,omitempty"`
 }

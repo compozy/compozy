@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"time"
 
@@ -59,10 +60,11 @@ type Callback struct {
 }
 
 type CallbackResult struct {
-	Grant      store.DeviceGrant
-	Account    store.AuthAccount
-	Browser    BrowserResult
-	WebSession string
+	Grant          store.DeviceGrant
+	Account        store.AuthAccount
+	Browser        BrowserResult
+	WebSession     string
+	PurchaseReturn string
 }
 
 func (s *Service) CompleteOAuth(ctx context.Context, cb Callback) (CallbackResult, error) {
@@ -74,6 +76,13 @@ func (s *Service) CompleteOAuth(ctx context.Context, cb Callback) (CallbackResul
 	result := CallbackResult{Grant: grant}
 	if err != nil {
 		return result, err
+	}
+	var request webOAuthRequest
+	if len(attempt.GrantHash) == 0 {
+		if err := json.Unmarshal(attempt.BrowserRequest, &request); err != nil {
+			return result, errOAuthState
+		}
+		result.PurchaseReturn = request.PurchaseReturn
 	}
 	if cb.Denied {
 		return result, s.failOAuth(ctx, attempt, errDenied)
@@ -87,7 +96,7 @@ func (s *Service) CompleteOAuth(ctx context.Context, cb Callback) (CallbackResul
 		return result, s.failOAuth(ctx, attempt, err)
 	}
 	if len(attempt.GrantHash) == 0 {
-		return s.finishBrowserOAuth(ctx, attempt, profile, cb)
+		return s.finishBrowserOAuth(ctx, attempt, request, profile, cb)
 	}
 	result.Account, err = s.authorizeDeviceGrant(ctx, attempt, profile)
 	if err != nil {

@@ -90,6 +90,10 @@ func (p signInPages) callback(w http.ResponseWriter, r *http.Request) {
 	if result.WebSession != "" {
 		setCookie(w, webSessionCookie, result.WebSession, auth.WebSessionTTL)
 	}
+	if result.PurchaseReturn != "" {
+		p.billing.afterOAuth(w, r, result.PurchaseReturn, err)
+		return
+	}
 	if result.Browser.Redirect != "" {
 		redirectBrowser(w, r, result.Browser)
 		return

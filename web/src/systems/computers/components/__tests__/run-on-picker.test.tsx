@@ -1,8 +1,11 @@
-// Suite: RunOnPicker & SessionCreateDialog remote targeting (UT-081, UT-083, UT-084)
+// Suite: RunOnPicker & SessionCreateDialog remote targeting (UT-080, UT-081, UT-083, UT-084, UT-106)
 // Invariant: Selecting a remote computer queries ["computer", id, "workspaces"], an offline
-//            computer disables Send with "<name> is offline" while preserving draft text, and
-//            single-computer installations hide RunOnPicker completely.
-// Boundary IN: RunOnPicker, useComputerWorkspaces, and SessionCreateDialog.
+//            computer disables Send with "<name> is offline" while preserving draft text,
+//            Needs Pro computers are non-selectable, single-computer installations hide RunOnPicker,
+//            local execution off omits This computer, and Auto with no eligible computer disables
+//            Send with "No computer can run this project".
+// Boundary IN: RunOnPicker, RunOnNotices, runOnOptions, resolveEffectiveRunOnTarget,
+//              useComputerWorkspaces, and SessionCreateDialog.
 // Boundary OUT: Backend HTTP bridge and remote daemon responses.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -17,6 +20,12 @@ import * as workspaceApi from "@/systems/workspace/adapters/workspace-api";
 import { SessionCreateDialog } from "@/systems/session/components/session-create-dialog";
 import type { ComputerFixture, LocalComputerFixture } from "../../mocks/remote-computers-types";
 import { useComputerWorkspaces } from "../../hooks/use-computer-workspaces";
+import { runOnOptions } from "../../lib/computer-view";
+import {
+  describeNoEligibleComputerReason,
+  resolveEffectiveRunOnTarget,
+} from "../../lib/placement-view";
+import { RunOnNotices } from "../run-on-notices";
 import { RunOnPicker } from "../run-on-picker";
 
 const LOCAL_COMPUTER: LocalComputerFixture = {
@@ -193,5 +202,153 @@ describe("RunOnPicker (UT-081, UT-083, UT-084)", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("UT-080: Should mark Needs Pro computers non-selectable with Needs Pro hint and inline Upgrade action", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onUpgrade = vi.fn();
+    const limitedComputer: ComputerFixture = {
+      ...DEVBOX_CONNECTED,
+      id: "cmp_limited",
+      name: "gpu-vm",
+      status: "needs_pro",
+      planState: "limited",
+    };
+
+    expect(
+      runOnOptions([
+        { id: "cmp_limited", name: "gpu-vm", status: "needs_pro", enabled: true },
+        { id: "cmp_7f3k2q9x", name: "devbox", status: "connected", enabled: true },
+      ])
+    ).toEqual([
+      {
+        id: "cmp_limited",
+        name: "gpu-vm",
+        status: "needs_pro",
+        selectable: false,
+        hint: "Needs Pro",
+      },
+      {
+        id: "cmp_7f3k2q9x",
+        name: "devbox",
+        status: "connected",
+        selectable: true,
+      },
+    ]);
+
+    render(
+      <RunOnPicker
+        allowAuto={false}
+        computers={[DEVBOX_CONNECTED, limitedComputer]}
+        localComputer={LOCAL_COMPUTER}
+        onChange={onChange}
+        onUpgrade={onUpgrade}
+        value="local"
+      />
+    );
+
+    await user.click(screen.getByTestId("run-on-picker"));
+    const limitedItem = screen.getByTestId("run-on-picker-item-cmp_limited");
+    expect(limitedItem).toHaveTextContent("Needs Pro");
+    expect(limitedItem).toHaveAttribute("aria-disabled", "true");
+
+    await user.click(limitedItem);
+    expect(onChange).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /Upgrade/i }));
+    expect(onUpgrade).toHaveBeenCalledWith("cmp_limited");
+  });
+
+  it("UT-106: Should show Auto → <computer> only when load balancing is on, omit This computer when local execution is off, and disable Send when no computer is eligible", async () => {
+    const user = userEvent.setup();
+    const localOff: LocalComputerFixture = { ...LOCAL_COMPUTER, localRunAgents: false };
+    const manualOnlyDevbox: ComputerFixture = { ...DEVBOX_CONNECTED, loadBalancingWeight: 0 };
+
+    expect(
+      resolveEffectiveRunOnTarget({
+        requested: "local",
+        local: localOff,
+        computers: [DEVBOX_CONNECTED],
+        loadBalancingEnabled: true,
+        allowAuto: true,
+      })
+    ).toBe("cmp_7f3k2q9x");
+
+    const { rerender } = render(
+      <RunOnPicker
+        allowAuto
+        autoResolution={{
+          computerId: "cmp_7f3k2q9x",
+          computerName: "devbox",
+          reason: "Picks the least busy computer",
+        }}
+        computers={[DEVBOX_CONNECTED]}
+        loadBalancingEnabled={false}
+        localComputer={LOCAL_COMPUTER}
+        onChange={() => undefined}
+        value="local"
+      />
+    );
+
+    await user.click(screen.getByTestId("run-on-picker"));
+    expect(screen.queryByTestId("run-on-picker-item-auto")).not.toBeInTheDocument();
+
+    rerender(
+      <SessionCreateDialog
+        agents={[{ name: "general", display_name: "General", builtin: true } as never]}
+        destinationLabel="trainer"
+        destinationReady
+        isAwaitingEnvironment={false}
+        isSubmitting={false}
+        mode="simple"
+        notice={
+          <RunOnNotices
+            autoNoEligible
+            autoNoEligibleReason={describeNoEligibleComputerReason("trainer", {
+              local: "local_execution_disabled",
+              cmp_7f3k2q9x: "manual_only",
+            })}
+            projectName="trainer"
+          />
+        }
+        onAgentChange={() => undefined}
+        onCancelEnvironment={() => undefined}
+        onModeChange={() => undefined}
+        onOpenChange={() => undefined}
+        onSessionNameChange={() => undefined}
+        onSubmit={() => undefined}
+        open
+        restoreFocusOnClose={false}
+        runOn={
+          <RunOnPicker
+            allowAuto
+            autoResolution={null}
+            computers={[manualOnlyDevbox]}
+            loadBalancingEnabled
+            localComputer={localOff}
+            onChange={() => undefined}
+            value="auto"
+          />
+        }
+        scope="project"
+        selectedAgentName="general"
+        sessionName=""
+        sessionRoot="/srv/trainer"
+        submitDisabled
+        submitError={null}
+      />
+    );
+
+    expect(screen.getByTestId("auto-no-eligible-alert")).toHaveTextContent(
+      "No computer can run this project."
+    );
+    expect(screen.getByTestId("session-create-submit")).toBeDisabled();
+
+    await user.click(screen.getByTestId("run-on-picker"));
+    expect(screen.queryByTestId("run-on-picker-item-local")).not.toBeInTheDocument();
+    expect(screen.getByTestId("run-on-picker-item-auto")).toHaveTextContent(
+      "No computer can run this project"
+    );
   });
 });

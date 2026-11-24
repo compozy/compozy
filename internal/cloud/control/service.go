@@ -219,15 +219,7 @@ func (s *Service) reconcilePlan(
 		return plan.Free, err
 	}
 	tier := plan.Derive(subscriptions, s.config.MonthlyPrice, s.config.AnnualPrice, now)
-	return tier, applyPlan(ctx, q, account, tier)
-}
-
-func applyPlan(ctx context.Context, q *store.Queries, account string, tier plan.Plan) error {
-	changed, err := q.ApplyControlPlan(ctx, account, tier)
-	if err != nil || !changed {
-		return err
-	}
-	return q.NotifyControlEvent(ctx, store.ControlEvent{Type: remoteproto.ControlPlanChanged, AccountID: account})
+	return tier, q.ApplyAccountPlan(ctx, account, tier, now, false)
 }
 
 func (s *Service) securityEvent(

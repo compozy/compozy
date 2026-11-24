@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// SettingsShellAppearancePayload is a daemon API value.
+type SettingsShellAppearancePayload struct {
+	UIFont        *string                     `json:"ui_font,omitempty"`
+	MonoFont      *string                     `json:"mono_font,omitempty"`
+	TextSize      *SettingsShellTextSize      `json:"text_size,omitempty"`
+	LetterSpacing *SettingsShellLetterSpacing `json:"letter_spacing,omitempty"`
+}
+
+// SettingsShellLegacyScopePayload is a daemon API value.
+type SettingsShellLegacyScopePayload struct {
+	Value    SettingsShellSessionScope `json:"value"`
+	Explicit bool                      `json:"explicit"`
+	Revision uint64                    `json:"revision"`
+}
+
+// SettingsShellLetterSpacing is a daemon API value.
+type SettingsShellLetterSpacing string
+
 // SettingsShellMutationResponse is a daemon API value.
 type SettingsShellMutationResponse struct {
 	Section          SettingsApplyTargetName         `json:"section,omitempty"`
@@ -422,28 +440,4 @@ type SettingsWindowManagerMutationResponse struct {
 	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
 	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
 	Apply              SettingsApplyResponse                    `json:"apply"`
-}
-
-// SettingsWindowManagerResponse is a daemon API value.
-type SettingsWindowManagerResponse struct {
-	Section            SettingsSectionName                      `json:"section"`
-	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
-	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
-	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
-	Config             SettingsWindowManagerConfigPayload       `json:"config"`
-	Defaults           map[string][]string                      `json:"defaults"`
-	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
-	Aliases            map[string]string                        `json:"aliases"`
-	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
-	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
-	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
-	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
-}
-
-// SettingsWindowManagerSnapPayload is a daemon API value.
-type SettingsWindowManagerSnapPayload struct {
-	EdgeBand     int       `json:"edge_band"`
-	CornerReach  int       `json:"corner_reach"`
-	ExitSlack    int       `json:"exit_slack"`
-	RepeatRatios []float64 `json:"repeat_ratios"`
 }

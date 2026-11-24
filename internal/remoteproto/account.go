@@ -35,6 +35,14 @@ type AccountSubscription struct {
 	RefundEligibleUntil *time.Time `json:"refund_eligible_until"`
 }
 
+type CheckoutRequest struct {
+	Interval string `json:"interval"`
+}
+
+type BillingURL struct {
+	URL string `json:"url"`
+}
+
 type AccountSummary struct {
 	AccountPlan
 	Email          string        `json:"email"`

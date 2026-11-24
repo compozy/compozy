@@ -32,11 +32,14 @@ func run(ctx context.Context, args []string, output io.Writer) (status int) {
 	if len(args) == 1 && args[0] == "serve-daemon" {
 		return exitStatus(runDaemon(ctx))
 	}
+	if len(args) > 0 && args[0] == "tunnel" {
+		return exitStatus(runFixtureConnector(ctx, args))
+	}
 	flags := flag.NewFlagSet("remotetest", flag.ContinueOnError)
 	scenario := flags.String(
 		"scenario",
 		"",
-		"fixture to prepare (ssh-add, account-add, revoke-device, remote-session)",
+		"fixture to prepare (ssh-add, account-add, revoke-device, remote-session, browser-purchase, hosted-purchase)",
 	)
 	repo := flags.String("repo", ".", "repository root")
 	if err := flags.Parse(args); err != nil {

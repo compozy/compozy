@@ -52,6 +52,8 @@ Use `compozy account login` to sign in through the browser. Show the activation 
 
 Local HTTP and UDS expose the same `/api/account` routes for sign-in, status, devices, approvals, and billing. Subscribe to `GET /api/account/sign-in/events` before starting a login. It carries attempt progress and state without account details. Follow `GET /api/account/stream` after sign-in. On `stream_reset`, read current status and approvals before following changes again.
 
+Use `POST /api/account/checkout` with `{"interval":"year"}` or `{"interval":"month"}` and give the operator its Stripe URL. Follow `account.changed` for `plan` and `payment_issue`, including when remote access is off. `POST /api/account/billing-portal` returns the URL for payment methods, interval changes, and renewal cancellation. Use `GET /api/account` for the current subscription and `refund_eligible_until`.
+
 A cloud outage leaves an existing sign-in intact. Retry account actions after the response's `Retry-After` when present. The account tool and routes are local to the installation.
 
 ## Cloud sign-in
@@ -68,6 +70,7 @@ Use the Google activation page's **Recover admin access** action after losing th
 - `GET /v1/computers` lists the account's linked computers. Use `POST /v1/computers/reservations` to reserve a slot before SSH setup. On resume, send `previous_reservation_id` again. Release the reservation when setup is cancelled. A link token can be redeemed again by the same computer key to recover the original link result.
 - Request a fresh grant for each connection attempt at `POST /v1/computers/{id}/grants` with the route kind. Use the bound device key. Free grants cover `direct` and `ssh`. Compozy Pro also covers `cloud`.
 - Follow `GET /v1/account/events` for device, computer, plan, and approval changes. After a reconnect, read the current state. A decision accepted for delivery can be checked at `GET /v1/approvals/{id}` until the computer provides its `applied_result`.
+- When Pro ends, the account keeps its most recently used enabled computer on direct or SSH. Hosted access is gated at once and the hostname is retained for seven days. The owning account can buy Pro at `https://cloud.compozy.com/billing/upgrade?hostname=<host>` and return to the hosted URL.
 
 Keep link tokens, grants, computer key proofs and private keys out of logs and tool results.
 

@@ -11,7 +11,9 @@ SELECT
        AND consumed_at IS NULL AND released_at IS NULL) AS active_reservations;
 
 -- name: PlanSubscriptions :many
-SELECT source, price_id, status, ends_at FROM subscriptions WHERE account_id = $1;
+SELECT * FROM subscriptions WHERE account_id = $1
+ORDER BY (source = 'stripe') DESC, last_payment_at DESC NULLS LAST,
+    coalesce(ends_at, current_period_end) DESC NULLS LAST, id;
 
 -- name: AccountHostedRouteUsage :one
 SELECT count(*) FROM tunnels t JOIN computers c ON c.id = t.computer_id

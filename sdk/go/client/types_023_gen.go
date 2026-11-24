@@ -4,6 +4,34 @@ package client
 
 import "time"
 
+// SettingsApplyNextAction is a daemon API value.
+type SettingsApplyNextAction string
+
+// SettingsApplyResponse is a daemon API value.
+type SettingsApplyResponse struct {
+	Section          SettingsApplyTargetName       `json:"section,omitempty"`
+	Scope            SettingsScopeKind             `json:"scope,omitempty"`
+	WriteTarget      SettingsWriteTargetKind       `json:"write_target,omitempty"`
+	WorkspaceID      string                        `json:"workspace_id,omitempty"`
+	Profile          string                        `json:"profile,omitempty"`
+	AgentName        string                        `json:"agent_name,omitempty"`
+	Applied          bool                          `json:"applied"`
+	Lifecycle        SettingsApplyLifecycle        `json:"lifecycle"`
+	ApplyRecordID    string                        `json:"apply_record_id"`
+	ActiveGeneration int64                         `json:"active_generation"`
+	ActiveConfigHash string                        `json:"active_config_hash"`
+	NextAction       SettingsApplyNextAction       `json:"next_action"`
+	RestartRequired  bool                          `json:"restart_required,omitzero"`
+	RestartScope     string                        `json:"restart_scope,omitempty"`
+	Warnings         []string                      `json:"warnings,omitempty"`
+	PartialFailures  []SettingsApplyFailurePayload `json:"partial_failures,omitempty"`
+	Skipped          bool                          `json:"skipped,omitzero"`
+	SkippedReason    string                        `json:"skipped_reason,omitempty"`
+}
+
+// SettingsApplyTargetName is a daemon API value.
+type SettingsApplyTargetName string
+
 // SettingsAttentionPayload is a daemon API value.
 type SettingsAttentionPayload struct {
 	Toasts          bool     `json:"toasts"`
@@ -415,32 +443,4 @@ type SettingsMCPAuthConfigViewPayload struct {
 // SettingsMCPAuthExchangeRequest is a daemon API value.
 type SettingsMCPAuthExchangeRequest struct {
 	RedirectURL string `json:"redirect_url"`
-}
-
-// SettingsMCPAuthStatusPayload is a daemon API value.
-type SettingsMCPAuthStatusPayload struct {
-	ServerName   string     `json:"server_name"`
-	Owner        string     `json:"owner"`
-	Scope        string     `json:"scope"`
-	WorkspaceID  string     `json:"workspace_id,omitempty"`
-	Profile      string     `json:"profile,omitempty"`
-	Status       string     `json:"status"`
-	RemoteURL    string     `json:"remote_url,omitempty"`
-	AuthType     string     `json:"auth_type,omitempty"`
-	ClientID     string     `json:"client_id,omitempty"`
-	Issuer       string     `json:"issuer,omitempty"`
-	Scopes       []string   `json:"scopes,omitempty"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-	UpdatedAt    *time.Time `json:"updated_at,omitempty"`
-	Refreshable  bool       `json:"refreshable"`
-	TokenPresent bool       `json:"token_present"`
-	Diagnostic   string     `json:"diagnostic,omitempty"`
-	Inherited    bool       `json:"inherited,omitempty"`
-}
-
-// SettingsMCPExtensionOverridePayload is a daemon API value.
-type SettingsMCPExtensionOverridePayload struct {
-	Env     map[string]string `json:"env,omitempty"`
-	Headers map[string]string `json:"headers,omitempty"`
-	URL     string            `json:"url,omitempty"`
 }

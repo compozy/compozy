@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// ComputerSetupPrompt is a daemon API value.
+type ComputerSetupPrompt struct {
+	Kind        string `json:"kind"`
+	Host        string `json:"host,omitempty"`
+	Fingerprint string `json:"fingerprint,omitempty"`
+}
+
 // ComputerSetupStarted is a daemon API value.
 type ComputerSetupStarted struct {
 	SetupID    string      `json:"setup_id"`
@@ -436,12 +443,4 @@ type DeleteAgentResponse struct {
 	Name             string      `json:"name"`
 	Origin           AgentOrigin `json:"origin"`
 	UnshadowedOrigin AgentOrigin `json:"unshadowed_origin,omitempty"`
-}
-
-// DeleteLoopInputDefaultResponse is a daemon API value.
-type DeleteLoopInputDefaultResponse struct {
-	LoopName string                 `json:"loop_name"`
-	Key      string                 `json:"key"`
-	Scope    LoopInputDefaultsScope `json:"scope"`
-	Deleted  bool                   `json:"deleted"`
 }

@@ -31,6 +31,8 @@ const (
 	accountAdd      = "account-add"
 	revokeDevice    = "revoke-device"
 	remoteSession   = "remote-session"
+	browserPurchase = "browser-purchase"
+	hostedPurchase  = "hosted-purchase"
 	projectFileName = "remote-notes.txt"
 	projectFileBody = "hello from remote computer project\n"
 )
@@ -54,6 +56,9 @@ type scenarioManifest struct {
 	Hostname           string           `json:"hostname,omitempty"`
 	ProjectFile        string           `json:"project_file,omitempty"`
 	ProjectFileContent string           `json:"project_file_content,omitempty"`
+	HostedURL          string           `json:"hosted_url,omitempty"`
+	HostedProxy        string           `json:"hosted_proxy,omitempty"`
+	StripeURL          string           `json:"stripe_url,omitempty"`
 }
 
 type computerTarget struct {
@@ -65,7 +70,8 @@ type computerTarget struct {
 
 func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	f.Helper()
-	if name != sshAdd && name != accountAdd && name != revokeDevice && name != remoteSession {
+	if name != sshAdd && name != accountAdd && name != revokeDevice && name != remoteSession &&
+		name != browserPurchase && name != hostedPurchase {
 		f.Fatalf("unknown remotetest scenario %q", name)
 	}
 	const pgEnv = "COMPOZY_CLOUD_TEST_POSTGRES"
@@ -84,7 +90,10 @@ func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	}
 	db := remotetest.OpenDatabase(f, dsn)
 	db.Migrate(f)
-	cloudURL := startCloud(f, db, listenHost)
+	if name == browserPurchase || name == hostedPurchase {
+		return preparePurchase(f, db, name)
+	}
+	cloudURL := startCloud(f, db, listenHost, nil).Server.URL
 	controller := prepareDaemon(f, false)
 	mock := filepath.Join(f.TempDir(), "echo.json")
 	writeFile(f, mock, echoFixture)
@@ -105,7 +114,9 @@ func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	return result
 }
 
-func startCloud(f *fixture, db *remotetest.Database, host string) string {
+func startCloud(
+	f *fixture, db *remotetest.Database, host string, configure func(*cloud.Config, *remotetest.IdentityProvider),
+) *remotetest.Replica {
 	f.Helper()
 	hostname := host
 	if hostname == "" {
@@ -124,13 +135,17 @@ func startCloud(f *fixture, db *remotetest.Database, host string) string {
 	if err != nil {
 		f.Fatal(err)
 	}
-	return remotetest.StartLocalReplicaOn(f, host, cloud.Config{
+	cfg := cloud.Config{
 		Postgres: db.Config(f, "web"),
 		Auth: &auth.Config{
 			OAuth: oauth, EncryptionKey: bytes.Repeat([]byte{7}, 32), Turnstile: check,
 			TurnstileSiteKey: "test-site-key", HostedDomain: "compozy.run",
 		},
-	}, nil).Server.URL
+	}
+	if configure != nil {
+		configure(&cfg, idp)
+	}
+	return remotetest.StartLocalReplicaOn(f, host, cfg, nil)
 }
 
 func prepareSSH(

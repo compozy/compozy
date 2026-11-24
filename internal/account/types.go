@@ -84,6 +84,8 @@ type SignInEvent struct {
 
 type Change struct {
 	Kind          string                 `json:"kind,omitempty"`
+	Plan          string                 `json:"plan,omitempty"`
+	PaymentIssue  *bool                  `json:"payment_issue,omitempty"`
 	EvictRemote   bool                   `json:"evict_remote,omitzero"`
 	Approval      *ApprovalResult        `json:"approval,omitempty"`
 	ApprovalID    string                 `json:"approval_id,omitempty"`

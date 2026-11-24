@@ -37,6 +37,7 @@
         "operations",
         "gateway",
         "computers",
+        "account",
         "configuration",
         "---Reference---",
         "cli",

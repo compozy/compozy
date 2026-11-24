@@ -4,6 +4,41 @@ package client
 
 import "time"
 
+// SessionProcessResult is a daemon API value.
+type SessionProcessResult struct {
+	PID       int                   `json:"pid"`
+	StartedAt time.Time             `json:"started_at"`
+	Outcome   SessionProcessOutcome `json:"outcome"`
+	Error     string                `json:"error,omitempty"`
+}
+
+// SessionProcessSummaryPayload is a daemon API value.
+type SessionProcessSummaryPayload struct {
+	Supported  bool  `json:"supported"`
+	Background int   `json:"background"`
+	Terminals  int   `json:"terminals"`
+	Total      int   `json:"total"`
+	Ports      []int `json:"ports"`
+	Trees      int   `json:"trees,omitempty"`
+}
+
+// SessionProcessTarget is a daemon API value.
+type SessionProcessTarget struct {
+	PID       int       `json:"pid"`
+	StartedAt time.Time `json:"started_at"`
+}
+
+// SessionProcessTreePayload is a daemon API value.
+type SessionProcessTreePayload struct {
+	ID       string                 `json:"id"`
+	Kind     SessionProcessKind     `json:"kind"`
+	Root     SessionProcessTarget   `json:"root"`
+	Lead     SessionProcessTarget   `json:"lead"`
+	Wrappers []SessionProcessTarget `json:"wrappers"`
+	Members  []SessionProcessTarget `json:"members"`
+	Ports    []int                  `json:"ports"`
+}
+
 // SessionProcessesResponse is a daemon API value.
 type SessionProcessesResponse struct {
 	Supported bool                        `json:"supported"`
@@ -413,31 +448,3 @@ type SettingsApplyFailurePayload struct {
 
 // SettingsApplyLifecycle is a daemon API value.
 type SettingsApplyLifecycle string
-
-// SettingsApplyNextAction is a daemon API value.
-type SettingsApplyNextAction string
-
-// SettingsApplyResponse is a daemon API value.
-type SettingsApplyResponse struct {
-	Section          SettingsApplyTargetName       `json:"section,omitempty"`
-	Scope            SettingsScopeKind             `json:"scope,omitempty"`
-	WriteTarget      SettingsWriteTargetKind       `json:"write_target,omitempty"`
-	WorkspaceID      string                        `json:"workspace_id,omitempty"`
-	Profile          string                        `json:"profile,omitempty"`
-	AgentName        string                        `json:"agent_name,omitempty"`
-	Applied          bool                          `json:"applied"`
-	Lifecycle        SettingsApplyLifecycle        `json:"lifecycle"`
-	ApplyRecordID    string                        `json:"apply_record_id"`
-	ActiveGeneration int64                         `json:"active_generation"`
-	ActiveConfigHash string                        `json:"active_config_hash"`
-	NextAction       SettingsApplyNextAction       `json:"next_action"`
-	RestartRequired  bool                          `json:"restart_required,omitzero"`
-	RestartScope     string                        `json:"restart_scope,omitempty"`
-	Warnings         []string                      `json:"warnings,omitempty"`
-	PartialFailures  []SettingsApplyFailurePayload `json:"partial_failures,omitempty"`
-	Skipped          bool                          `json:"skipped,omitzero"`
-	SkippedReason    string                        `json:"skipped_reason,omitempty"`
-}
-
-// SettingsApplyTargetName is a daemon API value.
-type SettingsApplyTargetName string

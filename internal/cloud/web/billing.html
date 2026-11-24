@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ .Title }} · Compozy Cloud</title>
+    <link rel="stylesheet" href="/auth-assets/sign-in.css" />
+    <link rel="stylesheet" href="/auth-assets/billing.css" />
+    {{ if .Providers }}
+    <script
+      defer
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+    ></script>
+    <script defer src="/auth-assets/turnstile.js"></script>
+    {{ end }} {{ if .Redirecting }}
+    <script defer src="/auth-assets/billing.js"></script>
+    {{ end }}
+  </head>
+  <body>
+    <main class="stage purchase" {{ if .Code }}data-error-code="{{ .Code }}" {{ end }}>
+      <aside class="art" aria-hidden="true">
+        <picture>
+          {{ if .Success }}
+          <source media="(min-width: 64rem)" srcset="/brand/visuals/converge-portrait-1280.jpg" />
+          <img src="/brand/visuals/converge-1280.jpg" alt="" />
+          {{ else }}
+          <source media="(min-width: 64rem)" srcset="/brand/visuals/cone-portrait-1280.jpg" />
+          <img src="/brand/visuals/cone-1280.jpg" alt="" />
+          {{ end }}
+        </picture>
+        <img class="wordmark" src="/brand/svg/compozy-wordmark-white.svg" alt="" />
+        <p>
+          {{ if .Code }}Your agents, on all your computers.{{ else if .ShowPlans }}Free on your
+          computer. Pro across all of them.{{ else }}Your computers, reachable from anywhere.{{ end
+          }}
+        </p>
+      </aside>
+      <div class="content">
+        <div class="purchase-shell">
+          <section class="panel purchase-panel" aria-labelledby="page-title">
+            {{ if .Overview.ComputerName }}
+            <p class="purchase-computer">
+              <strong>{{ .Overview.ComputerName }}</strong> · {{ .Target.Hostname }}
+            </p>
+            {{ end }}
+            <h1 id="page-title">{{ .Title }}</h1>
+            {{ if .CheckoutCanceled }}
+            <p class="purchase-notice" role="status">
+              Checkout was cancelled. Nothing was charged.
+            </p>
+            {{ end }} {{ if .Message }}
+            <p class="purchase-notice" role="alert">{{ .Message }}</p>
+            {{ end }} {{ if .ShowPlans }}
+            <p>Unlimited remote computers, hosted routes, phone access and hosted webhooks.</p>
+            {{ end }} {{ if and .Email .CSRF }}
+            <div class="purchase-account">
+              <p>Signed in as <strong>{{ .Email }}</strong></p>
+              <form method="post" action="/billing/upgrade/sign-out">
+                <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+                <input type="hidden" name="interval" value="{{ .Target.Interval }}" />
+                <input type="hidden" name="hostname" value="{{ .Target.Hostname }}" />
+                <button class="purchase-switch" type="submit">Not you?</button>
+              </form>
+            </div>
+            {{ end }} {{ if .Providers }}
+            <form method="post" action="/billing/upgrade/sign-in" id="provider-form">
+              <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+              <input type="hidden" name="hostname" value="{{ .Target.Hostname }}" />
+              <input type="hidden" name="cf-turnstile-response" />
+              {{ range .Providers }}
+              <button type="submit" name="provider" value="{{ .ID }}">
+                <img alt="" src="/auth-assets/{{ .ID }}.svg" />
+                Continue with {{ .Name }}
+              </button>
+              {{ end }}
+              <p id="turnstile-error" role="alert" hidden>
+                We couldn't verify this browser. Try again.
+              </p>
+              <div
+                id="turnstile"
+                data-site-key="{{ .SiteKey }}"
+                data-action="browser_authorize"
+              ></div>
+              <noscript><p>Enable JavaScript to verify this browser.</p></noscript>
+            </form>
+            <p class="purchase-terms">
+              By continuing, you agree to the
+              <a href="https://compozy.com/legal/terms">Terms</a> and
+              <a href="https://compozy.com/legal/privacy">Privacy Policy</a>.
+            </p>
+            {{ end }} {{ if .ShowPlans }} {{ $form := "checkout-form" }}{{ if .Providers }}{{ $form
+            = "provider-form" }}{{ end }}
+            <fieldset class="purchase-plans">
+              <legend>Choose a Pro billing period</legend>
+              <label class="purchase-plan">
+                <input
+                  type="radio"
+                  form="{{ $form }}"
+                  name="interval"
+                  value="year"
+                  {{
+                  if
+                  not
+                  .Monthly
+                  }}checked{{
+                  end
+                  }}
+                />
+                <span
+                  ><strong>Pro annual</strong><span class="purchase-price">USD 79.99/year</span
+                  ><span>USD 6.67/month, billed yearly</span></span
+                >
+                <span class="purchase-saving">Save 33%</span>
+              </label>
+              <label class="purchase-plan">
+                <input
+                  type="radio"
+                  form="{{ $form }}"
+                  name="interval"
+                  value="month"
+                  {{
+                  if
+                  .Monthly
+                  }}checked{{
+                  end
+                  }}
+                />
+                <span
+                  ><strong>Pro monthly</strong><span class="purchase-price">USD 9.99/month</span
+                  ><span>Billed monthly</span></span
+                >
+              </label>
+            </fieldset>
+            <p>Prices in USD. Plus applicable taxes, calculated at checkout.</p>
+            {{ if not .Target.Hostname }}
+            <details class="purchase-promotion">
+              <summary>Have a promotion code?</summary>
+              <p>Enter your code in Stripe Checkout before paying.</p>
+            </details>
+            {{ end }}
+            <form method="post" action="/billing/upgrade/checkout" id="checkout-form">
+              <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+              <input type="hidden" name="hostname" value="{{ .Target.Hostname }}" />
+              <button
+                class="primary"
+                type="submit"
+                {{
+                if
+                or
+                (not
+                .Email)
+                .RetryAfter
+                }}disabled{{
+                end
+                }}
+              >
+                Continue to checkout
+              </button>
+            </form>
+            {{ end }} {{ if or .AlreadyPro .Success .OpeningCheckout }}
+            <dl class="purchase-summary">
+              {{ if .Success }}
+              <div>
+                <dt>Account</dt>
+                <dd>{{ .Email }}</dd>
+              </div>
+              {{ end }}
+              <div>
+                <dt>Plan</dt>
+                <dd>{{ .PlanLabel }}</dd>
+              </div>
+              {{ if .AlreadyPro }} {{ if .PeriodEnd }}
+              <div>
+                <dt>{{ .PeriodEndLabel }}</dt>
+                <dd>{{ .PeriodEnd }}</dd>
+              </div>
+              {{ end }}
+              <div>
+                <dt>Remote computers</dt>
+                <dd>Unlimited</dd>
+              </div>
+              <div>
+                <dt>Hosted routes</dt>
+                <dd>{{ .Overview.HostedUsed }} of {{ .Overview.HostedLimit }} used</dd>
+              </div>
+              {{ end }} {{ if .Success }}
+              <div>
+                <dt>Status</dt>
+                <dd>
+                  {{ if .Overview.Billing.PaymentIssue }}Payment issue{{ else }}Active{{ end }}
+                </dd>
+              </div>
+              {{ end }}
+            </dl>
+            {{ end }} {{ if .CanManage }}
+            <form method="post" action="/billing/upgrade/portal">
+              <input type="hidden" name="csrf" value="{{ .CSRF }}" />
+              <input type="hidden" name="interval" value="{{ .Target.Interval }}" />
+              <input type="hidden" name="hostname" value="{{ .Target.Hostname }}" />
+              <button class="primary" type="submit">Manage billing</button>
+            </form>
+            {{ end }} {{ if .Success }}
+            <p>Sign in with <strong>{{ .Email }}</strong> in the app.</p>
+            <a class="purchase-action primary" href="compozyos://open/">Open Compozy</a>
+            <a class="purchase-action" href="https://compozy.com/download">Download Compozy</a>
+            {{ end }} {{ if and .AlreadyPro (not .Overview.HostedURL) }}
+            <a class="purchase-action" href="compozyos://open/">Open Compozy</a>
+            {{ end }} {{ if .Overview.HostedURL }}{{ if not .ShowPlans }}
+            <a class="purchase-action" href="{{ .Overview.HostedURL }}">Open this computer</a>
+            {{ end }}{{ end }} {{ if .Redirecting }}
+            <p>Stripe opens in this tab.</p>
+            <a class="purchase-action primary" data-billing-redirect href="{{ .NextURL }}"
+              >Continue to Stripe</a
+            >
+            <a href="{{ .Target.URL }}">Back to plans</a>
+            {{ end }} {{ if .RetryURL }}<a href="{{ .RetryURL }}">Try again</a>{{ end }} {{ if eq
+            .Code "account_suspended" }}<a href="mailto:support@compozy.com">Contact support</a>{{
+            end }} {{ if or (eq .Code "cloud_unavailable") (eq .Code "rate_limited") }}
+            <a href="https://status.compozy.com">Status</a>
+            {{ end }}
+          </section>
+          <footer>
+            <a href="https://compozy.com/legal/terms">Terms</a>
+            <a href="https://compozy.com/legal/privacy">Privacy</a>
+            <a href="https://compozy.com/legal/refunds">Refunds</a>
+          </footer>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

@@ -8,8 +8,11 @@ export {
   fetchComputers,
   fetchComputerSetupStatus,
   fetchComputerSSHHosts,
+  fetchHostResources,
   openComputersStream,
   patchComputer,
+  patchLocalComputer,
+  previewComputerPlacement,
   removeComputer,
   removeComputerRoute,
   startComputerUpdate,
@@ -69,6 +72,11 @@ export {
   type ComputerStatusChipProps,
 } from "./components/computer-status-chip";
 export {
+  LoadBalancingSection,
+  type LoadBalancingSectionProps,
+} from "./components/load-balancing-section";
+export { RunOnNotices, type RunOnNoticesProps } from "./components/run-on-notices";
+export {
   RunOnPicker,
   type AutoResolutionSummary,
   type RunOnPickerProps,
@@ -83,6 +91,7 @@ export {
   type ScopedComputerSkeletonProps,
 } from "./components/scoped-computer-status";
 export { useAccountRemoteEviction } from "./hooks/use-account-eviction";
+export { useComputerPlacement, type ComputerPlacementState } from "./hooks/use-computer-placement";
 export {
   useComputerProviders,
   type ComputerProvidersController,
@@ -91,7 +100,19 @@ export { useComputerWorkspaces } from "./hooks/use-computer-workspaces";
 export { providerLoginCommand, toComputerProviderAuthView } from "./lib/provider-view";
 export { findComputerById, useComputer, useComputers } from "./hooks/use-computers";
 export { useComputersSettingsPage } from "./hooks/use-computers-settings-page";
+export { useComputersHostResources } from "./hooks/use-host-resources";
 export { useLiveAddComputer, type AddComputerLiveController } from "./hooks/use-live-add-computer";
+export {
+  buildAutoPlacementCandidates,
+  describeNoEligibleComputerReason,
+  loadBalancingWeightLabel,
+  MAX_RESOURCE_SAMPLE_AGE_MS,
+  normalizeLoadBalancingWeight,
+  resolveEffectiveRunOnTarget,
+  toHostLoadView,
+  UNSAMPLED_LOCAL_LOAD,
+  type AutoPlacementCandidateView,
+} from "./lib/placement-view";
 export {
   extractLocalPendingApprovals,
   iconKindForPlatform,
@@ -128,8 +149,10 @@ export { computerRegistryKeys } from "./lib/query-keys";
 export {
   availableComputersOptions,
   computerDetailOptions,
+  computerPlacementOptions,
   computersListOptions,
   computerSSHHostsOptions,
+  hostResourcesOptions,
   remoteDevicesOptions,
   remoteStatusOptions,
 } from "./lib/query-options";
@@ -152,6 +175,8 @@ export type {
   ComputerEventPayload,
   ComputerListResponse,
   ComputerPayload,
+  ComputerPlacementRequest,
+  ComputerPlacementResponse,
   ComputerRouteInUsePayload,
   ComputerRoutePayload,
   ComputerSetupAnswerRequest,
@@ -162,8 +187,10 @@ export type {
   ComputerSSHHostPayload,
   ComputerSSHHostsResponse,
   ComputerUpdateStartedPayload,
+  HostResourcesResponse,
   LocalComputerPayload,
   PatchComputerRequest,
+  PatchLocalComputerRequest,
   RemoteApprovalPayload,
   RemoteDevicePatchRequest,
   RemoteDevicePayload,
