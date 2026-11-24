@@ -2965,7 +2965,8 @@ ref = "deps/acme-local"
 		t.Run("Should reject "+test.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := loadManifestTOMLContent("extension.toml", dependencyManifest(test.minVersion, test.entries))
-			if err == nil || !strings.Contains(err.Error(), test.field) {
+			validation, ok := errors.AsType[*ManifestValidationError](err)
+			if !ok || validation.Field != test.field {
 				t.Fatalf("load error = %v, want field %q", err, test.field)
 			}
 			if test.field == "min_compozy_version" && !strings.Contains(err.Error(), dependenciesFloor) {

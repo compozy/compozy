@@ -342,6 +342,30 @@ func TestExtensionDependencyResolution(t *testing.T) {
 			reason: extensionpkg.DependencyGraphReasonDepth,
 			path:   []string{"root", "dep-1", "dep-2", "dep-3", "dep-4", "dep-5", "dep-6"},
 		},
+		{
+			name: "a shared subtree that exceeds the limit on a later path",
+			build: func(t *testing.T, fixture *dependencyFixture) *extensionpkg.Manifest {
+				t.Helper()
+				fixture.childDir(t, "dep-shared", "dep-leaf")
+				fixture.write(t, "dep-leaf", "1.0.0")
+				fixture.install(t, "dep-leaf", contract.InstallExtensionRequest{})
+				fixture.write(t, "dep-shared", "1.0.0", "dep-leaf")
+				fixture.install(t, "dep-shared", contract.InstallExtensionRequest{})
+				root := writeDependencyChain(t, fixture, 4)
+				shared := extensionpkg.ExtensionDependency{
+					Name: "dep-shared", Source: "git", Ref: "https://example.test/shared.git",
+				}
+				appendDependencyManifest(t, fixture.dir(t, "dep-4"),
+					"\n[[requires.extensions]]\nname = \"dep-shared\"\nsource = \"git\"\n"+
+						"ref = \"https://example.test/shared.git\"\n")
+				root.Requires.Extensions = append(
+					[]extensionpkg.ExtensionDependency{shared},
+					root.Requires.Extensions...)
+				return root
+			},
+			reason: extensionpkg.DependencyGraphReasonDepth,
+			path:   []string{"root", "dep-1", "dep-2", "dep-3", "dep-4", "dep-shared", "dep-leaf"},
+		},
 	}
 	t.Run("Should accept a chain of exactly five", func(t *testing.T) {
 		t.Parallel()
@@ -574,7 +598,7 @@ func TestExtensionDependencyInstall(t *testing.T) {
 			map[string]contract.ExtensionDependencyConsent{"dep-core": {AllowUnverified: true}},
 		), dependencyOperator(t))
 		required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
-		if !ok || required.Dependencies[0].State != dependencyStateVersionUnmet ||
+		if !ok || len(required.Dependencies) != 1 || required.Dependencies[0].State != dependencyStateVersionUnmet ||
 			required.Dependencies[0].RetryCommand != "" {
 			t.Fatalf("error = %v, want version_unmet without an update command for a local package", err)
 		}
@@ -630,7 +654,12 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		if !ok || !slices.Equal(partial.Installed, []string{"dep-first"}) || !gated || gate.Dependency != "dep-second" {
 			t.Fatalf("error = %v, want dep-second failed after installing dep-first", err)
 		}
-		if !fixture.installed(t, "dep-first") || fixture.installed(t, "dep-third") || fixture.installed(t, "root") {
+		required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err)
+		if !ok || !slices.Equal(required.MissingInputs, []string{"token"}) {
+			t.Fatalf("error = %v, want missing input token", err)
+		}
+		if !fixture.installed(t, "dep-first") || fixture.installed(t, "dep-second") ||
+			fixture.installed(t, "dep-third") || fixture.installed(t, "root") {
 			t.Fatal("partial install state differs from stop-at-first-failure")
 		}
 	})
@@ -647,6 +676,37 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		if err != nil || !slices.Equal(item.InstallDependenciesInstalled, []string{"dep-core"}) {
 			t.Fatalf("Install() = %v, %v; want dep-core installed from the source directory",
 				item.InstallDependenciesInstalled, err)
+		}
+	})
+
+	t.Run("Should reuse installed local dependencies after their checkout is moved", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.childDir(t, "dep-parent", "dep-core")
+		fixture.write(t, "dep-core", "1.0.0")
+		fixture.install(t, "dep-core", contract.InstallExtensionRequest{})
+		parentDir := fixture.write(t, "dep-parent", "1.0.0", "dep-core")
+		fixture.install(t, "dep-parent", contract.InstallExtensionRequest{})
+		if err := os.Rename(parentDir, filepath.Join(t.TempDir(), "dep-parent")); err != nil {
+			t.Fatal(err)
+		}
+		fixture.write(t, "root", "1.0.0", "dep-parent")
+
+		item, err := fixture.service.Install(t.Context(), fixture.rootRequest(t, nil), dependencyOperator(t))
+		if err != nil || len(item.InstallDependenciesInstalled) != 0 || !fixture.installed(t, "root") {
+			t.Fatalf("Install() = %+v, %v; want only the root installed", item, err)
+		}
+	})
+
+	t.Run("Should retain the missing-source error when acquiring a local dependency", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		_, err := fixture.resolve(t, dependencyRoot(localDependency("dep-core")),
+			extensionMutationTarget{profile: extensionDefaultProfileLens()})
+		gate, ok := errors.AsType[*extensionpkg.DependencyGateError](err)
+		if !ok || gate.Dependency != "dep-core" || !errors.Is(err, os.ErrNotExist) ||
+			errors.Is(err, extensionpkg.ErrManifestInvalid) {
+			t.Fatalf("resolveDependencies() error = %v, want missing source for dep-core", err)
 		}
 	})
 
@@ -675,8 +735,14 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			fixture := newDependencyFixture(t)
+			sourceDir := tc.source(t, fixture)
+			preinstalled := sourceDir == ""
+			if preinstalled {
+				fixture.write(t, "dep-core", "1.0.0")
+				fixture.install(t, "dep-core", contract.InstallExtensionRequest{})
+			}
 			_, err := fixture.service.resolveDependencies(
-				t.Context(), dependencyRoot(localDependency("dep-core")), tc.source(t, fixture),
+				t.Context(), dependencyRoot(localDependency("dep-core")), sourceDir,
 				extensionMutationTarget{profile: extensionDefaultProfileLens()}, nil, dependencyOperator(t),
 			)
 			gate, gated := errors.AsType[*extensionpkg.DependencyGateError](err)
@@ -684,8 +750,8 @@ func TestExtensionDependencyInstall(t *testing.T) {
 			if !gated || gate.Dependency != "dep-core" || !invalid || validation.Field != "requires.extensions.ref" {
 				t.Fatalf("resolveDependencies() error = %v, want a validation refusal for dep-core", err)
 			}
-			if fixture.installed(t, "dep-core") || fixture.installed(t, "root") {
-				t.Fatal("refusal installed a package")
+			if fixture.installed(t, "root") || fixture.installed(t, "dep-core") != preinstalled {
+				t.Fatal("refusal changed installed packages")
 			}
 		})
 	}
@@ -874,7 +940,8 @@ func TestExtensionDependencyRetryCommand(t *testing.T) {
 			required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
 			want := "compozy extension install " + fixture.dir(t, "dep-core") +
 				" --replace --allow-unverified --scope global --profile other"
-			if !ok || required.Dependencies[0].State != dependencyStateInstalledElsewhere ||
+			if !ok || len(required.Dependencies) != 1 ||
+				required.Dependencies[0].State != dependencyStateInstalledElsewhere ||
 				required.Dependencies[0].RetryCommand != want {
 				t.Fatalf("error = %v, want installed_elsewhere naming %q", err, want)
 			}

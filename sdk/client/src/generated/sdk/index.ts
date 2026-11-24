@@ -175,6 +175,7 @@ export type {
   AgentSessionPayload,
   AgentSkillAutomaticContents,
   AgentSkillDraftFile,
+  AgentSkillLesson,
   AgentSkillReviewDecisionRequest,
   AgentSkillReviewPayload,
   AgentSkillReviewResponse,

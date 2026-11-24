@@ -5,11 +5,13 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/spf13/cobra"
 )
 
 func installExtension(
@@ -122,6 +124,56 @@ func extensionInstallValidationReport(
 		return nil
 	}
 	return report
+}
+
+// executeExtensionInstallPlanWithPrompts installs, answering a dependency refusal and then an inputs refusal
+// on an interactive terminal; the dependency gate runs before the input gate, so at most two retries follow.
+func executeExtensionInstallPlanWithPrompts(
+	cmd *cobra.Command, deps commandDeps, plan extensionInstallPlan,
+) (ExtensionRecord, error) {
+	var installed []string
+	for attempt := 0; ; attempt++ {
+		item, err := executeExtensionInstallPlan(cmd.Context(), deps, plan)
+		if err == nil {
+			if len(installed) > 0 {
+				item.InstallDependenciesInstalled = appendInstalledDependencies(
+					installed,
+					item.InstallDependenciesInstalled,
+				)
+			}
+			return item, nil
+		}
+		if refusal, ok := errors.AsType[*extensionOperationAPIError](err); ok {
+			installed = appendInstalledDependencies(installed, refusal.payload.DependenciesInstalled)
+		}
+		if refusal, ok := errors.AsType[*extensionValidationAPIError](err); ok {
+			installed = appendInstalledDependencies(installed, refusal.payload.DependenciesInstalled)
+		}
+		item.InstallDependenciesInstalled = installed
+		if attempt == 2 {
+			return item, err
+		}
+		retry, prompted, promptErr := promptExtensionInstallDependencies(cmd, deps, plan, err)
+		if promptErr == nil && !prompted {
+			retry, prompted, promptErr = promptExtensionInstallInputs(cmd, deps, plan, err)
+		}
+		if promptErr != nil {
+			return item, promptErr
+		}
+		if !prompted {
+			return item, err
+		}
+		plan = retry
+	}
+}
+
+func appendInstalledDependencies(installed, completed []string) []string {
+	for _, name := range completed {
+		if !slices.Contains(installed, name) {
+			installed = append(installed, name)
+		}
+	}
+	return installed
 }
 
 func executeExtensionInstallPlan(

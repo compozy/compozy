@@ -7285,7 +7285,7 @@ func addExtensionDependencyFields(baseline map[string]any, components map[string
 
 // addExtensionDependencyGuardFields approves the experimental dependency guard: operation errors gain dependents,
 // extension payloads gain unmet_dependencies, the enablement request gains force, and removeExtension gains the
-// force query flag after permanent plus the structured 409 body. Each copies the current shape, refs inlined.
+// force query flag after permanent plus the structured 409 body.
 func addExtensionDependencyGuardFields(t *testing.T, baseline, current, components map[string]any) {
 	t.Helper()
 	fields := []struct {
@@ -7314,18 +7314,32 @@ func addExtensionDependencyGuardFields(t *testing.T, baseline, current, componen
 		return node
 	}
 	newRequest := inlineSchemaRefs(enablementBody(newPaths), components).(map[string]any)
-	enablementBody(oldPaths)["properties"].(map[string]any)["force"] = newRequest["properties"].(map[string]any)["force"]
+	force := newRequest["properties"].(map[string]any)["force"]
+	if force == nil {
+		t.Fatal("approved enablement force field: current request has no force property")
+	}
+	enablementBody(oldPaths)["properties"].(map[string]any)["force"] = force
 	oldRemove := oldPaths["/api/extensions/{name}"].(map[string]any)["delete"].(map[string]any)
 	newRemove := newPaths["/api/extensions/{name}"].(map[string]any)["delete"].(map[string]any)
 	parameters := oldRemove["parameters"].([]any)
-	for index, raw := range newRemove["parameters"].([]any) {
-		if raw.(map[string]any)["name"] == "force" {
-			oldRemove["parameters"] = slices.Insert(parameters, min(index, len(parameters)), raw)
-		}
+	afterPermanent := slices.IndexFunc(parameters, func(raw any) bool {
+		return raw.(map[string]any)["name"] == "permanent"
+	}) + 1
+	if afterPermanent == 0 {
+		t.Fatal("approved removeExtension force flag: historical operation has no permanent parameter")
 	}
-	if len(oldRemove["parameters"].([]any)) == len(parameters) {
-		t.Fatal("approved removeExtension force flag: current operation has no force parameter")
+	currentParameters := newRemove["parameters"].([]any)
+	if afterPermanent >= len(currentParameters) {
+		t.Fatal("approved removeExtension force flag: current operation has no parameter after permanent")
 	}
+	currentForce := currentParameters[afterPermanent].(map[string]any)
+	if required := currentForce["required"]; currentForce["name"] != "force" || currentForce["in"] != "query" ||
+		(required != nil && required != false) {
+		t.Fatalf("approved removeExtension force flag: want an optional force query parameter, got %v", currentForce)
+	}
+	oldRemove["parameters"] = slices.Insert(parameters, afterPermanent, any(map[string]any{
+		"name": "force", "in": "query", "schema": map[string]any{"type": "boolean"},
+	}))
 	conflict := func(operation map[string]any) map[string]any {
 		return operation["responses"].(map[string]any)["409"].(map[string]any)["content"].(map[string]any)
 	}
@@ -7355,7 +7369,8 @@ func addSchemaPropertiesBySignature(
 		}
 		properties, ok := node["properties"].(map[string]any)
 		if !ok || (size > 0 && len(properties) != size) ||
-			slices.ContainsFunc(signature, func(key string) bool { return properties[key] == nil }) {
+			slices.ContainsFunc(signature, func(key string) bool { return properties[key] == nil }) ||
+			slices.ContainsFunc(fields, func(key string) bool { return source[key] == nil }) {
 			return count
 		}
 		for _, field := range fields {

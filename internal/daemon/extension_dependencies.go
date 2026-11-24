@@ -30,9 +30,11 @@ const (
 type dependencyNode struct {
 	payload    contract.ExtensionDependencyPayload
 	declaredBy string
-	installed  bool
-	enabled    bool
-	children   []extensionpkg.ExtensionDependency
+	// declaredRef is the ref before physical resolution, absolute for local dependencies.
+	declaredRef string
+	installed   bool
+	enabled     bool
+	children    []extensionpkg.ExtensionDependency
 	// candidate is the acquired package of a missing node; whoever installs it takes ownership.
 	candidate *preparedDaemonExtensionInstall
 	// unverifiedErr is the trust refusal replayed when a consent-required node lacks allow_unverified.
@@ -100,16 +102,15 @@ func (g *dependencyGraph) gate(withDependencies bool) error {
 }
 
 type dependencyResolver struct {
-	service  *daemonExtensionService
-	target   extensionMutationTarget
-	consent  map[string]contract.ExtensionDependencyConsent
-	actor    taskpkg.ActorContext
-	graph    *dependencyGraph
-	finished map[string]bool
+	service *daemonExtensionService
+	target  extensionMutationTarget
+	consent map[string]contract.ExtensionDependencyConsent
+	actor   taskpkg.ActorContext
+	graph   *dependencyGraph
 }
 
 // resolveDependencies walks root's transitive requires.extensions before any mutation (rules 11 and 12).
-// Every path is expanded, so depth and cycles are checked on each chain; acquisitions happen once per name.
+// A completed subtree is revisited only when reached at a greater depth, so its deeper path still counts.
 func (s *daemonExtensionService) resolveDependencies(
 	ctx context.Context, root *extensionpkg.Manifest, rootDir string, target extensionMutationTarget,
 	consent map[string]contract.ExtensionDependencyConsent, actor taskpkg.ActorContext,
@@ -119,7 +120,7 @@ func (s *daemonExtensionService) resolveDependencies(
 		return graph, nil
 	}
 	resolver := dependencyResolver{
-		service: s, target: target, consent: consent, actor: actor, graph: graph, finished: make(map[string]bool),
+		service: s, target: target, consent: consent, actor: actor, graph: graph,
 	}
 	if err := resolver.expand(ctx, root.Name, rootDir, root.Requires.Extensions, []string{root.Name}); err != nil {
 		return nil, errors.Join(err, graph.Close())
@@ -140,8 +141,11 @@ func (s *daemonExtensionService) resolveDependencies(
 func (r *dependencyResolver) expand(
 	ctx context.Context, parent, parentDir string, dependencies []extensionpkg.ExtensionDependency, path []string,
 ) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for _, dependency := range dependencies {
-		dependency, err := resolveDependencyRef(dependency, parentDir)
+		ref, err := dependencyDeclarationRef(dependency, parentDir)
 		if err != nil {
 			return err
 		}
@@ -158,15 +162,20 @@ func (r *dependencyResolver) expand(
 				Path:   chain,
 			}
 		}
-		node, err := r.visit(ctx, parent, dependency, len(chain)-1)
+		depth := len(chain) - 1
+		previous := r.graph.nodes[dependency.Name]
+		expandChildren := previous == nil || previous.payload.Depth < depth
+		node, err := r.visit(ctx, parent, parentDir, ref, dependency, depth)
 		if err != nil {
 			return err
+		}
+		if !expandChildren {
+			continue
 		}
 		if err := r.expand(ctx, dependency.Name, node.sourceDir, node.children, chain); err != nil {
 			return err
 		}
-		if !r.finished[dependency.Name] {
-			r.finished[dependency.Name] = true
+		if previous == nil {
 			r.graph.order = append(r.graph.order, node)
 		}
 	}
@@ -174,16 +183,29 @@ func (r *dependencyResolver) expand(
 }
 
 func (r *dependencyResolver) visit(
-	ctx context.Context, parent string, dependency extensionpkg.ExtensionDependency, depth int,
+	ctx context.Context, parent, parentDir, ref string, dependency extensionpkg.ExtensionDependency, depth int,
 ) (*dependencyNode, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if node, ok := r.graph.nodes[dependency.Name]; ok {
-		if node.payload.Source != dependency.Source || node.payload.Ref != dependency.Ref {
+		matchingRef := node.declaredRef == ref
+		if (!matchingRef || node.declaredBy != parent) && node.candidate != nil &&
+			node.payload.Source == dependency.Source &&
+			contract.InstallExtensionSource(dependency.Source) == contract.InstallExtensionSourceLocalPath {
+			resolved, err := resolveLocalDependencyRef(ctx, dependency, parentDir, ref)
+			if err != nil {
+				return nil, err
+			}
+			ref, matchingRef = resolved, node.payload.Ref == resolved
+		}
+		if node.payload.Source != dependency.Source || !matchingRef {
 			return nil, &extensionpkg.DependencyGraphInvalidError{
 				Reason: extensionpkg.DependencyGraphReasonConflictingSource,
 				Path:   []string{dependency.Name},
 				Parents: []contract.ExtensionDependencyParentPayload{
 					{Name: node.declaredBy, Source: node.payload.Source, Ref: node.payload.Ref},
-					{Name: parent, Source: dependency.Source, Ref: dependency.Ref},
+					{Name: parent, Source: dependency.Source, Ref: ref},
 				},
 			}
 		}
@@ -195,41 +217,56 @@ func (r *dependencyResolver) visit(
 		return node, nil
 	}
 	node := &dependencyNode{
-		declaredBy: parent,
+		declaredBy: parent, declaredRef: ref,
 		payload: contract.ExtensionDependencyPayload{
-			Name: dependency.Name, Source: dependency.Source, Ref: dependency.Ref, MinVersion: dependency.MinVersion,
+			Name: dependency.Name, Source: dependency.Source, Ref: ref, MinVersion: dependency.MinVersion,
 			RequiredBy: []string{parent}, Depth: depth,
 		},
 	}
 	r.graph.nodes[dependency.Name] = node
-	if err := r.inspect(ctx, node); err != nil {
+	if err := r.inspect(ctx, node, dependency, parentDir); err != nil {
 		return nil, err
 	}
 	return node, nil
 }
 
 // inspect reads an installation visible to the dependent's instance (D11), or acquires the package.
-func (r *dependencyResolver) inspect(ctx context.Context, node *dependencyNode) error {
+func (r *dependencyResolver) inspect(
+	ctx context.Context, node *dependencyNode, dependency extensionpkg.ExtensionDependency, parentDir string,
+) error {
 	s, name := r.service, node.payload.Name
 	_, err := s.registry.ResolveInstallation(ctx, name, extensionpkg.InstallationScope{
 		ProfileID: r.target.profile.ID, WorkspaceID: r.target.scope.WorkspaceID,
 	})
 	if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+		if contract.InstallExtensionSource(dependency.Source) == contract.InstallExtensionSourceLocalPath {
+			resolved, resolveErr := resolveLocalDependencyRef(ctx, dependency, parentDir, node.declaredRef)
+			if resolveErr != nil {
+				return resolveErr
+			}
+			node.payload.Ref = resolved
+		}
 		return r.acquire(ctx, node)
 	}
 	if err != nil {
 		return err
 	}
-	info, err := s.registry.Get(name)
+	info, err := s.registry.GetContext(ctx, name)
 	if err != nil {
 		return err
 	}
-	if node.enabled, err = s.registry.IsEnabledForProfile(name, r.target.profile.ID); err != nil {
+	if node.enabled, err = s.registry.IsEnabledForProfileContext(ctx, name, r.target.profile.ID); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	manifest, err := extensionpkg.LoadInstalledManifest(info)
 	if err != nil {
 		return fmt.Errorf("daemon: read installed dependency %q manifest: %w", name, err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	node.installed, node.payload.InstalledVersion = true, info.Version
 	node.children = manifest.Requires.Extensions
@@ -301,33 +338,42 @@ func (r *dependencyResolver) acquire(ctx context.Context, node *dependencyNode) 
 	node.payload.Version, node.payload.DigestSHA256 = prepared.manifest.Version, prepared.digest
 	node.payload.GatewayRequirementDigest, node.payload.RegistryTier = digest, prepared.registryTier
 	node.children, node.sourceDir = prepared.manifest.Requires.Extensions, prepared.sourceDir
-	return r.checkInstalledElsewhere(node)
+	return r.checkInstalledElsewhere(ctx, node)
 }
 
-func resolveDependencyRef(
-	dependency extensionpkg.ExtensionDependency, parentDir string,
-) (extensionpkg.ExtensionDependency, error) {
+func dependencyDeclarationRef(dependency extensionpkg.ExtensionDependency, parentDir string) (string, error) {
 	if contract.InstallExtensionSource(dependency.Source) != contract.InstallExtensionSourceLocalPath {
-		return dependency, nil
+		return dependency.Ref, nil
 	}
 	if !filepath.IsAbs(parentDir) {
-		return dependency, invalidLocalDependencyRef(
+		return "", invalidLocalDependencyRef(
 			dependency,
 			"local_path dependency requires a local_path dependent",
 		)
 	}
 	if !filepath.IsLocal(dependency.Ref) {
-		return dependency, invalidLocalDependencyRef(dependency, "local_path ref must stay inside the source directory")
+		return "", invalidLocalDependencyRef(dependency, "local_path ref must stay inside the source directory")
 	}
-	_, resolved, err := fileutil.ResolveExistingPathWithinRoot(parentDir, filepath.Join(parentDir, dependency.Ref))
+	return filepath.Join(parentDir, dependency.Ref), nil
+}
+
+func resolveLocalDependencyRef(
+	ctx context.Context, dependency extensionpkg.ExtensionDependency, parentDir, ref string,
+) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	_, resolved, err := fileutil.ResolveExistingPathWithinRoot(parentDir, ref)
+	if errors.Is(err, fileutil.ErrPathOutsideRoot) {
+		return "", invalidLocalDependencyRef(dependency, "local_path ref must resolve inside the source directory")
+	}
 	if err != nil {
-		return dependency, invalidLocalDependencyRef(
-			dependency,
-			"local_path ref must resolve inside the source directory",
-		)
+		return "", &extensionpkg.DependencyGateError{
+			Dependency: dependency.Name,
+			Err:        fmt.Errorf("daemon: resolve local dependency ref %q: %w", dependency.Ref, err),
+		}
 	}
-	dependency.Ref = resolved
-	return dependency, nil
+	return resolved, ctx.Err()
 }
 
 func invalidLocalDependencyRef(dependency extensionpkg.ExtensionDependency, message string) error {
@@ -341,8 +387,8 @@ func invalidLocalDependencyRef(dependency extensionpkg.ExtensionDependency, mess
 
 // checkInstalledElsewhere marks a missing node whose package is installed for another scope or profile with
 // different bytes, so preview reports it and install refuses before installing any dependency.
-func (r *dependencyResolver) checkInstalledElsewhere(node *dependencyNode) error {
-	installed, err := r.service.registry.Get(node.payload.Name)
+func (r *dependencyResolver) checkInstalledElsewhere(ctx context.Context, node *dependencyNode) error {
+	installed, err := r.service.registry.GetContext(ctx, node.payload.Name)
 	if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 		return nil
 	}

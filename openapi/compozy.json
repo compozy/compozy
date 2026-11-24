@@ -2611,6 +2611,28 @@
         ],
         "type": "object"
       },
+      "AgentSkillLesson": {
+        "properties": {
+          "confidence": {
+            "type": "string"
+          },
+          "cue": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "lesson": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cue",
+          "evidence",
+          "lesson"
+        ],
+        "type": "object"
+      },
       "AgentSkillReviewDecisionRequest": {
         "properties": {
           "digest": {
@@ -2627,6 +2649,9 @@
           "agent": {
             "type": "string"
           },
+          "base_digest": {
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -2639,8 +2664,17 @@
           "decided_by": {
             "type": "string"
           },
+          "decided_via": {
+            "type": "string"
+          },
           "digest": {
             "type": "string"
+          },
+          "evidence_session_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "files": {
             "items": {
@@ -2653,6 +2687,22 @@
           },
           "instance_id": {
             "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "lesson": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentSkillLesson"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "name": {
             "type": "string"
@@ -2677,8 +2727,10 @@
           "agent",
           "created_at",
           "digest",
+          "evidence_session_ids",
           "id",
           "instance_id",
+          "kind",
           "name",
           "profile_id",
           "runs_automatically",
@@ -2689,6 +2741,9 @@
       },
       "AgentSkillReviewResponse": {
         "properties": {
+          "duplicate_of_pending": {
+            "type": "boolean"
+          },
           "review": {
             "$ref": "#/components/schemas/AgentSkillReviewPayload"
           }
@@ -54543,7 +54598,7 @@
             }
           },
           {
-            "description": "pending, approved or rejected",
+            "description": "pending, approved, rejected or reverted",
             "in": "query",
             "name": "state",
             "schema": {
@@ -54551,7 +54606,23 @@
             }
           },
           {
-            "description": "Page cursor",
+            "description": "new or edit",
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "operator or auto_approve",
+            "in": "query",
+            "name": "decided_via",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page cursor bound to the filters it was issued for",
             "in": "query",
             "name": "cursor",
             "schema": {
@@ -65616,6 +65687,16 @@
               }
             },
             "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "A marketplace dependency listing was not found"
           },
           "409": {
             "content": {

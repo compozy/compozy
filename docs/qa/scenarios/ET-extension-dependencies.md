@@ -96,6 +96,10 @@ Steps:
     root. Only the in-tree ref succeeds. Publish the valid local manifest to a test source and
     preview it as a remote package. Both preview and install refuse its `local_path` dependency
     with a validation error before installing any package.
+15. Install and enable an in-tree local dependency and its own local dependency. Move their
+    source checkout away, then install a new dependent whose graph references the installed
+    packages. The install reuses the managed copies. Repeat with one dependency absent from
+    the registry. The install stops at the missing source and identifies the dependency.
 
 Pass: no dependency is installed, enabled or updated without consent for that exact artifact;
 removal never cascades; the dependent's runtime state never changes because of the guard.

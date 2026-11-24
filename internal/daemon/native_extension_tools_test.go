@@ -497,8 +497,10 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			Input: json.RawMessage(`{"source":"curated","ref":"acme/tool","with_dependencies":true,` +
 				`"dependencies":{"acme-core":{"allow_unverified":true,"allow_all":true}}}`),
 		})
-		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
-			t.Fatalf("Registry.Call(unknown consent key) error = %v, want invalid input", err)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Err == nil || !strings.Contains(toolErr.Err.Error(), `unknown field "allow_all"`) {
+			t.Fatalf("Registry.Call(unknown consent key) error = %+v, want unknown allow_all field", err)
 		}
 	})
 

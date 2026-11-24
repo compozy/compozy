@@ -1404,12 +1404,17 @@ func TestExtensionDependencyHandlers(t *testing.T) {
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
 		engine := gin.New()
 		engine.POST("/extensions", handlers.InstallExtension)
-		response := performRequest(t, engine, http.MethodPost, "/extensions", []byte(`{"source":"curated",`+
-			`"ref":"acme/tool","with_dependencies":true,"dependencies":{"acme-core":{"allow_unverified":true}}}`))
+		expectedDigest, gatewayDigest := strings.Repeat("a", 64), strings.Repeat("b", 64)
+		request := fmt.Appendf(nil, `{"source":"curated","ref":"acme/tool","with_dependencies":true,`+
+			`"dependencies":{"acme-core":{"allow_unverified":true,"expected_digest":%q,"confirm_gateway_digest":%q}}}`,
+			expectedDigest, gatewayDigest)
+		response := performRequest(t, engine, http.MethodPost, "/extensions", request)
 		if response.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want 201; body=%s", response.Code, response.Body.String())
 		}
-		want := map[string]contract.ExtensionDependencyConsent{"acme-core": {AllowUnverified: true}}
+		want := map[string]contract.ExtensionDependencyConsent{
+			"acme-core": {AllowUnverified: true, ExpectedDigest: expectedDigest, ConfirmGatewayDigest: gatewayDigest},
+		}
 		if !got.WithDependencies || !reflect.DeepEqual(got.Dependencies, want) {
 			t.Fatalf("forwarded request = %+v", got)
 		}
@@ -1453,7 +1458,11 @@ func TestExtensionDependencyHandlers(t *testing.T) {
 			status: http.StatusUnprocessableEntity,
 			check: func(payload contract.ExtensionOperationErrorPayload) bool {
 				return payload.Code == diagnosticcontract.CodeExtensionDependencyGraphInvalid &&
-					payload.Reason == "conflicting_source" && len(payload.Parents) == 2 &&
+					payload.Reason == "conflicting_source" &&
+					reflect.DeepEqual(payload.Parents, []contract.ExtensionDependencyParentPayload{
+						{Name: "acme-b", Source: "curated", Ref: "acme/core"},
+						{Name: "acme-c", Source: "git", Ref: "https://example.test/core.git"},
+					}) &&
 					reflect.DeepEqual(payload.Path, []string{"acme-core"})
 			},
 		},

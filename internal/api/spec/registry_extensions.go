@@ -80,6 +80,11 @@ func previewExtensionInstallOperationSpec() OperationSpec {
 			{Status: 400, Description: "Invalid install request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{
+				Status:      404,
+				Description: "A marketplace dependency listing was not found",
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
+			{
 				Status:      422,
 				Description: "Extension trust decision, dependency graph refusal, or package validation failure",
 				Bodies: responseBodiesOf(

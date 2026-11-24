@@ -236,36 +236,14 @@ func runExtensionInstall(
 	}
 	item, err := executeExtensionInstallPlanWithPrompts(cmd, deps, plan)
 	if err != nil {
+		if len(item.InstallDependenciesInstalled) > 0 {
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Installed dependencies first: %s.\n",
+				strings.Join(item.InstallDependenciesInstalled, ", "))
+		}
 		return err
 	}
 	report := extensionInstallValidationReport(deps, plan, &item)
 	return writeCommandOutput(cmd, extensionInstallResultBundle(&item, report, f.enable))
-}
-
-// executeExtensionInstallPlanWithPrompts installs, answering a dependency refusal and then an inputs refusal
-// on an interactive terminal; the dependency gate runs before the input gate, so at most two retries follow.
-func executeExtensionInstallPlanWithPrompts(
-	cmd *cobra.Command, deps commandDeps, plan extensionInstallPlan,
-) (ExtensionRecord, error) {
-	item, err := executeExtensionInstallPlan(cmd.Context(), deps, plan)
-	for range 2 {
-		if err == nil {
-			return item, nil
-		}
-		retry, prompted, promptErr := promptExtensionInstallDependencies(cmd, deps, plan, err)
-		if promptErr == nil && !prompted {
-			retry, prompted, promptErr = promptExtensionInstallInputs(cmd, deps, plan, err)
-		}
-		if promptErr != nil {
-			return ExtensionRecord{}, promptErr
-		}
-		if !prompted {
-			return ExtensionRecord{}, err
-		}
-		plan = retry
-		item, err = executeExtensionInstallPlan(cmd.Context(), deps, plan)
-	}
-	return item, err
 }
 
 // newExtensionRemoveCommand resolves the selected profile before choosing the removal transport.

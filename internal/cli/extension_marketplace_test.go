@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -363,7 +365,7 @@ func TestExtensionInstallCommandInputs(t *testing.T) {
 // Owner: CLI install boundary (T-12). Canonical suite: extension_marketplace_test.go.
 func TestExtensionInstallPromptsForRequiredInputs(t *testing.T) {
 	t.Parallel()
-	refusal := func() error {
+	refusal := func() *extensionOperationAPIError {
 		return &extensionOperationAPIError{
 			statusCode: 422,
 			status:     "422 Unprocessable Entity",
@@ -486,6 +488,53 @@ func TestExtensionInstallPromptsForRequiredInputs(t *testing.T) {
 			t.Fatalf("aborted prompt: calls=%d err=%v, want abort without retry", len(calls), err)
 		}
 	})
+
+	for _, tc := range []struct {
+		name  string
+		input string
+	}{
+		{name: "Should report installed dependencies when the root input prompt is aborted"},
+		{name: "Should report each installed dependency once after a root input retry", input: "token-value\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			calls := 0
+			deps, _ := newExtensionLocalDeps(t, &stubClient{
+				previewExtensionInstallFn: func(
+					context.Context, InstallExtensionRequest,
+				) (ExtensionInstallPreviewRecord, error) {
+					return ExtensionInstallPreviewRecord{Name: "typed"}, nil
+				},
+				installExtensionFn: func(context.Context, InstallExtensionRequest) (ExtensionRecord, error) {
+					calls++
+					if calls == 1 {
+						err := refusal()
+						err.payload.DependenciesInstalled = []string{"acme-core", "acme-base"}
+						return ExtensionRecord{}, err
+					}
+					return ExtensionRecord{
+						Name: "typed", InstallDependenciesInstalled: []string{"acme-core", "acme-extra"},
+					}, nil
+				},
+			})
+			markExtensionDaemonRunning(&deps)
+			deps.inputIsTerminal = func(io.Reader) bool { return true }
+			deps.outputIsTerminal = func(io.Writer) bool { return true }
+			stdout, stderr, err := executeRootCommandWithInput(t, deps, tc.input,
+				"extension", "install", "git:https://example.com/r.git@v2", "--allow-unverified", "--yes")
+			if tc.input == "" {
+				if !errors.Is(err, errExtensionInputPromptAborted) || calls != 1 ||
+					!strings.Contains(stderr, "Installed dependencies first: acme-core, acme-base.") {
+					t.Fatalf("aborted install: calls=%d stderr=%q err=%v", calls, stderr, err)
+				}
+				return
+			}
+			if err != nil || calls != 2 ||
+				!strings.Contains(stdout, "Installed dependencies first: acme-core, acme-base, acme-extra.") {
+				t.Fatalf("retried install: calls=%d stdout=%q err=%v", calls, stdout, err)
+			}
+		})
+	}
 }
 
 func TestExtensionMarketplaceInstallRequiresDaemon(t *testing.T) {
@@ -882,11 +931,11 @@ func TestExtensionInstallDependencyFlow(t *testing.T) {
 	t.Run("Should show one consolidated preview and run each dependency trust gate on a TTY", func(t *testing.T) {
 		t.Parallel()
 		var calls []InstallExtensionRequest
-		deps := newDeps(t, true, &calls, required(core))
+		deps := newDeps(t, true, &calls, required(core, other))
 		stdout, stderr, err := executeRootCommandWithInput(
 			t,
 			deps,
-			"y\ny\ny\n",
+			"y\ny\ny\ny\n",
 			"extension",
 			"install",
 			"compozy/typed",
@@ -894,14 +943,16 @@ func TestExtensionInstallDependencyFlow(t *testing.T) {
 		if err != nil || len(calls) != 2 {
 			t.Fatalf("install calls = %d, err = %v; want a refusal and one consented retry", len(calls), err)
 		}
-		want := contract.ExtensionDependencyConsent{
-			ExpectedDigest: core.DigestSHA256, AllowUnverified: true, ConfirmGatewayDigest: gateway,
+		want := map[string]contract.ExtensionDependencyConsent{
+			"acme-core":  {ExpectedDigest: core.DigestSHA256, AllowUnverified: true, ConfirmGatewayDigest: gateway},
+			"acme-other": {ExpectedDigest: other.DigestSHA256, AllowUnverified: true},
 		}
-		if retry := calls[1]; !retry.WithDependencies || retry.Dependencies["acme-core"] != want {
-			t.Fatalf("retry = %+v, want with_dependencies and acme-core consent %+v", retry, want)
+		if retry := calls[1]; !retry.WithDependencies || !reflect.DeepEqual(retry.Dependencies, want) {
+			t.Fatalf("retry = %+v, want with_dependencies and per-extension consent %+v", retry, want)
 		}
 		for _, text := range []string{"Dependencies (experimental):", "acme-core 0.5.1 from curated acme/core",
-			"Install these dependencies first", "acme-core is not registry-verified", "gateway requirement " + gateway} {
+			"Install these dependencies first", "acme-core is not registry-verified", "gateway requirement " + gateway,
+			"acme-other is not registry-verified"} {
 			if !strings.Contains(stderr, text) {
 				t.Fatalf("stderr = %q, want %q", stderr, text)
 			}
@@ -1152,29 +1203,39 @@ func TestExtensionRemoveDependencyGuard(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			forced := false
-			deps, _ := newExtensionLocalDeps(t, &stubClient{
-				removeExtensionFn: func(ctx context.Context, name string) (ManagedExtensionRemoveRecord, error) {
-					forced = extensionpkg.DependencyForced(ctx)
-					if forced {
-						return ManagedExtensionRemoveRecord{Name: name, Status: "removed"}, nil
-					}
-					return ManagedExtensionRemoveRecord{}, inUse
-				},
+			mux := http.NewServeMux()
+			mux.HandleFunc("DELETE /api/extensions/acme-core", func(w http.ResponseWriter, r *http.Request) {
+				query := r.URL.Query()
+				if testCase.force && !reflect.DeepEqual(query["force"], []string{"true"}) ||
+					!testCase.force && query.Has("force") {
+					t.Errorf("remove query = %v, --force = %t", query, testCase.force)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if testCase.force {
+					_, _ = io.WriteString(w, `{"extension":{"name":"acme-core","status":"removed"}}`)
+					return
+				}
+				w.WriteHeader(http.StatusConflict)
+				if err := json.NewEncoder(w).Encode(inUse.payload); err != nil {
+					t.Errorf("encode removal refusal: %v", err)
+				}
 			})
+			server := httptest.NewServer(mux)
+			t.Cleanup(server.Close)
+			client, err := NewClient(ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL})
+			if err != nil {
+				t.Fatal(err)
+			}
+			deps, _ := newExtensionLocalDeps(t, client)
 			markExtensionDaemonRunning(&deps)
 			args := []string{"extension", "remove", "acme-core", "--global"}
 			if testCase.force {
 				args = append(args, "--force")
 			}
-			_, _, err := executeRootCommand(t, deps, args...)
+			_, _, err = executeRootCommand(t, deps, args...)
 			if testCase.force {
-				if err != nil || !forced {
-					t.Fatalf("forced remove: forced = %t, err = %v", forced, err)
-				}
-				if query := extensionForceQuery(extensionpkg.WithDependencyForce(t.Context(), true), nil); query.Get(
-					extensionForceFlagName) != toolBoolTrue {
-					t.Fatalf("force query = %v, want force=true", query)
+				if err != nil {
+					t.Fatalf("forced remove: %v", err)
 				}
 				return
 			}

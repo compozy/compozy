@@ -413,7 +413,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "3625b9c301adf11155a9dbf548ad122f62d060edbceb4388f51f2598f41a4ff9",
+    "input_schema_digest": "021d1dfc67d31373f8a88714fbfb575a6556403680a907ebb481fafe971b9895",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "result_contract": "single",
     "single_result_reason": "minimal"
@@ -428,7 +428,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "b84625dabdb787aa103f90421c32ca1a5d074f6e796502c379fff367ec00f2dd",
+    "input_schema_digest": "d73a66b1143516f29394bc9b6fdd39c0f7518e8cb38fe0b3f2111beec9c068a2",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "result_contract": "single",
     "single_result_reason": "caller_bounded"
