@@ -36,8 +36,7 @@ function formatDateLabel(iso: string | null): string | null {
 }
 
 function providerLabel(provider: AccountProvider | null): string {
-  if (provider === "github") return "Signed in with GitHub";
-  return "Signed in with Google";
+  return provider === "github" ? "Signed in with GitHub" : "Signed in with Google";
 }
 
 export interface AccountBannersProps {
@@ -127,172 +126,182 @@ export interface AccountIdentitySectionProps {
   onRequestSignOut: () => void;
 }
 
-export function AccountIdentitySection({
-  account,
-  currentDevice,
-  linkMismatchNotice = false,
-  loginAttempt = null,
-  loginError = null,
-  isStartingLogin = false,
+function SignedOutIdentityCard({
+  loginAttempt,
+  loginError,
+  isStartingLogin,
   onStartSignIn,
   onCancelSignIn,
-  onRequestUnlink,
-  onRequestSignOut,
-}: AccountIdentitySectionProps) {
-  if (!account.signedIn) {
-    return (
-      <SettingsGroup data-testid="account-identity" title="Profile">
-        {loginAttempt ? (
-          <div
-            className="flex flex-col gap-3 px-4 py-4"
-            data-testid="account-sign-in-waiting"
-            role="status"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-2 text-small-body font-medium text-fg-strong">
-                <Spinner aria-hidden="true" className="size-3.5" />
-                <span>Continue in your browser</span>
-              </span>
-              {onCancelSignIn ? (
-                <Button onClick={onCancelSignIn} size="xs" type="button" variant="outline">
-                  Cancel
-                </Button>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <code
-                className="rounded-md border border-line bg-code-bg px-3 py-1.5 font-mono text-base font-semibold tracking-widest text-fg-strong select-all"
-                data-testid="account-sign-in-code"
-              >
-                {loginAttempt.user_code}
-              </code>
-              <a
-                className="inline-flex items-center gap-1.5 text-small-body font-medium text-fg underline underline-offset-3"
-                href={loginAttempt.verification_uri_complete || loginAttempt.verification_uri}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Open verification page
-                <ExternalLink aria-hidden="true" className="size-3.5" />
-              </a>
-            </div>
-            <p className="text-meta text-muted-foreground">
-              Check that your browser shows the same code.
-            </p>
-          </div>
-        ) : (
-          <SettingRow
-            control={
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  disabled={isStartingLogin || !onStartSignIn}
-                  onClick={() => onStartSignIn?.("google")}
-                  size="sm"
-                  type="button"
-                  variant="secondary"
-                >
-                  Continue with Google
-                </Button>
-                <Button
-                  disabled={isStartingLogin || !onStartSignIn}
-                  onClick={() => onStartSignIn?.("github")}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  Continue with GitHub
-                </Button>
-              </div>
-            }
-            description="Sign in to add remote computers, manage devices, and check your plan."
-            label="Not signed in"
-          />
-        )}
-        {loginError ? (
-          <div
-            className="border-t border-line-soft px-4 py-2.5 text-meta text-destructive"
-            role="alert"
-          >
-            {loginError}
-          </div>
-        ) : null}
-      </SettingsGroup>
-    );
-  }
-
-  if (account.source === "host_link") {
-    return (
-      <SettingsGroup data-testid="account-identity" title="Profile">
-        <SettingRow
-          control={
-            <Button
-              disabled={isStartingLogin || !onStartSignIn}
-              onClick={() => onStartSignIn?.("google")}
-              size="sm"
-              type="button"
-            >
-              Sign in
-            </Button>
-          }
-          description="Sign in on this computer to manage your plan, devices, email, and account tokens from here."
-          label={`Linked to ${account.email} for remote access`}
-        />
-        {linkMismatchNotice ? (
-          <div
-            className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft bg-warning-tint/50 px-4 py-3"
-            data-testid="account-link-mismatch-notice"
-            role="alert"
-          >
-            <div className="flex min-w-0 flex-1 items-start gap-2.5 text-small-body text-fg">
-              <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
-              <span>
-                This computer is linked to {account.email} for remote access. Unlink it before
-                signing in with another account.
-              </span>
-            </div>
-            <Button
-              className="shrink-0"
-              onClick={onRequestUnlink}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Unlink
-            </Button>
-          </div>
-        ) : null}
-      </SettingsGroup>
-    );
-  }
-
-  if (account.source === "account_token") {
-    const tokenName = account.tokenName ?? "ci";
-    return (
-      <SettingsGroup data-testid="account-identity" title="Profile">
-        <SettingRow
-          control={
-            <Pill size="xs" tone="neutral">
-              <KeyRound aria-hidden="true" className="size-3" />
-              Local use only
-            </Pill>
-          }
-          description={
-            <span className="flex flex-col gap-0.5">
-              <span>{account.email}</span>
-              <span>
-                Signed in via <code className="font-mono text-fg">COMPOZY_ACCOUNT_TOKEN</code>. Sign
-                in with Google or GitHub for remote computers, devices, and billing.
-              </span>
+}: Pick<
+  AccountIdentitySectionProps,
+  "loginAttempt" | "loginError" | "isStartingLogin" | "onStartSignIn" | "onCancelSignIn"
+>) {
+  return (
+    <SettingsGroup data-testid="account-identity" title="Profile">
+      {loginAttempt ? (
+        <div
+          className="flex flex-col gap-3 px-4 py-4"
+          data-testid="account-sign-in-waiting"
+          role="status"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-2 text-small-body font-medium text-fg-strong">
+              <Spinner aria-hidden="true" className="size-3.5" />
+              <span>Continue in your browser</span>
             </span>
+            {onCancelSignIn ? (
+              <Button onClick={onCancelSignIn} size="xs" type="button" variant="outline">
+                Cancel
+              </Button>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <code
+              className="rounded-md border border-line bg-code-bg px-3 py-1.5 font-mono text-base font-semibold tracking-widest text-fg-strong select-all"
+              data-testid="account-sign-in-code"
+            >
+              {loginAttempt.user_code}
+            </code>
+            <a
+              className="inline-flex items-center gap-1.5 text-small-body font-medium text-fg underline underline-offset-3"
+              href={loginAttempt.verification_uri_complete || loginAttempt.verification_uri}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Open verification page
+              <ExternalLink aria-hidden="true" className="size-3.5" />
+            </a>
+          </div>
+          <p className="text-meta text-muted-foreground">
+            Check that your browser shows the same code.
+          </p>
+        </div>
+      ) : (
+        <SettingRow
+          control={
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                disabled={isStartingLogin || !onStartSignIn}
+                onClick={() => onStartSignIn?.("google")}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                Continue with Google
+              </Button>
+              <Button
+                disabled={isStartingLogin || !onStartSignIn}
+                onClick={() => onStartSignIn?.("github")}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Continue with GitHub
+              </Button>
+            </div>
           }
-          label={`Account token "${tokenName}"`}
+          description="Sign in to add remote computers, manage devices, and check your plan."
+          label="Not signed in"
         />
-      </SettingsGroup>
-    );
-  }
+      )}
+      {loginError ? (
+        <div
+          className="border-t border-line-soft px-4 py-2.5 text-meta text-destructive"
+          role="alert"
+        >
+          {loginError}
+        </div>
+      ) : null}
+    </SettingsGroup>
+  );
+}
 
-  const isAdmin = Boolean(currentDevice?.admin);
+function LinkOnlyIdentityCard({
+  email,
+  linkMismatchNotice,
+  isStartingLogin,
+  onStartSignIn,
+  onRequestUnlink,
+}: {
+  email: string;
+  linkMismatchNotice: boolean;
+  isStartingLogin: boolean;
+  onStartSignIn?: (provider: AccountProvider) => void;
+  onRequestUnlink?: () => void;
+}) {
+  return (
+    <SettingsGroup data-testid="account-identity" title="Profile">
+      <SettingRow
+        control={
+          <Button
+            disabled={isStartingLogin || !onStartSignIn}
+            onClick={() => onStartSignIn?.("google")}
+            size="sm"
+            type="button"
+          >
+            Sign in
+          </Button>
+        }
+        description="Sign in on this computer to manage your plan, devices, email, and account tokens from here."
+        label={`Linked to ${email} for remote access`}
+      />
+      {linkMismatchNotice ? (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft bg-warning-tint/50 px-4 py-3"
+          data-testid="account-link-mismatch-notice"
+          role="alert"
+        >
+          <div className="flex min-w-0 flex-1 items-start gap-2.5 text-small-body text-fg">
+            <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
+            <span>
+              This computer is linked to {email} for remote access. Unlink it before signing in with
+              another account.
+            </span>
+          </div>
+          <Button
+            className="shrink-0"
+            onClick={onRequestUnlink}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Unlink
+          </Button>
+        </div>
+      ) : null}
+    </SettingsGroup>
+  );
+}
+
+function TokenIdentityCard({ account }: { account: AccountStateFixture }) {
+  const tokenName = account.tokenName ?? "ci";
+  return (
+    <SettingsGroup data-testid="account-identity" title="Profile">
+      <SettingRow
+        control={
+          <Pill size="xs" tone="neutral">
+            <KeyRound aria-hidden="true" className="size-3" />
+            Local use only
+          </Pill>
+        }
+        description={`${account.email} · Signed in via COMPOZY_ACCOUNT_TOKEN. Sign in with Google or GitHub for remote computers, devices, and billing.`}
+        label={`Account token "${tokenName}"`}
+      />
+    </SettingsGroup>
+  );
+}
+
+function SessionIdentityCard({
+  account,
+  isAdmin,
+  onRequestSignOut,
+}: {
+  account: AccountStateFixture;
+  isAdmin: boolean;
+  onRequestSignOut: () => void;
+}) {
   const showTierPill = !account.paymentIssue && !account.cancelAtPeriodEnd;
+  const subtitle = `${account.email} · ${providerLabel(account.provider)}`;
 
   return (
     <SettingsGroup data-testid="account-identity" title="Profile">
@@ -304,10 +313,8 @@ export function AccountIdentitySection({
         }
         description={
           <span className="inline-flex flex-wrap items-center gap-1.5">
-            <span>{account.email}</span>
-            <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
-            <span>{providerLabel(account.provider)}</span>
-            <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
+            <span>{subtitle}</span>
+            <span aria-hidden="true">·</span>
             {isAdmin ? (
               <span className="inline-flex items-center gap-1 text-fg">
                 <ShieldCheck aria-hidden="true" className="size-3.5 text-info" />
@@ -330,6 +337,52 @@ export function AccountIdentitySection({
         }
       />
     </SettingsGroup>
+  );
+}
+
+export function AccountIdentitySection({
+  account,
+  currentDevice,
+  linkMismatchNotice = false,
+  loginAttempt = null,
+  loginError = null,
+  isStartingLogin = false,
+  onStartSignIn,
+  onCancelSignIn,
+  onRequestUnlink,
+  onRequestSignOut,
+}: AccountIdentitySectionProps) {
+  if (!account.signedIn) {
+    return (
+      <SignedOutIdentityCard
+        isStartingLogin={isStartingLogin}
+        loginAttempt={loginAttempt}
+        loginError={loginError}
+        onCancelSignIn={onCancelSignIn}
+        onStartSignIn={onStartSignIn}
+      />
+    );
+  }
+  if (account.source === "host_link") {
+    return (
+      <LinkOnlyIdentityCard
+        email={account.email}
+        isStartingLogin={isStartingLogin}
+        linkMismatchNotice={linkMismatchNotice}
+        onRequestUnlink={onRequestUnlink}
+        onStartSignIn={onStartSignIn}
+      />
+    );
+  }
+  if (account.source === "account_token") {
+    return <TokenIdentityCard account={account} />;
+  }
+  return (
+    <SessionIdentityCard
+      account={account}
+      isAdmin={Boolean(currentDevice?.admin)}
+      onRequestSignOut={onRequestSignOut}
+    />
   );
 }
 

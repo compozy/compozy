@@ -44,6 +44,59 @@ export interface ComputersThisComputerSectionProps {
   onUpgrade?: () => void;
 }
 
+function HostedRouteDescription({
+  account,
+  local,
+}: Pick<ComputersThisComputerSectionProps, "account" | "local">) {
+  if (!local.hostedRouteEnabled) {
+    return (
+      <span>
+        Reach this computer from any network or your phone ({account.cloudRoutesUsed} of{" "}
+        {account.cloudRoutesLimit} hosted routes used).
+      </span>
+    );
+  }
+  if (local.hostedRouteState === "ready") {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        <Pill form="plain" size="xs" tone="success">
+          <Pill.Dot />
+          Hosted route ready
+        </Pill>
+        {local.hostedUrl ? (
+          <>
+            <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
+            <span className="font-mono text-mono-id text-fg">{local.hostedUrl}</span>
+            <CopyIconButton
+              className="size-5 text-subtle hover:text-fg"
+              copiedLabel="Hosted address copied"
+              copiedToastLabel="Hosted address copied"
+              copyLabel="Copy hosted route address"
+              value={`https://${local.hostedUrl}`}
+            />
+          </>
+        ) : null}
+      </span>
+    );
+  }
+  if (local.hostedRouteState === "starting") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+        <Spinner aria-hidden="true" className="size-3" />
+        <span>Starting hosted route…</span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-warning">
+      <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />
+      <span className="truncate">
+        {local.hostedRouteError ?? "Hosted route is temporarily unreachable"}
+      </span>
+    </span>
+  );
+}
+
 function HostedRouteSubRow({
   account,
   local,
@@ -53,9 +106,7 @@ function HostedRouteSubRow({
   ComputersThisComputerSectionProps,
   "account" | "local" | "onToggleHostedRoute" | "onUpgrade"
 >) {
-  const isPro = account.plan === "pro";
-
-  if (!isPro) {
+  if (account.plan !== "pro") {
     return (
       <SettingRow
         className="pl-8"
@@ -78,53 +129,6 @@ function HostedRouteSubRow({
     );
   }
 
-  let description = (
-    <span>
-      Reach this computer from any network or your phone ({account.cloudRoutesUsed} of{" "}
-      {account.cloudRoutesLimit} hosted routes used).
-    </span>
-  );
-
-  if (local.hostedRouteEnabled && local.hostedRouteState === "ready") {
-    description = (
-      <span className="inline-flex flex-wrap items-center gap-1.5">
-        <Pill form="plain" size="xs" tone="success">
-          <Pill.Dot />
-          Hosted route ready
-        </Pill>
-        {local.hostedUrl ? (
-          <>
-            <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
-            <span className="font-mono text-mono-id text-fg">{local.hostedUrl}</span>
-            <CopyIconButton
-              className="size-5 text-subtle hover:text-fg"
-              copiedLabel="Hosted address copied"
-              copiedToastLabel="Hosted address copied"
-              copyLabel="Copy hosted route address"
-              value={`https://${local.hostedUrl}`}
-            />
-          </>
-        ) : null}
-      </span>
-    );
-  } else if (local.hostedRouteEnabled && local.hostedRouteState === "starting") {
-    description = (
-      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-        <Spinner aria-hidden="true" className="size-3" />
-        <span>Starting hosted route…</span>
-      </span>
-    );
-  } else if (local.hostedRouteEnabled && local.hostedRouteState === "unreachable") {
-    description = (
-      <span className="inline-flex items-center gap-1.5 text-warning">
-        <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />
-        <span className="truncate">
-          {local.hostedRouteError ?? "Hosted route is temporarily unreachable"}
-        </span>
-      </span>
-    );
-  }
-
   return (
     <SettingRow
       className="pl-8"
@@ -142,7 +146,7 @@ function HostedRouteSubRow({
           </Pill>
         )
       }
-      description={description}
+      description={<HostedRouteDescription account={account} local={local} />}
       label="Hosted route"
     />
   );

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { CheckCircle2, Sparkles, TriangleAlert } from "@compozy/ui/icons";
 
 import {
@@ -35,6 +36,154 @@ export interface AddComputerSshProgressViewProps {
   onRequestCancel: () => void;
 }
 
+function renderTrustPrompt({
+  sshStage,
+  hostLabel,
+  live,
+  onSetSshStage,
+}: Pick<AddComputerSshProgressViewProps, "sshStage" | "hostLabel" | "live" | "onSetSshStage">):
+  | ReactNode
+  | undefined {
+  if (live?.hostKeyPrompt) {
+    const prompt = live.hostKeyPrompt;
+    return (
+      <AddComputerHostKeyCard
+        fingerprint={prompt.fingerprint}
+        hostLabel={hostLabel}
+        keyType={prompt.keyType}
+        mode={prompt.mode}
+        onDecline={prompt.mode === "trust" ? live.onDeclineHost : undefined}
+        onTrust={prompt.mode === "trust" ? live.onTrustHost : undefined}
+        pinEntry={prompt.pinEntry}
+        previousFingerprint={prompt.previousFingerprint}
+        recoveryCommand={prompt.recoveryCommand}
+        target={prompt.target}
+      />
+    );
+  }
+  if (sshStage === "host_key_changed") {
+    return (
+      <AddComputerHostKeyCard
+        fingerprint={SSH_HOST_KEY_CHANGED_FIXTURE.observedFingerprint}
+        hostLabel={hostLabel}
+        keyType={SSH_HOST_KEY_CHANGED_FIXTURE.keyType}
+        mode="changed"
+        pinEntry={SSH_HOST_KEY_CHANGED_FIXTURE.pinEntry}
+        previousFingerprint={SSH_HOST_KEY_CHANGED_FIXTURE.pinnedFingerprint}
+        recoveryCommand={SSH_HOST_KEY_CHANGED_FIXTURE.recoveryCommand}
+        target={SSH_HOST_KEY_CHANGED_FIXTURE.target}
+        verifyCommand={SSH_HOST_KEY_CHANGED_FIXTURE.verifyCommand}
+      />
+    );
+  }
+  if (sshStage === "trust_host") {
+    return (
+      <AddComputerHostKeyCard
+        fingerprint={SSH_HOST_TRUST_FIXTURE.fingerprint}
+        hostLabel={hostLabel}
+        keyType={SSH_HOST_TRUST_FIXTURE.keyType}
+        mode="trust"
+        onDecline={() => {
+          onSetSshStage("picker");
+          toast.message("Setup cancelled. Host key was not trusted.");
+        }}
+        onTrust={() => {
+          onSetSshStage("running");
+          toast.success(`Trusted ${hostLabel} and continued setup.`);
+        }}
+        target={SSH_HOST_TRUST_FIXTURE.target}
+        verifyCommand={SSH_HOST_TRUST_FIXTURE.verifyCommand}
+      />
+    );
+  }
+  return undefined;
+}
+
+function renderSecretPrompt({
+  sshStage,
+  targetAddress,
+  live,
+  onSetSshStage,
+  onRequestCancel,
+}: Pick<
+  AddComputerSshProgressViewProps,
+  "sshStage" | "targetAddress" | "live" | "onSetSshStage" | "onRequestCancel"
+>): ReactNode | undefined {
+  if (sshStage !== "password" && sshStage !== "agent_secret") return undefined;
+  const agentSessionTitle = live
+    ? live.isAgentInitiated
+      ? "Agent setup"
+      : null
+    : sshStage === "agent_secret"
+      ? SSH_SECRET_PROMPT_FIXTURE.agentSessionTitle
+      : null;
+
+  return (
+    <AddComputerSecretCard
+      agentSessionTitle={agentSessionTitle}
+      countdownSeconds={
+        live ? live.secretCountdownSeconds : SSH_SECRET_PROMPT_FIXTURE.countdownSeconds
+      }
+      errorMessage={live?.secretError}
+      onCancel={onRequestCancel}
+      onRetry={live ? live.onRetrySetup : () => onSetSshStage("running")}
+      onSubmit={
+        live
+          ? live.onSubmitSecret
+          : () => {
+              onSetSshStage("running");
+              toast.success("Authenticated with SSH.");
+            }
+      }
+      promptLabel={SSH_SECRET_PROMPT_FIXTURE.promptLabel}
+      target={targetAddress}
+    />
+  );
+}
+
+function SshDoneSummary({
+  hostLabel,
+  targetAddress,
+  showDraftLingerNote,
+}: {
+  hostLabel: string;
+  targetAddress: string;
+  showDraftLingerNote: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <ActionResultBanner
+        description={`Connected via SSH (${targetAddress}). Sessions you start on ${hostLabel} keep running even if you close this app.`}
+        icon={CheckCircle2}
+        title={`${hostLabel} is ready`}
+        tone="success"
+      />
+      {showDraftLingerNote ? (
+        <Alert variant="info">
+          <TriangleAlert aria-hidden="true" />
+          <AlertTitle>{SSH_LINGER_NOTE_FIXTURE.summary}</AlertTitle>
+          <AlertDescription className="flex flex-col gap-2">
+            <span>{SSH_LINGER_NOTE_FIXTURE.detail}</span>
+            <CodeBlock
+              code={SSH_LINGER_NOTE_FIXTURE.command}
+              copyable
+              density="compact"
+              language="bash"
+              showPrompt
+            />
+          </AlertDescription>
+        </Alert>
+      ) : null}
+    </div>
+  );
+}
+
+const CHANGE_HOST_STAGES = new Set<AddComputerSshStage>([
+  "failed",
+  "host_key_changed",
+  "unsupported",
+]);
+
 export function AddComputerSshProgressView({
   sshStage,
   hostLabel,
@@ -45,93 +194,14 @@ export function AddComputerSshProgressView({
   onSwitchToCommand,
   onRequestCancel,
 }: AddComputerSshProgressViewProps) {
-  const trustPromptNode = (() => {
-    if (live?.hostKeyPrompt) {
-      const prompt = live.hostKeyPrompt;
-      return (
-        <AddComputerHostKeyCard
-          fingerprint={prompt.fingerprint}
-          hostLabel={hostLabel}
-          keyType={prompt.keyType}
-          mode={prompt.mode}
-          onDecline={prompt.mode === "trust" ? live.onDeclineHost : undefined}
-          onTrust={prompt.mode === "trust" ? live.onTrustHost : undefined}
-          pinEntry={prompt.pinEntry}
-          previousFingerprint={prompt.previousFingerprint}
-          recoveryCommand={prompt.recoveryCommand}
-          target={prompt.target}
-        />
-      );
-    }
-    if (sshStage === "host_key_changed") {
-      return (
-        <AddComputerHostKeyCard
-          fingerprint={SSH_HOST_KEY_CHANGED_FIXTURE.observedFingerprint}
-          hostLabel={hostLabel}
-          keyType={SSH_HOST_KEY_CHANGED_FIXTURE.keyType}
-          mode="changed"
-          pinEntry={SSH_HOST_KEY_CHANGED_FIXTURE.pinEntry}
-          previousFingerprint={SSH_HOST_KEY_CHANGED_FIXTURE.pinnedFingerprint}
-          recoveryCommand={SSH_HOST_KEY_CHANGED_FIXTURE.recoveryCommand}
-          target={SSH_HOST_KEY_CHANGED_FIXTURE.target}
-          verifyCommand={SSH_HOST_KEY_CHANGED_FIXTURE.verifyCommand}
-        />
-      );
-    }
-    if (sshStage === "trust_host") {
-      return (
-        <AddComputerHostKeyCard
-          fingerprint={SSH_HOST_TRUST_FIXTURE.fingerprint}
-          hostLabel={hostLabel}
-          keyType={SSH_HOST_TRUST_FIXTURE.keyType}
-          mode="trust"
-          onDecline={() => {
-            onSetSshStage("picker");
-            toast.message("Setup cancelled. Host key was not trusted.");
-          }}
-          onTrust={() => {
-            onSetSshStage("running");
-            toast.success(`Trusted ${hostLabel} and continued setup.`);
-          }}
-          target={SSH_HOST_TRUST_FIXTURE.target}
-          verifyCommand={SSH_HOST_TRUST_FIXTURE.verifyCommand}
-        />
-      );
-    }
-    return undefined;
-  })();
-
-  const secretPromptNode =
-    sshStage === "password" || sshStage === "agent_secret" ? (
-      <AddComputerSecretCard
-        agentSessionTitle={
-          live
-            ? live.isAgentInitiated
-              ? "Agent setup"
-              : null
-            : sshStage === "agent_secret"
-              ? SSH_SECRET_PROMPT_FIXTURE.agentSessionTitle
-              : null
-        }
-        countdownSeconds={
-          live ? live.secretCountdownSeconds : SSH_SECRET_PROMPT_FIXTURE.countdownSeconds
-        }
-        errorMessage={live?.secretError}
-        onCancel={onRequestCancel}
-        onRetry={live ? live.onRetrySetup : () => onSetSshStage("running")}
-        onSubmit={
-          live
-            ? live.onSubmitSecret
-            : () => {
-                onSetSshStage("running");
-                toast.success("Authenticated with SSH.");
-              }
-        }
-        promptLabel={SSH_SECRET_PROMPT_FIXTURE.promptLabel}
-        target={targetAddress}
-      />
-    ) : undefined;
-
+  const trustPromptNode = renderTrustPrompt({ sshStage, hostLabel, live, onSetSshStage });
+  const secretPromptNode = renderSecretPrompt({
+    sshStage,
+    targetAddress,
+    live,
+    onSetSshStage,
+    onRequestCancel,
+  });
   const planLimitPromptNode =
     sshStage === "plan_limit" ? (
       <Alert variant="warning">
@@ -142,7 +212,6 @@ export function AddComputerSshProgressView({
         </AlertDescription>
       </Alert>
     ) : undefined;
-
   const unsupportedPromptNode =
     sshStage === "unsupported" ? (
       <Alert variant="warning">
@@ -198,7 +267,7 @@ export function AddComputerSshProgressView({
             <p className="truncate font-mono text-mono-id text-muted-foreground">{targetAddress}</p>
           </div>
         </div>
-        {sshStage === "failed" || sshStage === "host_key_changed" || sshStage === "unsupported" ? (
+        {CHANGE_HOST_STAGES.has(sshStage) ? (
           <Button
             onClick={() => (live ? live.onBackToPicker() : onSetSshStage("picker"))}
             size="xs"
@@ -213,30 +282,11 @@ export function AddComputerSshProgressView({
       <StepProgressList data-testid="add-computer-ssh-steps" steps={steps} />
 
       {sshStage === "done" ? (
-        <div className="flex flex-col gap-3">
-          <ActionResultBanner
-            description={`Connected via SSH (${targetAddress}). Sessions you start on ${hostLabel} keep running even if you close this app.`}
-            icon={CheckCircle2}
-            title={`${hostLabel} is ready`}
-            tone="success"
-          />
-          {!live ? (
-            <Alert variant="info">
-              <TriangleAlert aria-hidden="true" />
-              <AlertTitle>{SSH_LINGER_NOTE_FIXTURE.summary}</AlertTitle>
-              <AlertDescription className="flex flex-col gap-2">
-                <span>{SSH_LINGER_NOTE_FIXTURE.detail}</span>
-                <CodeBlock
-                  code={SSH_LINGER_NOTE_FIXTURE.command}
-                  copyable
-                  density="compact"
-                  language="bash"
-                  showPrompt
-                />
-              </AlertDescription>
-            </Alert>
-          ) : null}
-        </div>
+        <SshDoneSummary
+          hostLabel={hostLabel}
+          showDraftLingerNote={!live}
+          targetAddress={targetAddress}
+        />
       ) : null}
     </div>
   );

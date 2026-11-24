@@ -289,6 +289,7 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
       setLoginAttempt(response);
       setLoginError(null);
       setLinkMismatchNotice(false);
+      void queryClient.invalidateQueries({ queryKey: accountKeys.status() });
     },
     onError: err => {
       if (

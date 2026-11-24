@@ -432,7 +432,9 @@ test("E2E-002 add computer over SSH with host-key trust reaches Connected via SS
   // Trust this host? -> Trust and continue -> reaches ready state
   await expect(dialog.getByText("Trust this host?")).toBeVisible({ timeout: 10_000 });
   await dialog.getByRole("button", { name: /Trust and continue/i }).click();
-  await expect(dialog.getByText("testhost is ready")).toBeVisible({ timeout: 10_000 });
+  await expect(dialog.getByText("testhost is ready", { exact: true })).toBeVisible({
+    timeout: 10_000,
+  });
 
   await dialog.getByRole("button", { name: "Open testhost" }).click();
   await expect(dialog).toBeHidden();
