@@ -106,7 +106,7 @@ func TestDaemonComputerOperatorTerminal(t *testing.T) {
 		waitComputerRoute(t, controller, id, remoteproto.RouteDirect)
 		resumed := attachOperatorTerminal(t, controller, id, path, cursor)
 		replay, _ := readOperatorOutput(t, resumed, "\r\ns9b-replay-c\r\n")
-		if !strings.Contains(replay, "\r\ns9b-replay-a\r\ns9b-replay-b\r\ns9b-replay-c\r\n") {
+		if !strings.HasPrefix(replay, "s9b-replay-a\r\ns9b-replay-b\r\ns9b-replay-c\r\n") {
 			t.Fatalf("terminal replay after %d missed output: %q", cursor, replay)
 		}
 		narrowOperatorTerminalScope(t, host, controller, id, device, resumed)

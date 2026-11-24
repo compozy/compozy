@@ -293,7 +293,10 @@ func (b operatorBridge) assertNativeCompletion(workspace, runID, claimer string,
 	testutil.Eventually(t, "the lease owner heartbeats "+runID, 15*time.Second, func() bool {
 		reply := b.request(http.MethodGet, path, nil)
 		reply.expect(t, http.StatusOK, runID)
-		run = authJSON[contract.TaskRunResponse](t, reply).Run
+		run = authJSON[contract.TaskRunDetailResponse](t, reply).Run.Run
+		if run.ID != runID {
+			t.Fatalf("task run detail returned ID %q, want %q", run.ID, runID)
+		}
 		return run.Status == taskpkg.TaskRunStatusRunning && run.ClaimedAt != nil && run.LeaseUntil != nil &&
 			run.LeaseUntil.Sub(*run.ClaimedAt) >= 2*time.Minute
 	})
@@ -301,10 +304,16 @@ func (b operatorBridge) assertNativeCompletion(workspace, runID, claimer string,
 		t.Fatalf("lease owner of run %q = %q; claimant %q, expected handoff %t", runID, run.SessionID, claimer, handoff)
 	}
 	owner := run.SessionID
+	statusPath := "/api/workspaces/" + workspace + "/sessions/" + owner + "/status"
+	testutil.Eventually(t, "the lease owner's prompt ends", 15*time.Second, func() bool {
+		reply := b.request(http.MethodGet, statusPath, nil)
+		reply.expect(t, http.StatusOK, owner)
+		return authJSON[contract.SessionStatusResponse](t, reply).State == contract.SessionHealthStateIdle
+	})
 	b.prompt(workspace, owner, "s9b-complete-"+runID, "Complete "+runID)
 	reply := b.request(http.MethodGet, path, nil)
 	reply.expect(t, http.StatusOK, "s9b-completed")
-	completed := authJSON[contract.TaskRunResponse](t, reply).Run
+	completed := authJSON[contract.TaskRunDetailResponse](t, reply).Run.Run
 	if completed.ID != runID || completed.Status != taskpkg.TaskRunStatusCompleted || completed.SessionID != owner {
 		t.Fatalf("run %q completed projection = %q/%s/%q; want own lease settled by %q",
 			runID, completed.ID, completed.Status, completed.SessionID, owner)
