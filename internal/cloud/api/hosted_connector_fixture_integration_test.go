@@ -32,15 +32,15 @@ const (
 	connectorFixtureMode    = "connector-mode"
 )
 
-func TestMain(m *testing.M) {
-	if len(os.Args) > 1 && os.Args[1] == "tunnel" && os.Getenv("COMPOZY_REMOTE_CONNECTOR") == "1" {
-		if err := runHostedFixtureConnector(os.Args[2:]); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		os.Exit(0)
+func runHostedFixtureProcess(runTests func() int) int {
+	if len(os.Args) < 2 || os.Args[1] != "tunnel" || os.Getenv("COMPOZY_REMOTE_CONNECTOR") != "1" {
+		return runTests()
 	}
-	os.Exit(m.Run())
+	if err := runHostedFixtureConnector(os.Args[2:]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
 }
 
 type hostedConnectorState struct {

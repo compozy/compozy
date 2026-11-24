@@ -40,10 +40,11 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	code := runSSHFixtureProcess(ctx, m.Run)
-	stop()
-	os.Exit(code)
+	os.Exit(runHostedFixtureProcess(func() int {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return runSSHFixtureProcess(ctx, m.Run)
+	}))
 }
 
 func runSSHFixtureProcess(ctx context.Context, runTests func() int) int {
