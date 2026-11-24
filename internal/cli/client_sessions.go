@@ -385,5 +385,5 @@ func (c *daemonClient) SteerSessionPrompt(
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}
-	return c.doSessionPrompt(ctx, http.MethodPost, path, nil, request)
+	return c.doSessionPrompt(ctx, http.MethodPost, path, request)
 }
