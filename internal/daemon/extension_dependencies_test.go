@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/marketplace"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -270,10 +271,13 @@ func TestExtensionDependencyResolution(t *testing.T) {
 		t.Parallel()
 		fixture := newDependencyFixture(t)
 		const workspaceID = "ws-dependent"
+		workspace := workspacepkg.Workspace{ID: workspaceID, Name: "Dependency workspace", RootDir: t.TempDir()}
+		db := fixture.deps.ExtensionEvents.(*globaldb.GlobalDB)
+		if err := db.InsertWorkspace(t.Context(), workspace); err != nil {
+			t.Fatalf("register dependency workspace: %v", err)
+		}
 		fixture.service.workspaceResolver = &daemonExtensionWorkspaceResolverStub{
-			resolved: workspacepkg.ResolvedWorkspace{
-				Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: t.TempDir()}, WorkspaceID: workspaceID,
-			},
+			resolved: workspacepkg.ResolvedWorkspace{Workspace: workspace, WorkspaceID: workspaceID},
 		}
 		fixture.childDir(t, "dep-parent", "dep-mid")
 		fixture.childDir(t, "dep-mid", "dep-leaf")
