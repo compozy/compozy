@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +37,7 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 		scanRoot := filepath.Join(root, "skills")
 		service := agentinstance.SkillProposalService{
 			Store:     db.SkillReviews(),
+			Evidence:  instanceScopedEvidence{},
 			DraftRoot: filepath.Join(root, "drafts"),
 			ScanRoots: []string{scanRoot},
 		}
@@ -44,15 +46,12 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 			ProfileID: store.DefaultProfileID,
 			AgentName: "coder",
 		}
-		input := agentinstance.SkillProposalInput{
-			Name:        "review-changes",
-			Description: "Review changes",
-			Body:        "Read the diff and report findings.",
-		}
-		review, err := service.Propose(ctx, workspaceaccess.ActorRef{Operator: true}, instance, scanRoot, input)
+		input := testSkillProposalInput("review-changes", "Review changes", "Read the diff and report findings.")
+		proposed, err := service.Propose(ctx, workspaceaccess.ActorRef{Operator: true}, instance, scanRoot, input)
 		if err != nil {
 			t.Fatal(err)
 		}
+		review := proposed.Review
 		if review.State != "pending" {
 			t.Fatalf("state=%s", review.State)
 		}
@@ -74,8 +73,12 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 		if err := json.Unmarshal([]byte(payload), &report); err != nil || report.SkillReviewID != review.ID {
 			t.Fatalf("report link: %+v %v", report, err)
 		}
-		retry, err := service.Propose(ctx, workspaceaccess.ActorRef{Operator: true}, instance, scanRoot, input)
-		if err != nil || retry.ID != review.ID {
+		// UT-049: the pending duplicate is returned unchanged, keeping its lesson and its one draft.
+		retryInput := input
+		retryInput.Lesson.Lesson = "A different lesson for the same contents."
+		retry, err := service.Propose(ctx, workspaceaccess.ActorRef{Operator: true}, instance, scanRoot, retryInput)
+		if err != nil || !retry.Duplicate || retry.Review.ID != review.ID ||
+			retry.Review.Lesson != review.Lesson {
 			t.Fatalf("retry: %+v %v", retry, err)
 		}
 		entries, err := os.ReadDir(service.DraftRoot)
@@ -126,18 +129,23 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 			t.Fatal(err)
 		}
 		rejected, err := service.Propose(ctx, operator, instance, scanRoot, input)
-		if err != nil || rejected.State != "rejected" {
+		if !errors.Is(err, agentinstance.ErrSkillProposePreviouslyRejected) ||
+			!strings.Contains(err.Error(), review.ID) || rejected.Review.ID != review.ID {
 			t.Fatalf("rejected reproposal: %+v %v", rejected, err)
+		}
+		if entries, err := os.ReadDir(service.DraftRoot); err != nil || len(entries) != 1 {
+			t.Fatalf("refused reproposal kept a draft: %d %v", len(entries), err)
 		}
 		rows, err := service.Reviews(ctx, operator, instance, agentinstance.SkillReviewQuery{Limit: 10})
 		if err != nil || len(rows) != 1 || rows[0].State != "rejected" {
 			t.Fatalf("reviews: %+v %v", rows, err)
 		}
 		input.Body = "Read the diff and verify the changed behavior."
-		changed, err := service.Propose(ctx, operator, instance, scanRoot, input)
+		changedResult, err := service.Propose(ctx, operator, instance, scanRoot, input)
 		if err != nil {
 			t.Fatal(err)
 		}
+		changed := changedResult.Review
 		if err := service.Approve(
 			ctx,
 			workspaceaccess.ActorRef{},
@@ -197,8 +205,21 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 			t.Fatalf("approval retry: %v", err)
 		}
 		approved, err := db.SkillReviews().GetReview(ctx, changed.ID)
-		if err != nil || approved.State != "approved" {
+		if err != nil || approved.State != "approved" || approved.DecidedVia != "operator" {
 			t.Fatalf("approval ledger: %+v %v", approved, err)
+		}
+		// Business Rule 4: approved contents are installed, so proposing them again is refused
+		// instead of opening another pending review.
+		if again, err := service.Propose(ctx, operator, instance, scanRoot, input); !errors.Is(
+			err,
+			agentinstance.ErrSkillProposeNameTaken,
+		) {
+			t.Fatalf("reproposal of installed contents: %+v %v", again, err)
+		}
+		if pending, err := service.Reviews(
+			ctx, operator, instance, agentinstance.SkillReviewQuery{State: "pending", Limit: 10},
+		); err != nil || len(pending) != 0 {
+			t.Fatalf("pending after refused reproposal: %+v %v", pending, err)
 		}
 	})
 	t.Run("Should never leave an approved review without its installed skill", func(t *testing.T) {
@@ -216,6 +237,7 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 		decideErr := errors.New("ledger write failed")
 		failing := agentinstance.SkillProposalService{
 			Store:     failingDecideStore{SkillReviewStore: db.SkillReviews(), err: decideErr},
+			Evidence:  instanceScopedEvidence{},
 			DraftRoot: filepath.Join(root, "drafts"),
 			ScanRoots: []string{scanRoot},
 		}
@@ -223,12 +245,14 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 			ID: "rollback-instance", ProfileID: store.DefaultProfileID, AgentName: "coder",
 		}
 		operator := workspaceaccess.ActorRef{Operator: true}
-		review, err := failing.Propose(ctx, operator, instance, scanRoot, agentinstance.SkillProposalInput{
-			Name: "rollback-skill", Description: "Rollback", Body: "Check the rollback.",
-		})
+		proposed, err := failing.Propose(
+			ctx, operator, instance, scanRoot,
+			testSkillProposalInput("rollback-skill", "Rollback", "Check the rollback."),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
+		review := proposed.Review
 		err = failing.Approve(ctx, operator, instance, review.ID, review.Digest, "operator", scanRoot)
 		if !errors.Is(err, decideErr) {
 			t.Fatalf("Approve() error = %v, want the ledger failure", err)
@@ -262,7 +286,7 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 				`{"skill_review_id":"review","proposals":[{"title":"Review skill","body":"Inspect proposed contents"}]}`,
 			),
 		}
-		if _, err := repo.CreateReview(ctx, input, report); err == nil {
+		if _, _, err := repo.CreateReview(ctx, input, report); err == nil {
 			t.Fatal("missing report instance must fail")
 		}
 		if _, err := repo.GetReview(ctx, input.ID); !errors.Is(err, agentinstance.ErrSkillReviewNotFound) {
@@ -274,14 +298,14 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		created, err := repo.CreateReview(ctx, input, report)
-		if err != nil || created.State != "pending" {
-			t.Fatalf("create: %+v %v", created, err)
+		created, duplicate, err := repo.CreateReview(ctx, input, report)
+		if err != nil || duplicate || created.State != "pending" {
+			t.Fatalf("create: %+v %v %v", created, duplicate, err)
 		}
 		input.ID = "retry"
-		retried, err := repo.CreateReview(ctx, input, report)
-		if err != nil || retried.ID != created.ID {
-			t.Fatalf("retry: %+v %v", retried, err)
+		retried, duplicate, err := repo.CreateReview(ctx, input, report)
+		if err != nil || !duplicate || retried.ID != created.ID {
+			t.Fatalf("retry: %+v %v %v", retried, duplicate, err)
 		}
 		if err := repo.DecideReview(
 			ctx,
@@ -321,6 +345,7 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 		input := sqlcgen.InsertAgentSkillReviewParams{
 			InstanceID: "review-instance", ProfileID: store.DefaultProfileID,
 			SkillName: "review-skill", DraftPath: "/drafts/skill", CreatedAt: "2026-11-03T00:00:00Z",
+			Kind: "new", Lesson: "{}", EvidenceSessionIds: "[]",
 		}
 		for i := range 6 {
 			input.ID = fmt.Sprintf("review-%d", i)
@@ -340,10 +365,11 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 		if err != nil || count != 1 {
 			t.Fatalf("reject: count=%d err=%v", count, err)
 		}
-		input.ID, input.Digest = "retry", "digest-0"
-		count, err = q.InsertAgentSkillReview(ctx, input)
-		if err != nil || count != 0 {
-			t.Fatalf("rejected retry: count=%d err=%v", count, err)
+		match, err := q.GetAgentSkillReviewByIdentity(ctx, sqlcgen.GetAgentSkillReviewByIdentityParams{
+			InstanceID: input.InstanceID, SkillName: input.SkillName, Digest: "digest-0",
+		})
+		if err != nil || match.ID != "review-0" || match.State != "rejected" {
+			t.Fatalf("rejected identity: %+v err=%v", match, err)
 		}
 		input.ID, input.Digest = "changed", "changed-digest"
 		count, err = q.InsertAgentSkillReview(ctx, input)
@@ -1166,6 +1192,23 @@ func TestInstanceReportReservationUnderSteerDefault(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// instanceScopedEvidence accepts every evidence session as owned by the default profile.
+type instanceScopedEvidence struct{}
+
+func (instanceScopedEvidence) SessionScope(context.Context, string) (string, string, error) {
+	return store.DefaultProfileID, "", nil
+}
+
+func testSkillProposalInput(name, description, body string) agentinstance.SkillProposalInput {
+	return agentinstance.SkillProposalInput{
+		Name: name, Description: description, Body: body,
+		Lesson: agentinstance.SkillLesson{
+			Cue: "Reviewing a change", Lesson: "Read the diff first.", Evidence: "sess-evidence showed it.",
+		},
+		EvidenceSessionIDs: []string{"sess-evidence"},
 	}
 }
 

@@ -737,19 +737,31 @@ export type AgentSkillDraftFile = {
   path: string;
 };
 
+export type AgentSkillLesson = {
+  confidence?: string;
+  cue: string;
+  evidence: string;
+  lesson: string;
+};
+
 export type AgentSkillReviewDecisionRequest = {
   digest: string;
 };
 
 export type AgentSkillReviewPayload = {
   agent: string;
+  base_digest?: string;
   created_at: string;
   decided_at?: string | null;
   decided_by?: string;
+  decided_via?: string;
   digest: string;
+  evidence_session_ids: Array<string>;
   files?: Array<AgentSkillDraftFile>;
   id: string;
   instance_id: string;
+  kind: string;
+  lesson?: AgentSkillLesson | null;
   name: string;
   problem?: string;
   profile_id: string;
@@ -759,6 +771,7 @@ export type AgentSkillReviewPayload = {
 };
 
 export type AgentSkillReviewResponse = {
+  duplicate_of_pending?: boolean;
   review: AgentSkillReviewPayload;
 };
 
@@ -15424,11 +15437,19 @@ export type ListAgentSkillReviewsData = {
      */
     workspace?: string;
     /**
-     * pending, approved or rejected
+     * pending, approved, rejected or reverted
      */
     state?: string;
     /**
-     * Page cursor
+     * new or edit
+     */
+    kind?: string;
+    /**
+     * operator or auto_approve
+     */
+    decided_via?: string;
+    /**
+     * Page cursor bound to the filters it was issued for
      */
     cursor?: string;
     /**

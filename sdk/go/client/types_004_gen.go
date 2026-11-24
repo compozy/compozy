@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// AutomationSuggestionPayload is a daemon API value.
+type AutomationSuggestionPayload struct {
+	ID          string           `json:"id"`
+	ProfileID   string           `json:"profile_id"`
+	WorkspaceID string           `json:"workspace_id"`
+	Source      SuggestionSource `json:"source"`
+	DedupKey    string           `json:"dedup_key"`
+	Status      SuggestionStatus `json:"status"`
+	Payload     JobPayload       `json:"payload"`
+	CreatedAt   time.Time        `json:"created_at"`
+	ResolvedAt  *time.Time       `json:"resolved_at,omitempty"`
+}
+
 // AutomationSuggestionResponse is a daemon API value.
 type AutomationSuggestionResponse struct {
 	Suggestion AutomationSuggestionPayload `json:"suggestion"`
@@ -433,14 +446,4 @@ type CmdPaletteViewPatch struct {
 	Payload     *ViewPayload `json:"payload,omitzero"`
 	Revision    string       `json:"revision"`
 	Reset       bool         `json:"reset,omitzero"`
-}
-
-// CmdPaletteViewSessionAccepted is a daemon API value.
-type CmdPaletteViewSessionAccepted struct {
-	Accepted bool `json:"accepted"`
-}
-
-// CmdPaletteViewSessionClosed is a daemon API value.
-type CmdPaletteViewSessionClosed struct {
-	Closed bool `json:"closed"`
 }

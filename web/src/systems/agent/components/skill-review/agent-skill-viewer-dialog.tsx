@@ -19,9 +19,13 @@ import {
 
 import { hasInvisibleCharacters, skillMarkdownRead } from "../../lib/agent-skill-markdown-read";
 import { SKILL_DEFINITION_FILE, type SkillReviewFile } from "../../lib/agent-skill-review";
+import type { AgentSkillLessonPayload } from "../../types";
 import { AgentSkillFileTree } from "./agent-skill-file-tree";
+import { AgentSkillLesson } from "./agent-skill-lesson";
 
 type ReadMode = "read" | "source";
+
+const NO_EVIDENCE_SESSIONS: readonly string[] = [];
 
 function ReadToggle({ mode, onMode }: { mode: ReadMode; onMode: (mode: ReadMode) => void }) {
   return (
@@ -102,6 +106,9 @@ export function AgentSkillViewerDialog({
   name,
   agentLabel,
   files,
+  lesson,
+  evidenceSessionIds = NO_EVIDENCE_SESSIONS,
+  unavailableEvidenceSessionIds,
   open,
   onOpenChange,
   stale = false,
@@ -118,6 +125,11 @@ export function AgentSkillViewerDialog({
   name: string;
   agentLabel: string;
   files: readonly SkillReviewFile[];
+  /** The lesson the agent proposed with; absent on reviews created before lessons. */
+  lesson?: AgentSkillLessonPayload | null;
+  evidenceSessionIds?: readonly string[];
+  /** Evidence sessions the daemon no longer knows. */
+  unavailableEvidenceSessionIds?: readonly string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The contents changed after the operator first read them; this is the latest. */
@@ -155,6 +167,11 @@ export function AgentSkillViewerDialog({
             <AgentSkillFileTree files={files} onSelect={setSelected} selected={file?.path ?? ""} />
           </nav>
           <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto px-6 pt-4 pb-6">
+            <AgentSkillLesson
+              evidenceSessionIds={evidenceSessionIds}
+              lesson={lesson}
+              unavailableSessionIds={unavailableEvidenceSessionIds}
+            />
             {stale ? (
               <Alert data-testid="skill-review-stale" variant="warning">
                 <AlertDescription>

@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// SettingsShellPayload is a daemon API value.
+type SettingsShellPayload struct {
+	Sessions   SettingsShellSessionsPayload    `json:"sessions"`
+	Appearance *SettingsShellAppearancePayload `json:"appearance,omitempty"`
+}
+
 // SettingsShellResponse is a daemon API value.
 type SettingsShellResponse struct {
 	Warnings        []string                        `json:"warnings"`
@@ -441,10 +447,4 @@ type SignalSourceState struct {
 // SkillActionResponse is a daemon API value.
 type SkillActionResponse struct {
 	OK bool `json:"ok"`
-}
-
-// SkillActivationPayload is a daemon API value.
-type SkillActivationPayload struct {
-	Active  bool                           `json:"active"`
-	Reasons []SkillActivationReasonPayload `json:"reasons,omitempty"`
 }

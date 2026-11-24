@@ -4,6 +4,11 @@ package client
 
 import "time"
 
+// SettingsMCPServerEnabledRequest is a daemon API value.
+type SettingsMCPServerEnabledRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
 // SettingsMCPServerItemPayload is a daemon API value.
 type SettingsMCPServerItemPayload struct {
 	Disabled           bool                                   `json:"disabled,omitzero"`
@@ -437,10 +442,4 @@ type SettingsShellMutationResponse struct {
 	SkippedReason    string                          `json:"skipped_reason,omitempty"`
 	Config           SettingsShellPayload            `json:"config"`
 	LegacyScope      SettingsShellLegacyScopePayload `json:"legacy_scope"`
-}
-
-// SettingsShellPayload is a daemon API value.
-type SettingsShellPayload struct {
-	Sessions   SettingsShellSessionsPayload    `json:"sessions"`
-	Appearance *SettingsShellAppearancePayload `json:"appearance,omitempty"`
 }

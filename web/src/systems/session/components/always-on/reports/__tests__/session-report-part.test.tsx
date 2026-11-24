@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
@@ -60,6 +60,13 @@ vi.mock("@/systems/agent/adapters/agent-skill-review-api", async importOriginal 
   decideAgentSkillReview: skillReviews.decide,
 }));
 
+const sessionOwners = vi.hoisted(() => ({ fetch: vi.fn() }));
+
+vi.mock("@/systems/session/adapters/session-owner-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session/adapters/session-owner-api")>()),
+  fetchSessionOwner: sessionOwners.fetch,
+}));
+
 vi.mock("@assistant-ui/react", async importOriginal => ({
   ...(await importOriginal<typeof import("@assistant-ui/react")>()),
   useAuiState: (select: (state: { thread: { messages: unknown[] } }) => unknown) =>
@@ -74,6 +81,23 @@ vi.mock("@/lib/user-feedback", async importOriginal => ({
 vi.mock("@tanstack/react-router", async importOriginal => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
   useNavigate: () => reads.navigate,
+  // A plain anchor keeps the browser's modifier and middle clicks; the router owns navigation.
+  Link: ({
+    to,
+    params,
+    children,
+    ...props
+  }: AnchorHTMLAttributes<HTMLAnchorElement> & { to: string; params?: Record<string, string> }) => (
+    <a
+      href={Object.entries(params ?? {}).reduce(
+        (path, [key, value]) => path.replace(`$${key}`, encodeURIComponent(value)),
+        to
+      )}
+      {...props}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 function harness(send: ((text: string) => void) | null, shared?: QueryClient) {
@@ -530,8 +554,16 @@ function skillReview(overrides: Record<string, unknown> = {}) {
     id: "skr-1",
     agent: "triage",
     name: "triage-sync",
+    kind: "new",
     state: "pending",
     digest: "sha256:one",
+    lesson: {
+      cue: "A label changes on an issue",
+      lesson: "Move the board card in the same step.",
+      evidence: "Two sessions left the board behind the labels.",
+      confidence: "high",
+    },
+    evidence_session_ids: ["sess-live", "sess-gone"],
     instance_id: "ainst-1",
     profile_id: "p1",
     workspace_id: "ws-1",
@@ -558,6 +590,48 @@ describe("SessionReportPart skill review", () => {
     reads.away.mockResolvedValue(null);
     skillReviews.fetch.mockReset();
     skillReviews.decide.mockReset();
+    sessionOwners.fetch.mockReset();
+    sessionOwners.fetch.mockImplementation(async (id: string) => {
+      if (id === "sess-gone") {
+        const { SessionNotFoundError } =
+          await import("@/systems/session/adapters/session-api-errors");
+        throw new SessionNotFoundError(id);
+      }
+      return { session_id: id, workspace_id: "ws-1", workspace_name: "platform" };
+    });
+  });
+
+  it("Should show the lesson and link its evidence sessions in the viewer [UT-041 UT-043]", async () => {
+    skillReviews.fetch.mockResolvedValue(skillReview());
+    render(<SessionReportPart data={SKILL_REPORT} />, { wrapper: harness(vi.fn()) });
+
+    expect(await screen.findByTestId("skill-review-cue")).toHaveTextContent(
+      "When: A label changes on an issue"
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Review skill" }));
+    const lesson = await screen.findByTestId("skill-review-lesson");
+    expect(lesson).toHaveTextContent("High confidence");
+    expect(lesson).toHaveTextContent("A label changes on an issue");
+    expect(lesson).toHaveTextContent("Move the board card in the same step.");
+    expect(lesson).toHaveTextContent("Two sessions left the board behind the labels.");
+    const live = within(lesson).getByRole("link", { name: "sess-live" });
+    expect(live).toHaveAttribute("href", "/session/sess-live");
+    await waitFor(() => expect(lesson).toHaveTextContent("sess-gone · Unavailable"));
+    expect(within(lesson).queryByRole("link", { name: "sess-gone" })).toBeNull();
+  });
+
+  it("Should say no lesson was recorded for a review created before lessons [UT-042]", async () => {
+    skillReviews.fetch.mockResolvedValue(
+      skillReview({ lesson: undefined, evidence_session_ids: [] })
+    );
+    render(<SessionReportPart data={SKILL_REPORT} />, { wrapper: harness(vi.fn()) });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Review skill" }));
+    expect(await screen.findByTestId("skill-review-no-lesson")).toHaveTextContent(
+      "No lesson recorded"
+    );
+    expect(screen.queryByTestId("skill-review-cue")).toBeNull();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
   });
 
   it("Should say why and list what runs automatically before the review action [UT-059]", async () => {

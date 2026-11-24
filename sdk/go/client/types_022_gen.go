@@ -4,6 +4,34 @@ package client
 
 import "time"
 
+// SettingsAttentionResponse is a daemon API value.
+type SettingsAttentionResponse struct {
+	Section         SettingsSectionName        `json:"section"`
+	Scope           SettingsLayeredScopeKind   `json:"scope"`
+	WorkspaceID     string                     `json:"workspace_id,omitempty"`
+	Profile         string                     `json:"profile,omitempty"`
+	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
+	Config          SettingsAttentionPayload   `json:"config"`
+}
+
+// SettingsAutomationConfigPayload is a daemon API value.
+type SettingsAutomationConfigPayload struct {
+	Enabled           bool            `json:"enabled"`
+	Timezone          string          `json:"timezone"`
+	MaxConcurrentJobs int             `json:"max_concurrent_jobs"`
+	DefaultFireLimit  FireLimitConfig `json:"default_fire_limit"`
+}
+
+// SettingsAutomationResponse is a daemon API value.
+type SettingsAutomationResponse struct {
+	Section         SettingsSectionName              `json:"section"`
+	Scope           SettingsUserScopeKind            `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind          `json:"available_scopes"`
+	Config          SettingsAutomationConfigPayload  `json:"config"`
+	Runtime         SettingsAutomationRuntimePayload `json:"runtime"`
+	Links           []SettingsOperationalLinkPayload `json:"links,omitempty"`
+}
+
 // SettingsAutomationRuntimePayload is a daemon API value.
 type SettingsAutomationRuntimePayload struct {
 	HostTimezone     string     `json:"host_timezone,omitempty"`
@@ -419,9 +447,4 @@ type SettingsMCPSecretPreservationPayload struct {
 type SettingsMCPSecretValuesPayload struct {
 	SecretEnv         map[string]string `json:"secret_env,omitempty"`
 	OAuthClientSecret *string           `json:"oauth_client_secret,omitzero"`
-}
-
-// SettingsMCPServerEnabledRequest is a daemon API value.
-type SettingsMCPServerEnabledRequest struct {
-	Enabled bool `json:"enabled"`
 }

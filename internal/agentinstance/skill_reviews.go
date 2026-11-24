@@ -32,6 +32,13 @@ type SkillReview struct {
 	DecidedBy       string
 	CreatedAt       time.Time
 	DecidedAt       *time.Time
+	Kind            SkillProposalMode
+	// BaseDigest is the tree digest of the captured base of an edit; "" for new skills and legacy rows.
+	BaseDigest         string
+	Lesson             SkillLesson
+	EvidenceSessionIDs []string
+	// DecidedVia is "" while pending, "operator" or "auto_approve" once decided.
+	DecidedVia string
 }
 
 type SkillReviewQuery struct {
@@ -39,13 +46,18 @@ type SkillReviewQuery struct {
 	WorkspaceID    string
 	InstanceID     string
 	State          string
+	Kind           string
+	DecidedVia     string
 	AfterCreatedAt time.Time
 	AfterID        string
 	Limit          int
 }
 
 type SkillReviewStore interface {
-	CreateReview(context.Context, SkillReview, ReportInput) (SkillReview, error)
+	// CreateReview applies proposal identity (instance, skill, digest, base digest): a pending review
+	// with that identity is returned with duplicate=true and no new row or report; a rejected one
+	// refuses with ErrSkillProposePreviouslyRejected naming it.
+	CreateReview(context.Context, SkillReview, ReportInput) (review SkillReview, duplicate bool, err error)
 	GetReview(context.Context, string) (SkillReview, error)
 	ListReviews(context.Context, SkillReviewQuery) ([]SkillReview, error)
 	DecideReview(context.Context, string, string, string, string) error

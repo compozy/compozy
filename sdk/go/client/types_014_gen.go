@@ -7,6 +7,31 @@ import (
 	"time"
 )
 
+// ObserveOverviewPayload is a daemon API value.
+type ObserveOverviewPayload struct {
+	SchemaVersion string                        `json:"schema_version"`
+	GeneratedAt   time.Time                     `json:"generated_at"`
+	Attention     OverviewAttentionPayload      `json:"attention"`
+	Today         OverviewTodayPayload          `json:"today"`
+	Outcomes      OverviewOutcomesPayload       `json:"outcomes"`
+	Usage         OverviewUsagePayload          `json:"usage"`
+	Pulse         OverviewPulsePayload          `json:"pulse"`
+	System        OverviewSystemPayload         `json:"system"`
+	Freshness     TaskDashboardFreshnessPayload `json:"freshness"`
+}
+
+// ObserveOverviewResponse is a daemon API value.
+type ObserveOverviewResponse struct {
+	Overview ObserveOverviewPayload `json:"overview"`
+}
+
+// ObservePersistenceHealthPayload is a daemon API value.
+type ObservePersistenceHealthPayload struct {
+	Status             string `json:"status"`
+	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
+}
+
 // ObserveRetentionHealthPayload is a daemon API value.
 type ObserveRetentionHealthPayload struct {
 	Enabled                  bool       `json:"enabled"`
@@ -416,25 +441,3 @@ type ProfileLens struct {
 
 // ProfileLensID is a daemon API value.
 type ProfileLensID string
-
-// ProfileOperation is a daemon API value.
-type ProfileOperation struct {
-	ID      string `json:"id"`
-	Kind    string `json:"kind"`
-	Profile string `json:"profile"`
-	Status  string `json:"status"`
-	Step    string `json:"step"`
-	Error   string `json:"error,omitempty"`
-}
-
-// ProfilePlacement is a daemon API value.
-type ProfilePlacement struct {
-	Extension string `json:"extension"`
-	Resource  string `json:"resource"`
-	Profile   string `json:"profile"`
-}
-
-// ProfilePlanRequest is a daemon API value.
-type ProfilePlanRequest struct {
-	PlanRevision string `json:"plan_revision"`
-}

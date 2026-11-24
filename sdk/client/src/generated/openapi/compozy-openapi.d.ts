@@ -9168,20 +9168,31 @@ export interface components {
       content: string;
       path: string;
     };
+    AgentSkillLesson: {
+      confidence?: string;
+      cue: string;
+      evidence: string;
+      lesson: string;
+    };
     AgentSkillReviewDecisionRequest: {
       digest: string;
     };
     AgentSkillReviewPayload: {
       agent: string;
+      base_digest?: string;
       /** Format: date-time */
       created_at: string;
       /** Format: date-time */
       decided_at?: string | null;
       decided_by?: string;
+      decided_via?: string;
       digest: string;
+      evidence_session_ids: string[];
       files?: components["schemas"]["AgentSkillDraftFile"][];
       id: string;
       instance_id: string;
+      kind: string;
+      lesson?: components["schemas"]["AgentSkillLesson"] | null;
       name: string;
       problem?: string;
       profile_id: string;
@@ -9190,6 +9201,7 @@ export interface components {
       workspace_id: string;
     };
     AgentSkillReviewResponse: {
+      duplicate_of_pending?: boolean;
       review: components["schemas"]["AgentSkillReviewPayload"];
     };
     AgentSkillReviewsResponse: {
@@ -25147,9 +25159,13 @@ export interface operations {
         instance_id?: string;
         /** @description Workspace reference */
         workspace?: string;
-        /** @description pending, approved or rejected */
+        /** @description pending, approved, rejected or reverted */
         state?: string;
-        /** @description Page cursor */
+        /** @description new or edit */
+        kind?: string;
+        /** @description operator or auto_approve */
+        decided_via?: string;
+        /** @description Page cursor bound to the filters it was issued for */
         cursor?: string;
         /** @description Page size, 1-100; default 50 */
         limit?: number;

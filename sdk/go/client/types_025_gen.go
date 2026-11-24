@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// SkillActivationPayload is a daemon API value.
+type SkillActivationPayload struct {
+	Active  bool                           `json:"active"`
+	Reasons []SkillActivationReasonPayload `json:"reasons,omitempty"`
+}
+
 // SkillActivationReasonCode is a daemon API value.
 type SkillActivationReasonCode string
 

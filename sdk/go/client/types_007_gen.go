@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+// ExtensionInputsPayload is a daemon API value.
+type ExtensionInputsPayload struct {
+	Extension      string                        `json:"extension"`
+	WorkspaceID    string                        `json:"workspace_id"`
+	Profile        string                        `json:"profile"`
+	Enabled        bool                          `json:"enabled"`
+	Inputs         []ExtensionInputStatusPayload `json:"inputs"`
+	Missing        []string                      `json:"missing"`
+	Invalid        []string                      `json:"invalid"`
+	DaemonEnv      []string                      `json:"daemon_env"`
+	MissingEnv     []string                      `json:"missing_env"`
+	MCPAuthServers []string                      `json:"mcp_auth_servers"`
+	Changed        []string                      `json:"changed,omitempty"`
+	Reloaded       bool                          `json:"reloaded,omitzero"`
+}
+
+// ExtensionInstallDeclaredProfilePayload is a daemon API value.
+type ExtensionInstallDeclaredProfilePayload struct {
+	Name        string                         `json:"name"`
+	Create      bool                           `json:"create"`
+	Credentials []ProfileCredentialRequirement `json:"credentials,omitempty"`
+}
+
 // ExtensionInstallPreviewPayload is a daemon API value.
 type ExtensionInstallPreviewPayload struct {
 	DigestSHA256             string                                   `json:"digest_sha256,omitempty"`
@@ -422,28 +445,4 @@ type ForceFailTaskRunRequest struct {
 type ForceReleaseTaskRunRequest struct {
 	Reason   string          `json:"reason,omitempty"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ForkLoopRequest is a daemon API value.
-type ForkLoopRequest struct {
-	Generation int64          `json:"generation"`
-	Inputs     map[string]any `json:"inputs,omitempty"`
-	Reason     string         `json:"reason,omitempty"`
-	RequestID  string         `json:"request_id,omitempty"`
-}
-
-// ForkLoopResponse is a daemon API value.
-type ForkLoopResponse struct {
-	Run      LoopRunPayload `json:"run"`
-	Replayed bool           `json:"replayed,omitzero"`
-}
-
-// ForkSessionRequest is a daemon API value.
-type ForkSessionRequest struct {
-	MessageID           string `json:"message_id,omitempty"`
-	Name                string `json:"name,omitempty"`
-	IdempotencyKey      string `json:"idempotency_key"`
-	ExpectedEpoch       *int64 `json:"expected_epoch,omitzero"`
-	ExpectedGeneration  *int64 `json:"expected_generation,omitzero"`
-	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitzero"`
 }

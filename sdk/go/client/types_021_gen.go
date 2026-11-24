@@ -4,6 +4,32 @@ package client
 
 import "time"
 
+// SessionProfileFacetsPayload is a daemon API value.
+type SessionProfileFacetsPayload struct {
+	ProfileID string                      `json:"profile_id"`
+	Facets    SessionCatalogFacetsPayload `json:"facets"`
+}
+
+// SessionPromptCancelResponse is a daemon API value.
+type SessionPromptCancelResponse struct {
+	SessionID string `json:"session_id"`
+	Outcome   string `json:"outcome"`
+	TurnID    string `json:"turn_id,omitempty"`
+}
+
+// SessionProviderOptionPayload is a daemon API value.
+type SessionProviderOptionPayload struct {
+	Name             string                   `json:"name"`
+	DisplayName      string                   `json:"display_name,omitempty"`
+	Harness          string                   `json:"harness,omitempty"`
+	RuntimeProvider  string                   `json:"runtime_provider,omitempty"`
+	RuntimeStrategy  ProviderRuntimeStrategy  `json:"runtime_strategy,omitempty"`
+	RuntimeLiveApply ProviderRuntimeLiveApply `json:"runtime_live_apply,omitempty"`
+	AuthMode         string                   `json:"auth_mode,omitempty"`
+	EnvPolicy        string                   `json:"env_policy,omitempty"`
+	HomePolicy       string                   `json:"home_policy,omitempty"`
+}
+
 // SessionPullRequestChecksPayload is a daemon API value.
 type SessionPullRequestChecksPayload struct {
 	State       ChecksState `json:"state"`
@@ -415,32 +441,4 @@ type SettingsAttentionPayload struct {
 	Sound           bool     `json:"sound"`
 	System          bool     `json:"system"`
 	MutedWorkspaces []string `json:"muted_workspaces"`
-}
-
-// SettingsAttentionResponse is a daemon API value.
-type SettingsAttentionResponse struct {
-	Section         SettingsSectionName        `json:"section"`
-	Scope           SettingsLayeredScopeKind   `json:"scope"`
-	WorkspaceID     string                     `json:"workspace_id,omitempty"`
-	Profile         string                     `json:"profile,omitempty"`
-	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
-	Config          SettingsAttentionPayload   `json:"config"`
-}
-
-// SettingsAutomationConfigPayload is a daemon API value.
-type SettingsAutomationConfigPayload struct {
-	Enabled           bool            `json:"enabled"`
-	Timezone          string          `json:"timezone"`
-	MaxConcurrentJobs int             `json:"max_concurrent_jobs"`
-	DefaultFireLimit  FireLimitConfig `json:"default_fire_limit"`
-}
-
-// SettingsAutomationResponse is a daemon API value.
-type SettingsAutomationResponse struct {
-	Section         SettingsSectionName              `json:"section"`
-	Scope           SettingsUserScopeKind            `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind          `json:"available_scopes"`
-	Config          SettingsAutomationConfigPayload  `json:"config"`
-	Runtime         SettingsAutomationRuntimePayload `json:"runtime"`
-	Links           []SettingsOperationalLinkPayload `json:"links,omitempty"`
 }

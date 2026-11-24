@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+// SessionChangesResponse is a daemon API value.
+type SessionChangesResponse struct {
+	Scope       string                     `json:"scope"`
+	Root        FileRootPayload            `json:"root"`
+	Head        ChangeHeadPayload          `json:"head"`
+	Base        ChangeBasePayload          `json:"base"`
+	PullRequest *SessionPullRequestPayload `json:"pull_request,omitempty"`
+	Totals      ChangeTotalsPayload        `json:"totals"`
+	Files       []FileChangePayload        `json:"files"`
+	Truncated   bool                       `json:"truncated"`
+	Revision    string                     `json:"revision"`
+}
+
+// SessionChildrenPayload is a daemon API value.
+type SessionChildrenPayload struct {
+	Total    int `json:"total"`
+	NeedsYou int `json:"needs_you"`
+	Working  int `json:"working"`
+	Waiting  int `json:"waiting"`
+	InReview int `json:"in_review"`
+	Done     int `json:"done"`
+}
+
 // SessionCommandPayload is a daemon API value.
 type SessionCommandPayload struct {
 	ID                string               `json:"id"`
@@ -419,32 +442,4 @@ type SessionHistoryCleanupChoices struct {
 	Everything int `json:"everything"`
 	Children   int `json:"children"`
 	Subagents  int `json:"subagents"`
-}
-
-// SessionHistoryCleanupCounts is a daemon API value.
-type SessionHistoryCleanupCounts struct {
-	Sessions  int `json:"sessions"`
-	Children  int `json:"children"`
-	Subagents int `json:"subagents"`
-	Total     int `json:"total"`
-}
-
-// SessionHistoryCleanupFailure is a daemon API value.
-type SessionHistoryCleanupFailure struct {
-	SessionID   string `json:"session_id"`
-	WorkspaceID string `json:"workspace_id"`
-	Title       string `json:"title"`
-	Code        string `json:"code"`
-	Message     string `json:"message"`
-}
-
-// SessionHistoryCleanupPlan is a daemon API value.
-type SessionHistoryCleanupPlan struct {
-	ArchivedBefore *time.Time                       `json:"archived_before,omitempty"`
-	CountedAt      time.Time                        `json:"counted_at"`
-	Counts         SessionHistoryCleanupCounts      `json:"counts"`
-	KeptLive       int                              `json:"kept_live"`
-	Choices        SessionHistoryCleanupChoices     `json:"choices"`
-	Workspaces     []SessionHistoryCleanupWorkspace `json:"workspaces"`
-	Threads        int                              `json:"threads"`
 }

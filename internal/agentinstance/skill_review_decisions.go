@@ -91,6 +91,7 @@ func (s *SkillProposalService) Reject(
 	if err := s.Store.DecideReview(ctx, id, digest, "rejected", operator); err != nil {
 		return err
 	}
-	slog.InfoContext(ctx, "skill.review.decided", "instance_id", instance.ID, "review_id", id, "decision", "rejected")
+	slog.InfoContext(ctx, "skill.review.decided", "instance_id", instance.ID, "review_id", id,
+		"decision", "rejected", "kind", string(review.Kind), "decided_via", "operator")
 	return nil
 }

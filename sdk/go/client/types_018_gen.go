@@ -4,6 +4,22 @@ package client
 
 import "time"
 
+// RuntimeRule is a daemon API value.
+type RuntimeRule struct {
+	Match   RuntimeMatch `json:"match"`
+	Runtime RuntimeSpec  `json:"runtime"`
+}
+
+// RuntimeSelectionPayload is a daemon API value.
+type RuntimeSelectionPayload struct {
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	SpeedResolution *Resolution               `json:"speed_resolution,omitempty"`
+}
+
 // RuntimeSpec is a daemon API value.
 type RuntimeSpec struct {
 	Provider   string      `json:"provider,omitempty"`
@@ -424,27 +440,4 @@ type SessionChangeContentsResponse struct {
 type SessionChangePatchesResponse struct {
 	Revision string               `json:"revision"`
 	Patches  []ChangePatchPayload `json:"patches"`
-}
-
-// SessionChangesResponse is a daemon API value.
-type SessionChangesResponse struct {
-	Scope       string                     `json:"scope"`
-	Root        FileRootPayload            `json:"root"`
-	Head        ChangeHeadPayload          `json:"head"`
-	Base        ChangeBasePayload          `json:"base"`
-	PullRequest *SessionPullRequestPayload `json:"pull_request,omitempty"`
-	Totals      ChangeTotalsPayload        `json:"totals"`
-	Files       []FileChangePayload        `json:"files"`
-	Truncated   bool                       `json:"truncated"`
-	Revision    string                     `json:"revision"`
-}
-
-// SessionChildrenPayload is a daemon API value.
-type SessionChildrenPayload struct {
-	Total    int `json:"total"`
-	NeedsYou int `json:"needs_you"`
-	Working  int `json:"working"`
-	Waiting  int `json:"waiting"`
-	InReview int `json:"in_review"`
-	Done     int `json:"done"`
 }

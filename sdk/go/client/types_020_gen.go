@@ -4,6 +4,34 @@ package client
 
 import "time"
 
+// SessionHistoryCleanupCounts is a daemon API value.
+type SessionHistoryCleanupCounts struct {
+	Sessions  int `json:"sessions"`
+	Children  int `json:"children"`
+	Subagents int `json:"subagents"`
+	Total     int `json:"total"`
+}
+
+// SessionHistoryCleanupFailure is a daemon API value.
+type SessionHistoryCleanupFailure struct {
+	SessionID   string `json:"session_id"`
+	WorkspaceID string `json:"workspace_id"`
+	Title       string `json:"title"`
+	Code        string `json:"code"`
+	Message     string `json:"message"`
+}
+
+// SessionHistoryCleanupPlan is a daemon API value.
+type SessionHistoryCleanupPlan struct {
+	ArchivedBefore *time.Time                       `json:"archived_before,omitempty"`
+	CountedAt      time.Time                        `json:"counted_at"`
+	Counts         SessionHistoryCleanupCounts      `json:"counts"`
+	KeptLive       int                              `json:"kept_live"`
+	Choices        SessionHistoryCleanupChoices     `json:"choices"`
+	Workspaces     []SessionHistoryCleanupWorkspace `json:"workspaces"`
+	Threads        int                              `json:"threads"`
+}
+
 // SessionHistoryCleanupPreviewResponse is a daemon API value.
 type SessionHistoryCleanupPreviewResponse struct {
 	Plan SessionHistoryCleanupPlan `json:"plan"`
@@ -418,30 +446,4 @@ type SessionProcessesResponse struct {
 	ScannedAt time.Time                   `json:"scanned_at"`
 	Items     []SessionProcessPayload     `json:"items"`
 	Trees     []SessionProcessTreePayload `json:"trees,omitempty"`
-}
-
-// SessionProfileFacetsPayload is a daemon API value.
-type SessionProfileFacetsPayload struct {
-	ProfileID string                      `json:"profile_id"`
-	Facets    SessionCatalogFacetsPayload `json:"facets"`
-}
-
-// SessionPromptCancelResponse is a daemon API value.
-type SessionPromptCancelResponse struct {
-	SessionID string `json:"session_id"`
-	Outcome   string `json:"outcome"`
-	TurnID    string `json:"turn_id,omitempty"`
-}
-
-// SessionProviderOptionPayload is a daemon API value.
-type SessionProviderOptionPayload struct {
-	Name             string                   `json:"name"`
-	DisplayName      string                   `json:"display_name,omitempty"`
-	Harness          string                   `json:"harness,omitempty"`
-	RuntimeProvider  string                   `json:"runtime_provider,omitempty"`
-	RuntimeStrategy  ProviderRuntimeStrategy  `json:"runtime_strategy,omitempty"`
-	RuntimeLiveApply ProviderRuntimeLiveApply `json:"runtime_live_apply,omitempty"`
-	AuthMode         string                   `json:"auth_mode,omitempty"`
-	EnvPolicy        string                   `json:"env_policy,omitempty"`
-	HomePolicy       string                   `json:"home_policy,omitempty"`
 }

@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// DaemonReadinessPayload is a daemon API value.
+type DaemonReadinessPayload struct {
+	Phase DaemonReadinessPhase `json:"phase"`
+	Step  string               `json:"step,omitempty"`
+	Since time.Time            `json:"since"`
+}
+
+// DaemonReadinessPhase is a daemon API value.
+type DaemonReadinessPhase string
+
 // DaemonStatusPayload is a daemon API value.
 type DaemonStatusPayload struct {
 	Status         string                  `json:"status"`
@@ -424,27 +434,4 @@ type ExtensionInputStatusPayload struct {
 	Default  json.RawMessage                `json:"default,omitempty"`
 	Targets  []string                       `json:"targets"`
 	State    string                         `json:"state"`
-}
-
-// ExtensionInputsPayload is a daemon API value.
-type ExtensionInputsPayload struct {
-	Extension      string                        `json:"extension"`
-	WorkspaceID    string                        `json:"workspace_id"`
-	Profile        string                        `json:"profile"`
-	Enabled        bool                          `json:"enabled"`
-	Inputs         []ExtensionInputStatusPayload `json:"inputs"`
-	Missing        []string                      `json:"missing"`
-	Invalid        []string                      `json:"invalid"`
-	DaemonEnv      []string                      `json:"daemon_env"`
-	MissingEnv     []string                      `json:"missing_env"`
-	MCPAuthServers []string                      `json:"mcp_auth_servers"`
-	Changed        []string                      `json:"changed,omitempty"`
-	Reloaded       bool                          `json:"reloaded,omitzero"`
-}
-
-// ExtensionInstallDeclaredProfilePayload is a daemon API value.
-type ExtensionInstallDeclaredProfilePayload struct {
-	Name        string                         `json:"name"`
-	Create      bool                           `json:"create"`
-	Credentials []ProfileCredentialRequirement `json:"credentials,omitempty"`
 }
