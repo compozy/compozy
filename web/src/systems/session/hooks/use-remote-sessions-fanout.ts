@@ -20,7 +20,7 @@ import {
 import { fetchSessionCatalogPage } from "../adapters/session-catalog-api";
 import { sessionCatalogFirstPageOptions } from "../lib/session-catalog-options";
 import type { SessionRowComputerInfo } from "../lib/session-list-computer";
-import type { SessionListFilters, SessionListResponse, SessionPayload } from "../types";
+import type { SessionListFilters, SessionPayload, SessionsResponse } from "../types";
 
 const NOOP_QUERY_CLIENT = new QueryClient({
   defaultOptions: { queries: { enabled: false, retry: false } },
@@ -38,7 +38,7 @@ interface RemoteExtraPagesState {
 }
 
 interface RemoteQuerySlice {
-  data?: SessionListResponse;
+  data?: SessionsResponse;
   isLoading: boolean;
   isError: boolean;
   refetch: () => Promise<unknown>;

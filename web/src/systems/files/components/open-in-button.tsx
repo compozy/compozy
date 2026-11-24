@@ -12,7 +12,7 @@ import { ChevronDown, Code2, ExternalLink, FolderOpen } from "@compozy/ui/icons"
 import { CursorLogo } from "@compozy/ui/logos";
 
 import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
-import { useCurrentComputerId } from "@/lib/computer-scope-context";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { desktopShellBridge, type OpenTarget } from "@/systems/os";
 
 import type { FilesRootRef } from "../adapters/files-api";

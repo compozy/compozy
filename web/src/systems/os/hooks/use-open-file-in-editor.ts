@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 
 import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
-import { useCurrentComputerId } from "@/lib/computer-scope-context";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { desktopShellBridge, type OpenInEditorResult } from "../lib/desktop-shell-bridge";
 import { EDITOR_SETTINGS_PATH, reportOpenInEditorResult } from "../lib/open-in-editor-report";
 

@@ -213,42 +213,46 @@ export interface RunOnOption {
 export function runOnOptions(
   computers: readonly Pick<ComputerPayload, "id" | "name" | "status" | "enabled">[]
 ): RunOnOption[] {
-  return computers
-    .filter(computer => computer.enabled)
-    .map(computer => {
-      const status = normalizeComputerStatus(computer.status);
-      if (status === "needs_pro") {
-        return {
-          id: computer.id,
-          name: computer.name,
-          status,
-          selectable: false,
-          hint: "Needs Pro",
-        };
-      }
-      if (status === "incompatible") {
-        return {
-          id: computer.id,
-          name: computer.name,
-          status,
-          selectable: false,
-          hint: "Incompatible",
-        };
-      }
-      if (status === "offline") {
-        return {
-          id: computer.id,
-          name: computer.name,
-          status,
-          selectable: true,
-          hint: "Offline",
-        };
-      }
-      return {
+  const options: RunOnOption[] = [];
+  for (const computer of computers) {
+    if (!computer.enabled) continue;
+    const status = normalizeComputerStatus(computer.status);
+    if (status === "needs_pro") {
+      options.push({
+        id: computer.id,
+        name: computer.name,
+        status,
+        selectable: false,
+        hint: "Needs Pro",
+      });
+      continue;
+    }
+    if (status === "incompatible") {
+      options.push({
+        id: computer.id,
+        name: computer.name,
+        status,
+        selectable: false,
+        hint: "Incompatible",
+      });
+      continue;
+    }
+    if (status === "offline") {
+      options.push({
         id: computer.id,
         name: computer.name,
         status,
         selectable: true,
-      };
+        hint: "Offline",
+      });
+      continue;
+    }
+    options.push({
+      id: computer.id,
+      name: computer.name,
+      status,
+      selectable: true,
     });
+  }
+  return options;
 }

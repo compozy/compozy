@@ -126,6 +126,7 @@ export function useSessionCreateSubmit({
     allProjectsTarget,
     createSessionAsync,
     environment.status,
+    isRemote,
     navigate,
     pendingSubmit,
     profile,

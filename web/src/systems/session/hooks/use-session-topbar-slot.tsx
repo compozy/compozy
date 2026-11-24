@@ -1,7 +1,7 @@
 import { AgentAvatar, Pill, StateGlyph, useTopbarSlot } from "@compozy/ui";
 
 import { isRemoteComputerId } from "@/lib/computer-scope";
-import { useCurrentComputerId } from "@/lib/computer-scope-context";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { ComputerChip, findComputerById, toComputerView, useComputers } from "@/systems/computers";
 import {
   agentAvatarAppearance,

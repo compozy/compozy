@@ -99,6 +99,18 @@ export function automationSaveFailure(name: string) {
  * (create + deep links) and the detail page (edit, optionally at a section).
  * The Starts choice decides whether the save creates a job or a trigger.
  */
+function projectActiveWorkspaceOptions(
+  workspaces: ReadonlyArray<{ id: string; name: string; archived_at?: string | null }>
+): WorkspaceOption[] {
+  const active: WorkspaceOption[] = [];
+  for (const workspace of workspaces) {
+    if (!workspace.archived_at) {
+      active.push({ id: workspace.id, name: workspace.name });
+    }
+  }
+  return active;
+}
+
 export function useAutomationEditor({
   activeWorkspaceId,
   onSaved,
@@ -119,9 +131,7 @@ export function useAutomationEditor({
     editor !== null && isRemoteComputer
   );
   const effectiveWorkspaces: ReadonlyArray<WorkspaceOption> | undefined = isRemoteComputer
-    ? (remoteWorkspacesQuery.data ?? [])
-        .filter(workspace => !workspace.archived_at)
-        .map(workspace => ({ id: workspace.id, name: workspace.name }))
+    ? projectActiveWorkspaceOptions(remoteWorkspacesQuery.data ?? [])
     : workspaces;
   // A global automation still addresses the active project's agents on the chosen computer.
   const agentsQuery = useAgents(

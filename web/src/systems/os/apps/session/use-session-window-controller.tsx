@@ -26,7 +26,7 @@ import {
   useSessionUsageTurns,
 } from "@/systems/session";
 import { isRemoteComputerId } from "@/lib/computer-scope";
-import { useCurrentComputerId } from "@/lib/computer-scope-context";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { findComputerById, useComputers } from "@/systems/computers";
 import { alwaysOnMainInstance, useAgentInstances } from "@/systems/agent";
 import type { WorktreePayload } from "@/systems/workspace";

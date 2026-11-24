@@ -1,6 +1,6 @@
-import { createContext, useContext } from "react";
+import { createContext } from "react";
 
-import { LOCAL_COMPUTER_ID, normalizeComputerId, type ComputerId } from "./computer-scope";
+import { LOCAL_COMPUTER_ID, type ComputerId } from "./computer-scope";
 
 /**
  * Ambient computer identity for the active session/surface.
@@ -11,8 +11,3 @@ import { LOCAL_COMPUTER_ID, normalizeComputerId, type ComputerId } from "./compu
  * without introducing cross-system circular imports.
  */
 export const ComputerScopeContext = createContext<ComputerId>(LOCAL_COMPUTER_ID);
-
-export function useCurrentComputerId(explicitComputerId?: ComputerId): ComputerId {
-  const ambient = useContext(ComputerScopeContext);
-  return normalizeComputerId(explicitComputerId ?? ambient);
-}

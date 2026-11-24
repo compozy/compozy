@@ -47,6 +47,7 @@ import { PROFILE_AGGREGATE, profileViewKey, type ProfileScopeParams } from "@/sy
 
 import {
   computerQueryKey,
+  isRemoteComputerId,
   LOCAL_COMPUTER_ID,
   normalizeComputerId,
   type ComputerId,
@@ -424,7 +425,10 @@ export function sessionScopedDetailOptions(
   const { enabled = true, liveTail = true } = options;
   return queryOptions({
     queryKey: sessionKeys.forComputer(scopedComputerId).byId(id, profileKey),
-    queryFn: ({ signal }) => fetchSessionById(id, normalizedScope, signal, scopedComputerId),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(scopedComputerId)
+        ? fetchSessionById(id, normalizedScope, signal, scopedComputerId)
+        : fetchSessionById(id, normalizedScope, signal),
     refetchInterval: query => {
       if (!liveTail || isSessionUnavailable(query.state.error)) return false;
       return sessionDetailRefetchInterval(id, query.state.data);

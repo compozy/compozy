@@ -113,9 +113,11 @@ export function useCreateSession() {
       const workspaceId = requireWorkspace(session.workspace_id ?? "");
       queryClient.setQueryData(keys.detail(workspaceId, session.id), session);
       void queryClient.invalidateQueries({ queryKey: keys.detail(workspaceId, session.id) });
-      void queryClient.invalidateQueries({ queryKey: keys.lists() });
       if (scopedComputerId === "local") {
         void invalidateWorkspaceSessionCatalog(queryClient, workspaceId);
+      } else {
+        void queryClient.invalidateQueries({ queryKey: keys.workspaceLists(workspaceId) });
+        void queryClient.invalidateQueries({ queryKey: keys.workspaceLists("") });
       }
     },
   });

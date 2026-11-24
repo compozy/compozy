@@ -1,7 +1,7 @@
 import { MenuTreeItems, type MenuTreeHost } from "@compozy/ui";
 
 import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
-import { useCurrentComputerId } from "@/lib/computer-scope-context";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import type { FilesRootRef } from "../adapters/files-api";
 import { useOpenIn } from "../hooks/use-open-in";
 import { fileMenuNodes, type FileMenuInput } from "../lib/file-menu";
