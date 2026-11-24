@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -277,7 +278,16 @@ func startConfiguredDaemonAccount(
 	if err != nil {
 		t.Fatal(err)
 	}
-	paths.DaemonSocket = filepath.Join(home, "a.sock")
+	sockDir, err := os.MkdirTemp("", "cysock-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(sockDir); err != nil {
+			t.Error(err)
+		}
+	})
+	paths.DaemonSocket = filepath.Join(sockDir, "a.sock")
 	if _, _, err := config.EnsureBootstrapAgent(paths); err != nil {
 		t.Fatal(err)
 	}
