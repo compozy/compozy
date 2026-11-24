@@ -28,6 +28,7 @@ import {
   sessionPromptRecovery,
   type RestoredSessionPromptDraft,
   type SessionPromptRecovery,
+  type SessionPromptRecoveryScope,
 } from "@/systems/session/lib/session-prompt-recovery";
 import { stageChosenSessionTerminalQuote } from "@/systems/session/lib/session-terminal-quote";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
@@ -57,15 +58,13 @@ async function restoreRejectedPromptDraft(
 
 function SessionPromptRecoveryBridge({
   recovery,
-  sessionId,
-  workspaceId,
+  scope,
 }: {
   recovery: SessionPromptRecovery;
-  sessionId: string;
-  workspaceId: string;
+  scope: SessionPromptRecoveryScope;
 }) {
+  const { computerId, sessionId, workspaceId } = scope;
   const aui = useAui();
-  const computerId = useCurrentComputerId();
   // A refused draft returns whole — its own text and files — into an empty composer, in
   // arrival order. While the operator holds another draft there, it waits instead of losing
   // its text or folding its files into someone else's message.
@@ -231,9 +230,10 @@ function SessionChatRuntimeBinding({
   promptRecovery: SessionPromptRecovery;
 }) {
   const resolvedWorkspaceId = requireWorkspaceId(workspaceId, readOnly);
+  const computerId = useCurrentComputerId();
+  const scope = { computerId, sessionId, workspaceId: resolvedWorkspaceId };
   const { runtime, sendDetachedPrompt } = useSessionChatRuntime({
-    sessionId,
-    workspaceId: resolvedWorkspaceId,
+    ...scope,
     promptDispatch,
     promptRecovery,
     readOnly,
@@ -246,11 +246,7 @@ function SessionChatRuntimeBinding({
   return (
     <AssistantRuntimeProvider runtime={runtime} aui={aui}>
       <SessionPromptDispatchPendingProvider store={promptDispatch}>
-        <SessionPromptRecoveryBridge
-          recovery={promptRecovery}
-          sessionId={sessionId}
-          workspaceId={resolvedWorkspaceId}
-        />
+        <SessionPromptRecoveryBridge recovery={promptRecovery} scope={scope} />
         <SessionRuntimeExtensions
           sendDetachedPrompt={sendDetachedPrompt}
           sessionId={sessionId}

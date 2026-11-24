@@ -6,7 +6,6 @@ import type { UIMessage } from "ai";
 import { authorizeStreamFetchInput } from "@/lib/gateway-stream-auth";
 import { reportGatewayResponse } from "@/lib/gateway-access-signal";
 import { computerApiPath } from "@/lib/api-client";
-import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { isRemoteComputerId } from "@/lib/computer-scope";
 import { modelCatalogKeys } from "@/systems/model-catalog";
 
@@ -326,19 +325,17 @@ function buildSessionRuntimeConfig(
 
 /** Connects session dispatch and recovery to chat streaming and session-scoped completion events. */
 export function useSessionChatRuntime({
+  computerId,
   sessionId,
   workspaceId,
   promptDispatch,
   promptRecovery,
   readOnly = false,
-}: {
-  sessionId: string;
-  workspaceId: string;
+}: SessionPromptRecoveryScope & {
   promptDispatch: SessionPromptDispatchStore;
   promptRecovery: SessionPromptRecovery;
   readOnly?: boolean;
 }) {
-  const computerId = useCurrentComputerId();
   const queryClient = useQueryClient();
   const promptRuntime = useOptionalSessionPromptRuntimeContext();
   const [idempotencyKeys] = useState(() => new Map<string, string>());

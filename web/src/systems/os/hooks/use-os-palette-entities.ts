@@ -236,8 +236,13 @@ export function useOsPaletteEntities({
   const worktreeFilter = useScopedWorktreeFilter(activeWorkspaceId, worktreeScopeId, {
     enabled: open && project,
   });
-  const paletteSessionEnabled =
-    open && paletteEntityQueryEnabled(destination, remoteQuery, signals);
+  const sessionSearch = paletteSessionSearchAvailability({
+    open,
+    dataScope,
+    destination,
+    signals,
+    query: remoteQuery,
+  });
   const sessions = useSessionCatalog(
     dataScope,
     {
@@ -246,15 +251,10 @@ export function useOsPaletteEntities({
       search_fields: "title_agent",
       ...(project ? { worktree: worktreeFilter.worktreeId } : {}),
     },
-    paletteSessionEnabled && worktreeFilter.resolved
+    sessionSearch.local && worktreeFilter.resolved
   );
-  // Remote catalog search still works without a local project's ranking signals.
-  const remoteSearchEnabled =
-    open &&
-    dataScope !== null &&
-    (paletteSessionEnabled || (signals === null && remoteQuery !== ""));
   const remoteSessions = useRemoteSessionsFanout({
-    enabled: remoteSearchEnabled,
+    enabled: sessionSearch.remote,
     filters: { q: remoteQuery, search_fields: "title_agent" },
   });
   const sessionRows = mergeRemotePaletteSessions(
@@ -265,7 +265,6 @@ export function useOsPaletteEntities({
     }),
     remoteSessions.remoteSessions
   );
-  const sessionSearchRan = remoteQuery !== "" && (paletteSessionEnabled || remoteSearchEnabled);
   const linkSessionId = paletteFocusedSessionCommand(
     focus?.sessionId ?? null,
     LINK_COMMAND,
@@ -300,7 +299,7 @@ export function useOsPaletteEntities({
     signals,
     destination
   );
-  const rankedSessions = sessionSearchRan
+  const rankedSessions = sessionSearch.queried
     ? keepServerSessions(rankedRows, sessionRows, signals?.weights.entity_section_visible_cap)
     : rankedRows;
   const rankedTabs = rankEntityRows(
@@ -334,6 +333,19 @@ export function useOsPaletteEntities({
         entry,
       }),
   };
+}
+
+function paletteSessionSearchAvailability({
+  open,
+  dataScope,
+  destination,
+  signals,
+  query,
+}: Pick<UseOsPaletteEntitiesOptions, "open" | "dataScope" | "destination" | "signals" | "query">) {
+  const rankedSearch = paletteEntityQueryEnabled(destination, query, signals);
+  // The remote catalog can search even when the controller has no local project for ranking.
+  const remote = open && dataScope !== null && (rankedSearch || (signals === null && query !== ""));
+  return { local: open && rankedSearch, remote, queried: query !== "" && (rankedSearch || remote) };
 }
 
 function paletteEntityQueryEnabled(
