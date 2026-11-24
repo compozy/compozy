@@ -80,7 +80,6 @@ func NativeDescriptors() []toolspkg.Descriptor {
 	descriptors := make([]toolspkg.Descriptor, 0, total)
 	for _, group := range groups {
 		for _, descriptor := range group {
-			descriptor.RemoteScope, _ = RemoteToolScope(string(descriptor.ID))
 			descriptors = append(descriptors, cloneDescriptor(descriptor))
 		}
 	}
@@ -106,23 +105,28 @@ func nativeDescriptor(
 	tags []string,
 	searchHints []string,
 ) toolspkg.Descriptor {
+	var metadata *toolspkg.ToolExecutionMetadata
+	if scope, ok := RemoteToolScope(id.String()); ok {
+		metadata = &toolspkg.ToolExecutionMetadata{RemoteScope: scope}
+	}
 	return toolspkg.Descriptor{
-		ID:               id,
-		Backend:          toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: nativeName},
-		ToolPresentation: toolspkg.NewToolPresentation(title, "", ""),
-		Description:      description,
-		InputSchema:      nativeProfileInputSchema(inputSchema, readOnly),
-		OutputSchema:     json.RawMessage(`{"type":"object"}`),
-		Source:           Source(),
-		Visibility:       toolspkg.VisibilityModel,
-		Risk:             risk,
-		ReadOnly:         readOnly,
-		Destructive:      destructive,
-		OpenWorld:        openWorld,
-		ConcurrencySafe:  true,
-		Toolsets:         cloneToolsets(toolsets),
-		Tags:             cloneStrings(tags),
-		SearchHints:      cloneStrings(searchHints),
+		ID:                    id,
+		Backend:               toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: nativeName},
+		ToolPresentation:      toolspkg.NewToolPresentation(title, "", ""),
+		ToolExecutionMetadata: metadata,
+		Description:           description,
+		InputSchema:           nativeProfileInputSchema(inputSchema, readOnly),
+		OutputSchema:          json.RawMessage(`{"type":"object"}`),
+		Source:                Source(),
+		Visibility:            toolspkg.VisibilityModel,
+		Risk:                  risk,
+		ReadOnly:              readOnly,
+		Destructive:           destructive,
+		OpenWorld:             openWorld,
+		ConcurrencySafe:       true,
+		Toolsets:              cloneToolsets(toolsets),
+		Tags:                  cloneStrings(tags),
+		SearchHints:           cloneStrings(searchHints),
 	}
 }
 

@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/version"
 )
@@ -45,12 +46,22 @@ type HostCloud interface {
 	UnlinkComputer(context.Context, remoteproto.ComputerID, cloudclient.Credentials) error
 }
 
+type hostedCloud interface {
+	ProvisionHostedTunnel(
+		context.Context, remoteproto.ComputerID, ed25519.PrivateKey, string,
+	) (remoteproto.HostedTunnel, error)
+	DeleteHostedTunnel(context.Context, remoteproto.ComputerID, ed25519.PrivateKey) error
+}
+
 type HostOptions struct {
-	Now               func() time.Time
-	Logger            *slog.Logger
-	Operator          http.Handler
-	Persist           func(context.Context, Patch, func(config.RemoteConfig) error) error
-	WrapTunnelHandler func(http.Handler) http.Handler
+	Now                func() time.Time
+	Logger             *slog.Logger
+	Home               string
+	Operator           http.Handler
+	Persist            func(context.Context, Patch, func(config.RemoteConfig) error) error
+	InstallCloudflared func(context.Context, string) (string, error)
+	SyncIngress        func(context.Context, ingress.RemoteEndpoint) error
+	WrapTunnelHandler  func(http.Handler) http.Handler
 }
 
 type Patch struct {
@@ -77,9 +88,10 @@ type DirectStatus struct {
 }
 
 type HostedStatus struct {
-	Enabled  bool    `json:"enabled"`
-	State    string  `json:"state"`
-	Hostname *string `json:"hostname"`
+	Enabled   bool    `json:"enabled"`
+	State     string  `json:"state"`
+	Hostname  *string `json:"hostname"`
+	Diagnosis string  `json:"diagnosis,omitempty"`
 }
 
 type EntitlementStatus struct {
@@ -97,6 +109,7 @@ type Host struct {
 	name     string
 	platform string
 	version  string
+	webhook  atomic.Pointer[http.Handler]
 
 	linkMu   sync.Mutex // Serializes link and unlink through the config commit.
 	mu       sync.Mutex
@@ -117,6 +130,13 @@ type hostRun struct {
 	authority *certificateAuthority
 	handler   func(Listener) http.Handler
 	unlinked  atomic.Bool
+	hosted    atomic.Pointer[hostedRun]
+
+	ingressConfig    atomic.Pointer[config.RemoteConfig]
+	syncEndpoint     func(context.Context, ingress.RemoteEndpoint) error
+	ingressMu        sync.Mutex
+	ingressSelection ingress.RemoteEndpoint
+	ingressSynced    bool
 }
 
 func NewHost(
@@ -132,6 +152,16 @@ func NewHost(
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
+	}
+	if opts.InstallCloudflared == nil {
+		opts.InstallCloudflared = installCloudflared
+	}
+	if opts.Home != "" {
+		home, err := filepath.EvalSymlinks(opts.Home)
+		if err != nil {
+			return nil, err
+		}
+		opts.Home = home
 	}
 	name, err := os.Hostname()
 	if err != nil {
@@ -151,15 +181,15 @@ func NewHost(
 		name: cmp.Or(name, "CompozyOS"), platform: runtimePlatform(), version: version.Current().Version,
 		config: cfg.Clone(), identity: identity,
 	}
-	if !cfg.Enabled {
-		return host, nil
-	}
-	if identity.ComputerID == "" {
+	if host.config.Enabled && identity.ComputerID == "" {
 		host.config.Enabled = false
 		opts.Logger.WarnContext(ctx, ErrNotLinked.Message, "code", ErrNotLinked.Code)
-		return host, nil
 	}
-	err = host.start(ctx, cfg, false)
+	if host.config.Enabled {
+		err = host.start(ctx, cfg, false)
+	} else {
+		err = host.clearIngress(ctx)
+	}
 	if err != nil {
 		cancel()
 		return nil, err
@@ -187,9 +217,16 @@ func (h *Host) Close() {
 func (h *Host) Status() Status {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	status := Status{ComputerID: h.identity.ComputerID, Listener: h.config.Listener, ControlLink: "disconnected",
-		Direct: DirectStatus{Enabled: h.config.Direct.Enabled}, CloudRoute: HostedStatus{State: "off"},
-		RequireDeviceApproval: h.config.RequireDeviceApproval}
+	status := Status{
+		ComputerID:  h.identity.ComputerID,
+		Listener:    h.config.Listener,
+		ControlLink: "disconnected",
+		Direct: DirectStatus{
+			Enabled: h.config.Direct.Enabled,
+		},
+		CloudRoute:            HostedStatus{State: remoteproto.HostedRouteOff},
+		RequireDeviceApproval: h.config.RequireDeviceApproval,
+	}
 	run := h.run
 	if run == nil {
 		return status
@@ -203,8 +240,14 @@ func (h *Host) Status() Status {
 		status.Listener = addrs[0]
 	}
 	status.Direct.Addresses = run.listeners.addresses(ListenerDirect)
-	if h.config.CloudRoute.Enabled {
-		status.CloudRoute = HostedStatus{Enabled: true, State: "listening"}
+	if hosted := run.hostedView(); hosted != nil {
+		status.CloudRoute = hosted.status
+		if hosted.status.Hostname != nil {
+			status.CloudRoute.Hostname = new(*hosted.status.Hostname)
+		}
+		if run.hostedEntitlement(hosted) == remoteproto.HostedTunnelEntitlementOnly {
+			status.CloudRoute.State = remoteproto.HostedTunnelEntitlementOnly
+		}
 	}
 	if run.control.connected.Load() {
 		status.ControlLink = "connected"
@@ -262,49 +305,28 @@ func (h *Host) ApplyConfig(ctx context.Context, cfg config.RemoteConfig) error {
 }
 
 func (h *Host) applyConfigLocked(ctx context.Context, cfg config.RemoteConfig) error {
-	if cfg.Enabled && h.identity.ComputerID == "" {
+	enablingHosted := cfg.CloudRoute.Enabled && !h.config.CloudRoute.Enabled
+	if (cfg.Enabled || enablingHosted) && h.identity.ComputerID == "" {
 		return ErrNotLinked
 	}
-	if cfg.CloudRoute.Enabled && !h.config.CloudRoute.Enabled && !h.hasPro() {
-		return ErrPlanRequired
+	if enablingHosted && !cfg.Enabled {
+		return conflict("remote_access_disabled", "Turn on remote access to enable the hosted route.")
 	}
 	switch {
-	case !cfg.Enabled && h.run != nil:
-		key := h.run.control.key
-		if err := h.cloud.UpdateRemoteAccess(ctx, h.identity.ComputerID, key, false, nil); err != nil {
-			return err
-		}
-		h.stopLocked()
-	case cfg.Enabled && h.run == nil:
+	case !cfg.Enabled:
+		return h.disableListeners(ctx, cfg)
+	case h.run == nil:
 		return h.start(ctx, cfg, true)
-	case cfg.Enabled:
-		return h.reconfigure(ctx, cfg)
+	default:
+		return h.reconfigure(ctx, cfg, enablingHosted)
 	}
-	return nil
 }
 
-func (h *Host) hasPro() bool {
-	if h.run != nil {
-		if lease, ok := h.run.sessions.Entitlement(); ok {
-			return lease.Plan == "pro"
-		}
+func (h *Host) clearIngress(ctx context.Context) error {
+	if h.opts.SyncIngress == nil {
+		return nil
 	}
-	installation := h.account.Status()
-	return installation.AccountID == h.identity.AccountID && installation.Profile.Plan == "pro"
-}
-
-func (h *Host) reconfigure(ctx context.Context, next config.RemoteConfig) error {
-	if h.config.Listener != next.Listener || h.config.HostedListener != next.HostedListener ||
-		h.config.Direct.Enabled != next.Direct.Enabled || !slices.Equal(h.config.Direct.Addresses, next.Direct.Addresses) ||
-		h.config.CloudRoute != next.CloudRoute {
-		publish := func(endpoints []string) error {
-			return h.cloud.UpdateRemoteAccess(ctx, h.identity.ComputerID, h.run.control.key, true, endpoints)
-		}
-		if err := h.run.listeners.apply(h.run.ctx, next, h.run.handler, publish); err != nil {
-			return err
-		}
-	}
-	return h.run.sessions.Reconfigure(ctx, next.RequireDeviceApproval, next.MaxScopes)
+	return h.opts.SyncIngress(ctx, ingress.RemoteEndpoint{})
 }
 
 func (h *Host) stopLocked() {

@@ -4387,6 +4387,7 @@ export type HookRunsResponse = {
 };
 
 export type HostedStatus = {
+  diagnosis?: string;
   enabled: boolean;
   hostname: string | null;
   state: string;
@@ -23948,6 +23949,100 @@ export type GetHookEventsResponses = {
 };
 
 export type GetHookEventsResponse = GetHookEventsResponses[keyof GetHookEventsResponses];
+
+export type BindIngressData = {
+  /**
+   * JSON request body
+   */
+  body: GatewayIngressBindRequest;
+  path?: never;
+  query?: never;
+  url: "/api/ingress/bindings";
+};
+
+export type BindIngressErrors = {
+  /**
+   * Invalid ingress binding request
+   */
+  400: ErrorPayload;
+  /**
+   * Ingress subject is outside the caller workspace
+   */
+  403: ErrorPayload;
+  /**
+   * Ingress subject not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Webhook ingress unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type BindIngressError = BindIngressErrors[keyof BindIngressErrors];
+
+export type BindIngressResponses = {
+  /**
+   * Already confirmed
+   */
+  200: GatewayIngressBindingResponse;
+  /**
+   * Created
+   */
+  201: GatewayIngressBindingResponse;
+};
+
+export type BindIngressResponse = BindIngressResponses[keyof BindIngressResponses];
+
+export type UnbindIngressData = {
+  body?: never;
+  path: {
+    /**
+     * Ingress subject kind
+     */
+    subject_kind: string;
+    /**
+     * Ingress subject id
+     */
+    subject_id: string;
+  };
+  query?: never;
+  url: "/api/ingress/bindings/{subject_kind}/{subject_id}";
+};
+
+export type UnbindIngressErrors = {
+  /**
+   * Invalid ingress subject
+   */
+  400: ErrorPayload;
+  /**
+   * Ingress subject is outside the caller workspace
+   */
+  403: ErrorPayload;
+  /**
+   * Ingress subject not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type UnbindIngressError = UnbindIngressErrors[keyof UnbindIngressErrors];
+
+export type UnbindIngressResponses = {
+  /**
+   * Unbound
+   */
+  204: void;
+};
+
+export type UnbindIngressResponse = UnbindIngressResponses[keyof UnbindIngressResponses];
 
 export type ListLogsData = {
   body?: never;

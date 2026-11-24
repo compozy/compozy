@@ -24,6 +24,8 @@ import (
 const (
 	handlersErrorKey     = "error"
 	handlersOperationKey = "operation"
+	sessionIDKey         = "session_id"
+	agentNameKey         = "agent_name"
 )
 
 const defaultPollInterval = 100 * time.Millisecond

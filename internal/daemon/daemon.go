@@ -218,6 +218,7 @@ type Daemon struct {
 	accountOptions         []account.Option
 	computersOptions       []computers.Option
 	wrapRemoteTunnel       func(http.Handler) http.Handler
+	installCloudflared     func(context.Context, string) (string, error)
 	homePaths              compozyconfig.HomePaths
 	loadConfig             ConfigLoader
 	logger                 *slog.Logger

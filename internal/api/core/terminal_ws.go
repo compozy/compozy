@@ -92,8 +92,11 @@ func (h *BaseHandlers) StreamTerminal(c *gin.Context) {
 	}
 	remotehost.OnStreamClose(c.Request.Context(), func(code int, reason string) {
 		// Keep revocation acknowledgement bounded even when a peer stopped reading.
-		_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason),
-			time.Now().Add(time.Second))
+		if err := conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason),
+			time.Now().Add(time.Second)); err != nil && !terminalExpectedSocketError(err) {
+			h.terminalStreamLogger().
+				Debug("terminal websocket close frame failed", "terminal_id", terminalID, "error", err)
+		}
 	})
 	if err := socket.run(c.Request.Context()); err != nil && !terminalExpectedSocketError(err) {
 		h.terminalStreamLogger().Debug("terminal websocket closed with error", "terminal_id", terminalID, "error", err)

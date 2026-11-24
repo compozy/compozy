@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+// BulkForceReleaseTaskRunsParams carries the path, query, and header parameters.
+type BulkForceReleaseTaskRunsParams struct {
+	Profile *string `url:"profile"`
+}
+
 // BulkForceReleaseTaskRuns Force release a bounded set of claimed task runs
 func (c *Client) BulkForceReleaseTaskRuns(ctx context.Context, params BulkForceReleaseTaskRunsParams, body BulkForceTaskRunRequest) (*BulkForceTaskRunResponse, error) {
 	path := "/api/runs/bulk/release"

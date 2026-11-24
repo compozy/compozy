@@ -69,3 +69,11 @@ Free has one slot. An enabled computer or active reservation uses it. A reservat
 A signed-in device can link with a computer key proof instead of a link token. A computer can also use its own key to patch its row and report its direct endpoints. Send the proof in `X-Compozy-Computer-Proof`. The proof signs the HTTP method, the public Compozy Cloud URL, a SHA-256 hash of the request body, its issue time, and a single-use ID.
 
 Connect to `GET /v1/computers/control?computer_id=…` over WebSocket. Reply to `challenge` with an `authenticate` frame signed by the computer key. The first authenticated frame is a signed `snapshot`. Apply it and acknowledge its epoch before accepting a lease. Leases expire in 15 minutes and refresh every 5 minutes. Send `snapshot_request` after a gap. Reconnect on `going_away` to receive a fresh snapshot from a ready replica.
+
+## Hosted tunnels
+
+A linked computer uses its key proof to provision or read its hosted tunnel at `POST /v1/computers/{id}/tunnel`. The response contains `hostname`, `connector_token`, and `mode`. Treat the connector token as a secret. A retained tunnel can return `mode: "entitlement_only"` during the retention period after Pro ends. In this mode, `GET /remote/v1/browser/status` reports `plan_required`.
+
+Compozy Pro includes ten hosted routes by default. The Cloud reserves a slot before provisioning. A request beyond the account's limit returns `cloud_routes_limit_reached`. Turning off the hosted route removes the tunnel with `DELETE /v1/computers/{id}/tunnel`. Unlinking also deletes the tunnel. The Cloud sweeps tunnels after 14 days offline.
+
+Discover the assigned hostname from the account's computer list. The control link sends `peers` updates with the account's other active hosted routes.

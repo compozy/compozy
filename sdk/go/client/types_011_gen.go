@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// JobsResponse is a daemon API value.
+type JobsResponse struct {
+	Jobs []JobPayload             `json:"jobs"`
+	Page CountedCursorPagePayload `json:"page"`
+}
+
 // KindDescriptor is a daemon API value.
 type KindDescriptor struct {
 	Kind         string          `json:"kind"`
@@ -433,14 +439,3 @@ type LoopGateVerdictEventPayload struct {
 
 // LoopGateVerdictOutcome is a daemon API value.
 type LoopGateVerdictOutcome string
-
-// LoopGateVerdictPayload is a daemon API value.
-type LoopGateVerdictPayload struct {
-	GateID         string                           `json:"gate_id"`
-	ItemIndex      int                              `json:"item_index"`
-	Outcome        LoopGateVerdictOutcome           `json:"outcome"`
-	Score          *float64                         `json:"score,omitzero"`
-	RouteCauseRank *int                             `json:"route_cause_rank,omitzero"`
-	BlockingIssues []LoopGateBlockingIssuePayload   `json:"blocking_issues"`
-	Criteria       []LoopGateCriterionDetailPayload `json:"criteria"`
-}

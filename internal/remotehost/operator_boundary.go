@@ -5,11 +5,11 @@ import (
 	"strings"
 )
 
-const claimTokenHeader = "X-Compozy-Claim-Token"
+const claimHeaderName = "X-Compozy-Claim-Token"
 
 // RejectClaimToken refuses the header or a declaration of it as a trailer.
 func RejectClaimToken(req *http.Request) error {
-	if _, declared := req.Trailer[claimTokenHeader]; declared || len(req.Header.Values(claimTokenHeader)) != 0 {
+	if _, declared := req.Trailer[claimHeaderName]; declared || len(req.Header.Values(claimHeaderName)) != 0 {
 		return ErrClaimTokenNotRemote
 	}
 	return nil

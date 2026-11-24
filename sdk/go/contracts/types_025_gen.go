@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type TerminalExit struct {
+	Cause  string  `json:"cause"`
+	Code   *int    `json:"code,omitempty"`
+	Signal *string `json:"signal,omitempty"`
+}
+
 type TerminalInputProvidedPayload struct {
 	Event       HookEvent `json:"event"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -134,32 +140,33 @@ type ToastEffect struct {
 }
 
 type Tool struct {
-	ID                         ToolID          `json:"id"`
-	Backend                    BackendRef      `json:"backend"`
-	DisplayTitle               string          `json:"display_title,omitempty"`
-	FriendlyVerb               string          `json:"friendly_verb,omitempty"`
-	Preview                    string          `json:"preview,omitempty"`
-	OutputViews                *ResultViews    `json:"output_views,omitempty"`
-	ReservedWorkspacePartition bool            `json:"reserved_workspace_partition,omitempty"`
-	MaxResultBytes             int64           `json:"max_result_bytes,omitempty"`
-	Idempotent                 bool            `json:"idempotent,omitempty"`
-	InputErrorCode             ErrorCode       `json:"input_error_code,omitempty"`
-	Description                string          `json:"description"`
-	InputSchema                json.RawMessage `json:"input_schema"`
-	OutputSchema               json.RawMessage `json:"output_schema,omitempty"`
-	InputSchemaDigest          string          `json:"input_schema_digest"`
-	OutputSchemaDigest         string          `json:"output_schema_digest,omitempty"`
-	Source                     SourceRef       `json:"source"`
-	Visibility                 Visibility      `json:"visibility"`
-	Risk                       RiskClass       `json:"risk"`
-	ReadOnly                   bool            `json:"read_only"`
-	Destructive                bool            `json:"destructive"`
-	OpenWorld                  bool            `json:"open_world"`
-	RequiresInteraction        bool            `json:"requires_interaction"`
-	ConcurrencySafe            bool            `json:"concurrency_safe"`
-	Toolsets                   []ToolsetID     `json:"toolsets,omitempty"`
-	Tags                       []string        `json:"tags,omitempty"`
-	SearchHints                []string        `json:"search_hints,omitempty"`
+	ID                         ToolID           `json:"id"`
+	Backend                    BackendRef       `json:"backend"`
+	DisplayTitle               string           `json:"display_title,omitempty"`
+	FriendlyVerb               string           `json:"friendly_verb,omitempty"`
+	Preview                    string           `json:"preview,omitempty"`
+	OutputViews                *ResultViews     `json:"output_views,omitempty"`
+	ReservedWorkspacePartition bool             `json:"reserved_workspace_partition,omitempty"`
+	MaxResultBytes             int64            `json:"max_result_bytes,omitempty"`
+	Idempotent                 bool             `json:"idempotent,omitempty"`
+	InputErrorCode             ErrorCode        `json:"input_error_code,omitempty"`
+	RemoteScope                RemoteprotoScope `json:"remote_scope,omitempty"`
+	Description                string           `json:"description"`
+	InputSchema                json.RawMessage  `json:"input_schema"`
+	OutputSchema               json.RawMessage  `json:"output_schema,omitempty"`
+	InputSchemaDigest          string           `json:"input_schema_digest"`
+	OutputSchemaDigest         string           `json:"output_schema_digest,omitempty"`
+	Source                     SourceRef        `json:"source"`
+	Visibility                 Visibility       `json:"visibility"`
+	Risk                       RiskClass        `json:"risk"`
+	ReadOnly                   bool             `json:"read_only"`
+	Destructive                bool             `json:"destructive"`
+	OpenWorld                  bool             `json:"open_world"`
+	RequiresInteraction        bool             `json:"requires_interaction"`
+	ConcurrencySafe            bool             `json:"concurrency_safe"`
+	Toolsets                   []ToolsetID      `json:"toolsets,omitempty"`
+	Tags                       []string         `json:"tags,omitempty"`
+	SearchHints                []string         `json:"search_hints,omitempty"`
 }
 
 type ToolCallPatch struct {
@@ -342,9 +349,4 @@ type Trigger struct {
 	CreatedAt            time.Time                 `json:"created_at"`
 	UpdatedAt            time.Time                 `json:"updated_at"`
 	LastRun              *AutomationLastRunPayload `json:"last_run,omitzero"`
-}
-
-type TriggerResult struct {
-	Matched int   `json:"matched"`
-	Runs    []Run `json:"runs,omitempty"`
 }

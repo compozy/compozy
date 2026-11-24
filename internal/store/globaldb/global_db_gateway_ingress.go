@@ -131,14 +131,14 @@ func (g *GatewayRepo) GetIngressEndpoint(
 	if err := g.checkReady(ctx, "load gateway ingress endpoint"); err != nil {
 		return ingress.EndpointState{}, err
 	}
-	row, err := g.readQueries.GetGatewayEndpointState(ctx, ingressEndpointTier)
+	row, err := g.readQueries.GetIngressEndpointState(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ingress.EndpointState{}, ingress.ErrEndpointUnverified
 	}
 	if err != nil {
 		return ingress.EndpointState{}, fmt.Errorf("store: load gateway ingress endpoint: %w", err)
 	}
-	return gatewayEndpointStateFromGenerated(row)
+	return ingressEndpointFromGenerated(row)
 }
 
 // SyncIngressEndpoint preserves generation for a stable URL and advances it on change.
@@ -178,7 +178,7 @@ func (g *GatewayRepo) SyncIngressEndpoint(
 			return writeErr
 		}
 		changed = errors.Is(previousErr, sql.ErrNoRows) || previous.EndpointUrl != row.EndpointUrl
-		return nil
+		return syncLegacyIngressEndpoint(writeCtx, queries, endpointURL, true, now)
 	}); err != nil {
 		return ingress.EndpointState{}, false, fmt.Errorf("store: sync gateway ingress endpoint: %w", err)
 	}
@@ -202,7 +202,7 @@ func (g *GatewayRepo) MarkIngressEndpointUnavailable(ctx context.Context, now ti
 		); writeErr != nil {
 			return fmt.Errorf("store: mark gateway ingress endpoint unavailable: %w", writeErr)
 		}
-		return nil
+		return syncLegacyIngressEndpoint(writeCtx, queries, "", false, now)
 	}); err != nil {
 		return fmt.Errorf("store: update gateway ingress endpoint availability: %w", err)
 	}

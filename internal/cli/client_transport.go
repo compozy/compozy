@@ -23,8 +23,6 @@ import (
 	"github.com/compozy/compozy/internal/sse"
 )
 
-const clientTasksPath = "/api/tasks"
-
 func (c *daemonClient) doJSON(
 	ctx context.Context,
 	method string,

@@ -1645,14 +1645,23 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					assertResponseStatus(t, operation, http.StatusNotFound)
 					assertResponseStatus(t, operation, http.StatusConflict)
 				}
-				if schema := jsonResponseSchema(
-					t,
-					operationFor(t, doc, "/api/tools/{id}/invoke", "POST"),
-					400,
-				); len(
-					schema.OneOf,
-				) != 2 {
-					t.Fatalf("profile-scoped tool error variants = %d, want 2", len(schema.OneOf))
+				invoke := operationFor(t, doc, "/api/tools/{id}/invoke", "POST")
+				errorVariants := []struct {
+					status int
+					names  []string
+				}{
+					{http.StatusBadRequest, []string{"ProfileErrorPayload", "ToolErrorResponse", "ErrorPayload"}},
+					{http.StatusForbidden, []string{"ToolErrorResponse", "ErrorPayload"}},
+				}
+				for _, variant := range errorVariants {
+					schema := jsonResponseSchema(t, invoke, variant.status)
+					refs := make([]string, 0, len(schema.OneOf))
+					for _, ref := range schema.OneOf {
+						refs = append(refs, strings.TrimPrefix(ref.Ref, "#/components/schemas/"))
+					}
+					if !slices.Equal(refs, variant.names) {
+						t.Fatalf("tool invoke HTTP %d variants = %v, want %v", variant.status, refs, variant.names)
+					}
 				}
 				if schema := jsonResponseSchema(
 					t,
@@ -1672,6 +1681,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				toolSchema := toolsSchema.Items.Value
 				assertRequired(t, toolSchema, "descriptor", "availability", "decision")
 				descriptorSchema := propertySchema(t, toolSchema, "descriptor")
+				assertNotRequired(t, descriptorSchema, "remote_scope")
+				assertSchemaIncludesType(t, propertySchema(t, descriptorSchema, "remote_scope"), "string")
 				assertRequired(
 					t,
 					descriptorSchema,
@@ -1719,7 +1730,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"read",
 				)
 
-				invoke := operationFor(t, doc, "/api/tools/{id}/invoke", "POST")
 				assertResponseStatus(t, invoke, 202)
 				assertResponseStatus(t, invoke, 507)
 				invokeRequest := jsonRequestSchema(t, invoke)
@@ -3303,9 +3313,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		addNativeReadPagingSchemas(t, baseline)
 		addManualJobWaitParameters(t, baseline)
-		if addNativeResultViewSchemas(baseline) == 0 {
-			t.Fatal("approved output_views addition: no historical tool descriptors found")
+		if addToolDescriptorSchemaFields(baseline) == 0 {
+			t.Fatal("approved output_views and remote_scope additions: no historical tool descriptors found")
 		}
+		addRemoteToolInvokeResponses(baseline)
 		addSettingsMCPHeaderPresence(t, baseline)
 		deprecateRetiredWindowManagerSettings(t, baseline)
 		deprecateRetiredWindowManagerWireFields(t, baseline)
@@ -7018,19 +7029,20 @@ func addAgentMCPAttachmentSchemas(t *testing.T, baseline map[string]any) {
 	}
 }
 
-func addNativeResultViewSchemas(value any) int {
+func addToolDescriptorSchemaFields(value any) int {
 	count := 0
 	switch node := value.(type) {
 	case []any:
 		for _, child := range node {
-			count += addNativeResultViewSchemas(child)
+			count += addToolDescriptorSchemaFields(child)
 		}
 	case map[string]any:
 		for _, child := range node {
-			count += addNativeResultViewSchemas(child)
+			count += addToolDescriptorSchemaFields(child)
 		}
 		properties, ok := node["properties"].(map[string]any)
 		if ok && properties["tool_id"] != nil && properties["input_schema_digest"] != nil && properties["risk"] != nil {
+			properties["remote_scope"] = map[string]any{"type": "string"}
 			view := map[string]any{
 				"type":       "object",
 				"required":   []any{"schema"},
@@ -7048,6 +7060,21 @@ func addNativeResultViewSchemas(value any) int {
 		}
 	}
 	return count
+}
+
+func addRemoteToolInvokeResponses(baseline map[string]any) {
+	paths := baseline["paths"].(map[string]any)
+	invoke := paths["/api/tools/{id}/invoke"].(map[string]any)["post"].(map[string]any)
+	responses := invoke["responses"].(map[string]any)
+	media := func(status string) map[string]any {
+		return responses[status].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	}
+	// The existing 503 response already freezes the same generic error schema.
+	remoteError := media("503")["schema"]
+	badRequest := media("400")["schema"].(map[string]any)
+	badRequest["oneOf"] = append(badRequest["oneOf"].([]any), remoteError)
+	forbidden := media("403")
+	forbidden["schema"] = map[string]any{"oneOf": []any{forbidden["schema"], remoteError}}
 }
 
 // addPermanentExtensionRemoveParameter inserts the optional boolean `permanent` query flag into the

@@ -36,12 +36,12 @@ func TestDaemonComputerOperatorBridgeIsolation(t *testing.T) {
 	t.Run("Should refuse a second hop without a request reaching the next computer", func(t *testing.T) {
 		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
 		var targetCapture operatorTrafficCapture
-		first, _ := startSessionComputer(t, f, filepath.Join(root, "first"), false)
-		second, _ := startSessionComputer(t, f, filepath.Join(root, "second"), false,
+		first, _ := startSessionComputer(t, f, filepath.Join(root, "a"), false)
+		second, _ := startSessionComputer(t, f, filepath.Join(root, "b"), false,
 			daemon.WithRemoteTunnelMiddleware(targetCapture.wrap))
 		provisionRegistryPro(t, f)
 		a, b := linkSessionComputer(t, first), linkSessionComputer(t, second)
-		controller, _ := startComputerController(t, f, filepath.Join(root, "controller"), registryTestEmail, nil)
+		controller, _ := startComputerController(t, f, filepath.Join(root, "ctl"), registryTestEmail, nil)
 		addAccountComputer(t, first, b)
 		addAccountComputer(t, controller, a)
 		waitComputerRoute(t, first, b, remoteproto.RouteDirect)
@@ -133,9 +133,10 @@ func openOperatorTerminal(
 	})
 	reply.expect(t, http.StatusCreated, "S9b shell")
 	terminal := authJSON[contract.TerminalResponse](t, reply).Terminal
-	controller.request(t, http.MethodGet, bridgeAPI(id, "/api/terminals"), nil).
+	const aggregate = "/api/terminals?all_workspaces=true"
+	controller.request(t, http.MethodGet, bridgeAPI(id, aggregate), nil).
 		expect(t, http.StatusOK, string(terminal.ID))
-	local := controller.request(t, http.MethodGet, "/api/terminals", nil)
+	local := controller.request(t, http.MethodGet, aggregate, nil)
 	local.expect(t, http.StatusOK, "terminals")
 	if bytes.Contains(local.body, []byte(terminal.ID)) {
 		t.Fatal("a remote terminal was registered on the controller")

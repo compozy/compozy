@@ -393,12 +393,14 @@ FROM computers AS computer
 JOIN tunnels AS tunnel ON tunnel.computer_id = computer.id AND tunnel.state = 'active'
 WHERE computer.account_id = $1 AND computer.unlinked_at IS NULL AND computer.remote_enabled
   AND NOT computer.plan_limited AND computer.id <> $2
+  AND (tunnel.delete_after IS NULL OR tunnel.delete_after > $3::timestamptz)
 ORDER BY lower(computer.name), computer.id
 `
 
 type ListControlPeersParams struct {
 	AccountID string
 	ID        string
+	AsOf      pgtype.Timestamptz
 }
 
 type ListControlPeersRow struct {
@@ -408,7 +410,7 @@ type ListControlPeersRow struct {
 }
 
 func (q *Queries) ListControlPeers(ctx context.Context, arg ListControlPeersParams) ([]ListControlPeersRow, error) {
-	rows, err := q.db.Query(ctx, listControlPeers, arg.AccountID, arg.ID)
+	rows, err := q.db.Query(ctx, listControlPeers, arg.AccountID, arg.ID, arg.AsOf)
 	if err != nil {
 		return nil, err
 	}

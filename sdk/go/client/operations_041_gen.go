@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+// ValidateAgentDefinitionSoulParams carries the path, query, and header parameters.
+type ValidateAgentDefinitionSoulParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
 // ValidateAgentDefinitionSoul Validate a proposed Soul body for an agent definition
 func (c *Client) ValidateAgentDefinitionSoul(ctx context.Context, params ValidateAgentDefinitionSoulParams, body AgentSoulValidateByPathRequest) (*AgentSoulPayload, error) {
 	path := "/api/agents/{name}/soul/validate"

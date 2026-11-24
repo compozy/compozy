@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type SessionInspectResponse struct {
+	SessionID    string                             `json:"session_id"`
+	Health       SessionHealthPayload               `json:"health"`
+	WakeState    *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
+	WakeEvents   []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
+	PolicyDigest string                             `json:"policy_digest,omitempty"`
+	ConfigDigest string                             `json:"config_digest,omitempty"`
+	Diagnostics  []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+}
+
 type SessionLifecyclePayload struct {
 	Event           HookEvent `json:"event"`
 	Timestamp       time.Time `json:"timestamp"`
@@ -390,12 +400,4 @@ type SessionRuntimeRecoverySucceededPayload struct {
 	Generation      int64     `json:"generation"`
 	FailureKind     string    `json:"failure_kind,omitempty"`
 	FailureDetail   string    `json:"failure_detail,omitempty"`
-}
-
-type SessionRuntimeSelectionPayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
 }

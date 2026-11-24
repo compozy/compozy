@@ -15,7 +15,7 @@ import (
 
 const (
 	// EnablePath is the operator API path used to enable public ingress.
-	EnablePath                 = "/api/gateway/surfaces"
+	EnablePath                 = "/api/remote"
 	ingressCompensationTimeout = 5 * time.Second
 )
 
@@ -84,14 +84,7 @@ func (m *Manager) Bind(ctx context.Context, req BindRequest) (Binding, error) {
 	if err := m.authorize(ctx, req.Caller, subject); err != nil {
 		return Binding{}, err
 	}
-	publicOn, err := m.publicOn(ctx)
-	if err != nil {
-		return Binding{}, err
-	}
-	if !publicOn {
-		return Binding{}, ErrUnreachable
-	}
-	endpoint, err := m.store.GetIngressEndpoint(ctx)
+	endpoint, err := m.activeEndpoint(ctx)
 	if err != nil || !endpoint.Reachable || strings.TrimSpace(endpoint.URL) == "" {
 		if err != nil && !errors.Is(err, ErrEndpointUnverified) {
 			return Binding{}, err
@@ -215,14 +208,7 @@ func (m *Manager) Project(
 	} else if !errors.Is(bindingErr, ErrSubjectNotFound) {
 		return Projection{}, bindingErr
 	}
-	publicOn, err := m.publicOn(ctx)
-	if err != nil {
-		return Projection{}, err
-	}
-	if !publicOn {
-		return projection, nil
-	}
-	endpoint, err := m.store.GetIngressEndpoint(ctx)
+	endpoint, err := m.activeEndpoint(ctx)
 	if err != nil {
 		if errors.Is(err, ErrEndpointUnverified) {
 			return projection, nil

@@ -73,6 +73,8 @@ type Ref struct {
 	With   json.RawMessage `json:"with,omitempty"`
 }
 
+type RemoteprotoScope string
+
 type ReplyWatchPayload struct {
 	ID              string    `json:"id"`
 	TargetSessionID string    `json:"target_session_id"`
@@ -137,5 +139,3 @@ type ResourceSource struct {
 	Kind ResourceSourceKind `json:"kind"`
 	ID   string             `json:"id"`
 }
-
-type ResourceSourceKind string

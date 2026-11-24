@@ -7,7 +7,10 @@ import (
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
-const invalidRemoteRequestCode = "invalid_remote_request"
+const (
+	invalidRemoteRequestCode = "invalid_remote_request"
+	planRequiredCode         = "plan_required"
+)
 
 var (
 	// ErrDeviceRevoked reports an epoch fence invalidated by revocation.
@@ -37,9 +40,12 @@ var (
 		"Remote access paused: entitlement unavailable.",
 		nil,
 	}
+	ErrHostedUnavailable = &Failure{
+		http.StatusServiceUnavailable, "hosted_route_unavailable", "The hosted route is temporarily unavailable.", nil,
+	}
 	ErrPlanRequired = &Failure{
 		http.StatusPaymentRequired,
-		"plan_required",
+		planRequiredCode,
 		"The plan does not allow this route.",
 		nil,
 	}

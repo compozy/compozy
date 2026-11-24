@@ -333,9 +333,10 @@ type HookRunsResponse struct {
 
 // HostedStatus is a daemon API value.
 type HostedStatus struct {
-	Enabled  bool    `json:"enabled"`
-	State    string  `json:"state"`
-	Hostname *string `json:"hostname"`
+	Enabled   bool    `json:"enabled"`
+	State     string  `json:"state"`
+	Hostname  *string `json:"hostname"`
+	Diagnosis string  `json:"diagnosis,omitempty"`
 }
 
 // Image is a daemon API value.
@@ -441,10 +442,4 @@ type JobTaskConfig struct {
 	Title       string     `json:"title,omitempty"`
 	Description string     `json:"description,omitempty"`
 	Owner       *Ownership `json:"owner,omitempty"`
-}
-
-// JobsResponse is a daemon API value.
-type JobsResponse struct {
-	Jobs []JobPayload             `json:"jobs"`
-	Page CountedCursorPagePayload `json:"page"`
 }

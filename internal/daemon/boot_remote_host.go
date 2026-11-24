@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"reflect"
 	"sync/atomic"
+	"time"
 
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/remotehost"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
@@ -16,6 +18,10 @@ const (
 	remoteConfigKey  = "remote"
 	remoteEnabledKey = "enabled"
 )
+
+func WithCloudflaredInstaller(install func(context.Context, string) (string, error)) Option {
+	return func(d *Daemon) { d.installCloudflared = install }
+}
 
 type remoteOperatorHandler struct {
 	current atomic.Pointer[http.Handler]
@@ -52,8 +58,14 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 		workers.account,
 		state.cfg.Remote,
 		remotehost.HostOptions{
-			Now: d.now, Logger: state.logger, Operator: state.remoteOperator,
-			Persist: d.persistRemoteConfig, WrapTunnelHandler: d.wrapRemoteTunnel,
+			Now:                d.now,
+			Logger:             state.logger,
+			Home:               d.homePaths.HomeDir,
+			Operator:           state.remoteOperator,
+			Persist:            d.persistRemoteConfig,
+			InstallCloudflared: d.installCloudflared,
+			SyncIngress:        remoteIngressSync(state, d.now),
+			WrapTunnelHandler:  d.wrapRemoteTunnel,
 		},
 	)
 	if err != nil {
@@ -63,6 +75,18 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 	state.deps.Remote = host
 	cleanup.add(func(context.Context) error { host.Close(); return nil })
 	return nil
+}
+
+func remoteIngressSync(state *bootState, now func() time.Time) func(context.Context, ingress.RemoteEndpoint) error {
+	registry, ok := state.registry.(interface {
+		SyncRemoteIngressEndpoint(context.Context, ingress.RemoteEndpoint, time.Time) error
+	})
+	if !ok {
+		return nil
+	}
+	return func(ctx context.Context, endpoint ingress.RemoteEndpoint) error {
+		return registry.SyncRemoteIngressEndpoint(ctx, endpoint, now())
+	}
 }
 
 func (d *Daemon) persistRemoteConfig(

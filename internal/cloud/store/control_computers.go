@@ -178,9 +178,11 @@ func (q *Queries) RecordControlMint(
 	})
 }
 
-func (q *Queries) ListControlPeers(ctx context.Context, computer ControlComputer) ([]remoteproto.HostedPeer, error) {
+func (q *Queries) ListControlPeers(
+	ctx context.Context, computer ControlComputer, now time.Time,
+) ([]remoteproto.HostedPeer, error) {
 	rows, err := q.generated.ListControlPeers(ctx, sqlcgen.ListControlPeersParams{
-		AccountID: computer.AccountID, ID: string(computer.ID),
+		AccountID: computer.AccountID, ID: string(computer.ID), AsOf: timestamp(now),
 	})
 	if err != nil {
 		return nil, err

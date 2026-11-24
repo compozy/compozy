@@ -22,6 +22,7 @@ func newRemoteCommand(deps commandDeps) *cobra.Command {
 		remoteVerb(deps, "disable", "Turn off remote access", cobra.NoArgs, changeRemoteEnabled(false)),
 		remoteVerb(deps, "unlink", "Unlink this computer from the account", cobra.NoArgs, runRemoteUnlink),
 		newRemoteDevicesCommand(deps),
+		newRemoteCloudRouteCommand(deps),
 	)
 	return cmd
 }

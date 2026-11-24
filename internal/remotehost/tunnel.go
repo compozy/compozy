@@ -31,6 +31,8 @@ type listenerHandler struct {
 	tls               *tls.Config
 	sessions          *Sessions
 	operator          http.Handler
+	run               *hostRun
+	webhook           func() http.Handler
 	wrapTunnelHandler func(http.Handler) http.Handler
 }
 
@@ -40,6 +42,12 @@ func (h listenerHandler) outer() http.Handler {
 		writeJSON(w, http.StatusOK, h.descriptor)
 	})
 	routes.HandleFunc("GET "+TunnelPath, h.serveTunnel)
+	if h.run != nil && h.kind != ListenerDirect {
+		routes.HandleFunc("/api/webhooks/", h.webhookRoutes())
+	}
+	if h.run != nil && h.kind == ListenerHosted {
+		return h.guardHosted(routes)
+	}
 	return routes
 }
 

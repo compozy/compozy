@@ -284,6 +284,7 @@ func ToolsetPayloadFromView(view toolspkg.ToolsetView) contract.ToolsetPayload {
 // toolDescriptorPayload detaches registry-owned descriptor data from transport DTOs.
 func toolDescriptorPayload(d *toolspkg.Descriptor) contract.ToolDescriptorPayload {
 	presentation := d.Presentation()
+	metadata := d.ExecutionMetadata()
 	return contract.ToolDescriptorPayload{
 		Access:              string(toolspkg.AccessOf(*d)),
 		CheckInWritable:     d.CheckInWritable(),
@@ -295,19 +296,19 @@ func toolDescriptorPayload(d *toolspkg.Descriptor) contract.ToolDescriptorPayloa
 		Description:         d.Description,
 		InputSchema:         cloneRawMessage(d.InputSchema),
 		OutputSchema:        cloneRawMessage(d.OutputSchema),
-		OutputViews:         d.ResultViews(),
+		OutputViews:         metadata.OutputViews,
 		InputSchemaDigest:   d.InputSchemaDigest,
 		OutputSchemaDigest:  d.OutputSchemaDigest,
 		Source:              toolSourcePayload(d.Source),
 		Visibility:          d.Visibility,
 		Risk:                d.Risk,
-		RemoteScope:         d.RemoteScope,
+		RemoteScope:         metadata.RemoteScope,
 		ReadOnly:            d.ReadOnly,
 		Destructive:         d.Destructive,
 		OpenWorld:           d.OpenWorld,
 		RequiresInteraction: d.RequiresInteraction,
 		ConcurrencySafe:     d.ConcurrencySafe,
-		MaxResultBytes:      d.ExecutionMetadata().MaxResultBytes,
+		MaxResultBytes:      metadata.MaxResultBytes,
 		Toolsets:            append([]toolspkg.ToolsetID(nil), d.Toolsets...),
 		Tags:                append([]string(nil), d.Tags...),
 		SearchHints:         append([]string(nil), d.SearchHints...),

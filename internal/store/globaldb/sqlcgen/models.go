@@ -827,6 +827,15 @@ type HeartbeatSourceScriptApproval struct {
 	ApprovedVia   string `json:"approved_via"`
 }
 
+type IngressEndpointState struct {
+	ID                 int64  `json:"id"`
+	EndpointUrl        string `json:"endpoint_url"`
+	EndpointGeneration int64  `json:"endpoint_generation"`
+	Reachable          bool   `json:"reachable"`
+	Source             string `json:"source"`
+	UpdatedAt          string `json:"updated_at"`
+}
+
 type InstallationAccount struct {
 	ID                int64          `json:"id"`
 	InstallationID    string         `json:"installation_id"`

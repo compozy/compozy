@@ -85,7 +85,8 @@ SELECT computer.id, computer.name, tunnel.hostname
 FROM computers AS computer
 JOIN tunnels AS tunnel ON tunnel.computer_id = computer.id AND tunnel.state = 'active'
 WHERE computer.account_id = $1 AND computer.unlinked_at IS NULL AND computer.remote_enabled
-  AND NOT computer.plan_limited AND computer.id <> $2
+  AND NOT computer.plan_limited AND computer.id <> sqlc.arg(id)
+  AND (tunnel.delete_after IS NULL OR tunnel.delete_after > sqlc.arg(as_of)::timestamptz)
 ORDER BY lower(computer.name), computer.id;
 
 -- name: ActiveControlReservation :one

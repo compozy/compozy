@@ -36,7 +36,7 @@ func (h *BaseHandlers) bindToolInvoke(c *gin.Context, id toolspkg.ToolID) (contr
 func (h *BaseHandlers) bindRemoteToolInvoke(c *gin.Context, id toolspkg.ToolID) (contract.ToolInvokeRequest, bool) {
 	for key := range c.Request.URL.Query() {
 		switch strings.ToLower(key) {
-		case "session_id", "agent_name", "turn_id", "approval_token":
+		case sessionIDKey, agentNameKey, "turn_id", "approval_token":
 			RespondRemoteError(c, remotehost.ErrRemoteCallerOverride)
 			return contract.ToolInvokeRequest{}, false
 		}

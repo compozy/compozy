@@ -2353,6 +2353,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/ingress/bindings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirm a webhook trigger against its advertised HTTPS endpoint */
+    post: operations["bindIngress"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/ingress/bindings/{subject_kind}/{subject_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Remove one public ingress confirmation */
+    delete: operations["unbindIngress"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/logs": {
     parameters: {
       query?: never;
@@ -13158,6 +13192,7 @@ export interface components {
       runs: components["schemas"]["HookRunPayload"][];
     };
     HostedStatus: {
+      diagnosis?: string;
       enabled: boolean;
       hostname: string | null;
       state: string;
@@ -37241,6 +37276,144 @@ export interface operations {
       };
       /** @description Invalid filter */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  bindIngress: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["GatewayIngressBindRequest"];
+      };
+    };
+    responses: {
+      /** @description Already confirmed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GatewayIngressBindingResponse"];
+        };
+      };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GatewayIngressBindingResponse"];
+        };
+      };
+      /** @description Invalid ingress binding request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Ingress subject is outside the caller workspace */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Ingress subject not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Webhook ingress unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  unbindIngress: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Ingress subject kind */
+        subject_kind: string;
+        /** @description Ingress subject id */
+        subject_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Unbound */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid ingress subject */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Ingress subject is outside the caller workspace */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Ingress subject not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };

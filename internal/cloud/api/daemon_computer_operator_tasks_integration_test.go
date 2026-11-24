@@ -293,7 +293,7 @@ func writeOperatorTaskFixture(t *testing.T, path, inlineRun, handoffRun string) 
 		return operatorTaskStep(toolspkg.ToolIDTaskRunComplete, id, ",\"result\":{\"proof\":\"s9b-completed\"}")
 	}
 	fixture := acpmock.Fixture{Version: acpmock.FixtureVersion, Agents: []acpmock.AgentFixture{{
-		Name: operatorTaskAgent, Provider: acpmock.ProviderName, Permissions: "auto_approve",
+		Name: operatorTaskAgent, Provider: acpmock.ProviderName, Permissions: "approve-all",
 		Tools: []string{toolspkg.ToolIDTaskRunClaimNext.String(), toolspkg.ToolIDTaskRunHeartbeat.String(),
 			toolspkg.ToolIDTaskRunComplete.String()},
 		Turns: []acpmock.TurnFixture{

@@ -49,6 +49,9 @@ func (r *Router) RegisterControl(cfg ControlRoutesConfig) {
 	r.mux.HandleFunc("PATCH /v1/computers/{id}", h.patchComputer)
 	r.mux.Handle("DELETE /v1/computers/{id}", h.device(h.unlink))
 	r.mux.Handle("POST /v1/computers/{id}/grants", h.device(h.grant))
+	r.mux.HandleFunc("POST /v1/computers/{id}/tunnel", h.provisionHostedTunnel)
+	// The fixed reservations path takes precedence over computer subresources.
+	r.mux.HandleFunc("DELETE /v1/computers/{id}/{resource}", h.deleteComputerResource)
 	r.mux.HandleFunc("GET /v1/computers/control", h.controlLink)
 	r.mux.Handle("GET /v1/approvals", h.device(h.approvals))
 	r.mux.Handle("GET /v1/approvals/{id}", h.device(h.getApproval))
@@ -108,6 +111,9 @@ func (r *controlRoutes) targetURL(req *http.Request) string {
 
 func (r *controlRoutes) fail(w http.ResponseWriter, req *http.Request, err error) {
 	if failure, ok := errors.AsType[*control.Error](err); ok {
+		if failure.Status == http.StatusServiceUnavailable {
+			setRetryAfter(w, 1)
+		}
 		WriteError(w, failure.Status, failure.Code, failure.Message)
 		return
 	}
