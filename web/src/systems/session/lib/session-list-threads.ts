@@ -6,6 +6,7 @@ import {
   filterThreadSessions,
   isSubagentSession,
 } from "./session-hierarchy";
+import { isSessionWorkRunning } from "./session-running";
 import type { SessionFoldSet } from "./session-sidebar-scope";
 
 export interface SessionThreadModel {
@@ -67,6 +68,16 @@ function groupSessionThreads(
 /** Counts every row the threads render, roots and children alike. */
 export function countThreadSessions(threads: readonly SessionThreadModel[]): number {
   return threads.reduce((count, thread) => count + 1 + thread.childSessions.length, 0);
+}
+
+/** Rows whose own work, subagents included, is running: a folder's leading signal (#1926). */
+export function countRunningThreadSessions(threads: readonly SessionThreadModel[]): number {
+  let running = 0;
+  for (const thread of threads) {
+    if (isSessionWorkRunning(thread.session)) running += 1;
+    for (const child of thread.childSessions) if (isSessionWorkRunning(child)) running += 1;
+  }
+  return running;
 }
 
 /** The ids of the rows on screen in order: a collapsed thread keeps only its root and a revealed subagent. */

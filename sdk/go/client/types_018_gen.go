@@ -353,6 +353,7 @@ type SessionCatalogPagePayload struct {
 	NextCursor string `json:"next_cursor,omitempty"`
 	HasMore    bool   `json:"has_more"`
 	Total      *int   `json:"total,omitzero"`
+	Working    *int   `json:"working,omitzero"`
 	Limit      int    `json:"limit"`
 }
 

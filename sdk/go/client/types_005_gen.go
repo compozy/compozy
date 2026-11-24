@@ -166,6 +166,7 @@ type Contract struct {
 	RuntimeDefaults  *RuntimeDefaults   `json:"runtime_defaults,omitzero"`
 	RuntimeRules     []RuntimeRule      `json:"runtime_rules,omitempty"`
 	TerminalStates   []DslTerminalState `json:"terminal_states,omitempty"`
+	OnResult         map[string]any     `json:"on_result,omitempty"`
 	OnDone           []EffectSpec       `json:"on_done,omitempty"`
 	OnNoOp           []EffectSpec       `json:"on_noop,omitempty"`
 	OnBlocked        []EffectSpec       `json:"on_blocked,omitempty"`

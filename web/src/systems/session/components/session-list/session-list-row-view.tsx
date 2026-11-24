@@ -16,11 +16,9 @@ import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { HTMLAttributes, ReactElement, ReactNode } from "react";
 import type { SessionRowLayoutMenu } from "../../lib/session-menu-tree";
-import type {
-  SessionDragHandlers,
-  SessionDropPosition,
-  SessionRowDropEdge,
-} from "../../hooks/use-session-list-dnd";
+import type { SessionDragHandlers, SessionRowDropEdge } from "../../hooks/use-session-list-dnd";
+import { hasRunningDescendant } from "../../lib/session-running";
+import { SessionRowDragFrame } from "./session-list-row-drag-frame";
 import { SessionListAgentMark } from "./session-list-agent-mark";
 import { SessionListProviderMark } from "./session-list-provider-mark";
 import {
@@ -79,6 +77,8 @@ export interface SessionListRowProps {
   dropEdge?: SessionRowDropEdge | null;
   /** This row is the one being dragged. */
   dragging?: boolean;
+  /** A child session or subagent below runs; defaults to the row's own live subagents (#1926). */
+  descendantsRunning?: boolean;
 }
 
 export interface SessionListRowViewProps extends SessionListRowProps {
@@ -143,6 +143,7 @@ function SessionListRowBody({
   runtime,
   preloadHandlers,
   rowActions,
+  descendantsRunning,
 }: SessionListRowViewProps) {
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
@@ -169,6 +170,13 @@ function SessionListRowBody({
         current={current}
         selected={selected}
         selection={selection}
+        badgeMark={
+          <SessionRowBadgeMark
+            session={session}
+            selection={selection}
+            descendantsRunning={descendantsRunning}
+          />
+        }
         testId={`${testIdPrefix}-session-${session.id}`}
         onClick={activate}
         focusHandlers={focusHandlers}
@@ -210,9 +218,7 @@ function SessionListRowBody({
             />
           </>
         }
-        trailing={
-          trailing !== undefined ? <SessionRowTrailing>{trailing}</SessionRowTrailing> : null
-        }
+        trailing={<SessionRowTrailing>{trailing}</SessionRowTrailing>}
       />
       <SessionLaterDetails className={SESSION_ROW_LATER_FRAME} session={session} />
     </>
@@ -228,6 +234,7 @@ function SessionRowTarget({
   current,
   selected,
   selection,
+  badgeMark,
   testId,
   onClick,
   focusHandlers,
@@ -240,6 +247,8 @@ function SessionRowTarget({
   current: boolean;
   selected: boolean;
   selection: SessionRowSelection | undefined;
+  /** Line 1's leading status mark. */
+  badgeMark: ReactNode;
   testId: string;
   onClick: (event: React.MouseEvent<HTMLElement>) => void;
   focusHandlers: ReturnType<typeof useKeyboardFocusToken>["focusHandlers"];
@@ -282,11 +291,7 @@ function SessionRowTarget({
         preloadHandlers.onBlur();
       }}
     >
-      <SessionBadgeMark
-        badge={session.badge}
-        waitingOn={sessionWaitingOn(session)}
-        className={badgeMarkClass(selection)}
-      />
+      {badgeMark}
       {pinnedMark ? (
         <span className="flex min-w-0 items-center gap-1">
           <span className="min-w-0 truncate">{title}</span>
@@ -370,9 +375,30 @@ function SessionRowEndSlot({ session, actions }: { session: SessionPayload; acti
   );
 }
 
-/** The meta line's trailing cluster, lifted above the row target. */
+/** The meta line's trailing cluster, lifted above the row target; none without controls. */
 function SessionRowTrailing({ children }: { children: React.ReactNode }) {
+  if (children === undefined) return null;
   return <span className={SESSION_ROW_TRAILING_FRAME}>{children}</span>;
+}
+
+/** Line 1's status mark; running work below lifts it (#1926), the row's own subagents by default. */
+function SessionRowBadgeMark({
+  session,
+  selection,
+  descendantsRunning = hasRunningDescendant(session, []),
+}: {
+  session: SessionPayload;
+  selection: SessionRowSelection | undefined;
+  descendantsRunning?: boolean;
+}) {
+  return (
+    <SessionBadgeMark
+      badge={session.badge}
+      waitingOn={sessionWaitingOn(session)}
+      descendantsRunning={descendantsRunning}
+      className={badgeMarkClass(selection)}
+    />
+  );
 }
 
 /** With a selection available, the badge gives way to the checkbox on hover or focus. */
@@ -421,57 +447,6 @@ function SessionRowCheckbox({
         if (sessionCheckboxGesture(details.event) === "range") selection.toggleRange(sessionId);
         else selection.toggle(sessionId);
       }}
-    />
-  );
-}
-
-/** The drag source/target frame; it draws the drop line on the pending edge. */
-function SessionRowDragFrame({
-  drag,
-  dropEdge,
-  dragging,
-  dropTestId,
-  children,
-  className,
-  ...rest
-}: React.ComponentProps<"div"> & {
-  drag: SessionDragHandlers | undefined;
-  dropEdge: SessionRowDropEdge | null;
-  dragging: boolean;
-  dropTestId: string;
-}) {
-  return (
-    <div
-      {...rest}
-      {...drag}
-      data-dragging={dragging || undefined}
-      data-drop={dropEdge ?? undefined}
-      className={cn(
-        dragging && "opacity-50",
-        // Dropping onto the row nests the dragged session under it.
-        dropEdge === "into" && "rounded-md bg-brand-tint ring-1 ring-brand ring-inset",
-        className
-      )}
-    >
-      {dropEdge === "before" || dropEdge === "after" ? (
-        <SessionRowDropLine edge={dropEdge} testId={dropTestId} />
-      ) : null}
-
-      {children}
-    </div>
-  );
-}
-
-/** The drop indicator on the edge where a dragged session will land. */
-function SessionRowDropLine({ edge, testId }: { edge: SessionDropPosition; testId: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      data-testid={testId}
-      className={cn(
-        "pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-brand",
-        edge === "before" ? "-top-px" : "-bottom-px"
-      )}
     />
   );
 }

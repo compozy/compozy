@@ -75,9 +75,10 @@ func (r FallbackRoute) selection() RuntimeSelection {
 	}
 }
 
-// fallbackRoutesForAgent maps AgentDef.FallbackChain to FallbackRoute values in order.
-func fallbackRoutesForAgent(def compozyconfig.AgentDef) []FallbackRoute {
-	return fallbackRoutesForChain(def.FallbackChain)
+// fallbackRoutesForAgent maps the agent's effective fallback chain (the authored chain or
+// its [agents.overrides.<name>].fallback_chain replacement) to FallbackRoute values in order.
+func fallbackRoutesForAgent(cfg *compozyconfig.Config, def compozyconfig.AgentDef) []FallbackRoute {
+	return fallbackRoutesForChain(cfg.EffectiveAgentFallbackChain(def))
 }
 
 func fallbackRoutesForChain(chain []compozyconfig.RoleFallback) []FallbackRoute {

@@ -270,7 +270,7 @@ func (m *Manager) resolveForkChildRoute(
 	if acceptedRouteMatchesResolved(*record, primary) {
 		return forkChildRoute{resolved: primary}, nil
 	}
-	for index, route := range fallbackRoutesForAgent(agentDef) {
+	for index, route := range fallbackRoutesForAgent(&workspace.Config, agentDef) {
 		resolved, resolveErr := workspace.Config.ResolveSessionAgentWithRuntime(
 			agentDef,
 			compozyconfig.RuntimeOverrides{
@@ -281,7 +281,7 @@ func (m *Manager) resolveForkChildRoute(
 		if resolveErr != nil || !acceptedRouteMatchesResolved(*record, resolved) {
 			continue
 		}
-		pending, selected, pendingErr := derivePendingRoute(agentDef.Name, agentDef, index+1)
+		pending, selected, pendingErr := derivePendingRoute(&workspace.Config, agentDef.Name, agentDef, index+1)
 		if pendingErr != nil {
 			return forkChildRoute{}, pendingErr
 		}

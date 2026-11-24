@@ -43,6 +43,7 @@ func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
 		&loopTarget.loopName,
 		&loopTarget.inputsRaw,
 		&loopTarget.inputMappingRaw,
+		&loopTarget.inputCommand,
 		&createdAt,
 		&updatedAt,
 	); err != nil {
@@ -124,6 +125,7 @@ func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 		&loopTarget.loopName,
 		&loopTarget.inputsRaw,
 		&loopTarget.inputMappingRaw,
+		&loopTarget.inputCommand,
 		&createdAt,
 		&updatedAt,
 	); err != nil {

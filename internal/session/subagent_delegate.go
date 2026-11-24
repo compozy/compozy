@@ -4,13 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 	"unicode/utf8"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	hookspkg "github.com/compozy/compozy/internal/hooks"
-	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -68,12 +65,17 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 	if err != nil {
 		return Subagent{}, err
 	}
-	fingerprint, err := subagentFingerprint(req)
-	if err != nil {
-		return Subagent{}, err
-	}
 	id := subagentID(req.Caller.SessionID, req.IdempotencyKey)
 	unlock := s.lock(req.Caller.SessionID)
+	if err := s.resolvePriorDelegation(ctx, &req); err != nil {
+		unlock()
+		return Subagent{}, err
+	}
+	fingerprint, err := subagentFingerprint(req)
+	if err != nil {
+		unlock()
+		return Subagent{}, err
+	}
 	existing, lookupErr := s.store.GetSubagent(ctx, req.Caller.WorkspaceID, id)
 	if lookupErr == nil {
 		unlock()
@@ -114,51 +116,16 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 		unlock()
 		return s.replay(ctx, row)
 	}
-	s.mu.Lock()
-	flight := &subagentFlight{done: make(chan struct{})}
-	s.flights[id] = flight
-	s.mu.Unlock()
+	finishFlight := s.trackFlight(id)
+	defer finishFlight()
 	s.publish(ctx, row)
 	s.runtime.PublishParent(ctx, row.ParentSessionID)
 	unlock()
-	finishFlight := sync.OnceFunc(func() { s.mu.Lock(); delete(s.flights, id); close(flight.done); s.mu.Unlock() })
-	defer finishFlight()
 	opts := subagentSpawnOptions(row, target, mode, policy)
-	if req.Isolation == SubagentIsolationWorktree {
-		if err := s.provisionIsolation(ctx, req, snap.Info, &row); err != nil {
-			return s.failIsolatedDelegation(ctx, row, "", err)
-		}
-		opts.IsolatedWorktreeID = row.WorktreeState().ID
-		opts.Subagent.WorktreeID = row.WorktreeState().ID
+	if err := s.prepareIsolationOpts(ctx, req, snap.Info, &row, &opts); err != nil {
+		return s.failIsolatedDelegation(ctx, row, "", err)
 	}
 	return s.startDelegation(ctx, req, row, &opts, finishFlight)
-}
-
-func subagentSpawnOptions(row store.SessionSubagent, target SubagentTarget,
-	mode compozyconfig.PermissionMode, policy store.SessionPermissionPolicy) SpawnOpts {
-	return SpawnOpts{
-		ParentSessionID:  row.ParentSessionID,
-		ParentTurnID:     row.ParentTurnID,
-		AgentName:        target.Agent,
-		Provider:         target.Provider,
-		Model:            target.Model,
-		ReasoningEffort:  target.ReasoningEffort,
-		Speed:            speedpkg.Speed(target.Speed),
-		ACPOptions:       target.ACPOptions,
-		Name:             row.Title,
-		SpawnRole:        store.SubagentSpawnRole,
-		AutoStopOnParent: true,
-		NotifyCreatorSet: true,
-		IdempotencyKey:   row.ID,
-		Permissions:      mode,
-		PermissionPolicy: policy,
-		Subagent: &hookspkg.SubagentSpawnPayload{
-			Title:     row.Title,
-			Role:      row.Role,
-			TaskChars: int(row.TaskChars),
-			Isolation: row.Isolation,
-		},
-	}
 }
 
 func (s *subagentService) startDelegation(

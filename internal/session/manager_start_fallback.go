@@ -127,7 +127,7 @@ func sessionOwnedStartRoutes(spec *sessionStartSpec, runtime *sessionStartRuntim
 		spec.creationIdentityPinned {
 		return nil
 	}
-	return fallbackRoutesForAgent(runtime.agentDef)
+	return fallbackRoutesForAgent(&spec.workspace.Config, runtime.agentDef)
 }
 
 func applyFallbackRouteToSpec(spec *sessionStartSpec, route FallbackRoute) {

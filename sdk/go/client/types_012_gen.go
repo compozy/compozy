@@ -122,6 +122,7 @@ type LoopRunPayload struct {
 	Inputs            map[string]any        `json:"inputs,omitempty"`
 	Attention         *LoopRunAttention     `json:"attention,omitzero"`
 	Progress          LoopRunProgress       `json:"progress"`
+	Terminal          *LoopRunTerminal      `json:"terminal,omitzero"`
 }
 
 // LoopRunProgress is a daemon API value.
@@ -147,6 +148,17 @@ type LoopRunResponse struct {
 
 // LoopRunStatus is a daemon API value.
 type LoopRunStatus string
+
+// LoopRunTerminal is a daemon API value.
+type LoopRunTerminal struct {
+	Status     LoopRunStatus `json:"status"`
+	Cause      string        `json:"cause,omitempty"`
+	ReasonCode string        `json:"reason_code,omitempty"`
+	GateID     string        `json:"gate_id,omitempty"`
+	NodeID     string        `json:"node_id,omitempty"`
+	Message    string        `json:"message,omitempty"`
+	At         time.Time     `json:"at,omitzero"`
+}
 
 // LoopRunsAggregatePayload is a daemon API value.
 type LoopRunsAggregatePayload struct {
@@ -221,6 +233,7 @@ type LoopTarget struct {
 	LoopName     string            `json:"loop_name"`
 	Inputs       map[string]any    `json:"inputs,omitempty"`
 	InputMapping map[string]string `json:"input_mapping,omitempty"`
+	InputCommand string            `json:"input_command,omitempty"`
 }
 
 // LoopValidationResponse is a daemon API value.

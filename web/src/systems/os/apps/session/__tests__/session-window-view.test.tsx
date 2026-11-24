@@ -3,8 +3,9 @@
 // runtime to the `@user` selector; only a legacy session without any scope falls back to the
 // read-only history. A window whose session has not loaded keeps the live sessions rail, marking
 // that session current, beside the frames the loaded pane fills (transcript, composer) under one
-// busy status, never a bare spinner. The rail list resumes its window's scroll when a session
-// switch remounts it (#1923). Only a
+// busy status, never a bare spinner. That rail takes no input and offers no resize handle: the
+// loaded window mounts its own rail and split, which would drop a gesture begun on the loading one. The rail list resumes
+// its window's scroll when a session switch remounts it (#1923). Only a
 // not-found read says "Couldn't find this session"; any other failure says the read failed and
 // offers Try again.
 // Owning layer: the OS session-window view.
@@ -60,9 +61,11 @@ vi.mock("@/systems/session", () => ({
     </aside>
   ),
   useMarkSeenOnLeave: () => undefined,
+  // The live split, handle included, as `SessionSidebarLayout` renders it.
   SessionSidebarLayout: ({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) => (
     <>
       {sidebar}
+      <div role="separator" aria-label="Resize sessions sidebar" />
       {children}
     </>
   ),
@@ -155,6 +158,9 @@ describe("SessionWindowView", () => {
     expect(screen.getByTestId("session-sidebar")).toBeInTheDocument();
     expect(region).not.toContainElement(screen.getByTestId("session-sidebar"));
     expect(screen.getByTestId("session-list-scroll")).toHaveAttribute("data-current", "sess-1");
+    // Input waits for the loaded window's rail and split, the ones that keep what it does.
+    expect(screen.queryByRole("separator", { name: "Resize sessions sidebar" })).toBeNull();
+    expect(screen.getByTestId("session-sidebar").closest("[inert]")).not.toBeNull();
     expect(region.querySelector('[data-slot="skeleton-text"]')).not.toBeNull();
     expect(screen.getByTestId("composer-skeleton")).toBeInTheDocument();
     // One announcement for the whole window: the placeholders are never statuses of their own.

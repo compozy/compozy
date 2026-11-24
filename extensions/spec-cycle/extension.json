@@ -1,7 +1,7 @@
 {
     "extension": {
         "name": "spec-cycle",
-        "version": "0.6.0",
+        "version": "0.6.1",
         "description": "Spec authoring and agent-led delivery in isolated worktrees.",
         "min_compozy_version": "0.3.0-beta.1"
     },

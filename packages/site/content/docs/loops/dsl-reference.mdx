@@ -126,6 +126,9 @@ accepts either a CEL string or the strict `{ expr, on_eval_error }` object. A br
 predicate exits by default so it cannot keep a run alive; set `on_eval_error: fail` to end the run
 `failed` instead. The stop model — `iteration_cap`, `no_progress`, and `budget` — is documented in
 full on the [guardrails](/docs/loops/guardrails) page. `terminal_states` lists the fixed seven outcomes.
+An optional `contract.on_result` routes the definition-of-done verdict with the same grammar as a
+gate's [`on_result`](#terminal-status-overrides); without it, a rejected definition-of-done verdict
+schedules the next generation.
 `runtime_defaults.worker` seeds worker runtime fields; `runtime_defaults.judge` seeds judge fields.
 Each `runtime_rules` entry matches one exact task `id`, one `type`, one `complexity`, or the
 conjunction `type + complexity`. The conjunction is AND, and `id` cannot be combined with another
@@ -535,11 +538,47 @@ load-bearing: the [stall signature](/docs/loops/guardrails#the-two-no-progress-a
 compares the repeated set across the no-progress window. A malformed judge response degrades to a
 revision, never a silent pass. `on_result` maps a verdict (`pass`, `fail`, `blocked`, `approval`,
 `error`, `timeout`, `invalid_output`) to `continue`, `revise`, `next_generation`, `escalate`,
-`halt`, or an in-body direct forward target written as `{ route: node_id }`. The removed `branch`
-action is rejected. `approval` accepts only `escalate` or `halt` and cannot use an object route to
-bypass a pending approval. `max_revisions` caps the loop before the gate fails.
+`halt`, an in-body direct forward target written as `{ route: node_id }`, or a terminal override
+written as `{ action: halt, terminal_status: <state> }`. The removed `branch` action is rejected.
+`approval` accepts only `escalate` or `halt` and cannot use an object route to bypass a pending
+approval. `max_revisions` caps the loop before the gate fails.
 An `agent-judge.runtime` value overrides `runtime_defaults.judge` field by field for that criterion
 only. Task runtime rules never apply to judges.
+
+### Terminal status overrides
+
+A plain `halt` settles the run `failed`. Use the object form to choose the status it settles with,
+for example to end a run `blocked` when a gate finds work it cannot do:
+
+```yaml
+on_result:
+  fail: { action: halt, terminal_status: blocked }
+  error: { action: halt, terminal_status: failed }
+```
+
+- `terminal_status` is valid only with `action: halt`.
+- The value must be one of the seven terminal outcomes (`done`, `no-op`, `blocked`, `failed`,
+  `exhausted`, `stalled`, `canceled`). When `contract.terminal_states` is declared, it must also
+  appear there. The linter reports both checks.
+- Omitting the key keeps the defaults: `halt` settles `failed`, and a `blocked` verdict settles
+  `blocked`.
+
+The contract's definition-of-done gate accepts the same grammar under `contract.on_result`. It has
+no forward targets, so `{ route: node_id }` is rejected there, and it requires at least one
+`contract.verification` criterion, because the definition-of-done gate is skipped without one.
+
+```yaml
+contract:
+  terminal_states: [done, blocked, failed]
+  verification:
+    - { id: checks, type: command, check: "make check", expect: exit_zero }
+  on_result:
+    fail: { action: halt, terminal_status: blocked }
+    error: { action: halt, terminal_status: failed }
+```
+
+`loop status` and `loop runs` report the settled cause as `run.terminal` (`status`, `cause`,
+`reason_code`, `gate_id`, `node_id`, `message`, `at`).
 
 ### Metric criteria
 

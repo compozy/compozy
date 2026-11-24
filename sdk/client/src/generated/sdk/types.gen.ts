@@ -204,6 +204,7 @@ export type AgentDraftRuntime = {
 export type AgentEffectiveRuntimePayload = {
   acp_options?: Array<AgentACPOptionSelection>;
   auto_compact_window?: number | null;
+  fallback_chain?: Array<RoleFallbackStatus>;
   lean_environment?: boolean | null;
   model?: string;
   permissions?: string;
@@ -219,6 +220,7 @@ export type AgentEffectiveRuntimePayload = {
 };
 
 export type AgentEffectiveRuntimeSources = {
+  fallback_chain?: string;
   model?: string;
   permissions?: string;
   provider: string;
@@ -1671,6 +1673,28 @@ export type Contract = {
   on_exhausted?: Array<EffectSpec>;
   on_failed?: Array<EffectSpec>;
   on_noop?: Array<EffectSpec>;
+  on_result?: {
+    [key: string]:
+      | "continue"
+      | "done"
+      | "next_generation"
+      | "halt"
+      | "escalate"
+      | {
+          action: "continue" | "done" | "next_generation" | "escalate";
+        }
+      | {
+          action: "halt";
+          terminal_status?:
+            | "done"
+            | "no-op"
+            | "blocked"
+            | "failed"
+            | "exhausted"
+            | "stalled"
+            | "canceled";
+        };
+  };
   on_stalled?: Array<EffectSpec>;
   runtime_defaults?: RuntimeDefaults | null;
   runtime_rules?: Array<RuntimeRule>;
@@ -3532,7 +3556,29 @@ export type Graph = {
         }
     >;
     on_result?: {
-      [key: string]: unknown;
+      [key: string]:
+        | "continue"
+        | "revise"
+        | "next_generation"
+        | "halt"
+        | "escalate"
+        | {
+            route: string;
+          }
+        | {
+            action: "continue" | "revise" | "next_generation" | "escalate";
+          }
+        | {
+            action: "halt";
+            terminal_status?:
+              | "done"
+              | "no-op"
+              | "blocked"
+              | "failed"
+              | "exhausted"
+              | "stalled"
+              | "canceled";
+          };
     };
     on_retry?: Array<
       | {
@@ -4485,6 +4531,28 @@ export type LoopContract = {
   on_exhausted?: Array<LoopEffectSpec>;
   on_failed?: Array<LoopEffectSpec>;
   on_noop?: Array<LoopEffectSpec>;
+  on_result?: {
+    [key: string]:
+      | "continue"
+      | "done"
+      | "next_generation"
+      | "halt"
+      | "escalate"
+      | {
+          action: "continue" | "done" | "next_generation" | "escalate";
+        }
+      | {
+          action: "halt";
+          terminal_status?:
+            | "done"
+            | "no-op"
+            | "blocked"
+            | "failed"
+            | "exhausted"
+            | "stalled"
+            | "canceled";
+        };
+  };
   on_stalled?: Array<LoopEffectSpec>;
   runtime_defaults?: LoopRuntimeDefaults | null;
   runtime_rules?: Array<LoopRuntimeRule>;
@@ -5097,6 +5165,7 @@ export type LoopRunPayload = {
     | "exhausted"
     | "stalled"
     | "canceled";
+  terminal?: LoopRunTerminal | null;
   tokens_used: number;
   workspace_id: string;
 };
@@ -5118,6 +5187,16 @@ export type LoopRunResponse = {
   run: LoopRunPayload;
   waits: Array<LoopNodeWaitPayload>;
   watch_events?: LoopWatchEventsState | null;
+};
+
+export type LoopRunTerminal = {
+  at?: string;
+  cause?: string;
+  gate_id?: string;
+  message?: string;
+  node_id?: string;
+  reason_code?: string;
+  status: "done" | "no-op" | "blocked" | "failed" | "exhausted" | "stalled" | "canceled";
 };
 
 export type LoopRunsAggregatePayload = {
@@ -5187,6 +5266,7 @@ export type LoopStartBinding = {
 };
 
 export type LoopTarget = {
+  input_command?: string;
   input_mapping?: {
     [key: string]: string;
   };
@@ -7569,6 +7649,7 @@ export type SessionCatalogPagePayload = {
   limit: number;
   next_cursor?: string;
   total?: number | null;
+  working?: number | null;
 };
 
 export type SessionCatalogResponse = {
@@ -13280,6 +13361,7 @@ export type UpdateExtensionsRequest = {
 export type UpdateJobRequest = {
   enabled?: boolean | null;
   fire_limit?: FireLimitConfig | null;
+  loop_input_command?: string | null;
   loop_target?: LoopTarget | null;
   name?: string | null;
   prompt?: string | null;

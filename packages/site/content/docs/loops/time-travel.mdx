@@ -56,6 +56,10 @@ sheet links the other — the source lists its forks, the fork names where it ca
 compozy loop fork --run-id <run-id> --generation 2 --input service=payments
 ```
 
+Overrides follow the same declared-type coercion as `compozy loop run --input`, resolved against the
+source run's executed definition: a `string` input keeps `false` as text, while quoting the value as
+JSON (`--input 'gate_command="false"'`) forces the JSON scalar.
+
 Fork creates a new run that pins the source run's executed definition. Generation 1 is a settled
 `fork_seed` baseline; generation 2 executes the full body with the source inputs plus any validated
 overrides. The source stays unchanged. Run status exposes `forked_from` on the child and `forks` on the

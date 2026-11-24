@@ -353,7 +353,7 @@ and catch-up work.
 
 Automation schedule catch-up policy is part of the public schedule contract. Recurring schedules accept `skip_missed`, `coalesce`, `replay`, and `run_once_on_catchup`; one-time `at` schedules reject catch-up fields. Omit the policy for the target-aware default: Loop targets with a `watch-source` use `coalesce`, while other scheduled targets use `skip_missed`. `misfire_grace_seconds=0` uses the daemon jitter grace. Durable canceled runs identify `misfire_grace_exceeded` and `self_overlap` under `metadata.reason`. Catch-up starts carry structured automation-run metadata so agents can distinguish normal starts from recovered starts and reason about `concurrency: forbid|queue` outcomes.
 
-CLI automation creation supports the Agent-or-Loop target union. Use `automation jobs create --loop` with repeatable `--loop-input` values for scheduled Loop starts; triggers also accept repeatable `--loop-input-mapping` templates. Global definitions require `--loop-workspace`. CLI updates change common fields without replacing the target; use native tools or HTTP/UDS for target replacement.
+CLI automation creation supports the Agent-or-Loop target union. Use `automation jobs create --loop` with repeatable `--loop-input` values and optional `--loop-input-command` for scheduled Loop starts; triggers also accept repeatable `--loop-input-mapping` templates. Global definitions require `--loop-workspace`. CLI updates change common fields and patch `--loop-input-command` on Loop jobs without replacing the target; use native tools or HTTP/UDS for target replacement.
 
 Triggers additionally accept experimental `target_kind = "agent_instance"`, `agent`, `prompt`, and
 `target_instance_scope` equal to their own workspace or `global`. CLI creation uses `--target-instance`
@@ -516,13 +516,17 @@ waits for tools and `after_turn` queues; native injection keeps its existing del
 
 ## Agent Overrides
 
-`[agents.overrides.<name>]` replaces `permissions`, `provider`, `model`, `reasoning_effort`, or `speed`
-of the effective agent named `<name>` without forking its AGENT.md. Unset fields and the prompt keep
+`[agents.overrides.<name>]` replaces `permissions`, `provider`, `model`, `reasoning_effort`, `speed`, or
+`fallback_chain` of the effective agent named `<name>` without forking its AGENT.md. Unset fields and the prompt keep
 tracking the source. Global, profile, and workspace layers merge per agent and per field. A changed
 provider drops the definition's `command`, `model`, and `reasoning_effort`; a changed model drops its
-`reasoning_effort`, unless the table restates them. It is a trust root for native config tools
-(`config_trust_root_forbidden`), and `compozy config set` refuses it from an agent session
-(`agent_override_operator_only`); only the operator writes it. See `references/agent-definitions.md`.
+`reasoning_effort`, unless the table restates them. `[[agents.overrides.<name>.fallback_chain]]` uses the
+AGENT.md route shape and replaces the whole chain; the narrowest layer that sets it wins and
+`fallback_chain = []` clears it. It is a trust root for native config tools
+(`config_trust_root_forbidden`), and `compozy config set` refuses the scalar fields from an agent
+session (`agent_override_operator_only`). `compozy config set` rejects
+`agents.overrides.<name>.fallback_chain` for every caller as an unsupported config path, so the chain
+is set only by editing `config.toml`; only the operator writes it. See `references/agent-definitions.md`.
 
 ## Retired Memory And Compaction Settings
 
