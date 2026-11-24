@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/computers/sshsetup"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/procutil"
@@ -107,24 +108,37 @@ func startDaemon(f *fixture, d daemonInstance, cloudURL string, extraEnv ...stri
 			f.Errorf("stop daemon %s: %v", d.Socket, err)
 		}
 	})
+	waitForDaemon(f, d, cmd, done)
+}
+
+func waitForDaemon(f *fixture, d daemonInstance, cmd *exec.Cmd, done <-chan error) {
+	f.Helper()
 	client := httpClientFor(d)
 	defer client.CloseIdleConnections()
+	var identity contract.RuntimeIdentityPayload
+	var probeErr error
+	defer func() {
+		if f.Failed() {
+			f.Logf("last readiness probe for %s: %+v (error: %v)", d.Socket, identity.Daemon.Readiness, probeErr)
+		}
+	}()
 	remotetest.Await(f, "daemon readiness", 45*time.Second, func(ctx context.Context) bool {
 		select {
 		case err := <-done:
-			f.Fatalf("daemon exited before readiness: %v", err)
+			f.Fatalf("daemon exited before readiness (%v): %v", cmd.ProcessState, err)
 		default:
 		}
-		var status struct {
-			Phase string `json:"phase"`
-		}
-		return requestJSON(ctx, client, http.MethodGet, "/api/status", nil, &status) == nil && status.Phase == "ready"
+		probeErr = requestJSON(ctx, client, http.MethodGet, "/api/status/identity", nil, &identity)
+		return probeErr == nil && identity.Daemon.Readiness != nil &&
+			identity.Daemon.Readiness.Phase == contract.DaemonReadinessReady
 	})
 }
 
 func runDaemon(ctx context.Context) error {
 	defer version.OverrideVersionForTesting(remotetest.SSHFixtureVersion)()
-	var options []daemon.Option
+	options := []daemon.Option{daemon.WithCompozyExecutableResolver(func() (string, error) {
+		return exec.LookPath(os.Getenv(daemonBinaryEnv))
+	})}
 	if release := os.Getenv(releaseEnv); release != "" {
 		root, err := os.ReadFile(os.Getenv(trustEnv))
 		if err != nil {
