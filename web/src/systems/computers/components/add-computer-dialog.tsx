@@ -203,19 +203,29 @@ function buildLocalDialogView(
   };
 }
 
-function useAddComputerDialogView(props: AddComputerDialogProps) {
-  const {
-    isFreePlan = false,
-    sshSuggestions,
-    initialMethod = "ssh",
-    initialSshStage = "picker",
-    initialHostDraft = DEFAULT_DRAFT,
-    initialCommandDetected = false,
-    linkedCommitReached = false,
-    live,
-    onClose,
-  } = props;
-
+/**
+ * Add computer modal (`_uiux.md` U2):
+ * - Three mutually exclusive paths via `RadioCardGroup` (SSH, On your account, Link with a command)
+ * - Deterministic 7-step SSH progress list with inline anchored Trust / Password prompts
+ * - Safe Cancel confirmation before `Linking` commits; honest `Remove` afterwards (Rule 19)
+ */
+export function AddComputerDialog({
+  open,
+  accountEmail,
+  isFreePlan = false,
+  sshSuggestions,
+  unaddedComputers,
+  initialMethod = "ssh",
+  initialSshStage = "picker",
+  initialHostDraft = DEFAULT_DRAFT,
+  defaultHostPickerOpen = false,
+  initialCommandDetected = false,
+  linkedCommitReached = false,
+  live,
+  onClose,
+  onUpgrade,
+  onOpenComputer,
+}: AddComputerDialogProps) {
   const localState = useAddComputerDialog({
     isFreePlan,
     sshSuggestions,
@@ -226,8 +236,7 @@ function useAddComputerDialogView(props: AddComputerDialogProps) {
     onClose,
   });
   const [liveCancelConfirmOpen, setLiveCancelConfirmOpen] = useState(false);
-
-  return live
+  const view = live
     ? buildLiveDialogView(
         live,
         sshSuggestions,
@@ -237,28 +246,6 @@ function useAddComputerDialogView(props: AddComputerDialogProps) {
         onClose
       )
     : buildLocalDialogView(localState, initialCommandDetected, linkedCommitReached);
-}
-
-/**
- * Add computer modal (`_uiux.md` U2):
- * - Three mutually exclusive paths via `RadioCardGroup` (SSH, On your account, Link with a command)
- * - Deterministic 7-step SSH progress list with inline anchored Trust / Password prompts
- * - Safe Cancel confirmation before `Linking` commits; honest `Remove` afterwards (Rule 19)
- */
-export function AddComputerDialog(props: AddComputerDialogProps) {
-  const {
-    open,
-    accountEmail,
-    isFreePlan = false,
-    sshSuggestions,
-    unaddedComputers,
-    defaultHostPickerOpen = false,
-    live,
-    onClose,
-    onUpgrade,
-    onOpenComputer,
-  } = props;
-  const view = useAddComputerDialogView(props);
   const methodOptions = buildMethodOptions(unaddedComputers.length);
 
   return (
