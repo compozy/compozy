@@ -329,7 +329,7 @@ function useRemoteSessionTopbar(session: SessionPayload) {
   return { controls, chip };
 }
 
-function SessionTopbarStatus({
+function sessionTopbarStatus({
   input,
   instance,
   linkedList,
@@ -439,15 +439,13 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     ),
     glyphPresentation: "state",
     crumb: instance?.label ?? getSessionDisplayTitle(session),
-    status: (
-      <SessionTopbarStatus
-        input={input}
-        instance={instance}
-        linkedList={linkedList}
-        remoteChip={remote.chip}
-        transport={transport}
-      />
-    ),
+    status: sessionTopbarStatus({
+      input,
+      instance,
+      linkedList,
+      remoteChip: remote.chip,
+      transport,
+    }),
     // The run verbs lead; the Changes toggle trails as a quiet icon.
     actions: instance
       ? alwaysOnMainActions(input, instance)

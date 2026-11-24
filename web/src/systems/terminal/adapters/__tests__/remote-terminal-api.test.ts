@@ -119,8 +119,10 @@ describe("remote terminal adapter & protocol client", () => {
 
     const openedPaths: string[] = [];
     const sockets: TerminalSocket[] = [];
-    let scheduledReconnect: (() => void) | null = null;
-    let writesCompleted = 0;
+    const firstOpened = Promise.withResolvers<string>();
+    const secondOpened = Promise.withResolvers<string>();
+    const writeDone = Promise.withResolvers<void>();
+    const reconnectScheduled = Promise.withResolvers<() => void>();
 
     const client = new TerminalProtocolClient({
       workspaceId: WORKSPACE_ID,
@@ -130,7 +132,7 @@ describe("remote terminal adapter & protocol client", () => {
       mode: "write",
       sink: {
         write: () => {
-          writesCompleted += 1;
+          writeDone.resolve();
           return Promise.resolve();
         },
         reset: () => {},
@@ -147,20 +149,20 @@ describe("remote terminal adapter & protocol client", () => {
           onerror: null,
         };
         sockets.push(socket);
+        if (openedPaths.length === 1) firstOpened.resolve(path);
+        else if (openedPaths.length === 2) secondOpened.resolve(path);
         return socket;
       },
       schedule: run => {
-        scheduledReconnect = run;
-        return () => {
-          scheduledReconnect = null;
-        };
+        reconnectScheduled.resolve(run);
+        return () => {};
       },
       attachDeadline: () => () => {},
     });
 
     client.start();
-    await vi.waitFor(() => expect(openedPaths).toHaveLength(1));
-    expect(openedPaths[0]).toContain(
+    const firstPath = await firstOpened.promise;
+    expect(firstPath).toContain(
       `/c/${COMPUTER_ID}/api/workspaces/${WORKSPACE_ID}/terminals/${TERMINAL_ID}/stream?ticket=tkt-1`
     );
 
@@ -182,19 +184,19 @@ describe("remote terminal adapter & protocol client", () => {
       new MessageEvent("message", { data: encodeTerminalServerOutputFrame(1n, "devbox") })
     );
 
-    await vi.waitFor(() => expect(writesCompleted).toBe(1));
+    await writeDone.promise;
     await Promise.resolve();
 
     // Simulate network drop and fire reconnect timer.
     firstSocket.onclose?.(new CloseEvent("close", { code: 1006 }));
-    await vi.waitFor(() => expect(scheduledReconnect).not.toBeNull());
-    scheduledReconnect!();
+    const runReconnect = await reconnectScheduled.promise;
+    runReconnect();
 
-    await vi.waitFor(() => expect(openedPaths).toHaveLength(2));
-    expect(openedPaths[1]).toContain(
+    const secondPath = await secondOpened.promise;
+    expect(secondPath).toContain(
       `/c/${COMPUTER_ID}/api/workspaces/${WORKSPACE_ID}/terminals/${TERMINAL_ID}/stream?ticket=tkt-2`
     );
-    expect(openedPaths[1]).toContain("after_seq=6");
+    expect(secondPath).toContain("after_seq=6");
 
     client.stop();
   });

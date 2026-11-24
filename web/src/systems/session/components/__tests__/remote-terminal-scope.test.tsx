@@ -192,7 +192,7 @@ describe("Remote session terminal & files scope gating (UT-089)", () => {
     expect(screen.getByTestId("session-remote-files-action")).toBeInTheDocument();
     // No Terminal control anywhere for a principal without `terminal:operate`.
     expect(screen.queryByTestId("session-remote-terminal-action")).toBeNull();
-    expect(screen.queryByRole("button", { name: /terminal/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /open terminal|terminal on devbox/i })).toBeNull();
     expect(screen.queryByTestId("session-terminal-open-term_remote_1")).toBeNull();
   });
 

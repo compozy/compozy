@@ -31,6 +31,7 @@ import {
   applyRecordingStopSuccess,
   unlockTerminalJournal,
   type TerminalInputRequest,
+  type TerminalProfileQueryScope,
   type TerminalRecordingMap,
   type TerminalViewerIdentity,
   useTerminalJournalUnlocked,
@@ -146,7 +147,7 @@ function useTerminalWindowMutations(input: {
   workspaceId: string;
   computerId: ComputerId;
   catalogScope: ReturnType<typeof terminalScope>;
-  destinationScope: ReturnType<typeof terminalScope>;
+  destinationScope: TerminalProfileQueryScope;
   coordinator: ReturnType<typeof useOsShell>["coordinator"];
   retargetSearch: Record<string, unknown>;
   terminalSelector: (terminalId: string) => { profile: string };
