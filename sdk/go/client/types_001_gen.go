@@ -160,9 +160,10 @@ type AccountSignInNotice struct {
 
 // AccountSignInProgress is a daemon API value.
 type AccountSignInProgress struct {
-	AttemptID string `json:"attempt_id"`
-	State     string `json:"state"`
-	Code      string `json:"code,omitempty"`
+	AttemptID  string `json:"attempt_id"`
+	State      string `json:"state"`
+	Code       string `json:"code,omitempty"`
+	NewAccount bool   `json:"new_account,omitempty"`
 }
 
 // AccountStatePayload is a daemon API value.
@@ -204,6 +205,30 @@ type AccountSubscription struct {
 	CurrentPeriodEnd    *time.Time `json:"current_period_end"`
 	CancelAtPeriodEnd   bool       `json:"cancel_at_period_end"`
 	RefundEligibleUntil *time.Time `json:"refund_eligible_until"`
+}
+
+// AccountToken is a daemon API value.
+type AccountToken struct {
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+}
+
+// AccountTokenCreate is a daemon API value.
+type AccountTokenCreate struct {
+	Name string `json:"name"`
+}
+
+// AccountTokenCreated is a daemon API value.
+type AccountTokenCreated struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Token string `json:"token"`
+}
+
+// AccountTokenList is a daemon API value.
+type AccountTokenList struct {
+	Tokens []AccountToken `json:"tokens"`
 }
 
 // AcknowledgeAttentionRequest is a daemon API value.
@@ -420,31 +445,4 @@ type AgentDraftRuntime struct {
 	Provider        string `json:"provider"`
 	Model           string `json:"model,omitempty"`
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
-}
-
-// AgentEffectiveRuntimePayload is a daemon API value.
-type AgentEffectiveRuntimePayload struct {
-	SessionEnvStatus         []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
-	SessionEnv               map[string]SessionEnvBindingPayload       `json:"session_env,omitempty"`
-	AutoCompactWindow        *int                                      `json:"auto_compact_window,omitempty"`
-	LeanEnvironment          *bool                                     `json:"lean_environment,omitempty"`
-	Provider                 string                                    `json:"provider"`
-	Model                    string                                    `json:"model,omitempty"`
-	ReasoningEffort          Effort                                    `json:"reasoning_effort,omitempty"`
-	Speed                    Speed                                     `json:"speed,omitempty"`
-	ACPOptions               []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
-	PolicyExcludedACPOptions []AgentACPOptionSelection                 `json:"policy_excluded_acp_options,omitempty"`
-	Permissions              string                                    `json:"permissions,omitempty"`
-	FallbackChain            []RoleFallbackStatus                      `json:"fallback_chain,omitempty"`
-	Sources                  AgentEffectiveRuntimeSources              `json:"sources"`
-}
-
-// AgentEffectiveRuntimeSources is a daemon API value.
-type AgentEffectiveRuntimeSources struct {
-	Provider        AgentRuntimeValueSource `json:"provider"`
-	Model           AgentRuntimeValueSource `json:"model,omitempty"`
-	ReasoningEffort AgentRuntimeValueSource `json:"reasoning_effort,omitempty"`
-	Speed           AgentRuntimeValueSource `json:"speed,omitempty"`
-	Permissions     AgentRuntimeValueSource `json:"permissions,omitempty"`
-	FallbackChain   AgentRuntimeValueSource `json:"fallback_chain,omitempty"`
 }

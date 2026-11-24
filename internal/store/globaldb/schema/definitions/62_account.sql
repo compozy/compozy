@@ -16,5 +16,10 @@ CREATE TABLE installation_account (
   signed_out_reason TEXT,
   auth_generation INTEGER NOT NULL DEFAULT 0 CHECK (auth_generation >= 0),
   last_validated_at TEXT,
-  sign_in_notices_dismissed_at TEXT
+  sign_in_notices_dismissed_at TEXT,
+  gate_policy_jws TEXT,
+  gate_policy_keys TEXT,
+  gate_policy_fetched_at TEXT,
+  offline_grace_started_at TEXT,
+  token_name TEXT
 );

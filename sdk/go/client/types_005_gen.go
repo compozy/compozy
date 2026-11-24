@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// Change is a daemon API value.
+type Change struct {
+	Kind          string          `json:"kind,omitempty"`
+	Plan          string          `json:"plan,omitempty"`
+	PaymentIssue  *bool           `json:"payment_issue,omitempty"`
+	EvictRemote   bool            `json:"evict_remote,omitzero"`
+	Approval      *ApprovalResult `json:"approval,omitempty"`
+	ApprovalID    string          `json:"approval_id,omitempty"`
+	ComputerID    ComputerID      `json:"computer_id,omitempty"`
+	DeviceID      DeviceID        `json:"device_id,omitempty"`
+	SecurityEpoch uint64          `json:"security_epoch,omitzero"`
+}
+
+// ChangeBasePayload is a daemon API value.
+type ChangeBasePayload struct {
+	Ref          string `json:"ref"`
+	Source       string `json:"source"`
+	MergeBaseSHA string `json:"merge_base_sha"`
+}
+
 // ChangeBaseRefPayload is a daemon API value.
 type ChangeBaseRefPayload struct {
 	Ref       string `json:"ref"`
@@ -419,31 +439,4 @@ type ComputerRouteInUse struct {
 	ID    string    `json:"id"`
 	Kind  RouteKind `json:"kind"`
 	Label string    `json:"label"`
-}
-
-// ComputerSSHHost is a daemon API value.
-type ComputerSSHHost struct {
-	Alias    string `json:"alias"`
-	Hostname string `json:"hostname"`
-	User     string `json:"user"`
-	Port     int    `json:"port"`
-	Source   string `json:"source"`
-}
-
-// ComputerSSHHostsResponse is a daemon API value.
-type ComputerSSHHostsResponse struct {
-	Hosts []ComputerSSHHost `json:"hosts"`
-}
-
-// ComputerSetupAnswer is a daemon API value.
-type ComputerSetupAnswer struct {
-	Kind   string `json:"kind"`
-	Accept *bool  `json:"accept,omitempty"`
-	Value  string `json:"value,omitempty"`
-}
-
-// ComputerSetupCanceled is a daemon API value.
-type ComputerSetupCanceled struct {
-	SetupID string `json:"setup_id"`
-	State   string `json:"state"`
 }

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/ingress"
@@ -373,6 +374,10 @@ func (h *BaseHandlers) RemoteWebhookHandler(
 func (h *BaseHandlers) deliverWebhook(
 	c *gin.Context, scope automationpkg.Scope, admit func(context.Context, automationpkg.Trigger) error,
 ) {
+	if h.Account != nil && h.Account.AdmitNewWork() != nil {
+		refuseSignedOutWebhook(c)
+		return
+	}
 	manager, ok := h.requireAutomationManager(c)
 	if !ok {
 		return
@@ -388,6 +393,8 @@ func (h *BaseHandlers) deliverWebhook(
 	result, err := manager.HandleWebhook(c.Request.Context(), request)
 	if err != nil {
 		switch {
+		case errors.Is(err, account.ErrSignInRequired):
+			refuseSignedOutWebhook(c)
 		case errors.Is(err, ingress.ErrUnavailable):
 			c.JSON(http.StatusServiceUnavailable, contract.ErrorPayload{
 				Error: "Webhook ingress is unavailable.", Code: ingress.ErrUnavailable.Error(), Retryable: true,
@@ -403,6 +410,13 @@ func (h *BaseHandlers) deliverWebhook(
 		return
 	}
 	c.JSON(http.StatusOK, contract.WebhookDeliveryResponse{Result: WebhookDeliveryPayloadFromResult(result)})
+}
+
+func refuseSignedOutWebhook(c *gin.Context) {
+	c.Header("Retry-After", "60")
+	c.JSON(http.StatusServiceUnavailable, contract.ErrorPayload{
+		Error: account.ErrSignInRequired.Message, Code: account.ErrSignInRequired.Code, Retryable: true,
+	})
 }
 
 func (h *BaseHandlers) requireAutomationManager(c *gin.Context) (AutomationManager, bool) {

@@ -1,26 +1,26 @@
 -- name: GetAutomationSchedulerState :one
 SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
-       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until
+       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until, held_for_sign_in
 FROM automation_scheduler_state WHERE job_id = sqlc.arg(job_id);
 
 -- name: ListAutomationSchedulerStates :many
 SELECT job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
        schedule_hash, catch_up_policy, misfire_grace_seconds,
-       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until
+       consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, deferred_until, held_for_sign_in
 FROM automation_scheduler_state ORDER BY job_id ASC;
 
 -- name: UpsertAutomationSchedulerState :exec
 INSERT INTO automation_scheduler_state (
   job_id, deferred_until, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
   schedule_hash, catch_up_policy, misfire_grace_seconds,
-  consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
+  consecutive_resume_failures, last_misfire_at, misfire_count, updated_at, held_for_sign_in
 ) VALUES (
   sqlc.arg(job_id), sqlc.narg(deferred_until), sqlc.narg(next_run_at), sqlc.narg(last_run_at),
   sqlc.narg(last_scheduled_at), sqlc.arg(last_fire_id), sqlc.arg(schedule_hash),
   sqlc.arg(catch_up_policy), sqlc.arg(misfire_grace_seconds),
   sqlc.arg(consecutive_resume_failures), sqlc.narg(last_misfire_at),
-  sqlc.arg(misfire_count), sqlc.arg(updated_at)
+  sqlc.arg(misfire_count), sqlc.arg(updated_at), sqlc.arg(held_for_sign_in)
 )
 ON CONFLICT(job_id) DO UPDATE SET
   deferred_until = excluded.deferred_until, next_run_at = excluded.next_run_at, last_run_at = excluded.last_run_at,
@@ -29,7 +29,7 @@ ON CONFLICT(job_id) DO UPDATE SET
   misfire_grace_seconds = excluded.misfire_grace_seconds,
   consecutive_resume_failures = excluded.consecutive_resume_failures,
   last_misfire_at = excluded.last_misfire_at, misfire_count = excluded.misfire_count,
-  updated_at = excluded.updated_at;
+  updated_at = excluded.updated_at, held_for_sign_in = excluded.held_for_sign_in;
 
 -- name: DeleteAutomationSchedulerState :exec
 DELETE FROM automation_scheduler_state WHERE job_id = sqlc.arg(job_id);

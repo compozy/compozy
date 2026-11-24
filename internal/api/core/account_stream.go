@@ -41,7 +41,7 @@ func (h *BaseHandlers) StreamAccountSignIn(c *gin.Context) {
 			}}
 		}
 		return SSEMessage{Name: contract.SignInProgressEvent, Data: contract.AccountSignInProgress{
-			AttemptID: event.AttemptID, State: event.State, Code: event.Code,
+			AttemptID: event.AttemptID, State: event.State, Code: event.Code, NewAccount: event.NewAccount,
 		}}
 	})
 }

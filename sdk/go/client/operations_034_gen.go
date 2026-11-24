@@ -329,6 +329,18 @@ func (c *Client) RevokeAccountDevice(ctx context.Context, params RevokeAccountDe
 	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }
 
+// RevokeAccountTokenParams carries the path, query, and header parameters.
+type RevokeAccountTokenParams struct {
+	ID string `url:"id"`
+}
+
+// RevokeAccountToken Revoke an account token
+func (c *Client) RevokeAccountToken(ctx context.Context, params RevokeAccountTokenParams) error {
+	path := "/api/account/tokens/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
 // RevokeAgentHeartbeatAuthorityParams carries the path, query, and header parameters.
 type RevokeAgentHeartbeatAuthorityParams struct {
 	Name        string  `url:"name"`
@@ -427,23 +439,4 @@ func (c *Client) RevokeRemoteDevice(ctx context.Context, params RevokeRemoteDevi
 type RevokeToolApprovalGrantParams struct {
 	ID          string `url:"id"`
 	WorkspaceID string `url:"workspace_id"`
-}
-
-// RevokeToolApprovalGrant Revoke one remembered native-tool approval decision in one workspace
-func (c *Client) RevokeToolApprovalGrant(ctx context.Context, params RevokeToolApprovalGrantParams) error {
-	path := "/api/tool-approval-grants/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace_id", params.WorkspaceID)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// RewindSessionConversationParams carries the path, query, and header parameters.
-type RewindSessionConversationParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

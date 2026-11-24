@@ -119,6 +119,36 @@ func TestDaemonSSHSetup(t *testing.T) {
 			t.Fatalf("after link recovery, computers = %d, consumed slots = %d", computers, consumed)
 		}
 	})
+	t.Run("Should install a gated SSH host and recover its committed link (IT-100)", func(t *testing.T) {
+		// Safety Invariants 7, 12 and 14: a fresh daemon can accept the token during signed-out bootstrap.
+		gated := remotetest.WithRequiredSignInSSHBinary(t, "../../..", assets)
+		j := newSSHJourney(t, gated)
+		host := j.host(t, "")
+		host.Command(t, "touch", sshFixtureHome+"/fixture-drop-link")
+		writeSSHFixtureFile(t, j.config, j.hostEntry("testhost", host))
+		d, _ := j.controller(t)
+		signInSSHController(t, j.cloud, d)
+		fingerprint := ssh.FingerprintSHA256(host.HostKey(t))
+		id := startSSHSetup(t, d, "testhost", fingerprint)
+		expectSSHSetupFailure(t, d, id, sshsetup.StepLink, "computer_setup_interrupted")
+		assertSSHUserService(t, host)
+		remote := parseSSHJSON[contract.RemoteStatusResponse](t, host.CLI(t, "remote", "status", "--json"))
+		db := host.Command(t, "curl", "--fail", "--silent", "--unix-socket",
+			sshFixtureHome+"/.compozy/daemon.sock", "http://localhost/api/account")
+		status := parseSSHJSON[contract.AccountStatusResponse](t, db)
+		if remote.ComputerID == "" || !status.SignedIn || status.Source == nil || *status.Source != "link" ||
+			status.Gate != "enforced" {
+			t.Fatalf("release SSH bootstrap = %s, account = %+v", remote.ComputerID, status)
+		}
+		if resumed := startSSHSetup(t, d, "testhost", fingerprint); resumed != id {
+			t.Fatalf("restarted setup = %s, want %s", resumed, id)
+		}
+		done := waitSSHSetup(t, d, id, sshsetup.StepDone)
+		if done.ComputerID == nil || *done.ComputerID != remote.ComputerID {
+			t.Fatalf("setup did not adopt the linked host: %+v", done)
+		}
+	})
+
 }
 
 func testSSHTrust(t *testing.T, assets remotetest.SSHAssets) {

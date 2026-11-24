@@ -12,24 +12,29 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/remoteproto"
-	"github.com/compozy/compozy/internal/version"
 	"github.com/gin-gonic/gin"
 )
 
 func AccountStatus(installation account.Installation) contract.AccountStatusResponse {
 	status := contract.AccountStatusResponse{
-		Gate:     "off",
+		Gate:     installation.Gate,
 		State:    installation.State,
 		Source:   optionalAccountString(installation.Source),
 		SignedIn: installation.State == account.SignedIn,
 		SignedOutReason: optionalAccountString(
 			installation.SignedOutReason,
 		),
-		PreAccountInstall: installation.PreAccountInstall,
-		RecentSignIns:     []contract.AccountSignInNotice{},
+		PreAccountInstall:  installation.PreAccountInstall,
+		InstallationLinked: installation.InstallationLinked,
+		TokenName:          optionalAccountString(installation.TokenName),
+		RecentSignIns:      []contract.AccountSignInNotice{},
 	}
-	if version.SignInRequired == "true" {
-		status.Gate = "enforced"
+	if status.Gate == "" {
+		status.Gate = account.GateOff
+	}
+	if installation.Grace != nil {
+		grace := *installation.Grace
+		status.Grace = new(contract.AccountGrace(grace))
 	}
 	if !status.SignedIn {
 		return status
@@ -57,6 +62,12 @@ func optionalAccountString(value string) *string {
 func (h *BaseHandlers) GetAccount(c *gin.Context) {
 	if !h.accountReady(c) {
 		return
+	}
+	if c.Query("refresh") == "true" {
+		if err := h.Account.RefreshProfile(c.Request.Context()); err != nil {
+			h.accountResult(c, http.StatusOK, nil, err)
+			return
+		}
 	}
 	c.JSON(http.StatusOK, AccountStatus(h.Account.Status()))
 }
@@ -90,7 +101,7 @@ func (h *BaseHandlers) LogoutAccount(c *gin.Context) {
 		c,
 		http.StatusOK,
 		contract.AccountLogoutResponse{State: account.SignedOut},
-		h.Account.Logout(c.Request.Context()),
+		h.logoutInstallation(c.Request.Context(), input.Unlink),
 	)
 }
 

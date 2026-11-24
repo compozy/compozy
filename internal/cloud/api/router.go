@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/cloud/observe"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
@@ -74,6 +75,10 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	if r.metrics != nil || r.reporter != nil {
 		w = &observedResponse{ResponseWriter: w, router: r, request: req}
+	}
+	if rejectAccountTokenOutsideExchange(req) {
+		WriteAuthError(w, auth.AccountTokenRouteError())
+		return
 	}
 	r.mux.ServeHTTP(w, req)
 }

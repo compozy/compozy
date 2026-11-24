@@ -10,13 +10,6 @@ func WithRemoteHost(service core.RemoteHostService) Option {
 	return func(server *Server) { server.remote = service }
 }
 
-func registerRemoteHostRoutes(api gin.IRouter, handlers *Handlers) {
-	routes := api.Group("/remote")
-	routes.GET("", handlers.RemoteStatus)
-	routes.PATCH("", handlers.PatchRemoteStatus)
-	routes.POST("/link", handlers.LinkRemote)
-	routes.DELETE("/link", handlers.UnlinkRemote)
-	routes.GET("/devices", handlers.ListRemoteDevices)
-	routes.PATCH("/devices/:id", handlers.PatchRemoteDevice)
-	routes.DELETE("/devices/:id", handlers.RevokeRemoteDevice)
+func registerRemoteHostRoutes(api gin.IRouter, handlers *Handlers, signIn *core.SignInRoutes) {
+	core.RegisterRemoteHostRoutes(api.Group("/remote"), handlers.BaseHandlers, signIn)
 }

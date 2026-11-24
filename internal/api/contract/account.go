@@ -13,6 +13,7 @@ const (
 	AccountLogoutPath               = AccountPath + "/logout"
 	AccountSignInEventsPath         = AccountPath + "/sign-in/events"
 	AccountCheckoutPath             = AccountPath + "/checkout"
+	AccountTokensPath               = AccountPath + "/tokens"
 	AccountDismissSignInNoticesPath = AccountPath + "/sign-in-notices/dismiss"
 	SignInProgressEvent             = "sign_in.progress"
 	AccountStateEvent               = "account.state"
@@ -64,12 +65,20 @@ type AccountCLIStatus struct {
 	CloudRoutesUsed      int64                 `json:"cloud_routes_used"`
 	CloudRoutesLimit     int64                 `json:"cloud_routes_limit"`
 	Device               *AccountDeviceSummary `json:"device"`
+	TokenName            *string               `json:"token_name,omitempty"`
 }
 
 func (status AccountStatusResponse) CLIStatus() AccountCLIStatus {
-	result := AccountCLIStatus{Email: status.Email, Plan: status.Plan, Device: status.Device,
-		RemoteComputersUsed: status.RemoteComputersUsed, RemoteComputersLimit: status.RemoteComputersLimit,
-		CloudRoutesUsed: status.CloudRoutesUsed, CloudRoutesLimit: status.CloudRoutesLimit}
+	result := AccountCLIStatus{
+		Email:                status.Email,
+		Plan:                 status.Plan,
+		Device:               status.Device,
+		TokenName:            status.TokenName,
+		RemoteComputersUsed:  status.RemoteComputersUsed,
+		RemoteComputersLimit: status.RemoteComputersLimit,
+		CloudRoutesUsed:      status.CloudRoutesUsed,
+		CloudRoutesLimit:     status.CloudRoutesLimit,
+	}
 	if !status.SignedIn {
 		result.State = status.State
 	}
@@ -102,9 +111,10 @@ type AccountStatePayload struct {
 }
 
 type AccountSignInProgress struct {
-	AttemptID string `json:"attempt_id"`
-	State     string `json:"state"`
-	Code      string `json:"code,omitempty"`
+	AttemptID  string `json:"attempt_id"`
+	State      string `json:"state"`
+	Code       string `json:"code,omitempty"`
+	NewAccount bool   `json:"new_account,omitempty"`
 }
 
 type AccountDevicesResponse struct {

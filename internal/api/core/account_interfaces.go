@@ -9,6 +9,9 @@ import (
 
 type AccountService interface {
 	Status() account.Installation
+	RefreshProfile(context.Context) error
+	AdmitNewWork() error
+	OperatorLifetime() context.Context
 	StartLoginWithConsent(context.Context, string, bool) (account.Login, error)
 	SetMarketingConsent(context.Context, bool, string) (account.Installation, error)
 	DeleteAccount(context.Context, string) (remoteproto.AccountDeleteResponse, error)
@@ -25,6 +28,9 @@ type AccountService interface {
 	DecideApproval(context.Context, string, bool) (remoteproto.ApprovalDelivery, error)
 	Checkout(context.Context, string) (string, error)
 	BillingPortal(context.Context) (string, error)
+	AccountTokens(context.Context) (remoteproto.AccountTokenList, error)
+	CreateToken(context.Context, string) (remoteproto.AccountTokenCreated, error)
+	RevokeToken(context.Context, string) error
 }
 
 var _ AccountService = (*account.Service)(nil)

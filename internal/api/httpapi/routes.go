@@ -17,30 +17,40 @@ func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 		return
 	}
 
+	signIn := core.NewSignInRoutes(router, handlers.BaseHandlers)
 	api := router.Group("/api")
 	api.Use(handlers.WorkspaceReferenceGuard)
 	api.Use(localListenerTierMiddleware())
-	registerWebhookRoutes(api, handlers)
-	api.GET("/mcp/oauth/callback", handlers.completeMCPAuthCallback)
+	signIn.RequireSignedIn(core.SignInAnonymous, func() { registerWebhookRoutes(api, handlers) })
+	signIn.RequireSignedIn(core.SignInLocal, func() {
+		api.GET("/mcp/oauth/callback", handlers.completeMCPAuthCallback)
+	})
 	api.Use(browserRequestProtectionMiddleware(handlers.boundHost))
 
 	if !isLoopbackHost(canonicalHost(handlers.boundHost)) {
 		api = api.Group("", loopbackAPIGuard(handlers.boundHost))
 	}
 
-	registerAppSDKRoutes(api, handlers)
-	registerAccountRoutes(api, handlers)
-	registerRemoteHostRoutes(api, handlers)
-	core.RegisterIngressRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
-	core.RegisterComputerRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
-	router.Any(core.ComputerBridgeRoute,
-		localListenerTierMiddleware(), browserRequestProtectionMiddleware(handlers.boundHost),
-		loopbackAPIGuard(handlers.boundHost), handlers.privilegedMutationGuard(), handlers.BridgeComputer)
-	registerOperatorRoutes(operatorRouteGroups{router: api}, handlers, true)
-	registerAgentKernelRoutes(api, handlers)
-	registerResourceRoutes(api, handlers)
-	registerGatewayRedeemRoute(api, handlers)
-	registerGatewayManagementRoutes(api, handlers, false)
+	operator := operatorRouteGroups{router: api}
+	signIn.RequireSignedIn(core.SignInAnonymous, func() { registerSignedOutOperatorRoutes(operator, handlers) })
+	signIn.RequireSignedIn(core.SignInLocal, func() {
+		registerAppSDKRoutes(api, handlers)
+		core.RegisterIngressRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
+		registerOperatorRoutes(operator, handlers, true)
+		registerResourceRoutes(api, handlers)
+		registerGatewayRedeemRoute(api, handlers)
+		registerGatewayManagementRoutes(api, handlers, false)
+	})
+	signIn.RequireSignedIn(core.SignInAccount, func() {
+		core.RegisterComputerRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
+		router.Any(core.ComputerBridgeRoute,
+			localListenerTierMiddleware(), browserRequestProtectionMiddleware(handlers.boundHost),
+			loopbackAPIGuard(handlers.boundHost), handlers.privilegedMutationGuard(), handlers.BridgeComputer)
+	})
+	registerAccountRoutes(api, handlers, signIn)
+	registerRemoteHostRoutes(api, handlers, signIn)
+	core.RegisterAgentKernelRoutes(api, handlers.BaseHandlers, signIn)
+	signIn.Validate()
 
 	if engine, ok := router.(*gin.Engine); ok {
 		engine.NoRoute(handlers.serveStaticRoute)
@@ -49,9 +59,6 @@ func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 
 func registerStatusRoutes(api operatorRouteGroups, handlers *Handlers) {
 	api.group("/host", remoteproto.ScopeSessions).GET("/resources", handlers.GetHostResources)
-	status := api.group("/status", remoteproto.ScopeSessions)
-	status.GET("", handlers.GetStatus)
-	status.GET("/identity", handlers.GetRuntimeIdentity)
 	diagnostics := api.group("", remoteproto.ScopeSettings)
 	diagnostics.GET("/doctor", handlers.GetDoctor)
 	privileged := handlers.privilegedMutationGuard()
@@ -343,10 +350,6 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.POST("/reload", privileged, handlers.ReloadSettings)
 	settings.GET("/general", handlers.GetSettingsGeneral)
 	settings.GET("/persona", handlers.GetSettingsPersona)
-	settings.GET("/update", handlers.GetSettingsUpdate)
-	settings.POST("/update/check", privileged, handlers.CheckSettingsUpdate)
-	settings.POST("/update/apply", privileged, handlers.ApplySettingsUpdate)
-	settings.POST("/update/cancel", privileged, handlers.CancelSettingsUpdate)
 	settings.PATCH("/general", privileged, handlers.UpdateSettingsGeneral)
 	settings.PATCH("/persona", privileged, handlers.UpdateSettingsPersona)
 	settings.GET("/roles", handlers.GetSettingsRoles)
@@ -386,10 +389,6 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.GET("/hooks", handlers.ListSettingsHooks)
 	settings.PUT("/hooks/:name", privileged, handlers.PutSettingsHook)
 	settings.DELETE("/hooks/:name", privileged, handlers.DeleteSettingsHook)
-
-	actions := settings.Group("/actions")
-	actions.POST("/restart", privileged, handlers.TriggerSettingsRestart)
-	actions.GET("/restart/:operation_id", handlers.GetSettingsRestartStatus)
 }
 
 func registerSettingsMCPRoutes(settings gin.IRouter, handlers *Handlers, privileged gin.HandlerFunc) {

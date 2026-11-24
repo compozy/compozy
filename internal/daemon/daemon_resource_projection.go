@@ -53,6 +53,7 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 			automationpkg.WithDispatcherOptions(
 				automationpkg.WithDispatcherInstanceEvents(deps.InstanceEvents),
 				automationpkg.WithDispatcherLocalExecution(d.checkLocalExecution),
+				automationpkg.WithDispatcherSignInWait(deps.WaitForSignIn),
 			),
 			automationpkg.WithStore(deps.Store),
 			automationpkg.WithSessions(deps.Sessions),
@@ -62,6 +63,11 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 			automationpkg.WithHooks(deps.Hooks),
 			automationpkg.WithWebhookSecretStore(deps.WebhookSecrets),
 			automationpkg.WithLogger(deps.Logger),
+		}
+		if d.automationClock != nil {
+			managerOpts = append(managerOpts, automationpkg.WithSchedulerOptions(
+				automationpkg.WithSchedulerClock(d.automationClock),
+			))
 		}
 		if loopStarter != nil {
 			managerOpts = append(managerOpts, automationpkg.WithLoopStarter(loopStarter))

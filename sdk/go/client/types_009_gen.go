@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// ForkSessionWorktreeRequest is a daemon API value.
+type ForkSessionWorktreeRequest struct {
+	Worktree    string                     `json:"worktree,omitempty"`
+	NewWorktree *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
+	Confirmed   bool                       `json:"confirmed"`
+}
+
+// FormBody is a daemon API value.
+type FormBody struct {
+	Fields   []FormField `json:"fields"`
+	Submit   *RowAction  `json:"submit,omitempty"`
+	OnSubmit string      `json:"on_submit,omitempty"`
+}
+
 // FormField is a daemon API value.
 type FormField struct {
 	ID          string            `json:"id"`
@@ -432,15 +446,4 @@ type GoalVerdictSummary struct {
 	BlockingIssues []GoalBlockingIssue `json:"blocking_issues"`
 	EvidenceRef    *string             `json:"evidence_ref"`
 	EvaluatedAt    time.Time           `json:"evaluated_at"`
-}
-
-// Graph is a daemon API value.
-type Graph struct {
-	Nodes []Node `json:"nodes"`
-	Edges []Edge `json:"edges"`
-}
-
-// GridBody is a daemon API value.
-type GridBody struct {
-	Sections []GridSection `json:"sections"`
 }

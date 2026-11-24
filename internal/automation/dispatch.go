@@ -250,6 +250,7 @@ type Dispatcher struct {
 	loopStarter    LoopStarter
 	instanceEvents InstanceEventSink
 	localExecution func() error
+	waitForSignIn  func(context.Context) error
 
 	logger *slog.Logger
 	now    func() time.Time

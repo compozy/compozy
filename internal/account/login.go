@@ -21,6 +21,7 @@ type loginAttempt struct {
 	grant          remoteproto.DeviceFlowResponse
 	expires        time.Time
 	marketingOptIn bool
+	newAccount     bool
 }
 
 func (s *Service) StartLogin(ctx context.Context, provider string) (Login, error) {
@@ -42,7 +43,12 @@ func (s *Service) StartLoginWithConsent(ctx context.Context, provider string, ma
 	}
 	s.cancelAttemptLocked()
 	attemptCtx, cancel := context.WithCancel(s.ctx)
-	a := &loginAttempt{id: "att_" + uuid.New().String(), ctx: attemptCtx, cancel: cancel, marketingOptIn: marketingOptIn}
+	a := &loginAttempt{
+		id:             "att_" + uuid.New().String(),
+		ctx:            attemptCtx,
+		cancel:         cancel,
+		marketingOptIn: marketingOptIn,
+	}
 	s.attempt = a
 	input := remoteproto.DeviceFlowRequest{Provider: provider, ClientName: s.name, ClientPlatform: s.platform,
 		InstallationID: s.installation.InstallationID}
@@ -178,6 +184,7 @@ func (s *Service) enrollLogin(a *loginAttempt, result remoteproto.DeviceFlowToke
 		return
 	}
 	s.sendProgressLocked(SignInEvent{AttemptID: a.id, State: "authorized"})
+	a.newAccount = result.NewAccount
 	installationID := s.installation.InstallationID
 	s.mu.Unlock()
 	var replaced bool
@@ -234,6 +241,9 @@ func (s *Service) loginKey(a *loginAttempt, id string, replace bool) (*ecdsa.Pri
 	if id == "" {
 		return nil, errKeyring
 	}
+	if s.linkedAccountID != "" && s.linkedAccountID != id {
+		return nil, linkedAccountConflict(s.linkedEmail)
+	}
 	if replace {
 		if err := s.credentials.remove(deviceKeyEntry, id); err != nil {
 			return nil, err
@@ -268,7 +278,8 @@ func (s *Service) finishEnrollment(
 		s.finishAttempt(a, "failed", "account_operation_failed")
 		return
 	}
-	profile, err := s.cloud.Account(a.ctx, cloudclient.Credentials{Key: key, AccessToken: session.access})
+	creds := cloudclient.Credentials{Key: key, AccessToken: session.access}
+	profile, err := s.cloud.Account(a.ctx, creds)
 	if err != nil {
 		profile = remoteproto.AccountSummary{Email: result.Email,
 			Device: remoteproto.AccountDevice{ID: device.DeviceID, Name: s.name, Admin: device.Admin}}
@@ -298,8 +309,12 @@ func (s *Service) commitLogin(
 	if !s.loginCurrentLocked(a) {
 		return nil, errCancelled
 	}
+	if s.linkedAccountID != "" && s.linkedAccountID != id {
+		return nil, linkedAccountConflict(s.linkedEmail)
+	}
 	next := s.installation
 	previousID := next.AccountID
+	previousSource := next.Source
 	if profile.Plan == "" && previousID == id {
 		profile.AccountPlan = next.Profile.AccountPlan
 	}
@@ -311,6 +326,7 @@ func (s *Service) commitLogin(
 		return nil, err
 	}
 	next.State, next.Source, next.AccountID, next.SignedOutReason = SignedIn, "session", id, ""
+	next.TokenName = ""
 	next.Profile, next.LastValidatedAt = profile, now
 	if previousID != id {
 		next.SignInNoticesDismissedAt = time.Time{}
@@ -318,7 +334,16 @@ func (s *Service) commitLogin(
 	if err := s.transitionLocked(s.ctx, next, session); err != nil {
 		return nil, errors.Join(err, s.restoreRefresh(id, oldRefresh))
 	}
-	if previousID != "" && previousID != id {
+	s.token = ""
+	if previousSource == "token" {
+		if err := s.credentials.remove(tokenEntry, next.InstallationID); err != nil {
+			s.logger.Warn("previous account token could not be removed", "code", cloudclient.FailureCode(err))
+		}
+	}
+	if s.linkedAccountID == id {
+		s.linkedEmail = profile.Email
+	}
+	if previousSource == "session" && previousID != "" && previousID != id {
 		if err := s.credentials.remove(refreshEntry, previousID); err != nil {
 			s.logger.Warn("previous account credential could not be removed", "code", cloudclient.FailureCode(err))
 		}
@@ -368,7 +393,8 @@ func (s *Service) finishAttempt(a *loginAttempt, state, code string) {
 func (s *Service) endAttemptLocked(a *loginAttempt, state, code string) {
 	s.attempt = nil
 	a.cancel()
-	s.sendProgressLocked(SignInEvent{AttemptID: a.id, State: state, Code: code})
+	s.sendProgressLocked(SignInEvent{AttemptID: a.id, State: state, Code: code,
+		NewAccount: state == string(SignedIn) && a.newAccount})
 }
 
 func temporary(err error) bool {

@@ -50,6 +50,10 @@ Use `compozy__computer_setup_cancel` with `setup_id` on the controller where set
 
 Use `compozy account login` to sign in through the browser. Show the activation URL and code to the operator and let them approve the grant. Use `compozy account status --json` or `compozy__account_status` to read the account, plan usage, and current device. Use `compozy account logout` to end the session on this computer. `compozy account upgrade --annual` opens annual checkout when billing is available.
 
+Release builds report a local gate of `enforced`, `grace`, or `off` in `GET /api/account`. If an operator action returns `sign_in_required`, direct the operator to `compozy account login`. During grace, local work can start until the reported deadline. Computers, devices and billing still require an account. For a linked host, sign out with `compozy account logout --unlink`.
+
+On CI, provide a named account token through the launcher's `COMPOZY_ACCOUNT_TOKEN` secret. Operators create one with `compozy account token create --name ci`. Keep its one-time value out of logs and tool results. The only cloud endpoint that accepts it is `POST /v1/account-tokens/exchange`. Remote and billing operations return `account_token_local_only`.
+
 Local HTTP and UDS expose the same `/api/account` routes for sign-in, status, devices, approvals, and billing. Subscribe to `GET /api/account/sign-in/events` before starting a login. It carries attempt progress and state without account details. Follow `GET /api/account/stream` after sign-in. On `stream_reset`, read current status and approvals before following changes again.
 
 Use `POST /api/account/checkout` with `{"interval":"year"}` or `{"interval":"month"}` and give the operator its Stripe URL. Follow `account.changed` for `plan` and `payment_issue`, including when remote access is off. `POST /api/account/billing-portal` returns the URL for payment methods, interval changes, and renewal cancellation. Use `GET /api/account` for the current subscription and `refund_eligible_until`.
@@ -82,7 +86,7 @@ Keep link tokens, grants, computer key proofs and private keys out of logs and t
 
 Use `compozy remote link` to link this computer and turn on its remote access. Use the printed activation URL and user code if sign-in is needed. SSH setup pipes the single-use link token to `compozy remote link --token-stdin`.
 
-Read status with `compozy remote status --json` or `compozy__remote_status`. The tool is local to this computer and has no remote scope. Use `compozy remote disable` to close the listeners and keep the account link, `compozy remote enable` to reopen them, and `compozy remote unlink` to remove the account link and directory entry. Unlinking uses a device session from the linked account.
+Read status with `compozy remote status --json` or `compozy__remote_status`. The tool is local to this computer and has no remote scope. Use `compozy remote disable` to close the listeners and keep the account link, `compozy remote enable` to reopen them, and `compozy remote unlink` to remove the account link and directory entry. A linked host revalidates its account link daily, including when its remote listeners are off.
 
 The same operations are available over HTTP and UDS under `/api/remote`. Use `compozy remote devices list --json` to read effective scopes for devices that opened a session or requested approval on this computer. Narrow one device with `compozy remote devices scopes <device> --set <scopes>`. Approve or deny a pending key with `compozy remote devices approve|deny <device>`, using `--approval-id` to choose among multiple pending keys. `compozy remote devices revoke <device>` revokes that device on the account.
 

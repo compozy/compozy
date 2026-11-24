@@ -95,19 +95,55 @@ func accountIdentityOperations() []OperationSpec {
 func accountLifecycleOperations() []OperationSpec {
 	return []OperationSpec{
 		accountOperation(
-			http.MethodPatch, contract.AccountPath, "patchAccountEmail", "Update the product news preference",
+			http.MethodPatch,
+			contract.AccountPath,
+			"patchAccountEmail",
+			"Update the product news preference",
 			contract.AccountEmailPatchRequest{},
-			ResponseSpec{Status: http.StatusOK, Description: "Updated installation account", Body: contract.AccountStatusResponse{}},
+			ResponseSpec{
+				Status:      http.StatusOK,
+				Description: "Updated installation account",
+				Body:        contract.AccountStatusResponse{},
+			},
 		),
 		accountOperation(
-			http.MethodDelete, contract.AccountPath, "deleteAccount", "Start account deletion and sign out",
+			http.MethodDelete,
+			contract.AccountPath,
+			"deleteAccount",
+			"Start account deletion and sign out",
 			contract.AccountDeleteRequest{},
-			ResponseSpec{Status: http.StatusAccepted, Description: "Deletion started", Body: contract.AccountDeleteResponse{}},
+			ResponseSpec{
+				Status:      http.StatusAccepted,
+				Description: "Deletion started",
+				Body:        contract.AccountDeleteResponse{},
+			},
 		),
 		accountOperation(
 			http.MethodPost, contract.AccountDismissSignInNoticesPath, "dismissAccountSignInNotices",
 			"Dismiss sign-in notices on this installation", nil,
 			ResponseSpec{Status: http.StatusNoContent, Description: "Notices dismissed"},
+		),
+		accountOperation(http.MethodGet, contract.AccountTokensPath, "listAccountTokens", "List account tokens", nil,
+			ResponseSpec{Status: http.StatusOK, Body: remoteproto.AccountTokenList{}, Description: "Account tokens"}),
+		accountOperation(
+			http.MethodPost,
+			contract.AccountTokensPath,
+			"createAccountToken",
+			"Create an account token for local use",
+			remoteproto.AccountTokenCreate{},
+			ResponseSpec{
+				Status:      http.StatusCreated,
+				Body:        remoteproto.AccountTokenCreated{},
+				Description: "One-time account token",
+			},
+		),
+		accountOperation(
+			http.MethodDelete,
+			contract.AccountTokensPath+"/{id}",
+			"revokeAccountToken",
+			"Revoke an account token",
+			nil,
+			ResponseSpec{Status: http.StatusNoContent, Description: "Account token revoked"},
 		),
 	}
 }
@@ -241,6 +277,9 @@ func accountOperation(method, path, id, summary string, request any, success Res
 	}
 	if strings.Contains(path, "{id}") {
 		operation.Parameters = []ParameterSpec{pathParam("id", "Account resource ID")}
+	}
+	if id == "getAccount" {
+		operation.Parameters = []ParameterSpec{boolQueryParam("refresh", "Refresh account details from Compozy Cloud")}
 	}
 	if id == "cancelAccountLogin" {
 		operation.Parameters = []ParameterSpec{queryParam("attempt_id", "Cancel only the named sign-in attempt", false)}

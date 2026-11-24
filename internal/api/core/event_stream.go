@@ -53,6 +53,7 @@ func (h *BaseHandlers) prepareEventStream(c *gin.Context) (FlushWriter, func(), 
 	var workers sync.WaitGroup
 	cleanup := func() {
 		cancel()
+		h.closeEventStreamForSignIn(ctx, connection)
 		if err := connection.Close(); err != nil && !errors.Is(err, net.ErrClosed) && h.Logger != nil {
 			h.Logger.Debug("api: close event stream", "error", err)
 		}
@@ -96,6 +97,12 @@ func (h *BaseHandlers) prepareEventStream(c *gin.Context) (FlushWriter, func(), 
 		}
 	})
 	return socket, cleanup, true
+}
+
+func (h *BaseHandlers) closeEventStreamForSignIn(ctx context.Context, connection *websocket.Conn) {
+	if err := closeForSignIn(ctx, connection); err != nil && h.Logger != nil {
+		h.Logger.Debug("api: sign-in stream close frame failed", "error", err)
+	}
 }
 
 // ShutdownEventStreams joins upgraded streams, which net/http cannot drain.

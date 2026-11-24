@@ -20,6 +20,9 @@ type LinkResult struct {
 }
 
 func (h *Host) Link(ctx context.Context, token string) (LinkResult, error) {
+	if h.account.Status().Source == "token" {
+		return LinkResult{}, account.ErrTokenLocalOnly
+	}
 	if token == "" && h.account.Status().State != account.SignedIn && h.Status().ComputerID == "" {
 		return h.beginLinkLogin(ctx)
 	}
@@ -95,7 +98,11 @@ func (h *Host) registerComputer(ctx context.Context, token string) (Identity, er
 	}
 	h.forgetUnlinkedLocked()
 	if h.identity.ComputerID != "" {
-		return h.existingLink(token)
+		identity, err := h.existingLink(token)
+		if err == nil {
+			err = h.account.CommitHostLink(ctx, identity.AccountID, "", nil)
+		}
+		return identity, err
 	}
 	keys, err := loadHostKeys(h.account, Identity{}, h.opts.Now())
 	if err != nil {
@@ -125,10 +132,16 @@ func (h *Host) registerComputer(ctx context.Context, token string) (Identity, er
 		TLSLeafNotAfter: certificate.Leaf.NotAfter, LinkedAt: h.opts.Now().UTC()}
 	save, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	if err := h.store.SaveRemoteIdentity(save, identity); err != nil {
+	if err := h.account.CommitHostLink(save, identity.AccountID, reply.Email, func() error {
+		if err := h.store.SaveRemoteIdentity(save, identity); err != nil {
+			return err
+		}
+		h.identity = identity
+		return nil
+	}); err != nil {
 		return Identity{}, err
 	}
-	h.identity = identity
+	h.wakeRevalidation()
 	return identity, nil
 }
 
@@ -156,6 +169,10 @@ func (h *Host) submitLink(
 	keys hostKeys,
 ) (cloudclient.ComputerLink, error) {
 	if request.LinkToken != "" {
+		current := h.account.Status()
+		if current.State == account.SignedIn {
+			request.ExpectedAccountID = current.AccountID
+		}
 		if err := h.account.PutHostSecret(linkDigestRef, HashCredential(request.LinkToken)); err != nil {
 			return cloudclient.ComputerLink{}, err
 		}
@@ -191,20 +208,50 @@ func (h *Host) unlink(ctx context.Context) error {
 	if identity.ComputerID == "" {
 		return nil
 	}
-	if err := h.account.UseDevice(ctx, func(ctx context.Context, creds cloudclient.Credentials) error {
-		if h.account.Status().AccountID != identity.AccountID {
-			return account.ErrSignInRequired
-		}
-		return h.cloud.UnlinkComputer(ctx, identity.ComputerID, creds)
-	}); err != nil && cloudclient.FailureCode(err) != "computer_not_found" {
+	if err := h.unlinkAtCloud(ctx, identity); err != nil && !alreadyUnlinked(err) {
 		return err
 	}
+	return h.clearLinkedComputer(ctx, identity, "signed_out")
+}
+
+func (h *Host) unlinkAtCloud(ctx context.Context, identity Identity) error {
+	current := h.account.Status()
+	if current.Source == "session" {
+		return h.account.UseDevice(ctx, func(ctx context.Context, creds cloudclient.Credentials) error {
+			if h.account.Status().AccountID != identity.AccountID {
+				return account.ErrSignInRequired
+			}
+			return h.cloud.UnlinkComputer(ctx, identity.ComputerID, creds)
+		})
+	}
+	keys, err := loadHostKeys(h.account, identity, h.opts.Now())
+	if err != nil {
+		return err
+	}
+	return h.cloud.UnlinkComputerWithKey(ctx, identity.ComputerID, keys.signing)
+}
+
+func alreadyUnlinked(err error) bool {
+	switch cloudclient.FailureCode(err) {
+	case "computer_not_found", "computer_unlinked":
+		return true
+	case "reauth_required":
+		failure, ok := errors.AsType[*cloudclient.Failure](err)
+		return ok && (failure.Reason == "computer_unlinked" || failure.Reason == "account_deleted")
+	}
+	return false
+}
+
+func (h *Host) clearLinkedComputer(ctx context.Context, identity Identity, reason string) error {
 	if h.run != nil {
 		h.run.authority.retire()
 	}
 	h.stopLocked()
 	save, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
+	if err := h.account.ObserveHostLink(save, identity.AccountID, reason); err != nil {
+		return err
+	}
 	if err := h.store.WriteRemote(
 		save,
 		func(ctx context.Context, tx Tx) error { return tx.ClearLink(ctx) },
@@ -213,6 +260,7 @@ func (h *Host) unlink(ctx context.Context) error {
 	}
 	h.deleteKeys(save, identity)
 	h.identity = Identity{}
+	h.wakeRevalidation()
 	return nil
 }
 

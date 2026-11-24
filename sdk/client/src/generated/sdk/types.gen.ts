@@ -168,6 +168,26 @@ export type AccountSubscription = {
   source: string;
 };
 
+export type AccountToken = {
+  id: string;
+  last_used_at: string | null;
+  name: string;
+};
+
+export type AccountTokenCreate = {
+  name: string;
+};
+
+export type AccountTokenCreated = {
+  id: string;
+  name: string;
+  token: string;
+};
+
+export type AccountTokenList = {
+  tokens: Array<AccountToken>;
+};
+
 export type AcknowledgeAttentionRequest = {
   id?: string;
   snapshot: string;
@@ -14627,7 +14647,12 @@ export type DeleteAccountResponse = DeleteAccountResponses[keyof DeleteAccountRe
 export type GetAccountData = {
   body?: never;
   path?: never;
-  query?: never;
+  query?: {
+    /**
+     * Refresh account details from Compozy Cloud
+     */
+    refresh?: boolean;
+  };
   url: "/api/account";
 };
 
@@ -15367,6 +15392,164 @@ export type DismissAccountSignInNoticesResponses = {
 
 export type DismissAccountSignInNoticesResponse =
   DismissAccountSignInNoticesResponses[keyof DismissAccountSignInNoticesResponses];
+
+export type ListAccountTokensData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account/tokens";
+};
+
+export type ListAccountTokensErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListAccountTokensError = ListAccountTokensErrors[keyof ListAccountTokensErrors];
+
+export type ListAccountTokensResponses = {
+  /**
+   * Account tokens
+   */
+  200: AccountTokenList;
+};
+
+export type ListAccountTokensResponse =
+  ListAccountTokensResponses[keyof ListAccountTokensResponses];
+
+export type CreateAccountTokenData = {
+  /**
+   * JSON request body
+   */
+  body: AccountTokenCreate;
+  path?: never;
+  query?: never;
+  url: "/api/account/tokens";
+};
+
+export type CreateAccountTokenErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CreateAccountTokenError = CreateAccountTokenErrors[keyof CreateAccountTokenErrors];
+
+export type CreateAccountTokenResponses = {
+  /**
+   * One-time account token
+   */
+  201: AccountTokenCreated;
+};
+
+export type CreateAccountTokenResponse =
+  CreateAccountTokenResponses[keyof CreateAccountTokenResponses];
+
+export type RevokeAccountTokenData = {
+  body?: never;
+  path: {
+    /**
+     * Account resource ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/account/tokens/{id}";
+};
+
+export type RevokeAccountTokenErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RevokeAccountTokenError = RevokeAccountTokenErrors[keyof RevokeAccountTokenErrors];
+
+export type RevokeAccountTokenResponses = {
+  /**
+   * Account token revoked
+   */
+  204: void;
+};
+
+export type RevokeAccountTokenResponse =
+  RevokeAccountTokenResponses[keyof RevokeAccountTokenResponses];
 
 export type ListAgentInstancesData = {
   body?: never;

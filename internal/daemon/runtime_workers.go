@@ -18,6 +18,7 @@ import (
 
 type daemonRuntimeWorkers struct {
 	account               *account.Service
+	signInRecovery        *ownedWorkerGroup
 	cloud                 *cloudclient.Client
 	remote                *remotehost.Host
 	computers             *computers.Registry
@@ -38,6 +39,8 @@ type daemonRuntimeWorkers struct {
 }
 
 func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
+	appendWrappedError(errs, "daemon: stop sign-in recovery",
+		stopOwnedWorker(ctx, "sign-in recovery", w.signInRecovery))
 	if w.computers != nil {
 		w.computers.Close()
 	}

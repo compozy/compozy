@@ -30,25 +30,12 @@ func (r *AccountRepo) ReadInstallationAccount(ctx context.Context) (account.Inst
 			return account.Installation{}, err
 		}
 	}
-	var validatedAt time.Time
-	if row.LastValidatedAt.Valid {
-		validatedAt, err = time.Parse(time.RFC3339Nano, row.LastValidatedAt.String)
-		if err != nil {
-			return account.Installation{}, fmt.Errorf("read installation account validation time: %w", err)
-		}
-	}
-	var dismissedAt time.Time
-	if row.SignInNoticesDismissedAt.Valid {
-		dismissedAt, err = time.Parse(time.RFC3339Nano, row.SignInNoticesDismissedAt.String)
-		if err != nil {
-			return account.Installation{}, fmt.Errorf("read notice dismissal timestamp: %w", err)
-		}
-	}
-	return account.Installation{
+	result := account.Installation{
 		InstallationID: row.InstallationID, PreAccountInstall: row.PreAccountInstall == 1,
 		State: account.State(row.State), Source: row.Source.String, AccountID: row.AccountID.String,
-		SignedOutReason: row.SignedOutReason.String, AuthGeneration: row.AuthGeneration, LastValidatedAt: validatedAt,
-		SignInNoticesDismissedAt: dismissedAt,
+		SignedOutReason: row.SignedOutReason.String, AuthGeneration: row.AuthGeneration,
+		GatePolicyJWS: row.GatePolicyJws.String, GatePolicyKeys: row.GatePolicyKeys.String,
+		TokenName: row.TokenName.String,
 		Profile: remoteproto.AccountSummary{
 			AccountPlan: plan, Email: row.Email.String, Name: row.Name.String, Provider: row.Provider.String,
 			MarketingOptIn: row.MarketingOptIn == 1, Device: remoteproto.AccountDevice{
@@ -59,7 +46,23 @@ func (r *AccountRepo) ReadInstallationAccount(ctx context.Context) (account.Inst
 				Admin: row.DeviceAdmin.Int64 == 1,
 			},
 		},
-	}, nil
+	}
+	for _, field := range []struct {
+		value sql.NullString
+		dst   *time.Time
+	}{
+		{row.LastValidatedAt, &result.LastValidatedAt},
+		{row.GatePolicyFetchedAt, &result.GatePolicyFetchedAt},
+		{row.OfflineGraceStartedAt, &result.OfflineGraceStartedAt},
+		{row.SignInNoticesDismissedAt, &result.SignInNoticesDismissedAt},
+	} {
+		if field.value.Valid {
+			if *field.dst, err = store.ParseTimestamp(field.value.String); err != nil {
+				return account.Installation{}, fmt.Errorf("read installation account timestamp: %w", err)
+			}
+		}
+	}
+	return result, nil
 }
 
 func (r *AccountRepo) SaveInstallationAccount(
@@ -72,18 +75,28 @@ func (r *AccountRepo) SaveInstallationAccount(
 	}
 	profile := installation.Profile
 	params := sqlcgen.SaveInstallationAccountParams{
-		PreviousGeneration: previous, AuthGeneration: installation.AuthGeneration, State: string(installation.State),
-		Source: accountText(installation.Source), AccountID: accountText(installation.AccountID),
-		Email: accountText(profile.Email), Name: accountText(profile.Name), Provider: accountText(profile.Provider),
-		DeviceID: accountText(string(profile.Device.ID)), DeviceName: accountText(profile.Device.Name),
-		DeviceAdmin:    sql.NullInt64{Int64: accountBit(profile.Device.Admin), Valid: profile.Device.ID != ""},
-		MarketingOptIn: accountBit(profile.MarketingOptIn), SignedOutReason: accountText(installation.SignedOutReason),
-	}
-	if !installation.LastValidatedAt.IsZero() {
-		params.LastValidatedAt = accountText(store.FormatTimestamp(installation.LastValidatedAt))
-	}
-	if !installation.SignInNoticesDismissedAt.IsZero() {
-		params.SignInNoticesDismissedAt = accountText(store.FormatTimestamp(installation.SignInNoticesDismissedAt))
+		PreviousGeneration: previous,
+		AuthGeneration:     installation.AuthGeneration,
+		State:              string(installation.State),
+		Source:             accountText(installation.Source),
+		AccountID:          accountText(installation.AccountID),
+		Email:              accountText(profile.Email),
+		Name:               accountText(profile.Name),
+		Provider:           accountText(profile.Provider),
+		DeviceID:           accountText(string(profile.Device.ID)),
+		DeviceName:         accountText(profile.Device.Name),
+		DeviceAdmin:        sql.NullInt64{Int64: accountBit(profile.Device.Admin), Valid: profile.Device.ID != ""},
+		MarketingOptIn:     accountBit(profile.MarketingOptIn),
+		SignedOutReason:    accountText(installation.SignedOutReason),
+		LastValidatedAt:    accountText(store.FormatNullableTimestamp(installation.LastValidatedAt)),
+		GatePolicyJws: accountText(
+			installation.GatePolicyJWS,
+		),
+		GatePolicyKeys:           accountText(installation.GatePolicyKeys),
+		GatePolicyFetchedAt:      accountText(store.FormatNullableTimestamp(installation.GatePolicyFetchedAt)),
+		OfflineGraceStartedAt:    accountText(store.FormatNullableTimestamp(installation.OfflineGraceStartedAt)),
+		TokenName:                accountText(installation.TokenName),
+		SignInNoticesDismissedAt: accountText(store.FormatNullableTimestamp(installation.SignInNoticesDismissedAt)),
 	}
 	if profile.Plan != "" {
 		plan, err := json.Marshal(profile.AccountPlan)

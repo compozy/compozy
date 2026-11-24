@@ -132,10 +132,17 @@ func (r *controlRoutes) linkWithDevice(
 }
 
 func (r *controlRoutes) linkResponse(w http.ResponseWriter, req *http.Request, computer control.Computer, err error) {
+	var email string
+	if err == nil {
+		ctx, cancel := controlContext(req)
+		defer cancel()
+		email, err = r.config.Service.LinkedAccountEmail(ctx, computer.AccountID)
+	}
 	r.respond(w, req, http.StatusOK, struct {
 		ComputerID remoteproto.ComputerID `json:"computer_id"`
 		AccountID  string                 `json:"account_id"`
-	}{ComputerID: computer.ID, AccountID: computer.AccountID}, err)
+		Email      string                 `json:"email"`
+	}{ComputerID: computer.ID, AccountID: computer.AccountID, Email: email}, err)
 }
 
 func (r *controlRoutes) patchComputer(w http.ResponseWriter, req *http.Request) {

@@ -453,3 +453,89 @@ func assertListenerClosed(t *testing.T, address string) {
 		t.Fatalf("listener at %s accepted a connection", address)
 	}
 }
+
+func TestDaemonInstallationLinkIdentity(t *testing.T) {
+	root := t.TempDir()
+	t.Run("Should unlink on explicit logout and revalidate a disabled link-only host (IT-101)", func(t *testing.T) {
+		// Safety Invariant 14: a host link and an account session can never name different accounts.
+		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+		const email = "linked@example.test"
+		d, _ := startConfiguredDaemonAccount(
+			t,
+			f,
+			filepath.Join(root, "owner"),
+			daemonAccountBoot{signInRequired: true},
+		)
+		progress := d.stream(t, contract.AccountSignInEventsPath, "")
+		signInDaemonAccount(t, f, d, progress, email)
+		progress.cancel()
+		owner := enrollRemoteDevice(t, f, email, "ins_second_device")
+		d.uds(t, http.MethodPost, contract.RemoteLinkPath, contract.RemoteLinkRequest{}).
+			expect(t, http.StatusOK, "computer_id")
+		d.uds(t, http.MethodPost, contract.AccountLogoutPath, contract.AccountLogoutRequest{}).
+			expect(t, http.StatusConflict, "logout_requires_unlink")
+		d.uds(t, http.MethodPost, contract.AccountLogoutPath, contract.AccountLogoutRequest{Unlink: true}).
+			expect(t, http.StatusOK, "signed_out")
+		if current := readRemoteDaemonStatus(t, d); current.ComputerID != "" {
+			t.Fatalf("logout left a computer link: %+v", current)
+		}
+		link := remoteCloudRequest(t, f, owner, http.MethodPost, "/v1/computers/link-tokens", nil)
+		link.expect(t, http.StatusCreated, "token")
+		token := authJSON[struct{ Token string }](t, link).Token
+		host, _ := startConfiguredDaemonAccount(
+			t,
+			f,
+			filepath.Join(root, "host"),
+			daemonAccountBoot{signInRequired: true},
+		)
+		linked := host.uds(t, http.MethodPost, contract.RemoteLinkPath, contract.RemoteLinkRequest{LinkToken: token})
+		linked.expect(t, http.StatusOK, "computer_id")
+		id := authJSON[contract.RemoteLinkResponse](t, linked).ComputerID
+		host.uds(t, http.MethodGet, contract.AccountPath, nil).expect(t, http.StatusOK, `"source":"link"`)
+		host.uds(t, http.MethodPatch, contract.RemotePath, contract.RemotePatchRequest{Enabled: new(false)}).
+			expect(t, http.StatusOK, `"enabled":false`)
+		testOtherAccountCannotReplaceLink(t, f, host)
+		remoteCloudRequest(t, f, owner, http.MethodDelete, "/v1/computers/"+string(id), nil).
+			expect(t, http.StatusNoContent, "")
+		waitAccountTestTimers(t, f, 1)
+		f.clock.Advance(25 * time.Hour)
+		waitDaemonAccountState(t, host, account.ReauthRequired, "computer_unlinked")
+		host.uds(t, http.MethodGet, "/api/sessions", nil).expect(t, http.StatusUnauthorized, "sign_in_required")
+	})
+}
+
+func testOtherAccountCannotReplaceLink(t *testing.T, f authFixture, host daemonAccountFixture) {
+	t.Helper()
+	progress := host.stream(t, contract.AccountSignInEventsPath, "")
+	defer progress.cancel()
+	login := host.uds(
+		t,
+		http.MethodPost,
+		contract.AccountLoginPath,
+		contract.AccountLoginRequest{Provider: new(auth.Google)},
+	)
+	login.expect(t, http.StatusOK, "verification_uri_complete")
+	attempt := authJSON[contract.AccountLoginResponse](t, login)
+	grant := remoteproto.DeviceFlowResponse{UserCode: attempt.UserCode}
+	cookie := f.openActivation(t, grant, auth.Google)
+	redirect := f.continueGrant(t, grant, auth.Google, cookie, false)
+	const email = "other-link-owner@example.test"
+	path := f.callbackPath(t, auth.Google, redirect, providerProfile{email: email, subject: email, verified: true})
+	f.request(t, http.MethodGet, path, nil, cookie).expect(t, http.StatusOK, "Return to CompozyOS.")
+	waitAccountTestTimers(t, f, 2)
+	f.clock.Advance(5 * time.Second)
+	frame := progress.until(t, func(frame sse.Event) bool {
+		return frame.Event == contract.SignInProgressEvent &&
+			decodeDaemonAccountEvent[contract.AccountSignInProgress](
+				t,
+				frame,
+			).Code == "installation_linked_to_other_account"
+	})
+	if failed := decodeDaemonAccountEvent[contract.AccountSignInProgress](
+		t,
+		frame,
+	); failed.AttemptID != attempt.AttemptID {
+		t.Fatalf("link conflict was reported for a different sign-in attempt: %+v", failed)
+	}
+	host.uds(t, http.MethodGet, contract.AccountPath, nil).expect(t, http.StatusOK, "linked@example.test")
+}

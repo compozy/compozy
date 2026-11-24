@@ -285,7 +285,7 @@ func (s *terminalSocket) run(ctx context.Context) error {
 		case <-s.stop:
 			return s.cleanup(s.writeClose(websocket.CloseGoingAway, "daemon shutdown"))
 		case <-ctx.Done():
-			return s.cleanup(ctx.Err())
+			return s.cleanup(errors.Join(ctx.Err(), closeForSignIn(ctx, s.conn)))
 		}
 	}
 }

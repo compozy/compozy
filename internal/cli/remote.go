@@ -110,7 +110,7 @@ func linkRemoteInteractively(
 	if err := printRemoteActivation(cmd, result); err != nil {
 		return result, err
 	}
-	if err := awaitAccountLogin(ctx, stream, attemptID); err != nil {
+	if _, err := awaitAccountLogin(ctx, stream, attemptID); err != nil {
 		return result, err
 	}
 	complete = true

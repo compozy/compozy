@@ -18,6 +18,9 @@ func (d *Daemon) computerSettings() config.ComputersConfig {
 }
 
 func (d *Daemon) checkLocalExecution() error {
+	if err := d.admission.CheckSignIn(); err != nil {
+		return err
+	}
 	if !d.computerSettings().LocalRunAgents {
 		return admission.ErrLocalExecutionDisabled
 	}

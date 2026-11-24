@@ -31,6 +31,7 @@ import (
 	opendesign "github.com/compozy/compozy/extensions/open-design"
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -2543,6 +2544,77 @@ func (r *closeContextRegistry) Close(ctx context.Context) error {
 	r.closes++
 	r.closeCtxErr = ctx.Err()
 	_, r.closeHadDeadline = ctx.Deadline()
+	return nil
+}
+
+// IT-102, Safety Invariant 14. Daemon boot must leave interrupted session
+// recovery and extension processes waiting while the installation is signed out.
+func TestBootWaitsForSignInToRecoverWork(t *testing.T) {
+	t.Run("Should start extensions and resume interrupted sessions only after sign-in", func(t *testing.T) {
+		cloud := httptest.NewServer(http.NotFoundHandler())
+		t.Cleanup(cloud.Close)
+		t.Setenv("COMPOZY_CLOUD_URL", cloud.URL)
+		t.Setenv(account.TokenEnv, "")
+		t.Setenv(procutil.InternalAccountTokenEnv, "")
+		homePaths := testHomePaths(t)
+		d := newTestDaemon(t, homePaths, testConfigPtr(t, homePaths))
+		WithAccountOptions(account.WithSignInRequired(true))(d)
+		started, resumed := make(chan struct{}, 1), make(chan struct{}, 1)
+		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
+			return &fakeExtensionRuntime{onStart: func() { started <- struct{}{} }}
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &signInRecoverySessionManager{
+				checkpointRecordingSessionManager: checkpointRecordingSessionManager{
+					promptingSessionManager: promptingSessionManager{fakeSessionManager: &fakeSessionManager{}},
+				},
+				resumed: resumed,
+			}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+
+		ctx := testutil.Context(t)
+		if err := d.boot(ctx); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+		service := d.runtimeWorkers.account
+		if status := service.Status(); status.State != account.SignedOut || status.Gate != account.GateEnforced {
+			t.Fatalf("initial account status = %+v", status)
+		}
+		select {
+		case <-started:
+			t.Fatal("an extension started while signed out")
+		case <-resumed:
+			t.Fatal("session recovery started while signed out")
+		default:
+		}
+
+		if err := service.CommitHostLink(ctx, "account-boot", "owner@example.test", nil); err != nil {
+			t.Fatalf("complete sign-in by linking the installation: %v", err)
+		}
+		testutil.Receive(t, "extension start after sign-in", 5*time.Second, started)
+		testutil.Receive(t, "session recovery after sign-in", 5*time.Second, resumed)
+	})
+}
+
+type signInRecoverySessionManager struct {
+	checkpointRecordingSessionManager
+	resumed chan<- struct{}
+}
+
+func (m *signInRecoverySessionManager) ResumeInterruptedSessions(context.Context) error {
+	m.resumed <- struct{}{}
 	return nil
 }
 

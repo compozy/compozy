@@ -15,6 +15,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/session"
@@ -1160,4 +1161,127 @@ type shutdownReservationStore struct {
 func (s *shutdownReservationStore) ReserveRun(context.Context, RunReservation) (RunReservationResult, error) {
 	s.cancel()
 	return RunReservationResult{}, s.err
+}
+
+func TestSchedulerIntegrationSignInAdmission(t *testing.T) {
+	t.Parallel()
+	// IT-094. Safety Invariant 14: held one-shot fires and skipped recurring fires have different cursors.
+	t.Run("Should resume only the held one-shot and the next recurring occurrence", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openAutomationIntegrationDB(t, ctx)
+		start := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
+		clock := clockwork.NewFakeClockAt(start)
+		creator := newRecordingSessionCreator()
+		signIn := make(chan struct{})
+		check := func() error {
+			select {
+			case <-signIn:
+				return nil
+			default:
+				return account.ErrSignInRequired
+			}
+		}
+		wait := func(ctx context.Context) error {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-signIn:
+				return nil
+			}
+		}
+		dispatcher := newTestDispatcher(
+			t,
+			creator,
+			db,
+			WithDispatcherNow(clock.Now),
+			WithDispatcherLocalExecution(check),
+		)
+		newScheduler := func() *Scheduler {
+			return newTestScheduler(t, dispatcher, WithSchedulerStore(db), WithSchedulerClock(clock),
+				func(s *Scheduler) { s.localExecution, s.waitForSignIn = check, wait })
+		}
+		scheduler := newScheduler()
+		oneShotTime := start.Add(time.Minute)
+		create := func(name string, schedule ScheduleSpec) Job {
+			t.Helper()
+			job := testJob(AutomationScopeGlobal, name, "")
+			job.Schedule = &schedule
+			job, err := db.CreateJob(ctx, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := scheduler.Register(ctx, job); err != nil {
+				t.Fatal(err)
+			}
+			return job
+		}
+		oneShot := create("hold", ScheduleSpec{Mode: ScheduleModeAt, Time: oneShotTime.Format(time.RFC3339)})
+		recurring := create("skip", ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1m"})
+		if err := scheduler.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+		waitForTimers(t, clock, 2)
+		history := func(job Job) []Run {
+			t.Helper()
+			runs, err := db.ListRuns(ctx, RunQuery{ReadScope: store.ReadScope{ProfileID: job.ProfileID}, JobID: job.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return runs
+		}
+		for minute := 1; minute <= 3; minute++ {
+			clock.Advance(time.Minute)
+			waitUntil(t, 2*time.Second, 5*time.Millisecond, func() bool { return len(history(recurring)) == minute })
+			waitForTimers(t, clock, 1)
+		}
+		for _, run := range history(recurring) {
+			if run.Status != RunCancelled ||
+				run.Metadata[SchedulerSkipReasonMetadataKey] != string(SchedulerSkipReasonSignInRequired) {
+				t.Fatalf("recurring run while gated = %#v", run)
+			}
+		}
+		waitUntil(t, 2*time.Second, 5*time.Millisecond, func() bool {
+			held, err := db.GetSchedulerState(ctx, oneShot.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return held.HeldForSignIn
+		})
+		held, err := db.GetSchedulerState(ctx, oneShot.ID)
+		if err != nil || held.NextRunAt == nil || !held.NextRunAt.Equal(oneShotTime) ||
+			len(history(oneShot)) != 0 || len(creator.createCalls()) != 0 {
+			t.Fatalf("one-shot was consumed before sign-in: %+v, %v", held, err)
+		}
+		if err := scheduler.Stop(ctx); err != nil {
+			t.Fatal(err)
+		}
+		// An account token can sign in at boot, before the replacement checks its schedule.
+		close(signIn)
+		scheduler = newScheduler()
+		for _, job := range []Job{oneShot, recurring} {
+			if _, err := scheduler.Register(ctx, job); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := scheduler.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+		waitForTimers(t, clock, 1)
+		waitUntil(t, 2*time.Second, 5*time.Millisecond, func() bool {
+			runs := history(oneShot)
+			return len(runs) == 1 && runs[0].Status == RunCompleted
+		})
+		if count := len(history(recurring)); count != 3 {
+			t.Fatalf("recurring work caught up on sign-in: %d recorded runs", count)
+		}
+		clock.Advance(time.Minute)
+		waitUntil(t, 2*time.Second, 5*time.Millisecond, func() bool {
+			runs := history(recurring)
+			return len(runs) == 4 && runs[0].Status == RunCompleted
+		})
+		if len(history(oneShot)) != 1 || len(creator.createCalls()) != 2 {
+			t.Fatal("sign-in replayed a skipped occurrence or the one-shot")
+		}
+	})
 }

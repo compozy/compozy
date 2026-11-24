@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -149,6 +150,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	configureRootFlags(cmd)
 	configureRootComputerFlag(cmd, &deps)
 	registerRootCommands(cmd, deps)
+	configureAccountGate(cmd, deps)
 	configureProfileIndependentCompletionCommands(cmd)
 
 	return cmd
@@ -249,6 +251,14 @@ func writeExecutionError(stderr io.Writer, args []string, err error) int {
 }
 
 func renderHumanExecutionError(err error) (string, bool) {
+	if failure, ok := errors.AsType[*daemonAPIError](err); ok {
+		switch failure.payload.Code {
+		case "sign_in_required":
+			return accountSignInHint, true
+		case "installation_linked_to_other_account", "logout_requires_unlink":
+			return failure.payload.Error, true
+		}
+	}
 	if rendered, ok := renderAppTokenExecutionError(err); ok {
 		return rendered, true
 	}

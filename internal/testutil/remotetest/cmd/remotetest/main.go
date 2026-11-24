@@ -11,11 +11,16 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"slices"
 	"syscall"
 
+	"github.com/compozy/compozy/internal/account"
+	"github.com/compozy/compozy/internal/cli"
 	"github.com/compozy/compozy/internal/computers/sshsetup"
+	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
+	"github.com/compozy/compozy/internal/version"
 )
 
 func main() {
@@ -28,6 +33,9 @@ func main() {
 func run(ctx context.Context, args []string, output io.Writer) (status int) {
 	if used, err := sshsetup.RunAskpass(ctx, args, output); used {
 		return exitStatus(err)
+	}
+	if filepath.Base(os.Args[0]) == "compozy" {
+		return runRequiredSignInRelease(ctx, args, output)
 	}
 	if len(args) == 1 && args[0] == "serve-daemon" {
 		return exitStatus(runDaemon(ctx))
@@ -73,6 +81,18 @@ func run(ctx context.Context, args []string, output io.Writer) (status int) {
 	}
 	<-ctx.Done()
 	return 0
+}
+
+func runRequiredSignInRelease(ctx context.Context, args []string, output io.Writer) int {
+	if len(args) > 2 && slices.Equal(args[:2], []string{"daemon", "start"}) && slices.Contains(args, "--foreground") {
+		d, err := daemon.New(daemon.WithAccountOptions(account.WithSignInRequired(true)))
+		if err != nil {
+			return exitStatus(err)
+		}
+		return exitStatus(d.Run(ctx))
+	}
+	version.SignInRequired = "true"
+	return cli.ExecuteContext(ctx, args, output, os.Stderr)
 }
 
 func exitStatus(err error) int {

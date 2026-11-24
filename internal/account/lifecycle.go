@@ -96,3 +96,63 @@ func withVisibleNotices(installation Installation, now time.Time) Installation {
 	installation.Profile.RecentSignIns = notices
 	return installation
 }
+
+func (s *Service) RefreshProfile(ctx context.Context) error {
+	return s.withDevice(ctx, func(ctx context.Context, g *generation, creds cloudclient.Credentials) error {
+		return s.syncProfile(ctx, g, creds, false)
+	})
+}
+
+type tokenManagementCloud interface {
+	ListAccountTokens(context.Context, cloudclient.Credentials) (remoteproto.AccountTokenList, error)
+	CreateAccountToken(context.Context, cloudclient.Credentials, string) (remoteproto.AccountTokenCreated, error)
+	RevokeAccountToken(context.Context, cloudclient.Credentials, string) error
+}
+
+var errLifecycleUnavailable = &cloudclient.Failure{Status: http.StatusServiceUnavailable,
+	Code: "account_unavailable", Message: "Account service unavailable."}
+
+func (s *Service) AccountTokens(ctx context.Context) (result remoteproto.AccountTokenList, err error) {
+	err = s.withLifecycleDevice(
+		ctx,
+		func(ctx context.Context, _ *generation, cloud tokenManagementCloud, creds cloudclient.Credentials) error {
+			var cloudErr error
+			result, cloudErr = cloud.ListAccountTokens(ctx, creds)
+			return cloudErr
+		},
+	)
+	return result, err
+}
+
+func (s *Service) CreateToken(ctx context.Context, name string) (result remoteproto.AccountTokenCreated, err error) {
+	err = s.withLifecycleDevice(
+		ctx,
+		func(ctx context.Context, _ *generation, cloud tokenManagementCloud, creds cloudclient.Credentials) error {
+			var cloudErr error
+			result, cloudErr = cloud.CreateAccountToken(ctx, creds, name)
+			return cloudErr
+		},
+	)
+	return result, err
+}
+
+func (s *Service) RevokeToken(ctx context.Context, id string) error {
+	return s.withLifecycleDevice(
+		ctx,
+		func(ctx context.Context, _ *generation, cloud tokenManagementCloud, creds cloudclient.Credentials) error {
+			return cloud.RevokeAccountToken(ctx, creds, id)
+		},
+	)
+}
+
+func (s *Service) withLifecycleDevice(
+	ctx context.Context, call func(context.Context, *generation, tokenManagementCloud, cloudclient.Credentials) error,
+) error {
+	cloud, ok := s.cloud.(tokenManagementCloud)
+	if !ok {
+		return errLifecycleUnavailable
+	}
+	return s.withDevice(ctx, func(ctx context.Context, g *generation, creds cloudclient.Credentials) error {
+		return call(ctx, g, cloud, creds)
+	})
+}

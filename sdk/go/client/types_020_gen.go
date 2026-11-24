@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// SessionCatalogPagePayload is a daemon API value.
+type SessionCatalogPagePayload struct {
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore    bool   `json:"has_more"`
+	Total      *int   `json:"total,omitzero"`
+	Limit      int    `json:"limit"`
+}
+
 // SessionCatalogResponse is a daemon API value.
 type SessionCatalogResponse struct {
 	Sessions []SessionPayload          `json:"sessions"`

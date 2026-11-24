@@ -93,6 +93,7 @@ func newClient(signInRequired bool, opts ...Option) (*Client, error) {
 		return nil, errors.New("default HTTP transport has an unexpected type")
 	}
 	transport = transport.Clone()
+	transport.Proxy = http.ProxyFromEnvironment
 	transport.ResponseHeaderTimeout = hostedTunnelRequestTimeout
 	client := &Client{
 		base: base, now: time.Now,
@@ -174,6 +175,8 @@ func (c *Client) open(
 		}
 		req.Header.Set("DPoP", proof)
 		req.Header.Set("Authorization", "DPoP "+token)
+	} else if path == remoteproto.AccountTokenExchangePath {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	if len(computerKey) > 0 && len(computerKey[0]) > 0 {
 		proof, err := remoteproto.SignComputerProof(computerKey[0], method, target, payload, c.now())

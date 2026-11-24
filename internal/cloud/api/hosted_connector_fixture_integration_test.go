@@ -35,6 +35,9 @@ const (
 )
 
 func runHostedFixtureProcess(runTests func() int) int {
+	if os.Getenv(accountFixtureProcessEnv) == "1" {
+		return runDetachedAccountFixtureProcess()
+	}
 	if len(os.Args) < 2 || os.Args[1] != "tunnel" || os.Getenv("COMPOZY_REMOTE_CONNECTOR") != "1" {
 		return runTests()
 	}

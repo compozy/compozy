@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// AgentMemoryWriteRequest is a daemon API value.
+type AgentMemoryWriteRequest struct {
+	Content        string `json:"content"`
+	ExpectedDigest string `json:"expected_digest"`
+}
+
+// AgentNotifyRequest is a daemon API value.
+type AgentNotifyRequest struct {
+	Title string `json:"title"`
+	Body  string `json:"body,omitempty"`
+}
+
+// AgentNotifyResponse is a daemon API value.
+type AgentNotifyResponse struct {
+	Outcome      string `json:"outcome"`
+	RetryAfterMS int64  `json:"retry_after_ms,omitzero"`
+}
+
+// AgentOrigin is a daemon API value.
+type AgentOrigin string
+
 // AgentPayload is a daemon API value.
 type AgentPayload struct {
 	DisplayName        string                              `json:"display_name,omitempty"`
@@ -424,25 +445,4 @@ type Approval struct {
 type ApprovalDelivery struct {
 	ApprovalID string `json:"approval_id"`
 	State      string `json:"state"`
-}
-
-// ApprovalExecutionStatus is a daemon API value.
-type ApprovalExecutionStatus string
-
-// ApprovalGrantDecision is a daemon API value.
-type ApprovalGrantDecision string
-
-// ApprovalGrantManagementScope is a daemon API value.
-type ApprovalGrantManagementScope string
-
-// ApprovalOutcome is a daemon API value.
-type ApprovalOutcome string
-
-// ApprovalPolicy is a daemon API value.
-type ApprovalPolicy string
-
-// ApprovalResult is a daemon API value.
-type ApprovalResult struct {
-	ID     string `json:"id"`
-	Result string `json:"result"`
 }

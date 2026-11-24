@@ -30,6 +30,21 @@ type Installation struct {
 	LastValidatedAt                    time.Time
 	SignInNoticesDismissedAt           time.Time
 	Profile                            remoteproto.AccountSummary
+	GatePolicyJWS                      string
+	GatePolicyKeys                     string
+	GatePolicyFetchedAt                time.Time
+	OfflineGraceStartedAt              time.Time
+	TokenName                          string
+
+	InstallationLinked bool
+	Gate               string
+	Grace              *Grace
+}
+
+type Grace struct {
+	Source  string
+	Until   time.Time
+	Message string
 }
 
 type Store interface {
@@ -50,8 +65,16 @@ type Cloud interface {
 	Refresh(context.Context, string, crypto.Signer) (remoteproto.DeviceSessionTokens, error)
 	Logout(context.Context, string, crypto.Signer) error
 	Account(context.Context, cloudclient.Credentials) (remoteproto.AccountSummary, error)
-	PatchAccountEmail(context.Context, cloudclient.Credentials, remoteproto.AccountEmailPatch) (remoteproto.AccountSummary, error)
-	DeleteAccount(context.Context, cloudclient.Credentials, remoteproto.AccountDeleteRequest) (remoteproto.AccountDeleteResponse, error)
+	PatchAccountEmail(
+		context.Context,
+		cloudclient.Credentials,
+		remoteproto.AccountEmailPatch,
+	) (remoteproto.AccountSummary, error)
+	DeleteAccount(
+		context.Context,
+		cloudclient.Credentials,
+		remoteproto.AccountDeleteRequest,
+	) (remoteproto.AccountDeleteResponse, error)
 	Devices(context.Context, cloudclient.Credentials) ([]remoteproto.AccountDevice, error)
 	PatchDevice(
 		context.Context,
@@ -82,6 +105,7 @@ type SignInEvent struct {
 	AttemptID       string
 	State           string
 	Code            string
+	NewAccount      bool
 	SignedOutReason string
 }
 
@@ -104,7 +128,11 @@ type ApprovalResult struct {
 
 var (
 	ErrSignInRequired = &cloudclient.Failure{Status: http.StatusUnauthorized, Code: "sign_in_required",
-		Message: "Sign in to use CompozyOS: compozy account login"}
+		Message: "Sign in to use Compozy: compozy account login"}
+	ErrTokenLocalOnly = &cloudclient.Failure{Status: http.StatusForbidden, Code: "account_token_local_only",
+		Message: "Account tokens unlock local use only. Sign in with Google or GitHub for this."}
+	ErrLogoutRequiresUnlink = &cloudclient.Failure{Status: http.StatusConflict, Code: "logout_requires_unlink",
+		Message: "Signing out also unlinks this computer from remote access."}
 	errExpired = &cloudclient.Failure{Status: http.StatusBadRequest, Code: "account_login_expired",
 		Message: "Sign-in timed out. Try again."}
 	errCancelled = &cloudclient.Failure{Status: http.StatusConflict, Code: "access_denied",

@@ -42,6 +42,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/jonboulle/clockwork"
 )
 
 const defaultShutdownTimeout = 10 * time.Second
@@ -217,6 +218,8 @@ type Daemon struct {
 	mu sync.Mutex
 
 	accountOptions         []account.Option
+	remoteHostClock        clockwork.Clock
+	automationClock        clockwork.Clock
 	computersOptions       []computers.Option
 	wrapRemoteTunnel       func(http.Handler) http.Handler
 	sshSetupOptions        sshsetup.Options

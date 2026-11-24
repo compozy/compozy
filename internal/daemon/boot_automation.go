@@ -8,7 +8,13 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/resources"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/jonboulle/clockwork"
 )
+
+// WithAutomationSchedulerClock sets the clock for scheduled automation.
+func WithAutomationSchedulerClock(clock clockwork.Clock) Option {
+	return func(d *Daemon) { d.automationClock = clock }
+}
 
 func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if state == nil {
@@ -52,6 +58,10 @@ func (d *Daemon) automationManagerDependencies(
 	store automationpkg.Store,
 ) automationManagerDeps {
 	var tasks taskpkg.Manager
+	var waitForSignIn func(context.Context) error
+	if service := state.runtimeWorkers.account; service != nil {
+		waitForSignIn = service.WaitForWorkAdmission
+	}
 	if state.tasks != nil {
 		tasks = state.tasks.manager
 	}
@@ -65,6 +75,7 @@ func (d *Daemon) automationManagerDependencies(
 		Hooks:             state.hooks,
 		WebhookSecrets:    state.providerVault,
 		Logger:            state.logger.With("component", "automation"),
+		WaitForSignIn:     waitForSignIn,
 
 		ResourceStore:     resourceRawStore(state.resourceKernel),
 		ResourceCodecs:    state.resourceCodecs,

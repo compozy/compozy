@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/remotehost"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/jonboulle/clockwork"
 )
 
 const (
@@ -22,6 +23,10 @@ const (
 
 func WithCloudflaredInstaller(install func(context.Context, string) (string, error)) Option {
 	return func(d *Daemon) { d.installCloudflared = install }
+}
+
+func WithRemoteHostClock(clock clockwork.Clock) Option {
+	return func(d *Daemon) { d.remoteHostClock = clock }
 }
 
 type remoteOperatorHandler struct {
@@ -64,6 +69,7 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 		state.cfg.Remote,
 		remotehost.HostOptions{
 			Now:                d.now,
+			Clock:              d.remoteHostClock,
 			Logger:             state.logger,
 			Home:               d.homePaths.HomeDir,
 			Operator:           state.remoteOperator,

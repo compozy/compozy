@@ -20,6 +20,7 @@ func RegisterAuthRoutes(mux *http.ServeMux, service *auth.Service) {
 	mux.HandleFunc("POST /v1/devices/enroll", h.enroll)
 	mux.HandleFunc("POST /v1/session/refresh", h.refresh)
 	mux.HandleFunc("POST /v1/session/logout", h.logout)
+	registerAccountTokenRoutes(mux, service)
 }
 
 type authRoutes struct{ service *auth.Service }

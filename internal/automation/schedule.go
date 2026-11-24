@@ -66,6 +66,7 @@ type ScheduledJobState struct {
 
 // Scheduler owns durable cursor-driven scheduled-job dispatch.
 type Scheduler struct {
+	waitForSignIn  func(context.Context) error
 	dispatcher     ScheduleDispatcher
 	store          SchedulerStore
 	logger         *slog.Logger

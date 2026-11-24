@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+// CreateAccountToken Create an account token for local use
+func (c *Client) CreateAccountToken(ctx context.Context, body AccountTokenCreate) (*AccountTokenCreated, error) {
+	path := "/api/account/tokens"
+	var out AccountTokenCreated
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CreateAgentParams carries the path, query, and header parameters.
 type CreateAgentParams struct {
 	Profile *string `url:"profile"`

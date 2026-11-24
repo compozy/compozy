@@ -2,10 +2,33 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// ProfileLens is a daemon API value.
+type ProfileLens struct {
+	ID   ProfileLensID `json:"profile_lens_id"`
+	Name string        `json:"profile_name"`
+}
+
+// ProfileLensID is a daemon API value.
+type ProfileLensID string
+
+// ProfileOperation is a daemon API value.
+type ProfileOperation struct {
+	ID      string `json:"id"`
+	Kind    string `json:"kind"`
+	Profile string `json:"profile"`
+	Status  string `json:"status"`
+	Step    string `json:"step"`
+	Error   string `json:"error,omitempty"`
+}
+
+// ProfilePlacement is a daemon API value.
+type ProfilePlacement struct {
+	Extension string `json:"extension"`
+	Resource  string `json:"resource"`
+	Profile   string `json:"profile"`
+}
 
 // ProfilePlanRequest is a daemon API value.
 type ProfilePlanRequest struct {
@@ -421,22 +444,4 @@ type PutLoopConfigRequest struct {
 type PutLoopInputDefaultRequest struct {
 	Scope LoopInputDefaultsScope `json:"scope"`
 	Value any                    `json:"value"`
-}
-
-// PutLoopInputDefaultsRequest is a daemon API value.
-type PutLoopInputDefaultsRequest struct {
-	Scope  LoopInputDefaultsScope `json:"scope"`
-	Values map[string]any         `json:"values"`
-}
-
-// PutResourceRequest is a daemon API value.
-type PutResourceRequest struct {
-	Scope           ResourceScope   `json:"scope"`
-	ExpectedVersion int64           `json:"expected_version,omitzero"`
-	Spec            json.RawMessage `json:"spec"`
-}
-
-// PutSettingsHookRequest is a daemon API value.
-type PutSettingsHookRequest struct {
-	Declaration SettingsHookDeclarationPayload `json:"declaration"`
 }

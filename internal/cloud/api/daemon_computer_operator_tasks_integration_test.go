@@ -632,6 +632,9 @@ func containsOperatorClaimToken(data []byte) bool {
 
 func (b operatorBridge) request(method, path string, body any) authReply {
 	b.t.Helper()
+	if b.computer == "" {
+		return b.controller.uds(b.t, method, path, body)
+	}
 	return b.send(method, path, body, "")
 }
 

@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+// ComputerSSHHost is a daemon API value.
+type ComputerSSHHost struct {
+	Alias    string `json:"alias"`
+	Hostname string `json:"hostname"`
+	User     string `json:"user"`
+	Port     int    `json:"port"`
+	Source   string `json:"source"`
+}
+
+// ComputerSSHHostsResponse is a daemon API value.
+type ComputerSSHHostsResponse struct {
+	Hosts []ComputerSSHHost `json:"hosts"`
+}
+
+// ComputerSetupAnswer is a daemon API value.
+type ComputerSetupAnswer struct {
+	Kind   string `json:"kind"`
+	Accept *bool  `json:"accept,omitempty"`
+	Value  string `json:"value,omitempty"`
+}
+
+// ComputerSetupCanceled is a daemon API value.
+type ComputerSetupCanceled struct {
+	SetupID string `json:"setup_id"`
+	State   string `json:"state"`
+}
+
 // ComputerSetupPrompt is a daemon API value.
 type ComputerSetupPrompt struct {
 	Kind        string `json:"kind"`
@@ -419,28 +446,3 @@ type DaemonReadinessPayload struct {
 
 // DaemonReadinessPhase is a daemon API value.
 type DaemonReadinessPhase string
-
-// DaemonStatusPayload is a daemon API value.
-type DaemonStatusPayload struct {
-	Status         string                  `json:"status"`
-	PID            int                     `json:"pid"`
-	StartedAt      time.Time               `json:"started_at"`
-	Socket         string                  `json:"socket"`
-	HTTPHost       string                  `json:"http_host"`
-	HTTPPort       int                     `json:"http_port"`
-	UserHomeDir    string                  `json:"user_home_dir"`
-	ActiveSessions int                     `json:"active_sessions"`
-	TotalSessions  int                     `json:"total_sessions"`
-	Version        string                  `json:"version,omitempty"`
-	MinAppVersion  string                  `json:"min_app_version"`
-	Gateway        *GatewayStatusPayload   `json:"gateway,omitzero"`
-	SchemaStreams  []SchemaStreamStatus    `json:"schema_streams"`
-	Readiness      *DaemonReadinessPayload `json:"readiness,omitzero"`
-}
-
-// DeleteAgentResponse is a daemon API value.
-type DeleteAgentResponse struct {
-	Name             string      `json:"name"`
-	Origin           AgentOrigin `json:"origin"`
-	UnshadowedOrigin AgentOrigin `json:"unshadowed_origin,omitempty"`
-}

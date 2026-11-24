@@ -13,11 +13,6 @@ func registerMCPHostAPIRoutes(api gin.IRouter, handlers *Handlers) {
 	api.POST("/internal/mcp/host-api/session/close", handlers.closeMCPHostAPISession)
 }
 
-func registerMCPRoutes(api gin.IRouter, handlers *Handlers) {
-	registerHostedMCPRoutes(api, handlers)
-	registerMCPHostAPIRoutes(api, handlers)
-}
-
 func (h *Handlers) invokeMCPHostAPI(c *gin.Context) {
 	if h == nil || h.MCPHostAPI == nil {
 		core.RespondError(c, http.StatusServiceUnavailable, errMCPHostAPIUnavailable, false)

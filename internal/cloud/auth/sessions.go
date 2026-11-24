@@ -44,7 +44,7 @@ type DevicePrincipal struct {
 
 func (s *Service) AuthenticateDevice(r *http.Request) (DevicePrincipal, error) {
 	credentials := RequestDeviceProof(r)
-	if strings.HasPrefix(credentials.Token, "cpzat_") {
+	if IsAccountTokenCredential(credentials.Token) {
 		return DevicePrincipal{}, errAccountTokenLocalOnly
 	}
 	if credentials.Token == "" || len(credentials.Token) > 4096 {

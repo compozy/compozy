@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+// ExtensionInstallPreviewPayload is a daemon API value.
+type ExtensionInstallPreviewPayload struct {
+	DigestSHA256             string                                   `json:"digest_sha256,omitempty"`
+	Inputs                   []MarketplaceInputPayload                `json:"inputs"`
+	Name                     string                                   `json:"name"`
+	DeclaredProfiles         []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
+	Placements               []ExtensionPlacementPayload              `json:"placements"`
+	GatewayRequirementDigest string                                   `json:"gateway_requirement_digest,omitempty"`
+}
+
+// ExtensionInventoryPayload is a daemon API value.
+type ExtensionInventoryPayload struct {
+	Extension   string                    `json:"extension"`
+	Format      string                    `json:"format"`
+	Enabled     bool                      `json:"enabled"`
+	Items       []ExtensionKitItemPayload `json:"items"`
+	Diagnostics []DiagnosticItem          `json:"diagnostics,omitempty"`
+}
+
+// ExtensionKitChange is a daemon API value.
+type ExtensionKitChange string
+
+// ExtensionKitChangePayload is a daemon API value.
+type ExtensionKitChangePayload struct {
+	Kind   ResourceKind       `json:"kind"`
+	ID     string             `json:"id"`
+	Name   string             `json:"name"`
+	Change ExtensionKitChange `json:"change"`
+}
+
 // ExtensionKitItemPayload is a daemon API value.
 type ExtensionKitItemPayload struct {
 	Kind ResourceKind `json:"kind"`
@@ -416,18 +446,4 @@ type ForkSessionRequest struct {
 	ExpectedEpoch       *int64 `json:"expected_epoch,omitzero"`
 	ExpectedGeneration  *int64 `json:"expected_generation,omitzero"`
 	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitzero"`
-}
-
-// ForkSessionWorktreeRequest is a daemon API value.
-type ForkSessionWorktreeRequest struct {
-	Worktree    string                     `json:"worktree,omitempty"`
-	NewWorktree *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
-	Confirmed   bool                       `json:"confirmed"`
-}
-
-// FormBody is a daemon API value.
-type FormBody struct {
-	Fields   []FormField `json:"fields"`
-	Submit   *RowAction  `json:"submit,omitempty"`
-	OnSubmit string      `json:"on_submit,omitempty"`
 }

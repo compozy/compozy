@@ -65,7 +65,7 @@ func newDaemonCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newDaemonUpdateCoordinatorCommand(deps))
 	cmd.AddCommand(newDaemonAppTransitionCommand(deps))
 	cmd.AddCommand(newDaemonAppDiagnosticBundleCommand(deps))
-	cmd.AddCommand(newDaemonStopCommand(deps))
+	cmd.AddCommand(newDaemonStopCommand(deps), newDaemonRestartCommand(deps), newStatusCommand(deps))
 	return cmd
 }
 
@@ -220,30 +220,51 @@ func newDaemonStopCommand(deps commandDeps) *cobra.Command {
 		Example: `  # Ask the running daemon to stop
   compozy daemon stop`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			runtime, err := loadRuntimeContext(deps)
-			if err != nil {
-				return err
-			}
-
-			info, running, err := daemonInfo(runtime.HomePaths, deps)
-			if err != nil {
-				return err
-			}
-			if !running {
-				return errors.New("cli: daemon is not running")
-			}
-
-			if err := deps.signalProcess(info.PID, syscall.SIGTERM); err != nil {
-				return err
-			}
-
-			status, err := waitForDaemonStop(cmd.Context(), deps, runtime, info)
+			status, err := stopLocalDaemon(cmd.Context(), deps)
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, daemonStatusBundle(status, deps.now))
 		},
 	}
+}
+
+func newDaemonRestartCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use: "restart", Short: "Restart the local CompozyOS daemon", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			runtime, err := loadRuntimeContext(deps)
+			if err != nil {
+				return err
+			}
+			if err := newCLIUpdateRuntime(deps, runtime.HomePaths).RestartDaemon(cmd.Context()); err != nil {
+				return err
+			}
+			status, err := daemonStatusFromDeps(cmd.Context(), deps, runtime)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, daemonStatusBundle(status, deps.now))
+		},
+	}
+}
+
+func stopLocalDaemon(ctx context.Context, deps commandDeps) (DaemonStatus, error) {
+	runtime, err := loadRuntimeContext(deps)
+	if err != nil {
+		return DaemonStatus{}, err
+	}
+	info, running, err := daemonInfo(runtime.HomePaths, deps)
+	if err != nil {
+		return DaemonStatus{}, err
+	}
+	if !running {
+		return DaemonStatus{}, errors.New("cli: daemon is not running")
+	}
+	if err := deps.signalProcess(info.PID, syscall.SIGTERM); err != nil {
+		return DaemonStatus{}, err
+	}
+	return waitForDaemonStop(ctx, deps, runtime, info)
 }
 
 func runDaemonForeground(ctx context.Context, deps commandDeps, exitWhenOrphaned bool) error {

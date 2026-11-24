@@ -172,9 +172,21 @@ func (c *Client) ForkSessionToWorktree(ctx context.Context, params ForkSessionTo
 	return &out, nil
 }
 
+// GetAccountParams carries the path, query, and header parameters.
+type GetAccountParams struct {
+	Refresh *bool `url:"refresh"`
+}
+
 // GetAccount Read the installation account
-func (c *Client) GetAccount(ctx context.Context) (*AccountStatusResponse, error) {
+func (c *Client) GetAccount(ctx context.Context, params GetAccountParams) (*AccountStatusResponse, error) {
 	path := "/api/account"
+	query := url.Values{}
+	if params.Refresh != nil {
+		query.Set("refresh", strconv.FormatBool(*params.Refresh))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
 	var out AccountStatusResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err

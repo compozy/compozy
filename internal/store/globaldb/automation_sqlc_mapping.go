@@ -353,6 +353,7 @@ func automationTriggerOverlayFromGenerated(
 
 func automationSchedulerParams(state automation.SchedulerState) sqlcgen.UpsertAutomationSchedulerStateParams {
 	return sqlcgen.UpsertAutomationSchedulerStateParams{
+		HeldForSignIn: boolInt64(state.HeldForSignIn),
 		DeferredUntil: nullableAutomationTime(state.DeferredUntil),
 		JobID:         state.JobID,
 		NextRunAt:     nullableAutomationTime(state.NextRunAt),
@@ -373,6 +374,7 @@ func automationSchedulerParams(state automation.SchedulerState) sqlcgen.UpsertAu
 
 func automationSchedulerFromGenerated(row sqlcgen.AutomationSchedulerState) (automation.SchedulerState, error) {
 	state := automation.SchedulerState{
+		HeldForSignIn:             row.HeldForSignIn != 0,
 		JobID:                     row.JobID,
 		LastFireID:                strings.TrimSpace(row.LastFireID),
 		ScheduleHash:              strings.TrimSpace(row.ScheduleHash),

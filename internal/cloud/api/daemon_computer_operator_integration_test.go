@@ -7,6 +7,7 @@ package api_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,11 +24,14 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/compozy/compozy/internal/account"
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/remoteproto"
+	taskpkg "github.com/compozy/compozy/internal/task"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
@@ -152,14 +156,19 @@ func attachOperatorTerminal(
 	t *testing.T, controller daemonAccountFixture, id remoteproto.ComputerID, path string, after uint64,
 ) *websocket.Conn {
 	t.Helper()
-	reply := controller.request(t, http.MethodPost, bridgeAPI(id, path+"/attach-ticket"),
+	return attachDaemonTerminal(t, controller, bridgeAPI(id, path), after)
+}
+
+func attachDaemonTerminal(t *testing.T, controller daemonAccountFixture, path string, after uint64) *websocket.Conn {
+	t.Helper()
+	reply := controller.request(t, http.MethodPost, path+"/attach-ticket",
 		contract.TerminalAttachTicketRequest{Mode: contract.TerminalAttachModeWrite, ClientID: "controller-window"})
 	reply.expect(t, http.StatusCreated, "ticket")
 	ticket := authJSON[contract.TerminalAttachTicketResponse](t, reply).Ticket
 	query := url.Values{
 		"mode": {"write"}, "flow": {"ack"}, "ticket": {ticket}, "after_seq": {strconv.FormatUint(after, 10)},
 	}
-	target := "ws" + strings.TrimPrefix(controller.httpBase, "http") + bridgeAPI(id, path+"/stream?"+query.Encode())
+	target := "ws" + strings.TrimPrefix(controller.httpBase, "http") + path + "/stream?" + query.Encode()
 	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second, Subprotocols: []string{terminalwire.Subprotocol}}
 	socket, response, err := dialer.DialContext(t.Context(), target, http.Header{"Origin": {controller.httpBase}})
 	if err != nil {
@@ -394,7 +403,12 @@ func TestDaemonAccountSuspension(t *testing.T) {
 		if status := readRemoteDaemonStatus(t, host); status.ComputerID != id {
 			t.Fatalf("suspension removed the host identity: %s", status.ComputerID)
 		}
-		callback, _ := f.signIn(t, auth.Google, providerProfile{subject: address, email: address, verified: true}, false)
+		callback, _ := f.signIn(
+			t,
+			auth.Google,
+			providerProfile{subject: address, email: address, verified: true},
+			false,
+		)
 		callback.expect(t, http.StatusForbidden, "account_suspended")
 		admin.action(t, url.Values{"account_id": {accountID}}, "unsuspend", "account_unsuspended")
 		f.clock.Advance(25 * time.Hour)
@@ -415,4 +429,133 @@ func requireSuspensionAccountState(t *testing.T, daemon daemonAccountFixture, st
 			(source == "" || status.Source != nil && *status.Source == source) &&
 			(reason == "" || status.SignedOutReason != nil && *status.SignedOutReason == reason)
 	})
+}
+
+func TestDaemonSignOutKeepsClaimedWork(t *testing.T) {
+	root := t.TempDir()
+	t.Run(
+		"Should close operator streams while an agent settles its task and the PTY stays alive (IT-102)",
+		func(t *testing.T) {
+			if runtime.GOOS == "windows" {
+				t.Skip("this fixture uses a Unix shell")
+			}
+			// Safety Invariant 14: logout closes transports, not running work or existing leases.
+			f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+			home := filepath.Join(root, "agent")
+			started, releaseTurn := registerAccountTurnBarrier(t, home)
+			defer releaseTurn()
+			d, _ := startConfiguredDaemonAccount(t, f, home, daemonAccountBoot{signInRequired: true})
+			progress := d.stream(t, contract.AccountSignInEventsPath, "")
+			const address = "continuation@example.test"
+			signInDaemonAccount(t, f, d, progress, address)
+			workspace := registerOperatorWorkspace(t, d, prepareOperatorProject(t, root))
+			local := operatorBridge{t: t, host: d, controller: d}
+			run := local.enqueueTask(workspace, taskpkg.WorktreeModeNone)
+			session := local.createSession(workspace)
+			sessionPath := "/api/workspaces/" + workspace + "/sessions/" + session
+			terminal := openSignOutTerminal(t, d, workspace)
+
+			prompt := startSignOutTurn(t, d, sessionPath)
+			testutil.Receive(t, "active turn before logout", 10*time.Second, started)
+			caller := map[string]string{
+				agentidentity.HeaderSessionID: session,
+				agentidentity.HeaderAgent:     operatorTaskAgent,
+			}
+			callAgent := func(path string, body any, authenticated bool) authReply {
+				t.Helper()
+				headers := caller
+				if !authenticated {
+					headers = nil
+				}
+				return accountDaemonRequest(
+					t,
+					d.udsClient,
+					http.MethodPost,
+					"http://localhost/api/agent"+path,
+					body,
+					headers,
+				)
+			}
+			callAgent(
+				"/tasks/claim-next",
+				contract.AgentTaskClaimNextRequest{WorkspaceID: workspace, LeaseSeconds: 120},
+				true,
+			).
+				expect(t, http.StatusOK, run)
+			lease := "/tasks/" + run
+			callAgent(lease+"/start", struct{}{}, true).expect(t, http.StatusOK, "running")
+			d.uds(t, http.MethodPost, contract.AccountLogoutPath, contract.AccountLogoutRequest{}).
+				expect(t, http.StatusOK, "signed_out")
+			expectTerminalClose(t, terminal.connection, 4401)
+			expectAccountStreamEviction(t, prompt)
+			callAgent(lease+"/heartbeat", struct{}{}, false).expect(t, http.StatusUnauthorized, "sign_in_required")
+			callAgent(lease+"/heartbeat", contract.AgentTaskHeartbeatRequest{LeaseSeconds: 120}, true).
+				expect(t, http.StatusOK, run)
+			callAgent(lease+"/complete", contract.AgentTaskCompleteRequest{}, true).
+				expect(t, http.StatusOK, "completed")
+			callAgent("/tasks/claim-next", struct{}{}, true).expect(t, http.StatusUnauthorized, "sign_in_required")
+			callAgent("/spawn", struct{}{}, true).expect(t, http.StatusUnauthorized, "sign_in_required")
+			d.uds(t, http.MethodPost, controllerSessions, contract.CreateSessionRequest{
+				Workspace: workspace, AgentName: operatorTaskAgent,
+			}).expect(t, http.StatusUnauthorized, "sign_in_required")
+			waitDaemonAccountState(t, d, account.SignedOut, "signed_out")
+			releaseTurn()
+
+			signInDaemonAccount(t, f, d, progress, address)
+			now := attachDaemonTerminal(t, d, terminal.path, terminal.cursor)
+			_, _ = readOperatorOutput(t, now, "\r\nsign-out-pty-still-running\r\n")
+			testutil.Eventually(t, "turn finishes across sign-out", 8*time.Second, func() bool {
+				reply := d.uds(t, http.MethodGet, sessionPath+"/history", nil)
+				return reply.StatusCode == http.StatusOK &&
+					bytes.Contains(reply.body, []byte(accountTransitionFinished))
+			})
+		},
+	)
+}
+
+type signOutTerminalFixture struct {
+	connection *websocket.Conn
+	path       string
+	cursor     uint64
+}
+
+func openSignOutTerminal(t *testing.T, d daemonAccountFixture, workspace string) signOutTerminalFixture {
+	t.Helper()
+	path := "/api/workspaces/" + workspace + "/terminals"
+	reply := d.uds(t, http.MethodPost, path, contract.TerminalCreateRequest{
+		Shell: "sh", Cols: 80, Rows: 24, Title: "sign-out PTY", ClientID: "controller-window",
+	})
+	reply.expect(t, http.StatusCreated, "sign-out PTY")
+	path += "/" + string(authJSON[contract.TerminalResponse](t, reply).Terminal.ID)
+	socket := attachDaemonTerminal(t, d, path, 0)
+	input := "printf 'sign-out-pty-%s\n' ready; sleep 3; printf 'sign-out-pty-%s\n' still-running\n"
+	frame, err := terminalwire.EncodeClient(terminalwire.Frame{Op: terminalwire.ClientOpInput, Payload: []byte(input)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := socket.WriteMessage(websocket.BinaryMessage, frame); err != nil {
+		t.Fatal(err)
+	}
+	_, cursor := readOperatorOutput(t, socket, "\r\nsign-out-pty-ready\r\n")
+	return signOutTerminalFixture{connection: socket, path: path, cursor: cursor}
+}
+
+func startSignOutTurn(t *testing.T, d daemonAccountFixture, path string) accountIntegrationStream {
+	t.Helper()
+	wire, err := json.Marshal(fixturePrompt(accountTransitionPrompt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.httpBase+path+"/prompt", bytes.NewReader(wire))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	response, err := d.httpClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return observeAccountStream(t, ctx, cancel, response)
 }

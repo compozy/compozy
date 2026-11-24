@@ -11,6 +11,12 @@ import (
 	"strings"
 )
 
+// StartTaskRunParams carries the path, query, and header parameters.
+type StartTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // StartTaskRun Start one claimed task run
 func (c *Client) StartTaskRun(ctx context.Context, params StartTaskRunParams, body StartTaskRunRequest) (*TaskRunResponse, error) {
 	path := "/api/task-runs/{id}/start"

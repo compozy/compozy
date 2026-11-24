@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/remotehost"
@@ -24,6 +25,20 @@ type RemoteHostService interface {
 }
 
 var _ RemoteHostService = (*remotehost.Host)(nil)
+
+func RegisterRemoteHostRoutes(routes gin.IRouter, handlers *BaseHandlers, signIn *SignInRoutes) {
+	signIn.RequireSignedIn(SignInAnonymous, func() {
+		routes.GET("", handlers.RemoteStatus)
+		routes.POST("/link", handlers.LinkRemote)
+	})
+	signIn.RequireSignedIn(SignInAccount, func() {
+		routes.PATCH("", handlers.PatchRemoteStatus)
+		routes.DELETE("/link", handlers.UnlinkRemote)
+		routes.GET("/devices", handlers.ListRemoteDevices)
+		routes.PATCH("/devices/:id", handlers.PatchRemoteDevice)
+		routes.DELETE("/devices/:id", handlers.RevokeRemoteDevice)
+	})
+}
 
 func (h *BaseHandlers) RemoteStatus(c *gin.Context) {
 	if h.remoteReady(c) {
@@ -44,6 +59,17 @@ func (h *BaseHandlers) LinkRemote(c *gin.Context) {
 	var input contract.RemoteLinkRequest
 	if !h.remoteReady(c) || !decodeRemoteRequest(c, &input) {
 		return
+	}
+	if h.Account != nil {
+		current := h.Account.Status()
+		if current.Source == "token" {
+			RespondRemoteError(c, account.ErrTokenLocalOnly)
+			return
+		}
+		if current.Gate != account.GateOff && current.State != account.SignedIn && input.LinkToken == "" {
+			RespondRemoteError(c, account.ErrSignInRequired)
+			return
+		}
 	}
 	link, err := h.Remote.Link(c.Request.Context(), input.LinkToken)
 	result := contract.RemoteLinkResponse{ComputerID: link.ComputerID, Name: link.Name, Enabled: link.Enabled}

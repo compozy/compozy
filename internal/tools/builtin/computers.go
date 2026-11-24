@@ -59,7 +59,7 @@ func controllerComputerDescriptors() []toolspkg.Descriptor {
 		controllerComputerDescriptor(
 			toolspkg.ToolIDAccountStatus,
 			"Read account status",
-			"Read the local sign-in state, linked device and plan.",
+			"Read the local sign-in state, linked device, account token name, and plan.",
 			emptyInputSchema,
 			accountStatusOutput,
 			toolspkg.RiskRead,
@@ -100,7 +100,7 @@ const computerSetupOutput = `{"type":"object","required":["setup_id","step","sta
 const accountStatusOutput = `{"type":"object",
 	"required":["remote_computers_used","remote_computers_limit","cloud_routes_used","cloud_routes_limit","device"],
 	"properties":{
-	"state":{"type":"string"},"plan":{"type":"string"},"email":{"type":"string"},
+	"state":{"type":"string"},"plan":{"type":"string"},"email":{"type":"string"},"token_name":{"type":"string"},
 	"remote_computers_used":{"type":"integer"},"remote_computers_limit":{"type":["integer","null"]},
 	"cloud_routes_used":{"type":"integer"},"cloud_routes_limit":{"type":"integer"},
 	"device":{"type":["object","null"]}}}`

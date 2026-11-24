@@ -229,6 +229,9 @@ import type {
   ControlTerminalRecordingData,
   ControlTerminalRecordingErrors,
   ControlTerminalRecordingResponses,
+  CreateAccountTokenData,
+  CreateAccountTokenErrors,
+  CreateAccountTokenResponses,
   CreateAgentData,
   CreateAgentErrors,
   CreateAgentInstanceData,
@@ -914,6 +917,9 @@ import type {
   ListAccountDevicesData,
   ListAccountDevicesErrors,
   ListAccountDevicesResponses,
+  ListAccountTokensData,
+  ListAccountTokensErrors,
+  ListAccountTokensResponses,
   ListAgentCatalogData,
   ListAgentCatalogErrors,
   ListAgentCatalogResponses,
@@ -1601,6 +1607,9 @@ import type {
   RevokeAccountDeviceData,
   RevokeAccountDeviceErrors,
   RevokeAccountDeviceResponses,
+  RevokeAccountTokenData,
+  RevokeAccountTokenErrors,
+  RevokeAccountTokenResponses,
   RevokeAgentHeartbeatAuthorityData,
   RevokeAgentHeartbeatAuthorityErrors,
   RevokeAgentHeartbeatAuthorityResponses,
@@ -2247,6 +2256,64 @@ export class account extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/account/sign-in-notices/dismiss",
+      ...options,
+    });
+  }
+
+  /**
+   * List account tokens
+   */
+  public listAccountTokens<ThrowOnError extends boolean = true>(
+    options?: Options<ListAccountTokensData, ThrowOnError>
+  ): RequestResult<ListAccountTokensResponses, ListAccountTokensErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListAccountTokensResponses,
+      ListAccountTokensErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/tokens",
+      ...options,
+    });
+  }
+
+  /**
+   * Create an account token for local use
+   */
+  public createAccountToken<ThrowOnError extends boolean = true>(
+    options: Options<CreateAccountTokenData, ThrowOnError>
+  ): RequestResult<CreateAccountTokenResponses, CreateAccountTokenErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CreateAccountTokenResponses,
+      CreateAccountTokenErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/tokens",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Revoke an account token
+   */
+  public revokeAccountToken<ThrowOnError extends boolean = true>(
+    options: Options<RevokeAccountTokenData, ThrowOnError>
+  ): RequestResult<RevokeAccountTokenResponses, RevokeAccountTokenErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RevokeAccountTokenResponses,
+      RevokeAccountTokenErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/tokens/{id}",
       ...options,
     });
   }

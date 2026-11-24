@@ -2,11 +2,14 @@ package core
 
 import (
 	"cmp"
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/remoteproto"
 )
 
 func (h *BaseHandlers) PatchAccountEmail(c *gin.Context) {
@@ -38,4 +41,37 @@ func (h *BaseHandlers) DismissAccountSignInNotices(c *gin.Context) {
 		return
 	}
 	h.accountResult(c, http.StatusNoContent, nil, h.Account.DismissSignInNotices(c.Request.Context()))
+}
+
+func (h *BaseHandlers) logoutInstallation(ctx context.Context, unlink bool) error {
+	if h.Account.Status().InstallationLinked {
+		if !unlink || h.Remote == nil {
+			return account.ErrLogoutRequiresUnlink
+		}
+		if err := h.Remote.Unlink(ctx); err != nil {
+			return err
+		}
+	}
+	return h.Account.Logout(ctx)
+}
+
+func (h *BaseHandlers) ListAccountTokens(c *gin.Context) {
+	if h.accountReady(c) {
+		result, err := h.Account.AccountTokens(c.Request.Context())
+		h.accountResult(c, http.StatusOK, result, err)
+	}
+}
+
+func (h *BaseHandlers) CreateAccountToken(c *gin.Context) {
+	var input remoteproto.AccountTokenCreate
+	if h.accountReady(c) && decodeAccountRequest(c, &input, false) {
+		result, err := h.Account.CreateToken(c.Request.Context(), input.Name)
+		h.accountResult(c, http.StatusCreated, result, err)
+	}
+}
+
+func (h *BaseHandlers) RevokeAccountToken(c *gin.Context) {
+	if h.accountReady(c) {
+		h.accountResult(c, http.StatusNoContent, nil, h.Account.RevokeToken(c.Request.Context(), c.Param("id")))
+	}
 }

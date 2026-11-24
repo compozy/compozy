@@ -407,6 +407,7 @@ type AutomationSchedulerState struct {
 	MisfireCount              int64          `json:"misfire_count"`
 	UpdatedAt                 string         `json:"updated_at"`
 	DeferredUntil             sql.NullString `json:"deferred_until"`
+	HeldForSignIn             int64          `json:"held_for_sign_in"`
 }
 
 type AutomationSuggestion struct {
@@ -878,6 +879,11 @@ type InstallationAccount struct {
 	AuthGeneration           int64          `json:"auth_generation"`
 	LastValidatedAt          sql.NullString `json:"last_validated_at"`
 	SignInNoticesDismissedAt sql.NullString `json:"sign_in_notices_dismissed_at"`
+	GatePolicyJws            sql.NullString `json:"gate_policy_jws"`
+	GatePolicyKeys           sql.NullString `json:"gate_policy_keys"`
+	GatePolicyFetchedAt      sql.NullString `json:"gate_policy_fetched_at"`
+	OfflineGraceStartedAt    sql.NullString `json:"offline_grace_started_at"`
+	TokenName                sql.NullString `json:"token_name"`
 }
 
 type LoopAdmissionClaim struct {

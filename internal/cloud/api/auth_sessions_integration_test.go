@@ -153,47 +153,51 @@ func TestCloudDeviceSessions(t *testing.T) {
 			expect(t, http.StatusUnauthorized, `"reason":"account_deleted"`)
 	})
 
-	t.Run("Should update news consent only through the authenticated patch or unsubscribe POST (UT-122)", func(t *testing.T) {
-		t.Parallel()
-		// Safety Invariant 26. The database owns consent, with Resend synchronized after the explicit action.
-		f, resend := newAccountEmailFixture(t, false)
-		const address = "news@example.test"
-		owner := newBillingDevice(t, f, address)
-		patch := remoteproto.AccountEmailPatch{MarketingOptIn: new(true), Source: "settings"}
-		f.request(t, http.MethodPatch, cloudAccountPath, patch).expect(t, http.StatusUnauthorized, "reauth_required")
-		remoteCloudRequest(t, f, owner, http.MethodPatch, cloudAccountPath, patch).
-			expect(t, http.StatusOK, `"marketing_opt_in":true`)
-		assertAuthRow(t, f, `SELECT count(*) FROM accounts
+	t.Run(
+		"Should update news consent only through the authenticated patch or unsubscribe POST (UT-122)",
+		func(t *testing.T) {
+			t.Parallel()
+			// Safety Invariant 26. The database owns consent, with Resend synchronized after the explicit action.
+			f, resend := newAccountEmailFixture(t, false)
+			const address = "news@example.test"
+			owner := newBillingDevice(t, f, address)
+			patch := remoteproto.AccountEmailPatch{MarketingOptIn: new(true), Source: "settings"}
+			f.request(t, http.MethodPatch, cloudAccountPath, patch).
+				expect(t, http.StatusUnauthorized, "reauth_required")
+			remoteCloudRequest(t, f, owner, http.MethodPatch, cloudAccountPath, patch).
+				expect(t, http.StatusOK, `"marketing_opt_in":true`)
+			assertAuthRow(t, f, `SELECT count(*) FROM accounts
 			WHERE marketing_opt_in AND marketing_consent_at IS NOT NULL AND marketing_consent_source = 'settings'`, 1)
-		if err := f.replica.App.Accounts.SweepAccountEmail(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		link, err := url.Parse(resend.UnsubscribeURL(address))
-		if err != nil || link.Path != email.UnsubscribePath || link.Query().Get("t") == "" {
-			t.Fatal("Resend did not receive a per-account unsubscribe link")
-		}
-		path := link.RequestURI()
-		f.request(t, http.MethodGet, path, nil).expect(t, http.StatusOK, "Unsubscribe from Compozy product news?")
-		assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE marketing_opt_in", 1)
-		form := url.Values{"List-Unsubscribe": {"One-Click"}}
-		f.request(t, http.MethodPost, path+"tampered", form).expect(t, http.StatusBadRequest, "invalid")
-		assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE marketing_opt_in", 1)
-		f.request(t, http.MethodPost, path, form).expect(t, http.StatusOK, "product news and offers anymore.")
-		assertAuthRow(t, f, `SELECT count(*) FROM accounts
+			if err := f.replica.App.Accounts.SweepAccountEmail(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			link, err := url.Parse(resend.UnsubscribeURL(address))
+			if err != nil || link.Path != email.UnsubscribePath || link.Query().Get("t") == "" {
+				t.Fatal("Resend did not receive a per-account unsubscribe link")
+			}
+			path := link.RequestURI()
+			f.request(t, http.MethodGet, path, nil).expect(t, http.StatusOK, "Unsubscribe from Compozy product news?")
+			assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE marketing_opt_in", 1)
+			form := url.Values{"List-Unsubscribe": {"One-Click"}}
+			f.request(t, http.MethodPost, path+"tampered", form).expect(t, http.StatusBadRequest, "invalid")
+			assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE marketing_opt_in", 1)
+			f.request(t, http.MethodPost, path, form).expect(t, http.StatusOK, "product news and offers anymore.")
+			assertAuthRow(t, f, `SELECT count(*) FROM accounts
 			WHERE NOT marketing_opt_in AND marketing_consent_source = 'unsubscribe'`, 1)
-		if err := f.replica.App.Accounts.SweepAccountEmail(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		if resend.UnsubscribeURL(address) != "" {
-			t.Fatal("unsubscribed contact stayed on the provider")
-		}
-		remoteCloudRequest(t, f, owner, http.MethodPatch, cloudAccountPath, patch).
-			expect(t, http.StatusOK, `"marketing_opt_in":true`)
-		// RFC 8058 allows multipart form data from the mail provider without any browser cookie.
-		postRFC8058(t, f, path)
-		assertAuthRow(t, f, `SELECT count(*) FROM accounts
+			if err := f.replica.App.Accounts.SweepAccountEmail(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if resend.UnsubscribeURL(address) != "" {
+				t.Fatal("unsubscribed contact stayed on the provider")
+			}
+			remoteCloudRequest(t, f, owner, http.MethodPatch, cloudAccountPath, patch).
+				expect(t, http.StatusOK, `"marketing_opt_in":true`)
+			// RFC 8058 allows multipart form data from the mail provider without any browser cookie.
+			postRFC8058(t, f, path)
+			assertAuthRow(t, f, `SELECT count(*) FROM accounts
 			WHERE NOT marketing_opt_in AND marketing_consent_source = 'unsubscribe'`, 1)
-	})
+		},
+	)
 
 	t.Run("Should send one notice for a new key and require a fresh sign-in to revoke it (UT-132)", func(t *testing.T) {
 		t.Parallel()
@@ -256,110 +260,129 @@ func TestCloudDeviceSessions(t *testing.T) {
 			expect(t, http.StatusUnauthorized, `"reason":"device_revoked"`)
 	})
 
-	t.Run("Should revoke every credential and publish an empty snapshot during suspension (UT-135)", func(t *testing.T) {
-		t.Parallel()
-		// Safety Invariants 22, 31 and 34. Browser, device, token and computer credentials reach the same state.
-		f := newAuthFixture(t)
-		p := providerProfile{subject: "suspended-owner", email: "suspended@example.test", verified: true}
-		enrollment := newEnrollment(t, f, auth.Google, p, false)
-		key, jwk := newDeviceKey(t)
-		first := f.enroll(t, enrollment, key, enrollInput(jwk))
-		owner := remoteTestDevice{key, first.AccessToken, first.DeviceID, enrollment.AccountID}
-		enrollment = newEnrollment(t, f, auth.Google, p, false)
-		secondKey, secondJWK := newDeviceKey(t)
-		f.enroll(t, enrollment, secondKey, enrollInput(secondJWK))
-		pending := newEnrollment(t, f, auth.Google, p, false)
-		webSession := purchaseWebSession(t, f, p)
-		token := createLifecycleAccountToken(t, f, owner)
-		computerKey := seedBrowserComputer(t, f, owner.account)
-		f.db.Exec(t, "UPDATE %s.accounts SET security_epoch = 7 WHERE id = $1", owner.account)
-		service := f.replica.App.Accounts
-		identity, err := service.ComputerIdentity(t.Context(), "cmp_test")
-		if err != nil {
-			t.Fatal(err)
-		}
-		link, err := service.OpenLink(t.Context(), identity)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := service.SuspendAccount(t.Context(), owner.account, "operator@example.test"); err != nil {
-			t.Fatal(err)
-		}
-		assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE state = 'suspended' AND security_epoch = 8", 1)
-		assertAuthRow(t, f, "SELECT count(*) FROM device_sessions WHERE revoked_at IS NOT NULL", 2)
-		assertAuthRow(t, f, "SELECT count(*) FROM cloud_web_sessions WHERE revoked_at IS NOT NULL", 1)
-		assertAuthRow(t, f, "SELECT count(*) FROM account_tokens WHERE revoked_at IS NOT NULL", 1)
-		assertAuthRow(t, f, "SELECT count(*) FROM tunnels WHERE state = 'deleting'", 1)
-		assertAuthRow(t, f, `SELECT count(*) FROM security_events
+	t.Run(
+		"Should revoke every credential and publish an empty snapshot during suspension (UT-135)",
+		func(t *testing.T) {
+			t.Parallel()
+			// Safety Invariants 22, 31 and 34. Browser, device, token and computer credentials reach the same state.
+			f := newAuthFixture(t)
+			p := providerProfile{subject: "suspended-owner", email: "suspended@example.test", verified: true}
+			enrollment := newEnrollment(t, f, auth.Google, p, false)
+			key, jwk := newDeviceKey(t)
+			first := f.enroll(t, enrollment, key, enrollInput(jwk))
+			owner := remoteTestDevice{key, first.AccessToken, first.DeviceID, enrollment.AccountID}
+			enrollment = newEnrollment(t, f, auth.Google, p, false)
+			secondKey, secondJWK := newDeviceKey(t)
+			f.enroll(t, enrollment, secondKey, enrollInput(secondJWK))
+			pending := newEnrollment(t, f, auth.Google, p, false)
+			webSession := purchaseWebSession(t, f, p)
+			token := createLifecycleAccountToken(t, f, owner)
+			computerKey := seedBrowserComputer(t, f, owner.account)
+			f.db.Exec(t, "UPDATE %s.accounts SET security_epoch = 7 WHERE id = $1", owner.account)
+			service := f.replica.App.Accounts
+			identity, err := service.ComputerIdentity(t.Context(), "cmp_test")
+			if err != nil {
+				t.Fatal(err)
+			}
+			link, err := service.OpenLink(t.Context(), identity)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := service.SuspendAccount(t.Context(), owner.account, "operator@example.test"); err != nil {
+				t.Fatal(err)
+			}
+			assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE state = 'suspended' AND security_epoch = 8", 1)
+			assertAuthRow(t, f, "SELECT count(*) FROM device_sessions WHERE revoked_at IS NOT NULL", 2)
+			assertAuthRow(t, f, "SELECT count(*) FROM cloud_web_sessions WHERE revoked_at IS NOT NULL", 1)
+			assertAuthRow(t, f, "SELECT count(*) FROM account_tokens WHERE revoked_at IS NOT NULL", 1)
+			assertAuthRow(t, f, "SELECT count(*) FROM tunnels WHERE state = 'deleting'", 1)
+			assertAuthRow(t, f, `SELECT count(*) FROM security_events
 			WHERE type = 'account_suspended' AND actor = 'admin:operator@example.test'`, 1)
-		if snapshot, err := service.LinkSnapshot(t.Context(), link); err != nil ||
-			snapshot.SecurityEpoch != 8 || len(snapshot.Devices) != 0 || !snapshot.Linked {
-			t.Fatalf("suspension snapshot = %+v: %v", snapshot, err)
-		}
-		thirdKey, thirdJWK := newDeviceKey(t)
-		f.deviceRequest(t, http.MethodPost, enrollPath, pending.EnrollmentToken, thirdKey, enrollInput(thirdJWK)).
-			expect(t, http.StatusForbidden, "account_suspended")
-		for _, path := range []string{"/v1/computers/cmp_test/grants", "/v1/computers/reservations",
-			"/v1/computers/link-tokens", "/v1/billing/checkout"} {
-			remoteCloudRequest(t, f, owner, http.MethodPost, path, map[string]string{}).
+			if snapshot, err := service.LinkSnapshot(t.Context(), link); err != nil ||
+				snapshot.SecurityEpoch != 8 || len(snapshot.Devices) != 0 || !snapshot.Linked {
+				t.Fatalf("suspension snapshot = %+v: %v", snapshot, err)
+			}
+			thirdKey, thirdJWK := newDeviceKey(t)
+			f.deviceRequest(t, http.MethodPost, enrollPath, pending.EnrollmentToken, thirdKey, enrollInput(thirdJWK)).
 				expect(t, http.StatusForbidden, "account_suspended")
-		}
-		f.request(t, http.MethodGet, "/billing/upgrade", nil, webSession).
-			expect(t, http.StatusForbidden, "account_suspended")
-		lifecycleComputerRequest(t, f, computerKey, "/v1/computers/cmp_test/tunnel", remoteproto.HostedTunnelRequest{}).
-			expect(t, http.StatusForbidden, "account_suspended")
-		const revalidation = "/v1/computers/cmp_test/revalidate"
-		lifecycleComputerRequest(t, f, computerKey, revalidation, nil).
-			expect(t, http.StatusUnauthorized, `"reason":"account_suspended"`)
-		f.deviceRequest(t, http.MethodPost, refreshPath, first.RefreshToken, key, nil).
-			expect(t, http.StatusUnauthorized, `"reason":"account_suspended"`)
-		exchangeLifecycleAccountToken(t, f, token).expect(t, http.StatusUnauthorized, `"reason":"account_suspended"`)
+			for _, path := range []string{"/v1/computers/cmp_test/grants", "/v1/computers/reservations",
+				"/v1/computers/link-tokens", "/v1/billing/checkout"} {
+				remoteCloudRequest(t, f, owner, http.MethodPost, path, map[string]string{}).
+					expect(t, http.StatusForbidden, "account_suspended")
+			}
+			f.request(t, http.MethodGet, "/billing/upgrade", nil, webSession).
+				expect(t, http.StatusForbidden, "account_suspended")
+			lifecycleComputerRequest(
+				t,
+				f,
+				computerKey,
+				"/v1/computers/cmp_test/tunnel",
+				remoteproto.HostedTunnelRequest{},
+			).
+				expect(t, http.StatusForbidden, "account_suspended")
+			const revalidation = "/v1/computers/cmp_test/revalidate"
+			lifecycleComputerRequest(t, f, computerKey, revalidation, nil).
+				expect(t, http.StatusUnauthorized, `"reason":"account_suspended"`)
+			f.deviceRequest(t, http.MethodPost, refreshPath, first.RefreshToken, key, nil).
+				expect(t, http.StatusUnauthorized, `"reason":"account_suspended"`)
+			exchangeLifecycleAccountToken(
+				t,
+				f,
+				token,
+			).expect(t, http.StatusUnauthorized, `"reason":"account_suspended"`)
 
-		if err := service.UnsuspendAccount(t.Context(), owner.account, "operator@example.test"); err != nil {
-			t.Fatal(err)
-		}
-		if snapshot, err := service.LinkSnapshot(t.Context(), link); err != nil ||
-			snapshot.SecurityEpoch != 9 || len(snapshot.Devices) != 2 {
-			t.Fatalf("unsuspension snapshot = %+v: %v", snapshot, err)
-		}
-		lifecycleComputerRequest(t, f, computerKey, revalidation, nil).expect(t, http.StatusNoContent, "")
-		f.deviceRequest(t, http.MethodPost, refreshPath, first.RefreshToken, key, nil).
-			expect(t, http.StatusUnauthorized, `"reason":"session_invalid"`)
-		exchangeLifecycleAccountToken(t, f, token).expect(t, http.StatusUnauthorized, `"reason":"token_revoked"`)
-		assertAuthRow(t, f, "SELECT count(*) FROM cloud_web_sessions WHERE revoked_at IS NOT NULL", 1)
-		assertAuthRow(t, f, `SELECT count(*) FROM security_events
+			if err := service.UnsuspendAccount(t.Context(), owner.account, "operator@example.test"); err != nil {
+				t.Fatal(err)
+			}
+			if snapshot, err := service.LinkSnapshot(t.Context(), link); err != nil ||
+				snapshot.SecurityEpoch != 9 || len(snapshot.Devices) != 2 {
+				t.Fatalf("unsuspension snapshot = %+v: %v", snapshot, err)
+			}
+			lifecycleComputerRequest(t, f, computerKey, revalidation, nil).expect(t, http.StatusNoContent, "")
+			f.deviceRequest(t, http.MethodPost, refreshPath, first.RefreshToken, key, nil).
+				expect(t, http.StatusUnauthorized, `"reason":"session_invalid"`)
+			exchangeLifecycleAccountToken(t, f, token).expect(t, http.StatusUnauthorized, `"reason":"token_revoked"`)
+			assertAuthRow(t, f, "SELECT count(*) FROM cloud_web_sessions WHERE revoked_at IS NOT NULL", 1)
+			assertAuthRow(t, f, `SELECT count(*) FROM security_events
 			WHERE type = 'account_unsuspended' AND actor = 'admin:operator@example.test'`, 1)
-	})
+		},
+	)
 
-	t.Run("Should count installations by source and activity window without counting a web session as an installation", func(t *testing.T) {
-		t.Parallel()
-		const metricsToken = "fixture-metrics"
-		f := newAuthFixtureWithReplica(t, func(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *remotetest.Replica {
-			cfg.MetricsToken = metricsToken
-			return remotetest.StartReplica(t, cfg, register)
-		})
-		owner := newBillingDevice(t, f, "account-metrics@example.test")
-		browser := providerProfile{subject: "web-only", email: "web-only@example.test", verified: true}
-		purchaseWebSession(t, f, browser)
-		computer := remoteproto.ComputerID("cmp_metrics")
-		f.db.SeedControlComputer(t, owner.account, computer, f.clock.Now())
-		token := createLifecycleAccountToken(t, f, owner)
-		exchangeLifecycleAccountToken(t, f, token).expect(t, http.StatusOK, owner.account)
-		exchangeLifecycleAccountToken(t, f, token).expect(t, http.StatusOK, owner.account)
-		f.request(t, http.MethodGet, "/metrics", nil).expect(t, http.StatusUnauthorized, "unauthorized")
-		auth := map[string]string{"Authorization": "Bearer " + metricsToken}
-		read := callAuth(t, f.replica, http.MethodGet, "/metrics", nil, nil, auth)
-		read.expect(t, http.StatusOK, `cloud_accounts_total{provider="google"} 2`)
-		read.expect(t, http.StatusOK, `cloud_accounts_active{window="1d"} 1`)
-		for _, source := range []string{"session", "link", "token"} {
-			read.expect(t, http.StatusOK, `cloud_installations_active{window="1d",source="`+source+`"} 1`)
-		}
-		f.clock.Advance(2 * 24 * time.Hour)
-		read = callAuth(t, f.replica, http.MethodGet, "/metrics", nil, nil, auth)
-		read.expect(t, http.StatusOK, `cloud_accounts_active{window="1d"} 0`)
-		read.expect(t, http.StatusOK, `cloud_accounts_active{window="7d"} 1`)
-		read.expect(t, http.StatusOK, `cloud_installations_active{window="30d",source="token"} 1`)
-	})
+	t.Run(
+		"Should count installations by source and activity window without counting a web session as an installation",
+		func(t *testing.T) {
+			t.Parallel()
+			const metricsToken = "fixture-metrics"
+			f := newAuthFixtureWithReplica(
+				t,
+				func(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *remotetest.Replica {
+					cfg.MetricsToken = metricsToken
+					return remotetest.StartReplica(t, cfg, register)
+				},
+			)
+			owner := newBillingDevice(t, f, "account-metrics@example.test")
+			browser := providerProfile{subject: "web-only", email: "web-only@example.test", verified: true}
+			purchaseWebSession(t, f, browser)
+			computer := remoteproto.ComputerID("cmp_metrics")
+			f.db.SeedControlComputer(t, owner.account, computer, f.clock.Now())
+			token := createLifecycleAccountToken(t, f, owner)
+			exchangeLifecycleAccountToken(t, f, token).expect(t, http.StatusOK, owner.account)
+			exchangeLifecycleAccountToken(t, f, token).expect(t, http.StatusOK, owner.account)
+			f.request(t, http.MethodGet, "/metrics", nil).expect(t, http.StatusUnauthorized, "unauthorized")
+			auth := map[string]string{"Authorization": "Bearer " + metricsToken}
+			read := callAuth(t, f.replica, http.MethodGet, "/metrics", nil, nil, auth)
+			read.expect(t, http.StatusOK, `cloud_accounts_total{provider="google"} 2`)
+			read.expect(t, http.StatusOK, `cloud_accounts_active{window="1d"} 1`)
+			for _, source := range []string{"session", "link", "token"} {
+				read.expect(t, http.StatusOK, `cloud_installations_active{window="1d",source="`+source+`"} 1`)
+			}
+			f.clock.Advance(2 * 24 * time.Hour)
+			read = callAuth(t, f.replica, http.MethodGet, "/metrics", nil, nil, auth)
+			read.expect(t, http.StatusOK, `cloud_accounts_active{window="1d"} 0`)
+			read.expect(t, http.StatusOK, `cloud_accounts_active{window="7d"} 1`)
+			read.expect(t, http.StatusOK, `cloud_installations_active{window="30d",source="token"} 1`)
+		},
+	)
 
 }
 
@@ -452,7 +475,14 @@ func purchaseWebSession(t *testing.T, f authFixture, profile providerProfile) *h
 
 func createLifecycleAccountToken(t *testing.T, f authFixture, device remoteTestDevice) string {
 	t.Helper()
-	result := remoteCloudRequest(t, f, device, http.MethodPost, cloudAccountPath+"/tokens", map[string]string{"name": "ci"})
+	result := remoteCloudRequest(
+		t,
+		f,
+		device,
+		http.MethodPost,
+		cloudAccountPath+"/tokens",
+		map[string]string{"name": "ci"},
+	)
 	result.expect(t, http.StatusCreated, "token")
 	return authJSON[struct {
 		Token string `json:"token"`
@@ -480,7 +510,69 @@ func lifecycleComputerRequest(t *testing.T, f authFixture, key ed25519.PrivateKe
 	if err != nil {
 		t.Fatal(err)
 	}
-	return callAuth(t, f.replica, http.MethodPost, path, in, nil, map[string]string{remoteproto.ComputerProofHeader: proof})
+	return callAuth(
+		t,
+		f.replica,
+		http.MethodPost,
+		path,
+		in,
+		nil,
+		map[string]string{remoteproto.ComputerProofHeader: proof},
+	)
+}
+
+func TestCloudAccountTokenRouteAdmission(t *testing.T) {
+	t.Parallel()
+	t.Run("Should accept account tokens on the exchange only (UT-119)", func(t *testing.T) {
+		t.Parallel()
+		// Safety Invariant 27: local-use credentials never register a cloud device or change the security epoch.
+		f := newAuthFixture(t)
+		owner := enrollRemoteDevice(t, f, "token-owner@example.test", "ins_owner")
+		var epoch int
+		if err := f.conn.QueryRow(t.Context(), "SELECT security_epoch FROM accounts WHERE id = $1", owner.account).
+			Scan(&epoch); err != nil {
+			t.Fatal(err)
+		}
+		reply := remoteCloudRequest(
+			t,
+			f,
+			owner,
+			http.MethodPost,
+			"/v1/account/tokens",
+			remoteproto.AccountTokenCreate{Name: "runner"},
+		)
+		reply.expect(t, http.StatusCreated, "cpzat_")
+		created := authJSON[remoteproto.AccountTokenCreated](t, reply)
+		exchanged := callAuth(t, f.replica, http.MethodPost, remoteproto.AccountTokenExchangePath,
+			remoteproto.AccountTokenExchange{InstallationID: "ins_fixture"}, nil,
+			map[string]string{"Authorization": "Bearer " + created.Token})
+		exchanged.expect(t, http.StatusOK, created.ID)
+		id := authJSON[remoteproto.AccountTokenIdentity](t, exchanged)
+		if id.AccountID != owner.account || id.TokenID != created.ID {
+			t.Fatalf("exchange identity = %+v", id)
+		}
+
+		paths := []struct{ method, path string }{
+			{http.MethodGet, "/v1/computers"}, {http.MethodPatch, "/v1/computers/cmp_other"},
+			{http.MethodDelete, "/v1/computers/cmp_other"}, {http.MethodGet, "/v1/devices"},
+			{http.MethodPost, enrollPath}, {http.MethodPost, "/v1/computers/link-tokens"},
+			{http.MethodPost, "/v1/computers/reservations"}, {http.MethodPost, "/v1/computers/cmp_other/grants"},
+			{http.MethodGet, "/v1/approvals"}, {http.MethodPost, "/v1/billing/checkout"},
+			{http.MethodPatch, "/v1/account"}, {http.MethodGet, "/v1/account/tokens"},
+			{http.MethodGet, remoteproto.AccountTokenExchangePath}, {http.MethodGet, "/v1/gate-policy"},
+		}
+		for _, credential := range []string{created.Token, id.TokenID} {
+			for _, route := range paths {
+				callAuth(t, f.replica, route.method, route.path, struct{}{}, nil,
+					map[string]string{"Authorization": "Bearer " + credential}).
+					expect(t, http.StatusForbidden, "account_token_local_only")
+			}
+		}
+		assertAuthRow(t, f, "SELECT count(*) FROM devices", 1)
+		assertAuthRow(t, f, "SELECT count(*) FROM device_keys", 1)
+		assertAuthRow(t, f, "SELECT security_epoch FROM accounts", epoch)
+		assertAuthRow(t, f, "SELECT count(*) FROM account_token_instances", 1)
+	})
 }
 
 func TestCloudResendContactSync(t *testing.T) {

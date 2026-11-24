@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// ApprovalExecutionStatus is a daemon API value.
+type ApprovalExecutionStatus string
+
+// ApprovalGrantDecision is a daemon API value.
+type ApprovalGrantDecision string
+
+// ApprovalGrantManagementScope is a daemon API value.
+type ApprovalGrantManagementScope string
+
+// ApprovalOutcome is a daemon API value.
+type ApprovalOutcome string
+
+// ApprovalPolicy is a daemon API value.
+type ApprovalPolicy string
+
+// ApprovalResult is a daemon API value.
+type ApprovalResult struct {
+	ID     string `json:"id"`
+	Result string `json:"result"`
+}
+
 // ApprovalState is a daemon API value.
 type ApprovalState string
 
@@ -420,24 +441,4 @@ type CatalogMeta struct {
 	UseWhen  string   `json:"use_when,omitempty"`
 	Keywords []string `json:"keywords,omitempty"`
 	Category string   `json:"category,omitempty"`
-}
-
-// Change is a daemon API value.
-type Change struct {
-	Kind          string          `json:"kind,omitempty"`
-	Plan          string          `json:"plan,omitempty"`
-	PaymentIssue  *bool           `json:"payment_issue,omitempty"`
-	EvictRemote   bool            `json:"evict_remote,omitzero"`
-	Approval      *ApprovalResult `json:"approval,omitempty"`
-	ApprovalID    string          `json:"approval_id,omitempty"`
-	ComputerID    ComputerID      `json:"computer_id,omitempty"`
-	DeviceID      DeviceID        `json:"device_id,omitempty"`
-	SecurityEpoch uint64          `json:"security_epoch,omitzero"`
-}
-
-// ChangeBasePayload is a daemon API value.
-type ChangeBasePayload struct {
-	Ref          string `json:"ref"`
-	Source       string `json:"source"`
-	MergeBaseSHA string `json:"merge_base_sha"`
 }

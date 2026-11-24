@@ -114,7 +114,7 @@ func (p SchedulerCatchUpPolicy) Validate(path string) error {
 // Validate ensures the scheduler skip reason is supported.
 func (r SchedulerSkipReason) Validate(path string) error {
 	switch r {
-	case SchedulerSkipReasonGraceExceeded, SchedulerSkipReasonSelfOverlap:
+	case SchedulerSkipReasonGraceExceeded, SchedulerSkipReasonSelfOverlap, SchedulerSkipReasonSignInRequired:
 		return nil
 	default:
 		return fmt.Errorf(
@@ -122,6 +122,7 @@ func (r SchedulerSkipReason) Validate(path string) error {
 			path,
 			SchedulerSkipReasonGraceExceeded,
 			SchedulerSkipReasonSelfOverlap,
+			SchedulerSkipReasonSignInRequired,
 			r,
 		)
 	}

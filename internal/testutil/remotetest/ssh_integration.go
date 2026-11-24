@@ -58,7 +58,7 @@ func PrepareSSHAssets(t Fixture, repo string) SSHAssets {
 	if net.ParseIP(gateway) == nil {
 		t.Fatalf("invalid fixture network gateway %q", gateway)
 	}
-	binary := buildSSHBinary(t, repo)
+	binary := buildSSHBinary(t, repo, false)
 	archiveName, err := update.ArchiveAssetName("linux", runtime.GOARCH)
 	if err != nil {
 		t.Fatal(err)
@@ -66,13 +66,26 @@ func PrepareSSHAssets(t Fixture, repo string) SSHAssets {
 	return SSHAssets{image, gateway, binary, archiveName, fixtureReleaseArchive(t, binary)}
 }
 
-func buildSSHBinary(t Fixture, repo string) string {
+func WithRequiredSignInSSHBinary(t Fixture, repo string, assets SSHAssets) SSHAssets {
+	t.Helper()
+	assets.Binary = buildSSHBinary(t, repo, true)
+	assets.Archive = fixtureReleaseArchive(t, assets.Binary)
+	return assets
+}
+
+func buildSSHBinary(t Fixture, repo string, requiredSignIn bool) string {
 	t.Helper()
 	binary := filepath.Join(t.TempDir(), "compozy")
 	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "go", "build", "-ldflags",
-		"-X github.com/compozy/compozy/internal/version.Version="+SSHFixtureVersion, "-o", binary, "./cmd/compozy")
+	args := []string{"build", "-ldflags",
+		"-X github.com/compozy/compozy/internal/version.Version=" + SSHFixtureVersion, "-o", binary}
+	if requiredSignIn {
+		args = append(args, "-tags", "integration", "./internal/testutil/remotetest/cmd/remotetest")
+	} else {
+		args = append(args, "./cmd/compozy")
+	}
+	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Dir = repo
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux")
 	if out, err := cmd.CombinedOutput(); err != nil {

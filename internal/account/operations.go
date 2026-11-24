@@ -114,7 +114,7 @@ func (s *Service) RevokeDevice(ctx context.Context, id string) error {
 	if revoked != s.generation {
 		return nil
 	}
-	return s.signedOutLocked(s.ctx, ReauthRequired, "device_revoked")
+	return s.rejectDeviceLocked("device_revoked")
 }
 
 func (s *Service) Approvals(ctx context.Context) (approvals []remoteproto.AccountApproval, err error) {

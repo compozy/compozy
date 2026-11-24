@@ -1,14 +1,21 @@
 ---
 id: RT-sign-in-first-run
 area: RT
-title: Sign in to CompozyOS for the first time
-journey: J-sign-in-first-run
-expected: A first sign-in binds the operator-confirmed grant to one installation and its key. The installation can refresh and sign out with explicit rejection reasons.
-entry_points: CompozyOS sign-in; compozy account; local HTTP and UDS; Compozy Cloud activation; hosted browser sign-in
-qa_status: planned
+title: Sign in on a fresh installation
+persona: Iris
+journey: J-sign-in-and-use-compozy
+expected: Sign-in unlocks local use and leaves product email under the account owner's control.
+entry_points: Official desktop package; CLI over SSH; Cloud activation page
+qa_status: pending
 ---
 
-Run this scenario on staging after the cloud and daemon sign-in slices are integrated.
+1. Start the packaged app with an empty home and verify a protected read returns `401 sign_in_required`. Confirm account status, update status, and application assets still load.
+2. Sign in with Google. Compare the activation page's code, computer name, and location against the challenge. Verify the shell opens and the protected read returns 200.
+3. Repeat on a headless host with `compozy account login --provider github --no-browser --news`. Use the printed URL and code, then verify the CLI reports the account and a local read succeeds.
+4. Confirm the email preference, follow its unsubscribe link, and confirm it turns off. Open the first sign-in notice and check its linked revoke flow from a freshly authenticated browser.
+5. Delete the test account after confirming the email. Confirm the initiating installation is signed out, an enrolled second installation learns the deletion at refresh, and the local workspace data remains readable after signing in again.
+
+Use IT-094, IT-096, IT-098, IT-099, IT-104, and E2E-011 for the related automated evidence.
 
 1. Start sign-in with Google and then with GitHub on fresh installations. Check that the cloud displays the correct computer, platform, location, and code. Confirm that both providers link to the same account when the verified email matches.
 2. Cancel before continuing and repeat after the provider callback. Check that the old grant cannot enroll a device. Wait until expiry on a separate attempt and check that the operator can start again.

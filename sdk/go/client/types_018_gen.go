@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// RestartActionStatus is a daemon API value.
+type RestartActionStatus struct {
+	OperationID        string                 `json:"operation_id"`
+	Status             RestartOperationStatus `json:"status"`
+	OldPID             int                    `json:"old_pid"`
+	OldStartedAt       time.Time              `json:"old_started_at"`
+	OldSocketPath      string                 `json:"old_socket_path"`
+	NewPID             int                    `json:"new_pid,omitzero"`
+	ActiveSessionCount int                    `json:"active_session_count"`
+	FailureReason      string                 `json:"failure_reason,omitempty"`
+	StartedAt          time.Time              `json:"started_at"`
+	UpdatedAt          time.Time              `json:"updated_at"`
+	CompletedAt        *time.Time             `json:"completed_at,omitempty"`
+	Progress           *RestartProgress       `json:"progress,omitempty"`
+}
+
+// RestartOperationStatus is a daemon API value.
+type RestartOperationStatus string
+
 // RestartProgress is a daemon API value.
 type RestartProgress struct {
 	Phase     RestartProgressPhase `json:"phase"`
@@ -423,10 +442,4 @@ type RunWorktreeExitActionRequest struct {
 	Body          string             `json:"body,omitempty"`
 	Draft         bool               `json:"draft,omitzero"`
 	Base          string             `json:"base,omitempty"`
-}
-
-// RunsResponse is a daemon API value.
-type RunsResponse struct {
-	Page *CursorPagePayload `json:"page,omitempty"`
-	Runs []RunPayload       `json:"runs"`
 }

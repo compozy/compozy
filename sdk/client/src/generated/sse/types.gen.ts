@@ -7,6 +7,7 @@ export type ClientOptions = {
 export type AccountSignInProgress = {
   attempt_id: string;
   code?: string;
+  new_account?: boolean;
   state: string;
 };
 

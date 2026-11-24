@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+// AgentEffectiveRuntimePayload is a daemon API value.
+type AgentEffectiveRuntimePayload struct {
+	SessionEnvStatus         []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	SessionEnv               map[string]SessionEnvBindingPayload       `json:"session_env,omitempty"`
+	AutoCompactWindow        *int                                      `json:"auto_compact_window,omitempty"`
+	LeanEnvironment          *bool                                     `json:"lean_environment,omitempty"`
+	Provider                 string                                    `json:"provider"`
+	Model                    string                                    `json:"model,omitempty"`
+	ReasoningEffort          Effort                                    `json:"reasoning_effort,omitempty"`
+	Speed                    Speed                                     `json:"speed,omitempty"`
+	ACPOptions               []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
+	PolicyExcludedACPOptions []AgentACPOptionSelection                 `json:"policy_excluded_acp_options,omitempty"`
+	Permissions              string                                    `json:"permissions,omitempty"`
+	FallbackChain            []RoleFallbackStatus                      `json:"fallback_chain,omitempty"`
+	Sources                  AgentEffectiveRuntimeSources              `json:"sources"`
+}
+
+// AgentEffectiveRuntimeSources is a daemon API value.
+type AgentEffectiveRuntimeSources struct {
+	Provider        AgentRuntimeValueSource `json:"provider"`
+	Model           AgentRuntimeValueSource `json:"model,omitempty"`
+	ReasoningEffort AgentRuntimeValueSource `json:"reasoning_effort,omitempty"`
+	Speed           AgentRuntimeValueSource `json:"speed,omitempty"`
+	Permissions     AgentRuntimeValueSource `json:"permissions,omitempty"`
+	FallbackChain   AgentRuntimeValueSource `json:"fallback_chain,omitempty"`
+}
+
 // AgentFallbackRoutePayload is a daemon API value.
 type AgentFallbackRoutePayload struct {
 	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
@@ -419,24 +446,3 @@ type AgentMemoryValidateResponse struct {
 	Valid       bool     `json:"valid"`
 	Diagnostics []string `json:"diagnostics"`
 }
-
-// AgentMemoryWriteRequest is a daemon API value.
-type AgentMemoryWriteRequest struct {
-	Content        string `json:"content"`
-	ExpectedDigest string `json:"expected_digest"`
-}
-
-// AgentNotifyRequest is a daemon API value.
-type AgentNotifyRequest struct {
-	Title string `json:"title"`
-	Body  string `json:"body,omitempty"`
-}
-
-// AgentNotifyResponse is a daemon API value.
-type AgentNotifyResponse struct {
-	Outcome      string `json:"outcome"`
-	RetryAfterMS int64  `json:"retry_after_ms,omitzero"`
-}
-
-// AgentOrigin is a daemon API value.
-type AgentOrigin string

@@ -18,15 +18,9 @@ func WithRemoteHost(service core.RemoteHostService) Option {
 	return func(server *Server) { server.remote = service }
 }
 
-func registerRemoteHostRoutes(api gin.IRouter, handlers *Handlers) {
+func registerRemoteHostRoutes(api gin.IRouter, handlers *Handlers, signIn *core.SignInRoutes) {
 	routes := api.Group("/remote", handlers.privilegedMutationGuard())
-	routes.GET("", handlers.RemoteStatus)
-	routes.PATCH("", handlers.PatchRemoteStatus)
-	routes.POST("/link", handlers.LinkRemote)
-	routes.DELETE("/link", handlers.UnlinkRemote)
-	routes.GET("/devices", handlers.ListRemoteDevices)
-	routes.PATCH("/devices/:id", handlers.PatchRemoteDevice)
-	routes.DELETE("/devices/:id", handlers.RevokeRemoteDevice)
+	core.RegisterRemoteHostRoutes(routes, handlers.BaseHandlers, signIn)
 }
 
 // operatorRouteGroups is the shared entry point for local and remote operator
@@ -68,8 +62,9 @@ func newRemoteOperatorRouter(handlers *Handlers, browser bool) *gin.Engine {
 		api := routes.router.Group("/api", handlers.WorkspaceReferenceGuard)
 		operator := operatorRouteGroups{router: api, remote: true}
 		registerOperatorRoutes(operator, handlers, true)
+		registerSignedOutOperatorRoutes(operator, handlers)
 		admin := operator.group("", remoteproto.ScopeAdmin)
-		registerRemoteHostRoutes(admin, handlers)
+		registerRemoteHostRoutes(admin, handlers, nil)
 		core.RegisterIngressRoutes(admin, handlers.BaseHandlers, handlers.privilegedMutationGuard())
 		registerAppTokenRoutes(admin, handlers)
 		operator.group("", remoteproto.ScopeSessions).GET("/openapi.json", handlers.GetOpenAPIDocument)

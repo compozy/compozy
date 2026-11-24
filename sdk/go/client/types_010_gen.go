@@ -2,10 +2,18 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// Graph is a daemon API value.
+type Graph struct {
+	Nodes []Node `json:"nodes"`
+	Edges []Edge `json:"edges"`
+}
+
+// GridBody is a daemon API value.
+type GridBody struct {
+	Sections []GridSection `json:"sections"`
+}
 
 // GridSection is a daemon API value.
 type GridSection struct {
@@ -428,23 +436,3 @@ type HookMatcher struct {
 
 // HookMode is a daemon API value.
 type HookMode string
-
-// HookRunPayload is a daemon API value.
-type HookRunPayload struct {
-	HookName      string          `json:"hook_name"`
-	Event         string          `json:"event"`
-	Source        string          `json:"source"`
-	Mode          string          `json:"mode"`
-	DurationMS    int64           `json:"duration_ms"`
-	Outcome       string          `json:"outcome"`
-	DispatchDepth int             `json:"dispatch_depth"`
-	PatchApplied  json.RawMessage `json:"patch_applied,omitempty"`
-	Error         string          `json:"error,omitempty"`
-	Required      bool            `json:"required,omitzero"`
-	RecordedAt    time.Time       `json:"recorded_at"`
-}
-
-// HookRunsResponse is a daemon API value.
-type HookRunsResponse struct {
-	Runs []HookRunPayload `json:"runs"`
-}

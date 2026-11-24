@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/vault"
+	"github.com/compozy/compozy/internal/version"
 	"github.com/jonboulle/clockwork"
 )
 
@@ -32,17 +33,22 @@ func WithKeyring(ring vault.Keyring) Option  { return func(s *Service) { s.ring 
 func WithLogger(logger *slog.Logger) Option  { return func(s *Service) { s.logger = logger } }
 
 type Service struct {
-	store          Store
-	cloud          Cloud
-	clock          clockwork.Clock
-	logger         *slog.Logger
-	credentials    *credentials
-	ring           vault.Keyring
-	name, platform string
-	ctx            context.Context
-	cancel         context.CancelFunc
-	workers        sync.WaitGroup
-	wakeRefresh    chan struct{}
+	store           Store
+	cloud           Cloud
+	clock           clockwork.Clock
+	logger          *slog.Logger
+	credentials     *credentials
+	ring            vault.Keyring
+	name, platform  string
+	ctx             context.Context
+	cancel          context.CancelFunc
+	workers         sync.WaitGroup
+	wakeRefresh     chan struct{}
+	signInRequired  bool
+	gate            gateState
+	token           string
+	linkedAccountID string
+	linkedEmail     string
 
 	// Take sessionMu before mu when rotating or committing a credential.
 	sessionMu    sync.Mutex
@@ -74,6 +80,7 @@ func New(ctx context.Context, store Store, cloud Cloud, home string, opts ...Opt
 		store: store, cloud: cloud, clock: clockwork.NewRealClock(), logger: slog.Default(),
 		name: name, platform: runtime.GOOS + "_" + runtime.GOARCH,
 		wakeRefresh: make(chan struct{}, 1), progress: make(map[chan SignInEvent]struct{}),
+		signInRequired: version.SignInRequired == "true",
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -95,6 +102,16 @@ func New(ctx context.Context, store Store, cloud Cloud, home string, opts ...Opt
 	s.ctx, s.cancel = context.WithCancel(context.WithoutCancel(ctx))
 	s.installation = installation
 	s.generation = newGeneration(s.ctx, installation.AuthGeneration)
+	s.initializeGate(ctx)
+	if err := s.restoreHostLink(ctx); err != nil {
+		s.cancel()
+		return nil, err
+	}
+	if err := s.startToken(ctx); err != nil {
+		s.cancel()
+		return nil, err
+	}
+	s.startGate(ctx)
 	s.workers.Go(s.refreshLoop)
 	return s, nil
 }
@@ -114,6 +131,8 @@ func (s *Service) Status() Installation {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	result := s.installation
+	result.InstallationLinked = s.linkedAccountID != ""
+	result.Gate, result.Grace = s.gateStatusLocked()
 	if s.attempt != nil && result.State != SignedIn {
 		result.State = SigningIn
 	}
@@ -149,6 +168,8 @@ func (s *Service) transitionLocked(ctx context.Context, next Installation, sessi
 	s.generation.cancel()
 	s.generation = newGeneration(s.ctx, next.AuthGeneration)
 	s.installation = next
+	s.updateGateLocked()
+	s.wakeGateLocked()
 	s.session = session
 	s.retryAt, s.backoff = time.Time{}, 0
 	s.retryErr = nil
@@ -165,13 +186,18 @@ func (s *Service) signalRefresh() {
 
 func (s *Service) signedOutLocked(ctx context.Context, state State, reason string) error {
 	previous := s.installation
-	next := Installation{InstallationID: previous.InstallationID, PreAccountInstall: previous.PreAccountInstall,
-		State: state, SignedOutReason: reason}
+	next := previous
+	next.State, next.SignedOutReason = state, reason
+	next.Source, next.AccountID, next.TokenName = "", "", ""
+	next.Profile, next.LastValidatedAt = remoteproto.AccountSummary{}, time.Time{}
 	if err := s.transitionLocked(ctx, next, deviceSession{}); err != nil {
 		return err
 	}
 	s.sendProgressLocked(SignInEvent{State: string(state), SignedOutReason: reason})
-	if previous.AccountID != "" {
+	if previous.Source == "token" {
+		return s.credentials.remove(tokenEntry, previous.InstallationID)
+	}
+	if previous.Source == "session" && previous.AccountID != "" {
 		if err := s.credentials.remove(refreshEntry, previous.AccountID); err != nil {
 			return err
 		}
@@ -186,12 +212,19 @@ func (s *Service) Logout(ctx context.Context) error {
 	s.sessionMu.Lock()
 	defer s.sessionMu.Unlock()
 	s.mu.Lock()
-	current, session := s.installation, s.session
+	current, session, linked := s.installation, s.session, s.linkedAccountID != ""
 	s.mu.Unlock()
+	if linked {
+		return ErrLogoutRequiresUnlink
+	}
 	if current.State == SignedOut {
+		s.mu.Lock()
+		s.token = ""
+		s.signalRefresh()
+		s.mu.Unlock()
 		return nil
 	}
-	if current.State == SignedIn {
+	if current.State == SignedIn && current.Source == "session" {
 		var err error
 		session, err = s.loadSession(current, session)
 		if err != nil {
@@ -203,7 +236,11 @@ func (s *Service) Logout(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.signedOutLocked(s.ctx, SignedOut, "signed_out")
+	if err := s.signedOutLocked(s.ctx, SignedOut, "signed_out"); err != nil {
+		return err
+	}
+	s.token = ""
+	return nil
 }
 
 func (s *Service) loadSession(current Installation, session deviceSession) (deviceSession, error) {
@@ -247,7 +284,8 @@ func (s *Service) refreshLoop() {
 		s.mu.Lock()
 		current, generation := s.installation, s.generation
 		var next time.Time
-		if current.State == SignedIn {
+		token := s.token != "" && (current.Source == "token" || current.State != SignedIn)
+		if token || (current.State == SignedIn && current.Source == "session") {
 			next = cmp.Or(s.retryAt, current.LastValidatedAt.Add(dailyRefresh))
 		}
 		s.mu.Unlock()
@@ -267,6 +305,10 @@ func (s *Service) refreshLoop() {
 		case <-s.wakeRefresh:
 			timer.Stop()
 		case <-timer.Chan():
+			if token {
+				s.exchangeToken(s.ctx)
+				continue
+			}
 			if _, err := s.refresh(
 				generation,
 				false,
@@ -288,6 +330,12 @@ func (s *Service) refresh(g *generation, forAccess bool) (cloudclient.Credential
 	if !valid {
 		return cloudclient.Credentials{}, ErrSignInRequired
 	}
+	switch current.Source {
+	case "token":
+		return cloudclient.Credentials{}, ErrTokenLocalOnly
+	case "link":
+		return cloudclient.Credentials{}, ErrSignInRequired
+	}
 	now := s.clock.Now()
 	if forAccess && session.usable(now) {
 		return cloudclient.Credentials{Key: session.key, AccessToken: session.access}, nil
@@ -303,7 +351,7 @@ func (s *Service) refresh(g *generation, forAccess bool) (cloudclient.Credential
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if reason := reauthReason(err); reason != "" {
-		if stateErr := s.signedOutLocked(s.ctx, ReauthRequired, reason); stateErr != nil {
+		if stateErr := s.rejectDeviceLocked(reason); stateErr != nil {
 			s.postponeRefreshLocked(stateErr)
 			return cloudclient.Credentials{}, stateErr
 		}

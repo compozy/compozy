@@ -28,6 +28,8 @@ func reauth(reason string) *Failure {
 		message = "This computer was removed from your account. Sign in again."
 	case "account_deleted":
 		message = "Your account was deleted."
+	case "token_revoked":
+		message = "This account token was revoked."
 	case errAccountSuspended.Code:
 		message = errAccountSuspended.Message
 	}

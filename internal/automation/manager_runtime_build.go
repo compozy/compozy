@@ -113,6 +113,7 @@ func (m *Manager) buildSchedulerRuntime(_ context.Context) (*Scheduler, error) {
 		return nil, fmt.Errorf("automation: construct scheduler: %w", err)
 	}
 	scheduler.localExecution = m.dispatcher.checkLocalExecution
+	scheduler.waitForSignIn = m.dispatcher.waitForSignIn
 	return scheduler, nil
 }
 

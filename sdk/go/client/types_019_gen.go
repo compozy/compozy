@@ -4,6 +4,12 @@ package client
 
 import "time"
 
+// RunsResponse is a daemon API value.
+type RunsResponse struct {
+	Page *CursorPagePayload `json:"page,omitempty"`
+	Runs []RunPayload       `json:"runs"`
+}
+
 // RuntimeActivityPayload is a daemon API value.
 type RuntimeActivityPayload struct {
 	TurnID             string     `json:"turn_id,omitempty"`
@@ -438,12 +444,4 @@ type SessionCatalogFacetsResponse struct {
 	Facets      SessionCatalogFacetsPayload     `json:"facets"`
 	ByWorkspace []SessionWorkspaceFacetsPayload `json:"by_workspace"`
 	Later       int                             `json:"later,omitempty"`
-}
-
-// SessionCatalogPagePayload is a daemon API value.
-type SessionCatalogPagePayload struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-	Total      *int   `json:"total,omitzero"`
-	Limit      int    `json:"limit"`
 }

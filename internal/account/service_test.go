@@ -3,6 +3,9 @@ package account
 import (
 	"context"
 	"crypto"
+	"crypto/ed25519"
+	"crypto/rand"
+	"errors"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -53,7 +56,10 @@ func TestAccountSignIn(t *testing.T) {
 			// Safety Invariant 26. The unauthenticated attempt never carries consent.
 			var enrolled atomic.Bool
 			var patches atomic.Int32
-			cloud := accountCloudStub{start: testGrant, poll: testAuthorized, profile: testProfile,
+			cloud := accountCloudStub{
+				start:   testGrant,
+				poll:    testAuthorized,
+				profile: testProfile,
 				enroll: func(request remoteproto.DeviceEnrollRequest) (remoteproto.DeviceEnrollResponse, error) {
 					enrolled.Store(true)
 					return testEnroll(request)
@@ -484,6 +490,171 @@ func (*accountCloudStub) Logout(context.Context, string, crypto.Signer) error { 
 
 func accountTestTime() time.Time { return time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC) }
 
+func TestSignInGate(t *testing.T) {
+	t.Parallel()
+	// UT-134. Safety Invariants 14 and 33 protect admission, stream lifetime and the offline deadline.
+	t.Run("Should close the current operator lifetime once the signed policy expires", func(t *testing.T) {
+		t.Parallel()
+		cloud := testGateCloud(t, time.Hour, false)
+		service, _, clock := newAccountTest(t, cloud, Installation{State: SignedOut}, WithSignInRequired(true))
+		assertTestGate(t, service, GateGrace, "policy")
+		lifetime := service.OperatorLifetime()
+		clock.Advance(time.Hour + time.Second)
+		assertTestGate(t, service, GateEnforced, "")
+		if !errors.Is(context.Cause(lifetime), ErrSignInRequired) || service.OperatorLifetime() != lifetime {
+			t.Fatalf("operator lifetime was replaced or closed without the sign-in cause: %v", context.Cause(lifetime))
+		}
+	})
+
+	for _, tc := range []struct {
+		name    string
+		until   time.Duration
+		foreign bool
+		enabled bool
+		state   State
+		want    string
+	}{
+		{name: "Should refuse an unknown signing key", until: time.Hour, foreign: true, enabled: true, state: SignedOut, want: GateEnforced},
+		{name: "Should refuse an expired signed policy", until: -time.Second, enabled: true, state: SignedOut, want: GateEnforced},
+		{name: "Should refuse grace after a device is revoked", until: time.Hour, enabled: true, state: ReauthRequired, want: GateEnforced},
+		{name: "Should leave development admission open", until: time.Hour, state: SignedOut, want: GateOff},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			initial := Installation{State: tc.state, PreAccountInstall: true}
+			if tc.state == ReauthRequired {
+				initial.SignedOutReason = "device_revoked"
+			}
+			service, _, _ := newAccountTest(
+				t,
+				testGateCloud(t, tc.until, tc.foreign),
+				initial,
+				WithSignInRequired(tc.enabled),
+			)
+			assertTestGate(t, service, tc.want, "")
+		})
+	}
+
+	t.Run("Should persist the original offline deadline across errors and restart", func(t *testing.T) {
+		t.Parallel()
+		cloud := testGateCloud(t, time.Hour, false)
+		cloud.failure.Store(
+			&cloudclient.Failure{Code: "account_cloud_unreachable", Status: http.StatusServiceUnavailable},
+		)
+		service, store, clock := newAccountTest(t, cloud, Installation{
+			State: SignedOut, PreAccountInstall: true,
+		}, WithSignInRequired(true))
+		assertTestGate(t, service, GateGrace, "offline")
+		original := store.current().OfflineGraceStartedAt
+		if !original.Equal(clock.Now()) {
+			t.Fatalf("offline grace started at %s", original)
+		}
+		service.Close()
+		clock.Advance(3 * 24 * time.Hour)
+		cloud.failure.Store(&cloudclient.Failure{Code: "cloud_unavailable", Status: http.StatusServiceUnavailable})
+		restarted, err := New(t.Context(), store, cloud, t.TempDir(), WithClock(clock), WithSignInRequired(true))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(restarted.Close)
+		assertTestGate(t, restarted, GateGrace, "offline")
+		if got := store.current().OfflineGraceStartedAt; !got.Equal(original) {
+			t.Fatalf("restart moved offline deadline: %s != %s", got, original)
+		}
+		clock.Advance(4*24*time.Hour + time.Second)
+		assertTestGate(t, restarted, GateEnforced, "")
+	})
+
+	t.Run("Should end offline grace at the first reachable response", func(t *testing.T) {
+		t.Parallel()
+		cloud := testGateCloud(t, 0, false)
+		cloud.failure.Store(&cloudclient.Failure{Status: http.StatusServiceUnavailable})
+		service, store, clock := newAccountTest(t, cloud, Installation{
+			State: SignedOut, PreAccountInstall: true,
+		}, WithSignInRequired(true))
+		assertTestGate(t, service, GateGrace, "offline")
+		service.Close()
+		clock.Advance(2 * 24 * time.Hour)
+		cloud.failure.Store(nil)
+		restarted, err := New(t.Context(), store, cloud, t.TempDir(), WithClock(clock), WithSignInRequired(true))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(restarted.Close)
+		assertTestGate(t, restarted, GateEnforced, "")
+	})
+
+	t.Run("Should enforce sign-in immediately for a fresh offline home", func(t *testing.T) {
+		t.Parallel()
+		cloud := testGateCloud(t, 0, false)
+		cloud.failure.Store(&cloudclient.Failure{Status: http.StatusServiceUnavailable})
+		service, store, _ := newAccountTest(t, cloud, Installation{State: SignedOut}, WithSignInRequired(true))
+		assertTestGate(t, service, GateEnforced, "")
+		if !store.current().OfflineGraceStartedAt.IsZero() {
+			t.Fatal("fresh home recorded an offline grace deadline")
+		}
+	})
+}
+
+type gateCloudStub struct {
+	accountCloudStub
+	policy  string
+	keys    remoteproto.JWKS
+	failure atomic.Pointer[cloudclient.Failure]
+}
+
+func (s *gateCloudStub) GatePolicy(context.Context) (string, error) {
+	if failure := s.failure.Load(); failure != nil {
+		return "", failure
+	}
+	return s.policy, nil
+}
+
+func (s *gateCloudStub) JWKS(context.Context) (remoteproto.JWKS, error) { return s.keys, nil }
+
+func testGateCloud(t *testing.T, until time.Duration, foreign bool) *gateCloudStub {
+	t.Helper()
+	signer := func(id string) *remoteproto.Signer {
+		_, key, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := remoteproto.NewSigner(id, key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	trusted := signer("trusted")
+	issuer := trusted
+	if foreign {
+		issuer = signer("foreign")
+	}
+	now := accountTestTime()
+	policy := remoteproto.GatePolicy{Mode: "enforce", IssuedAt: now.Unix()}
+	if until != 0 {
+		policy.Mode, policy.Until = "grace", new(now.Add(until))
+	}
+	token, err := issuer.SignGatePolicy(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &gateCloudStub{policy: token, keys: remoteproto.JWKS{Keys: []remoteproto.JWK{trusted.PublicJWK()}}}
+}
+
+func assertTestGate(t *testing.T, service *Service, want, source string) {
+	t.Helper()
+	err := service.AdmitNewWork()
+	if want == GateEnforced && !errors.Is(err, ErrSignInRequired) || want != GateEnforced && err != nil {
+		t.Fatalf("gate %s admission = %v", want, err)
+	}
+	status := service.Status()
+	if status.Gate != want || source == "" && status.Grace != nil ||
+		source != "" && (status.Grace == nil || status.Grace.Source != source) {
+		t.Fatalf("gate = %s, grace = %+v; want %s and %q", status.Gate, status.Grace, want, source)
+	}
+}
+
 func signedInInstallation() Installation {
 	profile, _ := testProfile()
 	return Installation{
@@ -499,12 +670,14 @@ func newAccountTest(
 	t *testing.T,
 	cloud Cloud,
 	initial Installation,
+	options ...Option,
 ) (*Service, *accountStoreStub, *clockwork.FakeClock) {
 	t.Helper()
 	initial.InstallationID = "ins_test"
 	store := &accountStoreStub{state: initial}
 	clock := clockwork.NewFakeClockAt(accountTestTime())
-	s, err := New(t.Context(), store, cloud, t.TempDir(), WithClock(clock), WithKeyring(&accountKeyringStub{}))
+	options = append([]Option{WithClock(clock), WithKeyring(&accountKeyringStub{})}, options...)
+	s, err := New(t.Context(), store, cloud, t.TempDir(), options...)
 	if err != nil {
 		t.Fatal(err)
 	}

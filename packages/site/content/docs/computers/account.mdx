@@ -5,7 +5,9 @@ description: Sign in from the CLI, check the installation's account, and manage 
 
 ## Sign in from the CLI
 
-Run `compozy account login` on the computer you want to sign in to. CompozyOS opens the activation page in your browser when one is available. On a headless computer, copy the printed URL into a browser. Compare the code and computer details on the page with your sign-in before continuing with Google or GitHub.
+Official release builds require an account to use CompozyOS. Run `compozy account login` on the computer you want to sign in to. Use `--provider google` or `--provider github` to choose a provider. On a headless computer, use `--no-browser` and open the printed URL elsewhere. Compare the code and computer details on the page with your sign-in before continuing.
+
+The first sign-in needs an internet connection. For a network that uses a proxy, set `HTTPS_PROXY`, `HTTP_PROXY` and `NO_PROXY` on the daemon's launcher. The cloud client, its WebSocket, and the hosted connector use those settings.
 
 The sign-in code expires in 15 minutes. Press Ctrl-C to cancel the attempt. If you lose the last trusted admin device, choose **Recover admin access** on the Google activation page and authenticate again.
 
@@ -13,9 +15,21 @@ Run `compozy account status` to see your plan, remote computer usage, and this c
 
 ## Manage your account
 
-- `compozy account logout` revokes the session and closes its account stream. Signing in again with the same account reuses the device unless it was revoked.
+- `compozy account logout` revokes this session. Use `compozy account logout --unlink` on an installation linked for remote access. Existing turns and task leases can finish.
+- `compozy account email --news on|off` updates product email consent. You can also pass `--news` or `--no-news` with `account login`.
+- `compozy account delete` shows the account, computer and billing impact and prompts for the account email. Use `--confirm-email <email>` when there is no terminal. Deletion leaves the data on your computers in place.
 - `compozy account upgrade` opens monthly Pro checkout. Use `compozy account upgrade --annual` for annual billing. You can also [buy Pro from a browser](/docs/account/billing) before installing CompozyOS.
 - A temporary cloud outage leaves an existing sign-in intact. Local sessions remain available and account operations resume when the cloud is reachable.
+
+## Sign in on CI
+
+Run `compozy account token create --name ci` from a device signed in to your account. Put the one-time value in your CI secret store and provide it to the daemon launcher as `COMPOZY_ACCOUNT_TOKEN`. The token unlocks local work. Use a Google or GitHub sign-in for remote computers, approvals, and billing. List tokens with `compozy account token list` and revoke one with `compozy account token revoke <id>`.
+
+## Upgrade an existing installation
+
+After updating to 0.8.0, sign in before starting new work. Recurring jobs skip scheduled occurrences while signed out. One-shot jobs wait and run once when work can resume. Webhook senders receive a retryable 503.
+
+During a sign-in incident, Compozy Cloud can grant temporary local access. An existing 0.7.x home that cannot reach Compozy Cloud on first contact can also work for seven days from that attempt. The CLI prints the end time on stderr. Account features such as Computers and billing still require sign-in during that window.
 
 See the account security guide for sign-in notices, product news, and deletion. [Account security and privacy](/docs/account/security)
 
@@ -39,9 +53,12 @@ The same account routes are available over the daemon's local HTTP and Unix sock
 | `GET /api/account/approvals` and `GET /api/account/approvals/{id}`  | Read device approvals and recent results.                                             |
 | `POST /api/account/approvals/{id}/decision`                         | Submit an approval decision from a trusted admin device.                              |
 | `GET /api/account/stream`                                           | Follow account changes, including approval results.                                   |
+| `GET /api/account/tokens`                                            | List local-use account tokens and their last use.                                    |
+| `POST /api/account/tokens`                                           | Create a named token and return its value once.                                      |
+| `DELETE /api/account/tokens/{id}`                                    | Revoke a token.                                                                      |
 | `POST /api/account/checkout` and `POST /api/account/billing-portal` | Open hosted checkout or the billing portal.                                           |
 
-`POST /api/account/login` accepts `marketing_opt_in: true` to opt in after enrollment. `GET /api/account` includes `recent_sign_ins` for the last seven days. Deletion requires an admin device and returns `202` with `state`, `subscription_cancelled`, and `refund`.
+`POST /api/account/login` accepts `marketing_opt_in: true` to opt in after enrollment. `GET /api/account` includes `recent_sign_ins` for the last seven days. Use `GET /api/account?refresh=true` to read current billing details before confirming deletion. Deletion requires an admin device and returns `202` with `state`, `subscription_cancelled`, and `refund`.
 
 Subscribe to the sign-in events before starting a login to receive progress for its attempt ID. Start a new account stream after signing in. The signed-in stream accepts `Last-Event-ID` or `after_sequence` from the same sign-in. On `stream_reset`, read the current account and approvals again. A `202` approval decision confirms delivery was accepted. Wait for the applied result or read the approval to confirm the outcome.
 

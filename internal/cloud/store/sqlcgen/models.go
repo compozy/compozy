@@ -53,6 +53,22 @@ type AccountEmailOutbox struct {
 	RetryAt pgtype.Timestamptz
 }
 
+type AccountToken struct {
+	ID          string
+	AccountID   string
+	Name        string
+	TokenSha256 []byte
+	CreatedAt   pgtype.Timestamptz
+	LastUsedAt  pgtype.Timestamptz
+	RevokedAt   pgtype.Timestamptz
+}
+
+type AccountTokenInstance struct {
+	TokenID        string
+	InstallationID string
+	LastSeenAt     pgtype.Timestamptz
+}
+
 type BillingCheckout struct {
 	ID        string
 	AccountID string

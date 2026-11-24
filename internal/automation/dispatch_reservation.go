@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 )
@@ -15,6 +16,10 @@ var errScheduledAdmissionDeferred = errors.New("automation: scheduled admission 
 
 func WithDispatcherLocalExecution(check func() error) DispatcherOption {
 	return func(d *Dispatcher) { d.localExecution = check }
+}
+
+func WithDispatcherSignInWait(wait func(context.Context) error) DispatcherOption {
+	return func(d *Dispatcher) { d.waitForSignIn = wait }
 }
 
 func (d *Dispatcher) checkLocalExecution() error {
@@ -26,7 +31,11 @@ func (d *Dispatcher) checkLocalExecution() error {
 
 func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, attempt int) (*Run, error) {
 	if err := d.checkLocalExecution(); err != nil {
-		if req.ReservedRun != nil && req.Kind == DispatchKindSchedule {
+		if errors.Is(err, account.ErrSignInRequired) && req.Trigger != nil && req.ReservedRun == nil &&
+			req.Envelope != nil && req.Envelope.Source != ActivationSourceWebhook {
+			return d.recordSignInSkip(ctx, req)
+		}
+		if req.Kind == DispatchKindSchedule {
 			return req.ReservedRun, errors.Join(errScheduledAdmissionDeferred, err)
 		}
 		return nil, err
@@ -56,6 +65,19 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	}
 
 	return d.dispatchAgentSession(ctx, req, scheduledRun, attempt)
+}
+
+func (d *Dispatcher) recordSignInSkip(ctx context.Context, req DispatchRequest) (*Run, error) {
+	now := d.now()
+	run, err := d.runs.CreateRun(ctx, Run{
+		ProfileID: req.profileID(), WorkspaceID: new(req.Trigger.WorkspaceID), TriggerID: req.Trigger.ID,
+		Attribution: "recorded", Status: RunCancelled, Attempt: 1, StartedAt: &now, EndedAt: &now,
+		Metadata: map[string]any{SchedulerSkipReasonMetadataKey: string(SchedulerSkipReasonSignInRequired)},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &run, nil
 }
 
 func (d *Dispatcher) dispatchAgentSession(
@@ -162,7 +184,8 @@ func scheduledAdmissionInterrupted(ctx context.Context, req DispatchRequest, err
 		return false
 	}
 	return req.Kind == DispatchKindSchedule && req.ReservedRun != nil &&
-		(errors.Is(err, admission.ErrDraining) || errors.Is(err, admission.ErrStarting) || errors.Is(err, context.Canceled) ||
+		(errors.Is(err, admission.ErrDraining) || errors.Is(err, admission.ErrStarting) ||
+			errors.Is(err, account.ErrSignInRequired) || errors.Is(err, context.Canceled) ||
 			errors.Is(err, context.DeadlineExceeded))
 }
 

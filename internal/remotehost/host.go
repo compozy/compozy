@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/version"
+	"github.com/jonboulle/clockwork"
 )
 
 type HostAccount interface {
@@ -27,6 +28,8 @@ type HostAccount interface {
 	Status() account.Installation
 	StartLogin(context.Context, string) (account.Login, error)
 	SubscribeSignIn() (<-chan account.SignInEvent, func())
+	CommitHostLink(context.Context, string, string, func() error) error
+	ObserveHostLink(context.Context, string, string) error
 	UseDevice(context.Context, func(context.Context, cloudclient.Credentials) error) error
 	Devices(context.Context) ([]remoteproto.AccountDevice, error)
 	PatchDevice(context.Context, string, remoteproto.AccountDevicePatch) (remoteproto.AccountDevice, error)
@@ -44,6 +47,8 @@ type HostCloud interface {
 	) (cloudclient.ComputerLink, error)
 	UpdateRemoteAccess(context.Context, remoteproto.ComputerID, ed25519.PrivateKey, bool, []string) error
 	UnlinkComputer(context.Context, remoteproto.ComputerID, cloudclient.Credentials) error
+	UnlinkComputerWithKey(context.Context, remoteproto.ComputerID, ed25519.PrivateKey) error
+	RevalidateComputer(context.Context, remoteproto.ComputerID, ed25519.PrivateKey, string) error
 }
 
 type hostedCloud interface {
@@ -55,6 +60,7 @@ type hostedCloud interface {
 
 type HostOptions struct {
 	Now                func() time.Time
+	Clock              clockwork.Clock
 	Logger             *slog.Logger
 	Home               string
 	Operator           http.Handler
@@ -112,13 +118,14 @@ type Host struct {
 	version  string
 	webhook  atomic.Pointer[http.Handler]
 
-	linkMu   sync.Mutex // Serializes link and unlink through the config commit.
-	mu       sync.Mutex
-	config   config.RemoteConfig
-	identity Identity
-	run      *hostRun
-	workers  sync.WaitGroup
-	closed   bool
+	linkMu         sync.Mutex // Serializes link and unlink through the config commit.
+	mu             sync.Mutex
+	config         config.RemoteConfig
+	identity       Identity
+	run            *hostRun
+	workers        sync.WaitGroup
+	closed         bool
+	revalidateWake chan struct{}
 }
 
 type hostRun struct {
@@ -148,6 +155,9 @@ func NewHost(
 	cfg config.RemoteConfig,
 	opts HostOptions,
 ) (*Host, error) {
+	if opts.Clock == nil {
+		opts.Clock = clockwork.NewRealClock()
+	}
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
@@ -181,6 +191,7 @@ func NewHost(
 		ctx: lifetime, cancel: cancel, store: storage, cloud: cloud, account: account, opts: opts,
 		name: cmp.Or(name, "CompozyOS"), platform: runtimePlatform(), version: version.Current().Version,
 		config: cfg.Clone(), identity: identity,
+		revalidateWake: make(chan struct{}, 1),
 	}
 	if host.config.Enabled && identity.ComputerID == "" {
 		host.config.Enabled = false
@@ -195,6 +206,7 @@ func NewHost(
 		cancel()
 		return nil, err
 	}
+	host.workers.Go(host.revalidateLoop)
 	return host, nil
 }
 

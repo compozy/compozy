@@ -16,18 +16,20 @@ import (
 )
 
 type ComputerLinkRequest struct {
-	Name           string          `json:"name"`
-	Platform       string          `json:"platform"`
-	Version        string          `json:"version"`
-	ComputerJWK    remoteproto.JWK `json:"computer_jwk"`
-	TLSRootSHA256  string          `json:"tls_root_sha256"`
-	InstallationID string          `json:"installation_id,omitempty"`
-	LinkToken      string          `json:"link_token,omitempty"`
+	Name              string          `json:"name"`
+	Platform          string          `json:"platform"`
+	Version           string          `json:"version"`
+	ComputerJWK       remoteproto.JWK `json:"computer_jwk"`
+	TLSRootSHA256     string          `json:"tls_root_sha256"`
+	InstallationID    string          `json:"installation_id,omitempty"`
+	ExpectedAccountID string          `json:"expected_account_id,omitempty"`
+	LinkToken         string          `json:"link_token,omitempty"`
 }
 
 type ComputerLink struct {
 	ComputerID remoteproto.ComputerID `json:"computer_id"`
 	AccountID  string                 `json:"account_id"`
+	Email      string                 `json:"email"`
 }
 
 func (c *Client) Origin() string { return strings.TrimRight(c.base.String(), "/") }
@@ -64,6 +66,17 @@ func (c *Client) UpdateRemoteAccess(
 
 func (c *Client) UnlinkComputer(ctx context.Context, id remoteproto.ComputerID, device Credentials) error {
 	return c.deviceJSON(ctx, device, http.MethodDelete, computerPath(id), nil, nil)
+}
+
+func (c *Client) UnlinkComputerWithKey(ctx context.Context, id remoteproto.ComputerID, key ed25519.PrivateKey) error {
+	return c.computerJSON(ctx, http.MethodDelete, computerPath(id), nil, nil, Credentials{}, key)
+}
+
+func (c *Client) RevalidateComputer(
+	ctx context.Context, id remoteproto.ComputerID, key ed25519.PrivateKey, installationID string,
+) error {
+	return c.computerJSON(ctx, http.MethodPost, computerPath(id)+"/revalidate",
+		remoteproto.ComputerRevalidation{InstallationID: installationID}, nil, Credentials{}, key)
 }
 
 func computerPath(id remoteproto.ComputerID) string {

@@ -11,7 +11,7 @@ import (
 )
 
 const readInstallationAccount = `-- name: ReadInstallationAccount :one
-SELECT id, installation_id, pre_account_install, state, source, account_id, email, name, provider, device_id, device_name, device_admin, marketing_opt_in, plan_json, signed_out_reason, auth_generation, last_validated_at, sign_in_notices_dismissed_at FROM installation_account WHERE id = 1
+SELECT id, installation_id, pre_account_install, state, source, account_id, email, name, provider, device_id, device_name, device_admin, marketing_opt_in, plan_json, signed_out_reason, auth_generation, last_validated_at, sign_in_notices_dismissed_at, gate_policy_jws, gate_policy_keys, gate_policy_fetched_at, offline_grace_started_at, token_name FROM installation_account WHERE id = 1
 `
 
 func (q *Queries) ReadInstallationAccount(ctx context.Context) (InstallationAccount, error) {
@@ -36,6 +36,11 @@ func (q *Queries) ReadInstallationAccount(ctx context.Context) (InstallationAcco
 		&i.AuthGeneration,
 		&i.LastValidatedAt,
 		&i.SignInNoticesDismissedAt,
+		&i.GatePolicyJws,
+		&i.GatePolicyKeys,
+		&i.GatePolicyFetchedAt,
+		&i.OfflineGraceStartedAt,
+		&i.TokenName,
 	)
 	return i, err
 }
@@ -48,8 +53,13 @@ UPDATE installation_account SET
   marketing_opt_in = ?10, plan_json = ?11,
   signed_out_reason = ?12, auth_generation = ?13,
   last_validated_at = ?14,
-  sign_in_notices_dismissed_at = ?15
-WHERE id = 1 AND auth_generation = ?16
+  gate_policy_jws = ?15,
+  gate_policy_keys = ?16,
+  gate_policy_fetched_at = ?17,
+  offline_grace_started_at = ?18,
+  token_name = ?19,
+  sign_in_notices_dismissed_at = ?20
+WHERE id = 1 AND auth_generation = ?21
 `
 
 type SaveInstallationAccountParams struct {
@@ -67,6 +77,11 @@ type SaveInstallationAccountParams struct {
 	SignedOutReason          sql.NullString `json:"signed_out_reason"`
 	AuthGeneration           int64          `json:"auth_generation"`
 	LastValidatedAt          sql.NullString `json:"last_validated_at"`
+	GatePolicyJws            sql.NullString `json:"gate_policy_jws"`
+	GatePolicyKeys           sql.NullString `json:"gate_policy_keys"`
+	GatePolicyFetchedAt      sql.NullString `json:"gate_policy_fetched_at"`
+	OfflineGraceStartedAt    sql.NullString `json:"offline_grace_started_at"`
+	TokenName                sql.NullString `json:"token_name"`
 	SignInNoticesDismissedAt sql.NullString `json:"sign_in_notices_dismissed_at"`
 	PreviousGeneration       int64          `json:"previous_generation"`
 }
@@ -87,6 +102,11 @@ func (q *Queries) SaveInstallationAccount(ctx context.Context, arg SaveInstallat
 		arg.SignedOutReason,
 		arg.AuthGeneration,
 		arg.LastValidatedAt,
+		arg.GatePolicyJws,
+		arg.GatePolicyKeys,
+		arg.GatePolicyFetchedAt,
+		arg.OfflineGraceStartedAt,
+		arg.TokenName,
 		arg.SignInNoticesDismissedAt,
 		arg.PreviousGeneration,
 	)

@@ -25,6 +25,7 @@ const (
 	keyringService = "compozy.account"
 	deviceKeyEntry = "device-key"
 	refreshEntry   = "refresh"
+	tokenEntry     = "account-token"
 )
 
 type systemKeyring struct{}

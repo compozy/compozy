@@ -72,13 +72,31 @@ func resumeDeferredScheduledRun(
 	if err != nil {
 		return automation.SchedulerClaimResult{}, err
 	}
+	if run.Status == automation.RunScheduled && claim.SkipReason != "" {
+		run.Status, run.EndedAt = automation.RunCancelled, automationTimePointer(claim.ClaimedAt)
+		run.Metadata = schedulerSkipMetadata(claim, claim.SkipReason, "")
+		metadata, err := encodeAutomationRunMetadata(run.Metadata)
+		if err != nil {
+			return automation.SchedulerClaimResult{}, err
+		}
+		affected, err := sqlcgen.New(tx).UpdateAutomationRun(ctx, automationRunUpdateParams(run, metadata))
+		if err != nil {
+			return automation.SchedulerClaimResult{}, err
+		}
+		if affected != 1 {
+			return automation.SchedulerClaimResult{}, automation.ErrRunReservationConflict
+		}
+		state = schedulerStateAfterClaim(state, claim, true)
+	}
 	if run.Status != automation.RunScheduled {
 		state.DeferredUntil = nil
 		if err := upsertSchedulerStateTx(ctx, tx, state); err != nil {
 			return automation.SchedulerClaimResult{}, err
 		}
 	}
-	return automation.SchedulerClaimResult{State: state, Run: run, Skipped: run.Status != automation.RunScheduled}, nil
+	return automation.SchedulerClaimResult{
+		State: state, Run: run, Skipped: run.Status != automation.RunScheduled, SkipReason: claim.SkipReason,
+	}, nil
 }
 
 func (g *AutomationRepo) saveSchedulerState(

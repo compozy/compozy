@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// PutLoopInputDefaultsRequest is a daemon API value.
+type PutLoopInputDefaultsRequest struct {
+	Scope  LoopInputDefaultsScope `json:"scope"`
+	Values map[string]any         `json:"values"`
+}
+
+// PutResourceRequest is a daemon API value.
+type PutResourceRequest struct {
+	Scope           ResourceScope   `json:"scope"`
+	ExpectedVersion int64           `json:"expected_version,omitzero"`
+	Spec            json.RawMessage `json:"spec"`
+}
+
+// PutSettingsHookRequest is a daemon API value.
+type PutSettingsHookRequest struct {
+	Declaration SettingsHookDeclarationPayload `json:"declaration"`
+}
+
 // PutSettingsMCPServerRequest is a daemon API value.
 type PutSettingsMCPServerRequest struct {
 	Server          SettingsMCPServerPayload              `json:"server"`
@@ -424,22 +442,3 @@ type RestartActionResponse struct {
 	StatusURL          string                 `json:"status_url"`
 	ActiveSessionCount int                    `json:"active_session_count"`
 }
-
-// RestartActionStatus is a daemon API value.
-type RestartActionStatus struct {
-	OperationID        string                 `json:"operation_id"`
-	Status             RestartOperationStatus `json:"status"`
-	OldPID             int                    `json:"old_pid"`
-	OldStartedAt       time.Time              `json:"old_started_at"`
-	OldSocketPath      string                 `json:"old_socket_path"`
-	NewPID             int                    `json:"new_pid,omitzero"`
-	ActiveSessionCount int                    `json:"active_session_count"`
-	FailureReason      string                 `json:"failure_reason,omitempty"`
-	StartedAt          time.Time              `json:"started_at"`
-	UpdatedAt          time.Time              `json:"updated_at"`
-	CompletedAt        *time.Time             `json:"completed_at,omitempty"`
-	Progress           *RestartProgress       `json:"progress,omitempty"`
-}
-
-// RestartOperationStatus is a daemon API value.
-type RestartOperationStatus string

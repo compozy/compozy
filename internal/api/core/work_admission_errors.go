@@ -4,12 +4,15 @@ import (
 	"cmp"
 	"errors"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func workAdmissionErrorPayload(err error) *contract.ErrorPayload {
 	switch {
+	case errors.Is(err, account.ErrSignInRequired):
+		return &contract.ErrorPayload{Code: account.ErrSignInRequired.Code, Error: account.ErrSignInRequired.Message}
 	case errors.Is(err, admission.ErrStarting):
 		return &contract.ErrorPayload{
 			Code: cmp.Or(

@@ -7,7 +7,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
-    "output_schema_digest": "bf343dd405e666043957edbc8a7369bbd013a8ba2e3a033c0caac5d2034dd4f9",
+    "output_schema_digest": "c1fb021b791dcd58e3738a148ce6e14996e29df4f6c20ef06b5bdda75fa5d175",
     "result_contract": "single",
     "single_result_reason": "minimal"
   },

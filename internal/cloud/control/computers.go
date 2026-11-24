@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,12 +24,13 @@ import (
 type Computer = remoteproto.AccountComputer
 
 type LinkRequest struct {
-	Name           string          `json:"name"`
-	Platform       string          `json:"platform"`
-	Version        string          `json:"version"`
-	ComputerJWK    remoteproto.JWK `json:"computer_jwk"`
-	TLSRootSHA256  string          `json:"tls_root_sha256"`
-	InstallationID string          `json:"installation_id,omitempty"`
+	Name              string          `json:"name"`
+	Platform          string          `json:"platform"`
+	Version           string          `json:"version"`
+	ComputerJWK       remoteproto.JWK `json:"computer_jwk"`
+	TLSRootSHA256     string          `json:"tls_root_sha256"`
+	InstallationID    string          `json:"installation_id,omitempty"`
+	ExpectedAccountID string          `json:"expected_account_id,omitempty"`
 }
 
 type ComputerPatch struct {
@@ -83,6 +85,10 @@ func (s *Service) LinkWithToken(ctx context.Context, accountID, raw string, requ
 		}
 		if token.AccountID != account.ID {
 			return errLinkTokenInvalid
+		}
+		if request.ExpectedAccountID != "" && request.ExpectedAccountID != account.ID {
+			return &Error{http.StatusConflict, "installation_linked_to_other_account",
+				"Unlink this computer before signing in with another account."}
 		}
 		if _, err := findDevice(ctx, q, account.ID, token.DeviceID); err != nil {
 			return err
@@ -149,7 +155,8 @@ func (r LinkRequest) computer() (store.ControlComputer, error) {
 		return store.ControlComputer{}, ErrInvalidInput
 	}
 	name := strings.TrimSpace(r.Name)
-	if name == "" || len(name) > 128 || !validPlatform(r.Platform) || r.Version == "" || len(r.Version) > 64 || len(r.InstallationID) > 128 {
+	if name == "" || len(name) > 128 || !validPlatform(r.Platform) || r.Version == "" || len(r.Version) > 64 ||
+		len(r.InstallationID) > 128 {
 		return store.ControlComputer{}, ErrInvalidInput
 	}
 	return store.ControlComputer{
@@ -415,24 +422,7 @@ func (s *Service) UnlinkComputer(ctx context.Context, principal DevicePrincipal,
 			if err != nil {
 				return err
 			}
-			now := s.config.Now()
-			if err := q.UnlinkControlComputer(ctx, computer, now); err != nil {
-				return err
-			}
-			tunnel, err = s.markHostedDeleting(ctx, q, computer)
-			if err != nil {
-				return err
-			}
-			if _, err := s.reconcilePlan(ctx, q, account.ID, now); err != nil {
-				return err
-			}
-			if err := s.securityEvent(ctx, q, account.ID, device.ID, "computer_unlinked",
-				map[string]any{auditComputerID: id}); err != nil {
-				return err
-			}
-			_, err = q.AdvanceSecurity(ctx, store.ControlEvent{
-				Type: remoteproto.ControlUnlink, AccountID: account.ID, ComputerID: id,
-			})
+			tunnel, err = s.unlinkComputer(ctx, q, computer, device.ID)
 			return err
 		},
 	)

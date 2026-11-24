@@ -52,7 +52,7 @@ func (s *Service) holdFeed(g *generation, key string, duration time.Duration) {
 }
 
 func (s *Service) updateFeedLocked(g *generation) {
-	if s.closed || g != s.generation {
+	if s.closed || g != s.generation || s.installation.Source != "session" {
 		return
 	}
 	wanted := len(g.subscribers) > 0 || len(g.pending) > 0

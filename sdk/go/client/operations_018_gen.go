@@ -333,6 +333,16 @@ func (c *Client) ListAccountDevices(ctx context.Context) (*AccountDevicesRespons
 	return &out, nil
 }
 
+// ListAccountTokens List account tokens
+func (c *Client) ListAccountTokens(ctx context.Context) (*AccountTokenList, error) {
+	path := "/api/account/tokens"
+	var out AccountTokenList
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListAgentCatalogParams carries the path, query, and header parameters.
 type ListAgentCatalogParams struct {
 	Workspace *string `url:"workspace"`
