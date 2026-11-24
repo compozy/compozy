@@ -198,6 +198,13 @@ const (
 	ToolIDGateway             ToolID = "compozy__gateway"
 	ToolIDRemoteStatus        ToolID = "compozy__remote_status"
 	ToolIDComputerSetupCancel ToolID = "compozy__computer_setup_cancel"
+	ToolIDComputerSetupAnswer ToolID = "compozy__computer_setup_answer"
+	ToolIDComputerSetupStatus ToolID = "compozy__computer_setup_status"
+	ToolIDComputerList        ToolID = "compozy__computer_list"
+	ToolIDComputerStatus      ToolID = "compozy__computer_status"
+	ToolIDComputerAdd         ToolID = "compozy__computer_add"
+	ToolIDComputerRemove      ToolID = "compozy__computer_remove"
+	ToolIDAccountStatus       ToolID = "compozy__account_status"
 	// ToolIDTaskList lists task summaries through the task service.
 	ToolIDTaskList ToolID = "compozy__task_list"
 	// ToolIDTaskRead reads one task view through the task service.

@@ -27,6 +27,7 @@ type RuntimeRegistry struct {
 	approvalBridge        ApprovalBridge
 	callInputBinder       CallInputBinder
 	callInputAuthorizer   CallInputAuthorizer
+	computerForwarder     ComputerForwarder
 	workspaceAccess       workspaceaccess.Policy
 	workspaceIDResolver   WorkspaceIDResolver
 	processor             ResultProcessor
@@ -382,6 +383,7 @@ func cloneDescriptor(src Descriptor) Descriptor {
 	cloned.ToolPresentation = CloneToolPresentation(src.ToolPresentation)
 	cloned.ToolExecutionMetadata = CloneToolExecutionMetadata(src.ToolExecutionMetadata)
 	cloned.InputSchema = cloneRawMessage(src.InputSchema)
+	cloned.computerInputSchema = cloneRawMessage(src.computerInputSchema)
 	cloned.OutputSchema = cloneRawMessage(src.OutputSchema)
 	cloned.Toolsets = append([]ToolsetID(nil), src.Toolsets...)
 	cloned.Tags = append([]string(nil), src.Tags...)

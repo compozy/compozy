@@ -112,6 +112,7 @@ func (m *Manager) buildSchedulerRuntime(_ context.Context) (*Scheduler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("automation: construct scheduler: %w", err)
 	}
+	scheduler.localExecution = m.dispatcher.checkLocalExecution
 	return scheduler, nil
 }
 
@@ -129,6 +130,7 @@ func (m *Manager) buildTriggerRuntime(_ context.Context) (*TriggerEngine, error)
 	if err != nil {
 		return nil, fmt.Errorf("automation: construct trigger engine: %w", err)
 	}
+	triggerEngine.localExecution = m.dispatcher.checkLocalExecution
 	return triggerEngine, nil
 }
 

@@ -41,10 +41,12 @@ type Descriptor struct {
 	InputSchema                 json.RawMessage `json:"input_schema"`
 	OutputSchema                json.RawMessage `json:"output_schema,omitempty"`
 	InputSchemaDigest           string          `json:"input_schema_digest"`
-	OutputSchemaDigest          string          `json:"output_schema_digest,omitempty"`
-	Source                      SourceRef       `json:"source"`
-	Visibility                  Visibility      `json:"visibility"`
-	Risk                        RiskClass       `json:"risk"`
+	computerInputSchema         json.RawMessage
+	computerInputDigest         string
+	OutputSchemaDigest          string     `json:"output_schema_digest,omitempty"`
+	Source                      SourceRef  `json:"source"`
+	Visibility                  Visibility `json:"visibility"`
+	Risk                        RiskClass  `json:"risk"`
 	mcpReadOnlyOverride         bool
 	mcpReadOnlyOperatorOverride bool
 	ReadOnly                    bool        `json:"read_only"`

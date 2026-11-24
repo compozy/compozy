@@ -4,6 +4,71 @@ package client
 
 import "time"
 
+// RuntimeIdentityPayload is a daemon API value.
+type RuntimeIdentityPayload struct {
+	SchemaVersion string                `json:"schema_version"`
+	Daemon        DaemonIdentityPayload `json:"daemon"`
+}
+
+// RuntimeLimits is a daemon API value.
+type RuntimeLimits struct {
+	MaxRuntimeSeconds int64 `json:"max_runtime_seconds"`
+	SummaryMaxBytes   int   `json:"summary_max_bytes"`
+	ContextMaxBytes   int   `json:"context_body_max_bytes"`
+}
+
+// RuntimeMCP is a daemon API value.
+type RuntimeMCP struct {
+	RuntimeMCP string          `json:"runtime_mcp"`
+	Servers    []RuntimeMCPRow `json:"servers"`
+}
+
+// RuntimeMCPImportRequest is a daemon API value.
+type RuntimeMCPImportRequest struct {
+	Scope       SettingsScopeKind `json:"scope,omitempty"`
+	WorkspaceID string            `json:"workspace_id,omitempty"`
+	Profile     string            `json:"profile,omitempty"`
+	Name        string            `json:"name,omitempty"`
+}
+
+// RuntimeMCPImportResponse is a daemon API value.
+type RuntimeMCPImportResponse struct {
+	MCPServer SettingsMCPServerItemPayload `json:"mcp_server"`
+	Source    Server                       `json:"source"`
+	Notes     []string                     `json:"notes"`
+	Partial   bool                         `json:"partial"`
+	Warnings  []string                     `json:"warnings,omitempty"`
+}
+
+// RuntimeMCPRow is a daemon API value.
+type RuntimeMCPRow struct {
+	Name      string `json:"name"`
+	Scope     string `json:"scope"`
+	Transport string `json:"transport"`
+	State     string `json:"state"`
+}
+
+// RuntimeMatch is a daemon API value.
+type RuntimeMatch struct {
+	ID         string `json:"id,omitempty"`
+	Type       string `json:"type,omitempty"`
+	Complexity string `json:"complexity,omitempty"`
+}
+
+// RuntimeMode is a daemon API value.
+type RuntimeMode string
+
+// RuntimePolicy is a daemon API value.
+type RuntimePolicy struct {
+	Mode RuntimeMode `json:"mode"`
+}
+
+// RuntimeRule is a daemon API value.
+type RuntimeRule struct {
+	Match   RuntimeMatch `json:"match"`
+	Runtime RuntimeSpec  `json:"runtime"`
+}
+
 // RuntimeSelectionPayload is a daemon API value.
 type RuntimeSelectionPayload struct {
 	Provider        string                    `json:"provider"`
@@ -381,70 +446,3 @@ type SessionChangeContentsResponse struct {
 	Old         *ChangeSidePayload `json:"old,omitempty"`
 	New         *ChangeSidePayload `json:"new,omitempty"`
 }
-
-// SessionChangePatchesResponse is a daemon API value.
-type SessionChangePatchesResponse struct {
-	Revision string               `json:"revision"`
-	Patches  []ChangePatchPayload `json:"patches"`
-}
-
-// SessionChangesResponse is a daemon API value.
-type SessionChangesResponse struct {
-	Scope       string                     `json:"scope"`
-	Root        FileRootPayload            `json:"root"`
-	Head        ChangeHeadPayload          `json:"head"`
-	Base        ChangeBasePayload          `json:"base"`
-	PullRequest *SessionPullRequestPayload `json:"pull_request,omitempty"`
-	Totals      ChangeTotalsPayload        `json:"totals"`
-	Files       []FileChangePayload        `json:"files"`
-	Truncated   bool                       `json:"truncated"`
-	Revision    string                     `json:"revision"`
-}
-
-// SessionChildrenPayload is a daemon API value.
-type SessionChildrenPayload struct {
-	Total    int `json:"total"`
-	NeedsYou int `json:"needs_you"`
-	Working  int `json:"working"`
-	Waiting  int `json:"waiting"`
-	InReview int `json:"in_review"`
-	Done     int `json:"done"`
-}
-
-// SessionCommandPayload is a daemon API value.
-type SessionCommandPayload struct {
-	ID                string               `json:"id"`
-	CanonicalToken    string               `json:"canonical_token"`
-	DisplayName       string               `json:"display_name"`
-	Description       string               `json:"description"`
-	Lane              string               `json:"lane"`
-	Source            SessionCommandSource `json:"source"`
-	Placements        []string             `json:"placements"`
-	InputHint         string               `json:"input_hint,omitempty"`
-	Available         bool                 `json:"available"`
-	UnavailableReason string               `json:"unavailable_reason,omitempty"`
-}
-
-// SessionCommandSource is a daemon API value.
-type SessionCommandSource struct {
-	Kind   string `json:"kind"`
-	ID     string `json:"id,omitempty"`
-	Key    string `json:"key,omitempty"`
-	Scope  string `json:"scope"`
-	Origin string `json:"origin,omitempty"`
-}
-
-// SessionCommandsChangedPayload is a daemon API value.
-type SessionCommandsChangedPayload struct {
-	SessionID string `json:"session_id"`
-	Revision  string `json:"revision"`
-}
-
-// SessionCommandsResponse is a daemon API value.
-type SessionCommandsResponse struct {
-	Commands []SessionCommandPayload `json:"commands"`
-	Revision string                  `json:"revision"`
-}
-
-// SessionCompactRequest is a daemon API value.
-type SessionCompactRequest struct{}

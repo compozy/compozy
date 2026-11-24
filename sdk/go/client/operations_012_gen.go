@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+// GetLoopAnnotationsParams carries the path, query, and header parameters.
+type GetLoopAnnotationsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetLoopAnnotations Get Loop editor annotations
 func (c *Client) GetLoopAnnotations(ctx context.Context, params GetLoopAnnotationsParams) (*LoopAnnotationsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loops/{name}/annotations"

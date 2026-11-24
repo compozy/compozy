@@ -418,6 +418,15 @@ type HookRunsResponse struct {
 	Runs []HookRunPayload `json:"runs"`
 }
 
+// HostResourcesResponse is a daemon API value.
+type HostResourcesResponse struct {
+	CPUCount     int       `json:"cpu_count"`
+	CPUUtil      *float64  `json:"cpu_util"`
+	MemTotal     *uint64   `json:"mem_total"`
+	MemAvailable *uint64   `json:"mem_available"`
+	SampledAt    time.Time `json:"sampled_at"`
+}
+
 // HostedStatus is a daemon API value.
 type HostedStatus struct {
 	Enabled   bool    `json:"enabled"`
@@ -431,19 +440,4 @@ type Image struct {
 	URL   string `json:"url,omitempty"`
 	Token string `json:"token,omitempty"`
 	Emoji string `json:"emoji,omitempty"`
-}
-
-// Input is a daemon API value.
-type Input struct {
-	Type        InputType `json:"type"`
-	Required    bool      `json:"required,omitzero"`
-	Description string    `json:"description,omitempty"`
-	Ref         *InputRef `json:"ref,omitzero"`
-	Enum        []string  `json:"enum,omitempty"`
-	Default     any       `json:"default,omitempty"`
-}
-
-// InputRef is a daemon API value.
-type InputRef struct {
-	Kind InputRefKind `json:"kind"`
 }

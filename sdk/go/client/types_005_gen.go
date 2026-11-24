@@ -348,6 +348,19 @@ type ComputerListResponse struct {
 	Local     LocalComputer `json:"local"`
 }
 
+// ComputerPlacementRequest is a daemon API value.
+type ComputerPlacementRequest struct {
+	Workspace         string     `json:"workspace"`
+	ProjectComputerID ComputerID `json:"project_computer_id,omitempty"`
+}
+
+// ComputerPlacementResponse is a daemon API value.
+type ComputerPlacementResponse struct {
+	ComputerID  ComputerID `json:"computer_id"`
+	Name        string     `json:"name"`
+	WorkspaceID string     `json:"workspace_id"`
+}
+
 // ComputerRoute is a daemon API value.
 type ComputerRoute struct {
 	ID        string    `json:"id"`
@@ -423,27 +436,3 @@ type ComputerUpdateStarted struct {
 
 // ConcurrencyPolicy is a daemon API value.
 type ConcurrencyPolicy string
-
-// ConfigApplyRecordPayload is a daemon API value.
-type ConfigApplyRecordPayload struct {
-	ID                string                  `json:"id"`
-	DesiredConfigHash string                  `json:"desired_config_hash"`
-	ActiveConfigHash  string                  `json:"active_config_hash"`
-	Generation        int64                   `json:"generation"`
-	Actor             string                  `json:"actor"`
-	WriteTarget       SettingsWriteTargetKind `json:"write_target,omitempty"`
-	WritePath         string                  `json:"write_path,omitempty"`
-	DiffClass         SettingsApplyLifecycle  `json:"diff_class"`
-	Status            ConfigApplyStatus       `json:"status"`
-	Lifecycle         SettingsApplyLifecycle  `json:"lifecycle"`
-	NextAction        SettingsApplyNextAction `json:"next_action"`
-	Diagnostics       []DiagnosticItem        `json:"diagnostics,omitempty"`
-	CreatedAt         time.Time               `json:"created_at"`
-	AppliedAt         *time.Time              `json:"applied_at,omitempty"`
-	UpdatedAt         time.Time               `json:"updated_at"`
-}
-
-// ConfigApplyRecordsResponse is a daemon API value.
-type ConfigApplyRecordsResponse struct {
-	Entries []ConfigApplyRecordPayload `json:"entries"`
-}

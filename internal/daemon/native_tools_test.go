@@ -8793,6 +8793,32 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	// Rule 14 blocks native session creation when this computer is a controller only.
+	t.Run("Should surface the local execution refusal from session acceptance [UT-100]", func(t *testing.T) {
+		t.Parallel()
+		manager := &nativeSessionPageHealthManager{
+			CreateAcceptedFn: func(context.Context, *session.CreateAcceptedOpts) (*session.Info, error) {
+				return nil, admission.ErrLocalExecutionDisabled
+			},
+		}
+		workspaces := apitest.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{ID: "ws-local", WorkspaceID: "ws-local"}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: workspaces,
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionCreate,
+			Input:  json.RawMessage(`{"agent":"general","workspace":"ws-local"}`),
+		})
+		failure, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || failure.Code != admission.LocalExecutionDisabledCode || failure.HTTPStatus != http.StatusConflict {
+			t.Fatalf("Registry.Call(session_create) = %v, want 409 local_execution_disabled", err)
+		}
+	})
+
 	t.Run("Should bind agent-created sessions to the caller session profile", func(t *testing.T) {
 		t.Parallel()
 
@@ -11143,6 +11169,41 @@ type recordingNativeWorkspaceAccessPolicy struct {
 	err      error
 	calls    int
 	last     workspaceaccess.Request
+}
+
+func TestNativeComputerForwardingContainment(t *testing.T) {
+	t.Parallel()
+	// UT-107. Safety Invariant 11 and Tool forwarding rule 3. A child with a
+	// recorded workspace path ceiling cannot use the device's wider authority.
+	t.Run("Should deny forwarding outside the source session's workspace paths", func(t *testing.T) {
+		t.Parallel()
+		info := &session.Info{
+			ID: "caller", State: session.StateActive, Lineage: &store.SessionLineage{
+				PermissionPolicy: store.SessionPermissionPolicy{WorkspacePaths: []string{t.TempDir()}},
+			},
+		}
+		policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		forwarder := nativeComputerForwarder{
+			sessions: &apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				return info, nil
+			}},
+			access: policy,
+		}
+		scope := toolspkg.Scope{SessionID: info.ID}
+		descriptor := toolspkg.Descriptor{ID: toolspkg.ToolIDSessionList, ReadOnly: true}
+		if !forwarder.sourceMayForward(t.Context(), scope, descriptor) {
+			t.Fatal("the root's child delegation budget restricted its own forwarding")
+		}
+		info.Lineage.ParentSessionID = "parent"
+		_, err := forwarder.ResolveComputer(t.Context(), scope, descriptor, toolspkg.CallRequest{
+			ToolID: descriptor.ID, ForwardComputer: "devbox",
+		})
+		failure, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || failure.HTTPStatus != http.StatusForbidden || failure.Code != "tool_forward_denied" ||
+			policy.calls != 1 {
+			t.Fatalf("workspace-confined computer call = %v, workspace policy calls = %d", err, policy.calls)
+		}
+	})
 }
 
 type consentAwareNativeWorkspaceAccessPolicy struct {

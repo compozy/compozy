@@ -51,7 +51,26 @@ type Computer struct {
 }
 
 type LocalComputer struct {
-	RunAgents bool `json:"run_agents"`
+	RunAgents           bool `json:"run_agents"`
+	LoadBalancing       bool `json:"load_balancing"`
+	LoadBalancingWeight int  `json:"load_balancing_weight"`
+}
+
+type PatchLocalComputerRequest struct {
+	RunAgents           *bool `json:"run_agents,omitempty"`
+	LoadBalancing       *bool `json:"load_balancing,omitempty"`
+	LoadBalancingWeight *int  `json:"load_balancing_weight,omitempty"`
+}
+
+type ComputerPlacementRequest struct {
+	Workspace         string                 `json:"workspace"`
+	ProjectComputerID remoteproto.ComputerID `json:"project_computer_id,omitempty"`
+}
+
+type ComputerPlacementResponse struct {
+	ComputerID  remoteproto.ComputerID `json:"computer_id"`
+	Name        string                 `json:"name"`
+	WorkspaceID string                 `json:"workspace_id"`
 }
 
 type ComputerListResponse struct {

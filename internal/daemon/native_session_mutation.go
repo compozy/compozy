@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
@@ -61,6 +63,13 @@ func (n *daemonNativeTools) sessionCreate(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
+	if service := n.computersService(); service != nil && !service.LocalSettings().LocalRunAgents {
+		return toolspkg.ToolResult{}, nativeHTTPStatusToolError(
+			req.ToolID,
+			admission.ErrLocalExecutionDisabled,
+			http.StatusConflict,
+		)
+	}
 	var input sessionCreateInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -122,7 +131,11 @@ func (n *daemonNativeTools) sessionCreate(
 	}
 	info, err := acceptance.CreateAccepted(ctx, new(session.CreateAcceptedOpts{Session: opts}))
 	if err != nil {
-		return toolspkg.ToolResult{}, errors.Join(err, n.rollbackNativeSessionWorktree(ctx, worktreeTarget))
+		failure := errors.Join(err, n.rollbackNativeSessionWorktree(ctx, worktreeTarget))
+		if errors.Is(err, admission.ErrLocalExecutionDisabled) {
+			failure = nativeHTTPStatusToolError(req.ToolID, failure, http.StatusConflict)
+		}
+		return toolspkg.ToolResult{}, failure
 	}
 	payload := core.SessionPayloadFromInfo(info)
 	return sessionRecordViews.result(req.View, payload)

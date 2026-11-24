@@ -249,6 +249,7 @@ type Dispatcher struct {
 	tasks          TaskService
 	loopStarter    LoopStarter
 	instanceEvents InstanceEventSink
+	localExecution func() error
 
 	logger *slog.Logger
 	now    func() time.Time

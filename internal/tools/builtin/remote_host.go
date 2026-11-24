@@ -5,6 +5,13 @@ import toolspkg "github.com/compozy/compozy/internal/tools"
 var singleResultRemoteHost = map[toolspkg.ToolID]SingleResultReason{
 	toolspkg.ToolIDRemoteStatus:        SingleResultMinimal,
 	toolspkg.ToolIDComputerSetupCancel: SingleResultMinimal,
+	toolspkg.ToolIDComputerSetupAnswer: SingleResultMinimal,
+	toolspkg.ToolIDComputerSetupStatus: SingleResultMinimal,
+	toolspkg.ToolIDComputerList:        SingleResultMinimal,
+	toolspkg.ToolIDComputerStatus:      SingleResultMinimal,
+	toolspkg.ToolIDComputerAdd:         SingleResultMinimal,
+	toolspkg.ToolIDComputerRemove:      SingleResultMinimal,
+	toolspkg.ToolIDAccountStatus:       SingleResultMinimal,
 }
 
 func remoteHostDescriptors() []toolspkg.Descriptor {
@@ -39,7 +46,7 @@ func remoteHostDescriptors() []toolspkg.Descriptor {
 	)
 	cancel.OutputSchema = []byte(`{"type":"object","additionalProperties":false,"required":["setup_id","state"],
 		"properties":{"setup_id":{"type":"string"},"state":{"const":"cancelled"}}}`) //nolint:misspell // Public state.
-	return []toolspkg.Descriptor{descriptor, cancel}
+	return append([]toolspkg.Descriptor{descriptor, cancel}, controllerComputerDescriptors()...)
 }
 
 const remoteStatusOutput = `{

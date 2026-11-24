@@ -116,7 +116,7 @@ func statusForWorkspaceError(err error) int {
 	if _, ok := errors.AsType[*workspacepkg.BusyError](err); ok {
 		return http.StatusConflict
 	}
-	if errors.Is(err, store.ErrWorkspaceArchived) {
+	if errors.Is(err, store.ErrWorkspaceArchived) || errors.Is(err, admission.ErrLocalExecutionDisabled) {
 		return http.StatusConflict
 	}
 	switch {

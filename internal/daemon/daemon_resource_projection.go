@@ -50,7 +50,10 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 		}
 
 		managerOpts := []automationpkg.Option{
-			automationpkg.WithDispatcherOptions(automationpkg.WithDispatcherInstanceEvents(deps.InstanceEvents)),
+			automationpkg.WithDispatcherOptions(
+				automationpkg.WithDispatcherInstanceEvents(deps.InstanceEvents),
+				automationpkg.WithDispatcherLocalExecution(d.checkLocalExecution),
+			),
 			automationpkg.WithStore(deps.Store),
 			automationpkg.WithSessions(deps.Sessions),
 			automationpkg.WithTasks(deps.Tasks),

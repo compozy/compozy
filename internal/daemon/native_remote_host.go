@@ -12,7 +12,7 @@ import (
 )
 
 func (n *daemonNativeTools) remoteHostBindings() map[toolspkg.ToolID]nativeToolBinding {
-	return map[toolspkg.ToolID]nativeToolBinding{
+	bindings := map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDRemoteStatus: {
 			call:         n.remoteHostStatus,
 			availability: n.dependencyAvailability(func() bool { return n.deps.Remote != nil }),
@@ -22,6 +22,8 @@ func (n *daemonNativeTools) remoteHostBindings() map[toolspkg.ToolID]nativeToolB
 			availability: n.dependencyAvailability(func() bool { return n.sshSetupService() != nil }),
 		},
 	}
+	addNativeToolBindings(bindings, n.controllerComputerBindings())
+	return bindings
 }
 
 func (n *daemonNativeTools) sshSetupService() *sshsetup.Manager {

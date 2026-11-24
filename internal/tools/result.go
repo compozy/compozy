@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	redactpkg "github.com/compozy/compozy/internal/redact"
+	"github.com/compozy/compozy/internal/remoteproto"
 )
 
 // ToolContent is one typed content block returned by a tool.
@@ -42,6 +43,7 @@ const (
 
 // ToolResult is the canonical result envelope for all backends.
 type ToolResult struct {
+	ComputerID remoteproto.ComputerID     `json:"-"`
 	Content    []ToolContent              `json:"content,omitempty"`
 	Structured json.RawMessage            `json:"structured,omitempty"`
 	Preview    string                     `json:"preview,omitempty"`

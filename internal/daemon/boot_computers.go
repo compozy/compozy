@@ -25,7 +25,16 @@ func (d *Daemon) bootComputers(ctx context.Context, state *bootState, cleanup *b
 	if !ok || workers.account == nil {
 		return
 	}
-	options := []computers.Option{computers.WithLogger(state.logger)}
+	var service *computers.Registry
+	options := []computers.Option{
+		computers.WithLogger(state.logger),
+		computers.WithLocalSettings(
+			d.computerSettings,
+			func(ctx context.Context, patch computers.LocalSettingsPatch) (config.ComputersConfig, error) {
+				return d.patchLocalComputers(ctx, service, patch)
+			},
+		),
+	}
 	if setups, ok := state.registry.(store.ComputerSSHSetupStore); ok {
 		if home, err := config.ResolveOperatorHomeDir(d.homePaths); err == nil {
 			settings := d.sshSetupOptions
@@ -39,7 +48,7 @@ func (d *Daemon) bootComputers(ctx context.Context, state *bootState, cleanup *b
 		}
 	}
 	options = append(options, d.computersOptions...)
-	service := computers.New(ctx, storage, workers.account, workers.cloud, options...)
+	service = computers.New(ctx, storage, workers.account, workers.cloud, options...)
 	workers.computers = service
 	state.deps.Computers = service
 	cleanup.add(func(context.Context) error { service.Close(); return nil })

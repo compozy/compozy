@@ -8,6 +8,8 @@ func RegisterComputerRoutes(api gin.IRouter, handlers *BaseHandlers, middleware 
 	routes.GET("/available", handlers.AvailableComputers)
 	routes.GET("/stream", handlers.StreamComputers)
 	routes.GET("/ssh-hosts", handlers.ComputerSSHHosts)
+	routes.PATCH("/local", handlers.PatchLocalComputer)
+	routes.POST("/placement", handlers.PreviewComputerPlacement)
 	routes.GET("/setups/:setup_id", handlers.ComputerSetupStatus)
 	routes.DELETE("/setups/:setup_id", handlers.CancelComputerSetup)
 	routes.POST("/setups/:setup_id/answer", handlers.AnswerComputerSetup)

@@ -1763,6 +1763,17 @@ export type ComputerListResponse = {
   local: LocalComputer;
 };
 
+export type ComputerPlacementRequest = {
+  project_computer_id?: string;
+  workspace: string;
+};
+
+export type ComputerPlacementResponse = {
+  computer_id: string;
+  name: string;
+  workspace_id: string;
+};
+
 export type ComputerRoute = {
   address: string;
   id: string;
@@ -2235,11 +2246,13 @@ export type CreateSessionFolderRequest = {
 
 export type CreateSessionRequest = {
   agent_name?: string;
+  computer?: string;
   folder_id?: string;
   lineage_kind?: string;
   name?: string;
   new_worktree?: NewSessionWorktreeRequest | null;
   parent_session_id?: string;
+  project_computer_id?: string;
   scope?: string;
   workspace?: string;
   workspace_path?: string;
@@ -4439,6 +4452,14 @@ export type HookRunsResponse = {
   runs: Array<HookRunPayload>;
 };
 
+export type HostResourcesResponse = {
+  cpu_count: number;
+  cpu_util: number | null;
+  mem_available: number | null;
+  mem_total: number | null;
+  sampled_at: string;
+};
+
 export type HostedStatus = {
   diagnosis?: string;
   enabled: boolean;
@@ -4561,6 +4582,8 @@ export type KindDescriptor = {
 };
 
 export type LocalComputer = {
+  load_balancing: boolean;
+  load_balancing_weight: number;
   run_agents: boolean;
 };
 
@@ -6227,6 +6250,12 @@ export type PatchComputerRequest = {
   enabled?: boolean | null;
   load_balancing_weight?: number | null;
   name?: string | null;
+};
+
+export type PatchLocalComputerRequest = {
+  load_balancing?: boolean | null;
+  load_balancing_weight?: number | null;
+  run_agents?: boolean | null;
 };
 
 export type PatchLoopRequest = {
@@ -8848,6 +8877,7 @@ export type SessionRepairResponse = {
 };
 
 export type SessionResponse = {
+  computer_id?: string;
   session: SessionPayload;
 };
 
@@ -13164,6 +13194,10 @@ export type ToolErrorResponse = {
   error: ToolErrorPayload;
 };
 
+export type ToolInvokeMetadata = {
+  computer_id: string;
+};
+
 export type ToolInvokeRequest = {
   agent_name?: string;
   approval_token?: string;
@@ -13177,6 +13211,7 @@ export type ToolInvokeRequest = {
 };
 
 export type ToolInvokeResponse = {
+  _meta?: ToolInvokeMetadata | null;
   duration_ms: number;
   events: Array<ToolCallEventPayload>;
   result: ToolResult;
@@ -14066,6 +14101,7 @@ export type WorkspacePayload = {
   default_agent?: string;
   id: string;
   name: string;
+  repository_key?: string;
   root_dir: string;
   root_missing?: boolean;
   updated_at: string;
@@ -21778,6 +21814,121 @@ export type ListAvailableComputersResponses = {
 export type ListAvailableComputersResponse =
   ListAvailableComputersResponses[keyof ListAvailableComputersResponses];
 
+export type PatchLocalComputerData = {
+  /**
+   * JSON request body
+   */
+  body: PatchLocalComputerRequest;
+  path?: never;
+  query?: never;
+  url: "/api/computers/local";
+};
+
+export type PatchLocalComputerErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PatchLocalComputerError = PatchLocalComputerErrors[keyof PatchLocalComputerErrors];
+
+export type PatchLocalComputerResponses = {
+  /**
+   * Local computer settings
+   */
+  200: LocalComputer;
+};
+
+export type PatchLocalComputerResponse =
+  PatchLocalComputerResponses[keyof PatchLocalComputerResponses];
+
+export type PreviewComputerPlacementData = {
+  /**
+   * JSON request body
+   */
+  body: ComputerPlacementRequest;
+  path?: never;
+  query?: never;
+  url: "/api/computers/placement";
+};
+
+export type PreviewComputerPlacementErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PreviewComputerPlacementError =
+  PreviewComputerPlacementErrors[keyof PreviewComputerPlacementErrors];
+
+export type PreviewComputerPlacementResponses = {
+  /**
+   * Selected computer and workspace
+   */
+  200: ComputerPlacementResponse;
+};
+
+export type PreviewComputerPlacementResponse =
+  PreviewComputerPlacementResponses[keyof PreviewComputerPlacementResponses];
+
 export type CancelComputerSetupData = {
   body?: never;
   path: {
@@ -24308,6 +24459,22 @@ export type GetHookEventsResponses = {
 };
 
 export type GetHookEventsResponse = GetHookEventsResponses[keyof GetHookEventsResponses];
+
+export type GetHostResourcesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/host/resources";
+};
+
+export type GetHostResourcesResponses = {
+  /**
+   * Host resource sample
+   */
+  200: HostResourcesResponse;
+};
+
+export type GetHostResourcesResponse = GetHostResourcesResponses[keyof GetHostResourcesResponses];
 
 export type BindIngressData = {
   /**
@@ -37178,6 +37345,10 @@ export type ListWorkspacesData = {
      * List archived projects instead of active projects
      */
     archived?: boolean;
+    /**
+     * Include normalized Git repository identities
+     */
+    include_repository?: boolean;
   };
   url: "/api/workspaces";
 };

@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/api/ginutil"
 	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/remoteproto"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/tools/builtin"
 )
 
@@ -101,6 +102,7 @@ func remoteOperatorBoundary(browser bool) gin.HandlerFunc {
 		// act as its authenticated device, including over an unbridged tunnel.
 		c.Request.Header.Del(agentidentity.HeaderSessionID)
 		c.Request.Header.Del(agentidentity.HeaderAgent)
+		c.Request = c.Request.WithContext(toolspkg.WithoutComputerForwarding(c.Request.Context()))
 		c.Next()
 	}
 }

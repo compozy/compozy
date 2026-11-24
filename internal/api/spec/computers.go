@@ -18,6 +18,9 @@ func computerOperations() []OperationSpec {
 		decimalUint64QueryParam(afterSequenceKey, "Resume from a computer event sequence", false),
 		optionalLastEventIDHeaderParam("Resume from the last computer event received"),
 	}
+	placement := computerOperation(http.MethodPost, path+"/placement", "previewComputerPlacement",
+		"Resolve Auto placement for a project", contract.ComputerPlacementRequest{},
+		computerSuccess(http.StatusOK, "Selected computer and workspace", contract.ComputerPlacementResponse{}))
 	remove := computerOperation(http.MethodDelete, id, "removeComputer", "Remove a computer from this controller",
 		nil, computerSuccess(http.StatusOK, "Computer removed", contract.RemoveComputerResponse{}))
 	remove.Parameters = append(remove.Parameters,
@@ -49,7 +52,18 @@ func computerOperations() []OperationSpec {
 			computerSuccess(http.StatusOK, "Computer status", contract.Computer{})),
 		computerOperation(http.MethodPatch, id, "patchComputer", "Update a computer in this controller",
 			contract.PatchComputerRequest{}, computerSuccess(http.StatusOK, "Updated computer", contract.Computer{})),
-		remove, forget, stream,
+		computerOperation(
+			http.MethodPatch,
+			path+"/local",
+			"patchLocalComputer",
+			"Update local execution and load balancing",
+			contract.PatchLocalComputerRequest{},
+			computerSuccess(http.StatusOK, "Local computer settings", contract.LocalComputer{}),
+		),
+		remove,
+		forget,
+		stream,
+		placement,
 	}, computerSetupOperations()...)
 }
 

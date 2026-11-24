@@ -176,14 +176,18 @@ func (h *BaseHandlers) InvokeTool(c *gin.Context) {
 		h.respondToolError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.ToolInvokeResponse{
+	response := contract.ToolInvokeResponse{
 		ToolID:     id,
 		Status:     toolInvokeStatusCompleted,
 		Result:     result,
 		Truncated:  result.Truncated,
 		DurationMS: result.DurationMS,
 		Events:     []contract.ToolCallEventPayload{},
-	})
+	}
+	if result.ComputerID != "" {
+		response.Meta = &contract.ToolInvokeMetadata{ComputerID: result.ComputerID}
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 // ListSessionTools returns the session/model-callable projection.

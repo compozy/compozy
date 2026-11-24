@@ -25,6 +25,14 @@ The controller keeps the entry while the computer is offline. It prefers a direc
 
 Use `--computer local` to target the local daemon. The `account`, `computer`, `daemon`, `install`, `remote`, `service`, `uninstall`, and `update` commands act on the local installation.
 
+## Place new sessions automatically
+
+Enable `computers.load_balancing` on the controller and register the same Git repository on each computer that can run the project. Set each computer's preference to **Prefer** (100), **Normal** (50), **Less often** (25), or **Manual only** (0).
+
+Auto considers enabled, connected computers that have a workspace for the repository. For samples up to 15 seconds old, a computer needs CPU utilization below 95% and available memory above 5%. The score multiplies the preference weight, logical CPU count, unused CPU share, and available memory share. If every eligible computer lacks a fresh, complete sample, the highest weight wins. Ties in that fallback favor this computer, then sort by name.
+
+Set `computers.local_run_agents` to `false` once you have added a remote computer. Existing sessions, Loops, and automation history remain readable. New local sessions, Loop runs, and automation runs return `local_execution_disabled`.
+
 ## Use the controller API
 
 Local HTTP and UDS expose the same `/api/computers` registry. Subscribe to `GET /api/computers/stream` for `computer.changed` events. Reconnect with the last event ID. After a `stream_reset`, fetch the registry again.
@@ -38,3 +46,21 @@ To run a task on the target, create it and enqueue a run with `POST /c/{computer
 The tunnel returns `404 route_not_remote` for account, computer registry, and agent-kernel routes. A second `/c/{computer_id}` prefix returns `403 remote_bridge_not_transitive`.
 
 For operator tool calls, inspect `descriptor.remote_scope` in the tool catalog. Invoke a tool with that scope using `POST /c/{computer_id}/api/tools/{id}/invoke`. Use `workspace_id` to select a target workspace. A remote invocation that supplies `session_id`, `agent_name`, `turn_id`, or `approval_token` returns `400 remote_caller_override_forbidden`.
+
+### Placement endpoints
+
+| Request | Result |
+| --- | --- |
+| `GET /api/host/resources` | Logical CPU count, normalized CPU load, total and available physical memory in bytes, and the sample timestamp. Unavailable CPU or memory readings are `null`. The tunnel requires `sessions:operate`. |
+| `PATCH /api/computers/local` | Updates `run_agents`, `load_balancing`, or `load_balancing_weight` on the controller. `GET /api/computers` returns these values in `local`. |
+| `PATCH /api/computers/{id}` | Updates `load_balancing_weight` for an added computer. |
+| `POST /api/computers/placement` | Resolves a draft's `workspace` to `{computer_id, name, workspace_id}`. Pass `project_computer_id` when the draft workspace belongs to a linked computer. |
+| `POST /api/sessions` with `computer` set to `auto` | Resolves placement again and creates the session in the selected workspace. The response includes `computer_id`. |
+
+When Auto has no eligible computer, placement returns `409 no_eligible_computer` with reason codes in `details`, keyed by computer ID when the controller can evaluate the project.
+
+### Native tools
+
+Use `compozy__computer_list` to list the controller's computers, `compozy__computer_status` with `id` to inspect one, and `compozy__computer_add` or `compozy__computer_remove` to manage entries. `compozy__remote_status` and `compozy__account_status` report this installation's remote and account state.
+
+A native tool with `remote_scope` accepts a computer name or ID in `computer`. For example, call `compozy__session_list` with `{"computer":"devbox"}`. The controller applies the source session's tool policy, hooks, and approvals. The destination applies the device scopes and its operator policy. The tool result keeps its original shape and `_meta.computer_id` identifies the destination.

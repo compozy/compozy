@@ -16,6 +16,17 @@ import (
 )
 
 func nativeHTTPStatusToolError(id toolspkg.ToolID, err error, status int) error {
+	if errors.Is(err, admission.ErrLocalExecutionDisabled) {
+		result := toolspkg.NewToolError(
+			admission.LocalExecutionDisabledCode,
+			id,
+			admission.ErrLocalExecutionDisabled.Error(),
+			err,
+		)
+		result.HTTPStatus = http.StatusConflict
+		result.PublicMessage = admission.ErrLocalExecutionDisabled.Error()
+		return result
+	}
 	if errors.Is(err, admission.ErrStarting) {
 		result := toolspkg.NewToolError(toolspkg.ErrorCode(admission.StartingCode), id,
 			admission.ErrStarting.Error(), errors.Join(toolspkg.ErrToolUnavailable, err))

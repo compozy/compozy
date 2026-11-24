@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -99,6 +100,197 @@ func TestDaemonComputerOperatorTasks(t *testing.T) {
 		}
 	})
 }
+
+func TestDaemonComputerOperatorForwarding(t *testing.T) {
+	// IT-093. Safety Invariants 5, 11, 16 and 21. Every call uses the real bridge,
+	// signed device scopes and the target daemon's operator tool registry.
+	t.Run("Should apply source session policy, device scopes, and target tool policy", func(t *testing.T) {
+		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+		root := t.TempDir()
+		hostHome := filepath.Join(root, "target")
+		var arrivals atomic.Int64
+		capture := daemon.WithRemoteTunnelMiddleware(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if req.URL.Path == computerInvokePath(toolspkg.ToolIDSessionCreate) ||
+					req.URL.Path == computerInvokePath(toolspkg.ToolIDSessionList) {
+					arrivals.Add(1)
+					if req.Header.Get(agentidentity.HeaderSessionID) != "" ||
+						req.Header.Get(agentidentity.HeaderAgent) != "" {
+						t.Error("forwarded request included source agent identity")
+					}
+				}
+				next.ServeHTTP(w, req)
+			})
+		})
+		host, ring := startSessionComputer(t, f, hostHome, true, capture)
+		computer := linkSessionComputer(t, host)
+		workspace := registerOperatorWorkspace(t, host, prepareOperatorProject(t, root))
+		controllerHome := filepath.Join(root, "controller")
+		const deniedAgent = "forwarding-denied"
+		configureForwardingAgents(t, controllerHome, deniedAgent)
+		controller, _ := startComputerController(t, f, controllerHome, registryTestEmail, nil)
+		device := authJSON[contract.AccountStatusResponse](
+			t,
+			controller.uds(t, http.MethodGet, contract.AccountPath, nil),
+		).Device
+		if device == nil {
+			t.Fatal("controller did not enroll a device")
+		}
+		addAccountComputer(t, controller, computer)
+		controller.uds(t, http.MethodPatch, computerAPI(computer), contract.PatchComputerRequest{Name: new("devbox")}).
+			expect(t, http.StatusOK, "devbox")
+		waitComputerRoute(t, controller, computer, remoteproto.RouteDirect)
+		allowed := makeForwardingSource(t, controller, computerFixtureAgent)
+		denied := makeForwardingSource(t, controller, deniedAgent)
+		path := computerInvokePath(toolspkg.ToolIDSessionCreate)
+		input, err := json.Marshal(map[string]string{
+			"computer": "devbox", "agent": computerFixtureAgent, "workspace": workspace, "name": "Forwarded session",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		call := contract.ToolInvokeRequest{Input: input, SessionID: allowed}
+		created := controller.uds(t, http.MethodPost, path, call)
+		created.expect(t, http.StatusOK, "Forwarded session")
+		result := authJSON[contract.ToolInvokeResponse](t, created)
+		var session contract.SessionPayload
+		if err := json.Unmarshal(result.Result.Structured, &session); err != nil ||
+			result.Meta == nil || result.Meta.ComputerID != computer || session.ID == "" || session.WorkspaceID != workspace {
+			t.Fatalf("forwarded session result = %s (%v)", created.body, err)
+		}
+		host.uds(t, http.MethodGet, controllerSessions+"/"+session.ID, nil).
+			expect(t, http.StatusOK, "Forwarded session")
+		controller.uds(t, http.MethodGet, controllerSessions+"/"+session.ID, nil).expect(t, http.StatusNotFound, "")
+		assertForwardedSessionList(t, controller, host, computer, allowed, session.ID)
+
+		before := arrivals.Load()
+		deniedCall := contract.ToolInvokeRequest{Input: input, SessionID: denied}
+		sourceFailure := controller.uds(t, http.MethodPost, path, deniedCall)
+		sourceFailure.expect(t, http.StatusForbidden, "tool_denied")
+		if after := arrivals.Load(); before < 2 || after != before {
+			t.Fatalf("target invoke arrivals before/after source refusal = %d/%d", before, after)
+		}
+
+		host.stop()
+		disableForwardingTargetTools(t, hostHome)
+		host, _ = startConfiguredDaemonAccount(t, f, hostHome, daemonAccountBoot{
+			direct: true, keyring: ring, options: []daemon.Option{capture},
+		})
+		waitForHostLease(t, host)
+		for _, enabled := range []bool{false, true} {
+			controller.uds(t, http.MethodPatch, computerAPI(computer), contract.PatchComputerRequest{Enabled: new(enabled)}).
+				expect(t, http.StatusOK, string(computer))
+		}
+		waitComputerRoute(t, controller, computer, remoteproto.RouteDirect)
+		targetFailure := controller.uds(t, http.MethodPost, path, call)
+		targetFailure.expect(t, http.StatusForbidden, string(toolspkg.ReasonSourceDisabled))
+		if arrivals.Load() != before+1 {
+			t.Fatal("the controller did not reach the target's denying tool registry")
+		}
+
+		host.uds(t, http.MethodPatch, contract.RemoteDevicesPath+"/"+device.ID, contract.RemoteDevicePatchRequest{
+			Scopes: new([]remoteproto.Scope{remoteproto.ScopeFilesRead}),
+		}).expect(t, http.StatusOK, "files:read")
+		f.clock.Advance(3 * time.Second)
+		testutil.Eventually(t, "controller reconnects with files:read only", 10*time.Second, func() bool {
+			scopes := readControllerComputer(t, controller, computer).Scopes
+			return len(scopes) == 1 && scopes[0] == remoteproto.ScopeFilesRead
+		})
+		controller.uds(t, http.MethodPost, path, call).expect(t, http.StatusForbidden, "remote_scope_denied")
+	})
+}
+
+func configureForwardingAgents(t *testing.T, home, denied string) {
+	t.Helper()
+	configureComputerACP(t, home)
+	paths, err := config.ResolveHomePathsFrom(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowedPath := filepath.Join(paths.AgentsDir, computerFixtureAgent, "AGENT.md")
+	if _, err := config.EditAgentDefFile(allowedPath, func(agent *config.AgentDef) error {
+		agent.WorkspaceAccess = string(workspaceaccess.Unrestricted)
+		agent.Tools = []string{toolspkg.ToolIDSessionList.String(), toolspkg.ToolIDSessionCreate.String()}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Register a separate identity against the same provider fixture.
+	file, err := os.ReadFile(allowedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deniedDir := filepath.Join(paths.AgentsDir, denied)
+	if err := os.MkdirAll(deniedDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	deniedPath := filepath.Join(deniedDir, "AGENT.md")
+	if err := os.WriteFile(deniedPath, file, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := config.EditAgentDefFile(deniedPath, func(agent *config.AgentDef) error {
+		agent.Name = denied
+		agent.DenyTools = []string{toolspkg.ToolIDSessionCreate.String()}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func makeForwardingSource(t *testing.T, controller daemonAccountFixture, agent string) string {
+	t.Helper()
+	created := controller.uds(t, http.MethodPost, controllerSessions, contract.CreateSessionRequest{
+		Scope: "user", AgentName: agent, Name: "Forwarding caller",
+	})
+	created.expect(t, http.StatusCreated, "Forwarding caller")
+	id := authJSON[contract.SessionResponse](t, created).Session.ID
+	testutil.Eventually(t, "source agent session is active", 6*time.Second, func() bool {
+		status := controller.uds(t, http.MethodGet, controllerSessions+"/"+id+"/status", nil)
+		return status.StatusCode == http.StatusOK && bytes.Contains(status.body, []byte(`"state":"active"`))
+	})
+	return id
+}
+
+func assertForwardedSessionList(
+	t *testing.T,
+	controller, host daemonAccountFixture,
+	computer remoteproto.ComputerID,
+	caller, session string,
+) {
+	t.Helper()
+	// UT-105 wire control. Only the controller envelope identifies the computer.
+	path := computerInvokePath(toolspkg.ToolIDSessionList)
+	remote := controller.uds(t, http.MethodPost, path, contract.ToolInvokeRequest{
+		SessionID: caller, Input: json.RawMessage(`{"computer":"devbox"}`),
+	})
+	remote.expect(t, http.StatusOK, session)
+	canonical := host.uds(t, http.MethodPost, path, contract.ToolInvokeRequest{Input: json.RawMessage(`{}`)})
+	canonical.expect(t, http.StatusOK, session)
+	want, got := authJSON[contract.ToolInvokeResponse](t, canonical), authJSON[contract.ToolInvokeResponse](t, remote)
+	if got.Meta == nil || got.Meta.ComputerID != computer ||
+		!bytes.Equal(got.Result.Structured, want.Result.Structured) {
+		t.Fatalf("forwarded list differs from target list: got %s, want %s", remote.body, canonical.body)
+	}
+}
+
+func disableForwardingTargetTools(t *testing.T, home string) {
+	t.Helper()
+	paths, err := config.ResolveHomePathsFrom(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := config.ResolveConfigWriteTarget(paths, "", config.WriteScopeUser, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := config.EditConfigOverlay(paths, "", target, func(editor *config.OverlayEditor) error {
+		return editor.SetValue([]string{"tools", "enabled"}, false)
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func computerInvokePath(id toolspkg.ToolID) string { return "/api/tools/" + id.String() + "/invoke" }
 
 func prepareOperatorProject(t *testing.T, root string) string {
 	t.Helper()
@@ -336,6 +528,7 @@ func (b operatorBridge) assertReadParity(path, want string) authReply {
 func (b operatorBridge) assertToolInvoke(workspace, session string) {
 	t := b.t
 	t.Helper()
+	// UT-107 target control. Safety Invariant 21 retains workspace selection and refuses caller overrides.
 	path := "/api/tools/" + toolspkg.ToolIDSessionList.String() + "/invoke"
 	b.request(http.MethodPost, path, contract.ToolInvokeRequest{
 		WorkspaceID: workspace, Input: json.RawMessage("{}"),
