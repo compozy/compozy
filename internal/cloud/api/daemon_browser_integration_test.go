@@ -21,7 +21,10 @@ import (
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
 
-const browserRemoteCookieName = "__Host-compozy_rs"
+const (
+	browserRemoteCookieName   = "__Host-compozy_rs"
+	hostedBrowserSessionsPath = "/api/sessions?all_workspaces=true"
+)
 
 func TestDaemonHostedBrowser(t *testing.T) {
 	root := t.TempDir()
@@ -30,6 +33,7 @@ func TestDaemonHostedBrowser(t *testing.T) {
 		useHostedBundle(t)
 		f, fake := newHostedAuthFixture(t)
 		home := filepath.Join(root, "session")
+		project := t.TempDir()
 		configureComputerACP(t, home)
 		host, _, _ := startHostedDaemon(t, f, home, "")
 		hostname := enableHostedBrowser(t, host, false)
@@ -50,13 +54,16 @@ func TestDaemonHostedBrowser(t *testing.T) {
 		assertTunnelRejectsBrowser(t, host, f, cookie)
 		sessionID := makeFixtureSession(t, host, "")
 		assertBrowserDPoP(t, browser, hostname, sessionID)
-		openHostedBrowserStreams(t, browser, hostname, host, sessionID)
+		openHostedBrowserTranscript(t, browser, hostname, host, sessionID)
+		workspace := registerOperatorWorkspace(t, host, project)
+		terminal := openHostedBrowserTerminal(t, browser, hostname, workspace)
 		started := time.Now()
 		host.uds(t, http.MethodDelete, contract.AccountPath+"/devices/"+device, nil).expect(t, http.StatusNoContent, "")
 		assertBrowserStreamClosed(t, browser, hostname, "transcript", started, 0)
 		assertBrowserStreamClosed(t, browser, hostname, "terminal", started, 4503)
-		browser.request(t, hostname, http.MethodGet, "/api/sessions", nil, "", "").receipt().
+		browser.request(t, hostname, http.MethodGet, hostedBrowserSessionsPath, nil, "", "").receipt().
 			expect(t, http.StatusForbidden, "device_revoked")
+		host.uds(t, http.MethodDelete, terminal, nil).expect(t, http.StatusOK, "exit")
 	})
 
 	t.Run("Should wait for the same browser key and require a fresh code after approval (IT-080)", func(t *testing.T) {
@@ -179,16 +186,15 @@ func readHostedBrowserSnapshot(t *testing.T, host daemonAccountFixture) remotepr
 
 func assertBrowserDPoP(t *testing.T, browser hostedBrowser, hostname, sessionID string) {
 	t.Helper()
-	const listing = "/api/sessions?all_workspaces=true"
-	signed := browser.request(t, hostname, http.MethodGet, listing, nil, "", "")
+	signed := browser.request(t, hostname, http.MethodGet, hostedBrowserSessionsPath, nil, "", "")
 	signed.receipt().expect(t, http.StatusOK, sessionID)
-	browser.request(t, hostname, http.MethodGet, listing, nil, "unsigned", "").receipt().
+	browser.request(t, hostname, http.MethodGet, hostedBrowserSessionsPath, nil, "unsigned", "").receipt().
 		expect(t, http.StatusUnauthorized, "dpop_invalid")
-	browser.request(t, hostname, http.MethodGet, listing, nil, "", signed.Proof).receipt().
+	browser.request(t, hostname, http.MethodGet, hostedBrowserSessionsPath, nil, "", signed.Proof).receipt().
 		expect(t, http.StatusUnauthorized, "dpop_replayed")
 }
 
-func openHostedBrowserStreams(
+func openHostedBrowserTranscript(
 	t *testing.T,
 	browser hostedBrowser,
 	hostname string,
@@ -208,12 +214,10 @@ func openHostedBrowserStreams(
 	testutil.Eventually(t, "the hosted browser receives live transcript text", 5*time.Second, func() bool {
 		return strings.Contains(strings.Join(browser.state(t, hostname, "transcript").Events, ""), computerFixtureText)
 	})
-	openHostedBrowserTerminal(t, browser, hostname, host)
 }
 
-func openHostedBrowserTerminal(t *testing.T, browser hostedBrowser, hostname string, host daemonAccountFixture) {
+func openHostedBrowserTerminal(t *testing.T, browser hostedBrowser, hostname, workspace string) string {
 	t.Helper()
-	workspace := registerOperatorWorkspace(t, host, t.TempDir())
 	terminals := "/api/workspaces/" + workspace + "/terminals"
 	created := browser.request(
 		t,
@@ -255,6 +259,7 @@ func openHostedBrowserTerminal(t *testing.T, browser hostedBrowser, hostname str
 		map[string]any{"name": "terminal", "path": path, "input": frame, "marker": "\r\nhi\r\n"},
 		nil,
 	)
+	return terminal
 }
 
 func assertBrowserStreamClosed(
@@ -339,11 +344,11 @@ func assertBrowserApprovalFlow(
 	result := browser.redeem(t, hostname, fresh, "")
 	if approve {
 		result.expect(t, http.StatusCreated, "session_id")
-		browser.request(t, hostname, http.MethodGet, "/api/sessions", nil, "", "").receipt().
+		browser.request(t, hostname, http.MethodGet, hostedBrowserSessionsPath, nil, "", "").receipt().
 			expect(t, http.StatusOK, "sessions")
 		browser.request(t, hostname, http.MethodDelete, remoteproto.BrowserSessionPath, nil, "", "").receipt().
 			expect(t, http.StatusNoContent, "")
-		browser.request(t, hostname, http.MethodGet, "/api/sessions", nil, "", "").receipt().
+		browser.request(t, hostname, http.MethodGet, hostedBrowserSessionsPath, nil, "", "").receipt().
 			expect(t, http.StatusUnauthorized, "remote_session_invalid")
 	} else {
 		result.expect(t, http.StatusForbidden, "device_not_approved")
@@ -403,7 +408,7 @@ func assertHostedBrowserPeers(t *testing.T, root string) {
 	control := other.authorize(t, foreignHost, false)
 	other.redeem(t, foreignHost, control, "").expect(t, http.StatusCreated, "session_id")
 	assertHostedBrowserRebind(t, browser, first, firstHost, device)
-	other.request(t, foreignHost, http.MethodGet, "/api/sessions", nil, "", "").receipt().
+	other.request(t, foreignHost, http.MethodGet, hostedBrowserSessionsPath, nil, "", "").receipt().
 		expect(t, http.StatusOK, "sessions")
 }
 
@@ -426,7 +431,7 @@ func assertHostedBrowserDeviceRevocation(
 	owner.uds(t, http.MethodDelete, contract.AccountPath+"/devices/"+device, nil).expect(t, http.StatusNoContent, "")
 	for _, hostname := range hostnames {
 		assertBrowserStreamClosed(t, browser, hostname, "catalog", started, 0)
-		browser.request(t, hostname, http.MethodGet, "/api/sessions", nil, "", "").receipt().
+		browser.request(t, hostname, http.MethodGet, hostedBrowserSessionsPath, nil, "", "").receipt().
 			expect(t, http.StatusForbidden, "device_revoked")
 	}
 }
