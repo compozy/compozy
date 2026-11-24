@@ -156,6 +156,15 @@ func prepareE2ELaneEnv(needStampedDaemon, needDatabaseSeeder bool) (e2eLaneEnv, 
 		if err != nil {
 			return e2eLaneEnv{}, errors.Join(err, runCleanups(cleanups))
 		}
+		if os.Getenv("COMPOZY_E2E_PERF") != "1" {
+			// The Playwright fixture starts and stops a fresh lab for each selected remote scenario.
+			cleanups, err = addLaneBinary(
+				values, cleanups, "COMPOZY_E2E_REMOTETEST_BIN", "remotetest", buildRemoteTestBinary,
+			)
+			if err != nil {
+				return e2eLaneEnv{}, errors.Join(err, runCleanups(cleanups))
+			}
+		}
 	}
 	if needStampedDaemon {
 		// Catalog compilation is fixture preparation, outside each distribution scenario's deadline.
@@ -213,6 +222,13 @@ func addLaneBinary(
 func buildCatalogBinary(outputPath string) error {
 	return runCommandInDir(
 		context.Background(), ".", "go", "build", "-o", outputPath, "./cmd/compozy-catalog",
+	)
+}
+
+func buildRemoteTestBinary(outputPath string) error {
+	return runCommandInDir(
+		context.Background(), ".", "go", "build", "-tags", "integration",
+		"-o", outputPath, "./internal/testutil/remotetest/cmd/remotetest",
 	)
 }
 

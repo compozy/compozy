@@ -98,7 +98,7 @@ func (db *Database) SeedControlComputer(
 	return private
 }
 
-func (db *Database) Exec(t *testing.T, statement string, args ...any) {
+func (db *Database) Exec(t Fixture, statement string, args ...any) {
 	t.Helper()
 	if _, err := db.Pool.Exec(t.Context(), fmt.Sprintf(statement, db.Schema), args...); err != nil {
 		t.Fatalf("prepare cloud fixture: %v", err)

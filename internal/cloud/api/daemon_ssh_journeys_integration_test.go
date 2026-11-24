@@ -17,20 +17,19 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/computers/sshsetup"
-	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/sse"
 	"github.com/compozy/compozy/internal/testutil"
-	"github.com/compozy/compozy/internal/testutil/acpmock"
+	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
 
 const (
-	sshWorkspace = sshFixtureHome + "/code/api"
-	sshAgent     = "ssh-fixture-agent"
+	sshWorkspace = remotetest.SSHWorkspace
+	sshAgent     = remotetest.SSHAgent
 	sshMarker    = "MARKER-7f3k"
 )
 
-func testSSHServiceAndTurn(t *testing.T, assets sshFixtureAssets) {
+func testSSHServiceAndTurn(t *testing.T, assets remotetest.SSHAssets) {
 	t.Helper()
 	// IT-020. Safety Invariants 1, 7, 11, 12, 15 and 19.
 	j := newSSHJourney(t, assets)
@@ -40,7 +39,7 @@ func testSSHServiceAndTurn(t *testing.T, assets sshFixtureAssets) {
 	d, _ := j.controller(t)
 	signInSSHController(t, j.cloud, d)
 	events := d.stream(t, contract.ComputersPath+"/stream", "")
-	j.cli(t, "computer", "add", "ssh", "testhost", "--trust-host-fingerprint", ssh.FingerprintSHA256(host.hostKey(t)))
+	j.cli(t, "computer", "add", "ssh", "testhost", "--trust-host-fingerprint", ssh.FingerprintSHA256(host.HostKey(t)))
 	var steps []string
 	events.until(t, func(frame sse.Event) bool {
 		if frame.Event != "computer.setup" {
@@ -62,7 +61,7 @@ func testSSHServiceAndTurn(t *testing.T, assets sshFixtureAssets) {
 	if row.Status != "connected" || row.RouteInUse == nil || row.RouteInUse.Kind != remoteproto.RouteSSH {
 		t.Fatalf("SSH registry connection = %+v", row)
 	}
-	host.cli(t, "workspace", "add", sshWorkspace)
+	host.CLI(t, "workspace", "add", sshWorkspace)
 	session := parseSSHJSON[contract.SessionPayload](t, j.cli(t, "session", "new", "--computer", "testhost",
 		"--workspace", sshWorkspace, "--agent", sshAgent, "--json"))
 	if session.ID == "" {
@@ -77,7 +76,7 @@ func testSSHServiceAndTurn(t *testing.T, assets sshFixtureAssets) {
 	testutil.Eventually(t, "remote turn after controller SIGKILL", 15*time.Second, func() bool {
 		history := parseSSHJSON[[]contract.TurnHistoryPayload](
 			t,
-			host.cli(t, "session", "history", session.ID, "--json"),
+			host.CLI(t, "session", "history", session.ID, "--json"),
 		)
 		return markerAfter(history, killedAt)
 	})
@@ -109,58 +108,26 @@ func markerAfter(history []contract.TurnHistoryPayload, after time.Time) bool {
 	return false
 }
 
-func configureSSHFixtureACP(t *testing.T, host sshFixtureHost) {
+func configureSSHFixtureACP(t *testing.T, host remotetest.SSHHost) {
 	t.Helper()
 	fixture := filepath.Join(t.TempDir(), "ssh-marker.json")
 	writeSSHFixtureFile(t, fixture, `{"version":2,"agents":[{"name":"ssh-fixture-agent","provider":"acpmock",
 "permissions":"approve-all","turns":[{"name":"marker","match":{"user_text":"reply with MARKER-7f3k"},"steps":[
 {"kind":"driver_control","driver_control":{"action":"delay","delay_ms":5000}},
 {"kind":"assistant","text":"MARKER-7f3k"}]}]}]}`)
-	paths, err := config.ResolveHomePathsFrom(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	registration, err := acpmock.Register(paths, acpmock.RegisterOptions{
-		FixturePath: fixture, FixtureAgent: sshAgent, AgentName: sshAgent, ProviderName: acpmock.ProviderName,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	definition, err := os.ReadFile(registration.AgentDefPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	const driver = sshFixtureHome + "/acpmock-driver"
-	const script = sshFixtureHome + "/ssh-marker.json"
-	host.copy(t, registration.DriverPath, driver)
-	host.copy(t, fixture, script)
-	host.command(t, "mkdir", "-p", sshWorkspace, sshFixtureHome+"/.compozy/agents/"+sshAgent)
-	declared := strings.NewReplacer(registration.DriverPath, driver, registration.FixturePath, script,
-		registration.DiagnosticsPath, sshFixtureHome+"/acpmock-diagnostics.jsonl").Replace(string(definition))
-	host.write(t, sshFixtureHome+"/.compozy/agents/"+sshAgent+"/AGENT.md", declared)
-	provider := acpmock.ProviderConfig(driver)
-	cfg := host.command(t, "cat", sshFixtureHome+"/.compozy/config.toml") + fmt.Sprintf(`
-[providers.acpmock]
-command = %q
-display_name = %q
-harness = %q
-auth_mode = %q
-none_security = %q
-`, provider.Command, provider.DisplayName, provider.Harness, provider.AuthMode, provider.NoneSecurity)
-	host.write(t, sshFixtureHome+"/.compozy/config.toml", cfg)
-	host.command(t, "chown", "-R", sshFixtureUser+":"+sshFixtureUser, sshFixtureHome)
+	remotetest.ConfigureSSHACP(t, host, fixture)
 }
 
-func assertSSHUserService(t *testing.T, host sshFixtureHost) {
+func assertSSHUserService(t *testing.T, host remotetest.SSHHost) {
 	t.Helper()
 	const systemdDir = sshFixtureHome + "/.config/systemd/user"
-	host.command(t, "test", "-f", systemdDir+"/compozy.service")
-	host.command(t, "test", "-L", systemdDir+"/default.target.wants/compozy.service")
-	host.command(t, "runuser", "-u", sshFixtureUser, "--", "env", "XDG_RUNTIME_DIR=/run/user/1500",
+	host.Command(t, "test", "-f", systemdDir+"/compozy.service")
+	host.Command(t, "test", "-L", systemdDir+"/default.target.wants/compozy.service")
+	host.Command(t, "runuser", "-u", sshFixtureUser, "--", "env", "XDG_RUNTIME_DIR=/run/user/1500",
 		"systemctl", "--user", "is-active", "--quiet", "compozy.service")
 }
 
-func testSSHUpdate(t *testing.T, assets sshFixtureAssets) {
+func testSSHUpdate(t *testing.T, assets remotetest.SSHAssets) {
 	t.Helper()
 	// IT-025. Safety Invariant 19 applies to an update as well as the initial install.
 	j := newSSHJourney(t, assets)
@@ -168,35 +135,35 @@ func testSSHUpdate(t *testing.T, assets sshFixtureAssets) {
 	writeSSHFixtureFile(t, j.config, j.hostEntry("testhost", host))
 	d, _ := j.controller(t)
 	signInSSHController(t, j.cloud, d)
-	id := assertSSHSetupConnected(t, d, startSSHSetup(t, d, "testhost", ssh.FingerprintSHA256(host.hostKey(t))))
+	id := assertSSHSetupConnected(t, d, startSSHSetup(t, d, "testhost", ssh.FingerprintSHA256(host.HostKey(t))))
 	legacy, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
 	}
 	const oldPath = sshFixtureHome + "/" + sshLegacyBinary
 	const activePath = sshFixtureHome + "/.compozy/bin/compozy"
-	host.copy(t, legacy, oldPath)
-	host.command(t, "ln", "-sfn", oldPath, activePath)
-	host.command(t, "runuser", "-u", sshFixtureUser, "--", "env", "XDG_RUNTIME_DIR=/run/user/1500",
+	host.Copy(t, legacy, oldPath)
+	host.Command(t, "ln", "-sfn", oldPath, activePath)
+	host.Command(t, "runuser", "-u", sshFixtureUser, "--", "env", "XDG_RUNTIME_DIR=/run/user/1500",
 		"systemctl", "--user", "restart", "compozy.service")
 	testutil.Eventually(t, "protocol two excluded from the controller", 30*time.Second, func() bool {
 		return readControllerComputer(t, d, id).Status == "incompatible"
 	})
 
-	before := host.command(t, "cat", sshFixtureHome+"/fixture-commands")
+	before := host.Command(t, "cat", sshFixtureHome+"/fixture-commands")
 	downloads := j.release.Downloads.Load()
 	j.release.BadSigner.Store(true)
 	failed := parseSSHJSON[contract.ComputerUpdateStarted](t, j.cli(t, "computer", "update", "testhost", "--json"))
 	expectSSHSetupFailure(t, d, failed.SetupID, sshsetup.StepVerify, "ssh_install_provenance_failed")
-	if host.command(t, "cat", sshFixtureHome+"/fixture-commands") != before ||
+	if host.Command(t, "cat", sshFixtureHome+"/fixture-commands") != before ||
 		j.release.Downloads.Load() != downloads ||
-		host.command(t, "readlink", activePath) != oldPath {
+		host.Command(t, "readlink", activePath) != oldPath {
 		t.Fatal("an unverified update contacted the host or replaced the old install")
 	}
 	j.release.BadSigner.Store(false)
 	j.cli(t, "computer", "update", "testhost")
 	waitComputerRoute(t, d, id, remoteproto.RouteSSH)
-	if j.release.Downloads.Load() != downloads+1 || host.command(t, "readlink", activePath) == oldPath {
+	if j.release.Downloads.Load() != downloads+1 || host.Command(t, "readlink", activePath) == oldPath {
 		t.Fatal("verified update did not replace the incompatible release")
 	}
 	d.uds(t, http.MethodGet, computerAPI(id), nil).expect(t, http.StatusOK, sshFixtureVersion)

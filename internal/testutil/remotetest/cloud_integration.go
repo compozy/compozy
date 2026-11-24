@@ -41,6 +41,11 @@ func NewDatabase(t *testing.T) *Database {
 		}
 		t.Skipf("set %s to run the Postgres-backed cloud suite", postgresEnv)
 	}
+	return OpenDatabase(t, dsn)
+}
+
+func OpenDatabase(t Fixture, dsn string) *Database {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	pool, err := pgxpool.New(ctx, dsn)
@@ -63,7 +68,7 @@ func NewDatabase(t *testing.T) *Database {
 	return &Database{Schema: schema, Pool: pool, dsn: dsn}
 }
 
-func (db *Database) Config(t *testing.T, replica string) store.Config {
+func (db *Database) Config(t Fixture, replica string) store.Config {
 	t.Helper()
 	return store.Config{
 		PooledDSN: db.connectionURL(t, db.ApplicationName(replica, "pooled")),
@@ -71,7 +76,7 @@ func (db *Database) Config(t *testing.T, replica string) store.Config {
 	}
 }
 
-func (db *Database) Migrate(t *testing.T) store.MigrationReport {
+func (db *Database) Migrate(t Fixture) store.MigrationReport {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
@@ -86,7 +91,7 @@ func (db *Database) ApplicationName(replica, kind string) string {
 	return db.Schema + "_" + replica + "_" + kind
 }
 
-func (db *Database) connectionURL(t *testing.T, application string) string {
+func (db *Database) connectionURL(t Fixture, application string) string {
 	t.Helper()
 	parsed, err := url.Parse(db.dsn)
 	if err != nil || parsed.Hostname() == "" {
@@ -116,12 +121,12 @@ func StartLocalReplica(t *testing.T, cfg cloud.Config, register func(*cloud.App)
 }
 
 // StartLocalReplicaOn also makes the fixture reachable from a container on the test network.
-func StartLocalReplicaOn(t *testing.T, host string, cfg cloud.Config, register func(*cloud.App)) *Replica {
+func StartLocalReplicaOn(t Fixture, host string, cfg cloud.Config, register func(*cloud.App)) *Replica {
 	t.Helper()
 	return startReplica(t, cfg, register, true, host)
 }
 
-func startReplica(t *testing.T, cfg cloud.Config, register func(*cloud.App), localOrigin bool, host string) *Replica {
+func startReplica(t Fixture, cfg cloud.Config, register func(*cloud.App), localOrigin bool, host string) *Replica {
 	t.Helper()
 	if cfg.Keys == nil {
 		var err error
@@ -167,7 +172,7 @@ func startReplica(t *testing.T, cfg cloud.Config, register func(*cloud.App), loc
 	return &Replica{App: app, Server: server}
 }
 
-func NewSigner(t *testing.T, kid string) *remoteproto.Signer {
+func NewSigner(t Fixture, kid string) *remoteproto.Signer {
 	t.Helper()
 	_, key, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {

@@ -52,28 +52,28 @@ func TestDaemonSSHSetup(t *testing.T) {
 			fmt.Sprintf("Match originalhost testhost exec \"touch %s\"\n", matchOutput))
 		d, _ := j.controller(t)
 		signInSSHController(t, j.cloud, d)
-		fingerprint := ssh.FingerprintSHA256(host.hostKey(t))
-		before := host.sshConnections()
+		fingerprint := ssh.FingerprintSHA256(host.HostKey(t))
+		before := sshConnections(host)
 		j.release.BadSigner.Store(true)
 		id := startSSHSetup(t, d, "testhost", fingerprint)
 		expectSSHSetupFailure(t, d, id, sshsetup.StepVerify, "ssh_install_provenance_failed")
-		if host.sshConnections() != before || j.release.Downloads.Load() != 0 {
+		if sshConnections(host) != before || j.release.Downloads.Load() != 0 {
 			t.Fatal("the controller contacted SSH or downloaded an archive before verifying provenance")
 		}
 		if _, err := os.Stat(matchOutput); !os.IsNotExist(err) {
 			t.Fatalf("preflight evaluated Match exec before verifying the release: %v", err)
 		}
-		host.command(t, "test", "!", "-e", sshFixtureHome+"/.compozy/runtime/versions/"+sshFixtureVersion)
+		host.Command(t, "test", "!", "-e", sshFixtureHome+"/.compozy/runtime/versions/"+sshFixtureVersion)
 		j.release.BadSigner.Store(false)
 		j.release.BadArchive.Store(true)
 		if retry := startSSHSetup(t, d, "testhost", fingerprint); retry != id {
 			t.Fatalf("release retry returned %q, want %q", retry, id)
 		}
 		expectSSHSetupFailure(t, d, id, sshsetup.StepInstall, "ssh_install_checksum_mismatch")
-		if j.release.Downloads.Load() != 1 || host.sshConnections() <= before {
+		if j.release.Downloads.Load() != 1 || sshConnections(host) <= before {
 			t.Fatal("the host did not verify the tampered archive")
 		}
-		host.command(t, "test", "!", "-e", sshFixtureHome+"/.compozy/runtime/versions/"+sshFixtureVersion)
+		host.Command(t, "test", "!", "-e", sshFixtureHome+"/.compozy/runtime/versions/"+sshFixtureVersion)
 	})
 	t.Run("Should resume service only after revalidating the Free slot (IT-024)", func(t *testing.T) {
 		for _, occupied := range []bool{false, true} {
@@ -94,14 +94,14 @@ func TestDaemonSSHSetup(t *testing.T) {
 		// Safety Invariants 7 and 12. Lose stdout only after the real link has committed.
 		j := newSSHJourney(t, assets)
 		host := j.host(t, "")
-		host.command(t, "touch", sshFixtureHome+"/fixture-drop-link")
+		host.Command(t, "touch", sshFixtureHome+"/fixture-drop-link")
 		writeSSHFixtureFile(t, j.config, j.hostEntry("testhost", host))
 		d, _ := j.controller(t)
 		signInSSHController(t, j.cloud, d)
-		fingerprint := ssh.FingerprintSHA256(host.hostKey(t))
+		fingerprint := ssh.FingerprintSHA256(host.HostKey(t))
 		id := startSSHSetup(t, d, "testhost", fingerprint)
 		expectSSHSetupFailure(t, d, id, sshsetup.StepLink, "computer_setup_interrupted")
-		status := parseSSHJSON[contract.RemoteStatusResponse](t, host.cli(t, "remote", "status", "--json"))
+		status := parseSSHJSON[contract.RemoteStatusResponse](t, host.CLI(t, "remote", "status", "--json"))
 		if status.ComputerID == "" || !status.Enabled {
 			t.Fatalf("remote link did not commit: %+v", status)
 		}
@@ -119,20 +119,20 @@ func TestDaemonSSHSetup(t *testing.T) {
 	})
 }
 
-func testSSHTrust(t *testing.T, assets sshFixtureAssets) {
+func testSSHTrust(t *testing.T, assets remotetest.SSHAssets) {
 	t.Helper()
 	// Safety Invariant 19. A configured live master must never stand in for the target key exchange.
 	j := newSSHJourney(t, assets)
 	host := j.host(t, "")
 	bastion := j.host(t, "")
-	private := j.host(t, bastion.container)
-	privateKey := ssh.FingerprintSHA256(private.hostKey(t))
+	private := j.host(t, bastion.Container)
+	privateKey := ssh.FingerprintSHA256(private.HostKey(t))
 	socket := filepath.Join(filepath.Dir(j.config), "user-master")
 	userPins := filepath.Join(filepath.Dir(j.config), "user-known-hosts")
 	writeSSHFixtureFile(
 		t,
 		userPins,
-		fmt.Sprintf("[127.0.0.1]:%d %s", bastion.port, ssh.MarshalAuthorizedKey(bastion.hostKey(t))),
+		fmt.Sprintf("[127.0.0.1]:%d %s", bastion.Port, ssh.MarshalAuthorizedKey(bastion.HostKey(t))),
 	)
 	writeSSHFixtureFile(t, j.config, j.hostEntry("testhost", host,
 		" StrictHostKeyChecking accept-new", " ControlMaster auto", " ControlPath "+socket,
@@ -142,24 +142,24 @@ func testSSHTrust(t *testing.T, assets sshFixtureAssets) {
 	openUserSSHMaster(t, j.config, socket)
 	d, _ := j.controller(t)
 	signInSSHController(t, j.cloud, d)
-	beforeConn, beforeAuth := host.sshConnections(), host.sshAuthentications()
+	beforeConn, beforeAuth := sshConnections(host), sshAuthentications(host)
 	id := startSSHSetup(t, d, "testhost", "")
-	fingerprint := ssh.FingerprintSHA256(host.hostKey(t))
+	fingerprint := ssh.FingerprintSHA256(host.HostKey(t))
 	expectSSHTrust(t, d, id, fingerprint)
-	if host.sshConnections() <= beforeConn || host.sshAuthentications() != beforeAuth {
+	if sshConnections(host) <= beforeConn || sshAuthentications(host) != beforeAuth {
 		t.Fatal("the first-contact probe reused the user master or authenticated to the target")
 	}
 	answerSSHTrust(t, d, id, false)
 	waitSSHSetup(t, d, id, sshsetup.Canceled)
-	host.command(t, "test", "!", "-e", sshFixtureHome+"/.compozy/runtime")
-	host.command(t, "test", "!", "-e", sshFixtureHome+"/fixture-commands")
+	host.Command(t, "test", "!", "-e", sshFixtureHome+"/.compozy/runtime")
+	host.Command(t, "test", "!", "-e", sshFixtureHome+"/fixture-commands")
 
-	host.command(t, "touch", sshFixtureHome+"/fixture-drop-service")
+	host.Command(t, "touch", sshFixtureHome+"/fixture-drop-service")
 	id = startSSHSetup(t, d, "testhost", "")
 	expectSSHTrust(t, d, id, fingerprint)
 	answerSSHTrust(t, d, id, true)
 	expectSSHSetupFailure(t, d, id, sshsetup.StepService, "computer_setup_interrupted")
-	host.rotateKey(t)
+	host.RotateKey(t)
 	if retry := startSSHSetup(t, d, "testhost", ""); retry != id {
 		t.Fatalf("retry after key rotation returned %s, want %s", retry, id)
 	}
@@ -167,14 +167,14 @@ func testSSHTrust(t *testing.T, assets sshFixtureAssets) {
 
 	id = startSSHSetup(t, d, "private-host", "")
 	expectSSHTrust(t, d, id, privateKey)
-	if private.sshAuthentications() != 0 {
+	if sshAuthentications(private) != 0 {
 		t.Fatal("the host behind the bastion authenticated before confirmation")
 	}
 	answerSSHTrust(t, d, id, true)
 	assertSSHSetupConnected(t, d, id)
 }
 
-func testSSHPassword(t *testing.T, assets sshFixtureAssets) {
+func testSSHPassword(t *testing.T, assets remotetest.SSHAssets) {
 	t.Helper()
 	// Safety Invariant 17. Exercise the helper with a real OpenSSH password prompt.
 	j := newSSHJourney(t, assets)
@@ -184,7 +184,7 @@ func testSSHPassword(t *testing.T, assets sshFixtureAssets) {
 	d, logPath := j.controller(t)
 	signInSSHController(t, j.cloud, d)
 	stream := d.stream(t, contract.ComputersPath+"/stream", "")
-	id := startSSHSetup(t, d, "testhost", ssh.FingerprintSHA256(host.hostKey(t)))
+	id := startSSHSetup(t, d, "testhost", ssh.FingerprintSHA256(host.HostKey(t)))
 	const secret = "wrong-ssh-password-for-IT-022"
 	answer := contract.ComputerSetupAnswer{Kind: sshsetup.Secret, Value: secret}
 	for attempt := range 3 {
@@ -241,13 +241,13 @@ func testSSHPassword(t *testing.T, assets sshFixtureAssets) {
 	})
 }
 
-func testSSHServiceResume(t *testing.T, assets sshFixtureAssets, occupied bool) {
+func testSSHServiceResume(t *testing.T, assets remotetest.SSHAssets, occupied bool) {
 	t.Helper()
 	// Safety Invariants 7, 12 and 19.
 	j := newSSHJourney(t, assets)
 	host := j.host(t, "")
 	config := j.hostEntry("testhost", host, " StrictHostKeyChecking accept-new")
-	var other sshFixtureHost
+	var other remotetest.SSHHost
 	if occupied {
 		other = j.host(t, "")
 		config += j.hostEntry("testhost2", other)
@@ -255,24 +255,24 @@ func testSSHServiceResume(t *testing.T, assets sshFixtureAssets, occupied bool) 
 	writeSSHFixtureFile(t, j.config, config)
 	d, _ := j.controller(t)
 	signInSSHController(t, j.cloud, d)
-	host.command(t, "touch", sshFixtureHome+"/fixture-drop-service")
-	fingerprint := ssh.FingerprintSHA256(host.hostKey(t))
+	host.Command(t, "touch", sshFixtureHome+"/fixture-drop-service")
+	fingerprint := ssh.FingerprintSHA256(host.HostKey(t))
 	id := startSSHSetup(t, d, "testhost", fingerprint)
 	expectSSHSetupFailure(t, d, id, sshsetup.StepService, "computer_setup_interrupted")
 	if j.activeSlots(t) != 0 || j.release.Downloads.Load() != 1 {
 		t.Fatal("interrupted service did not release its slot after installing the archive once")
 	}
 	if occupied {
-		second := startSSHSetup(t, d, "testhost2", ssh.FingerprintSHA256(other.hostKey(t)))
+		second := startSSHSetup(t, d, "testhost2", ssh.FingerprintSHA256(other.HostKey(t)))
 		assertSSHSetupConnected(t, d, second)
 	}
-	before := host.sshConnections()
+	before := sshConnections(host)
 	if retry := startSSHSetup(t, d, "testhost", fingerprint); retry != id {
 		t.Fatalf("service retry returned %s, want %s", retry, id)
 	}
 	if occupied {
 		expectSSHSetupFailure(t, d, id, sshsetup.StepAdmit, "plan_limit_reached")
-		if before != host.sshConnections() {
+		if before != sshConnections(host) {
 			t.Fatal("a retried setup contacted the host after losing the Free slot")
 		}
 		return
@@ -284,7 +284,7 @@ func testSSHServiceResume(t *testing.T, assets sshFixtureAssets, occupied bool) 
 	assertSSHUserService(t, host)
 }
 
-func testSSHAdmissionAndCancel(t *testing.T, assets sshFixtureAssets) {
+func testSSHAdmissionAndCancel(t *testing.T, assets remotetest.SSHAssets) {
 	t.Helper()
 	// Safety Invariants 7 and 19. Hold the release response to stop immediately after admission.
 	j := newSSHJourney(t, assets)
@@ -301,19 +301,19 @@ func testSSHAdmissionAndCancel(t *testing.T, assets sshFixtureAssets) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("the setup did not pass cloud admission")
 	}
-	if j.activeSlots(t) != 1 || first.sshConnections() != 0 {
+	if j.activeSlots(t) != 1 || sshConnections(first) != 0 {
 		t.Fatal("the reservation and host contact were out of order")
 	}
 	canceled := parseSSHJSON[contract.ComputerSetupCanceled](t, j.cli(t, "computer", "setup", "cancel", id, "--json"))
 	if canceled.State != sshsetup.Canceled || j.activeSlots(t) != 0 {
 		t.Fatal("cancel returned before releasing the Free slot")
 	}
-	id = startSSHSetup(t, d, "testhost2", ssh.FingerprintSHA256(second.hostKey(t)))
+	id = startSSHSetup(t, d, "testhost2", ssh.FingerprintSHA256(second.HostKey(t)))
 	assertSSHSetupConnected(t, d, id)
 	d.uds(t, http.MethodDelete, sshSetupPath(id), nil).expect(t, http.StatusConflict, "computer_setup_linked")
 	refused := startSSHSetup(t, d, "testhost", "")
 	expectSSHSetupFailure(t, d, refused, sshsetup.StepAdmit, "plan_limit_reached")
-	if first.sshConnections() != 0 || first.sshAuthentications() != 0 {
+	if sshConnections(first) != 0 || sshAuthentications(first) != 0 {
 		t.Fatal("a refused Free reservation contacted the host")
 	}
 }
@@ -407,5 +407,5 @@ func openUserSSHMaster(t *testing.T, config, socket string) {
 	})
 }
 
-func (h sshFixtureHost) sshConnections() int     { return strings.Count(h.readLog(), "Connection from ") }
-func (h sshFixtureHost) sshAuthentications() int { return strings.Count(h.readLog(), "Accepted ") }
+func sshConnections(h remotetest.SSHHost) int     { return strings.Count(h.ReadLog(), "Connection from ") }
+func sshAuthentications(h remotetest.SSHHost) int { return strings.Count(h.ReadLog(), "Accepted ") }

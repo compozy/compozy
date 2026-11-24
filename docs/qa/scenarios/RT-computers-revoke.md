@@ -17,4 +17,6 @@ qa_status: pending
 6. Add the linked computer on two controllers with a working direct route and SSH forward. Keep a session stream open. Block the direct address and check that `compozy computer status <name> --json` reports the SSH route within ten seconds. Reconnect the stream through `/c/{id}` with its last event ID and check the transcript for gaps.
 7. With Pro on the linked computer, enable the hosted route and remove direct and SSH reachability. Check that the controller uses `cloud` and can list the host's sessions. Block the host's outbound port 7844 and verify the connector diagnosis and recovery. Turn off the hosted route and confirm that its hostname disappears from the account directory.
 
+Browser coverage: E2E-007 revokes the second signed-in CLI device from Settings → Account. Its `compozy computer status testhost --json` must show `device_revoked` within three seconds of the revoke response.
+
 Walk this scenario after integrating the host and controller. Record timestamps and redacted event IDs in the QA report.

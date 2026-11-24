@@ -15,4 +15,6 @@ qa_status: pending
 4. Interrupt a second setup before linking. Repeat the add command and verify it resumes at the first incomplete step. Cancel it and verify the slot becomes available before another add proceeds.
 5. Rotate a trusted VM host key and verify the controller reports `ssh_host_key_changed`. Confirm the previously trusted key stays pinned.
 
+Browser coverage: E2E-002 exercises host-key trust, the SSH connection, and a session started on the new computer through Run on. E2E-003 covers adding an account-linked computer and finding one of its sessions in the sidebar and Search.
+
 Walk this scenario after the Remote Computers slices are integrated.
