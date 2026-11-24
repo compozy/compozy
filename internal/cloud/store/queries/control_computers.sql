@@ -111,6 +111,12 @@ WHERE id = sqlc.arg(id) AND account_id = sqlc.arg(account_id) AND device_id = sq
 -- name: ControlLinkToken :one
 SELECT * FROM link_tokens WHERE token_sha256 = $1;
 
+-- name: LinkedControlReservation :one
+SELECT c.id
+FROM link_tokens AS t
+JOIN computers AS c ON c.id = t.result_computer_id AND c.account_id = t.account_id
+WHERE t.reservation_id = $1 AND t.account_id = $2 AND t.device_id = $3 AND c.unlinked_at IS NULL;
+
 -- name: CreateControlLinkToken :exec
 INSERT INTO link_tokens (token_sha256, account_id, device_id, reservation_id, expires_at)
 VALUES ($1, $2, $3, $4, $5);

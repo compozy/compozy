@@ -7,6 +7,38 @@ import (
 	"time"
 )
 
+// SubprocessHealthAggregatePayload is a daemon API value.
+type SubprocessHealthAggregatePayload struct {
+	Status    string                           `json:"status"`
+	Monitored int                              `json:"monitored"`
+	Healthy   int                              `json:"healthy"`
+	Unhealthy int                              `json:"unhealthy"`
+	Sessions  []SubprocessHealthSessionPayload `json:"sessions,omitempty"`
+}
+
+// SubprocessHealthSessionPayload is a daemon API value.
+type SubprocessHealthSessionPayload struct {
+	SessionID           string     `json:"session_id"`
+	WorkspaceID         string     `json:"workspace_id"`
+	AgentName           string     `json:"agent_name"`
+	ConsecutiveFailures int        `json:"consecutive_failures"`
+	LastCheckedAt       *time.Time `json:"last_checked_at,omitempty"`
+	Reason              string     `json:"reason,omitempty"`
+}
+
+// SuggestionSource is a daemon API value.
+type SuggestionSource string
+
+// SuggestionStatus is a daemon API value.
+type SuggestionStatus string
+
+// SupervisionState is a daemon API value.
+type SupervisionState struct {
+	WorkSignals  []WorkSignal        `json:"work_signals"`
+	Sources      []SignalSourceState `json:"sources"`
+	QuietWarning *QuietWarning       `json:"quiet_warning"`
+}
+
 // SupportBundleManifestArtifactPayload is a daemon API value.
 type SupportBundleManifestArtifactPayload struct {
 	Path             string `json:"path"`
@@ -413,33 +445,4 @@ type TaskHealthPayload struct {
 	OwnerTotals           []TaskOwnerTotalPayload   `json:"owner_totals,omitempty"`
 	ForcedStopsSinceStart int                       `json:"forced_stops_since_start"`
 	RecoverySinceStart    TaskRecoveryTotalsPayload `json:"recovery_since_start"`
-}
-
-// TaskInboxFacetsPayload is a daemon API value.
-type TaskInboxFacetsPayload struct {
-	Statuses   []TaskInboxStatusFacetPayload   `json:"statuses"`
-	Priorities []TaskInboxPriorityFacetPayload `json:"priorities"`
-}
-
-// TaskInboxItemPayload is a daemon API value.
-type TaskInboxItemPayload struct {
-	Task             TaskInboxTaskPayload   `json:"task"`
-	Lane             TaskInboxLane          `json:"lane"`
-	ApprovalPolicy   ApprovalPolicy         `json:"approval_policy,omitempty"`
-	ApprovalState    ApprovalState          `json:"approval_state,omitempty"`
-	BlockingReason   string                 `json:"blocking_reason,omitempty"`
-	LatestActivityAt time.Time              `json:"latest_activity_at"`
-	Run              *TaskCatalogRunPayload `json:"run,omitempty"`
-	Triage           TaskTriageStatePayload `json:"triage"`
-}
-
-// TaskInboxLane is a daemon API value.
-type TaskInboxLane string
-
-// TaskInboxLaneGroupPayload is a daemon API value.
-type TaskInboxLaneGroupPayload struct {
-	Lane        TaskInboxLane          `json:"lane"`
-	Count       int                    `json:"count"`
-	UnreadCount int                    `json:"unread_count"`
-	Items       []TaskInboxItemPayload `json:"items,omitempty"`
 }

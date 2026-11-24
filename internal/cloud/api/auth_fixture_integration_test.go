@@ -68,10 +68,21 @@ func newAuthFixtureWithReplica(
 	start func(*testing.T, cloud.Config, func(*cloud.App)) *remotetest.Replica,
 ) authFixture {
 	t.Helper()
+	clock := clockwork.NewFakeClockAt(time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC))
+	fixture := newAuthFixtureWithTime(t, start, clock.Now)
+	fixture.clock = clock
+	return fixture
+}
+
+func newAuthFixtureWithTime(
+	t *testing.T,
+	start func(*testing.T, cloud.Config, func(*cloud.App)) *remotetest.Replica,
+	now func() time.Time,
+) authFixture {
+	t.Helper()
 	db := remotetest.NewDatabase(t)
 	db.Migrate(t)
-	clock := clockwork.NewFakeClockAt(time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC))
-	provider, endpoints := newProviderFixture(t, clock)
+	provider, endpoints := newProviderFixture(t, now)
 	oauth, err := auth.NewOAuth(
 		auth.OAuthClient{ID: googleClient, Secret: "google-secret"},
 		auth.OAuthClient{ID: "github-client", Secret: "github-secret"}, auth.WithOAuthEndpoints(endpoints),
@@ -92,7 +103,7 @@ func newAuthFixtureWithReplica(
 		t.Fatal(err)
 	}
 	config := cloud.Config{
-		Postgres: db.Config(t, "auth1"), Keys: keys, Now: clock.Now, Issuer: authOrigin,
+		Postgres: db.Config(t, "auth1"), Keys: keys, Now: now, Issuer: authOrigin,
 		Auth: &auth.Config{
 			OAuth: oauth, EncryptionKey: bytes.Repeat([]byte{7}, 32), Turnstile: check,
 			TurnstileSiteKey: "test-site-key", HostedDomain: "compozy.run", TrustEdge: true,
@@ -104,7 +115,7 @@ func newAuthFixtureWithReplica(
 	}
 	t.Cleanup(func() { _ = conn.Close(t.Context()) })
 	replica := start(t, config, registerAuthProbe)
-	return authFixture{db: db, conn: conn, replica: replica, cfg: config, clock: clock, provider: provider}
+	return authFixture{db: db, conn: conn, replica: replica, cfg: config, provider: provider}
 }
 
 const authProbePath = "/v1/test-device-principal"
@@ -135,17 +146,17 @@ type providerFixture struct {
 	mu        sync.Mutex
 	exchanges map[string]providerExchange
 	key       *rsa.PrivateKey
-	clock     *clockwork.FakeClock
+	now       func() time.Time
 	origin    string
 }
 
-func newProviderFixture(t *testing.T, clock *clockwork.FakeClock) (*providerFixture, auth.OAuthEndpoints) {
+func newProviderFixture(t *testing.T, now func() time.Time) (*providerFixture, auth.OAuthEndpoints) {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := &providerFixture{key: key, clock: clock, exchanges: make(map[string]providerExchange)}
+	p := &providerFixture{key: key, now: now, exchanges: make(map[string]providerExchange)}
 	server := httptest.NewServer(http.HandlerFunc(p.serve))
 	t.Cleanup(server.Close)
 	p.origin = server.URL
@@ -230,7 +241,7 @@ func (p *providerFixture) profile(code string) providerExchange {
 
 func (p *providerFixture) googleJWT(exchange providerExchange) (string, error) {
 	profile := exchange.profile
-	now := p.clock.Now()
+	now := p.now()
 	if profile.issuer == "" {
 		profile.issuer = googleIssuer
 	}

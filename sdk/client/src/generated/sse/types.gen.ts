@@ -158,9 +158,15 @@ export type Computer = {
 };
 
 export type ComputerChange = {
+  answered?: boolean;
   computer?: Computer | null;
   computer_id?: string;
+  error?: ErrorPayload | null;
+  prompt?: ComputerSetupPrompt | null;
   removed?: boolean;
+  setup_id?: string;
+  state?: string;
+  step?: string;
 };
 
 export type ComputerDiagnosis = {
@@ -189,6 +195,12 @@ export type ComputerRouteInUse = {
   id: string;
   kind: string;
   label: string;
+};
+
+export type ComputerSetupPrompt = {
+  fingerprint?: string;
+  host?: string;
+  kind: string;
 };
 
 export type Confirmation = {

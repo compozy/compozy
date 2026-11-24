@@ -10,6 +10,48 @@ import (
 	"strings"
 )
 
+// RejectAgentSkillReview Decide a skill review as the operator (experimental)
+func (c *Client) RejectAgentSkillReview(ctx context.Context, params RejectAgentSkillReviewParams, body AgentSkillReviewDecisionRequest) (*AgentSkillReviewResponse, error) {
+	path := "/api/agent-skill-reviews/{id}/reject"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSkillReviewResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RejectTaskParams carries the path, query, and header parameters.
+type RejectTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// RejectTask Reject one approval-gated task
+func (c *Client) RejectTask(ctx context.Context, params RejectTaskParams) (*TaskResponse, error) {
+	path := "/api/tasks/{id}/reject"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // RejectTerminalInputRequestParams carries the path, query, and header parameters.
 type RejectTerminalInputRequestParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -394,55 +436,4 @@ type RenameSessionParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
-}
-
-// RenameSession Rename one user session
-func (c *Client) RenameSession(ctx context.Context, params RenameSessionParams, body RenameSessionRequest) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RenameSessionFolderParams carries the path, query, and header parameters.
-type RenameSessionFolderParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	FolderID    string  `url:"folder_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RenameSessionFolder Rename a session folder
-func (c *Client) RenameSessionFolder(ctx context.Context, params RenameSessionFolderParams, body RenameSessionFolderRequest) (*SessionFolderResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-folders/{folder_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFolderResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RenameWorkspaceFolderParams carries the path, query, and header parameters.
-type RenameWorkspaceFolderParams struct {
-	FolderID string  `url:"folder_id"`
-	Profile  *string `url:"profile"`
 }

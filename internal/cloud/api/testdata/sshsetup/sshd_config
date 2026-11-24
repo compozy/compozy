@@ -1,0 +1,10 @@
+HostKey /etc/ssh/ssh_host_ed25519_key
+PidFile /run/compozy-fixture-sshd.pid
+AllowUsers pedro
+AuthorizedKeysFile .ssh/authorized_keys
+PasswordAuthentication yes
+KbdInteractiveAuthentication no
+UsePAM yes
+AllowTcpForwarding yes
+LogLevel VERBOSE
+ForceCommand /usr/local/bin/fixture-ssh-command

@@ -71,8 +71,13 @@ type AvailableComputersResponse struct {
 }
 
 type AddComputerRequest struct {
-	Kind       string                 `json:"kind"`
-	ComputerID remoteproto.ComputerID `json:"computer_id"`
+	Kind                 string                 `json:"kind"`
+	ComputerID           remoteproto.ComputerID `json:"computer_id,omitempty"`
+	Host                 string                 `json:"host,omitempty"`
+	User                 string                 `json:"user,omitempty"`
+	Port                 int                    `json:"port,omitzero"`
+	Name                 string                 `json:"name,omitempty"`
+	TrustHostFingerprint string                 `json:"trust_host_fingerprint,omitempty"`
 }
 
 type PatchComputerRequest struct {
@@ -90,6 +95,12 @@ type ComputerChange struct {
 	ComputerID remoteproto.ComputerID `json:"computer_id,omitempty"`
 	Computer   *Computer              `json:"computer,omitempty"`
 	Removed    bool                   `json:"removed,omitzero"`
+	SetupID    string                 `json:"setup_id,omitempty"`
+	Step       string                 `json:"step,omitempty"`
+	State      string                 `json:"state,omitempty"`
+	Prompt     *ComputerSetupPrompt   `json:"prompt,omitempty"`
+	Error      *ErrorPayload          `json:"error,omitempty"`
+	Answered   bool                   `json:"answered,omitzero"`
 }
 
 type ComputerEvent struct {

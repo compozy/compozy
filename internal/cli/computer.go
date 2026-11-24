@@ -30,11 +30,12 @@ func newComputerCommand(deps commandDeps) *cobra.Command {
 			return writeComputerStatus(command, item)
 		},
 	})
+	add.AddCommand(newComputerAddSSHCommand(deps))
 	cmd.AddCommand(
 		add, newComputerListCommand(deps), newAvailableComputersCommand(deps),
 		newComputerStatusCommand(deps), newComputerToggleCommand(deps, "enable", true),
 		newComputerToggleCommand(deps, "disable", false), newComputerRemoveCommand(deps),
-		newComputerRoutesCommand(deps),
+		newComputerRoutesCommand(deps), newComputerUpdateCommand(deps), newComputerSetupCommand(deps),
 	)
 	return cmd
 }

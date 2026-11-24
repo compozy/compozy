@@ -13,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/cloudclient"
+	"github.com/compozy/compozy/internal/computers/sshsetup"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -33,12 +34,20 @@ func WithSSHUninstall(uninstall func(context.Context, store.ComputerRoute) error
 	return func(r *Registry) { r.uninstall = uninstall }
 }
 
+func WithManagedSSH(build func(*Registry) *sshsetup.Manager) Option {
+	return func(r *Registry) {
+		r.setups = build(r)
+		r.uninstall = r.setups.Uninstall
+	}
+}
+
 type Registry struct {
 	store     store.ComputerStore
 	account   Account
 	cloud     Cloud
 	forward   ForwardResolver
 	uninstall func(context.Context, store.ComputerRoute) error
+	setups    *sshsetup.Manager
 	routeHTTP func(remoteproto.RouteKind) *http.Client
 	clock     clockwork.Clock
 	logger    *slog.Logger
@@ -87,6 +96,9 @@ func New(ctx context.Context, store store.ComputerStore, accounts Account, cloud
 
 func (r *Registry) Close() {
 	r.cancel()
+	if r.setups != nil {
+		r.setups.Close()
+	}
 	r.mu.Lock()
 	if r.scope != nil {
 		r.scope.cancel()

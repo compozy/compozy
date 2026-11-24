@@ -59,6 +59,7 @@ func (d *Daemon) nativeToolsDeps(
 		},
 		GatewayPermissionMode: nativeGatewayPermissionModeSource(state.sessions),
 		Remote:                state.deps.Remote,
+		Computers:             func() core.ComputersService { return state.deps.Computers },
 		HomePaths:             d.homePaths,
 		Observer:              state.observer,
 		HookBindings:          state.hookBindings,

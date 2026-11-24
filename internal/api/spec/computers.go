@@ -27,19 +27,52 @@ func computerOperations() []OperationSpec {
 	forget := computerOperation(http.MethodDelete, id+"/routes/{route_id}", "removeComputerRoute",
 		"Remove a learned route", nil, computerSuccess(http.StatusNoContent, "Route removed", nil))
 	forget.Parameters = append(forget.Parameters, pathParam("route_id", "Learned route ID"))
-	return []OperationSpec{
+	add := computerOperation(
+		http.MethodPost,
+		path,
+		"addAccountComputer",
+		"Add a linked account computer or start SSH setup",
+		contract.AddComputerRequest{},
+		computerSuccess(http.StatusCreated, "Computer added", contract.Computer{}),
+	)
+	add.Responses = append(add.Responses,
+		computerSuccess(http.StatusAccepted, "SSH setup started", contract.ComputerSetupStarted{}),
+		computerSuccess(http.StatusUnprocessableEntity, "SSH setup input failed", contract.ErrorPayload{}))
+	return append([]OperationSpec{
 		computerOperation(http.MethodGet, path, "listComputers", "List computers added to this controller", nil,
 			computerSuccess(http.StatusOK, "Computer registry", contract.ComputerListResponse{})),
 		computerOperation(http.MethodGet, path+"/available", "listAvailableComputers",
 			"List linked computers available to add", nil,
 			computerSuccess(http.StatusOK, "Available account computers", contract.AvailableComputersResponse{})),
-		computerOperation(http.MethodPost, path, "addAccountComputer", "Add a linked account computer",
-			contract.AddComputerRequest{}, computerSuccess(http.StatusCreated, "Computer added", contract.Computer{})),
+		add,
 		computerOperation(http.MethodGet, id, "getComputer", "Inspect a computer and its routes", nil,
 			computerSuccess(http.StatusOK, "Computer status", contract.Computer{})),
 		computerOperation(http.MethodPatch, id, "patchComputer", "Update a computer in this controller",
 			contract.PatchComputerRequest{}, computerSuccess(http.StatusOK, "Updated computer", contract.Computer{})),
 		remove, forget, stream,
+	}, computerSetupOperations()...)
+}
+
+func computerSetupOperations() []OperationSpec {
+	const setup = contract.ComputerSetupsPath + "/{setup_id}"
+	status := computerOperation(http.MethodGet, setup, "getComputerSetup", "Read or wait for SSH setup progress",
+		nil, computerSuccess(http.StatusOK, "Current SSH setup status", contract.ComputerSetupStatus{}))
+	parameter := pathParam("setup_id", "SSH setup ID")
+	status.Parameters = []ParameterSpec{parameter, intQueryParam("wait_ms", "Wait for up to 30,000 ms")}
+	cancel := computerOperation(http.MethodDelete, setup, "cancelComputerSetup", "Cancel an unlinked SSH setup",
+		nil, computerSuccess(http.StatusOK, "Setup stopped and slot released", contract.ComputerSetupCanceled{}))
+	cancel.Parameters = []ParameterSpec{parameter}
+	answer := computerOperation(http.MethodPost, setup+"/answer", "answerComputerSetup", "Answer an SSH setup prompt",
+		contract.ComputerSetupAnswer{}, computerSuccess(http.StatusNoContent, "Answer accepted", nil))
+	answer.Parameters = []ParameterSpec{parameter}
+	return []OperationSpec{
+		computerOperation(http.MethodGet, contract.ComputersPath+"/ssh-hosts", "listComputerSSHHosts",
+			"Discover SSH hosts on the controller", nil,
+			computerSuccess(http.StatusOK, "SSH hosts", contract.ComputerSSHHostsResponse{})),
+		computerOperation(http.MethodPost, contract.ComputersPath+"/{id}/update", "startComputerUpdate",
+			"Start an SSH computer update", nil,
+			computerSuccess(http.StatusAccepted, "Update setup started", contract.ComputerUpdateStarted{})),
+		status, cancel, answer,
 	}
 }
 

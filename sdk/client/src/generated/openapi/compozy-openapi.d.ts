@@ -1674,7 +1674,7 @@ export interface paths {
     /** List computers added to this controller */
     get: operations["listComputers"];
     put?: never;
-    /** Add a linked account computer */
+    /** Add a linked account computer or start SSH setup */
     post: operations["addAccountComputer"];
     delete?: never;
     options?: never;
@@ -1691,6 +1691,58 @@ export interface paths {
     };
     /** List linked computers available to add */
     get: operations["listAvailableComputers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/computers/setups/{setup_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read or wait for SSH setup progress */
+    get: operations["getComputerSetup"];
+    put?: never;
+    post?: never;
+    /** Cancel an unlinked SSH setup */
+    delete: operations["cancelComputerSetup"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/computers/setups/{setup_id}/answer": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Answer an SSH setup prompt */
+    post: operations["answerComputerSetup"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/computers/ssh-hosts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Discover SSH hosts on the controller */
+    get: operations["listComputerSSHHosts"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1747,6 +1799,23 @@ export interface paths {
     post?: never;
     /** Remove a learned route */
     delete: operations["removeComputerRoute"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/computers/{id}/update": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start an SSH computer update */
+    post: operations["startComputerUpdate"];
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -9040,8 +9109,13 @@ export interface components {
       ref: string;
     };
     AddComputerRequest: {
-      computer_id: string;
+      computer_id?: string;
+      host?: string;
       kind: string;
+      name?: string;
+      port?: number;
+      trust_host_fingerprint?: string;
+      user?: string;
     };
     AddMarketplaceSourceRequest: {
       name?: string;
@@ -10521,9 +10595,15 @@ export interface components {
       version: string;
     };
     ComputerChange: {
+      answered?: boolean;
       computer?: components["schemas"]["Computer"] | null;
       computer_id?: string;
+      error?: components["schemas"]["ErrorPayload"] | null;
+      prompt?: components["schemas"]["ComputerSetupPrompt"] | null;
       removed?: boolean;
+      setup_id?: string;
+      state?: string;
+      step?: string;
     };
     ComputerDiagnosis: {
       /** Format: date-time */
@@ -10553,6 +10633,46 @@ export interface components {
       id: string;
       kind: string;
       label: string;
+    };
+    ComputerSSHHost: {
+      alias: string;
+      hostname: string;
+      port: number;
+      source: string;
+      user: string;
+    };
+    ComputerSSHHostsResponse: {
+      hosts: components["schemas"]["ComputerSSHHost"][];
+    };
+    ComputerSetupAnswer: {
+      accept?: boolean | null;
+      kind: string;
+      value?: string;
+    };
+    ComputerSetupCanceled: {
+      setup_id: string;
+      state: string;
+    };
+    ComputerSetupPrompt: {
+      fingerprint?: string;
+      host?: string;
+      kind: string;
+    };
+    ComputerSetupStarted: {
+      computer_id: string | null;
+      setup_id: string;
+    };
+    ComputerSetupStatus: {
+      computer_id: string | null;
+      error: components["schemas"]["ErrorPayload"] | null;
+      prompt: components["schemas"]["ComputerSetupPrompt"] | null;
+      prompt_kind?: string;
+      setup_id: string;
+      state: string;
+      step: string;
+    };
+    ComputerUpdateStarted: {
+      setup_id: string;
     };
     ConfigApplyRecordPayload: {
       active_config_hash: string;
@@ -34149,6 +34269,116 @@ export interface operations {
           "application/json": components["schemas"]["Computer"];
         };
       };
+      /** @description SSH setup started */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ComputerSetupStarted"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description SSH setup input failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listAvailableComputers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Available account computers */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AvailableComputersResponse"];
+        };
+      };
       /** @description Bad Request */
       400: {
         headers: {
@@ -34223,7 +34453,298 @@ export interface operations {
       };
     };
   };
-  listAvailableComputers: {
+  getComputerSetup: {
+    parameters: {
+      query?: {
+        /** @description Wait for up to 30,000 ms */
+        wait_ms?: number;
+      };
+      header?: never;
+      path: {
+        /** @description SSH setup ID */
+        setup_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Current SSH setup status */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ComputerSetupStatus"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  cancelComputerSetup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description SSH setup ID */
+        setup_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Setup stopped and slot released */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ComputerSetupCanceled"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  answerComputerSetup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description SSH setup ID */
+        setup_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ComputerSetupAnswer"];
+      };
+    };
+    responses: {
+      /** @description Answer accepted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listComputerSSHHosts: {
     parameters: {
       query?: never;
       header?: never;
@@ -34232,13 +34753,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Available account computers */
+      /** @description SSH hosts */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["AvailableComputersResponse"];
+          "application/json": components["schemas"]["ComputerSSHHostsResponse"];
         };
       };
       /** @description Bad Request */
@@ -34728,6 +35249,101 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  startComputerUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Computer ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Update setup started */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ComputerUpdateStarted"];
+        };
       };
       /** @description Bad Request */
       400: {

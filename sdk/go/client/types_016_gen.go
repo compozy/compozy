@@ -7,6 +7,60 @@ import (
 	"time"
 )
 
+// PromptOriginMeta is a daemon API value.
+type PromptOriginMeta struct {
+	Kind             string `json:"kind"`
+	SessionID        string `json:"session_id"`
+	WorkspaceID      string `json:"workspace_id"`
+	AgentName        string `json:"agent_name,omitempty"`
+	TitleAtSend      string `json:"title_at_send,omitempty"`
+	Hop              int    `json:"hop"`
+	NotifyOnComplete bool   `json:"notify_on_complete,omitempty"`
+	ReplyWatchID     string `json:"reply_watch_id,omitempty"`
+	InReplyTo        string `json:"in_reply_to,omitempty"`
+}
+
+// PromptRuntimeSelectionPayload is a daemon API value.
+type PromptRuntimeSelectionPayload struct {
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+}
+
+// ProtocolRange is a daemon API value.
+type ProtocolRange struct {
+	Min int `json:"min"`
+	Max int `json:"max"`
+}
+
+// ProvenancePayload is a daemon API value.
+type ProvenancePayload struct {
+	Slug                   string                    `json:"slug,omitempty"`
+	Registry               string                    `json:"registry,omitempty"`
+	Version                string                    `json:"version,omitempty"`
+	InstalledAt            *time.Time                `json:"installed_at,omitempty"`
+	InstalledFromExtension string                    `json:"installed_from_extension,omitempty"`
+	PrecedenceTier         string                    `json:"precedence_tier"`
+	ShadowedBy             []SkillShadowEntryPayload `json:"shadowed_by,omitempty"`
+}
+
+// ProviderAuthProbeResponse is a daemon API value.
+type ProviderAuthProbeResponse struct {
+	Provider   string                    `json:"provider"`
+	AuthStatus ProviderAuthStatusPayload `json:"auth_status"`
+	Probe      *ProviderAuthProbeResult  `json:"probe,omitzero"`
+}
+
+// ProviderAuthProbeResult is a daemon API value.
+type ProviderAuthProbeResult struct {
+	ExitCode   int    `json:"exit_code"`
+	Stdout     string `json:"stdout,omitempty"`
+	Stderr     string `json:"stderr,omitempty"`
+	DurationMs int64  `json:"duration_ms"`
+}
+
 // ProviderAuthStatusPayload is a daemon API value.
 type ProviderAuthStatusPayload struct {
 	Mode        string                         `json:"mode"`
@@ -392,53 +446,4 @@ type RecoverTaskRequest struct {
 type RecoverTaskRunRequest struct {
 	Reason   string          `json:"reason,omitempty"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// Redaction is a daemon API value.
-type Redaction struct {
-	Path   string     `json:"path"`
-	Reason ReasonCode `json:"reason"`
-	Bytes  int64      `json:"bytes,omitempty"`
-}
-
-// Ref is a daemon API value.
-type Ref struct {
-	ID     string          `json:"id"`
-	Kind   string          `json:"kind,omitempty"`
-	Script string          `json:"script,omitempty"`
-	With   json.RawMessage `json:"with,omitempty"`
-}
-
-// Reference is a daemon API value.
-type Reference struct {
-	ID              string     `json:"id"`
-	Identifier      string     `json:"identifier,omitempty"`
-	Title           string     `json:"title"`
-	Status          TaskStatus `json:"status"`
-	Priority        Priority   `json:"priority,omitempty"`
-	Owner           *Ownership `json:"owner,omitempty"`
-	Scope           TaskScope  `json:"scope"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	LatestEventSeq  int64      `json:"latest_event_seq"`
-	Paused          bool       `json:"paused,omitzero"`
-	EffectivePaused bool       `json:"effective_paused,omitzero"`
-	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
-}
-
-// RejectPolicy is a daemon API value.
-type RejectPolicy struct {
-	Route NodeID `json:"route"`
-}
-
-// ReloadExtensionRequest is a daemon API value.
-type ReloadExtensionRequest struct {
-	GenerationHash       string `json:"generation_hash"`
-	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
-}
-
-// RemoteDevicePatchRequest is a daemon API value.
-type RemoteDevicePatchRequest struct {
-	Scopes     *[]Scope `json:"scopes,omitempty"`
-	Approved   *bool    `json:"approved,omitempty"`
-	ApprovalID string   `json:"approval_id,omitempty"`
 }

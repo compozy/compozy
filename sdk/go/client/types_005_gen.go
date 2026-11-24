@@ -313,9 +313,15 @@ type Computer struct {
 
 // ComputerChange is a daemon API value.
 type ComputerChange struct {
-	ComputerID ComputerID `json:"computer_id,omitempty"`
-	Computer   *Computer  `json:"computer,omitempty"`
-	Removed    bool       `json:"removed,omitzero"`
+	ComputerID ComputerID           `json:"computer_id,omitempty"`
+	Computer   *Computer            `json:"computer,omitempty"`
+	Removed    bool                 `json:"removed,omitzero"`
+	SetupID    string               `json:"setup_id,omitempty"`
+	Step       string               `json:"step,omitempty"`
+	State      string               `json:"state,omitempty"`
+	Prompt     *ComputerSetupPrompt `json:"prompt,omitempty"`
+	Error      *ErrorPayload        `json:"error,omitempty"`
+	Answered   bool                 `json:"answered,omitzero"`
 }
 
 // ComputerDiagnosis is a daemon API value.
@@ -359,6 +365,62 @@ type ComputerRouteInUse struct {
 	Label string    `json:"label"`
 }
 
+// ComputerSSHHost is a daemon API value.
+type ComputerSSHHost struct {
+	Alias    string `json:"alias"`
+	Hostname string `json:"hostname"`
+	User     string `json:"user"`
+	Port     int    `json:"port"`
+	Source   string `json:"source"`
+}
+
+// ComputerSSHHostsResponse is a daemon API value.
+type ComputerSSHHostsResponse struct {
+	Hosts []ComputerSSHHost `json:"hosts"`
+}
+
+// ComputerSetupAnswer is a daemon API value.
+type ComputerSetupAnswer struct {
+	Kind   string `json:"kind"`
+	Accept *bool  `json:"accept,omitempty"`
+	Value  string `json:"value,omitempty"`
+}
+
+// ComputerSetupCanceled is a daemon API value.
+type ComputerSetupCanceled struct {
+	SetupID string `json:"setup_id"`
+	State   string `json:"state"`
+}
+
+// ComputerSetupPrompt is a daemon API value.
+type ComputerSetupPrompt struct {
+	Kind        string `json:"kind"`
+	Host        string `json:"host,omitempty"`
+	Fingerprint string `json:"fingerprint,omitempty"`
+}
+
+// ComputerSetupStarted is a daemon API value.
+type ComputerSetupStarted struct {
+	SetupID    string      `json:"setup_id"`
+	ComputerID *ComputerID `json:"computer_id"`
+}
+
+// ComputerSetupStatus is a daemon API value.
+type ComputerSetupStatus struct {
+	SetupID    string               `json:"setup_id"`
+	Step       string               `json:"step"`
+	State      string               `json:"state"`
+	Prompt     *ComputerSetupPrompt `json:"prompt"`
+	PromptKind string               `json:"prompt_kind,omitempty"`
+	Error      *ErrorPayload        `json:"error"`
+	ComputerID *ComputerID          `json:"computer_id"`
+}
+
+// ComputerUpdateStarted is a daemon API value.
+type ComputerUpdateStarted struct {
+	SetupID string `json:"setup_id"`
+}
+
 // ConcurrencyPolicy is a daemon API value.
 type ConcurrencyPolicy string
 
@@ -384,65 +446,4 @@ type ConfigApplyRecordPayload struct {
 // ConfigApplyRecordsResponse is a daemon API value.
 type ConfigApplyRecordsResponse struct {
 	Entries []ConfigApplyRecordPayload `json:"entries"`
-}
-
-// ConfigApplyStatus is a daemon API value.
-type ConfigApplyStatus string
-
-// ConfigLayerDiagnosticPayload is a daemon API value.
-type ConfigLayerDiagnosticPayload struct {
-	Code    string `json:"code"`
-	Layer   string `json:"layer"`
-	Profile string `json:"profile"`
-	Path    string `json:"path"`
-	Message string `json:"message"`
-}
-
-// ConfigRuntimeStatusPayload is a daemon API value.
-type ConfigRuntimeStatusPayload struct {
-	Status          string                         `json:"status"`
-	Validated       bool                           `json:"validated"`
-	ValidationError string                         `json:"validation_error,omitempty"`
-	HomeDir         string                         `json:"home_dir,omitempty"`
-	ConfigFile      string                         `json:"config_file,omitempty"`
-	RestartRequired bool                           `json:"restart_required"`
-	ApplyState      string                         `json:"apply_state"`
-	Diagnostics     []ConfigLayerDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-// Confirmation is a daemon API value.
-type Confirmation struct {
-	Title   string `json:"title"`
-	Body    string `json:"body,omitempty"`
-	Confirm string `json:"confirm"`
-}
-
-// ContextBundle is a daemon API value.
-type ContextBundle struct {
-	Task               Reference           `json:"task"`
-	LatestEventSeq     int64               `json:"latest_event_seq"`
-	CurrentRun         *RunSummary         `json:"current_run,omitzero"`
-	PriorAttempts      []RunSummary        `json:"prior_attempts"`
-	RecentEvents       []TimelineItem      `json:"recent_events"`
-	HandoffSummary     string              `json:"handoff_summary,omitempty"`
-	Limits             RuntimeLimits       `json:"limits"`
-	ExecutionProfile   *ExecutionProfile   `json:"execution_profile,omitzero"`
-	ReviewContinuation *ReviewContinuation `json:"review_continuation,omitzero"`
-	ReviewHistory      []RunReviewSummary  `json:"review_history"`
-}
-
-// ContextKey is a daemon API value.
-type ContextKey string
-
-// ContinueSessionRequest is a daemon API value.
-type ContinueSessionRequest struct {
-	AgentName           string                         `json:"agent_name"`
-	Runtime             *PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
-	Route               int                            `json:"route,omitzero"`
-	Name                string                         `json:"name,omitempty"`
-	Message             string                         `json:"message,omitempty"`
-	IdempotencyKey      string                         `json:"idempotency_key"`
-	ExpectedEpoch       *int64                         `json:"expected_epoch,omitzero"`
-	ExpectedGeneration  *int64                         `json:"expected_generation,omitzero"`
-	ExpectedMaxSequence *int64                         `json:"expected_max_sequence,omitzero"`
 }

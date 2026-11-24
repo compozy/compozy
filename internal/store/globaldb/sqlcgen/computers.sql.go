@@ -43,24 +43,32 @@ func (q *Queries) AddControllerComputer(ctx context.Context, arg AddControllerCo
 }
 
 const addControllerRoute = `-- name: AddControllerRoute :exec
-INSERT INTO computer_routes (id, computer_id, kind, address, position, learned, ssh_user, ssh_port, ssh_alias)
+INSERT INTO computer_routes (
+    id, computer_id, kind, address, position, learned, ssh_user, ssh_port, ssh_alias,
+    ssh_tunnel_address, ssh_service_warning
+)
 SELECT ?1, c.id, ?2, ?3, ?4, ?5,
-       ?6, ?7, ?8
-FROM computers c WHERE c.account_id = ?9 AND c.id = ?10
-ON CONFLICT (computer_id, kind, address) DO NOTHING
+       ?6, ?7, ?8,
+       ?9, ?10
+FROM computers c WHERE c.account_id = ?11 AND c.id = ?12
+ON CONFLICT (computer_id, kind, address) DO UPDATE SET
+    ssh_tunnel_address = excluded.ssh_tunnel_address, ssh_service_warning = excluded.ssh_service_warning
+WHERE excluded.kind = 'ssh'
 `
 
 type AddControllerRouteParams struct {
-	RouteID    string         `json:"route_id"`
-	Kind       string         `json:"kind"`
-	Address    string         `json:"address"`
-	Position   int64          `json:"position"`
-	Learned    int64          `json:"learned"`
-	SshUser    sql.NullString `json:"ssh_user"`
-	SshPort    sql.NullInt64  `json:"ssh_port"`
-	SshAlias   sql.NullString `json:"ssh_alias"`
-	AccountID  string         `json:"account_id"`
-	ComputerID string         `json:"computer_id"`
+	RouteID           string         `json:"route_id"`
+	Kind              string         `json:"kind"`
+	Address           string         `json:"address"`
+	Position          int64          `json:"position"`
+	Learned           int64          `json:"learned"`
+	SshUser           sql.NullString `json:"ssh_user"`
+	SshPort           sql.NullInt64  `json:"ssh_port"`
+	SshAlias          sql.NullString `json:"ssh_alias"`
+	SshTunnelAddress  sql.NullString `json:"ssh_tunnel_address"`
+	SshServiceWarning sql.NullString `json:"ssh_service_warning"`
+	AccountID         string         `json:"account_id"`
+	ComputerID        string         `json:"computer_id"`
 }
 
 func (q *Queries) AddControllerRoute(ctx context.Context, arg AddControllerRouteParams) error {
@@ -73,6 +81,8 @@ func (q *Queries) AddControllerRoute(ctx context.Context, arg AddControllerRoute
 		arg.SshUser,
 		arg.SshPort,
 		arg.SshAlias,
+		arg.SshTunnelAddress,
+		arg.SshServiceWarning,
 		arg.AccountID,
 		arg.ComputerID,
 	)
@@ -117,7 +127,7 @@ func (q *Queries) ForgetControllerRoute(ctx context.Context, arg ForgetControlle
 }
 
 const getControllerRoutes = `-- name: GetControllerRoutes :many
-SELECT r.id, r.computer_id, r.kind, r.address, r.position, r.learned, r.removed, r.ssh_user, r.ssh_port, r.ssh_alias FROM computer_routes r
+SELECT r.id, r.computer_id, r.kind, r.address, r.position, r.learned, r.removed, r.ssh_user, r.ssh_port, r.ssh_alias, r.ssh_tunnel_address, r.ssh_service_warning FROM computer_routes r
 JOIN computers c ON c.id = r.computer_id
 WHERE c.account_id = ? AND r.computer_id = ? AND r.removed = 0
 ORDER BY r.position, r.id
@@ -148,6 +158,8 @@ func (q *Queries) GetControllerRoutes(ctx context.Context, arg GetControllerRout
 			&i.SshUser,
 			&i.SshPort,
 			&i.SshAlias,
+			&i.SshTunnelAddress,
+			&i.SshServiceWarning,
 		); err != nil {
 			return nil, err
 		}
@@ -201,7 +213,7 @@ func (q *Queries) ListControllerComputers(ctx context.Context, accountID string)
 }
 
 const listControllerRoutes = `-- name: ListControllerRoutes :many
-SELECT r.id, r.computer_id, r.kind, r.address, r.position, r.learned, r.removed, r.ssh_user, r.ssh_port, r.ssh_alias FROM computer_routes r
+SELECT r.id, r.computer_id, r.kind, r.address, r.position, r.learned, r.removed, r.ssh_user, r.ssh_port, r.ssh_alias, r.ssh_tunnel_address, r.ssh_service_warning FROM computer_routes r
 JOIN computers c ON c.id = r.computer_id
 WHERE c.account_id = ? AND r.removed = 0
 ORDER BY r.position, r.id
@@ -227,6 +239,8 @@ func (q *Queries) ListControllerRoutes(ctx context.Context, accountID string) ([
 			&i.SshUser,
 			&i.SshPort,
 			&i.SshAlias,
+			&i.SshTunnelAddress,
+			&i.SshServiceWarning,
 		); err != nil {
 			return nil, err
 		}

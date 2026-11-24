@@ -197,8 +197,18 @@ func (q *Queries) ListControlPeers(
 }
 
 type SlotReservation struct {
-	ID        string    `json:"reservation_id"`
-	ExpiresAt time.Time `json:"expires_at"`
+	ID         string                 `json:"reservation_id"`
+	ExpiresAt  time.Time              `json:"expires_at"`
+	ComputerID remoteproto.ComputerID `json:"computer_id,omitempty"`
+}
+
+func (q *Queries) LinkedControlReservation(
+	ctx context.Context, id, account string, device remoteproto.DeviceID,
+) (remoteproto.ComputerID, error) {
+	result, err := q.generated.LinkedControlReservation(ctx, sqlcgen.LinkedControlReservationParams{
+		ReservationID: dbText(id), AccountID: account, DeviceID: string(device),
+	})
+	return remoteproto.ComputerID(result), err
 }
 
 func (q *Queries) ActiveControlReservation(

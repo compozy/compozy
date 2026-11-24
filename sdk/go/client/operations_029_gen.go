@@ -10,6 +10,31 @@ import (
 	"strings"
 )
 
+// PlanSessionHistoryCleanupParams carries the path, query, and header parameters.
+type PlanSessionHistoryCleanupParams struct {
+	Profile *string `url:"profile"`
+}
+
+// PlanSessionHistoryCleanupFrame preserves each response payload; select its variant using the event name or HTTP status.
+type PlanSessionHistoryCleanupFrame struct {
+	Raw        json.RawMessage
+	StatusCode int `json:"-"`
+}
+
+var _ json.Unmarshaler = (*PlanSessionHistoryCleanupFrame)(nil)
+
+var _ json.Marshaler = PlanSessionHistoryCleanupFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *PlanSessionHistoryCleanupFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f PlanSessionHistoryCleanupFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
 func (f *PlanSessionHistoryCleanupFrame) setResponseStatus(status int) {
 	f.StatusCode = status
 }
@@ -404,43 +429,4 @@ type PutLoopConfigParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Name        string  `url:"name"`
 	Profile     *string `url:"profile"`
-}
-
-// PutLoopConfig Replace Loop config override
-func (c *Client) PutLoopConfig(ctx context.Context, params PutLoopConfigParams, body PutLoopConfigRequest) (*LoopConfigResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loops/{name}/config"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopConfigResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PutLoopInputDefaultParams carries the path, query, and header parameters.
-type PutLoopInputDefaultParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	Name        string `url:"name"`
-	Key         string `url:"key"`
-}
-
-// PutLoopInputDefault Set one scoped Loop input default
-func (c *Client) PutLoopInputDefault(ctx context.Context, params PutLoopInputDefaultParams, body PutLoopInputDefaultRequest) (*LoopInputDefaultResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	path = strings.ReplaceAll(path, "{key}", url.PathEscape(params.Key))
-	var out LoopInputDefaultResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -1,4 +1,4 @@
 {
     "title": "Add",
-    "pages": ["index", "account"]
+    "pages": ["index", "account", "ssh"]
 }

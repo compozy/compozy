@@ -195,8 +195,9 @@ const (
 	// ToolIDObserveSearch searches redacted observability events.
 	ToolIDObserveSearch ToolID = "compozy__observe_search"
 	// ToolIDGateway inspects gateway posture and performs permission-gated management actions.
-	ToolIDGateway      ToolID = "compozy__gateway"
-	ToolIDRemoteStatus ToolID = "compozy__remote_status"
+	ToolIDGateway             ToolID = "compozy__gateway"
+	ToolIDRemoteStatus        ToolID = "compozy__remote_status"
+	ToolIDComputerSetupCancel ToolID = "compozy__computer_setup_cancel"
 	// ToolIDTaskList lists task summaries through the task service.
 	ToolIDTaskList ToolID = "compozy__task_list"
 	// ToolIDTaskRead reads one task view through the task service.
