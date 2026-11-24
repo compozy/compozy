@@ -56,6 +56,7 @@ func (d *manifestDocument) toManifest() (Manifest, error) {
 		Permissions:         normalizePermissionsConfig(d.Permissions),
 		Subprocess:          normalizeSubprocessConfig(d.Subprocess),
 		Profiles:            normalizeManifestProfiles(d.Profiles),
+		Requires:            normalizeManifestRequires(d.Requires),
 	}
 	return manifest, nil
 }

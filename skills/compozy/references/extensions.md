@@ -351,6 +351,96 @@ acquisition refs keep priority if the same spelling collides; `marketplace:team/
 the plugin. An unknown explicit marketplace source fails before acquisition; it is never interpreted
 as a GitHub repository. Inspect source state with `compozy marketplace sources list -o json`.
 
+### Extension dependencies (experimental)
+
+Dependencies are experimental and may change without a deprecation window. A package declares the
+extensions it needs with `[[requires.extensions]]` entries: `name`, `source` (`curated`,
+`marketplace`, `github`, `git`, `local_path`), `ref`, and an optional `min_version` lower bound.
+Only a dependent installed from `local_path` can declare a `local_path` dependency. Use a relative
+`ref` such as `deps/acme-core`. When acquiring that dependency, the ref must resolve within the
+dependent's source directory. An already visible dependency uses its managed copy after its
+checkout is removed. Absolute paths, traversal outside the directory, and escaping symlinks
+are refused. Self and duplicate names are invalid, and the manifest must set
+`min_compozy_version` to at least `0.7.9`
+so older daemons refuse it instead of ignoring the table. The catalog feed carries no dependency
+field: browsing never shows dependencies; install preview reads them from the downloaded package.
+
+A dependency is met when an installation with that name is visible to the dependent's instance (a
+global install counts for workspaces of the same profile, never for another profile), enabled for that
+profile, and at least `min_version`. Install and preview resolve the transitive graph before any
+mutation: a cycle or a chain deeper than 5 returns `422 extension_dependency_graph_invalid` with
+`reason` `cycle` or `depth` and `path`; one name declared with different `source`/`ref` by two parents
+returns `reason: "conflicting_source"` with both `parents`. Diamonds collapse to one node whose
+`min_version` is the highest bound and whose `required_by` lists every parent. A workspace install
+refuses when an installed global dependency needs an extension available only in the workspace.
+Install that extension in the global scope for the selected profile before retrying.
+
+Preview (`POST /api/extensions/preview-install`) returns `dependencies[]`, dependencies first, each
+with `state` (`met`, `missing`, `disabled`, `version_unmet`, `installed_elsewhere`), `required_by`, `depth`, `registry_tier`
+(only `official` and `community` are registry-verified; earlier consent is not), and, for a missing
+package, its `version`, `digest_sha256`, `gateway_requirement_digest` and `consent_required` (true when
+it needs `allow_unverified`). An installed `disabled` dependency carries `installed_version` and, when
+enabling must confirm it again, `gateway_requirement_digest`. A marketplace dependency is previewed at
+its listed digest; installing it still requires that digest as `dependencies.<name>.expected_digest`. Install without `with_dependencies` refuses any unmet
+dependency with `422 extension_dependencies_required` listing the unmet entries. `version_unmet`
+always refuses, even with consent, and a missing one (its source offers only an older `version`) has
+no retry command. `installed_elsewhere` marks a package installed for another scope or profile whose
+source now provides different bytes: it always refuses before any dependency installs, with
+`installed_version`. `retry_command` is set only when a command can satisfy the dependency, scoped
+(`--scope`/`--workspace`, `--profile`) to the blocking cell (for an installed `version_unmet` dependency,
+the installation the dependent resolves, which may be global; for `installed_elsewhere`, the package's
+first installation). A marketplace update check that fails or takes longer than a few seconds only
+leaves the command out:
+`compozy extension update <dep>` when the package is marketplace-installed and its source's release
+reaches `min_version`; otherwise, for `installed_elsewhere`, `compozy extension install <dependency
+source> [--replace] [--allow-unverified]` when the dependency's own source satisfies it (`--replace` for a
+local path, `--allow-unverified` for an unverified source; in a terminal it still asks before installing). Without one, reinstall the package
+from a source that provides `min_version`. Nothing is ever auto-updated.
+
+`with_dependencies: true` installs `missing` and enables `disabled` dependencies in the dependent's
+scope and profile, dependencies first, before the dependent's own input gate. Consent is per
+artifact under `dependencies.<name>` (`expected_digest`, `allow_unverified`,
+`confirm_gateway_digest`); the root `allow_unverified` never covers a dependency. A missing
+confirmation refuses with that gate's existing code (`extension_checksum_unverified`,
+`extension_source_changed`, `extension_gateway_confirmation_required`, ...) plus `dependency: "<name>"`.
+Every artifact's consent is checked before the first dependency installs, so a missing one installs
+nothing. Execution then stops at the first runtime failure and keeps completed dependencies, reported as
+`dependencies_installed` on the error (including one committed before its enable failed); a successful
+install returns `201` with `dependencies_installed`. A dependency already installed for another scope or
+profile with the same bytes is only attached; different bytes are `installed_elsewhere` (above), and a
+package installed meanwhile refuses at commit with `extension_exists` naming the dependency. Every
+dependency-attributed error keeps its own code and fields (`extension_exists`, `agents`, a validation
+`issues[].field` such as `expected_digest`) and adds `dependency`/`dependencies_installed`. The dependent's commit re-checks its
+dependencies, so one removed concurrently refuses with `extension_dependencies_required`. A dependency with required inputs refuses with `extension_inputs_required`
+naming it; set it up separately first. `compozy__extensions_install` accepts the same
+`with_dependencies` and closed `dependencies` object with the authority of a plain install.
+
+CLI: on a human TTY, `compozy extension install` answers `extension_dependencies_required` with one
+consolidated preview (name, version, source, state, trust, gateway digest, required by), asks once,
+then asks each artifact's own gates (unverified consent, gateway digest) and retries with
+`with_dependencies`. Without a TTY or with `-o json`, pass `--with-dependencies`; bare
+`--allow-unverified` covers only the requested extension, each unverified dependency needs
+`--allow-unverified-dependency <name>`, which asks first on a human terminal like `--allow-unverified`
+(structured output needs `--yes`), and `--confirm-gateway-requirement` takes a bare digest for the root
+(repeated, the last one wins) and `<name>=<digest>` for a dependency.
+A `version_unmet` or `installed_elsewhere` dependency never prompts: it prints `Run first:
+<retry_command>`, or, without one, the reinstall guidance or the source version when no version
+satisfies `min_version`, and exits 2.
+
+Remove (`DELETE /api/extensions/{name}`) and disable (`PUT /api/extensions/{name}/enablement` with
+`enabled: false`) refuse with `409 extension_dependency_in_use` while an installed dependent still
+resolves its dependency to that installation; `dependents[]` lists `name`, `workspace_id` and
+`profile` (empty means global or all profiles). `?force=true`, `{"force": true}`, CLI `--force`, or
+native `force` on `compozy__extensions_remove`/`compozy__extensions_disable` proceeds. Nothing
+cascades: the dependent keeps its runtime state and status/list/info report
+`unmet_dependencies: [{name, min_version, state, ...}]` (also in the compact native results and the
+human/TOON CLI output). These reads never contact a marketplace, so they carry no `retry_command`; the
+refusals below name it. Enabling a dependent whose dependencies are
+unmet refuses with `422 extension_dependencies_required`; boot never refuses. The CLI prints the
+dependents and exits 1. `compozy extension enable` answers an unmet-dependency refusal with
+`Enable first: compozy extension enable <dep>` for a disabled dependency, and points a missing one to
+`compozy extension install <source> --with-dependencies` (enable has no such flag).
+
 ## Built-in Permanent Removal
 
 A built-in is a bundled extension, embedded in the binary from `extensions/`. A plain

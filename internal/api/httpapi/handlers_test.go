@@ -1600,7 +1600,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			) (contract.ExtensionEnablementPayload, error) {
 				enablementName = name
 				enablementReq = req
-				return contract.ExtensionEnablementPayload(req), nil
+				return contract.ExtensionEnablementPayload{Profile: req.Profile, Enabled: req.Enabled}, nil
 			},
 		},
 		homePaths,

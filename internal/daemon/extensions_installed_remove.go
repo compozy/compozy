@@ -59,6 +59,11 @@ func (s *daemonExtensionService) removeInstalledExtensionLocked(
 		selected.Scope.WorkspaceID != actor.Scope.WorkspaceID) {
 		return contract.ManagedExtensionRemovePayload{}, extensionpkg.ErrExtensionWorkspaceDenied
 	}
+	if err := s.guardDependencyInUse(
+		ctx, name, "", &selected.Scope, extensionpkg.DependencyForced(ctx),
+	); err != nil {
+		return contract.ManagedExtensionRemovePayload{}, err
+	}
 	key := extensionpkg.InstanceKey{
 		Name:        name,
 		ProfileID:   selected.Scope.ProfileID,

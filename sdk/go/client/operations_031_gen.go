@@ -292,6 +292,7 @@ type RemoveExtensionParams struct {
 	Name      string  `url:"name"`
 	Workspace *string `url:"workspace"`
 	Permanent *bool   `url:"permanent"`
+	Force     *bool   `url:"force"`
 	Profile   *string `url:"profile"`
 }
 
@@ -305,6 +306,9 @@ func (c *Client) RemoveExtension(ctx context.Context, params RemoveExtensionPara
 	}
 	if params.Permanent != nil {
 		query.Set("permanent", strconv.FormatBool(*params.Permanent))
+	}
+	if params.Force != nil {
+		query.Set("force", strconv.FormatBool(*params.Force))
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)

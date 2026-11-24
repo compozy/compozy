@@ -1930,6 +1930,11 @@ func TestInstanceCallApproval(t *testing.T) {
 		{"archive stopped run", ToolIDSessionArchiveStopped, `{"dry_run":false}`, "", PermissionModeApproveEdits, false, false},
 		{"hook escalates archive stopped dry run", ToolIDSessionArchiveStopped, `{"dry_run":true}`, `{"dry_run":false}`, PermissionModeApproveReads, false, false},
 		{"archive stopped dry run at deny all", ToolIDSessionArchiveStopped, `{"dry_run":true}`, "", PermissionModeDenyAll, false, false},
+		// force overrides the dependency guard; it never makes remove or disable skip approval.
+		{"forced disable at approve-edits", ToolIDExtensionsDisable, `{"name":"kit","force":true}`, "",
+			PermissionModeApproveEdits, false, false},
+		{"forced remove at auto", ToolIDExtensionsRemove, `{"name":"kit","force":true}`, "",
+			PermissionModeAuto, false, false},
 	} {
 		t.Run("Should enforce input approval for "+tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1943,7 +1948,8 @@ func TestInstanceCallApproval(t *testing.T) {
 			}
 			d.InputSchema = json.RawMessage(
 				`{"type":"object","properties":{"enabled":{"type":"boolean"},"dry_run":{"type":"boolean"},` +
-					`"action":{"type":"string"},"name":{"type":"string"},"inputs":{"type":"object"}},` +
+					`"action":{"type":"string"},"name":{"type":"string"},"inputs":{"type":"object"},` +
+					`"force":{"type":"boolean"}},` +
 					`"additionalProperties":false}`,
 			)
 			provider := providerWithDescriptors(d.Source, d)

@@ -28,6 +28,7 @@ import { MarketplaceDetailWarnings } from "./marketplace-detail-warnings";
 import { MarketplaceTrustWarningList } from "./marketplace-trust-warning-list";
 import { MarketplaceDetailManageFallbackCard } from "./marketplace-detail-manage-state";
 import { ExtensionSetupDialog } from "./extension-setup-dialog";
+import { MarketplaceExtensionDependencyNotice } from "./marketplace-extension-dependency-notice";
 import {
   type ExtensionEntry,
   ExtensionDeclaredProfiles,
@@ -123,6 +124,9 @@ function MarketplaceDetailExtensionInstalled({
             <MarketplaceExtensionSetupNotice
               missing={extension.missing_inputs.length}
               onRequestSetup={state.requestSetup}
+            />
+            <MarketplaceExtensionDependencyNotice
+              dependencies={extension.unmet_dependencies ?? []}
             />
             <MarketplaceExtensionManageCard
               extension={extension}

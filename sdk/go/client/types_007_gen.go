@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// ExtensionInputStatusPayload is a daemon API value.
+type ExtensionInputStatusPayload struct {
+	ID       string                         `json:"id"`
+	Prompt   string                         `json:"prompt"`
+	Type     string                         `json:"type"`
+	Required bool                           `json:"required"`
+	Binding  MarketplaceInputBindingPayload `json:"binding"`
+	Default  json.RawMessage                `json:"default,omitempty"`
+	Targets  []string                       `json:"targets"`
+	State    string                         `json:"state"`
+}
+
 // ExtensionInputsPayload is a daemon API value.
 type ExtensionInputsPayload struct {
 	Extension      string                        `json:"extension"`
@@ -38,6 +50,7 @@ type ExtensionInstallPreviewPayload struct {
 	DeclaredProfiles         []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
 	Placements               []ExtensionPlacementPayload              `json:"placements"`
 	GatewayRequirementDigest string                                   `json:"gateway_requirement_digest,omitempty"`
+	Dependencies             []ExtensionDependencyPayload             `json:"dependencies,omitempty"`
 }
 
 // ExtensionInventoryPayload is a daemon API value.
@@ -91,6 +104,7 @@ type ExtensionPayload struct {
 	MCPServers                  []MarketplaceServerPayload        `json:"mcp_servers,omitempty"`
 	Inputs                      []ExtensionInputStatePayload      `json:"inputs,omitempty"`
 	MissingInputs               []string                          `json:"missing_inputs,omitempty"`
+	UnmetDependencies           []ExtensionDependencyPayload      `json:"unmet_dependencies,omitempty"`
 	Contents                    ExtensionContentsPayload          `json:"contents"`
 	Origin                      *MarketplaceOriginPayload         `json:"origin,omitzero"`
 	Name                        string                            `json:"name"`
@@ -434,15 +448,3 @@ type FireLimitConfig struct {
 
 // FocusPolicy is a daemon API value.
 type FocusPolicy string
-
-// ForceFailTaskRunRequest is a daemon API value.
-type ForceFailTaskRunRequest struct {
-	Reason   string          `json:"reason"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ForceReleaseTaskRunRequest is a daemon API value.
-type ForceReleaseTaskRunRequest struct {
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}

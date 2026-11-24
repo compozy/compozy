@@ -363,6 +363,7 @@ type SessionsResponse struct {
 type SetExtensionEnablementRequest struct {
 	Profile string `json:"profile"`
 	Enabled bool   `json:"enabled"`
+	Force   bool   `json:"force,omitzero"`
 }
 
 // SetExtensionInputsRequest is a daemon API value.

@@ -115,6 +115,8 @@ type Manifest struct {
 	Permissions         PermissionsConfig   `toml:"permissions"        json:"permissions"`
 	Subprocess          SubprocessConfig    `toml:"subprocess"         json:"subprocess"`
 	Profiles            []ManifestProfile   `toml:"profiles,omitempty" json:"profiles,omitempty"`
+	// Requires declares the extensions this package depends on. Experimental.
+	Requires ManifestRequires `toml:"requires,omitempty" json:"requires,omitzero"`
 }
 
 // ResourcesConfig declares static assets packaged with an extension.
@@ -285,6 +287,7 @@ type manifestDocument struct {
 	Permissions  PermissionsConfig       `toml:"permissions"            json:"permissions"`
 	Subprocess   SubprocessConfig        `toml:"subprocess"             json:"subprocess"`
 	Profiles     []ManifestProfile       `toml:"profiles,omitempty"     json:"profiles,omitempty"`
+	Requires     ManifestRequires        `toml:"requires,omitempty"     json:"requires,omitzero"`
 }
 
 type manifestCore struct {

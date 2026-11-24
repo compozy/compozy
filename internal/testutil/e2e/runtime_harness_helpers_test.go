@@ -658,7 +658,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			reportHarnessHandlerError(w, handlerErrs, http.StatusBadRequest, "decode enablement: %v", err)
 			return
 		}
-		writeJSON(w, compozycontract.ExtensionEnablementPayload(request))
+		writeJSON(w, compozycontract.ExtensionEnablementPayload{Profile: request.Profile, Enabled: request.Enabled})
 	})
 
 	server := &harnessTestServer{

@@ -12,6 +12,15 @@ export interface ExtensionOperationErrorMetadata {
   readonly inputId?: string;
   readonly requiredInputs?: readonly string[];
   readonly inputDefinitions?: ExtensionInstallPreview["inputs"];
+  /** Dependencies a consented install completed before it failed; they stay installed. */
+  readonly dependenciesInstalled?: readonly string[];
+}
+
+function errorStrings(error: object, field: string): readonly string[] | undefined {
+  const value: unknown = Reflect.get(error, field);
+  return Array.isArray(value) && value.every((item): item is string => typeof item === "string")
+    ? [...value]
+    : undefined;
 }
 
 function errorString(error: object, field: string): string | undefined {
@@ -21,19 +30,16 @@ function errorString(error: object, field: string): string | undefined {
 
 export function extensionOperationErrorMetadata(error: unknown): ExtensionOperationErrorMetadata {
   if (error === null || typeof error !== "object") return {};
-  const inputs: unknown = Reflect.get(error, "inputs");
   return {
     code: errorString(error, "code"),
+    dependenciesInstalled: errorStrings(error, "dependencies_installed"),
     inputDefinitions: inputDefinitions(error),
     installedOrigin: installedOrigin(error),
     currentDigest: errorString(error, "current_digest"),
     listedDigest: errorString(error, "listed_digest"),
     fetchedDigest: errorString(error, "fetched_digest"),
     inputId: errorString(error, "input_id"),
-    requiredInputs:
-      Array.isArray(inputs) && inputs.every((input): input is string => typeof input === "string")
-        ? [...inputs]
-        : undefined,
+    requiredInputs: errorStrings(error, "inputs"),
   };
 }
 

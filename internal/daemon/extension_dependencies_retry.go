@@ -1,0 +1,193 @@
+package daemon
+
+import (
+	"cmp"
+	"context"
+	"errors"
+	"slices"
+	"time"
+
+	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+)
+
+// dependencyUpdateCheckTimeout bounds the check-only marketplace lookup behind an `extension update` hint, so a
+// slow source only drops the command instead of delaying the refusal.
+const dependencyUpdateCheckTimeout = 5 * time.Second
+
+// dependencyRefusal is an extension_dependencies_required refusal raised under a lifecycle lock. It carries the
+// instance cell of each unmet dependency so addRefusalRetryCommands names the retry commands, whose marketplace
+// lookup must never hold a lock, once the lock is released.
+type dependencyRefusal struct {
+	*extensionpkg.DependenciesRequiredError
+	cells []extensionpkg.InstallationScope
+}
+
+func (e *dependencyRefusal) Unwrap() error { return e.DependenciesRequiredError }
+
+// newDependencyRefusal refuses the unmet dependencies of one instance cell.
+func newDependencyRefusal(
+	unmet []contract.ExtensionDependencyPayload, cell extensionpkg.InstallationScope,
+) *dependencyRefusal {
+	cells := make([]extensionpkg.InstallationScope, len(unmet))
+	for index := range cells {
+		cells[index] = cell
+	}
+	return &dependencyRefusal{
+		DependenciesRequiredError: &extensionpkg.DependenciesRequiredError{Dependencies: unmet}, cells: cells,
+	}
+}
+
+// addRefusalRetryCommands names the retry commands of a refusal raised under a lifecycle lock. Callers run it only
+// after releasing every lock, so the bounded marketplace update check never holds one; a failed lookup only leaves
+// the command out.
+func (s *daemonExtensionService) addRefusalRetryCommands(ctx context.Context, err error) {
+	if refusal, ok := errors.AsType[*dependencyRefusal](err); ok {
+		for index := range refusal.Dependencies {
+			refusal.Dependencies[index].RetryCommand = s.dependencyRetryCommand(
+				ctx, refusal.Dependencies[index], &refusal.cells[index])
+		}
+	}
+	if replacement, ok := errors.AsType[*dependencyReplacementError](err); ok {
+		replacement.command = s.dependencyRetryCommand(ctx, replacement.item, nil)
+	}
+}
+
+// dependencyRetryCommand names the command that unblocks a version_unmet or installed_elsewhere dependency, or ""
+// when no command can (rule 12, D9). It is `compozy extension update` only when the installed package is
+// marketplace-installed and its source's release reaches the requirement; otherwise an installed_elsewhere package
+// is reinstalled from the dependency's own source when that source satisfies it. cell is the dependent's cell, and
+// the flags select the installation visible there (D11), which may be global; nil selects the package's first
+// installation in a deterministic order. A failed lookup only drops the command.
+func (s *daemonExtensionService) dependencyRetryCommand(
+	ctx context.Context, item contract.ExtensionDependencyPayload, cell *extensionpkg.InstallationScope,
+) string {
+	elsewhere := item.State == dependencyStateInstalledElsewhere
+	if !elsewhere && (item.State != dependencyStateVersionUnmet || item.InstalledVersion == "") {
+		return ""
+	}
+	cell = s.dependencyBlockingCell(ctx, item.Name, cell)
+	if cell == nil {
+		return ""
+	}
+	flags, ok := s.dependencyCellFlags(ctx, item.Name, *cell)
+	if !ok {
+		return ""
+	}
+	if s.dependencyUpdateSatisfies(ctx, item) {
+		return "compozy extension update " + item.Name + flags
+	}
+	if !elsewhere || !extensionpkg.VersionSatisfies(item.Version, item.MinVersion) {
+		return ""
+	}
+	command := "compozy extension install " + dependencyInstallArgument(item)
+	local := contract.InstallExtensionSource(item.Source) == contract.InstallExtensionSourceLocalPath
+	if local {
+		command += " --replace"
+	}
+	// A side-load is always unverified and the CLI never offers that consent itself; in a terminal the flag still
+	// prompts before installing.
+	if local || item.ConsentRequired {
+		command += " --allow-unverified"
+	}
+	return command + flags
+}
+
+// dependencyUpdateSatisfies reports whether `extension update` can reach the requirement: the package is
+// marketplace-installed and its source's release satisfies min_version and, for a candidate, is its version.
+func (s *daemonExtensionService) dependencyUpdateSatisfies(
+	ctx context.Context, item contract.ExtensionDependencyPayload,
+) bool {
+	info, err := s.registry.Get(item.Name)
+	if err != nil || info.Source != extensionpkg.SourceMarketplace || info.RegistrySlug == nil ||
+		*info.RegistrySlug == "" {
+		return false
+	}
+	timeout := cmp.Or(s.dependencyUpdateHintTimeout, dependencyUpdateCheckTimeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if s.marketplaceCache != nil {
+		release, err := s.marketplaceCache.Hold(ctx)
+		if err != nil {
+			s.logger.Warn("extension dependency update check", "dependency", item.Name, "error", err)
+			return false
+		}
+		defer release()
+	}
+	cfg := s.marketplaceConfig()
+	items, err := extensionpkg.UpdateMarketplaceManaged(ctx, s.homePaths, s.registry, s.marketplaceSourceLoader(),
+		extensionpkg.MarketplaceUpdateRequest{
+			Names: []string{item.Name}, CheckOnly: true, PolicyAllowsUnverified: cfg.Trust.AllowUnverified,
+			ResolveTrust: s.marketplaceTrustResolver(), ResolvePlugin: s.resolveMarketplacePluginOrigin,
+		}, nil)
+	if err != nil || len(items) != 1 {
+		s.logger.Warn("extension dependency update check", "dependency", item.Name, "error", err)
+		return false
+	}
+	latest := items[0].LatestVersion
+	return extensionpkg.VersionSatisfies(latest, item.MinVersion) && (item.Version == "" || latest == item.Version)
+}
+
+// dependencyBlockingCell is the installation the command must select: the one the dependent's cell resolves
+// (a global installation is visible from a workspace), or the package's first installation without a cell.
+func (s *daemonExtensionService) dependencyBlockingCell(
+	ctx context.Context, name string, cell *extensionpkg.InstallationScope,
+) *extensionpkg.InstallationScope {
+	if cell == nil {
+		return s.dependencyInstallationCell(ctx, name)
+	}
+	installation, err := s.registry.ResolveInstallation(ctx, name, *cell)
+	if err != nil {
+		s.logger.Warn("extension dependency retry installation lookup", "dependency", name, "error", err)
+		return nil
+	}
+	return &installation.Scope
+}
+
+// dependencyInstallationCell picks the package's first installation, global before workspaces, then by profile.
+func (s *daemonExtensionService) dependencyInstallationCell(
+	ctx context.Context, name string,
+) *extensionpkg.InstallationScope {
+	installations, err := s.registry.Installations(ctx, name)
+	if err != nil || len(installations) == 0 {
+		return nil
+	}
+	first := slices.MinFunc(installations, func(left, right extensionpkg.Installation) int {
+		return cmp.Or(cmp.Compare(left.Scope.WorkspaceID, right.Scope.WorkspaceID),
+			cmp.Compare(left.Scope.ProfileID, right.Scope.ProfileID))
+	})
+	return &first.Scope
+}
+
+// dependencyCellFlags renders the scope and profile flags that select one installation cell.
+func (s *daemonExtensionService) dependencyCellFlags(
+	ctx context.Context, name string, cell extensionpkg.InstallationScope,
+) (string, bool) {
+	flags := " --scope global"
+	if cell.WorkspaceID != "" {
+		flags = " --workspace " + cell.WorkspaceID
+	}
+	profile, err := s.dependencyProfileName(ctx, cell.ProfileID)
+	if err != nil {
+		s.logger.Warn("extension dependency retry profile lookup", "dependency", name, "error", err)
+		return "", false
+	}
+	if profile != "" {
+		flags += " --profile " + profile
+	}
+	return flags, true
+}
+
+// dependencyInstallArgument renders the dependency source and ref as the `extension install` argument.
+func dependencyInstallArgument(item contract.ExtensionDependencyPayload) string {
+	switch contract.InstallExtensionSource(item.Source) {
+	case contract.InstallExtensionSourceMarketplace:
+		return "marketplace:" + item.Ref
+	case contract.InstallExtensionSourceGitHub:
+		return "github:" + item.Ref
+	case contract.InstallExtensionSourceGit:
+		return "git:" + item.Ref
+	default:
+		return item.Ref
+	}
+}

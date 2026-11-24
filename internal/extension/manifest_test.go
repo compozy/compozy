@@ -2875,3 +2875,124 @@ requires_env = ["BARE_KEY"]
 		}
 	})
 }
+
+// Invariant: [[requires.extensions]] declares named, sourced dependencies with an optional semver lower
+// bound (rule 10), survives encode, and needs the dependenciesFloor release (rule 1c).
+// Owner: extension manifest validation. Canonical suite: manifest_test.go.
+func TestManifestExtensionDependencies(t *testing.T) {
+	// Serial: the suite stamps daemon 0.6.0, below the floor a dependency manifest must declare.
+	withDaemonVersion(t, dependenciesFloor)
+
+	dependencyManifest := func(minVersion, entries string) []byte {
+		return fmt.Appendf(nil, `name = "acme-tool"
+version = "1.0.0"
+min_compozy_version = %q
+%s`, minVersion, entries)
+	}
+	valid := `
+[[requires.extensions]]
+name = "acme-core"
+source = "Curated"
+ref = " acme/core "
+min_version = "0.4.0"
+
+[[requires.extensions]]
+name = "acme-local"
+source = "local_path"
+ref = "deps/acme-local"
+`
+
+	t.Run("Should load a valid dependency declaration", func(t *testing.T) {
+		t.Parallel()
+		manifest, err := loadManifestTOMLContent("extension.toml", dependencyManifest(dependenciesFloor, valid))
+		if err != nil {
+			t.Fatalf("loadManifestTOMLContent() error = %v", err)
+		}
+		want := []ExtensionDependency{
+			{Name: "acme-core", Source: "curated", Ref: "acme/core", MinVersion: "0.4.0"},
+			{Name: "acme-local", Source: "local_path", Ref: "deps/acme-local"},
+		}
+		if !reflect.DeepEqual(manifest.Requires.Extensions, want) {
+			t.Fatalf("Requires.Extensions = %#v, want %#v", manifest.Requires.Extensions, want)
+		}
+	})
+
+	t.Run("Should round-trip dependencies through the generated manifest", func(t *testing.T) {
+		t.Parallel()
+		manifest, err := loadManifestTOMLContent("extension.toml", dependencyManifest(dependenciesFloor, valid))
+		if err != nil {
+			t.Fatalf("loadManifestTOMLContent() error = %v", err)
+		}
+		encoded, err := encodeManifestTOML(manifest)
+		if err != nil {
+			t.Fatalf("encodeManifestTOML() error = %v", err)
+		}
+		decoded, err := loadManifestTOMLContent("extension.toml", encoded)
+		if err != nil {
+			t.Fatalf("loadManifestTOMLContent(encoded) error = %v\n%s", err, encoded)
+		}
+		if !reflect.DeepEqual(decoded.Requires, manifest.Requires) {
+			t.Fatalf("decoded Requires = %#v, want %#v", decoded.Requires, manifest.Requires)
+		}
+	})
+
+	entry := func(name, source, ref, minVersion string) string {
+		return fmt.Sprintf("\n[[requires.extensions]]\nname = %q\nsource = %q\nref = %q\nmin_version = %q\n",
+			name, source, ref, minVersion)
+	}
+	rejections := []struct {
+		name, minVersion, entries, field string
+	}{
+		{"a self dependency", dependenciesFloor, entry("acme-tool", "curated", "acme/tool", ""),
+			"requires.extensions[0].name"},
+		{"a duplicate dependency name", dependenciesFloor,
+			entry("acme-core", "curated", "acme/core", "") + entry("acme-core", "git", "https://x/acme.git", ""),
+			"requires.extensions[1].name"},
+		{"an unknown source", dependenciesFloor, entry("acme-core", "ftp", "acme/core", ""),
+			"requires.extensions[0].source"},
+		{"a missing ref", dependenciesFloor, entry("acme-core", "curated", "", ""), "requires.extensions[0].ref"},
+		{"an absolute local ref", dependenciesFloor, entry("acme-core", "local_path", t.TempDir(), ""),
+			"requires.extensions[0].ref"},
+		{"a local ref that escapes its source root", dependenciesFloor,
+			entry("acme-core", "local_path", "../acme-core", ""), "requires.extensions[0].ref"},
+		{"an invalid min_version", dependenciesFloor, entry("acme-core", "curated", "acme/core", "latest"),
+			"requires.extensions[0].min_version"},
+		{"dependencies below the dependencies floor", "0.7.8", entry("acme-core", "curated", "acme/core", ""),
+			"min_compozy_version"},
+		{"an unknown requires key", dependenciesFloor, "\n[requires]\nbundles = []\n", "requires.bundles"},
+	}
+	for _, test := range rejections {
+		t.Run("Should reject "+test.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := loadManifestTOMLContent("extension.toml", dependencyManifest(test.minVersion, test.entries))
+			validation, ok := errors.AsType[*ManifestValidationError](err)
+			if !ok || validation.Field != test.field {
+				t.Fatalf("load error = %v, want field %q", err, test.field)
+			}
+			if test.field == "min_compozy_version" && !strings.Contains(err.Error(), dependenciesFloor) {
+				t.Fatalf("load error = %v, want floor %s", err, dependenciesFloor)
+			}
+		})
+	}
+
+	t.Run("Should compare dependency versions against their lower bound", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			version, minVersion string
+			want                bool
+		}{
+			{"0.5.1", "0.4.0", true}, {"0.4.0", "0.4.0", true}, {"0.3.9", "0.4.0", false}, {"0.1.0", "", true},
+		}
+		for _, item := range cases {
+			if got := VersionSatisfies(item.version, item.minVersion); got != item.want {
+				t.Fatalf("VersionSatisfies(%q, %q) = %v, want %v", item.version, item.minVersion, got, item.want)
+			}
+		}
+		if got := HigherVersion("0.4.0", "0.6.0"); got != "0.6.0" {
+			t.Fatalf("HigherVersion() = %q, want 0.6.0", got)
+		}
+		if got := HigherVersion("0.6.0", ""); got != "0.6.0" {
+			t.Fatalf("HigherVersion(empty) = %q, want 0.6.0", got)
+		}
+	})
+}

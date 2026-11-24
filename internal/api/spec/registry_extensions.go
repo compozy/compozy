@@ -79,7 +79,20 @@ func previewExtensionInstallOperationSpec() OperationSpec {
 			},
 			{Status: 400, Description: "Invalid install request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Package validation failure", Body: contract.ExtensionValidationErrorPayload{}},
+			{
+				Status:      404,
+				Description: "A marketplace dependency listing was not found",
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
+			{
+				Status:      422,
+				Description: "Extension trust decision, dependency graph refusal, or package validation failure",
+				Bodies: overlappingResponseBodiesOf(
+					responseBodyOf[contract.ErrorPayload](),
+					responseBodyOf[contract.ExtensionOperationErrorPayload](),
+					responseBodyOf[contract.ExtensionValidationErrorPayload](),
+				),
+			},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 		},
 	}
@@ -174,81 +187,6 @@ func getExtensionInventoryOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.ExtensionInventoryPayload{}},
 			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-
-func listExtensionSecretsOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodGet,
-		Path:        specAPIExtensionsNameSecretsPath,
-		AppAccess:   AppAccessDenied,
-		OperationID: "listExtensionSecrets",
-		Summary:     "List declared and bound extension environment names",
-		Tags:        []string{specExtensionsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "Extension name"),
-			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
-		},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.ExtensionSecretsPayload{}},
-			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-
-func setExtensionSecretsOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodPut,
-		Path:        specAPIExtensionsNameSecretsPath,
-		AppAccess:   AppAccessDenied,
-		OperationID: "setExtensionSecrets",
-		Summary:     "Set or bind extension environment secrets",
-		Tags:        []string{specExtensionsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "Extension name"),
-			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
-		},
-		RequestBody: contract.SetExtensionSecretsRequest{},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.ExtensionSecretsPayload{}},
-			{
-				Status:      400,
-				Description: "Invalid extension secret binding",
-				Body:        contract.ExtensionOperationErrorPayload{},
-			},
-			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
-		},
-	}
-}
-
-func deleteExtensionSecretOperationSpec() OperationSpec {
-	return OperationSpec{
-		Method:      httpMethodDelete,
-		Path:        specAPIExtensionsNameSecretPath,
-		AppAccess:   AppAccessDenied,
-		OperationID: "deleteExtensionSecret",
-		Summary:     "Remove one extension environment secret binding",
-		Tags:        []string{specExtensionsKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("name", "Extension name"),
-			pathParam("env_name", "Declared environment name"),
-			queryParam("workspace", specExtensionWorkspaceParamDescription, false),
-		},
-		Responses: []ResponseSpec{
-			{Status: 204, Description: "No Content"},
-			{
-				Status:      400,
-				Description: "Invalid extension secret binding",
-				Body:        contract.ExtensionOperationErrorPayload{},
-			},
-			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }
@@ -390,8 +328,13 @@ func setExtensionEnablementOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.ExtensionEnablementPayload{}},
 			{Status: 400, Description: "Invalid profile or enablement state", Body: contract.ErrorPayload{}},
 			{
+				Status:      409,
+				Description: "Experimental: an installed dependent still needs the extension (extension_dependency_in_use)",
+				Body:        contract.ExtensionOperationErrorPayload{},
+			},
+			{
 				Status:      422,
-				Description: "Extension inputs are required",
+				Description: "Extension inputs are required, or experimental: its dependencies are unmet",
 				Body:        contract.ExtensionOperationErrorPayload{},
 			},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
@@ -451,6 +394,11 @@ func removeExtensionOperationSpec() OperationSpec {
 				"permanent",
 				"Remove a bundled built-in permanently. It is not re-enrolled at boot or update until restored. Global only.",
 			),
+			boolQueryParam(
+				"force",
+				"Experimental. Remove even while an installed dependent still needs the extension; "+
+					"the dependent then reports unmet_dependencies. Removal never cascades.",
+			),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionRemoveResponse{}},
@@ -461,7 +409,13 @@ func removeExtensionOperationSpec() OperationSpec {
 			},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Extension is in use", Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Extension is in use, or experimental: an installed dependent still needs it",
+				Bodies: overlappingResponseBodiesOf(
+					responseBodyOf[contract.ErrorPayload](), responseBodyOf[contract.ExtensionOperationErrorPayload](),
+				),
+			},
 			{Status: 422, Description: "Extension is not a built-in", Body: contract.ExtensionOperationErrorPayload{}},
 			{
 				Status:      501,

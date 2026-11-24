@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// ForceFailTaskRunRequest is a daemon API value.
+type ForceFailTaskRunRequest struct {
+	Reason   string          `json:"reason"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// ForceReleaseTaskRunRequest is a daemon API value.
+type ForceReleaseTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
 // ForkLoopRequest is a daemon API value.
 type ForkLoopRequest struct {
 	Generation int64          `json:"generation"`

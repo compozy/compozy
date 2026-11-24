@@ -42,10 +42,11 @@ func (f *extensionInputFlags) registerValues(cmd *cobra.Command) {
 // bytes the refusal described. It reports false when the refusal is not prompted, so the caller keeps
 // the original error.
 func promptExtensionInstallInputs(
-	cmd *cobra.Command, deps commandDeps, plan extensionInstallPlan, installErr error,
+	cmd *cobra.Command, deps commandDeps, prompter *extensionInputPrompter, plan extensionInstallPlan, installErr error,
 ) (extensionInstallPlan, bool, error) {
 	apiErr, ok := errors.AsType[*extensionOperationAPIError](installErr)
-	if !ok || apiErr.payload.Code != diagnosticcontract.CodeExtensionInputsRequired {
+	// A dependency's own inputs refusal names the dependency; its inputs are set up separately.
+	if !ok || apiErr.payload.Code != diagnosticcontract.CodeExtensionInputsRequired || apiErr.payload.Dependency != "" {
 		return plan, false, nil
 	}
 	interactive, err := extensionInputsInteractive(cmd, deps)
@@ -65,7 +66,7 @@ func promptExtensionInstallInputs(
 	if len(inputs) == 0 {
 		return plan, false, nil
 	}
-	values, err := newExtensionInputPrompter(cmd).promptAll(cmd.Context(), inputs)
+	values, err := prompter.promptAll(cmd.Context(), inputs)
 	if err != nil {
 		return plan, false, err
 	}

@@ -10850,6 +10850,37 @@ export interface components {
       name: string;
       needs_setup: boolean;
     };
+    ExtensionDependencyConsent: {
+      allow_unverified?: boolean;
+      confirm_gateway_digest?: string;
+      expected_digest?: string;
+    };
+    ExtensionDependencyParentPayload: {
+      name: string;
+      ref: string;
+      source: string;
+    };
+    ExtensionDependencyPayload: {
+      consent_required?: boolean;
+      depth: number;
+      digest_sha256?: string;
+      gateway_requirement_digest?: string;
+      installed_version?: string;
+      min_version?: string;
+      name: string;
+      ref: string;
+      registry_tier?: string;
+      required_by: string[];
+      retry_command?: string;
+      source: string;
+      state: string;
+      version?: string;
+    };
+    ExtensionDependentPayload: {
+      name: string;
+      profile: string;
+      workspace_id: string;
+    };
     ExtensionEnableError: {
       code: string;
       error: string;
@@ -10906,6 +10937,7 @@ export interface components {
     };
     ExtensionInstallPreviewPayload: {
       declared_profiles: components["schemas"]["ExtensionInstallDeclaredProfilePayload"][];
+      dependencies?: components["schemas"]["ExtensionDependencyPayload"][];
       digest_sha256?: string;
       gateway_requirement_digest?: string;
       inputs: components["schemas"]["MarketplaceInputPayload"][];
@@ -10957,6 +10989,10 @@ export interface components {
       code: string;
       current_digest?: string;
       declared_env?: string[];
+      dependencies?: components["schemas"]["ExtensionDependencyPayload"][];
+      dependencies_installed?: string[];
+      dependency?: string;
+      dependents?: components["schemas"]["ExtensionDependentPayload"][];
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       env_name?: string;
       error: string;
@@ -10969,6 +11005,10 @@ export interface components {
       invalid?: string[];
       listed_digest?: string;
       missing_env?: string[];
+      parents?: components["schemas"]["ExtensionDependencyParentPayload"][];
+      path?: string[];
+      reason?: string;
+      retry_command?: string;
     };
     ExtensionPayload: {
       bound_env_keys?: string[];
@@ -11015,6 +11055,7 @@ export interface components {
       state: string;
       trust?: components["schemas"]["ExtensionTrustReportPayload"] | null;
       type: string;
+      unmet_dependencies?: components["schemas"]["ExtensionDependencyPayload"][];
       update_available: boolean;
       /** Format: int64 */
       uptime_seconds?: number;
@@ -11124,6 +11165,8 @@ export interface components {
       transport?: string;
     };
     ExtensionValidationErrorPayload: {
+      dependencies_installed?: string[];
+      dependency?: string;
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       issues: components["schemas"]["ValidationIssue"][];
@@ -12693,6 +12736,10 @@ export interface components {
       allow_unverified?: boolean;
       asset?: string;
       confirm_gateway_digest?: string;
+      /** @description Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies. */
+      dependencies?: {
+        [key: string]: components["schemas"]["ExtensionDependencyConsent"];
+      };
       /**
        * @description Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
        * @default false
@@ -12718,10 +12765,13 @@ export interface components {
        */
       source: "curated" | "marketplace" | "github" | "git" | "local_path";
       version?: string;
+      /** @description Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse. */
+      with_dependencies?: boolean;
       /** @description Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound. */
       workspace_id?: string;
     };
     InstallExtensionResponse: {
+      dependencies_installed?: string[];
       enable_error?: components["schemas"]["ExtensionEnableError"] | null;
       extension: components["schemas"]["ExtensionPayload"];
     };
@@ -17490,6 +17540,7 @@ export interface components {
     };
     SetExtensionEnablementRequest: {
       enabled: boolean;
+      force?: boolean;
       profile: string;
     };
     SetExtensionInputsRequest: {
@@ -32728,6 +32779,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description A marketplace dependency listing was not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
       /** @description The approved source digest changed */
       409: {
         headers: {
@@ -32737,13 +32797,16 @@ export interface operations {
           "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
-      /** @description Package validation failure */
+      /** @description Extension trust decision, dependency graph refusal, or package validation failure */
       422: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ExtensionValidationErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ExtensionOperationErrorPayload"]
+            | components["schemas"]["ExtensionValidationErrorPayload"];
         };
       };
       /** @description Extension service is not configured */
@@ -33055,6 +33118,8 @@ export interface operations {
         workspace?: string;
         /** @description Remove a bundled built-in permanently. It is not re-enrolled at boot or update until restored. Global only. */
         permanent?: boolean;
+        /** @description Experimental. Remove even while an installed dependent still needs the extension; the dependent then reports unmet_dependencies. Removal never cascades. */
+        force?: boolean;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -33103,13 +33168,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Extension is in use */
+      /** @description Extension is in use, or experimental: an installed dependent still needs it */
       409: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
       /** @description Extension is not a built-in */
@@ -33252,7 +33319,16 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Extension inputs are required */
+      /** @description Experimental: an installed dependent still needs the extension (extension_dependency_in_use) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Extension inputs are required, or experimental: its dependencies are unmet */
       422: {
         headers: {
           [name: string]: unknown;

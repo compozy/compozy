@@ -32,6 +32,9 @@ const (
 	extensionErrorInputsRequired
 	extensionErrorInputInvalid
 	extensionErrorInputOverwriteDenied
+	extensionErrorDependenciesRequired
+	extensionErrorDependencyGraphInvalid
+	extensionErrorDependencyInUse
 	extensionErrorNotFound
 	extensionErrorNotBuiltin
 	extensionErrorBuiltinNotRemoved
@@ -67,10 +70,11 @@ func ExtensionStatusCode(err error) int {
 		extensionErrorAgentConflict,
 		extensionErrorBuiltinNotRemoved,
 		extensionErrorExists,
-		extensionErrorSourceChanged, extensionErrorNameConflict:
+		extensionErrorSourceChanged, extensionErrorNameConflict, extensionErrorDependencyInUse:
 		return http.StatusConflict
 	case extensionErrorUnprocessable, extensionErrorMCPNameTaken, extensionErrorNotBuiltin,
 		extensionErrorInputsRequired, extensionErrorInputInvalid,
+		extensionErrorDependenciesRequired, extensionErrorDependencyGraphInvalid,
 		extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported,
 		extensionErrorAgentPluginManifestInvalid:
@@ -184,6 +188,12 @@ func classifyExtensionAcquisitionError(err error) extensionErrorKind {
 		return extensionErrorInputInvalid
 	case errors.Is(err, extensionpkg.ErrExtensionInputOverwriteDenied):
 		return extensionErrorInputOverwriteDenied
+	case errors.Is(err, extensionpkg.ErrExtensionDependenciesRequired):
+		return extensionErrorDependenciesRequired
+	case errors.Is(err, extensionpkg.ErrExtensionDependencyGraphInvalid):
+		return extensionErrorDependencyGraphInvalid
+	case errors.Is(err, extensionpkg.ErrExtensionDependencyInUse):
+		return extensionErrorDependencyInUse
 	default:
 		return extensionErrorUnknown
 	}
@@ -203,17 +213,7 @@ func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err err
 		return
 	}
 	if errors.Is(err, extensionpkg.ErrManifestInvalid) {
-		payload := ErrorPayloadForStatus(status, err, mask)
-		issue := contract.ValidationIssue{
-			Message:  diagnosticspkg.Redact(taskpkg.RedactClaimTokens(payload.Error)),
-			Severity: contract.IssueSeverityError,
-		}
-		if validationErr, ok := errors.AsType[*extensionpkg.ManifestValidationError](err); ok && validationErr != nil {
-			issue.Field = strings.TrimSpace(validationErr.Field)
-		}
-		c.JSON(status, contract.ExtensionValidationErrorPayload{
-			Error: payload.Error, Diagnostic: payload.Diagnostic, Issues: []contract.ValidationIssue{issue},
-		})
+		c.JSON(status, ExtensionValidationErrorPayload(ErrorPayloadForStatus(status, err, mask), err))
 		return
 	}
 	if item, ok := ExtensionGitDependencyDiagnostic(err); ok {
@@ -223,4 +223,23 @@ func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err err
 		return
 	}
 	RespondError(c, status, err, mask)
+}
+
+// ExtensionValidationErrorPayload builds the positioned validation payload of a manifest validation failure, the
+// same on every public transport, naming the dependency it belongs to.
+func ExtensionValidationErrorPayload(
+	payload contract.ErrorPayload, err error,
+) contract.ExtensionValidationErrorPayload {
+	issue := contract.ValidationIssue{
+		Message:  diagnosticspkg.Redact(taskpkg.RedactClaimTokens(payload.Error)),
+		Severity: contract.IssueSeverityError,
+	}
+	if validationErr, ok := errors.AsType[*extensionpkg.ManifestValidationError](err); ok && validationErr != nil {
+		issue.Field = strings.TrimSpace(validationErr.Field)
+	}
+	validation := contract.ExtensionValidationErrorPayload{
+		Error: payload.Error, Diagnostic: payload.Diagnostic, Issues: []contract.ValidationIssue{issue},
+	}
+	validation.Dependency, validation.DependenciesInstalled = dependencyErrorFields(err)
+	return validation
 }

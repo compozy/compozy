@@ -35,6 +35,49 @@ type InstallExtensionRequest struct {
 	AllowUnverified      bool                            `json:"allow_unverified,omitzero"`
 	Replace              bool                            `json:"replace,omitzero"`
 	ConfirmGatewayDigest string                          `json:"confirm_gateway_digest,omitempty"`
+	// WithDependencies consents to installing or enabling unmet dependencies first. Experimental.
+	WithDependencies bool `json:"with_dependencies,omitzero"`
+	// Dependencies carries per-dependency trust consent keyed by dependency name. Experimental.
+	Dependencies map[string]ExtensionDependencyConsent `json:"dependencies,omitempty"`
+}
+
+// ExtensionDependencyConsent is the trust consent for one dependency artifact. Experimental.
+type ExtensionDependencyConsent struct {
+	ExpectedDigest       string `json:"expected_digest,omitempty"`
+	AllowUnverified      bool   `json:"allow_unverified,omitzero"`
+	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
+}
+
+// ExtensionDependencyPayload describes one node of an install dependency graph. Experimental.
+type ExtensionDependencyPayload struct {
+	Name                     string   `json:"name"`
+	Source                   string   `json:"source"`
+	Ref                      string   `json:"ref"`
+	MinVersion               string   `json:"min_version,omitempty"`
+	RequiredBy               []string `json:"required_by"`
+	Depth                    int      `json:"depth"`
+	State                    string   `json:"state"`
+	InstalledVersion         string   `json:"installed_version,omitempty"`
+	Version                  string   `json:"version,omitempty"`
+	DigestSHA256             string   `json:"digest_sha256,omitempty"`
+	RegistryTier             string   `json:"registry_tier,omitempty"`
+	ConsentRequired          bool     `json:"consent_required,omitzero"`
+	GatewayRequirementDigest string   `json:"gateway_requirement_digest,omitempty"`
+	RetryCommand             string   `json:"retry_command,omitempty"`
+}
+
+// ExtensionDependencyParentPayload names one parent that declared a conflicting dependency. Experimental.
+type ExtensionDependencyParentPayload struct {
+	Name   string `json:"name"`
+	Source string `json:"source"`
+	Ref    string `json:"ref"`
+}
+
+// ExtensionDependentPayload names one installed dependent that still needs a dependency. Experimental.
+type ExtensionDependentPayload struct {
+	Name        string `json:"name"`
+	WorkspaceID string `json:"workspace_id"`
+	Profile     string `json:"profile"`
 }
 
 // ExtensionValidationErrorPayload reports positioned extension validation failures.
@@ -42,6 +85,10 @@ type ExtensionValidationErrorPayload struct {
 	Error      string            `json:"error"`
 	Diagnostic *DiagnosticItem   `json:"diagnostic,omitzero"`
 	Issues     []ValidationIssue `json:"issues"`
+	// Dependency names the dependency whose package or consent failed validation. Experimental.
+	Dependency string `json:"dependency,omitempty"`
+	// DependenciesInstalled lists dependencies a failed consented install already installed. Experimental.
+	DependenciesInstalled []string `json:"dependencies_installed,omitempty"`
 }
 
 // ExtensionOperationErrorPayload is the deterministic extension lifecycle error envelope.
@@ -62,6 +109,19 @@ type ExtensionOperationErrorPayload struct {
 	Agents           []string                  `json:"agents,omitempty"`
 	EnvName          string                    `json:"env_name,omitempty"`
 	DeclaredEnv      []string                  `json:"declared_env,omitempty"`
+	// Dependency names the dependency whose gate refused. Experimental.
+	Dependency string `json:"dependency,omitempty"`
+	// Dependencies lists the unmet dependencies of an extension_dependencies_required refusal. Experimental.
+	Dependencies []ExtensionDependencyPayload `json:"dependencies,omitempty"`
+	// DependenciesInstalled lists dependencies a failed consented install already installed. Experimental.
+	DependenciesInstalled []string `json:"dependencies_installed,omitempty"`
+	// Reason, Path and Parents describe an extension_dependency_graph_invalid refusal. Experimental.
+	Reason       string                             `json:"reason,omitempty"`
+	Path         []string                           `json:"path,omitempty"`
+	Parents      []ExtensionDependencyParentPayload `json:"parents,omitempty"`
+	RetryCommand string                             `json:"retry_command,omitempty"`
+	// Dependents lists the installed dependents of an extension_dependency_in_use refusal. Experimental.
+	Dependents []ExtensionDependentPayload `json:"dependents,omitempty"`
 }
 
 // UpdateExtensionRequest is the shared marketplace extension update payload.
@@ -181,13 +241,17 @@ type ExtensionProvenancePayload struct {
 // ExtensionPayload is the shared extension response payload surfaced by CLI APIs.
 type ExtensionPayload struct {
 	// InstallEnableError carries the install outcome to transport envelopes without changing inventory JSON.
-	InstallEnableError          *ExtensionEnableError             `json:"-"`
-	Description                 string                            `json:"description,omitempty"`
-	InstallationProfile         string                            `json:"installation_profile,omitempty"`
-	Layout                      string                            `json:"layout,omitempty"`
-	MCPServers                  []MarketplaceServerPayload        `json:"mcp_servers,omitempty"`
-	Inputs                      []ExtensionInputStatePayload      `json:"inputs,omitempty"`
-	MissingInputs               []string                          `json:"missing_inputs,omitempty"`
+	InstallEnableError *ExtensionEnableError `json:"-"`
+	// InstallDependenciesInstalled carries the consented dependency installs to transport envelopes. Experimental.
+	InstallDependenciesInstalled []string                     `json:"-"`
+	Description                  string                       `json:"description,omitempty"`
+	InstallationProfile          string                       `json:"installation_profile,omitempty"`
+	Layout                       string                       `json:"layout,omitempty"`
+	MCPServers                   []MarketplaceServerPayload   `json:"mcp_servers,omitempty"`
+	Inputs                       []ExtensionInputStatePayload `json:"inputs,omitempty"`
+	MissingInputs                []string                     `json:"missing_inputs,omitempty"`
+	// UnmetDependencies lists the declared dependencies this instance does not currently meet. Experimental.
+	UnmetDependencies           []ExtensionDependencyPayload      `json:"unmet_dependencies,omitempty"`
 	Contents                    ExtensionContentsPayload          `json:"contents"`
 	Origin                      *MarketplaceOriginPayload         `json:"origin,omitzero"`
 	Name                        string                            `json:"name"`

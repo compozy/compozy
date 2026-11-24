@@ -17,10 +17,26 @@ import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as workspaceHandlers } from "@/systems/workspace/mocks";
 import { handlers as statusHandlers } from "@/systems/status/mocks";
 import { extensionFixtures } from "@/systems/extensions/mocks";
-import type { ExtensionEntry, ExtensionLogEventSource } from "@/systems/extensions";
+import type {
+  ExtensionEntry,
+  ExtensionLogEventSource,
+  ExtensionUnmetDependency,
+} from "@/systems/extensions";
 import { marketplaceCatalogFixture } from "../../mocks";
 import type { MarketplaceCatalogEntryResponse } from "../../types";
 import { MarketplaceDetailExtensionInstalled } from "../marketplace-detail-extension-installed";
+
+function unmetDependency(
+  fields: Pick<ExtensionUnmetDependency, "name" | "state"> & Partial<ExtensionUnmetDependency>
+): ExtensionUnmetDependency {
+  return {
+    depth: 1,
+    ref: fields.name,
+    required_by: ["ops-extension"],
+    source: "marketplace",
+    ...fields,
+  };
+}
 
 const mocks = vi.hoisted(() => ({
   extensionEnabled: true,
@@ -53,6 +69,7 @@ const mocks = vi.hoisted(() => ({
     type: string;
   }>,
   extensionMissingInputs: [] as string[],
+  extensionUnmetDependencies: [] as ExtensionUnmetDependency[],
   extensionGatewayConfirmationRequired: false,
   extensionGatewayDigest: undefined as string | undefined,
   extensionLogs: [] as Array<{
@@ -105,6 +122,7 @@ function extensionPayload(): ExtensionEntry {
     ],
     inputs: mocks.extensionInputs,
     missing_inputs: mocks.extensionMissingInputs,
+    unmet_dependencies: mocks.extensionUnmetDependencies,
     declared_profiles: mocks.extensionDeclaredProfiles,
     dormant_placements: mocks.extensionPlacements.filter(item => item.dormant),
     enabled: mocks.extensionEnabled,
@@ -289,6 +307,7 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionGatewayDigest = undefined;
     mocks.extensionInputs = [];
     mocks.extensionMissingInputs = [];
+    mocks.extensionUnmetDependencies = [];
     mocks.extensionPlacements = [];
     mocks.extensionUpdateAvailable = false;
     mocks.extensionWorkspaceId = null;
@@ -554,6 +573,21 @@ describe("Marketplace installed-detail management", () => {
 
     const dialog = await screen.findByTestId("extension-setup-dialog");
     expect(await within(dialog).findByTestId("extension-input-pager_token")).toHaveFocus();
+  });
+
+  // T-20 [US-014.AC-3]: the rail names each unmet dependency with the action that resolves it.
+  it("Should show an unmet-dependency notice per dependency on the installed rail", async () => {
+    mocks.extensionUnmetDependencies = [
+      unmetDependency({ name: "acme-core", min_version: "0.4.0", state: "missing" }),
+      unmetDependency({ name: "acme-net", state: "disabled" }),
+    ];
+    await renderDetail(extensionDetailData());
+
+    const missing = screen.getByTestId("marketplace-extension-dependency-notice-acme-core");
+    expect(missing).toHaveTextContent("Missing dependency: acme-core");
+    expect(within(missing).getByRole("button", { name: "Install" })).toBeInTheDocument();
+    const disabled = screen.getByTestId("marketplace-extension-dependency-notice-acme-net");
+    expect(within(disabled).getByRole("button", { name: "Turn on" })).toBeInTheDocument();
   });
 
   it("Should show a recoverable state when installed extension management fails", async () => {

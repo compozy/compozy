@@ -8956,6 +8956,119 @@
         ],
         "type": "object"
       },
+      "ExtensionDependencyConsent": {
+        "additionalProperties": false,
+        "properties": {
+          "allow_unverified": {
+            "type": "boolean"
+          },
+          "confirm_gateway_digest": {
+            "type": "string"
+          },
+          "expected_digest": {
+            "pattern": "^[a-fA-F0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "x-stability": "experimental"
+      },
+      "ExtensionDependencyParentPayload": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "ref",
+          "source"
+        ],
+        "type": "object"
+      },
+      "ExtensionDependencyPayload": {
+        "properties": {
+          "consent_required": {
+            "type": "boolean"
+          },
+          "depth": {
+            "type": "integer"
+          },
+          "digest_sha256": {
+            "type": "string"
+          },
+          "gateway_requirement_digest": {
+            "type": "string"
+          },
+          "installed_version": {
+            "type": "string"
+          },
+          "min_version": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "registry_tier": {
+            "type": "string"
+          },
+          "required_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "retry_command": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "depth",
+          "name",
+          "ref",
+          "required_by",
+          "source",
+          "state"
+        ],
+        "type": "object"
+      },
+      "ExtensionDependentPayload": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "profile",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
       "ExtensionEnableError": {
         "properties": {
           "code": {
@@ -9208,6 +9321,12 @@
             },
             "type": "array"
           },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionDependencyPayload"
+            },
+            "type": "array"
+          },
           "digest_sha256": {
             "type": "string"
           },
@@ -9418,6 +9537,27 @@
             },
             "type": "array"
           },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionDependencyPayload"
+            },
+            "type": "array"
+          },
+          "dependencies_installed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dependency": {
+            "type": "string"
+          },
+          "dependents": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionDependentPayload"
+            },
+            "type": "array"
+          },
           "diagnostic": {
             "oneOf": [
               {
@@ -9488,6 +9628,24 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "parents": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionDependencyParentPayload"
+            },
+            "type": "array"
+          },
+          "path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "retry_command": {
+            "type": "string"
           }
         },
         "required": [
@@ -9703,6 +9861,12 @@
           },
           "type": {
             "type": "string"
+          },
+          "unmet_dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionDependencyPayload"
+            },
+            "type": "array"
           },
           "update_available": {
             "type": "boolean"
@@ -10158,6 +10322,15 @@
       },
       "ExtensionValidationErrorPayload": {
         "properties": {
+          "dependencies_installed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dependency": {
+            "type": "string"
+          },
           "diagnostic": {
             "oneOf": [
               {
@@ -15000,6 +15173,13 @@
           "confirm_gateway_digest": {
             "type": "string"
           },
+          "dependencies": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ExtensionDependencyConsent"
+            },
+            "description": "Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies.",
+            "type": "object"
+          },
           "enable": {
             "default": false,
             "description": "Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.",
@@ -15048,6 +15228,10 @@
           "version": {
             "type": "string"
           },
+          "with_dependencies": {
+            "description": "Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse.",
+            "type": "boolean"
+          },
           "workspace_id": {
             "description": "Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.",
             "type": "string"
@@ -15061,6 +15245,12 @@
       },
       "InstallExtensionResponse": {
         "properties": {
+          "dependencies_installed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "enable_error": {
             "oneOf": [
               {
@@ -32354,6 +32544,9 @@
       "SetExtensionEnablementRequest": {
         "properties": {
           "enabled": {
+            "type": "boolean"
+          },
+          "force": {
             "type": "boolean"
           },
           "profile": {
@@ -65495,6 +65688,16 @@
             },
             "description": "Forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "A marketplace dependency listing was not found"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -65509,11 +65712,21 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ExtensionValidationErrorPayload"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ExtensionValidationErrorPayload"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Package validation failure"
+            "description": "Extension trust decision, dependency graph refusal, or package validation failure"
           },
           "503": {
             "content": {
@@ -65747,6 +65960,14 @@
             }
           },
           {
+            "description": "Experimental. Remove even while an installed dependent still needs the extension; the dependent then reports unmet_dependencies. Removal never cascades.",
+            "in": "query",
+            "name": "force",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -65800,11 +66021,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Extension is in use"
+            "description": "Extension is in use, or experimental: an installed dependent still needs it"
           },
           "422": {
             "content": {
@@ -66218,6 +66446,16 @@
             },
             "description": "Extension not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Experimental: an installed dependent still needs the extension (extension_dependency_in_use)"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -66226,7 +66464,7 @@
                 }
               }
             },
-            "description": "Extension inputs are required"
+            "description": "Extension inputs are required, or experimental: its dependencies are unmet"
           },
           "503": {
             "content": {

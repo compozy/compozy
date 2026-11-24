@@ -98,25 +98,28 @@ type InputType string
 
 // InstallExtensionRequest is a daemon API value.
 type InstallExtensionRequest struct {
-	Enable               bool                   `json:"enable,omitzero"`
-	Scope                string                 `json:"scope,omitempty"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
-	Profile              string                 `json:"profile,omitempty"`
-	Inputs               map[string]Value       `json:"inputs,omitempty"`
-	ExpectedDigest       string                 `json:"expected_digest,omitempty"`
-	Source               InstallExtensionSource `json:"source"`
-	Ref                  string                 `json:"ref"`
-	Version              string                 `json:"version,omitempty"`
-	Asset                string                 `json:"asset,omitempty"`
-	AllowUnverified      bool                   `json:"allow_unverified,omitzero"`
-	Replace              bool                   `json:"replace,omitzero"`
-	ConfirmGatewayDigest string                 `json:"confirm_gateway_digest,omitempty"`
+	Enable               bool                                  `json:"enable,omitzero"`
+	Scope                string                                `json:"scope,omitempty"`
+	WorkspaceID          string                                `json:"workspace_id,omitempty"`
+	Profile              string                                `json:"profile,omitempty"`
+	Inputs               map[string]Value                      `json:"inputs,omitempty"`
+	ExpectedDigest       string                                `json:"expected_digest,omitempty"`
+	Source               InstallExtensionSource                `json:"source"`
+	Ref                  string                                `json:"ref"`
+	Version              string                                `json:"version,omitempty"`
+	Asset                string                                `json:"asset,omitempty"`
+	AllowUnverified      bool                                  `json:"allow_unverified,omitzero"`
+	Replace              bool                                  `json:"replace,omitzero"`
+	ConfirmGatewayDigest string                                `json:"confirm_gateway_digest,omitempty"`
+	WithDependencies     bool                                  `json:"with_dependencies,omitzero"`
+	Dependencies         map[string]ExtensionDependencyConsent `json:"dependencies,omitempty"`
 }
 
 // InstallExtensionResponse is a daemon API value.
 type InstallExtensionResponse struct {
-	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
-	Extension   ExtensionPayload      `json:"extension"`
+	EnableError           *ExtensionEnableError `json:"enable_error,omitzero"`
+	Extension             ExtensionPayload      `json:"extension"`
+	DependenciesInstalled []string              `json:"dependencies_installed,omitempty"`
 }
 
 // InstallExtensionSource is a daemon API value.

@@ -10,11 +10,15 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 // extensionPermanentQueryKey is the DELETE query flag that selects permanent removal of a built-in.
 const extensionPermanentQueryKey = "permanent"
+
+// extensionForceQueryKey is the DELETE query flag that removes a dependency its dependents still need.
+const extensionForceQueryKey = "force"
 
 var (
 	errExtensionPermanentScoped = errors.New(
@@ -44,11 +48,17 @@ func (h *BaseHandlers) RemoveExtension(c *gin.Context) {
 	if !ok {
 		return
 	}
-	permanent, err := extensionPermanentRequested(c)
+	permanent, err := extensionBoolQuery(c, extensionPermanentQueryKey)
 	if err != nil {
 		h.respondExtensionError(c, http.StatusBadRequest, err)
 		return
 	}
+	force, err := extensionBoolQuery(c, extensionForceQueryKey)
+	if err != nil {
+		h.respondExtensionError(c, http.StatusBadRequest, err)
+		return
+	}
+	c.Request = c.Request.WithContext(extensionpkg.WithDependencyForce(c.Request.Context(), force))
 	if permanent {
 		h.removeExtensionPermanently(c, service, name, actor)
 		return
@@ -96,15 +106,15 @@ func (h *BaseHandlers) removeExtensionPermanently(
 	c.JSON(http.StatusOK, contract.ExtensionRemoveResponse{Extension: item})
 }
 
-// extensionPermanentRequested parses the permanent flag. An absent flag selects non-permanent removal.
-func extensionPermanentRequested(c *gin.Context) (bool, error) {
-	raw := strings.TrimSpace(c.Query(extensionPermanentQueryKey))
+// extensionBoolQuery parses one optional boolean DELETE flag; an absent flag is false.
+func extensionBoolQuery(c *gin.Context, key string) (bool, error) {
+	raw := strings.TrimSpace(c.Query(key))
 	if raw == "" {
 		return false, nil
 	}
-	permanent, err := strconv.ParseBool(raw)
+	value, err := strconv.ParseBool(raw)
 	if err != nil {
-		return false, errors.New("permanent must be a boolean")
+		return false, errors.New(key + " must be a boolean")
 	}
-	return permanent, nil
+	return value, nil
 }

@@ -871,7 +871,7 @@ func TestExtensionListFormatsOffline(t *testing.T) {
 		}
 		if !strings.Contains(
 			stdout,
-			"extensions[1]{name,version,update,type,state,source,missing_env,capabilities}:",
+			"extensions[1]{name,version,update,type,state,source,missing_env,capabilities,unmet_dependencies}:",
 		) {
 			t.Fatalf("toon output = %q, want extensions TOON table", stdout)
 		}
@@ -1785,7 +1785,7 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 		toon,
 		"extension{name,version,type,format,source,enabled,state,daemon_running,"+
 			"pid,uptime_seconds,health,last_error,capabilities,permissions,requires_env,missing_env,"+
-			"consecutive_failures,restart_backoff_ms,summary,diagnostics}:",
+			"consecutive_failures,restart_backoff_ms,summary,diagnostics,unmet_dependencies}:",
 	) {
 		t.Fatalf("toon output = %q, want extension TOON object", toon)
 	}
@@ -1811,6 +1811,40 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 	if got := boolLabel(false, "running", "offline"); got != "offline" {
 		t.Fatalf("boolLabel(false) = %q, want %q", got, "offline")
 	}
+}
+
+// Invariant: a dependent left unmet by a forced dependency removal shows the repair signal in human and TOON
+// status/list output, not only in JSON (D10). Owner: CLI extension output; canonical suite: extension_test.go.
+func TestExtensionOutputShowsUnmetDependencies(t *testing.T) {
+	t.Parallel()
+
+	item := ExtensionRecord{
+		Name: "root", Version: "1.0.0", Enabled: true, State: "active",
+		UnmetDependencies: []contract.ExtensionDependencyPayload{{Name: "dep-core", State: "missing"}},
+	}
+	t.Run("Should show unmet dependencies in status", func(t *testing.T) {
+		t.Parallel()
+		bundle := extensionBundle(&item)
+		human, err := bundle.human()
+		if err != nil || !strings.Contains(human, "Unmet Dependencies") ||
+			!strings.Contains(human, "dep-core (missing)") {
+			t.Fatalf("human = %q, %v; want the unmet dependency", human, err)
+		}
+		toon, err := bundle.toon()
+		if err != nil || !strings.Contains(toon, "dep-core (missing)") {
+			t.Fatalf("toon = %q, %v; want the unmet dependency", toon, err)
+		}
+	})
+	t.Run("Should show unmet dependencies in list", func(t *testing.T) {
+		t.Parallel()
+		bundle := extensionListBundle([]ExtensionRecord{item})
+		for name, render := range map[string]func() (string, error){"human": bundle.human, "toon": bundle.toon} {
+			out, err := render()
+			if err != nil || !strings.Contains(out, "dep-core (missing)") {
+				t.Fatalf("%s = %q, %v; want the unmet dependency", name, out, err)
+			}
+		}
+	})
 }
 
 func newExtensionLocalDeps(t *testing.T, client DaemonClient) (commandDeps, compozyconfig.HomePaths) {

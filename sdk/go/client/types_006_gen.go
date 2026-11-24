@@ -391,6 +391,31 @@ type ExtensionDeclaredProfilePayload struct {
 	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
 }
 
+// ExtensionDependencyConsent is a daemon API value.
+type ExtensionDependencyConsent struct {
+	ExpectedDigest       string `json:"expected_digest,omitempty"`
+	AllowUnverified      bool   `json:"allow_unverified,omitzero"`
+	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
+}
+
+// ExtensionDependencyPayload is a daemon API value.
+type ExtensionDependencyPayload struct {
+	Name                     string   `json:"name"`
+	Source                   string   `json:"source"`
+	Ref                      string   `json:"ref"`
+	MinVersion               string   `json:"min_version,omitempty"`
+	RequiredBy               []string `json:"required_by"`
+	Depth                    int      `json:"depth"`
+	State                    string   `json:"state"`
+	InstalledVersion         string   `json:"installed_version,omitempty"`
+	Version                  string   `json:"version,omitempty"`
+	DigestSHA256             string   `json:"digest_sha256,omitempty"`
+	RegistryTier             string   `json:"registry_tier,omitempty"`
+	ConsentRequired          bool     `json:"consent_required,omitzero"`
+	GatewayRequirementDigest string   `json:"gateway_requirement_digest,omitempty"`
+	RetryCommand             string   `json:"retry_command,omitempty"`
+}
+
 // ExtensionEnableError is a daemon API value.
 type ExtensionEnableError struct {
 	Error string `json:"error"`
@@ -422,16 +447,4 @@ type ExtensionInputStatePayload struct {
 	Set    bool   `json:"set"`
 	Active bool   `json:"active"`
 	State  string `json:"state,omitempty"`
-}
-
-// ExtensionInputStatusPayload is a daemon API value.
-type ExtensionInputStatusPayload struct {
-	ID       string                         `json:"id"`
-	Prompt   string                         `json:"prompt"`
-	Type     string                         `json:"type"`
-	Required bool                           `json:"required"`
-	Binding  MarketplaceInputBindingPayload `json:"binding"`
-	Default  json.RawMessage                `json:"default,omitempty"`
-	Targets  []string                       `json:"targets"`
-	State    string                         `json:"state"`
 }

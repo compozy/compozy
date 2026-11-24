@@ -8,6 +8,8 @@ type ExtensionInstallPreviewPayload struct {
 	DeclaredProfiles         []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
 	Placements               []ExtensionPlacementPayload              `json:"placements"`
 	GatewayRequirementDigest string                                   `json:"gateway_requirement_digest,omitempty"`
+	// Dependencies is the resolved dependency graph, dependencies first. Experimental.
+	Dependencies []ExtensionDependencyPayload `json:"dependencies,omitempty"`
 }
 
 // ExtensionInstallDeclaredProfilePayload describes one profile bind or creation before install.

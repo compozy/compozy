@@ -1384,6 +1384,200 @@ func TestExtensionInputHandlers(t *testing.T) {
 	}
 }
 
+// Invariant: install and preview carry the experimental dependency fields, and dependency refusals map onto
+// their codes naming the dependency and the dependencies already installed [T-16].
+// Owner: core extension install handlers; suite: TestExtensionDependencyHandlers.
+func TestExtensionDependencyHandlers(t *testing.T) {
+	t.Parallel()
+	t.Run("Should forward per-dependency consent and report installed dependencies", func(t *testing.T) {
+		t.Parallel()
+		var got contract.InstallExtensionRequest
+		service := extensionServiceStub{installFn: func(
+			_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext,
+		) (contract.ExtensionPayload, error) {
+			got = req
+			return contract.ExtensionPayload{
+				Name:                         "acme-tool",
+				InstallDependenciesInstalled: []string{"acme-core"},
+			}, nil
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions", handlers.InstallExtension)
+		expectedDigest, gatewayDigest := strings.Repeat("a", 64), strings.Repeat("b", 64)
+		request := fmt.Appendf(nil, `{"source":"curated","ref":"acme/tool","with_dependencies":true,`+
+			`"dependencies":{"acme-core":{"allow_unverified":true,"expected_digest":%q,"confirm_gateway_digest":%q}}}`,
+			expectedDigest, gatewayDigest)
+		response := performRequest(t, engine, http.MethodPost, "/extensions", request)
+		if response.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want 201; body=%s", response.Code, response.Body.String())
+		}
+		want := map[string]contract.ExtensionDependencyConsent{
+			"acme-core": {AllowUnverified: true, ExpectedDigest: expectedDigest, ConfirmGatewayDigest: gatewayDigest},
+		}
+		if !got.WithDependencies || !reflect.DeepEqual(got.Dependencies, want) {
+			t.Fatalf("forwarded request = %+v", got)
+		}
+		var payload contract.InstallExtensionResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(install) error = %v", err)
+		}
+		if !reflect.DeepEqual(payload.DependenciesInstalled, []string{"acme-core"}) {
+			t.Fatalf("dependencies_installed = %v", payload.DependenciesInstalled)
+		}
+	})
+	dependencies := []contract.ExtensionDependencyPayload{{
+		Name: "acme-core", Source: "curated", Ref: "acme/core", MinVersion: "0.4.0",
+		RequiredBy: []string{"acme-tool"}, Depth: 1, State: "version_unmet", InstalledVersion: "0.3.0",
+		RetryCommand: "compozy extension update acme-core",
+	}}
+	for _, testCase := range []struct {
+		name   string
+		err    error
+		status int
+		check  func(contract.ExtensionOperationErrorPayload) bool
+	}{
+		{
+			name:   "Should list unmet dependencies and the update retry command",
+			err:    &extensionpkg.DependenciesRequiredError{Dependencies: dependencies},
+			status: http.StatusUnprocessableEntity,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionDependenciesRequired &&
+					reflect.DeepEqual(payload.Dependencies, dependencies) &&
+					payload.RetryCommand == "compozy extension update acme-core"
+			},
+		},
+		{
+			name: "Should describe an invalid graph with its reason, path and parents",
+			err: &extensionpkg.DependencyGraphInvalidError{
+				Reason: extensionpkg.DependencyGraphReasonConflictingSource, Path: []string{"acme-core"},
+				Parents: []contract.ExtensionDependencyParentPayload{
+					{Name: "acme-b", Source: "curated", Ref: "acme/core"},
+					{Name: "acme-c", Source: "git", Ref: "https://example.test/core.git"},
+				},
+			},
+			status: http.StatusUnprocessableEntity,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionDependencyGraphInvalid &&
+					payload.Reason == "conflicting_source" &&
+					reflect.DeepEqual(payload.Parents, []contract.ExtensionDependencyParentPayload{
+						{Name: "acme-b", Source: "curated", Ref: "acme/core"},
+						{Name: "acme-c", Source: "git", Ref: "https://example.test/core.git"},
+					}) &&
+					reflect.DeepEqual(payload.Path, []string{"acme-core"})
+			},
+		},
+		{
+			name: "Should name the dependency that lacks unverified consent",
+			err: &extensionpkg.DependencyGateError{
+				Dependency: "acme-core", Err: extensionpkg.NewExtensionChecksumUnverifiedError("acme-core", "git"),
+			},
+			status: http.StatusUnprocessableEntity,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionChecksumUnverified &&
+					payload.Dependency == "acme-core"
+			},
+		},
+		{
+			name: "Should name the dependency gateway confirmation and the dependencies already installed",
+			err: &extensionpkg.DependenciesInstalledError{Installed: []string{"acme-base"}, Err: &extensionpkg.DependencyGateError{
+				Dependency: "acme-core", Err: &extensionpkg.GatewayConfirmationRequiredError{CurrentDigest: "abc123"},
+			}},
+			status: http.StatusConflict,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionGatewayConfirmRequired &&
+					payload.Dependency == "acme-core" && payload.CurrentDigest == "abc123" &&
+					reflect.DeepEqual(payload.DependenciesInstalled, []string{"acme-base"})
+			},
+		},
+		{
+			name: "Should keep extension_exists for a dependency whose installed package differs",
+			err: &extensionpkg.DependencyGateError{
+				Dependency: "acme-core", Err: fmt.Errorf("%w: acme-core 1.0.0 differs", extensionpkg.ErrExtensionExists),
+			},
+			status: http.StatusConflict,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionExists && payload.Dependency == "acme-core"
+			},
+		},
+		{
+			name: "Should keep the root agent conflict after dependencies were installed",
+			err: &extensionpkg.DependenciesInstalledError{
+				Installed: []string{"acme-core"}, Err: &extensionpkg.AgentConflictError{Agents: []string{"zed", "ada"}},
+			},
+			status: http.StatusConflict,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionAgentConflict && payload.Dependency == "" &&
+					reflect.DeepEqual(payload.Agents, []string{"ada", "zed"}) &&
+					reflect.DeepEqual(payload.DependenciesInstalled, []string{"acme-core"})
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			service := extensionServiceStub{installFn: func(
+				context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext,
+			) (contract.ExtensionPayload, error) {
+				return contract.ExtensionPayload{}, testCase.err
+			}}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+			engine := gin.New()
+			engine.POST("/extensions", handlers.InstallExtension)
+			response := performRequest(t, engine, http.MethodPost, "/extensions",
+				[]byte(`{"source":"curated","ref":"acme/tool","with_dependencies":true}`))
+			if response.Code != testCase.status {
+				t.Fatalf("status = %d, want %d; body=%s", response.Code, testCase.status, response.Body.String())
+			}
+			var payload contract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("json.Unmarshal(error) error = %v", err)
+			}
+			if !testCase.check(payload) {
+				t.Fatalf("payload = %#v body=%s", payload, response.Body.String())
+			}
+		})
+	}
+}
+
+// Invariant: a dependency's missing marketplace digest keeps the validation payload's field issue and names the
+// dependency (G-2). Owner: core extension install handlers; suite: TestExtensionDependencyHandlers.
+func TestExtensionDependencyValidationPayload(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep the expected_digest issue and name the dependency", func(t *testing.T) {
+		t.Parallel()
+		service := extensionServiceStub{installFn: func(
+			context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext,
+		) (contract.ExtensionPayload, error) {
+			return contract.ExtensionPayload{}, &extensionpkg.DependenciesInstalledError{
+				Installed: []string{"acme-base"},
+				Err: &extensionpkg.DependencyGateError{
+					Dependency: "acme-core",
+					Err: &extensionpkg.ManifestValidationError{
+						Field: "expected_digest", Message: "a listed digest is required for marketplace plugins",
+					},
+				},
+			}
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions", handlers.InstallExtension)
+		response := performRequest(t, engine, http.MethodPost, "/extensions",
+			[]byte(`{"source":"curated","ref":"acme/tool","with_dependencies":true}`))
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.ExtensionValidationErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(error) error = %v", err)
+		}
+		installed := payload.DependenciesInstalled
+		if len(payload.Issues) != 1 || payload.Issues[0].Field != "expected_digest" ||
+			payload.Dependency != "acme-core" || !reflect.DeepEqual(installed, []string{"acme-base"}) {
+			t.Fatalf("payload = %#v body=%s", payload, response.Body.String())
+		}
+	})
+}
+
 func mustJSONMarshal(t *testing.T, value any) []byte {
 	t.Helper()
 

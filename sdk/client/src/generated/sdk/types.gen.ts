@@ -2440,6 +2440,41 @@ export type ExtensionDeclaredProfilePayload = {
   needs_setup: boolean;
 };
 
+export type ExtensionDependencyConsent = {
+  allow_unverified?: boolean;
+  confirm_gateway_digest?: string;
+  expected_digest?: string;
+};
+
+export type ExtensionDependencyParentPayload = {
+  name: string;
+  ref: string;
+  source: string;
+};
+
+export type ExtensionDependencyPayload = {
+  consent_required?: boolean;
+  depth: number;
+  digest_sha256?: string;
+  gateway_requirement_digest?: string;
+  installed_version?: string;
+  min_version?: string;
+  name: string;
+  ref: string;
+  registry_tier?: string;
+  required_by: Array<string>;
+  retry_command?: string;
+  source: string;
+  state: string;
+  version?: string;
+};
+
+export type ExtensionDependentPayload = {
+  name: string;
+  profile: string;
+  workspace_id: string;
+};
+
 export type ExtensionEnableError = {
   code: string;
   error: string;
@@ -2503,6 +2538,7 @@ export type ExtensionInstallDeclaredProfilePayload = {
 
 export type ExtensionInstallPreviewPayload = {
   declared_profiles: Array<ExtensionInstallDeclaredProfilePayload>;
+  dependencies?: Array<ExtensionDependencyPayload>;
   digest_sha256?: string;
   gateway_requirement_digest?: string;
   inputs: Array<MarketplaceInputPayload>;
@@ -2550,6 +2586,10 @@ export type ExtensionOperationErrorPayload = {
   code: string;
   current_digest?: string;
   declared_env?: Array<string>;
+  dependencies?: Array<ExtensionDependencyPayload>;
+  dependencies_installed?: Array<string>;
+  dependency?: string;
+  dependents?: Array<ExtensionDependentPayload>;
   diagnostic?: DiagnosticItem | null;
   env_name?: string;
   error: string;
@@ -2562,6 +2602,10 @@ export type ExtensionOperationErrorPayload = {
   invalid?: Array<string>;
   listed_digest?: string;
   missing_env?: Array<string>;
+  parents?: Array<ExtensionDependencyParentPayload>;
+  path?: Array<string>;
+  reason?: string;
+  retry_command?: string;
 };
 
 export type ExtensionPayload = {
@@ -2608,6 +2652,7 @@ export type ExtensionPayload = {
   state: string;
   trust?: ExtensionTrustReportPayload | null;
   type: string;
+  unmet_dependencies?: Array<ExtensionDependencyPayload>;
   update_available: boolean;
   uptime_seconds?: number;
   version: string;
@@ -2714,6 +2759,8 @@ export type ExtensionUpdateResponse = {
 };
 
 export type ExtensionValidationErrorPayload = {
+  dependencies_installed?: Array<string>;
+  dependency?: string;
   diagnostic?: DiagnosticItem | null;
   error: string;
   issues: Array<ValidationIssue>;
@@ -4286,6 +4333,12 @@ export type InstallExtensionRequest = {
   asset?: string;
   confirm_gateway_digest?: string;
   /**
+   * Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies.
+   */
+  dependencies?: {
+    [key: string]: ExtensionDependencyConsent;
+  };
+  /**
    * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
    */
   enable?: boolean;
@@ -4312,12 +4365,17 @@ export type InstallExtensionRequest = {
   source: "curated" | "marketplace" | "github" | "git" | "local_path";
   version?: string;
   /**
+   * Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse.
+   */
+  with_dependencies?: boolean;
+  /**
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
   workspace_id?: string;
 };
 
 export type InstallExtensionResponse = {
+  dependencies_installed?: Array<string>;
   enable_error?: ExtensionEnableError | null;
   extension: ExtensionPayload;
 };
@@ -8891,6 +8949,7 @@ export type SessionsResponse = {
 
 export type SetExtensionEnablementRequest = {
   enabled: boolean;
+  force?: boolean;
   profile: string;
 };
 
@@ -14212,6 +14271,12 @@ export type InstallExtensionRequestWritable = {
   asset?: string;
   confirm_gateway_digest?: string;
   /**
+   * Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies.
+   */
+  dependencies?: {
+    [key: string]: ExtensionDependencyConsent;
+  };
+  /**
    * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
    */
   enable?: boolean;
@@ -14237,6 +14302,10 @@ export type InstallExtensionRequestWritable = {
    */
   source: "curated" | "marketplace" | "github" | "git" | "local_path";
   version?: string;
+  /**
+   * Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse.
+   */
+  with_dependencies?: boolean;
   /**
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
@@ -21125,13 +21194,17 @@ export type PreviewExtensionInstallErrors = {
    */
   403: ErrorPayload;
   /**
+   * A marketplace dependency listing was not found
+   */
+  404: ExtensionOperationErrorPayload;
+  /**
    * The approved source digest changed
    */
   409: ExtensionOperationErrorPayload;
   /**
-   * Package validation failure
+   * Extension trust decision, dependency graph refusal, or package validation failure
    */
-  422: ExtensionValidationErrorPayload;
+  422: ErrorPayload | ExtensionOperationErrorPayload | ExtensionValidationErrorPayload;
   /**
    * Extension service is not configured
    */
@@ -21261,6 +21334,10 @@ export type RemoveExtensionData = {
      */
     permanent?: boolean;
     /**
+     * Experimental. Remove even while an installed dependent still needs the extension; the dependent then reports unmet_dependencies. Removal never cascades.
+     */
+    force?: boolean;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -21282,9 +21359,9 @@ export type RemoveExtensionErrors = {
    */
   404: ErrorPayload;
   /**
-   * Extension is in use
+   * Extension is in use, or experimental: an installed dependent still needs it
    */
-  409: ErrorPayload;
+  409: ErrorPayload | ExtensionOperationErrorPayload;
   /**
    * Extension is not a built-in
    */
@@ -21502,7 +21579,11 @@ export type SetExtensionEnablementErrors = {
    */
   404: ErrorPayload;
   /**
-   * Extension inputs are required
+   * Experimental: an installed dependent still needs the extension (extension_dependency_in_use)
+   */
+  409: ExtensionOperationErrorPayload;
+  /**
+   * Extension inputs are required, or experimental: its dependencies are unmet
    */
   422: ExtensionOperationErrorPayload;
   /**

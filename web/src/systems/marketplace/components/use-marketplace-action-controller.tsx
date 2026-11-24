@@ -50,6 +50,12 @@ import {
   type ExtensionInputDraft,
 } from "./extension-install-model";
 import { useMarketplacePending } from "./use-marketplace-pending";
+import {
+  extensionDependencyGates,
+  extensionDependencyInstallFields,
+  blockedExtensionDependencies,
+} from "./extension-dependency-model";
+import { useExtensionDependencyGates } from "./use-extension-dependency-gates";
 import { useMarketplaceEnableRecovery } from "./use-marketplace-enable-recovery";
 
 /**
@@ -117,6 +123,7 @@ function useMarketplaceActionController(
   const toggleExtension = useToggleExtension();
   const pending = useMarketplacePending();
   const authorization = useMCPDefinitionAuthorization();
+  const dependencyGates = useExtensionDependencyGates();
   const [announcement, setAnnouncement] = useState("");
   const enableRecovery = useMarketplaceEnableRecovery(destination, setAnnouncement);
   const updateFlow = useMarketplaceUpdateRecovery(updateExtension.mutateAsync, updatedToast);
@@ -336,13 +343,15 @@ function useMarketplaceActionController(
       return;
     }
     try {
-      const { enable_error: enableError, extension } = await installExtension.mutateAsync({
+      const result = await installExtension.mutateAsync({
         ...selected.request,
+        ...extensionDependencyInstallFields(selected.preview),
         ...(Object.keys(prepared.inputs).length ? { inputs: prepared.inputs } : {}),
         ...(selected.preview.gateway_requirement_digest
           ? { confirm_gateway_digest: selected.preview.gateway_requirement_digest }
           : {}),
       });
+      const { enable_error: enableError, extension } = result;
       acquisition.preview.trigger.previewDismissed();
       pending.flashEntry(selected.entry);
       // The destination this request named, even if the window has switched since.
@@ -366,7 +375,13 @@ function useMarketplaceActionController(
       enableRecovery.record(scope, selected.entry, null);
       const needsAuthorization =
         extension.mcp_servers?.some(server => server.status === "needs_authorization") ?? false;
-      viewInstalledToast(`${selected.entry.name} added`, needsAuthorization);
+      const alsoInstalled = result.dependencies_installed ?? [];
+      viewInstalledToast(
+        alsoInstalled.length > 0
+          ? `${selected.entry.name} added with ${alsoInstalled.join(", ")}`
+          : `${selected.entry.name} added`,
+        needsAuthorization
+      );
       setAnnouncement(
         `${selected.entry.name} added · ${needsAuthorization ? "Set up to finish" : "Ready"}`
       );
@@ -382,14 +397,28 @@ function useMarketplaceActionController(
     const selected = installPreview;
     if (!selected) return;
     if (!prepareExtensionInputs(selected.preview.inputs, draft).valid) return;
-    void withPendingEntry(selected.entry, () => submitInstall(selected, draft));
+    if (blockedExtensionDependencies(selected.preview).length > 0) return;
+    const gates = extensionDependencyGates(selected.preview);
+    if (gates.length === 0) {
+      void withPendingEntry(selected.entry, () => submitInstall(selected, draft));
+      return;
+    }
+    // Each dependency's own gate, in order; a cancel aborts the whole Add before any request.
+    void dependencyGates.request(gates).then(confirmed => {
+      if (!confirmed) {
+        acquisition.preview.trigger.previewDismissed();
+        return;
+      }
+      return withPendingEntry(selected.entry, () => submitInstall(selected, draft));
+    });
   };
 
   const dialogs = (
     <MarketplaceActionDialogs
       authorization={authorization}
+      dependencyGates={dependencyGates}
       install={
-        installPreview
+        installPreview && !dependencyGates.current
           ? {
               selected: installPreview,
               pending: pending.isEntryPending(installPreview.entry),

@@ -3514,6 +3514,12 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addAutomationJobUpdateLoopInputCommandSchema(baseline) == 0 {
 			t.Fatal("approved automation job update command: no historical update request schemas found")
 		}
+		// #1845: install requests, previews, responses and operation errors gain the experimental dependency fields.
+		if added := addExtensionDependencyFields(baseline, newComponents); added < 5 {
+			t.Fatalf("approved extension dependency fields: matched %d historical schema kinds, want 5", added)
+		}
+		// #1845 S7: the experimental dependency guard adds force, dependents and unmet_dependencies.
+		addExtensionDependencyGuardFields(t, baseline, current, newComponents)
 		assertAlwaysOnHardeningFields(t, current)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {
@@ -7235,6 +7241,168 @@ func addExtensionInputErrorFields(value any) int {
 		}
 	}
 	return count
+}
+
+// addExtensionDependencyFields copies the experimental dependency properties, refs inlined, from the current
+// components into every historical install request, preview, install response, operation error and validation
+// error schema. It returns how many of those five schema kinds it matched.
+func addExtensionDependencyFields(baseline map[string]any, components map[string]any) int {
+	targets := []struct {
+		component string
+		signature []string
+		size      int // exact historical property count, 0 for any
+		fields    []string
+	}{
+		{"InstallExtensionRequest", []string{"ref", "source", "allow_unverified", "expected_digest"}, 0,
+			[]string{"with_dependencies", "dependencies"}},
+		{"ExtensionInstallPreviewPayload", []string{"declared_profiles", "placements", "inputs"}, 6,
+			[]string{"dependencies"}},
+		{"InstallExtensionResponse", []string{"enable_error", "extension"}, 0,
+			[]string{"dependencies_installed"}},
+		{"ExtensionOperationErrorPayload", []string{"listed_digest", "declared_env", "input_id"}, 0, []string{
+			"dependency", "dependencies", "dependencies_installed", "reason", "path", "parents", "retry_command",
+		}},
+		// G-2: a dependency's validation failure keeps its field issue and names the dependency.
+		{"ExtensionValidationErrorPayload", []string{"error", "diagnostic", "issues"}, 3,
+			[]string{"dependency", "dependencies_installed"}},
+	}
+	matched := 0
+	for _, target := range targets {
+		source := components[target.component].(map[string]any)["properties"].(map[string]any)
+		if addSchemaPropertiesBySignature(
+			baseline,
+			target.signature,
+			target.size,
+			target.fields,
+			source,
+			components,
+		) > 0 {
+			matched++
+		}
+	}
+	return matched
+}
+
+// addExtensionDependencyGuardFields approves the experimental dependency guard: operation errors gain dependents,
+// extension payloads gain unmet_dependencies, the enablement request gains force, and removeExtension gains the
+// force query flag after permanent plus the structured 409 body.
+func addExtensionDependencyGuardFields(t *testing.T, baseline, current, components map[string]any) {
+	t.Helper()
+	fields := []struct {
+		component string
+		signature []string
+		field     string
+	}{
+		{"ExtensionOperationErrorPayload", []string{"listed_digest", "declared_env", "input_id"}, "dependents"},
+		{"ExtensionPayload", []string{"gateway_confirmation_required", "consecutive_failures", "restart_backoff_ms"},
+			"unmet_dependencies"},
+	}
+	for _, target := range fields {
+		source := components[target.component].(map[string]any)["properties"].(map[string]any)
+		if addSchemaPropertiesBySignature(
+			baseline, target.signature, 0, []string{target.field}, source, components,
+		) == 0 {
+			t.Fatalf("approved %s.%s: no historical schemas found", target.component, target.field)
+		}
+	}
+	oldPaths, newPaths := baseline["paths"].(map[string]any), current["paths"].(map[string]any)
+	enablementBody := func(paths map[string]any) map[string]any {
+		node := paths["/api/extensions/{name}/enablement"].(map[string]any)["put"].(map[string]any)
+		for _, key := range []string{"requestBody", "content", "application/json", "schema"} {
+			node = node[key].(map[string]any)
+		}
+		return node
+	}
+	newRequest := inlineSchemaRefs(enablementBody(newPaths), components).(map[string]any)
+	force := newRequest["properties"].(map[string]any)["force"]
+	if force == nil {
+		t.Fatal("approved enablement force field: current request has no force property")
+	}
+	enablementBody(oldPaths)["properties"].(map[string]any)["force"] = force
+	oldRemove := oldPaths["/api/extensions/{name}"].(map[string]any)["delete"].(map[string]any)
+	newRemove := newPaths["/api/extensions/{name}"].(map[string]any)["delete"].(map[string]any)
+	parameters := oldRemove["parameters"].([]any)
+	afterPermanent := slices.IndexFunc(parameters, func(raw any) bool {
+		return raw.(map[string]any)["name"] == "permanent"
+	}) + 1
+	if afterPermanent == 0 {
+		t.Fatal("approved removeExtension force flag: historical operation has no permanent parameter")
+	}
+	currentParameters := newRemove["parameters"].([]any)
+	if afterPermanent >= len(currentParameters) {
+		t.Fatal("approved removeExtension force flag: current operation has no parameter after permanent")
+	}
+	currentForce := currentParameters[afterPermanent].(map[string]any)
+	if required := currentForce["required"]; currentForce["name"] != "force" || currentForce["in"] != "query" ||
+		(required != nil && required != false) {
+		t.Fatalf("approved removeExtension force flag: want an optional force query parameter, got %v", currentForce)
+	}
+	oldRemove["parameters"] = slices.Insert(parameters, afterPermanent, any(map[string]any{
+		"name": "force", "in": "query", "schema": map[string]any{"type": "boolean"},
+	}))
+	responseMedia := func(operation map[string]any, status string) map[string]any {
+		response := operation["responses"].(map[string]any)[status].(map[string]any)
+		return response["content"].(map[string]any)["application/json"].(map[string]any)
+	}
+	// Both new alternatives can also match the generic error schema, so these unions use anyOf.
+	operationError := inlineSchemaRefs(components["ExtensionOperationErrorPayload"], components)
+	genericError := inlineSchemaRefs(components["ErrorPayload"], components)
+	conflict := responseMedia(oldRemove, "409")
+	conflict["schema"] = map[string]any{"anyOf": []any{conflict["schema"], operationError}}
+	oldPreview := oldPaths["/api/extensions/preview-install"].(map[string]any)["post"].(map[string]any)
+	unprocessable := responseMedia(oldPreview, "422")
+	unprocessable["schema"] = map[string]any{
+		"anyOf": []any{genericError, operationError, unprocessable["schema"]},
+	}
+}
+
+func addSchemaPropertiesBySignature(
+	value any, signature []string, size int, fields []string, source, components map[string]any,
+) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSchemaPropertiesBySignature(child, signature, size, fields, source, components)
+		}
+	case map[string]any:
+		for _, child := range node {
+			count += addSchemaPropertiesBySignature(child, signature, size, fields, source, components)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || (size > 0 && len(properties) != size) ||
+			slices.ContainsFunc(signature, func(key string) bool { return properties[key] == nil }) ||
+			slices.ContainsFunc(fields, func(key string) bool { return source[key] == nil }) {
+			return count
+		}
+		for _, field := range fields {
+			properties[field] = inlineSchemaRefs(source[field], components)
+		}
+		count++
+	}
+	return count
+}
+
+func inlineSchemaRefs(value any, components map[string]any) any {
+	switch node := value.(type) {
+	case []any:
+		items := make([]any, 0, len(node))
+		for _, child := range node {
+			items = append(items, inlineSchemaRefs(child, components))
+		}
+		return items
+	case map[string]any:
+		if reference, ok := node["$ref"].(string); ok {
+			return inlineSchemaRefs(components[strings.TrimPrefix(reference, "#/components/schemas/")], components)
+		}
+		copied := make(map[string]any, len(node))
+		for key, child := range node {
+			copied[key] = inlineSchemaRefs(child, components)
+		}
+		return copied
+	default:
+		return value
+	}
 }
 
 // Extension input status items gain the optional state string next to set and active.

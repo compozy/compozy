@@ -1,6 +1,6 @@
 # BUG-20261122-install-enable-500: Installing a new local extension with --enable reports an Internal Server Error and leaves it off
 
-- **Status:** open-upstream (pre-existing, not caused by #1845; filed as compozy/compozy#1959)
+- **Status:** verified (compozy/compozy#1959, fixed in #1845 PR B)
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Bruno
@@ -41,6 +41,10 @@ so the masked cause is not observable.
 
 ## Fix
 
+**Disposition: fixed by the automation-disabled fix in #1845 PR B, pending re-walk.** The trigger
+was the enable preview failing when automation is disabled (see
+BUG-20261122-dependency-install-automation-disabled). The enable error is now also logged unmasked.
+
 **Disposition: pre-existing, not fixed here.**
 
 **Evidence that #1845 did not introduce it.**
@@ -78,3 +82,22 @@ so the masked cause is not observable.
   `install --enable` of a no-input fixture.
 
 ## Verification
+
+Verified 2026-11-22 on `0cb8b750d` with `[automation] enabled = false` (re-walk report
+`docs/qa/reports/2026-11-22-gh-1845-pr-b-extension-dependencies-rewalk.md`). The fresh lab home ran
+the no-input, no-dependency fixture `acme-plain`. `compozy extension install <acme-plain>
+--allow-unverified --enable --yes -o json` returned `enabled: true, state: active` with no
+`enable_error`. After a removal, the human run printed `Installed acme-plain 0.1.0 and turned it on.`
+and `State: active`. The daemon log has no enable error and no `previewer is required` line. Evidence:
+`docs/qa/evidence/2026-11-22-gh-1845-pr-b-rewalk/cli/transcript.md` ("A1 …", "A1b …").
+
+## Trigger found (2026-11-22, GH-1845 PR B walk)
+
+The failure depends on `[automation] enabled = false`. On a lab built from `08bd19a60`, a fresh
+`install <acme-leaf> --enable` returned `enable_error: Internal Server Error` with automation
+disabled. After `[automation] enabled = true` and a daemon restart, the same command returned
+`enabled: true, state: active`. The dependency install path shows the unmasked cause on a retry:
+`daemon: extension automation previewer is required`
+(`previewExtensionAutomation`, `internal/daemon/extensions_inventory.go:364-365`, also on
+`origin/main`). See BUG-20261122-dependency-install-automation-disabled for the repro and for the
+impact on `--with-dependencies`.

@@ -57,6 +57,9 @@ func manifestTOMLDocument(manifest *Manifest) (map[string]any, error) {
 		}
 		document["inputs"] = inputs
 	}
+	if requires := manifestRequiresTOML(manifest.Requires); requires != nil {
+		document[manifestRequiresKey] = requires
+	}
 	resources, err := resourcesTOMLTable(manifest.Resources)
 	if err != nil {
 		return nil, err

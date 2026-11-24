@@ -6,6 +6,8 @@ type ExtensionArrayField = "mcp_servers" | "inputs" | "missing_inputs";
 export type ExtensionEntry = Omit<ExtensionPayload, ExtensionArrayField> & {
   [Field in ExtensionArrayField]: NonNullable<ExtensionPayload[Field]>;
 };
+/** Experimental: a dependency the instance no longer resolves (installed, enabled, visible, at `min_version`). */
+export type ExtensionUnmetDependency = NonNullable<ExtensionPayload["unmet_dependencies"]>[number];
 export type ExtensionProvenance = OperationResponse<"getExtensionProvenance", 200>["provenance"];
 export type ExtensionUpdateRequest = OperationRequestBody<"updateExtension">;
 export type ExtensionLogsSnapshot = OperationResponse<"getExtensionLogs", 200>;
@@ -13,6 +15,8 @@ export type ExtensionLogEntry = ExtensionLogsSnapshot["logs"][number];
 export type ExtensionEnablement = OperationResponse<"setExtensionEnablement", 200>;
 export type ExtensionInstallRequest = OperationRequestBody<"previewExtensionInstall">;
 export type ExtensionInstallPreview = OperationResponse<"previewExtensionInstall", 200>;
+/** One node of the experimental dependency graph an install preview resolved. */
+export type ExtensionDependency = NonNullable<ExtensionInstallPreview["dependencies"]>[number];
 export type ExtensionKitInventory = OperationResponse<"getExtensionInventory", 200>;
 export type ExtensionKitItem = ExtensionKitInventory["items"][number];
 /** One permanently removed built-in: a tombstone the daemon lists in its API order. */
