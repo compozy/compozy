@@ -155,7 +155,7 @@ func prepareProfileReadSelectionMode(
 	if handled, err := prepareAgentProfileSelection(cmd, deps, profiles, workspaces); handled || err != nil {
 		return err
 	}
-	if handled, err := prepareRemoteGatewayProfileSelection(cmd, deps, workspaces); handled || err != nil {
+	if handled, err := prepareRemoteProfileSelection(cmd, deps, workspaces); handled || err != nil {
 		return err
 	}
 	if profiles == nil {
@@ -188,13 +188,13 @@ func prepareProfileReadSelectionMode(
 	return nil
 }
 
-func prepareRemoteGatewayProfileSelection(
+func prepareRemoteProfileSelection(
 	cmd *cobra.Command,
 	deps commandDeps,
 	client workspaceLookupClient,
 ) (bool, error) {
 	remote, ok := client.(*daemonClient)
-	if !ok || !remote.target.isRemoteGateway() {
+	if !ok || (!remote.target.isRemoteGateway() && remote.target.computerID == "") {
 		return false, nil
 	}
 	name, err := requestedProfileName(cmd)
