@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/daemon"
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/remoteproto"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -239,7 +240,35 @@ func (b operatorBridge) prompt(workspace, session, key, message string) {
 	req.IdempotencyKey = "k_" + key
 	req.MessageID = "m_" + key
 	path := "/api/workspaces/" + workspace + "/sessions/" + session + "/prompt"
-	b.request(http.MethodPost, path, req).expect(t, http.StatusOK, "finish")
+	reply := b.request(http.MethodPost, path, req)
+	reply.expect(t, http.StatusOK, `"type":"finish"`)
+	for line := range bytes.SplitSeq(reply.body, []byte("\n")) {
+		data, ok := bytes.CutPrefix(line, []byte("data: "))
+		if !ok || bytes.Equal(data, []byte("[DONE]")) {
+			continue
+		}
+		var frame struct {
+			Type      string `json:"type"`
+			ErrorText string `json:"errorText"`
+			Output    struct {
+				Title string `json:"title"`
+				Raw   struct {
+					Status    string          `json:"status"`
+					RawOutput json.RawMessage `json:"rawOutput"`
+				} `json:"raw"`
+			} `json:"output"`
+		}
+		if err := json.Unmarshal(data, &frame); err != nil {
+			t.Fatalf("decode prompt frame for %q: %v", key, err)
+		}
+		if frame.Type == "error" {
+			t.Fatalf("prompt %q failed: %s", key, diagnostics.RedactAndBound(frame.ErrorText, 512))
+		}
+		if frame.Type == "tool-output-available" && frame.Output.Raw.Status == "failed" {
+			t.Fatalf("prompt %q tool %s failed: %s", key, frame.Output.Title,
+				diagnostics.RedactAndBound(string(frame.Output.Raw.RawOutput), 512))
+		}
+	}
 }
 
 func (b operatorBridge) assertNativeCompletion(workspace, runID, claimer string, handoff bool) {
@@ -247,6 +276,20 @@ func (b operatorBridge) assertNativeCompletion(workspace, runID, claimer string,
 	t.Helper()
 	path := "/api/task-runs/" + runID
 	var run contract.TaskRunPayload
+	defer func() {
+		if t.Failed() {
+			t.Logf(
+				"last observed lease for %s: status=%s session=%q claimed_at=%v heartbeat_at=%v lease_until=%v error=%q",
+				runID,
+				run.Status,
+				run.SessionID,
+				run.ClaimedAt,
+				run.HeartbeatAt,
+				run.LeaseUntil,
+				diagnostics.RedactAndBound(run.Error, 512),
+			)
+		}
+	}()
 	testutil.Eventually(t, "the lease owner heartbeats "+runID, 15*time.Second, func() bool {
 		reply := b.request(http.MethodGet, path, nil)
 		reply.expect(t, http.StatusOK, runID)
