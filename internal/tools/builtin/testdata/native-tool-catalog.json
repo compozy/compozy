@@ -858,9 +858,9 @@
   {
     "tool_id": "compozy__computer_setup_cancel",
     "native_name": "computer_setup_cancel",
-    "risk": "mutating",
+    "risk": "destructive",
     "read_only": false,
-    "destructive": false,
+    "destructive": true,
     "open_world": false,
     "input_schema_digest": "26303df27d961a0b775925943367a76cc87aae5ba8f50ad20d72bbf6e2b0f459",
     "output_schema_digest": "a9059df9645eb891e30edf6b3872a41b418efc434af69ef1d06afaa034656150",
