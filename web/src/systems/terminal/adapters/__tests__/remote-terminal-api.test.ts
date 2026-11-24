@@ -7,10 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDeferred } from "@/test/event-recorder";
 
 import {
-  TERMINAL_SERVER_OP,
-  encodeTerminalServerControlFrame,
-  encodeTerminalServerOutputFrame,
-} from "../../lib/terminal-wire";
+  attachedFrame,
+  createFakeSink,
+  createFakeSocketFactory,
+  serverOutputFrame,
+} from "../../lib/__tests__/terminal-stream-harness";
 import { TerminalProtocolClient } from "../../lib/terminal-protocol-client";
 import { terminalStreamFatalCode } from "../../lib/terminal-stream-fatal";
 import { DEV_SERVER_TERMINAL } from "../../mocks/terminal-fixtures";
@@ -21,7 +22,6 @@ import {
   mintTerminalAttachTicket,
   terminalStreamPath,
 } from "../terminal-api";
-import type { TerminalSocket } from "../terminal-socket";
 
 const COMPUTER_ID = "cmp_7f3k2q9x";
 const WORKSPACE_ID = "ws_remote";
@@ -119,11 +119,8 @@ describe("remote terminal adapter & protocol client", () => {
     respond({ ticket: "tkt-1", expires_at: "2026-11-24T12:00:00Z" });
     respond({ ticket: "tkt-2", expires_at: "2026-11-24T12:01:00Z" });
 
-    const openedPaths: string[] = [];
-    const sockets: TerminalSocket[] = [];
-    const firstOpened = createDeferred<string>();
-    const secondOpened = createDeferred<string>();
-    const writeDone = createDeferred<void>();
+    const sockets = createFakeSocketFactory();
+    const sink = createFakeSink();
     const reconnectScheduled = createDeferred<() => void>();
 
     const client = new TerminalProtocolClient({
@@ -132,29 +129,8 @@ describe("remote terminal adapter & protocol client", () => {
       computerId: COMPUTER_ID,
       scope: PROFILE,
       mode: "write",
-      sink: {
-        write: () => {
-          writeDone.resolve();
-          return Promise.resolve();
-        },
-        reset: () => {},
-        applyDimensions: () => {},
-      },
-      socketFactory: path => {
-        openedPaths.push(path);
-        const socket: TerminalSocket = {
-          close: () => {},
-          send: () => {},
-          onopen: null,
-          onmessage: null,
-          onclose: null,
-          onerror: null,
-        };
-        sockets.push(socket);
-        if (openedPaths.length === 1) firstOpened.resolve(path);
-        else if (openedPaths.length === 2) secondOpened.resolve(path);
-        return socket;
-      },
+      sink,
+      socketFactory: sockets.factory,
       schedule: run => {
         reconnectScheduled.resolve(run);
         return () => {};
@@ -163,42 +139,30 @@ describe("remote terminal adapter & protocol client", () => {
     });
 
     client.start();
-    const firstPath = await firstOpened.promise;
-    expect(firstPath).toContain(
+    await sockets.waitForSocket(1);
+    const firstSocket = sockets.last();
+    expect(firstSocket.path).toContain(
       `/c/${COMPUTER_ID}/api/workspaces/${WORKSPACE_ID}/terminals/${TERMINAL_ID}/stream?ticket=tkt-1`
     );
 
-    const firstSocket = sockets[0]!;
-    firstSocket.onopen?.(new Event("open"));
-    firstSocket.onmessage?.(
-      new MessageEvent("message", {
-        data: encodeTerminalServerControlFrame(TERMINAL_SERVER_OP.attached, {
-          seq: "0",
-          mode: "write",
-          cols: 80,
-          rows: 24,
-          truncated: false,
-        }),
-      })
-    );
-    // Deliver 6 bytes at seq=1..6 so committed cursor advances to 6.
-    firstSocket.onmessage?.(
-      new MessageEvent("message", { data: encodeTerminalServerOutputFrame(1n, "devbox") })
-    );
+    firstSocket.open();
+    firstSocket.deliver(attachedFrame({ seq: "0" }));
+    // Deliver 6 bytes at seq=0..6 so committed cursor advances to 6.
+    firstSocket.deliver(serverOutputFrame("0", "devbox"));
 
-    await writeDone.promise;
-    await Promise.resolve();
+    await sink.waitForParse(1);
 
     // Simulate network drop and fire reconnect timer.
-    firstSocket.onclose?.(new CloseEvent("close", { code: 1006 }));
+    firstSocket.drop();
     const runReconnect = await reconnectScheduled.promise;
     runReconnect();
 
-    const secondPath = await secondOpened.promise;
-    expect(secondPath).toContain(
+    await sockets.waitForSocket(2);
+    const secondSocket = sockets.last();
+    expect(secondSocket.path).toContain(
       `/c/${COMPUTER_ID}/api/workspaces/${WORKSPACE_ID}/terminals/${TERMINAL_ID}/stream?ticket=tkt-2`
     );
-    expect(secondPath).toContain("after_seq=6");
+    expect(secondSocket.path).toContain("after_seq=6");
 
     client.stop();
   });

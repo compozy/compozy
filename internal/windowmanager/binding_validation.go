@@ -55,6 +55,18 @@ func (m *Manager) validateCommandBindings(
 		if binding == string(GlobalDesktopWorkspaceID) || binding == "user" {
 			return fmt.Errorf("%w: %q is not a project binding", ErrWindowBindingInvalid, binding)
 		}
+		var computer string
+		if raw, ok := route.Search["computer"]; ok {
+			if err := json.Unmarshal(raw, &computer); err != nil {
+				return fmt.Errorf("%w: computer must be a string", ErrWindowBindingInvalid)
+			}
+		}
+		computer = strings.TrimSpace(computer)
+		if computer != "" && computer != "local" {
+			// Remote-computer routes carry the remote host's workspace ID, which is not
+			// registered in this controller's local workspace table.
+			continue
+		}
 		if err := m.workspaces.ResolveWorkspace(ctx, WorkspaceID(binding)); err != nil {
 			return fmt.Errorf("%w: workspace %q: %v", ErrWindowBindingInvalid, binding, err)
 		}
