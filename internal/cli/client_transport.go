@@ -104,10 +104,6 @@ func (c *daemonClient) doSSE(
 	lastEventID string,
 	handler SSEHandler,
 ) (err error) {
-	query, err = c.withFreshStreamTicket(ctx, query)
-	if err != nil {
-		return err
-	}
 	response, err := c.doRequestWithCredentialsAndClient(
 		ctx,
 		http.MethodGet,
@@ -131,9 +127,6 @@ func (c *daemonClient) doSSE(
 		return drainResponseBody(http.MethodGet, path, response.Body)
 	}
 	if err := decodeSSE(ctx, response.Body, handler); err != nil {
-		if c.target.isRemoteGateway() && ctx.Err() == nil {
-			return newGatewayStreamInterruptedError(c.target, err)
-		}
 		return err
 	}
 	return nil
@@ -297,51 +290,16 @@ func (c *daemonClient) doRequestWithReaderAndClient(
 	if strings.TrimSpace(options.LastEventID) != "" {
 		req.Header.Set("Last-Event-ID", strings.TrimSpace(options.LastEventID))
 	}
-	if c.target.isRemoteGateway() {
-		if strings.TrimSpace(c.target.credential) != "" {
-			req.Header.Set("Authorization", "Bearer "+c.target.credential)
-		}
-	} else {
-		setAgentIdentityHeaders(req, options.Credentials)
-	}
+	setAgentIdentityHeaders(req, options.Credentials)
 
 	response, err := options.Client.Do(req)
 	if err != nil {
-		if c.target.isRemoteGateway() {
-			return nil, newGatewayReachabilityError(c.target, err)
-		}
 		if c.target.kind == clientTargetLocal && isDaemonUnavailableTransportError(err) {
 			return nil, newDaemonUnavailableError(c.target.socketPath, options.Method, options.Path, err)
 		}
 		return nil, fmt.Errorf("cli: %s %s via %s: %w", options.Method, options.Path, c.target.displayName(), err)
 	}
 	return response, nil
-}
-
-func (c *daemonClient) withFreshStreamTicket(ctx context.Context, query url.Values) (url.Values, error) {
-	if c == nil || !c.target.isRemoteGateway() {
-		return query, nil
-	}
-	var ticket contract.GatewayStreamTicketPayload
-	if err := c.doJSON(
-		ctx,
-		http.MethodPost,
-		"/api/gateway/stream-tickets",
-		nil,
-		nil,
-		&ticket,
-	); err != nil {
-		return nil, fmt.Errorf("cli: acquire gateway stream ticket: %w", err)
-	}
-	if strings.TrimSpace(ticket.Ticket) == "" {
-		return nil, errors.New("cli: gateway returned an empty stream ticket")
-	}
-	values := url.Values{}
-	for key, entries := range query {
-		values[key] = append([]string(nil), entries...)
-	}
-	values.Set("ticket", strings.TrimSpace(ticket.Ticket))
-	return values, nil
 }
 
 func newDaemonUnavailableError(socketPath string, method string, path string, err error) error {

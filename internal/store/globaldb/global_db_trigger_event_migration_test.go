@@ -355,11 +355,15 @@ func assertTriggerEventHardCutState(ctx context.Context, t *testing.T, db *sql.D
 	); !testutil.EqualStringSlices(got, []string{"trg-resource-valid"}) {
 		t.Fatalf("automation trigger resource ids = %#v, want supported resource", got)
 	}
+	bindingsTable := "gateway_ingress_bindings"
+	if memoryRetired {
+		bindingsTable = "ingress_bindings"
+	}
 	if got := triggerEventHardCutIDsWhere(
 		ctx,
 		t,
 		db,
-		"gateway_ingress_bindings",
+		bindingsTable,
 		"subject_id",
 		"subject_kind = 'webhook_trigger'",
 	); len(got) != 0 {
@@ -526,14 +530,15 @@ func TestGlobalDBMemoryTriggerRetirementMigration(t *testing.T) {
 				}
 			})
 			for i, query := range keptQueries {
-				if got := memoryRetirementRows(t, upgraded.db, query); got != before[i] {
+				upgradedQuery := strings.Replace(query, " FROM gateway_ingress_bindings ", " FROM ingress_bindings ", 1)
+				if got := memoryRetirementRows(t, upgraded.db, upgradedQuery); got != before[i] {
 					t.Fatalf("kept trigger state changed for %s: got %s want %s", query, got, before[i])
 				}
 			}
 			for _, fixture := range []struct{ table, column string }{
 				{"automation_triggers", "id"}, {"automation_trigger_overlays", "trigger_id"},
 				{"automation_trigger_catalog_entries", "trigger_id"}, {"automation_trigger_catalog_filter_terms", "trigger_id"},
-				{"resource_records", "id"}, {"gateway_ingress_bindings", "subject_id"},
+				{"resource_records", "id"}, {"ingress_bindings", "subject_id"},
 			} {
 				if got := triggerEventHardCutIDsWhere(
 					ctx,

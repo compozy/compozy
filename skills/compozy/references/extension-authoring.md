@@ -46,15 +46,13 @@ release's floor, so declaring lower understates compatibility.
 `compozy extension init <name> --template <template> [--dir <path>]` writes source plus
 `package.json` or `go.mod` and nothing else.
 
-| Template                   | Use for                                                            |
-| -------------------------- | ------------------------------------------------------------------ |
-| `tool-provider-ts`         | Agent-callable tools in TypeScript (default).                      |
-| `tool-provider-go`         | Agent-callable tools in Go.                                        |
-| `view-provider-ts`         | A programmable palette view with React.                            |
-| `loop-watch-source-go`     | The `loop.watch_source` provide surface.                           |
-| `heartbeat-source-go`      | Check-in source polling with bounded keyed items and opaque state. |
-| `connectivity-provider-go` | A Gateway connectivity provider in Go.                             |
-| `connectivity-provider-ts` | A Gateway connectivity provider in TypeScript.                     |
+| Template               | Use for                                                            |
+| ---------------------- | ------------------------------------------------------------------ |
+| `tool-provider-ts`     | Agent-callable tools in TypeScript (default).                      |
+| `tool-provider-go`     | Agent-callable tools in Go.                                        |
+| `view-provider-ts`     | A programmable palette view with React.                            |
+| `loop-watch-source-go` | The `loop.watch_source` provide surface.                           |
+| `heartbeat-source-go`  | Check-in source polling with bounded keyed items and opaque state. |
 
 ## Declaration Shape
 
@@ -165,15 +163,14 @@ available through direct read methods, but must be unarchived before a prompt or
 
 Closed set, validated at build, install, and load.
 
-| Provide                 | Extension must implement                                                 | Public |
-| ----------------------- | ------------------------------------------------------------------------ | ------ |
-| `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
-| `model.source`          | `models/list`                                                            | yes    |
-| `loop.watch_source`     | `watch/poll`                                                             | yes    |
-| `heartbeat.source`      | `heartbeat/source_poll`                                                  | yes    |
-| `view.provider`         | `view/open`, `view/event`, `view/close`                                  | yes    |
-| `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
-| `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
+| Provide             | Extension must implement                                | Public |
+| ------------------- | ------------------------------------------------------- | ------ |
+| `tool.provider`     | `provide_tools`, `tools/call`                           | yes    |
+| `model.source`      | `models/list`                                           | yes    |
+| `loop.watch_source` | `watch/poll`                                            | yes    |
+| `heartbeat.source`  | `heartbeat/source_poll`                                 | yes    |
+| `view.provider`     | `view/open`, `view/event`, `view/close`                 | yes    |
+| `forge.provider`    | `forge/capabilities`, `forge/status`, `forge/pr_create` | yes    |
 
 Missing a required service method fails the build.
 
@@ -181,16 +178,6 @@ Every `watch/poll` response requires a stable `event_key`. The runtime trims it 
 Unicode to NFC, one canonical byte form. Invalid UTF-8 and values over 256 bytes are rejected before
 a Loop starts. Redelivery of the same source key and event key returns the existing Loop run as a
 structured suppression instead of starting duplicate work.
-
-A `connectivity.provider` is global-only and requires a confirmed gateway permission digest.
-Its `[gateway].permissions` must include `gateway.private`, `gateway.public`, or both; the daemon
-refuses a tier outside that declared set before starting provider code. Register all three methods with `ConnectivityProvider` in Go or
-`registerConnectivityProvider` in TypeScript. `connectivity/establish` receives the tier, a loopback
-forward target, an opaque challenge path, and a deadline; return HTTPS endpoints only after the
-route forwards the challenge unchanged. `connectivity/status` reports the same tier's current
-health. `connectivity/teardown` must end forwarding within its deadline before returning
-`stopped: true`. CompozyOS verifies the challenge itself and advertises nothing on failure. A changed
-live registry digest requires fresh consent, and only one provider may be selected per tier.
 
 A `forge.provider` reports which Git remotes it serves, its pull-request vocabulary, availability,
 default branch, compare URL template, and PR template paths. Register `forge/capabilities`,
@@ -207,10 +194,6 @@ observable; `reviews_unavailable` reports a read that failed this time. Create a
 never return credential values. A `rate_limited` capabilities or status result may carry `retry_after`;
 the daemon then calls that provider for no forge read until that time (one minute when absent), and
 reuses an available capabilities answer per remote set for ten minutes.
-
-The bundled `tailscale` provider requires the declared `TS_AUTHKEY` binding. Set it
-through hidden input with `compozy extension secrets set tailscale --env TS_AUTHKEY`;
-never place the value in argv, a manifest, or a prompt.
 
 ## Contributed Commands
 
@@ -262,8 +245,7 @@ What `build` writes, for reading rather than editing: `[extension]` (`name`, `ve
 `[permissions] requires`, `[subprocess]` (`command`, `args`, `env`, `secret_env`,
 `health_check_interval`, `shutdown_timeout`), `[resources.tools.<handler>]` (id, handler, backend
 kind `extension_host`, canonical `input_schema`/`output_schema`, risk metadata, optional `command`),
-`[resources.cmd_palette]`, `[[resources.hooks]]`, `[[resources.command_groups]]`, `[[profiles]]`, and
-`[gateway]`.
+`[resources.cmd_palette]`, `[[resources.hooks]]`, `[[resources.command_groups]]`, and `[[profiles]]`.
 
 Resource-only extensions hand-write only `resources.skills|agents|loops|automation|layouts`. An
 automation resource using the removed `memory.consolidated` event fails validation in v0.6.1.
@@ -290,8 +272,7 @@ updates never mutate an existing profile; removal leaves the profile and credent
 Install enables kit resources by default. `compozy --profile <profile> extension enable|disable
 <name>` changes only that profile. Required environment variables are names in the manifest; bind
 them to Vault references through the extension secrets surface, which never returns values or
-references. When install or update returns a Gateway confirmation digest, retry only with that exact
-digest.
+references.
 
 ## Structured Workflows
 

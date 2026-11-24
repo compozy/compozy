@@ -318,8 +318,7 @@ const extensionInstallInputSchema = `{
 		"replace":{"type":"boolean","default":false,
 			"description":"Replace the installed local extension; the previous version stays installed ` +
 	`only when the replacement fails before the reinstall transaction completes. A failure after it ` +
-	`returns, such as enable failing, does not restore it."},
-		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+	`returns, such as enable failing, does not restore it."}
 	},
 	"additionalProperties":false
 }`
@@ -337,8 +336,7 @@ const extensionUpdateInputSchema = `{
 		"check_only":{"type":"boolean"},
 		"version":{"type":"string"},
 		"inputs":` + extensionValuesInputSchema + `,
-		"allow_unverified":{"type":"boolean"},
-		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"allow_unverified":{"type":"boolean"}
 	},
 	"additionalProperties":false
 }`
@@ -391,8 +389,7 @@ const extensionDevInputSchema = `{
 	"required":["origin_path","generation_hash"],
 	"properties":{
 		"origin_path":{"type":"string","minLength":1},
-		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"},
-		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`
@@ -404,8 +401,7 @@ const extensionReloadInputSchema = `{
 		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
 			"description":"Definition owner; must equal extension:<name>."},
 		"name":{"type":"string","minLength":1},
-		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"},
-		"confirm_gateway_digest":{"type":"string","pattern":"^[a-f0-9]{64}$"}
+		"generation_hash":{"type":"string","pattern":"^[a-f0-9]{64}$"}
 	},
 	"additionalProperties":false
 }`

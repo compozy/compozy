@@ -27,7 +27,6 @@ type EventSink interface {
 
 type Manager struct {
 	store       Store
-	publicOn    func(context.Context) (bool, error)
 	access      workspaceaccess.Policy
 	events      EventSink
 	now         func() time.Time
@@ -37,24 +36,19 @@ type Manager struct {
 
 func NewManager(
 	store Store,
-	publicOn func(context.Context) (bool, error),
 	access workspaceaccess.Policy,
 	events EventSink,
 	now func() time.Time,
 	remoteActor func(context.Context) (kind, id string, ok bool),
 ) (*Manager, error) {
 	if store == nil {
-		return nil, errors.New("gateway: ingress store is required")
+		return nil, errors.New("ingress: store is required")
 	}
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
-	if publicOn == nil {
-		return nil, errors.New("gateway: ingress policy is required")
-	}
 	return &Manager{
 		store:       store,
-		publicOn:    publicOn,
 		access:      access,
 		events:      events,
 		now:         now,
@@ -64,13 +58,13 @@ func NewManager(
 
 func (m *Manager) Bind(ctx context.Context, req BindRequest) (Binding, error) {
 	if ctx == nil {
-		return Binding{}, errors.New("gateway: bind ingress context is required")
+		return Binding{}, errors.New("ingress: bind ingress context is required")
 	}
 	if err := req.Subject.Validate(); err != nil {
 		return Binding{}, err
 	}
 	if !req.Confirmed {
-		return Binding{}, errors.New("gateway: ingress endpoint confirmation is required")
+		return Binding{}, errors.New("ingress: endpoint confirmation is required")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -84,7 +78,7 @@ func (m *Manager) Bind(ctx context.Context, req BindRequest) (Binding, error) {
 	if err := m.authorize(ctx, req.Caller, subject); err != nil {
 		return Binding{}, err
 	}
-	endpoint, err := m.activeEndpoint(ctx)
+	endpoint, err := m.store.GetIngressEndpoint(ctx)
 	if err != nil || !endpoint.Reachable || strings.TrimSpace(endpoint.URL) == "" {
 		if err != nil && !errors.Is(err, ErrEndpointUnverified) {
 			return Binding{}, err
@@ -119,7 +113,7 @@ func (m *Manager) Bind(ctx context.Context, req BindRequest) (Binding, error) {
 				previousErr == nil,
 			)
 			return Binding{}, errors.Join(
-				fmt.Errorf("gateway: record ingress bound event: %w", eventErr),
+				fmt.Errorf("ingress: record ingress bound event: %w", eventErr),
 				compensationErr,
 			)
 		}
@@ -132,7 +126,7 @@ func (m *Manager) Unbind(
 	req UnbindRequest,
 ) (UnbindResult, error) {
 	if ctx == nil {
-		return UnbindResult{}, errors.New("gateway: unbind ingress context is required")
+		return UnbindResult{}, errors.New("ingress: unbind ingress context is required")
 	}
 	if err := req.Subject.Validate(); err != nil {
 		return UnbindResult{}, err
@@ -168,7 +162,7 @@ func (m *Manager) Unbind(
 				existing.ConfirmedAt,
 			)
 			return UnbindResult{}, errors.Join(
-				fmt.Errorf("gateway: record ingress unbound event: %w", eventErr),
+				fmt.Errorf("ingress: record ingress unbound event: %w", eventErr),
 				compensationErr,
 			)
 		}
@@ -208,7 +202,7 @@ func (m *Manager) Project(
 	} else if !errors.Is(bindingErr, ErrSubjectNotFound) {
 		return Projection{}, bindingErr
 	}
-	endpoint, err := m.activeEndpoint(ctx)
+	endpoint, err := m.store.GetIngressEndpoint(ctx)
 	if err != nil {
 		if errors.Is(err, ErrEndpointUnverified) {
 			return projection, nil
@@ -295,7 +289,7 @@ func (m *Manager) authorize(
 		target = workspaceaccess.TargetRef{
 			Kind:      workspaceaccess.TargetAggregate,
 			ProfileID: subject.ProfileID,
-			Surface:   "gateway-ingress",
+			Surface:   "webhook-ingress",
 		}
 	}
 	decision, err := m.access.Authorize(ctx, workspaceaccess.Request{

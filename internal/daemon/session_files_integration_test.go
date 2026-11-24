@@ -633,7 +633,7 @@ func TestDaemonSearchSessionFilesCreationProfileCWDIT010(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create(cwd pkg) error = %v", err)
 	}
-	client := gatewayDaemonUDSClient(h.daemon.homePaths.DaemonSocket)
+	client := daemonIntegrationUDSClient(h.daemon.homePaths.DaemonSocket)
 
 	t.Run("Should report the creation-profile directory as the working directory", func(t *testing.T) {
 		workingDir, err := h.manager.WorkingDir(t.Context(), created.ID)
@@ -643,7 +643,7 @@ func TestDaemonSearchSessionFilesCreationProfileCWDIT010(t *testing.T) {
 	})
 
 	t.Run("Should list only the creation-profile directory over UDS", func(t *testing.T) {
-		response := gatewayDaemonRequest(t, client, http.MethodGet,
+		response := daemonIntegrationRequest(t, client, http.MethodGet,
 			"http://unix/api/workspaces/"+url.PathEscape(h.workspace)+"/sessions/"+
 				url.PathEscape(created.ID)+"/files?limit=50", "", nil)
 		defer response.Body.Close()

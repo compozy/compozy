@@ -103,7 +103,7 @@ func TestOperationsReturnDefensiveCopies(t *testing.T) {
 		t.Parallel()
 
 		const (
-			path      = "/api/gateway/status"
+			path      = "/api/account"
 			method    = "GET"
 			transport = TransportHTTP
 		)

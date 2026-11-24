@@ -514,7 +514,6 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	configureExtensionKitE2ESource(t, sourceDir)
 	var firstBuild extensionpkg.BuildResult
 	runExtensionAuthoringCLI(t, ctx, publisher, &firstBuild, "extension", "build", sourceDir, "-o", "json")
-	firstGatewayDigest := addExtensionKitE2EGatewayRequirement(t, firstBuild.GenerationDir, "gateway.private")
 	var firstPublish extensionpkg.PublishResult
 	runExtensionAuthoringCLI(
 		t,
@@ -545,7 +544,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		consumer,
 		&installed,
 		"extension", "install", "github:acme/hello", "--allow-unverified", "--yes",
-		"--confirm-gateway-requirement", firstGatewayDigest, "-o", "json",
+		"-o", "json",
 	)
 	if installed.Name != "hello" || installed.Provenance == nil || !installed.Provenance.DigestMatched ||
 		installed.Provenance.ChecksumVerified || installed.Provenance.InstalledFrom != extensionpkg.ExtensionInstalledFromGitHub {
@@ -563,7 +562,6 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	rewriteExtensionAuthoringGeneration(t, sourceDir, "published-v1:", "published-v2:", "published-v2")
 	var secondBuild extensionpkg.BuildResult
 	runExtensionAuthoringCLI(t, ctx, publisher, &secondBuild, "extension", "build", sourceDir, "-o", "json")
-	secondGatewayDigest := addExtensionKitE2EGatewayRequirement(t, secondBuild.GenerationDir, "gateway.public")
 	var secondPublish extensionpkg.PublishResult
 	runExtensionAuthoringCLI(
 		t,
@@ -577,25 +575,6 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		t.Fatalf("second publish digest = %q, want changed generation digest", secondPublish.DigestSHA256)
 	}
 
-	stdout, stderr, updateErr := consumer.CLI.RunInDir(
-		ctx,
-		consumer.WorkspaceRoot,
-		"extension", "update", "hello", "--allow-unverified", "--yes", "-o", "json",
-	)
-	if updateErr == nil || !strings.Contains(stderr, secondGatewayDigest) {
-		t.Fatalf(
-			"unconfirmed extension update error = %v; stdout=%s stderr=%s, want refusal with candidate digest %q",
-			updateErr,
-			stdout,
-			stderr,
-			secondGatewayDigest,
-		)
-	}
-	unchanged, err := consumer.GetExtension(ctx, "hello")
-	if err != nil || unchanged.Version != "0.1.0" {
-		t.Fatalf("extension after refused update = %#v, error = %v, want original manifest version", unchanged, err)
-	}
-
 	var updates []compozycontract.ManagedExtensionUpdatePayload
 	runExtensionAuthoringCLI(
 		t,
@@ -603,7 +582,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 		consumer,
 		&updates,
 		"extension", "update", "hello", "--allow-unverified", "--yes",
-		"--confirm-gateway-requirement", secondGatewayDigest, "-o", "json",
+		"-o", "json",
 	)
 	if len(updates) != 1 || updates[0].Status != extensionpkg.MarketplaceUpdateStatusUpdated ||
 		updates[0].LatestVersion != "v0.2.0" {
@@ -620,7 +599,7 @@ func testDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	assertDistributionExtensionInventory(t, ctx, consumer, "hello", false, "hourly", false)
 	assertDistributionAutomationRemoved(t, ctx, consumer, "hello")
 
-	assertDistributionNativeKitJourney(t, ctx, binaryPath, configSeed, tlsEnv, secondGatewayDigest)
+	assertDistributionNativeKitJourney(t, ctx, binaryPath, configSeed, tlsEnv)
 
 	var removed compozycontract.ManagedExtensionRemovePayload
 	runExtensionAuthoringCLI(
@@ -815,7 +794,6 @@ func assertDistributionNativeKitJourney(
 	binaryPath string,
 	configSeed e2etest.ConfigSeedOptions,
 	env map[string]string,
-	gatewayDigest string,
 ) {
 	t.Helper()
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
@@ -831,7 +809,6 @@ func assertDistributionNativeKitJourney(
 		toolspkg.ToolIDExtensionsInstall,
 		map[string]any{
 			"source": "github", "ref": "acme/hello", "allow_unverified": true,
-			"confirm_gateway_digest": gatewayDigest,
 		},
 	))
 	setExtensionKitE2ESecret(t, ctx, harness, "hello", harness.WorkspaceID)

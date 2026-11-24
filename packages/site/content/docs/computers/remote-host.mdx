@@ -51,12 +51,19 @@ For `EventSource` or WebSocket connections, call `POST /remote/v1/stream-tickets
 
 ## Webhook ingress
 
-An active hosted route supplies the public base URL for incoming webhooks. If you run your own HTTPS endpoint, set `remote.ingress.public_url` and forward webhook requests to the tunnel listener. The advertised URL keeps the trigger's existing path.
+An active hosted route supplies the public base URL for incoming webhooks. On a linked computer with remote access enabled, you can also run your own HTTPS endpoint. Set `remote.ingress.public_url` and forward webhook requests to the loopback tunnel listener. The advertised URL keeps the trigger's existing path.
 
 - Global trigger path is `/api/webhooks/global/{slug}--{webhook_id}`.
 - Workspace trigger path is `/api/webhooks/workspaces/{workspace_id}/{slug}--{webhook_id}`.
 
 Read the trigger to get its full URL. Confirm it with `POST /api/ingress/bindings` over local HTTP or UDS, sending `subject_kind: "webhook_trigger"`, the trigger ID as `subject_id`, and `confirmed: true`. Send deliveries with the trigger's existing signature, timestamp, and delivery ID headers. If the public base changes, the trigger shows **Needs confirmation**. Confirm the new URL before retrying deliveries.
+
+## Upgrade notices
+
+After upgrading from Remote Gateway, use `GET /api/migration-notices` on the local HTTP or UDS
+listener to read outstanding notices. The `gateway_removed` payload includes counts for removed
+devices, providers, and connection profiles, and for webhook bindings that need confirmation.
+`POST /api/migration-notices/gateway_removed/dismiss` records dismissal on this installation.
 
 ## Device approvals and revocation
 

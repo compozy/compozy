@@ -2,7 +2,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { extensionInstallationScope } from "../lib/extension-installation-scope";
-import { extensionGatewayConfirmation } from "../lib/extension-gateway-confirmation";
 import { extensionTrustFacts } from "../lib/extension-trust-facts";
 import {
   useToggleExtension,
@@ -15,20 +14,9 @@ import { useExtensionDetail, useExtensionKitInventory } from "./use-extensions";
 
 export type ExtensionDetailDialog = "provenance" | "remove" | "update" | null;
 
-/**
- * A refused lifecycle mutation is resumed, not rebuilt: the pending record carries the exact
- * variables the daemon refused so the retry ratifies the digest without silently changing what was
- * asked for (an unverified update keeps its `allowUnverified` and resolved version).
- */
-export type ExtensionGatewayConfirm = {
-  digest: string;
-  variables: UpdateExtensionVariables;
-};
-
 type ExtensionDetailDialogState =
   | { type: "closed" }
-  | { type: "dialog"; dialog: Exclude<ExtensionDetailDialog, null> }
-  | { type: "gateway-confirm"; confirmation: ExtensionGatewayConfirm };
+  | { type: "dialog"; dialog: Exclude<ExtensionDetailDialog, null> };
 
 const CLOSED_DIALOG_STATE: ExtensionDetailDialogState = { type: "closed" };
 
@@ -49,7 +37,6 @@ export function useExtensionDetailState(
   const navigate = useNavigate();
   const [dialogState, setDialogState] = useState<ExtensionDetailDialogState>(CLOSED_DIALOG_STATE);
   const activeDialog = dialogState.type === "dialog" ? dialogState.dialog : null;
-  const gatewayConfirm = dialogState.type === "gateway-confirm" ? dialogState.confirmation : null;
   const extension = detail.data?.extension ?? null;
   const instanceWorkspaceId = extension?.workspace_id?.trim() || null;
   const inventory = useExtensionKitInventory(
@@ -84,13 +71,8 @@ export function useExtensionDetailState(
     try {
       await update.mutateAsync(variables);
       setDialogState(CLOSED_DIALOG_STATE);
-    } catch (error) {
-      const confirmation = extensionGatewayConfirmation(error);
-      if (!confirmation) return;
-      setDialogState({
-        type: "gateway-confirm",
-        confirmation: { digest: confirmation.digest, variables },
-      });
+    } catch {
+      // The mutation reports the error and the dialog stays open for retry.
     }
   };
 
@@ -99,14 +81,9 @@ export function useExtensionDetailState(
     detail,
     dismissDialog: () =>
       setDialogState(current => (current.type === "dialog" ? CLOSED_DIALOG_STATE : current)),
-    dismissGatewayConfirm: () =>
-      setDialogState(current =>
-        current.type === "gateway-confirm" ? CLOSED_DIALOG_STATE : current
-      ),
     inventory,
     logs,
     navigate,
-    gatewayConfirm,
     requestProvenance: () => setDialogState({ type: "dialog", dialog: "provenance" }),
     requestRemoval: () => setDialogState({ type: "dialog", dialog: "remove" }),
     requestToggle: async (enabled: boolean) => {
@@ -130,14 +107,6 @@ export function useExtensionDetailState(
         return;
       }
       setDialogState({ type: "dialog", dialog: "update" });
-    },
-    /** Resumes the refused update with its original variables plus the ratified digest. */
-    submitGatewayConfirm: async () => {
-      if (!gatewayConfirm) return;
-      await runUpdate({
-        ...gatewayConfirm.variables,
-        confirmGatewayDigest: gatewayConfirm.digest,
-      });
     },
     submitUpdate: async () => {
       const variables = updateVariables(true);

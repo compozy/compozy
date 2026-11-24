@@ -68,10 +68,6 @@ func (c *daemonClient) doSessionPromptAs(
 	requestBody any,
 	credentials agentidentity.Credentials,
 ) (record SessionPromptRecord, err error) {
-	query, err = c.withFreshStreamTicket(ctx, query)
-	if err != nil {
-		return SessionPromptRecord{}, err
-	}
 	options := clientReaderRequest{
 		Method: method, Path: path, Query: query, Credentials: credentials, Client: c.streamHTTPClient(),
 	}
@@ -105,7 +101,7 @@ func (c *daemonClient) doSessionPromptAs(
 		})
 		record := SessionPromptRecord{Events: events}
 		if decodeErr != nil || state.failure != nil {
-			return record, sessionPromptStreamError(ctx, c.target, state, decodeErr)
+			return record, sessionPromptStreamError(state, decodeErr)
 		}
 		if !state.terminal {
 			return record, errSessionPromptStreamIncomplete
@@ -145,15 +141,11 @@ func (c *daemonClient) StreamPromptSessionAs(
 	if err != nil {
 		return err
 	}
-	query, err := c.withFreshStreamTicket(ctx, nil)
-	if err != nil {
-		return err
-	}
 	response, err := c.doRequestWithCredentialsAndClient(
 		ctx,
 		http.MethodPost,
 		path,
-		query,
+		nil,
 		request,
 		"",
 		credentials,
@@ -178,7 +170,7 @@ func (c *daemonClient) StreamPromptSessionAs(
 			return handler(event)
 		})
 		if decodeErr != nil || state.failure != nil {
-			return sessionPromptStreamError(ctx, c.target, state, decodeErr)
+			return sessionPromptStreamError(state, decodeErr)
 		}
 		if !state.terminal {
 			return errSessionPromptStreamIncomplete
@@ -199,17 +191,12 @@ func (c *daemonClient) StreamPromptSessionAs(
 }
 
 func sessionPromptStreamError(
-	ctx context.Context,
-	target ClientTarget,
 	state sessionPromptStreamState,
 	decodeErr error,
 ) error {
 	streamErr := errors.Join(decodeErr, state.failure)
 	if !state.terminal {
 		streamErr = errors.Join(errSessionPromptStreamIncomplete, streamErr)
-	}
-	if target.isRemoteGateway() && ctx.Err() == nil {
-		return newGatewayStreamInterruptedError(target, streamErr)
 	}
 	return streamErr
 }

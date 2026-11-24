@@ -14,8 +14,6 @@ const (
 	// CapabilityProvideWatchSource is the provide surface for loop watch-source polling.
 	CapabilityProvideWatchSource     = "loop.watch_source"
 	CapabilityProvideHeartbeatSource = "heartbeat.source"
-	// CapabilityProvideConnectivityProvider is the public provide surface for daemon reachability providers.
-	CapabilityProvideConnectivityProvider = "connectivity.provider"
 	// CapabilityProvideForgeProvider is the provide surface for remote code-forge operations.
 	CapabilityProvideForgeProvider = "forge.provider"
 	// CapabilityProvideViewProvider is the provide surface for programmable command-palette views.
@@ -26,22 +24,19 @@ const (
 type ExtensionServiceMethod string
 
 const (
-	ExtensionServiceMethodProvideTools          ExtensionServiceMethod = "provide_tools"
-	ExtensionServiceMethodToolsCall             ExtensionServiceMethod = "tools/call"
-	ExtensionServiceMethodModelsList            ExtensionServiceMethod = "models/list"
-	ExtensionServiceMethodWatchPoll             ExtensionServiceMethod = "watch/poll"
-	ExtensionServiceMethodHeartbeatSourcePoll   ExtensionServiceMethod = "heartbeat/source_poll"
-	ExtensionServiceMethodConnectivityEstablish ExtensionServiceMethod = "connectivity/establish"
-	ExtensionServiceMethodConnectivityStatus    ExtensionServiceMethod = "connectivity/status"
-	ExtensionServiceMethodConnectivityTeardown  ExtensionServiceMethod = "connectivity/teardown"
-	ExtensionServiceMethodForgeCapabilities     ExtensionServiceMethod = "forge/capabilities"
-	ExtensionServiceMethodForgeStatus           ExtensionServiceMethod = "forge/status"
-	ExtensionServiceMethodForgePRSearch         ExtensionServiceMethod = "forge/pr_search"
-	ExtensionServiceMethodForgePRRead           ExtensionServiceMethod = "forge/pr_read"
-	ExtensionServiceMethodForgePRCreate         ExtensionServiceMethod = "forge/pr_create"
-	ExtensionServiceMethodViewOpen              ExtensionServiceMethod = "view/open"
-	ExtensionServiceMethodViewEvent             ExtensionServiceMethod = "view/event"
-	ExtensionServiceMethodViewClose             ExtensionServiceMethod = "view/close"
+	ExtensionServiceMethodProvideTools        ExtensionServiceMethod = "provide_tools"
+	ExtensionServiceMethodToolsCall           ExtensionServiceMethod = "tools/call"
+	ExtensionServiceMethodModelsList          ExtensionServiceMethod = "models/list"
+	ExtensionServiceMethodWatchPoll           ExtensionServiceMethod = "watch/poll"
+	ExtensionServiceMethodHeartbeatSourcePoll ExtensionServiceMethod = "heartbeat/source_poll"
+	ExtensionServiceMethodForgeCapabilities   ExtensionServiceMethod = "forge/capabilities"
+	ExtensionServiceMethodForgeStatus         ExtensionServiceMethod = "forge/status"
+	ExtensionServiceMethodForgePRSearch       ExtensionServiceMethod = "forge/pr_search"
+	ExtensionServiceMethodForgePRRead         ExtensionServiceMethod = "forge/pr_read"
+	ExtensionServiceMethodForgePRCreate       ExtensionServiceMethod = "forge/pr_create"
+	ExtensionServiceMethodViewOpen            ExtensionServiceMethod = "view/open"
+	ExtensionServiceMethodViewEvent           ExtensionServiceMethod = "view/event"
+	ExtensionServiceMethodViewClose           ExtensionServiceMethod = "view/close"
 )
 
 var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
@@ -55,11 +50,6 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 	CapabilityProvideHeartbeatSource: {ExtensionServiceMethodHeartbeatSourcePoll},
 	CapabilityProvideWatchSource: {
 		ExtensionServiceMethodWatchPoll,
-	},
-	CapabilityProvideConnectivityProvider: {
-		ExtensionServiceMethodConnectivityEstablish,
-		ExtensionServiceMethodConnectivityStatus,
-		ExtensionServiceMethodConnectivityTeardown,
 	},
 	CapabilityProvideForgeProvider: {
 		ExtensionServiceMethodForgeCapabilities,

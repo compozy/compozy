@@ -101,3 +101,18 @@ If the browser receives `device_pending_approval`, poll `GET /remote/v1/browser/
 Browser requests use the session cookie and fresh proofs. For a stream, mint a single-use ticket for its path at `POST /remote/v1/stream-tickets` and send it as `remote_ticket`. Keep the terminal attach `ticket` separate. Use `GET /remote/v1/browser/peers` to discover other hosted origins. Each origin requires its own browser sign-in. Revoking the browser device ends its sessions and streams across all its origins.
 
 The hosted route supplies the advertised HTTPS base for webhook triggers. For a self-managed HTTPS endpoint, set `remote.ingress.public_url` and forward to the tunnel listener. Keep the displayed trigger path and sign deliveries with its configured secret. Use local HTTP or UDS `POST /api/ingress/bindings` with `subject_kind: "webhook_trigger"`, `subject_id: "<trigger-id>"`, and `confirmed: true` after the operator confirms the current URL. Confirm again when the base changes. Remove a binding with `DELETE /api/ingress/bindings/webhook_trigger/{subject_id}`.
+
+## Upgrading from Remote Gateway
+
+In 0.8.0 the daemon migrates app tokens, allowed browser origins, and webhook bindings. First boot
+removes the retired Gateway config and connection profile credentials. Set up each remote computer
+again. The removed `compozy gateway`, `compozy connect`, `compozy pair`, and `compozy device`
+commands exit 2 with a pointer to `compozy computer` until 0.9.0.
+
+On the local operator API or UDS, `GET /api/migration-notices` lists current upgrade notices.
+`POST /api/migration-notices/{key}/dismiss` dismisses a notice after the operator has read it.
+Review migrated webhook triggers whose public address changed before reusing their delivery URLs.
+[Upgrade guide](https://compozy.com/docs/migration#remote-computers-0-8-0)
+
+Inspect outstanding notices with `GET /api/migration-notices` over local HTTP or UDS. Use
+`POST /api/migration-notices/gateway_removed/dismiss` when the operator dismisses the notice.

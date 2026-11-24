@@ -75,13 +75,6 @@ type commandDeps struct {
 	ensureHome                  func(compozyconfig.HomePaths) error
 	runInstallWizard            installWizardRunner
 	newClient                   func(target ClientTarget) (DaemonClient, error)
-	writeGatewayCredential      func(string, string, string) (string, error)
-	readGatewayCredential       func(string, string) (string, error)
-	removeGatewayCredential     func(string, string) error
-	setActiveGatewayProfile     func(compozyconfig.HomePaths, string) error
-	applyGatewayProfileState    func(compozyconfig.HomePaths, string, *compozyconfig.GatewayConnectionConfig, string) error
-	newSSHExecutor              func() sshExecutor
-	reportClientTarget          func(ClientTarget) error
 	newDaemon                   func() (daemonRunner, error)
 	runRelaunchHelper           func(context.Context, *compozydaemon.RelaunchHelperConfig) error
 	readDaemonInfo              func(path string) (compozydaemon.Info, error)
@@ -146,38 +139,14 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	if deps.commandContext == nil {
 		deps.commandContext = cmd.Context
 	}
-	configureRootClientTargetReporting(cmd, &deps)
 	configureRootFlags(cmd)
 	configureRootComputerFlag(cmd, &deps)
 	registerRootCommands(cmd, deps)
+	registerRemovedGatewayCommands(cmd)
 	configureAccountGate(cmd, deps)
 	configureProfileIndependentCompletionCommands(cmd)
 
 	return cmd
-}
-
-func configureRootClientTargetReporting(cmd *cobra.Command, deps *commandDeps) {
-	if deps.reportClientTarget != nil {
-		return
-	}
-	var pendingTarget *ClientTarget
-	deps.reportClientTarget = func(target ClientTarget) error {
-		if !target.isRemoteGateway() || pendingTarget != nil {
-			return nil
-		}
-		pendingTarget = new(target)
-		return nil
-	}
-	cmd.PersistentPostRunE = func(command *cobra.Command, _ []string) error {
-		if pendingTarget == nil {
-			return nil
-		}
-		if _, err := fmt.Fprintf(command.ErrOrStderr(), "target: %s\n", pendingTarget.displayName()); err != nil {
-			return fmt.Errorf("cli: report remote target: %w", err)
-		}
-		pendingTarget = nil
-		return nil
-	}
 }
 
 func configureRootFlags(cmd *cobra.Command) {
@@ -251,6 +220,9 @@ func writeExecutionError(stderr io.Writer, args []string, err error) int {
 }
 
 func renderHumanExecutionError(err error) (string, bool) {
+	if removed, ok := errors.AsType[removedGatewayError](err); ok {
+		return removed.Error(), true
+	}
 	if failure, ok := errors.AsType[*daemonAPIError](err); ok {
 		switch failure.payload.Code {
 		case "sign_in_required":
@@ -350,10 +322,9 @@ func marshalExtensionOperationExecutionError(
 	case OutputToon:
 		return []byte(renderToonObject(
 			"error",
-			[]string{cliCodeKey, "current_digest", cliAgentsKey, "env_name", "declared_env", clientMessageKey},
+			[]string{cliCodeKey, cliAgentsKey, "env_name", "declared_env", clientMessageKey},
 			[]string{
 				payload.Code,
-				payload.CurrentDigest,
 				strings.Join(payload.Agents, "|"),
 				payload.EnvName,
 				strings.Join(payload.DeclaredEnv, "|"),

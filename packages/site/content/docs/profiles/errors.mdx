@@ -36,11 +36,9 @@ line. Human output combines `message` and `action` without changing their meanin
 | `profile_selection_conflict`          | Selection flags request incompatible views.               |
 | `profile_config_key_denied`           | The config key cannot be overridden by a profile.         |
 | `profile_secret_env_forbidden`        | A profile secret cannot come from the shared environment. |
-| `profile_remote_management_forbidden` | A remote listener rejected a profile-state write.         |
 
 Use the returned `action` as the recovery instruction. For `profile_plan_stale`, fetch a new plan and
-review it before retrying. For `profile_remote_management_forbidden`, repeat the mutation on a local
-surface rather than changing the remote Gateway tier.
+review it before retrying. Remote operations require the target computer’s applicable scope.
 
 ## Related
 

@@ -167,10 +167,8 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 }
 
 func httpRemoteAccessOptions(deps *RuntimeDeps) []httpapi.Option {
-	options := []httpapi.Option{
-		httpapi.WithGatewayService(deps.Gateway),
-		httpapi.WithDeviceAuth(deps.Gateway),
-	}
+	options := []httpapi.Option{}
+	options = append(options, httpapi.WithMigrationNoticeStore(deps.MigrationNotices))
 	if deps.Ingress != nil {
 		options = append(options, httpapi.WithIngressService(deps.Ingress))
 	}
@@ -184,9 +182,8 @@ func httpRemoteAccessOptions(deps *RuntimeDeps) []httpapi.Option {
 }
 
 func udsRemoteAccessOptions(deps *RuntimeDeps) []udsapi.Option {
-	options := []udsapi.Option{
-		udsapi.WithGatewayService(deps.Gateway),
-	}
+	options := []udsapi.Option{}
+	options = append(options, udsapi.WithMigrationNoticeStore(deps.MigrationNotices))
 	if deps.Ingress != nil {
 		options = append(options, udsapi.WithIngressService(deps.Ingress))
 	}

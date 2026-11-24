@@ -16,11 +16,7 @@ func configureAccountGate(root *cobra.Command, deps commandDeps) {
 		return
 	}
 	for _, cmd := range root.Commands() {
-		switch cmd.Name() {
-		case "connect", "gateway", "pair", "device":
-			root.RemoveCommand(cmd)
-			root.AddCommand(removedGatewayCommand(cmd.Name()))
-		default:
+		if !isRemovedGatewayCommand(cmd.Name()) {
 			installAccountGate(cmd, deps)
 		}
 	}
@@ -47,16 +43,6 @@ func installAccountGate(cmd *cobra.Command, deps commandDeps) {
 		}
 		return nil
 	}
-}
-
-func removedGatewayCommand(name string) *cobra.Command {
-	return &cobra.Command{Use: name, Hidden: true, DisableFlagParsing: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return newCLIUsageError(fmt.Sprintf(
-				"compozy %s was removed in 0.8.0; use compozy computer — see https://compozy.com/docs/computers",
-				name,
-			))
-		}}
 }
 
 func checkAccountGate(cmd *cobra.Command, deps commandDeps) error {

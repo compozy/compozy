@@ -46,7 +46,7 @@ func (s *Service) LoadAppTokenOrigins(ctx context.Context) error {
 	defer s.mutations.Unlock()
 	origins, err := s.store.ListActiveAppTokenOrigins(ctx)
 	if err != nil {
-		return fmt.Errorf("gateway: load app token origins: %w", err)
+		return fmt.Errorf("app token: load app token origins: %w", err)
 	}
 	s.setOrigins(origins)
 	return nil
@@ -86,7 +86,7 @@ func (s *Service) CreateAppToken(ctx context.Context, name string, origins []str
 	}
 	random := make([]byte, 16)
 	if _, err := io.ReadFull(rand.Reader, random); err != nil {
-		return Issued{}, fmt.Errorf("gateway: generate app token ID: %w", err)
+		return Issued{}, fmt.Errorf("app token: generate app token ID: %w", err)
 	}
 	token := Token{
 		ID: "apt_" + base64.RawURLEncoding.EncodeToString(random), Name: name,
@@ -96,7 +96,7 @@ func (s *Service) CreateAppToken(ctx context.Context, name string, origins []str
 		Token: token, TokenHash: remotehost.HashCredential(secret),
 	})
 	if err != nil {
-		return Issued{}, fmt.Errorf("gateway: create app token: %w", err)
+		return Issued{}, fmt.Errorf("app token: create app token: %w", err)
 	}
 	s.setOrigins(union)
 	return Issued{Token: token, Secret: secret}, nil
@@ -111,7 +111,7 @@ func (s *Service) ListAppTokens(ctx context.Context, state State) ([]Token, erro
 	}
 	tokens, err := s.store.ListAppTokens(ctx, state)
 	if err != nil {
-		return nil, fmt.Errorf("gateway: list app tokens: %w", err)
+		return nil, fmt.Errorf("app token: list app tokens: %w", err)
 	}
 	return tokens, nil
 }
@@ -135,7 +135,7 @@ func (s *Service) UpdateAppToken(ctx context.Context, id string, patch Patch) (T
 	defer s.mutations.Unlock()
 	token, union, err := s.store.UpdateAppToken(ctx, id, patch, s.now())
 	if err != nil {
-		return Token{}, fmt.Errorf("gateway: update app token: %w", err)
+		return Token{}, fmt.Errorf("app token: update app token: %w", err)
 	}
 	s.setOrigins(union)
 	return token, nil
@@ -169,7 +169,7 @@ func (s *Service) AuthenticateAppToken(ctx context.Context, secret string) (Toke
 			remotehost.ConstantTimeCredentialMatch(secret, "")
 			return Token{}, ErrUnauthenticated
 		}
-		return Token{}, fmt.Errorf("gateway: find app token credential: %w", err)
+		return Token{}, fmt.Errorf("app token: find app token credential: %w", err)
 	}
 	if !remotehost.ConstantTimeCredentialMatch(secret, stored.TokenHash) || stored.Token.ActorKind != ActorKind {
 		return Token{}, ErrUnauthenticated
@@ -182,7 +182,7 @@ func (s *Service) AuthenticateAppToken(ctx context.Context, secret string) (Toke
 
 func (s *Service) TouchAppTokenLastSeen(ctx context.Context, id string, epoch uint64) error {
 	if err := s.store.TouchAppTokenLastSeen(ctx, id, epoch, s.now()); err != nil {
-		return fmt.Errorf("gateway: touch app token last use: %w", err)
+		return fmt.Errorf("app token: touch app token last use: %w", err)
 	}
 	return nil
 }

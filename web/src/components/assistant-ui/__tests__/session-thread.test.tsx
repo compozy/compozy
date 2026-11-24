@@ -45,7 +45,6 @@ import { useSessionComposerState } from "../hooks/use-session-composer-state";
 import { threadScrollLogic, threadScrollMode } from "../hooks/thread-scroll-store";
 import { useThreadScrollResume } from "../hooks/use-thread-scroll-resume";
 
-import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { SCROLL_RESTORE_EVENT } from "@/lib/scroll-owner";
 import {
   isSessionRunning,
@@ -316,7 +315,6 @@ function createPromptRecordingFetchMock(
       return new Response(JSON.stringify({}), {
         headers: {
           "Content-Type": "application/json",
-          "X-Compozy-Gateway-Tier": "local",
         },
       });
     }
@@ -336,7 +334,6 @@ function createPromptRejectedFetchMock() {
       return new Response(JSON.stringify({}), {
         headers: {
           "Content-Type": "application/json",
-          "X-Compozy-Gateway-Tier": "local",
         },
       });
     }
@@ -5490,7 +5487,6 @@ describe("SessionThread composer running semantics", () => {
     takePendingTerminalQuote();
     vi.unstubAllGlobals();
     // The listener tier latches in module scope once a stream authorizes.
-    resetGatewayStreamAuth();
     // The tree is still mounted here (RTL's own cleanup runs after this hook),
     // so every store reset the quote slot or composer subscribes to is a React
     // update. Discarding a non-empty draft also re-hydrates the Lexical editor,
@@ -7469,7 +7465,6 @@ describe("SessionThread composer activation focus", () => {
     const request = sessionComposerFocusStore.getSnapshot().context.request;
     if (request !== null) sessionComposerFocusStore.trigger.settled({ key: request.key });
     vi.unstubAllGlobals();
-    resetGatewayStreamAuth();
   });
 
   it("focuses the composer of the session an explicit activation opened", async () => {
@@ -7619,7 +7614,6 @@ describe("SessionThread composer attachments", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    resetGatewayStreamAuth();
     act(() => {
       sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
       sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });

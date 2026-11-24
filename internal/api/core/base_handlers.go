@@ -114,12 +114,11 @@ type BaseHandlerConfig struct {
 	TelemetryStatus             TelemetryStatusSource
 	AppTokens                   AppTokenManager
 	OpenAPI                     *OpenAPIDocument
-	Gateway                     GatewayService
 	Account                     AccountService
 	Remote                      RemoteHostService
 	Computers                   ComputersService
 	Ingress                     IngressService
-	GatewayPairingSource        string
+	MigrationNotices            MigrationNoticeStore
 	HomePaths                   compozyconfig.HomePaths
 	Config                      compozyconfig.Config
 	Logger                      *slog.Logger
@@ -214,12 +213,11 @@ type BaseHandlers struct {
 	TelemetryStatus              TelemetryStatusSource
 	AppTokens                    AppTokenManager
 	OpenAPI                      *OpenAPIDocument
-	Gateway                      GatewayService
 	Account                      AccountService
 	Remote                       RemoteHostService
 	Computers                    ComputersService
 	Ingress                      IngressService
-	GatewayPairingSource         string
+	MigrationNotices             MigrationNoticeStore
 	HomePaths                    compozyconfig.HomePaths
 	Config                       compozyconfig.Config
 	Logger                       *slog.Logger
@@ -249,12 +247,11 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	handlers := baseHandlersFromConfig(cfg, defaults)
 	handlers.SessionChanges = cfg.SessionChanges
 	handlers.TelemetryStatus = cfg.TelemetryStatus
-	handlers.Gateway = cfg.Gateway
 	handlers.Account = cfg.Account
 	handlers.Remote = cfg.Remote
 	handlers.Computers = cfg.Computers
 	handlers.Ingress = cfg.Ingress
-	handlers.GatewayPairingSource = strings.TrimSpace(cfg.GatewayPairingSource)
+	handlers.MigrationNotices = cfg.MigrationNotices
 	handlers.applyAuthoredContextConfig(cfg)
 	handlers.streamDone = cfg.StreamDone
 	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()

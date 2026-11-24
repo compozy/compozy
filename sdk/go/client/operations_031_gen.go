@@ -9,43 +9,6 @@ import (
 	"strings"
 )
 
-// ReadFileContent Read project file content
-func (c *Client) ReadFileContent(ctx context.Context, params ReadFileContentParams) (*FileContentResponse, error) {
-	path := "/api/workspaces/{workspace_id}/files/content"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.WorktreeID != nil {
-		query.Set("worktree_id", *params.WorktreeID)
-	}
-	query.Set("path", params.Path)
-	if params.Reveal != nil {
-		query.Set("reveal", strconv.FormatBool(*params.Reveal))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FileContentResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadSessionAttachmentBytesParams carries the path, query, and header parameters.
-type ReadSessionAttachmentBytesParams struct {
-	WorkspaceID  string  `url:"workspace_id"`
-	SessionID    string  `url:"session_id"`
-	AttachmentID string  `url:"attachment_id"`
-	Profile      *string `url:"profile"`
-	AllProfiles  *bool   `url:"all_profiles"`
-}
-
 // ReadSessionAttachmentBytes Read session attachment bytes
 func (c *Client) ReadSessionAttachmentBytes(ctx context.Context, params ReadSessionAttachmentBytesParams) (*[]byte, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes"
@@ -359,16 +322,6 @@ func (c *Client) RecoverTaskRun(ctx context.Context, params RecoverTaskRunParams
 	return &out, nil
 }
 
-// RedeemGatewayPairing Redeem a one-time gateway pairing artifact
-func (c *Client) RedeemGatewayPairing(ctx context.Context, body GatewayPairingRedeemRequest) (*GatewayIssuedCredentialPayload, error) {
-	path := "/api/gateway/pairings/redeem"
-	var out GatewayIssuedCredentialPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 // RefreshMarketplaceCatalog Refresh the extension catalog
 func (c *Client) RefreshMarketplaceCatalog(ctx context.Context) (*MarketplaceRefreshResponse, error) {
 	path := "/api/marketplace/refresh"
@@ -435,4 +388,55 @@ func (c *Client) RefreshProviderUsage(ctx context.Context, body ProviderUsageRef
 type RefreshSessionPullRequestParams struct {
 	SessionID string  `url:"session_id"`
 	Profile   *string `url:"profile"`
+}
+
+// RefreshSessionPullRequest Refresh a session pull request
+func (c *Client) RefreshSessionPullRequest(ctx context.Context, params RefreshSessionPullRequestParams) (*SessionPullRequestResponse, error) {
+	path := "/api/sessions/{session_id}/pull-request/refresh"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionPullRequestResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RefreshSessionSoulParams carries the path, query, and header parameters.
+type RefreshSessionSoulParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RefreshSessionSoul Refresh an idle session's Soul snapshot through body-level CAS
+func (c *Client) RefreshSessionSoul(ctx context.Context, params RefreshSessionSoulParams, body SessionSoulRefreshRequest) (*AgentSoulPayload, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/soul/refresh"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSoulPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RefreshSessionWorkLinkParams carries the path, query, and header parameters.
+type RefreshSessionWorkLinkParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
 }

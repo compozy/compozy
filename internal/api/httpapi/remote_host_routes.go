@@ -61,11 +61,12 @@ func newRemoteOperatorRouter(handlers *Handlers, browser bool) *gin.Engine {
 		))
 		api := routes.router.Group("/api", handlers.WorkspaceReferenceGuard)
 		operator := operatorRouteGroups{router: api, remote: true}
-		registerOperatorRoutes(operator, handlers, true)
+		registerOperatorRoutes(operator, handlers)
 		registerSignedOutOperatorRoutes(operator, handlers)
 		admin := operator.group("", remoteproto.ScopeAdmin)
 		registerRemoteHostRoutes(admin, handlers, nil)
 		core.RegisterIngressRoutes(admin, handlers.BaseHandlers, handlers.privilegedMutationGuard())
+		core.RegisterMigrationNoticeRoutes(admin, handlers.BaseHandlers, handlers.privilegedMutationGuard())
 		registerAppTokenRoutes(admin, handlers)
 		operator.group("", remoteproto.ScopeSessions).GET("/openapi.json", handlers.GetOpenAPIDocument)
 		registerResourceEndpoints(operator.group("", remoteproto.ScopeSettings), handlers, true)

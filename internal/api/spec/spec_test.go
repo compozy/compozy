@@ -3401,10 +3401,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
 		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
+		removeRetiredGatewaySchemas(baseline)
 		addMCPHotActivationSchemas(t, baseline, current)
-		// Gateway pairing exposes a hand-typed 6-digit alias beside the opaque artifact; the redeem
-		// request accepts either representation, so artifact becomes optional.
-		addGatewayManualPairingSchemas(t, baseline, current)
 		addMarketplacePluginCatalogSchemas(baseline)
 		oldComponents["ExtensionValidatePayload"].(map[string]any)["properties"].(map[string]any)["inputs"] = map[string]any{
 			"type": "array",
@@ -7096,7 +7094,7 @@ func addComputerPlacementSchemas(t *testing.T, baseline map[string]any) {
 	}
 	paths := baseline["paths"].(map[string]any)
 	text := map[string]any{"type": "string"}
-	create := gatewayBaselineSchema(t, paths, specSessionsPath, "post", "requestBody")
+	create := baselineOperationSchema(t, paths, specSessionsPath, "post", "requestBody")
 	fields := create["properties"].(map[string]any)
 	fields["computer"], fields["project_computer_id"] = text, text
 
@@ -7113,7 +7111,7 @@ func addComputerPlacementSchemas(t *testing.T, baseline map[string]any) {
 		{specWorkspaceSessionPath + "/unarchive", "post", "200"},
 		{specWorkspaceSessionPath + "/worktree-fork", "post", "201"},
 	} {
-		response := gatewayBaselineSchema(t, paths, route.path, route.method, "responses", route.status)
+		response := baselineOperationSchema(t, paths, route.path, route.method, "responses", route.status)
 		response["properties"].(map[string]any)["computer_id"] = text
 	}
 	workspaces := paths["/api/workspaces"].(map[string]any)["get"].(map[string]any)
@@ -7237,34 +7235,42 @@ func addMCPReloadErrorFields(value any) int {
 	return count
 }
 
-// These additions expose MCP status without changing any historical field.
-// addGatewayManualPairingSchemas approves the hand-typed 6-digit pairing alias.
-func addGatewayManualPairingSchemas(t *testing.T, baseline, current map[string]any) {
-	t.Helper()
-	newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
-	oldPaths := baseline["paths"].(map[string]any)
-	manualCodeProperty := map[string]any{"type": "string"}
-	pairingComponent := newComponents["GatewayPairingArtifactPayload"].(map[string]any)
-	if pairingComponent["properties"].(map[string]any)["manual_code"] == nil {
-		t.Fatal("missing approved gateway pairing field manual_code")
-	}
-	// The mint response gains the required alias beside the opaque artifact.
-	mint := gatewayBaselineSchema(t, oldPaths, "/api/gateway/pairings", "post", "responses", "201")
-	mint["properties"].(map[string]any)["manual_code"] = manualCodeProperty
-	mint["required"] = append(mint["required"].([]any), "manual_code")
-	// The redeem request accepts the artifact or the alias, so artifact is no longer required.
-	redeem := gatewayBaselineSchema(t, oldPaths, "/api/gateway/pairings/redeem", "post", "requestBody")
-	redeem["properties"].(map[string]any)["manual_code"] = manualCodeProperty
-	required := make([]any, 0, len(redeem["required"].([]any)))
-	for _, name := range redeem["required"].([]any) {
-		if name != "artifact" {
-			required = append(required, name)
+// ADR-002 removes the Gateway routes and the fields carrying its runtime state and consent.
+func removeRetiredGatewaySchemas(baseline map[string]any) {
+	paths := baseline["paths"].(map[string]any)
+	maps.DeleteFunc(paths, func(path string, _ any) bool { return strings.HasPrefix(path, "/api/gateway/") })
+	schemas := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	maps.DeleteFunc(schemas, func(name string, _ any) bool { return strings.HasPrefix(name, "Gateway") })
+	var visit func(any)
+	visit = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				visit(child)
+			}
+		case map[string]any:
+			if properties, ok := node["properties"].(map[string]any); ok {
+				for _, field := range []string{
+					"confirm_gateway_digest", "gateway", "gateway_confirmation_required", "gateway_requirement_digest",
+				} {
+					delete(properties, field)
+					if required, ok := node["required"].([]any); ok {
+						node["required"] = slices.DeleteFunc(required, func(name any) bool { return name == field })
+					}
+				}
+				if properties["agents"] != nil && properties["fetched_digest"] != nil {
+					delete(properties, "current_digest")
+				}
+			}
+			for child := range maps.Values(node) {
+				visit(child)
+			}
 		}
 	}
-	redeem["required"] = required
+	visit(baseline)
 }
 
-func gatewayBaselineSchema(
+func baselineOperationSchema(
 	t *testing.T,
 	paths map[string]any,
 	path string,

@@ -2,211 +2,10 @@
 
 package client
 
-import "time"
-
-// Graph is a daemon API value.
-type Graph struct {
-	Nodes []Node `json:"nodes"`
-	Edges []Edge `json:"edges"`
-}
-
-// GridBody is a daemon API value.
-type GridBody struct {
-	Sections []GridSection `json:"sections"`
-}
-
-// GridSection is a daemon API value.
-type GridSection struct {
-	Title string     `json:"title,omitempty"`
-	Tiles []GridTile `json:"tiles"`
-}
-
-// GridTile is a daemon API value.
-type GridTile struct {
-	ID       string            `json:"id"`
-	Title    string            `json:"title"`
-	Image    Image             `json:"image"`
-	Badge    *ViewBadge        `json:"badge,omitempty"`
-	Actions  []RowAction       `json:"actions,omitempty"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
-}
-
-// GroupID is a daemon API value.
-type GroupID string
-
-// GroupedAgentCatalogItemPayload is a daemon API value.
-type GroupedAgentCatalogItemPayload struct {
-	Name             string       `json:"name"`
-	Label            string       `json:"label"`
-	Kind             string       `json:"kind"`
-	DefinitionDigest string       `json:"definition_digest"`
-	Scopes           []string     `json:"scopes"`
-	Active           int          `json:"active"`
-	Agent            AgentPayload `json:"agent"`
-}
-
-// HarvestSpec is a daemon API value.
-type HarvestSpec struct {
-	Kind string `json:"kind,omitempty"`
-}
-
-// HeartbeatActorKind is a daemon API value.
-type HeartbeatActorKind string
-
-// HeartbeatActorPayload is a daemon API value.
-type HeartbeatActorPayload struct {
-	Kind HeartbeatActorKind `json:"kind"`
-	Ref  string             `json:"ref,omitempty"`
-}
-
-// HeartbeatAuthorityPayload is a daemon API value.
-type HeartbeatAuthorityPayload struct {
-	ReadOnlyTools map[string][]string `json:"read_only_tools,omitempty"`
-	Actions       []ActionDecl        `json:"actions"`
-	Digest        string              `json:"digest"`
-	Status        string              `json:"status"`
-	CheckIns      CheckInsPolicy      `json:"check_ins"`
-}
-
-// HeartbeatConfigProvenancePayload is a daemon API value.
-type HeartbeatConfigProvenancePayload struct {
-	Digest string                       `json:"digest"`
-	Subset HeartbeatConfigSubsetPayload `json:"subset"`
-}
-
-// HeartbeatConfigSubsetPayload is a daemon API value.
-type HeartbeatConfigSubsetPayload struct {
-	Enabled                      bool   `json:"enabled"`
-	MaxBodyBytes                 int64  `json:"max_body_bytes"`
-	ContextProjectionBytes       int64  `json:"context_projection_bytes"`
-	MinInterval                  string `json:"min_interval"`
-	DefaultInterval              string `json:"default_interval"`
-	WakeCooldown                 string `json:"wake_cooldown"`
-	MaxWakesPerCycle             int    `json:"max_wakes_per_cycle"`
-	ActiveSessionOnly            bool   `json:"active_session_only"`
-	AllowActiveHoursPreferences  bool   `json:"allow_active_hours_preferences"`
-	WakeEventRetention           string `json:"wake_event_retention"`
-	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
-	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
-}
-
-// HeartbeatContextProjectionPayload is a daemon API value.
-type HeartbeatContextProjectionPayload struct {
-	Sources []Ref    `json:"sources,omitempty"`
-	Include []string `json:"include,omitzero"`
-}
-
-// HeartbeatDeleteByPathRequest is a daemon API value.
-type HeartbeatDeleteByPathRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	ExpectedDigest string `json:"expected_digest"`
-}
-
-// HeartbeatFrontmatterPayload is a daemon API value.
-type HeartbeatFrontmatterPayload struct {
-	Actions     []ActionDecl                           `json:"actions"`
-	CheckIns    CheckInsPolicy                         `json:"check_ins"`
-	Version     int                                    `json:"version"`
-	Enabled     bool                                   `json:"enabled"`
-	Summary     string                                 `json:"summary,omitempty"`
-	Preferences HeartbeatFrontmatterPreferencesPayload `json:"preferences"`
-	Context     HeartbeatContextProjectionPayload      `json:"context"`
-}
-
-// HeartbeatFrontmatterPreferencesPayload is a daemon API value.
-type HeartbeatFrontmatterPreferencesPayload struct {
-	MinInterval  string                       `json:"min_interval,omitempty"`
-	ActiveHours  []HeartbeatTimeWindowPayload `json:"active_hours,omitempty"`
-	QuietWindows []HeartbeatTimeWindowPayload `json:"quiet_windows,omitempty"`
-}
-
-// HeartbeatHistoryResponse is a daemon API value.
-type HeartbeatHistoryResponse struct {
-	Revisions  []HeartbeatRevisionPayload `json:"revisions"`
-	NextCursor string                     `json:"next_cursor,omitempty"`
-}
-
-// HeartbeatMutationResponse is a daemon API value.
-type HeartbeatMutationResponse struct {
-	Heartbeat HeartbeatPolicyPayload   `json:"heartbeat"`
-	Revision  HeartbeatRevisionPayload `json:"revision"`
-}
-
-// HeartbeatPolicyPayload is a daemon API value.
-type HeartbeatPolicyPayload struct {
-	Actions          []ActionDecl                       `json:"actions"`
-	Authority        HeartbeatAuthorityPayload          `json:"authority"`
-	AgentName        string                             `json:"agent_name,omitempty"`
-	Enabled          bool                               `json:"enabled"`
-	Present          bool                               `json:"present"`
-	Active           bool                               `json:"active"`
-	Valid            bool                               `json:"valid"`
-	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
-	SourcePath       string                             `json:"source_path,omitempty"`
-	Digest           string                             `json:"digest,omitempty"`
-	ConfigDigest     string                             `json:"config_digest,omitempty"`
-	SnapshotID       string                             `json:"snapshot_id,omitempty"`
-	SchemaVersion    int                                `json:"schema_version"`
-	Summary          string                             `json:"summary,omitempty"`
-	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
-	Frontmatter      HeartbeatFrontmatterPayload        `json:"frontmatter"`
-	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
-	ConfigProvenance HeartbeatConfigProvenancePayload   `json:"config_provenance"`
-	Prompt           HeartbeatPromptContributionPayload `json:"prompt"`
-	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	Limits           AuthoredContextLimitsPayload       `json:"limits"`
-	CreatedAt        *time.Time                         `json:"created_at,omitempty"`
-}
-
-// HeartbeatPreferencesPayload is a daemon API value.
-type HeartbeatPreferencesPayload struct {
-	MinInterval  string                            `json:"min_interval"`
-	ActiveHours  []HeartbeatTimeWindowPayload      `json:"active_hours,omitempty"`
-	QuietWindows []HeartbeatTimeWindowPayload      `json:"quiet_windows,omitempty"`
-	Context      HeartbeatContextProjectionPayload `json:"context"`
-}
-
-// HeartbeatPromptContributionPayload is a daemon API value.
-type HeartbeatPromptContributionPayload struct {
-	Active           bool                               `json:"active"`
-	Digest           string                             `json:"digest,omitempty"`
-	ConfigDigest     string                             `json:"config_digest,omitempty"`
-	SourcePath       string                             `json:"source_path,omitempty"`
-	Summary          string                             `json:"summary,omitempty"`
-	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
-	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
-	Truncated        bool                               `json:"truncated"`
-	MaxBytes         int64                              `json:"max_bytes"`
-	MaxBodyBytes     int64                              `json:"max_body_bytes"`
-	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	Context          HeartbeatContextProjectionPayload  `json:"context"`
-}
-
-// HeartbeatPutByPathRequest is a daemon API value.
-type HeartbeatPutByPathRequest struct {
-	ApproveAuthoritySHA256 string `json:"approve_authority_sha256,omitempty"`
-	WorkspaceID            string `json:"workspace_id,omitempty"`
-	Body                   string `json:"body"`
-	ExpectedDigest         string `json:"expected_digest"`
-	IdempotencyKey         string `json:"idempotency_key,omitempty"`
-}
-
-// HeartbeatRevisionOperation is a daemon API value.
-type HeartbeatRevisionOperation string
-
-// HeartbeatRevisionPayload is a daemon API value.
-type HeartbeatRevisionPayload struct {
-	ID             string                     `json:"id"`
-	AgentName      string                     `json:"agent_name"`
-	SourcePath     string                     `json:"source_path"`
-	Operation      HeartbeatRevisionOperation `json:"operation"`
-	PreviousDigest string                     `json:"previous_digest,omitempty"`
-	NewDigest      string                     `json:"new_digest,omitempty"`
-	NewSnapshotID  string                     `json:"new_snapshot_id,omitempty"`
-	Actor          HeartbeatActorPayload      `json:"actor"`
-	CreatedAt      time.Time                  `json:"created_at"`
-}
+import (
+	"encoding/json"
+	"time"
+)
 
 // HeartbeatRollbackByPathRequest is a daemon API value.
 type HeartbeatRollbackByPathRequest struct {
@@ -436,3 +235,203 @@ type HookMatcher struct {
 
 // HookMode is a daemon API value.
 type HookMode string
+
+// HookRunPayload is a daemon API value.
+type HookRunPayload struct {
+	HookName      string          `json:"hook_name"`
+	Event         string          `json:"event"`
+	Source        string          `json:"source"`
+	Mode          string          `json:"mode"`
+	DurationMS    int64           `json:"duration_ms"`
+	Outcome       string          `json:"outcome"`
+	DispatchDepth int             `json:"dispatch_depth"`
+	PatchApplied  json.RawMessage `json:"patch_applied,omitempty"`
+	Error         string          `json:"error,omitempty"`
+	Required      bool            `json:"required,omitzero"`
+	RecordedAt    time.Time       `json:"recorded_at"`
+}
+
+// HookRunsResponse is a daemon API value.
+type HookRunsResponse struct {
+	Runs []HookRunPayload `json:"runs"`
+}
+
+// HostResourcesResponse is a daemon API value.
+type HostResourcesResponse struct {
+	CPUCount     int       `json:"cpu_count"`
+	CPUUtil      *float64  `json:"cpu_util"`
+	MemTotal     *uint64   `json:"mem_total"`
+	MemAvailable *uint64   `json:"mem_available"`
+	SampledAt    time.Time `json:"sampled_at"`
+}
+
+// HostedPeer is a daemon API value.
+type HostedPeer struct {
+	ComputerID ComputerID `json:"computer_id"`
+	Name       string     `json:"name"`
+	HostedURL  string     `json:"hosted_url"`
+}
+
+// HostedStatus is a daemon API value.
+type HostedStatus struct {
+	Enabled   bool    `json:"enabled"`
+	State     string  `json:"state"`
+	Hostname  *string `json:"hostname"`
+	Diagnosis string  `json:"diagnosis,omitempty"`
+}
+
+// Image is a daemon API value.
+type Image struct {
+	URL   string `json:"url,omitempty"`
+	Token string `json:"token,omitempty"`
+	Emoji string `json:"emoji,omitempty"`
+}
+
+// IngressBindRequest is a daemon API value.
+type IngressBindRequest struct {
+	SubjectKind string `json:"subject_kind"`
+	SubjectID   string `json:"subject_id"`
+	Confirmed   bool   `json:"confirmed"`
+}
+
+// IngressBindingResponse is a daemon API value.
+type IngressBindingResponse struct {
+	Binding IngressPayload `json:"binding"`
+	Changed bool           `json:"changed"`
+}
+
+// IngressPayload is a daemon API value.
+type IngressPayload struct {
+	SubjectKind                 string     `json:"subject_kind"`
+	SubjectID                   string     `json:"subject_id"`
+	ScopeKind                   string     `json:"scope_kind"`
+	WorkspaceID                 string     `json:"workspace_id,omitempty"`
+	URL                         string     `json:"url,omitempty"`
+	Reachability                string     `json:"reachability"`
+	EndpointGeneration          uint64     `json:"endpoint_generation"`
+	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
+	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
+	EnablePath                  string     `json:"enable_path,omitempty"`
+}
+
+// Input is a daemon API value.
+type Input struct {
+	Type        InputType `json:"type"`
+	Required    bool      `json:"required,omitzero"`
+	Description string    `json:"description,omitempty"`
+	Ref         *InputRef `json:"ref,omitzero"`
+	Enum        []string  `json:"enum,omitempty"`
+	Default     any       `json:"default,omitempty"`
+}
+
+// InputRef is a daemon API value.
+type InputRef struct {
+	Kind InputRefKind `json:"kind"`
+}
+
+// InputRefKind is a daemon API value.
+type InputRefKind string
+
+// InputType is a daemon API value.
+type InputType string
+
+// InstallExtensionRequest is a daemon API value.
+type InstallExtensionRequest struct {
+	Enable          bool                   `json:"enable,omitzero"`
+	Scope           string                 `json:"scope,omitempty"`
+	WorkspaceID     string                 `json:"workspace_id,omitempty"`
+	Profile         string                 `json:"profile,omitempty"`
+	Inputs          map[string]Value       `json:"inputs,omitempty"`
+	ExpectedDigest  string                 `json:"expected_digest,omitempty"`
+	Source          InstallExtensionSource `json:"source"`
+	Ref             string                 `json:"ref"`
+	Version         string                 `json:"version,omitempty"`
+	Asset           string                 `json:"asset,omitempty"`
+	AllowUnverified bool                   `json:"allow_unverified,omitzero"`
+	Replace         bool                   `json:"replace,omitzero"`
+}
+
+// InstallExtensionResponse is a daemon API value.
+type InstallExtensionResponse struct {
+	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
+	Extension   ExtensionPayload      `json:"extension"`
+}
+
+// InstallExtensionSource is a daemon API value.
+type InstallExtensionSource string
+
+// Inventory is a daemon API value.
+type Inventory struct {
+	Runtimes    []Snapshot `json:"runtimes"`
+	GeneratedAt time.Time  `json:"generated_at"`
+}
+
+// InvokeStatus is a daemon API value.
+type InvokeStatus string
+
+// JobPayload is a daemon API value.
+type JobPayload struct {
+	ID           string                           `json:"id"`
+	ProfileID    string                           `json:"profile_id"`
+	ProfileName  string                           `json:"profile_name"`
+	ProfileColor string                           `json:"profile_color,omitempty"`
+	ProfileIcon  string                           `json:"profile_icon,omitempty"`
+	Scope        ModelScope                       `json:"scope"`
+	Name         string                           `json:"name"`
+	TargetKind   TargetKind                       `json:"target_kind"`
+	AgentName    string                           `json:"agent_name"`
+	WorkspaceID  string                           `json:"workspace_id,omitempty"`
+	Prompt       string                           `json:"prompt"`
+	Schedule     *ScheduleSpec                    `json:"schedule,omitzero"`
+	Task         *JobTaskConfig                   `json:"task,omitzero"`
+	LoopTarget   *LoopTarget                      `json:"loop_target,omitzero"`
+	Enabled      bool                             `json:"enabled"`
+	Retry        RetryConfig                      `json:"retry"`
+	FireLimit    FireLimitConfig                  `json:"fire_limit"`
+	Source       JobSource                        `json:"source"`
+	CreatedAt    time.Time                        `json:"created_at"`
+	UpdatedAt    time.Time                        `json:"updated_at"`
+	NextRun      *time.Time                       `json:"next_run,omitempty"`
+	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitzero"`
+	LastRun      *AutomationLastRunPayload        `json:"last_run,omitzero"`
+}
+
+// JobResponse is a daemon API value.
+type JobResponse struct {
+	Job JobPayload `json:"job"`
+}
+
+// JobSource is a daemon API value.
+type JobSource string
+
+// JobTaskConfig is a daemon API value.
+type JobTaskConfig struct {
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Owner       *Ownership `json:"owner,omitempty"`
+}
+
+// JobsResponse is a daemon API value.
+type JobsResponse struct {
+	Jobs []JobPayload             `json:"jobs"`
+	Page CountedCursorPagePayload `json:"page"`
+}
+
+// KindDescriptor is a daemon API value.
+type KindDescriptor struct {
+	Kind         string          `json:"kind"`
+	Extension    string          `json:"extension"`
+	Title        string          `json:"title"`
+	Description  string          `json:"description,omitempty"`
+	ParamsSchema json.RawMessage `json:"params_schema,omitempty"`
+}
+
+// LineageKind is a daemon API value.
+type LineageKind string
+
+// LocalComputer is a daemon API value.
+type LocalComputer struct {
+	RunAgents           bool `json:"run_agents"`
+	LoadBalancing       bool `json:"load_balancing"`
+	LoadBalancingWeight int  `json:"load_balancing_weight"`
+}

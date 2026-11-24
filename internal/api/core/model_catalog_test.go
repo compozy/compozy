@@ -17,7 +17,6 @@ import (
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/providerusage"
@@ -856,7 +855,7 @@ func assertRedactedModelCatalogPayload(t *testing.T, value string, secret string
 
 // UT-076: the shared API boundary owns intent; callers cannot promote themselves.
 func TestProviderUsageIntent(t *testing.T) {
-	for _, caller := range []string{"operator", "agent", "gateway", "app"} {
+	for _, caller := range []string{"operator", "agent", "app"} {
 		t.Run("Should preserve intent boundaries for "+caller, func(t *testing.T) {
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequestWithContext(
@@ -868,10 +867,6 @@ func TestProviderUsageIntent(t *testing.T) {
 			switch caller {
 			case "agent":
 				c.Request.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
-			case "gateway":
-				c.Request = c.Request.WithContext(
-					gateway.ContextWithDevice(c.Request.Context(), gateway.DeviceSession{}),
-				)
 			case "app":
 				c.Request = c.Request.WithContext(ContextWithAppToken(c.Request.Context(), apptoken.Token{}))
 			}

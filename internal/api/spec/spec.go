@@ -20,6 +20,7 @@ const (
 
 const (
 	specContentTypeEventStream = "text/event-stream"
+	specBinaryContentType      = "*/*"
 	specEventStreamUpgrade     = "WebSocket upgrade; each text message contains one complete SSE frame"
 	specExpectedRevisionKey    = "expected_revision"
 	specFormatInt64            = "int64"
@@ -155,7 +156,6 @@ const (
 	specDiagnosticsKey = "diagnostics"
 	specOnboardingKey  = "onboarding"
 	specFilesystemKey  = "filesystem"
-	specGatewayKey     = "gateway"
 	specExtensionKey   = "extension"
 	specExtensionsKey  = "extensions"
 	specHooksKey       = "hooks"
@@ -235,7 +235,6 @@ type ResponseSpec struct {
 type OperationAuth string
 
 const (
-	OperationAuthDevice         OperationAuth = "device"
 	OperationAuthLocalSocket    OperationAuth = "local_socket"
 	OperationAuthPrivatePreAuth OperationAuth = "private_pre_auth"
 	OperationAuthBrowserDPoP    OperationAuth = "browser_dpop"
@@ -295,7 +294,6 @@ func Document() (*openapi3.T, error) {
 			{Name: specDiagnosticsKey},
 			{Name: specOnboardingKey},
 			{Name: specFilesystemKey},
-			{Name: specGatewayKey},
 			{Name: specAccountKey},
 			{Name: specRemoteHostKey},
 			{Name: specNotificationsKey},

@@ -146,7 +146,7 @@ func reloadDevExtensionOperationSpec() OperationSpec {
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{
 				Status:      409,
-				Description: "Extension is not dev linked or needs gateway confirmation",
+				Description: "Extension is not dev linked",
 				Body:        contract.ExtensionOperationErrorPayload{},
 			},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
@@ -416,11 +416,6 @@ func updateExtensionOperationSpec() OperationSpec {
 			{Status: 400, Description: "Invalid update request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
-			{
-				Status:      409,
-				Description: "Gateway confirmation required",
-				Body:        contract.ExtensionOperationErrorPayload{},
-			},
 			{Status: 422, Description: "Extension trust or input configuration is required", Bodies: responseBodiesOf(
 				responseBodyOf[contract.ErrorPayload](), responseBodyOf[contract.ExtensionOperationErrorPayload](),
 			)},

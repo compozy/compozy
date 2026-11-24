@@ -44,7 +44,6 @@ import (
 	eventspkg "github.com/compozy/compozy/internal/events"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -1465,10 +1464,10 @@ func TestBootDoesNotRegisterOperatorHomeAsWorkspace(t *testing.T) {
 		writeDaemonFile(
 			t,
 			filepath.Join(operatorHome, compozyconfig.DirName, compozyconfig.ConfigName),
-			"[gateway]\nenabled = true\nprivate_port = 5252\n",
+			"[http]\nport = 5252\n",
 		)
 		homePaths := testHomePaths(t)
-		writeDaemonFile(t, homePaths.ConfigFile, "[gateway]\nprivate_port = 4242\n")
+		writeDaemonFile(t, homePaths.ConfigFile, "[http]\nport = 4242\n")
 		cfg := testConfig(t, homePaths)
 
 		d := newTestDaemon(t, homePaths, &cfg)
@@ -5497,14 +5496,6 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 	signalCh := make(chan os.Signal, 1)
 	httpFactory := func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "http"}, nil }
 	udsFactory := func(context.Context, RuntimeDeps) (Server, error) { return &fakeServer{name: "uds"}, nil }
-	gatewayFactory := func(
-		context.Context,
-		*RuntimeDeps,
-		gateway.Tier,
-		[]gateway.Surface,
-	) (Server, error) {
-		return &fakeServer{name: "gateway"}, nil
-	}
 	now := time.Date(2026, 4, 3, 15, 0, 0, 0, time.UTC)
 
 	d, err := New(
@@ -5514,7 +5505,7 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 		WithNow(func() time.Time { return now }),
 		WithHTTPServerFactory(httpFactory),
 		WithUDSServerFactory(udsFactory),
-		WithGatewayTierServerFactory(gatewayFactory),
+
 		WithSignalBridge(signalCh),
 		WithBoundaryVerification(true),
 	)
@@ -5536,18 +5527,7 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 	if !d.verifyBoundaries {
 		t.Fatal("WithBoundaryVerification(true) did not apply")
 	}
-	gatewayServer, err := d.gatewayTierFactory(
-		testutil.Context(t),
-		&RuntimeDeps{},
-		gateway.TierPrivate,
-		[]gateway.Surface{gateway.SurfaceOperatorUI},
-	)
-	if err != nil {
-		t.Fatalf("gatewayTierFactory() error = %v", err)
-	}
-	if got, ok := gatewayServer.(*fakeServer); !ok || got.name != "gateway" {
-		t.Fatalf("gatewayTierFactory() = %#v, want gateway sentinel", gatewayServer)
-	}
+
 }
 
 func TestBootConfigEnsuresManagedAgents(t *testing.T) {
@@ -9673,15 +9653,15 @@ func (f *fakeResourceReconcileDriver) Close(context.Context) error {
 }
 
 type recordingRegistry struct {
-	path                      string
-	onClose                   func()
-	onListTaskRunsByStatus    func([]taskpkg.RunStatus)
-	mu                        sync.Mutex
-	workspaces                map[string]workspacepkg.Workspace
-	workspaceDeletionIntents  map[string]workspacepkg.DeletionIntent
-	deadEntities              map[store.DeadEntityKey]store.DeadEntity
-	approvalGrants            map[toolspkg.ApprovalGrantKey]toolspkg.ApprovalGrant
-	gatewaySnapshot           gateway.Snapshot
+	path                     string
+	onClose                  func()
+	onListTaskRunsByStatus   func([]taskpkg.RunStatus)
+	mu                       sync.Mutex
+	workspaces               map[string]workspacepkg.Workspace
+	workspaceDeletionIntents map[string]workspacepkg.DeletionIntent
+	deadEntities             map[store.DeadEntityKey]store.DeadEntity
+	approvalGrants           map[toolspkg.ApprovalGrantKey]toolspkg.ApprovalGrant
+
 	neutralizeLoopOrphansErr  error
 	backfillLoopProvenanceErr error
 	reconciliationCalls       []string
@@ -9821,156 +9801,6 @@ func (s queuedAttachmentStore) ListPendingSessionInputs(
 	string,
 ) ([]store.SessionInputQueueEntry, error) {
 	return slices.Clone(s.entries), nil
-}
-
-func (r *recordingRegistry) Snapshot(context.Context) (gateway.Snapshot, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return gateway.Snapshot{
-		Providers: append([]gateway.ProviderActivation(nil), r.gatewaySnapshot.Providers...),
-		Surfaces:  append([]gateway.SurfaceExposure(nil), r.gatewaySnapshot.Surfaces...),
-		Devices:   append([]gateway.DeviceSession(nil), r.gatewaySnapshot.Devices...),
-	}, nil
-}
-
-func (r *recordingRegistry) Transition(
-	_ context.Context,
-	req gateway.TransitionRequest,
-	now time.Time,
-) (bool, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	switch req.Target {
-	case gateway.TargetProvider:
-		for i := range r.gatewaySnapshot.Providers {
-			row := &r.gatewaySnapshot.Providers[i]
-			if row.ProviderName != req.Provider.Name || row.Tier != req.Tier {
-				continue
-			}
-			if row.Generation != req.ExpectedGeneration {
-				return false, gateway.ErrGenerationConflict
-			}
-			if row.Desired == req.Desired {
-				return false, nil
-			}
-			row.Desired = req.Desired
-			row.Generation++
-			if req.Desired == gateway.DesiredDisabled {
-				row.Observed = gateway.ProviderDown
-			}
-			return true, nil
-		}
-		if req.Desired == gateway.DesiredDisabled {
-			return false, nil
-		}
-		r.gatewaySnapshot.Providers = append(r.gatewaySnapshot.Providers, gateway.ProviderActivation{
-			ProviderName: req.Provider.Name, Tier: req.Tier, Desired: req.Desired,
-			Observed: gateway.ProviderDown, Generation: 1,
-		})
-		return true, nil
-	case gateway.TargetSurface:
-		for i := range r.gatewaySnapshot.Surfaces {
-			row := &r.gatewaySnapshot.Surfaces[i]
-			if row.Surface != req.Surface || row.Tier != req.Tier {
-				continue
-			}
-			if row.Generation != req.ExpectedGeneration {
-				return false, gateway.ErrGenerationConflict
-			}
-			if row.Desired == req.Desired {
-				return false, nil
-			}
-			row.Desired = req.Desired
-			row.Generation++
-			if req.Desired == gateway.DesiredDisabled {
-				row.Observed = gateway.SurfaceOff
-				row.ConsentedAt = time.Time{}
-			} else if req.Consent {
-				row.ConsentedAt = now
-			}
-			return true, nil
-		}
-		if req.Desired == gateway.DesiredDisabled {
-			return false, nil
-		}
-		r.gatewaySnapshot.Surfaces = append(r.gatewaySnapshot.Surfaces, gateway.SurfaceExposure{
-			Surface: req.Surface, Tier: req.Tier, Desired: req.Desired,
-			Observed: gateway.SurfaceOff, Generation: 1,
-		})
-		return true, nil
-	default:
-		return false, errors.New("unsupported gateway transition target")
-	}
-}
-
-func (r *recordingRegistry) DisableAll(context.Context) (bool, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	changed := false
-	for i := range r.gatewaySnapshot.Providers {
-		row := &r.gatewaySnapshot.Providers[i]
-		if row.Desired != gateway.DesiredDisabled || row.Observed != gateway.ProviderDown {
-			row.Desired = gateway.DesiredDisabled
-			row.Observed = gateway.ProviderDown
-			row.Generation++
-			changed = true
-		}
-	}
-	for i := range r.gatewaySnapshot.Surfaces {
-		row := &r.gatewaySnapshot.Surfaces[i]
-		if row.Desired != gateway.DesiredDisabled || row.Observed != gateway.SurfaceOff || !row.ConsentedAt.IsZero() {
-			row.Desired = gateway.DesiredDisabled
-			row.Observed = gateway.SurfaceOff
-			row.Generation++
-			row.ConsentedAt = time.Time{}
-			changed = true
-		}
-	}
-	return changed, nil
-}
-
-func (r *recordingRegistry) SetObserved(
-	_ context.Context,
-	plan gateway.TierPlan,
-	providerObserved gateway.ProviderObservedState,
-	surfaceObserved gateway.SurfaceObservedState,
-	at time.Time,
-	cause string,
-) (bool, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if plan.Provider == nil {
-		return false, nil
-	}
-	providerMatched := false
-	for i := range r.gatewaySnapshot.Providers {
-		row := &r.gatewaySnapshot.Providers[i]
-		if row.ProviderName == plan.Provider.ProviderName && row.Tier == plan.Provider.Tier &&
-			row.Generation == plan.Provider.Generation {
-			row.Observed = providerObserved
-			row.LastHealthAt = at
-			row.LastError = cause
-			providerMatched = true
-		}
-	}
-	if !providerMatched {
-		return false, nil
-	}
-	for _, expected := range plan.Surfaces {
-		matched := false
-		for i := range r.gatewaySnapshot.Surfaces {
-			row := &r.gatewaySnapshot.Surfaces[i]
-			if row.Surface == expected.Surface && row.Tier == expected.Tier &&
-				row.Generation == expected.Generation {
-				row.Observed = surfaceObserved
-				matched = true
-			}
-		}
-		if !matched {
-			return false, nil
-		}
-	}
-	return true, nil
 }
 
 func (r *recordingRegistry) LookupApprovalGrant(

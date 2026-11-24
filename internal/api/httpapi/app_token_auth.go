@@ -164,7 +164,7 @@ func (s *Server) authenticateAppToken(
 
 func (s *Server) serveAppTokenRequest(c *gin.Context, token apptoken.Token, foreign bool, origin string) {
 	ctx := core.ContextWithAppToken(c.Request.Context(), token)
-	if isGatewayMutationRequest(c.Request) {
+	if isAppTokenMutationRequest(c.Request) {
 		mutationCtx, err := s.appTokenAuth.AcquireMutation(ctx, token.ID, token.RevokeEpoch)
 		if err != nil {
 			core.RespondAppTokenError(c, err, true)
@@ -175,7 +175,7 @@ func (s *Server) serveAppTokenRequest(c *gin.Context, token apptoken.Token, fore
 			return s.appTokenAuth.RevalidateForCommit(commitCtx, token.ID, token.RevokeEpoch)
 		})
 	}
-	if isGatewayStreamRequest(c.Request) {
+	if isAppTokenStreamRequest(c.Request) {
 		registry := s.appTokenAuth.Connections()
 		if registry == nil {
 			core.RespondAppTokenError(c, apptoken.ErrUnauthenticated, true)
@@ -210,21 +210,6 @@ func appTokenBearer(request *http.Request) string {
 		return strings.Join(parts[1:], " ")
 	}
 	return ""
-}
-
-func rejectTierAppTokens() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if apptoken.HasPrefix(appTokenBearer(c.Request)) {
-			abortAppTokenAccess(
-				c,
-				http.StatusForbidden,
-				"gateway_app_token_local_only",
-				"app tokens work on the local listener only",
-			)
-			return
-		}
-		c.Next()
-	}
 }
 
 func (s *Server) warnAppTokenAccess(c *gin.Context, event, origin, tokenID string) {

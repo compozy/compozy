@@ -5,7 +5,7 @@ const (
 	ComponentCmdPalette   = "cmd_palette"
 	ComponentConfig       = "config"
 	ComponentExtension    = "extension"
-	ComponentGateway      = "gateway"
+	ComponentIngress      = "ingress"
 	ComponentHarness      = "harness"
 	ComponentHook         = "hook"
 	ComponentMarketplace  = "marketplace"

@@ -52,7 +52,7 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 			return nil
 		}},
 		{name: "prepareServerDependencies", run: func() error { return d.prepareServerDependencies(ctx, state) }},
-		{name: "bootGateway", run: func() error { return d.bootGateway(ctx, state, cleanup) }},
+		{name: "bootAppAccess", run: func() error { return d.bootAppAccess(ctx, state) }},
 		{name: "bootServers", run: func() error { return d.bootServers(ctx, state, cleanup) }},
 		{name: "bootTelemetry", run: func() error { return d.bootTelemetry(ctx, state, cleanup) }},
 		{name: "bootProviderAuthStartup",

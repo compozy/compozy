@@ -17,7 +17,6 @@ import { handlers as runtimeHandlers } from "@/systems/runtime/mocks";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 import { handlers as providerUsageHandlers } from "@/systems/provider-usage/mocks";
 import { handlers as sessionHandlers } from "@/systems/session/mocks";
-import { handlers as gatewayHandlers } from "@/systems/gateway/mocks";
 import { handlers as settingsHandlers } from "@/systems/settings/mocks";
 import { handlers as skillHandlers } from "@/systems/skill/mocks";
 import { handlers as schedulerHandlers } from "@/systems/scheduler/mocks";
@@ -74,9 +73,7 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   profiles: profileHandlers,
   "provider-usage": providerUsageHandlers,
   session: sessionHandlers,
-  // Account, Computers, and retired Gateway reads ride the settings group rather
-  // than opening separate handler groups.
-  settings: [...settingsHandlers, ...gatewayHandlers, ...accountHandlers, ...computersHandlers],
+  settings: [...settingsHandlers, ...accountHandlers, ...computersHandlers],
   skill: skillHandlers,
   scheduler: schedulerHandlers,
   tasks: tasksHandlers,

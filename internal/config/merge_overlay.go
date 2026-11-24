@@ -39,7 +39,6 @@ type configOverlay struct {
 	Goals         goalsOverlay               `toml:"goals"`
 	Task          taskOverlay                `toml:"task"`
 	Hooks         hooksOverlay               `toml:"hooks"`
-	Gateway       *gatewayOverlay            `toml:"gateway"`
 	Remote        remoteOverlay              `toml:"remote"`
 	Computers     computersOverlay           `toml:"computers"`
 	Autonomy      autonomyOverlay            `toml:"autonomy"`
@@ -100,9 +99,6 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.Loops.Apply(&dst.Loops)
 	o.Goals.Apply(&dst.Goals)
 	o.Task.Apply(&dst.Task)
-	if o.Gateway != nil {
-		o.Gateway.Apply(&dst.Gateway)
-	}
 	o.Remote.Apply(&dst.Remote)
 	o.Computers.apply(&dst.Computers)
 	o.Autonomy.Apply(&dst.Autonomy)

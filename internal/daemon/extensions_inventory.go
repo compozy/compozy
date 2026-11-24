@@ -87,10 +87,6 @@ func (s *daemonExtensionService) previewExtensionTarget(
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
-	gatewayDigest, gatewayConfirmationRequired, err := candidateGatewayConfirmationRequirement(&ext.Info, ext.Manifest)
-	if err != nil {
-		return contract.ExtensionEnablePreviewPayload{}, err
-	}
 	conflicts, err := s.extensionAgentConflicts(ctx, ext)
 	if err != nil {
 		return contract.ExtensionEnablePreviewPayload{}, err
@@ -104,14 +100,12 @@ func (s *daemonExtensionService) previewExtensionTarget(
 		return contract.ExtensionEnablePreviewPayload{}, err
 	}
 	return contract.ExtensionEnablePreviewPayload{
-		Extension:                   ext.Info.Name,
-		Changes:                     changes,
-		AgentConflicts:              conflicts,
-		MissingEnv:                  slices.Clone(status.MissingEnv),
-		MissingInputs:               slices.Clone(status.MissingInputs),
-		AutomationStarting:          automationStarting,
-		GatewayRequirementDigest:    gatewayDigest,
-		GatewayConfirmationRequired: gatewayConfirmationRequired,
+		Extension:          ext.Info.Name,
+		Changes:            changes,
+		AgentConflicts:     conflicts,
+		MissingEnv:         slices.Clone(status.MissingEnv),
+		MissingInputs:      slices.Clone(status.MissingInputs),
+		AutomationStarting: automationStarting,
 	}, nil
 }
 

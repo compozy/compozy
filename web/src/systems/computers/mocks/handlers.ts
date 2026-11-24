@@ -116,6 +116,7 @@ export const DEFAULT_REMOTE_DEVICES: RemoteDevicesResponse = {
 };
 
 export const computersHandlers = [
+  http.get("/api/migration-notices", () => HttpResponse.json({ notices: [] })),
   http.get("/api/computers", () => HttpResponse.json(DEFAULT_COMPUTERS_LIST)),
   http.get("/api/computers/available", () => HttpResponse.json(DEFAULT_AVAILABLE_COMPUTERS)),
   http.get("/api/computers/ssh-hosts", () => HttpResponse.json(DEFAULT_SSH_HOSTS)),

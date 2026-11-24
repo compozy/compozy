@@ -9,8 +9,6 @@ import (
 type Store interface {
 	ResolveIngressSubject(context.Context, SubjectRef) (Subject, error)
 	GetIngressEndpoint(context.Context) (EndpointState, error)
-	SyncIngressEndpoint(context.Context, string, time.Time) (EndpointState, bool, error)
-	MarkIngressEndpointUnavailable(context.Context, time.Time) error
 	GetIngressBinding(context.Context, SubjectRef) (Binding, error)
 	PutIngressBinding(
 		context.Context,

@@ -1673,7 +1673,7 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	uds := gatewayDaemonUDSClient(d.homePaths.DaemonSocket)
+	uds := daemonIntegrationUDSClient(d.homePaths.DaemonSocket)
 	t.Cleanup(uds.CloseIdleConnections)
 	for _, transport := range []struct {
 		name, base string

@@ -13,7 +13,6 @@ import { Button, Empty, buttonVariants } from "@compozy/ui";
 import { useReleaseActivationFocus } from "@/hooks/use-release-activation-focus";
 import { useAccountGateWatcher } from "@/systems/account";
 import { HostedBrowserAccessBoundary } from "@/systems/computers";
-import { GatewayAccessBoundary } from "@/systems/gateway";
 import { FontAppearanceSync, TypeAppearanceSync } from "@/systems/theme";
 
 function AccountGateWatcherHost() {
@@ -22,13 +21,7 @@ function AccountGateWatcherHost() {
 }
 
 function RootAccessBoundary({ children }: { children: ReactNode }) {
-  return (
-    <HostedBrowserAccessBoundary
-      fallbackBoundary={<GatewayAccessBoundary>{children}</GatewayAccessBoundary>}
-    >
-      {children}
-    </HostedBrowserAccessBoundary>
-  );
+  return <HostedBrowserAccessBoundary>{children}</HostedBrowserAccessBoundary>;
 }
 
 export function RootComponent() {

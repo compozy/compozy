@@ -9,13 +9,6 @@ import (
 	"strings"
 )
 
-// BrowseDirectoryParams carries the path, query, and header parameters.
-type BrowseDirectoryParams struct {
-	Path       *string `url:"path"`
-	ShowHidden *bool   `url:"show_hidden"`
-	DirsOnly   *bool   `url:"dirs_only"`
-}
-
 // BrowseDirectory List directory entries and filesystem roots for the workspace folder picker
 func (c *Client) BrowseDirectory(ctx context.Context, params BrowseDirectoryParams) (*FSBrowseResponse, error) {
 	path := "/api/fs/browse"

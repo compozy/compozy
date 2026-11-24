@@ -89,6 +89,7 @@ func (d *Daemon) bootRegistryState(
 		return fmt.Errorf("daemon: verify default profile: %w", err)
 	}
 	state.registry = registry
+	d.migrateRemovedGateway(ctx, state)
 
 	if profileStore, ok := registry.(*globaldb.GlobalDB); ok {
 		profiles, err := d.bootProfiles(state, profileStore)

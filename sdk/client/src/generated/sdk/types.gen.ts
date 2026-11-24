@@ -2439,7 +2439,6 @@ export type DaemonReadinessPayload = {
 
 export type DaemonStatusPayload = {
   active_sessions: number;
-  gateway?: GatewayStatusPayload | null;
   http_host: string;
   http_port: number;
   min_app_version: string;
@@ -2499,7 +2498,6 @@ export type DetailBody = {
 };
 
 export type DevLinkExtensionRequest = {
-  confirm_gateway_digest?: string;
   generation_hash: string;
   origin_path: string;
 };
@@ -2760,8 +2758,6 @@ export type ExtensionEnablePreviewPayload = {
   automation_starting: Array<string>;
   changes: Array<ExtensionKitChangePayload>;
   extension: string;
-  gateway_confirmation_required: boolean;
-  gateway_requirement_digest: string;
   missing_env: Array<string>;
   missing_inputs: Array<string>;
 };
@@ -2787,7 +2783,6 @@ export type ExtensionInstallDeclaredProfilePayload = {
 export type ExtensionInstallPreviewPayload = {
   declared_profiles: Array<ExtensionInstallDeclaredProfilePayload>;
   digest_sha256?: string;
-  gateway_requirement_digest?: string;
   inputs: Array<MarketplaceInputPayload>;
   name: string;
   placements: Array<ExtensionPlacementPayload>;
@@ -2831,7 +2826,6 @@ export type ExtensionLogsResponse = {
 export type ExtensionOperationErrorPayload = {
   agents?: Array<string>;
   code: string;
-  current_digest?: string;
   declared_env?: Array<string>;
   diagnostic?: DiagnosticItem | null;
   env_name?: string;
@@ -2860,8 +2854,6 @@ export type ExtensionPayload = {
   enabled: boolean;
   failure_code?: string;
   format: string;
-  gateway_confirmation_required: boolean;
-  gateway_requirement_digest?: string;
   generation_hash?: string;
   health?: string;
   health_message?: string;
@@ -3246,186 +3238,11 @@ export type GateCriterion = {
   type: string;
 };
 
-export type GatewayAddressPayload = {
-  address: string;
-  live: boolean;
-  tier: string;
-};
-
-export type GatewayAuditAuthPayload = {
-  active_device_count: number;
-  mode: string;
-  required_remotely: boolean;
-};
-
-export type GatewayAuditFindingPayload = {
-  id: string;
-  remediation: string;
-  resource?: string;
-  severity: string;
-  summary: string;
-  tier?: string;
-};
-
-export type GatewayAuditPayload = {
-  auth: GatewayAuditAuthPayload;
-  device_highlights: GatewayDeviceHighlights;
-  findings: Array<GatewayAuditFindingPayload>;
-  local_only: boolean;
-  no_findings: boolean;
-  ran: boolean;
-  status: GatewayStatusPayload;
-};
-
-export type GatewayDeviceHighlights = {
-  active: number;
-  recently_paired: number;
-  revoked: number;
-  stale: number;
-  stale_device_ids: Array<string>;
-};
-
-export type GatewayDevicePayload = {
-  actor_kind: string;
-  created_at: string;
-  id: string;
-  last_seen_at?: string | null;
-  name: string;
-  pairing_origin: string;
-  revoke_epoch: number;
-  revoked_at?: string | null;
-};
-
-export type GatewayDeviceRenameRequest = {
-  name: string;
-};
-
-export type GatewayDevicesResponse = {
-  devices: Array<GatewayDevicePayload>;
-};
-
-export type GatewayIngressBindRequest = {
-  confirmed: boolean;
-  subject_id: string;
-  subject_kind: string;
-};
-
-export type GatewayIngressBindingResponse = {
-  binding: GatewayIngressPayload;
-  changed: boolean;
-};
-
-export type GatewayIngressPayload = {
-  confirmed_at?: string | null;
-  confirmed_endpoint_generation?: number;
-  enable_path?: string;
-  endpoint_generation: number;
-  reachability: string;
-  scope_kind: string;
-  subject_id: string;
-  subject_kind: string;
-  url?: string;
-  workspace_id?: string;
-};
-
-export type GatewayIngressUnbindResponse = {
-  changed: boolean;
-  subject_id: string;
-  subject_kind: string;
-};
-
-export type GatewayIssuedCredentialPayload = {
-  credential?: string;
-  device: GatewayDevicePayload;
-};
-
-export type GatewayPairingArtifactPayload = {
-  artifact: string;
-  expires_at: string;
-  manual_code: string;
-};
-
-export type GatewayPairingRedeemRequest = {
-  actor_kind: string;
-  artifact?: string;
-  credential?: string;
-  manual_code?: string;
-  name: string;
-};
-
-export type GatewayProviderEnableRequest = {
-  digest_confirmed?: string;
-  expected_generation: number;
-  install_source: string;
-  tier: string;
-};
-
-export type GatewayProviderPayload = {
-  cause?: string;
-  desired: string;
-  generation: number;
-  health: string;
-  name: string;
-  observed: string;
-  tier: string;
-};
-
-export type GatewayRefusalPayload = {
-  cause: string;
-  fix: string;
-};
-
-export type GatewayRemovedDevicePayload = {
-  canceled: number;
-  device: GatewayDevicePayload;
-  revoked: boolean;
-};
-
-export type GatewayRevokePayload = {
-  canceled: number;
-  changed: boolean;
-  device: GatewayDevicePayload;
-};
-
-export type GatewayStatusPayload = {
-  addresses: Array<GatewayAddressPayload>;
-  bindings: Array<GatewayIngressPayload>;
-  changed: boolean;
-  devices: Array<GatewayDevicePayload>;
-  enabled: boolean;
-  providers: Array<GatewayProviderPayload>;
-  refusal?: GatewayRefusalPayload | null;
-  surfaces: Array<GatewaySurfacePayload>;
-  tiers: Array<GatewayTierPayload>;
-};
-
-export type GatewayStreamTicketPayload = {
-  expires_at: string;
-  ticket: string;
-};
-
-export type GatewaySurfacePayload = {
-  desired: string;
-  generation: number;
-  observed: string;
-  surface: string;
-  tier: string;
-};
-
-export type GatewaySurfaceRequest = {
-  consent: boolean;
-  desired: string;
-  expected_generation: number;
-  surface: string;
-  tier: string;
-};
-
-export type GatewayTierPayload = {
-  advertised: boolean;
-  desired: string;
-  listener_address?: string;
-  observed: string;
-  tier: string;
+export type GatewayRemovalNoticePayload = {
+  bindings_needing_confirmation: number;
+  connection_profiles: number;
+  devices: number;
+  providers: number;
 };
 
 export type GlobalShortcut = {
@@ -4548,6 +4365,30 @@ export type Image = {
   url?: string;
 };
 
+export type IngressBindRequest = {
+  confirmed: boolean;
+  subject_id: string;
+  subject_kind: string;
+};
+
+export type IngressBindingResponse = {
+  binding: IngressPayload;
+  changed: boolean;
+};
+
+export type IngressPayload = {
+  confirmed_at?: string | null;
+  confirmed_endpoint_generation?: number;
+  enable_path?: string;
+  endpoint_generation: number;
+  reachability: string;
+  scope_kind: string;
+  subject_id: string;
+  subject_kind: string;
+  url?: string;
+  workspace_id?: string;
+};
+
 export type Input = {
   default?: unknown;
   description?: string;
@@ -4564,7 +4405,6 @@ export type InputRef = {
 export type InstallExtensionRequest = {
   allow_unverified?: boolean;
   asset?: string;
-  confirm_gateway_digest?: string;
   /**
    * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
    */
@@ -5920,6 +5760,16 @@ export type MetricSpec = {
   min_delta?: number | null;
 };
 
+export type MigrationNoticePayload = {
+  created_at: string;
+  key: string;
+  payload: GatewayRemovalNoticePayload;
+};
+
+export type MigrationNoticesResponse = {
+  notices: Array<MigrationNoticePayload>;
+};
+
 /**
  * Layout migration status. A conversion diagnostic is present in error only when state is failed; a successful retry clears error.
  */
@@ -7019,7 +6869,6 @@ export type Reference = {
 };
 
 export type ReloadExtensionRequest = {
-  confirm_gateway_digest?: string;
   generation_hash: string;
 };
 
@@ -13582,7 +13431,7 @@ export type TriggerPayload = {
   };
   fire_limit: FireLimitConfig;
   id: string;
-  ingress?: GatewayIngressPayload | null;
+  ingress?: IngressPayload | null;
   last_run?: AutomationLastRunPayload | null;
   loop_target?: LoopTarget | null;
   name: string;
@@ -13663,7 +13512,6 @@ export type UpdateAppTokenRequest = {
 export type UpdateExtensionRequest = {
   allow_unverified?: boolean;
   check_only?: boolean;
-  confirm_gateway_digest?: string;
   inputs?: {
     [key: string]: Value;
   };
@@ -14503,7 +14351,6 @@ export type CreateAgentRequestWritable = {
 export type InstallExtensionRequestWritable = {
   allow_unverified?: boolean;
   asset?: string;
-  confirm_gateway_digest?: string;
   /**
    * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
    */
@@ -14545,7 +14392,6 @@ export type UpdateAgentRequestWritable = {
 export type UpdateExtensionRequestWritable = {
   allow_unverified?: boolean;
   check_only?: boolean;
-  confirm_gateway_digest?: string;
   inputs?: {
     [key: string]: ValueWritable;
   };
@@ -23288,10 +23134,6 @@ export type UpdateExtensionsErrors = {
    */
   404: ErrorPayload;
   /**
-   * Gateway confirmation required
-   */
-  409: ExtensionOperationErrorPayload;
-  /**
    * Extension trust or input configuration is required
    */
   422: ErrorPayload | ExtensionOperationErrorPayload;
@@ -23467,10 +23309,6 @@ export type UpdateExtensionErrors = {
    * Extension not found
    */
   404: ErrorPayload;
-  /**
-   * Gateway confirmation required
-   */
-  409: ExtensionOperationErrorPayload;
   /**
    * Extension trust or input configuration is required
    */
@@ -23837,7 +23675,7 @@ export type ReloadDevExtensionErrors = {
    */
   403: ErrorPayload;
   /**
-   * Extension is not dev linked or needs gateway confirmation
+   * Extension is not dev linked
    */
   409: ExtensionOperationErrorPayload;
   /**
@@ -24111,547 +23949,6 @@ export type BrowseDirectoryResponses = {
 
 export type BrowseDirectoryResponse = BrowseDirectoryResponses[keyof BrowseDirectoryResponses];
 
-export type GetGatewayAuditData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/audit";
-};
-
-export type GetGatewayAuditErrors = {
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type GetGatewayAuditError = GetGatewayAuditErrors[keyof GetGatewayAuditErrors];
-
-export type GetGatewayAuditResponses = {
-  /**
-   * Completed gateway security audit
-   */
-  200: GatewayAuditPayload;
-};
-
-export type GetGatewayAuditResponse = GetGatewayAuditResponses[keyof GetGatewayAuditResponses];
-
-export type ListGatewayDevicesData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/devices";
-};
-
-export type ListGatewayDevicesErrors = {
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type ListGatewayDevicesError = ListGatewayDevicesErrors[keyof ListGatewayDevicesErrors];
-
-export type ListGatewayDevicesResponses = {
-  /**
-   * OK
-   */
-  200: GatewayDevicesResponse;
-};
-
-export type ListGatewayDevicesResponse =
-  ListGatewayDevicesResponses[keyof ListGatewayDevicesResponses];
-
-export type RevokeGatewayDeviceData = {
-  body?: never;
-  path: {
-    /**
-     * Gateway device id
-     */
-    id: string;
-  };
-  query?: never;
-  url: "/api/gateway/devices/{id}";
-};
-
-export type RevokeGatewayDeviceErrors = {
-  /**
-   * Gateway device not found
-   */
-  404: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type RevokeGatewayDeviceError = RevokeGatewayDeviceErrors[keyof RevokeGatewayDeviceErrors];
-
-export type RevokeGatewayDeviceResponses = {
-  /**
-   * Revoked
-   */
-  200: GatewayRevokePayload;
-};
-
-export type RevokeGatewayDeviceResponse =
-  RevokeGatewayDeviceResponses[keyof RevokeGatewayDeviceResponses];
-
-export type RenameGatewayDeviceData = {
-  /**
-   * JSON request body
-   */
-  body: GatewayDeviceRenameRequest;
-  path: {
-    /**
-     * Gateway device id
-     */
-    id: string;
-  };
-  query?: never;
-  url: "/api/gateway/devices/{id}";
-};
-
-export type RenameGatewayDeviceErrors = {
-  /**
-   * Invalid gateway device name
-   */
-  400: ErrorPayload;
-  /**
-   * Gateway device not found
-   */
-  404: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type RenameGatewayDeviceError = RenameGatewayDeviceErrors[keyof RenameGatewayDeviceErrors];
-
-export type RenameGatewayDeviceResponses = {
-  /**
-   * Renamed
-   */
-  200: GatewayDevicePayload;
-};
-
-export type RenameGatewayDeviceResponse =
-  RenameGatewayDeviceResponses[keyof RenameGatewayDeviceResponses];
-
-export type RemoveGatewayDeviceData = {
-  body?: never;
-  path: {
-    /**
-     * Gateway device id
-     */
-    id: string;
-  };
-  query?: never;
-  url: "/api/gateway/devices/{id}/record";
-};
-
-export type RemoveGatewayDeviceErrors = {
-  /**
-   * Gateway device not found
-   */
-  404: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type RemoveGatewayDeviceError = RemoveGatewayDeviceErrors[keyof RemoveGatewayDeviceErrors];
-
-export type RemoveGatewayDeviceResponses = {
-  /**
-   * Removed
-   */
-  200: GatewayRemovedDevicePayload;
-};
-
-export type RemoveGatewayDeviceResponse =
-  RemoveGatewayDeviceResponses[keyof RemoveGatewayDeviceResponses];
-
-export type BindGatewayIngressData = {
-  /**
-   * JSON request body
-   */
-  body: GatewayIngressBindRequest;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/ingress-bindings";
-};
-
-export type BindGatewayIngressErrors = {
-  /**
-   * Invalid ingress binding request
-   */
-  400: ErrorPayload;
-  /**
-   * Ingress subject is outside the caller workspace
-   */
-  403: ErrorPayload;
-  /**
-   * Ingress subject not found
-   */
-  404: ErrorPayload;
-  /**
-   * Public ingress is not reachable
-   */
-  409: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type BindGatewayIngressError = BindGatewayIngressErrors[keyof BindGatewayIngressErrors];
-
-export type BindGatewayIngressResponses = {
-  /**
-   * Already confirmed
-   */
-  200: GatewayIngressBindingResponse;
-  /**
-   * Created
-   */
-  201: GatewayIngressBindingResponse;
-};
-
-export type BindGatewayIngressResponse =
-  BindGatewayIngressResponses[keyof BindGatewayIngressResponses];
-
-export type UnbindGatewayIngressData = {
-  body?: never;
-  path: {
-    /**
-     * Ingress subject kind
-     */
-    subject_kind: string;
-    /**
-     * Ingress subject id
-     */
-    subject_id: string;
-  };
-  query?: never;
-  url: "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}";
-};
-
-export type UnbindGatewayIngressErrors = {
-  /**
-   * Invalid ingress subject
-   */
-  400: ErrorPayload;
-  /**
-   * Ingress subject is outside the caller workspace
-   */
-  403: ErrorPayload;
-  /**
-   * Ingress subject not found
-   */
-  404: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type UnbindGatewayIngressError =
-  UnbindGatewayIngressErrors[keyof UnbindGatewayIngressErrors];
-
-export type UnbindGatewayIngressResponses = {
-  /**
-   * Unbound
-   */
-  200: GatewayIngressUnbindResponse;
-};
-
-export type UnbindGatewayIngressResponse =
-  UnbindGatewayIngressResponses[keyof UnbindGatewayIngressResponses];
-
-export type MintGatewayPairingData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/pairings";
-};
-
-export type MintGatewayPairingErrors = {
-  /**
-   * Forbidden
-   */
-  403: ErrorPayload;
-  /**
-   * Rate limited
-   */
-  429: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type MintGatewayPairingError = MintGatewayPairingErrors[keyof MintGatewayPairingErrors];
-
-export type MintGatewayPairingResponses = {
-  /**
-   * Created
-   */
-  201: GatewayPairingArtifactPayload;
-};
-
-export type MintGatewayPairingResponse =
-  MintGatewayPairingResponses[keyof MintGatewayPairingResponses];
-
-export type RedeemGatewayPairingData = {
-  /**
-   * JSON request body
-   */
-  body: GatewayPairingRedeemRequest;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/pairings/redeem";
-};
-
-export type RedeemGatewayPairingErrors = {
-  /**
-   * Invalid pairing request
-   */
-  400: ErrorPayload;
-  /**
-   * Invalid pairing artifact
-   */
-  401: ErrorPayload;
-  /**
-   * Forbidden
-   */
-  403: ErrorPayload;
-  /**
-   * Pairing artifact already spent
-   */
-  409: ErrorPayload;
-  /**
-   * Pairing artifact expired
-   */
-  410: ErrorPayload;
-  /**
-   * Rate limited
-   */
-  429: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type RedeemGatewayPairingError =
-  RedeemGatewayPairingErrors[keyof RedeemGatewayPairingErrors];
-
-export type RedeemGatewayPairingResponses = {
-  /**
-   * Redeemed
-   */
-  200: GatewayIssuedCredentialPayload;
-};
-
-export type RedeemGatewayPairingResponse =
-  RedeemGatewayPairingResponses[keyof RedeemGatewayPairingResponses];
-
-export type DisableGatewayProviderData = {
-  body?: never;
-  path: {
-    /**
-     * Connectivity provider name
-     */
-    name: string;
-  };
-  query: {
-    /**
-     * Gateway tier
-     */
-    tier: string;
-  };
-  url: "/api/gateway/providers/{name}/disable";
-};
-
-export type DisableGatewayProviderErrors = {
-  /**
-   * Invalid gateway tier
-   */
-  400: ErrorPayload;
-  /**
-   * Gateway provider not found
-   */
-  404: ErrorPayload;
-  /**
-   * Gateway provider conflict
-   */
-  409: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type DisableGatewayProviderError =
-  DisableGatewayProviderErrors[keyof DisableGatewayProviderErrors];
-
-export type DisableGatewayProviderResponses = {
-  /**
-   * Disabled
-   */
-  200: GatewayStatusPayload;
-};
-
-export type DisableGatewayProviderResponse =
-  DisableGatewayProviderResponses[keyof DisableGatewayProviderResponses];
-
-export type EnableGatewayProviderData = {
-  /**
-   * JSON request body
-   */
-  body: GatewayProviderEnableRequest;
-  path: {
-    /**
-     * Connectivity provider name
-     */
-    name: string;
-  };
-  query?: never;
-  url: "/api/gateway/providers/{name}/enable";
-};
-
-export type EnableGatewayProviderErrors = {
-  /**
-   * Invalid provider request
-   */
-  400: ErrorPayload;
-  /**
-   * Gateway provider conflict
-   */
-  409: ErrorPayload;
-  /**
-   * Provider digest confirmation required
-   */
-  428: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type EnableGatewayProviderError =
-  EnableGatewayProviderErrors[keyof EnableGatewayProviderErrors];
-
-export type EnableGatewayProviderResponses = {
-  /**
-   * Enabled
-   */
-  200: GatewayStatusPayload;
-};
-
-export type EnableGatewayProviderResponse =
-  EnableGatewayProviderResponses[keyof EnableGatewayProviderResponses];
-
-export type GetGatewayStatusData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/status";
-};
-
-export type GetGatewayStatusErrors = {
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type GetGatewayStatusError = GetGatewayStatusErrors[keyof GetGatewayStatusErrors];
-
-export type GetGatewayStatusResponses = {
-  /**
-   * OK
-   */
-  200: GatewayStatusPayload;
-};
-
-export type GetGatewayStatusResponse = GetGatewayStatusResponses[keyof GetGatewayStatusResponses];
-
-export type MintGatewayStreamTicketData = {
-  body?: never;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/stream-tickets";
-};
-
-export type MintGatewayStreamTicketErrors = {
-  /**
-   * Gateway device authentication required
-   */
-  401: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type MintGatewayStreamTicketError =
-  MintGatewayStreamTicketErrors[keyof MintGatewayStreamTicketErrors];
-
-export type MintGatewayStreamTicketResponses = {
-  /**
-   * Created
-   */
-  201: GatewayStreamTicketPayload;
-};
-
-export type MintGatewayStreamTicketResponse =
-  MintGatewayStreamTicketResponses[keyof MintGatewayStreamTicketResponses];
-
-export type SetGatewaySurfaceData = {
-  /**
-   * JSON request body
-   */
-  body: GatewaySurfaceRequest;
-  path?: never;
-  query?: never;
-  url: "/api/gateway/surfaces";
-};
-
-export type SetGatewaySurfaceErrors = {
-  /**
-   * Invalid gateway surface request
-   */
-  400: ErrorPayload;
-  /**
-   * Gateway exposure conflict
-   */
-  409: ErrorPayload;
-  /**
-   * Gateway consent required
-   */
-  428: ErrorPayload;
-  /**
-   * Internal server error
-   */
-  500: ErrorPayload;
-};
-
-export type SetGatewaySurfaceError = SetGatewaySurfaceErrors[keyof SetGatewaySurfaceErrors];
-
-export type SetGatewaySurfaceResponses = {
-  /**
-   * Updated
-   */
-  200: GatewayStatusPayload;
-};
-
-export type SetGatewaySurfaceResponse =
-  SetGatewaySurfaceResponses[keyof SetGatewaySurfaceResponses];
-
 export type GetHookCatalogData = {
   body?: never;
   path?: never;
@@ -24884,7 +24181,7 @@ export type BindIngressData = {
   /**
    * JSON request body
    */
-  body: GatewayIngressBindRequest;
+  body: IngressBindRequest;
   path?: never;
   query?: never;
   url: "/api/ingress/bindings";
@@ -24908,7 +24205,7 @@ export type BindIngressErrors = {
    */
   500: ErrorPayload;
   /**
-   * Webhook ingress unavailable
+   * Public ingress is not reachable
    */
   503: ErrorPayload;
 };
@@ -24919,11 +24216,11 @@ export type BindIngressResponses = {
   /**
    * Already confirmed
    */
-  200: GatewayIngressBindingResponse;
+  200: IngressBindingResponse;
   /**
    * Created
    */
-  201: GatewayIngressBindingResponse;
+  201: IngressBindingResponse;
 };
 
 export type BindIngressResponse = BindIngressResponses[keyof BindIngressResponses];
@@ -25889,6 +25186,81 @@ export type CompleteMCPAuthCallbackResponses = {
 
 export type CompleteMCPAuthCallbackResponse =
   CompleteMCPAuthCallbackResponses[keyof CompleteMCPAuthCallbackResponses];
+
+export type ListMigrationNoticesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/migration-notices";
+};
+
+export type ListMigrationNoticesErrors = {
+  /**
+   * Sign-in required
+   */
+  401: ErrorPayload;
+  /**
+   * Operator permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type ListMigrationNoticesError =
+  ListMigrationNoticesErrors[keyof ListMigrationNoticesErrors];
+
+export type ListMigrationNoticesResponses = {
+  /**
+   * Upgrade notices
+   */
+  200: MigrationNoticesResponse;
+};
+
+export type ListMigrationNoticesResponse =
+  ListMigrationNoticesResponses[keyof ListMigrationNoticesResponses];
+
+export type DismissMigrationNoticeData = {
+  body?: never;
+  path: {
+    /**
+     * Migration notice key
+     */
+    key: string;
+  };
+  query?: never;
+  url: "/api/migration-notices/{key}/dismiss";
+};
+
+export type DismissMigrationNoticeErrors = {
+  /**
+   * Sign-in required
+   */
+  401: ErrorPayload;
+  /**
+   * Operator permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type DismissMigrationNoticeError =
+  DismissMigrationNoticeErrors[keyof DismissMigrationNoticeErrors];
+
+export type DismissMigrationNoticeResponses = {
+  /**
+   * Notice dismissed
+   */
+  204: void;
+};
+
+export type DismissMigrationNoticeResponse =
+  DismissMigrationNoticeResponses[keyof DismissMigrationNoticeResponses];
 
 export type ListProviderModelsData = {
   body?: never;

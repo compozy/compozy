@@ -4,7 +4,6 @@ import type { paths as compozyPaths } from "@compozy/client";
 import { reportAccountGateResponse } from "./account-gate-signal";
 import { createClientId } from "./client-id";
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, normalizeComputerId } from "./computer-scope";
-import { reportGatewayResponse } from "./gateway-access-signal";
 import {
   buildBrowserDPoP,
   isHostedBrowserMode,
@@ -121,7 +120,6 @@ function attachClientMiddleware(client: Client<compozyPaths>): Client<compozyPat
       if (isHostedBrowserMode()) {
         await reportHostedBrowserResponse(response);
       } else {
-        await reportGatewayResponse(response);
         await reportAccountGateResponse(response);
       }
       return undefined;

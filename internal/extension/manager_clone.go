@@ -66,7 +66,6 @@ func cloneManifest(src *Manifest) *Manifest {
 
 	cloned := *src
 	cloned.Inputs = cloneManifestInputs(src.Inputs)
-	cloned.Gateway = src.Gateway.Normalize()
 	cloned.IngestDiagnostics = cloneDiagnosticItems(src.IngestDiagnostics)
 	cloned.Resources = normalizeResourcesConfig(src.Resources)
 	cloned.Capabilities = normalizeCapabilitiesConfig(src.Capabilities)

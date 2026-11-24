@@ -11,7 +11,6 @@
 - Subagents
 - Provider usage (experimental)
 - MCP serve and onboarding
-- Gateway exposure and device authentication
 - Remote CLI profiles and SSH forwards
 - Automation suggestions
 
@@ -1209,7 +1208,7 @@ also accept WebSocket upgrades. Each text message is one complete SSE frame, pre
 events and redaction while leaving HTTP/1.1 connections free for commands across browser tabs.
 Resume session catalog/log streams with the exact prior event id in `last_event_id`; the
 `Last-Event-ID` header takes precedence. Preserve the original scope and filters, and mint a fresh
-stream ticket on every remote gateway reconnect. Worktree catalog wakes require refetch on reconnect.
+stream ticket on every hosted browser reconnect. Worktree catalog wakes require refetch on reconnect.
 
 Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`. Every session read carries `lineage.kind`: `""` (root), `provenance` (created with a parent, the default), `recovery` (`session new --parent <id> --lineage-kind recovery` or `"lineage_kind": "recovery"` on create; only `provenance`/`recovery` are accepted there, and only with a parent), `spawn` (governed spawned or spawn-role sessions), `continue`, or `fork` (these two also carry `origin_agent_name`; forks carry `origin_message_id`; request `result_view: "full"` on native session reads for those origin fields). Sessions created before kinds existed read `spawn`/`provenance`/`""` automatically. `continue`/`fork` sessions are top-level, not children: lists show them as their own rows and they never count as the source's active child, but `parent=`/`root=` still match their stored fields, so filter on `lineage.kind` to separate them.
 
@@ -1336,7 +1335,7 @@ its own sign-in") and no credential is read; inherited daemon values never count
 may renew its own login). Codex runs only with its file credential store; `keyring`/`auto` report
 `unsupported` (`auth_store_unsupported`) and CompozyOS never changes that setting.
 
-Refresh intent is `background` (scheduler, popover open, agents, gateway devices, app tokens) or
+Refresh intent is `background` (scheduler, popover open, agents, remote devices, app tokens) or
 `explicit` (local desktop Refresh/Allow and the local CLI). Keychain reads require
 `provider_usage.providers.claude.keychain_access = true`. Background refreshes reuse a valid cached
 Claude token, then silently reread the exact routed Keychain item after expiry, account changes, or
@@ -1410,123 +1409,6 @@ prompt cancel. Recap, repair, inspect, and Soul refresh remain CLI/HTTP/UDS mana
 the live registry exposes a matching tool. `compozy__clarify` asks from inside the active session;
 `compozy__session_clarify_answer` answers a pending question on another session authorized by
 workspace access policy; its approval authority and self-target restrictions still apply.
-
-## Gateway Exposure and Device Authentication
-
-Gateway policy is operator-global desired state. Inspect its effective posture in
-`.daemon.gateway` from `compozy status -o json`, through `GET /api/status`, or directly through
-`GET /api/gateway/status` on the private HTTP listener or UDS. The status reports enabled tiers,
-durable surfaces, provider state, resolved loopback listener addresses, paired devices, and any
-refusal that prevented exposure. A configured port of `0` asks the daemon to select a free port;
-use the resolved status address instead of assuming a default.
-
-Run `compozy gateway audit -o json`, call `GET /api/gateway/audit`, or use the `audit` action of
-`compozy__gateway` to check the same posture as ranked findings. A completed report always has
-`ran=true`; an empty result also has `no_findings=true`, so it cannot be confused with a skipped
-check. Findings have stable `id`, `severity`, and `remediation` fields. Provider downtime is a
-finding, not an audit transport error. The audit only reads current state, so re-run it after a
-repair to confirm that the finding cleared.
-
-Manage tier surfaces, providers, pairings, and devices through the private authenticated HTTP
-listener or UDS under `/api/gateway`. Mint pairing artifacts with `POST /api/gateway/pairings`, redeem them with
-`POST /api/gateway/pairings/redeem`, and list, rename, or revoke devices with `GET /api/gateway/devices`,
-`PATCH /api/gateway/devices/{id}`, and `DELETE /api/gateway/devices/{id}`. Pairing mint and redeem are physically absent from
-the public listener. Browser redemption installs a `Secure`, `HttpOnly`, `SameSite=Lax` cookie and
-does not return the raw credential. CLI redemption generates and durably stores the credential on
-the client before sending it over TLS; the daemon stores only its hash.
-
-Select a connectivity provider with `POST /providers/{name}/enable`, naming the exact tier, live
-install source, current confirmed control digest, and expected generation. Read status first and do
-not reconstruct a digest. A third-party provider whose live registry digest changed fails closed
-until the extension requirement and Gateway provider selection both confirm the current value.
-Disable it with `POST /providers/{name}/disable?tier=<private|public>`. Only one provider may own a
-tier; replace that selection explicitly instead of racing two enables.
-
-Before enabling the bundled Tailscale provider, bind an auth key from the operator's Tailscale
-account through hidden input:
-
-    compozy extension secrets set tailscale --env TS_AUTHKEY
-
-The provider embeds `tsnet`; do not install or supervise a separate Tailscale client. The live
-manifest must include the selected tier as `gateway.private` or `gateway.public` in
-`channel_scopes`; a mismatch fails before provider code starts.
-
-Bundled private Tailscale proof uses a loopback TCP relay into the embedded tsnet node, retaining
-core TLS hostname and exact tier nonce validation. It requires no host Tailscale client or host
-Tailnet route. The relay is private-tier-only and never advertised. Probe diagnostics distinguish
-DNS, refused/unreachable connections, timeout, TLS certificate failure, HTTP status and nonce
-mismatch without exposing the challenge. Inspect the reported class; HTTP 200 at `/` is not proof.
-
-Public endpoint proof resolves through authenticated DNS-over-TLS at
-`gateway.verify.public_dns_resolver`, not the host resolver, so MagicDNS cannot turn a Funnel proof
-into a private-tailnet connection. A provider waiting for public DNS remains staged and unadvertised
-while bounded recovery retries. Read `gateway status -o json` until the public tier reports
-`advertised=true` (the human rendering shows summary counts only); disable the provider to stop a
-staged attempt.
-
-Authenticated streaming over a tier listener uses a short-lived, single-use ticket. Obtain one with
-`POST /api/gateway/stream-tickets`, then pass it as the `ticket` query parameter on the SSE or
-WebSocket request. A consumed, expired, malformed, or revoked-device ticket is rejected uniformly;
-mint a fresh ticket for each reconnect. Revoking a device invalidates its future requests and closes
-its registered live streams.
-
-Tier listeners bind to daemon-owned loopback sockets. Connectivity providers publish those local
-listeners; they do not replace Gateway authentication or expose UDS-only APIs. The private tier owns
-operator management and the full operator surface. The public tier exposes only the selected
-operator and ingress surface union, never pairing mint or redeem and never ingress-binding
-management.
-
-Webhook triggers expose public-ingress projections. Read the trigger's `ingress`; use its URL only
-when `reachability=live`. Confirm one
-subject through the private listener or UDS with `POST /api/gateway/ingress-bindings` and
-`{subject_kind, subject_id, confirmed:true}`. Remove it with
-`DELETE /api/gateway/ingress-bindings/{subject_kind}/{subject_id}`. Subject scope and workspace are
-resolved by the daemon, not accepted from the caller. An endpoint-generation change produces
-`reconfirmation_required`. Public ingress has no store-and-forward queue: when the daemon or provider
-is offline, the sender must retry the failed delivery.
-
-Gateway API errors use stable codes. Branch on the returned code instead of matching prose. The
-repairable policy and state codes are `gateway_exposure_refused`, `gateway_consent_required`,
-`gateway_provider_trust_stale`, `gateway_digest_confirmation_required`,
-`gateway_endpoint_unverified`, `gateway_provider_degraded`, `gateway_generation_conflict`, and
-`gateway_tier_provider_conflict`. Authentication, pairing, device, ticket, ingress, and local-only
-failures use their matching `gateway_device_*`, `gateway_pairing_*`, `gateway_stream_ticket_invalid`,
-`gateway_ingress_*`, and `gateway_local_only_operation` codes.
-
-### Remote CLI profiles and SSH forwards
-
-Pair a direct HTTPS client with `compozy pair mint`. The command writes the raw artifact to the
-private `0600` file named by `artifact_ref`; transfer that file out of band, then redeem its contents
-on the client with `compozy pair redeem <artifact> --name <name> --address https://host[:port]`.
-CLI output never contains the raw artifact. Use `--use` to make the profile active immediately, or
-select it later with `compozy connect use <name>`. Inspect
-non-secret metadata with `compozy connect list -o json`; `compozy connect remove <name>` removes both
-the profile and its client-local credential. `compozy connect use local` returns the CLI to UDS.
-Move the same revocable identity to another client with `compozy connect export <name>
---passphrase-file <private-file> --output-file <bundle>` and `compozy connect import <bundle>
---passphrase-file <private-file>`. The bundle uses passphrase-derived authenticated encryption;
-protect it like a key. Copying `config.toml` alone never transfers an identity.
-When a remote profile is active, commands report the selected target on stderr while structured
-stdout remains parseable. `compozy open` uses the selected HTTPS origin.
-
-Direct profiles can operate sessions; read tasks; and use Loops, settings,
-extensions, and private Gateway management. Task mutations, task-run queue and scheduler authority,
-agent-internal routes, run lifecycle mutations, and resource mutations are local-only and fail before network I/O. Use the
-local daemon or an SSH forward when that authority is required. Each remote SSE or WebSocket connect
-and reconnect mints a fresh single-use stream ticket. A dropped stream reports
-`gateway_stream_interrupted`; accepted work continues on the daemon and can be observed after
-reconnect.
-
-Use `compozy connect ssh <host>` when direct HTTPS is unavailable or local-equivalent authority is
-needed. The command uses the system OpenSSH client and its existing configuration and agent, checks
-that the remote `compozy` version exactly matches, starts the remote daemon only when necessary,
-requires its HTTP listener to be loopback-only, and creates a loopback-only local forward. Pass
-`--remote-home <path>` to run every remote probe and lifecycle command with that `COMPOZY_HOME`.
-An intentional close tears down only its tunnel and stops the remote daemon only if this invocation
-started the same process. Concurrent connects to an SSH-owned daemon return `gateway_ssh_busy`
-instead of racing its lifecycle. An unexpected tunnel loss leaves that daemon running so accepted work can
-be observed after reconnect. Changed host keys fail closed; install, version, reachability, and
-tunnel-loss failures use stable `gateway_ssh_*` codes.
 
 ## Automation Suggestions
 
@@ -2230,7 +2112,7 @@ go tool pprof -tagfocus session_id=sess-example cpu.pprof
 ```
 
 The experimental `GET /api/daemon/profile/{kind}` route exists only on UDS, never HTTP or
-Gateway listeners. Kinds are `cpu`, `heap`, `allocs`, `goroutine`, `mutex`, `block`, and
+remote listeners. Kinds are `cpu`, `heap`, `allocs`, `goroutine`, `mutex`, `block`, and
 `threadcreate`. CPU, mutex and block use `seconds` (default 30, range 1–120); snapshots
 reject `seconds`. A concurrent CPU capture returns `409 profile_busy`; mutex/block
 captures share a separate exclusive sampling window. Cancellation stops sampling.

@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"slices"
-	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -40,15 +39,6 @@ func (s *daemonExtensionService) enableTargetUnlocked(
 	if len(preview.AgentConflicts) > 0 {
 		return result, &extensionpkg.AgentConflictError{Agents: slices.Clone(preview.AgentConflicts)}
 	}
-	confirmation, confirmErr := s.confirmGatewayForEnable(
-		extensionpkg.GlobalInstanceKey(name),
-		preview.GatewayRequirementDigest,
-		strings.TrimSpace(req.ConfirmGatewayDigest),
-		actor,
-	)
-	if confirmErr != nil {
-		return result, confirmErr
-	}
 	if enableErr := s.registry.Enable(name); enableErr != nil {
 		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, enableErr)
 	}
@@ -64,8 +54,6 @@ func (s *daemonExtensionService) enableTargetUnlocked(
 	if eventErr := s.recordExtensionEnableEvents(
 		ctx,
 		actor,
-		target.key(name),
-		confirmation,
 		&result,
 	); eventErr != nil {
 		return result, s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, eventErr)

@@ -74,7 +74,7 @@ func (r *LiveConnectionRegistry) Deregister(deviceID string, handle uint64) {
 
 func (r *LiveConnectionRegistry) CancelDevice(ctx context.Context, deviceID string) (int, error) {
 	if ctx == nil {
-		return 0, fmt.Errorf("gateway: cancel device connections: context is required")
+		return 0, fmt.Errorf("remotehost: cancel device connections: context is required")
 	}
 	r.mu.Lock()
 	registered := r.devices[deviceID]
@@ -92,7 +92,7 @@ func (r *LiveConnectionRegistry) CancelDevice(ctx context.Context, deviceID stri
 			select {
 			case <-connection.done:
 			case <-ctx.Done():
-				return count, fmt.Errorf("gateway: wait for device connection teardown: %w", ctx.Err())
+				return count, fmt.Errorf("remotehost: wait for device connection teardown: %w", ctx.Err())
 			}
 		}
 	}

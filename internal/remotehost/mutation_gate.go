@@ -41,10 +41,10 @@ func (g *MutationGate) RevalidateForCommit(ctx context.Context, deviceID string,
 		return nil
 	}
 	if err := g.validate(deviceID); err != nil {
-		return fmt.Errorf("gateway: validate device mutation gate: %w", err)
+		return fmt.Errorf("remotehost: validate device mutation gate: %w", err)
 	}
 	if err := g.validateEpoch(ctx, deviceID, epoch); err != nil {
-		return fmt.Errorf("gateway: revalidate device epoch: %w", err)
+		return fmt.Errorf("remotehost: revalidate device epoch: %w", err)
 	}
 	return nil
 }
@@ -61,14 +61,14 @@ func (g *MutationGate) AcquireMutation(
 	}
 	if err := g.validateEpoch(mutationCtx, deviceID, epoch); err != nil {
 		ReleaseMutation(mutationCtx)
-		return nil, fmt.Errorf("gateway: acquire device mutation: %w", err)
+		return nil, fmt.Errorf("remotehost: acquire device mutation: %w", err)
 	}
 	return mutationCtx, nil
 }
 
 func (g *MutationGate) acquire(ctx context.Context, deviceID string) (context.Context, error) {
 	if g == nil || ctx == nil || deviceID == "" {
-		return nil, errors.New("gateway: mutation gate dependencies are required")
+		return nil, errors.New("remotehost: mutation gate dependencies are required")
 	}
 	g.mu.Lock()
 	state := g.deviceState(deviceID)
@@ -105,7 +105,7 @@ func (g *MutationGate) validate(deviceID string) error {
 
 func (g *MutationGate) beginRevocation(ctx context.Context, deviceID string) (func(bool), error) {
 	if g == nil || ctx == nil || deviceID == "" {
-		return nil, errors.New("gateway: revocation gate dependencies are required")
+		return nil, errors.New("remotehost: revocation gate dependencies are required")
 	}
 	g.mu.Lock()
 	state := g.deviceState(deviceID)
@@ -125,7 +125,7 @@ func (g *MutationGate) beginRevocation(ctx context.Context, deviceID string) (fu
 		case <-drained:
 		case <-ctx.Done():
 			g.finishRevocation(deviceID, false)
-			return nil, fmt.Errorf("gateway: wait for in-flight device mutations: %w", ctx.Err())
+			return nil, fmt.Errorf("remotehost: wait for in-flight device mutations: %w", ctx.Err())
 		}
 	}
 	var once sync.Once

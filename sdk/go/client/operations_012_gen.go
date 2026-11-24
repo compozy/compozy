@@ -9,16 +9,6 @@ import (
 	"strings"
 )
 
-// GetHookRunsParams carries the path, query, and header parameters.
-type GetHookRunsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Session     string  `url:"session"`
-	Event       *string `url:"event"`
-	Outcome     *string `url:"outcome"`
-	Since       *string `url:"since"`
-	Last        *int    `url:"last"`
-}
-
 // GetHookRuns List hook run history for one session
 func (c *Client) GetHookRuns(ctx context.Context, params GetHookRunsParams) (*HookRunsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/hooks/runs"

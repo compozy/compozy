@@ -18,7 +18,7 @@ const (
 )
 
 var (
-	errAppTokenStoreRequired = errors.New("gateway: app token store is required")
+	errAppTokenStoreRequired = errors.New("app token: app token store is required")
 	ErrNameInvalid           = errors.New("name must be 1-64 characters")
 	ErrOriginInvalid         = errors.New("origin must use scheme://host[:port] with no path")
 	ErrOriginLimit           = errors.New("a token allows at most 16 origins")

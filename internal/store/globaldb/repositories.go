@@ -117,7 +117,9 @@ type AccountRepo struct{ *repoBase }
 type RemoteHostRepo struct{ *repoBase }
 type ComputersRepo struct{ *repoBase }
 
-type GatewayRepo struct{ *repoBase }
+type IngressRepo struct{ *repoBase }
+type AppTokenRepo struct{ *repoBase }
+type MigrationNoticeRepo struct{ *repoBase }
 
 type LoopRepo struct {
 	*repoBase
@@ -183,7 +185,9 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	g.AccountRepo = &AccountRepo{repoBase: base}
 	g.RemoteHostRepo = &RemoteHostRepo{repoBase: base}
 	g.ComputersRepo = &ComputersRepo{repoBase: base}
-	g.GatewayRepo = &GatewayRepo{repoBase: base}
+	g.IngressRepo = &IngressRepo{repoBase: base}
+	g.AppTokenRepo = &AppTokenRepo{repoBase: base}
+	g.MigrationNoticeRepo = &MigrationNoticeRepo{repoBase: base}
 	loopRepo := &LoopRepo{repoBase: base}
 	g.LoopRepo = loopRepo
 	g.GoalRepo = &GoalRepo{repoBase: base}

@@ -181,26 +181,6 @@ func (c *Client) GetExtensionProvenance(ctx context.Context, params GetExtension
 	return &out, nil
 }
 
-// GetGatewayAudit Audit the current gateway security posture
-func (c *Client) GetGatewayAudit(ctx context.Context) (*GatewayAuditPayload, error) {
-	path := "/api/gateway/audit"
-	var out GatewayAuditPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetGatewayStatus Get the operator-global gateway posture
-func (c *Client) GetGatewayStatus(ctx context.Context) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/status"
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 // GetGlobalSessionHistoryParams carries the path, query, and header parameters.
 type GetGlobalSessionHistoryParams struct {
 	SessionID     string  `url:"session_id"`
@@ -447,4 +427,14 @@ func (c *Client) GetHookEvents(ctx context.Context, params GetHookEventsParams) 
 		return nil, err
 	}
 	return &out, nil
+}
+
+// GetHookRunsParams carries the path, query, and header parameters.
+type GetHookRunsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Session     string  `url:"session"`
+	Event       *string `url:"event"`
+	Outcome     *string `url:"outcome"`
+	Since       *string `url:"since"`
+	Last        *int    `url:"last"`
 }

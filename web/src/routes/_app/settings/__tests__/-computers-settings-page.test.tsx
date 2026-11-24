@@ -1,6 +1,7 @@
 // Suite: Settings → Computers route page composition (S8 / U1, U2, U7)
 // Invariant: ComputersSettingsPage renders loading/error, cloud-unreachable + uninstall banners,
 // This computer controls, Computers list, On your account, Add computer dialog, and Details panel.
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -36,7 +37,18 @@ import {
   COMPUTERS_PRO,
   LOCAL_COMPUTER,
 } from "@/systems/computers/mocks/remote-computers-fixtures";
+import { migrationNoticesOptions } from "@/systems/computers";
 import { ComputersSettingsPage } from "../-computers-settings-page";
+
+function renderComputersPage() {
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
+  client.setQueryData(migrationNoticesOptions().queryKey, { notices: [] });
+  return render(<ComputersSettingsPage />, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+}
 
 function makeView(overrides: Record<string, unknown> = {}) {
   return {
@@ -145,7 +157,7 @@ describe("ComputersSettingsPage", () => {
   });
 
   it("renders This computer, Computers list, and On your account sections", () => {
-    render(<ComputersSettingsPage />);
+    renderComputersPage();
 
     expect(screen.getByTestId("computers-this-computer")).toBeInTheDocument();
     expect(screen.getByTestId("computers-list")).toBeInTheDocument();
@@ -164,7 +176,7 @@ describe("ComputersSettingsPage", () => {
       setUninstallWarning: dismiss,
     });
 
-    render(<ComputersSettingsPage />);
+    renderComputersPage();
 
     expect(screen.getByTestId("computers-cloud-unreachable")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Status/i })).toHaveAttribute(
@@ -187,7 +199,7 @@ describe("ComputersSettingsPage", () => {
       setAddDialogOpen: openAdd,
     });
 
-    render(<ComputersSettingsPage />);
+    renderComputersPage();
 
     expect(screen.getByTestId("computers-empty")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Run agents on this computer" })).toHaveAttribute(
@@ -208,7 +220,7 @@ describe("ComputersSettingsPage", () => {
       handleConfirmDisableAgents: onConfirmDisable,
     });
 
-    render(<ComputersSettingsPage />);
+    renderComputersPage();
 
     expect(screen.getByTestId("computers-load-balancing")).toBeInTheDocument();
     expect(screen.getByText("Stop running agents on this computer?")).toBeInTheDocument();
@@ -227,7 +239,7 @@ describe("ComputersSettingsPage", () => {
       account: ACCOUNT_PRESETS.pro,
       handleToggleHostedRoute: toggleHostedRoute,
     });
-    const { rerender } = render(<ComputersSettingsPage />);
+    const { rerender } = renderComputersPage();
     fireEvent.click(screen.getByRole("switch", { name: "Hosted route" }));
     expect(toggleHostedRoute).toHaveBeenCalledTimes(1);
 

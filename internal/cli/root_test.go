@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/version"
 )
 
 func TestMachineLocalComputerFlag(t *testing.T) {
@@ -158,18 +159,17 @@ func TestRenderExtensionOperationExecutionError(t *testing.T) {
 	})
 
 	payload := contract.ExtensionOperationErrorPayload{
-		Error:         "gateway confirmation required",
-		Code:          "extension_gateway_confirmation_required",
-		CurrentDigest: "digest-current",
+		Error: "extension already installed",
+		Code:  "extension_exists",
 		Diagnostic: &contract.DiagnosticItem{
-			ID:               "extension.gateway_confirmation_required",
-			Code:             "extension_gateway_confirmation_required",
+			ID:               "extension.exists",
+			Code:             "extension_exists",
 			Category:         "extension",
-			Title:            "Gateway confirmation is required",
-			Message:          "Confirm the current extension digest.",
+			Title:            "Extension is already installed",
+			Message:          "Remove the existing copy before restoring the built-in.",
 			Severity:         "error",
 			DataFreshness:    "live",
-			SuggestedCommand: "compozy extension enable alpha --confirm-gateway-requirement digest-current",
+			SuggestedCommand: "compozy extension remove alpha",
 		},
 	}
 	body, err := json.Marshal(payload)
@@ -238,7 +238,7 @@ func TestRenderExtensionOperationExecutionError(t *testing.T) {
 		}
 	})
 
-	t.Run("Should render the digest and retry command for humans", func(t *testing.T) {
+	t.Run("Should render the diagnostic and retry command for humans", func(t *testing.T) {
 		t.Parallel()
 
 		var stderr bytes.Buffer
@@ -246,9 +246,9 @@ func TestRenderExtensionOperationExecutionError(t *testing.T) {
 			t.Fatal("writeExecutionError() exit code = 0, want failure")
 		}
 		for _, want := range []string{
-			"Gateway confirmation is required",
-			"Confirm the current extension digest.",
-			"compozy extension enable alpha --confirm-gateway-requirement digest-current",
+			"Extension is already installed",
+			"Remove the existing copy before restoring the built-in.",
+			"compozy extension remove alpha",
 		} {
 			if !strings.Contains(stderr.String(), want) {
 				t.Fatalf("human error = %q, want %q", stderr.String(), want)
@@ -289,9 +289,9 @@ func TestRenderExtensionOperationExecutionError(t *testing.T) {
 						t.Fatalf("jsonl error = %#v, want type=%q payload=%#v", decoded, clientErrorKey, payload)
 					}
 				case "toon":
-					want := "error{code,current_digest,agents,env_name,declared_env,message}:\n" +
-						"  extension_gateway_confirmation_required,digest-current,\"\",\"\",\"\"," +
-						"gateway confirmation required"
+					want := "error{code,agents,env_name,declared_env,message}:\n" +
+						"  extension_exists,\"\",\"\",\"\"," +
+						"extension already installed"
 					if strings.TrimSpace(stderr.String()) != want {
 						t.Fatalf("TOON error = %q, want exact named fields %q", stderr.String(), want)
 					}
@@ -312,4 +312,31 @@ func TestRootUnknownCommand(t *testing.T) {
 			t.Fatalf("root error = %v, want unknown memory command", err)
 		}
 	})
+}
+
+// UT-111. Root dispatch owns the one-release tombstones and their precedence over sign-in.
+func TestRemovedGatewayCommands(t *testing.T) {
+	previous := version.SignInRequired
+	version.SignInRequired = "true"
+	t.Cleanup(func() { version.SignInRequired = previous })
+
+	for _, test := range []struct {
+		args []string
+		name string
+	}{
+		{[]string{"connect", "list"}, "compozy connect"},
+		{[]string{"gateway", "status"}, "compozy gateway"},
+		{[]string{"pair", "redeem", "--address", "https://example.test"}, "compozy pair"},
+		{[]string{"device", "revoke", "device-1"}, "compozy device"},
+		{[]string{"extension", "install", "kit", "--confirm-gateway-requirement=abc"}, "--confirm-gateway-requirement"},
+	} {
+		t.Run("Should return a tombstone for "+strings.Join(test.args, " "), func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := ExecuteContext(t.Context(), test.args, &stdout, &stderr)
+			want := test.name + " was removed in 0.8.0; use compozy computer — see https://compozy.com/docs/computers"
+			if code != 2 || stdout.Len() != 0 || strings.TrimSpace(stderr.String()) != want {
+				t.Fatalf("removed command = exit %d, stdout %q, stderr %q", code, &stdout, &stderr)
+			}
+		})
+	}
 }

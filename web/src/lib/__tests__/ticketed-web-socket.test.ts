@@ -1,13 +1,13 @@
 // Suite: ticketed WebSocket upgrade
 // Invariant: every upgrade attempt carries its own freshly minted single-use ticket on a remote
-// gateway session and none on a local one; a failed mint closes so the consumer's own reconnect
+// browser session and none on a local one; a failed mint closes so the consumer's own reconnect
 // loop takes over. Per-reconnect factory invocation is owned by the window-manager stream suite.
 // Owning layer: the shared browser stream transport.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createDeferred, createEventRecorder } from "@/test/event-recorder";
 
-import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
+import { resetHostedBrowserAuth, setHostedBrowserMode } from "@/lib/hosted-browser-auth";
 import { createStreamWebSocket } from "@/lib/ticketed-web-socket";
 
 class FakeWebSocket {
@@ -23,7 +23,7 @@ class FakeWebSocket {
   onclose: ((event: CloseEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
   closed = false;
-  readyState = FakeWebSocket.OPEN;
+  readyState = 0;
   send = vi.fn();
 
   constructor(readonly url: string) {
@@ -49,16 +49,6 @@ function jsonResponse(status: number): Response {
   });
 }
 
-function listenerResponse(tier: "local" | "private"): Response {
-  return new Response(JSON.stringify({}), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Compozy-Gateway-Tier": tier,
-    },
-  });
-}
-
 function requestPath(input: RequestInfo | URL): string {
   if (input instanceof Request) return new URL(input.url).pathname;
   if (input instanceof URL) return input.pathname;
@@ -69,7 +59,7 @@ const STREAM_PATH = "/api/workspaces/ws1/window-manager/stream?after_revision=1&
 
 describe("ticketed web socket", () => {
   beforeEach(() => {
-    resetGatewayStreamAuth();
+    resetHostedBrowserAuth();
     FakeWebSocket.opened = createEventRecorder<FakeWebSocket>();
     vi.stubGlobal("WebSocket", FakeWebSocket);
   });
@@ -77,23 +67,23 @@ describe("ticketed web socket", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    resetGatewayStreamAuth();
+    resetHostedBrowserAuth();
   });
 
   it("Should upgrade without a ticket on a local session", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(listenerResponse("local")));
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
 
     const socket = createStreamWebSocket(STREAM_PATH);
     await FakeWebSocket.opened.waitForCount(1);
     expect(FakeWebSocket.instances).toHaveLength(1);
 
     expect(FakeWebSocket.instances[0].url).toBe(`ws://${window.location.host}${STREAM_PATH}`);
+    expect(fetchMock).not.toHaveBeenCalled();
     socket.close();
   });
 
   it("Should send through the authorized native connection only while it is open", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(listenerResponse("local")));
-
     const socket = createStreamWebSocket(STREAM_PATH);
     expect(() => socket.send("before-open")).toThrow("The stream WebSocket is not open.");
     await FakeWebSocket.opened.waitForCount(1);
@@ -110,13 +100,12 @@ describe("ticketed web socket", () => {
   });
 
   it("Should give every upgrade attempt its own freshly minted ticket", async () => {
+    setHostedBrowserMode(true);
     let issued = 0;
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation((input: RequestInfo | URL) => {
-        if (requestPath(input) === "/api/status") {
-          return Promise.resolve(listenerResponse("private"));
-        }
+        expect(requestPath(input)).toBe("/remote/v1/stream-tickets");
         issued += 1;
         return Promise.resolve(ticketResponse(`tkt_${issued}`));
       })
@@ -129,19 +118,20 @@ describe("ticketed web socket", () => {
     await FakeWebSocket.opened.waitForCount(2);
     expect(FakeWebSocket.instances).toHaveLength(2);
 
-    expect(FakeWebSocket.instances[0].url).toContain("&ticket=tkt_1");
-    expect(FakeWebSocket.instances[1].url).toContain("&ticket=tkt_2");
+    expect(FakeWebSocket.instances[0].url).toContain("&remote_ticket=tkt_1");
+    expect(FakeWebSocket.instances[1].url).toContain("&remote_ticket=tkt_2");
 
     first.close();
     second.close();
   });
 
   it("Should close so the consumer reconnect loop takes over when the mint fails", async () => {
+    setHostedBrowserMode(true);
     vi.stubGlobal(
       "fetch",
       vi
         .fn()
-        .mockResolvedValueOnce(listenerResponse("private"))
+
         .mockResolvedValueOnce(jsonResponse(503))
     );
 
@@ -162,20 +152,21 @@ describe("ticketed web socket", () => {
   });
 
   it("Should not open a socket when the consumer closed before authorization resolved", async () => {
-    let release: (value: Response) => void = () => {};
+    setHostedBrowserMode(true);
+    const mint = createDeferred<Response>();
+    const started = createDeferred<void>();
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockImplementation(
-        () =>
-          new Promise<Response>(resolve => {
-            release = resolve;
-          })
-      )
+      vi.fn(() => {
+        started.resolve();
+        return mint.promise;
+      })
     );
 
     const socket = createStreamWebSocket(STREAM_PATH);
+    await started.promise;
     socket.close();
-    release(listenerResponse("local"));
+    mint.resolve(ticketResponse("unused"));
     await Promise.resolve();
 
     expect(FakeWebSocket.instances).toHaveLength(0);

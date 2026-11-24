@@ -70,11 +70,21 @@ Every installation has the permanent `default` profile, structurally identical t
 
 **Organization for the operator.** Any active profile is selectable by the operator; archived profiles remain visible in aggregate reads and must be unarchived before selection. Agents act in their session profile. Reads of another profile and aggregate reads follow the session's permission mode (see [Cross-workspace access](#cross-workspace-access)); an operator-authored unrestricted agent grant also permits cross-profile writes. Access control for more than one operator is a separate future program.
 
-**Bare "Profile" names only this concept.** The pre-existing compounds keep their own meaning and are unrelated: [Task Execution Profile](#task-execution-profile), layout profile, gateway connection profile, and session creation profile. Renaming them was considered and rejected; this entry is the arbitration line for any future collision.
+**Bare "Profile" names only this concept.** The pre-existing compounds keep their own meaning and are unrelated: [Task Execution Profile](#task-execution-profile), layout profile, and session creation profile. Renaming them was considered and rejected; this entry is the arbitration line for any future collision.
 
 **UI label:** "Profile" — keep. It has no alias, so it has no row in [Surface Names](#surface-names).
 
 ---
+
+### Computer
+
+A machine running CompozyOS that can run agents on behalf of this installation. **This computer**
+means the local daemon. A **route** is how one device reaches a computer. A **hosted route** uses
+Compozy Cloud and has a `compozy.run` address.
+
+A **Compozy account** is the identity used to sign in and enroll devices. **Compozy Cloud** manages
+accounts, devices, computer links, and hosted routes. **Compozy Pro** is the paid plan.
+
 
 ### Control surface
 
@@ -131,12 +141,6 @@ One entry of the fixed, CompozyOS-owned taxonomy that groups the Marketplace cat
 ### Extension Secret Binding
 
 An instance-scoped link from a manifest-declared environment key to an existing Vault reference. Public reads expose only bound key names, never values or references.
-
-### Gateway Requirement Confirmation
-
-Explicit consent from an operator or authorized agent to the exact digest of an extension's normalized gateway permissions. Enable or update must receive the daemon-returned digest; the selected Gateway tier must match a declared permission.
-
----
 
 ### Loop
 
@@ -251,7 +255,7 @@ Its public identifier is `apt_…`; the secret is returned once at creation and 
 The token's origin allowlist grants browser access to the explicit app-access operation set, not to
 local management or privileged operations. An empty origin list permits non-browser use only.
 App tokens are global operator credentials, separate from paired devices and operator profiles;
-they do not widen an agent's workspace or tool permissions and never authenticate Gateway listeners.
+they do not widen an agent's workspace or tool permissions and authenticate only on the local listener.
 
 ### Caller Identity (operational)
 
@@ -531,7 +535,7 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 | settings group `Operator` | "Personal" | Group label only. |
 | settings section `Observability` | "Diagnostics" | Section label only. |
 | settings section `Attention` | "Notifications" | Section label only. |
-| settings section `Gateway` | "Remote access" | Section label only. |
+| Settings → Computers | "Computers" | Manage computers and remote access. |
 | settings group `workspace` | "Basics" | Group label only. |
 | settings group `runtime` | "Agents" | Group label only. |
 | settings group `system` | "Advanced" | Group label only. |

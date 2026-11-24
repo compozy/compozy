@@ -43,7 +43,7 @@ const (
 	extensionErrorBadRequest
 	extensionErrorForbidden
 	extensionErrorUnavailable
-	extensionErrorGatewayConfirmationRequired
+	extensionErrorKindRemoved
 	extensionErrorAgentConflict
 	extensionErrorEnvBindingUndeclared
 	extensionErrorEnvBindingDangling
@@ -62,13 +62,12 @@ func ExtensionStatusCode(err error) int {
 	case extensionErrorNotFound, extensionErrorMarketplaceSourceNotFound:
 		return http.StatusNotFound
 	case extensionErrorConflict,
-		extensionErrorGatewayConfirmationRequired,
 		extensionErrorAgentConflict,
 		extensionErrorBuiltinNotRemoved,
 		extensionErrorExists,
 		extensionErrorSourceChanged, extensionErrorNameConflict:
 		return http.StatusConflict
-	case extensionErrorUnprocessable, extensionErrorMCPNameTaken, extensionErrorNotBuiltin,
+	case extensionErrorKindRemoved, extensionErrorUnprocessable, extensionErrorMCPNameTaken, extensionErrorNotBuiltin,
 		extensionErrorInputsRequired, extensionErrorInputInvalid,
 		extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported,
@@ -99,8 +98,8 @@ func classifyExtensionError(err error) extensionErrorKind {
 		return extensionErrorAgentPluginSchemaUnsupported
 	case errors.Is(err, extensionpkg.ErrAgentPluginManifestInvalid):
 		return extensionErrorAgentPluginManifestInvalid
-	case errors.Is(err, extensionpkg.ErrExtensionGatewayConfirmationRequired):
-		return extensionErrorGatewayConfirmationRequired
+	case errors.Is(err, extensionpkg.ErrExtensionKindRemoved):
+		return extensionErrorKindRemoved
 	case errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
 		return extensionErrorAgentConflict
 	case errors.Is(err, extensionpkg.ErrExtensionEnvBindingUndeclared):

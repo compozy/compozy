@@ -270,13 +270,13 @@ compozy doctor -o json
 
 ## Documentation
 
-| Start                                                                 | Go deeper                                         | Reference                                                           |
-| --------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
-| [Installation](https://compozy.com/docs/getting-started/installation) | [Sessions](https://compozy.com/docs/sessions)     | [CLI](https://compozy.com/docs/cli)                                 |
-| [Quick Start](https://compozy.com/docs/getting-started/quick-start)   | [Loops](https://compozy.com/docs/loops)           | [HTTP API](https://compozy.com/docs/api)                            |
-| [Supported agents](https://compozy.com/docs/agents/providers)         | [Automation](https://compozy.com/docs/automation) | [SDKs](https://compozy.com/docs/sdk)                                |
-| [Guides](https://compozy.com/docs/guides)                             | [Extensions](https://compozy.com/docs/extensions) | [Configuration](https://compozy.com/docs/configuration/config-toml) |
-| [Use cases](https://compozy.com/docs/use-cases)                       | [Gateway](https://compozy.com/docs/gateway)       | [Changelog](https://compozy.com/changelog)                          |
+| Start                                                                 | Go deeper                                              | Reference                                                           |
+| --------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------- |
+| [Installation](https://compozy.com/docs/getting-started/installation) | [Sessions](https://compozy.com/docs/sessions)          | [CLI](https://compozy.com/docs/cli)                                 |
+| [Quick Start](https://compozy.com/docs/getting-started/quick-start)   | [Loops](https://compozy.com/docs/loops)                | [HTTP API](https://compozy.com/docs/api)                            |
+| [Supported agents](https://compozy.com/docs/agents/providers)         | [Automation](https://compozy.com/docs/automation)      | [SDKs](https://compozy.com/docs/sdk)                                |
+| [Guides](https://compozy.com/docs/guides)                             | [Extensions](https://compozy.com/docs/extensions)      | [Configuration](https://compozy.com/docs/configuration/config-toml) |
+| [Use cases](https://compozy.com/docs/use-cases)                       | [Remote Computers](https://compozy.com/docs/computers) | [Changelog](https://compozy.com/changelog)                          |
 
 > [!NOTE]
 > Coming from v0.2? That product has reached end of life and receives no further releases. Read

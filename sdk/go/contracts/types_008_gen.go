@@ -7,70 +7,6 @@ import (
 	"time"
 )
 
-type EventRecordPayload struct {
-	Event           HookEvent       `json:"event"`
-	Timestamp       time.Time       `json:"timestamp"`
-	LineageKind     string          `json:"lineage_kind,omitempty"`
-	ParentSessionID string          `json:"parent_session_id,omitempty"`
-	ProfileID       string          `json:"profile_id,omitempty"`
-	SessionID       string          `json:"session_id,omitempty"`
-	SessionName     string          `json:"session_name,omitempty"`
-	SessionType     string          `json:"session_type,omitempty"`
-	AgentName       string          `json:"agent_name,omitempty"`
-	WorkspaceID     string          `json:"workspace_id,omitempty"`
-	Workspace       string          `json:"workspace,omitempty"`
-	WorktreeID      string          `json:"worktree_id,omitempty"`
-	ACPSessionID    string          `json:"acp_session_id,omitempty"`
-	State           string          `json:"state,omitempty"`
-	SoulSnapshotID  string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest      string          `json:"soul_digest,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
-	TurnID          string          `json:"turn_id,omitempty"`
-	RecordType      string          `json:"record_type,omitempty"`
-	Sequence        int64           `json:"sequence,omitempty"`
-	Content         json.RawMessage `json:"content,omitempty"`
-}
-
-type ExtensionCommandGroupSpec struct {
-	Path    string `json:"path"`
-	Summary string `json:"summary"`
-	Profile string `json:"profile,omitempty"`
-}
-
-type ExtensionCommandSpec struct {
-	Verb    string            `json:"verb"`
-	Summary string            `json:"summary"`
-	Example string            `json:"example,omitempty"`
-	Flags   map[string]string `json:"flags,omitempty"`
-}
-
-type ExtensionManifestSummary struct {
-	Name              string   `json:"name"`
-	Version           string   `json:"version"`
-	Description       string   `json:"description,omitempty"`
-	MinCompozyVersion string   `json:"min_compozy_version"`
-	Provides          []string `json:"provides"`
-	Permissions       []string `json:"permissions"`
-}
-
-type ExtensionProvideToolsResponse struct {
-	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
-}
-
-type ExtensionToolCallRequest struct {
-	ToolID           ToolID                       `json:"tool_id"`
-	Handler          string                       `json:"handler"`
-	SessionID        string                       `json:"session_id,omitempty"`
-	InvocationID     string                       `json:"invocation_id,omitempty"`
-	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
-	Input            json.RawMessage              `json:"input"`
-}
-
-type ExtensionToolCallResponse struct {
-	Result ToolResult `json:"result"`
-}
-
 type ExtensionToolRuntimeDescriptor struct {
 	Profile             string                `json:"profile,omitempty"`
 	ID                  ToolID                `json:"id"`
@@ -207,4 +143,74 @@ type ForgeReview struct {
 	State       string     `json:"state"`
 	SubmittedAt *time.Time `json:"submitted_at,omitempty"`
 	Commit      string     `json:"commit,omitempty"`
+}
+
+type ForgeReviewThread struct {
+	ID     string `json:"id"`
+	Commit string `json:"commit,omitempty"`
+}
+
+type ForgeReviews struct {
+	Items             []ForgeReview       `json:"items"`
+	Threads           []ForgeReviewThread `json:"threads,omitempty"`
+	UnresolvedThreads int                 `json:"unresolved_threads"`
+	Truncated         bool                `json:"truncated,omitempty"`
+}
+
+type ForgeStatusRequest struct {
+	RemoteURLs []string `json:"remote_urls"`
+	Branch     string   `json:"branch"`
+	Base       string   `json:"base,omitempty"`
+	HeadSHA    string   `json:"head_sha,omitempty"`
+}
+
+type ForgeStatusResponse struct {
+	Title              string        `json:"title,omitempty"`
+	Checks             *ForgeChecks  `json:"checks,omitempty"`
+	Reviews            *ForgeReviews `json:"reviews,omitempty"`
+	ReviewsUnavailable bool          `json:"reviews_unavailable,omitempty"`
+	ReviewDecision     string        `json:"review_decision,omitempty"`
+	Mergeable          string        `json:"mergeable,omitempty"`
+	UpdatedAt          *time.Time    `json:"updated_at,omitempty"`
+	Selection          string        `json:"selection,omitempty"`
+	RetryAfter         *time.Time    `json:"retry_after,omitempty"`
+	Provider           string        `json:"provider"`
+	PRNumber           *int          `json:"pr_number,omitempty"`
+	PRState            *string       `json:"pr_state,omitempty"`
+	PRURL              string        `json:"pr_url,omitempty"`
+	Head               string        `json:"head,omitempty"`
+	Base               string        `json:"base,omitempty"`
+	HeadSHA            string        `json:"head_sha,omitempty"`
+	Draft              *bool         `json:"draft,omitempty"`
+	Merged             *bool         `json:"merged,omitempty"`
+	FetchedAt          time.Time     `json:"fetched_at"`
+	Cause              string        `json:"cause,omitempty"`
+}
+
+type FormBody struct {
+	Fields   []FormField `json:"fields"`
+	Submit   *RowAction  `json:"submit,omitempty"`
+	OnSubmit string      `json:"on_submit,omitempty"`
+}
+
+type FormField struct {
+	ID          string            `json:"id"`
+	Type        string            `json:"type"`
+	Label       string            `json:"label"`
+	Placeholder string            `json:"placeholder,omitempty"`
+	Required    bool              `json:"required,omitempty"`
+	Options     []string          `json:"options,omitempty"`
+	Directories bool              `json:"directories,omitempty"`
+	Default     any               `json:"default,omitempty"`
+	Error       string            `json:"error,omitempty"`
+	EmptyHint   string            `json:"empty_hint,omitempty"`
+	OnChange    string            `json:"on_change,omitempty"`
+	OnBlur      string            `json:"on_blur,omitempty"`
+	EventCount  int64             `json:"event_count,omitempty"`
+	Requires    map[string]string `json:"requires,omitempty"`
+	Fallback    string            `json:"fallback,omitempty"`
+}
+
+type GridBody struct {
+	Sections []GridSection `json:"sections"`
 }

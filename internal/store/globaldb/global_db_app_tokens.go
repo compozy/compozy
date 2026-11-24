@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/compozy/compozy/internal/apptoken"
@@ -12,9 +13,9 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-var _ apptoken.Store = (*GatewayRepo)(nil)
+var _ apptoken.Store = (*AppTokenRepo)(nil)
 
-func (g *GatewayRepo) CreateAppToken(ctx context.Context, record apptoken.StoredToken) ([]string, error) {
+func (g *AppTokenRepo) CreateAppToken(ctx context.Context, record apptoken.StoredToken) ([]string, error) {
 	if err := g.checkReady(ctx, "create app token"); err != nil {
 		return nil, err
 	}
@@ -44,7 +45,7 @@ func (g *GatewayRepo) CreateAppToken(ctx context.Context, record apptoken.Stored
 	return origins, err
 }
 
-func (g *GatewayRepo) ListAppTokens(
+func (g *AppTokenRepo) ListAppTokens(
 	ctx context.Context,
 	state apptoken.State,
 ) (_ []apptoken.Token, err error) {
@@ -75,7 +76,7 @@ func (g *GatewayRepo) ListAppTokens(
 	return tokens, nil
 }
 
-func (g *GatewayRepo) UpdateAppToken(
+func (g *AppTokenRepo) UpdateAppToken(
 	ctx context.Context,
 	id string,
 	patch apptoken.Patch,
@@ -114,7 +115,7 @@ func (g *GatewayRepo) UpdateAppToken(
 	return token, origins, err
 }
 
-func (g *GatewayRepo) RevokeAppToken(
+func (g *AppTokenRepo) RevokeAppToken(
 	ctx context.Context,
 	id string,
 	now time.Time,
@@ -134,7 +135,7 @@ func (g *GatewayRepo) RevokeAppToken(
 		changed = current.RevokedAt.IsZero()
 		if changed {
 			if err := queries.RevokeAppToken(ctx, sqlcgen.RevokeAppTokenParams{
-				ID: id, RevokedAt: nullableGatewayTime(now),
+				ID: id, RevokedAt: nullableTime(new(now)),
 			}); err != nil {
 				return fmt.Errorf("store: revoke app token: %w", err)
 			}
@@ -148,7 +149,7 @@ func (g *GatewayRepo) RevokeAppToken(
 	return token, changed, origins, err
 }
 
-func (g *GatewayRepo) FindAppTokenByTokenHash(
+func (g *AppTokenRepo) FindAppTokenByTokenHash(
 	ctx context.Context,
 	hash string,
 ) (_ apptoken.StoredToken, err error) {
@@ -178,7 +179,7 @@ func (g *GatewayRepo) FindAppTokenByTokenHash(
 	return apptoken.StoredToken{Token: token, TokenHash: row.TokenHash}, nil
 }
 
-func (g *GatewayRepo) TouchAppTokenLastSeen(
+func (g *AppTokenRepo) TouchAppTokenLastSeen(
 	ctx context.Context,
 	id string,
 	epoch uint64,
@@ -187,7 +188,7 @@ func (g *GatewayRepo) TouchAppTokenLastSeen(
 	if err := g.checkReady(ctx, "touch app token last use"); err != nil {
 		return err
 	}
-	value, err := gatewayDeviceEpoch(epoch)
+	value, err := appTokenEpoch(epoch)
 	if err != nil {
 		return err
 	}
@@ -197,7 +198,7 @@ func (g *GatewayRepo) TouchAppTokenLastSeen(
 		"globaldb.TouchAppTokenLastSeen",
 		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
 			return queries.TouchAppTokenLastSeen(ctx, sqlcgen.TouchAppTokenLastSeenParams{
-				ID: id, RevokeEpoch: value, LastSeenAt: nullableGatewayTime(now),
+				ID: id, RevokeEpoch: value, LastSeenAt: nullableTime(new(now)),
 			})
 		},
 	)
@@ -210,7 +211,7 @@ func (g *GatewayRepo) TouchAppTokenLastSeen(
 	return nil
 }
 
-func (g *GatewayRepo) ListActiveAppTokenOrigins(ctx context.Context) ([]string, error) {
+func (g *AppTokenRepo) ListActiveAppTokenOrigins(ctx context.Context) ([]string, error) {
 	if err := g.checkReady(ctx, "list active app token origins"); err != nil {
 		return nil, err
 	}
@@ -235,13 +236,24 @@ func getAppToken(ctx context.Context, queries *sqlcgen.Queries, id string) (appt
 func appTokenFromGenerated(
 	ctx context.Context,
 	queries *sqlcgen.Queries,
-	row sqlcgen.GatewayDeviceSession,
+	row sqlcgen.AppToken,
 ) (apptoken.Token, error) {
-	session, err := gatewayDeviceSessionFromGenerated(row)
-	if err != nil {
-		return apptoken.Token{}, err
+	if row.RevokeEpoch < 0 {
+		return apptoken.Token{}, errors.New("store: negative app token revocation epoch")
 	}
-	origins, err := queries.ListAppTokenOrigins(ctx, session.ID)
+	createdAt, err := store.ParseTimestamp(row.CreatedAt)
+	if err != nil {
+		return apptoken.Token{}, fmt.Errorf("store: parse app token creation timestamp: %w", err)
+	}
+	lastSeenAt, err := appTokenTimestamp(row.LastSeenAt)
+	if err != nil {
+		return apptoken.Token{}, fmt.Errorf("store: parse app token last-seen timestamp: %w", err)
+	}
+	revokedAt, err := appTokenTimestamp(row.RevokedAt)
+	if err != nil {
+		return apptoken.Token{}, fmt.Errorf("store: parse app token revocation timestamp: %w", err)
+	}
+	origins, err := queries.ListAppTokenOrigins(ctx, row.ID)
 	if err != nil {
 		return apptoken.Token{}, fmt.Errorf("store: list app token origins: %w", err)
 	}
@@ -249,9 +261,9 @@ func appTokenFromGenerated(
 		origins = []string{}
 	}
 	return apptoken.Token{
-		ID: session.ID, Name: session.Name, ActorKind: string(session.ActorKind),
-		RevokeEpoch: session.RevokeEpoch, CreatedAt: session.CreatedAt,
-		LastSeenAt: session.LastSeenAt, RevokedAt: session.RevokedAt, Origins: origins,
+		ID: row.ID, Name: row.Name, ActorKind: apptoken.ActorKind,
+		RevokeEpoch: uint64(row.RevokeEpoch), CreatedAt: createdAt,
+		LastSeenAt: lastSeenAt, RevokedAt: revokedAt, Origins: origins,
 	}, nil
 }
 
@@ -267,10 +279,44 @@ func replaceAppTokenOrigins(
 	}
 	for _, origin := range origins {
 		if err := queries.InsertAppTokenOrigin(ctx, sqlcgen.InsertAppTokenOriginParams{
-			DeviceID: id, Origin: origin, CreatedAt: store.FormatTimestamp(now),
+			AppTokenID: id, Origin: origin, CreatedAt: store.FormatTimestamp(now),
 		}); err != nil {
 			return fmt.Errorf("store: insert app token origin: %w", err)
 		}
+	}
+	return nil
+}
+
+func appTokenEpoch(epoch uint64) (int64, error) {
+	if epoch > math.MaxInt64 {
+		return 0, errors.New("store: app token revocation epoch exceeds SQLite integer range")
+	}
+	return int64(epoch), nil
+}
+
+func appTokenTimestamp(value sql.NullString) (time.Time, error) {
+	if !value.Valid {
+		return time.Time{}, nil
+	}
+	return store.ParseTimestamp(value.String)
+}
+
+func (g *AppTokenRepo) RevalidateAppTokenEpoch(ctx context.Context, id string, epoch uint64) error {
+	if err := g.checkReady(ctx, "revalidate app token epoch"); err != nil {
+		return err
+	}
+	value, err := appTokenEpoch(epoch)
+	if err != nil {
+		return err
+	}
+	matches, err := g.readQueries.AppTokenEpochMatches(ctx, sqlcgen.AppTokenEpochMatchesParams{
+		ID: id, RevokeEpoch: value,
+	})
+	if err != nil {
+		return fmt.Errorf("store: revalidate app token epoch: %w", err)
+	}
+	if !matches {
+		return apptoken.ErrRevoked
 	}
 	return nil
 }

@@ -21,7 +21,9 @@ type GlobalDB struct {
 	*AccountRepo
 	*RemoteHostRepo
 	*ComputersRepo
-	*GatewayRepo
+	*IngressRepo
+	*AppTokenRepo
+	*MigrationNoticeRepo
 	*LoopRepo
 	*GoalRepo
 	*HeartbeatRepo

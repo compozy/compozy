@@ -30,7 +30,9 @@ post [Compozy 0.8: your agents on all your computers](https://compozy.com/blog/c
 - **Remote Gateway removed:** `compozy connect`, `compozy gateway`, `compozy pair`, and
   `compozy device` are replaced by `compozy computer` and `compozy remote`. App tokens and webhook
   triggers migrate automatically; triggers whose public base changed require re-confirmation.
-  Former gateway users receive a one-time notice in Settings with a 3-month Pro migration coupon.
+  Former Gateway users receive a one-time notice in Settings → Computers with a 3-month Pro
+  migration coupon. The removed verbs print a migration pointer and exit 2 in 0.8.0. The pointers
+  expire in 0.9.0.
 - **Official install methods:** `go install` is removed from official install methods. Use the
   desktop app, verified installer, Homebrew, npm, or Linux release packages from
   [compozy.com/download](https://compozy.com/download); source builds are documented in
@@ -378,7 +380,9 @@ Loop requests. Scripts must stop calling retired CLI commands, routes, native to
 there are no aliases. Rebuild extensions against the current SDK. Agent capability catalogs remain
 local authoring inputs for Task worker selection.
 
-Gateway and webhooks remain supported. Extensions declare their reachability requirement with
+In releases through v0.7.x, Gateway and webhooks remained supported after this migration.
+The following Gateway setup applies to those releases. For current setup, see
+[Remote Computers and Gateway removal](#remote-computers-0-8-0). Extensions declared reachability with
 `[gateway]` and explicit permission atoms:
 
 ```toml

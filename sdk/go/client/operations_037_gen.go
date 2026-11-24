@@ -11,109 +11,6 @@ import (
 	"strings"
 )
 
-// StartTaskRunParams carries the path, query, and header parameters.
-type StartTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// StartTaskRun Start one claimed task run
-func (c *Client) StartTaskRun(ctx context.Context, params StartTaskRunParams, body StartTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/task-runs/{id}/start"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SteerSessionPromptParams carries the path, query, and header parameters.
-type SteerSessionPromptParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// SteerSessionPrompt Stage steering input for the active session turn
-func (c *Client) SteerSessionPrompt(ctx context.Context, params SteerSessionPromptParams, body SteerPromptRequest) (*SendPromptResultResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/steer"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SendPromptResultResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StopSessionParams carries the path, query, and header parameters.
-type StopSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// StopSession Stop a session without deleting persisted history
-func (c *Client) StopSession(ctx context.Context, params StopSessionParams, body StopSessionRequest) (*SessionStopPayload, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/stop"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionStopPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StopSessionHistoryCleanupParams carries the path, query, and header parameters.
-type StopSessionHistoryCleanupParams struct {
-	Profile *string `url:"profile"`
-}
-
-// StopSessionHistoryCleanup Stop the selected profile's running cleanup; sessions already deleted stay deleted
-func (c *Client) StopSessionHistoryCleanup(ctx context.Context, params StopSessionHistoryCleanupParams) (*SessionHistoryCleanupRunResponse, error) {
-	path := "/api/sessions/history-cleanup/stop"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionHistoryCleanupRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamAccountParams carries the path, query, and header parameters.
-type StreamAccountParams struct {
-	AfterSequence *string `url:"after_sequence"`
-}
-
 // StreamAccount Stream changes for the active account
 func (c *Client) StreamAccount(ctx context.Context, params StreamAccountParams) (*Stream[Event], error) {
 	path := "/api/account/stream"
@@ -435,3 +332,117 @@ func (c *Client) StreamGlobalSession(ctx context.Context, params StreamGlobalSes
 	}
 	return newStream[StreamGlobalSessionFrame](ctx, c, "GET", path, headers, nil, "streamGlobalSession")
 }
+
+// StreamLogsParams carries the path, query, and header parameters.
+type StreamLogsParams struct {
+	WorkspaceID      *string `url:"workspace_id"`
+	SessionID        *string `url:"session_id"`
+	AgentName        *string `url:"agent_name"`
+	Type             *string `url:"type"`
+	Run              *string `url:"run"`
+	Actor            *string `url:"actor"`
+	ActorKind        *string `url:"actor_kind"`
+	ActorID          *string `url:"actor_id"`
+	Provider         *string `url:"provider"`
+	Outcome          *string `url:"outcome"`
+	Component        *string `url:"component"`
+	ErrorOnly        *bool   `url:"error_only"`
+	AfterSeq         *int    `url:"after_seq"`
+	Since            *string `url:"since"`
+	Limit            *int    `url:"limit"`
+	Replay           *bool   `url:"replay"`
+	LastEventID      *string `url:"Last-Event-ID"`
+	LastEventIDQuery *string `url:"last_event_id"`
+	Profile          *string `url:"profile"`
+	AllProfiles      *bool   `url:"all_profiles"`
+}
+
+// StreamLogs Stream runtime logs
+func (c *Client) StreamLogs(ctx context.Context, params StreamLogsParams) (*Stream[LogEventPayload], error) {
+	path := "/api/logs/stream"
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.SessionID != nil {
+		query.Set("session_id", *params.SessionID)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if params.Type != nil {
+		query.Set("type", *params.Type)
+	}
+	if params.Run != nil {
+		query.Set("run", *params.Run)
+	}
+	if params.Actor != nil {
+		query.Set("actor", *params.Actor)
+	}
+	if params.ActorKind != nil {
+		query.Set("actor_kind", *params.ActorKind)
+	}
+	if params.ActorID != nil {
+		query.Set("actor_id", *params.ActorID)
+	}
+	if params.Provider != nil {
+		query.Set("provider", *params.Provider)
+	}
+	if params.Outcome != nil {
+		query.Set("outcome", *params.Outcome)
+	}
+	if params.Component != nil {
+		query.Set("component", *params.Component)
+	}
+	if params.ErrorOnly != nil {
+		query.Set("error_only", strconv.FormatBool(*params.ErrorOnly))
+	}
+	if params.AfterSeq != nil {
+		query.Set("after_seq", strconv.Itoa(*params.AfterSeq))
+	}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Replay != nil {
+		query.Set("replay", strconv.FormatBool(*params.Replay))
+	}
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	if params.LastEventIDQuery != nil {
+		query.Set("last_event_id", *params.LastEventIDQuery)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[LogEventPayload](ctx, c, "GET", path, headers, nil, "streamLogs")
+}
+
+// StreamLoopRunEventsParams carries the path, query, and header parameters.
+type StreamLoopRunEventsParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	RunID         string  `url:"run_id"`
+	AfterSequence *string `url:"after_sequence"`
+	LastEventID   *string `url:"Last-Event-ID"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
+// StreamLoopRunEventsFrame preserves each response payload; select its variant using the event name or HTTP status.
+type StreamLoopRunEventsFrame struct {
+	Raw json.RawMessage
+}
+
+var _ json.Unmarshaler = (*StreamLoopRunEventsFrame)(nil)
+
+var _ json.Marshaler = StreamLoopRunEventsFrame{}

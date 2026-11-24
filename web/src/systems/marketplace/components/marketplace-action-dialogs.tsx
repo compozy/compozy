@@ -1,4 +1,4 @@
-import { ExtensionGatewayConfirmDialog, type InstalledExtensionView } from "@/systems/extensions";
+import { type InstalledExtensionView } from "@/systems/extensions";
 import { MCPSignInPopover, type useMCPDefinitionAuthorization } from "@/systems/settings";
 
 import type { MarketplaceCatalogListing } from "../types";
@@ -36,7 +36,7 @@ interface MarketplaceActionDialogsProps {
   } | null;
 }
 
-/** The consent, gateway and review dialogs the marketplace action controller drives. */
+/** The consent and review dialogs the marketplace action controller drives. */
 function MarketplaceActionDialogs({
   authorization,
   installedTrust,
@@ -74,19 +74,7 @@ function MarketplaceActionDialogs({
           warnings={trust.entry.trust?.warnings}
         />
       ) : null}
-      {updateFlow.recovery?.kind === "gateway" ? (
-        <ExtensionGatewayConfirmDialog
-          digest={updateFlow.recovery.digest}
-          extensionName={updateFlow.recovery.label}
-          onConfirm={() => updateFlow.confirm()}
-          onOpenChange={open => {
-            if (!open) updateFlow.dismiss();
-          }}
-          open
-          pending={updateFlow.pending}
-        />
-      ) : null}
-      {updateFlow.recovery?.kind === "inputs" ? (
+      {updateFlow.recovery ? (
         <ExtensionInstallSummaryDialog
           action="update"
           name={updateFlow.recovery.label}

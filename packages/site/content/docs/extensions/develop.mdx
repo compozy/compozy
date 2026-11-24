@@ -55,8 +55,6 @@ compozy extension init my-ext --template tool-provider-go
 | `view-provider-ts`         | TypeScript | A programmable command-palette view with React.                    |
 | `loop-watch-source-go`     | Go         | The `loop.watch_source` provide surface.                           |
 | `heartbeat-source-go`      | Go         | Check-in source polling with bounded keyed items and opaque state. |
-| `connectivity-provider-go` | Go         | A Gateway connectivity provider.                                   |
-| `connectivity-provider-ts` | TypeScript | A Gateway connectivity provider.                                   |
 
 Templates carry no manifest. They carry `package.json`/`go.mod`, a source file, and nothing else.
 
@@ -285,11 +283,11 @@ and validated at build, install, and load.
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
 | `heartbeat.source`      | `heartbeat/source_poll`                                                  | yes    |
 | `view.provider`         | `view/open`, `view/event`, `view/close`                                  | yes    |
-| `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
 | `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
 
 Missing a required service method for a declared provide fails the build. Declaring a value outside
-this set fails manifest load with the valid set in the error.
+this set fails manifest load with the valid set in the error. Retired `connectivity.provider`
+manifests receive `extension_kind_removed`.
 
 ### View providers
 
@@ -331,49 +329,6 @@ refresh needs `models/refresh`. None of those are inside the published-source ce
 The authorization layer classifies `models/list` and `models/status` under `model.read`, and
 `models/refresh` under `model.write`. Operator-facing consent renders those areas as `model:read`
 and `model:write`; authors still declare only the method paths in `permissions.requires`.
-
-### Connectivity providers
-
-A connectivity provider publishes a verified route to one daemon-owned Gateway tier listener. Start
-from `connectivity-provider-go` or `connectivity-provider-ts`; both templates register the public
-`connectivity.provider` capability and its three service methods.
-
-The daemon calls `connectivity/establish` with a tier, a loopback `forward_target`, an opaque
-`challenge_path`, and a deadline. Forward the assigned tier to that target without rewriting the
-challenge path, then return the current `tier`, `health`, and HTTPS `endpoints`. Each endpoint names
-its URL, scheme, and whether it is `stable` or `ephemeral`. `connectivity/status` returns the same
-reachability shape for one tier. `connectivity/teardown` stops that tier before its deadline and
-returns `stopped: true` only after forwarding has ended.
-
-Provider output is not proof. CompozyOS requests the challenge through every returned endpoint and
-requires the exact nonce from the assigned tier listener. It validates TLS, follows no redirects,
-bounds the response and request time, and blocks public endpoints that resolve inward. A failed
-challenge leaves the tier unadvertised and marks the provider degraded.
-
-A private endpoint may additionally return `verification_address`, a literal loopback IP and
-non-zero port carrying a raw TCP relay to that exact endpoint. Use this only for an isolated network
-stack that the host cannot dial directly. Forward opaque TLS bytes without terminating TLS or
-rewriting HTTP; the daemon keeps the advertised URL for certificate authentication and challenge
-validation. Bind only to loopback, fix the destination to the endpoint, bound connections and
-shutdown, return the same address in status, and close it during teardown. The field is optional;
-providers that omit it retain the host-network verification path. Public endpoints cannot use it.
-
-Connectivity providers have stricter trust rules than ordinary extensions:
-
-- Install them globally. Workspace-scoped sources are rejected.
-- Declare `gateway.private`, `gateway.public`, or both in `[gateway].permissions`. The normalized
-  permission list becomes the digest confirmed through the extension lifecycle. A provider cannot
-  start for an undeclared tier.
-- Expect that digest and install source to be read again from the live registry whenever Gateway
-  enables the provider and whenever the daemon boots. An update that changes the digest requires
-  fresh confirmation before provider code can affect reachability.
-- Support independent private and public calls, but expect only one selected provider per tier.
-
-Use the generated [Gateway API reference](/docs/api/gateway) to select a provider for a tier and pass
-the exact current digest. Use [Gateway security](/docs/gateway/security) to understand which routes
-can be published, and the bundled [Tailscale extension](/docs/gateway/tailscale) as the reference
-implementation. The provider never adds a Host API method; all three calls are initiated by the
-daemon.
 
 ### Forge providers
 

@@ -118,6 +118,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/remote/link",
 			"DELETE /api/ingress/bindings/:subject_kind/:subject_id",
 			"POST /api/ingress/bindings",
+			"GET /api/migration-notices",
+			"POST /api/migration-notices/:key/dismiss",
 			"DELETE /api/app-tokens/:app_token_id",
 			"GET /api/app-tokens",
 			"GET /api/processes",
@@ -828,6 +830,7 @@ func TestRemovedRoutesUseUnknownRouteBehaviorIT011(t *testing.T) {
 	handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 	engine := newTestRouter(t, handlers)
 	for _, tc := range []struct{ method, path string }{
+		{http.MethodGet, "/api/gateway/status"},
 		{http.MethodGet, "/api/memory"},
 		{http.MethodPost, "/api/memory/search"},
 		{http.MethodGet, "/api/settings/memory"},
@@ -3487,26 +3490,23 @@ func TestDaemonProfiles(t *testing.T) {
 		if rate := runtime.SetMutexProfileFraction(-1); rate != 0 {
 			t.Fatalf("repeated capture left sampling enabled: %d", rate)
 		}
-		for _, surface := range []httpapi.SurfaceSet{httpapi.SurfaceSetLocal, httpapi.SurfaceSetPrivate, httpapi.SurfaceSetPublicIngress, httpapi.SurfaceSetPublicOperator, httpapi.SurfaceSetPublicCombined} {
-			httpEngine := gin.New()
-			httpapi.RegisterSurfaceRoutes(
-				httpEngine,
-				&httpapi.Handlers{BaseHandlers: core.NewBaseHandlers(nil)},
-				surface,
-			)
-			for _, route := range httpEngine.Routes() {
-				if strings.Contains(route.Path, "/daemon/profile") {
-					t.Fatalf("profile exposed on HTTP surface %s", surface)
-				}
+		httpEngine := gin.New()
+		httpapi.RegisterRoutes(
+			httpEngine,
+			&httpapi.Handlers{BaseHandlers: core.NewBaseHandlers(nil)},
+		)
+		for _, route := range httpEngine.Routes() {
+			if strings.Contains(route.Path, "/daemon/profile") {
+				t.Fatalf("profile exposed on HTTP: %s", route.Path)
 			}
-			response := httptest.NewRecorder()
-			httpEngine.ServeHTTP(
-				response,
-				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/daemon/profile/heap", nil),
-			)
-			if response.Code == http.StatusOK && response.Header().Get("Content-Type") == "application/octet-stream" {
-				t.Fatalf("profile served on HTTP surface %s", surface)
-			}
+		}
+		response := httptest.NewRecorder()
+		httpEngine.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/daemon/profile/heap", nil),
+		)
+		if response.Code == http.StatusOK && response.Header().Get("Content-Type") == "application/octet-stream" {
+			t.Fatal("profile served on HTTP")
 		}
 	})
 }

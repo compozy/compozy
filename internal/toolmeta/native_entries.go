@@ -104,7 +104,6 @@ var nativeEntries = map[string]Entry{
 	"compozy__extensions_search":       nativeEntry("Searching", " for ", false, "🧩", previewHintQuery),
 	"compozy__extensions_update":       nativeEntry("Updating", " ", false, "🧩", "auto"),
 	"compozy__extensions_validate":     nativeEntry("Validating", " ", false, "🧩", "auto"),
-	"compozy__gateway":                 nativeEntry("Reading", " ", false, "🌐", "auto"),
 	"compozy__goal_control":            nativeEntry("Updating", " ", false, "🎯", "auto"),
 	"compozy__goal_get":                nativeEntry("Reading", " ", false, "🎯", "auto"),
 	"compozy__goal_report":             nativeEntry("Reporting", " ", false, "🎯", "auto"),

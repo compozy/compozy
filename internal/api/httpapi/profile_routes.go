@@ -3,12 +3,11 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/gin-gonic/gin"
 )
 
-func registerProfileRoutes(api operatorRouteGroups, handlers *Handlers, allowMutations bool) {
+func registerProfileRoutes(api operatorRouteGroups, handlers *Handlers) {
 	profiles := api.group("/profiles", remoteproto.ScopeSessions)
 	profiles.GET("", handlers.ListProfiles)
 	profiles.GET("/ops", handlers.ListProfileOperations)
@@ -34,19 +33,6 @@ func registerProfileRoutes(api operatorRouteGroups, handlers *Handlers, allowMut
 		{method: http.MethodDelete, path: "/:name", handler: handlers.DeleteProfile},
 	}
 	for _, route := range routes {
-		if !allowMutations {
-			writes.Handle(route.method, route.path, refuseGatewayProfileWrite)
-		} else {
-			writes.Handle(route.method, route.path, route.handler)
-		}
+		writes.Handle(route.method, route.path, route.handler)
 	}
-}
-
-// The paired gateway retains its public refusal until the gateway is retired.
-func refuseGatewayProfileWrite(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusForbidden, contract.ProfileErrorPayload{Error: contract.ProfileError{
-		Code:    "profile_remote_management_forbidden",
-		Message: "profile management is available only on the local Compozy surface",
-		Action:  "manage profiles from the local CLI or desktop app",
-	}})
 }

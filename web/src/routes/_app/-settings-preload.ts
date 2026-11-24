@@ -3,7 +3,11 @@ import type { QueryClient } from "@tanstack/react-query";
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import { accountStatusOptions } from "@/systems/account";
 import { agentsListOptions } from "@/systems/agent";
-import { computersListOptions, remoteStatusOptions } from "@/systems/computers";
+import {
+  computersListOptions,
+  migrationNoticesOptions,
+  remoteStatusOptions,
+} from "@/systems/computers";
 import { readActingProfile } from "@/systems/profiles";
 import {
   settingsApplyRecordsOptions,
@@ -96,6 +100,7 @@ export async function preloadSettingsComputersRoute(queryClient: QueryClient): P
   await settleRouteQueries([
     queryClient.ensureQueryData(computersListOptions()),
     queryClient.ensureQueryData(remoteStatusOptions()),
+    queryClient.ensureQueryData(migrationNoticesOptions()),
   ]);
 }
 

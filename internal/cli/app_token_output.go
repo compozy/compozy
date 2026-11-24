@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/spf13/cobra"
 )
 
 func renderAppTokenExecutionError(err error) (string, bool) {
@@ -19,7 +20,7 @@ func renderAppTokenExecutionError(err error) (string, bool) {
 }
 
 func appTokenIssuedOutput(result contract.AppTokenIssuedResponse) outputBundle {
-	return simpleGatewayOutput(result, func() string {
+	return simpleAppTokenOutput(result, func() string {
 		return fmt.Sprintf(
 			"Created app token %q (%s)\nOrigins: %s\n\nToken (shown once, store it now):\n%s\n\n"+
 				"Anyone with this token can use the allowed routes, including prompting agents that act on this\n"+
@@ -34,7 +35,7 @@ func appTokenIssuedOutput(result contract.AppTokenIssuedResponse) outputBundle {
 }
 
 func appTokenUpdatedOutput(result contract.AppTokenResponse) outputBundle {
-	return simpleGatewayOutput(result, func() string {
+	return simpleAppTokenOutput(result, func() string {
 		return fmt.Sprintf("Updated app token %q (%s)\nOrigins: %s",
 			result.AppToken.Name, result.AppToken.ID, appTokenOrigins(result.AppToken))
 	}, func() string {
@@ -43,7 +44,7 @@ func appTokenUpdatedOutput(result contract.AppTokenResponse) outputBundle {
 }
 
 func appTokenRevokedOutput(result contract.AppTokenRevokeResponse) outputBundle {
-	return simpleGatewayOutput(result, func() string {
+	return simpleAppTokenOutput(result, func() string {
 		stream := "streams"
 		if result.Canceled == 1 {
 			stream = "stream"
@@ -71,7 +72,7 @@ func appTokensOutput(result contract.AppTokensResponse, now func() time.Time) ou
 			}
 			state := "active"
 			if token.RevokedAt != nil {
-				state = gatewayRevokedState
+				state = "revoked"
 			}
 			return []string{token.ID, token.Name, origins, lastUsed, state}
 		}, appTokenValues)
@@ -91,4 +92,19 @@ func appTokenFields() []string {
 func appTokenValues(token contract.AppTokenPayload) []string {
 	return []string{token.ID, token.Name, strings.Join(token.Origins, ", "), formatTime(token.CreatedAt),
 		formatOptionalTime(token.LastUsedAt), formatOptionalTime(token.RevokedAt)}
+}
+
+func simpleAppTokenOutput(value any, human func() string, toon func() string) outputBundle {
+	return outputBundle{
+		jsonValue: value,
+		jsonl: func(cmd *cobra.Command) error {
+			return writeJSONLine(cmd, value)
+		},
+		human: func() (string, error) {
+			return human(), nil
+		},
+		toon: func() (string, error) {
+			return toon(), nil
+		},
+	}
 }

@@ -20,7 +20,6 @@ type DaemonStatusPayload struct {
 	TotalSessions  int                     `json:"total_sessions"`
 	Version        string                  `json:"version,omitempty"`
 	MinAppVersion  string                  `json:"min_app_version"`
-	Gateway        *GatewayStatusPayload   `json:"gateway,omitzero"`
 	SchemaStreams  []SchemaStreamStatus    `json:"schema_streams"`
 	Readiness      *DaemonReadinessPayload `json:"readiness,omitzero"`
 }
@@ -87,9 +86,8 @@ type DetailBody struct {
 
 // DevLinkExtensionRequest is a daemon API value.
 type DevLinkExtensionRequest struct {
-	OriginPath           string `json:"origin_path"`
-	GenerationHash       string `json:"generation_hash"`
-	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
+	OriginPath     string `json:"origin_path"`
+	GenerationHash string `json:"generation_hash"`
 }
 
 // DeviceID is a daemon API value.
@@ -411,14 +409,12 @@ type ExtensionEnableError struct {
 
 // ExtensionEnablePreviewPayload is a daemon API value.
 type ExtensionEnablePreviewPayload struct {
-	MissingInputs               []string                    `json:"missing_inputs"`
-	Extension                   string                      `json:"extension"`
-	Changes                     []ExtensionKitChangePayload `json:"changes"`
-	AgentConflicts              []string                    `json:"agent_conflicts"`
-	MissingEnv                  []string                    `json:"missing_env"`
-	AutomationStarting          []string                    `json:"automation_starting"`
-	GatewayRequirementDigest    string                      `json:"gateway_requirement_digest"`
-	GatewayConfirmationRequired bool                        `json:"gateway_confirmation_required"`
+	MissingInputs      []string                    `json:"missing_inputs"`
+	Extension          string                      `json:"extension"`
+	Changes            []ExtensionKitChangePayload `json:"changes"`
+	AgentConflicts     []string                    `json:"agent_conflicts"`
+	MissingEnv         []string                    `json:"missing_env"`
+	AutomationStarting []string                    `json:"automation_starting"`
 }
 
 // ExtensionEnablementPayload is a daemon API value.
@@ -440,4 +436,13 @@ type ExtensionInstallDeclaredProfilePayload struct {
 	Name        string                         `json:"name"`
 	Create      bool                           `json:"create"`
 	Credentials []ProfileCredentialRequirement `json:"credentials,omitempty"`
+}
+
+// ExtensionInstallPreviewPayload is a daemon API value.
+type ExtensionInstallPreviewPayload struct {
+	DigestSHA256     string                                   `json:"digest_sha256,omitempty"`
+	Inputs           []MarketplaceInputPayload                `json:"inputs"`
+	Name             string                                   `json:"name"`
+	DeclaredProfiles []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
+	Placements       []ExtensionPlacementPayload              `json:"placements"`
 }

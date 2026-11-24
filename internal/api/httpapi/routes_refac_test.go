@@ -99,26 +99,6 @@ func expectRemoteRouteError(
 	return payload
 }
 
-func TestPairedGatewayProfileWrites(t *testing.T) {
-	// [IT-061] The legacy gateway listener owns the canonical profile write refusal.
-	t.Run("Should preserve the paired gateway's canonical profile error", func(t *testing.T) {
-		t.Parallel()
-		router := gin.New()
-		api := operatorRouteGroups{router: router.Group("/api")}
-		registerProfileRoutes(api, newHandlers(nil), false)
-		reply := httptest.NewRecorder()
-		router.ServeHTTP(
-			reply,
-			httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/profiles", http.NoBody),
-		)
-		var payload contract.ProfileErrorPayload
-		if err := json.Unmarshal(reply.Body.Bytes(), &payload); err != nil || reply.Code != http.StatusForbidden ||
-			payload.Error.Code != "profile_remote_management_forbidden" || payload.Error.Action == "" {
-			t.Fatalf("paired profile write = HTTP %d %s", reply.Code, reply.Body)
-		}
-	})
-}
-
 var _ core.CoordinatorRoleResolver = httpapiCoordinatorRoleResolverFunc(nil)
 
 func TestHTTPAgentKernelRoutesMatchDocumentedSpecOperations(t *testing.T) {

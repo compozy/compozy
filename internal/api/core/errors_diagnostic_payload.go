@@ -79,7 +79,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if errors.Is(err, workspace.ErrOperatorHomeWorkspace) {
 		payload.Code = "workspace_home_forbidden"
 	}
-	if code := GatewayErrorCode(err); code != "" {
+	if code := IngressErrorCode(err); code != "" {
 		payload.Code = code
 	}
 	if code := WorktreeErrorCode(err); code != "" {

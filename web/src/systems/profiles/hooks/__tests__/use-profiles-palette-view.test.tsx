@@ -13,10 +13,6 @@ import { UIProvider } from "@compozy/ui";
 import { OsPaletteViewShell } from "@/systems/os/components/os-palette-view-shell";
 import type { PaletteViewDefinition } from "@/systems/os/lib/palette-view-registry";
 
-vi.mock("@/systems/gateway", () => ({
-  useGatewayAccessTier: () => "local",
-}));
-
 import { profileKeys } from "../../lib/query-keys";
 import { closeProfileDialog, profileDialogStore } from "../../stores/profile-dialog-store";
 import { localProfileView, resetProfileViews } from "../../stores/profile-view-store";

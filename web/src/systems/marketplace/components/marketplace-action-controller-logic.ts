@@ -12,12 +12,10 @@ export interface MarketplaceInstallPreview {
 
 /**
  * Add opens the install review only when a gate has something to decide: a prefilled draft the
- * install would reject (a required input with no usable default, an empty one included), or a
- * gateway requirement to confirm. Trust consent is decided before preview and name conflicts never
+ * install would reject (a required input with no usable default, an empty one included). Trust consent is decided before preview and name conflicts never
  * reach Add. Otherwise Add finishes inline.
  */
 export function marketplaceInstallNeedsReview(preview: ExtensionInstallPreview): boolean {
-  if (preview.gateway_requirement_digest) return true;
   return !prepareExtensionInputs(preview.inputs, createExtensionInputDraft(preview.inputs)).valid;
 }
 

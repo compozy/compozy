@@ -28,7 +28,6 @@ func (d *Daemon) publishBootState(state *bootState) {
 		coordinator:           state.coordinator,
 		spawnReaper:           state.spawnReaper,
 		scheduler:             state.scheduler,
-		gateway:               state.gateway,
 		toolRegistry:          state.toolRegistry,
 		clarify:               state.clarify,
 		hooks:                 state.hooks,

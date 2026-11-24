@@ -193,7 +193,7 @@ func prepareRemoteProfileSelection(
 	client workspaceLookupClient,
 ) (bool, error) {
 	remote, ok := client.(*daemonClient)
-	if !ok || (!remote.target.isRemoteGateway() && remote.target.computerID == "") {
+	if !ok || remote.target.computerID == "" {
 		return false, nil
 	}
 	name, err := requestedProfileName(cmd)

@@ -1033,7 +1033,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should publish closed extension inspection schemas and gateway digest inputs", func(t *testing.T) {
+	t.Run("Should publish closed extension inspection schemas", func(t *testing.T) {
 		t.Parallel()
 
 		inventory := descriptors[toolspkg.ToolIDExtensionsInventory]
@@ -1059,23 +1059,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"extension":"kit","enabled":true,
 			"items":[{"kind":"skill","id":"review","name":"Review","live":true,"extra":1}]
 		}`)
-		for _, id := range []toolspkg.ToolID{
-			toolspkg.ToolIDExtensionsInstall,
-			toolspkg.ToolIDExtensionsUpdate,
-		} {
-			var schema struct {
-				Properties map[string]struct {
-					Pattern string `json:"pattern"`
-				} `json:"properties"`
-			}
-			if err := json.Unmarshal(descriptors[id].InputSchema, &schema); err != nil {
-				t.Fatalf("%s input schema unmarshal error = %v", id, err)
-			}
-			if got, want := schema.Properties["confirm_gateway_digest"].Pattern,
-				"^[a-f0-9]{64}$"; got != want {
-				t.Fatalf("%s confirm_gateway_digest pattern = %q, want %q", id, got, want)
-			}
-		}
+
 	})
 
 	t.Run("Should publish native schema digests and capability roster", func(t *testing.T) {
@@ -1265,29 +1249,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expose the closed gateway action contract", func(t *testing.T) {
-		t.Parallel()
-
-		descriptor := descriptors[toolspkg.ToolIDGateway]
-		var input struct {
-			Properties map[string]struct {
-				Enum []string `json:"enum"`
-			} `json:"properties"`
-		}
-		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
-			t.Fatalf("gateway input schema unmarshal error = %v", err)
-		}
-		wantActions := []string{
-			"status", "audit", "device_list", "surface_set", "provider_enable", "provider_disable",
-			"device_rename", "device_revoke", "device_remove", "ingress_bind", "ingress_unbind",
-		}
-		if got := input.Properties["action"].Enum; !slices.Equal(got, wantActions) {
-			t.Fatalf("gateway action enum = %#v, want %#v", got, wantActions)
-		}
-		if len(descriptor.OutputSchema) == 0 || !json.Valid(descriptor.OutputSchema) {
-			t.Fatal("gateway output schema is missing or invalid")
-		}
-	})
 }
 
 func assertACPOptionSelectionInputSchema(t *testing.T, owner string, schema nativeObjectSchema) {
@@ -1512,8 +1473,6 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: "compozy__extensions_update", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__extensions_validate", risk: toolspkg.RiskRead,
-			readOnly: true, destructive: false, openWorld: false},
-		{id: "compozy__gateway", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__goal_control", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
@@ -3656,13 +3615,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("mcp auth expansion = %#v, want %#v", mcpAuth, want)
 		}
 
-		gatewayTools, err := catalog.Expand(toolspkg.ToolsetIDGateway, universe)
-		if err != nil {
-			t.Fatalf("Expand(gateway) error = %v", err)
-		}
-		if want := []toolspkg.ToolID{toolspkg.ToolIDGateway}; !slices.Equal(gatewayTools, want) {
-			t.Fatalf("gateway expansion = %#v, want %#v", gatewayTools, want)
-		}
 	})
 }
 

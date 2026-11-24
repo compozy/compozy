@@ -1709,7 +1709,7 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 			http.StatusConflict,
 			"409 Conflict",
 			[]byte(
-				`{"error":"confirmation required","code":"extension_gateway_confirmation_required","current_digest":"digest-current","agents":["writer"],"diagnostic":{"id":"extension.gateway_confirmation_required","code":"extension_gateway_confirmation_required","category":"extension","title":"Gateway confirmation is required","message":"Confirm the current digest.","severity":"error","freshness":"live","suggested_command":"compozy extension enable alpha --confirm-gateway-requirement digest-current"}}`,
+				`{"error":"agent conflict","code":"extension_agent_conflict","agents":["writer"],"diagnostic":{"id":"extension.agent_conflict","code":"extension_agent_conflict","category":"extension","title":"Extension agents conflict","message":"The writer agent already exists.","severity":"error","freshness":"live","suggested_command":"compozy extension inventory alpha"}}`,
 			),
 		)
 
@@ -1718,13 +1718,13 @@ func TestUnixSocketClientAgentTaskErrorsRedactClaimTokens(t *testing.T) {
 			t.Fatalf("readAPIErrorBody() error = %T %v, want extensionOperationAPIError", err, err)
 		}
 		payload := operationErr.extensionOperationErrorPayload()
-		if payload.Code != diagnosticcontract.CodeExtensionGatewayConfirmRequired ||
-			payload.CurrentDigest != "digest-current" || !reflect.DeepEqual(payload.Agents, []string{"writer"}) {
+		if payload.Code != diagnosticcontract.CodeExtensionAgentConflict ||
+			!reflect.DeepEqual(payload.Agents, []string{"writer"}) {
 			t.Fatalf("extension operation payload = %#v", payload)
 		}
 		item, ok := diagnosticspkg.ItemFromError(err)
 		if !ok || item.SuggestedCommand !=
-			"compozy extension enable alpha --confirm-gateway-requirement digest-current" {
+			"compozy extension inventory alpha" {
 			t.Fatalf("diagnostic = %#v, %v", item, ok)
 		}
 	})
@@ -3901,7 +3901,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 						}
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"name":"ext-preview","declared_profiles":[{"name":"default","create":false}],"placements":[],"gateway_requirement_digest":"sha256:preview"}`,
+							`{"name":"ext-preview","declared_profiles":[{"name":"default","create":false}],"placements":[]}`,
 						), nil
 					case req.Method == http.MethodPost && req.URL.Path == "/api/extensions/ext-a/enable":
 						body, err := io.ReadAll(req.Body)
@@ -3911,9 +3911,6 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 						var input contract.EnableExtensionRequest
 						if err := json.Unmarshal(body, &input); err != nil {
 							t.Fatalf("json.Unmarshal(extension enable body) error = %v", err)
-						}
-						if input.ConfirmGatewayDigest != "gateway-digest" {
-							t.Fatalf("extension enable body = %#v, want gateway digest", input)
 						}
 						return newHTTPResponse(
 							http.StatusOK,
@@ -3941,7 +3938,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a/preview":
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"extension":"ext-a","changes":[],"agent_conflicts":[],"missing_env":["API_KEY"],"automation_starting":["ext-a/daily"],"gateway_requirement_digest":"digest","gateway_confirmation_required":true}`,
+							`{"extension":"ext-a","changes":[],"agent_conflicts":[],"missing_env":["API_KEY"],"automation_starting":["ext-a/daily"]}`,
 						), nil
 					case req.Method == http.MethodGet && req.URL.Path == "/api/extensions/ext-a/secrets" &&
 						req.URL.Query().Get(workspaceFlagName) == "ws-alpha":
@@ -4027,7 +4024,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 			Source: contract.InstallExtensionSourceLocalPath,
 			Ref:    "/tmp/ext-preview",
 		})
-		if err != nil || preview.Name != "ext-preview" || preview.GatewayRequirementDigest != "sha256:preview" {
+		if err != nil || preview.Name != "ext-preview" || len(preview.DeclaredProfiles) != 1 || preview.DeclaredProfiles[0].Name != "default" {
 			t.Fatalf("PreviewExtensionInstall() = %#v, %v", preview, err)
 		}
 	})
@@ -4038,7 +4035,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		enabled, err := newClient(t).EnableExtension(
 			t.Context(),
 			" ext-a ",
-			EnableExtensionRequest{ConfirmGatewayDigest: "gateway-digest"},
+			EnableExtensionRequest{},
 		)
 		if err != nil || !enabled.Extension.Enabled || len(enabled.AutomationStarted) != 1 ||
 			enabled.AutomationStarted[0] != "ext-a/daily" {
@@ -4077,8 +4074,7 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 		t.Parallel()
 
 		preview, err := newClient(t).PreviewExtensionEnable(t.Context(), " ext-a ")
-		if err != nil || preview.GatewayRequirementDigest != "digest" ||
-			!preview.GatewayConfirmationRequired || !reflect.DeepEqual(preview.AutomationStarting, []string{"ext-a/daily"}) {
+		if err != nil || !reflect.DeepEqual(preview.AutomationStarting, []string{"ext-a/daily"}) {
 			t.Fatalf("PreviewExtensionEnable() = %#v, %v", preview, err)
 		}
 	})
@@ -6027,9 +6023,9 @@ func TestDaemonProfileClient(t *testing.T) {
 			t.Fatalf("error=%v", err)
 		}
 	})
-	t.Run("Should refuse gateway profiles before making a network request", func(t *testing.T) {
+	t.Run("Should refuse profiling a remote computer before making a request", func(t *testing.T) {
 		t.Parallel()
-		client := &daemonClient{target: ClientTarget{kind: clientTargetGateway}}
+		client := &daemonClient{target: ClientTarget{kind: clientTargetLocal, computerID: "cmp_test"}}
 		if err := client.CaptureDaemonProfile(
 			t.Context(),
 			"heap",

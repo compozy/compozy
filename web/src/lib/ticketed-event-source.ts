@@ -1,10 +1,5 @@
 import { reportAccountGateSignal } from "./account-gate-signal";
-import {
-  acquireHostedStreamTicket,
-  acquireStreamTicket,
-  appendHostedStreamTicket,
-  appendStreamTicket,
-} from "./gateway-stream-auth";
+import { acquireHostedStreamTicket, appendHostedStreamTicket } from "./hosted-stream-auth";
 import { isHostedBrowserMode } from "./hosted-browser-auth";
 import { WebSocketEventSource } from "./web-socket-event-source";
 
@@ -38,7 +33,7 @@ const RECONNECT_STABLE_MS = RECONNECT_MAX_MS;
  * Opens a live event stream for the page's own origin.
  *
  * On a local same-origin session this is a native `EventSource` with its native
- * reconnect behaviour left untouched. On a remote gateway session the ticket is
+ * reconnect behaviour left untouched. On a hosted browser session the ticket is
  * single-use, so native reconnect would replay a spent credential and be
  * rejected: the facade closes the socket on error and reopens it with a freshly
  * minted ticket instead. Consumers see the same `open` / `error` sequence
@@ -152,13 +147,12 @@ class TicketedEventSource implements StreamEventSource {
         const ticket = await acquireHostedStreamTicket(resumeUrl, controller.signal);
         authorizedUrl = appendHostedStreamTicket(resumeUrl, ticket);
       } else {
-        const ticket = await acquireStreamTicket(controller.signal);
-        authorizedUrl = ticket === null ? resumeUrl : appendStreamTicket(resumeUrl, ticket);
+        authorizedUrl = resumeUrl;
       }
     } catch {
       // A failed mint is indistinguishable from a dropped stream to consumers:
       // report the error and retry on the same backoff curve. An ended session
-      // is reported separately by the access signal, not by this path.
+      // is reported separately by the hosted access boundary, not by this path.
       this.handleFailure();
       return;
     }

@@ -10,7 +10,7 @@ import (
 const profileConfigKeyDeniedCode = "profile_config_key_denied"
 
 var profileOverlayDeniedRoots = []string{
-	"http", "daemon", "log", "database", GatewayDirName, toolSurfaceShellKey, desktopConfigKey,
+	"http", "daemon", "log", "database", toolSurfaceShellKey, desktopConfigKey,
 	toolSurfaceMarketplaceKey, "observability", vaultConfigKey, ProviderUsageConfigKey, "client",
 }
 

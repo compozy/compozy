@@ -98,22 +98,6 @@ func (c *Client) DuplicateAgent(ctx context.Context, params DuplicateAgentParams
 	return &out, nil
 }
 
-// EnableGatewayProviderParams carries the path, query, and header parameters.
-type EnableGatewayProviderParams struct {
-	Name string `url:"name"`
-}
-
-// EnableGatewayProvider Enable one connectivity provider for a gateway tier
-func (c *Client) EnableGatewayProvider(ctx context.Context, params EnableGatewayProviderParams, body GatewayProviderEnableRequest) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/providers/{name}/enable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 // EnableSkillParams carries the path, query, and header parameters.
 type EnableSkillParams struct {
 	Name      string  `url:"name"`
@@ -446,4 +430,14 @@ func (c *Client) FindFiles(ctx context.Context, params FindFilesParams) (*FileFi
 		return nil, err
 	}
 	return &out, nil
+}
+
+// FindSessionFilesParams carries the path, query, and header parameters.
+type FindSessionFilesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Q           string  `url:"q"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }

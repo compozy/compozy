@@ -13,15 +13,15 @@ import (
 
 const secretEntropyBytes = 32
 
-var dummyCredentialHash = sha256.Sum256([]byte("compozy gateway unknown credential"))
+var dummyCredentialHash = sha256.Sum256([]byte("compozy unknown credential"))
 
 func GenerateOpaqueSecret(entropy io.Reader, prefix string) (string, error) {
 	if entropy == nil {
-		return "", errors.New("gateway: secret entropy reader is required")
+		return "", errors.New("remotehost: secret entropy reader is required")
 	}
 	secret := make([]byte, secretEntropyBytes)
 	if _, err := io.ReadFull(entropy, secret); err != nil {
-		return "", fmt.Errorf("gateway: generate secret entropy: %w", err)
+		return "", fmt.Errorf("remotehost: generate secret entropy: %w", err)
 	}
 	return prefix + base64.RawURLEncoding.EncodeToString(secret), nil
 }

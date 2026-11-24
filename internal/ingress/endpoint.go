@@ -33,23 +33,8 @@ func AdvertisedBase(hostname, publicURL string) (string, error) {
 	return origin.String(), nil
 }
 
-func (m *Manager) activeEndpoint(ctx context.Context) (EndpointState, error) {
-	endpoint, err := m.store.GetIngressEndpoint(ctx)
-	if err != nil {
-		return EndpointState{}, err
-	}
-	if endpoint.Remote {
-		return endpoint, nil
-	}
-	publicOn, err := m.publicOn(ctx)
-	if !publicOn {
-		endpoint.Reachable = false
-	}
-	return endpoint, err
-}
-
 func (m *Manager) AdmitDelivery(ctx context.Context, base string, ref SubjectRef) error {
-	endpoint, err := m.activeEndpoint(ctx)
+	endpoint, err := m.store.GetIngressEndpoint(ctx)
 	if errors.Is(err, ErrEndpointUnverified) || (err == nil && (!endpoint.Reachable || endpoint.URL != base)) {
 		return ErrUnavailable
 	}

@@ -90,46 +90,44 @@ type daemonNativeToolsDeps struct {
 	TaskClaimHandoff taskClaimHandoffCoordinator
 	Roles            core.RolesStatusProvider
 
-	Gateway               func() core.GatewayService
-	Remote                core.RemoteHostService
-	Account               core.AccountService
-	Computers             func() core.ComputersService
-	Ingress               func() core.IngressService
-	GatewayPermissionMode func(context.Context, string) (string, error)
-	HomePaths             compozyconfig.HomePaths
-	Observer              core.Observer
-	HookBindings          hookBindingPublisher
-	AgentCatalog          core.AgentCatalog
-	Vault                 core.VaultService
-	AgentResolver         sessionpkg.AgentResolver
-	HeartbeatStatus       core.HeartbeatStatusService
-	HeartbeatWake         core.HeartbeatWakeService
-	SessionHealth         core.SessionHealthReader
-	WakeEvents            core.HeartbeatWakeEventReader
-	Automation            core.AutomationManager
-	AutomationRuntime     func() core.AutomationManager
-	ExtensionRegistry     *extensionpkg.Registry
-	Extensions            func() core.ExtensionService
-	ExtensionRuntime      func() extensionRuntime
-	ExtensionConfig       compozyconfig.ExtensionsConfig
-	ExtensionSources      extensionMarketplaceSourceLoader
-	ExtensionEvents       extensionLifecycleEventWriter
-	ExtensionSecrets      extensionPublishSecretResolver
-	ExtensionHTTPClient   *http.Client
-	AgentSkills           agentSkillPublisher
-	AgentSkillsRuntime    func() agentSkillPublisher
-	ToolMCP               toolMCPPublisher
-	MCPAuth               func() toolspkg.MCPAuthStatusProvider
-	ApprovalGrants        toolspkg.ApprovalGrantStore
-	Clarify               func() toolspkg.ClarifyBroker
-	LoopResources         loopResourcePublisher
-	Loops                 func() core.LoopService
-	Resources             core.ResourceService
-	WindowManagers        windowManagerProvider
-	Terminals             func() terminalpkg.Manager
-	TerminalExecApprover  terminalExecApprover
-	Monitors              func() *monitorpkg.Service
-	Processes             func() core.SessionProcessService
+	Remote               core.RemoteHostService
+	Account              core.AccountService
+	Computers            func() core.ComputersService
+	Ingress              func() core.IngressService
+	HomePaths            compozyconfig.HomePaths
+	Observer             core.Observer
+	HookBindings         hookBindingPublisher
+	AgentCatalog         core.AgentCatalog
+	Vault                core.VaultService
+	AgentResolver        sessionpkg.AgentResolver
+	HeartbeatStatus      core.HeartbeatStatusService
+	HeartbeatWake        core.HeartbeatWakeService
+	SessionHealth        core.SessionHealthReader
+	WakeEvents           core.HeartbeatWakeEventReader
+	Automation           core.AutomationManager
+	AutomationRuntime    func() core.AutomationManager
+	ExtensionRegistry    *extensionpkg.Registry
+	Extensions           func() core.ExtensionService
+	ExtensionRuntime     func() extensionRuntime
+	ExtensionConfig      compozyconfig.ExtensionsConfig
+	ExtensionSources     extensionMarketplaceSourceLoader
+	ExtensionEvents      extensionLifecycleEventWriter
+	ExtensionSecrets     extensionPublishSecretResolver
+	ExtensionHTTPClient  *http.Client
+	AgentSkills          agentSkillPublisher
+	AgentSkillsRuntime   func() agentSkillPublisher
+	ToolMCP              toolMCPPublisher
+	MCPAuth              func() toolspkg.MCPAuthStatusProvider
+	ApprovalGrants       toolspkg.ApprovalGrantStore
+	Clarify              func() toolspkg.ClarifyBroker
+	LoopResources        loopResourcePublisher
+	Loops                func() core.LoopService
+	Resources            core.ResourceService
+	WindowManagers       windowManagerProvider
+	Terminals            func() terminalpkg.Manager
+	TerminalExecApprover terminalExecApprover
+	Monitors             func() *monitorpkg.Service
+	Processes            func() core.SessionProcessService
 
 	// ProjectionEpoch reports the daemon tool projection epoch that invalidates cached Goal availability.
 	ProjectionEpoch func() uint64
@@ -145,13 +143,6 @@ func (d *daemonNativeToolsDeps) agentSkills() agentSkillPublisher {
 		}
 	}
 	return d.AgentSkills
-}
-
-func (d *daemonNativeToolsDeps) gatewayService() core.GatewayService {
-	if d == nil || d.Gateway == nil {
-		return nil
-	}
-	return d.Gateway()
 }
 
 func (d *daemonNativeToolsDeps) ingressService() core.IngressService {

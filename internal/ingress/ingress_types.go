@@ -19,7 +19,7 @@ func (k SubjectKind) Validate() error {
 	case SubjectWebhookTrigger:
 		return nil
 	default:
-		return fmt.Errorf("gateway: invalid ingress subject kind %q", k)
+		return fmt.Errorf("ingress: invalid ingress subject kind %q", k)
 	}
 }
 
@@ -42,7 +42,7 @@ func (r SubjectRef) Validate() error {
 		return err
 	}
 	if strings.TrimSpace(r.ID) == "" {
-		return errors.New("gateway: ingress subject id is required")
+		return errors.New("ingress: subject id is required")
 	}
 	return nil
 }
@@ -105,7 +105,6 @@ type EndpointState struct {
 	URL        string
 	Generation uint64
 	Reachable  bool
-	Remote     bool
 	UpdatedAt  time.Time
 }
 

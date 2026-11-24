@@ -73,9 +73,6 @@ export function useExtensionInstallDialog(
               request: {
                 ...request,
                 ...(preview.digest_sha256 ? { expected_digest: preview.digest_sha256 } : {}),
-                ...(preview.gateway_requirement_digest
-                  ? { confirm_gateway_digest: preview.gateway_requirement_digest }
-                  : {}),
               },
             });
             return;

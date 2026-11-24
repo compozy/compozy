@@ -23,7 +23,7 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 	if !ok {
 		return
 	}
-	projectionCtx, ok := h.requireGatewayIngressReadContext(c, "automation.triggers.list")
+	projectionCtx, ok := h.requireIngressReadContext(c, "automation.triggers.list")
 	if !ok {
 		return
 	}
@@ -50,7 +50,7 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 	}
 	payloads, err := h.triggerPayloads(projectionCtx, page.Triggers)
 	if err != nil {
-		h.respondGatewayError(c, err)
+		h.respondIngressError(c, err)
 		return
 	}
 	ids := make([]string, len(page.Triggers))
@@ -122,7 +122,7 @@ func (h *BaseHandlers) CreateAutomationTrigger(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
-	projectionCtx, ok := h.requireGatewayIngressReadContextForWorkspace(
+	projectionCtx, ok := h.requireIngressReadContextForWorkspace(
 		c,
 		"automation.triggers.create",
 		trigger.WorkspaceID,
@@ -150,7 +150,7 @@ func (h *BaseHandlers) GetAutomationTrigger(c *gin.Context) {
 	if !ok {
 		return
 	}
-	projectionCtx, ok := h.requireGatewayIngressReadContext(c, "automation.triggers.get")
+	projectionCtx, ok := h.requireIngressReadContext(c, "automation.triggers.get")
 	if !ok {
 		return
 	}
@@ -171,7 +171,7 @@ func (h *BaseHandlers) GetAutomationTrigger(c *gin.Context) {
 	}
 	payload, err := h.triggerPayload(projectionCtx, trigger)
 	if err != nil {
-		h.respondGatewayError(c, err)
+		h.respondIngressError(c, err)
 		return
 	}
 	latest, err := manager.LatestRunsByOwner(c.Request.Context(), automationpkg.RunOwnerTrigger, []string{trigger.ID})
@@ -230,7 +230,7 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 		h.respondError(c, http.StatusNotFound, automationpkg.ErrTriggerNotFound)
 		return
 	}
-	projectionCtx, ok := h.requireGatewayIngressReadContextForWorkspace(
+	projectionCtx, ok := h.requireIngressReadContextForWorkspace(
 		c,
 		"automation.triggers.update",
 		current.WorkspaceID,
@@ -294,7 +294,7 @@ func (h *BaseHandlers) DeleteAutomationTrigger(c *gin.Context) {
 		h.respondError(c, http.StatusNotFound, automationpkg.ErrTriggerNotFound)
 		return
 	}
-	if _, ok := h.requireGatewayIngressReadContextForWorkspace(
+	if _, ok := h.requireIngressReadContextForWorkspace(
 		c,
 		"automation.triggers.delete",
 		current.WorkspaceID,

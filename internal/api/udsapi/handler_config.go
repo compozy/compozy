@@ -90,8 +90,8 @@ type handlerConfig struct {
 	deadEntities          doctor.DeadEntitySource
 	appTokens             core.AppTokenManager
 	openAPI               *core.OpenAPIDocument
-	gateway               core.GatewayService
 	ingress               core.IngressService
+	migrationNotices      core.MigrationNoticeStore
 	homePaths             compozyconfig.HomePaths
 	config                compozyconfig.Config
 	logger                *slog.Logger

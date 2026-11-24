@@ -37,11 +37,10 @@ export type ExtensionsApiErrorKind = "daemon" | "malformed_response" | "transpor
 export type ExtensionsApiErrorMetadata = ExtensionOperationErrorMetadata;
 
 export class ExtensionsApiError extends Error {
-  /** Daemon error code, e.g. `extension_gateway_confirmation_required`. */
+  /** Daemon error code, e.g. `extension_kind_removed`. */
   public readonly code: string | undefined;
 
   /** Digest the daemon expects consent for; the remediation for a missing or stale confirm. */
-  public readonly currentDigest: string | undefined;
   public readonly installedOrigin: ExtensionsApiErrorMetadata["installedOrigin"];
   public readonly listedDigest: string | undefined;
   public readonly fetchedDigest: string | undefined;
@@ -58,7 +57,6 @@ export class ExtensionsApiError extends Error {
     super(message);
     this.name = "ExtensionsApiError";
     this.code = metadata.code;
-    this.currentDigest = metadata.currentDigest;
     this.listedDigest = metadata.listedDigest;
     this.installedOrigin = metadata.installedOrigin;
     this.fetchedDigest = metadata.fetchedDigest;

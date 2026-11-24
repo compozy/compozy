@@ -22,7 +22,6 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/extensionmcp"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -111,8 +110,6 @@ type bootState struct {
 	spawnReaper           *spawnReaper
 	scheduler             *schedulerRuntime
 	coordinator           *coordinatorRuntime
-	gateway               gateway.Policy
-	gatewayVerifier       *gateway.EndpointVerifier
 	accessPolicy          workspaceaccess.Policy
 	accessConsent         *workspaceAccessConsentCache
 	toolRegistry          toolspkg.Registry
@@ -282,7 +279,6 @@ func (d *Daemon) beginBoot() error {
 		d.sessions != nil ||
 		d.modelCatalog != nil ||
 		d.marketplace != nil ||
-		d.gateway != nil ||
 		d.toolRegistry != nil ||
 		d.observer != nil ||
 		d.resourceReconcile != nil ||

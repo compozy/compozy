@@ -1483,7 +1483,6 @@ describe("Extension source installation", () => {
       ],
       declared_profiles: [{ create: true, credentials: [], name: "operations" }],
       name: "gen-a1b2c3",
-      gateway_requirement_digest: "sha256:local-network",
       placements: [],
     });
     renderInstaller();
@@ -1525,7 +1524,6 @@ describe("Extension source installation", () => {
         enable: false,
         allow_unverified: true,
         expected_digest: "a".repeat(64),
-        confirm_gateway_digest: "sha256:local-network",
         inputs: { token: { value: "literal-secret" } },
         ref: "/srv/hello/dist/gen-a1b2c3",
         replace: false,

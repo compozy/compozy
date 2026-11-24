@@ -36,13 +36,13 @@ func NewAuthFailureLimiter(maximum int, window time.Duration, now func() time.Ti
 // Reconfigure applies new authentication limits without replacing active HTTP handlers.
 func (l *AuthFailureLimiter) Reconfigure(maximum int, window time.Duration) error {
 	if l == nil {
-		return errors.New("gateway: authentication limiter is required")
+		return errors.New("remotehost: authentication limiter is required")
 	}
 	if maximum <= 0 {
-		return errors.New("gateway: authentication failure limit must be positive")
+		return errors.New("remotehost: authentication failure limit must be positive")
 	}
 	if window <= 0 {
-		return errors.New("gateway: authentication failure window must be positive")
+		return errors.New("remotehost: authentication failure window must be positive")
 	}
 	l.mu.Lock()
 	l.maximum = maximum

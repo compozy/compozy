@@ -9,18 +9,6 @@ import (
 	"strings"
 )
 
-// ListLoopRequestsAggregateParams carries the path, query, and header parameters.
-type ListLoopRequestsAggregateParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	RunID         *string   `url:"run_id"`
-	State         *string   `url:"state"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
-}
-
 // ListLoopRequestsAggregate List Loop human requests
 func (c *Client) ListLoopRequestsAggregate(ctx context.Context, params ListLoopRequestsAggregateParams) (*LoopRequestsResponse, error) {
 	path := "/api/loop-requests"
@@ -355,6 +343,16 @@ func (c *Client) ListMarketplace(ctx context.Context, params ListMarketplacePara
 func (c *Client) ListMarketplaceSources(ctx context.Context) (*MarketplaceSourcesResponse, error) {
 	path := "/api/marketplace/sources"
 	var out MarketplaceSourcesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListMigrationNotices List undismissed upgrade notices on this computer
+func (c *Client) ListMigrationNotices(ctx context.Context) (*MigrationNoticesResponse, error) {
+	path := "/api/migration-notices"
+	var out MigrationNoticesResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

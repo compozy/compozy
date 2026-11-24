@@ -139,7 +139,7 @@ func directImportBoundaries() []directImportBoundary {
 		{"internal/extension", "internal/api/httpapi"},
 		{"internal/extension", "internal/api/udsapi"},
 	}
-	return append(forbidden, gatewayForbiddenDirectImports...)
+	return forbidden
 }
 
 // Boundaries verifies direct package rules, strict leaf imports, and dependency closures.
@@ -181,15 +181,12 @@ func Boundaries() error {
 		{"internal/worktree", "internal/api"},
 		{"internal/worktree", "internal/cli"},
 		{"internal/profile", "internal/api"},
-		{"internal/apptoken", "internal/gateway"},
 		{"internal/apptoken", "internal/daemon"},
 		{"internal/apptoken", "internal/api"},
 		{"internal/apptoken", "internal/cli"},
-		{"internal/ingress", "internal/gateway"},
 		{"internal/ingress", "internal/daemon"},
 		{"internal/ingress", "internal/api"},
 		{"internal/ingress", "internal/cli"},
-		{"internal/remotehost", "internal/gateway"},
 		{"internal/remotehost", "internal/daemon"},
 		{"internal/remotehost", "internal/api"},
 		{"internal/remotehost", "internal/cli"},

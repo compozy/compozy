@@ -53,10 +53,10 @@ func NewStreamTicketStore(
 	entropy io.Reader,
 ) (*StreamTicketStore, error) {
 	if maxEntries <= 0 {
-		return nil, errors.New("gateway: stream ticket limit must be positive")
+		return nil, errors.New("remotehost: stream ticket limit must be positive")
 	}
 	if ttl <= 0 {
-		return nil, errors.New("gateway: stream ticket TTL must be positive")
+		return nil, errors.New("remotehost: stream ticket TTL must be positive")
 	}
 	return newStreamTicketStore(maxEntries, ttl, now, entropy), nil
 }
@@ -75,7 +75,7 @@ func newStreamTicketStore(
 
 func (s *StreamTicketStore) Reconfigure(ttl time.Duration) error {
 	if ttl <= 0 {
-		return errors.New("gateway: stream ticket TTL must be positive")
+		return errors.New("remotehost: stream ticket TTL must be positive")
 	}
 	s.mu.Lock()
 	s.sweepExpired(s.now())

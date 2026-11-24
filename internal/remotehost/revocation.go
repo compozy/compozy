@@ -33,7 +33,7 @@ func (g *MutationGate) Revoke(
 	revocationCommitted := false
 	defer func() { finishRevocation(revocationCommitted) }()
 	if err := revoke(operationCtx); err != nil {
-		return 0, fmt.Errorf("gateway: revoke credential: %w", err)
+		return 0, fmt.Errorf("remotehost: revoke credential: %w", err)
 	}
 	revocationCommitted = true
 	terminationCtx, cancelTermination := context.WithTimeout(
@@ -42,7 +42,7 @@ func (g *MutationGate) Revoke(
 	defer cancelTermination()
 	canceled, err := connections.CancelDevice(terminationCtx, deviceID)
 	if err != nil {
-		return canceled, fmt.Errorf("gateway: terminate revoked credential connections: %w", err)
+		return canceled, fmt.Errorf("remotehost: terminate revoked credential connections: %w", err)
 	}
 	return canceled, nil
 }

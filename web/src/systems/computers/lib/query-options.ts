@@ -1,7 +1,12 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import { apiClient, apiRequestFailed } from "@/lib/api-client";
-import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import {
+  computerQueryKey,
+  isRemoteComputerId,
+  LOCAL_COMPUTER_ID,
+  type ComputerId,
+} from "@/lib/computer-scope";
 
 import {
   fetchAvailableComputers,
@@ -12,8 +17,17 @@ import {
   previewComputerPlacement,
 } from "../adapters/computers-api";
 import { fetchHostedBrowserPeers } from "../adapters/hosted-browser-api";
+import { fetchMigrationNotices } from "../adapters/migration-notices-api";
 import { fetchRemoteDevices, fetchRemoteStatus } from "../adapters/remote-host-api";
 import { computerRegistryKeys } from "./query-keys";
+
+export function migrationNoticesOptions() {
+  return queryOptions({
+    queryKey: computerQueryKey(LOCAL_COMPUTER_ID, "migration-notices"),
+    queryFn: ({ signal }) => fetchMigrationNotices(signal),
+    retry: false,
+  });
+}
 
 export function computersListOptions(enabled = true) {
   return queryOptions({

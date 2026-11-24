@@ -1,10 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { reportGatewayAccess } from "@/lib/gateway-access-signal";
-import { gatewayAccessStore } from "@/systems/gateway";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mockInvalidate = vi.fn();
 const mockReset = vi.fn();
@@ -55,19 +52,11 @@ const RootErrorBoundary: (props: { error: Error; reset: () => void }) => React.R
 const RootNotFoundBoundary: (props: { isNotFound: true; routeId: string }) => React.ReactNode =
   routeNotFoundComponent(Route);
 
-/**
- * The shell is wrapped in the gateway access boundary, which drops the
- * protected cache when the daemon ends this device's session — so rendering the
- * root now requires the app's QueryClient, exactly as `main.tsx` provides it.
- */
 function renderRoot(element: ReactElement) {
   return render(<QueryClientProvider client={new QueryClient()}>{element}</QueryClientProvider>);
 }
 
 describe("RootComponent", () => {
-  beforeEach(() => gatewayAccessStore.trigger.accessRestored());
-  afterEach(() => act(() => gatewayAccessStore.trigger.accessRestored()));
-
   it("renders the Outlet inside the shell", () => {
     renderRoot(<RootComponent />);
     expect(within(screen.getByTestId("root-shell")).getByTestId("outlet")).toBeInTheDocument();
@@ -200,16 +189,5 @@ describe("RootComponent", () => {
     renderRoot(<RootErrorBoundary error={new Error(message)} reset={mockReset} />);
     expect(screen.getByText(message)).toBeVisible();
     expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
-  });
-
-  it("Should keep revoked access ahead of root route fallbacks", async () => {
-    renderRoot(<RootNotFoundBoundary isNotFound routeId="__root__" />);
-    await act(async () => {
-      reportGatewayAccess(401, { code: "gateway_device_revoked" });
-      await Promise.resolve();
-    });
-
-    expect(await screen.findByTestId("gateway-access-ended")).toBeInTheDocument();
-    expect(screen.queryByTestId("root-route-not-found")).not.toBeInTheDocument();
   });
 });

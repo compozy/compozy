@@ -62,9 +62,6 @@ const (
 	pathRoles                         = "roles"
 	pathWindowManagerNavStackLimit    = "window_manager.nav_stack_limit"
 	pathWindowManagerClosedEntryLimit = "window_manager.closed_entry_limit"
-	pathGatewayPrivatePort            = "gateway.private_port"
-	pathGatewayPublicPort             = "gateway.public_port"
-	pathGatewayWildcard               = "gateway.*"
 )
 
 // Rule records the lifecycle for a config path pattern.
@@ -135,9 +132,6 @@ var Matrix = []Rule{
 		DiffClass: DiffClassLive,
 	},
 	{Pattern: "task.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
-	{Pattern: pathGatewayPrivatePort, Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
-	{Pattern: pathGatewayPublicPort, Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
-	{Pattern: pathGatewayWildcard, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathWindowManagerNavStackLimit, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathWindowManagerClosedEntryLimit, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "window_manager.*", Lifecycle: Live, DiffClass: DiffClassLive},
@@ -200,7 +194,6 @@ func DiffClassForRoot(root string) DiffClass {
 		pathRoles,
 		"window-manager",
 		"cmd-palette",
-		"gateway",
 		"attention",
 		"shell",
 		"provider-usage",

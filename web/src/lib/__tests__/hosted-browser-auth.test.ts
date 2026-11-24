@@ -1,13 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { apiClient, daemonFetch } from "@/lib/api-client";
-import {
-  acquireHostedStreamTicket,
-  appendHostedStreamTicket,
-  authorizeStreamFetchInput,
-  authorizeStreamUrl,
-  resetGatewayStreamAuth,
-} from "@/lib/gateway-stream-auth";
+import { daemonFetch } from "@/lib/api-client";
+import { acquireHostedStreamTicket, appendHostedStreamTicket } from "@/lib/hosted-stream-auth";
 import {
   buildBrowserAuthorizeUrl,
   buildBrowserDPoP,
@@ -58,7 +52,6 @@ function createMemoryStore(): BrowserKeyStore {
 describe("hosted-browser-auth (UT-072)", () => {
   beforeEach(() => {
     resetHostedBrowserAuth();
-    resetGatewayStreamAuth();
     sessionStorage.clear();
     setBrowserKeyStore(createMemoryStore());
   });
@@ -67,7 +60,6 @@ describe("hosted-browser-auth (UT-072)", () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     resetHostedBrowserAuth();
-    resetGatewayStreamAuth();
     sessionStorage.clear();
   });
 
@@ -225,7 +217,7 @@ describe("hosted-browser-auth (UT-072)", () => {
     unsubscribe();
   });
 
-  it("mints hosted stream tickets as ?remote_ticket= and leaves POST prompt fetch inputs unticketed", async () => {
+  it("mints hosted stream tickets for the stream path and keeps terminal attach credentials", async () => {
     setHostedBrowserMode(true);
     const fetchMock = vi.fn<typeof globalThis.fetch>().mockImplementation(async input => {
       const request = input instanceof Request ? input : new Request(String(input));
@@ -243,22 +235,15 @@ describe("hosted-browser-auth (UT-072)", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const terminalPath = "/api/workspaces/ws-1/terminals/t-1/stream?ticket=attach-pass";
-    const authorized = await authorizeStreamUrl(terminalPath);
+    const ticket = await acquireHostedStreamTicket(terminalPath);
+    const authorized = appendHostedStreamTicket(terminalPath, ticket);
     expect(authorized).toBe(
       "/api/workspaces/ws-1/terminals/t-1/stream?ticket=attach-pass&remote_ticket=hosted-ticket-42"
     );
 
-    const ticket = await acquireHostedStreamTicket(terminalPath);
-    expect(ticket).toBe("hosted-ticket-42");
     expect(appendHostedStreamTicket("/api/sessions/stream", "tok-1")).toBe(
       "/api/sessions/stream?remote_ticket=tok-1"
     );
-
-    // POST prompt stream keeps its URL unchanged (uses cookie + DPoP).
-    const promptUrl = "/api/workspaces/ws-1/sessions/s-1/prompt";
-    expect(await authorizeStreamFetchInput(promptUrl)).toBe(promptUrl);
-    // Sanity check apiClient middleware uses hosted path without error.
-    expect(apiClient).toBeDefined();
   });
 
   it("classifies hosted listener HTTP errors into U8 gate signals", () => {

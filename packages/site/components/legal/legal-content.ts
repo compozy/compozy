@@ -167,6 +167,10 @@ For privacy requests or data-protection questions, write to [privacy@compozy.com
 | **Sentry** | Cloud error tracking | Server error traces and request metadata (no session content) |
 | **Better Stack** | Uptime monitoring, alerting, and status page | Service health checks and operational incidents |
 
+App token hashes, their allowed browser origins, and webhook bindings are stored on the computer
+running CompozyOS. The Remote Computers upgrade keeps those local records and removes retired
+Remote Gateway pairing records and connection profile credentials.
+
 **Hosted-route encryption note:** on connections between CompozyOS desktop or CLI apps and your remote computers, Cloudflare Tunnels carry inner TLS traffic that is **encrypted end to end** between your devices; Cloudflare sees ciphertext only. When you access a computer directly from a mobile or desktop web browser, browser TLS terminates at Cloudflare before reaching your computer over the tunnel.`,
       },
       {

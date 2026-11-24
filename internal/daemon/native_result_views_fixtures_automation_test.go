@@ -90,7 +90,7 @@ func nativeResultViewFixturesAutomation(t *testing.T) []nativeResultViewFixture 
 		EndpointSlug:         "review",
 		WebhookSecretPresent: true,
 		WebhookSecretHash:    "sha256:ref",
-		Ingress: &contract.GatewayIngressPayload{
+		Ingress: &contract.IngressPayload{
 			SubjectKind:        "trigger",
 			SubjectID:          "trigger-view",
 			ScopeKind:          "workspace",

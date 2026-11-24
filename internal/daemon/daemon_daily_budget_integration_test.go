@@ -314,10 +314,10 @@ func assertDailyBudgetPublicPause(t *testing.T, d *Daemon, path string, realUDS 
 	status, raw := instanceIntegrationHTTP(t, d, http.MethodGet, path, nil, nil)
 	assertDailyBudgetPublicPayload(t, "HTTP", status, raw)
 	if realUDS {
-		client := gatewayDaemonUDSClient(d.homePaths.DaemonSocket)
+		client := daemonIntegrationUDSClient(d.homePaths.DaemonSocket)
 		defer client.CloseIdleConnections()
-		response := gatewayDaemonRequest(t, client, http.MethodGet, "http://unix"+path, "", nil)
-		assertDailyBudgetPublicPayload(t, "UDS", response.StatusCode, gatewayDaemonReadBody(t, response))
+		response := daemonIntegrationRequest(t, client, http.MethodGet, "http://unix"+path, "", nil)
+		assertDailyBudgetPublicPayload(t, "UDS", response.StatusCode, daemonIntegrationReadBody(t, response))
 	}
 }
 

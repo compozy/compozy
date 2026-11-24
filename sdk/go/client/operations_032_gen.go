@@ -10,57 +10,6 @@ import (
 	"strings"
 )
 
-// RefreshSessionPullRequest Refresh a session pull request
-func (c *Client) RefreshSessionPullRequest(ctx context.Context, params RefreshSessionPullRequestParams) (*SessionPullRequestResponse, error) {
-	path := "/api/sessions/{session_id}/pull-request/refresh"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionPullRequestResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshSessionSoulParams carries the path, query, and header parameters.
-type RefreshSessionSoulParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RefreshSessionSoul Refresh an idle session's Soul snapshot through body-level CAS
-func (c *Client) RefreshSessionSoul(ctx context.Context, params RefreshSessionSoulParams, body SessionSoulRefreshRequest) (*AgentSoulPayload, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/soul/refresh"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSoulPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshSessionWorkLinkParams carries the path, query, and header parameters.
-type RefreshSessionWorkLinkParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
 // RefreshSessionWorkLink Ask the forge again about one linked item
 func (c *Client) RefreshSessionWorkLink(ctx context.Context, params RefreshSessionWorkLinkParams, body SessionWorkLinkRequest) (*SessionLinkedWorkResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/links/refresh"
@@ -361,22 +310,6 @@ func (c *Client) RemoveExtension(ctx context.Context, params RemoveExtensionPara
 	return &out, nil
 }
 
-// RemoveGatewayDeviceParams carries the path, query, and header parameters.
-type RemoveGatewayDeviceParams struct {
-	ID string `url:"id"`
-}
-
-// RemoveGatewayDevice Remove one paired gateway device record
-func (c *Client) RemoveGatewayDevice(ctx context.Context, params RemoveGatewayDeviceParams) (*GatewayRemovedDevicePayload, error) {
-	path := "/api/gateway/devices/{id}/record"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out GatewayRemovedDevicePayload
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 // RemoveMarketplaceSourceParams carries the path, query, and header parameters.
 type RemoveMarketplaceSourceParams struct {
 	Name string `url:"name"`
@@ -436,6 +369,80 @@ func (c *Client) RemoveTaskDependency(ctx context.Context, params RemoveTaskDepe
 	}
 	var out TaskDetailResponse
 	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RemoveWorktreeParams carries the path, query, and header parameters.
+type RemoveWorktreeParams struct {
+	WorkspaceID  string  `url:"workspace_id"`
+	WorktreeID   string  `url:"worktree_id"`
+	Force        *bool   `url:"force"`
+	DeleteBranch *bool   `url:"delete_branch"`
+	Profile      *string `url:"profile"`
+}
+
+// RemoveWorktree Remove a worktree
+func (c *Client) RemoveWorktree(ctx context.Context, params RemoveWorktreeParams) (*WorktreeCleanupResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	query := url.Values{}
+	if params.Force != nil {
+		query.Set("force", strconv.FormatBool(*params.Force))
+	}
+	if params.DeleteBranch != nil {
+		query.Set("delete_branch", strconv.FormatBool(*params.DeleteBranch))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorktreeCleanupResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RemoveWorktreesParams carries the path, query, and header parameters.
+type RemoveWorktreesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RemoveWorktrees Remove multiple worktrees or preview per-target removal risk
+func (c *Client) RemoveWorktrees(ctx context.Context, params RemoveWorktreesParams, body RemoveWorktreesRequest) (*RemoveWorktreesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/remove"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RemoveWorktreesResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RenameProfileParams carries the path, query, and header parameters.
+type RenameProfileParams struct {
+	Name string `url:"name"`
+}
+
+// RenameProfile Rename a profile
+func (c *Client) RenameProfile(ctx context.Context, params RenameProfileParams, body RenameProfileRequest) (*RenameProfileResponse, error) {
+	path := "/api/profiles/{name}/rename"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out RenameProfileResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

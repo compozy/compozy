@@ -11,8 +11,5 @@ func WithComputers(service core.ComputersService) Option {
 }
 
 func (s *Server) surfaceHandler() http.Handler {
-	if s.surfaceSet == SurfaceSetLocal {
-		return core.AliasLocalComputer(s.engine)
-	}
-	return s.engine
+	return core.AliasLocalComputer(s.engine)
 }

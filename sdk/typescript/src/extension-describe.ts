@@ -101,9 +101,6 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
       args: [...(input.definition.subprocess?.args ?? [])],
       env: { ...input.definition.subprocess?.env },
     },
-    ...(input.definition.gateway === undefined
-      ? {}
-      : { gateway: { permissions: normalizeStringList(input.definition.gateway.permissions) } }),
     tools: [...input.tools].sort((left, right) => left.handler.localeCompare(right.handler)),
     command_groups: input.commandGroups.map(group => ({ ...group })),
     hook_events: normalizeDescribeHookEvents(input.definition.supported_hook_events),

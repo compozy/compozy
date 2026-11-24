@@ -422,22 +422,11 @@ func (c *Client) MintBrowserStreamTicket(ctx context.Context, params MintBrowser
 	return &out, nil
 }
 
-// MintGatewayPairing Mint a bounded one-time gateway pairing artifact
-func (c *Client) MintGatewayPairing(ctx context.Context) (*GatewayPairingArtifactPayload, error) {
-	path := "/api/gateway/pairings"
-	var out GatewayPairingArtifactPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MintGatewayStreamTicket Mint a short-lived single-use stream ticket
-func (c *Client) MintGatewayStreamTicket(ctx context.Context) (*GatewayStreamTicketPayload, error) {
-	path := "/api/gateway/stream-tickets"
-	var out GatewayStreamTicketPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
+// MintTerminalAttachTicketParams carries the path, query, and header parameters.
+type MintTerminalAttachTicketParams struct {
+	WorkspaceID             string  `url:"workspace_id"`
+	ID                      string  `url:"id"`
+	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
+	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
+	Profile                 *string `url:"profile"`
 }

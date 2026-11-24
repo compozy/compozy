@@ -34,10 +34,6 @@ const (
 	RestartsDirName = "restarts"
 	// LogsDirName is the directory used for structured logs.
 	LogsDirName = "logs"
-	// GatewayDirName is the directory used for client-local gateway state.
-	GatewayDirName = "gateway"
-	// GatewayCredentialsDirName is the private gateway credential directory.
-	GatewayCredentialsDirName = "credentials"
 	// BinDirName is the directory for runtime binaries managed by CompozyOS.
 	BinDirName = "bin"
 	// DatabaseName is the global database filename.
@@ -82,8 +78,6 @@ type HomePaths struct {
 	SessionAttachmentsDir string
 	RestartsDir           string
 	LogsDir               string
-	GatewayDir            string
-	GatewayCredentialsDir string
 	ExtensionDataRoot     string
 	BinDir                string
 	LogFile               string
@@ -252,8 +246,6 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		SessionAttachmentsDir: filepath.Join(root, SessionAttachmentsDirName),
 		RestartsDir:           filepath.Join(root, RestartsDirName),
 		LogsDir:               filepath.Join(root, LogsDirName),
-		GatewayDir:            filepath.Join(root, GatewayDirName),
-		GatewayCredentialsDir: filepath.Join(root, GatewayDirName, GatewayCredentialsDirName),
 		ExtensionDataRoot:     filepath.Join(root, ExtensionDataDirName),
 		BinDir:                filepath.Join(root, BinDirName),
 		LogFile:               filepath.Join(root, LogsDirName, LogFileName),
@@ -283,8 +275,6 @@ func EnsureHomeLayout(paths HomePaths) error {
 		paths.SessionAttachmentsDir,
 		paths.RestartsDir,
 		paths.LogsDir,
-		paths.GatewayDir,
-		paths.GatewayCredentialsDir,
 		paths.ExtensionDataRoot,
 		paths.BinDir,
 	} {

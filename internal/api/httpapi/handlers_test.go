@@ -121,6 +121,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/remote/link",
 		"DELETE /api/ingress/bindings/:subject_kind/:subject_id",
 		"POST /api/ingress/bindings",
+		"GET /api/migration-notices",
+		"POST /api/migration-notices/:key/dismiss",
 		"DELETE /api/app-tokens/:app_token_id",
 		"GET /api/app-tokens",
 		"GET /api/processes",
@@ -1202,6 +1204,7 @@ func TestRemovedRoutesUseUnknownRouteBehaviorIT011(t *testing.T) {
 	handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 	engine := newTestRouter(t, handlers)
 	for _, tc := range []struct{ method, path string }{
+		{http.MethodGet, "/api/gateway/status"},
 		{http.MethodGet, "/api/memory"},
 		{http.MethodPost, "/api/memory/search"},
 		{http.MethodGet, "/api/settings/memory"},

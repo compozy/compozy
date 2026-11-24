@@ -34,7 +34,6 @@ Also read the applicable references below before the operation. Paths are relati
 - Extension install, build, dev, publish, remove, kits, secrets and hooks: references/extensions.md.
 - Extension code, manifests, permissions, SDK declarations and palette contributions: references/extension-authoring.md; references/extensions.md.
 - Config keys/defaults/scopes/apply lifecycle, including `runtime_mcp` and `external_default`; Automations and suggestions: references/configuration.md.
-- Gateway posture, profiles/SSH, pairing, forwards and stream tickets: references/runtime-operations.md; references/configuration.md.
 - For Remote Computers cloud readiness, verification keys and sign-in policy, read references/computers.md.
 - Worktree creation/binding/exit/delivery/removal/recovery; isolated delegation and subagent Git/PR facts: references/worktrees.md.
 - Operator profile selection and lifecycle: references/profiles.md.

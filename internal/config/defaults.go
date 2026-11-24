@@ -89,7 +89,6 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Loops:     DefaultLoopsConfig(),
 		Goals:     DefaultGoalsConfig(),
 		Task:      DefaultTaskConfig(),
-		Gateway:   defaultGatewayConfig(homePaths),
 		Computers: DefaultComputersConfig(),
 		Remote:    DefaultRemoteConfig(),
 		Autonomy: AutonomyConfig{

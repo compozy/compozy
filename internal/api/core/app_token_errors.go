@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/compozy/compozy/internal/apptoken"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/gin-gonic/gin"
 )
@@ -33,8 +32,6 @@ func AppTokenErrorStatus(err error, authentication bool) (int, string) {
 		return http.StatusNotFound, "app_token_not_found"
 	case errors.Is(err, apptoken.ErrUnauthenticated):
 		return http.StatusUnauthorized, "app_token_unauthenticated"
-	case errors.Is(err, gateway.ErrDeviceUnauthenticated):
-		return http.StatusUnauthorized, "app_token_unauthenticated"
 	case errors.Is(err, apptoken.ErrRequired):
 		return http.StatusUnauthorized, "app_token_required"
 	case errors.Is(err, apptoken.ErrRateLimited):
@@ -44,7 +41,7 @@ func AppTokenErrorStatus(err error, authentication bool) (int, string) {
 	case errors.Is(err, apptoken.ErrRouteForbidden):
 		return http.StatusForbidden, "app_token_route_forbidden"
 	case errors.Is(err, apptoken.ErrLocalOnly):
-		return http.StatusForbidden, "gateway_app_token_local_only"
+		return http.StatusForbidden, "app_token_local_only"
 	case errors.Is(err, apptoken.ErrRevoked), errors.Is(err, remotehost.ErrDeviceRevoked):
 		if authentication {
 			return http.StatusUnauthorized, "app_token_revoked"

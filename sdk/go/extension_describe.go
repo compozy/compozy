@@ -80,7 +80,6 @@ func (e *Extension) Describe() (contracts.DescribePayload, error) {
 			Args:    slices.Clone(e.definition.Subprocess.Args),
 			Env:     cloneStringMap(e.definition.Subprocess.Env),
 		},
-		Gateway:              normalizeDescribeGateway(e.definition.Gateway),
 		Tools:                tools,
 		CommandGroups:        e.commandGroupsLocked(),
 		HookEvents:           normalizeDescribeHookEvents(e.definition.SupportedHookEvents),
@@ -194,17 +193,6 @@ func cloneOptionalBool(value *bool) *bool {
 		return nil
 	}
 	return new(*value)
-}
-
-func normalizeDescribeGateway(
-	value *GatewayRequirement,
-) *contracts.DescribeGatewayRequirement {
-	if value == nil {
-		return nil
-	}
-	return &contracts.DescribeGatewayRequirement{
-		Permissions: normalizeStrings(value.Permissions),
-	}
 }
 
 func (e *Extension) writeDescribe(output io.Writer) error {

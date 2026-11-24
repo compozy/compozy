@@ -9,15 +9,6 @@ import (
 	"strings"
 )
 
-// MintTerminalAttachTicketParams carries the path, query, and header parameters.
-type MintTerminalAttachTicketParams struct {
-	WorkspaceID             string  `url:"workspace_id"`
-	ID                      string  `url:"id"`
-	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
-	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
-	Profile                 *string `url:"profile"`
-}
-
 // MintTerminalAttachTicket Mint a single-use terminal attach ticket
 func (c *Client) MintTerminalAttachTicket(ctx context.Context, params MintTerminalAttachTicketParams, body TerminalAttachTicketRequest) (*TerminalAttachTicketResponse, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/{id}/attach-ticket"
@@ -438,4 +429,22 @@ func (c *Client) PauseScheduler(ctx context.Context, body SchedulerPauseRequest)
 type PauseTaskParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
+}
+
+// PauseTask Pause one task for future scheduler claims
+func (c *Client) PauseTask(ctx context.Context, params PauseTaskParams, body PauseTaskRequest) (*TaskResponse, error) {
+	path := "/api/tasks/{id}/pause"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }

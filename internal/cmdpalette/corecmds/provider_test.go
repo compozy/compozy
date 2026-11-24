@@ -286,7 +286,7 @@ func TestProviderAbsorption(t *testing.T) {
 			"settings.attention=/settings/attention",
 			"settings.automation=/settings/automation",
 			"settings.extensions=/settings/extensions",
-			"settings.gateway=/settings/gateway",
+			"settings.computers=/settings/computers",
 			"settings.general=/settings/general",
 			"settings.hooks=/settings/hooks",
 			"settings.layouts=/settings/layouts",

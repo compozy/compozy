@@ -25,7 +25,6 @@ directories. The user home defaults to `~/.compozy` and can be changed with `COM
 | `$COMPOZY_HOME/daemon.lock`                                                        | Global                  | Daemon lock file.                                                                                              |
 | `$COMPOZY_HOME/daemon.json`                                                        | Global                  | Daemon discovery metadata.                                                                                     |
 | `$COMPOZY_HOME/logs/compozy.log`                                                   | Global                  | Structured daemon log file.                                                                                    |
-| `$COMPOZY_HOME/gateway/credentials/`                                               | Client-local gateway    | Private credential files for named remote connection profiles.                                                 |
 | `$COMPOZY_HOME/support-bundles/`                                                   | Global                  | Daemon-created support bundle archives and operation downloads.                                                |
 | `$COMPOZY_HOME/providers/<provider>/`                                              | Provider                | Isolated provider home when `home_policy` is set.                                                              |
 | `$COMPOZY_HOME/sessions/<session-id>/events.db`                                    | Session                 | Per-session event database during the live session.                                                            |
@@ -70,13 +69,11 @@ matches the active profile; unmatched directories stay dormant.
 | `$COMPOZY_HOME/providers/`           | no                     | Parent for opt-in isolated provider homes. Created by provider launch/auth.   |
 | `$COMPOZY_HOME/sessions/`            | yes                    | Parent directory for per-session state.                                       |
 | `$COMPOZY_HOME/logs/`                | yes                    | Parent directory for daemon logs.                                             |
-| `$COMPOZY_HOME/gateway/`             | yes                    | Client-local gateway state.                                                   |
-| `$COMPOZY_HOME/gateway/credentials/` | yes                    | Private remote connection credential files.                                   |
 | `$COMPOZY_HOME/extensions/`          | no                     | Managed installed extension root. Created when installing managed extensions. |
 | `$COMPOZY_HOME/support-bundles/`     | no                     | Created when the daemon builds or the CLI downloads a support bundle.         |
 
 `EnsureHomeLayout` creates the root, `agents`, `skills`, `loops`, `profiles`, the `default` profile
-directory, `sessions`, `logs`, and gateway directories. Individual files
+directory, `sessions`, and `logs` directories. Individual files
 are created by the features that own them.
 
 ## Profile Files

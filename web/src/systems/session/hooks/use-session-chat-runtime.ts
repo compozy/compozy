@@ -3,8 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 import type { UIMessage } from "ai";
 
-import { authorizeStreamFetchInput } from "@/lib/gateway-stream-auth";
-import { reportGatewayResponse } from "@/lib/gateway-access-signal";
 import { computerApiPath } from "@/lib/api-client";
 import { isRemoteComputerId } from "@/lib/computer-scope";
 import { modelCatalogKeys } from "@/systems/model-catalog";
@@ -233,17 +231,10 @@ function buildSessionRuntimeConfig(
         queryClient.cancelQueries({ queryKey: modelCatalogKeys.all }),
         runtimeClosed,
       ]);
-      // The prompt POST streams its response, so a remote gateway session
-      // authenticates it with a fresh single-use ticket like any other stream.
-      const target = await Promise.race([
-        authorizeStreamFetchInput(input, controller.signal),
-        runtimeClosed,
-      ]);
-      request = goalAwareFetch(target, { ...init, signal: controller.signal });
+      request = goalAwareFetch(input, { ...init, signal: controller.signal });
       const response = await Promise.race([request, runtimeClosed]);
       answered = true;
       promptDispatch.trigger.promptAnswered({ status: response.status });
-      await reportGatewayResponse(response);
       if (response.ok) {
         promptOutcome.accepted(messageId);
         // The catalog rows show the bound runtime; reread them now rather than

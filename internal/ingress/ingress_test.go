@@ -498,7 +498,6 @@ func newIngressTestManager(
 	}
 	manager, err := NewManager(
 		store,
-		func(context.Context) (bool, error) { return publicOn, nil },
 		access,
 		nil,
 		func() time.Time { return time.Date(2026, 8, 6, 12, 30, 0, 0, time.UTC) },

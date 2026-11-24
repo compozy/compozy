@@ -296,6 +296,22 @@ type AppMetadatum struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+type AppToken struct {
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	TokenHash   string         `json:"token_hash"`
+	RevokeEpoch int64          `json:"revoke_epoch"`
+	CreatedAt   string         `json:"created_at"`
+	LastSeenAt  sql.NullString `json:"last_seen_at"`
+	RevokedAt   sql.NullString `json:"revoked_at"`
+}
+
+type AppTokenOrigin struct {
+	AppTokenID string `json:"app_token_id"`
+	Origin     string `json:"origin"`
+	CreatedAt  string `json:"created_at"`
+}
+
 type AttentionAcknowledgement struct {
 	ProfileID      string `json:"profile_id"`
 	ActorKind      string `json:"actor_kind"`
@@ -644,24 +660,21 @@ type EventSummaryOutbox struct {
 }
 
 type Extension struct {
-	Name                     string         `json:"name"`
-	Version                  string         `json:"version"`
-	Source                   string         `json:"source"`
-	ManifestPath             string         `json:"manifest_path"`
-	Format                   string         `json:"format"`
-	IngestDiagnosticsJson    string         `json:"ingest_diagnostics_json"`
-	InstalledAt              string         `json:"installed_at"`
-	ProvidesJson             string         `json:"provides_json"`
-	PermissionsJson          string         `json:"permissions_json"`
-	Checksum                 string         `json:"checksum"`
-	LifecycleToken           string         `json:"lifecycle_token"`
-	RegistrySlug             sql.NullString `json:"registry_slug"`
-	RegistryName             sql.NullString `json:"registry_name"`
-	RemoteVersion            sql.NullString `json:"remote_version"`
-	ProvenanceJson           string         `json:"provenance_json"`
-	GatewayRequirementDigest string         `json:"gateway_requirement_digest"`
-	GatewayConfirmedBy       sql.NullString `json:"gateway_confirmed_by"`
-	GatewayConfirmedAt       sql.NullString `json:"gateway_confirmed_at"`
+	Name                  string         `json:"name"`
+	Version               string         `json:"version"`
+	Source                string         `json:"source"`
+	ManifestPath          string         `json:"manifest_path"`
+	Format                string         `json:"format"`
+	IngestDiagnosticsJson string         `json:"ingest_diagnostics_json"`
+	InstalledAt           string         `json:"installed_at"`
+	ProvidesJson          string         `json:"provides_json"`
+	PermissionsJson       string         `json:"permissions_json"`
+	Checksum              string         `json:"checksum"`
+	LifecycleToken        string         `json:"lifecycle_token"`
+	RegistrySlug          sql.NullString `json:"registry_slug"`
+	RegistryName          sql.NullString `json:"registry_name"`
+	RemoteVersion         sql.NullString `json:"remote_version"`
+	ProvenanceJson        string         `json:"provenance_json"`
 }
 
 type ExtensionBuiltinTombstone struct {
@@ -671,16 +684,13 @@ type ExtensionBuiltinTombstone struct {
 }
 
 type ExtensionDevLink struct {
-	ExtensionName            string         `json:"extension_name"`
-	WorkspaceID              string         `json:"workspace_id"`
-	OriginPath               string         `json:"origin_path"`
-	BundleGeneration         string         `json:"bundle_generation"`
-	LinkedAt                 time.Time      `json:"linked_at"`
-	Format                   string         `json:"format"`
-	IngestDiagnosticsJson    string         `json:"ingest_diagnostics_json"`
-	GatewayRequirementDigest string         `json:"gateway_requirement_digest"`
-	GatewayConfirmedBy       sql.NullString `json:"gateway_confirmed_by"`
-	GatewayConfirmedAt       sql.NullString `json:"gateway_confirmed_at"`
+	ExtensionName         string    `json:"extension_name"`
+	WorkspaceID           string    `json:"workspace_id"`
+	OriginPath            string    `json:"origin_path"`
+	BundleGeneration      string    `json:"bundle_generation"`
+	LinkedAt              time.Time `json:"linked_at"`
+	Format                string    `json:"format"`
+	IngestDiagnosticsJson string    `json:"ingest_diagnostics_json"`
 }
 
 type ExtensionEnvBinding struct {
@@ -772,67 +782,6 @@ type ForgePullRequest struct {
 	RetryAfter        sql.NullString `json:"retry_after"`
 }
 
-type GatewayDeviceOrigin struct {
-	DeviceID  string `json:"device_id"`
-	Origin    string `json:"origin"`
-	CreatedAt string `json:"created_at"`
-}
-
-type GatewayDeviceSession struct {
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	TokenHash     string         `json:"token_hash"`
-	ActorKind     string         `json:"actor_kind"`
-	PairingOrigin string         `json:"pairing_origin"`
-	RevokeEpoch   int64          `json:"revoke_epoch"`
-	CreatedAt     string         `json:"created_at"`
-	LastSeenAt    sql.NullString `json:"last_seen_at"`
-	RevokedAt     sql.NullString `json:"revoked_at"`
-}
-
-type GatewayEndpointState struct {
-	Tier               string `json:"tier"`
-	EndpointUrl        string `json:"endpoint_url"`
-	EndpointGeneration int64  `json:"endpoint_generation"`
-	Reachable          bool   `json:"reachable"`
-	UpdatedAt          string `json:"updated_at"`
-}
-
-type GatewayIngressBinding struct {
-	SubjectKind        string         `json:"subject_kind"`
-	SubjectID          string         `json:"subject_id"`
-	ScopeKind          string         `json:"scope_kind"`
-	WorkspaceID        sql.NullString `json:"workspace_id"`
-	EndpointGeneration int64          `json:"endpoint_generation"`
-	ConfirmedAt        string         `json:"confirmed_at"`
-}
-
-type GatewayProvider struct {
-	Name            string         `json:"name"`
-	InstallSource   string         `json:"install_source"`
-	DigestConfirmed sql.NullString `json:"digest_confirmed"`
-	ConfirmedAt     sql.NullString `json:"confirmed_at"`
-}
-
-type GatewayProviderActivation struct {
-	ProviderName  string         `json:"provider_name"`
-	Tier          string         `json:"tier"`
-	DesiredState  string         `json:"desired_state"`
-	ObservedState string         `json:"observed_state"`
-	Generation    int64          `json:"generation"`
-	LastHealthAt  sql.NullString `json:"last_health_at"`
-	LastError     sql.NullString `json:"last_error"`
-}
-
-type GatewaySurfaceExposure struct {
-	Surface       string         `json:"surface"`
-	Tier          string         `json:"tier"`
-	DesiredState  string         `json:"desired_state"`
-	ObservedState string         `json:"observed_state"`
-	Generation    int64          `json:"generation"`
-	ConsentedAt   sql.NullString `json:"consented_at"`
-}
-
 type HeartbeatAuthorityApproval struct {
 	NotifiedSha256 string `json:"notified_sha256"`
 	ProfileID      string `json:"profile_id"`
@@ -851,12 +800,20 @@ type HeartbeatSourceScriptApproval struct {
 	ApprovedVia   string `json:"approved_via"`
 }
 
+type IngressBinding struct {
+	SubjectKind        string         `json:"subject_kind"`
+	SubjectID          string         `json:"subject_id"`
+	ScopeKind          string         `json:"scope_kind"`
+	WorkspaceID        sql.NullString `json:"workspace_id"`
+	EndpointGeneration int64          `json:"endpoint_generation"`
+	ConfirmedAt        string         `json:"confirmed_at"`
+}
+
 type IngressEndpointState struct {
 	ID                 int64  `json:"id"`
 	EndpointUrl        string `json:"endpoint_url"`
 	EndpointGeneration int64  `json:"endpoint_generation"`
 	Reachable          bool   `json:"reachable"`
-	Source             string `json:"source"`
 	UpdatedAt          string `json:"updated_at"`
 }
 
@@ -1468,6 +1425,13 @@ type McpServerApproval struct {
 	SourceID         string `json:"source_id"`
 	DefinitionDigest string `json:"definition_digest"`
 	ApprovedAt       string `json:"approved_at"`
+}
+
+type MigrationNotice struct {
+	Key         string         `json:"key"`
+	Payload     string         `json:"payload"`
+	CreatedAt   string         `json:"created_at"`
+	DismissedAt sql.NullString `json:"dismissed_at"`
 }
 
 type ModelCatalogExecutionContext struct {

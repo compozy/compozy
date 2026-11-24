@@ -244,14 +244,14 @@ func reconcileAutomationIngressBinding(
 	identityChanged bool,
 ) error {
 	if identityChanged {
-		_, err := queries.DeleteGatewayIngressBinding(ctx, sqlcgen.DeleteGatewayIngressBindingParams{
+		_, err := queries.DeleteIngressBinding(ctx, sqlcgen.DeleteIngressBindingParams{
 			SubjectKind: string(ingress.SubjectWebhookTrigger), SubjectID: trigger.ID,
 		})
 		return err
 	}
-	_, err := queries.DeleteMismatchedGatewayIngressBinding(
+	_, err := queries.DeleteMismatchedIngressBinding(
 		ctx,
-		sqlcgen.DeleteMismatchedGatewayIngressBindingParams{
+		sqlcgen.DeleteMismatchedIngressBindingParams{
 			SubjectKind: string(ingress.SubjectWebhookTrigger),
 			SubjectID:   trigger.ID,
 			ScopeKind:   string(trigger.Scope),
@@ -272,7 +272,7 @@ func (g *AutomationRepo) DeleteTrigger(ctx context.Context, id string) (err erro
 	}
 	return g.withImmediateTransaction(ctx, "delete automation trigger", func(exec globalSQLExecutor) error {
 		queries := sqlcgen.New(exec)
-		if _, err := queries.DeleteGatewayIngressBinding(ctx, sqlcgen.DeleteGatewayIngressBindingParams{
+		if _, err := queries.DeleteIngressBinding(ctx, sqlcgen.DeleteIngressBindingParams{
 			SubjectKind: string(ingress.SubjectWebhookTrigger), SubjectID: trimmedID,
 		}); err != nil {
 			return fmt.Errorf("store: delete webhook ingress binding %q: %w", trimmedID, err)

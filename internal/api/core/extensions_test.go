@@ -517,7 +517,6 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 			Placements: []contract.ExtensionPlacementPayload{{
 				Kind: "skill", Resource: "tweet-writer", Profile: "growth",
 			}},
-			GatewayRequirementDigest: "sha256:growth-kit",
 		}
 		installCalled := false
 		service := extensionServiceStub{
@@ -876,7 +875,7 @@ func TestExtensionStatusCodeMapsDomainErrors(t *testing.T) {
 		{name: "Should map an unavailable git binary to unavailable", err: registrygit.ErrGitUnavailable, want: http.StatusServiceUnavailable},
 		{name: "Should map an unsupported git version to unavailable", err: registrygit.ErrGitVersionUnsupported, want: http.StatusServiceUnavailable},
 		{name: "Should map invalid search cursors to bad request", err: extensionpkg.ErrExtensionSearchInvalid, want: http.StatusBadRequest},
-		{name: "Should map gateway confirmation to conflict", err: extensionpkg.ErrExtensionGatewayConfirmationRequired, want: http.StatusConflict},
+		{name: "Should map a removed provider kind to an unprocessable request", err: extensionpkg.ErrExtensionKindRemoved, want: http.StatusUnprocessableEntity},
 		{name: "Should map agent conflicts to conflict", err: extensionpkg.ErrExtensionAgentConflict, want: http.StatusConflict},
 		{name: "Should map invalid bindings to bad request", err: extensionpkg.ErrExtensionEnvBindingInvalid, want: http.StatusBadRequest},
 		{name: "Should map undeclared bindings to bad request", err: extensionpkg.ErrExtensionEnvBindingUndeclared, want: http.StatusBadRequest},
@@ -998,7 +997,7 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 			req contract.EnableExtensionRequest,
 			actor taskpkg.ActorContext,
 		) (contract.ExtensionEnableResult, error) {
-			if name != "kit" || req.ConfirmGatewayDigest != "digest-current" || !actor.Authority.Write {
+			if name != "kit" || !actor.Authority.Write {
 				t.Fatalf("Enable() name=%q req=%#v actor=%#v", name, req, actor)
 			}
 			return want, nil
@@ -1011,7 +1010,7 @@ func TestExtensionKitHandlersReturnDedicatedPayloads(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/extensions/kit/enable",
-			[]byte(`{"confirm_gateway_digest":"digest-current"}`),
+			[]byte(`{}`),
 		)
 		if response.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
@@ -1142,38 +1141,6 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("Should return current digest and retry command for gateway confirmation", func(t *testing.T) {
-		t.Parallel()
-
-		service := extensionServiceStub{enableFn: func(
-			context.Context,
-			string,
-			contract.EnableExtensionRequest,
-			taskpkg.ActorContext,
-		) (contract.ExtensionEnableResult, error) {
-			return contract.ExtensionEnableResult{}, &extensionpkg.GatewayConfirmationRequiredError{
-				CurrentDigest: "digest-current",
-			}
-		}}
-		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
-		engine := gin.New()
-		engine.POST("/extensions/:name/enable", handlers.EnableExtension)
-		response := performRequest(t, engine, http.MethodPost, "/extensions/kit/enable", nil)
-		if response.Code != http.StatusConflict {
-			t.Fatalf("status = %d, want 409; body=%s", response.Code, response.Body.String())
-		}
-		var payload contract.ExtensionOperationErrorPayload
-		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(error) error = %v", err)
-		}
-		if payload.Code != diagnosticcontract.CodeExtensionGatewayConfirmRequired ||
-			payload.CurrentDigest != "digest-current" || payload.Diagnostic == nil ||
-			payload.Diagnostic.SuggestedCommand !=
-				"compozy extension enable kit --confirm-gateway-requirement digest-current" {
-			t.Fatalf("gateway error payload = %#v", payload)
-		}
-	})
 
 	t.Run("Should return sorted conflicting agent names", func(t *testing.T) {
 		t.Parallel()

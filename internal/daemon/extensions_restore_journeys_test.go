@@ -27,7 +27,7 @@ func TestBundledEnrollmentTableOrder(t *testing.T) {
 		}
 		names = append(names, entry.Name)
 	}
-	want := []string{"open-design", "spec-cycle", "tailscale", "forge-github"}
+	want := []string{"open-design", "spec-cycle", "forge-github"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("bundled enrollment order = %v, want %v", names, want)
 	}

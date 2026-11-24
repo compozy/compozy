@@ -47,7 +47,7 @@ func run(ctx context.Context, args []string, output io.Writer) (status int) {
 	scenario := flags.String(
 		"scenario",
 		"",
-		"fixture to prepare (ssh-add, account-add, revoke-device, remote-session, browser-purchase, hosted-purchase, hosted-browser, free-upgrade, sign-in-first-run, sign-in-sign-out, account-delete-pro)",
+		"fixture to prepare (ssh-add, account-add, revoke-device, remote-session, browser-purchase, hosted-purchase, hosted-browser, free-upgrade, sign-in-first-run, sign-in-sign-out, account-delete-pro, gateway-upgrade)",
 	)
 	repo := flags.String("repo", ".", "repository root")
 	if err := flags.Parse(args); err != nil {

@@ -161,16 +161,6 @@ func (c *Client) ListFileEntries(ctx context.Context, params ListFileEntriesPara
 	return &out, nil
 }
 
-// ListGatewayDevices List the operator-global paired device inventory
-func (c *Client) ListGatewayDevices(ctx context.Context) (*GatewayDevicesResponse, error) {
-	path := "/api/gateway/devices"
-	var out GatewayDevicesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 // ListGlobalSessionEventsParams carries the path, query, and header parameters.
 type ListGlobalSessionEventsParams struct {
 	SessionID     string  `url:"session_id"`
@@ -439,4 +429,16 @@ func (c *Client) ListLoopRequests(ctx context.Context, params ListLoopRequestsPa
 		return nil, err
 	}
 	return &out, nil
+}
+
+// ListLoopRequestsAggregateParams carries the path, query, and header parameters.
+type ListLoopRequestsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	RunID         *string   `url:"run_id"`
+	State         *string   `url:"state"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
 }

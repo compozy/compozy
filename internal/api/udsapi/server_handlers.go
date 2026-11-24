@@ -2,7 +2,6 @@ package udsapi
 
 import (
 	core "github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/gateway"
 )
 
 func newHandlers(cfg *handlerConfig) *Handlers {
@@ -108,10 +107,9 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 func withHandlerServices(cfg *handlerConfig, base *core.BaseHandlerConfig) *core.BaseHandlerConfig {
 	base.SessionChanges = cfg.sessionChanges
 	base.TelemetryStatus = cfg.telemetryStatus
-	base.Gateway = cfg.gateway
 	base.Ingress = cfg.ingress
+	base.MigrationNotices = cfg.migrationNotices
 	base.Computers = cfg.computers
-	base.GatewayPairingSource = string(gateway.PairingSourceLocal)
 	base.OnProviderAuthSuccess = cfg.onProviderAuthSuccess
 	base.ProviderAuthVerdicts = cfg.providerAuthVerdicts
 	return base

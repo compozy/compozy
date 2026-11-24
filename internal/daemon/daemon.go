@@ -22,7 +22,6 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
-	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -96,7 +95,6 @@ type Registry interface {
 	daemonAttentionWorkspaceMuteRegistry
 	store.SkillExposureRepository
 	core.TaskDesignationStore
-	gateway.Store
 	store.OnboardingStore
 	looppkg.ReconciliationStore
 	VerifyDefaultProfile(context.Context) error
@@ -110,14 +108,6 @@ type Server interface {
 
 // ServerFactory constructs runtime components such as HTTP and UDS servers.
 type ServerFactory func(ctx context.Context, deps RuntimeDeps) (Server, error)
-
-// GatewayTierServerFactory constructs one daemon-owned loopback listener for a tier and its active surfaces.
-type GatewayTierServerFactory func(
-	ctx context.Context,
-	deps *RuntimeDeps,
-	tier gateway.Tier,
-	surfaces []gateway.Surface,
-) (Server, error)
 
 type registryOpener func(ctx context.Context, path string) (Registry, error)
 type sessionManagerFactory func(ctx context.Context, deps SessionManagerDeps) (SessionManager, error)
@@ -217,43 +207,41 @@ type extensionManagerDeps struct {
 type Daemon struct {
 	mu sync.Mutex
 
-	accountOptions         []account.Option
-	remoteHostClock        clockwork.Clock
-	automationClock        clockwork.Clock
-	computersOptions       []computers.Option
-	wrapRemoteTunnel       func(http.Handler) http.Handler
-	sshSetupOptions        sshsetup.Options
-	installCloudflared     func(context.Context, string) (string, error)
-	homePaths              compozyconfig.HomePaths
-	loadConfig             ConfigLoader
-	logger                 *slog.Logger
-	closeLogger            func() error
-	now                    func() time.Time
-	pid                    func() int
-	processStartedAt       func(int) (time.Time, error)
-	processToken           func(int) (string, error)
-	acquireLock            func(path string, pid int) (*Lock, error)
-	openRegistry           registryOpener
-	newSessionManager      sessionManagerFactory
-	newObserver            observerFactory
-	initTelemetry          telemetryInitializer
-	newExtensionManager    extensionManagerFactory
-	newAutomationManager   automationManagerFactory
-	newResourceReconcile   resourceReconcileDriverFactory
-	httpFactory            ServerFactory
-	udsFactory             ServerFactory
-	gatewayTierFactory     GatewayTierServerFactory
-	gatewayProviderEffects gateway.EffectDriver
-	signalProcess          func(int, syscall.Signal) error
-	processAlive           func(int) bool
-	executable             func() (string, error)
-	exitProcess            func(int)
-	startDetached          detachedStartFunc
-	preflightReplacement   restartPreflightFunc
-	signalCh               <-chan os.Signal
-	verifyBoundaries       bool
-	boundaryRoot           string
-	getenv                 func(string) string
+	accountOptions       []account.Option
+	remoteHostClock      clockwork.Clock
+	automationClock      clockwork.Clock
+	computersOptions     []computers.Option
+	wrapRemoteTunnel     func(http.Handler) http.Handler
+	sshSetupOptions      sshsetup.Options
+	installCloudflared   func(context.Context, string) (string, error)
+	homePaths            compozyconfig.HomePaths
+	loadConfig           ConfigLoader
+	logger               *slog.Logger
+	closeLogger          func() error
+	now                  func() time.Time
+	pid                  func() int
+	processStartedAt     func(int) (time.Time, error)
+	processToken         func(int) (string, error)
+	acquireLock          func(path string, pid int) (*Lock, error)
+	openRegistry         registryOpener
+	newSessionManager    sessionManagerFactory
+	newObserver          observerFactory
+	initTelemetry        telemetryInitializer
+	newExtensionManager  extensionManagerFactory
+	newAutomationManager automationManagerFactory
+	newResourceReconcile resourceReconcileDriverFactory
+	httpFactory          ServerFactory
+	udsFactory           ServerFactory
+	signalProcess        func(int, syscall.Signal) error
+	processAlive         func(int) bool
+	executable           func() (string, error)
+	exitProcess          func(int)
+	startDetached        detachedStartFunc
+	preflightReplacement restartPreflightFunc
+	signalCh             <-chan os.Signal
+	verifyBoundaries     bool
+	boundaryRoot         string
+	getenv               func(string) string
 
 	readyCh          chan struct{}
 	readyClosed      bool

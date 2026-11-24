@@ -599,9 +599,6 @@ jobs:
         shell: pwsh
         run: |
           $testFiles = @(
-            'internal/cli/gateway_credentials_test.go',
-            'internal/cli/gateway_profile_transaction_test.go',
-            'internal/cli/gateway_permissions_windows_integration_test.go',
             'internal/fileutil/nofollow_windows_test.go',
             'internal/mcp/peer_test.go',
             'internal/mcp/peer_windows_test.go'
@@ -651,10 +648,10 @@ jobs:
         env:
           CGO_ENABLED: 0
 
-      - name: Verify Windows private files and Gateway recovery
+      - name: Verify Windows private files
         run: >-
-          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-5.json --packages "./internal/fileutil ./internal/cli" --
-          -run '^(TestAtomicRemoveFileRemovesFileAndRejectsUnsafeTargets|TestWindowsPrivateFiles|TestGatewayCredentialStore|TestGatewayProfileTransactionLock|TestGatewayProfileTransactionJournal|TestGatewayProfileTransactionRecovery|TestGatewayProfileTransactionJournalPath)$'
+          gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-5.json --packages "./internal/fileutil" --
+          -run '^(TestAtomicRemoveFileRemovesFileAndRejectsUnsafeTargets|TestWindowsPrivateFiles)$'
           -count=1
         env:
           CGO_ENABLED: 0
@@ -674,17 +671,6 @@ jobs:
           -count=1
         env:
           CGO_ENABLED: 0
-
-      - name: Build native Windows CLI
-        run: go build -o "${{ runner.temp }}/compozy-gateway-test.exe" ./cmd/compozy
-        env:
-          CGO_ENABLED: 0
-
-      - name: Exercise repeated native Windows CLI and OS keyring recovery
-        run: gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-8.json --packages "./internal/cli" -- -tags integration -run '^TestWindowsGatewayCLI$' -count=1 -v
-        env:
-          CGO_ENABLED: 0
-          COMPOZY_TEST_BINARY: ${{ runner.temp }}/compozy-gateway-test.exe
 
       - uses: ./.github/actions/report-flakes
         if: always()

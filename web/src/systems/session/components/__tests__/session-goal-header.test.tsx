@@ -3,7 +3,6 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { sessionStore } from "@/systems/session/stores/session-store";
 import type {
   SessionGoalCommandResult,
@@ -183,16 +182,12 @@ describe("SessionGoalHeader", () => {
     controlResponse = null;
     readFails = false;
     FakeEventSource.latest = null;
-    resetGatewayStreamAuth();
     sessionStore.trigger.sessionInteractionRemoved({ sessionId: SESSION_ID });
     vi.stubGlobal("EventSource", FakeEventSource);
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const pathname = path(input);
-        if (pathname.endsWith("/api/status")) {
-          return Response.json({}, { headers: { "X-Compozy-Gateway-Tier": "local" } });
-        }
         if (
           pathname.endsWith(`/sessions/${SESSION_ID}/goal`) &&
           (init?.method ?? (input instanceof Request ? input.method : "GET")) === "POST"
@@ -267,7 +262,6 @@ describe("SessionGoalHeader", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    resetGatewayStreamAuth();
   });
 
   it("Should merge live turns, invalidate only on status, and pause from the Goal surface", async () => {

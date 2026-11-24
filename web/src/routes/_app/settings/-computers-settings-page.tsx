@@ -16,6 +16,7 @@ import {
   ComputersListSection,
   ComputersThisComputerSection,
   DisableLocalAgentsDialog,
+  GatewayUpgradeNotice,
   LoadBalancingSection,
   RemoveComputerDialog,
   RenameComputerDialog,
@@ -140,6 +141,7 @@ export function ComputersSettingsPage() {
         slug="computers"
         width="wide"
       >
+        <GatewayUpgradeNotice />
         <ComputersBanners
           cloudUnreachable={view.cloudUnreachable}
           onDismissUninstallWarning={() => view.setUninstallWarning(null)}

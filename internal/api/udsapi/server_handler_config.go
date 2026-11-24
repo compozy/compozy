@@ -4,8 +4,8 @@ func (s *Server) handlerConfig() *handlerConfig {
 	config := s.handlerDependencies()
 	config.sessionChanges = s.sessionChanges
 	config.telemetryStatus = s.telemetryStatus
-	config.gateway = s.gateway
 	config.ingress = s.ingress
+	config.migrationNotices = s.migrationNotices
 	return config
 }
 

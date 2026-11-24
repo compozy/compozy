@@ -2,7 +2,6 @@ package core
 
 import (
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -34,19 +33,8 @@ func extensionOperationErrorPayload(
 		extensionErrorInputsRequired,
 		extensionErrorInputInvalid:
 		payload, _ = ExtensionAcquisitionErrorPayload(err)
-	case extensionErrorGatewayConfirmationRequired:
-		confirmationErr, ok := errors.AsType[*extensionpkg.GatewayConfirmationRequiredError](err)
-		if ok && confirmationErr != nil {
-			payload.CurrentDigest = strings.TrimSpace(confirmationErr.CurrentDigest)
-		}
-		payload.Code = diagnosticcontract.CodeExtensionGatewayConfirmRequired
-		payload.Diagnostic = extensionOperationDiagnostic(
-			"extension.gateway_confirmation_required",
-			payload.Code,
-			"Gateway confirmation is required",
-			message,
-			extensionGatewayRetryCommand(name, payload.CurrentDigest),
-		)
+	case extensionErrorKindRemoved:
+		payload.Code = diagnosticcontract.CodeExtensionKindRemoved
 	case extensionErrorAgentConflict:
 		if conflictErr, ok := errors.AsType[*extensionpkg.AgentConflictError](err); ok && conflictErr != nil {
 			payload.Agents = slices.Clone(conflictErr.Agents)
@@ -207,15 +195,6 @@ func extensionRestoreCommandFor(name string) string {
 		return ""
 	}
 	return "compozy extension restore " + name
-}
-
-func extensionGatewayRetryCommand(name, digest string) string {
-	name = strings.TrimSpace(name)
-	digest = strings.TrimSpace(digest)
-	if name == "" || digest == "" {
-		return ""
-	}
-	return fmt.Sprintf("compozy extension enable %s --confirm-gateway-requirement %s", name, digest)
 }
 
 func extensionEnvBindingErrorCode(kind extensionErrorKind) string {

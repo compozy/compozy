@@ -12,7 +12,6 @@ import {
   setExtensionEnablement,
   updateExtension,
 } from "../adapters/extensions-api";
-import { extensionGatewayConfirmation } from "../lib/extension-gateway-confirmation";
 import { extensionKeys } from "../lib/query-keys";
 import type {
   ExtensionEnablement,
@@ -35,7 +34,6 @@ export interface UpdateExtensionVariables extends ExtensionInstanceScope {
   name: string;
   allowUnverified?: boolean;
   version?: string;
-  confirmGatewayDigest?: string;
 }
 
 export interface RemoveExtensionVariables extends ExtensionInstanceScope {
@@ -43,15 +41,6 @@ export interface RemoveExtensionVariables extends ExtensionInstanceScope {
   name: string;
   /** Permanent removal of a bundled built-in. It is global, so the scope is not sent with it. */
   permanent?: boolean;
-}
-
-/**
- * A refused gateway confirmation is not a failure the operator has to read twice: the confirm
- * affordance owns it, so the toast stays out of the way.
- */
-function toastUnlessGatewayConfirmation(error: Error) {
-  if (extensionGatewayConfirmation(error)) return;
-  toast.error(error.message);
 }
 
 export interface ToggleExtensionOptions {
@@ -125,7 +114,6 @@ export function useUpdateExtension() {
       name,
       allowUnverified,
       version,
-      confirmGatewayDigest,
       scope,
       workspaceId,
       profileName,
@@ -138,11 +126,10 @@ export function useUpdateExtension() {
         ...(profileName ? { profile: profileName } : {}),
         ...(inputs ? { inputs } : {}),
         ...(version ? { version } : {}),
-        ...(confirmGatewayDigest ? { confirm_gateway_digest: confirmGatewayDigest } : {}),
       }),
     onSuccess: (_data, { name, version }) =>
       toast.success(version ? `${name} updated to v${version}` : `${name} updated`),
-    onError: toastUnlessGatewayConfirmation,
+    onError: error => toast.error(error.message),
     onSettled: () => reconcileInstalledExtensionCaches(queryClient),
   });
 }

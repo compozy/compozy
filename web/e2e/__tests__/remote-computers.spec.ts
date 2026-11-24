@@ -670,3 +670,47 @@ test.describe("Account deletion on Pro", () => {
       });
   });
 });
+
+test.describe("Remote Gateway upgrade", () => {
+  test.use({ scenario: "gateway-upgrade" });
+
+  test("E2E-009 shows the upgrade notice after sign-in and remembers Dismiss", async ({ page }) => {
+    await page.goto("/settings/gateway", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/settings\/computers/);
+    const settings = appWindow(page, "settings");
+    const notice = settings
+      .getByRole("alert")
+      .filter({ hasText: "Remote access was replaced by Computers" });
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText(
+      "Paired devices and connection profiles were removed. Set up remote computers again."
+    );
+    await expect(notice).toContainText("2 webhook triggers need confirmation");
+    await expect(notice.getByRole("link", { name: "Learn more" })).toHaveAttribute(
+      "href",
+      "https://compozy.com/blog/compozy-0-8-remote-computers"
+    );
+    await expect(notice.getByRole("link", { name: "Review" })).toBeVisible();
+
+    const dismissed = page.waitForResponse(
+      response =>
+        new URL(response.url()).pathname === "/api/migration-notices/gateway_removed/dismiss" &&
+        response.request().method() === "POST"
+    );
+    await notice.getByRole("button", { name: "Dismiss" }).click();
+    expect((await dismissed).status()).toBe(204);
+    await expect(notice).toHaveCount(0);
+
+    const reread = page.waitForResponse(
+      response =>
+        new URL(response.url()).pathname === "/api/migration-notices" &&
+        response.request().method() === "GET"
+    );
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const response = await reread;
+    expect(response.status()).toBe(200);
+    expect(await response.json()).toEqual({ notices: [] });
+    await expect(settings).toBeVisible();
+    await expect(notice).toHaveCount(0);
+  });
+});

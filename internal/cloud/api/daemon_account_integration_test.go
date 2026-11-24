@@ -225,6 +225,39 @@ func TestDaemonCloudAccount(t *testing.T) {
 
 }
 
+func seedLegacyAccountHome(t *testing.T, filename, project string) {
+	t.Helper()
+	ctx := t.Context()
+	db, err := remotetest.OpenLegacyGlobalDB(ctx, filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	const at = "2026-10-01T00:00:00Z"
+	if _, err := db.ExecContext(ctx, `INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+		VALUES ('ws_legacy_upgrade', ?, 'Legacy project', ?, ?)`, project, at, at); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO sessions
+		(id, profile_id, name, agent_name, workspace_id, state, created_at, updated_at)
+		VALUES ('sess_legacy_alpha', ?, 'Before upgrade one', ?, 'ws_legacy_upgrade', 'stopped', ?, ?),
+		       ('sess_legacy_beta', ?, 'Before upgrade two', ?, 'ws_legacy_upgrade', 'stopped', ?, ?)`,
+		store.DefaultProfileID, config.DefaultAgentName, at, at,
+		store.DefaultProfileID, config.DefaultAgentName, at, at); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO automation_jobs
+		(id, profile_id, scope, name, agent_name, workspace_id, prompt, enabled, retry, fire_limit, created_at, updated_at)
+		VALUES ('job_legacy_upgrade', ?, 'workspace', 'Keep this job', ?, 'ws_legacy_upgrade',
+		        'Keep this prompt', 0, '{}', '{}', ?, ?)`, store.DefaultProfileID, config.DefaultAgentName, at, at); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func signInDaemonAccount(
 	t *testing.T, f authFixture, d daemonAccountFixture, progress accountIntegrationStream, email string,
 ) contract.AccountStatusResponse {
@@ -678,6 +711,80 @@ func (r *daemonAccountKeyring) publicKey(t *testing.T, accountID string) remotep
 
 func TestRequiredSignInDaemon(t *testing.T) {
 	root := t.TempDir()
+	t.Run("Should preserve a pre-account installation after release upgrade and sign-in (IT-097)", func(t *testing.T) {
+		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+		home := filepath.Join(root, "upgrade")
+		project := t.TempDir()
+		paths, err := config.ResolveHomePathsFrom(home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := config.EnsureHomeLayout(paths); err != nil {
+			t.Fatal(err)
+		}
+		const zone = "America/Sao_Paulo"
+		if err := os.WriteFile(paths.ConfigFile, []byte("[automation]\nenabled = true\ntimezone = \""+zone+"\"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		seedLegacyAccountHome(t, paths.DatabaseFile, project)
+		defer version.OverrideVersionForTesting("0.8.0")()
+		d, _ := startConfiguredDaemonAccount(t, f, home, daemonAccountBoot{signInRequired: true, automation: true})
+		reply := d.request(t, http.MethodGet, contract.AccountPath, nil)
+		reply.expect(t, http.StatusOK, `"pre_account_install":true`)
+		status := authJSON[contract.AccountStatusResponse](t, reply)
+		if status.State != account.SignedOut || status.SignedIn {
+			t.Fatalf("upgraded account before sign-in = %+v", status)
+		}
+
+		progress := d.stream(t, contract.AccountSignInEventsPath, "")
+		signInDaemonAccount(t, f, d, progress, "upgrade@example.test")
+		progress.cancel()
+		reply = d.request(t, http.MethodGet, "/api/migration-notices", nil)
+		reply.expect(t, http.StatusOK, `"notices":[]`)
+		for id, title := range map[string]string{
+			"sess_legacy_alpha": "Before upgrade one",
+			"sess_legacy_beta":  "Before upgrade two",
+		} {
+			reply = d.request(t, http.MethodGet, "/api/workspaces/ws_legacy_upgrade/sessions/"+id, nil)
+			reply.expect(t, http.StatusOK, title)
+			session := authJSON[contract.SessionResponse](t, reply).Session
+			if session.ID != id || session.Name != title || session.WorkspaceID != "ws_legacy_upgrade" {
+				t.Fatalf("upgraded session = %+v", session)
+			}
+		}
+		reply = d.request(t, http.MethodGet, "/api/workspaces/ws_legacy_upgrade", nil)
+		reply.expect(t, http.StatusOK, "Legacy project")
+		workspace := authJSON[contract.WorkspaceResponse](t, reply).Workspace
+		if workspace.ID != "ws_legacy_upgrade" || workspace.RootDir != project || workspace.Name != "Legacy project" {
+			t.Fatalf("upgraded workspace = %+v", workspace)
+		}
+		reply = d.request(t, http.MethodGet, "/api/settings/automation", nil)
+		reply.expect(t, http.StatusOK, zone)
+		if cfg := authJSON[contract.SettingsAutomationResponse](t, reply).Config; cfg.Timezone != zone || !cfg.Enabled {
+			t.Fatalf("upgraded automation settings = %+v", cfg)
+		}
+		reply = d.request(t, http.MethodGet, "/api/automation/jobs/job_legacy_upgrade", nil)
+		reply.expect(t, http.StatusOK, "Keep this job")
+		job := authJSON[contract.JobResponse](t, reply).Job
+		if job.ID != "job_legacy_upgrade" || job.Name != "Keep this job" || job.AgentName != config.DefaultAgentName ||
+			job.Prompt != "Keep this prompt" || job.Enabled || job.WorkspaceID != workspace.ID {
+			t.Fatalf("upgraded job = %+v", job)
+		}
+		d.stop()
+		db := openAccountFixtureDB(t, home)
+		t.Cleanup(func() {
+			if err := db.Close(context.WithoutCancel(t.Context())); err != nil {
+				t.Error(err)
+			}
+		})
+		var preAccount, notices int
+		if err := db.ReadDB().QueryRowContext(t.Context(), `SELECT pre_account_install,
+			(SELECT count(*) FROM migration_notices WHERE key = 'gateway_removed') FROM installation_account WHERE id = 1`).
+			Scan(&preAccount, &notices); err != nil || preAccount != 1 || notices != 0 {
+			t.Fatalf("installation_account pre_account_install = %d, gateway notices = %d, error = %v", preAccount, notices, err)
+		}
+	})
+
 	t.Run("Should refuse webhook delivery and operator CLI before starting any work (IT-094)", func(t *testing.T) {
 		// Safety Invariant 14: webhook requests must fail before their delivery can reserve a run.
 		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)

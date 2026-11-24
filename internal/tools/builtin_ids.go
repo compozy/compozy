@@ -193,9 +193,7 @@ const (
 	// ToolIDObserveMetrics reads daemon observability health and metrics.
 	ToolIDObserveMetrics ToolID = "compozy__observe_metrics"
 	// ToolIDObserveSearch searches redacted observability events.
-	ToolIDObserveSearch ToolID = "compozy__observe_search"
-	// ToolIDGateway inspects gateway posture and performs permission-gated management actions.
-	ToolIDGateway             ToolID = "compozy__gateway"
+	ToolIDObserveSearch       ToolID = "compozy__observe_search"
 	ToolIDRemoteStatus        ToolID = "compozy__remote_status"
 	ToolIDComputerSetupCancel ToolID = "compozy__computer_setup_cancel"
 	ToolIDComputerSetupAnswer ToolID = "compozy__computer_setup_answer"
@@ -389,8 +387,6 @@ const (
 	ToolsetIDProviderModels ToolsetID = "compozy__provider_models"
 	// ToolsetIDObserve groups read-only observability tools.
 	ToolsetIDObserve ToolsetID = "compozy__observe"
-	// ToolsetIDGateway groups gateway inspection and permission-gated management.
-	ToolsetIDGateway ToolsetID = "compozy__gateway"
 	// ToolsetIDConfig groups validated config tools.
 	ToolsetIDConfig ToolsetID = "compozy__config"
 	// ToolsetIDHooks groups hook introspection and mutable config-backed hook tools.

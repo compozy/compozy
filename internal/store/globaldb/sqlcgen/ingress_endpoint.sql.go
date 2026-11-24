@@ -10,7 +10,7 @@ import (
 )
 
 const getIngressEndpointState = `-- name: GetIngressEndpointState :one
-SELECT id, endpoint_url, endpoint_generation, reachable, source, updated_at FROM ingress_endpoint_state WHERE id = 1
+SELECT id, endpoint_url, endpoint_generation, reachable, updated_at FROM ingress_endpoint_state WHERE id = 1
 `
 
 func (q *Queries) GetIngressEndpointState(ctx context.Context) (IngressEndpointState, error) {
@@ -21,47 +21,29 @@ func (q *Queries) GetIngressEndpointState(ctx context.Context) (IngressEndpointS
 		&i.EndpointUrl,
 		&i.EndpointGeneration,
 		&i.Reachable,
-		&i.Source,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const upsertIngressEndpointState = `-- name: UpsertIngressEndpointState :one
-INSERT INTO ingress_endpoint_state (id, endpoint_url, endpoint_generation, reachable, source, updated_at)
-VALUES (1, ?1, 1, ?2, ?3, ?4)
+const upsertIngressEndpointState = `-- name: UpsertIngressEndpointState :exec
+INSERT INTO ingress_endpoint_state (id, endpoint_url, endpoint_generation, reachable, updated_at)
+VALUES (1, ?1, 1, ?2, ?3)
 ON CONFLICT(id) DO UPDATE SET
     endpoint_url = excluded.endpoint_url,
     endpoint_generation = ingress_endpoint_state.endpoint_generation +
         (ingress_endpoint_state.endpoint_url <> excluded.endpoint_url),
     reachable = excluded.reachable,
-    source = excluded.source,
     updated_at = excluded.updated_at
-RETURNING id, endpoint_url, endpoint_generation, reachable, source, updated_at
 `
 
 type UpsertIngressEndpointStateParams struct {
 	EndpointUrl string `json:"endpoint_url"`
 	Reachable   bool   `json:"reachable"`
-	Source      string `json:"source"`
 	UpdatedAt   string `json:"updated_at"`
 }
 
-func (q *Queries) UpsertIngressEndpointState(ctx context.Context, arg UpsertIngressEndpointStateParams) (IngressEndpointState, error) {
-	row := q.db.QueryRowContext(ctx, upsertIngressEndpointState,
-		arg.EndpointUrl,
-		arg.Reachable,
-		arg.Source,
-		arg.UpdatedAt,
-	)
-	var i IngressEndpointState
-	err := row.Scan(
-		&i.ID,
-		&i.EndpointUrl,
-		&i.EndpointGeneration,
-		&i.Reachable,
-		&i.Source,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) UpsertIngressEndpointState(ctx context.Context, arg UpsertIngressEndpointStateParams) error {
+	_, err := q.db.ExecContext(ctx, upsertIngressEndpointState, arg.EndpointUrl, arg.Reachable, arg.UpdatedAt)
+	return err
 }

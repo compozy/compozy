@@ -20,7 +20,7 @@ func NewRemoteWebhookRoutes(
 ) http.Handler {
 	router := gin.New()
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Automation: manager, MaskInternalErrors: true})
-	limiter := ingress.NewRateLimiter(defaultGatewayIngressRequestLimit, defaultGatewayIngressRequestWindow, now)
+	limiter := ingress.NewRateLimiter(defaultIngressRequestLimit, defaultIngressRequestWindow, now)
 	check := func(ctx context.Context, trigger automation.Trigger) error {
 		return admit(ctx, remotehost.WebhookIngressBase(ctx),
 			ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: trigger.ID})

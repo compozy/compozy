@@ -10,7 +10,7 @@ const toolSurfaceShellKey = "shell"
 
 // globalOnlyConfigRoots are sections that only the home config may set.
 var globalOnlyConfigRoots = []string{
-	toolSurfaceMarketplaceKey, GatewayDirName, ProviderUsageConfigKey, toolSurfaceShellKey, desktopConfigKey,
+	toolSurfaceMarketplaceKey, ProviderUsageConfigKey, toolSurfaceShellKey, desktopConfigKey,
 	vaultConfigKey,
 }
 

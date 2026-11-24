@@ -128,7 +128,7 @@ func setBrowserAccessHeaders(headers http.Header) {
 	headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 	headers.Set(
 		"Access-Control-Expose-Headers",
-		"Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream, "+gatewayTierHeader,
+		"Content-Type, Last-Event-ID, x-vercel-ai-ui-message-stream",
 	)
 	headers.Set("Vary", "Origin")
 }

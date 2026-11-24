@@ -9,10 +9,6 @@ import (
 
 // RegisterRoutes registers the shared Compozy API routes on the supplied Gin router.
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
-	RegisterSurfaceRoutes(router, handlers, SurfaceSetLocal)
-}
-
-func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 	if handlers == nil {
 		return
 	}
@@ -20,7 +16,6 @@ func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 	signIn := core.NewSignInRoutes(router, handlers.BaseHandlers)
 	api := router.Group("/api")
 	api.Use(handlers.WorkspaceReferenceGuard)
-	api.Use(localListenerTierMiddleware())
 	signIn.RequireSignedIn(core.SignInAnonymous, func() { registerWebhookRoutes(api, handlers) })
 	signIn.RequireSignedIn(core.SignInLocal, func() {
 		api.GET("/mcp/oauth/callback", handlers.completeMCPAuthCallback)
@@ -36,15 +31,14 @@ func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 	signIn.RequireSignedIn(core.SignInLocal, func() {
 		registerAppSDKRoutes(api, handlers)
 		core.RegisterIngressRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
-		registerOperatorRoutes(operator, handlers, true)
+		core.RegisterMigrationNoticeRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
+		registerOperatorRoutes(operator, handlers)
 		registerResourceRoutes(api, handlers)
-		registerGatewayRedeemRoute(api, handlers)
-		registerGatewayManagementRoutes(api, handlers, false)
 	})
 	signIn.RequireSignedIn(core.SignInAccount, func() {
 		core.RegisterComputerRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
 		router.Any(core.ComputerBridgeRoute,
-			localListenerTierMiddleware(), browserRequestProtectionMiddleware(handlers.boundHost),
+			browserRequestProtectionMiddleware(handlers.boundHost),
 			loopbackAPIGuard(handlers.boundHost), handlers.privilegedMutationGuard(), handlers.BridgeComputer)
 	})
 	registerAccountRoutes(api, handlers, signIn)
@@ -149,10 +143,6 @@ func registerResourceRoutes(api gin.IRouter, handlers *Handlers) {
 	}
 
 	registerResourceEndpoints(api.Group("", auth...), handlers, true)
-}
-
-func registerRemoteResourceReadRoutes(api gin.IRouter, handlers *Handlers) {
-	registerResourceEndpoints(api, handlers, false)
 }
 
 func registerResourceEndpoints(api gin.IRouter, handlers *Handlers, writable bool) {
@@ -311,7 +301,7 @@ func registerMarketplaceRoutes(api gin.IRouter, handlers *Handlers) {
 	marketplace.POST("/sources/:name/refresh", handlers.privilegedMutationGuard(), handlers.RefreshMarketplaceSource)
 }
 
-func registerExtensionRoutes(api gin.IRouter, handlers *Handlers, fullOperator bool) {
+func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 	privileged := handlers.privilegedMutationGuard()
 	extensions := api.Group("/extensions")
 	extensions.GET("", handlers.ListExtensions)
@@ -334,11 +324,7 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers, fullOperator b
 	extensions.POST("/:name/restore", privileged, handlers.RestoreExtension)
 	extensions.GET("/:name/logs", handlers.ExtensionLogs)
 	extensions.GET("/:name/enablement", handlers.ListExtensionEnablement)
-	if fullOperator {
-		extensions.PUT("/:name/enablement", privileged, handlers.SetExtensionEnablement)
-	} else {
-		extensions.PUT("/:name/enablement", refuseGatewayProfileWrite)
-	}
+	extensions.PUT("/:name/enablement", privileged, handlers.SetExtensionEnablement)
 	extensions.GET("/:name/preview", handlers.PreviewExtensionEnable)
 }
 
@@ -435,7 +421,7 @@ func registerOpenAIModelRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {
-	registerWebhookEndpoints(api, handlers.gatewayIngressRateLimitMiddleware(),
+	registerWebhookEndpoints(api, handlers.ingressRateLimitMiddleware(),
 		handlers.DeliverGlobalWebhook, handlers.DeliverWorkspaceWebhook)
 }
 

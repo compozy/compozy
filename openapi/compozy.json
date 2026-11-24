@@ -9129,19 +9129,6 @@
           "active_sessions": {
             "type": "integer"
           },
-          "gateway": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/GatewayStatusPayload"
-              },
-              {
-                "enum": [
-                  null
-                ],
-                "nullable": true
-              }
-            ]
-          },
           "http_host": {
             "type": "string"
           },
@@ -9361,9 +9348,6 @@
       },
       "DevLinkExtensionRequest": {
         "properties": {
-          "confirm_gateway_digest": {
-            "type": "string"
-          },
           "generation_hash": {
             "type": "string"
           },
@@ -10321,12 +10305,6 @@
           "extension": {
             "type": "string"
           },
-          "gateway_confirmation_required": {
-            "type": "boolean"
-          },
-          "gateway_requirement_digest": {
-            "type": "string"
-          },
           "missing_env": {
             "items": {
               "type": "string"
@@ -10345,8 +10323,6 @@
           "automation_starting",
           "changes",
           "extension",
-          "gateway_confirmation_required",
-          "gateway_requirement_digest",
           "missing_env",
           "missing_inputs"
         ],
@@ -10420,9 +10396,6 @@
             "type": "array"
           },
           "digest_sha256": {
-            "type": "string"
-          },
-          "gateway_requirement_digest": {
             "type": "string"
           },
           "inputs": {
@@ -10620,9 +10593,6 @@
           "code": {
             "type": "string"
           },
-          "current_digest": {
-            "type": "string"
-          },
           "declared_env": {
             "items": {
               "type": "string"
@@ -10752,12 +10722,6 @@
             "type": "string"
           },
           "format": {
-            "type": "string"
-          },
-          "gateway_confirmation_required": {
-            "type": "boolean"
-          },
-          "gateway_requirement_digest": {
             "type": "string"
           },
           "generation_hash": {
@@ -10924,7 +10888,6 @@
           "digest_matched",
           "enabled",
           "format",
-          "gateway_confirmation_required",
           "name",
           "profile",
           "restart_backoff_ms",
@@ -12225,649 +12188,26 @@
         ],
         "type": "object"
       },
-      "GatewayAddressPayload": {
+      "GatewayRemovalNoticePayload": {
         "properties": {
-          "address": {
-            "type": "string"
-          },
-          "live": {
-            "type": "boolean"
-          },
-          "tier": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "address",
-          "live",
-          "tier"
-        ],
-        "type": "object"
-      },
-      "GatewayAuditAuthPayload": {
-        "properties": {
-          "active_device_count": {
+          "bindings_needing_confirmation": {
             "type": "integer"
           },
-          "mode": {
-            "type": "string"
-          },
-          "required_remotely": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "active_device_count",
-          "mode",
-          "required_remotely"
-        ],
-        "type": "object"
-      },
-      "GatewayAuditFindingPayload": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "remediation": {
-            "type": "string"
-          },
-          "resource": {
-            "type": "string"
-          },
-          "severity": {
-            "type": "string"
-          },
-          "summary": {
-            "type": "string"
-          },
-          "tier": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "remediation",
-          "severity",
-          "summary"
-        ],
-        "type": "object"
-      },
-      "GatewayAuditPayload": {
-        "properties": {
-          "auth": {
-            "$ref": "#/components/schemas/GatewayAuditAuthPayload"
-          },
-          "device_highlights": {
-            "$ref": "#/components/schemas/GatewayDeviceHighlights"
-          },
-          "findings": {
-            "items": {
-              "$ref": "#/components/schemas/GatewayAuditFindingPayload"
-            },
-            "type": "array"
-          },
-          "local_only": {
-            "type": "boolean"
-          },
-          "no_findings": {
-            "type": "boolean"
-          },
-          "ran": {
-            "type": "boolean"
-          },
-          "status": {
-            "$ref": "#/components/schemas/GatewayStatusPayload"
-          }
-        },
-        "required": [
-          "auth",
-          "device_highlights",
-          "findings",
-          "local_only",
-          "no_findings",
-          "ran",
-          "status"
-        ],
-        "type": "object"
-      },
-      "GatewayDeviceHighlights": {
-        "properties": {
-          "active": {
+          "connection_profiles": {
             "type": "integer"
-          },
-          "recently_paired": {
-            "type": "integer"
-          },
-          "revoked": {
-            "type": "integer"
-          },
-          "stale": {
-            "type": "integer"
-          },
-          "stale_device_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "active",
-          "recently_paired",
-          "revoked",
-          "stale",
-          "stale_device_ids"
-        ],
-        "type": "object"
-      },
-      "GatewayDevicePayload": {
-        "properties": {
-          "actor_kind": {
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "last_seen_at": {
-            "format": "date-time",
-            "nullable": true,
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "pairing_origin": {
-            "type": "string"
-          },
-          "revoke_epoch": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "revoked_at": {
-            "format": "date-time",
-            "nullable": true,
-            "type": "string"
-          }
-        },
-        "required": [
-          "actor_kind",
-          "created_at",
-          "id",
-          "name",
-          "pairing_origin",
-          "revoke_epoch"
-        ],
-        "type": "object"
-      },
-      "GatewayDeviceRenameRequest": {
-        "properties": {
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "type": "object"
-      },
-      "GatewayDevicesResponse": {
-        "properties": {
-          "devices": {
-            "items": {
-              "$ref": "#/components/schemas/GatewayDevicePayload"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "devices"
-        ],
-        "type": "object"
-      },
-      "GatewayIngressBindRequest": {
-        "properties": {
-          "confirmed": {
-            "type": "boolean"
-          },
-          "subject_id": {
-            "type": "string"
-          },
-          "subject_kind": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "confirmed",
-          "subject_id",
-          "subject_kind"
-        ],
-        "type": "object"
-      },
-      "GatewayIngressBindingResponse": {
-        "properties": {
-          "binding": {
-            "$ref": "#/components/schemas/GatewayIngressPayload"
-          },
-          "changed": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "binding",
-          "changed"
-        ],
-        "type": "object"
-      },
-      "GatewayIngressPayload": {
-        "properties": {
-          "confirmed_at": {
-            "format": "date-time",
-            "nullable": true,
-            "type": "string"
-          },
-          "confirmed_endpoint_generation": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "enable_path": {
-            "type": "string"
-          },
-          "endpoint_generation": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "reachability": {
-            "type": "string"
-          },
-          "scope_kind": {
-            "type": "string"
-          },
-          "subject_id": {
-            "type": "string"
-          },
-          "subject_kind": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          },
-          "workspace_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "endpoint_generation",
-          "reachability",
-          "scope_kind",
-          "subject_id",
-          "subject_kind"
-        ],
-        "type": "object"
-      },
-      "GatewayIngressUnbindResponse": {
-        "properties": {
-          "changed": {
-            "type": "boolean"
-          },
-          "subject_id": {
-            "type": "string"
-          },
-          "subject_kind": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "changed",
-          "subject_id",
-          "subject_kind"
-        ],
-        "type": "object"
-      },
-      "GatewayIssuedCredentialPayload": {
-        "properties": {
-          "credential": {
-            "type": "string"
-          },
-          "device": {
-            "$ref": "#/components/schemas/GatewayDevicePayload"
-          }
-        },
-        "required": [
-          "device"
-        ],
-        "type": "object"
-      },
-      "GatewayPairingArtifactPayload": {
-        "properties": {
-          "artifact": {
-            "type": "string"
-          },
-          "expires_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "manual_code": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "artifact",
-          "expires_at",
-          "manual_code"
-        ],
-        "type": "object"
-      },
-      "GatewayPairingRedeemRequest": {
-        "properties": {
-          "actor_kind": {
-            "type": "string"
-          },
-          "artifact": {
-            "type": "string"
-          },
-          "credential": {
-            "type": "string"
-          },
-          "manual_code": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "actor_kind",
-          "name"
-        ],
-        "type": "object"
-      },
-      "GatewayProviderEnableRequest": {
-        "properties": {
-          "digest_confirmed": {
-            "type": "string"
-          },
-          "expected_generation": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "install_source": {
-            "type": "string"
-          },
-          "tier": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "expected_generation",
-          "install_source",
-          "tier"
-        ],
-        "type": "object"
-      },
-      "GatewayProviderPayload": {
-        "properties": {
-          "cause": {
-            "type": "string"
-          },
-          "desired": {
-            "type": "string"
-          },
-          "generation": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "health": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "observed": {
-            "type": "string"
-          },
-          "tier": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "desired",
-          "generation",
-          "health",
-          "name",
-          "observed",
-          "tier"
-        ],
-        "type": "object"
-      },
-      "GatewayRefusalPayload": {
-        "properties": {
-          "cause": {
-            "type": "string"
-          },
-          "fix": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "cause",
-          "fix"
-        ],
-        "type": "object"
-      },
-      "GatewayRemovedDevicePayload": {
-        "properties": {
-          "canceled": {
-            "type": "integer"
-          },
-          "device": {
-            "$ref": "#/components/schemas/GatewayDevicePayload"
-          },
-          "revoked": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "canceled",
-          "device",
-          "revoked"
-        ],
-        "type": "object"
-      },
-      "GatewayRevokePayload": {
-        "properties": {
-          "canceled": {
-            "type": "integer"
-          },
-          "changed": {
-            "type": "boolean"
-          },
-          "device": {
-            "$ref": "#/components/schemas/GatewayDevicePayload"
-          }
-        },
-        "required": [
-          "canceled",
-          "changed",
-          "device"
-        ],
-        "type": "object"
-      },
-      "GatewayStatusPayload": {
-        "properties": {
-          "addresses": {
-            "items": {
-              "$ref": "#/components/schemas/GatewayAddressPayload"
-            },
-            "type": "array"
-          },
-          "bindings": {
-            "items": {
-              "$ref": "#/components/schemas/GatewayIngressPayload"
-            },
-            "type": "array"
-          },
-          "changed": {
-            "type": "boolean"
           },
           "devices": {
-            "items": {
-              "$ref": "#/components/schemas/GatewayDevicePayload"
-            },
-            "type": "array"
-          },
-          "enabled": {
-            "type": "boolean"
+            "type": "integer"
           },
           "providers": {
-            "items": {
-              "$ref": "#/components/schemas/GatewayProviderPayload"
-            },
-            "type": "array"
-          },
-          "refusal": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/GatewayRefusalPayload"
-              },
-              {
-                "enum": [
-                  null
-                ],
-                "nullable": true
-              }
-            ]
-          },
-          "surfaces": {
-            "items": {
-              "$ref": "#/components/schemas/GatewaySurfacePayload"
-            },
-            "type": "array"
-          },
-          "tiers": {
-            "items": {
-              "$ref": "#/components/schemas/GatewayTierPayload"
-            },
-            "type": "array"
+            "type": "integer"
           }
         },
         "required": [
-          "addresses",
-          "bindings",
-          "changed",
+          "bindings_needing_confirmation",
+          "connection_profiles",
           "devices",
-          "enabled",
-          "providers",
-          "surfaces",
-          "tiers"
-        ],
-        "type": "object"
-      },
-      "GatewayStreamTicketPayload": {
-        "properties": {
-          "expires_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "ticket": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "expires_at",
-          "ticket"
-        ],
-        "type": "object"
-      },
-      "GatewaySurfacePayload": {
-        "properties": {
-          "desired": {
-            "type": "string"
-          },
-          "generation": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "observed": {
-            "type": "string"
-          },
-          "surface": {
-            "type": "string"
-          },
-          "tier": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "desired",
-          "generation",
-          "observed",
-          "surface",
-          "tier"
-        ],
-        "type": "object"
-      },
-      "GatewaySurfaceRequest": {
-        "properties": {
-          "consent": {
-            "type": "boolean"
-          },
-          "desired": {
-            "type": "string"
-          },
-          "expected_generation": {
-            "format": "uint64",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "surface": {
-            "type": "string"
-          },
-          "tier": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "consent",
-          "desired",
-          "expected_generation",
-          "surface",
-          "tier"
-        ],
-        "type": "object"
-      },
-      "GatewayTierPayload": {
-        "properties": {
-          "advertised": {
-            "type": "boolean"
-          },
-          "desired": {
-            "type": "string"
-          },
-          "listener_address": {
-            "type": "string"
-          },
-          "observed": {
-            "type": "string"
-          },
-          "tier": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "advertised",
-          "desired",
-          "observed",
-          "tier"
+          "providers"
         ],
         "type": "object"
       },
@@ -16130,6 +15470,88 @@
         },
         "type": "object"
       },
+      "IngressBindRequest": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          },
+          "subject_id": {
+            "type": "string"
+          },
+          "subject_kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmed",
+          "subject_id",
+          "subject_kind"
+        ],
+        "type": "object"
+      },
+      "IngressBindingResponse": {
+        "properties": {
+          "binding": {
+            "$ref": "#/components/schemas/IngressPayload"
+          },
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "binding",
+          "changed"
+        ],
+        "type": "object"
+      },
+      "IngressPayload": {
+        "properties": {
+          "confirmed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "confirmed_endpoint_generation": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "enable_path": {
+            "type": "string"
+          },
+          "endpoint_generation": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reachability": {
+            "type": "string"
+          },
+          "scope_kind": {
+            "type": "string"
+          },
+          "subject_id": {
+            "type": "string"
+          },
+          "subject_kind": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint_generation",
+          "reachability",
+          "scope_kind",
+          "subject_id",
+          "subject_kind"
+        ],
+        "type": "object"
+      },
       "Input": {
         "properties": {
           "default": {},
@@ -16201,9 +15623,6 @@
             "type": "boolean"
           },
           "asset": {
-            "type": "string"
-          },
-          "confirm_gateway_digest": {
             "type": "string"
           },
           "enable": {
@@ -21234,6 +20653,40 @@
         ],
         "type": "object"
       },
+      "MigrationNoticePayload": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/GatewayRemovalNoticePayload"
+          }
+        },
+        "required": [
+          "created_at",
+          "key",
+          "payload"
+        ],
+        "type": "object"
+      },
+      "MigrationNoticesResponse": {
+        "properties": {
+          "notices": {
+            "items": {
+              "$ref": "#/components/schemas/MigrationNoticePayload"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "notices"
+        ],
+        "type": "object"
+      },
       "MigrationStatus": {
         "description": "Layout migration status. A conversion diagnostic is present in error only when state is failed; a successful retry clears error.",
         "properties": {
@@ -25115,9 +24568,6 @@
       },
       "ReloadExtensionRequest": {
         "properties": {
-          "confirm_gateway_digest": {
-            "type": "string"
-          },
           "generation_hash": {
             "type": "string"
           }
@@ -47411,7 +46861,7 @@
           "ingress": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/GatewayIngressPayload"
+                "$ref": "#/components/schemas/IngressPayload"
               },
               {
                 "enum": [
@@ -47706,9 +47156,6 @@
           },
           "check_only": {
             "type": "boolean"
-          },
-          "confirm_gateway_digest": {
-            "type": "string"
           },
           "inputs": {
             "additionalProperties": {
@@ -70707,16 +70154,6 @@
             },
             "description": "Extension not found"
           },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
-                }
-              }
-            },
-            "description": "Gateway confirmation required"
-          },
           "422": {
             "content": {
               "application/json": {
@@ -71059,16 +70496,6 @@
               }
             },
             "description": "Extension not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
-                }
-              }
-            },
-            "description": "Gateway confirmation required"
           },
           "422": {
             "content": {
@@ -71735,7 +71162,7 @@
                 }
               }
             },
-            "description": "Extension is not dev linked or needs gateway confirmation"
+            "description": "Extension is not dev linked"
           },
           "503": {
             "content": {
@@ -72206,1001 +71633,6 @@
         ]
       }
     },
-    "/api/gateway/audit": {
-      "get": {
-        "operationId": "getGatewayAudit",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayAuditPayload"
-                }
-              }
-            },
-            "description": "Completed gateway security audit"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Audit the current gateway security posture",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/gateway/devices": {
-      "get": {
-        "operationId": "listGatewayDevices",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayDevicesResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "List the operator-global paired device inventory",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/gateway/devices/{id}": {
-      "delete": {
-        "operationId": "revokeGatewayDevice",
-        "parameters": [
-          {
-            "description": "Gateway device id",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayRevokePayload"
-                }
-              }
-            },
-            "description": "Revoked"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Gateway device not found"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Revoke one paired gateway device and its live streams",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      },
-      "patch": {
-        "operationId": "renameGatewayDevice",
-        "parameters": [
-          {
-            "description": "Gateway device id",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GatewayDeviceRenameRequest"
-              }
-            }
-          },
-          "description": "JSON request body",
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayDevicePayload"
-                }
-              }
-            },
-            "description": "Renamed"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Invalid gateway device name"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Gateway device not found"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Rename one paired gateway device",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/gateway/devices/{id}/record": {
-      "delete": {
-        "operationId": "removeGatewayDevice",
-        "parameters": [
-          {
-            "description": "Gateway device id",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayRemovedDevicePayload"
-                }
-              }
-            },
-            "description": "Removed"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Gateway device not found"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Remove one paired gateway device record",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/gateway/ingress-bindings": {
-      "post": {
-        "operationId": "bindGatewayIngress",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GatewayIngressBindRequest"
-              }
-            }
-          },
-          "description": "JSON request body",
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayIngressBindingResponse"
-                }
-              }
-            },
-            "description": "Already confirmed"
-          },
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayIngressBindingResponse"
-                }
-              }
-            },
-            "description": "Created"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Invalid ingress binding request"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Ingress subject is outside the caller workspace"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Ingress subject not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Public ingress is not reachable"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Confirm one subject against the verified public endpoint",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}": {
-      "delete": {
-        "operationId": "unbindGatewayIngress",
-        "parameters": [
-          {
-            "description": "Ingress subject kind",
-            "in": "path",
-            "name": "subject_kind",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Ingress subject id",
-            "in": "path",
-            "name": "subject_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayIngressUnbindResponse"
-                }
-              }
-            },
-            "description": "Unbound"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Invalid ingress subject"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Ingress subject is outside the caller workspace"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Ingress subject not found"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Remove one public ingress confirmation",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/gateway/pairings": {
-      "post": {
-        "operationId": "mintGatewayPairing",
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayPairingArtifactPayload"
-                }
-              }
-            },
-            "description": "Created"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Rate limited"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Mint a bounded one-time gateway pairing artifact",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/gateway/pairings/redeem": {
-      "post": {
-        "operationId": "redeemGatewayPairing",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GatewayPairingRedeemRequest"
-              }
-            }
-          },
-          "description": "JSON request body",
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayIssuedCredentialPayload"
-                }
-              }
-            },
-            "description": "Redeemed"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Invalid pairing request"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Invalid pairing artifact"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Forbidden"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Pairing artifact already spent"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Pairing artifact expired"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Rate limited"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Redeem a one-time gateway pairing artifact",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "private_pre_auth",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/gateway/providers/{name}/disable": {
-      "post": {
-        "operationId": "disableGatewayProvider",
-        "parameters": [
-          {
-            "description": "Connectivity provider name",
-            "in": "path",
-            "name": "name",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Gateway tier",
-            "in": "query",
-            "name": "tier",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayStatusPayload"
-                }
-              }
-            },
-            "description": "Disabled"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Invalid gateway tier"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Gateway provider not found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Gateway provider conflict"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Disable one named connectivity provider for a gateway tier",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/gateway/providers/{name}/enable": {
-      "post": {
-        "operationId": "enableGatewayProvider",
-        "parameters": [
-          {
-            "description": "Connectivity provider name",
-            "in": "path",
-            "name": "name",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GatewayProviderEnableRequest"
-              }
-            }
-          },
-          "description": "JSON request body",
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayStatusPayload"
-                }
-              }
-            },
-            "description": "Enabled"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Invalid provider request"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Gateway provider conflict"
-          },
-          "428": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Provider digest confirmation required"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Enable one connectivity provider for a gateway tier",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/gateway/status": {
-      "get": {
-        "operationId": "getGatewayStatus",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayStatusPayload"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Get the operator-global gateway posture",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
-    "/api/gateway/stream-tickets": {
-      "post": {
-        "operationId": "mintGatewayStreamTicket",
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayStreamTicketPayload"
-                }
-              }
-            },
-            "description": "Created"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Gateway device authentication required"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Mint a short-lived single-use stream ticket",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device"
-        },
-        "x-compozy-transports": [
-          "http"
-        ]
-      }
-    },
-    "/api/gateway/surfaces": {
-      "post": {
-        "operationId": "setGatewaySurface",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GatewaySurfaceRequest"
-              }
-            }
-          },
-          "description": "JSON request body",
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GatewayStatusPayload"
-                }
-              }
-            },
-            "description": "Updated"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Invalid gateway surface request"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Gateway exposure conflict"
-          },
-          "428": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Gateway consent required"
-          },
-          "500": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
-                }
-              }
-            },
-            "description": "Internal server error"
-          }
-        },
-        "summary": "Set durable exposure for one gateway surface",
-        "tags": [
-          "gateway"
-        ],
-        "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
-        "x-compozy-transports": [
-          "http",
-          "uds"
-        ]
-      }
-    },
     "/api/hooks/catalog": {
       "get": {
         "operationId": "getHookCatalog",
@@ -73530,7 +71962,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GatewayIngressBindRequest"
+                "$ref": "#/components/schemas/IngressBindRequest"
               }
             }
           },
@@ -73542,7 +71974,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GatewayIngressBindingResponse"
+                  "$ref": "#/components/schemas/IngressBindingResponse"
                 }
               }
             },
@@ -73552,7 +71984,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GatewayIngressBindingResponse"
+                  "$ref": "#/components/schemas/IngressBindingResponse"
                 }
               }
             },
@@ -73606,18 +72038,14 @@
                 }
               }
             },
-            "description": "Webhook ingress unavailable"
+            "description": "Public ingress is not reachable"
           }
         },
-        "summary": "Confirm a webhook trigger against its advertised HTTPS endpoint",
+        "summary": "Confirm one subject against the verified public endpoint",
         "tags": [
           "ingress"
         ],
         "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
         "x-compozy-transports": [
           "http",
           "uds"
@@ -73697,10 +72125,6 @@
           "ingress"
         ],
         "x-compozy-app-access": "denied",
-        "x-compozy-auth": {
-          "http": "device",
-          "uds": "local_socket"
-        },
         "x-compozy-transports": [
           "http",
           "uds"
@@ -75669,6 +74093,122 @@
         "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http"
+        ]
+      }
+    },
+    "/api/migration-notices": {
+      "get": {
+        "operationId": "listMigrationNotices",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MigrationNoticesResponse"
+                }
+              }
+            },
+            "description": "Upgrade notices"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Operator permission required"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "List undismissed upgrade notices on this computer",
+        "tags": [
+          "migration-notices"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/migration-notices/{key}/dismiss": {
+      "post": {
+        "operationId": "dismissMigrationNotice",
+        "parameters": [
+          {
+            "description": "Migration notice key",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Notice dismissed"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Sign-in required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Operator permission required"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Dismiss an upgrade notice on this computer",
+        "tags": [
+          "migration-notices"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
         ]
       }
     },
@@ -124390,9 +122930,6 @@
     },
     {
       "name": "filesystem"
-    },
-    {
-      "name": "gateway"
     },
     {
       "name": "account"

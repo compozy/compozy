@@ -101,6 +101,9 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 	}
 
 	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
+		undecoded = slices.DeleteFunc(undecoded, func(key burnttoml.Key) bool {
+			return len(key) > 0 && key[0] == "gateway"
+		})
 		undecoded = withoutRetiredProviderFullAccessKeys(withoutDynamicLoopInputKeys(undecoded))
 		if len(undecoded) == 0 {
 			return overlay, nil

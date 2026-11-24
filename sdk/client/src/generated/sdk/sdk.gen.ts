@@ -103,9 +103,6 @@ import type {
   BeginSettingsMCPAuthData,
   BeginSettingsMCPAuthErrors,
   BeginSettingsMCPAuthResponses,
-  BindGatewayIngressData,
-  BindGatewayIngressErrors,
-  BindGatewayIngressResponses,
   BindIngressData,
   BindIngressErrors,
   BindIngressResponses,
@@ -379,9 +376,6 @@ import type {
   DiffLoopRunData,
   DiffLoopRunErrors,
   DiffLoopRunResponses,
-  DisableGatewayProviderData,
-  DisableGatewayProviderErrors,
-  DisableGatewayProviderResponses,
   DisableSkillData,
   DisableSkillErrors,
   DisableSkillResponses,
@@ -391,6 +385,9 @@ import type {
   DismissAutomationSuggestionData,
   DismissAutomationSuggestionErrors,
   DismissAutomationSuggestionResponses,
+  DismissMigrationNoticeData,
+  DismissMigrationNoticeErrors,
+  DismissMigrationNoticeResponses,
   DismissTaskData,
   DismissTaskErrors,
   DismissTaskResponses,
@@ -418,9 +415,6 @@ import type {
   DuplicateAgentData,
   DuplicateAgentErrors,
   DuplicateAgentResponses,
-  EnableGatewayProviderData,
-  EnableGatewayProviderErrors,
-  EnableGatewayProviderResponses,
   EnableSkillData,
   EnableSkillErrors,
   EnableSkillResponses,
@@ -577,12 +571,6 @@ import type {
   GetExtensionProvenanceErrors,
   GetExtensionProvenanceResponses,
   GetExtensionResponses,
-  GetGatewayAuditData,
-  GetGatewayAuditErrors,
-  GetGatewayAuditResponses,
-  GetGatewayStatusData,
-  GetGatewayStatusErrors,
-  GetGatewayStatusResponses,
   GetGlobalSessionHistoryData,
   GetGlobalSessionHistoryErrors,
   GetGlobalSessionHistoryResponses,
@@ -1010,9 +998,6 @@ import type {
   ListFileEntriesData,
   ListFileEntriesErrors,
   ListFileEntriesResponses,
-  ListGatewayDevicesData,
-  ListGatewayDevicesErrors,
-  ListGatewayDevicesResponses,
   ListGlobalSessionEventsData,
   ListGlobalSessionEventsErrors,
   ListGlobalSessionEventsResponses,
@@ -1049,6 +1034,9 @@ import type {
   ListMarketplaceSourcesData,
   ListMarketplaceSourcesErrors,
   ListMarketplaceSourcesResponses,
+  ListMigrationNoticesData,
+  ListMigrationNoticesErrors,
+  ListMigrationNoticesResponses,
   ListOpenAIModelsData,
   ListOpenAIModelsErrors,
   ListOpenAIModelsResponses,
@@ -1232,12 +1220,6 @@ import type {
   MintBrowserStreamTicketData,
   MintBrowserStreamTicketErrors,
   MintBrowserStreamTicketResponses,
-  MintGatewayPairingData,
-  MintGatewayPairingErrors,
-  MintGatewayPairingResponses,
-  MintGatewayStreamTicketData,
-  MintGatewayStreamTicketErrors,
-  MintGatewayStreamTicketResponses,
   MintTerminalAttachTicketData,
   MintTerminalAttachTicketErrors,
   MintTerminalAttachTicketResponses,
@@ -1433,9 +1415,6 @@ import type {
   RecoverTaskRunData,
   RecoverTaskRunErrors,
   RecoverTaskRunResponses,
-  RedeemGatewayPairingData,
-  RedeemGatewayPairingErrors,
-  RedeemGatewayPairingResponses,
   RefreshMarketplaceCatalogData,
   RefreshMarketplaceCatalogErrors,
   RefreshMarketplaceCatalogResponses,
@@ -1496,9 +1475,6 @@ import type {
   RemoveExtensionData,
   RemoveExtensionErrors,
   RemoveExtensionResponses,
-  RemoveGatewayDeviceData,
-  RemoveGatewayDeviceErrors,
-  RemoveGatewayDeviceResponses,
   RemoveMarketplaceSourceData,
   RemoveMarketplaceSourceErrors,
   RemoveMarketplaceSourceResponses,
@@ -1514,9 +1490,6 @@ import type {
   RemoveWorktreesData,
   RemoveWorktreesErrors,
   RemoveWorktreesResponses,
-  RenameGatewayDeviceData,
-  RenameGatewayDeviceErrors,
-  RenameGatewayDeviceResponses,
   RenameProfileData,
   RenameProfileErrors,
   RenameProfileResponses,
@@ -1619,9 +1592,6 @@ import type {
   RevokeAppTokenData,
   RevokeAppTokenErrors,
   RevokeAppTokenResponses,
-  RevokeGatewayDeviceData,
-  RevokeGatewayDeviceErrors,
-  RevokeGatewayDeviceResponses,
   RevokeRemoteDeviceData,
   RevokeRemoteDeviceErrors,
   RevokeRemoteDeviceResponses,
@@ -1679,9 +1649,6 @@ import type {
   SetExtensionSecretsData,
   SetExtensionSecretsErrors,
   SetExtensionSecretsResponses,
-  SetGatewaySurfaceData,
-  SetGatewaySurfaceErrors,
-  SetGatewaySurfaceResponses,
   SetSessionParentData,
   SetSessionParentErrors,
   SetSessionParentResponses,
@@ -1760,9 +1727,6 @@ import type {
   UnarchiveWorkspaceData,
   UnarchiveWorkspaceErrors,
   UnarchiveWorkspaceResponses,
-  UnbindGatewayIngressData,
-  UnbindGatewayIngressErrors,
-  UnbindGatewayIngressResponses,
   UnbindIngressData,
   UnbindIngressErrors,
   UnbindIngressResponses,
@@ -5779,305 +5743,6 @@ export class filesystem extends HeyApiClient {
   }
 }
 
-export class gateway extends HeyApiClient {
-  /**
-   * Audit the current gateway security posture
-   */
-  public getGatewayAudit<ThrowOnError extends boolean = true>(
-    options?: Options<GetGatewayAuditData, ThrowOnError>
-  ): RequestResult<GetGatewayAuditResponses, GetGatewayAuditErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      GetGatewayAuditResponses,
-      GetGatewayAuditErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/audit",
-      ...options,
-    });
-  }
-
-  /**
-   * List the operator-global paired device inventory
-   */
-  public listGatewayDevices<ThrowOnError extends boolean = true>(
-    options?: Options<ListGatewayDevicesData, ThrowOnError>
-  ): RequestResult<ListGatewayDevicesResponses, ListGatewayDevicesErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      ListGatewayDevicesResponses,
-      ListGatewayDevicesErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/devices",
-      ...options,
-    });
-  }
-
-  /**
-   * Revoke one paired gateway device and its live streams
-   */
-  public revokeGatewayDevice<ThrowOnError extends boolean = true>(
-    options: Options<RevokeGatewayDeviceData, ThrowOnError>
-  ): RequestResult<RevokeGatewayDeviceResponses, RevokeGatewayDeviceErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      RevokeGatewayDeviceResponses,
-      RevokeGatewayDeviceErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/devices/{id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Rename one paired gateway device
-   */
-  public renameGatewayDevice<ThrowOnError extends boolean = true>(
-    options: Options<RenameGatewayDeviceData, ThrowOnError>
-  ): RequestResult<RenameGatewayDeviceResponses, RenameGatewayDeviceErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).patch<
-      RenameGatewayDeviceResponses,
-      RenameGatewayDeviceErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/devices/{id}",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Remove one paired gateway device record
-   */
-  public removeGatewayDevice<ThrowOnError extends boolean = true>(
-    options: Options<RemoveGatewayDeviceData, ThrowOnError>
-  ): RequestResult<RemoveGatewayDeviceResponses, RemoveGatewayDeviceErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      RemoveGatewayDeviceResponses,
-      RemoveGatewayDeviceErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/devices/{id}/record",
-      ...options,
-    });
-  }
-
-  /**
-   * Confirm one subject against the verified public endpoint
-   */
-  public bindGatewayIngress<ThrowOnError extends boolean = true>(
-    options: Options<BindGatewayIngressData, ThrowOnError>
-  ): RequestResult<BindGatewayIngressResponses, BindGatewayIngressErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      BindGatewayIngressResponses,
-      BindGatewayIngressErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/ingress-bindings",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Remove one public ingress confirmation
-   */
-  public unbindGatewayIngress<ThrowOnError extends boolean = true>(
-    options: Options<UnbindGatewayIngressData, ThrowOnError>
-  ): RequestResult<
-    UnbindGatewayIngressResponses,
-    UnbindGatewayIngressErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).delete<
-      UnbindGatewayIngressResponses,
-      UnbindGatewayIngressErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Mint a bounded one-time gateway pairing artifact
-   */
-  public mintGatewayPairing<ThrowOnError extends boolean = true>(
-    options?: Options<MintGatewayPairingData, ThrowOnError>
-  ): RequestResult<MintGatewayPairingResponses, MintGatewayPairingErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).post<
-      MintGatewayPairingResponses,
-      MintGatewayPairingErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/pairings",
-      ...options,
-    });
-  }
-
-  /**
-   * Redeem a one-time gateway pairing artifact
-   */
-  public redeemGatewayPairing<ThrowOnError extends boolean = true>(
-    options: Options<RedeemGatewayPairingData, ThrowOnError>
-  ): RequestResult<
-    RedeemGatewayPairingResponses,
-    RedeemGatewayPairingErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      RedeemGatewayPairingResponses,
-      RedeemGatewayPairingErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/pairings/redeem",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Disable one named connectivity provider for a gateway tier
-   */
-  public disableGatewayProvider<ThrowOnError extends boolean = true>(
-    options: Options<DisableGatewayProviderData, ThrowOnError>
-  ): RequestResult<
-    DisableGatewayProviderResponses,
-    DisableGatewayProviderErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      DisableGatewayProviderResponses,
-      DisableGatewayProviderErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/providers/{name}/disable",
-      ...options,
-    });
-  }
-
-  /**
-   * Enable one connectivity provider for a gateway tier
-   */
-  public enableGatewayProvider<ThrowOnError extends boolean = true>(
-    options: Options<EnableGatewayProviderData, ThrowOnError>
-  ): RequestResult<
-    EnableGatewayProviderResponses,
-    EnableGatewayProviderErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      EnableGatewayProviderResponses,
-      EnableGatewayProviderErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/providers/{name}/enable",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Get the operator-global gateway posture
-   */
-  public getGatewayStatus<ThrowOnError extends boolean = true>(
-    options?: Options<GetGatewayStatusData, ThrowOnError>
-  ): RequestResult<GetGatewayStatusResponses, GetGatewayStatusErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      GetGatewayStatusResponses,
-      GetGatewayStatusErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/status",
-      ...options,
-    });
-  }
-
-  /**
-   * Mint a short-lived single-use stream ticket
-   */
-  public mintGatewayStreamTicket<ThrowOnError extends boolean = true>(
-    options?: Options<MintGatewayStreamTicketData, ThrowOnError>
-  ): RequestResult<
-    MintGatewayStreamTicketResponses,
-    MintGatewayStreamTicketErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options?.client ?? this.client).post<
-      MintGatewayStreamTicketResponses,
-      MintGatewayStreamTicketErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/stream-tickets",
-      ...options,
-    });
-  }
-
-  /**
-   * Set durable exposure for one gateway surface
-   */
-  public setGatewaySurface<ThrowOnError extends boolean = true>(
-    options: Options<SetGatewaySurfaceData, ThrowOnError>
-  ): RequestResult<SetGatewaySurfaceResponses, SetGatewaySurfaceErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      SetGatewaySurfaceResponses,
-      SetGatewaySurfaceErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/gateway/surfaces",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-}
-
 export class hooks extends HeyApiClient {
   /**
    * List the resolved hook catalog
@@ -6136,7 +5801,7 @@ export class hooks extends HeyApiClient {
 
 export class ingress extends HeyApiClient {
   /**
-   * Confirm a webhook trigger against its advertised HTTPS endpoint
+   * Confirm one subject against the verified public endpoint
    */
   public bindIngress<ThrowOnError extends boolean = true>(
     options: Options<BindIngressData, ThrowOnError>
@@ -8624,6 +8289,54 @@ export class settings extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+}
+
+export class migrationNotices extends HeyApiClient {
+  /**
+   * List undismissed upgrade notices on this computer
+   */
+  public listMigrationNotices<ThrowOnError extends boolean = true>(
+    options?: Options<ListMigrationNoticesData, ThrowOnError>
+  ): RequestResult<
+    ListMigrationNoticesResponses,
+    ListMigrationNoticesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListMigrationNoticesResponses,
+      ListMigrationNoticesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/migration-notices",
+      ...options,
+    });
+  }
+
+  /**
+   * Dismiss an upgrade notice on this computer
+   */
+  public dismissMigrationNotice<ThrowOnError extends boolean = true>(
+    options: Options<DismissMigrationNoticeData, ThrowOnError>
+  ): RequestResult<
+    DismissMigrationNoticeResponses,
+    DismissMigrationNoticeErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      DismissMigrationNoticeResponses,
+      DismissMigrationNoticeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/migration-notices/{key}/dismiss",
+      ...options,
     });
   }
 }
@@ -15710,11 +15423,6 @@ export class Compozy extends HeyApiClient {
     return (this._filesystem ??= new filesystem({ client: this.client }));
   }
 
-  private _gateway?: gateway;
-  get gateway(): gateway {
-    return (this._gateway ??= new gateway({ client: this.client }));
-  }
-
   private _hooks?: hooks;
   get hooks(): hooks {
     return (this._hooks ??= new hooks({ client: this.client }));
@@ -15743,6 +15451,11 @@ export class Compozy extends HeyApiClient {
   private _settings?: settings;
   get settings(): settings {
     return (this._settings ??= new settings({ client: this.client }));
+  }
+
+  private _migrationNotices?: migrationNotices;
+  get migrationNotices(): migrationNotices {
+    return (this._migrationNotices ??= new migrationNotices({ client: this.client }));
   }
 
   private _providers?: providers;

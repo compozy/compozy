@@ -256,28 +256,6 @@ func (c *Client) DiffLoopRun(ctx context.Context, params DiffLoopRunParams) (*Lo
 	return &out, nil
 }
 
-// DisableGatewayProviderParams carries the path, query, and header parameters.
-type DisableGatewayProviderParams struct {
-	Name string `url:"name"`
-	Tier string `url:"tier"`
-}
-
-// DisableGatewayProvider Disable one named connectivity provider for a gateway tier
-func (c *Client) DisableGatewayProvider(ctx context.Context, params DisableGatewayProviderParams) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/providers/{name}/disable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("tier", params.Tier)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 // DisableSkillParams carries the path, query, and header parameters.
 type DisableSkillParams struct {
 	Name      string  `url:"name"`
@@ -332,6 +310,18 @@ func (c *Client) DismissAutomationSuggestion(ctx context.Context, params Dismiss
 		return nil, err
 	}
 	return &out, nil
+}
+
+// DismissMigrationNoticeParams carries the path, query, and header parameters.
+type DismissMigrationNoticeParams struct {
+	Key string `url:"key"`
+}
+
+// DismissMigrationNotice Dismiss an upgrade notice on this computer
+func (c *Client) DismissMigrationNotice(ctx context.Context, params DismissMigrationNoticeParams) error {
+	path := "/api/migration-notices/{key}/dismiss"
+	path = strings.ReplaceAll(path, "{key}", url.PathEscape(params.Key))
+	return c.doContent(ctx, "POST", path, nil, nil, nil, "", "")
 }
 
 // DismissTaskParams carries the path, query, and header parameters.

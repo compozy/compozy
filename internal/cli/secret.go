@@ -71,7 +71,7 @@ func newSecretRemoveCommand(deps commandDeps) *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:     "rm <providers/<provider>/<slot>|extensions/<extension>/<key>>",
-		Aliases: []string{string(gatewayProfileTransactionRemove)},
+		Aliases: []string{"remove"},
 		Short:   "Remove one credential from the active profile",
 		Args:    exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {

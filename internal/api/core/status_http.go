@@ -11,9 +11,9 @@ import (
 
 // GetStatus returns the hard-cut runtime status payload shared by HTTP and UDS.
 func (h *BaseHandlers) GetStatus(c *gin.Context) {
-	ctx, err := h.gatewayStatusReadContext(c)
+	ctx, err := h.ingressReadContext(c, "status")
 	if err != nil {
-		h.respondGatewayError(c, errors.Join(ingress.ErrForbidden, err))
+		h.respondIngressError(c, errors.Join(ingress.ErrForbidden, err))
 		return
 	}
 	payload, err := h.statusPayload(

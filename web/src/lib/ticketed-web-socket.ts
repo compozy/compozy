@@ -1,10 +1,5 @@
 import { isAccountSignInCloseCode, reportAccountGateSignal } from "./account-gate-signal";
-import {
-  acquireHostedStreamTicket,
-  acquireStreamTicket,
-  appendHostedStreamTicket,
-  appendStreamTicket,
-} from "./gateway-stream-auth";
+import { acquireHostedStreamTicket, appendHostedStreamTicket } from "./hosted-stream-auth";
 import { isHostedBrowserMode } from "./hosted-browser-auth";
 
 /** The `WebSocket` surface the window-manager stream consumes. */
@@ -19,7 +14,7 @@ export interface StreamWebSocket {
 
 /**
  * Opens a live WebSocket upgrade for the page's own origin, minting a fresh
- * single-use ticket first on a remote gateway session.
+ * single-use ticket first on a hosted browser session.
  *
  * One instance is one connection attempt: the window-manager hook already
  * reconnects by calling its socket factory again, so every upgrade — the first
@@ -72,8 +67,7 @@ class TicketedWebSocket implements StreamWebSocket {
         const ticket = await acquireHostedStreamTicket(this.path, this.controller.signal);
         authorizedPath = appendHostedStreamTicket(this.path, ticket);
       } else {
-        const ticket = await acquireStreamTicket(this.controller.signal);
-        authorizedPath = ticket === null ? this.path : appendStreamTicket(this.path, ticket);
+        authorizedPath = this.path;
       }
     } catch {
       this.reportFailure();

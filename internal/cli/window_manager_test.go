@@ -11,12 +11,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -333,84 +331,6 @@ func TestUnixSocketClientWindowManagerRoutes(t *testing.T) {
 		}
 	})
 
-	t.Run("Should mint a fresh authenticated ticket for each remote WebSocket reconnect", func(t *testing.T) {
-		t.Parallel()
-
-		credential := testGatewayCredential('w')
-		var ticketCount atomic.Int32
-		requests := make(chan *http.Request, 4)
-		handlerErrors := make(chan error, 2)
-		upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
-		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			requests <- request.Clone(request.Context())
-			switch request.URL.Path {
-			case "/api/gateway/stream-tickets":
-				if request.Header.Get("Authorization") != "Bearer "+credential {
-					http.Error(writer, "missing bearer", http.StatusUnauthorized)
-					return
-				}
-				ticket := ticketCount.Add(1)
-				writer.Header().Set("Content-Type", "application/json")
-				writer.WriteHeader(http.StatusCreated)
-				if _, err := fmt.Fprintf(writer, `{"ticket":"ticket-%d"}`, ticket); err != nil {
-					handlerErrors <- err
-				}
-			case "/api/workspaces/w1/window-manager/stream":
-				connection, err := upgrader.Upgrade(writer, request, nil)
-				if err != nil {
-					handlerErrors <- err
-					return
-				}
-				writeErr := connection.WriteJSON(contract.WindowManagerSnapshotFrame{
-					Type: contract.WindowManagerFrameSnapshot, WorkspaceID: "w1", Revision: 7,
-					Snapshot: windowManagerTestSnapshot(7),
-				})
-				handlerErrors <- errors.Join(writeErr, connection.Close())
-			default:
-				http.NotFound(writer, request)
-			}
-		}))
-		defer server.Close()
-
-		client := &daemonClient{
-			target: ClientTarget{
-				kind: clientTargetGateway, name: "remote", baseURL: server.URL, credential: credential,
-			},
-			httpClient: server.Client(),
-		}
-		stopWatch := errors.New("snapshot received")
-		for attempt := int32(1); attempt <= 2; attempt++ {
-			err := client.WatchWindowManager(
-				t.Context(),
-				"w1",
-				nil,
-				nil,
-				WindowManagerStreamHandlers{
-					Snapshot: func(contract.WindowManagerSnapshotFrame) error { return stopWatch },
-					Event:    func(contract.WindowManagerEventFrame) error { return nil },
-				},
-			)
-			if !errors.Is(err, stopWatch) {
-				t.Fatalf("WatchWindowManager(attempt %d) error = %v, want callback stop", attempt, err)
-			}
-			ticketRequest := <-requests
-			websocketRequest := <-requests
-			if ticketRequest.URL.Path != "/api/gateway/stream-tickets" ||
-				ticketRequest.Header.Get("Authorization") != "Bearer "+credential {
-				t.Fatalf("ticket request = %s headers:%v", ticketRequest.URL, ticketRequest.Header)
-			}
-			if websocketRequest.URL.Query().Get("ticket") != fmt.Sprintf("ticket-%d", attempt) ||
-				websocketRequest.Header.Get("Authorization") != "" {
-				t.Fatalf("WebSocket request = %s headers:%v", websocketRequest.URL, websocketRequest.Header)
-			}
-			if handlerErr := <-handlerErrors; handlerErr != nil && !errors.Is(handlerErr, net.ErrClosed) {
-				t.Fatalf("WebSocket handler error = %v", handlerErr)
-			}
-		}
-		if ticketCount.Load() != 2 {
-			t.Fatalf("stream tickets = %d, want one per connection", ticketCount.Load())
-		}
-	})
 }
 
 func TestWindowManagerMutationCommands(t *testing.T) {

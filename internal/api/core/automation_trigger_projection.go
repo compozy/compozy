@@ -36,7 +36,7 @@ func (h *BaseHandlers) triggerPayload(
 ) (contract.TriggerPayload, error) {
 	payload := TriggerPayloadFromTrigger(trigger)
 	if strings.TrimSpace(trigger.WebhookID) == "" || strings.TrimSpace(trigger.EndpointSlug) == "" ||
-		(h.Gateway == nil && h.Ingress == nil) {
+		h.Ingress == nil {
 		return payload, nil
 	}
 	ref := ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: trigger.ID}
@@ -45,7 +45,7 @@ func (h *BaseHandlers) triggerPayload(
 		projection, err = h.Ingress.Project(ctx, ref)
 	}
 	if errors.Is(err, ingress.ErrSubjectNotFound) {
-		payload.Ingress = &contract.GatewayIngressPayload{
+		payload.Ingress = &contract.IngressPayload{
 			SubjectKind: string(ref.Kind), SubjectID: ref.ID, ScopeKind: string(trigger.Scope),
 			WorkspaceID: trigger.WorkspaceID, Reachability: string(ingress.ReachabilityOff),
 			EnablePath: ingress.EnablePath,
@@ -55,7 +55,7 @@ func (h *BaseHandlers) triggerPayload(
 	if err != nil {
 		return contract.TriggerPayload{}, err
 	}
-	ingressPayload := GatewayIngressPayload(projection)
+	ingressPayload := IngressPayload(projection)
 	payload.Ingress = &ingressPayload
 	return payload, nil
 }

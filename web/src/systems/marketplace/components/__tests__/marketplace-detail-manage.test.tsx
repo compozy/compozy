@@ -45,8 +45,6 @@ const mocks = vi.hoisted(() => ({
     severity: string;
     title: string;
   }>,
-  extensionGatewayConfirmationRequired: false,
-  extensionGatewayDigest: undefined as string | undefined,
   extensionLogs: [] as Array<{
     message: string;
     sequence: number;
@@ -82,8 +80,6 @@ function extensionPayload(): ExtensionEntry {
     contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 0, skills: 0 },
     workspace_id: mocks.extensionWorkspaceId ?? undefined,
     bound_env_keys: mocks.extensionBoundEnvKeys,
-    gateway_confirmation_required: mocks.extensionGatewayConfirmationRequired,
-    gateway_requirement_digest: mocks.extensionGatewayDigest,
     diagnostics: [
       {
         id: "healthy",
@@ -111,7 +107,7 @@ function extensionPayload(): ExtensionEntry {
     health_message: "Runtime handshake is healthy.",
     origin_path: mocks.extensionOriginPath,
     overrides_published: mocks.extensionDev,
-    permissions: ["gateway/status"],
+    permissions: ["sessions/list"],
     placements: mocks.extensionPlacements,
     pid: 4242,
     provenance: {
@@ -252,8 +248,6 @@ describe("Marketplace installed-detail management", () => {
     mocks.extensionFormat = "compozy";
     mocks.extensionInventory = [];
     mocks.extensionInventoryDiagnostics = [];
-    mocks.extensionGatewayConfirmationRequired = false;
-    mocks.extensionGatewayDigest = undefined;
     mocks.extensionPlacements = [];
     mocks.extensionUpdateAvailable = false;
     mocks.extensionWorkspaceId = null;
@@ -274,7 +268,7 @@ describe("Marketplace installed-detail management", () => {
     // Access and the operator facts stay reachable one step deeper.
     await openRailCard(user, "What it can do");
     expect(screen.getByText("tool.provider")).toBeInTheDocument();
-    expect(screen.getByText("gateway/status")).toBeInTheDocument();
+    expect(screen.getByText("sessions/list")).toBeInTheDocument();
     const advanced = await openRailCard(user, "Advanced");
     expect(screen.queryByTestId("extension-format-badge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("extension-skipped-components")).not.toBeInTheDocument();
@@ -356,21 +350,6 @@ describe("Marketplace installed-detail management", () => {
     // A binding the manifest no longer declares is listed, never presented as in use.
     expect(within(environment).getByText("LEGACY_TOKEN")).toBeInTheDocument();
     expect(within(environment).getByText("Set · no longer used")).toBeInTheDocument();
-  });
-
-  it("Should surface the gateway digest and its consent state when participation is declared", async () => {
-    mocks.extensionGatewayDigest = "sha256:6f1c0a94d3b27e58";
-    mocks.extensionGatewayConfirmationRequired = true;
-    await renderDetail(extensionDetailData());
-
-    // A pending remote-access confirmation opens Advanced by itself.
-    expect(
-      within(screen.getByTestId("marketplace-extension-advanced")).getByText("Remote access")
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("extension-gateway-consent")).toHaveTextContent(
-      "confirmation required"
-    );
-    expect(screen.getByText("sha256:6f1c0a94d3b27e58")).toBeInTheDocument();
   });
 
   it("Should show declared profile setup and dormant placement recovery", async () => {

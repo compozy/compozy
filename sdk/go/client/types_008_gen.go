@@ -7,16 +7,6 @@ import (
 	"time"
 )
 
-// ExtensionInstallPreviewPayload is a daemon API value.
-type ExtensionInstallPreviewPayload struct {
-	DigestSHA256             string                                   `json:"digest_sha256,omitempty"`
-	Inputs                   []MarketplaceInputPayload                `json:"inputs"`
-	Name                     string                                   `json:"name"`
-	DeclaredProfiles         []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
-	Placements               []ExtensionPlacementPayload              `json:"placements"`
-	GatewayRequirementDigest string                                   `json:"gateway_requirement_digest,omitempty"`
-}
-
 // ExtensionInventoryPayload is a daemon API value.
 type ExtensionInventoryPayload struct {
 	Extension   string                    `json:"extension"`
@@ -62,53 +52,51 @@ type ExtensionLogsResponse struct {
 
 // ExtensionPayload is a daemon API value.
 type ExtensionPayload struct {
-	Description                 string                            `json:"description,omitempty"`
-	InstallationProfile         string                            `json:"installation_profile,omitempty"`
-	Layout                      string                            `json:"layout,omitempty"`
-	MCPServers                  []MarketplaceServerPayload        `json:"mcp_servers,omitempty"`
-	Inputs                      []ExtensionInputStatePayload      `json:"inputs,omitempty"`
-	MissingInputs               []string                          `json:"missing_inputs,omitempty"`
-	Contents                    ExtensionContentsPayload          `json:"contents"`
-	Origin                      *MarketplaceOriginPayload         `json:"origin,omitzero"`
-	Name                        string                            `json:"name"`
-	Profile                     string                            `json:"profile"`
-	WorkspaceID                 string                            `json:"workspace_id,omitempty"`
-	Version                     string                            `json:"version"`
-	Type                        string                            `json:"type"`
-	Format                      string                            `json:"format"`
-	Source                      string                            `json:"source"`
-	Enabled                     bool                              `json:"enabled"`
-	State                       string                            `json:"state"`
-	Capabilities                []string                          `json:"capabilities,omitempty"`
-	Permissions                 []string                          `json:"permissions,omitempty"`
-	RequiresEnv                 []string                          `json:"requires_env,omitempty"`
-	MissingEnv                  []string                          `json:"missing_env,omitempty"`
-	BoundEnvKeys                []string                          `json:"bound_env_keys,omitempty"`
-	GatewayRequirementDigest    string                            `json:"gateway_requirement_digest,omitempty"`
-	GatewayConfirmationRequired bool                              `json:"gateway_confirmation_required"`
-	PID                         int                               `json:"pid,omitzero"`
-	UptimeSeconds               int64                             `json:"uptime_seconds,omitzero"`
-	Health                      string                            `json:"health,omitempty"`
-	HealthMessage               string                            `json:"health_message,omitempty"`
-	LastError                   string                            `json:"last_error,omitempty"`
-	FailureCode                 string                            `json:"failure_code,omitempty"`
-	ConsecutiveFailures         int                               `json:"consecutive_failures"`
-	RestartBackoffMS            int64                             `json:"restart_backoff_ms"`
-	GenerationHash              string                            `json:"generation_hash,omitempty"`
-	Dev                         bool                              `json:"dev,omitzero"`
-	OverridesPublished          bool                              `json:"overrides_published,omitzero"`
-	OriginPath                  string                            `json:"origin_path,omitempty"`
-	UpdateAvailable             bool                              `json:"update_available"`
-	RemoteVersion               string                            `json:"remote_version,omitempty"`
-	DigestMatched               bool                              `json:"digest_matched"`
-	DaemonRunning               bool                              `json:"daemon_running"`
-	Provenance                  *ExtensionProvenancePayload       `json:"provenance,omitzero"`
-	Marketplace                 *MarketplaceListingPayload        `json:"marketplace,omitzero"`
-	Trust                       *ExtensionTrustReportPayload      `json:"trust,omitzero"`
-	Diagnostics                 []DiagnosticItem                  `json:"diagnostics,omitempty"`
-	DeclaredProfiles            []ExtensionDeclaredProfilePayload `json:"declared_profiles,omitempty"`
-	Placements                  []ExtensionPlacementPayload       `json:"placements,omitempty"`
-	DormantPlacements           []ExtensionPlacementPayload       `json:"dormant_placements,omitempty"`
+	Description         string                            `json:"description,omitempty"`
+	InstallationProfile string                            `json:"installation_profile,omitempty"`
+	Layout              string                            `json:"layout,omitempty"`
+	MCPServers          []MarketplaceServerPayload        `json:"mcp_servers,omitempty"`
+	Inputs              []ExtensionInputStatePayload      `json:"inputs,omitempty"`
+	MissingInputs       []string                          `json:"missing_inputs,omitempty"`
+	Contents            ExtensionContentsPayload          `json:"contents"`
+	Origin              *MarketplaceOriginPayload         `json:"origin,omitzero"`
+	Name                string                            `json:"name"`
+	Profile             string                            `json:"profile"`
+	WorkspaceID         string                            `json:"workspace_id,omitempty"`
+	Version             string                            `json:"version"`
+	Type                string                            `json:"type"`
+	Format              string                            `json:"format"`
+	Source              string                            `json:"source"`
+	Enabled             bool                              `json:"enabled"`
+	State               string                            `json:"state"`
+	Capabilities        []string                          `json:"capabilities,omitempty"`
+	Permissions         []string                          `json:"permissions,omitempty"`
+	RequiresEnv         []string                          `json:"requires_env,omitempty"`
+	MissingEnv          []string                          `json:"missing_env,omitempty"`
+	BoundEnvKeys        []string                          `json:"bound_env_keys,omitempty"`
+	PID                 int                               `json:"pid,omitzero"`
+	UptimeSeconds       int64                             `json:"uptime_seconds,omitzero"`
+	Health              string                            `json:"health,omitempty"`
+	HealthMessage       string                            `json:"health_message,omitempty"`
+	LastError           string                            `json:"last_error,omitempty"`
+	FailureCode         string                            `json:"failure_code,omitempty"`
+	ConsecutiveFailures int                               `json:"consecutive_failures"`
+	RestartBackoffMS    int64                             `json:"restart_backoff_ms"`
+	GenerationHash      string                            `json:"generation_hash,omitempty"`
+	Dev                 bool                              `json:"dev,omitzero"`
+	OverridesPublished  bool                              `json:"overrides_published,omitzero"`
+	OriginPath          string                            `json:"origin_path,omitempty"`
+	UpdateAvailable     bool                              `json:"update_available"`
+	RemoteVersion       string                            `json:"remote_version,omitempty"`
+	DigestMatched       bool                              `json:"digest_matched"`
+	DaemonRunning       bool                              `json:"daemon_running"`
+	Provenance          *ExtensionProvenancePayload       `json:"provenance,omitzero"`
+	Marketplace         *MarketplaceListingPayload        `json:"marketplace,omitzero"`
+	Trust               *ExtensionTrustReportPayload      `json:"trust,omitzero"`
+	Diagnostics         []DiagnosticItem                  `json:"diagnostics,omitempty"`
+	DeclaredProfiles    []ExtensionDeclaredProfilePayload `json:"declared_profiles,omitempty"`
+	Placements          []ExtensionPlacementPayload       `json:"placements,omitempty"`
+	DormantPlacements   []ExtensionPlacementPayload       `json:"dormant_placements,omitempty"`
 }
 
 // ExtensionPlacementPayload is a daemon API value.
@@ -446,4 +434,11 @@ type ForkSessionRequest struct {
 	ExpectedEpoch       *int64 `json:"expected_epoch,omitzero"`
 	ExpectedGeneration  *int64 `json:"expected_generation,omitzero"`
 	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitzero"`
+}
+
+// ForkSessionWorktreeRequest is a daemon API value.
+type ForkSessionWorktreeRequest struct {
+	Worktree    string                     `json:"worktree,omitempty"`
+	NewWorktree *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
+	Confirmed   bool                       `json:"confirmed"`
 }

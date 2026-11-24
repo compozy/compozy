@@ -75,7 +75,7 @@ func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	f.Helper()
 	if name != sshAdd && name != accountAdd && name != revokeDevice && name != remoteSession &&
 		name != browserPurchase && name != hostedPurchase && name != hostedBrowser && name != freeUpgrade &&
-		name != signInFirstRun && name != signInSignOut && name != accountDeletePro {
+		name != signInFirstRun && name != signInSignOut && name != accountDeletePro && name != gatewayUpgrade {
 		f.Fatalf("unknown remotetest scenario %q", name)
 	}
 	const pgEnv = "COMPOZY_CLOUD_TEST_POSTGRES"
@@ -103,6 +103,9 @@ func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	db.Migrate(f)
 	if name == browserPurchase || name == hostedPurchase {
 		return preparePurchase(f, db, name)
+	}
+	if name == gatewayUpgrade {
+		return prepareGatewayUpgrade(f, db)
 	}
 	if name == freeUpgrade {
 		return prepareFreeUpgrade(f, db, assets)

@@ -9,7 +9,7 @@
  */
 
 import { isAccountSignInCloseCode, reportAccountGateSignal } from "@/lib/account-gate-signal";
-import { acquireHostedStreamTicket, appendHostedStreamTicket } from "@/lib/gateway-stream-auth";
+import { acquireHostedStreamTicket, appendHostedStreamTicket } from "@/lib/hosted-stream-auth";
 import { isHostedBrowserMode } from "@/lib/hosted-browser-auth";
 import { TERMINAL_SUBPROTOCOL, type TerminalFrameBytes } from "../lib/terminal-wire";
 

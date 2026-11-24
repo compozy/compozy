@@ -6,108 +6,8 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
-
-// SearchSessionWorkCandidatesParams carries the path, query, and header parameters.
-type SearchSessionWorkCandidatesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-	Kind        *string `url:"kind"`
-	Q           *string `url:"q"`
-	Page        *string `url:"page"`
-	Limit       *string `url:"limit"`
-}
-
-// SearchSessionWorkCandidates Search this project for link candidates
-func (c *Client) SearchSessionWorkCandidates(ctx context.Context, params SearchSessionWorkCandidatesParams) (*WorkCandidates, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/link-candidates"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if params.Kind != nil {
-		query.Set("kind", *params.Kind)
-	}
-	if params.Q != nil {
-		query.Set("q", *params.Q)
-	}
-	if params.Page != nil {
-		query.Set("page", *params.Page)
-	}
-	if params.Limit != nil {
-		query.Set("limit", *params.Limit)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorkCandidates
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SearchToolsParams carries the path, query, and header parameters.
-type SearchToolsParams struct {
-	Profile *string `url:"profile"`
-}
-
-// SearchTools Search operator-visible registry tools (default 20, maximum 100 per page)
-func (c *Client) SearchTools(ctx context.Context, params SearchToolsParams, body ToolSearchRequest) (*ToolsResponse, error) {
-	path := "/api/tools/search"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolsResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SetExtensionEnablementParams carries the path, query, and header parameters.
-type SetExtensionEnablementParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// SetExtensionEnablement Set one extension's effective state for a profile
-func (c *Client) SetExtensionEnablement(ctx context.Context, params SetExtensionEnablementParams, body SetExtensionEnablementRequest) (*ExtensionEnablementPayload, error) {
-	path := "/api/extensions/{name}/enablement"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionEnablementPayload
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SetExtensionSecretsParams carries the path, query, and header parameters.
-type SetExtensionSecretsParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
 
 // SetExtensionSecrets Set or bind extension environment secrets
 func (c *Client) SetExtensionSecrets(ctx context.Context, params SetExtensionSecretsParams, body SetExtensionSecretsRequest) (*ExtensionSecretsPayload, error) {
@@ -125,16 +25,6 @@ func (c *Client) SetExtensionSecrets(ctx context.Context, params SetExtensionSec
 	}
 	var out ExtensionSecretsPayload
 	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SetGatewaySurface Set durable exposure for one gateway surface
-func (c *Client) SetGatewaySurface(ctx context.Context, body GatewaySurfaceRequest) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/surfaces"
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -445,4 +335,107 @@ func (c *Client) StartTask(ctx context.Context, params StartTaskParams, body Tas
 		return nil, err
 	}
 	return &out, nil
+}
+
+// StartTaskRunParams carries the path, query, and header parameters.
+type StartTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// StartTaskRun Start one claimed task run
+func (c *Client) StartTaskRun(ctx context.Context, params StartTaskRunParams, body StartTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/task-runs/{id}/start"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SteerSessionPromptParams carries the path, query, and header parameters.
+type SteerSessionPromptParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// SteerSessionPrompt Stage steering input for the active session turn
+func (c *Client) SteerSessionPrompt(ctx context.Context, params SteerSessionPromptParams, body SteerPromptRequest) (*SendPromptResultResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/steer"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SendPromptResultResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StopSessionParams carries the path, query, and header parameters.
+type StopSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// StopSession Stop a session without deleting persisted history
+func (c *Client) StopSession(ctx context.Context, params StopSessionParams, body StopSessionRequest) (*SessionStopPayload, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/stop"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionStopPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StopSessionHistoryCleanupParams carries the path, query, and header parameters.
+type StopSessionHistoryCleanupParams struct {
+	Profile *string `url:"profile"`
+}
+
+// StopSessionHistoryCleanup Stop the selected profile's running cleanup; sessions already deleted stay deleted
+func (c *Client) StopSessionHistoryCleanup(ctx context.Context, params StopSessionHistoryCleanupParams) (*SessionHistoryCleanupRunResponse, error) {
+	path := "/api/sessions/history-cleanup/stop"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionHistoryCleanupRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StreamAccountParams carries the path, query, and header parameters.
+type StreamAccountParams struct {
+	AfterSequence *string `url:"after_sequence"`
 }

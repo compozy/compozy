@@ -32,7 +32,6 @@ import {
   ExtensionKitInventoryPanel,
   type ExtensionLogEventSource,
   ExtensionLogPanel,
-  ExtensionGatewayConfirmDialog,
   ExtensionProvenanceDialog,
   ExtensionSkippedComponents,
   extensionTrustFacts,
@@ -138,18 +137,6 @@ function MarketplaceDetailExtensionInstalled({
           </>
         }
       />
-      {state.gatewayConfirm ? (
-        <ExtensionGatewayConfirmDialog
-          digest={state.gatewayConfirm.digest}
-          extensionName={extension.name}
-          onConfirm={state.submitGatewayConfirm}
-          onOpenChange={open => {
-            if (!open) state.dismissGatewayConfirm();
-          }}
-          open
-          pending={state.update.isPending}
-        />
-      ) : null}
       <ExtensionProvenanceDialog
         extension={extension}
         onOpenChange={open => (open ? state.requestProvenance() : state.dismissDialog())}

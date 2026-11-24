@@ -376,20 +376,10 @@ func (c *Client) BeginSettingsMCPAuth(ctx context.Context, params BeginSettingsM
 	return &out, nil
 }
 
-// BindGatewayIngress Confirm one subject against the verified public endpoint
-func (c *Client) BindGatewayIngress(ctx context.Context, body GatewayIngressBindRequest) (*GatewayIngressBindingResponse, error) {
-	path := "/api/gateway/ingress-bindings"
-	var out GatewayIngressBindingResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// BindIngress Confirm a webhook trigger against its advertised HTTPS endpoint
-func (c *Client) BindIngress(ctx context.Context, body GatewayIngressBindRequest) (*GatewayIngressBindingResponse, error) {
+// BindIngress Confirm one subject against the verified public endpoint
+func (c *Client) BindIngress(ctx context.Context, body IngressBindRequest) (*IngressBindingResponse, error) {
 	path := "/api/ingress/bindings"
-	var out GatewayIngressBindingResponse
+	var out IngressBindingResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
@@ -444,4 +434,11 @@ func (c *Client) BlockTask(ctx context.Context, params BlockTaskParams, body Cre
 		return nil, err
 	}
 	return &out, nil
+}
+
+// BrowseDirectoryParams carries the path, query, and header parameters.
+type BrowseDirectoryParams struct {
+	Path       *string `url:"path"`
+	ShowHidden *bool   `url:"show_hidden"`
+	DirsOnly   *bool   `url:"dirs_only"`
 }

@@ -47,8 +47,6 @@ export const kitExtensionFixture = {
       resource: "campaign-board",
     },
   ],
-  gateway_confirmation_required: true,
-  gateway_requirement_digest: "sha256:6f1c0a94d3b27e58",
   remote_version: undefined,
   requires_env: ["DEP_KIT_TOKEN", "DEP_KIT_WEBHOOK"],
   update_available: false,
@@ -63,7 +61,7 @@ export const kitInventoryItems = [
 ];
 
 /** One MSW group set per story: a second `storybookMswParameters` spread would replace the first. */
-export function kitDetailHandlers(refuseUpdate = false) {
+export function kitDetailHandlers() {
   return storybookMswParameters({
     marketplace: [
       compozyApiMock.get("/api/marketplace/entries/{entry_id}", () =>
@@ -84,8 +82,6 @@ export function kitDetailHandlers(refuseUpdate = false) {
             name: "dep-kit-ops",
             source: "compozy-catalog",
             source_ref: "catalog:compozy",
-            update_available: refuseUpdate,
-            ...(refuseUpdate ? { version: "1.1.0" } : {}),
           },
         })
       ),
@@ -96,7 +92,6 @@ export function kitDetailHandlers(refuseUpdate = false) {
           extensions: [
             {
               ...kitExtensionFixture,
-              ...(refuseUpdate ? { remote_version: "1.1.0", update_available: true } : {}),
             },
           ],
         })
@@ -109,18 +104,6 @@ export function kitDetailHandlers(refuseUpdate = false) {
           items: kitInventoryItems,
         })
       ),
-      ...(refuseUpdate
-        ? [
-            compozyApiMock.put("/api/extensions/{name}", ({ response }) =>
-              response(409).json({
-                code: "extension_gateway_confirmation_required",
-                current_digest: "sha256:6f1c0a94d3b27e58",
-                error:
-                  "dep-kit-ops update changes gateway control permissions that has not been confirmed",
-              })
-            ),
-          ]
-        : []),
     ],
   });
 }

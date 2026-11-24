@@ -9,7 +9,6 @@ import type {
   DescribeResources,
   DescribeProfile,
   DescribeHookEvent,
-  DescribeGatewayRequirement,
   ExtensionCommandGroupSpec,
   ExtensionCommandSpec,
   RiskClass,
@@ -113,7 +112,6 @@ export interface ExtensionManifest {
   capabilities?: CapabilitiesConfig;
   permissions?: PermissionsConfig;
   subprocess?: SubprocessConfig;
-  gateway?: DescribeGatewayRequirement;
 }
 
 export interface ExtensionDefinition extends Pick<
@@ -125,7 +123,6 @@ export interface ExtensionDefinition extends Pick<
   resources?: DescribeResources;
   subprocess?: DescribeSubprocess;
   supported_hook_events?: DescribeHookEvent[];
-  gateway?: DescribeGatewayRequirement;
 }
 
 export interface HealthCheckResult {

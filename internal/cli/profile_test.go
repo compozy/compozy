@@ -369,45 +369,6 @@ func TestTaskOperatorCommandProfileSelection(t *testing.T) {
 	}
 }
 
-// Invariant: the CLI defers profile selection to the target daemon across remote transports.
-func TestRemoteProfileSelection(t *testing.T) {
-	t.Parallel()
-
-	gateway := ClientTarget{kind: clientTargetGateway, name: "remote"}
-	bridge := ClientTarget{kind: clientTargetLocal, computerID: "cmp_devbox"}
-	for _, test := range []struct {
-		name    string
-		target  ClientTarget
-		profile string
-	}{
-		{name: "Should defer implicit gateway profile selection", target: gateway},
-		{name: "Should defer implicit computer profile selection", target: bridge},
-		{name: "Should pass an explicit profile to the gateway", target: gateway, profile: "research"},
-		{name: "Should pass an explicit profile to the computer", target: bridge, profile: "research"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			command := &cobra.Command{Use: "list"}
-			command.SetContext(t.Context())
-			command.Flags().String(profileFlagName, "", "")
-			if test.profile != "" {
-				if err := command.Flags().Set(profileFlagName, test.profile); err != nil {
-					t.Fatal(err)
-				}
-			}
-			client := &daemonClient{target: test.target}
-			deps := newTestDeps(t, client)
-			if err := prepareProfileReadSelection(command, deps, client, client); err != nil {
-				t.Fatalf("prepare profile selection without a catalog client: %v", err)
-			}
-			values := profileQueryValues(command.Context(), nil)
-			if values.Get(profileFlagName) != test.profile || values.Has(profileFlagName) != (test.profile != "") {
-				t.Fatalf("profile query = %v, want selector %q", values, test.profile)
-			}
-		})
-	}
-}
-
 func TestProfileCommandOutputContract(t *testing.T) {
 	t.Parallel()
 

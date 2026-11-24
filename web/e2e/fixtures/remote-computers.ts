@@ -14,6 +14,7 @@ const execFileAsync = promisify(execFile);
 const repo = fileURLToPath(new URL("../../../", import.meta.url));
 
 type Scenario =
+  | "gateway-upgrade"
   | "ssh-add"
   | "account-add"
   | "revoke-device"
@@ -31,6 +32,7 @@ const CONTROLLER_ONLY_SCENARIOS: ReadonlySet<Scenario> = new Set([
   "sign-in-first-run",
   "sign-in-sign-out",
   "account-delete-pro",
+  "gateway-upgrade",
 ]);
 
 interface Daemon {

@@ -7,181 +7,6 @@ import (
 	"time"
 )
 
-// ObserveOverviewPayload is a daemon API value.
-type ObserveOverviewPayload struct {
-	SchemaVersion string                        `json:"schema_version"`
-	GeneratedAt   time.Time                     `json:"generated_at"`
-	Attention     OverviewAttentionPayload      `json:"attention"`
-	Today         OverviewTodayPayload          `json:"today"`
-	Outcomes      OverviewOutcomesPayload       `json:"outcomes"`
-	Usage         OverviewUsagePayload          `json:"usage"`
-	Pulse         OverviewPulsePayload          `json:"pulse"`
-	System        OverviewSystemPayload         `json:"system"`
-	Freshness     TaskDashboardFreshnessPayload `json:"freshness"`
-}
-
-// ObserveOverviewResponse is a daemon API value.
-type ObserveOverviewResponse struct {
-	Overview ObserveOverviewPayload `json:"overview"`
-}
-
-// ObservePersistenceHealthPayload is a daemon API value.
-type ObservePersistenceHealthPayload struct {
-	Status             string `json:"status"`
-	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
-	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
-}
-
-// ObserveRetentionHealthPayload is a daemon API value.
-type ObserveRetentionHealthPayload struct {
-	Enabled                  bool       `json:"enabled"`
-	RetentionDays            int        `json:"retention_days"`
-	SweepIntervalSeconds     int64      `json:"sweep_interval_seconds"`
-	LastSweepStatus          string     `json:"last_sweep_status"`
-	LastSweepAt              *time.Time `json:"last_sweep_at,omitempty"`
-	LastCutoffAt             *time.Time `json:"last_cutoff_at,omitempty"`
-	LastSweepError           string     `json:"last_sweep_error,omitempty"`
-	DeletedEventSummaries    int64      `json:"deleted_event_summaries"`
-	DeletedTokenStats        int64      `json:"deleted_token_stats"`
-	DeletedTokenUsageDaily   int64      `json:"deleted_token_usage_daily"`
-	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
-}
-
-// OnboardingStatusPayload is a daemon API value.
-type OnboardingStatusPayload struct {
-	Completed   bool   `json:"completed"`
-	CompletedAt string `json:"completed_at,omitempty"`
-}
-
-// OnboardingStatusResponse is a daemon API value.
-type OnboardingStatusResponse struct {
-	Onboarding OnboardingStatusPayload `json:"onboarding"`
-}
-
-// OpenAIModelCompozyPayload is a daemon API value.
-type OpenAIModelCompozyPayload struct {
-	ProviderID             string                   `json:"provider_id"`
-	ModelID                string                   `json:"model_id"`
-	DisplayName            string                   `json:"display_name,omitempty"`
-	Sources                []string                 `json:"sources"`
-	Available              *bool                    `json:"available"`
-	AvailabilityState      string                   `json:"availability_state"`
-	Stale                  bool                     `json:"stale"`
-	RefreshedAt            string                   `json:"refreshed_at,omitempty"`
-	ContextWindow          *int64                   `json:"context_window,omitzero"`
-	MaxInputTokens         *int64                   `json:"max_input_tokens,omitzero"`
-	MaxOutputTokens        *int64                   `json:"max_output_tokens,omitzero"`
-	SupportsTools          *bool                    `json:"supports_tools,omitzero"`
-	SupportsReasoning      *bool                    `json:"supports_reasoning,omitzero"`
-	ReasoningEfforts       []Effort                 `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *Effort                  `json:"default_reasoning_effort,omitzero"`
-	Cost                   *ModelCatalogCostPayload `json:"cost,omitzero"`
-	LastError              string                   `json:"last_error,omitempty"`
-}
-
-// OpenAIModelListResponse is a daemon API value.
-type OpenAIModelListResponse struct {
-	Object string               `json:"object"`
-	Data   []OpenAIModelPayload `json:"data"`
-}
-
-// OpenAIModelPayload is a daemon API value.
-type OpenAIModelPayload struct {
-	ID      string                    `json:"id"`
-	Object  string                    `json:"object"`
-	Created int64                     `json:"created"`
-	OwnedBy string                    `json:"owned_by"`
-	Compozy OpenAIModelCompozyPayload `json:"compozy"`
-}
-
-// OpenAppEffect is a daemon API value.
-type OpenAppEffect struct {
-	App string `json:"app"`
-}
-
-// OpenSessionSideRequest is a daemon API value.
-type OpenSessionSideRequest struct {
-	Message        string `json:"message"`
-	Name           string `json:"name,omitempty"`
-	IdempotencyKey string `json:"idempotency_key"`
-}
-
-// OpenURLEffect is a daemon API value.
-type OpenURLEffect struct {
-	URL string `json:"url"`
-}
-
-// OperatorNotificationEventPayload is a daemon API value.
-type OperatorNotificationEventPayload struct {
-	Kind           string    `json:"kind,omitempty"`
-	Action         string    `json:"action,omitempty"`
-	Resource       string    `json:"resource,omitempty"`
-	NotificationID string    `json:"notification_id"`
-	SessionID      string    `json:"session_id"`
-	ProfileID      string    `json:"profile_id"`
-	ProfileName    string    `json:"profile_name"`
-	WorkspaceID    string    `json:"workspace_id"`
-	Title          string    `json:"title"`
-	Body           string    `json:"body"`
-	At             time.Time `json:"at"`
-}
-
-// OptionalStringList is a daemon API value.
-// OptionalStringList preserves its custom JSON wire representation.
-type OptionalStringList = json.RawMessage
-
-// Origin is a daemon API value.
-type Origin struct {
-	Kind OriginKind `json:"kind"`
-	Ref  string     `json:"ref"`
-}
-
-// OriginKind is a daemon API value.
-type OriginKind string
-
-// OutlineEntry is a daemon API value.
-type OutlineEntry struct {
-	Sequence     int64     `json:"sequence"`
-	TurnID       string    `json:"turn_id"`
-	Preview      string    `json:"preview"`
-	ReplyPreview string    `json:"reply_preview"`
-	At           time.Time `json:"at"`
-}
-
-// OutlineResult is a daemon API value.
-type OutlineResult struct {
-	Entries []OutlineEntry `json:"entries"`
-}
-
-// OverviewAgentSharePayload is a daemon API value.
-type OverviewAgentSharePayload struct {
-	AgentName string  `json:"agent_name"`
-	Tokens    int64   `json:"tokens"`
-	Fraction  float64 `json:"fraction"`
-}
-
-// OverviewAttentionItemPayload is a daemon API value.
-type OverviewAttentionItemPayload struct {
-	NotificationID string    `json:"notification_id,omitempty"`
-	Kind           string    `json:"kind"`
-	Title          string    `json:"title"`
-	Detail         string    `json:"detail,omitempty"`
-	TaskID         string    `json:"task_id,omitempty"`
-	RunID          string    `json:"run_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	WorkspaceID    string    `json:"workspace_id"`
-	OccurredAt     time.Time `json:"occurred_at"`
-	Actions        []string  `json:"actions"`
-}
-
-// OverviewAttentionPayload is a daemon API value.
-type OverviewAttentionPayload struct {
-	Snapshot string                         `json:"snapshot,omitempty"`
-	Total    int                            `json:"total"`
-	ByKind   map[string]int                 `json:"by_kind"`
-	Items    []OverviewAttentionItemPayload `json:"items"`
-}
-
 // OverviewLongestSessionPayload is a daemon API value.
 type OverviewLongestSessionPayload struct {
 	SessionID       string `json:"session_id"`
@@ -446,3 +271,177 @@ type ProfileFolderRef struct {
 	WorkspaceName string `json:"workspace"`
 	Path          string `json:"path"`
 }
+
+// ProfileLens is a daemon API value.
+type ProfileLens struct {
+	ID   ProfileLensID `json:"profile_lens_id"`
+	Name string        `json:"profile_name"`
+}
+
+// ProfileLensID is a daemon API value.
+type ProfileLensID string
+
+// ProfileOperation is a daemon API value.
+type ProfileOperation struct {
+	ID      string `json:"id"`
+	Kind    string `json:"kind"`
+	Profile string `json:"profile"`
+	Status  string `json:"status"`
+	Step    string `json:"step"`
+	Error   string `json:"error,omitempty"`
+}
+
+// ProfilePlacement is a daemon API value.
+type ProfilePlacement struct {
+	Extension string `json:"extension"`
+	Resource  string `json:"resource"`
+	Profile   string `json:"profile"`
+}
+
+// ProfilePlanRequest is a daemon API value.
+type ProfilePlanRequest struct {
+	PlanRevision string `json:"plan_revision"`
+}
+
+// ProfileRemovalSummary is a daemon API value.
+type ProfileRemovalSummary struct {
+	AgentInstances      int `json:"agent_instances"`
+	AgentMemoryFiles    int `json:"agent_memory_files"`
+	Agents              int `json:"agents"`
+	Skills              int `json:"skills"`
+	Loops               int `json:"loops"`
+	MCPServers          int `json:"mcp_servers"`
+	ConfigKeys          int `json:"config_keys"`
+	CredentialOverrides int `json:"credential_overrides"`
+	DesktopPartitions   int `json:"desktop_partitions"`
+	PaletteUsage        int `json:"palette_usage"`
+	PaletteQueryHits    int `json:"palette_query_hits"`
+	PalettePins         int `json:"palette_pins"`
+	TerminalApprovals   int `json:"terminal_approvals"`
+	EventSummaries      int `json:"event_summaries"`
+}
+
+// ProfileRepoRenameOutcome is a daemon API value.
+type ProfileRepoRenameOutcome struct {
+	WorkspaceID string `json:"workspace_id"`
+	Renamed     bool   `json:"renamed"`
+	Reason      string `json:"reason,omitempty"`
+}
+
+// ProfileSelection is a daemon API value.
+type ProfileSelection struct {
+	Scope       ProfileSelectionScope `json:"scope"`
+	WorkspaceID string                `json:"workspace_id,omitempty"`
+	Profile     string                `json:"profile"`
+	Note        string                `json:"note,omitempty"`
+}
+
+// ProfileSelectionScope is a daemon API value.
+type ProfileSelectionScope string
+
+// PromoteSessionInputRequest is a daemon API value.
+type PromoteSessionInputRequest struct {
+	Text           string `json:"text"`
+	MessageID      string `json:"message_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+	ExpectedTurnID string `json:"expected_turn_id,omitempty"`
+}
+
+// PromptAttachmentRef is a daemon API value.
+type PromptAttachmentRef struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	MIMEType string `json:"mime_type"`
+	Bytes    int64  `json:"bytes"`
+	SHA256   string `json:"sha256"`
+	Kind     string `json:"kind"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+}
+
+// PromptDelivery is a daemon API value.
+type PromptDelivery string
+
+// PromptMode is a daemon API value.
+type PromptMode string
+
+// PromptOriginMeta is a daemon API value.
+type PromptOriginMeta struct {
+	Kind             string `json:"kind"`
+	SessionID        string `json:"session_id"`
+	WorkspaceID      string `json:"workspace_id"`
+	AgentName        string `json:"agent_name,omitempty"`
+	TitleAtSend      string `json:"title_at_send,omitempty"`
+	Hop              int    `json:"hop"`
+	NotifyOnComplete bool   `json:"notify_on_complete,omitempty"`
+	ReplyWatchID     string `json:"reply_watch_id,omitempty"`
+	InReplyTo        string `json:"in_reply_to,omitempty"`
+}
+
+// PromptRuntimeSelectionPayload is a daemon API value.
+type PromptRuntimeSelectionPayload struct {
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+}
+
+// ProtocolRange is a daemon API value.
+type ProtocolRange struct {
+	Min int `json:"min"`
+	Max int `json:"max"`
+}
+
+// ProvenancePayload is a daemon API value.
+type ProvenancePayload struct {
+	Slug                   string                    `json:"slug,omitempty"`
+	Registry               string                    `json:"registry,omitempty"`
+	Version                string                    `json:"version,omitempty"`
+	InstalledAt            *time.Time                `json:"installed_at,omitempty"`
+	InstalledFromExtension string                    `json:"installed_from_extension,omitempty"`
+	PrecedenceTier         string                    `json:"precedence_tier"`
+	ShadowedBy             []SkillShadowEntryPayload `json:"shadowed_by,omitempty"`
+}
+
+// ProviderAuthProbeResponse is a daemon API value.
+type ProviderAuthProbeResponse struct {
+	Provider   string                    `json:"provider"`
+	AuthStatus ProviderAuthStatusPayload `json:"auth_status"`
+	Probe      *ProviderAuthProbeResult  `json:"probe,omitzero"`
+}
+
+// ProviderAuthProbeResult is a daemon API value.
+type ProviderAuthProbeResult struct {
+	ExitCode   int    `json:"exit_code"`
+	Stdout     string `json:"stdout,omitempty"`
+	Stderr     string `json:"stderr,omitempty"`
+	DurationMs int64  `json:"duration_ms"`
+}
+
+// ProviderAuthStatusPayload is a daemon API value.
+type ProviderAuthStatusPayload struct {
+	Mode        string                         `json:"mode"`
+	EnvPolicy   string                         `json:"env_policy"`
+	HomePolicy  string                         `json:"home_policy"`
+	State       string                         `json:"state"`
+	Code        string                         `json:"code,omitempty"`
+	Message     string                         `json:"message,omitempty"`
+	StatusCmd   string                         `json:"status_command,omitempty"`
+	Login       ProviderLoginDescriptorPayload `json:"login"`
+	LastProbeAt *time.Time                     `json:"last_probe_at,omitempty"`
+}
+
+// ProviderErrorDiagnostic is a daemon API value.
+type ProviderErrorDiagnostic struct {
+	Code            string                `json:"code"`
+	Provider        string                `json:"provider"`
+	NextAction      ProviderFailureAction `json:"next_action"`
+	Guidance        string                `json:"guidance"`
+	OccurrenceCount uint64                `json:"occurrence_count"`
+	FirstSeenAt     time.Time             `json:"first_seen_at"`
+	LastSeenAt      time.Time             `json:"last_seen_at"`
+}
+
+// ProviderFailureAction is a daemon API value.
+type ProviderFailureAction string

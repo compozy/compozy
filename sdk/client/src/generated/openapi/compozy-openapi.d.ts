@@ -2254,228 +2254,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/gateway/audit": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Audit the current gateway security posture */
-    get: operations["getGatewayAudit"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/devices": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List the operator-global paired device inventory */
-    get: operations["listGatewayDevices"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/devices/{id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Revoke one paired gateway device and its live streams */
-    delete: operations["revokeGatewayDevice"];
-    options?: never;
-    head?: never;
-    /** Rename one paired gateway device */
-    patch: operations["renameGatewayDevice"];
-    trace?: never;
-  };
-  "/api/gateway/devices/{id}/record": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Remove one paired gateway device record */
-    delete: operations["removeGatewayDevice"];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/ingress-bindings": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Confirm one subject against the verified public endpoint */
-    post: operations["bindGatewayIngress"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Remove one public ingress confirmation */
-    delete: operations["unbindGatewayIngress"];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/pairings": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Mint a bounded one-time gateway pairing artifact */
-    post: operations["mintGatewayPairing"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/pairings/redeem": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Redeem a one-time gateway pairing artifact */
-    post: operations["redeemGatewayPairing"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/providers/{name}/disable": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Disable one named connectivity provider for a gateway tier */
-    post: operations["disableGatewayProvider"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/providers/{name}/enable": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Enable one connectivity provider for a gateway tier */
-    post: operations["enableGatewayProvider"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get the operator-global gateway posture */
-    get: operations["getGatewayStatus"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/stream-tickets": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Mint a short-lived single-use stream ticket */
-    post: operations["mintGatewayStreamTicket"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/gateway/surfaces": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Set durable exposure for one gateway surface */
-    post: operations["setGatewaySurface"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/hooks/catalog": {
     parameters: {
       query?: never;
@@ -2536,7 +2314,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Confirm a webhook trigger against its advertised HTTPS endpoint */
+    /** Confirm one subject against the verified public endpoint */
     post: operations["bindIngress"];
     delete?: never;
     options?: never;
@@ -2778,6 +2556,40 @@ export interface paths {
     get: operations["completeMCPAuthCallback"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/migration-notices": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List undismissed upgrade notices on this computer */
+    get: operations["listMigrationNotices"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/migration-notices/{key}/dismiss": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Dismiss an upgrade notice on this computer */
+    post: operations["dismissMigrationNotice"];
     delete?: never;
     options?: never;
     head?: never;
@@ -11504,7 +11316,6 @@ export interface components {
     };
     DaemonStatusPayload: {
       active_sessions: number;
-      gateway?: components["schemas"]["GatewayStatusPayload"] | null;
       http_host: string;
       http_port: number;
       min_app_version: string;
@@ -11560,7 +11371,6 @@ export interface components {
       metadata?: components["schemas"]["MetaField"][];
     };
     DevLinkExtensionRequest: {
-      confirm_gateway_digest?: string;
       generation_hash: string;
       origin_path: string;
     };
@@ -11811,8 +11621,6 @@ export interface components {
       automation_starting: string[];
       changes: components["schemas"]["ExtensionKitChangePayload"][];
       extension: string;
-      gateway_confirmation_required: boolean;
-      gateway_requirement_digest: string;
       missing_env: string[];
       missing_inputs: string[];
     };
@@ -11834,7 +11642,6 @@ export interface components {
     ExtensionInstallPreviewPayload: {
       declared_profiles: components["schemas"]["ExtensionInstallDeclaredProfilePayload"][];
       digest_sha256?: string;
-      gateway_requirement_digest?: string;
       inputs: components["schemas"]["MarketplaceInputPayload"][];
       name: string;
       placements: components["schemas"]["ExtensionPlacementPayload"][];
@@ -11882,7 +11689,6 @@ export interface components {
     ExtensionOperationErrorPayload: {
       agents?: string[];
       code: string;
-      current_digest?: string;
       declared_env?: string[];
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       env_name?: string;
@@ -11910,8 +11716,6 @@ export interface components {
       enabled: boolean;
       failure_code?: string;
       format: string;
-      gateway_confirmation_required: boolean;
-      gateway_requirement_digest?: string;
       generation_hash?: string;
       health?: string;
       health_message?: string;
@@ -12281,175 +12085,11 @@ export interface components {
       tool?: string;
       type: string;
     };
-    GatewayAddressPayload: {
-      address: string;
-      live: boolean;
-      tier: string;
-    };
-    GatewayAuditAuthPayload: {
-      active_device_count: number;
-      mode: string;
-      required_remotely: boolean;
-    };
-    GatewayAuditFindingPayload: {
-      id: string;
-      remediation: string;
-      resource?: string;
-      severity: string;
-      summary: string;
-      tier?: string;
-    };
-    GatewayAuditPayload: {
-      auth: components["schemas"]["GatewayAuditAuthPayload"];
-      device_highlights: components["schemas"]["GatewayDeviceHighlights"];
-      findings: components["schemas"]["GatewayAuditFindingPayload"][];
-      local_only: boolean;
-      no_findings: boolean;
-      ran: boolean;
-      status: components["schemas"]["GatewayStatusPayload"];
-    };
-    GatewayDeviceHighlights: {
-      active: number;
-      recently_paired: number;
-      revoked: number;
-      stale: number;
-      stale_device_ids: string[];
-    };
-    GatewayDevicePayload: {
-      actor_kind: string;
-      /** Format: date-time */
-      created_at: string;
-      id: string;
-      /** Format: date-time */
-      last_seen_at?: string | null;
-      name: string;
-      pairing_origin: string;
-      /** Format: uint64 */
-      revoke_epoch: number;
-      /** Format: date-time */
-      revoked_at?: string | null;
-    };
-    GatewayDeviceRenameRequest: {
-      name: string;
-    };
-    GatewayDevicesResponse: {
-      devices: components["schemas"]["GatewayDevicePayload"][];
-    };
-    GatewayIngressBindRequest: {
-      confirmed: boolean;
-      subject_id: string;
-      subject_kind: string;
-    };
-    GatewayIngressBindingResponse: {
-      binding: components["schemas"]["GatewayIngressPayload"];
-      changed: boolean;
-    };
-    GatewayIngressPayload: {
-      /** Format: date-time */
-      confirmed_at?: string | null;
-      /** Format: uint64 */
-      confirmed_endpoint_generation?: number;
-      enable_path?: string;
-      /** Format: uint64 */
-      endpoint_generation: number;
-      reachability: string;
-      scope_kind: string;
-      subject_id: string;
-      subject_kind: string;
-      url?: string;
-      workspace_id?: string;
-    };
-    GatewayIngressUnbindResponse: {
-      changed: boolean;
-      subject_id: string;
-      subject_kind: string;
-    };
-    GatewayIssuedCredentialPayload: {
-      credential?: string;
-      device: components["schemas"]["GatewayDevicePayload"];
-    };
-    GatewayPairingArtifactPayload: {
-      artifact: string;
-      /** Format: date-time */
-      expires_at: string;
-      manual_code: string;
-    };
-    GatewayPairingRedeemRequest: {
-      actor_kind: string;
-      artifact?: string;
-      credential?: string;
-      manual_code?: string;
-      name: string;
-    };
-    GatewayProviderEnableRequest: {
-      digest_confirmed?: string;
-      /** Format: uint64 */
-      expected_generation: number;
-      install_source: string;
-      tier: string;
-    };
-    GatewayProviderPayload: {
-      cause?: string;
-      desired: string;
-      /** Format: uint64 */
-      generation: number;
-      health: string;
-      name: string;
-      observed: string;
-      tier: string;
-    };
-    GatewayRefusalPayload: {
-      cause: string;
-      fix: string;
-    };
-    GatewayRemovedDevicePayload: {
-      canceled: number;
-      device: components["schemas"]["GatewayDevicePayload"];
-      revoked: boolean;
-    };
-    GatewayRevokePayload: {
-      canceled: number;
-      changed: boolean;
-      device: components["schemas"]["GatewayDevicePayload"];
-    };
-    GatewayStatusPayload: {
-      addresses: components["schemas"]["GatewayAddressPayload"][];
-      bindings: components["schemas"]["GatewayIngressPayload"][];
-      changed: boolean;
-      devices: components["schemas"]["GatewayDevicePayload"][];
-      enabled: boolean;
-      providers: components["schemas"]["GatewayProviderPayload"][];
-      refusal?: components["schemas"]["GatewayRefusalPayload"] | null;
-      surfaces: components["schemas"]["GatewaySurfacePayload"][];
-      tiers: components["schemas"]["GatewayTierPayload"][];
-    };
-    GatewayStreamTicketPayload: {
-      /** Format: date-time */
-      expires_at: string;
-      ticket: string;
-    };
-    GatewaySurfacePayload: {
-      desired: string;
-      /** Format: uint64 */
-      generation: number;
-      observed: string;
-      surface: string;
-      tier: string;
-    };
-    GatewaySurfaceRequest: {
-      consent: boolean;
-      desired: string;
-      /** Format: uint64 */
-      expected_generation: number;
-      surface: string;
-      tier: string;
-    };
-    GatewayTierPayload: {
-      advertised: boolean;
-      desired: string;
-      listener_address?: string;
-      observed: string;
-      tier: string;
+    GatewayRemovalNoticePayload: {
+      bindings_needing_confirmation: number;
+      connection_profiles: number;
+      devices: number;
+      providers: number;
     };
     GlobalShortcut: {
       active_chord?: string;
@@ -13602,6 +13242,30 @@ export interface components {
       token?: string;
       url?: string;
     };
+    IngressBindRequest: {
+      confirmed: boolean;
+      subject_id: string;
+      subject_kind: string;
+    };
+    IngressBindingResponse: {
+      binding: components["schemas"]["IngressPayload"];
+      changed: boolean;
+    };
+    IngressPayload: {
+      /** Format: date-time */
+      confirmed_at?: string | null;
+      /** Format: uint64 */
+      confirmed_endpoint_generation?: number;
+      enable_path?: string;
+      /** Format: uint64 */
+      endpoint_generation: number;
+      reachability: string;
+      scope_kind: string;
+      subject_id: string;
+      subject_kind: string;
+      url?: string;
+      workspace_id?: string;
+    };
     Input: {
       default?: unknown;
       description?: string;
@@ -13618,7 +13282,6 @@ export interface components {
     InstallExtensionRequest: {
       allow_unverified?: boolean;
       asset?: string;
-      confirm_gateway_digest?: string;
       /**
        * @description Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
        * @default false
@@ -15051,6 +14714,15 @@ export interface components {
       /** Format: double */
       min_delta?: number | null;
     };
+    MigrationNoticePayload: {
+      /** Format: date-time */
+      created_at: string;
+      key: string;
+      payload: components["schemas"]["GatewayRemovalNoticePayload"];
+    };
+    MigrationNoticesResponse: {
+      notices: components["schemas"]["MigrationNoticePayload"][];
+    };
     /** @description Layout migration status. A conversion diagnostic is present in error only when state is failed; a successful retry clears error. */
     MigrationStatus: {
       acknowledged: boolean;
@@ -16185,7 +15857,6 @@ export interface components {
       workspace_id?: string;
     };
     ReloadExtensionRequest: {
-      confirm_gateway_digest?: string;
       generation_hash: string;
     };
     RemoteDevicePatchRequest: {
@@ -22923,7 +22594,7 @@ export interface components {
       };
       fire_limit: components["schemas"]["FireLimitConfig"];
       id: string;
-      ingress?: components["schemas"]["GatewayIngressPayload"] | null;
+      ingress?: components["schemas"]["IngressPayload"] | null;
       last_run?: components["schemas"]["AutomationLastRunPayload"] | null;
       loop_target?: components["schemas"]["LoopTarget"] | null;
       name: string;
@@ -22998,7 +22669,6 @@ export interface components {
     UpdateExtensionRequest: {
       allow_unverified?: boolean;
       check_only?: boolean;
-      confirm_gateway_digest?: string;
       inputs?: {
         [key: string]: components["schemas"]["Value"];
       };
@@ -36964,15 +36634,6 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Gateway confirmation required */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
-        };
-      };
       /** @description Extension trust or input configuration is required */
       422: {
         headers: {
@@ -37113,15 +36774,6 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway confirmation required */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
       /** @description Extension trust or input configuration is required */
@@ -37654,7 +37306,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Extension is not dev linked or needs gateway confirmation */
+      /** @description Extension is not dev linked */
       409: {
         headers: {
           [name: string]: unknown;
@@ -37977,730 +37629,6 @@ export interface operations {
       };
     };
   };
-  getGatewayAudit: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Completed gateway security audit */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayAuditPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  listGatewayDevices: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayDevicesResponse"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  revokeGatewayDevice: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Gateway device id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Revoked */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayRevokePayload"];
-        };
-      };
-      /** @description Gateway device not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  renameGatewayDevice: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Gateway device id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["GatewayDeviceRenameRequest"];
-      };
-    };
-    responses: {
-      /** @description Renamed */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayDevicePayload"];
-        };
-      };
-      /** @description Invalid gateway device name */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway device not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  removeGatewayDevice: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Gateway device id */
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Removed */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayRemovedDevicePayload"];
-        };
-      };
-      /** @description Gateway device not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  bindGatewayIngress: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["GatewayIngressBindRequest"];
-      };
-    };
-    responses: {
-      /** @description Already confirmed */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayIngressBindingResponse"];
-        };
-      };
-      /** @description Created */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayIngressBindingResponse"];
-        };
-      };
-      /** @description Invalid ingress binding request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Ingress subject is outside the caller workspace */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Ingress subject not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Public ingress is not reachable */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  unbindGatewayIngress: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Ingress subject kind */
-        subject_kind: string;
-        /** @description Ingress subject id */
-        subject_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Unbound */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayIngressUnbindResponse"];
-        };
-      };
-      /** @description Invalid ingress subject */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Ingress subject is outside the caller workspace */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Ingress subject not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  mintGatewayPairing: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Created */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayPairingArtifactPayload"];
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Rate limited */
-      429: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  redeemGatewayPairing: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["GatewayPairingRedeemRequest"];
-      };
-    };
-    responses: {
-      /** @description Redeemed */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayIssuedCredentialPayload"];
-        };
-      };
-      /** @description Invalid pairing request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Invalid pairing artifact */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Pairing artifact already spent */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Pairing artifact expired */
-      410: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Rate limited */
-      429: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  disableGatewayProvider: {
-    parameters: {
-      query: {
-        /** @description Gateway tier */
-        tier: string;
-      };
-      header?: never;
-      path: {
-        /** @description Connectivity provider name */
-        name: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Disabled */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayStatusPayload"];
-        };
-      };
-      /** @description Invalid gateway tier */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway provider not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway provider conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  enableGatewayProvider: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Connectivity provider name */
-        name: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["GatewayProviderEnableRequest"];
-      };
-    };
-    responses: {
-      /** @description Enabled */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayStatusPayload"];
-        };
-      };
-      /** @description Invalid provider request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway provider conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Provider digest confirmation required */
-      428: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  getGatewayStatus: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayStatusPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  mintGatewayStreamTicket: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Created */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayStreamTicketPayload"];
-        };
-      };
-      /** @description Gateway device authentication required */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
-  setGatewaySurface: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["GatewaySurfaceRequest"];
-      };
-    };
-    responses: {
-      /** @description Updated */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["GatewayStatusPayload"];
-        };
-      };
-      /** @description Invalid gateway surface request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway exposure conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Gateway consent required */
-      428: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-    };
-  };
   getHookCatalog: {
     parameters: {
       query?: {
@@ -38952,7 +37880,7 @@ export interface operations {
     /** @description JSON request body */
     requestBody: {
       content: {
-        "application/json": components["schemas"]["GatewayIngressBindRequest"];
+        "application/json": components["schemas"]["IngressBindRequest"];
       };
     };
     responses: {
@@ -38962,7 +37890,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["GatewayIngressBindingResponse"];
+          "application/json": components["schemas"]["IngressBindingResponse"];
         };
       };
       /** @description Created */
@@ -38971,7 +37899,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["GatewayIngressBindingResponse"];
+          "application/json": components["schemas"]["IngressBindingResponse"];
         };
       };
       /** @description Invalid ingress binding request */
@@ -39010,7 +37938,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Webhook ingress unavailable */
+      /** @description Public ingress is not reachable */
       503: {
         headers: {
           [name: string]: unknown;
@@ -40245,6 +39173,101 @@ export interface operations {
         };
         content: {
           "text/html": string;
+        };
+      };
+    };
+  };
+  listMigrationNotices: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Upgrade notices */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MigrationNoticesResponse"];
+        };
+      };
+      /** @description Sign-in required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Operator permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  dismissMigrationNotice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Migration notice key */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Notice dismissed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Sign-in required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Operator permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
     };

@@ -30,6 +30,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 
 		registerAppSDKRoutes(api, handlers)
 		core.RegisterIngressRoutes(api, handlers.BaseHandlers)
+		core.RegisterMigrationNoticeRoutes(api, handlers.BaseHandlers)
 		registerOnboardingRoutes(api, handlers)
 		registerFilesystemRoutes(api, handlers)
 		registerNotificationRoutes(api, handlers)
@@ -60,7 +61,6 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 		registerProviderRoutes(api, handlers)
 		registerModelCatalogRoutes(api, handlers)
 		registerProviderUsageRoutes(api, handlers)
-		registerGatewayRoutes(api, handlers)
 	})
 	signIn.Validate()
 }

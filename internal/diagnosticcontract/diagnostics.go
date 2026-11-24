@@ -190,7 +190,7 @@ const (
 	CodeExtensionEnvBindingDangling      = "extension_env_binding_dangling"
 	CodeExtensionEnvBindingInvalid       = "extension_env_binding_invalid"
 	CodeExtensionEnvBindingUndeclared    = "extension_env_binding_undeclared"
-	CodeExtensionGatewayConfirmRequired  = "extension_gateway_confirmation_required"
+	CodeExtensionKindRemoved             = "extension_kind_removed"
 	CodeExtensionRegistryTierUnverified  = "extension_registry_tier_unverified"
 	CodeExtensionUnverifiedPolicyBlocked = "extension_unverified_policy_blocked"
 )
@@ -238,7 +238,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionEnvBindingUndeclared, Category: CategoryExtension},
 	{Code: CodeExtensionGitUnavailable, Category: CategoryExtension},
 	{Code: CodeExtensionGitVersionUnsupported, Category: CategoryExtension},
-	{Code: CodeExtensionGatewayConfirmRequired, Category: CategoryExtension},
+	{Code: CodeExtensionKindRemoved, Category: CategoryExtension},
 	{Code: CodeExtensionRegistryTierUnverified, Category: CategoryExtension},
 	{Code: CodeExtensionUnverifiedPolicyBlocked, Category: CategoryExtension},
 	{Code: CodeExtensionInstallFailed, Category: CategoryExtension},

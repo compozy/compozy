@@ -201,6 +201,7 @@ export {
   computerDetailOptions,
   computerPlacementOptions,
   computersListOptions,
+  migrationNoticesOptions,
   computerSSHHostsOptions,
   hostedBrowserPeersOptions,
   hostResourcesOptions,
@@ -252,3 +253,5 @@ export type {
   RemoteStatusPayload,
   RemoveComputerResponse,
 } from "./types";
+
+export { GatewayUpgradeNotice } from "./components/gateway-upgrade-notice";

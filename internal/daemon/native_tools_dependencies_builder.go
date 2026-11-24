@@ -45,33 +45,26 @@ func (d *Daemon) nativeToolsDeps(
 		TaskClaimHandoff: taskClaimHandoffForState(state),
 		Roles:            roleResolverForState(state),
 
-		Gateway: func() core.GatewayService {
-			if state.deps.Gateway == nil {
-				return nil
-			}
-			return state.deps.Gateway
-		},
 		Ingress: func() core.IngressService {
 			if state.deps.Ingress == nil {
 				return nil
 			}
 			return state.deps.Ingress
 		},
-		GatewayPermissionMode: nativeGatewayPermissionModeSource(state.sessions),
-		Remote:                state.deps.Remote,
-		Account:               state.deps.Account,
-		Computers:             func() core.ComputersService { return state.deps.Computers },
-		HomePaths:             d.homePaths,
-		Observer:              state.observer,
-		HookBindings:          state.hookBindings,
-		AgentCatalog:          agentCatalog,
-		Vault:                 state.providerVault,
-		AgentResolver:         agentCatalog,
-		HeartbeatStatus:       state.deps.HeartbeatStatus,
-		HeartbeatWake:         state.deps.HeartbeatWake,
-		SessionHealth:         state.deps.SessionHealth,
-		WakeEvents:            state.deps.WakeEvents,
-		Automation:            state.deps.Automation,
+		Remote:          state.deps.Remote,
+		Account:         state.deps.Account,
+		Computers:       func() core.ComputersService { return state.deps.Computers },
+		HomePaths:       d.homePaths,
+		Observer:        state.observer,
+		HookBindings:    state.hookBindings,
+		AgentCatalog:    agentCatalog,
+		Vault:           state.providerVault,
+		AgentResolver:   agentCatalog,
+		HeartbeatStatus: state.deps.HeartbeatStatus,
+		HeartbeatWake:   state.deps.HeartbeatWake,
+		SessionHealth:   state.deps.SessionHealth,
+		WakeEvents:      state.deps.WakeEvents,
+		Automation:      state.deps.Automation,
 		AutomationRuntime: func() core.AutomationManager {
 			return state.deps.Automation
 		},

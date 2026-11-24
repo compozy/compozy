@@ -25,7 +25,7 @@ optional `profile`. Previous string arrays are normalized during loading through
 builds emit tables. Convert handwritten strings to `{ path = "..." }` entries before their removal
 in v0.3.0-beta.31. Omit `profile` to retain the previous all-profile visibility.
 
-Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--profile <name>` on the CLI; HTTP/UDS accepts `?workspace=<id>&profile=<name>` to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, placements, and any Gateway digest without changing state.
+Inspect the extension's shipped-versus-live view with `compozy extension inventory <name> -o json`, `GET /api/extensions/{name}/inventory`, or `compozy__extensions_inventory`. Use `--profile <name>` on the CLI; HTTP/UDS accepts `?workspace=<id>&profile=<name>` to inspect a particular instance. Native inventory uses the caller's trusted workspace and profile. Use `POST /api/extensions/preview-install` before installation to review declared profile creation or binding, credential requirements, and placements without changing state.
 
 In extension detail, `created_by_extension: true` confirms that this extension created the current
 profile ID. `false` covers existing-profile bindings and historical declarations whose creator was
@@ -37,8 +37,6 @@ For client Agent Plugins, the same list and set commands accept optional secret 
 referenced by MCP header templates. Use the listed key name and omit `--remote-header`. These
 credentials belong to the exact profile and extension instance. An unset input with an empty
 default leaves its credential header out of the request.
-
-If a candidate extension changes its normalized gateway permission requirement, install or update returns `extension_gateway_confirmation_required` with the exact digest before changing package state. Inspect that digest and retry with `--confirm-gateway-requirement <digest>` or the equivalent `confirm_gateway_digest` request field. Do not confirm a stale or reconstructed digest. Confirmation records consent to those exact gateway permissions.
 
 A subprocess extension that publishes layouts directly declares the generic Host API permissions and `window_layouts` family. `resources/snapshot` is complete desired state for that extension source, not an append call: advance `source_version`, include every record that remains owned, and let omission delete stale records. Codec, kind, scope, and workspace-binding failure reject the snapshot atomically.
 
@@ -193,7 +191,7 @@ Every catalog entry has exactly one category id: `productivity`, `communication`
 - `GET /api/marketplace/sections?per_section=1..12`: the Browse home in one read.
 - Add = `compozy extension install <ref> --enable` / `compozy__extensions_install {enable: true}` /
   `POST /api/extensions {"enable": true}`: install and enable in one operation. Every install gate
-  still applies (`extension_inputs_required`, consent, conflicts, gateway). If enabling fails after
+  still applies (`extension_inputs_required`, publisher consent, and name conflicts). If enabling fails after
   install, the result is still success (`201`, exit 0) with `extension.enabled: false` and
   `enable_error {error, code}`; the package stays installed. Retry with
   `compozy extension enable <name>` / `compozy__extensions_enable`.
@@ -292,7 +290,7 @@ A local bundle replaces the installed package of the same name with
 `compozy extension install <path> --replace`, `POST /api/extensions` with
 `{"source": "local_path", "replace": true}`, or `compozy__extensions_install {replace: true}`. The
 replacement runs through the same transaction as a published reinstall: the previous directory,
-registry record, gateway confirmation, and selected input cell stay available until reload and the
+registry record and selected input cell stay available until reload and the
 returned status step both succeed, so a failure inside that transaction after publication restores
 the previous version. Once the reinstall transaction returns successfully, a subsequent enable
 failure retains the new package. `replace` applies to `local_path` only; published

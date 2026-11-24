@@ -44,7 +44,7 @@ var settingsDestinations = []settingsDestination{
 		Icon:     coreIconZap,
 		Keywords: []string{coreAppAutomations, "jobs", "triggers", "scheduler", "cron"},
 	},
-	{Slug: "gateway", Title: "Gateway", Icon: "radio", Keywords: []string{"remote", "pairing", "devices"}},
+	{Slug: "computers", Title: "Computers", Icon: coreIconMonitor, Keywords: []string{"remote access", "SSH", "devices"}},
 	{Slug: "attention", Title: "Attention", Icon: "bell", Keywords: []string{"notifications", "sound", "mute"}},
 	{
 		Slug:     "observability",

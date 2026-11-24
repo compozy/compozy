@@ -2,7 +2,7 @@ import { createStoreLogic } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "@compozy/ui";
 
-import { extensionGatewayConfirmation, ExtensionsApiError } from "@/systems/extensions";
+import { ExtensionsApiError } from "@/systems/extensions";
 import { MarketplaceApiError } from "../adapters/marketplace-api-error";
 import type { ExtensionUpdateRequest } from "../types";
 import {
@@ -19,11 +19,7 @@ export interface MarketplaceUpdateRequest {
 
 type TrackUpdate = <T>(action: () => Promise<T>) => Promise<T>;
 type UpdateTarget = { label: string; request: MarketplaceUpdateRequest; track: TrackUpdate };
-type Recovery = UpdateTarget &
-  (
-    | { kind: "gateway"; digest: string }
-    | { kind: "inputs"; definitions: ExtensionInputDefinitions }
-  );
+type Recovery = UpdateTarget & { definitions: ExtensionInputDefinitions };
 type RecoveryState = { phase: "idle" } | { phase: "review" | "submitting"; recovery: Recovery };
 
 const recoveryLogic = createStoreLogic<
@@ -64,17 +60,10 @@ export function useMarketplaceUpdateRecovery(
       await mutate(request);
       return true;
     } catch (error) {
-      const confirmation = extensionGatewayConfirmation(error);
-      if (confirmation) {
-        store.trigger.recoveryRequired({
-          recovery: { kind: "gateway", digest: confirmation.digest, label, request, track },
-        });
-        return false;
-      }
       const definitions = missingInputDefinitions(error);
       if (!definitions) throw error;
       store.trigger.recoveryRequired({
-        recovery: { kind: "inputs", definitions, label, request, track },
+        recovery: { definitions, label, request, track },
       });
       return false;
     }
@@ -85,12 +74,9 @@ export function useMarketplaceUpdateRecovery(
     if (current.phase !== "review") return;
     const { recovery } = current;
     const body = { ...recovery.request.body };
-    if (recovery.kind === "gateway") body.confirm_gateway_digest = recovery.digest;
-    else {
-      const prepared = prepareExtensionInputs(recovery.definitions, draft);
-      if (!prepared.valid) return;
-      body.inputs = { ...body.inputs, ...prepared.inputs };
-    }
+    const prepared = prepareExtensionInputs(recovery.definitions, draft);
+    if (!prepared.valid) return;
+    body.inputs = { ...body.inputs, ...prepared.inputs };
     store.trigger.recoverySubmitted();
     void recovery
       .track(async () => {

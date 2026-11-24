@@ -14,8 +14,6 @@ import { HostedPhoneApp } from "./hosted-phone-app";
 
 export interface HostedBrowserAccessBoundaryProps {
   children: ReactNode;
-  /** Boundary rendered on non-hosted (local / legacy gateway) origins. */
-  fallbackBoundary?: ReactNode;
   /** Test seam for navigation / approval polling options. */
   accessOptions?: Omit<UseHostedBrowserAccessOptions, "enabled">;
   /** Optional phone app override (tests only). */
@@ -92,17 +90,15 @@ function HostedBrowserAccessActive({
  *
  * On hosted origins, owns the Sign in to CompozyOS gate (WebCrypto P-256 + PKCE + DPoP),
  * renders the desktop web shell at wide widths (`>= 1024 px`), and switches to the
- * compact phone layout below `1024 px`. On non-hosted origins, delegates transparently
- * to `fallbackBoundary` (legacy gateway boundary until S14) or renders `children`.
+ * compact phone layout below `1024 px`. On other origins it renders its children.
  */
 export function HostedBrowserAccessBoundary({
   children,
-  fallbackBoundary,
   accessOptions,
   phoneApp,
 }: HostedBrowserAccessBoundaryProps) {
   if (!isHostedOriginCandidate()) {
-    return <>{fallbackBoundary ?? children}</>;
+    return <>{children}</>;
   }
   return (
     <HostedBrowserAccessActive accessOptions={accessOptions} phoneApp={phoneApp}>
