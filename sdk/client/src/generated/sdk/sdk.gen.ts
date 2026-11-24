@@ -286,6 +286,9 @@ import type {
   DecideAccountApprovalData,
   DecideAccountApprovalErrors,
   DecideAccountApprovalResponses,
+  DeleteAccountData,
+  DeleteAccountErrors,
+  DeleteAccountResponses,
   DeleteAgentData,
   DeleteAgentErrors,
   DeleteAgentHeartbeatData,
@@ -379,6 +382,9 @@ import type {
   DisableSkillData,
   DisableSkillErrors,
   DisableSkillResponses,
+  DismissAccountSignInNoticesData,
+  DismissAccountSignInNoticesErrors,
+  DismissAccountSignInNoticesResponses,
   DismissAutomationSuggestionData,
   DismissAutomationSuggestionErrors,
   DismissAutomationSuggestionResponses,
@@ -1256,6 +1262,9 @@ import type {
   PatchAccountDeviceData,
   PatchAccountDeviceErrors,
   PatchAccountDeviceResponses,
+  PatchAccountEmailData,
+  PatchAccountEmailErrors,
+  PatchAccountEmailResponses,
   PatchComputerData,
   PatchComputerErrors,
   PatchComputerResponses,
@@ -1925,6 +1934,28 @@ class HeyApiRegistry<T> {
 
 export class account extends HeyApiClient {
   /**
+   * Start account deletion and sign out
+   */
+  public deleteAccount<ThrowOnError extends boolean = true>(
+    options: Options<DeleteAccountData, ThrowOnError>
+  ): RequestResult<DeleteAccountResponses, DeleteAccountErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      DeleteAccountResponses,
+      DeleteAccountErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * Read the installation account
    */
   public getAccount<ThrowOnError extends boolean = true>(
@@ -1939,6 +1970,28 @@ export class account extends HeyApiClient {
       responseStyle: "data",
       url: "/api/account",
       ...options,
+    });
+  }
+
+  /**
+   * Update the product news preference
+   */
+  public patchAccountEmail<ThrowOnError extends boolean = true>(
+    options: Options<PatchAccountEmailData, ThrowOnError>
+  ): RequestResult<PatchAccountEmailResponses, PatchAccountEmailErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchAccountEmailResponses,
+      PatchAccountEmailErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 
@@ -2172,6 +2225,29 @@ export class account extends HeyApiClient {
         "Content-Type": "application/json",
         ...options?.headers,
       },
+    });
+  }
+
+  /**
+   * Dismiss sign-in notices on this installation
+   */
+  public dismissAccountSignInNotices<ThrowOnError extends boolean = true>(
+    options?: Options<DismissAccountSignInNoticesData, ThrowOnError>
+  ): RequestResult<
+    DismissAccountSignInNoticesResponses,
+    DismissAccountSignInNoticesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).post<
+      DismissAccountSignInNoticesResponses,
+      DismissAccountSignInNoticesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/sign-in-notices/dismiss",
+      ...options,
     });
   }
 }

@@ -134,6 +134,9 @@ func TestCloudBrowserSignIn(t *testing.T) {
 			t.Fatalf("browser grant claims = %+v, error = %v", grant, err)
 		}
 		assertAuthRow(t, f, "SELECT count(*) FROM device_keys WHERE state = 'active' AND activated_at IS NOT NULL", 1)
+		// UT-132, Safety Invariant 24. A browser notice starts with the first proof-bound activation.
+		assertAuthRow(t, f, `SELECT count(*) FROM security_events
+			WHERE type = 'device_enrolled' AND details_json->>'kind' = 'browser'`, 1)
 		assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE security_epoch = 2", 1)
 		f.clock.Advance(6 * time.Minute)
 		redeemBrowser(t, f, computerKey, input).expect(t, http.StatusForbidden, "browser_code_used")

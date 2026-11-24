@@ -40,6 +40,54 @@ func TestAccountSignIn(t *testing.T) {
 		}
 	})
 
+	for _, tc := range []struct {
+		name  string
+		optIn bool
+		want  int
+	}{
+		{"Should send one authenticated preference after enrollment for checked consent (UT-122)", true, 1},
+		{"Should send no preference for unchecked consent (UT-122)", false, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// Safety Invariant 26. The unauthenticated attempt never carries consent.
+			var enrolled atomic.Bool
+			var patches atomic.Int32
+			cloud := accountCloudStub{start: testGrant, poll: testAuthorized, profile: testProfile,
+				enroll: func(request remoteproto.DeviceEnrollRequest) (remoteproto.DeviceEnrollResponse, error) {
+					enrolled.Store(true)
+					return testEnroll(request)
+				},
+				patchEmail: func(creds cloudclient.Credentials, patch remoteproto.AccountEmailPatch) (remoteproto.AccountSummary, error) {
+					if !enrolled.Load() || creds.AccessToken == "" || creds.Key == nil || patch.Source != "sign_in" ||
+						patch.MarketingOptIn == nil || !*patch.MarketingOptIn {
+						t.Error("unexpected consent write")
+					}
+					patches.Add(1)
+					profile, err := testProfile()
+					profile.MarketingOptIn = true
+					return profile, err
+				},
+			}
+			s, _, clock := newAccountTest(t, &cloud, Installation{State: SignedOut})
+			events, stop := s.SubscribeSignIn()
+			defer stop()
+			attempt, err := s.StartLoginWithConsent(t.Context(), "google", tc.optIn)
+			if err != nil {
+				t.Fatal(err)
+			}
+			advanceSignIn(t, clock)
+			expectSignIn(t, events, SignInEvent{AttemptID: attempt.AttemptID, State: "signed_in"})
+			// Enrollment holds the session lock until it has applied or skipped the preference.
+			s.sessionMu.Lock()
+			calls := patches.Load()
+			s.sessionMu.Unlock()
+			if int(calls) != tc.want {
+				t.Errorf("consent writes = %d, want %d", calls, tc.want)
+			}
+		})
+	}
+
 	t.Run("Should expire at the deadline and discard a late authorization (UT-002)", func(t *testing.T) {
 		t.Parallel()
 		polling, release := make(chan struct{}, 1), make(chan struct{})
@@ -389,6 +437,7 @@ type accountCloudStub struct {
 	cancelGrant func(string)
 	enroll      func(remoteproto.DeviceEnrollRequest) (remoteproto.DeviceEnrollResponse, error)
 	profile     func() (remoteproto.AccountSummary, error)
+	patchEmail  func(cloudclient.Credentials, remoteproto.AccountEmailPatch) (remoteproto.AccountSummary, error)
 	refresh     func() (remoteproto.DeviceSessionTokens, error)
 }
 
@@ -419,6 +468,12 @@ func (s *accountCloudStub) Enroll(
 
 func (s *accountCloudStub) Account(context.Context, cloudclient.Credentials) (remoteproto.AccountSummary, error) {
 	return s.profile()
+}
+
+func (s *accountCloudStub) PatchAccountEmail(
+	_ context.Context, creds cloudclient.Credentials, patch remoteproto.AccountEmailPatch,
+) (remoteproto.AccountSummary, error) {
+	return s.patchEmail(creds, patch)
 }
 
 func (s *accountCloudStub) Refresh(context.Context, string, crypto.Signer) (remoteproto.DeviceSessionTokens, error) {

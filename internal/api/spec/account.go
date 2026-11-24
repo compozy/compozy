@@ -12,9 +12,9 @@ import (
 const specAccountKey = "account"
 
 func accountOperations() []OperationSpec {
-	return append(
-		append(accountIdentityOperations(), accountDeviceOperations()...),
-		accountApprovalBillingOperations()...)
+	operations := append(accountIdentityOperations(), accountLifecycleOperations()...)
+	operations = append(operations, accountDeviceOperations()...)
+	return append(operations, accountApprovalBillingOperations()...)
 }
 
 func accountIdentityOperations() []OperationSpec {
@@ -88,6 +88,26 @@ func accountIdentityOperations() []OperationSpec {
 				ContentType: specContentTypeEventStream,
 				Body:        account.Event{},
 			},
+		),
+	}
+}
+
+func accountLifecycleOperations() []OperationSpec {
+	return []OperationSpec{
+		accountOperation(
+			http.MethodPatch, contract.AccountPath, "patchAccountEmail", "Update the product news preference",
+			contract.AccountEmailPatchRequest{},
+			ResponseSpec{Status: http.StatusOK, Description: "Updated installation account", Body: contract.AccountStatusResponse{}},
+		),
+		accountOperation(
+			http.MethodDelete, contract.AccountPath, "deleteAccount", "Start account deletion and sign out",
+			contract.AccountDeleteRequest{},
+			ResponseSpec{Status: http.StatusAccepted, Description: "Deletion started", Body: contract.AccountDeleteResponse{}},
+		),
+		accountOperation(
+			http.MethodPost, contract.AccountDismissSignInNoticesPath, "dismissAccountSignInNotices",
+			"Dismiss sign-in notices on this installation", nil,
+			ResponseSpec{Status: http.StatusNoContent, Description: "Notices dismissed"},
 		),
 	}
 }

@@ -10,6 +10,61 @@ import (
 	"strings"
 )
 
+// ListAutomationJobs List automation jobs
+func (c *Client) ListAutomationJobs(ctx context.Context, params ListAutomationJobsParams) (*JobsResponse, error) {
+	path := "/api/automation/jobs"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.Source != nil {
+		query.Set("source", *params.Source)
+	}
+	if params.Target != nil {
+		query.Set("target", *params.Target)
+	}
+	if params.Enabled != nil {
+		query.Set("enabled", strconv.FormatBool(*params.Enabled))
+	}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if params.Loop != nil {
+		query.Set("loop", *params.Loop)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out JobsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListAutomationRunsParams carries the path, query, and header parameters.
 type ListAutomationRunsParams struct {
 	WorkspaceID   *string   `url:"workspace_id"`
@@ -368,68 +423,6 @@ func (c *Client) ListComputers(ctx context.Context) (*ComputerListResponse, erro
 // ListExtensionCommandsParams carries the path, query, and header parameters.
 type ListExtensionCommandsParams struct {
 	Extension   *string `url:"extension"`
-	Workspace   *string `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListExtensionCommands List active extension-contributed commands
-func (c *Client) ListExtensionCommands(ctx context.Context, params ListExtensionCommandsParams) (*ExtensionCommandsResponse, error) {
-	path := "/api/extensions/commands"
-	query := url.Values{}
-	if params.Extension != nil {
-		query.Set("extension", *params.Extension)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionCommandsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListExtensionEnablementParams carries the path, query, and header parameters.
-type ListExtensionEnablementParams struct {
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListExtensionEnablement List one extension's effective state for every profile
-func (c *Client) ListExtensionEnablement(ctx context.Context, params ListExtensionEnablementParams) (*[]ExtensionEnablementPayload, error) {
-	path := "/api/extensions/{name}/enablement"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out []ExtensionEnablementPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListExtensionSecretsParams carries the path, query, and header parameters.
-type ListExtensionSecretsParams struct {
-	Name        string  `url:"name"`
 	Workspace   *string `url:"workspace"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`

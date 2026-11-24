@@ -81,6 +81,15 @@ func (q *Queries) SaveIdentity(
 	if err != nil || account.Email == identity.Email {
 		return err
 	}
+	if account.MarketingOptIn {
+		for _, address := range []string{account.Email, identity.Email} {
+			if err := q.generated.TrackMarketingAddress(ctx, sqlcgen.TrackMarketingAddressParams{
+				AccountID: account.ID, Email: address,
+			}); err != nil {
+				return err
+			}
+		}
+	}
 	err = q.generated.UpdateAuthAccountEmail(
 		ctx,
 		sqlcgen.UpdateAuthAccountEmailParams{ID: account.ID, Email: identity.Email},

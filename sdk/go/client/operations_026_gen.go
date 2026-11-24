@@ -9,6 +9,46 @@ import (
 	"strings"
 )
 
+// ListTaskReviews List task-run reviews for one task
+func (c *Client) ListTaskReviews(ctx context.Context, params ListTaskReviewsParams) (*TaskRunReviewsResponse, error) {
+	path := "/api/tasks/{id}/reviews"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.ReviewerSessionID != nil {
+		query.Set("reviewer_session_id", *params.ReviewerSessionID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunReviewsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListTaskRunReviewsParams carries the path, query, and header parameters.
+type ListTaskRunReviewsParams struct {
+	ID                string  `url:"id"`
+	Status            *string `url:"status"`
+	ReviewerSessionID *string `url:"reviewer_session_id"`
+	Limit             *int    `url:"limit"`
+	Profile           *string `url:"profile"`
+	AllProfiles       *bool   `url:"all_profiles"`
+}
+
 // ListTaskRunReviews List reviews for one task run
 func (c *Client) ListTaskRunReviews(ctx context.Context, params ListTaskRunReviewsParams) (*TaskRunReviewsResponse, error) {
 	path := "/api/task-runs/{id}/reviews"
@@ -401,46 +441,4 @@ func (c *Client) ListVaultSecrets(ctx context.Context, params ListVaultSecretsPa
 type ListWindowManagerClientsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// ListWindowManagerClients List connected window-manager clients
-func (c *Client) ListWindowManagerClients(ctx context.Context, params ListWindowManagerClientsParams) (*WindowManagerClientsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/clients"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WindowManagerClientsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListWindowManagerLayoutProfilesParams carries the path, query, and header parameters.
-type ListWindowManagerLayoutProfilesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ListWindowManagerLayoutProfiles List layout profiles visible to one workspace
-func (c *Client) ListWindowManagerLayoutProfiles(ctx context.Context, params ListWindowManagerLayoutProfilesParams) (*ResourcesResponse, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ResourcesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

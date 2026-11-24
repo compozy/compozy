@@ -10,6 +10,16 @@ import (
 	"strings"
 )
 
+// FindSessionFilesParams carries the path, query, and header parameters.
+type FindSessionFilesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Q           string  `url:"q"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // FindSessionFiles Find project files
 func (c *Client) FindSessionFiles(ctx context.Context, params FindSessionFilesParams) (*FileFindResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find"
@@ -410,41 +420,4 @@ type GetAgentHeartbeatStatusParams struct {
 	IncludeSessionHealth    *bool   `url:"include_session_health"`
 	IncludeRecentWakeEvents *bool   `url:"include_recent_wake_events"`
 	Profile                 *string `url:"profile"`
-}
-
-// GetAgentHeartbeatStatus Read Heartbeat policy status, wake state, and optional session health
-func (c *Client) GetAgentHeartbeatStatus(ctx context.Context, params GetAgentHeartbeatStatusParams) (*HeartbeatStatusResponse, error) {
-	path := "/api/agents/{name}/heartbeat/status"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.SessionID != nil {
-		query.Set("session_id", *params.SessionID)
-	}
-	if params.IncludeSessionHealth != nil {
-		query.Set("include_session_health", strconv.FormatBool(*params.IncludeSessionHealth))
-	}
-	if params.IncludeRecentWakeEvents != nil {
-		query.Set("include_recent_wake_events", strconv.FormatBool(*params.IncludeRecentWakeEvents))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentInstanceParams carries the path, query, and header parameters.
-type GetAgentInstanceParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

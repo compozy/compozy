@@ -51,7 +51,7 @@ func (q *Queries) BindCloudWebSession(ctx context.Context, arg BindCloudWebSessi
 }
 
 const cloudBrowserCode = `-- name: CloudBrowserCode :one
-SELECT code_sha256, account_id, device_id, computer_id, jkt, code_challenge, expires_at, used_at FROM browser_codes WHERE code_sha256 = $1
+SELECT code_sha256, account_id, device_id, computer_id, jkt, code_challenge, expires_at, used_at, request_location FROM browser_codes WHERE code_sha256 = $1
 `
 
 func (q *Queries) CloudBrowserCode(ctx context.Context, codeSha256 []byte) (BrowserCode, error) {
@@ -66,6 +66,7 @@ func (q *Queries) CloudBrowserCode(ctx context.Context, codeSha256 []byte) (Brow
 		&i.CodeChallenge,
 		&i.ExpiresAt,
 		&i.UsedAt,
+		&i.RequestLocation,
 	)
 	return i, err
 }
@@ -149,18 +150,19 @@ func (q *Queries) FindBrowserComputer(ctx context.Context, hostname string) (Fin
 }
 
 const insertCloudBrowserCode = `-- name: InsertCloudBrowserCode :exec
-INSERT INTO browser_codes (code_sha256, account_id, device_id, computer_id, jkt, code_challenge, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO browser_codes (code_sha256, account_id, device_id, computer_id, jkt, code_challenge, expires_at, request_location)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
 type InsertCloudBrowserCodeParams struct {
-	CodeSha256    []byte
-	AccountID     string
-	DeviceID      string
-	ComputerID    string
-	Jkt           string
-	CodeChallenge string
-	ExpiresAt     pgtype.Timestamptz
+	CodeSha256      []byte
+	AccountID       string
+	DeviceID        string
+	ComputerID      string
+	Jkt             string
+	CodeChallenge   string
+	ExpiresAt       pgtype.Timestamptz
+	RequestLocation pgtype.Text
 }
 
 func (q *Queries) InsertCloudBrowserCode(ctx context.Context, arg InsertCloudBrowserCodeParams) error {
@@ -172,6 +174,7 @@ func (q *Queries) InsertCloudBrowserCode(ctx context.Context, arg InsertCloudBro
 		arg.Jkt,
 		arg.CodeChallenge,
 		arg.ExpiresAt,
+		arg.RequestLocation,
 	)
 	return err
 }
@@ -194,6 +197,30 @@ func (q *Queries) InsertCloudWebSession(ctx context.Context, arg InsertCloudWebS
 		arg.AccountID,
 		arg.CreatedAt,
 		arg.ExpiresAt,
+	)
+	return err
+}
+
+const insertNoticeWebSession = `-- name: InsertNoticeWebSession :exec
+INSERT INTO cloud_web_sessions (id_sha256, account_id, created_at, last_used_at, expires_at, fresh_notice_event_id)
+VALUES ($1, $2, $3, $3, $4, $5)
+`
+
+type InsertNoticeWebSessionParams struct {
+	IDSha256           []byte
+	AccountID          string
+	CreatedAt          pgtype.Timestamptz
+	ExpiresAt          pgtype.Timestamptz
+	FreshNoticeEventID pgtype.Int8
+}
+
+func (q *Queries) InsertNoticeWebSession(ctx context.Context, arg InsertNoticeWebSessionParams) error {
+	_, err := q.db.Exec(ctx, insertNoticeWebSession,
+		arg.IDSha256,
+		arg.AccountID,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.FreshNoticeEventID,
 	)
 	return err
 }
@@ -260,12 +287,14 @@ func (q *Queries) SweepUnactivatedBrowserDevices(ctx context.Context, lastSeenAt
 const touchCloudWebSession = `-- name: TouchCloudWebSession :one
 UPDATE cloud_web_sessions w SET last_used_at = greatest(w.last_used_at, $2)
 FROM accounts a
-WHERE w.id_sha256 = $1 AND w.account_id = a.id AND w.revoked_at IS NULL
+WHERE w.id_sha256 = $1 AND w.account_id = a.id
   AND w.expires_at > $2 AND w.last_used_at > $3::timestamptz
-  AND (w.browser_device_id IS NULL OR EXISTS (
-      SELECT 1 FROM devices d WHERE d.id = w.browser_device_id AND d.revoked_at IS NULL
+  AND (a.state <> 'active' OR (
+      w.revoked_at IS NULL AND (w.browser_device_id IS NULL OR EXISTS (
+          SELECT 1 FROM devices d WHERE d.id = w.browser_device_id AND d.revoked_at IS NULL
+      ))
   ))
-RETURNING w.account_id, a.email, w.browser_device_id, a.state
+RETURNING w.account_id, a.email, w.browser_device_id, a.state, w.fresh_notice_event_id
 `
 
 type TouchCloudWebSessionParams struct {
@@ -275,10 +304,11 @@ type TouchCloudWebSessionParams struct {
 }
 
 type TouchCloudWebSessionRow struct {
-	AccountID       string
-	Email           string
-	BrowserDeviceID pgtype.Text
-	State           string
+	AccountID          string
+	Email              string
+	BrowserDeviceID    pgtype.Text
+	State              string
+	FreshNoticeEventID pgtype.Int8
 }
 
 func (q *Queries) TouchCloudWebSession(ctx context.Context, arg TouchCloudWebSessionParams) (TouchCloudWebSessionRow, error) {
@@ -289,6 +319,7 @@ func (q *Queries) TouchCloudWebSession(ctx context.Context, arg TouchCloudWebSes
 		&i.Email,
 		&i.BrowserDeviceID,
 		&i.State,
+		&i.FreshNoticeEventID,
 	)
 	return i, err
 }

@@ -1,4 +1,4 @@
 {
     "title": "Account",
-    "pages": ["billing"]
+    "pages": ["billing", "security"]
 }

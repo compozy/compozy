@@ -24,6 +24,29 @@ type Account struct {
 	CreatedAt              pgtype.Timestamptz
 	LastSeenAt             pgtype.Timestamptz
 	BillingReconciledAt    pgtype.Timestamptz
+	ContactRetryAt         pgtype.Timestamptz
+}
+
+type AccountContactAddress struct {
+	AccountID string
+	Email     string
+}
+
+type AccountDeletionIdentityHold struct {
+	SubjectSha256 []byte
+	AccountID     string
+}
+
+type AccountDeletionJob struct {
+	AccountID   string
+	RequestedAt pgtype.Timestamptz
+	Step        int16
+	RetryAt     pgtype.Timestamptz
+}
+
+type AccountEmailOutbox struct {
+	EventID int64
+	RetryAt pgtype.Timestamptz
 }
 
 type BillingCheckout struct {
@@ -31,17 +54,19 @@ type BillingCheckout struct {
 	AccountID string
 	Interval  string
 	Hostname  pgtype.Text
+	ExpiredAt pgtype.Timestamptz
 }
 
 type BrowserCode struct {
-	CodeSha256    []byte
-	AccountID     string
-	DeviceID      string
-	ComputerID    string
-	Jkt           string
-	CodeChallenge string
-	ExpiresAt     pgtype.Timestamptz
-	UsedAt        pgtype.Timestamptz
+	CodeSha256      []byte
+	AccountID       string
+	DeviceID        string
+	ComputerID      string
+	Jkt             string
+	CodeChallenge   string
+	ExpiresAt       pgtype.Timestamptz
+	UsedAt          pgtype.Timestamptz
+	RequestLocation pgtype.Text
 }
 
 type CloudDpopReplay struct {
@@ -65,31 +90,33 @@ type CloudOauthAttempt struct {
 }
 
 type CloudWebSession struct {
-	IDSha256        []byte
-	AccountID       string
-	BrowserDeviceID pgtype.Text
-	CreatedAt       pgtype.Timestamptz
-	LastUsedAt      pgtype.Timestamptz
-	ExpiresAt       pgtype.Timestamptz
-	RevokedAt       pgtype.Timestamptz
+	IDSha256           []byte
+	AccountID          string
+	BrowserDeviceID    pgtype.Text
+	CreatedAt          pgtype.Timestamptz
+	LastUsedAt         pgtype.Timestamptz
+	ExpiresAt          pgtype.Timestamptz
+	RevokedAt          pgtype.Timestamptz
+	FreshNoticeEventID pgtype.Int8
 }
 
 type Computer struct {
-	ID            string
-	AccountID     string
-	Name          string
-	Platform      string
-	Version       string
-	ComputerJwk   []byte
-	TlsRootSha256 string
-	RemoteEnabled bool
-	PlanLimited   bool
-	LastSessionAt pgtype.Timestamptz
-	LastControlAt pgtype.Timestamptz
-	LinkedAt      pgtype.Timestamptz
-	UnlinkedAt    pgtype.Timestamptz
-	LeaseSequence int64
-	ControlLinkID pgtype.Text
+	ID             string
+	AccountID      string
+	Name           string
+	Platform       string
+	Version        string
+	ComputerJwk    []byte
+	TlsRootSha256  string
+	RemoteEnabled  bool
+	PlanLimited    bool
+	LastSessionAt  pgtype.Timestamptz
+	LastControlAt  pgtype.Timestamptz
+	LinkedAt       pgtype.Timestamptz
+	UnlinkedAt     pgtype.Timestamptz
+	LeaseSequence  int64
+	ControlLinkID  pgtype.Text
+	InstallationID pgtype.Text
 }
 
 type ComputerApprovedKey struct {
@@ -112,8 +139,9 @@ type ComputerProofReplay struct {
 }
 
 type DeletedAccount struct {
-	AccountID string
-	DeletedAt pgtype.Timestamptz
+	AccountID           string
+	DeletedAt           pgtype.Timestamptz
+	SecurityEventCounts []byte
 }
 
 type Device struct {
@@ -257,7 +285,8 @@ type SecurityEventCount struct {
 }
 
 type SecurityEventRetention struct {
-	Cutoff pgtype.Timestamptz
+	Cutoff           pgtype.Timestamptz
+	DeletedAccountID pgtype.Text
 }
 
 type SlotReservation struct {

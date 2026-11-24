@@ -56,6 +56,10 @@ Use `POST /api/account/checkout` with `{"interval":"year"}` or `{"interval":"mon
 
 A cloud outage leaves an existing sign-in intact. Retry account actions after the response's `Retry-After` when present. The account tool and routes are local to the installation.
 
+Pass `marketing_opt_in: true` in `POST /api/account/login` only when the operator explicitly opted in. Use `PATCH /api/account` with `marketing_opt_in` for settings changes. `GET /api/account` lists seven days of `recent_sign_ins`. `POST /api/account/sign-in-notices/dismiss` clears them for the current installation.
+
+On an admin device, `DELETE /api/account` takes `confirm_email` and returns `202` with `state: "deleting"`, `subscription_cancelled`, and `refund`. It signs out the installation. The cloud cancels Pro and applies the refund rule before removing linked computers and account data. During suspension, account operations return `account_suspended` and cloud credential checks return `reauth_required` with that reason.
+
 ## Cloud sign-in
 
 Start a device grant with `POST /v1/device-flow`. Show the operator the returned user code and `verification_uri_complete`. The operator compares the code with `/activate` and completes Google or GitHub sign-in in the browser. Poll `POST /v1/device-flow/token` at the returned interval. Add five seconds on `slow_down`, and stop on `access_denied` or `expired_token`. Cancel a superseded attempt with `DELETE /v1/device-flow/{device_code}`.

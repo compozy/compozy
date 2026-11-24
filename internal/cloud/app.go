@@ -15,22 +15,26 @@ import (
 	"github.com/compozy/compozy/internal/cloud/billing"
 	"github.com/compozy/compozy/internal/cloud/cloudflare"
 	"github.com/compozy/compozy/internal/cloud/control"
+	"github.com/compozy/compozy/internal/cloud/email"
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/cloud/web"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
 type Config struct {
-	Postgres      store.Config
-	Keys          *api.SigningKeys
-	Issuer        string
-	Now           func() time.Time
-	Logger        *slog.Logger
-	Auth          *auth.Config
-	MonthlyPrice  string
-	AnnualPrice   string
-	HostedTunnels *cloudflare.Client
-	Stripe        *billing.Stripe
+	Postgres       store.Config
+	Keys           *api.SigningKeys
+	Issuer         string
+	Now            func() time.Time
+	Logger         *slog.Logger
+	Auth           *auth.Config
+	MonthlyPrice   string
+	AnnualPrice    string
+	HostedTunnels  *cloudflare.Client
+	Stripe         *billing.Stripe
+	Email          *email.Resend
+	UnsubscribeKey []byte
+	MetricsToken   string
 }
 
 type App struct {
@@ -41,6 +45,7 @@ type App struct {
 	Issuer       string
 	Auth         *auth.Service
 	Billing      *billing.Service
+	Accounts     *control.Service
 
 	router   *api.Router
 	tunnels  *control.Service
@@ -80,19 +85,34 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 		Stripe: cfg.Stripe, Issuer: a.Issuer, HostedDomain: domain,
 		MonthlyPrice: cfg.MonthlyPrice, AnnualPrice: cfg.AnnualPrice, Now: a.now,
 	})
+	var links *email.UnsubscribeLinks
+	if cfg.Auth != nil {
+		key := cfg.UnsubscribeKey
+		if len(key) == 0 {
+			key = cfg.Auth.EncryptionKey
+		}
+		links, err = email.NewUnsubscribeLinks(a.Issuer, key)
+		if err != nil {
+			db.Close()
+			return nil, err
+		}
+	}
+	service := control.NewService(db, control.ServiceConfig{
+		Signer: a.Keys.Signer(), Issuer: a.Issuer, Now: a.now,
+		MonthlyPrice: cfg.MonthlyPrice, AnnualPrice: cfg.AnnualPrice,
+		Logger: a.logger, HostedTunnels: cfg.HostedTunnels, Billing: a.Billing,
+		Email: cfg.Email, Unsubscribe: links,
+	})
+	a.Accounts = service
 	var authenticator api.DeviceAuthenticator
 	if cfg.Auth != nil {
-		if err := a.registerAuth(*cfg.Auth); err != nil {
+		if err := a.registerAuth(*cfg.Auth, links); err != nil {
 			db.Close()
 			return nil, err
 		}
 		authenticator = a.Auth
 	}
-	service := control.NewService(db, control.ServiceConfig{
-		Signer: a.Keys.Signer(), Issuer: a.Issuer, Now: a.now,
-		MonthlyPrice: cfg.MonthlyPrice, AnnualPrice: cfg.AnnualPrice,
-		Logger: a.logger, HostedTunnels: cfg.HostedTunnels,
-	})
+	a.router.RegisterAccountMetrics(db, cfg.MetricsToken)
 	if cfg.HostedTunnels != nil {
 		a.tunnels = service
 	}
@@ -103,12 +123,12 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 	return a, nil
 }
 
-func (a *App) registerAuth(cfg auth.Config) error {
+func (a *App) registerAuth(cfg auth.Config, links *email.UnsubscribeLinks) error {
 	service, err := auth.New(a.Store, cfg, a.Issuer, a.Keys.Signer(), a.Keys.JWKS(), a.AccountLimit.RetryAfter, a.now)
 	if err != nil {
 		return err
 	}
-	if err := web.Register(a.Routes(), service, a.Billing, a.AccountLimit); err != nil {
+	if err := web.Register(a.Routes(), service, a.Billing, a.AccountLimit, a.Accounts, links); err != nil {
 		return err
 	}
 	api.RegisterAuthRoutes(a.Routes(), service)
@@ -135,6 +155,7 @@ func (a *App) RunBackground(ctx context.Context) {
 	}
 	if a.Auth != nil {
 		group.Go(func() { a.runAuthCleanup(ctx) })
+		group.Go(func() { a.runAccountLifecycle(ctx) })
 	}
 	group.Wait()
 }
@@ -204,7 +225,8 @@ func (a *App) runRetention(ctx context.Context) {
 	for {
 		job, cancel := context.WithTimeout(ctx, time.Minute)
 		now := a.now()
-		err := errors.Join(a.Store.CompactSecurityEvents(job, now), a.Store.CompactControlRecords(job, now))
+		err := errors.Join(a.Store.CompactSecurityEvents(job, now), a.Store.CompactControlRecords(job, now),
+			a.Store.SweepDeletedAccounts(job, now))
 		cancel()
 		if err != nil && ctx.Err() == nil {
 			a.logger.Warn("Cloud security event retention failed", "error", err)

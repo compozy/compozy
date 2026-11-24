@@ -10,6 +10,33 @@ import (
 	"strings"
 )
 
+// DownloadTerminalRecording Download one terminal recording
+func (c *Client) DownloadTerminalRecording(ctx context.Context, params DownloadTerminalRecordingParams) (*[]byte, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/recordings/{id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "application/x-asciicast"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DraftAgentInstructionsParams carries the path, query, and header parameters.
+type DraftAgentInstructionsParams struct {
+	Profile *string `url:"profile"`
+}
+
 // DraftAgentInstructions Draft agent instructions without saving a definition
 func (c *Client) DraftAgentInstructions(ctx context.Context, params DraftAgentInstructionsParams, body DraftAgentInstructionsRequest) (*DraftAgentInstructionsResponse, error) {
 	path := "/api/agents/draft-instructions"
@@ -419,14 +446,4 @@ func (c *Client) FindFiles(ctx context.Context, params FindFilesParams) (*FileFi
 		return nil, err
 	}
 	return &out, nil
-}
-
-// FindSessionFilesParams carries the path, query, and header parameters.
-type FindSessionFilesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Q           string  `url:"q"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

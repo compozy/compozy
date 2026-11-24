@@ -26,7 +26,10 @@ func (q *Queries) AdvanceAuthAccountActivity(ctx context.Context, arg AdvanceAut
 }
 
 const findIdentityAccount = `-- name: FindIdentityAccount :one
-SELECT account_id FROM identities WHERE provider = $1 AND subject = $2
+SELECT i.account_id FROM identities i WHERE i.provider = $1 AND i.subject = $2
+UNION ALL
+SELECT h.account_id FROM account_deletion_identity_holds h
+WHERE h.subject_sha256 = sha256(convert_to($1::text || ':' || $2::text, 'UTF8'))
 `
 
 type FindIdentityAccountParams struct {
@@ -55,7 +58,7 @@ func (q *Queries) HasDeletedAuthAccount(ctx context.Context, accountID string) (
 const insertAuthAccount = `-- name: InsertAuthAccount :one
 INSERT INTO accounts (id, email, name, first_sign_in_provider, created_at)
 VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (email) DO NOTHING RETURNING id, email, name, state, suspended_at, first_sign_in_provider, marketing_opt_in, marketing_consent_at, marketing_consent_source, contact_synced_at, cloud_routes_max, security_epoch, created_at, last_seen_at, billing_reconciled_at
+ON CONFLICT (email) DO NOTHING RETURNING id, email, name, state, suspended_at, first_sign_in_provider, marketing_opt_in, marketing_consent_at, marketing_consent_source, contact_synced_at, cloud_routes_max, security_epoch, created_at, last_seen_at, billing_reconciled_at, contact_retry_at
 `
 
 type InsertAuthAccountParams struct {
@@ -91,12 +94,13 @@ func (q *Queries) InsertAuthAccount(ctx context.Context, arg InsertAuthAccountPa
 		&i.CreatedAt,
 		&i.LastSeenAt,
 		&i.BillingReconciledAt,
+		&i.ContactRetryAt,
 	)
 	return i, err
 }
 
 const lockAuthAccount = `-- name: LockAuthAccount :one
-SELECT id, email, name, state, suspended_at, first_sign_in_provider, marketing_opt_in, marketing_consent_at, marketing_consent_source, contact_synced_at, cloud_routes_max, security_epoch, created_at, last_seen_at, billing_reconciled_at FROM accounts WHERE id = $1 FOR UPDATE
+SELECT id, email, name, state, suspended_at, first_sign_in_provider, marketing_opt_in, marketing_consent_at, marketing_consent_source, contact_synced_at, cloud_routes_max, security_epoch, created_at, last_seen_at, billing_reconciled_at, contact_retry_at FROM accounts WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) LockAuthAccount(ctx context.Context, id string) (Account, error) {
@@ -118,12 +122,13 @@ func (q *Queries) LockAuthAccount(ctx context.Context, id string) (Account, erro
 		&i.CreatedAt,
 		&i.LastSeenAt,
 		&i.BillingReconciledAt,
+		&i.ContactRetryAt,
 	)
 	return i, err
 }
 
 const lockAuthAccountByEmail = `-- name: LockAuthAccountByEmail :one
-SELECT id, email, name, state, suspended_at, first_sign_in_provider, marketing_opt_in, marketing_consent_at, marketing_consent_source, contact_synced_at, cloud_routes_max, security_epoch, created_at, last_seen_at, billing_reconciled_at FROM accounts WHERE email = $1 FOR UPDATE
+SELECT id, email, name, state, suspended_at, first_sign_in_provider, marketing_opt_in, marketing_consent_at, marketing_consent_source, contact_synced_at, cloud_routes_max, security_epoch, created_at, last_seen_at, billing_reconciled_at, contact_retry_at FROM accounts WHERE email = $1 FOR UPDATE
 `
 
 func (q *Queries) LockAuthAccountByEmail(ctx context.Context, email string) (Account, error) {
@@ -145,6 +150,7 @@ func (q *Queries) LockAuthAccountByEmail(ctx context.Context, email string) (Acc
 		&i.CreatedAt,
 		&i.LastSeenAt,
 		&i.BillingReconciledAt,
+		&i.ContactRetryAt,
 	)
 	return i, err
 }
@@ -180,7 +186,9 @@ func (q *Queries) RecordSignInIdentity(ctx context.Context, arg RecordSignInIden
 }
 
 const updateAuthAccountEmail = `-- name: UpdateAuthAccountEmail :exec
-UPDATE accounts SET email = $2 WHERE id = $1
+UPDATE accounts
+SET email = $2, contact_synced_at = CASE WHEN marketing_opt_in THEN NULL ELSE contact_synced_at END
+WHERE id = $1
 `
 
 type UpdateAuthAccountEmailParams struct {

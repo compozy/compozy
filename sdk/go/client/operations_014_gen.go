@@ -9,6 +9,49 @@ import (
 	"strings"
 )
 
+// GetSession Get one session snapshot
+func (c *Client) GetSession(ctx context.Context, params GetSessionParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.IncludeHealth != nil {
+		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionAttentionSummary Get exact session attention counts
+func (c *Client) GetSessionAttentionSummary(ctx context.Context) (*SessionAttentionSummaryPayload, error) {
+	path := "/api/sessions/attention-summary"
+	var out SessionAttentionSummaryPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionByIDParams carries the path, query, and header parameters.
+type GetSessionByIDParams struct {
+	SessionID     string  `url:"session_id"`
+	IncludeHealth *bool   `url:"include_health"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // GetSessionByID Get one session snapshot by id
 func (c *Client) GetSessionByID(ctx context.Context, params GetSessionByIDParams) (*SessionResponse, error) {
 	path := "/api/sessions/{session_id}"
@@ -389,54 +432,4 @@ type GetSessionMCPParams struct {
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionMCP Read session MCP availability without discovery; redacted definition previews appear only for waiting approval and never for app tokens
-func (c *Client) GetSessionMCP(ctx context.Context, params GetSessionMCPParams) (*MCP, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MCP
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionOwnerParams carries the path, query, and header parameters.
-type GetSessionOwnerParams struct {
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionOwner Get a session owner; Global history has an empty workspace id
-func (c *Client) GetSessionOwner(ctx context.Context, params GetSessionOwnerParams) (*SessionOwner, error) {
-	path := "/api/sessions/{session_id}/owner"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionOwner
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

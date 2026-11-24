@@ -125,6 +125,73 @@ func TestDaemonCloudAccount(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should delete a Free account from the daemon while other installations revalidate (IT-098)", func(t *testing.T) {
+		// Safety Invariants 14, 26, 35 and 36. The daemon signs out while the cloud retries independently.
+		f, resend := newAccountEmailFixture(t, true)
+		const address = "free-delete@example.test"
+		admin, ring := startDaemonAccountFixture(t, f, filepath.Join(home, "del1"))
+		a := admin.stream(t, contract.AccountSignInEventsPath, "")
+		owner := signInDaemonAccount(t, f, admin, a, address)
+		a.cancel()
+		accountID, _ := assertEnrolledAccount(t, f, owner, ring)
+		other, _ := startDaemonAccountFixture(t, f, filepath.Join(home, "del2"))
+		b := other.stream(t, contract.AccountSignInEventsPath, "")
+		secondStarted := f.clock.Now()
+		signInAccountDevice(t, f, other, b, address)
+		b.cancel()
+		f.db.SeedControlComputer(t, accountID, "cmp_deleting", f.clock.Now())
+		purchaseWebSession(t, f, providerProfile{subject: address, email: address, verified: true})
+		testutil.Eventually(t, "consent after daemon enrollment", 3*time.Second, func() bool {
+			var updated bool
+			return f.conn.QueryRow(t.Context(), `SELECT coalesce(
+				marketing_consent_source = 'sign_in' AND marketing_consent_at > $1, false) FROM accounts`, secondStarted).
+				Scan(&updated) == nil && updated
+		})
+		admin.uds(t, http.MethodPatch, contract.AccountPath, contract.AccountEmailPatchRequest{
+			MarketingOptIn: new(false),
+		}).expect(t, http.StatusOK, `"marketing_opt_in":false`)
+		other.request(t, http.MethodGet, contract.AccountPath, nil).expect(t, http.StatusOK, "recent_sign_ins")
+		admin.request(t, http.MethodPost, contract.AccountDismissSignInNoticesPath, nil).expect(t, http.StatusNoContent, "")
+		admin.uds(t, http.MethodGet, contract.AccountPath, nil).expect(t, http.StatusOK, `"recent_sign_ins":[]`)
+		if notices := authJSON[contract.AccountStatusResponse](t,
+			other.uds(t, http.MethodGet, contract.AccountPath, nil)).RecentSignIns; len(notices) == 0 {
+			t.Fatal("dismissal leaked to the other installation")
+		}
+		if err := f.replica.App.Accounts.SweepAccountEmail(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		initialDeletes := resend.ContactDeletes()
+		resend.FailContactDeletes(2)
+		deletion := admin.uds(t, http.MethodDelete, contract.AccountPath, contract.AccountDeleteRequest{ConfirmEmail: address})
+		deletion.expect(t, http.StatusAccepted, `"refund":"none"`)
+		if response := authJSON[contract.AccountDeleteResponse](t, deletion); response.SubscriptionCancelled {
+			t.Fatal("Free deletion reported a subscription cancellation")
+		}
+		admin.request(t, http.MethodGet, contract.AccountPath, nil).expect(t, http.StatusOK, `"state":"signed_out"`)
+		awaitDeletionSweep(t, f, func() bool { return resend.ContactDeletes() >= initialDeletes+1 })
+		assertAuthRow(t, f, "SELECT count(*) FROM computers WHERE unlinked_at IS NOT NULL", 1)
+		assertAuthRow(t, f, "SELECT count(*) FROM identities", 0)
+		assertAuthRow(t, f, "SELECT count(*) FROM cloud_web_sessions", 0)
+		reply, _ := f.signIn(t, auth.Google, providerProfile{subject: address, email: "renamed@example.test", verified: true}, false)
+		reply.expect(t, http.StatusConflict, "account_deleting")
+		f.clock.Advance(2 * time.Minute)
+		awaitDeletionSweep(t, f, func() bool { return resend.ContactDeletes() >= initialDeletes+2 })
+		assertAuthRow(t, f, "SELECT count(*) FROM deleted_accounts", 0)
+		f.clock.Advance(2 * time.Minute)
+		awaitDeletionSweep(t, f, func() bool {
+			deleted, err := f.replica.App.Store.AuthAccountDeleted(t.Context(), accountID)
+			return err == nil && deleted
+		})
+		assertDeletedAccount(t, f)
+		f.clock.Advance(25 * time.Hour)
+		testutil.Eventually(t, "the second installation observes the tombstone", 5*time.Second, func() bool {
+			status := other.uds(t, http.MethodGet, contract.AccountPath, nil)
+			return bytes.Contains(status.body, []byte(`"signed_out_reason":"account_deleted"`)) &&
+				bytes.Contains(status.body, []byte(`"state":"reauth_required"`))
+		})
+	})
+
 }
 
 func signInDaemonAccount(

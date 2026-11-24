@@ -22,6 +22,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -334,4 +335,83 @@ func operatorProviderState(t *testing.T, reply authReply) string {
 	}
 	t.Fatalf("provider %q was not in the inventory", operatorProviderName)
 	return ""
+}
+
+func TestDaemonAccountSuspension(t *testing.T) {
+	root := t.TempDir()
+	t.Run("Should close active streams and restore only link sign-in after unsuspension (IT-106)", func(t *testing.T) {
+		// Safety Invariants 10, 22 and 34. Release installers and the remote host observe a single epoch boundary.
+		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+		const address = "suspension@example.test"
+		owner, ring := startDaemonAccountFixture(t, f, filepath.Join(root, "owner"))
+		progress := owner.stream(t, contract.AccountSignInEventsPath, "")
+		first := signInDaemonAccount(t, f, owner, progress, address)
+		accountID, _ := assertEnrolledAccount(t, f, first, ring)
+		defer progress.cancel()
+
+		tokenReply := owner.uds(t, http.MethodPost, contract.AccountPath+"/tokens", map[string]string{"name": "ci"})
+		tokenReply.expect(t, http.StatusCreated, "token")
+		token := authJSON[struct {
+			Token string `json:"token"`
+		}](t, tokenReply).Token
+		t.Setenv("COMPOZY_ACCOUNT_TOKEN", token)
+		ci, _ := startDaemonAccountFixture(t, f, filepath.Join(root, "ci"))
+		testutil.Eventually(t, "token installation signs in", 5*time.Second, func() bool {
+			reply := ci.uds(t, http.MethodGet, contract.AccountPath, nil)
+			status := authJSON[contract.AccountStatusResponse](t, reply)
+			return status.State == "signed_in" && status.Source != nil && *status.Source == "token"
+		})
+		t.Setenv("COMPOZY_ACCOUNT_TOKEN", "")
+
+		admin := enrollRemoteDevice(t, f, address, "ins_suspend_controller_helper")
+		link := remoteCloudRequest(t, f, admin, http.MethodPost, "/v1/computers/link-tokens", nil)
+		link.expect(t, http.StatusCreated, "token")
+		linkToken := authJSON[struct {
+			Token string `json:"token"`
+		}](t, link).Token
+		host, _ := startConfiguredDaemonAccount(t, f, filepath.Join(root, "host"), daemonAccountBoot{direct: true})
+		reply := host.uds(t, http.MethodPost, contract.RemoteLinkPath, contract.RemoteLinkRequest{LinkToken: linkToken})
+		reply.expect(t, http.StatusOK, "computer_id")
+		id := authJSON[contract.RemoteLinkResponse](t, reply).ComputerID
+		waitForHostLease(t, host)
+		requireSuspensionAccountState(t, host, "signed_in", "link", "")
+		workspace := registerOperatorWorkspace(t, host, t.TempDir())
+		addAccountComputer(t, owner, id)
+		waitComputerRoute(t, owner, id, remoteproto.RouteDirect)
+		terminal := attachOperatorTerminal(t, owner, id, openOperatorTerminal(t, owner, id, workspace), 0)
+
+		if err := f.replica.App.Accounts.SuspendAccount(t.Context(), accountID, "operator@example.test"); err != nil {
+			t.Fatal(err)
+		}
+		expectTerminalClose(t, terminal, 4503)
+		f.clock.Advance(25 * time.Hour)
+		for _, daemon := range []daemonAccountFixture{owner, host, ci} {
+			requireSuspensionAccountState(t, daemon, "reauth_required", "", "account_suspended")
+		}
+		if status := readRemoteDaemonStatus(t, host); status.ComputerID != id {
+			t.Fatalf("suspension removed the host identity: %s", status.ComputerID)
+		}
+		callback, _ := f.signIn(t, auth.Google, providerProfile{subject: address, email: address, verified: true}, false)
+		callback.expect(t, http.StatusForbidden, "account_suspended")
+		if err := f.replica.App.Accounts.UnsuspendAccount(t.Context(), accountID, "operator@example.test"); err != nil {
+			t.Fatal(err)
+		}
+		f.clock.Advance(25 * time.Hour)
+		requireSuspensionAccountState(t, host, "signed_in", "link", "")
+		requireSuspensionAccountState(t, ci, "reauth_required", "", "")
+		if signedIn := signInAccountDevice(t, f, owner, progress, address); signedIn.Device.ID != first.Device.ID {
+			t.Fatal("the installation did not reuse its existing device after unsuspension")
+		}
+	})
+}
+
+func requireSuspensionAccountState(t *testing.T, daemon daemonAccountFixture, state, source, reason string) {
+	t.Helper()
+	testutil.Eventually(t, "expected account state "+state, 5*time.Second, func() bool {
+		reply := daemon.uds(t, http.MethodGet, contract.AccountPath, nil)
+		status := authJSON[contract.AccountStatusResponse](t, reply)
+		return reply.StatusCode == http.StatusOK && string(status.State) == state &&
+			(source == "" || status.Source != nil && *status.Source == source) &&
+			(reason == "" || status.SignedOutReason != nil && *status.SignedOutReason == reason)
+	})
 }

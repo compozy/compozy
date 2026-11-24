@@ -28,16 +28,21 @@ type SecurityEvent struct {
 
 // AppendSecurityEvent can participate in the same transaction as its domain change.
 func (q *Queries) AppendSecurityEvent(ctx context.Context, event SecurityEvent) error {
+	_, err := q.appendSecurityEvent(ctx, event)
+	return err
+}
+
+func (q *Queries) appendSecurityEvent(ctx context.Context, event SecurityEvent) (int64, error) {
 	if event.Details == nil {
 		event.Details = map[string]any{}
 	}
 	details, err := json.Marshal(event.Details)
 	if err != nil || len(details) > maxSecurityDetails {
-		return ErrSecurityEventDetails
+		return 0, ErrSecurityEventDetails
 	}
 	var object map[string]any
 	if err := json.Unmarshal(details, &object); err != nil || !safeSecurityDetails(object) {
-		return ErrSecurityEventDetails
+		return 0, ErrSecurityEventDetails
 	}
 	params := sqlcgen.AppendSecurityEventParams{
 		AccountID:   pgtype.Text{String: event.AccountID, Valid: event.AccountID != ""},
@@ -46,10 +51,11 @@ func (q *Queries) AppendSecurityEvent(ctx context.Context, event SecurityEvent) 
 		At:          timestamp(event.At),
 		DetailsJson: string(details),
 	}
-	if err := q.generated.AppendSecurityEvent(ctx, params); err != nil {
-		return errors.New("append cloud security event failed")
+	id, err := q.generated.AppendSecurityEvent(ctx, params)
+	if err != nil {
+		return 0, errors.New("append cloud security event failed")
 	}
-	return nil
+	return id, nil
 }
 
 func safeSecurityDetails(value any) bool {

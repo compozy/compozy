@@ -15,6 +15,8 @@ import (
 	"github.com/compozy/compozy/internal/cloud/api"
 	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/cloud/billing"
+	"github.com/compozy/compozy/internal/cloud/control"
+	"github.com/compozy/compozy/internal/cloud/email"
 	"github.com/compozy/compozy/packages/brand"
 )
 
@@ -27,16 +29,20 @@ const (
 	revalidateBrowserTTL = 365 * 24 * time.Hour
 )
 
-//go:embed sign-in.html billing.html assets/*
+//go:embed sign-in.html billing.html account-lifecycle.html assets/*
 var pages embed.FS
 
 type signInPages struct {
-	service  *auth.Service
-	template *template.Template
-	billing  billingPages
+	service   *auth.Service
+	template  *template.Template
+	billing   billingPages
+	lifecycle accountPages
 }
 
-func Register(mux *http.ServeMux, service *auth.Service, bills *billing.Service, limiter *api.AccountLimiter) error {
+func Register(
+	mux *http.ServeMux, service *auth.Service, bills *billing.Service, limiter *api.AccountLimiter,
+	accounts *control.Service, links *email.UnsubscribeLinks,
+) error {
 	t, err := template.ParseFS(pages, "sign-in.html")
 	if err != nil {
 		return err
@@ -45,7 +51,11 @@ func Register(mux *http.ServeMux, service *auth.Service, bills *billing.Service,
 	if err != nil {
 		return err
 	}
-	p := signInPages{service: service, template: t, billing: purchase}
+	lifecycle, err := registerAccountPages(mux, service, accounts, links)
+	if err != nil {
+		return err
+	}
+	p := signInPages{service: service, template: t, billing: purchase, lifecycle: lifecycle}
 	mux.HandleFunc("GET "+activatePath, p.activate)
 	mux.HandleFunc("POST "+activatePath, p.continueActivation)
 	mux.HandleFunc("GET /v1/auth/callback/{provider}", p.callback)

@@ -11,6 +11,81 @@ import (
 	"strings"
 )
 
+// StartTaskRun Start one claimed task run
+func (c *Client) StartTaskRun(ctx context.Context, params StartTaskRunParams, body StartTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/task-runs/{id}/start"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SteerSessionPromptParams carries the path, query, and header parameters.
+type SteerSessionPromptParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// SteerSessionPrompt Stage steering input for the active session turn
+func (c *Client) SteerSessionPrompt(ctx context.Context, params SteerSessionPromptParams, body SteerPromptRequest) (*SendPromptResultResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/steer"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SendPromptResultResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StopSessionParams carries the path, query, and header parameters.
+type StopSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// StopSession Stop a session without deleting persisted history
+func (c *Client) StopSession(ctx context.Context, params StopSessionParams, body StopSessionRequest) (*SessionStopPayload, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/stop"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionStopPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StopSessionHistoryCleanupParams carries the path, query, and header parameters.
+type StopSessionHistoryCleanupParams struct {
+	Profile *string `url:"profile"`
+}
+
 // StopSessionHistoryCleanup Stop the selected profile's running cleanup; sessions already deleted stay deleted
 func (c *Client) StopSessionHistoryCleanup(ctx context.Context, params StopSessionHistoryCleanupParams) (*SessionHistoryCleanupRunResponse, error) {
 	path := "/api/sessions/history-cleanup/stop"
@@ -353,28 +428,4 @@ func (c *Client) StreamGlobalSession(ctx context.Context, params StreamGlobalSes
 		path += "?" + query.Encode()
 	}
 	return newStream[StreamGlobalSessionFrame](ctx, c, "GET", path, headers, nil, "streamGlobalSession")
-}
-
-// StreamLogsParams carries the path, query, and header parameters.
-type StreamLogsParams struct {
-	WorkspaceID      *string `url:"workspace_id"`
-	SessionID        *string `url:"session_id"`
-	AgentName        *string `url:"agent_name"`
-	Type             *string `url:"type"`
-	Run              *string `url:"run"`
-	Actor            *string `url:"actor"`
-	ActorKind        *string `url:"actor_kind"`
-	ActorID          *string `url:"actor_id"`
-	Provider         *string `url:"provider"`
-	Outcome          *string `url:"outcome"`
-	Component        *string `url:"component"`
-	ErrorOnly        *bool   `url:"error_only"`
-	AfterSeq         *int    `url:"after_seq"`
-	Since            *string `url:"since"`
-	Limit            *int    `url:"limit"`
-	Replay           *bool   `url:"replay"`
-	LastEventID      *string `url:"Last-Event-ID"`
-	LastEventIDQuery *string `url:"last_event_id"`
-	Profile          *string `url:"profile"`
-	AllProfiles      *bool   `url:"all_profiles"`
 }

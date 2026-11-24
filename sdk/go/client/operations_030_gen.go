@@ -9,6 +9,58 @@ import (
 	"strings"
 )
 
+// PutAgentHeartbeat Create or replace HEARTBEAT.md through managed authoring
+func (c *Client) PutAgentHeartbeat(ctx context.Context, params PutAgentHeartbeatParams, body HeartbeatPutByPathRequest) (*HeartbeatMutationResponse, error) {
+	path := "/api/agents/{name}/heartbeat"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatMutationResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutAgentMemoryParams carries the path, query, and header parameters.
+type PutAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// PutAgentMemory Replace memory with a digest check (experimental) Experimental: pin the exact SDK version.
+func (c *Client) PutAgentMemory(ctx context.Context, params PutAgentMemoryParams, body AgentMemoryWriteRequest) (*AgentMemoryDocument, error) {
+	path := "/api/agents/{name}/memory"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentMemoryDocument
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutAgentSoulParams carries the path, query, and header parameters.
+type PutAgentSoulParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
 // PutAgentSoul Create or replace SOUL.md through managed authoring
 func (c *Client) PutAgentSoul(ctx context.Context, params PutAgentSoulParams, body AgentSoulPutByPathRequest) (*AgentSoulMutationResponse, error) {
 	path := "/api/agents/{name}/soul"
@@ -373,75 +425,6 @@ type ReadFileContentParams struct {
 	WorktreeID  *string `url:"worktree_id"`
 	Path        string  `url:"path"`
 	Reveal      *bool   `url:"reveal"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ReadFileContent Read project file content
-func (c *Client) ReadFileContent(ctx context.Context, params ReadFileContentParams) (*FileContentResponse, error) {
-	path := "/api/workspaces/{workspace_id}/files/content"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.WorktreeID != nil {
-		query.Set("worktree_id", *params.WorktreeID)
-	}
-	query.Set("path", params.Path)
-	if params.Reveal != nil {
-		query.Set("reveal", strconv.FormatBool(*params.Reveal))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FileContentResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadSessionAttachmentBytesParams carries the path, query, and header parameters.
-type ReadSessionAttachmentBytesParams struct {
-	WorkspaceID  string  `url:"workspace_id"`
-	SessionID    string  `url:"session_id"`
-	AttachmentID string  `url:"attachment_id"`
-	Profile      *string `url:"profile"`
-	AllProfiles  *bool   `url:"all_profiles"`
-}
-
-// ReadSessionAttachmentBytes Read session attachment bytes
-func (c *Client) ReadSessionAttachmentBytes(ctx context.Context, params ReadSessionAttachmentBytesParams) (*[]byte, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	path = strings.ReplaceAll(path, "{attachment_id}", url.PathEscape(params.AttachmentID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out []byte
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadSessionFileBytesParams carries the path, query, and header parameters.
-type ReadSessionFileBytesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Path        string  `url:"path"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }

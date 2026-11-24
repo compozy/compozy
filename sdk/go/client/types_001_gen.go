@@ -70,6 +70,18 @@ type AccountCheckoutRequest struct {
 	Interval string `json:"interval"`
 }
 
+// AccountDeleteRequest is a daemon API value.
+type AccountDeleteRequest struct {
+	ConfirmEmail string `json:"confirm_email"`
+}
+
+// AccountDeleteResponse is a daemon API value.
+type AccountDeleteResponse struct {
+	State                 string `json:"state"`
+	SubscriptionCancelled bool   `json:"subscription_cancelled"`
+	Refund                string `json:"refund"`
+}
+
 // AccountDevice is a daemon API value.
 type AccountDevice struct {
 	ID         DeviceID  `json:"id"`
@@ -97,6 +109,12 @@ type AccountDeviceSummary struct {
 // AccountDevicesResponse is a daemon API value.
 type AccountDevicesResponse struct {
 	Devices []AccountDevice `json:"devices"`
+}
+
+// AccountEmailPatchRequest is a daemon API value.
+type AccountEmailPatchRequest struct {
+	MarketingOptIn *bool  `json:"marketing_opt_in"`
+	Source         string `json:"source,omitempty"`
 }
 
 // AccountGrace is a daemon API value.
@@ -133,7 +151,7 @@ type AccountLogoutResponse struct {
 
 // AccountSignInNotice is a daemon API value.
 type AccountSignInNotice struct {
-	DeviceID string    `json:"device_id"`
+	DeviceID DeviceID  `json:"device_id"`
 	Name     string    `json:"name"`
 	Kind     string    `json:"kind"`
 	Location string    `json:"location"`
@@ -429,15 +447,4 @@ type AgentEffectiveRuntimeSources struct {
 	Speed           AgentRuntimeValueSource `json:"speed,omitempty"`
 	Permissions     AgentRuntimeValueSource `json:"permissions,omitempty"`
 	FallbackChain   AgentRuntimeValueSource `json:"fallback_chain,omitempty"`
-}
-
-// AgentFallbackRoutePayload is a daemon API value.
-type AgentFallbackRoutePayload struct {
-	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Provider        string                              `json:"provider"`
-	Model           string                              `json:"model"`
-	ReasoningEffort Effort                              `json:"reasoning_effort,omitempty"`
-	Speed           Speed                               `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	Command         string                              `json:"command,omitempty"`
 }

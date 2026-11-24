@@ -16,12 +16,13 @@ import (
 )
 
 type ComputerLinkRequest struct {
-	Name          string          `json:"name"`
-	Platform      string          `json:"platform"`
-	Version       string          `json:"version"`
-	ComputerJWK   remoteproto.JWK `json:"computer_jwk"`
-	TLSRootSHA256 string          `json:"tls_root_sha256"`
-	LinkToken     string          `json:"link_token,omitempty"`
+	Name           string          `json:"name"`
+	Platform       string          `json:"platform"`
+	Version        string          `json:"version"`
+	ComputerJWK    remoteproto.JWK `json:"computer_jwk"`
+	TLSRootSHA256  string          `json:"tls_root_sha256"`
+	InstallationID string          `json:"installation_id,omitempty"`
+	LinkToken      string          `json:"link_token,omitempty"`
 }
 
 type ComputerLink struct {

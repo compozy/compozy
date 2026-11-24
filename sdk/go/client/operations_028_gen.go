@@ -9,6 +9,48 @@ import (
 	"strings"
 )
 
+// MintTerminalAttachTicketParams carries the path, query, and header parameters.
+type MintTerminalAttachTicketParams struct {
+	WorkspaceID             string  `url:"workspace_id"`
+	ID                      string  `url:"id"`
+	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
+	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
+	Profile                 *string `url:"profile"`
+}
+
+// MintTerminalAttachTicket Mint a single-use terminal attach ticket
+func (c *Client) MintTerminalAttachTicket(ctx context.Context, params MintTerminalAttachTicketParams, body TerminalAttachTicketRequest) (*TerminalAttachTicketResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}/attach-ticket"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	headers := http.Header{}
+	if params.XCompozyClientToken != nil {
+		headers.Set("X-Compozy-Client-Token", *params.XCompozyClientToken)
+	}
+	if params.XCompozyClientWorkspace != nil {
+		headers.Set("X-Compozy-Client-Workspace", *params.XCompozyClientWorkspace)
+	}
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalAttachTicketResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MoveSessionParams carries the path, query, and header parameters.
+type MoveSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
 // MoveSession Move a session into a folder or back to the workspace root
 func (c *Client) MoveSession(ctx context.Context, params MoveSessionParams, body MoveSessionRequest) (*SessionFoldersResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/move"
@@ -216,6 +258,16 @@ func (c *Client) PatchAccountDevice(ctx context.Context, params PatchAccountDevi
 	return &out, nil
 }
 
+// PatchAccountEmail Update the product news preference
+func (c *Client) PatchAccountEmail(ctx context.Context, body AccountEmailPatchRequest) (*AccountStatusResponse, error) {
+	path := "/api/account"
+	var out AccountStatusResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PatchComputerParams carries the path, query, and header parameters.
 type PatchComputerParams struct {
 	ID string `url:"id"`
@@ -386,55 +438,4 @@ func (c *Client) PauseScheduler(ctx context.Context, body SchedulerPauseRequest)
 type PauseTaskParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// PauseTask Pause one task for future scheduler claims
-func (c *Client) PauseTask(ctx context.Context, params PauseTaskParams, body PauseTaskRequest) (*TaskResponse, error) {
-	path := "/api/tasks/{id}/pause"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PickAgentInstanceProposalParams carries the path, query, and header parameters.
-type PickAgentInstanceProposalParams struct {
-	ID       string  `url:"id"`
-	ReportID string  `url:"report_id"`
-	Profile  *string `url:"profile"`
-}
-
-// PickAgentInstanceProposal Pick an instance proposal
-func (c *Client) PickAgentInstanceProposal(ctx context.Context, params PickAgentInstanceProposalParams, body AgentInstancePickRequest) (*AgentInstancePickResponse, error) {
-	path := "/api/agent-instances/{id}/reports/{report_id}/pick"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	path = strings.ReplaceAll(path, "{report_id}", url.PathEscape(params.ReportID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstancePickResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PinCmdPaletteCommandParams carries the path, query, and header parameters.
-type PinCmdPaletteCommandParams struct {
-	ID        string  `url:"id"`
-	Workspace string  `url:"workspace"`
-	Profile   *string `url:"profile"`
 }

@@ -75,7 +75,7 @@ FROM ranked, capacity WHERE s.id = ranked.id AND ranked.slot > capacity.slots;
 INSERT INTO billing_checkouts (id, account_id, interval, hostname) VALUES ($1, $2, $3, $4);
 
 -- name: AccountBillingCheckout :one
-SELECT * FROM billing_checkouts WHERE id = $1 AND account_id = $2;
+SELECT * FROM billing_checkouts WHERE id = $1 AND account_id = $2 AND expired_at IS NULL;
 
 -- name: BillingCheckouts :many
 SELECT * FROM billing_checkouts WHERE account_id = $1 ORDER BY id;

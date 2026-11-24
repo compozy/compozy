@@ -7,10 +7,12 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -26,10 +28,87 @@ import (
 	"github.com/compozy/compozy/internal/sse"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
+	"github.com/gorilla/websocket"
 )
 
 func TestDaemonBilling(t *testing.T) {
 	root := t.TempDir()
+
+	for _, tc := range []struct {
+		name, refund string
+		paymentAge   time.Duration
+	}{
+		{"Should retry Pro deletion and refund a payment inside the window (IT-111)", "full", 5 * 24 * time.Hour},
+		{"Should cancel Pro without refund outside the window (IT-111)", "none", 20 * 24 * time.Hour},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Safety Invariants 4 and 35. Stripe cancellation must succeed before any later deletion step.
+			resend := remotetest.StartResend(t)
+			f, stripe := newBillingFixture(t, func(cfg *cloud.Config) { cfg.Email = resend.Client })
+			admin, ring := startDaemonAccountFixture(t, f, filepath.Join(root, "d-"+tc.refund))
+			progress := admin.stream(t, contract.AccountSignInEventsPath, "")
+			owner := signInDaemonAccount(t, f, admin, progress, hostedFixtureEmail)
+			progress.cancel()
+			accountID, _ := assertEnrolledAccount(t, f, owner, ring)
+			purchaseWebSession(t, f, providerProfile{subject: hostedFixtureEmail, email: hostedFixtureEmail, verified: true})
+			sub := proStripeSub(f.clock.Now(), "sub_lifecycle", accountID)
+			sub.Invoices = []remotetest.StripeInvoice{{
+				ID: "in_lifecycle", Reason: "subscription_cycle", Price: sub.Price, PaidAt: f.clock.Now().Add(-tc.paymentAge),
+			}}
+			stripe.Put(sub)
+			deliverStripeEvent(t, f, "evt_lifecycle_paid", stripeSubCreated, sub.ID)
+			const computer remoteproto.ComputerID = "cmp_lifecycle"
+			computerKey := f.db.SeedControlComputer(t, accountID, computer, f.clock.Now())
+			link := remotetest.AuthenticateControl(t, f.replica, computer, computerKey)
+			if initial := readLifecycleLease(t, f, link); !slices.Contains(initial.AllowedRoutes, remoteproto.RouteCloud) {
+				t.Fatalf("the linked computer did not receive the Pro lease: %+v", initial)
+			}
+
+			stripe.FailDeletion(true)
+			result := admin.request(t, http.MethodDelete, contract.AccountPath,
+				contract.AccountDeleteRequest{ConfirmEmail: hostedFixtureEmail})
+			result.expect(t, http.StatusAccepted, `"subscription_cancelled":true`)
+			if deletion := authJSON[contract.AccountDeleteResponse](t, result); deletion.Refund != tc.refund {
+				t.Fatalf("reported refund = %q, want %q", deletion.Refund, tc.refund)
+			}
+			for attempt := 1; attempt <= 2; attempt++ {
+				awaitDeletionSweep(t, f, func() bool {
+					cancels, _ := stripe.DeletionCalls()
+					return len(cancels) >= attempt
+				})
+				assertAuthRow(t, f, "SELECT count(*) FROM computers WHERE unlinked_at IS NULL", 1)
+				assertAuthRow(t, f, "SELECT count(*) FROM identities", 1)
+				assertAuthRow(t, f, "SELECT count(*) FROM cloud_web_sessions", 1)
+				if resend.ContactDeletes() != 0 || len(stripe.RedactedCustomers()) != 0 {
+					t.Fatal("an external cleanup step ran before confirmed Stripe cancellation")
+				}
+				if attempt == 1 {
+					f.clock.Advance(2 * time.Minute)
+				}
+			}
+			if lease := readLifecycleLease(t, f, link); len(lease.AllowedRoutes) != 0 {
+				t.Fatalf("deleting account still received an access lease: %+v", lease)
+			}
+			stripe.FailDeletion(false)
+			f.clock.Advance(2 * time.Minute)
+			awaitDeletionSweep(t, f, func() bool {
+				deleted, err := f.replica.App.Store.AuthAccountDeleted(t.Context(), accountID)
+				return err == nil && deleted
+			})
+			cancels, refunds := stripe.DeletionCalls()
+			if len(cancels) < 3 || (len(refunds) == 1) != (tc.refund == "full") ||
+				!slices.Equal(stripe.RedactedCustomers(), []string{"cus_" + accountID}) || resend.ContactDeletes() != 1 {
+				t.Fatalf("deletion calls = %v, refunds = %v, redactions = %v, contact deletes = %d",
+					cancels, refunds, stripe.RedactedCustomers(), resend.ContactDeletes())
+			}
+			for _, form := range refunds {
+				if form.Get("amount") != "7999" {
+					t.Fatal("Stripe did not receive a full refund")
+				}
+			}
+			assertDeletedAccount(t, f)
+		})
+	}
 
 	t.Run(
 		"Should receive checkout completion over the account stream with hosting disabled (IT-064)",
@@ -317,4 +396,30 @@ func readHostedBilling(ctx context.Context, client *http.Client, method, target 
 	}
 	raw, err := io.ReadAll(result.Body)
 	return authReply{Response: result, body: raw}, errors.Join(err, result.Body.Close())
+}
+
+func readLifecycleLease(t *testing.T, f authFixture, link *websocket.Conn) remoteproto.EntitlementLease {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		message := remotetest.ReadControlMessage(t, link, time.Until(deadline))
+		switch message.Type {
+		case remoteproto.ControlSnapshot:
+			remotetest.SendControl(t, link, remoteproto.ControlAck, remoteproto.SecurityAck{SecurityEpoch: message.SecurityEpoch})
+		case remoteproto.ControlLease:
+			var token string
+			if err := json.Unmarshal(message.Data, &token); err != nil {
+				t.Fatal(err)
+			}
+			verifier, err := remoteproto.NewJWSVerifier(f.replica.App.Issuer, f.replica.App.Keys.JWKS(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			lease, err := verifier.VerifyLease(t.Context(), token, f.clock.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			return lease
+		}
+	}
 }

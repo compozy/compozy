@@ -21,11 +21,12 @@ import (
 type Computer = remoteproto.AccountComputer
 
 type LinkRequest struct {
-	Name          string          `json:"name"`
-	Platform      string          `json:"platform"`
-	Version       string          `json:"version"`
-	ComputerJWK   remoteproto.JWK `json:"computer_jwk"`
-	TLSRootSHA256 string          `json:"tls_root_sha256"`
+	Name           string          `json:"name"`
+	Platform       string          `json:"platform"`
+	Version        string          `json:"version"`
+	ComputerJWK    remoteproto.JWK `json:"computer_jwk"`
+	TLSRootSHA256  string          `json:"tls_root_sha256"`
+	InstallationID string          `json:"installation_id,omitempty"`
 }
 
 type ComputerPatch struct {
@@ -146,12 +147,12 @@ func (r LinkRequest) computer() (store.ControlComputer, error) {
 		return store.ControlComputer{}, ErrInvalidInput
 	}
 	name := strings.TrimSpace(r.Name)
-	if name == "" || len(name) > 128 || !validPlatform(r.Platform) || r.Version == "" || len(r.Version) > 64 {
+	if name == "" || len(name) > 128 || !validPlatform(r.Platform) || r.Version == "" || len(r.Version) > 64 || len(r.InstallationID) > 128 {
 		return store.ControlComputer{}, ErrInvalidInput
 	}
 	return store.ControlComputer{
 		Name: name, Platform: r.Platform, Version: r.Version, Key: r.ComputerJWK,
-		TLSRootSHA256: strings.ToLower(r.TLSRootSHA256),
+		TLSRootSHA256: strings.ToLower(r.TLSRootSHA256), InstallationID: strings.TrimSpace(r.InstallationID),
 	}, nil
 }
 

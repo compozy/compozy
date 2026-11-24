@@ -9,6 +9,54 @@ import (
 	"strings"
 )
 
+// GetComputerSetup Read or wait for SSH setup progress
+func (c *Client) GetComputerSetup(ctx context.Context, params GetComputerSetupParams) (*ComputerSetupStatus, error) {
+	path := "/api/computers/setups/{setup_id}"
+	path = strings.ReplaceAll(path, "{setup_id}", url.PathEscape(params.SetupID))
+	query := url.Values{}
+	if params.WaitMs != nil {
+		query.Set("wait_ms", strconv.Itoa(*params.WaitMs))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ComputerSetupStatus
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetDoctorParams carries the path, query, and header parameters.
+type GetDoctorParams struct {
+	Only    *string `url:"only"`
+	Exclude *string `url:"exclude"`
+	Quiet   *bool   `url:"quiet"`
+}
+
+// GetDoctor Run runtime diagnostics
+func (c *Client) GetDoctor(ctx context.Context, params GetDoctorParams) (*DoctorPayload, error) {
+	path := "/api/doctor"
+	query := url.Values{}
+	if params.Only != nil {
+		query.Set("only", *params.Only)
+	}
+	if params.Exclude != nil {
+		query.Set("exclude", *params.Exclude)
+	}
+	if params.Quiet != nil {
+		query.Set("quiet", strconv.FormatBool(*params.Quiet))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out DoctorPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetExtensionParams carries the path, query, and header parameters.
 type GetExtensionParams struct {
 	Name      string  `url:"name"`
@@ -395,54 +443,6 @@ func (c *Client) GetHookEvents(ctx context.Context, params GetHookEventsParams) 
 		path += "?" + query.Encode()
 	}
 	var out HookEventsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetHookRunsParams carries the path, query, and header parameters.
-type GetHookRunsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Session     string  `url:"session"`
-	Event       *string `url:"event"`
-	Outcome     *string `url:"outcome"`
-	Since       *string `url:"since"`
-	Last        *int    `url:"last"`
-}
-
-// GetHookRuns List hook run history for one session
-func (c *Client) GetHookRuns(ctx context.Context, params GetHookRunsParams) (*HookRunsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/hooks/runs"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	query.Set("session", params.Session)
-	if params.Event != nil {
-		query.Set("event", *params.Event)
-	}
-	if params.Outcome != nil {
-		query.Set("outcome", *params.Outcome)
-	}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Last != nil {
-		query.Set("last", strconv.Itoa(*params.Last))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HookRunsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetHostResources Get the latest host resource sample
-func (c *Client) GetHostResources(ctx context.Context) (*HostResourcesResponse, error) {
-	path := "/api/host/resources"
-	var out HostResourcesResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

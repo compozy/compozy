@@ -57,6 +57,7 @@ type Callback struct {
 	Denied                        bool
 	BrowserBinding                string
 	UserAgent                     string
+	Location                      string
 }
 
 type CallbackResult struct {
@@ -65,6 +66,7 @@ type CallbackResult struct {
 	Browser        BrowserResult
 	WebSession     string
 	PurchaseReturn string
+	NoticeEventID  int64
 }
 
 func (s *Service) CompleteOAuth(ctx context.Context, cb Callback) (CallbackResult, error) {
@@ -82,7 +84,7 @@ func (s *Service) CompleteOAuth(ctx context.Context, cb Callback) (CallbackResul
 		if err := json.Unmarshal(attempt.BrowserRequest, &request); err != nil {
 			return result, errOAuthState
 		}
-		result.PurchaseReturn = request.PurchaseReturn
+		result.PurchaseReturn, result.NoticeEventID = request.PurchaseReturn, request.NoticeEventID
 	}
 	if cb.Denied {
 		return result, s.failOAuth(ctx, attempt, errDenied)
@@ -96,6 +98,10 @@ func (s *Service) CompleteOAuth(ctx context.Context, cb Callback) (CallbackResul
 		return result, s.failOAuth(ctx, attempt, err)
 	}
 	if len(attempt.GrantHash) == 0 {
+		if request.NoticeEventID != 0 {
+			result.WebSession, err = s.finishNoticeOAuth(ctx, attempt, request.NoticeEventID, profile)
+			return result, err
+		}
 		return s.finishBrowserOAuth(ctx, attempt, request, profile, cb)
 	}
 	result.Account, err = s.authorizeDeviceGrant(ctx, attempt, profile)

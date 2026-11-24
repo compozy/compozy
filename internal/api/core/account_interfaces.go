@@ -9,7 +9,10 @@ import (
 
 type AccountService interface {
 	Status() account.Installation
-	StartLogin(context.Context, string) (account.Login, error)
+	StartLoginWithConsent(context.Context, string, bool) (account.Login, error)
+	SetMarketingConsent(context.Context, bool, string) (account.Installation, error)
+	DeleteAccount(context.Context, string) (remoteproto.AccountDeleteResponse, error)
+	DismissSignInNotices(context.Context) error
 	CancelLogin(context.Context, string) error
 	Logout(context.Context) error
 	Subscribe(string) (account.Subscription, error)

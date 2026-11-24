@@ -216,3 +216,16 @@ func newDeviceKey(t *testing.T) (*ecdsa.PrivateKey, remoteproto.JWK) {
 	}
 	return key, jwk
 }
+
+func newAccountEmailFixture(t *testing.T, local bool) (authFixture, *remotetest.ResendFixture) {
+	t.Helper()
+	resend := remotetest.StartResend(t)
+	f := newAuthFixtureWithReplica(t, func(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *remotetest.Replica {
+		cfg.Email = resend.Client
+		if local {
+			return remotetest.StartLocalReplica(t, cfg, register)
+		}
+		return remotetest.StartReplica(t, cfg, register)
+	})
+	return f, resend
+}

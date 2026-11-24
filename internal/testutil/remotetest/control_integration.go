@@ -118,6 +118,18 @@ func AuthenticateControlLink(
 	t *testing.T, ctx context.Context, base string, id remoteproto.ComputerID, key ed25519.PrivateKey,
 ) *websocket.Conn {
 	t.Helper()
+	return authenticateControlLink(t, ctx, base, remoteproto.CloudIssuer, id, key)
+}
+
+func AuthenticateControl(t *testing.T, replica *Replica, id remoteproto.ComputerID, key ed25519.PrivateKey) *websocket.Conn {
+	t.Helper()
+	return authenticateControlLink(t, t.Context(), replica.Server.URL, replica.App.Issuer, id, key)
+}
+
+func authenticateControlLink(
+	t *testing.T, ctx context.Context, base, issuer string, id remoteproto.ComputerID, key ed25519.PrivateKey,
+) *websocket.Conn {
+	t.Helper()
 	dialer := websocket.Dialer{HandshakeTimeout: 4 * time.Second}
 	endpoint := "ws" + strings.TrimPrefix(
 		base,
@@ -144,7 +156,7 @@ func AuthenticateControlLink(
 		t.Fatalf("expected a computer challenge, got %s", message.Type)
 	}
 	SendControl(t, link, remoteproto.ControlAuthenticate, remoteproto.ComputerAuthentication{
-		Signature: remoteproto.SignComputerChallenge(key, remoteproto.CloudIssuer, id, challenge.Nonce),
+		Signature: remoteproto.SignComputerChallenge(key, issuer, id, challenge.Nonce),
 	})
 	return link
 }

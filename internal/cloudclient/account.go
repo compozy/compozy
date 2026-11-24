@@ -142,3 +142,17 @@ func (c *Client) OpenAccountEvents(ctx context.Context, creds Credentials) (io.R
 func (c *Client) deviceJSON(ctx context.Context, creds Credentials, method, path string, body, output any) error {
 	return c.json(ctx, method, path, body, output, creds.AccessToken, creds.Key, true)
 }
+
+func (c *Client) PatchAccountEmail(
+	ctx context.Context, creds Credentials, patch remoteproto.AccountEmailPatch,
+) (result remoteproto.AccountSummary, err error) {
+	err = c.deviceJSON(ctx, creds, http.MethodPatch, "/v1/account", patch, &result)
+	return result, err
+}
+
+func (c *Client) DeleteAccount(
+	ctx context.Context, creds Credentials, request remoteproto.AccountDeleteRequest,
+) (result remoteproto.AccountDeleteResponse, err error) {
+	err = c.deviceJSON(ctx, creds, http.MethodDelete, "/v1/account", request, &result)
+	return result, err
+}

@@ -37,6 +37,9 @@ func AccountStatus(installation account.Installation) contract.AccountStatusResp
 	profile := installation.Profile
 	status.Email, status.Name, status.Provider = profile.Email, profile.Name, profile.Provider
 	status.AccountPlan, status.MarketingOptIn = profile.AccountPlan, profile.MarketingOptIn
+	if profile.RecentSignIns != nil {
+		status.RecentSignIns = profile.RecentSignIns
+	}
 	if profile.Device.ID != "" {
 		status.Device = &contract.AccountDeviceSummary{ID: string(profile.Device.ID), Name: profile.Device.Name,
 			Admin: profile.Device.Admin}
@@ -67,7 +70,7 @@ func (h *BaseHandlers) StartAccountLogin(c *gin.Context) {
 	if input.Provider != nil {
 		provider = *input.Provider
 	}
-	result, err := h.Account.StartLogin(c.Request.Context(), provider)
+	result, err := h.Account.StartLoginWithConsent(c.Request.Context(), provider, input.MarketingOptIn)
 	h.accountResult(c, http.StatusOK, contract.AccountLoginResponse(result), err)
 }
 

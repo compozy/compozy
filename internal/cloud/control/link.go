@@ -116,7 +116,7 @@ func (s *Service) LinkLease(ctx context.Context, link Link, applied uint64) (str
 			if !computer.UnlinkedAt.IsZero() || applied != account.SecurityEpoch {
 				return ErrSnapshotNeeded
 			}
-			if account.State != accountActive {
+			if account.State == accountSuspended {
 				return nil
 			}
 			now := s.config.Now()
@@ -135,20 +135,24 @@ func (s *Service) issueLease(
 	ctx context.Context, q *store.Queries, account store.ControlAccount, computer store.ControlComputer,
 	linkID string, now time.Time,
 ) (remoteproto.EntitlementLease, error) {
-	tier, err := s.reconcilePlan(ctx, q, account.ID, now)
-	if err != nil {
-		return remoteproto.EntitlementLease{}, err
-	}
-	computer, err = q.ControlComputer(ctx, computer.ID)
-	if err != nil {
-		return remoteproto.EntitlementLease{}, err
+	tier := plan.Free
+	if account.State == accountActive {
+		var err error
+		tier, err = s.reconcilePlan(ctx, q, account.ID, now)
+		if err != nil {
+			return remoteproto.EntitlementLease{}, err
+		}
+		computer, err = q.ControlComputer(ctx, computer.ID)
+		if err != nil {
+			return remoteproto.EntitlementLease{}, err
+		}
 	}
 	sequence, err := q.AdvanceControlLease(ctx, computer, linkID, now)
 	if err != nil {
 		return remoteproto.EntitlementLease{}, err
 	}
 	routes := []remoteproto.RouteKind{}
-	if computer.RemoteEnabled && !computer.PlanLimited {
+	if account.State == accountActive && computer.RemoteEnabled && !computer.PlanLimited {
 		routes = plan.GrantRoutes(tier)
 	}
 	return remoteproto.EntitlementLease{

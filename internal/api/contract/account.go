@@ -8,13 +8,14 @@ import (
 )
 
 const (
-	AccountPath             = "/api/account"
-	AccountLoginPath        = AccountPath + "/login"
-	AccountLogoutPath       = AccountPath + "/logout"
-	AccountSignInEventsPath = AccountPath + "/sign-in/events"
-	AccountCheckoutPath     = AccountPath + "/checkout"
-	SignInProgressEvent     = "sign_in.progress"
-	AccountStateEvent       = "account.state"
+	AccountPath                     = "/api/account"
+	AccountLoginPath                = AccountPath + "/login"
+	AccountLogoutPath               = AccountPath + "/logout"
+	AccountSignInEventsPath         = AccountPath + "/sign-in/events"
+	AccountCheckoutPath             = AccountPath + "/checkout"
+	AccountDismissSignInNoticesPath = AccountPath + "/sign-in-notices/dismiss"
+	SignInProgressEvent             = "sign_in.progress"
+	AccountStateEvent               = "account.state"
 )
 
 type AccountStatusResponse struct {
@@ -42,13 +43,11 @@ type AccountGrace struct {
 	Message string    `json:"message"`
 }
 
-type AccountSignInNotice struct {
-	DeviceID string    `json:"device_id"`
-	Name     string    `json:"name"`
-	Kind     string    `json:"kind"`
-	Location string    `json:"location"`
-	At       time.Time `json:"at"`
-}
+type AccountSignInNotice = remoteproto.AccountSignInNotice
+
+type AccountEmailPatchRequest remoteproto.AccountEmailPatch
+type AccountDeleteRequest remoteproto.AccountDeleteRequest
+type AccountDeleteResponse remoteproto.AccountDeleteResponse
 
 type AccountDeviceSummary struct {
 	ID    string `json:"id"`

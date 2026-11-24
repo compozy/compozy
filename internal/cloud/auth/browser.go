@@ -97,6 +97,7 @@ func (s *Service) BeginBrowserOAuth(ctx context.Context, request BrowserRequest,
 type webOAuthRequest struct {
 	BrowserRequest
 	PurchaseReturn string `json:"purchase_return,omitempty"`
+	NoticeEventID  int64  `json:"notice_event_id,omitzero"`
 }
 
 func (s *Service) BeginPurchaseOAuth(ctx context.Context, provider, cookie, returnURL string) (string, error) {
@@ -118,16 +119,16 @@ func (s *Service) beginWebOAuth(ctx context.Context, request webOAuthRequest, pr
 	now := s.now()
 	return s.beginOAuth(ctx, store.OAuthAttempt{
 		BrowserRequest: data, Provider: provider, CookieHash: hashSecret(cookie),
-		CreatedAt: now, ExpiresAt: now.Add(oauthAttemptTTL),
+		CreatedAt: now, ExpiresAt: now.Add(oauthAttemptTTL), FreshSignIn: request.NoticeEventID != 0,
 	})
 }
 
 func (s *Service) WebSession(ctx context.Context, token string) (store.CloudWebSession, error) {
-	return s.readWebSession(ctx, s.db.Queries, token)
+	return s.readWebSession(ctx, s.db.Queries, token, 0)
 }
 
 func (s *Service) CheckWebSession(ctx context.Context, q *store.Queries, token, accountID string) error {
-	session, err := s.readWebSession(ctx, q, token)
+	session, err := s.readWebSession(ctx, q, token, 0)
 	if err == nil && session.AccountID != accountID {
 		return ErrWebSession
 	}
@@ -141,13 +142,15 @@ func (s *Service) EndWebSession(ctx context.Context, token string) error {
 	return s.db.RevokePurchaseWebSession(ctx, hashSecret(token), s.now())
 }
 
-func (s *Service) readWebSession(ctx context.Context, q *store.Queries, token string) (store.CloudWebSession, error) {
+func (s *Service) readWebSession(
+	ctx context.Context, q *store.Queries, token string, eventID int64,
+) (store.CloudWebSession, error) {
 	if !ValidSecret(token) {
 		return store.CloudWebSession{}, ErrWebSession
 	}
 	now := s.now()
 	session, err := q.TouchWebSession(ctx, hashSecret(token), now, now.Add(-WebSessionIdle))
-	if errors.Is(err, store.ErrAuthNotFound) {
+	if errors.Is(err, store.ErrAuthNotFound) || (err == nil && session.FreshNoticeEventID != eventID) {
 		return store.CloudWebSession{}, ErrWebSession
 	}
 	if err != nil {
@@ -157,13 +160,13 @@ func (s *Service) readWebSession(ctx context.Context, q *store.Queries, token st
 }
 
 func (s *Service) ReuseBrowserSession(
-	ctx context.Context, request BrowserRequest, token, binding, agent string,
+	ctx context.Context, request BrowserRequest, token, binding, agent, location string,
 ) (BrowserResult, error) {
 	session, err := s.WebSession(ctx, token)
 	if err != nil {
 		return BrowserResult{}, err
 	}
-	return s.issueBrowserCode(ctx, request, session, token, binding, agent)
+	return s.issueBrowserCode(ctx, request, session, token, binding, agent, location)
 }
 
 func (s *Service) finishBrowserOAuth(
@@ -182,12 +185,12 @@ func (s *Service) finishBrowserOAuth(
 		return CallbackResult{Account: account, WebSession: token, PurchaseReturn: request.PurchaseReturn}, nil
 	}
 	session := store.CloudWebSession{AccountID: account.ID, Email: account.Email}
-	result, err := s.issueBrowserCode(ctx, request.BrowserRequest, session, token, cb.BrowserBinding, cb.UserAgent)
+	result, err := s.issueBrowserCode(ctx, request.BrowserRequest, session, token, cb.BrowserBinding, cb.UserAgent, cb.Location)
 	return CallbackResult{Account: account, Browser: result, WebSession: token}, err
 }
 
 func (s *Service) issueBrowserCode(
-	ctx context.Context, req BrowserRequest, session store.CloudWebSession, token, binding, agent string,
+	ctx context.Context, req BrowserRequest, session store.CloudWebSession, token, binding, agent, location string,
 ) (BrowserResult, error) {
 	jwk, jkt, err := browserKey(req.PublicJWK)
 	if err != nil {
@@ -201,6 +204,9 @@ func (s *Service) issueBrowserCode(
 		now := s.now()
 		computerID, err := s.admitBrowserComputer(ctx, q, req.Hostname, session.AccountID, now)
 		if err != nil {
+			return err
+		}
+		if err := s.CheckWebSession(ctx, q, token, session.AccountID); err != nil {
 			return err
 		}
 		pending := store.AuthDeviceKey{
@@ -220,7 +226,7 @@ func (s *Service) issueBrowserCode(
 		code := Secret()
 		if err := q.CreateBrowserCode(ctx, store.BrowserCode{
 			Hash: hashSecret(code), AccountID: session.AccountID, DeviceID: pending.DeviceID, ComputerID: computerID,
-			JKT: jkt, Challenge: req.Challenge, ExpiresAt: pending.PendingUntil,
+			JKT: jkt, Challenge: req.Challenge, Location: location, ExpiresAt: pending.PendingUntil,
 		}); err != nil {
 			return err
 		}

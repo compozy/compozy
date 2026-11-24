@@ -20,11 +20,14 @@ func (s *Service) DeleteHostedTunnel(
 	if err := s.consumeComputerProof(ctx, computer, proof); err != nil {
 		return err
 	}
-	if s.config.HostedTunnels == nil {
-		return nil
-	}
 	var ref store.TunnelRef
 	err := s.accountTransaction(ctx, computer.AccountID, func(q *store.Queries, account store.ControlAccount) error {
+		if err := activeAccount(account); err != nil {
+			return err
+		}
+		if s.config.HostedTunnels == nil {
+			return nil
+		}
 		current, err := ownedComputer(ctx, q, account.ID, computer.ID)
 		if err != nil {
 			return err

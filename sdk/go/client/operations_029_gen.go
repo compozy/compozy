@@ -10,6 +10,57 @@ import (
 	"strings"
 )
 
+// PauseTask Pause one task for future scheduler claims
+func (c *Client) PauseTask(ctx context.Context, params PauseTaskParams, body PauseTaskRequest) (*TaskResponse, error) {
+	path := "/api/tasks/{id}/pause"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PickAgentInstanceProposalParams carries the path, query, and header parameters.
+type PickAgentInstanceProposalParams struct {
+	ID       string  `url:"id"`
+	ReportID string  `url:"report_id"`
+	Profile  *string `url:"profile"`
+}
+
+// PickAgentInstanceProposal Pick an instance proposal
+func (c *Client) PickAgentInstanceProposal(ctx context.Context, params PickAgentInstanceProposalParams, body AgentInstancePickRequest) (*AgentInstancePickResponse, error) {
+	path := "/api/agent-instances/{id}/reports/{report_id}/pick"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	path = strings.ReplaceAll(path, "{report_id}", url.PathEscape(params.ReportID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstancePickResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PinCmdPaletteCommandParams carries the path, query, and header parameters.
+type PinCmdPaletteCommandParams struct {
+	ID        string  `url:"id"`
+	Workspace string  `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
 // PinCmdPaletteCommand Pin one command palette command
 func (c *Client) PinCmdPaletteCommand(ctx context.Context, params PinCmdPaletteCommandParams) (*CmdPalettePinResponse, error) {
 	path := "/api/cmd-palette/pins/{id}"
@@ -379,58 +430,6 @@ func (c *Client) PublishTask(ctx context.Context, params PublishTaskParams, body
 
 // PutAgentHeartbeatParams carries the path, query, and header parameters.
 type PutAgentHeartbeatParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// PutAgentHeartbeat Create or replace HEARTBEAT.md through managed authoring
-func (c *Client) PutAgentHeartbeat(ctx context.Context, params PutAgentHeartbeatParams, body HeartbeatPutByPathRequest) (*HeartbeatMutationResponse, error) {
-	path := "/api/agents/{name}/heartbeat"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatMutationResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PutAgentMemoryParams carries the path, query, and header parameters.
-type PutAgentMemoryParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// PutAgentMemory Replace memory with a digest check (experimental) Experimental: pin the exact SDK version.
-func (c *Client) PutAgentMemory(ctx context.Context, params PutAgentMemoryParams, body AgentMemoryWriteRequest) (*AgentMemoryDocument, error) {
-	path := "/api/agents/{name}/memory"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentMemoryDocument
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PutAgentSoulParams carries the path, query, and header parameters.
-type PutAgentSoulParams struct {
 	Name    string  `url:"name"`
 	Profile *string `url:"profile"`
 }

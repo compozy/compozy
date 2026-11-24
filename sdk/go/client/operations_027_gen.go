@@ -10,6 +10,48 @@ import (
 	"strings"
 )
 
+// ListWindowManagerClients List connected window-manager clients
+func (c *Client) ListWindowManagerClients(ctx context.Context, params ListWindowManagerClientsParams) (*WindowManagerClientsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/clients"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WindowManagerClientsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWindowManagerLayoutProfilesParams carries the path, query, and header parameters.
+type ListWindowManagerLayoutProfilesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ListWindowManagerLayoutProfiles List layout profiles visible to one workspace
+func (c *Client) ListWindowManagerLayoutProfiles(ctx context.Context, params ListWindowManagerLayoutProfilesParams) (*ResourcesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ResourcesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListWorkspaceSessionsParams carries the path, query, and header parameters.
 type ListWorkspaceSessionsParams struct {
 	WorkspaceID               string    `url:"workspace_id"`
@@ -398,46 +440,4 @@ func (c *Client) MintGatewayStreamTicket(ctx context.Context) (*GatewayStreamTic
 		return nil, err
 	}
 	return &out, nil
-}
-
-// MintTerminalAttachTicketParams carries the path, query, and header parameters.
-type MintTerminalAttachTicketParams struct {
-	WorkspaceID             string  `url:"workspace_id"`
-	ID                      string  `url:"id"`
-	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
-	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
-	Profile                 *string `url:"profile"`
-}
-
-// MintTerminalAttachTicket Mint a single-use terminal attach ticket
-func (c *Client) MintTerminalAttachTicket(ctx context.Context, params MintTerminalAttachTicketParams, body TerminalAttachTicketRequest) (*TerminalAttachTicketResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}/attach-ticket"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	headers := http.Header{}
-	if params.XCompozyClientToken != nil {
-		headers.Set("X-Compozy-Client-Token", *params.XCompozyClientToken)
-	}
-	if params.XCompozyClientWorkspace != nil {
-		headers.Set("X-Compozy-Client-Workspace", *params.XCompozyClientWorkspace)
-	}
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalAttachTicketResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MoveSessionParams carries the path, query, and header parameters.
-type MoveSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

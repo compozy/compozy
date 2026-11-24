@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ .Title }} · Compozy Cloud</title>
+    <link rel="stylesheet" href="/auth-assets/sign-in.css" />
+  </head>
+  <body>
+    <main class="stage" {{ if .ErrorCode }}data-error-code="{{ .ErrorCode }}" {{ end }}>
+      <div class="content">
+        <section class="panel" aria-labelledby="page-title">
+          <h1 id="page-title">{{ .Title }}</h1>
+          {{ if .Description }}
+          <p>{{ .Description }}</p>
+          {{ end }} {{ if .Action }}
+          <form method="post" action="{{ .Action }}">
+            {{ if not .Notice }}
+            <input type="hidden" name="List-Unsubscribe" value="One-Click" />
+            {{ end }}
+            <button type="submit" class="primary">{{ .Button }}</button>
+          </form>
+          {{ end }} {{ if .Notice }}<a class="subtle" href="?confirmed=1">This was me</a>{{ end }}
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

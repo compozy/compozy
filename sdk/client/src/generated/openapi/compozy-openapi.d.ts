@@ -15,10 +15,12 @@ export interface paths {
     get: operations["getAccount"];
     put?: never;
     post?: never;
-    delete?: never;
+    /** Start account deletion and sign out */
+    delete: operations["deleteAccount"];
     options?: never;
     head?: never;
-    patch?: never;
+    /** Update the product news preference */
+    patch: operations["patchAccountEmail"];
     trace?: never;
   };
   "/api/account/approvals": {
@@ -170,6 +172,23 @@ export interface paths {
     put?: never;
     /** Sign out this installation */
     post: operations["logoutAccount"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/account/sign-in-notices/dismiss": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Dismiss sign-in notices on this installation */
+    post: operations["dismissAccountSignInNotices"];
     delete?: never;
     options?: never;
     head?: never;
@@ -9098,6 +9117,14 @@ export interface components {
     AccountCheckoutRequest: {
       interval: string;
     };
+    AccountDeleteRequest: {
+      confirm_email: string;
+    };
+    AccountDeleteResponse: {
+      refund: string;
+      state: string;
+      subscription_cancelled: boolean;
+    };
     AccountDevice: {
       admin: boolean;
       id: string;
@@ -9121,6 +9148,10 @@ export interface components {
     };
     AccountDevicesResponse: {
       devices: components["schemas"]["AccountDevice"][];
+    };
+    AccountEmailPatchRequest: {
+      marketing_opt_in: boolean | null;
+      source?: string;
     };
     AccountGrace: {
       message: string;
@@ -24445,6 +24476,182 @@ export interface operations {
       };
     };
   };
+  deleteAccount: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AccountDeleteRequest"];
+      };
+    };
+    responses: {
+      /** @description Deletion started */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountDeleteResponse"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  patchAccountEmail: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AccountEmailPatchRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated installation account */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AccountStatusResponse"];
+        };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   listAccountApprovals: {
     parameters: {
       query?: never;
@@ -25328,6 +25535,87 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["AccountLogoutResponse"];
         };
+      };
+      /** @description Invalid account request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Sign-in required or session rejected */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Device or account permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account resource not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account operation conflicts with current state */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Cloud rate limit */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Account or cloud unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  dismissAccountSignInNotices: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Notices dismissed */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       /** @description Invalid account request */
       400: {

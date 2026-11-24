@@ -9,6 +9,54 @@ import (
 	"strings"
 )
 
+// GetHookRunsParams carries the path, query, and header parameters.
+type GetHookRunsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Session     string  `url:"session"`
+	Event       *string `url:"event"`
+	Outcome     *string `url:"outcome"`
+	Since       *string `url:"since"`
+	Last        *int    `url:"last"`
+}
+
+// GetHookRuns List hook run history for one session
+func (c *Client) GetHookRuns(ctx context.Context, params GetHookRunsParams) (*HookRunsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/hooks/runs"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	query.Set("session", params.Session)
+	if params.Event != nil {
+		query.Set("event", *params.Event)
+	}
+	if params.Outcome != nil {
+		query.Set("outcome", *params.Outcome)
+	}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Last != nil {
+		query.Set("last", strconv.Itoa(*params.Last))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HookRunsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetHostResources Get the latest host resource sample
+func (c *Client) GetHostResources(ctx context.Context) (*HostResourcesResponse, error) {
+	path := "/api/host/resources"
+	var out HostResourcesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetLoopParams carries the path, query, and header parameters.
 type GetLoopParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -386,43 +434,4 @@ type GetMarketplaceSectionsParams struct {
 	Scope       *string `url:"scope"`
 	Profile     *string `url:"profile"`
 	WorkspaceID *string `url:"workspace_id"`
-}
-
-// GetMarketplaceSections Browse Featured and category sections
-func (c *Client) GetMarketplaceSections(ctx context.Context, params GetMarketplaceSectionsParams) (*MarketplaceSectionsResponse, error) {
-	path := "/api/marketplace/sections"
-	query := url.Values{}
-	if params.Q != nil {
-		query.Set("q", *params.Q)
-	}
-	if params.PerSection != nil {
-		query.Set("per_section", strconv.Itoa(*params.PerSection))
-	}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MarketplaceSectionsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetObserveOverviewParams carries the path, query, and header parameters.
-type GetObserveOverviewParams struct {
-	AllWorkspaces  *bool   `url:"all_workspaces"`
-	ReceiptProfile *string `url:"receipt_profile"`
-	Workspace      *string `url:"workspace"`
-	UsageWindow    *string `url:"usage_window"`
-	Profile        *string `url:"profile"`
-	AllProfiles    *bool   `url:"all_profiles"`
 }
