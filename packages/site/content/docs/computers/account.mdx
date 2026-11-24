@@ -26,9 +26,9 @@ The same account routes are available over the daemon's local HTTP and Unix sock
 | Route                                                               | Purpose                                                                               |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | `GET /api/account`                                                  | Read the installation's account and device status.                                    |
-| `PATCH /api/account` | Set `marketing_opt_in` and read the updated account. |
-| `DELETE /api/account` | Confirm with `confirm_email`, start deletion, and sign out this installation. |
-| `POST /api/account/sign-in-notices/dismiss` | Dismiss notices on this installation. |
+| `PATCH /api/account`                                                | Set `marketing_opt_in` and read the updated account.                                  |
+| `DELETE /api/account`                                               | Confirm with `confirm_email`, start deletion, and sign out this installation.         |
+| `POST /api/account/sign-in-notices/dismiss`                         | Dismiss notices on this installation.                                                 |
 | `POST /api/account/login`                                           | Start a browser sign-in and receive its attempt ID, activation URL, code, and expiry. |
 | `DELETE /api/account/login`                                         | Cancel a sign-in attempt. Pass its `attempt_id` to cancel a specific attempt.         |
 | `GET /api/account/sign-in/events`                                   | Read `sign_in.progress` and `account.state` without an account session.               |
