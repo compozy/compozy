@@ -14,10 +14,7 @@ import {
 import { itemBindingSearch, USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 import { providerLoginCommand, toComputerProviderAuthView } from "../lib/provider-view";
-import type {
-  ComputerFixture,
-  ComputerProviderAuthFixture,
-} from "../mocks/remote-computers-types";
+import type { ComputerFixture, ComputerProviderAuthFixture } from "../mocks/remote-computers-types";
 
 export interface ComputerProvidersController {
   providers: readonly ComputerProviderAuthFixture[];

@@ -23,8 +23,7 @@ const REMOTE_SCOPE_LABELS: Readonly<Record<string, string>> = {
 const STATIC_REMOTE_REJECTIONS: Readonly<Record<string, RemoteRejectionCopy>> = {
   remote_entitlement_unavailable: {
     title: "Remote access paused",
-    detail:
-      "Your Pro plan ended. Running agents keep running — upgrade to Pro to reconnect.",
+    detail: "Your Pro plan ended. Running agents keep running — upgrade to Pro to reconnect.",
   },
   plan_required: {
     title: "Pro plan required",
@@ -72,7 +71,7 @@ const STATIC_REMOTE_REJECTIONS: Readonly<Record<string, RemoteRejectionCopy>> = 
   },
   computer_not_owned: {
     title: "Computer doesn't belong to this account",
-    detail: "Check that both computers are signed in to the same Compozy account.",
+    detail: "Check that both computers are signed in to the same CompozyOS account.",
   },
 };
 

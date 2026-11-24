@@ -30,7 +30,13 @@ export function RemoteEntitlementPausedBanner({
           </span>
         </span>
         {onUpgrade ? (
-          <Button className="shrink-0" onClick={onUpgrade} size="xs" type="button" variant="default">
+          <Button
+            className="shrink-0"
+            onClick={onUpgrade}
+            size="xs"
+            type="button"
+            variant="default"
+          >
             <Sparkles aria-hidden="true" data-icon="inline-start" />
             Upgrade
           </Button>

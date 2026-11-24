@@ -565,7 +565,14 @@ describe("FilesAppWindow", () => {
           return Response.json({
             workspaces: archived
               ? []
-              : [{ id: "ws_remote", name: "remote-repo", root_dir: "/srv/repo", archived_at: null }],
+              : [
+                  {
+                    id: "ws_remote",
+                    name: "remote-repo",
+                    root_dir: "/srv/repo",
+                    archived_at: null,
+                  },
+                ],
           });
         }
         if (url.pathname === `/c/${COMPUTER_ID}/api/workspaces/ws_remote/worktrees`) {
@@ -584,7 +591,9 @@ describe("FilesAppWindow", () => {
           }
           return Response.json({
             root: { kind: "workspace", workspace_id: "ws_remote", name: "remote-repo" },
-            entries: [{ name: "remote-notes.txt", path: "remote-notes.txt", kind: "file", size: 12 }],
+            entries: [
+              { name: "remote-notes.txt", path: "remote-notes.txt", kind: "file", size: 12 },
+            ],
             truncated: false,
           });
         }

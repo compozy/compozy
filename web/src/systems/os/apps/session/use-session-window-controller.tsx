@@ -51,6 +51,50 @@ function toInspectorUsage(
     : null;
 }
 
+function useRemoteSessionGuard() {
+  const computerId = useCurrentComputerId();
+  const isRemote = isRemoteComputerId(computerId);
+  const computers = useComputers({ enabled: isRemote });
+  const remoteComputer = isRemote ? findComputerById(computers.computers, computerId) : undefined;
+  return {
+    remoteOfflineComputerName:
+      isRemote && remoteComputer?.status === "offline" ? remoteComputer.name : null,
+    remoteEntitlementPausedComputerName:
+      isRemote && remoteComputer?.status === "needs_pro" ? remoteComputer.name : null,
+  };
+}
+
+function buildWorktreeTopbarProps(
+  workspaceId: string,
+  worktreeBinding: ReturnType<typeof useSessionWorktreeBinding>,
+  onOpenWorktreeContext?: (workspaceId: string, worktree: WorktreePayload) => void,
+  onResolveMissingWorktree?: (workspaceId: string, worktree: WorktreePayload) => void
+) {
+  const boundWorktree = worktreeBinding.worktree;
+  return {
+    worktreeAction: (item: { worktree_id?: string | null }) => {
+      const worktree = worktreeBinding.worktrees.find(row => row.id === item.worktree_id);
+      return worktree && onOpenWorktreeContext
+        ? () => onOpenWorktreeContext(workspaceId, worktree)
+        : undefined;
+    },
+    worktreeBinding: worktreeBinding.bound
+      ? {
+          worktreeId: worktreeBinding.worktreeId,
+          worktree: boundWorktree,
+          onOpenContext:
+            boundWorktree && onOpenWorktreeContext
+              ? () => onOpenWorktreeContext(workspaceId, boundWorktree)
+              : undefined,
+          onResolve:
+            boundWorktree && onResolveMissingWorktree
+              ? () => onResolveMissingWorktree(workspaceId, boundWorktree)
+              : undefined,
+        }
+      : undefined,
+  };
+}
+
 /** Coordinates session window reads and projects query state into inspector view models. */
 export function useSessionWindowController(input: {
   windowId: string;
@@ -139,14 +183,13 @@ export function useSessionWindowController(input: {
   const instances = useAgentInstances();
   const successorId = sessionSuccessorId(session, instances);
   const linkedWork = useSessionLinkedWork({ session, workspaceId, enabled: liveDataEnabled });
-  const computerId = useCurrentComputerId();
-  const isRemote = isRemoteComputerId(computerId);
-  const computers = useComputers({ enabled: isRemote });
-  const remoteComputer = isRemote ? findComputerById(computers.computers, computerId) : undefined;
-  const remoteOfflineComputerName =
-    isRemote && remoteComputer?.status === "offline" ? remoteComputer.name : null;
-  const remoteEntitlementPausedComputerName =
-    isRemote && remoteComputer?.status === "needs_pro" ? remoteComputer.name : null;
+  const remoteGuard = useRemoteSessionGuard();
+  const worktreeSlot = buildWorktreeTopbarProps(
+    workspaceId,
+    worktreeBinding,
+    onOpenWorktreeContext,
+    onResolveMissingWorktree
+  );
 
   useSessionTopbarSlot({
     session,
@@ -154,28 +197,10 @@ export function useSessionWindowController(input: {
     pullRequestRefresh: pullRequest.pullRequestRefresh,
     onSendPrompt: pullRequest.onSendPrompt,
     linkedWork,
-    worktreeAction: item => {
-      const worktree = worktreeBinding.worktrees.find(row => row.id === item.worktree_id);
-      return worktree && onOpenWorktreeContext
-        ? () => onOpenWorktreeContext(workspaceId, worktree)
-        : undefined;
-    },
+    worktreeAction: worktreeSlot.worktreeAction,
     onOpenSession: id =>
       sidebar.openSession({ sessionId: id, agentName: "", workspaceId }, { newWindow: false }),
-    worktreeBinding: worktreeBinding.bound
-      ? {
-          worktreeId: worktreeBinding.worktreeId,
-          worktree: worktreeBinding.worktree,
-          onOpenContext:
-            worktreeBinding.worktree && onOpenWorktreeContext
-              ? () => onOpenWorktreeContext(workspaceId, worktreeBinding.worktree!)
-              : undefined,
-          onResolve:
-            worktreeBinding.worktree && onResolveMissingWorktree
-              ? () => onResolveMissingWorktree(workspaceId, worktreeBinding.worktree!)
-              : undefined,
-        }
-      : undefined,
+    worktreeBinding: worktreeSlot.worktreeBinding,
     isStopping: controls.isStopping,
     isUnarchiving: controls.isUnarchiving,
     inspectorOpen: inspector.open,
@@ -218,7 +243,6 @@ export function useSessionWindowController(input: {
     pullRequestExitSurface: pullRequest.exitSurface,
     promptRuntimeSnapshot,
     activityGoal: goal.snapshot,
-    remoteOfflineComputerName,
-    remoteEntitlementPausedComputerName,
+    ...remoteGuard,
   };
 }

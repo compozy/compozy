@@ -1,9 +1,4 @@
-import {
-  clientID,
-  computerApiBaseUrl,
-  daemonFetch,
-  type ComputerId,
-} from "@/lib/api-client";
+import { clientID, computerApiBaseUrl, daemonFetch, type ComputerId } from "@/lib/api-client";
 import type { ZodType } from "zod";
 
 import {

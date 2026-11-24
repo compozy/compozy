@@ -30,10 +30,7 @@ export function filesProjectForOpen(
  * second open focuses the same window (US-002.AC-5); with no project the bare route opens the
  * window's "No projects yet" state.
  */
-export function filesOpenTarget(
-  workspaceId: string | null,
-  computerId?: ComputerId
-): OsOpenTarget {
+export function filesOpenTarget(workspaceId: string | null, computerId?: ComputerId): OsOpenTarget {
   if (workspaceId === null) {
     return {
       app: "files",

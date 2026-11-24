@@ -275,9 +275,120 @@ function alwaysOnMainActions(input: UseSessionTopbarSlotInput, instance: AgentIn
   );
 }
 
+function useRemoteSessionTopbar(session: SessionPayload) {
+  const shell = use(OsShellContext);
+  const openProjectFiles = useOpenProjectFiles();
+  const computerId = useCurrentComputerId();
+  const isRemote = isRemoteComputerId(computerId);
+  const computers = useComputers({ enabled: isRemote });
+  const remoteComputer = isRemote ? findComputerById(computers.computers, computerId) : undefined;
+  if (!remoteComputer) return { controls: null, chip: null };
+
+  const openSettingsSection = (section: "computers" | "account") => {
+    void shell?.coordinator.userOpen({
+      app: "settings",
+      route: { pathname: `/settings/${section}`, search: {} },
+    });
+  };
+  const controls: RemoteSessionHeaderControls = {
+    computer: remoteComputer,
+    disabled: remoteComputer.status === "offline" || remoteComputer.status === "needs_pro",
+    onOpenTerminal: () => {
+      const workspaceTarget = session.workspace_id || USER_SCOPE_SELECTOR;
+      void shell?.coordinator.userOpen({
+        app: "terminal",
+        forceNewInstance: true,
+        route: {
+          pathname: "/terminal",
+          search: {
+            ...itemBindingSearch(workspaceTarget),
+            computer: computerId,
+            new: "1",
+          },
+        },
+      });
+    },
+    onOpenFiles: () => {
+      if (session.workspace_id) {
+        openProjectFiles?.(session.workspace_id, computerId);
+      }
+    },
+  };
+  const chip = (
+    <ComputerChip
+      computer={toComputerView(remoteComputer)}
+      onOpenDetails={shell ? () => openSettingsSection("computers") : undefined}
+      onReconnect={remoteComputer.status === "offline" ? () => void computers.refetch() : undefined}
+      onUpgrade={
+        remoteComputer.status === "needs_pro" && shell
+          ? () => openSettingsSection("account")
+          : undefined
+      }
+    />
+  );
+  return { controls, chip };
+}
+
+function SessionTopbarStatus({
+  input,
+  instance,
+  linkedList,
+  remoteChip,
+  transport,
+}: {
+  input: UseSessionTopbarSlotInput;
+  instance: AgentInstancePayload | undefined;
+  linkedList: SessionLinkedWorkListProps;
+  remoteChip: React.ReactNode;
+  transport: ReturnType<typeof useSessionTransportState>;
+}) {
+  const { session, linkedWork, worktreeBinding, transportChip } = input;
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      {/* Keyed by session: the head outlives a session switch, and an open list must not. */}
+      {instance ? null : (
+        <SessionLinkedWorkStatus
+          key={session.id}
+          {...linkedList}
+          lead={linkedWork.lead}
+          count={linkedWork.count}
+          onClippedChange={linkedWork.setClipped}
+          ownChip={ownChipActions(input)}
+          ownFacts={sessionPullRequestFacts(session)}
+        />
+      )}
+      <SessionStatusLine
+        onOpenOriginSource={input.onOpenOriginSource}
+        origin={input.origin}
+        session={session}
+        showState={false}
+      />
+      {remoteChip}
+      {sessionIsUnrestricted(session) ? (
+        <SessionUnrestrictedBadge data-testid="session-topbar-unrestricted" />
+      ) : null}
+      {/* OQ7, revised: the PR chip menu carries the next exit action; the binding
+          chip opens the full worktree context, and the split exit control stays there. */}
+      {worktreeBinding ? (
+        <SessionWorktreeBindingChip
+          onOpenContext={worktreeBinding.onOpenContext}
+          onResolve={worktreeBinding.onResolve}
+          worktree={worktreeBinding.worktree}
+          worktreeId={worktreeBinding.worktreeId}
+        />
+      ) : null}
+      {transportChip ? (
+        <SessionTransportContext.Provider value={transport}>
+          {transportChip}
+        </SessionTransportContext.Provider>
+      ) : null}
+    </span>
+  );
+}
+
 /** Publishes lifecycle actions into the owning session window's topbar. */
 export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
-  const { session, worktreeBinding, transportChip } = input;
+  const { session } = input;
   const actions = sessionTopbarActions(input);
   const view = useSessionWindowViewState();
   // Over the board the drawer owns its chrome: no rail to toggle, and the board is the view.
@@ -288,7 +399,6 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   // provider: it carries the window's own snapshot with the node, per window,
   // no second stream (task_06 VC-01..05).
   const transport = useSessionTransportState();
-  const { linkedWork } = input;
   const glyphState = sessionBadgeSignal(sessionBadgeOf(session), sessionWaitingOn(session)).state;
 
   // A main session is the agent's own conversation, so the agent names it. It accumulates linked
@@ -297,45 +407,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { registeredWorkspaces } = useActiveWorkspace();
   const workspaceNames = new Map(registeredWorkspaces.map(row => [row.id, row.name]));
   const linkedList = useLinkedWorkList(input, actions.lifecycleControllable, workspaceNames);
-  const shell = use(OsShellContext);
-  const openProjectFiles = useOpenProjectFiles();
-  const computerId = useCurrentComputerId();
-  const isRemote = isRemoteComputerId(computerId);
-  const computers = useComputers({ enabled: isRemote });
-  const remoteComputer = isRemote ? findComputerById(computers.computers, computerId) : undefined;
-  const remoteControls: RemoteSessionHeaderControls | null = remoteComputer
-    ? {
-        computer: remoteComputer,
-        disabled:
-          remoteComputer.status === "offline" || remoteComputer.status === "needs_pro",
-        onOpenTerminal: () => {
-          const workspaceTarget = session.workspace_id || USER_SCOPE_SELECTOR;
-          void shell?.coordinator.userOpen({
-            app: "terminal",
-            forceNewInstance: true,
-            route: {
-              pathname: "/terminal",
-              search: {
-                ...itemBindingSearch(workspaceTarget),
-                computer: computerId,
-                new: "1",
-              },
-            },
-          });
-        },
-        onOpenFiles: () => {
-          if (session.workspace_id) {
-            openProjectFiles?.(session.workspace_id, computerId);
-          }
-        },
-      }
-    : null;
-  const openSettingsSection = (section: "computers" | "account") => {
-    void shell?.coordinator.userOpen({
-      app: "settings",
-      route: { pathname: `/settings/${section}`, search: {} },
-    });
-  };
+  const remote = useRemoteSessionTopbar(session);
 
   useTopbarSlot({
     // The sessions list toggle leads every session head, open or closed (#1487); the board drawer
@@ -368,63 +440,18 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     glyphPresentation: "state",
     crumb: instance?.label ?? getSessionDisplayTitle(session),
     status: (
-      <span className="flex min-w-0 items-center gap-2">
-        {/* Keyed by session: the head outlives a session switch, and an open list must not. */}
-        {instance ? null : (
-          <SessionLinkedWorkStatus
-            key={session.id}
-            {...linkedList}
-            lead={linkedWork.lead}
-            count={linkedWork.count}
-            onClippedChange={linkedWork.setClipped}
-            ownChip={ownChipActions(input)}
-            ownFacts={sessionPullRequestFacts(session)}
-          />
-        )}
-        <SessionStatusLine
-          onOpenOriginSource={input.onOpenOriginSource}
-          origin={input.origin}
-          session={session}
-          showState={false}
-        />
-        {remoteComputer ? (
-          <ComputerChip
-            computer={toComputerView(remoteComputer)}
-            onOpenDetails={shell ? () => openSettingsSection("computers") : undefined}
-            onReconnect={
-              remoteComputer.status === "offline" ? () => void computers.refetch() : undefined
-            }
-            onUpgrade={
-              remoteComputer.status === "needs_pro" && shell
-                ? () => openSettingsSection("account")
-                : undefined
-            }
-          />
-        ) : null}
-        {sessionIsUnrestricted(session) ? (
-          <SessionUnrestrictedBadge data-testid="session-topbar-unrestricted" />
-        ) : null}
-        {/* OQ7, revised: the PR chip menu carries the next exit action; the binding
-            chip opens the full worktree context, and the split exit control stays there. */}
-        {worktreeBinding ? (
-          <SessionWorktreeBindingChip
-            onOpenContext={worktreeBinding.onOpenContext}
-            onResolve={worktreeBinding.onResolve}
-            worktree={worktreeBinding.worktree}
-            worktreeId={worktreeBinding.worktreeId}
-          />
-        ) : null}
-        {transportChip ? (
-          <SessionTransportContext.Provider value={transport}>
-            {transportChip}
-          </SessionTransportContext.Provider>
-        ) : null}
-      </span>
+      <SessionTopbarStatus
+        input={input}
+        instance={instance}
+        linkedList={linkedList}
+        remoteChip={remote.chip}
+        transport={transport}
+      />
     ),
     // The run verbs lead; the Changes toggle trails as a quiet icon.
     actions: instance
       ? alwaysOnMainActions(input, instance)
-      : sessionActions(input, actions, linkedList, remoteControls),
+      : sessionActions(input, actions, linkedList, remote.controls),
     actionsDivider: !instance,
     // Per-session verbs live in the session list row menus; the head keeps only the view toggle.
     overflow: inWindow ? (

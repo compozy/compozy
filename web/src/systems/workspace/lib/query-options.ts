@@ -86,11 +86,7 @@ export function worktreesListOptions(
   return queryOptions({
     queryKey: keys.worktrees(workspaceID),
     queryFn: ({ signal }) =>
-      fetchWorktrees(
-        workspaceID,
-        isRemoteComputerId(computerId) ? { computerId } : {},
-        signal
-      ),
+      fetchWorktrees(workspaceID, isRemoteComputerId(computerId) ? { computerId } : {}, signal),
     // User-scope work has no worktrees (USW BR-4); the daemon rejects the read.
     enabled: query =>
       enabled &&

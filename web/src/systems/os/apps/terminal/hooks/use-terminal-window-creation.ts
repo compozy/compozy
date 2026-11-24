@@ -64,14 +64,16 @@ export function useTerminalWindowCreation(scope: TerminalWindowCreationScope) {
   const mutation = useMutation({
     mutationKey: terminalWindowCreateKey(scope.windowId),
     mutationFn: (input: TerminalWindowCreation) =>
-      createTerminal(
-        input.workspaceId,
-        {},
-        input.destinationScope.params,
-        isRemoteComputerId(input.computerId) ? null : input.identity,
-        undefined,
-        input.computerId
-      ),
+      isRemoteComputerId(input.computerId)
+        ? createTerminal(
+            input.workspaceId,
+            {},
+            input.destinationScope.params,
+            null,
+            undefined,
+            input.computerId
+          )
+        : createTerminal(input.workspaceId, {}, input.destinationScope.params, input.identity),
     onSuccess: async (terminal, input) => {
       const keys = terminalKeys.forComputer(input.computerId);
       await Promise.all([
@@ -124,7 +126,8 @@ export function useTerminalWindowCreation(scope: TerminalWindowCreationScope) {
       completed
         .filter(
           candidate =>
-            candidate?.computerId === scope.computerId &&
+            candidate !== null &&
+            candidate.computerId === scope.computerId &&
             candidate.workspaceId === scope.workspaceId &&
             candidate.profileKey === scope.catalogScope.key.profileKey &&
             candidate.destinationProfile === scope.destinationScope.params.profile

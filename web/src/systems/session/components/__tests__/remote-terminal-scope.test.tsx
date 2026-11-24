@@ -82,12 +82,14 @@ const TERMINAL_TOOL_MESSAGE: UIMessage = {
   toolCallId: "tc-1",
   toolName: "compozy__terminal_exec",
   toolState: "completed",
-  toolResult: JSON.stringify({
-    terminal_id: "term_remote_1",
-    title: "uname -n",
-    screen: "devbox\n",
-    exit_code: 0,
-  }),
+  toolInput: { title: "uname -n" },
+  toolResult: {
+    rawOutput: {
+      terminal_id: "term_remote_1",
+      output: "devbox\n",
+      exit_code: 0,
+    },
+  },
 } as unknown as UIMessage;
 
 function stubRemoteComputer(scopes: string[], status = "connected") {
@@ -114,7 +116,11 @@ function stubRemoteComputer(scopes: string[], status = "connected") {
 }
 
 function makeShell() {
-  const userOpen = vi.fn(async () => ({ accepted: true, completion: Promise.resolve(true), windowId: "w-new" }));
+  const userOpen = vi.fn(async () => ({
+    accepted: true,
+    completion: Promise.resolve(true),
+    windowId: "w-new",
+  }));
   const shell = {
     coordinator: { userOpen },
     manager: { getState: () => ({ windows: {}, focusedId: null }) },

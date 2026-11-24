@@ -33,9 +33,7 @@ export function providerLoginCommand(
 }
 
 /** Projects a live `/c/{id}/api/providers` summary into the Providers tab row model. */
-export function toComputerProviderAuthView(
-  provider: ProviderSummary
-): ComputerProviderAuthFixture {
+export function toComputerProviderAuthView(provider: ProviderSummary): ComputerProviderAuthFixture {
   const state = provider.auth_status.state;
   const status: ComputerProviderAuthFixture["status"] =
     state === "authenticated" || state === "none"

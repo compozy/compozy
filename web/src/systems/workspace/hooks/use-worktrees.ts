@@ -47,7 +47,9 @@ function useListingCatalog(workspaceIDs: readonly string[], computerId?: Compute
   return useWorkspaces({
     computerId,
     notifyOnChangeProps: () =>
-      workspaceIDs.some(id => isWorktreeListGone(queryClient.getQueryState(keys.worktrees(id))?.error))
+      workspaceIDs.some(id =>
+        isWorktreeListGone(queryClient.getQueryState(keys.worktrees(id))?.error)
+      )
         ? ["data", "dataUpdatedAt"]
         : ["data"],
   });

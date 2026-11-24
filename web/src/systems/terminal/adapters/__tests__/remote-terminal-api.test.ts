@@ -120,6 +120,7 @@ describe("remote terminal adapter & protocol client", () => {
     const openedPaths: string[] = [];
     const sockets: TerminalSocket[] = [];
     let scheduledReconnect: (() => void) | null = null;
+    let writesCompleted = 0;
 
     const client = new TerminalProtocolClient({
       workspaceId: WORKSPACE_ID,
@@ -128,7 +129,10 @@ describe("remote terminal adapter & protocol client", () => {
       scope: PROFILE,
       mode: "write",
       sink: {
-        write: () => Promise.resolve(),
+        write: () => {
+          writesCompleted += 1;
+          return Promise.resolve();
+        },
         reset: () => {},
         applyDimensions: () => {},
       },
@@ -165,11 +169,10 @@ describe("remote terminal adapter & protocol client", () => {
     firstSocket.onmessage?.(
       new MessageEvent("message", {
         data: encodeTerminalServerControlFrame(TERMINAL_SERVER_OP.attached, {
+          seq: "0",
           mode: "write",
           cols: 80,
           rows: 24,
-          replay_from: "0",
-          replay_to: "0",
           truncated: false,
         }),
       })
@@ -179,7 +182,7 @@ describe("remote terminal adapter & protocol client", () => {
       new MessageEvent("message", { data: encodeTerminalServerOutputFrame(1n, "devbox") })
     );
 
-    await Promise.resolve();
+    await vi.waitFor(() => expect(writesCompleted).toBe(1));
     await Promise.resolve();
 
     // Simulate network drop and fire reconnect timer.

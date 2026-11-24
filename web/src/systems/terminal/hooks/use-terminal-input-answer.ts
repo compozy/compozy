@@ -1,4 +1,4 @@
-import type { ComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 
 import { answerTerminalInputRequest } from "../adapters/terminal-api";
 import type { TerminalInputRequest } from "../types";
@@ -23,19 +23,22 @@ export function useTerminalInputAnswer(
 ) {
   return {
     mutate: ({ request, value }: AnswerTerminalInputArgs) => {
-      void answerTerminalInputRequest(
-        workspaceId,
-        request.terminal_id,
-        request.id,
-        value,
-        { profile: request.profile_name },
-        undefined,
-        options.computerId
-      )
-        .then(options.onSuccess)
-        .catch(error => {
-          options.onError(error instanceof Error ? error : new Error("Failed to answer"));
-        });
+      const delivery = isRemoteComputerId(options.computerId)
+        ? answerTerminalInputRequest(
+            workspaceId,
+            request.terminal_id,
+            request.id,
+            value,
+            { profile: request.profile_name },
+            undefined,
+            options.computerId
+          )
+        : answerTerminalInputRequest(workspaceId, request.terminal_id, request.id, value, {
+            profile: request.profile_name,
+          });
+      void delivery.then(options.onSuccess).catch(error => {
+        options.onError(error instanceof Error ? error : new Error("Failed to answer"));
+      });
     },
   };
 }

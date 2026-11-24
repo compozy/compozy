@@ -121,10 +121,10 @@ export function sessionAttentionSummaryOptions() {
   });
 }
 
-export function sessionDetailOptions(workspace: string, id: string) {
+export function sessionDetailOptions(workspace: string, id: string, computerId?: ComputerId) {
   return queryOptions({
-    queryKey: sessionKeys.detail(workspace, id),
-    queryFn: ({ signal }) => fetchSession(workspace, id, signal),
+    queryKey: sessionKeys.forComputer(computerId).detail(workspace, id),
+    queryFn: ({ signal }) => fetchSession(workspace, id, signal, computerId),
     refetchInterval: query =>
       isSessionUnavailable(query.state.error)
         ? false

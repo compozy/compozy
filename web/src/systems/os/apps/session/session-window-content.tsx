@@ -155,6 +155,46 @@ function subagentOriginProps(
   };
 }
 
+/** Remote offline / Pro-plan pause banner rendered directly below the session composer. */
+function SessionRemoteComposerBanner({
+  offlineComputerName,
+  entitlementPausedComputerName,
+}: {
+  offlineComputerName: string | null;
+  entitlementPausedComputerName: string | null;
+}) {
+  const shell = use(OsShellContext);
+  const queryClient = useQueryClient();
+
+  if (offlineComputerName) {
+    return (
+      <RemoteOfflineComposerBanner
+        computerName={offlineComputerName}
+        onReconnect={() =>
+          void queryClient.invalidateQueries({
+            queryKey: computerRegistryKeys.all,
+          })
+        }
+      />
+    );
+  }
+  if (!entitlementPausedComputerName) return null;
+  return (
+    <RemoteEntitlementPausedBanner
+      computerName={entitlementPausedComputerName}
+      onUpgrade={
+        shell
+          ? () =>
+              void shell.coordinator.userOpen({
+                app: "settings",
+                route: { pathname: "/settings/account", search: {} },
+              })
+          : undefined
+      }
+    />
+  );
+}
+
 /** Compose the active session window and the sidebar-owned single or batch lifecycle dialogs. */
 export function SessionWindowContent({
   windowId,
@@ -174,8 +214,6 @@ export function SessionWindowContent({
   focused?: boolean;
 }) {
   const worktreeDialogs = use(WorktreeDialogActionsContext);
-  const shell = use(OsShellContext);
-  const queryClient = useQueryClient();
   const { derive, sideChat } = useSessionWindowDerivedSessions({ windowId, session, workspaceId });
   const page = useSessionWindowController({
     windowId,
@@ -225,8 +263,9 @@ export function SessionWindowContent({
     "prompt_embedded_context",
     promptRuntimeSnapshot
   );
-
   const openSubagent = subagentOpener(sidebar.openSession, workspaceId);
+  const sessionTitle = session.name ?? sessionId;
+  const workspaceName = session.workspace_path ?? workspaceId;
 
   return (
     <SessionDeriveHost
@@ -337,9 +376,9 @@ export function SessionWindowContent({
                               ref={environmentControl}
                               binding={worktreeBinding}
                               sessionId={sessionId}
-                              sessionTitle={session.name ?? sessionId}
+                              sessionTitle={sessionTitle}
                               workspaceId={workspaceId}
-                              workspaceName={session.workspace_path ?? workspaceId}
+                              workspaceName={workspaceName}
                             />
                           }
                           commandCatalog={commandCatalog}
@@ -366,29 +405,10 @@ export function SessionWindowContent({
                           )}
                         />
                       </SessionReportSendContext>
-                      {remoteOfflineComputerName ? (
-                        <RemoteOfflineComposerBanner
-                          computerName={remoteOfflineComputerName}
-                          onReconnect={() =>
-                            void queryClient.invalidateQueries({
-                              queryKey: computerRegistryKeys.all,
-                            })
-                          }
-                        />
-                      ) : remoteEntitlementPausedComputerName ? (
-                        <RemoteEntitlementPausedBanner
-                          computerName={remoteEntitlementPausedComputerName}
-                          onUpgrade={
-                            shell
-                              ? () =>
-                                  void shell.coordinator.userOpen({
-                                    app: "settings",
-                                    route: { pathname: "/settings/account", search: {} },
-                                  })
-                              : undefined
-                          }
-                        />
-                      ) : null}
+                      <SessionRemoteComposerBanner
+                        entitlementPausedComputerName={remoteEntitlementPausedComputerName}
+                        offlineComputerName={remoteOfflineComputerName}
+                      />
                       {successorId ? (
                         <SupersededNotice
                           onOpenCurrent={() =>
@@ -405,7 +425,7 @@ export function SessionWindowContent({
                   profile={session.profile_name}
                   sessionId={sessionId}
                   workspaceId={workspaceId}
-                  workspaceName={session.workspace_path ?? workspaceId}
+                  workspaceName={workspaceName}
                 />
                 <SessionWindowRowDialogs sidebar={sidebar} />
                 <SessionWindowClearDialog clearDialog={clearDialog} controls={controls} />
