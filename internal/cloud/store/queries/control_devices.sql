@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: ControlAccount :one
 SELECT id, state, security_epoch FROM accounts WHERE id = $1;
 

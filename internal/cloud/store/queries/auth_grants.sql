@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: InsertDeviceGrant :execrows
 INSERT INTO device_grants (
     device_code_sha256, user_code, provider, client_name, client_platform, installation_id, request_location, expires_at

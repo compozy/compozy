@@ -9,6 +9,7 @@ require (
 	charm.land/bubbletea/v2 v2.1.1
 	github.com/BurntSushi/toml v1.6.0
 	github.com/Masterminds/semver/v3 v3.5.0
+	github.com/aws/aws-sdk-go-v2 v1.47.4
 	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/bmatcuk/doublestar v1.3.4
 	github.com/charlievieth/fastwalk v1.0.14
@@ -35,6 +36,7 @@ require (
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/junegunn/fzf v0.74.5
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
+	github.com/klauspost/compress v1.20.3
 	github.com/looplab/fsm v1.0.4
 	github.com/magefile/mage v1.17.2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
@@ -93,6 +95,7 @@ require (
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
+	github.com/aws/smithy-go v1.28.6 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.5 // indirect
 	github.com/bytedance/sonic/loader v0.5.3 // indirect
@@ -177,7 +180,6 @@ require (
 	github.com/jsimonetti/rtnetlink v1.4.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/junegunn/go-shellwords v0.0.0-20250127100254-2aa3b3277741 // indirect
-	github.com/klauspost/compress v1.20.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.1 // indirect
 	github.com/leodido/go-urn v1.5.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect

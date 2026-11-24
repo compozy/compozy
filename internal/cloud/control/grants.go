@@ -1,12 +1,16 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package control
 
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/observe"
 	"github.com/compozy/compozy/internal/cloud/plan"
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -21,6 +25,7 @@ func (s *Service) IssueGrant(
 	if !route.Grantable() {
 		return result, ErrInvalidInput
 	}
+	started := time.Now()
 	err := s.deviceTransaction(
 		ctx,
 		principal,
@@ -41,6 +46,15 @@ func (s *Service) IssueGrant(
 			return err
 		},
 	)
+	outcome := "ok"
+	if err != nil {
+		outcome = "error"
+	}
+	s.config.Metrics.Count("cloud_grants_total", observe.Labels{"result": outcome, "route": string(route)})
+	s.config.Metrics.Duration("cloud_grant_latency_seconds", time.Since(started))
+	if failure, ok := errors.AsType[*Error](err); ok && failure.Code == errPlanRequired.Code {
+		s.config.Metrics.Paywall(failure.Code)
+	}
 	return result, err
 }
 

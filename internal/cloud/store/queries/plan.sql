@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: LockPlanAccount :one
 SELECT id FROM accounts WHERE id = $1 FOR UPDATE;
 

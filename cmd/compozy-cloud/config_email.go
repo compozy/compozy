@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package main
 
 import (
@@ -18,8 +20,12 @@ func loadResend(getenv func(string) string, environment string) (*email.Resend, 
 	if err != nil || len(key) != 32 {
 		return nil, nil, errors.New("COMPOZY_CLOUD_UNSUBSCRIBE_KEY must be a base64url-encoded 32-byte key")
 	}
+	var from string
+	if environment == development {
+		from = getenv("COMPOZY_CLOUD_RESEND_FROM")
+	}
 	resend, err := email.NewResend(email.ResendConfig{
-		APIKey: apiKey, SegmentID: segment, From: getenv("COMPOZY_CLOUD_RESEND_FROM"),
+		APIKey: apiKey, SegmentID: segment, From: from,
 	})
 	return resend, key, err
 }

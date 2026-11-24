@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 const form = document.querySelector("#provider-form");
 const challenge = document.querySelector("#turnstile");
 const token = form.elements.namedItem("cf-turnstile-response");

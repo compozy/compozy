@@ -1748,6 +1748,7 @@ type RemoteSession struct {
 	CreatedAt        int64         `json:"created_at"`
 	ExpiresAt        int64         `json:"expires_at"`
 	RevokedAt        sql.NullInt64 `json:"revoked_at"`
+	SigningKeyID     string        `json:"signing_key_id"`
 }
 
 type ResourceRecord struct {

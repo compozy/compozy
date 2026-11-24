@@ -24,7 +24,8 @@ func (s *Signer) SignGrant(claims GrantClaims) (string, error) {
 
 func (v *JWSVerifier) VerifyGrant(ctx context.Context, token string, now time.Time) (GrantClaims, error) {
 	var claims GrantClaims
-	if err := v.verify(ctx, token, grantType, &claims); err != nil {
+	kid, err := v.verifyWithKey(ctx, token, grantType, &claims)
+	if err != nil {
 		return GrantClaims{}, ErrGrantSignatureInvalid
 	}
 	if claims.Cnf.JKT == "" {
@@ -36,6 +37,7 @@ func (v *JWSVerifier) VerifyGrant(ctx context.Context, token string, now time.Ti
 	if claims.Issuer != v.issuer || !validGrant(claims, now) {
 		return GrantClaims{}, ErrGrantInvalid
 	}
+	claims.SigningKeyID = kid
 	return claims, nil
 }
 

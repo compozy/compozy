@@ -34,6 +34,7 @@ type StripeInvoice struct {
 type StripeSubscription struct {
 	ID, Account, Status, Price, Interval string
 	PeriodEnd                            time.Time
+	CancellationReason                   string
 	Invoices                             []StripeInvoice
 }
 
@@ -60,6 +61,8 @@ type StripeFixture struct {
 	deleteFailure bool
 	deletes       []string
 	redacted      []string
+	replayEvents  []map[string]any
+	replayFails   bool
 }
 
 func StartStripe(t Fixture, now func() time.Time, browser bool) *StripeFixture {
@@ -103,6 +106,12 @@ func (f *StripeFixture) SetOnComplete(afterComplete func(StripeCheckout)) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.onComplete = afterComplete
+}
+
+func (f *StripeFixture) SetReplayEvents(events []map[string]any, fail bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.replayEvents, f.replayFails = slices.Clone(events), fail
 }
 
 func (f *StripeFixture) Reads(id string) int {
@@ -203,6 +212,15 @@ func (f *StripeFixture) serve(w http.ResponseWriter, r *http.Request) {
 		f.redactCustomer(w, r)
 	case strings.HasPrefix(r.URL.Path, "/v1/subscriptions/"):
 		f.subscription(w, r)
+	case r.URL.Path == "/v1/events":
+		f.mu.Lock()
+		events, fail := slices.Clone(f.replayEvents), f.replayFails
+		f.mu.Unlock()
+		if fail {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		api.WriteJSON(w, http.StatusOK, map[string]any{"data": events, "has_more": false})
 	case r.URL.Path == "/v1/invoices":
 		f.invoices(w, r)
 	case r.URL.Path == "/v1/invoice_payments":
@@ -315,7 +333,8 @@ func (f *StripeFixture) subscription(w http.ResponseWriter, r *http.Request) {
 	}
 	api.WriteJSON(w, http.StatusOK, map[string]any{
 		"id": s.ID, "status": s.Status, "customer": "cus_" + s.Account, "latest_invoice": latest,
-		"metadata": map[string]string{"compozy_account_id": s.Account},
+		"metadata":             map[string]string{"compozy_account_id": s.Account},
+		"cancellation_details": map[string]string{"reason": s.CancellationReason},
 		"items": map[string]any{"data": []map[string]any{{
 			"current_period_end": s.PeriodEnd.Unix(),
 			"price":              map[string]any{"id": s.Price, "recurring": map[string]string{"interval": s.Interval}},

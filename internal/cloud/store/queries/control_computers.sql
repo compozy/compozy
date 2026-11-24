@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: ControlComputer :one
 SELECT * FROM computers WHERE id = $1;
 
@@ -70,6 +72,7 @@ WHERE id = sqlc.arg(computer_id) AND account_id = sqlc.arg(account_id)
 RETURNING lease_sequence;
 
 -- name: RecordControlMint :exec
+WITH minted AS (
 UPDATE computers AS computer SET last_session_at = greatest(last_session_at, sqlc.arg(minted_at)::timestamptz)
 WHERE computer.id = sqlc.arg(computer_id) AND computer.account_id = sqlc.arg(account_id)
   AND computer.remote_enabled AND NOT computer.plan_limited AND computer.unlinked_at IS NULL
@@ -78,7 +81,12 @@ WHERE computer.id = sqlc.arg(computer_id) AND computer.account_id = sqlc.arg(acc
       JOIN device_keys AS key ON key.device_id = device.id
       WHERE device.id = sqlc.arg(device_id)::text AND device.account_id = computer.account_id
         AND device.revoked_at IS NULL AND key.jkt = sqlc.arg(jkt)::text AND key.state = 'active'
-  );
+  )
+RETURNING computer.account_id
+)
+UPDATE accounts a SET activated_at = sqlc.arg(minted_at)
+FROM minted WHERE a.id = minted.account_id AND a.activated_at IS NULL
+  AND sqlc.arg(minted_at) BETWEEN a.created_at AND a.created_at + interval '7 days';
 
 -- name: ListControlPeers :many
 SELECT computer.id, computer.name, tunnel.hostname

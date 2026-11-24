@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package control
 
 import (
@@ -145,7 +147,7 @@ func (s *Service) applyDevicePatch(
 		event.AccountID,
 		caller,
 		"device_scopes_changed",
-		map[string]any{auditDeviceID: device.ID},
+		map[string]any{auditDeviceID: device.ID, "scopes_by_computer": patch.Scopes},
 	)
 }
 

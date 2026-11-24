@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package main
 
 import (
@@ -7,7 +9,12 @@ import (
 )
 
 func loadStripe(getenv func(string) string) (*billing.Stripe, error) {
+	return loadStripeAt(getenv, "")
+}
+
+func loadStripeAt(getenv func(string) string, endpoint string) (*billing.Stripe, error) {
 	config := billing.StripeConfig{
+		Endpoint:      endpoint,
 		SecretKey:     getenv("COMPOZY_CLOUD_STRIPE_SECRET_KEY"),
 		WebhookSecret: getenv("COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET"),
 	}

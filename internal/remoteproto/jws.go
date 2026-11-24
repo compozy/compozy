@@ -117,6 +117,7 @@ type JWSVerifier struct {
 	issuer  string
 	keys    atomic.Pointer[verificationKeys]
 	refresh JWKSFetcher
+	retired map[string]bool
 	mu      sync.Mutex
 }
 
@@ -139,12 +140,25 @@ func NewJWSVerifier(issuer string, initial JWKS, refresh JWKSFetcher) (*JWSVerif
 
 // ReplaceKeys atomically swaps the complete, trusted JWKS, including retired keys.
 func (v *JWSVerifier) ReplaceKeys(jwks JWKS) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.replaceKeysLocked(jwks)
+}
+
+func (v *JWSVerifier) replaceKeysLocked(jwks JWKS) error {
 	keys, err := indexVerificationKeys(jwks)
 	if err != nil {
 		return err
 	}
-	v.mu.Lock()
-	defer v.mu.Unlock()
+	if v.retired == nil {
+		v.retired = make(map[string]bool, len(jwks.Retired))
+	}
+	for _, kid := range jwks.Retired {
+		v.retired[kid] = true
+	}
+	for kid := range v.retired {
+		delete(keys, kid)
+	}
 	v.keys.Store(&keys)
 	return nil
 }
@@ -176,30 +190,36 @@ func (v *JWSVerifier) key(ctx context.Context, kid string) ed25519.PublicKey {
 	if current != initial {
 		return (*current)[kid]
 	}
+	if v.retired[kid] {
+		return nil
+	}
 	jwks, err := v.refresh(ctx)
 	if err != nil {
 		return nil
 	}
-	keys, err := indexVerificationKeys(jwks)
-	if err != nil {
+	if err := v.replaceKeysLocked(jwks); err != nil {
 		return nil
 	}
-	v.keys.Store(&keys)
-	return keys[kid]
+	return (*v.keys.Load())[kid]
 }
 
 func (v *JWSVerifier) verify(ctx context.Context, token, typ string, claims any) error {
+	_, err := v.verifyWithKey(ctx, token, typ, claims)
+	return err
+}
+
+func (v *JWSVerifier) verifyWithKey(ctx context.Context, token, typ string, claims any) (string, error) {
 	jws, err := parseCompact(token)
 	if err != nil || jws.header.Alg != algEdDSA || jws.header.Typ != typ || jws.header.Kid == "" ||
 		jws.header.JWK != nil {
-		return errSignature
+		return "", errSignature
 	}
 	key := v.key(ctx, jws.header.Kid)
 	if key == nil || !ed25519.Verify(key, []byte(jws.input), jws.signature) {
-		return errSignature
+		return "", errSignature
 	}
 	if err := json.Unmarshal(jws.body, claims); err != nil {
-		return errSignature
+		return "", errSignature
 	}
-	return nil
+	return jws.header.Kid, nil
 }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package control
 
 import (
@@ -66,6 +68,9 @@ func (s *Service) Reserve(
 			return err
 		},
 	)
+	if errors.Is(err, ErrPlanLimit) {
+		s.config.Metrics.Paywall(ErrPlanLimit.Code)
+	}
 	return result, err
 }
 

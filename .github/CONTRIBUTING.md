@@ -190,3 +190,7 @@ Use the bug report form. `compozy version` prints the version line, and `compozy
 ## Security
 
 Report vulnerabilities privately — see [SECURITY.md](../SECURITY.md).
+
+## Cloud source license
+
+`cmd/compozy-cloud/`, `internal/cloud/` and `infra/cloud-edge/` use FSL-1.1-MIT. Add its SPDX identifier to new source files in those directories. Keep released migrations byte-for-byte intact. SQLC stamps the generated Postgres Go code during `make codegen`. The daemon, app, shared protocol and integration harness use MIT. Cloud runtime imports stay within the cloud binary and its integration harness. [Repository license](../LICENSE) · [Cloud license](../internal/cloud/LICENSE)

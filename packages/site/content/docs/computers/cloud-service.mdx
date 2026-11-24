@@ -5,7 +5,9 @@ description: Cloud sign-in, device trust, computer links, and control events for
 
 Compozy Cloud coordinates accounts and access to computers. Agent sessions run on the computers that host them. Their prompts, files, and traffic stay on those computers and the routes between them.
 
-Compozy Cloud's source code (`cmd/compozy-cloud/`, `internal/cloud/`, and `infra/cloud-edge/`) is available in the CompozyOS repository under the Functional Source License 1.1 with the MIT future license (`FSL-1.1-MIT`). The daemon, CLI, web UI, and shared protocol packages stay under the MIT License.
+Compozy Cloud's source code (`cmd/compozy-cloud/`, `internal/cloud/`, and `infra/cloud-edge/`) is available under the Functional Source License 1.1 with the MIT future license (`FSL-1.1-MIT`). [Cloud source license](https://github.com/compozy/compozy/blob/main/internal/cloud/LICENSE)
+
+See the status page for updates during cloud incidents. [Service status](https://status.compozy.com)
 
 ## Public endpoints
 
@@ -14,6 +16,8 @@ Compozy Cloud's source code (`cmd/compozy-cloud/`, `internal/cloud/`, and `infra
 | `GET /healthz`                                  | `200` with `{"status":"ok"}` when the replica can serve requests                  |
 | `GET /v1/jwks` and `GET /.well-known/jwks.json` | The same public Ed25519 key set, including verification keys kept during rotation |
 | `GET /v1/gate-policy`                           | A compact JWS (`application/jose`) with `mode`, `until`, `message`, and `iat`     |
+
+An optional `retired` list identifies revoked signing key IDs. The cloud omits them from `keys` and pushes the retirement to connected computers. Those computers close remote sessions minted with a retired signing key.
 
 The policy decides whether the sign-in gate is enforced or has a temporary grace period. Its `until` is UTC in RFC 3339 format for grace and `null` for enforcement. `iat` is a Unix timestamp in seconds. Verify the signature against the cloud JWKS before applying grace, and check that its deadline is still in the future.
 
@@ -89,7 +93,7 @@ Checkout and the portal return a `url`. Account reads return `payment_issue` and
 
 Set `COMPOZY_CLOUD_STRIPE_SECRET_KEY`, `COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO_ANNUAL`, and `STRIPE_PRICE_PRO_MONTHLY` on the cloud service. Use the same Stripe mode for the API key, prices, and webhook endpoint. Configure Managed Payments and enable monthly and annual switching, payment method updates, and period-end cancellation in the Customer Portal. Configure Smart Retries to cancel the subscription after the final attempt.
 
-Deliver `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, and `checkout.session.completed` to the signed webhook endpoint. Cloud also reconciles Stripe subscriptions every six hours.
+Deliver `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `checkout.session.completed`, and `checkout.session.expired` to the signed webhook endpoint. Cloud also reconciles Stripe subscriptions every six hours.
 
 ## Computer authentication and control
 

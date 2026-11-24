@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package cloud
 
 import (
@@ -16,36 +18,46 @@ import (
 	"github.com/compozy/compozy/internal/cloud/cloudflare"
 	"github.com/compozy/compozy/internal/cloud/control"
 	"github.com/compozy/compozy/internal/cloud/email"
+	"github.com/compozy/compozy/internal/cloud/observe"
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/cloud/web"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
 type Config struct {
-	Postgres       store.Config
-	Keys           *api.SigningKeys
-	Issuer         string
-	Now            func() time.Time
-	Logger         *slog.Logger
-	Auth           *auth.Config
-	MonthlyPrice   string
-	AnnualPrice    string
-	HostedTunnels  *cloudflare.Client
-	Stripe         *billing.Stripe
-	Email          *email.Resend
-	UnsubscribeKey []byte
-	MetricsToken   string
+	Postgres        store.Config
+	Keys            *api.SigningKeys
+	Issuer          string
+	Now             func() time.Time
+	Logger          *slog.Logger
+	Auth            *auth.Config
+	MonthlyPrice    string
+	AnnualPrice     string
+	HostedTunnels   *cloudflare.Client
+	Stripe          *billing.Stripe
+	Email           *email.Resend
+	UnsubscribeKey  []byte
+	MetricsToken    string
+	Publisher       *observe.Publisher
+	Reporter        *observe.Sentry
+	ExpectedRestore time.Time
+	Revision        string
 }
 
 type App struct {
-	Store        *store.Store
-	Control      *control.Hub
-	Keys         *api.SigningKeys
-	AccountLimit *api.AccountLimiter
-	Issuer       string
-	Auth         *auth.Service
-	Billing      *billing.Service
-	Accounts     *control.Service
+	Store           *store.Store
+	Control         *control.Hub
+	Keys            *api.SigningKeys
+	AccountLimit    *api.AccountLimiter
+	Issuer          string
+	Auth            *auth.Service
+	Billing         *billing.Service
+	Accounts        *control.Service
+	Metrics         *observe.Metrics
+	publisher       *observe.Publisher
+	reporter        *observe.Sentry
+	mailer          *email.Resend
+	monthly, annual string
 
 	router   *api.Router
 	tunnels  *control.Service
@@ -63,11 +75,19 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
+	metrics := observe.NewMetrics()
+	cfg.Postgres.Metrics = metrics
 	db, err := store.Open(ctx, cfg.Postgres)
 	if err != nil {
 		return nil, err
 	}
+	if err := db.CheckRestoreReady(ctx, cfg.ExpectedRestore); err != nil {
+		db.Close()
+		return nil, err
+	}
 	a := &App{
+		Metrics: metrics, publisher: cfg.Publisher, reporter: cfg.Reporter, mailer: cfg.Email,
+		monthly: cfg.MonthlyPrice, annual: cfg.AnnualPrice,
 		Store:   db,
 		Control: control.NewHub(),
 		Keys:    cfg.Keys,
@@ -77,28 +97,39 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 	}
 	a.AccountLimit = api.NewAccountLimiter(a.now)
 	a.router = api.NewRouter(db, a.Keys, a.Control.Ready, a.draining.Load, a.now)
+	a.router.Observe(metrics, a.reporter)
+	a.router.SetRevision(cfg.Revision)
+	a.router.UseSigningKeySource(a.currentSigningKeys)
 	domain := cloudflare.ProductionDomain
 	if cfg.Auth != nil && cfg.Auth.HostedDomain != "" {
 		domain = cfg.Auth.HostedDomain
 	}
 	a.Billing = billing.New(db, billing.Config{
-		Stripe: cfg.Stripe, Issuer: a.Issuer, HostedDomain: domain,
+		Metrics: metrics, Stripe: cfg.Stripe, Issuer: a.Issuer, HostedDomain: domain,
 		MonthlyPrice: cfg.MonthlyPrice, AnnualPrice: cfg.AnnualPrice, Now: a.now,
 	})
+	if err := a.configureServices(ctx, cfg); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return a, nil
+}
+
+func (a *App) configureServices(ctx context.Context, cfg Config) error {
 	var links *email.UnsubscribeLinks
 	if cfg.Auth != nil {
 		key := cfg.UnsubscribeKey
 		if len(key) == 0 {
 			key = cfg.Auth.EncryptionKey
 		}
-		links, err = email.NewUnsubscribeLinks(a.Issuer, key)
+		configured, err := email.NewUnsubscribeLinks(a.Issuer, key)
 		if err != nil {
-			db.Close()
-			return nil, err
+			return err
 		}
+		links = configured
 	}
-	service := control.NewService(db, control.ServiceConfig{
-		Signer: a.Keys.Signer(), Issuer: a.Issuer, Now: a.now,
+	service := control.NewService(a.Store, control.ServiceConfig{
+		Metrics: a.Metrics, Signer: a.Keys.Signer(), Issuer: a.Issuer, Now: a.now,
 		MonthlyPrice: cfg.MonthlyPrice, AnnualPrice: cfg.AnnualPrice,
 		Logger: a.logger, HostedTunnels: cfg.HostedTunnels, Billing: a.Billing,
 		Email: cfg.Email, Unsubscribe: links,
@@ -107,12 +138,14 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 	var authenticator api.DeviceAuthenticator
 	if cfg.Auth != nil {
 		if err := a.registerAuth(*cfg.Auth, links); err != nil {
-			db.Close()
-			return nil, err
+			return err
 		}
 		authenticator = a.Auth
 	}
-	a.router.RegisterAccountMetrics(db, cfg.MetricsToken)
+	if _, err := a.currentSigningKeys(ctx); err != nil {
+		return err
+	}
+	a.router.RegisterAccountMetrics(a.Store, cfg.MetricsToken)
 	if cfg.HostedTunnels != nil {
 		a.tunnels = service
 	}
@@ -120,10 +153,11 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 		Service: service, Hub: a.Control, Authenticator: authenticator,
 		Limiter: a.AccountLimit, Issuer: a.Issuer, Logger: a.logger, Billing: a.Billing,
 	})
-	return a, nil
+	return nil
 }
 
 func (a *App) registerAuth(cfg auth.Config, links *email.UnsubscribeLinks) error {
+	cfg.Metrics = a.Metrics
 	service, err := auth.New(a.Store, cfg, a.Issuer, a.Keys.Signer(), a.Keys.JWKS(), a.AccountLimit.RetryAfter, a.now)
 	if err != nil {
 		return err
@@ -146,6 +180,12 @@ func (a *App) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func (a *App) RunBackground(ctx context.Context) {
 	var group sync.WaitGroup
+	if a.reporter != nil {
+		group.Go(func() { a.reporter.Run(ctx, func() { a.logger.Warn("Cloud error export failed") }) })
+	}
+	if a.mailer != nil || a.publisher != nil {
+		group.Go(func() { a.runOperations(ctx) })
+	}
 	group.Go(func() { a.Control.Listen(ctx, a.Store.ConnectDirect, a.logger) })
 	group.Go(func() { a.runRetention(ctx) })
 	group.Go(func() { a.runBillingReconciliation(ctx) })
@@ -170,6 +210,7 @@ func (a *App) runBillingReconciliation(ctx context.Context) {
 		case <-ticker.C:
 			if err := a.Billing.Reconcile(ctx); err != nil && ctx.Err() == nil {
 				a.logger.WarnContext(ctx, "Stripe subscription reconciliation failed")
+				a.reporter.Capture(ctx, "stripe_reconciliation", observe.Client{})
 			}
 		}
 	}
@@ -249,7 +290,8 @@ func (a *App) runHostedTunnelSweep(ctx context.Context) {
 		err := errors.Join(a.tunnels.SweepHostedTunnels(work), a.tunnels.LogHostedTunnelCapacity(work))
 		cancel()
 		if err != nil && ctx.Err() == nil {
-			a.logger.WarnContext(ctx, "Hosted tunnel maintenance failed", "error", err)
+			a.logger.WarnContext(ctx, "Hosted tunnel maintenance failed")
+			a.reporter.Capture(ctx, "hosted_tunnel_maintenance", observe.Client{})
 		}
 		select {
 		case <-ctx.Done():
@@ -257,4 +299,15 @@ func (a *App) runHostedTunnelSweep(ctx context.Context) {
 		case <-ticker.C:
 		}
 	}
+}
+func (a *App) currentSigningKeys(ctx context.Context) (remoteproto.JWKS, error) {
+	retired, err := a.Store.RetiredSigningKeys(ctx)
+	if err != nil {
+		return remoteproto.JWKS{}, err
+	}
+	keys, err := a.Keys.Filtered(retired)
+	if err == nil && a.Auth != nil && len(keys.Retired) > 0 {
+		err = a.Auth.ReplaceSigningKeys(keys)
+	}
+	return keys, err
 }

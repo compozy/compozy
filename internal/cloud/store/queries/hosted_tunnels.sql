@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: LockHostedTunnel :one
 SELECT * FROM tunnels WHERE computer_id = $1 FOR UPDATE;
 

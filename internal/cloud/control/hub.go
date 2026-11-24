@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package control
 
 import (
@@ -93,7 +95,10 @@ func (h *Hub) publish(event store.ControlEvent) {
 
 func routesToSubscription(event store.ControlEvent, computer remoteproto.ComputerID) bool {
 	switch event.Type {
-	case remoteproto.ControlDevicesChanged, remoteproto.ControlConsentChanged, remoteproto.ControlApprovalPending, remoteproto.ControlApprovalApplied:
+	case remoteproto.ControlDevicesChanged,
+		remoteproto.ControlConsentChanged,
+		remoteproto.ControlApprovalPending,
+		remoteproto.ControlApprovalApplied:
 		return computer == ""
 	case remoteproto.ControlLinkReplaced:
 		return event.ComputerID == computer
@@ -171,4 +176,16 @@ func (h *Hub) Drain() <-chan struct{} {
 		close(h.drained)
 	}
 	return h.drained
+}
+
+func (h *Hub) ComputersConnected() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	count := 0
+	for sub := range h.subscriptions {
+		if sub.computer != "" && !sub.stopping {
+			count++
+		}
+	}
+	return count
 }

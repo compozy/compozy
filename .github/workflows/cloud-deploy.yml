@@ -1,0 +1,118 @@
+name: Compozy Cloud deploy
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        type: string
+        required: true
+  push:
+    tags:
+      - "cloud-v*"
+  workflow_dispatch:
+    inputs:
+      rollback_tag:
+        description: Previously staged cloud release tag
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  target:
+    name: Verify the cloud revision
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.revision.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.rollback_tag) || (github.ref_type == 'tag' && github.ref || github.sha) }}
+          persist-credentials: false
+
+      - name: Verify the exact revision and staging receipt
+        id: revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ inputs.target || 'production' }}
+          ROLLBACK_TAG: ${{ inputs.rollback_tag }}
+        run: bash .github/scripts/cloud-deploy-target.sh
+
+  deploy:
+    name: Roll out Compozy Cloud
+    needs: target
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: ${{ inputs.target || 'production' }}
+      url: ${{ inputs.target == 'staging' && 'https://staging.cloud.compozy.com' || 'https://cloud.compozy.com' }}
+    concurrency:
+      group: compozy-cloud-deploy-${{ inputs.target || 'production' }}
+      queue: max
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.target.outputs.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: "1.27.3"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+
+      - name: Build the cloud operations CLI
+        run: go build -o "$RUNNER_TEMP/compozy-cloud" ./cmd/compozy-cloud
+
+      - name: Migrate the direct Neon endpoint
+        env:
+          COMPOZY_CLOUD_ENV: ${{ inputs.target || 'production' }}
+          COMPOZY_CLOUD_NEON_DIRECT_URL: ${{ secrets.COMPOZY_CLOUD_NEON_DIRECT_URL }}
+        run: |
+          "$RUNNER_TEMP/compozy-cloud" migrate up
+
+      - name: Deploy the Worker and roll the containers
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.COMPOZY_CLOUD_CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COMPOZY_CLOUD_CLOUDFLARE_DEPLOY_API_TOKEN }}
+          COMPOZY_CLOUD_ENV: ${{ inputs.target || 'production' }}
+          CLOUD_REVISION: ${{ needs.target.outputs.sha }}
+          COMPOZY_CLOUD_NEON_DIRECT_URL: ${{ secrets.COMPOZY_CLOUD_NEON_DIRECT_URL }}
+          COMPOZY_CLOUD_NEON_POOLED_URL: ${{ secrets.COMPOZY_CLOUD_NEON_POOLED_URL }}
+          COMPOZY_CLOUD_SIGNING_KEYS: ${{ secrets.COMPOZY_CLOUD_SIGNING_KEYS }}
+          COMPOZY_CLOUD_PKCE_ENC_KEY: ${{ secrets.COMPOZY_CLOUD_PKCE_ENC_KEY }}
+          COMPOZY_CLOUD_UNSUBSCRIBE_KEY: ${{ secrets.COMPOZY_CLOUD_UNSUBSCRIBE_KEY }}
+          COMPOZY_CLOUD_GOOGLE_CLIENT_ID: ${{ vars.COMPOZY_CLOUD_GOOGLE_CLIENT_ID }}
+          COMPOZY_CLOUD_GOOGLE_CLIENT_SECRET: ${{ secrets.COMPOZY_CLOUD_GOOGLE_CLIENT_SECRET }}
+          COMPOZY_CLOUD_GITHUB_CLIENT_ID: ${{ vars.COMPOZY_CLOUD_GITHUB_CLIENT_ID }}
+          COMPOZY_CLOUD_GITHUB_CLIENT_SECRET: ${{ secrets.COMPOZY_CLOUD_GITHUB_CLIENT_SECRET }}
+          COMPOZY_CLOUD_STRIPE_SECRET_KEY: ${{ secrets.COMPOZY_CLOUD_STRIPE_SECRET_KEY }}
+          COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET: ${{ secrets.COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_PRO_ANNUAL: ${{ vars.STRIPE_PRICE_PRO_ANNUAL }}
+          STRIPE_PRICE_PRO_MONTHLY: ${{ vars.STRIPE_PRICE_PRO_MONTHLY }}
+          COMPOZY_CLOUD_TURNSTILE_SITE_KEY: ${{ vars.COMPOZY_CLOUD_TURNSTILE_SITE_KEY }}
+          COMPOZY_CLOUD_TURNSTILE_SECRET_KEY: ${{ secrets.COMPOZY_CLOUD_TURNSTILE_SECRET_KEY }}
+          COMPOZY_CLOUD_CLOUDFLARE_ACCOUNT_ID: ${{ vars.COMPOZY_CLOUD_CLOUDFLARE_ACCOUNT_ID }}
+          COMPOZY_CLOUD_CLOUDFLARE_RUN_ZONE_ID: ${{ vars.COMPOZY_CLOUD_CLOUDFLARE_RUN_ZONE_ID }}
+          COMPOZY_CLOUD_CLOUDFLARE_TUNNEL_API_TOKEN: ${{ secrets.COMPOZY_CLOUD_CLOUDFLARE_TUNNEL_API_TOKEN }}
+          COMPOZY_CLOUD_RESEND_API_KEY: ${{ secrets.COMPOZY_CLOUD_RESEND_API_KEY }}
+          COMPOZY_CLOUD_RESEND_NEWS_SEGMENT: ${{ vars.COMPOZY_CLOUD_RESEND_NEWS_SEGMENT }}
+          COMPOZY_CLOUD_METRICS_TOKEN: ${{ secrets.COMPOZY_CLOUD_METRICS_TOKEN }}
+          COMPOZY_CLOUD_SENTRY_DSN: ${{ secrets.COMPOZY_CLOUD_SENTRY_DSN }}
+          COMPOZY_CLOUD_GRAFANA_PROM_URL: ${{ vars.COMPOZY_CLOUD_GRAFANA_PROM_URL }}
+          COMPOZY_CLOUD_GRAFANA_PROM_USER: ${{ vars.COMPOZY_CLOUD_GRAFANA_PROM_USER }}
+          COMPOZY_CLOUD_GRAFANA_PROM_TOKEN: ${{ secrets.COMPOZY_CLOUD_GRAFANA_PROM_TOKEN }}
+          COMPOZY_CLOUD_EXPECTED_RESTORE_POINT: ${{ vars.COMPOZY_CLOUD_EXPECTED_RESTORE_POINT }}
+        run: bash .github/scripts/cloud-deploy.sh
+
+      - name: Smoke the public cloud surface
+        env:
+          CLOUD_REVISION: ${{ needs.target.outputs.sha }}
+          CLOUD_ORIGIN: ${{ inputs.target == 'staging' && 'https://staging.cloud.compozy.com' || 'https://cloud.compozy.com' }}
+        run: bun .github/scripts/cloud-smoke.ts

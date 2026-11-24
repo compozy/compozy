@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -157,6 +158,8 @@ func (c *Client) open(
 		return nil, unavailable()
 	}
 	req.Header.Set("Accept", accept)
+	req.Header.Set("X-Compozy-Version", version.Current().Version)
+	req.Header.Set("X-Compozy-Platform", runtime.GOOS)
 	if input != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

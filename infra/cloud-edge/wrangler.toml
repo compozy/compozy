@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: FSL-1.1-MIT
+
 name = "compozy-cloud-edge"
 main = "src/worker.ts"
 compatibility_date = "2026-07-30"
@@ -24,6 +26,9 @@ rollout_step_percentage = [50, 100]
 [containers.constraints]
 regions = ["ENAM"]
 
+[vars]
+COMPOZY_CLOUD_ENV = "production"
+
 [triggers]
 crons = ["* * * * *"]
 
@@ -47,6 +52,9 @@ rollout_step_percentage = [50, 100]
 
 [env.staging.containers.constraints]
 regions = ["ENAM"]
+
+[env.staging.vars]
+COMPOZY_CLOUD_ENV = "staging"
 
 [env.staging.triggers]
 crons = ["* * * * *"]

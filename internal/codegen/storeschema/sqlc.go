@@ -52,6 +52,9 @@ func runSQLC(ctx context.Context, toolRoot, configPath, outputPath string) error
 			strings.TrimSpace(string(output)),
 		)
 	}
+	if strings.HasSuffix(filepath.ToSlash(configPath), "internal/cloud/store/sqlc.yaml") {
+		return rewriteSQLCGenerated(outputPath, "// SPDX-License-Identifier: FSL-1.1-MIT\n\n")
+	}
 	return modernizeSQLCGenerated(outputPath)
 }
 
@@ -168,7 +171,11 @@ func checkSQLCPackage(ctx context.Context, root string, tempRoot string, package
 	return nil
 }
 
-func modernizeSQLCGenerated(outputPath string) (err error) {
+func modernizeSQLCGenerated(outputPath string) error {
+	return rewriteSQLCGenerated(outputPath, "")
+}
+
+func rewriteSQLCGenerated(outputPath, header string) (err error) {
 	generated, err := os.OpenRoot(outputPath)
 	if err != nil {
 		return fmt.Errorf("codegen: open generated sqlc package: %w", err)
@@ -189,6 +196,9 @@ func modernizeSQLCGenerated(outputPath string) (err error) {
 			return fmt.Errorf("read generated file %q: %w", name, err)
 		}
 		modernized := bytes.ReplaceAll(contents, []byte("interface{}"), []byte("any"))
+		if !bytes.HasPrefix(modernized, []byte(header)) {
+			modernized = append([]byte(header), modernized...)
+		}
 		formatted, err := format.Source(modernized)
 		if err != nil {
 			return fmt.Errorf("format modernized generated file %q: %w", name, err)

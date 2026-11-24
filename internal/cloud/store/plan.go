@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package store
 
 import (
@@ -52,6 +54,11 @@ func (q *Queries) ApplyAccountPlan(
 		return err
 	}
 	var deleteAfter time.Time
+	if tier == plan.Pro {
+		if err := q.generated.EndProLapse(ctx, accountID); err != nil {
+			return err
+		}
+	}
 	if tier == plan.Free {
 		deleteAfter = asOf.Add(hostedPlanRetention)
 		released, err := q.generated.ReleaseExcessFreeReservations(ctx, sqlcgen.ReleaseExcessFreeReservationsParams{
@@ -73,4 +80,7 @@ func (q *Queries) ApplyAccountPlan(
 
 func (q *Queries) AccountHostedRouteUsage(ctx context.Context, accountID string) (int64, error) {
 	return q.generated.AccountHostedRouteUsage(ctx, accountID)
+}
+func (q *Queries) StartProLapse(ctx context.Context, accountID string, at time.Time) error {
+	return q.generated.StartProLapse(ctx, sqlcgen.StartProLapseParams{AccountID: accountID, AsOf: timestamp(at)})
 }

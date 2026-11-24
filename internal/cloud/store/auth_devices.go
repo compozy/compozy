@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package store
 
 import (
@@ -41,11 +43,15 @@ type AuthDevice struct {
 }
 
 func (q *Queries) CreateAuthDevice(ctx context.Context, d AuthDevice, now time.Time) error {
-	return q.generated.InsertAuthDevice(ctx, sqlcgen.InsertAuthDeviceParams{
+	err := q.generated.InsertAuthDevice(ctx, sqlcgen.InsertAuthDeviceParams{
 		ID: d.ID, AccountID: d.AccountID, Name: d.Name, Kind: d.Kind,
 		InstallationID: authText(d.InstallationID), BrowserBindingSha256: d.BrowserBinding,
 		Admin: d.Admin, LastSeenAt: timestamp(now),
 	})
+	if err != nil {
+		return err
+	}
+	return q.RecordInstallationActivity(ctx, d.AccountID, d.InstallationID, now)
 }
 
 type AuthDeviceKey struct {
@@ -81,9 +87,13 @@ func (q *Queries) RecordAuthDeviceChange(ctx context.Context, accountID string) 
 }
 
 func (q *Queries) AdvanceDeviceActivity(ctx context.Context, deviceID string, now time.Time) error {
-	return q.generated.AdvanceAuthDeviceActivity(ctx, sqlcgen.AdvanceAuthDeviceActivityParams{
+	device, err := q.generated.AdvanceAuthDeviceActivity(ctx, sqlcgen.AdvanceAuthDeviceActivityParams{
 		ID: deviceID, AsOf: timestamp(now),
 	})
+	if err != nil {
+		return err
+	}
+	return q.RecordInstallationActivity(ctx, device.AccountID, device.InstallationID.String, now)
 }
 
 type AuthDeviceSession struct {

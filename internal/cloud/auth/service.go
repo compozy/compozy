@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package auth
 
 import (
@@ -14,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/observe"
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
@@ -41,6 +44,7 @@ const (
 )
 
 type Config struct {
+	Metrics          *observe.Metrics
 	OAuth            *OAuth
 	EncryptionKey    []byte
 	Turnstile        TurnstileVerifier
@@ -166,4 +170,8 @@ type codeEntries struct {
 	mu        sync.Mutex
 	windows   map[string]codeWindow
 	nextSweep time.Time
+}
+
+func (s *Service) ReplaceSigningKeys(keys remoteproto.JWKS) error {
+	return s.access.ReplaceKeys(keys)
 }

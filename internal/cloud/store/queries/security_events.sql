@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: AppendSecurityEvent :one
 INSERT INTO security_events (account_id, type, actor, at, details_json)
 VALUES (sqlc.narg(account_id), sqlc.arg(event_type), sqlc.arg(actor), sqlc.arg(at),

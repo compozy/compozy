@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 import { DurableObject } from "cloudflare:workers";
 import * as edge from "../src/worker";
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package store
 
 import (
@@ -10,12 +12,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/compozy/compozy/internal/cloud/observe"
 	"github.com/compozy/compozy/internal/cloud/store/sqlcgen"
 )
 
 type Config struct {
 	PooledDSN string
 	DirectDSN string
+	Metrics   *observe.Metrics
 }
 
 type Store struct {
@@ -44,6 +48,9 @@ func Open(ctx context.Context, config Config) (*Store, error) {
 	// Request connections must work through PgBouncer in transaction mode.
 	pooled.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
 	pooled.ConnConfig.ConnectTimeout = 5 * time.Second
+	if config.Metrics != nil {
+		pooled.ConnConfig.Tracer = queryTiming{config.Metrics}
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, pooled)
 	if err != nil {
 		return nil, connectionError("create cloud Postgres pool", err)

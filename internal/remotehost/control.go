@@ -218,7 +218,7 @@ func (c *controlLink) applyControl(
 		if err := json.Unmarshal(message.Data, &keys); err != nil {
 			return err
 		}
-		return c.verifier.ReplaceKeys(keys)
+		return c.sessions.ApplySigningKeys(ctx, c.verifier, keys)
 	case remoteproto.ControlApprovalDecided:
 		if message.SecurityEpoch != c.sessions.Snapshot().SecurityEpoch {
 			return nil

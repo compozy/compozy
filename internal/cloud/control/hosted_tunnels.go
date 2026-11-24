@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package control
 
 import (
@@ -114,6 +116,7 @@ func (s *Service) hostedTunnelMode(
 	if tunnel.State == tunnelActive && now.Before(tunnel.DeleteAfter) {
 		return remoteproto.HostedTunnelEntitlementOnly, nil
 	}
+	s.config.Metrics.Paywall(errCloudPlanRequired.Code)
 	return "", errCloudPlanRequired
 }
 

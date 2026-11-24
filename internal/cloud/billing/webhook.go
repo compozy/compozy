@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package billing
 
 import (
@@ -13,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/observe"
+	"github.com/compozy/compozy/internal/cloud/plan"
 	"github.com/compozy/compozy/internal/cloud/store"
 )
 
@@ -48,6 +52,10 @@ func (s *Service) Webhook(ctx context.Context, signature string, raw []byte) err
 	if err := json.Unmarshal(raw, &event); err != nil || !validStripeID(event.ID, "evt_") {
 		return ErrInvalidRequest
 	}
+	return s.applyStripeEvent(ctx, event)
+}
+
+func (s *Service) applyStripeEvent(ctx context.Context, event stripeEvent) error {
 	object := event.Data.Object
 	var subscription string
 	switch event.Type {
@@ -55,11 +63,13 @@ func (s *Service) Webhook(ctx context.Context, signature string, raw []byte) err
 		subscription = object.ID
 	case "invoice.paid", "invoice.payment_failed":
 		subscription = object.Parent.SubscriptionDetails.Subscription
-		if subscription == "" {
+		if subscription == "" && event.Type != "checkout.session.completed" {
 			subscription = object.Subscription
 		}
 	case "checkout.session.completed":
 		subscription = object.Subscription
+	case "checkout.session.expired":
+		return s.refreshSubscription(ctx, "", event, "")
 	default:
 		return nil
 	}
@@ -99,13 +109,16 @@ func verifyStripeSignature(header string, raw []byte, secret string, now time.Ti
 }
 
 func (s *Service) refreshSubscription(ctx context.Context, id string, event stripeEvent, expectedAccount string) error {
-	if !validStripeID(id, "sub_") {
+	if id != "" && !validStripeID(id, "sub_") {
 		return ErrInvalidRequest
 	}
 	receivedAt := s.cfg.Now()
-	return s.db.Transaction(ctx, func(q *store.Queries) error {
-		if err := q.LockStripeSubscription(ctx, id); err != nil {
-			return err
+	var ended, interval string
+	err := s.db.Transaction(ctx, func(q *store.Queries) error {
+		if id != "" {
+			if err := q.LockStripeSubscription(ctx, id); err != nil {
+				return err
+			}
 		}
 		if event.ID != "" {
 			added, err := q.InsertStripeEvent(ctx, event.ID, event.Type, receivedAt)
@@ -113,17 +126,45 @@ func (s *Service) refreshSubscription(ctx context.Context, id string, event stri
 				return err
 			}
 		}
-		if err := s.fetchAndSaveSubscription(ctx, q, id, expectedAccount); err != nil {
-			return err
+		if id != "" {
+			if err := s.fetchAndSaveSubscription(ctx, q, id, expectedAccount, &ended); err != nil {
+				return err
+			}
+		}
+		switch event.Type {
+		case "checkout.session.completed", "checkout.session.expired":
+			var err error
+			interval, err = q.BillingCheckoutInterval(ctx, event.Data.Object.ID)
+			if err != nil {
+				return err
+			}
 		}
 		if event.ID != "" {
 			return q.MarkStripeEventProcessed(ctx, event.ID, s.cfg.Now())
 		}
 		return nil
 	})
+	if err == nil {
+		if ended != "" {
+			s.cfg.Metrics.Count("cloud_subscription_ends_total", observe.Labels{"reason": ended})
+		}
+		if interval != "" {
+			s.countCheckout(interval, strings.TrimPrefix(event.Type, "checkout.session."))
+		}
+	}
+	return err
 }
 
-func (s *Service) fetchAndSaveSubscription(ctx context.Context, q *store.Queries, id, expectedAccount string) error {
+func (s *Service) countCheckout(interval, result string) {
+	s.cfg.Metrics.Count("cloud_checkout_sessions_total", observe.Labels{"interval": interval, "result": result})
+}
+
+func (s *Service) fetchAndSaveSubscription(
+	ctx context.Context,
+	q *store.Queries,
+	id, expectedAccount string,
+	ended *string,
+) error {
 	old, err := q.BillingSubscription(ctx, id)
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		return err
@@ -168,5 +209,16 @@ func (s *Service) fetchAndSaveSubscription(ctx context.Context, q *store.Queries
 		return err
 	}
 	before, after := s.status(previous, now), s.status(subscriptions, now)
+	if current.Status == "canceled" && old.Status != "canceled" && current.PriceID != "" {
+		*ended = current.CancellationReason
+		if *ended == "" {
+			*ended = "unknown"
+		}
+	}
+	if before.Plan == plan.Pro && after.Plan == plan.Free {
+		if err := q.StartProLapse(ctx, current.AccountID, now); err != nil {
+			return err
+		}
+	}
 	return q.ApplyAccountPlan(ctx, current.AccountID, after.Plan, now, before != after)
 }

@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: CloudAccountTotals :many
 SELECT first_sign_in_provider AS provider, count(*) AS total
 FROM accounts GROUP BY first_sign_in_provider ORDER BY first_sign_in_provider;

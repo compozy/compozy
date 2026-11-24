@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: InsertCloudWebSession :exec
 INSERT INTO cloud_web_sessions (id_sha256, account_id, created_at, last_used_at, expires_at)
 VALUES ($1, $2, $3, $3, $4);

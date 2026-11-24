@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: FSL-1.1-MIT
+
 set -eu
 
 export COMPOZY_CLOUD_URL=$(cat /etc/compozy-fixture-cloud)

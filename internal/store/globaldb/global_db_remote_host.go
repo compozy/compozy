@@ -162,9 +162,16 @@ func (t remoteHostTx) InsertSession(ctx context.Context, session remotehost.Sess
 		browser = 1
 	}
 	if err := t.q.InsertRemoteSession(ctx, sqlcgen.InsertRemoteSessionParams{
-		ID: session.ID, CredentialSha256: session.CredentialHash[:], DeviceID: string(session.DeviceID),
-		DeviceJkt: session.JKT, Scopes: string(scopes), Route: string(session.Route), Browser: browser,
-		CreatedAt: session.CreatedAt.UnixNano(), ExpiresAt: session.ExpiresAt.UnixNano(),
+		ID:               session.ID,
+		CredentialSha256: session.CredentialHash[:],
+		DeviceID:         string(session.DeviceID),
+		DeviceJkt:        session.JKT,
+		Scopes:           string(scopes),
+		Route:            string(session.Route),
+		Browser:          browser,
+		CreatedAt:        session.CreatedAt.UnixNano(),
+		ExpiresAt:        session.ExpiresAt.UnixNano(),
+		SigningKeyID:     session.SigningKeyID,
 	}); err != nil {
 		return err
 	}
@@ -198,9 +205,17 @@ func remoteSessionFromRow(row sqlcgen.RemoteSession) (remotehost.Session, error)
 		return remotehost.Session{}, errors.New("stored remote credential hash is invalid")
 	}
 	return remotehost.Session{
-		ID: row.ID, CredentialHash: [32]byte(row.CredentialSha256), DeviceID: remoteproto.DeviceID(row.DeviceID),
-		JKT: row.DeviceJkt, Scopes: scopes, Route: remoteproto.RouteKind(row.Route), Browser: row.Browser == 1,
-		CreatedAt: remoteTime(row.CreatedAt), ExpiresAt: remoteTime(row.ExpiresAt), Revoked: row.RevokedAt.Valid,
+		ID:             row.ID,
+		CredentialHash: [32]byte(row.CredentialSha256),
+		DeviceID:       remoteproto.DeviceID(row.DeviceID),
+		JKT:            row.DeviceJkt,
+		SigningKeyID:   row.SigningKeyID,
+		Scopes:         scopes,
+		Route:          remoteproto.RouteKind(row.Route),
+		Browser:        row.Browser == 1,
+		CreatedAt:      remoteTime(row.CreatedAt),
+		ExpiresAt:      remoteTime(row.ExpiresAt),
+		Revoked:        row.RevokedAt.Valid,
 	}, nil
 }
 

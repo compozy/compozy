@@ -11,7 +11,7 @@ import (
 )
 
 const activeRemoteSessions = `-- name: ActiveRemoteSessions :many
-SELECT id, credential_sha256, device_id, device_jkt, scopes, route, browser, created_at, expires_at, revoked_at FROM remote_sessions WHERE revoked_at IS NULL AND expires_at > ?
+SELECT id, credential_sha256, device_id, device_jkt, scopes, route, browser, created_at, expires_at, revoked_at, signing_key_id FROM remote_sessions WHERE revoked_at IS NULL AND expires_at > ?
 `
 
 func (q *Queries) ActiveRemoteSessions(ctx context.Context, expiresAt int64) ([]RemoteSession, error) {
@@ -34,6 +34,7 @@ func (q *Queries) ActiveRemoteSessions(ctx context.Context, expiresAt int64) ([]
 			&i.CreatedAt,
 			&i.ExpiresAt,
 			&i.RevokedAt,
+			&i.SigningKeyID,
 		); err != nil {
 			return nil, err
 		}
@@ -150,7 +151,7 @@ func (q *Queries) GetRemoteSecurityState(ctx context.Context) (RemoteSecuritySta
 }
 
 const getRemoteSession = `-- name: GetRemoteSession :one
-SELECT id, credential_sha256, device_id, device_jkt, scopes, route, browser, created_at, expires_at, revoked_at FROM remote_sessions WHERE credential_sha256 = ?
+SELECT id, credential_sha256, device_id, device_jkt, scopes, route, browser, created_at, expires_at, revoked_at, signing_key_id FROM remote_sessions WHERE credential_sha256 = ?
 `
 
 func (q *Queries) GetRemoteSession(ctx context.Context, credentialSha256 []byte) (RemoteSession, error) {
@@ -167,6 +168,7 @@ func (q *Queries) GetRemoteSession(ctx context.Context, credentialSha256 []byte)
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
+		&i.SigningKeyID,
 	)
 	return i, err
 }
@@ -184,8 +186,8 @@ func (q *Queries) HasRemoteGrant(ctx context.Context, jti string) (bool, error) 
 
 const insertRemoteSession = `-- name: InsertRemoteSession :exec
 INSERT INTO remote_sessions (
-    id, credential_sha256, device_id, device_jkt, scopes, route, browser, created_at, expires_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    id, credential_sha256, device_id, device_jkt, scopes, route, browser, created_at, expires_at, signing_key_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertRemoteSessionParams struct {
@@ -198,6 +200,7 @@ type InsertRemoteSessionParams struct {
 	Browser          int64  `json:"browser"`
 	CreatedAt        int64  `json:"created_at"`
 	ExpiresAt        int64  `json:"expires_at"`
+	SigningKeyID     string `json:"signing_key_id"`
 }
 
 func (q *Queries) InsertRemoteSession(ctx context.Context, arg InsertRemoteSessionParams) error {
@@ -211,6 +214,7 @@ func (q *Queries) InsertRemoteSession(ctx context.Context, arg InsertRemoteSessi
 		arg.Browser,
 		arg.CreatedAt,
 		arg.ExpiresAt,
+		arg.SigningKeyID,
 	)
 	return err
 }

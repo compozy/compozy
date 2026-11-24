@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package billing
 
 import (
@@ -5,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/plan"
 	"github.com/compozy/compozy/internal/cloud/store"
 )
 
@@ -54,7 +57,13 @@ func (s *Service) ReconcileComplimentary(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			return q.ApplyAccountPlan(ctx, accountID, s.status(subscriptions, now).Plan, now, true)
+			tier := s.status(subscriptions, now).Plan
+			if tier == plan.Free {
+				if err := q.StartProLapse(ctx, accountID, now); err != nil {
+					return err
+				}
+			}
+			return q.ApplyAccountPlan(ctx, accountID, tier, now, true)
 		})
 		if err != nil {
 			failures = append(failures, err)

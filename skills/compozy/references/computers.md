@@ -34,7 +34,7 @@ Call native tools with a declared `remote_scope` using an optional `computer` na
 | `GET /v1/jwks` or `GET /.well-known/jwks.json` | Read the cloud's public Ed25519 verification keys     |
 | `GET /v1/gate-policy`                          | Fetch the signed sign-in policy in compact JWS format |
 
-Verify the gate policy signature against the cloud JWKS. A grace policy applies only before its `until` deadline. For `429 rate_limited` and `503 cloud_unavailable`, honor the `Retry-After` header.
+Treat key IDs in the cloud JWKS `retired` list as revoked. A computer closes remote sessions minted with a retired key. Verify the gate policy signature against the cloud JWKS. A grace policy applies only before its `until` deadline. For `429 rate_limited` and `503 cloud_unavailable`, honor the `Retry-After` header.
 
 ## Set up an SSH computer
 

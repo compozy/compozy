@@ -19,7 +19,8 @@ CREATE TABLE remote_sessions (
     browser INTEGER NOT NULL,
     created_at INTEGER NOT NULL,
     expires_at INTEGER NOT NULL,
-    revoked_at INTEGER
+    revoked_at INTEGER,
+    signing_key_id TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX idx_remote_sessions_device ON remote_sessions (device_id);
 CREATE INDEX idx_remote_sessions_expiry ON remote_sessions (expires_at);

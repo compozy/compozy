@@ -34,13 +34,14 @@ type Sessions struct {
 	now      func() time.Time
 	report   func(remoteproto.ControlType, uint64, any)
 
-	serial            sync.Mutex
-	security          *remoteproto.SecurityState
-	snapshotBlocked   bool
-	snapshotChanged   chan struct{}
-	snapshotRequested uint64
-	policy            sessionPolicy
-	locallyRevoked    map[remoteproto.DeviceID]bool
+	serial             sync.Mutex
+	security           *remoteproto.SecurityState
+	snapshotBlocked    bool
+	snapshotChanged    chan struct{}
+	snapshotRequested  uint64
+	policy             sessionPolicy
+	locallyRevoked     map[remoteproto.DeviceID]bool
+	retiredSigningKeys map[string]bool
 
 	mu        sync.RWMutex
 	admission admissionState
@@ -141,9 +142,17 @@ func (s *Sessions) mintWhenReady(ctx context.Context, grant remoteproto.GrantCla
 		s.mu.RLock()
 		state := s.admission
 		s.mu.RUnlock()
+		if s.retiredSigningKeys[grant.SigningKeyID] {
+			s.serial.Unlock()
+			return MintResult{}, remoteproto.ErrGrantSignatureInvalid
+		}
 		if !state.enabled {
 			s.serial.Unlock()
 			return MintResult{}, ErrNotLinked
+		}
+		if state.snapshot.SecurityEpoch > grant.SecurityEpoch {
+			s.serial.Unlock()
+			return MintResult{}, ErrSnapshotPending
 		}
 		if !state.blocked && s.security.ReadyForMint(grant.SecurityEpoch) {
 			result, err := s.commitMint(ctx, grant, state, s.now())
@@ -193,9 +202,16 @@ func (s *Sessions) commitMint(
 		return MintResult{}, err
 	}
 	session := Session{
-		ID: "rs_" + rand.Text(), CredentialHash: sha256.Sum256([]byte(credential)), DeviceID: grant.Subject,
-		JKT: grant.Cnf.JKT, Scopes: effectiveScopes(grant.Scopes, device, state.policy.maxScopes),
-		Route: grant.Route, Browser: grant.Browser, CreatedAt: now, ExpiresAt: now.Add(SessionTTL),
+		ID:             "rs_" + rand.Text(),
+		CredentialHash: sha256.Sum256([]byte(credential)),
+		DeviceID:       grant.Subject,
+		JKT:            grant.Cnf.JKT,
+		SigningKeyID:   grant.SigningKeyID,
+		Scopes:         effectiveScopes(grant.Scopes, device, state.policy.maxScopes),
+		Route:          grant.Route,
+		Browser:        grant.Browser,
+		CreatedAt:      now,
+		ExpiresAt:      now.Add(SessionTTL),
 	}
 	var approval Approval
 	var refusal error

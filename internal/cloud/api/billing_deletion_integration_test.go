@@ -1,9 +1,13 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 //go:build integration
 
 package api_test
 
 import (
 	"net/http"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -135,76 +139,93 @@ func TestCloudBillingDeletion(t *testing.T) {
 		}
 	})
 
-	t.Run("Should disable all account credentials and open checkouts in the deletion transaction (UT-121)", func(t *testing.T) {
-		t.Parallel()
-		// Safety Invariants 22, 35 and 36. A retrying deletion is fenced and its tombstone is PII-free.
-		resend := remotetest.StartResend(t)
-		f, stripe := newBillingFixture(t, func(cfg *cloud.Config) {
-			cfg.Issuer = authOrigin
-			cfg.Email = resend.Client
-		})
-		const address = "delete-cloud@example.test"
-		owner := newBillingDevice(t, f, address)
-		other := newBillingDevice(t, f, address)
-		request := remoteproto.AccountDeleteRequest{ConfirmEmail: address}
-		remoteCloudRequest(t, f, other, http.MethodDelete, cloudAccountPath, request).
-			expect(t, http.StatusForbidden, "account_admin_required")
-		remoteCloudRequest(t, f, owner, http.MethodDelete, cloudAccountPath,
-			remoteproto.AccountDeleteRequest{ConfirmEmail: "wrong@example.test"}).
-			expect(t, http.StatusBadRequest, "confirm_email_mismatch")
-		remoteCloudRequest(t, f, owner, http.MethodPost, "/v1/billing/checkout", remoteproto.CheckoutRequest{Interval: "year"}).
-			expect(t, http.StatusOK, "checkout.stripe.com")
-		sub := proStripeSub(f.clock.Now(), "sub_lifecycle", owner.account)
-		stripe.Put(sub)
-		deliverStripeEvent(t, f, "evt_delete_lifecycle", stripeSubCreated, sub.ID)
-		stripe.FailDeletion(true)
-		p := providerProfile{subject: address, email: address, verified: true}
-		web := purchaseWebSession(t, f, p)
-		pending := newEnrollment(t, f, auth.Google, p, false)
-		token := createLifecycleAccountToken(t, f, owner)
-		remoteCloudRequest(t, f, owner, http.MethodDelete, cloudAccountPath, request).
-			expect(t, http.StatusAccepted, `"subscription_cancelled":true`)
-		assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE state = 'deleting'", 1)
-		assertAuthRow(t, f, "SELECT count(*) FROM device_sessions WHERE revoked_at IS NOT NULL", 2)
-		assertAuthRow(t, f, "SELECT count(*) FROM cloud_web_sessions WHERE revoked_at IS NOT NULL", 1)
-		assertAuthRow(t, f, "SELECT count(*) FROM account_tokens WHERE revoked_at IS NOT NULL", 1)
-		assertAuthRow(t, f, "SELECT count(*) FROM billing_checkouts WHERE expired_at IS NOT NULL", 1)
-		assertAuthRow(t, f, "SELECT count(*) FROM security_events WHERE type = 'account_deletion_started'", 1)
-		exchangeLifecycleAccountToken(t, f, token).expect(t, http.StatusUnauthorized, `"reason":"account_deleted"`)
-		for _, path := range []string{"/v1/computers/cmp_test/grants", "/v1/computers/reservations", "/v1/billing/checkout"} {
-			remoteCloudRequest(t, f, owner, http.MethodPost, path, map[string]string{}).
+	t.Run(
+		"Should disable all account credentials and open checkouts in the deletion transaction (UT-121)",
+		func(t *testing.T) {
+			t.Parallel()
+			// Safety Invariants 22, 35 and 36. A retrying deletion is fenced and its tombstone is PII-free.
+			resend := remotetest.StartResend(t)
+			f, stripe := newBillingFixture(t, func(cfg *cloud.Config) {
+				cfg.Issuer = authOrigin
+				cfg.Email = resend.Client
+			})
+			const address = "delete-cloud@example.test"
+			owner := newBillingDevice(t, f, address)
+			other := newBillingDevice(t, f, address)
+			request := remoteproto.AccountDeleteRequest{ConfirmEmail: address}
+			remoteCloudRequest(t, f, other, http.MethodDelete, cloudAccountPath, request).
+				expect(t, http.StatusForbidden, "account_admin_required")
+			remoteCloudRequest(t, f, owner, http.MethodDelete, cloudAccountPath,
+				remoteproto.AccountDeleteRequest{ConfirmEmail: "wrong@example.test"}).
+				expect(t, http.StatusBadRequest, "confirm_email_mismatch")
+			remoteCloudRequest(
+				t,
+				f,
+				owner,
+				http.MethodPost,
+				"/v1/billing/checkout",
+				remoteproto.CheckoutRequest{Interval: "year"},
+			).
+				expect(t, http.StatusOK, "checkout.stripe.com")
+			sub := proStripeSub(f.clock.Now(), "sub_lifecycle", owner.account)
+			stripe.Put(sub)
+			deliverStripeEvent(t, f, "evt_delete_lifecycle", stripeSubCreated, sub.ID)
+			stripe.FailDeletion(true)
+			p := providerProfile{subject: address, email: address, verified: true}
+			web := purchaseWebSession(t, f, p)
+			pending := newEnrollment(t, f, auth.Google, p, false)
+			token := createLifecycleAccountToken(t, f, owner)
+			remoteCloudRequest(t, f, owner, http.MethodDelete, cloudAccountPath, request).
+				expect(t, http.StatusAccepted, `"subscription_cancelled":true`)
+			assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE state = 'deleting'", 1)
+			assertAuthRow(t, f, "SELECT count(*) FROM device_sessions WHERE revoked_at IS NOT NULL", 2)
+			assertAuthRow(t, f, "SELECT count(*) FROM cloud_web_sessions WHERE revoked_at IS NOT NULL", 1)
+			assertAuthRow(t, f, "SELECT count(*) FROM account_tokens WHERE revoked_at IS NOT NULL", 1)
+			assertAuthRow(t, f, "SELECT count(*) FROM billing_checkouts WHERE expired_at IS NOT NULL", 1)
+			assertAuthRow(t, f, "SELECT count(*) FROM security_events WHERE type = 'account_deletion_started'", 1)
+			exchangeLifecycleAccountToken(t, f, token).expect(t, http.StatusUnauthorized, `"reason":"account_deleted"`)
+			for _, path := range []string{"/v1/computers/cmp_test/grants", "/v1/computers/reservations", "/v1/billing/checkout"} {
+				remoteCloudRequest(t, f, owner, http.MethodPost, path, map[string]string{}).
+					expect(t, http.StatusConflict, "account_deleting")
+			}
+			f.request(t, http.MethodGet, "/billing/upgrade", nil, web).
 				expect(t, http.StatusConflict, "account_deleting")
-		}
-		f.request(t, http.MethodGet, "/billing/upgrade", nil, web).expect(t, http.StatusConflict, "account_deleting")
-		key, jwk := newDeviceKey(t)
-		proof, err := remoteproto.BuildDPoP(key, http.MethodPost, f.replica.App.Issuer+enrollPath, "", f.clock.Now())
-		if err != nil {
-			t.Fatal(err)
-		}
-		callAuth(t, f.replica, http.MethodPost, enrollPath, enrollInput(jwk), nil, map[string]string{
-			"Authorization": "DPoP " + pending.EnrollmentToken, "DPoP": proof,
-		}).expect(t, http.StatusConflict, "account_deleting")
-		reply, _ := f.signIn(t, auth.Google, p, false)
-		reply.expect(t, http.StatusConflict, "account_deleting")
-		awaitDeletionSweep(t, f, func() bool {
-			cancels, _ := stripe.DeletionCalls()
-			return len(cancels) > 0
-		})
-		if got := stripe.Checkouts(); len(got) != 1 || got[0].Status != "expired" {
-			t.Fatalf("open Stripe checkout was left available: %v", got)
-		}
-		assertAuthRow(t, f, "SELECT count(*) FROM identities", 1)
-		if resend.ContactDeletes() != 0 {
-			t.Fatal("contact removal ran before cancellation")
-		}
-		stripe.FailDeletion(false)
-		f.clock.Advance(2 * time.Minute)
-		awaitDeletionSweep(t, f, func() bool {
-			deleted, err := f.replica.App.Store.AuthAccountDeleted(t.Context(), owner.account)
-			return err == nil && deleted
-		})
-		assertDeletedAccount(t, f)
-	})
+			key, jwk := newDeviceKey(t)
+			proof, err := remoteproto.BuildDPoP(
+				key,
+				http.MethodPost,
+				f.replica.App.Issuer+enrollPath,
+				"",
+				f.clock.Now(),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			callAuth(t, f.replica, http.MethodPost, enrollPath, enrollInput(jwk), nil, map[string]string{
+				"Authorization": "DPoP " + pending.EnrollmentToken, "DPoP": proof,
+			}).expect(t, http.StatusConflict, "account_deleting")
+			reply, _ := f.signIn(t, auth.Google, p, false)
+			reply.expect(t, http.StatusConflict, "account_deleting")
+			awaitDeletionSweep(t, f, func() bool {
+				cancels, _ := stripe.DeletionCalls()
+				return len(cancels) > 0
+			})
+			if got := stripe.Checkouts(); len(got) != 1 || got[0].Status != "expired" {
+				t.Fatalf("open Stripe checkout was left available: %v", got)
+			}
+			assertAuthRow(t, f, "SELECT count(*) FROM identities", 1)
+			if resend.ContactDeletes() != 0 {
+				t.Fatal("contact removal ran before cancellation")
+			}
+			stripe.FailDeletion(false)
+			f.clock.Advance(2 * time.Minute)
+			awaitDeletionSweep(t, f, func() bool {
+				deleted, err := f.replica.App.Store.AuthAccountDeleted(t.Context(), owner.account)
+				return err == nil && deleted
+			})
+			assertDeletedAccount(t, f)
+		},
+	)
 
 }
 
@@ -242,4 +263,123 @@ func assertDeletedAccount(t *testing.T, f authFixture) {
 	assertAuthRow(t, f, "SELECT count(*) FROM security_events WHERE account_id IS NOT NULL", 0)
 	assertAuthRow(t, f, `SELECT count(*) FROM deleted_accounts
 		WHERE (security_event_counts->>'account_deletion_started')::int = 1`, 1)
+}
+
+func TestTransactionalOperationsMail(t *testing.T) {
+	t.Parallel()
+	t.Run("Should deliver lifecycle notices on schedule without marketing consent (UT-140)", func(t *testing.T) {
+		t.Parallel()
+		resend := remotetest.StartResend(t)
+		f, stripe := newBillingFixture(t, func(cfg *cloud.Config) { cfg.Email = resend.Client })
+		d0 := f.clock.Now()
+		lapsed := newBillingDevice(t, f, "pro-ended@example.test")
+		renewed := newBillingDevice(t, f, "pro-renewed@example.test")
+		offline := newBillingDevice(t, f, "offline@example.test")
+		ended := proStripeSub(d0, "sub_ended_mail", lapsed.account)
+		resubscribed := proStripeSub(d0, "sub_renewed_mail", renewed.account)
+		offlineSub := proStripeSub(d0, "sub_offline_mail", offline.account)
+		for _, sub := range []remotetest.StripeSubscription{ended, resubscribed, offlineSub} {
+			stripe.Put(sub)
+			deliverStripeEvent(t, f, "evt_"+sub.ID+"_start", stripeSubCreated, sub.ID)
+		}
+		comp := remoteproto.ComputerID("cmp_offline_mail")
+		f.db.SeedControlComputer(t, offline.account, comp, d0)
+		f.db.Exec(t, `INSERT INTO %s.tunnels (computer_id, hostname, state, created_at)
+            VALUES ($1, 'offline-mail.compozy.run', 'active', $2)`, comp, d0)
+		for _, sub := range []remotetest.StripeSubscription{ended, resubscribed} {
+			sub.Status = "canceled"
+			stripe.Put(sub)
+			deliverStripeEvent(t, f, "evt_"+sub.ID+"_end", stripeSubDeleted, sub.ID)
+		}
+		runMail := func() {
+			t.Helper()
+			if err := f.replica.App.RunOperationalMail(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		runMail()
+		runMail()
+		deadline := d0.AddDate(0, 0, 7).Format("January 2, 2006")
+		assertOperationalMessage(t, resend, "pro-ended@example.test", "Pro ended", deadline, 1)
+		assertOperationalMessage(t, resend, "pro-renewed@example.test", "Pro ended", deadline, 1)
+
+		f.clock.Advance(3 * 24 * time.Hour)
+		resubscribed.Status = "active"
+		stripe.Put(resubscribed)
+		deliverStripeEvent(t, f, "evt_renew_notice", stripeSubUpdated, resubscribed.ID)
+		f.clock.Advance(2 * 24 * time.Hour)
+		runMail()
+		const reminder = "Your Compozy hosted routes will be deleted in 2 days"
+		assertOperationalMessage(t, resend, "pro-ended@example.test", reminder, deadline, 1)
+		assertOperationalMessage(t, resend, "pro-renewed@example.test", reminder, "", 0)
+
+		f.clock.Advance(4 * 24 * time.Hour)
+		runMail()
+		const offlineSubject = "A Compozy computer has been offline for 10 days"
+		assertOperationalMessage(t, resend, "offline@example.test", offlineSubject, "", 0)
+		f.clock.Advance(24 * time.Hour)
+		runMail()
+		runMail()
+		assertOperationalMessage(t, resend, "offline@example.test", offlineSubject,
+			d0.AddDate(0, 0, 14).Format("January 2, 2006"), 1)
+		assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE marketing_opt_in", 0)
+		assertLifecycleNotices(t, f, resend)
+	})
+}
+
+func assertOperationalMessage(
+	t *testing.T, resend *remotetest.ResendFixture, to, subject, text string, want int,
+) {
+	t.Helper()
+	count := 0
+	for _, message := range resend.Messages() {
+		if message.Subject != subject || !slices.Contains(message.Recipients, to) {
+			continue
+		}
+		if message.From != "no-reply@mail.compozy.com" || !strings.Contains(message.Text, text) {
+			t.Fatalf("invalid %q message sender or content: %+v", subject, message)
+		}
+		count++
+	}
+	if count != want {
+		t.Fatalf("%q sent %d times, want %d", subject, count, want)
+	}
+}
+
+func assertLifecycleNotices(t *testing.T, f authFixture, resend *remotetest.ResendFixture) {
+	t.Helper()
+	const suspendedAddr, deletedAddr = "suspended-mail@example.test", "deleted-mail@example.test"
+	suspended := newBillingDevice(t, f, suspendedAddr)
+	deleted := newBillingDevice(t, f, deletedAddr)
+	if err := f.replica.App.Accounts.SuspendAccount(
+		t.Context(),
+		suspended.account,
+		"operator@example.test",
+	); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := f.replica.App.Accounts.SweepAccountEmail(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertOperationalMessage(t, resend, suspendedAddr, "Your Compozy account was suspended", "support@compozy.com", 1)
+
+	resend.SetOnSend(func(message remotetest.ResendMessage) {
+		if message.Subject != "Your Compozy account was deleted" {
+			return
+		}
+		exists, err := f.replica.App.Store.AuthAccountDeleted(t.Context(), deleted.account)
+		if err != nil || exists {
+			t.Errorf("deletion email must be accepted before the tombstone exists: %v", err)
+		}
+	})
+	request := remoteproto.AccountDeleteRequest{ConfirmEmail: deletedAddr}
+	remoteCloudRequest(t, f, deleted, http.MethodDelete, cloudAccountPath, request).
+		expect(t, http.StatusAccepted, "deleting")
+	awaitDeletionSweep(t, f, func() bool {
+		exists, err := f.replica.App.Store.AuthAccountDeleted(t.Context(), deleted.account)
+		return err == nil && exists
+	})
+	assertOperationalMessage(t, resend, deletedAddr, "Your Compozy account was deleted", "local", 1)
 }

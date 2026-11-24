@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package billing
 
 import (
@@ -9,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/observe"
 	"github.com/compozy/compozy/internal/cloud/plan"
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -21,6 +24,7 @@ const (
 )
 
 type Config struct {
+	Metrics                   *observe.Metrics
 	Stripe                    *Stripe
 	Issuer, HostedDomain      string
 	MonthlyPrice, AnnualPrice string
@@ -190,6 +194,9 @@ func (s *Service) Checkout(ctx context.Context, accountID string, target Target,
 			ID: checkout.ID, AccountID: accountID, Interval: target.Interval, Hostname: target.Hostname,
 		})
 	})
+	if err == nil {
+		s.countCheckout(target.Interval, "created")
+	}
 	return checkout.URL, err
 }
 

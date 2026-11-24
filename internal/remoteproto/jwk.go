@@ -41,7 +41,8 @@ type JWK struct {
 }
 
 type JWKS struct {
-	Keys []JWK `json:"keys"`
+	Keys    []JWK    `json:"keys"`
+	Retired []string `json:"retired,omitempty"`
 }
 
 func NewPublicJWK(key crypto.PublicKey) (JWK, error) {

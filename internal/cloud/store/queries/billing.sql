@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: LockStripeSubscription :exec
 SELECT pg_advisory_xact_lock(hashtext(sqlc.arg(subscription_id)::text));
 
@@ -79,3 +81,6 @@ SELECT * FROM billing_checkouts WHERE id = $1 AND account_id = $2 AND expired_at
 
 -- name: BillingCheckouts :many
 SELECT * FROM billing_checkouts WHERE account_id = $1 ORDER BY id;
+
+-- name: BillingCheckoutInterval :one
+SELECT interval FROM billing_checkouts WHERE id = $1;

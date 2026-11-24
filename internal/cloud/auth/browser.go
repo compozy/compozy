@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package auth
 
 import (
@@ -185,7 +187,15 @@ func (s *Service) finishBrowserOAuth(
 		return CallbackResult{Account: account, WebSession: token, PurchaseReturn: request.PurchaseReturn}, nil
 	}
 	session := store.CloudWebSession{AccountID: account.ID, Email: account.Email}
-	result, err := s.issueBrowserCode(ctx, request.BrowserRequest, session, token, cb.BrowserBinding, cb.UserAgent, cb.Location)
+	result, err := s.issueBrowserCode(
+		ctx,
+		request.BrowserRequest,
+		session,
+		token,
+		cb.BrowserBinding,
+		cb.UserAgent,
+		cb.Location,
+	)
 	return CallbackResult{Account: account, Browser: result, WebSession: token}, err
 }
 
@@ -272,6 +282,7 @@ func (s *Service) admitBrowserComputer(
 		return "", err
 	}
 	if plan.Derive(subscriptions, s.cfg.MonthlyPriceID, s.cfg.AnnualPriceID, now) != plan.Pro {
+		s.cfg.Metrics.Paywall(errPlan.Code)
 		return "", errPlan
 	}
 	return computerID, s.writeLimit(accountID)

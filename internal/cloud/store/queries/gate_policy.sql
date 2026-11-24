@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: GetGatePolicy :one
 SELECT mode, until, message FROM gate_policy WHERE id = 1;
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package plan
 
 import (
@@ -39,7 +41,7 @@ func GrantRoutes(tier Plan) []remoteproto.RouteKind {
 
 type Subscription struct {
 	ID, AccountID, Source, PriceID, Status, Interval, CustomerID string
-	LastInvoiceID                                                string
+	LastInvoiceID, CancellationReason                            string
 	CurrentPeriodEnd, LastPaymentAt, EndsAt                      time.Time
 	CancelAtPeriodEnd, RefundablePayment                         bool
 }

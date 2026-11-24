@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: UpdateLifecycleState :exec
 UPDATE accounts
 SET state = sqlc.arg(state), suspended_at = sqlc.narg(suspended_at)

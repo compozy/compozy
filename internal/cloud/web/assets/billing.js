@@ -1,2 +1,4 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 const checkout = document.querySelector("[data-billing-redirect]");
 if (checkout instanceof HTMLAnchorElement) window.location.replace(checkout.href);

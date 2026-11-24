@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package cloudflare
 
 import (
@@ -89,6 +91,16 @@ func (c *Client) tokenFor(ctx context.Context, path string) (string, error) {
 }
 
 func (c *Client) Delete(ctx context.Context, hostname string, generation int64, id string) error {
+	return c.deleteTunnel(ctx, hostname, generation, id, false)
+}
+
+func (c *Client) deleteTunnel(
+	ctx context.Context,
+	hostname string,
+	generation int64,
+	id string,
+	preserveOtherDNS bool,
+) error {
 	name, err := c.tunnelName(hostname, generation)
 	if err != nil {
 		return err
@@ -103,7 +115,7 @@ func (c *Client) Delete(ctx context.Context, hostname string, generation int64, 
 	}
 	if id != "" {
 		record, err := c.findRecord(ctx, hostname, id)
-		if err != nil {
+		if err != nil && !(preserveOtherDNS && errors.Is(err, ErrOutsideDomain)) {
 			return err
 		}
 		if record.ID != "" {

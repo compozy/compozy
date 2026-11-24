@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package api
 
 import (
@@ -10,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/observe"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
@@ -27,12 +30,16 @@ type EndpointStore interface {
 }
 
 type Router struct {
-	mux      *http.ServeMux
-	store    EndpointStore
-	keys     *SigningKeys
-	ready    func() bool
-	draining func() bool
-	now      func() time.Time
+	currentKeys func(context.Context) (remoteproto.JWKS, error)
+	revision    string
+	metrics     *observe.Metrics
+	reporter    *observe.Sentry
+	mux         *http.ServeMux
+	store       EndpointStore
+	keys        *SigningKeys
+	ready       func() bool
+	draining    func() bool
+	now         func() time.Time
 }
 
 var _ http.Handler = (*Router)(nil)
@@ -51,6 +58,10 @@ func NewRouter(
 	return r
 }
 
+func (r *Router) SetRevision(revision string) {
+	r.revision = revision
+}
+
 func (r *Router) Routes() *http.ServeMux {
 	return r.mux
 }
@@ -60,6 +71,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if r.draining() {
 		writeUnavailable(w)
 		return
+	}
+	if r.metrics != nil || r.reporter != nil {
+		w = &observedResponse{ResponseWriter: w, router: r, request: req}
 	}
 	r.mux.ServeHTTP(w, req)
 }
@@ -71,15 +85,40 @@ func (r *Router) health(w http.ResponseWriter, req *http.Request) {
 		writeUnavailable(w)
 		return
 	}
+	if _, err := r.signingKeys(ctx); err != nil {
+		writeUnavailable(w)
+		return
+	}
 	w.Header().Set(cacheControl, noStore)
+	if r.revision != "" {
+		w.Header().Set("X-Compozy-Cloud-Revision", r.revision)
+	}
 	WriteJSON(w, http.StatusOK, struct {
 		Status string `json:"status"`
 	}{Status: "ok"})
 }
 
-func (r *Router) jwks(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set(cacheControl, "public, max-age=60")
-	WriteJSON(w, http.StatusOK, r.keys.JWKS())
+func (r *Router) UseSigningKeySource(source func(context.Context) (remoteproto.JWKS, error)) {
+	r.currentKeys = source
+}
+
+func (r *Router) jwks(w http.ResponseWriter, request *http.Request) {
+	ctx, cancel := context.WithTimeout(request.Context(), 2*time.Second)
+	defer cancel()
+	keys, err := r.signingKeys(ctx)
+	if err != nil {
+		writeUnavailable(w)
+		return
+	}
+	w.Header().Set(cacheControl, noStore)
+	WriteJSON(w, http.StatusOK, keys)
+}
+
+func (r *Router) signingKeys(ctx context.Context) (remoteproto.JWKS, error) {
+	if r.currentKeys == nil {
+		return r.keys.JWKS(), nil
+	}
+	return r.currentKeys(ctx)
 }
 
 func (r *Router) gatePolicy(w http.ResponseWriter, req *http.Request) {

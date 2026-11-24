@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package api
 
 import (
@@ -13,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/cloud/billing"
 	"github.com/compozy/compozy/internal/cloud/control"
+	"github.com/compozy/compozy/internal/cloud/observe"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
@@ -33,13 +36,14 @@ type ControlRoutesConfig struct {
 }
 
 type controlRoutes struct {
-	config ControlRoutesConfig
-	keys   *SigningKeys
-	now    func() time.Time
+	metrics     *observe.Metrics
+	config      ControlRoutesConfig
+	currentKeys func(context.Context) (remoteproto.JWKS, error)
+	now         func() time.Time
 }
 
 func (r *Router) RegisterControl(cfg ControlRoutesConfig) {
-	h := &controlRoutes{config: cfg, keys: r.keys, now: r.now}
+	h := &controlRoutes{config: cfg, currentKeys: r.signingKeys, now: r.now, metrics: r.metrics}
 	r.mux.Handle("GET /v1/devices", h.device(h.devices))
 	r.mux.Handle("GET /v1/devices/{id}", h.device(h.getDevice))
 	r.mux.Handle("PATCH /v1/devices/{id}", h.device(h.patchDevice))

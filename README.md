@@ -325,4 +325,6 @@ repository's private security channel, not a public issue.
 
 ## License
 
-CompozyOS is distributed under the [MIT License](LICENSE).
+CompozyOS, including the daemon, web app and shared Remote Computers protocol, is distributed under the MIT License. [MIT License](LICENSE)
+
+The source for Compozy Cloud uses the Functional Source License 1.1 with the MIT future license (FSL-1.1-MIT). This covers the cloud command, service and edge Worker. Each released version becomes available under MIT two years after release. [Cloud command](cmd/compozy-cloud/LICENSE) · [Cloud service](internal/cloud/LICENSE) · [Edge Worker](infra/cloud-edge/LICENSE)

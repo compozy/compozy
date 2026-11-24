@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package main
 
 import (
@@ -14,6 +16,9 @@ func loadHostedTunnels(getenv func(string) string, environment string) (*cloudfl
 		AccountID: getenv("COMPOZY_CLOUD_CLOUDFLARE_ACCOUNT_ID"),
 		ZoneID:    getenv("COMPOZY_CLOUD_CLOUDFLARE_RUN_ZONE_ID"),
 		Token:     getenv("COMPOZY_CLOUD_CLOUDFLARE_TUNNEL_API_TOKEN"),
+	}
+	if environment == development {
+		config.BaseURL = getenv("COMPOZY_CLOUD_CLOUDFLARE_API_ORIGIN")
 	}
 	if config.AccountID == "" && config.ZoneID == "" && config.Token == "" {
 		return nil, nil

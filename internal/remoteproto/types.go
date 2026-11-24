@@ -93,6 +93,7 @@ type Confirmation struct {
 }
 
 type GrantClaims struct {
+	SigningKeyID  string       `json:"-"`
 	Issuer        string       `json:"iss"`
 	Audience      ComputerID   `json:"aud"`
 	Subject       DeviceID     `json:"sub"`

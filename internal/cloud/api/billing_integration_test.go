@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 //go:build integration
 
 package api_test
@@ -9,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -18,6 +21,8 @@ import (
 
 	"github.com/compozy/compozy/internal/cloud"
 	"github.com/compozy/compozy/internal/cloud/auth"
+	"github.com/compozy/compozy/internal/cloud/observe"
+	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
@@ -288,6 +293,11 @@ func TestCloudBillingCheckout(t *testing.T) {
 			t.Fatal("invalid or suspended account created a checkout")
 		}
 	})
+	t.Run("Should count conversion events at their owning transitions (UT-141)", func(t *testing.T) {
+		t.Parallel()
+		testCloudConversions(t)
+	})
+
 }
 
 func TestStripeReplicaOrdering(t *testing.T) {
@@ -491,5 +501,142 @@ func assertBillingPlanLimited(t *testing.T, f authFixture, want map[remoteproto.
 		if err != nil || computer.PlanLimited != limited {
 			t.Fatalf("%s plan-limited = %v, want %v: %v", id, computer.PlanLimited, limited, err)
 		}
+	}
+}
+
+func testCloudConversions(t *testing.T) {
+	t.Helper()
+	f, stripe := newBillingFixture(t, nil)
+	owner := newBillingDevice(t, f, "conversion@example.test")
+	computer := remoteproto.ComputerID("cmp_conversion")
+	f.db.SeedControlComputer(t, owner.account, computer, f.clock.Now())
+	remoteCloudRequest(t, f, owner, http.MethodPost, "/v1/computers/reservations", map[string]any{}).
+		expect(t, http.StatusPaymentRequired, "plan_limit_reached")
+	remoteCloudRequest(
+		t,
+		f,
+		owner,
+		http.MethodPost,
+		"/v1/computers/cmp_conversion/grants",
+		map[string]remoteproto.RouteKind{
+			"route": remoteproto.RouteCloud,
+		},
+	).expect(t, http.StatusPaymentRequired, "plan_required")
+	for _, interval := range []string{"month", "year"} {
+		remoteCloudRequest(
+			t,
+			f,
+			owner,
+			http.MethodPost,
+			"/v1/billing/checkout",
+			remoteproto.CheckoutRequest{Interval: interval},
+		).
+			expect(t, http.StatusOK, "checkout.stripe.com")
+	}
+	checkouts := stripe.Checkouts()
+	if len(checkouts) != 2 {
+		t.Fatalf("expected two Stripe checkouts, got %d", len(checkouts))
+	}
+	completed := stripe.Complete(checkouts[0].ID)
+	stripe.Expire(checkouts[1].ID)
+	conversionCheckoutEvent(t, f, "evt_conversion_complete", "completed", completed.ID, completed.Sub)
+	conversionCheckoutEvent(t, f, "evt_conversion_complete", "completed", completed.ID, completed.Sub)
+	conversionCheckoutEvent(t, f, "evt_conversion_expired", "expired", checkouts[1].ID, "")
+	stripe.Put(remotetest.StripeSubscription{
+		ID: completed.Sub, Account: owner.account, Status: "canceled", Price: remotetest.StripeMonthly,
+		Interval: "month", PeriodEnd: f.clock.Now(), CancellationReason: "cancellation_requested",
+	})
+	deliverStripeEvent(t, f, "evt_conversion_cancel", stripeSubDeleted, completed.Sub)
+	wanted := []observe.Sample{
+		{Name: "cloud_paywall_hits_total", Labels: observe.Labels{"reason": "plan_limit_reached"}, Value: 1},
+		{Name: "cloud_paywall_hits_total", Labels: observe.Labels{"reason": "plan_required"}, Value: 1},
+		{
+			Name:   "cloud_checkout_sessions_total",
+			Labels: observe.Labels{"interval": "month", "result": "created"},
+			Value:  1,
+		},
+		{
+			Name:   "cloud_checkout_sessions_total",
+			Labels: observe.Labels{"interval": "year", "result": "created"},
+			Value:  1,
+		},
+		{
+			Name:   "cloud_checkout_sessions_total",
+			Labels: observe.Labels{"interval": "month", "result": "completed"},
+			Value:  1,
+		},
+		{
+			Name:   "cloud_checkout_sessions_total",
+			Labels: observe.Labels{"interval": "year", "result": "expired"},
+			Value:  1,
+		},
+		{Name: "cloud_subscription_ends_total", Labels: observe.Labels{"reason": "cancellation_requested"}, Value: 1},
+	}
+	for _, metric := range wanted {
+		assertConversionMetric(t, f, metric)
+	}
+
+	profile := providerProfile{subject: "42", email: "github-conversion@example.test", verified: true}
+	enrollment := newEnrollment(t, f, auth.GitHub, profile, false)
+	key, jwk := newDeviceKey(t)
+	device := f.enroll(t, enrollment, key, enrollInput(jwk))
+	assertConversionMetric(t, f, observe.Sample{
+		Name: "cloud_new_accounts_total", Labels: observe.Labels{"provider": "github"}, Value: 1,
+	})
+	assertActivation(t, f, "github", 0)
+	assertActivation(t, f, "google", 0)
+
+	githubComputer := remoteproto.ComputerID("cmp_githubmint")
+	hostKey := f.db.SeedControlComputer(t, enrollment.AccountID, githubComputer, f.clock.Now())
+	link := remotetest.AuthenticateControl(t, f.replica, githubComputer, hostKey)
+	if frame := remotetest.ReadControlMessage(t, link, 5*time.Second); frame.Type != remoteproto.ControlSnapshot {
+		t.Fatalf("expected computer snapshot, got %s", frame.Type)
+	}
+	thumbprint, err := jwk.Thumbprint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	remotetest.SendControl(t, link, remoteproto.ControlSessionMinted, remoteproto.SessionMinted{
+		DeviceID: device.DeviceID, JKT: thumbprint, At: f.clock.Now().Unix(),
+	})
+	testutil.Eventually(t, "GitHub account activates on the reported mint", 5*time.Second, func() bool {
+		funnel, err := f.replica.App.Store.ActivationFunnel(
+			t.Context(),
+			f.clock.Now().Add(-7*24*time.Hour),
+			f.clock.Now(),
+		)
+		return err == nil && slices.Contains(funnel, store.Activation{Provider: "github", Accounts: 1, Activated: 1})
+	})
+	f.clock.Advance(24 * time.Hour)
+	newBillingDevice(t, f, "conversion@example.test")
+	assertActivation(t, f, "google", 1)
+}
+
+func conversionCheckoutEvent(t *testing.T, f authFixture, event, result, id, subscription string) {
+	t.Helper()
+	body := fmt.Appendf(nil, `{"id":%q,"type":%q,"data":{"object":{"id":%q,"subscription":%q}}}`,
+		event, "checkout.session."+result, id, subscription)
+	status, response, err := sendStripeEvent(t.Context(), f.replica, f.clock.Now(), body)
+	if err != nil || status != http.StatusNoContent || response != "" {
+		t.Fatalf("checkout event %s: HTTP %d %q: %v", event, status, response, err)
+	}
+}
+
+func assertConversionMetric(t *testing.T, f authFixture, want observe.Sample) {
+	t.Helper()
+	for _, sample := range f.replica.App.Metrics.Samples() {
+		if sample.Name == want.Name && maps.Equal(sample.Labels, want.Labels) && sample.Value == want.Value {
+			return
+		}
+	}
+	t.Fatalf("missing conversion sample %+v", want)
+}
+
+func assertActivation(t *testing.T, f authFixture, provider string, expected int64) {
+	t.Helper()
+	rows, err := f.replica.App.Store.ActivationFunnel(t.Context(), f.clock.Now().Add(-7*24*time.Hour), f.clock.Now())
+	want := store.Activation{Provider: provider, Accounts: 1, Activated: expected}
+	if err != nil || !slices.Contains(rows, want) {
+		t.Fatalf("activation funnel got %v, want %+v: %v", rows, want, err)
 	}
 }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 import { fileURLToPath, URL } from "node:url";
 import { build } from "esbuild";
 import { Miniflare } from "miniflare";

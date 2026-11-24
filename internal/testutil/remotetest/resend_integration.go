@@ -22,6 +22,7 @@ type ResendFixture struct {
 	messages       map[string]ResendMessage
 	contactDeletes int
 	failDeletes    int
+	onSend         func(ResendMessage)
 }
 
 type resendContact struct {
@@ -31,6 +32,7 @@ type resendContact struct {
 }
 
 type ResendMessage struct {
+	From       string   `json:"from"`
 	Recipients []string `json:"to"`
 	Subject    string   `json:"subject"`
 	Text       string   `json:"text"`
@@ -41,7 +43,9 @@ func StartResend(t Fixture) *ResendFixture {
 	f := &ResendFixture{contacts: make(map[string]resendContact), messages: make(map[string]ResendMessage)}
 	server := httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(server.Close)
-	client, err := email.NewResend(email.ResendConfig{APIKey: "fixture-resend", SegmentID: "news", Endpoint: server.URL})
+	client, err := email.NewResend(
+		email.ResendConfig{APIKey: "fixture-resend", SegmentID: "news", Endpoint: server.URL},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,6 +69,12 @@ func (f *ResendFixture) UnsubscribeURL(address string) string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.contacts[address].Properties["compozy_unsubscribe_url"]
+}
+
+func (f *ResendFixture) SetOnSend(fn func(ResendMessage)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.onSend = fn
 }
 
 func (f *ResendFixture) Messages() []ResendMessage {
@@ -115,6 +125,9 @@ func (f *ResendFixture) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if _, sent := f.messages[key]; !sent {
+			if f.onSend != nil {
+				f.onSend(message)
+			}
 			f.messages[key] = message
 		}
 	default:

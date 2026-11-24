@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: FSL-1.1-MIT
+
 HostKey /etc/ssh/ssh_host_ed25519_key
 PidFile /run/compozy-fixture-sshd.pid
 AllowUsers pedro

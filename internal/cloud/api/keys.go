@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package api
 
 import (
@@ -29,4 +31,16 @@ func (k *SigningKeys) Signer() *remoteproto.Signer {
 
 func (k *SigningKeys) JWKS() remoteproto.JWKS {
 	return remoteproto.JWKS{Keys: slices.Clone(k.public.Keys)}
+}
+
+func (k *SigningKeys) Filtered(retired []string) (remoteproto.JWKS, error) {
+	if slices.Contains(retired, k.active.PublicJWK().Kid) {
+		return remoteproto.JWKS{}, errors.New("the configured cloud signer was retired")
+	}
+	keys := k.JWKS()
+	keys.Keys = slices.DeleteFunc(keys.Keys, func(key remoteproto.JWK) bool {
+		return slices.Contains(retired, key.Kid)
+	})
+	keys.Retired = retired
+	return keys, nil
 }

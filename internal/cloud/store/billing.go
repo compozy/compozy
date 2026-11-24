@@ -1,9 +1,13 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package store
 
 import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/compozy/compozy/internal/cloud/plan"
 	"github.com/compozy/compozy/internal/cloud/store/sqlcgen"
@@ -112,4 +116,11 @@ func (q *Queries) BillingCheckouts(ctx context.Context, account string) ([]Billi
 		results = append(results, billingCheckout(c))
 	}
 	return results, nil
+}
+func (q *Queries) BillingCheckoutInterval(ctx context.Context, id string) (string, error) {
+	interval, err := q.generated.BillingCheckoutInterval(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return interval, err
 }

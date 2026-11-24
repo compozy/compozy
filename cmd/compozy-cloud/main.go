@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package main
 
 import (
@@ -41,7 +43,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, out io.
 		if err != nil {
 			return err
 		}
-		direct, err := databaseURL(getenv, envDirectDSN, environment)
+		direct, err := databaseURL(getenv, envNeonDirect, environment)
 		if err != nil {
 			return err
 		}
@@ -51,8 +53,27 @@ func run(ctx context.Context, args []string, getenv func(string) string, out io.
 		}
 		_, err = fmt.Fprintf(out, "Cloud schema version %d (%d migrations applied)\n", report.Version, report.Applied)
 		return err
+	case len(args) == 3 && slices.Equal(args[:2], []string{"keys", "generate"}):
+		return generateSigningKey(args[2], out)
+	case slices.Equal(args, []string{"keys", "jwk"}):
+		return printSigningJWK(getenv, out)
+	case slices.Equal(args, []string{"keys", "publish"}):
+		return publishSigningKeys(ctx, "", getenv)
+	case len(args) == 3 && slices.Equal(args[:2], []string{"keys", "retire"}):
+		if args[2] == "" {
+			return errors.New("keys retire requires a KID")
+		}
+		return publishSigningKeys(ctx, args[2], getenv)
+	case len(args) == 5 && slices.Equal(args[:3], []string{"email", "privacy-reply", "--request-id"}):
+		return sendPrivacyReply(ctx, args[3], args[4], getenv)
+	case slices.Equal(args, []string{"backup", "security-events"}):
+		return shipEvents(ctx, getenv, out)
+	case len(args) == 4 && slices.Equal(args[:3], []string{"restore", "finalize", "--restore-point"}):
+		return restoreFinalize(ctx, args[3], getenv, out, logger)
 	default:
-		return errors.New("usage: compozy-cloud serve | compozy-cloud migrate up")
+		return errors.New(
+			"usage: compozy-cloud serve | migrate up | keys {generate|jwk|publish|retire} | email privacy-reply --request-id <id> <file> | backup security-events | restore finalize --restore-point <time>",
+		)
 	}
 }
 

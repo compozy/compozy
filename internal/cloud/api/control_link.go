@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package api
 
 import (
@@ -270,7 +272,7 @@ func (p *computerControlLink) handleEvent(ctx context.Context, event store.Contr
 		}
 		return p.refreshPeers(ctx)
 	case remoteproto.ControlJWKS:
-		return p.send(remoteproto.ControlJWKS, p.sentEpoch, p.routes.keys.JWKS())
+		return p.publishKeys(ctx, false)
 	case remoteproto.ControlPeers:
 		return p.refreshPeers(ctx)
 	default:
@@ -340,6 +342,7 @@ func (p *computerControlLink) refreshLease(ctx context.Context) error {
 	}
 	read, cancel := context.WithTimeout(ctx, controlRequestTimeout)
 	defer cancel()
+	started := time.Now()
 	token, err := p.routes.config.Service.LinkLease(read, p.link, p.ackEpoch)
 	if errors.Is(err, control.ErrSnapshotNeeded) {
 		return p.refreshSecurity(ctx, store.ControlEvent{}, false)
@@ -347,7 +350,11 @@ func (p *computerControlLink) refreshLease(ctx context.Context) error {
 	if err != nil || token == "" {
 		return err
 	}
-	return p.send(remoteproto.ControlLease, p.ackEpoch, token)
+	if err := p.send(remoteproto.ControlLease, p.ackEpoch, token); err != nil {
+		return err
+	}
+	p.routes.metrics.Duration("cloud_lease_push_lag_seconds", time.Since(started))
+	return nil
 }
 
 func (p *computerControlLink) refreshPeers(ctx context.Context) error {
@@ -360,7 +367,20 @@ func (p *computerControlLink) refreshPeers(ctx context.Context) error {
 	return p.send(remoteproto.ControlPeers, 0, peers)
 }
 
+func (p *computerControlLink) publishKeys(ctx context.Context, retiredOnly bool) error {
+	read, cancel := context.WithTimeout(ctx, controlRequestTimeout)
+	defer cancel()
+	keys, err := p.routes.currentKeys(read)
+	if err != nil || (retiredOnly && len(keys.Retired) == 0) {
+		return err
+	}
+	return p.send(remoteproto.ControlJWKS, p.sentEpoch, keys)
+}
+
 func (p *computerControlLink) afterAck(ctx context.Context) error {
+	if err := p.publishKeys(ctx, true); err != nil {
+		return err
+	}
 	if err := p.refreshLease(ctx); err != nil || p.ackEpoch != p.sentEpoch {
 		return err
 	}

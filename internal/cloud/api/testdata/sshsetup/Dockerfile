@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: FSL-1.1-MIT
+
 FROM ubuntu:24.04
 
 RUN apt-get update \

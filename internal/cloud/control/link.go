@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package control
 
 import (
@@ -152,8 +154,13 @@ func (s *Service) issueLease(
 		return remoteproto.EntitlementLease{}, err
 	}
 	routes := []remoteproto.RouteKind{}
-	if account.State == accountActive && computer.RemoteEnabled && !computer.PlanLimited {
-		routes = plan.GrantRoutes(tier)
+	if account.State == accountActive {
+		if err := q.RecordInstallationActivity(ctx, account.ID, computer.InstallationID, now); err != nil {
+			return remoteproto.EntitlementLease{}, err
+		}
+		if computer.RemoteEnabled && !computer.PlanLimited {
+			routes = plan.GrantRoutes(tier)
+		}
 	}
 	return remoteproto.EntitlementLease{
 		ComputerID: computer.ID, AccountID: account.ID, Plan: string(tier), PlanLimited: computer.PlanLimited,

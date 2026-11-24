@@ -26,8 +26,8 @@ DELETE FROM remote_security_state;
 
 -- name: InsertRemoteSession :exec
 INSERT INTO remote_sessions (
-    id, credential_sha256, device_id, device_jkt, scopes, route, browser, created_at, expires_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+    id, credential_sha256, device_id, device_jkt, scopes, route, browser, created_at, expires_at, signing_key_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetRemoteSession :one
 SELECT * FROM remote_sessions WHERE credential_sha256 = ?;

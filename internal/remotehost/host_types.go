@@ -41,6 +41,7 @@ type Identity struct {
 }
 
 type Session struct {
+	SigningKeyID   string
 	ID             string
 	CredentialHash [32]byte
 	DeviceID       remoteproto.DeviceID

@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: FindAuthDeviceKey :one
 SELECT k.*, d.account_id, d.admin, d.kind, d.revoked_at AS device_revoked_at
 FROM device_keys k JOIN devices d ON d.id = k.device_id WHERE k.jkt = $1;
@@ -24,8 +26,9 @@ ON CONFLICT DO NOTHING;
 -- name: PromoteRecoveredAdmin :exec
 UPDATE devices SET admin = true WHERE id = $1 AND revoked_at IS NULL;
 
--- name: AdvanceAuthDeviceActivity :exec
-UPDATE devices SET last_seen_at = greatest(last_seen_at, sqlc.arg(as_of)) WHERE id = $1;
+-- name: AdvanceAuthDeviceActivity :one
+UPDATE devices SET last_seen_at = greatest(last_seen_at, sqlc.arg(as_of)) WHERE id = $1
+RETURNING account_id, installation_id;
 
 -- name: RevokeAuthDeviceSession :exec
 UPDATE device_sessions SET revoked_at = sqlc.arg(as_of) WHERE device_id = $1 AND revoked_at IS NULL;

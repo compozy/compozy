@@ -254,6 +254,40 @@ func TestRemoteSessionAdmission(t *testing.T) {
 	})
 }
 
+func TestRemoteSigningKeyRetirement(t *testing.T) {
+	t.Parallel()
+	t.Run("Should close existing sessions issued by a retired signing key after restart", func(t *testing.T) {
+		t.Parallel()
+		f := newSessionFixture(t, false, nil)
+		f.lease(t, 1)
+		old := f.signer
+		staleGrant := f.input(t, "dev_member", remoteproto.ScopeSessions)
+		staleSession, err := f.sessions.Mint(t.Context(), f.input(t, "dev_member", remoteproto.ScopeSessions))
+		remoteOK(t, err)
+		_, nextKey, err := ed25519.GenerateKey(rand.Reader)
+		remoteOK(t, err)
+		next, err := remoteproto.NewSigner("next-cloud-key", nextKey)
+		remoteOK(t, err)
+		overlap := remoteproto.JWKS{Keys: []remoteproto.JWK{old.PublicJWK(), next.PublicJWK()}}
+		remoteOK(t, f.sessions.ApplySigningKeys(t.Context(), f.verifier, overlap))
+		f.signer = next
+		current, err := f.sessions.Mint(t.Context(), f.input(t, "dev_member", remoteproto.ScopeSessions))
+		remoteOK(t, err)
+		f.restart(t, false)
+		f.lease(t, 2)
+		remoteOK(t, f.sessions.ApplySigningKeys(t.Context(), f.verifier, remoteproto.JWKS{
+			Keys: []remoteproto.JWK{next.PublicJWK()}, Retired: []string{old.PublicJWK().Kid},
+		}))
+		_, err = f.authenticate(t, "dev_member", staleSession)
+		remoteErrorIs(t, err, remotehost.ErrDeviceRevoked)
+		_, err = f.authenticate(t, "dev_member", current)
+		remoteOK(t, err)
+		remoteOK(t, f.verifier.ReplaceKeys(overlap))
+		_, err = f.sessions.Mint(t.Context(), staleGrant)
+		remoteErrorIs(t, err, remoteproto.ErrGrantSignatureInvalid)
+	})
+}
+
 func TestRemoteSessionEpochAdmission(t *testing.T) {
 	t.Run("Should hold a future grant until its snapshot arrives", func(t *testing.T) {
 		t.Parallel()

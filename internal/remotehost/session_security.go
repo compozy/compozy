@@ -302,3 +302,28 @@ func (s *Sessions) signalSnapshotLocked() {
 func conflict(code, message string) error {
 	return &Failure{http.StatusConflict, code, message, nil}
 }
+
+func (s *Sessions) ApplySigningKeys(
+	ctx context.Context,
+	verifier *remoteproto.JWSVerifier,
+	keys remoteproto.JWKS,
+) error {
+	s.serial.Lock()
+	defer s.serial.Unlock()
+	if err := verifier.ReplaceKeys(keys); err != nil {
+		return err
+	}
+	if len(keys.Retired) == 0 {
+		return nil
+	}
+	if s.retiredSigningKeys == nil {
+		s.retiredSigningKeys = make(map[string]bool, len(keys.Retired))
+	}
+	for _, kid := range keys.Retired {
+		s.retiredSigningKeys[kid] = true
+	}
+	_, err := s.revokeLocked(ctx, ErrDeviceRevoked, func(session Session) bool {
+		return session.SigningKeyID == "" || s.retiredSigningKeys[session.SigningKeyID]
+	})
+	return err
+}

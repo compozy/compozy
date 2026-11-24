@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 //go:build integration && !windows
 
 package main
@@ -10,22 +12,31 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json/v2"
+	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/cloud"
+	"github.com/compozy/compozy/internal/cloud/api"
 	"github.com/compozy/compozy/internal/cloud/control"
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
 
@@ -316,4 +327,332 @@ func serveDrainFixture() error {
 		}
 	}()
 	return app.Serve(ctx, listener)
+}
+
+func TestCloudRestore(t *testing.T) {
+	t.Parallel()
+	t.Run("Should finalize a copied database without reviving revoked access (IT-107)", func(t *testing.T) {
+		// Safety Invariant 32. The retry must keep the 1000-epoch bump and reconcile both external providers.
+		t.Parallel()
+		source, restored := remotetest.NewDatabase(t), remotetest.NewDatabase(t)
+		source.Migrate(t)
+		restored.Migrate(t)
+		now := time.Now
+		at := now().UTC()
+		cfg := remotetest.ControlConfig(t, now, nil)
+		cfg.Postgres = source.Config(t, "restore-source")
+		const account, other = "acc_restore", "acc_restore_other"
+		const computer remoteproto.ComputerID = "cmp_restore"
+		source.SeedAccount(t, account)
+		source.SeedAccount(t, other)
+		owner := source.SeedControlDevice(t, account, "dev_restore_keep", true, cfg.Keys.Signer(), at)
+		revoke := source.SeedControlDevice(t, account, "dev_restore_revoke", false, cfg.Keys.Signer(), at)
+		computerKey := source.SeedControlComputer(t, account, computer, at)
+		source.Exec(t, "UPDATE %s.accounts SET security_epoch = 6 WHERE id = $1", account)
+		source.Exec(t, `INSERT INTO %s.cloud_web_sessions (id_sha256, account_id, expires_at) VALUES ($1, $2, $3)`,
+			[]byte("fixture-web-session"), account, at.Add(time.Hour))
+		source.Exec(t, `INSERT INTO %s.subscriptions (id, account_id, source, status, price_id, interval)
+            VALUES ('sub_restore', $1, 'stripe', 'active', $2, 'month')`, account, remotetest.StripeMonthly)
+
+		env := restoreFixtureEnvironment(t)
+		env[envNeonDirect] = cfg.Postgres.DirectDSN
+		runRestoreCommand(t, env, "backup", "security-events")
+		copyCloudRestorePoint(t, source, restored)
+		point := now().UTC().Truncate(time.Microsecond)
+		replica := remotetest.StartReplica(t, cfg, nil)
+		if err := replica.App.Accounts.RevokeDevice(t.Context(), control.DevicePrincipal{
+			AccountID: account, DeviceID: owner.ID, JKT: owner.JKT, SessionID: "ds_" + string(owner.ID),
+		}, revoke.ID); err != nil {
+			t.Fatal(err)
+		}
+		env[envRestoreThrough] = strings.TrimSpace(runRestoreCommand(t, env, "backup", "security-events"))
+		env[envNeonDirect] = restored.Config(t, "restore-finalize").DirectDSN
+		stripe := remotetest.StartStripe(t, now, false)
+		env["COMPOZY_CLOUD_STRIPE_API_ORIGIN"] = stripe.Origin
+		stripe.Put(remotetest.StripeSubscription{
+			ID: "sub_restore", Account: account, Status: "canceled",
+			Price: remotetest.StripeMonthly, Interval: "month", PeriodEnd: at,
+		})
+		events := []map[string]any{{
+			"id": "evt_restore_cancel", "type": "customer.subscription.deleted",
+			"data": map[string]any{"object": map[string]string{"id": "sub_restore"}},
+		}}
+		stripe.SetReplayEvents(events, true)
+		cloudflare, orphanDeleted := startRestoreCloudflare(t)
+		env["COMPOZY_CLOUD_CLOUDFLARE_API_ORIGIN"] = cloudflare
+		cfg.Postgres = restored.Config(t, "restored")
+		cfg.ExpectedRestore = point
+		assertCloudRestoreRefused(t, cfg)
+
+		args := []string{"restore", "finalize", "--restore-point", point.Format(time.RFC3339Nano)}
+		var out bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		if err := run(t.Context(), args, func(key string) string { return env[key] }, &out, logger); err == nil ||
+			!strings.Contains(err.Error(), "replay Stripe events") {
+			t.Fatalf("expected a resumable Stripe failure, got %v", err)
+		}
+		assertCloudRestoreRefused(t, cfg)
+		stripe.SetReplayEvents(events, false)
+		runRestoreCommand(t, env, args...)
+		runRestoreCommand(t, env, args...)
+
+		assertRestoreCount(t, restored, `SELECT count(*) FROM %s.accounts
+            WHERE (id = 'acc_restore' AND security_epoch = 1006) OR (id = 'acc_restore_other' AND security_epoch = 1001)`, 2)
+		assertRestoreCount(t, restored, "SELECT count(*) FROM %s.device_sessions WHERE revoked_at IS NOT NULL", 2)
+		assertRestoreCount(t, restored, "SELECT count(*) FROM %s.cloud_web_sessions WHERE revoked_at IS NOT NULL", 1)
+		assertRestoreCount(t, restored, "SELECT count(*) FROM %s.devices", 2)
+		assertRestoreCount(t, restored, "SELECT count(*) FROM %s.device_keys", 2)
+		assertRestoreCount(
+			t,
+			restored,
+			"SELECT count(*) FROM %s.devices WHERE id = 'dev_restore_revoke' AND revoked_at IS NOT NULL",
+			1,
+		)
+		assertRestoreCount(
+			t,
+			restored,
+			"SELECT count(*) FROM %s.subscriptions WHERE id = 'sub_restore' AND status = 'canceled'",
+			1,
+		)
+		select {
+		case <-orphanDeleted:
+		default:
+			t.Fatal("restore left an orphaned hosted tunnel in Cloudflare")
+		}
+		reconnected := remotetest.StartReplica(t, cfg, nil)
+		link := remotetest.AuthenticateControl(t, reconnected, computer, computerKey)
+		frame := remotetest.ReadControlMessage(t, link, 5*time.Second)
+		verifier, err := remoteproto.NewJWSVerifier(reconnected.App.Issuer, cfg.Keys.JWKS(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var signed string
+		if err := json.Unmarshal(frame.Data, &signed); err != nil {
+			t.Fatal(err)
+		}
+		snapshot, err := verifier.VerifySnapshot(t.Context(), signed)
+		if err != nil || frame.Type != remoteproto.ControlSnapshot || snapshot.SecurityEpoch != 1006 ||
+			len(snapshot.Devices) != 1 || snapshot.Devices[0].DeviceID != owner.ID {
+			t.Fatalf("unexpected snapshot after restore: %+v: %v", snapshot, err)
+		}
+		assertRestoredMint(t, cfg.Keys.Signer(), verifier, snapshot, computer, owner, 6)
+	})
+}
+
+func assertCloudRestoreRefused(t *testing.T, cfg cloud.Config) {
+	t.Helper()
+	app, err := cloud.Open(t.Context(), cfg)
+	if err == nil {
+		app.Close()
+		t.Fatal("cloud served a database awaiting restore finalization")
+	}
+	if !strings.Contains(err.Error(), "restore") {
+		t.Fatalf("cloud refused startup for another reason: %v", err)
+	}
+}
+
+func assertRestoreCount(t *testing.T, db *remotetest.Database, query string, expected int) {
+	t.Helper()
+	var got int
+	if err := db.Pool.QueryRow(t.Context(), fmt.Sprintf(query, db.Schema)).Scan(&got); err != nil || got != expected {
+		t.Fatalf("%s returned %d, expected %d: %v", query, got, expected, err)
+	}
+}
+
+func copyCloudRestorePoint(t *testing.T, source, target *remotetest.Database) {
+	t.Helper()
+	for _, relation := range []string{"accounts", "devices", "device_keys", "device_sessions",
+		"cloud_web_sessions", "computers", "subscriptions"} {
+		statement := fmt.Sprintf(
+			"INSERT INTO %s.%s SELECT * FROM %s.%s",
+			target.Schema,
+			relation,
+			source.Schema,
+			relation,
+		)
+		if _, err := source.Pool.Exec(t.Context(), statement); err != nil {
+			t.Fatalf("copy %s at the restore point: %v", relation, err)
+		}
+	}
+}
+
+func assertRestoredMint(
+	t *testing.T,
+	signer *remoteproto.Signer,
+	verifier *remoteproto.JWSVerifier,
+	snapshot remoteproto.SecuritySnapshot,
+	computer remoteproto.ComputerID,
+	device remotetest.ControlDevice,
+	oldEpoch uint64,
+) {
+	t.Helper()
+	db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "remote.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			t.Errorf("close restored host fixture: %v", err)
+		}
+	})
+	at := time.Now()
+	host, err := remotehost.NewSessions(t.Context(), db, remotehost.Identity{
+		ComputerID: computer, AccountID: snapshot.AccountID,
+	}, verifier, remotehost.SessionOptions{Now: func() time.Time { return at }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := host.ApplySnapshot(t.Context(), snapshot); err != nil {
+		t.Fatal(err)
+	}
+	err = host.ApplyLease(t.Context(), remoteproto.EntitlementLease{
+		ComputerID:    computer,
+		AccountID:     snapshot.AccountID,
+		Plan:          "free",
+		SecurityEpoch: snapshot.SecurityEpoch,
+		Sequence:      1,
+		ValidUntil:    at.Add(remoteproto.LeaseTTL).Unix(),
+		AllowedRoutes: []remoteproto.RouteKind{remoteproto.RouteDirect},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, epoch := range []uint64{oldEpoch, snapshot.SecurityEpoch} {
+		grant, err := signer.SignGrant(remoteproto.GrantClaims{
+			Issuer: remoteproto.CloudIssuer, Audience: computer, Subject: device.ID, AccountID: snapshot.AccountID,
+			Cnf: remoteproto.Confirmation{JKT: device.JKT}, Route: remoteproto.RouteDirect,
+			Scopes: []remoteproto.Scope{remoteproto.ScopeSessions}, JTI: fmt.Sprintf("grant-restore-%d", epoch),
+			IssuedAt: at.Unix(), ExpiresAt: at.Add(remoteproto.GrantTTL).Unix(), SecurityEpoch: epoch,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		const endpoint = "https://host.test/remote/v1/mint"
+		proof, err := remoteproto.BuildDPoP(device.Key, http.MethodPost, endpoint, "", at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := host.Mint(t.Context(), remotehost.MintInput{Grant: grant, Proof: remotehost.DPoPProof{
+			Token: proof, Method: http.MethodPost, URL: endpoint, Listener: remotehost.ListenerDirect,
+		}})
+		if epoch == oldEpoch {
+			if !errors.Is(err, remotehost.ErrSnapshotPending) {
+				t.Fatalf("pre-restore grant was not fenced: %v", err)
+			}
+		} else if err != nil || result.Credential == "" {
+			t.Fatalf("current grant could not mint: %v", err)
+		}
+	}
+}
+
+func runRestoreCommand(t *testing.T, env map[string]string, args ...string) string {
+	t.Helper()
+	var out bytes.Buffer
+	err := run(t.Context(), args, func(key string) string { return env[key] }, &out, slog.Default())
+	if err != nil {
+		t.Fatalf("cloud %v: %v", args, err)
+	}
+	return out.String()
+}
+
+func restoreFixtureEnvironment(t *testing.T) map[string]string {
+	t.Helper()
+	var mu sync.Mutex
+	objects := make(map[string][]byte)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.Header.Get("Authorization"), "AWS4-HMAC-SHA256 ") {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if r.URL.Path != "/restore-fixture" && !strings.HasPrefix(r.URL.Path, "/restore-fixture/") {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		key := strings.TrimPrefix(r.URL.Path, "/restore-fixture/")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Query().Get("list-type") == "2":
+			type item struct{ Key string }
+			var items []item
+			for name := range objects {
+				items = append(items, item{name})
+			}
+			if err := xml.NewEncoder(w).Encode(struct {
+				XMLName  xml.Name `xml:"ListBucketResult"`
+				Contents []item
+			}{Contents: items}); err != nil {
+				t.Error(err)
+			}
+		case r.Method == http.MethodPut && r.Header.Get("If-None-Match") == "*":
+			if _, exists := objects[key]; exists {
+				w.WriteHeader(http.StatusPreconditionFailed)
+				return
+			}
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			objects[key] = body
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodGet && objects[key] != nil:
+			if _, err := w.Write(objects[key]); err != nil {
+				t.Error(err)
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return map[string]string{
+		envEnvironment:                              development,
+		"COMPOZY_CLOUD_R2_ENDPOINT":                 server.URL,
+		"COMPOZY_CLOUD_R2_BACKUP_BUCKET":            "restore-fixture",
+		"COMPOZY_CLOUD_R2_ACCESS_KEY_ID":            "fixture-access",
+		"COMPOZY_CLOUD_R2_SECRET_ACCESS_KEY":        "fixture-secret",
+		"COMPOZY_CLOUD_CLOUDFLARE_ACCOUNT_ID":       "fixture-account",
+		"COMPOZY_CLOUD_CLOUDFLARE_RUN_ZONE_ID":      "fixture-zone",
+		"COMPOZY_CLOUD_CLOUDFLARE_TUNNEL_API_TOKEN": "fixture-cloudflare",
+		"COMPOZY_CLOUD_STRIPE_SECRET_KEY":           "sk_test_fixture",
+		"COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET":       "whsec_fixture",
+		"STRIPE_PRICE_PRO_MONTHLY":                  remotetest.StripeMonthly,
+		"STRIPE_PRICE_PRO_ANNUAL":                   remotetest.StripeAnnual,
+	}
+}
+
+func startRestoreCloudflare(t *testing.T) (string, <-chan struct{}) {
+	t.Helper()
+	const id = "00000000-0000-4000-8000-000000000107"
+	const collection = "/accounts/fixture-account/cfd_tunnel"
+	tunnel := map[string]string{"id": id, "name": "compozy-prod-restore-orphan-1"}
+	deleted := make(chan struct{})
+	var closeOnce sync.Once
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var result any
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == collection:
+			select {
+			case <-deleted:
+				result = []any{}
+			default:
+				result = []any{tunnel}
+			}
+		case r.Method == http.MethodGet && r.URL.Path == collection+"/"+id:
+			result = tunnel
+		case r.Method == http.MethodGet && r.URL.Path == "/zones/fixture-zone/dns_records":
+			result = []any{}
+		case r.Method == http.MethodDelete && r.URL.Path == collection+"/"+id+"/connections":
+			result = tunnel
+		case r.Method == http.MethodDelete && r.URL.Path == collection+"/"+id:
+			closeOnce.Do(func() { close(deleted) })
+			result = tunnel
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		api.WriteJSON(w, http.StatusOK, map[string]any{"success": true, "result": result})
+	}))
+	t.Cleanup(server.Close)
+	return server.URL, deleted
 }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 //go:build integration && linux
 
 // Suite: real OpenSSH computer setup through the controller and cloud.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package control
 
 import (
@@ -10,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/cloud/billing"
 	"github.com/compozy/compozy/internal/cloud/cloudflare"
 	"github.com/compozy/compozy/internal/cloud/email"
+	"github.com/compozy/compozy/internal/cloud/observe"
 	"github.com/compozy/compozy/internal/cloud/plan"
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -33,6 +36,7 @@ type DevicePrincipal struct {
 }
 
 type ServiceConfig struct {
+	Metrics       *observe.Metrics
 	Signer        *remoteproto.Signer
 	Issuer        string
 	MonthlyPrice  string

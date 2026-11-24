@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: AdvanceSecurityEpoch :one
 UPDATE accounts SET security_epoch = security_epoch + 1 WHERE id = $1 RETURNING security_epoch;
 

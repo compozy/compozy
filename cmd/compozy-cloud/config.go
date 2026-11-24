@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package main
 
 import (
@@ -20,6 +22,9 @@ const (
 	envEnvironment = "COMPOZY_CLOUD_ENV"
 	envAddress     = "COMPOZY_CLOUD_LISTEN_ADDR"
 	envPooledDSN   = "COMPOZY_CLOUD_DATABASE_URL"
+	envNeonPooled  = "COMPOZY_CLOUD_NEON_POOLED_URL"
+	envNeonDirect  = "COMPOZY_CLOUD_NEON_DIRECT_URL"
+	envSigningKeys = "COMPOZY_CLOUD_SIGNING_KEYS"
 	envDirectDSN   = "COMPOZY_CLOUD_DATABASE_DIRECT_URL"
 	envSigningKID  = "COMPOZY_CLOUD_SIGNING_KID"
 	envSigningSeed = "COMPOZY_CLOUD_SIGNING_SEED"
@@ -46,7 +51,8 @@ func cloudEnvironment(getenv func(string) string) (string, error) {
 }
 
 func databaseURL(getenv func(string) string, name, environment string) (string, error) {
-	dsn := strings.TrimSpace(getenv(name))
+	legacy := map[string]string{envNeonPooled: envPooledDSN, envNeonDirect: envDirectDSN}[name]
+	dsn := cmp.Or(strings.TrimSpace(getenv(name)), strings.TrimSpace(getenv(legacy)))
 	if dsn == "" {
 		return "", fmt.Errorf("%s is required", name)
 	}
@@ -65,11 +71,11 @@ func loadServeConfig(getenv func(string) string) (serveConfig, error) {
 	if err != nil {
 		return serveConfig{}, err
 	}
-	pooled, err := databaseURL(getenv, envPooledDSN, environment)
+	pooled, err := databaseURL(getenv, envNeonPooled, environment)
 	if err != nil {
 		return serveConfig{}, err
 	}
-	direct, err := databaseURL(getenv, envDirectDSN, environment)
+	direct, err := databaseURL(getenv, envNeonDirect, environment)
 	if err != nil {
 		return serveConfig{}, err
 	}
@@ -97,7 +103,7 @@ func loadServeConfig(getenv func(string) string) (serveConfig, error) {
 	if err != nil {
 		return serveConfig{}, err
 	}
-	return serveConfig{
+	settings := serveConfig{
 		Address: cmp.Or(getenv(envAddress), ":8080"),
 		Cloud: cloud.Config{
 			Postgres:       store.Config{PooledDSN: pooled, DirectDSN: direct},
@@ -112,15 +118,38 @@ func loadServeConfig(getenv func(string) string) (serveConfig, error) {
 			UnsubscribeKey: unsubscribeKey,
 			MetricsToken:   strings.TrimSpace(getenv("COMPOZY_CLOUD_METRICS_TOKEN")),
 		},
-	}, nil
+	}
+	if err := configureOperations(&settings.Cloud, environment, getenv); err != nil {
+		return serveConfig{}, err
+	}
+	return settings, nil
+}
+
+type cloudSigningConfig struct {
+	KID     string            `json:"kid"`
+	Seed    string            `json:"seed"`
+	Overlap []remoteproto.JWK `json:"overlap"`
 }
 
 func loadSigningKeys(getenv func(string) string) (*api.SigningKeys, error) {
-	seed, err := base64.RawURLEncoding.Strict().DecodeString(getenv(envSigningSeed))
+	config := cloudSigningConfig{KID: getenv(envSigningKID), Seed: getenv(envSigningSeed)}
+	if value := getenv(envSigningKeys); value != "" {
+		config = cloudSigningConfig{}
+		if err := json.Unmarshal([]byte(value), &config); err != nil {
+			return nil, errors.New("invalid cloud signing key configuration")
+		}
+	} else if value := getenv(envKeyOverlap); value != "" {
+		var keys remoteproto.JWKS
+		if err := json.Unmarshal([]byte(value), &keys); err != nil {
+			return nil, errors.New("invalid cloud overlap JWKS")
+		}
+		config.Overlap = keys.Keys
+	}
+	seed, err := base64.RawURLEncoding.Strict().DecodeString(config.Seed)
 	if err != nil || len(seed) != ed25519.SeedSize {
 		return nil, fmt.Errorf("%s must be a base64url Ed25519 seed", envSigningSeed)
 	}
-	kid := strings.TrimSpace(getenv(envSigningKID))
+	kid := strings.TrimSpace(config.KID)
 	if kid == "" {
 		return nil, fmt.Errorf("%s is required", envSigningKID)
 	}
@@ -128,13 +157,5 @@ func loadSigningKeys(getenv func(string) string) (*api.SigningKeys, error) {
 	if err != nil {
 		return nil, err
 	}
-	var overlap []remoteproto.JWK
-	if value := getenv(envKeyOverlap); value != "" {
-		var keys remoteproto.JWKS
-		if err := json.Unmarshal([]byte(value), &keys); err != nil {
-			return nil, errors.New("invalid cloud overlap JWKS")
-		}
-		overlap = keys.Keys
-	}
-	return api.NewSigningKeys(signer, overlap)
+	return api.NewSigningKeys(signer, config.Overlap)
 }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package billing
 
 import (
@@ -18,15 +20,18 @@ type stripePrice struct {
 }
 
 type stripeSubscription struct {
-	ID                string            `json:"id"`
-	Status            string            `json:"status"`
-	Customer          string            `json:"customer"`
-	Metadata          map[string]string `json:"metadata"`
-	LatestInvoice     string            `json:"latest_invoice"`
-	CurrentPeriodEnd  int64             `json:"current_period_end"`
-	CancelAtPeriodEnd bool              `json:"cancel_at_period_end"`
-	EndedAt           int64             `json:"ended_at"`
-	Items             struct {
+	ID                  string            `json:"id"`
+	Status              string            `json:"status"`
+	Customer            string            `json:"customer"`
+	Metadata            map[string]string `json:"metadata"`
+	LatestInvoice       string            `json:"latest_invoice"`
+	CurrentPeriodEnd    int64             `json:"current_period_end"`
+	CancelAtPeriodEnd   bool              `json:"cancel_at_period_end"`
+	CancellationDetails struct {
+		Reason string `json:"reason"`
+	} `json:"cancellation_details"`
+	EndedAt int64 `json:"ended_at"`
+	Items   struct {
 		Data []struct {
 			Price            stripePrice `json:"price"`
 			CurrentPeriodEnd int64       `json:"current_period_end"`
@@ -79,6 +84,10 @@ func (s *Stripe) subscription(ctx context.Context, id, monthly, annual string) (
 			}
 			break
 		}
+	}
+	switch result.CancellationDetails.Reason {
+	case "cancellation_requested", "payment_disputed", "payment_failed":
+		sub.CancellationReason = result.CancellationDetails.Reason
 	}
 	if sub.PriceID == "" || result.LatestInvoice == "" {
 		return sub, nil

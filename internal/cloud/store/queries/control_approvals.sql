@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: CloudApproval :one
 SELECT approval.*, device.name AS device_name
 FROM device_approvals AS approval

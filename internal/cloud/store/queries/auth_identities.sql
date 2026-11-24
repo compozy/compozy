@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: FSL-1.1-MIT
+
 -- name: FindIdentityAccount :one
 SELECT i.account_id FROM identities i WHERE i.provider = sqlc.arg(provider) AND i.subject = sqlc.arg(subject)
 UNION ALL

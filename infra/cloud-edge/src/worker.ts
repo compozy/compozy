@@ -1,9 +1,25 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 import { Container } from "@cloudflare/containers";
 
-export class CloudContainer extends Container {
+export class CloudContainer extends Container<Env> {
   override defaultPort = 8080;
   override sleepAfter = "24h";
   override enableInternet = true;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    const bindings = Object.fromEntries(
+      Object.entries(env).filter(
+        ([name, value]) =>
+          typeof value === "string" &&
+          (name.startsWith("COMPOZY_CLOUD_") ||
+            name === "STRIPE_PRICE_PRO_MONTHLY" ||
+            name === "STRIPE_PRICE_PRO_ANNUAL")
+      )
+    );
+    const envVars = { ...bindings, COMPOZY_CLOUD_INSTANCE: ctx.id.name ?? ctx.id.toString() };
+    super(ctx, env, { envVars });
+  }
 }
 
 interface Env {

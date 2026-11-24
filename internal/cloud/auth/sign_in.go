@@ -1,13 +1,17 @@
+// SPDX-License-Identifier: FSL-1.1-MIT
+
 package auth
 
 import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/compozy/compozy/internal/cloud/observe"
 	"github.com/compozy/compozy/internal/cloud/store"
 )
 
@@ -69,13 +73,22 @@ type CallbackResult struct {
 	NoticeEventID  int64
 }
 
-func (s *Service) CompleteOAuth(ctx context.Context, cb Callback) (CallbackResult, error) {
+func (s *Service) CompleteOAuth(ctx context.Context, cb Callback) (result CallbackResult, retErr error) {
+	if SupportedProvider(cb.Provider) {
+		defer func() {
+			if retErr != nil {
+				s.cfg.Metrics.Count("cloud_sign_ins_total", observe.Labels{
+					"provider": cb.Provider, "result": "error", "new_account": "false",
+				})
+			}
+		}()
+	}
 	if !SupportedProvider(cb.Provider) || !ValidSecret(cb.State) || !ValidSecret(cb.Cookie) ||
 		(!cb.Denied && !validLabel(cb.Code, 2048)) {
 		return CallbackResult{}, errOAuthState
 	}
 	attempt, grant, err := s.claimOAuthAttempt(ctx, cb)
-	result := CallbackResult{Grant: grant}
+	result = CallbackResult{Grant: grant}
 	if err != nil {
 		return result, err
 	}
@@ -165,13 +178,13 @@ func (s *Service) signIn(
 ) (store.AuthAccount, error) {
 	var account store.AuthAccount
 	for range 4 {
+		var created bool
 		err := s.db.Transaction(ctx, func(q *store.Queries) error {
 			now := s.now()
 			commit, err := prepare(q, now)
 			if err != nil {
 				return err
 			}
-			var created bool
 			account, created, err = q.LockIdentityAccount(ctx, identity, "acc_"+Secret(), now)
 			if err != nil {
 				return err
@@ -195,6 +208,14 @@ func (s *Service) signIn(
 			return store.AuthAccount{}, errIdentityConflict
 		}
 		if !retryIdentity(err) {
+			if err == nil {
+				s.cfg.Metrics.Count("cloud_sign_ins_total", observe.Labels{
+					"provider": identity.Provider, "result": "ok", "new_account": strconv.FormatBool(created),
+				})
+				if created {
+					s.cfg.Metrics.Count("cloud_new_accounts_total", observe.Labels{"provider": identity.Provider})
+				}
+			}
 			return account, err
 		}
 	}
