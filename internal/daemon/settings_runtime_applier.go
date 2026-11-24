@@ -22,7 +22,6 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 		return nil
 	}
 	next := *snap
-
 	previous, err := a.previousActiveConfig(ctx)
 	if err != nil {
 		return []settingspkg.ApplyFailure{
@@ -69,6 +68,7 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	a.state.deps.Config = next
 	a.state.cfg = next
 	a.daemon.config = next
+	a.daemon.localComputers.Store(new(next.Computers))
 	preStarter := a.daemon.providerPreStarter
 	worktrees := a.state.worktrees
 	a.daemon.mu.Unlock()

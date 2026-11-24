@@ -213,6 +213,11 @@ func (e *TriggerEngine) HandleWebhook(ctx context.Context, request WebhookReques
 	if !registration.Trigger.Enabled {
 		return TriggerResult{}, ErrWebhookTriggerDisabled
 	}
+	if e.localExecution != nil {
+		if err := e.localExecution(); err != nil {
+			return TriggerResult{}, err
+		}
+	}
 	if request.Admit != nil {
 		admit := func(ctx context.Context) error { return request.Admit(ctx, registration.Trigger) }
 		if err := admit(ctx); err != nil {

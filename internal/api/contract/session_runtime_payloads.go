@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
@@ -18,13 +19,15 @@ const (
 
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
-	Scope         string                     `json:"scope,omitempty"`
-	AgentName     string                     `json:"agent_name,omitempty"`
-	Name          string                     `json:"name,omitempty"`
-	Workspace     string                     `json:"workspace,omitempty"`
-	WorkspacePath string                     `json:"workspace_path,omitempty"`
-	Worktree      string                     `json:"worktree,omitempty"`
-	NewWorktree   *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
+	Computer          string                     `json:"computer,omitempty"`
+	ProjectComputerID remoteproto.ComputerID     `json:"project_computer_id,omitempty"`
+	Scope             string                     `json:"scope,omitempty"`
+	AgentName         string                     `json:"agent_name,omitempty"`
+	Name              string                     `json:"name,omitempty"`
+	Workspace         string                     `json:"workspace,omitempty"`
+	WorkspacePath     string                     `json:"workspace_path,omitempty"`
+	Worktree          string                     `json:"worktree,omitempty"`
+	NewWorktree       *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
 	// ParentSessionID records creation provenance; the parent must live in the
 	// target workspace and the link never narrows the child's lifecycle.
 	ParentSessionID string `json:"parent_session_id,omitempty"`

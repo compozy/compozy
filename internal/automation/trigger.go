@@ -168,9 +168,10 @@ func (r WebhookRequest) Validate(path string) error {
 
 // TriggerEngine matches normalized activations against registered triggers and dispatches runs.
 type TriggerEngine struct {
-	dispatcher TriggerDispatcher
-	logger     *slog.Logger
-	now        func() time.Time
+	localExecution func() error
+	dispatcher     TriggerDispatcher
+	logger         *slog.Logger
+	now            func() time.Time
 
 	webhookFreshnessWindow time.Duration
 	hookSessions           HookSessionResolver

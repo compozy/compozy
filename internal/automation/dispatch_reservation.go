@@ -13,7 +13,24 @@ import (
 
 var errScheduledAdmissionDeferred = errors.New("automation: scheduled admission deferred")
 
+func WithDispatcherLocalExecution(check func() error) DispatcherOption {
+	return func(d *Dispatcher) { d.localExecution = check }
+}
+
+func (d *Dispatcher) checkLocalExecution() error {
+	if d.localExecution == nil {
+		return nil
+	}
+	return d.localExecution()
+}
+
 func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, attempt int) (*Run, error) {
+	if err := d.checkLocalExecution(); err != nil {
+		if req.ReservedRun != nil && req.Kind == DispatchKindSchedule {
+			return req.ReservedRun, errors.Join(errScheduledAdmissionDeferred, err)
+		}
+		return nil, err
+	}
 	if !d.tryAcquire() {
 		return nil, fmt.Errorf(
 			"%w: active=%d limit=%d",

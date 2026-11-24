@@ -1,5 +1,7 @@
 package contract
 
+import "github.com/compozy/compozy/internal/remoteproto"
+
 // SessionsResponse wraps the shared session list payload.
 type SessionsResponse struct {
 	Sessions []SessionPayload `json:"sessions"`
@@ -7,7 +9,8 @@ type SessionsResponse struct {
 
 // SessionResponse wraps one shared session payload.
 type SessionResponse struct {
-	Session SessionPayload `json:"session"`
+	Session    SessionPayload         `json:"session"`
+	ComputerID remoteproto.ComputerID `json:"computer_id,omitempty"`
 }
 
 // SessionAttachResponse wraps one explicit session attach lease.

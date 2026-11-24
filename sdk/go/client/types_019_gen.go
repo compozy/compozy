@@ -4,6 +4,25 @@ package client
 
 import "time"
 
+// RuntimeIdentityPayload is a daemon API value.
+type RuntimeIdentityPayload struct {
+	SchemaVersion string                `json:"schema_version"`
+	Daemon        DaemonIdentityPayload `json:"daemon"`
+}
+
+// RuntimeLimits is a daemon API value.
+type RuntimeLimits struct {
+	MaxRuntimeSeconds int64 `json:"max_runtime_seconds"`
+	SummaryMaxBytes   int   `json:"summary_max_bytes"`
+	ContextMaxBytes   int   `json:"context_body_max_bytes"`
+}
+
+// RuntimeMCP is a daemon API value.
+type RuntimeMCP struct {
+	RuntimeMCP string          `json:"runtime_mcp"`
+	Servers    []RuntimeMCPRow `json:"servers"`
+}
+
 // RuntimeMCPImportRequest is a daemon API value.
 type RuntimeMCPImportRequest struct {
 	Scope       SettingsScopeKind `json:"scope,omitempty"`
@@ -426,23 +445,4 @@ type SessionChangeContentsResponse struct {
 	Fingerprint string             `json:"fingerprint"`
 	Old         *ChangeSidePayload `json:"old,omitempty"`
 	New         *ChangeSidePayload `json:"new,omitempty"`
-}
-
-// SessionChangePatchesResponse is a daemon API value.
-type SessionChangePatchesResponse struct {
-	Revision string               `json:"revision"`
-	Patches  []ChangePatchPayload `json:"patches"`
-}
-
-// SessionChangesResponse is a daemon API value.
-type SessionChangesResponse struct {
-	Scope       string                     `json:"scope"`
-	Root        FileRootPayload            `json:"root"`
-	Head        ChangeHeadPayload          `json:"head"`
-	Base        ChangeBasePayload          `json:"base"`
-	PullRequest *SessionPullRequestPayload `json:"pull_request,omitempty"`
-	Totals      ChangeTotalsPayload        `json:"totals"`
-	Files       []FileChangePayload        `json:"files"`
-	Truncated   bool                       `json:"truncated"`
-	Revision    string                     `json:"revision"`
 }

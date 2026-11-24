@@ -3317,6 +3317,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			t.Fatal("approved output_views and remote_scope additions: no historical tool descriptors found")
 		}
 		addRemoteToolInvokeResponses(baseline)
+		addComputerPlacementSchemas(t, baseline)
 		addSettingsMCPHeaderPresence(t, baseline)
 		deprecateRetiredWindowManagerSettings(t, baseline)
 		deprecateRetiredWindowManagerWireFields(t, baseline)
@@ -4073,8 +4074,8 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// #1011: optional typed diagnostics; existing fields and required sets stay unchanged.
 	addMissingWorkspaceDiagnosticsSchemas(t, baseline)
 
-	// #1005: lossless workspace archive metadata and typed busy blockers are additive.
-	if addWorkspaceArchiveSchemas(baseline) == 0 {
+	// Workspace archive metadata, busy blockers, and normalized repository identity are additive.
+	if addWorkspaceSchemaFields(baseline) == 0 {
 		t.Fatal("no historical workspace/error schemas found")
 	}
 	for _, code := range []tools.ErrorCode{tools.ErrorCodeWorkspaceBusy, tools.ErrorCodeWorkspaceArchived, tools.ErrorCodeWorkspaceRootMissing} {
@@ -5470,16 +5471,16 @@ func addShellAppearanceSchema(t *testing.T, baseline map[string]any) {
 	}
 }
 
-func addWorkspaceArchiveSchemas(value any) int {
+func addWorkspaceSchemaFields(value any) int {
 	count := 0
 	switch node := value.(type) {
 	case []any:
 		for _, child := range node {
-			count += addWorkspaceArchiveSchemas(child)
+			count += addWorkspaceSchemaFields(child)
 		}
 	case map[string]any:
 		for child := range maps.Values(node) {
-			count += addWorkspaceArchiveSchemas(child)
+			count += addWorkspaceSchemaFields(child)
 		}
 		properties, ok := node["properties"].(map[string]any)
 		if !ok {
@@ -5488,6 +5489,7 @@ func addWorkspaceArchiveSchemas(value any) int {
 		if properties["id"] != nil && properties["root_dir"] != nil && properties["created_at"] != nil {
 			properties["archived_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
 			properties["root_missing"] = map[string]any{"type": "boolean"}
+			properties["repository_key"] = map[string]any{"type": "string"}
 			count++
 		}
 		if properties["error"] != nil && properties["current_turn_id"] != nil && properties["diagnostic"] != nil {
@@ -7075,6 +7077,50 @@ func addRemoteToolInvokeResponses(baseline map[string]any) {
 	badRequest["oneOf"] = append(badRequest["oneOf"].([]any), remoteError)
 	forbidden := media("403")
 	forbidden["schema"] = map[string]any{"oneOf": []any{forbidden["schema"], remoteError}}
+	result := media("200")["schema"].(map[string]any)["properties"].(map[string]any)
+	result["_meta"] = map[string]any{
+		"type": "object", "nullable": true, "required": []any{"computer_id"},
+		"properties": map[string]any{"computer_id": map[string]any{"type": "string"}},
+	}
+}
+
+func addComputerPlacementSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	for _, code := range []string{
+		admission.LocalExecutionDisabledCode, "remote_scope_denied", string(tools.ErrorCodeNotForwardable),
+		string(tools.ErrorCodeForwardDenied), string(tools.ErrorCodeSecretAnswerOperatorOnly),
+	} {
+		if addToolErrorCode(baseline, code) == 0 {
+			t.Fatalf("approved computer tool error %s: no historical tool error enums found", code)
+		}
+	}
+	paths := baseline["paths"].(map[string]any)
+	text := map[string]any{"type": "string"}
+	create := gatewayBaselineSchema(t, paths, specSessionsPath, "post", "requestBody")
+	fields := create["properties"].(map[string]any)
+	fields["computer"], fields["project_computer_id"] = text, text
+
+	// SessionResponse is shared by these operations, and only Auto creation populates computer_id.
+	for _, route := range []struct{ path, method, status string }{
+		{specSessionsPath, "post", "201"},
+		{specSessionsPath + "/{session_id}", "get", "200"},
+		{specWorkspaceSessionPath, "get", "200"},
+		{specWorkspaceSessionPath, "patch", "200"},
+		{specWorkspaceSessionPath + "/archive", "post", "200"},
+		{specWorkspaceSessionPath + "/clear", "post", "200"},
+		{specWorkspaceSessionPath + "/runtime", "delete", "200"},
+		{specWorkspaceSessionPath + "/runtime", "put", "200"},
+		{specWorkspaceSessionPath + "/unarchive", "post", "200"},
+		{specWorkspaceSessionPath + "/worktree-fork", "post", "201"},
+	} {
+		response := gatewayBaselineSchema(t, paths, route.path, route.method, "responses", route.status)
+		response["properties"].(map[string]any)["computer_id"] = text
+	}
+	workspaces := paths["/api/workspaces"].(map[string]any)["get"].(map[string]any)
+	workspaces["parameters"] = []any{
+		map[string]any{"name": "archived", "in": "query", "schema": map[string]any{"type": "boolean"}},
+		map[string]any{"name": "include_repository", "in": "query", "schema": map[string]any{"type": "boolean"}},
+	}
 }
 
 // addPermanentExtensionRemoveParameter inserts the optional boolean `permanent` query flag into the

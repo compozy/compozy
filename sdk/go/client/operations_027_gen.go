@@ -156,7 +156,8 @@ func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspace
 
 // ListWorkspacesParams carries the path, query, and header parameters.
 type ListWorkspacesParams struct {
-	Archived *bool `url:"archived"`
+	Archived          *bool `url:"archived"`
+	IncludeRepository *bool `url:"include_repository"`
 }
 
 // ListWorkspaces lists active workspaces.
@@ -170,6 +171,9 @@ func (c *Client) ListWorkspacesWithParams(ctx context.Context, params ListWorksp
 	query := url.Values{}
 	if params.Archived != nil {
 		query.Set("archived", strconv.FormatBool(*params.Archived))
+	}
+	if params.IncludeRepository != nil {
+		query.Set("include_repository", strconv.FormatBool(*params.IncludeRepository))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()

@@ -4,6 +4,32 @@ package client
 
 import "time"
 
+// SettingsAttentionPayload is a daemon API value.
+type SettingsAttentionPayload struct {
+	Toasts          bool     `json:"toasts"`
+	Sound           bool     `json:"sound"`
+	System          bool     `json:"system"`
+	MutedWorkspaces []string `json:"muted_workspaces"`
+}
+
+// SettingsAttentionResponse is a daemon API value.
+type SettingsAttentionResponse struct {
+	Section         SettingsSectionName        `json:"section"`
+	Scope           SettingsLayeredScopeKind   `json:"scope"`
+	WorkspaceID     string                     `json:"workspace_id,omitempty"`
+	Profile         string                     `json:"profile,omitempty"`
+	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
+	Config          SettingsAttentionPayload   `json:"config"`
+}
+
+// SettingsAutomationConfigPayload is a daemon API value.
+type SettingsAutomationConfigPayload struct {
+	Enabled           bool            `json:"enabled"`
+	Timezone          string          `json:"timezone"`
+	MaxConcurrentJobs int             `json:"max_concurrent_jobs"`
+	DefaultFireLimit  FireLimitConfig `json:"default_fire_limit"`
+}
+
 // SettingsAutomationResponse is a daemon API value.
 type SettingsAutomationResponse struct {
 	Section         SettingsSectionName              `json:"section"`
@@ -417,21 +443,4 @@ type SettingsMCPExtensionOverridePayload struct {
 	Env     map[string]string `json:"env,omitempty"`
 	Headers map[string]string `json:"headers,omitempty"`
 	URL     string            `json:"url,omitempty"`
-}
-
-// SettingsMCPSecretPreservationPayload is a daemon API value.
-type SettingsMCPSecretPreservationPayload struct {
-	SecretEnv         []string `json:"secret_env,omitempty"`
-	OAuthClientSecret bool     `json:"oauth_client_secret,omitzero"`
-}
-
-// SettingsMCPSecretValuesPayload is a daemon API value.
-type SettingsMCPSecretValuesPayload struct {
-	SecretEnv         map[string]string `json:"secret_env,omitempty"`
-	OAuthClientSecret *string           `json:"oauth_client_secret,omitzero"`
-}
-
-// SettingsMCPServerEnabledRequest is a daemon API value.
-type SettingsMCPServerEnabledRequest struct {
-	Enabled bool `json:"enabled"`
 }

@@ -439,10 +439,12 @@ func (c *Client) GetHookRuns(ctx context.Context, params GetHookRunsParams) (*Ho
 	return &out, nil
 }
 
-// GetLoopParams carries the path, query, and header parameters.
-type GetLoopParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
+// GetHostResources Get the latest host resource sample
+func (c *Client) GetHostResources(ctx context.Context) (*HostResourcesResponse, error) {
+	path := "/api/host/resources"
+	var out HostResourcesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }

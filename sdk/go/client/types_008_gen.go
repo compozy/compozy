@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// ExtensionLogPayload is a daemon API value.
+type ExtensionLogPayload struct {
+	Sequence       int64     `json:"sequence"`
+	Timestamp      time.Time `json:"timestamp"`
+	Message        string    `json:"message"`
+	GenerationHash string    `json:"generation_hash,omitempty"`
+	StreamEpoch    string    `json:"stream_epoch"`
+}
+
 // ExtensionLogsResponse is a daemon API value.
 type ExtensionLogsResponse struct {
 	Logs        []ExtensionLogPayload `json:"logs"`
@@ -432,13 +441,4 @@ type FormField struct {
 	EventCount  int64             `json:"event_count,omitempty"`
 	Requires    map[string]string `json:"requires,omitempty"`
 	Fallback    string            `json:"fallback,omitempty"`
-}
-
-// GapsConfig is a daemon API value.
-type GapsConfig struct {
-	Inner  float64 `json:"inner"`
-	Top    float64 `json:"top"`
-	Right  float64 `json:"right"`
-	Bottom float64 `json:"bottom"`
-	Left   float64 `json:"left"`
 }

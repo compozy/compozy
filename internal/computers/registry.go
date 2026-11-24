@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/computers/sshsetup"
+	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -42,18 +43,20 @@ func WithManagedSSH(build func(*Registry) *sshsetup.Manager) Option {
 }
 
 type Registry struct {
-	store     store.ComputerStore
-	account   Account
-	cloud     Cloud
-	forward   ForwardResolver
-	uninstall func(context.Context, store.ComputerRoute) error
-	setups    *sshsetup.Manager
-	routeHTTP func(remoteproto.RouteKind) *http.Client
-	clock     clockwork.Clock
-	logger    *slog.Logger
-	ctx       context.Context
-	cancel    context.CancelFunc
-	done      chan struct{}
+	store       store.ComputerStore
+	account     Account
+	cloud       Cloud
+	forward     ForwardResolver
+	uninstall   func(context.Context, store.ComputerRoute) error
+	setups      *sshsetup.Manager
+	localConfig func() config.ComputersConfig
+	patchLocal  func(context.Context, LocalSettingsPatch) (config.ComputersConfig, error)
+	routeHTTP   func(remoteproto.RouteKind) *http.Client
+	clock       clockwork.Clock
+	logger      *slog.Logger
+	ctx         context.Context
+	cancel      context.CancelFunc
+	done        chan struct{}
 
 	mu    sync.Mutex
 	scope *registryScope

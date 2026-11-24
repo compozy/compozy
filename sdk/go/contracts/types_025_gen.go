@@ -178,6 +178,7 @@ type ToolCallPatch struct {
 }
 
 type ToolCallRef struct {
+	ComputerID       string `json:"computer_id,omitempty"`
 	ToolCallID       string `json:"tool_call_id,omitempty"`
 	ToolID           string `json:"tool_id,omitempty"`
 	ReadOnly         bool   `json:"read_only,omitempty"`
@@ -221,6 +222,7 @@ type ToolPostCallPayload struct {
 	CreatedAt        time.Time       `json:"created_at"`
 	UpdatedAt        time.Time       `json:"updated_at"`
 	TurnID           string          `json:"turn_id,omitempty"`
+	ComputerID       string          `json:"computer_id,omitempty"`
 	ToolCallID       string          `json:"tool_call_id,omitempty"`
 	ToolID           string          `json:"tool_id,omitempty"`
 	ReadOnly         bool            `json:"read_only,omitempty"`
@@ -260,6 +262,7 @@ type ToolPostErrorPayload struct {
 	CreatedAt        time.Time       `json:"created_at"`
 	UpdatedAt        time.Time       `json:"updated_at"`
 	TurnID           string          `json:"turn_id,omitempty"`
+	ComputerID       string          `json:"computer_id,omitempty"`
 	ToolCallID       string          `json:"tool_call_id,omitempty"`
 	ToolID           string          `json:"tool_id,omitempty"`
 	ReadOnly         bool            `json:"read_only,omitempty"`
@@ -290,6 +293,7 @@ type ToolPreCallPayload struct {
 	CreatedAt        time.Time       `json:"created_at"`
 	UpdatedAt        time.Time       `json:"updated_at"`
 	TurnID           string          `json:"turn_id,omitempty"`
+	ComputerID       string          `json:"computer_id,omitempty"`
 	ToolCallID       string          `json:"tool_call_id,omitempty"`
 	ToolID           string          `json:"tool_id,omitempty"`
 	ReadOnly         bool            `json:"read_only,omitempty"`

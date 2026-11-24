@@ -1373,6 +1373,13 @@
             "resource": "hooks",
             "app_access": "denied"
         },
+        "getHostResources": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.diagnostics.getHostResources();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetHostResources(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "diagnostics",
+            "app_access": "denied"
+        },
         "getLoop": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.getLoop({ path: { \"workspace_id\": \"workspace_id\", \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetLoop(ctx, client.GetLoopParams{WorkspaceID: \"workspace_id\", Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2913,6 +2920,13 @@
             "resource": "computers",
             "app_access": "denied"
         },
+        "patchLocalComputer": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.patchLocalComputer({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PatchLocalComputer(ctx, client.PatchLocalComputerRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
+            "app_access": "denied"
+        },
         "patchLoop": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.patchLoop({ path: { \"workspace_id\": \"workspace_id\", \"name\": \"name\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PatchLoop(ctx, client.PatchLoopParams{WorkspaceID: \"workspace_id\", Name: \"name\"}, client.PatchLoopRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -3023,6 +3037,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PrepareWorktreeExitPlan(ctx, client.PrepareWorktreeExitPlanParams{WorkspaceID: \"workspace_id\", WorktreeID: \"worktree_id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "worktrees",
+            "app_access": "denied"
+        },
+        "previewComputerPlacement": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.previewComputerPlacement({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PreviewComputerPlacement(ctx, client.ComputerPlacementRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
             "app_access": "denied"
         },
         "previewExtensionEnable": {

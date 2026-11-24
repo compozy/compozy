@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/cloudclient"
+	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -117,7 +118,7 @@ func validatePatch(patch *store.ComputerPatch) error {
 			return invalidComputerRequest("Enter a name for the computer.")
 		}
 	}
-	if patch.Weight != nil && !slices.Contains([]int{0, 25, DefaultWeight, 100}, *patch.Weight) {
+	if patch.Weight != nil && !config.IsComputerWeight(*patch.Weight) {
 		return invalidComputerRequest("Choose a load-balancing weight of 0, 25, 50, or 100.")
 	}
 	return nil

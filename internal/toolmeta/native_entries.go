@@ -1,6 +1,7 @@
 package toolmeta
 
 var nativeEntries = map[string]Entry{
+	"compozy__account_status":                 nativeEntry("Reading", " ", false, "🖥️", "auto"),
 	"compozy__agent_activity":                 nativeEntry("Reading", " ", false, "🤖", "auto"),
 	"compozy__agent_draft_instructions":       nativeEntry("Drafting", " ", false, "🤖", "auto"),
 	"compozy__agent_instance_archive":         nativeEntry("Archiving", " ", false, "🤖", "auto"),
@@ -62,7 +63,13 @@ var nativeEntries = map[string]Entry{
 	"compozy__cmd_palette_invoke":    nativeEntry("Running", " ", false, "💬", "auto"),
 	"compozy__cmd_palette_list":      nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__command_list":          nativeEntry("Reading", " ", false, "💬", "auto"),
+	"compozy__computer_add":          nativeEntry("Adding", " ", false, "🖥️", "auto"),
+	"compozy__computer_list":         nativeEntry("Reading", " ", false, "🖥️", "auto"),
+	"compozy__computer_remove":       nativeEntry("Removing", " ", false, "🖥️", "auto"),
+	"compozy__computer_setup_answer": nativeEntry("Answering", " ", false, "🖥️", "auto"),
 	"compozy__computer_setup_cancel": nativeEntry("Canceling", " ", false, "🖥️", "auto"),
+	"compozy__computer_setup_status": nativeEntry("Reading", " ", false, "🖥️", "auto"),
+	"compozy__computer_status":       nativeEntry("Reading", " ", false, "🖥️", "auto"),
 	"compozy__config_diff":           nativeEntry("Reading", " ", false, "⚙️", "auto"),
 	"compozy__config_get":            nativeEntry("Reading", " ", false, "⚙️", "auto"),
 	"compozy__config_list":           nativeEntry("Reading", " ", false, "⚙️", "auto"),

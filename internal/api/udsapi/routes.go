@@ -55,6 +55,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 }
 
 func registerStatusRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/host/resources", handlers.GetHostResources)
 	api.GET("/status", handlers.GetStatus)
 	api.GET("/status/identity", handlers.GetRuntimeIdentity)
 	api.GET("/doctor", handlers.GetDoctor)

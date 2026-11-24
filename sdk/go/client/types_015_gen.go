@@ -255,6 +255,13 @@ type PatchComputerRequest struct {
 	Weight  *int    `json:"load_balancing_weight,omitempty"`
 }
 
+// PatchLocalComputerRequest is a daemon API value.
+type PatchLocalComputerRequest struct {
+	RunAgents           *bool `json:"run_agents,omitempty"`
+	LoadBalancing       *bool `json:"load_balancing,omitempty"`
+	LoadBalancingWeight *int  `json:"load_balancing_weight,omitempty"`
+}
+
 // PatchLoopRequest is a daemon API value.
 type PatchLoopRequest struct {
 	ExpectedVersion *int                   `json:"expected_version,omitzero"`
@@ -423,22 +430,4 @@ type ProfilePlacement struct {
 // ProfilePlanRequest is a daemon API value.
 type ProfilePlanRequest struct {
 	PlanRevision string `json:"plan_revision"`
-}
-
-// ProfileRemovalSummary is a daemon API value.
-type ProfileRemovalSummary struct {
-	AgentInstances      int `json:"agent_instances"`
-	AgentMemoryFiles    int `json:"agent_memory_files"`
-	Agents              int `json:"agents"`
-	Skills              int `json:"skills"`
-	Loops               int `json:"loops"`
-	MCPServers          int `json:"mcp_servers"`
-	ConfigKeys          int `json:"config_keys"`
-	CredentialOverrides int `json:"credential_overrides"`
-	DesktopPartitions   int `json:"desktop_partitions"`
-	PaletteUsage        int `json:"palette_usage"`
-	PaletteQueryHits    int `json:"palette_query_hits"`
-	PalettePins         int `json:"palette_pins"`
-	TerminalApprovals   int `json:"terminal_approvals"`
-	EventSummaries      int `json:"event_summaries"`
 }

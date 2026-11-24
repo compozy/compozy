@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+// GetLoopParams carries the path, query, and header parameters.
+type GetLoopParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetLoop Inspect one Loop definition
 func (c *Client) GetLoop(ctx context.Context, params GetLoopParams) (*LoopResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loops/{name}"
