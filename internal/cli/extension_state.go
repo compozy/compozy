@@ -96,7 +96,7 @@ func prepareExtensionProfileRead(cmd *cobra.Command, deps commandDeps, client wo
 		return nil
 	}
 	profiles := optionalProfileResolutionClient(client)
-	if err := prepareProfileReadSelection(cmd, deps, profiles, client, false); err != nil {
+	if err := prepareProfileReadSelection(cmd, deps, profiles, client); err != nil {
 		return fmt.Errorf("cli: resolve extension profile: %w", err)
 	}
 	return nil
