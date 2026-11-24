@@ -88,12 +88,12 @@ func testSSHServiceAndTurn(t *testing.T, assets sshFixtureAssets) {
 	if !markerAfter(history, killedAt) {
 		t.Fatal("the restarted controller did not read the host's later assistant message")
 	}
-	state := parseSSHJSON[contract.SessionPayload](
+	status := parseSSHJSON[contract.SessionStatusResponse](
 		t,
 		j.cli(t, "session", "status", session.ID, "--computer", "testhost", "--json"),
 	)
-	if string(state.State) != "idle" {
-		t.Fatalf("completed session state = %s, want idle", state.State)
+	if status.SessionID != session.ID || status.State != contract.SessionHealthStateIdle {
+		t.Fatalf("completed session status = %s %s, want %s idle", status.SessionID, status.State, session.ID)
 	}
 }
 
