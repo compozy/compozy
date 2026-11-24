@@ -278,9 +278,7 @@ describe("ComputersSettingsPage", () => {
     });
     rerender(<ComputersSettingsPage />);
 
-    expect(
-      screen.getByText(/Hosted route is part of Pro/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Hosted route is part of Pro/i)).toBeInTheDocument();
     expect(screen.getByText("1 active · 2 need Pro")).toBeInTheDocument();
     expect(
       screen.getByText("This computer can only be reached through the hosted route (Pro)")
@@ -288,6 +286,16 @@ describe("ComputersSettingsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Upgrade to Pro" }));
     expect(openUpgradeFromAdd).toHaveBeenCalledTimes(1);
+
+    state.view = makeView({
+      account: ACCOUNT_PRESETS.downgraded,
+      computers: COMPUTERS_DOWNGRADED,
+      unaddedComputers: ACCOUNT_UNADDED_FREE,
+      handleOpenUpgrade: openUpgrade,
+      handleOpenUpgradeFromAdd: openUpgradeFromAdd,
+      addDialogOpen: false,
+    });
+    rerender(<ComputersSettingsPage />);
 
     const upgradeButtons = screen.getAllByRole("button", { name: /^Upgrade$/i });
     expect(upgradeButtons.length).toBeGreaterThanOrEqual(4);

@@ -50,20 +50,13 @@ function TriggerHarness({
 }) {
   const actions = useOptionalUpgradeSheetActions();
   return (
-    <button
-      onClick={() => actions?.openUpgradeSheet({ interval, onUpgraded })}
-      type="button"
-    >
+    <button onClick={() => actions?.openUpgradeSheet({ interval, onUpgraded })} type="button">
       Open upgrade
     </button>
   );
 }
 
-function renderSheet(
-  queryClient: QueryClient,
-  children: ReactNode,
-  waitingTimeoutMs?: number
-) {
+function renderSheet(queryClient: QueryClient, children: ReactNode, waitingTimeoutMs?: number) {
   return render(
     <QueryClientProvider client={queryClient}>
       <AccountUpgradeSheetProvider waitingTimeoutMs={waitingTimeoutMs}>
@@ -170,11 +163,14 @@ describe("UpgradeSheet & AccountUpgradeSheetProvider (S12 / U9)", () => {
       url: "https://checkout.stripe.com/c/pay/cs_test_timeout",
     });
     vi.spyOn(accountApi, "openAccountStream").mockReturnValue(() => undefined);
+    let currentPlan: "free" | "pro" = "free";
     const fetchStatusSpy = vi
       .spyOn(accountApi, "fetchAccountStatus")
-      .mockResolvedValueOnce(makeAccountStatus({ plan: "free" }))
-      .mockResolvedValueOnce(makeAccountStatus({ plan: "free" }))
-      .mockResolvedValueOnce(makeAccountStatus({ plan: "pro", remote_computers_limit: null }));
+      .mockImplementation(async () =>
+        currentPlan === "pro"
+          ? makeAccountStatus({ plan: "pro", remote_computers_limit: null })
+          : makeAccountStatus({ plan: "free" })
+      );
 
     renderSheet(queryClient, <TriggerHarness />, 15 * 60 * 1000);
 
@@ -203,15 +199,16 @@ describe("UpgradeSheet & AccountUpgradeSheetProvider (S12 / U9)", () => {
     expect(sheet).toHaveAttribute("data-phase", "waiting_timeout");
 
     // Second Check again sees Pro → completes to done.
+    currentPlan = "pro";
     fireEvent.click(screen.getAllByRole("button", { name: /Check again/i })[0]!);
     await act(async () => {
       await Promise.resolve();
     });
     expect(fetchStatusSpy).toHaveBeenCalled();
     expect(sheet).toHaveAttribute("data-phase", "done");
-    expect(queryClient.getQueryData<accountApi.AccountStatusPayload>(accountKeys.status())?.plan).toBe(
-      "pro"
-    );
+    expect(
+      queryClient.getQueryData<accountApi.AccountStatusPayload>(accountKeys.status())?.plan
+    ).toBe("pro");
   });
 
   it("shows cancelled message when returning from waiting and surfaces checkout API errors", async () => {
