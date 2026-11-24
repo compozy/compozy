@@ -1,6 +1,7 @@
 package core
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net/http"
@@ -96,15 +97,19 @@ func (h *BaseHandlers) DispatchSessionPrompt(c *gin.Context) (*PromptDispatch, b
 	return &PromptDispatch{sessionID: sessionID, result: result, cancelDelivery: cancelDelivery}, true
 }
 
-// RespondPromptV1 writes an accepted prompt as the AI SDK v1 stream or its
-// non-streaming prompt-result envelope.
+// RespondPromptV1 writes the AI SDK v1 stream or the prompt admission result.
 func (h *BaseHandlers) RespondPromptV1(c *gin.Context, dispatch *PromptDispatch) {
 	defer dispatch.cancelDelivery()
-	if dispatch.result.Events == nil {
-		RespondPromptResult(c, dispatch.result, h.MaskInternalErrors)
+	result := dispatch.result
+	resultOnly := c.Query("format") == contract.PromptResponseFormatResult
+	if resultOnly {
+		result.TargetSessionID = cmp.Or(result.TargetSessionID, dispatch.sessionID)
+	}
+	if resultOnly || result.Events == nil {
+		RespondPromptResult(c, result, h.MaskInternalErrors)
 		return
 	}
-	turnID, err := AcceptedPromptStreamTurnID(dispatch.result)
+	turnID, err := AcceptedPromptStreamTurnID(result)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
@@ -123,7 +128,7 @@ func (h *BaseHandlers) RespondPromptV1(c *gin.Context, dispatch *PromptDispatch)
 		return
 	}
 	DeliverPromptEventStream(
-		c.Request.Context(), h.StreamDoneChannel(), dispatch.result.Events, dispatch.cancelDelivery, encoder, writer,
+		c.Request.Context(), h.StreamDoneChannel(), result.Events, dispatch.cancelDelivery, encoder, writer,
 	)
 }
 

@@ -111810,6 +111810,14 @@
             }
           },
           {
+            "description": "Use result to return the admission result without streaming turn events",
+            "in": "query",
+            "name": "format",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
