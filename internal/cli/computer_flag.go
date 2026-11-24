@@ -39,7 +39,7 @@ func validateComputerFlag(cmd *cobra.Command) error {
 		group = group.Parent()
 	}
 	switch group.Name() {
-	case "daemon", "service", "account", "computer", "remote", "update", "install", "uninstall":
+	case "daemon", "service", accountCommandName, "computer", "remote", "update", "install", "uninstall":
 		verb := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")
 		return &computerFlagError{message: fmt.Sprintf("--computer doesn't apply to compozy %s.", verb)}
 	}

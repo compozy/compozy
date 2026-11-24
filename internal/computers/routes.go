@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	routeHTTPScheme     = "http"
 	probeTimeout        = 2500 * time.Millisecond
 	betterRouteInterval = time.Minute
 	dropWindow          = 10 * time.Minute
@@ -57,7 +58,7 @@ func compareRoutes(a, b store.ComputerRoute) int {
 func advertisedRoutes(info remoteproto.AccountComputer) []store.ComputerRoute {
 	routes := make([]store.ComputerRoute, 0, len(info.Endpoints)+1)
 	for _, address := range info.Endpoints {
-		if validSocketAddress(address) && !slices.ContainsFunc(routes, func(route store.ComputerRoute) bool {
+		if socketHost(address) != "" && !slices.ContainsFunc(routes, func(route store.ComputerRoute) bool {
 			return route.Address == address
 		}) {
 			routes = append(routes, learnedRoute(remoteproto.RouteDirect, address, len(routes)))
@@ -73,20 +74,23 @@ func learnedRoute(kind remoteproto.RouteKind, address string, position int) stor
 	return store.ComputerRoute{ID: "rt_" + rand.Text(), Kind: kind, Address: address, Position: position, Learned: true}
 }
 
-func validSocketAddress(address string) bool {
+func socketHost(address string) string {
 	host, rawPort, err := net.SplitHostPort(address)
-	if err != nil || host == "" {
-		return false
+	if err != nil {
+		return ""
 	}
 	port, err := strconv.ParseUint(rawPort, 10, 16)
-	return err == nil && port > 0
+	if err != nil || port == 0 {
+		return ""
+	}
+	return host
 }
 
 func (r *Registry) routeOrigin(ctx context.Context, route store.ComputerRoute) (*url.URL, error) {
 	switch route.Kind {
 	case remoteproto.RouteDirect:
-		if validSocketAddress(route.Address) {
-			return &url.URL{Scheme: "http", Host: route.Address}, nil
+		if socketHost(route.Address) != "" {
+			return &url.URL{Scheme: routeHTTPScheme, Host: route.Address}, nil
 		}
 	case remoteproto.RouteSSH:
 		if r.forward != nil {
@@ -94,9 +98,8 @@ func (r *Registry) routeOrigin(ctx context.Context, route store.ComputerRoute) (
 			if err != nil {
 				return nil, ErrOffline
 			}
-			host, _, _ := net.SplitHostPort(socket)
-			if ip := net.ParseIP(host); validSocketAddress(socket) && ip != nil && ip.IsLoopback() {
-				return &url.URL{Scheme: "http", Host: socket}, nil
+			if ip := net.ParseIP(socketHost(socket)); ip != nil && ip.IsLoopback() {
+				return &url.URL{Scheme: routeHTTPScheme, Host: socket}, nil
 			}
 		}
 	case remoteproto.RouteCloud:

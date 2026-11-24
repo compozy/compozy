@@ -8,6 +8,13 @@ import (
 	"github.com/compozy/compozy/internal/cloudclient"
 )
 
+const (
+	stepCloud    = "cloud"
+	stepRoute    = "route"
+	stepComputer = "computer"
+	stepSignIn   = "sign_in"
+)
+
 func describe(err error) *Failure {
 	if failure, ok := errors.AsType[*Failure](err); ok {
 		return failure
@@ -24,14 +31,14 @@ func describe(err error) *Failure {
 }
 
 func activeFailure(err error) routeProblem {
-	step := "computer"
+	step := stepComputer
 	switch describe(err).Code {
 	case CodeLeaseExpired, CodePlanRequired:
-		step = "cloud"
+		step = stepCloud
 	case CodeDeviceRevoked, "sign_in_required":
-		step = "sign_in"
+		step = stepSignIn
 	case ErrOffline.Code:
-		step = "route"
+		step = stepRoute
 	}
 	return routeProblem{step: step, err: err}
 }

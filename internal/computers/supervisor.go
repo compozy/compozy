@@ -108,6 +108,7 @@ func (s *supervisor) run() {
 			}
 			s.errors[link.route.ID] = describe(failure).Code
 			s.report(activeFailure(failure))
+			link.drainPolicyClose(s.ctx, failure)
 		}
 		link.close()
 		link = replacement
@@ -153,30 +154,30 @@ func (s *supervisor) preflight(route store.ComputerRoute) routeProbe {
 	r := s.scope.registry
 	origin, err := r.routeOrigin(ctx, route)
 	if err != nil {
-		probe.problem = routeProblem{step: "route", err: err}
+		probe.problem = routeProblem{step: stepRoute, err: err}
 		return probe
 	}
 	descriptor, err := fetchDescriptor(ctx, origin, r.routeHTTP(route.Kind))
 	probe.descriptor = descriptor
 	switch {
 	case err != nil:
-		probe.problem = routeProblem{step: "route", err: err}
+		probe.problem = routeProblem{step: stepRoute, err: err}
 	case descriptor.ComputerID != s.computer.ID:
-		probe.problem = routeProblem{step: "route", err: ErrIdentityMismatch}
+		probe.problem = routeProblem{step: stepRoute, err: ErrIdentityMismatch}
 	case descriptor.TLSRootSHA256 == "" || descriptor.TLSRootSHA256 != s.computer.TLSRootSHA:
-		probe.problem = routeProblem{step: "route", err: ErrPinMismatch}
+		probe.problem = routeProblem{step: stepRoute, err: ErrPinMismatch}
 	default:
 		if _, ok := remoteproto.CurrentProtocol.Overlap(descriptor.Protocol); ok {
 			probe.origin = origin
 		} else {
-			probe.problem = routeProblem{step: "computer", err: ErrIncompatible, protocol: &descriptor.Protocol}
+			probe.problem = routeProblem{step: stepComputer, err: ErrIncompatible, protocol: &descriptor.Protocol}
 		}
 	}
 	return probe
 }
 
 func (s *supervisor) connect(probes []routeProbe) (*connection, routeProblem) {
-	best := routeProblem{step: "route", err: ErrOffline}
+	best := routeProblem{step: stepRoute, err: ErrOffline}
 	for _, probe := range probes {
 		if s.ctx.Err() != nil {
 			break
@@ -197,7 +198,7 @@ func (s *supervisor) connect(probes []routeProbe) (*connection, routeProblem) {
 		if errors.Is(best.err, ErrOffline) && !errors.Is(problem.err, ErrOffline) {
 			best = problem
 		}
-		if problem.step == "cloud" && cloudclient.RetryDelay(s.scope.registry.clock.Now(), problem.err) > 0 {
+		if problem.step == stepCloud && cloudclient.RetryDelay(s.scope.registry.clock.Now(), problem.err) > 0 {
 			return nil, problem
 		}
 	}
@@ -211,7 +212,7 @@ func (s *supervisor) dial(probe routeProbe) (*connection, routeProblem) {
 		if !errors.Is(err, ErrPinMismatch) {
 			err = ErrOffline
 		}
-		return nil, routeProblem{step: "route", err: err}
+		return nil, routeProblem{step: stepRoute, err: err}
 	}
 	link := &connection{tunnel: tunnel, route: probe.route, descriptor: probe.descriptor}
 	var failure routeProblem
@@ -234,7 +235,7 @@ func (s *supervisor) dial(probe routeProbe) (*connection, routeProblem) {
 		if failure.err != nil {
 			return nil, failure
 		}
-		return nil, routeProblem{step: "cloud", err: err}
+		return nil, routeProblem{step: stepCloud, err: err}
 	}
 	return link, routeProblem{}
 }

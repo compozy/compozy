@@ -51,7 +51,7 @@ func TestTunnelTransport(t *testing.T) {
 		c := &connection{key: account.key, credential: "fixture-credential", expiresAt: clock.Now().Add(time.Hour)}
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/sessions", nil)
 		headers := []string{
-			"Cookie", "Authorization", "DPoP", ClaimTokenHeader,
+			"Cookie", "Authorization", "DPoP", claimHeader,
 			agentidentity.HeaderSessionID, agentidentity.HeaderAgent,
 			"X-Compozy-Client-Token", "X-Compozy-Client-Workspace",
 			"X-Compozy-Gateway-Session", "X-Compozy-Gateway-Device",
@@ -60,15 +60,21 @@ func TestTunnelTransport(t *testing.T) {
 			req.Header.Set(header, "local-value")
 		}
 		r := &Registry{clock: clock}
-		if _, err := r.RoundTrip(t.Context(), probeComputer, req); !errors.Is(err, ErrClaimToken) {
-			t.Fatalf("claim token request = %v", err)
+		withTrailer := req.Clone(t.Context())
+		withTrailer.Header.Del(claimHeader)
+		withTrailer.Trailer = http.Header{claimHeader: nil}
+		for _, input := range []*http.Request{req, withTrailer} {
+			response, err := r.RoundTrip(t.Context(), probeComputer, input)
+			if response != nil {
+				if closeErr := response.Body.Close(); closeErr != nil {
+					t.Error(closeErr)
+				}
+			}
+			if response != nil || !errors.Is(err, ErrClaimToken) {
+				t.Fatalf("claim token request returned response %v and error %v", response != nil, err)
+			}
 		}
-		req.Header.Del(ClaimTokenHeader)
-		req.Trailer = http.Header{ClaimTokenHeader: nil}
-		if _, err := r.RoundTrip(t.Context(), probeComputer, req); !errors.Is(err, ErrClaimToken) {
-			t.Fatalf("declared claim token trailer = %v", err)
-		}
-		req.Trailer = nil
+		req.Header.Del(claimHeader)
 		out, err := c.bridgeRequest(t.Context(), req, r)
 		if err != nil {
 			t.Fatal(err)

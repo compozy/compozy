@@ -10,7 +10,9 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json/v2"
+	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -25,12 +27,13 @@ import (
 )
 
 const (
-	tunnelHTTPOrigin  = "http://" + remoteproto.TunnelHost
+	tunnelHTTPOrigin  = routeHTTPScheme + "://" + remoteproto.TunnelHost
 	tunnelProofOrigin = "https://" + remoteproto.TunnelHost
 	healthInterval    = 2 * time.Second
 	headerTimeout     = 6 * time.Second
 	tunnelTimeout     = 2500 * time.Millisecond
 	tunnelIOTimeout   = 3 * time.Second
+	policyCloseDrain  = 1500 * time.Millisecond
 	maxTunnelResponse = 64 << 10
 )
 
@@ -70,7 +73,7 @@ func fetchDescriptor(
 	ctx context.Context, origin *url.URL, client *http.Client,
 ) (remoteproto.Descriptor, error) {
 	target := origin.JoinPath(remoteproto.DescriptorPath)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), http.NoBody)
 	if err != nil {
 		return remoteproto.Descriptor{}, ErrOffline
 	}
@@ -110,8 +113,7 @@ func dialTunnel(
 		VerifyConnection: func(state tls.ConnectionState) error { return verifyTunnelRoot(state, pin, now) },
 	})
 	if err := inner.HandshakeContext(dial); err != nil {
-		_ = socket.CloseNow()
-		return nil, err
+		return nil, errors.Join(err, socket.CloseNow())
 	}
 	return multiplexTunnel(inner, socket)
 }
@@ -145,8 +147,7 @@ func multiplexTunnel(inner net.Conn, socket *websocket.Conn) (*tunnel, error) {
 	options.StreamCloseTimeout = tunnelIOTimeout
 	mux, err := yamux.Client(inner, options)
 	if err != nil {
-		_ = socket.CloseNow()
-		return nil, err
+		return nil, errors.Join(err, socket.CloseNow())
 	}
 	return &tunnel{mux: mux, socket: socket, transport: &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -162,10 +163,33 @@ func multiplexTunnel(inner net.Conn, socket *websocket.Conn) (*tunnel, error) {
 
 func (t *tunnel) close() {
 	t.once.Do(func() {
-		_ = t.socket.CloseNow()
-		_ = t.mux.Close()
+		if err := t.socket.CloseNow(); err != nil && !errors.Is(err, net.ErrClosed) {
+			slog.Debug("Could not close the remote tunnel WebSocket", "error", err)
+		}
+		if err := t.mux.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			slog.Debug("Could not close the remote tunnel multiplexer", "error", err)
+		}
 		t.transport.CloseIdleConnections()
 	})
+}
+
+func (c *connection) drainPolicyClose(ctx context.Context, failure error) {
+	switch describe(failure).Code {
+	case CodeLeaseExpired, CodePlanRequired, CodeSessionExpired, CodeDeviceRevoked:
+	default:
+		return
+	}
+	if c.mux.NumStreams() == 0 {
+		return
+	}
+	// The host sends policy close frames on separate streams from the health response.
+	timer := time.NewTimer(policyCloseDrain)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+	case <-c.mux.CloseChan():
+	case <-timer.C:
+	}
 }
 
 func (t *tunnel) mint(
@@ -231,7 +255,7 @@ func (c *connection) authenticate(req *http.Request, now time.Time) error {
 func (c *connection) check(ctx context.Context, now time.Time) error {
 	ctx, cancel := context.WithTimeout(ctx, healthInterval)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, tunnelHTTPOrigin+remoteproto.SessionPath, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, tunnelHTTPOrigin+remoteproto.SessionPath, http.NoBody)
 	if err != nil {
 		return err
 	}

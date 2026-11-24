@@ -119,7 +119,7 @@ func TestDaemonComputerJourneys(t *testing.T) {
 	})
 }
 
-func configureComputerACP(t *testing.T, home string, boot daemonAccountBoot) daemonAccountBoot {
+func configureComputerACP(t *testing.T, home string) {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
@@ -140,10 +140,22 @@ func configureComputerACP(t *testing.T, home string, boot daemonAccountBoot) dae
 	if err != nil {
 		t.Fatal(err)
 	}
-	boot.configure = func(cfg *config.Config) {
-		cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(registration.DriverPath)
+	target, err := config.ResolveConfigWriteTarget(paths, "", config.WriteScopeUser, "")
+	if err != nil {
+		t.Fatal(err)
 	}
-	return boot
+	provider := acpmock.ProviderConfig(registration.DriverPath)
+	if _, err := config.EditConfigOverlay(paths, "", target, func(editor *config.OverlayEditor) error {
+		return editor.SetTable([]string{"providers", acpmock.ProviderName}, map[string]any{
+			"command":       provider.Command,
+			"display_name":  provider.DisplayName,
+			"harness":       string(provider.Harness),
+			"auth_mode":     string(provider.AuthMode),
+			"none_security": string(provider.NoneSecurity),
+		})
+	}); err != nil {
+		t.Fatalf("configure the session fixture provider: %v", err)
+	}
 }
 
 func makeFixtureSession(t *testing.T, controller daemonAccountFixture, prefix string) string {

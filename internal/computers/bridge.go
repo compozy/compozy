@@ -9,15 +9,15 @@ import (
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
-const ClaimTokenHeader = "X-Compozy-Claim-Token"
+const claimHeader = "X-Compozy-Claim-Token"
 
 func CarriesClaimToken(req *http.Request) bool {
-	_, declared := req.Trailer[ClaimTokenHeader]
-	return declared || len(req.Header.Values(ClaimTokenHeader)) != 0
+	_, declared := req.Trailer[claimHeader]
+	return declared || len(req.Header.Values(claimHeader)) != 0
 }
 
 var localHeaders = []string{
-	"Cookie", "Authorization", "DPoP", ClaimTokenHeader,
+	"Cookie", "Authorization", "DPoP", claimHeader,
 	agentidentity.HeaderSessionID, agentidentity.HeaderAgent,
 	"X-Compozy-Client-Token", "X-Compozy-Client-Workspace",
 	"X-Compozy-Gateway-Session", "X-Compozy-Gateway-Device",
@@ -85,7 +85,7 @@ func (c *connection) bridgeRequest(ctx context.Context, req *http.Request, r *Re
 	}
 	out := req.Clone(ctx)
 	out.RequestURI = ""
-	out.URL.Scheme, out.URL.Host, out.Host = "http", remoteproto.TunnelHost, remoteproto.TunnelHost
+	out.URL.Scheme, out.URL.Host, out.Host = routeHTTPScheme, remoteproto.TunnelHost, remoteproto.TunnelHost
 	out.URL.User, out.URL.Opaque = nil, ""
 	for _, header := range localHeaders {
 		out.Header.Del(header)

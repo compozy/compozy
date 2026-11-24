@@ -23,10 +23,8 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
-const (
-	probeComputer remoteproto.ComputerID = "cmp_routetest"
-	probeAccount                         = "acc_routetest"
-)
+const probeComputer remoteproto.ComputerID = "cmp_routetest"
+const probeAccount = "acc_routetest"
 
 func TestRouteSelection(t *testing.T) {
 	t.Parallel()
@@ -51,7 +49,9 @@ func TestRouteSelection(t *testing.T) {
 			{ID: "ssh", Kind: remoteproto.RouteSSH},
 			{ID: "direct", Kind: remoteproto.RouteDirect, Address: probeURL(t, direct.URL).Host},
 		}
-		rows := []store.Computer{{ID: probeComputer, AccountID: probeAccount, Enabled: true, TLSRootSHA: pin, Routes: routes}}
+		rows := []store.Computer{{
+			ID: probeComputer, AccountID: probeAccount, Enabled: true, TLSRootSHA: pin, Routes: routes,
+		}}
 		registry := New(t.Context(), &routingStore{computers: rows}, newRoutingAccount(t), cloud, WithClock(clock),
 			WithSSHForward(func(context.Context, store.ComputerRoute) (string, error) { return sshAddress, nil }),
 			func(r *Registry) { r.routeHTTP = testRouteHTTP(hosted.Client()) })
@@ -127,8 +127,12 @@ func TestRouteSelection(t *testing.T) {
 		}, pair, clock, false, func() bool { return true })
 		route := store.ComputerRoute{ID: "wrong", Kind: remoteproto.RouteDirect, Address: probeURL(t, server.URL).Host}
 		cloud := &routingCloud{}
-		s := supervisor{scope: &registryScope{registry: &Registry{clock: clock, cloud: cloud, routeHTTP: routeClient}},
-			ctx: t.Context(), computer: store.Computer{ID: probeComputer, TLSRootSHA: pin}, errors: make(map[string]string)}
+		s := supervisor{
+			scope:    &registryScope{registry: &Registry{clock: clock, cloud: cloud, routeHTTP: routeClient}},
+			ctx:      t.Context(),
+			computer: store.Computer{ID: probeComputer, TLSRootSHA: pin},
+			errors:   make(map[string]string),
+		}
 		link, problem := s.connect(s.probe([]store.ComputerRoute{route}))
 		if link != nil || !errors.Is(problem.err, ErrIdentityMismatch) || cloud.grants.Load() != 0 {
 			t.Fatalf("wrong descriptor admitted: error = %v, grants = %d", problem.err, cloud.grants.Load())

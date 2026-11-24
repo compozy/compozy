@@ -67,7 +67,8 @@ func (h *BaseHandlers) AddComputer(c *gin.Context) {
 		return
 	}
 	var input contract.AddComputerRequest
-	if err := decodeStrictJSONBody(c, &input); err != nil || input.Kind != "account" || input.ComputerID == "" {
+	if err := decodeStrictJSONBody(c, &input); err != nil ||
+		input.Kind != contract.ComputerAddKindAccount || input.ComputerID == "" {
 		invalidComputerBody(c)
 		return
 	}

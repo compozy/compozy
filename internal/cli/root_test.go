@@ -22,7 +22,7 @@ func TestMachineLocalComputerFlag(t *testing.T) {
 	t.Parallel()
 	// Machine-local commands reject the target before they contact or change an installation.
 	for _, args := range [][]string{
-		{"daemon", "status"}, {"account", "status"}, {"computer", "list"}, {"remote", "status"},
+		{"daemon", "start"}, {"account", "status"}, {"computer", "list"}, {"remote", "status"},
 		{"install"}, {"uninstall"}, {"update"},
 	} {
 		t.Run("Should refuse targeting from "+strings.Join(args, " "), func(t *testing.T) {

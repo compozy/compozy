@@ -125,7 +125,7 @@ func startSessionComputer(
 	t.Helper()
 	boot := daemonAccountBoot{direct: true}
 	if withACP {
-		boot = configureComputerACP(t, home, boot)
+		configureComputerACP(t, home)
 	}
 	host, ring := startConfiguredDaemonAccount(t, f, home, boot)
 	progress := host.stream(t, contract.AccountSignInEventsPath, "")

@@ -60,7 +60,7 @@ func (c *daemonClient) AvailableComputers(ctx context.Context) (result contract.
 func (c *daemonClient) AddAccountComputer(
 	ctx context.Context, id remoteproto.ComputerID,
 ) (result contract.Computer, err error) {
-	input := contract.AddComputerRequest{Kind: "account", ComputerID: id}
+	input := contract.AddComputerRequest{Kind: contract.ComputerAddKindAccount, ComputerID: id}
 	err = c.doJSON(ctx, http.MethodPost, contract.ComputersPath, nil, input, &result)
 	return result, err
 }

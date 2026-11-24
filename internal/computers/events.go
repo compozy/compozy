@@ -35,7 +35,10 @@ type eventRing struct {
 }
 
 func newEventRing(generation int64) eventRing {
-	base := uint64(generation) << 32
+	var base uint64
+	if generation > 0 {
+		base = uint64(generation) << 32
+	}
 	return eventRing{first: base, sequence: base, subscribers: make(map[chan Event]struct{})}
 }
 

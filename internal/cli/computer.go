@@ -11,6 +11,8 @@ import (
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
+const computerUninstallFailed = "failed"
+
 func newComputerCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{Use: "computer", Short: "Manage computers used by this controller"}
 	add := &cobra.Command{Use: "add", Short: "Add a computer to this controller"}
@@ -38,7 +40,7 @@ func newComputerCommand(deps commandDeps) *cobra.Command {
 }
 
 func newComputerListCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{Use: "list", Short: "List computers added to this controller", Args: cobra.NoArgs,
+	return &cobra.Command{Use: cliListVerb, Short: "List computers added to this controller", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := computerClientFromDeps(deps)
 			if err != nil {
@@ -50,8 +52,8 @@ func newComputerListCommand(deps commandDeps) *cobra.Command {
 			}
 			rows := result.Computers
 			return writeCommandOutput(cmd, listBundle(
-				rows, rows, "Computers", []string{"NAME", "ID", "STATUS", "ROUTE", "PLAN"}, "computers",
-				[]string{"name", "id", "status", "route", "plan_state"}, computerRow, computerRow,
+				rows, rows, "Computers", []string{cliNameHeader, "ID", cliStatusHeader, "ROUTE", "PLAN"}, "computers",
+				[]string{automationNameKey, "id", automationStatusKey, "route", "plan_state"}, computerRow, computerRow,
 			))
 		},
 	}
@@ -76,8 +78,14 @@ func newAvailableComputersCommand(deps commandDeps) *cobra.Command {
 				return []string{item.Name, string(item.ID), status}
 			}
 			return writeCommandOutput(cmd, listBundle(
-				result.Computers, result.Computers, "Available computers", []string{"NAME", "ID", "STATUS"},
-				"computers", []string{"name", "id", "status"}, row, row,
+				result.Computers,
+				result.Computers,
+				"Available computers",
+				[]string{cliNameHeader, "ID", cliStatusHeader},
+				"computers",
+				[]string{automationNameKey, "id", automationStatusKey},
+				row,
+				row,
 			))
 		},
 	}
@@ -147,7 +155,7 @@ func newComputerRemoveCommand(deps commandDeps) *cobra.Command {
 			}
 			return writeCommandOutput(cmd, outputBundle{jsonValue: result, human: func() (string, error) {
 				message := fmt.Sprintf("Removed %s. Agents already running there keep running.", item.Name)
-				if result.Uninstall == "failed" {
+				if result.Uninstall == computerUninstallFailed {
 					message += fmt.Sprintf(
 						"\nCouldn't uninstall from %s; run compozy service uninstall there.",
 						item.Name,
@@ -181,7 +189,7 @@ func newComputerRoutesCommand(deps commandDeps) *cobra.Command {
 			}
 			return writeCommandOutput(cmd, listBundle(
 				item.Routes, item.Routes, "Routes", []string{"KIND", "ADDRESS", "IN USE"},
-				"routes", []string{"kind", "address", "in_use"}, row, row,
+				"routes", []string{cliKindKey, "address", "in_use"}, row, row,
 			))
 		},
 	}

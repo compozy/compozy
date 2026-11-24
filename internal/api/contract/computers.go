@@ -7,6 +7,7 @@ import (
 )
 
 const ComputersPath = "/api/computers"
+const ComputerAddKindAccount = "account"
 
 type ComputerRoute struct {
 	ID        string                `json:"id"`

@@ -48,19 +48,21 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 }
 
 func remoteOperatorRoutes(deps *RuntimeDeps) http.Handler {
-	acceptance, _ := deps.Sessions.(core.SessionAcceptanceManager)
-	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+	config := &core.BaseHandlerConfig{
 		TransportName:      remoteConfigKey,
 		MaskInternalErrors: true,
 		Sessions:           deps.Sessions,
-		SessionAcceptance:  acceptance,
 		SessionCatalog:     deps.Registry,
 		Worktrees:          deps.Worktrees,
 		Workspaces:         deps.WorkspaceService,
 		WorkspaceAccess:    deps.WorkspaceAccess,
 		Profiles:           deps.Profiles,
 		Config:             deps.Config,
-	})
+	}
+	if acceptance, ok := deps.Sessions.(core.SessionAcceptanceManager); ok {
+		config.SessionAcceptance = acceptance
+	}
+	handlers := core.NewBaseHandlers(config)
 	return httpapi.NewRemoteRoutes(func(routes *httpapi.RemoteRoutes) {
 		remoteSessions := routes.Group("/api/sessions", remoteproto.ScopeSessions)
 		remoteSessions.GET("", handlers.ListSessions)

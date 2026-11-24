@@ -174,7 +174,7 @@ func TestDaemonComputerBridgeTransfers(t *testing.T) {
 		lab.startHost(t, lab.db, transferFixture(entered, consume, sha256.Sum256(payload)), directRemoteFixture())
 		id := lab.host.Status().ComputerID
 		controller, _ := startComputerController(
-			t, f, filepath.Join(root, "transfer-controller"), remoteFixtureEmail, nil,
+			t, f, filepath.Join(root, "ctrl"), remoteFixtureEmail, nil,
 		)
 		addAccountComputer(t, controller, id)
 		waitComputerRoute(t, controller, id, remoteproto.RouteDirect)

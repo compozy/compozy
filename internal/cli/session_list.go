@@ -321,8 +321,8 @@ type remoteSessionRecord struct {
 
 func remoteSessionList(page SessionListPage) []remoteSessionRecord {
 	items := make([]remoteSessionRecord, 0, len(page.Sessions))
-	for _, session := range page.Sessions {
-		items = append(items, remoteSessionRecord{SessionRecord: session, ComputerID: page.computerID})
+	for i := range page.Sessions {
+		items = append(items, remoteSessionRecord{SessionRecord: page.Sessions[i], ComputerID: page.computerID})
 	}
 	return items
 }

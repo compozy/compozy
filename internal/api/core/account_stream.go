@@ -59,7 +59,7 @@ func serveAccountEvents[T any](
 	defer func() {
 		if final != nil && c.Request.Context().Err() == nil {
 			if event := final(); event != nil {
-				_ = WriteSSE(writer, message(*event))
+				h.writeSSEBestEffort(writer, message(*event))
 			}
 		}
 	}()
