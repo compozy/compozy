@@ -21,11 +21,15 @@ import (
 	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
+	"github.com/compozy/compozy/internal/workspace"
 )
 
 const remoteFixtureEmail = "remote-lab@example.test"
@@ -139,9 +143,46 @@ func (l *remoteHostLab) startHost(
 	})
 }
 
+func (l *remoteHostLab) sessionServices(t *testing.T) (*session.Manager, *workspace.Resolver) {
+	t.Helper()
+	workspaces, err := workspace.NewResolver(l.db, workspace.WithHomePaths(l.paths))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager, err := session.NewManager(session.WithHomePaths(l.paths), session.WithSessionCatalog(l.db),
+		session.WithWorkspaceResolver(workspaces))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := manager.Shutdown(ctx); err != nil {
+			t.Errorf("shut down session manager: %v", err)
+		}
+	})
+	return manager, workspaces
+}
+
 func (l *remoteHostLab) startUDS(t *testing.T) {
 	t.Helper()
-	server, err := udsapi.New(udsapi.WithSocketPath(l.paths.DaemonSocket), udsapi.WithRemoteHost(l.host))
+	manager, workspaces := l.sessionServices(t)
+	tasks, err := task.NewManager(task.WithStore(l.db))
+	if err != nil {
+		t.Fatal(err)
+	}
+	observer, err := observe.New(t.Context(), observe.WithHomePaths(l.paths), observe.WithRegistry(l.db))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := udsapi.New(
+		udsapi.WithHomePaths(l.paths),
+		udsapi.WithSessionManager(manager),
+		udsapi.WithTaskService(tasks),
+		udsapi.WithObserver(observer),
+		udsapi.WithWorkspaceResolver(workspaces),
+		udsapi.WithRemoteHost(l.host),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

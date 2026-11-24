@@ -62,6 +62,10 @@
             "dependsOn": ["//#codegen-check", "^build"],
             "outputs": [".output/**"]
         },
+        "@compozy/extension-sdk#test": {
+            "dependsOn": ["//#codegen-check", "transit", "build"],
+            "outputs": []
+        },
         "@compozy/extension-react#typecheck": {
             "dependsOn": ["//#codegen-check", "^build"],
             "outputs": []
