@@ -7,6 +7,7 @@ description: Breaking-change migration guidance for current CompozyOS releases a
 
 v0.4.0 is the first stable CompozyOS release. It follows the v0.3.0 beta line, and Homebrew and npm `latest` move from v0.2.15 to v0.4.0.
 
+- **From v0.7.x to v0.8.0:** update in place, then follow [Remote Computers, mandatory sign-in, and Remote Gateway removal](#remote-computers-0-8-0).
 - **From v0.5.0:** update in place, then follow [Stays on is now Always-on](#always-on-vocabulary) before upgrading beyond v0.5.2.
 - **From any v0.3.0 beta:** update in place from the app's Update action or with `compozy update`; no reinstall is needed. The first start applies [User scope and All projects](#user-scope-and-all-projects). Before that, follow [Memory removal](#memory-removal), then [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal), if you are upgrading from a beta that predates them.
 - **From v0.2:** v0.2 has reached end of life and receives no further releases. The numbered sections below describe the v0.2.15 clean-state transition.
@@ -18,6 +19,45 @@ extension contracts, and review behavior do not carry forward automatically.
 
 This guide uses v0.2.15 (`8f8908afd70c731b815e20282bacad05aa026827`) as the legacy baseline.
 Back up your global and workspace `.compozy/` directories before changing installations.
+
+<a id="remote-computers-0-8-0"></a>
+
+## Remote Computers, mandatory sign-in, and Remote Gateway removal (v0.8.0)
+
+v0.8.0 replaces the legacy Remote Gateway with [Remote Computers](/docs/computers) and requires a
+one-time sign-in with Google or GitHub on official release builds. Read the launch post
+[Compozy 0.8: your agents on all your computers](/blog/compozy-0-8-remote-computers).
+
+### Sign in after updating
+
+- Update in place from the app's **Update** action or `compozy update`. Existing sessions,
+  workspaces, agents, Loops, settings, and scheduled jobs stay intact.
+- Official release builds open the sign-in screen (**Sign in to keep using Compozy**) or ask you to
+  run `compozy account login`. First sign-in needs an internet connection; local sessions keep
+  working offline after enrollment.
+- Compozy Cloud never sees your prompts, transcripts, files, or code. See
+  [Why CompozyOS asks you to sign in](/docs/account/sign-in) and
+  [Account tokens](/docs/account/tokens) for CI and headless runners.
+
+### Remote Gateway removal
+
+The legacy Remote Gateway, bundled Tailscale provider, pairing codes, and `[gateway]` entries in
+`config.toml` are removed in v0.8.0.
+
+| Removed command   | Use instead                                             |
+| ----------------- | ------------------------------------------------------- |
+| `compozy connect` | `compozy computer`                                      |
+| `compozy gateway` | `compozy remote`                                        |
+| `compozy pair`    | `compozy remote link` / `compozy account login`         |
+| `compozy device`  | `compozy remote devices` / Settings → Account → Devices |
+
+- App tokens (with their allowed origins) and webhook triggers migrate automatically. Any webhook
+  trigger whose public base address changed shows **Needs confirmation** until confirmed.
+- Former gateway users see a one-time notice in Settings linking the launch post and a migration
+  coupon for 3 months of Compozy Pro free (redeemable in Stripe Checkout for 60 days).
+- Official install methods no longer include `go install`; use the desktop app, verified installer,
+  Homebrew, npm, or Linux release packages from [Download](/download). Source builds live in the
+  contributor guide and run as development builds without the sign-in gate.
 
 <a id="always-on-vocabulary"></a>
 

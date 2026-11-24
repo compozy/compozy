@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import HomeLayout from "@/app/(home)/layout";
 import BlogLayout from "@/app/blog/layout";
 import ChangelogLayout from "@/app/changelog/layout";
+import LegalLayout from "@/app/legal/layout";
 import MarketplaceLayout from "@/app/marketplace/layout";
 
 vi.mock("next/navigation", () => ({
@@ -18,6 +19,7 @@ const LAYOUTS: ReadonlyArray<[string, (props: { children: ReactNode }) => ReactN
   ["home", HomeLayout],
   ["blog", BlogLayout],
   ["changelog", ChangelogLayout],
+  ["legal", LegalLayout],
   ["marketplace", MarketplaceLayout],
 ];
 
@@ -36,8 +38,23 @@ describe("marketing section layouts", () => {
       const footer = screen.getByRole("contentinfo");
 
       expect(within(header).getByRole("navigation", { name: "Site" })).toBeDefined();
+      expect(within(header).getByRole("link", { name: "Pricing" }).getAttribute("href")).toBe(
+        "/pricing"
+      );
       expect(within(main).getByText(`${name} body`)).toBeDefined();
       expect(main.id).toBe("main-content");
+      expect(within(footer).getByRole("link", { name: "Pricing" }).getAttribute("href")).toBe(
+        "/pricing"
+      );
+      expect(within(footer).getByRole("link", { name: "Terms" }).getAttribute("href")).toBe(
+        "/legal/terms"
+      );
+      expect(within(footer).getByRole("link", { name: "Privacy" }).getAttribute("href")).toBe(
+        "/legal/privacy"
+      );
+      expect(within(footer).getByRole("link", { name: "Refunds" }).getAttribute("href")).toBe(
+        "/legal/refunds"
+      );
       expect(within(footer).getByRole("link", { name: "GitHub" })).toBeDefined();
       expect(header.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(main.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
