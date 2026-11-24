@@ -51,7 +51,12 @@ type IdentityProvider struct {
 	turnstileHost  string
 }
 
-func StartIdentityProvider(t Fixture, now func() time.Time, browserProfile *ProviderProfile, turnstileHost string) (*IdentityProvider, auth.OAuthEndpoints) {
+func StartIdentityProvider(
+	t Fixture,
+	now func() time.Time,
+	browserProfile *ProviderProfile,
+	turnstileHost string,
+) (*IdentityProvider, auth.OAuthEndpoints) {
 	t.Helper()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -128,7 +133,11 @@ func (p *IdentityProvider) github(w http.ResponseWriter, r *http.Request) {
 		profile.GitHubID = 42
 	}
 	if r.URL.Path == "/github/user" {
-		api.WriteJSON(w, http.StatusOK, map[string]any{"id": profile.GitHubID, "name": cmp.Or(profile.Name, "Test User")})
+		api.WriteJSON(
+			w,
+			http.StatusOK,
+			map[string]any{"id": profile.GitHubID, "name": cmp.Or(profile.Name, "Test User")},
+		)
 		return
 	}
 	api.WriteJSON(w, http.StatusOK, []map[string]any{

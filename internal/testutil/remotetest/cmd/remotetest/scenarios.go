@@ -71,7 +71,7 @@ func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	listenHost := ""
 	var assets remotetest.SSHAssets
 	if name == sshAdd {
-		assets = remotetest.PrepareSSHAssets(f, repo, "")
+		assets = remotetest.PrepareSSHAssets(f, repo)
 		listenHost = assets.Gateway
 	}
 	db := remotetest.OpenDatabase(f, dsn)
@@ -195,7 +195,10 @@ func configureLocalAgent(f *fixture, host daemonInstance, mock string) {
 	if err != nil {
 		f.Fatal(err)
 	}
-	registered, err := acpmock.Register(paths, acpmock.RegisterOptions{FixturePath: mock, FixtureAgent: remotetest.SSHAgent})
+	registered, err := acpmock.Register(
+		paths,
+		acpmock.RegisterOptions{FixturePath: mock, FixtureAgent: remotetest.SSHAgent},
+	)
 	if err != nil {
 		f.Fatal(err)
 	}
@@ -215,7 +218,12 @@ none_security = %q
 `, provider.Command, provider.DisplayName, provider.Harness, provider.AuthMode, provider.NoneSecurity))
 }
 
-func prepareSecondController(f *fixture, db *remotetest.Database, cloudURL string, host computerTarget) *daemonInstance {
+func prepareSecondController(
+	f *fixture,
+	db *remotetest.Database,
+	cloudURL string,
+	host computerTarget,
+) *daemonInstance {
 	f.Helper()
 	d := prepareDaemon(f, false)
 	startDaemon(f, d, cloudURL)
@@ -226,7 +234,14 @@ func prepareSecondController(f *fixture, db *remotetest.Database, cloudURL strin
 	client := httpClientFor(d)
 	defer client.CloseIdleConnections()
 	path := contract.ComputersPath + "/" + string(host.ID)
-	if err := requestJSON(f.Context(), client, http.MethodPatch, path, map[string]string{"name": host.Name}, nil); err != nil {
+	if err := requestJSON(
+		f.Context(),
+		client,
+		http.MethodPatch,
+		path,
+		map[string]string{"name": host.Name},
+		nil,
+	); err != nil {
 		f.Fatal(err)
 	}
 	remotetest.Await(f, "second controller's direct connection", 20*time.Second, func(ctx context.Context) bool {

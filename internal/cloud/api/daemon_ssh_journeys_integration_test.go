@@ -4,7 +4,6 @@ package api_test
 
 import (
 	"bytes"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"

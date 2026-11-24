@@ -94,7 +94,11 @@ func activate(f *fixture, login contract.AccountLoginResponse) {
 	if len(cookies) == 0 {
 		f.Fatal("activation page did not bind the browser cookie")
 	}
-	form := url.Values{"user_code": {login.UserCode}, "provider": {auth.Google}, "cf-turnstile-response": {"pass-activate"}}
+	form := url.Values{
+		"user_code":             {login.UserCode},
+		"provider":              {auth.Google},
+		"cf-turnstile-response": {"pass-activate"},
+	}
 	continuation, _ := activationRequest(f, client, http.MethodPost, target, form, cookies)
 	provider := redirect(f, continuation)
 	authorization, _ := activationRequest(f, client, http.MethodGet, provider, nil, nil)

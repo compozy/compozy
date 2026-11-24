@@ -55,6 +55,7 @@ export const test = base.extend<{ scenario: Scenario; lab: RemoteComputersLab }>
         diagnostics = (diagnostics + chunk).slice(-64_000);
       });
       let lab: RemoteComputersLab | undefined;
+      let exitCode: number | null = null;
       try {
         const line = await Promise.race([
           once(lines, "line").then(([line]) => String(line)),
@@ -72,28 +73,28 @@ export const test = base.extend<{ scenario: Scenario; lab: RemoteComputersLab }>
       } finally {
         lines.close();
         const failed = testInfo.status !== testInfo.expectedStatus || !lab;
-        if (failed && lab) {
-          await Promise.all(
-            [lab.controller, lab.cli_controller]
-              .filter(daemon => daemon !== undefined)
-              .map(async (daemon, index) => {
-                const file = `${daemon.home}/daemon.log`;
-                const log = await readFile(file).catch(() => undefined);
-                if (log)
-                  await testInfo.attach(`remotetest-daemon-${index}`, {
-                    body: log,
-                    contentType: "text/plain",
-                  });
-              })
-          );
-        }
+        const daemons = failed && lab ? [lab.controller, lab.cli_controller] : [];
+        const logs = await Promise.all(
+          daemons.map(
+            daemon => daemon && readFile(`${daemon.home}/daemon.log`).catch(() => undefined)
+          )
+        );
         if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
-        const [code] = await closed;
-        if (diagnostics && (failed || code !== 0)) {
+        [exitCode] = await closed;
+        for (const [index, log] of logs.entries()) {
+          if (log) {
+            await testInfo.attach(`remotetest-daemon-${index}`, {
+              body: log,
+              contentType: "text/plain",
+            });
+          }
+        }
+        if (diagnostics && (failed || exitCode !== 0)) {
           await testInfo.attach("remotetest", { body: diagnostics, contentType: "text/plain" });
         }
-        if (lab && code !== 0)
-          throw new Error(`remotetest teardown failed (${code})\n${diagnostics}`);
+      }
+      if (exitCode !== 0) {
+        throw new Error(`remotetest teardown failed (${exitCode})\n${diagnostics}`);
       }
     },
     { timeout: 540_000 },

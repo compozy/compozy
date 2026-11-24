@@ -40,20 +40,25 @@ type SSHAssets struct {
 	Archive                             []byte
 }
 
-func PrepareSSHAssets(t Fixture, repo string, prebuilt string) SSHAssets {
+func PrepareSSHAssets(t Fixture, repo string) SSHAssets {
 	t.Helper()
 	image := "compozy-ssh-fixture-" + strings.ToLower(rand.Text())
-	dockerOutput(t, 4*time.Minute, "build", "--quiet", "-t", image, filepath.Join(repo, "internal/cloud/api/testdata/sshsetup"))
 	t.Cleanup(func() { cleanDocker(t, "image", "rm", image) })
+	dockerOutput(
+		t,
+		4*time.Minute,
+		"build",
+		"--quiet",
+		"-t",
+		image,
+		filepath.Join(repo, "internal/cloud/api/testdata/sshsetup"),
+	)
 	gateway := dockerOutput(t, 10*time.Second, "network", "inspect", "bridge",
 		"--format", "{{(index .IPAM.Config 0).Gateway}}")
 	if net.ParseIP(gateway) == nil {
 		t.Fatalf("invalid fixture network gateway %q", gateway)
 	}
-	binary := prebuilt
-	if binary == "" {
-		binary = BuildSSHBinary(t, repo)
-	}
+	binary := buildSSHBinary(t, repo)
 	archiveName, err := update.ArchiveAssetName("linux", runtime.GOARCH)
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +66,7 @@ func PrepareSSHAssets(t Fixture, repo string, prebuilt string) SSHAssets {
 	return SSHAssets{image, gateway, binary, archiveName, fixtureReleaseArchive(t, binary)}
 }
 
-func BuildSSHBinary(t Fixture, repo string) string {
+func buildSSHBinary(t Fixture, repo string) string {
 	t.Helper()
 	binary := filepath.Join(t.TempDir(), "compozy")
 	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
@@ -124,7 +129,6 @@ func StartSSHHost(
 		args = append(args, "--network", "container:"+bastion)
 		host.sshdPort, host.address = 2222, "127.0.0.1"
 	}
-	dockerOutput(t, 30*time.Second, append(args, assets.Image)...)
 	t.Cleanup(func() {
 		if t.Failed() {
 			t.Logf("sshd log from %s:\n%s", name, host.ReadLog())
@@ -134,20 +138,31 @@ func StartSSHHost(
 		}
 		cleanDocker(t, "rm", "-f", name)
 	})
+	dockerOutput(t, 30*time.Second, append(args, assets.Image)...)
 	host.Command(t, "mkdir", "-p", "/run/sshd", SSHHome+"/.ssh", SSHHome+"/.compozy")
 	host.Write(t, "/etc/compozy-fixture-cloud", cloudURL+"\n")
 	host.Write(t, SSHHome+"/.ssh/authorized_keys", clientPublicKey)
 	host.Write(t, SSHHome+"/.compozy/config.toml", "[http]\nhost = '127.0.0.1'\n[automation]\nenabled = false\n")
 	host.Command(t, "chown", "-R", SSHUser+":"+SSHUser, SSHHome)
-	Await(t, "systemd logind in SSH container", 30*time.Second*time.Duration(testutil.TimeScale()), func(ctx context.Context) bool {
-		_, err := host.tryCommand(ctx, "loginctl", "enable-linger", SSHUser)
-		return err == nil
-	})
-	Await(t, "the SSH user's systemd manager", 15*time.Second*time.Duration(testutil.TimeScale()), func(ctx context.Context) bool {
-		_, err := host.tryCommand(ctx, "runuser", "-u", SSHUser, "--", "env", "XDG_RUNTIME_DIR=/run/user/1500",
-			"systemctl", "--user", "show-environment")
-		return err == nil
-	})
+	Await(
+		t,
+		"systemd logind in SSH container",
+		30*time.Second*time.Duration(testutil.TimeScale()),
+		func(ctx context.Context) bool {
+			_, err := host.tryCommand(ctx, "loginctl", "enable-linger", SSHUser)
+			return err == nil
+		},
+	)
+	Await(
+		t,
+		"the SSH user's systemd manager",
+		15*time.Second*time.Duration(testutil.TimeScale()),
+		func(ctx context.Context) bool {
+			_, err := host.tryCommand(ctx, "runuser", "-u", SSHUser, "--", "env", "XDG_RUNTIME_DIR=/run/user/1500",
+				"systemctl", "--user", "show-environment")
+			return err == nil
+		},
+	)
 	host.Command(t, "ssh-keygen", "-A")
 	host.startOpenSSH(t)
 	host.Port = host.sshdPort
@@ -248,7 +263,9 @@ func cleanDocker(t Fixture, args ...string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if out, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput(); err != nil {
+	out, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
+	if err != nil && !strings.Contains(string(out), "No such container:") &&
+		!strings.Contains(string(out), "No such image:") {
 		t.Errorf("cleanup docker %v: %v\n%s", args, err, out)
 	}
 }

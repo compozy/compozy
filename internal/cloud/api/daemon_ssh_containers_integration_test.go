@@ -16,5 +16,5 @@ const (
 
 func prepareSSHFixtureAssets(t *testing.T) remotetest.SSHAssets {
 	t.Helper()
-	return remotetest.PrepareSSHAssets(t, "../../..", "")
+	return remotetest.PrepareSSHAssets(t, "../../..")
 }
