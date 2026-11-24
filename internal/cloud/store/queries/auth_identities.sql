@@ -19,8 +19,9 @@ ON CONFLICT (email) DO NOTHING RETURNING *;
 
 -- name: UpdateAuthAccountEmail :exec
 UPDATE accounts
-SET email = $2, contact_synced_at = CASE WHEN marketing_opt_in THEN NULL ELSE contact_synced_at END
-WHERE id = $1;
+SET email = sqlc.arg(email), contact_retry_at = CASE
+    WHEN marketing_opt_in THEN sqlc.arg(as_of)::timestamptz ELSE contact_retry_at END
+WHERE id = sqlc.arg(id);
 
 -- name: RecordSignInIdentity :one
 INSERT INTO identities AS i (provider, subject, account_id, email, created_at, last_sign_in_at)

@@ -21,11 +21,19 @@ const (
 	EventAccountSuspended = "account_suspended"
 )
 
-func (q *Queries) UpdateMarketingConsent(ctx context.Context, account AuthAccount, optIn bool, source string, now time.Time) error {
-	if err := q.generated.TrackMarketingAddress(ctx, sqlcgen.TrackMarketingAddressParams{
-		AccountID: account.ID, Email: account.Email,
-	}); err != nil {
-		return err
+func (q *Queries) UpdateMarketingConsent(
+	ctx context.Context,
+	account AuthAccount,
+	optIn bool,
+	source string,
+	now time.Time,
+) error {
+	if optIn || account.MarketingOptIn {
+		if err := q.generated.TrackMarketingAddress(ctx, sqlcgen.TrackMarketingAddressParams{
+			AccountID: account.ID, Email: account.Email,
+		}); err != nil {
+			return err
+		}
 	}
 	return q.generated.UpdateMarketingConsent(ctx, sqlcgen.UpdateMarketingConsentParams{
 		AccountID: account.ID, OptIn: optIn, Source: authText(source), AsOf: timestamp(now),
@@ -47,6 +55,16 @@ func (q *Queries) MarketingAddresses(ctx context.Context, id string) ([]string, 
 	return q.generated.MarketingAddresses(ctx, id)
 }
 
+func (q *Queries) LockMarketingAddress(ctx context.Context, address string) error {
+	return q.generated.LockMarketingAddress(ctx, address)
+}
+
+func (q *Queries) OtherMarketingContactOwner(ctx context.Context, accountID, address string) (bool, error) {
+	return q.generated.OtherMarketingContactOwner(ctx, sqlcgen.OtherMarketingContactOwnerParams{
+		AccountID: accountID, Email: address,
+	})
+}
+
 func (q *Queries) ForgetMarketingAddress(ctx context.Context, id, address string) error {
 	return q.generated.ForgetMarketingAddress(ctx, sqlcgen.ForgetMarketingAddressParams{AccountID: id, Email: address})
 }
@@ -61,24 +79,42 @@ func (q *Queries) RecordMarketingSync(ctx context.Context, id string, now time.T
 	return q.generated.RecordMarketingSync(ctx, sqlcgen.RecordMarketingSyncParams{AccountID: id, AsOf: timestamp(now)})
 }
 
-func (q *Queries) QueueSecurityEmail(ctx context.Context, event SecurityEvent) error {
-	id, err := q.appendSecurityEvent(ctx, event)
+func (q *Queries) QueueSecurityEmail(ctx context.Context, event SecurityEvent) (int64, error) {
+	id, err := q.AppendSecurityEventID(ctx, event)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return q.generated.QueueAccountEmail(ctx, sqlcgen.QueueAccountEmailParams{EventID: id, RetryAt: timestamp(event.At)})
+	return id, q.generated.QueueAccountEmail(
+		ctx,
+		sqlcgen.QueueAccountEmailParams{EventID: id, RetryAt: timestamp(event.At)},
+	)
 }
 
 func (q *Queries) RecordDeviceEnrollment(
-	ctx context.Context, accountID string, id remoteproto.DeviceID, name, kind, location string, admin bool, at time.Time,
+	ctx context.Context,
+	accountID string,
+	id remoteproto.DeviceID,
+	name, kind, location string,
+	admin bool,
+	at time.Time,
 ) error {
 	if _, err := netip.ParseAddr(strings.TrimSpace(name)); err == nil {
 		name = ""
 	}
-	return q.QueueSecurityEmail(ctx, SecurityEvent{
-		Type: EventDeviceEnrolled, AccountID: accountID, Actor: "account:" + string(id), At: at,
-		Details: map[string]any{"device_id": id, "device_name": name, "kind": kind, "location": location, "admin": admin},
+	_, err := q.QueueSecurityEmail(ctx, SecurityEvent{
+		Type:      EventDeviceEnrolled,
+		AccountID: accountID,
+		Actor:     "account:" + string(id),
+		At:        at,
+		Details: map[string]any{
+			"device_id":   id,
+			"device_name": name,
+			"kind":        kind,
+			"location":    location,
+			"admin":       admin,
+		},
 	})
+	return err
 }
 
 type AccountEmail struct {

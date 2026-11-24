@@ -21,8 +21,8 @@ const (
 )
 
 type ResendConfig struct {
-	APIKey, SegmentID string
-	Endpoint, From    string
+	APIKey, ContactAPIKey, SegmentID string
+	Endpoint, From, PostalAddress    string
 }
 
 type Resend struct {
@@ -31,9 +31,15 @@ type Resend struct {
 }
 
 func NewResend(config ResendConfig) (*Resend, error) {
-	if strings.TrimSpace(config.APIKey) == "" || strings.TrimSpace(config.SegmentID) == "" {
-		return nil, errors.New("Resend API key and news segment are required")
+	if strings.TrimSpace(config.APIKey) == "" {
+		return nil, errors.New("Resend sending API key is required")
 	}
+	config.SegmentID = strings.TrimSpace(config.SegmentID)
+	config.ContactAPIKey = strings.TrimSpace(config.ContactAPIKey)
+	if (config.SegmentID == "") != (config.ContactAPIKey == "") {
+		return nil, errors.New("Resend contacts API key and news segment are required together")
+	}
+	config.PostalAddress = strings.TrimSpace(config.PostalAddress)
 	if config.Endpoint == "" {
 		config.Endpoint = defaultEndpoint
 	}
@@ -55,26 +61,55 @@ type Message struct {
 	To, Subject, Text string
 }
 
+type outboundMessage struct {
+	From    string            `json:"from"`
+	To      []string          `json:"to"`
+	Subject string            `json:"subject"`
+	Text    string            `json:"text"`
+	Headers map[string]string `json:"headers,omitempty"`
+}
+
 func (r *Resend) Send(ctx context.Context, key string, message Message) error {
-	return r.request(ctx, http.MethodPost, "/emails", key, struct {
-		From    string   `json:"from"`
-		To      []string `json:"to"`
-		Subject string   `json:"subject"`
-		Text    string   `json:"text"`
-	}{r.config.From, []string{message.To}, message.Subject, message.Text})
+	return r.send(ctx, key, message, nil)
+}
+
+func (r *Resend) send(ctx context.Context, key string, message Message, headers map[string]string) error {
+	return r.request(ctx, r.config.APIKey, http.MethodPost, "/emails", key, outboundMessage{
+		From: r.config.From, To: []string{message.To}, Subject: message.Subject, Text: message.Text, Headers: headers,
+	})
+}
+
+type contactDetails struct {
+	Email        string            `json:"email,omitempty"`
+	Segments     []segment         `json:"segments,omitempty"`
+	FirstName    string            `json:"first_name"`
+	Unsubscribed bool              `json:"unsubscribed"`
+	Properties   map[string]string `json:"properties"`
+}
+
+func (r *Resend) SyncsContacts() bool {
+	return r != nil && r.config.ContactAPIKey != ""
 }
 
 func (r *Resend) UpsertContact(ctx context.Context, address, name, unsubscribeURL string) error {
-	return r.request(ctx, http.MethodPost, "/contacts", "", struct {
-		Email        string            `json:"email"`
-		FirstName    string            `json:"first_name,omitempty"`
-		Unsubscribed bool              `json:"unsubscribed"`
-		Segments     []segment         `json:"segments"`
-		Properties   map[string]string `json:"properties"`
-	}{
-		Email: address, FirstName: name, Segments: []segment{{ID: r.config.SegmentID}},
-		Properties: map[string]string{"compozy_unsubscribe_url": unsubscribeURL},
-	})
+	path := "/contacts/" + url.PathEscape(address)
+	properties := map[string]string{"compozy_unsubscribe_url": unsubscribeURL}
+	if r.config.PostalAddress != "" {
+		properties["compozy_postal_address"] = r.config.PostalAddress
+	}
+	details := contactDetails{FirstName: name, Properties: properties}
+	err := r.request(ctx, r.config.ContactAPIKey, http.MethodPatch, path, "", details)
+	switch {
+	case statusIs(err, http.StatusNotFound):
+		details.Email = address
+		details.Segments = []segment{{ID: r.config.SegmentID}}
+		return r.request(ctx, r.config.ContactAPIKey, http.MethodPost, "/contacts", "", details)
+	case err != nil:
+		return err
+	default:
+		return r.request(ctx, r.config.ContactAPIKey, http.MethodPost,
+			path+"/segments/"+url.PathEscape(r.config.SegmentID), "", nil)
+	}
 }
 
 type segment struct {
@@ -82,10 +117,20 @@ type segment struct {
 }
 
 func (r *Resend) DeleteContact(ctx context.Context, address string) error {
-	return r.request(ctx, http.MethodDelete, "/contacts/"+url.PathEscape(address), "", nil)
+	err := r.request(ctx, r.config.ContactAPIKey, http.MethodDelete, "/contacts/"+url.PathEscape(address), "", nil)
+	if statusIs(err, http.StatusNotFound) {
+		return nil
+	}
+	return err
 }
 
-func (r *Resend) request(ctx context.Context, method, path, key string, payload any) (retErr error) {
+type resendStatus int
+
+func (s resendStatus) Error() string { return fmt.Sprintf("Resend request failed with status %d", s) }
+
+func statusIs(err error, status int) bool { return errors.Is(err, resendStatus(status)) }
+
+func (r *Resend) request(ctx context.Context, apiKey, method, path, key string, payload any) (retErr error) {
 	var body io.Reader
 	if payload != nil {
 		content, err := json.Marshal(payload)
@@ -98,7 +143,7 @@ func (r *Resend) request(ctx context.Context, method, path, key string, payload 
 	if err != nil {
 		return errors.New("cannot prepare Resend request")
 	}
-	req.Header.Set("Authorization", "Bearer "+r.config.APIKey)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -113,9 +158,8 @@ func (r *Resend) request(ctx context.Context, method, path, key string, payload 
 		_, drainErr := io.Copy(io.Discard, res.Body)
 		retErr = errors.Join(retErr, drainErr, res.Body.Close())
 	}()
-	if res.StatusCode >= 200 && res.StatusCode < 300 ||
-		method == http.MethodDelete && res.StatusCode == http.StatusNotFound {
+	if res.StatusCode >= 200 && res.StatusCode < 300 {
 		return nil
 	}
-	return fmt.Errorf("Resend request failed with status %d", res.StatusCode)
+	return resendStatus(res.StatusCode)
 }

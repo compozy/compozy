@@ -30,6 +30,10 @@ var errHostedUnavailable = &Error{
 	http.StatusServiceUnavailable, "cloud_unavailable", "The hosted route is temporarily unavailable.",
 }
 
+var errHostedTakenDown = &Error{
+	http.StatusForbidden, "hosted_route_taken_down", "This hosted route was removed. Contact support@compozy.com.",
+}
+
 func (s *Service) ProvisionHostedTunnel(
 	ctx context.Context,
 	computer store.ControlComputer,
@@ -80,6 +84,9 @@ func (s *Service) reserveHostedTunnel(
 		tunnel, err = q.LockHostedTunnel(ctx, current.ID)
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
+		}
+		if tunnel.TakenDown {
+			return errHostedTakenDown
 		}
 		if _, err := s.hostedTunnelMode(ctx, q, account.ID, tunnel, now); err != nil {
 			return err

@@ -184,25 +184,27 @@ func (s *Service) RevokeDevice(ctx context.Context, principal DevicePrincipal, i
 			if _, err := findDevice(ctx, q, account.ID, id); err != nil {
 				return err
 			}
-			return s.revokeDevice(ctx, q, account.ID, id, auditActor(caller.ID))
+			_, err := s.revokeDevice(ctx, q, account.ID, id, auditActor(caller.ID))
+			return err
 		},
 	)
 }
 
 func (s *Service) revokeDevice(
 	ctx context.Context, q *store.Queries, accountID string, id remoteproto.DeviceID, actor string,
-) error {
+) (int64, error) {
 	now := s.config.Now()
 	if err := q.RevokeControlDevice(ctx, accountID, id, now); err != nil {
-		return err
+		return 0, err
 	}
-	if err := q.AppendSecurityEvent(ctx, store.SecurityEvent{
+	eventID, err := q.AppendSecurityEventID(ctx, store.SecurityEvent{
 		AccountID: accountID, Type: "device_revoked", Actor: actor, At: now, Details: map[string]any{auditDeviceID: id},
-	}); err != nil {
-		return err
+	})
+	if err != nil {
+		return 0, err
 	}
-	_, err := q.AdvanceSecurity(ctx, store.ControlEvent{
+	_, err = q.AdvanceSecurity(ctx, store.ControlEvent{
 		Type: remoteproto.ControlRevokeDevice, AccountID: accountID, ResourceID: string(id),
 	})
-	return err
+	return eventID, err
 }

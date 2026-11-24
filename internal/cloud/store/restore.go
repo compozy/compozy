@@ -177,6 +177,21 @@ func (q *Queries) applyRestoreRevocation(ctx context.Context, event ArchivedEven
 	switch event.Type {
 	case "device_revoked":
 		return true, q.revokeRestoredDevice(ctx, event, device)
+	case "device_session_revoked":
+		session, _ := event.Details["session_id"].(string)
+		if session == "" || event.AccountID == "" {
+			return false, errors.New("archived device-session revocation lacks its target")
+		}
+		_, err := q.RevokeAdminDeviceSession(ctx, event.AccountID, session, event.At)
+		return true, err
+	case "identity_detached":
+		provider, _ := event.Details["provider"].(string)
+		subject, _ := event.Details["subject"].(string)
+		if provider == "" || subject == "" || event.AccountID == "" {
+			return false, errors.New("archived identity detachment lacks its target")
+		}
+		_, err := q.DetachAdminIdentity(ctx, event.AccountID, provider, subject)
+		return true, err
 	case "device_key_revoked", "browser_key_revoked":
 		jkt, _ := event.Details["jkt"].(string)
 		if jkt == "" {
@@ -212,6 +227,8 @@ func (q *Queries) applyRestoreRevocation(ctx context.Context, event ArchivedEven
 		return true, q.generated.MarkRestoredTunnelDeleting(ctx, sqlcgen.MarkRestoredTunnelDeletingParams{
 			ComputerID: computer, AccountID: event.AccountID, Generation: int64(generation),
 		})
+	case "hosted_tunnel_takedown":
+		return true, q.restoreAdminTunnelTakedown(ctx, event, computer)
 	case "cloud_signing_key_retired":
 		kid, _ := event.Details["kid"].(string)
 		if kid == "" {
@@ -234,6 +251,18 @@ func (q *Queries) applyRestoreRevocation(ctx context.Context, event ArchivedEven
 	default:
 		return false, nil
 	}
+}
+
+func (q *Queries) restoreAdminTunnelTakedown(ctx context.Context, event ArchivedEvent, computer string) error {
+	hostname, _ := event.Details["hostname"].(string)
+	generation, _ := event.Details["generation"].(float64)
+	if hostname == "" || computer == "" || generation < 1 || event.AccountID == "" {
+		return errors.New("archived tunnel takedown lacks its target")
+	}
+	return q.generated.RestoreAdminTunnelTakedown(ctx, sqlcgen.RestoreAdminTunnelTakedownParams{
+		AccountID: event.AccountID, ComputerID: computer, Hostname: hostname,
+		Generation: int64(generation), At: timestamp(event.At),
+	})
 }
 
 func (q *Queries) restoreDeviceScopes(ctx context.Context, event ArchivedEvent, device remoteproto.DeviceID) error {

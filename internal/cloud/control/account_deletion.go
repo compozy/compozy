@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/compozy/compozy/internal/cloud/email"
@@ -78,7 +79,7 @@ func (s *Service) runExternalDeletionStep(ctx context.Context, id string, step i
 	case deletionTunnels:
 		return s.deleteAccountTunnels(ctx, s.db.Queries, id)
 	case deletionContact:
-		return s.removeAccountContacts(ctx, s.db.Queries, id)
+		return s.removeAccountContacts(ctx, id)
 	case deletionStripeCustomer:
 		return s.config.Billing.RedactDeletingCustomer(ctx, id)
 	case deletionNotify:
@@ -112,29 +113,34 @@ func (s *Service) commitDeletionStep(ctx context.Context, id string, step int16,
 	})
 }
 
-func (s *Service) removeAccountContacts(ctx context.Context, q *store.Queries, id string) error {
-	if s.config.Email == nil {
-		return nil
-	}
-	account, err := q.LockAuthAccount(ctx, id)
-	if err != nil {
-		return err
-	}
-	known, err := q.MarketingAddresses(ctx, id)
-	if err != nil {
-		return err
-	}
-	if err := s.config.Email.DeleteContact(ctx, account.Email); err != nil {
-		return err
-	}
-	for _, address := range known {
-		if address != account.Email {
-			if err := s.config.Email.DeleteContact(ctx, address); err != nil {
+func (s *Service) removeAccountContacts(ctx context.Context, id string) error {
+	return s.db.Transaction(ctx, func(q *store.Queries) error {
+		account, err := q.LockAuthAccount(ctx, id)
+		if err != nil {
+			return err
+		}
+		known, err := q.MarketingAddresses(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !s.config.Email.SyncsContacts() {
+			if len(known) != 0 {
+				return errors.New("Resend contacts are required to remove the deleting account's addresses")
+			}
+			return nil
+		}
+		known = append(known, account.Email)
+		slices.Sort(known)
+		for _, address := range slices.Compact(known) {
+			if err := q.LockMarketingAddress(ctx, address); err != nil {
+				return err
+			}
+			if err := s.removeMarketingContact(ctx, q, id, address); err != nil {
 				return err
 			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 func (s *Service) sendDeletionNotice(ctx context.Context, q *store.Queries, id string) error {

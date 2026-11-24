@@ -25,44 +25,50 @@ func (s *Service) DeleteAccount(
 	ctx context.Context, principal DevicePrincipal, confirmEmail string,
 ) (remoteproto.AccountDeleteResponse, error) {
 	var result remoteproto.AccountDeleteResponse
-	err := s.deviceTransaction(ctx, principal, func(q *store.Queries, a store.ControlAccount, device store.ControlDevice) error {
-		if !device.Admin {
-			return errAdminRequired
-		}
-		account, err := q.LockAuthAccount(ctx, a.ID)
-		if err != nil {
+	err := s.deviceTransaction(
+		ctx,
+		principal,
+		func(q *store.Queries, a store.ControlAccount, device store.ControlDevice) error {
+			if !device.Admin {
+				return errAdminRequired
+			}
+			account, err := q.LockAuthAccount(ctx, a.ID)
+			if err != nil {
+				return err
+			}
+			if account.Email != strings.ToLower(strings.TrimSpace(confirmEmail)) {
+				return errConfirmEmail
+			}
+			result, _, err = s.startAccountDeletion(ctx, q, account.ID, auditActor(device.ID))
 			return err
-		}
-		if account.Email != strings.ToLower(strings.TrimSpace(confirmEmail)) {
-			return errConfirmEmail
-		}
-		result, err = s.startAccountDeletion(ctx, q, account.ID, auditActor(device.ID))
-		return err
-	})
+		},
+	)
 	return result, err
 }
 
-func (s *Service) StartAccountDeletion(ctx context.Context, accountID, operatorEmail string) error {
+func (s *Service) StartAccountDeletion(ctx context.Context, accountID, operatorEmail string) (int64, error) {
 	actor, err := adminActor(operatorEmail)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return s.accountTransaction(ctx, accountID, func(q *store.Queries, account store.ControlAccount) error {
+	var eventID int64
+	err = s.accountTransaction(ctx, accountID, func(q *store.Queries, account store.ControlAccount) error {
 		if account.State == accountDeleting {
 			return nil
 		}
-		_, err := s.startAccountDeletion(ctx, q, account.ID, actor)
+		_, eventID, err = s.startAccountDeletion(ctx, q, account.ID, actor)
 		return err
 	})
+	return eventID, err
 }
 
 func (s *Service) startAccountDeletion(
 	ctx context.Context, q *store.Queries, accountID, actor string,
-) (remoteproto.AccountDeleteResponse, error) {
+) (remoteproto.AccountDeleteResponse, int64, error) {
 	now := s.config.Now()
 	subs, err := q.Subscriptions(ctx, accountID)
 	if err != nil {
-		return remoteproto.AccountDeleteResponse{}, err
+		return remoteproto.AccountDeleteResponse{}, 0, err
 	}
 	result := remoteproto.AccountDeleteResponse{State: accountDeleting, Refund: "none"}
 	for _, sub := range subs {
@@ -74,36 +80,42 @@ func (s *Service) startAccountDeletion(
 		}
 	}
 	if err := q.SetLifecycleState(ctx, accountID, accountDeleting, time.Time{}); err != nil {
-		return result, err
+		return result, 0, err
 	}
 	if err := q.RevokeAccountCredentials(ctx, accountID, now); err != nil {
-		return result, err
+		return result, 0, err
 	}
 	if err := q.BeginAccountDeletion(ctx, accountID, now); err != nil {
-		return result, err
+		return result, 0, err
 	}
-	if err := q.AppendSecurityEvent(ctx, store.SecurityEvent{
+	eventID, err := q.AppendSecurityEventID(ctx, store.SecurityEvent{
 		AccountID: accountID, Type: "account_deletion_started", Actor: actor, At: now,
-	}); err != nil {
-		return result, err
+	})
+	if err != nil {
+		return result, 0, err
 	}
-	return result, advanceLifecycleEpoch(ctx, q, accountID)
+	return result, eventID, advanceLifecycleEpoch(ctx, q, accountID)
 }
 
 func (s *Service) SuspendAccount(ctx context.Context, accountID, operatorEmail string) error {
-	return s.setAccountSuspension(ctx, accountID, operatorEmail, true)
+	_, err := s.SetAdminSuspension(ctx, accountID, operatorEmail, true)
+	return err
 }
 
 func (s *Service) UnsuspendAccount(ctx context.Context, accountID, operatorEmail string) error {
-	return s.setAccountSuspension(ctx, accountID, operatorEmail, false)
+	_, err := s.SetAdminSuspension(ctx, accountID, operatorEmail, false)
+	return err
 }
 
-func (s *Service) setAccountSuspension(ctx context.Context, accountID, operatorEmail string, suspend bool) error {
+func (s *Service) SetAdminSuspension(
+	ctx context.Context, accountID, operatorEmail string, suspend bool,
+) (int64, error) {
 	actor, err := adminActor(operatorEmail)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return s.accountTransaction(ctx, accountID, func(q *store.Queries, account store.ControlAccount) error {
+	var eventID int64
+	err = s.accountTransaction(ctx, accountID, func(q *store.Queries, account store.ControlAccount) error {
 		if account.State == accountDeleting {
 			return errAccountDeleting
 		}
@@ -120,22 +132,24 @@ func (s *Service) setAccountSuspension(ctx context.Context, accountID, operatorE
 			return err
 		}
 		event := store.SecurityEvent{AccountID: account.ID, Actor: actor, At: now, Type: "account_unsuspended"}
-		if err := applySuspension(ctx, q, event, suspend); err != nil {
+		eventID, err = applySuspension(ctx, q, event, suspend)
+		if err != nil {
 			return err
 		}
 		return advanceLifecycleEpoch(ctx, q, account.ID)
 	})
+	return eventID, err
 }
 
-func applySuspension(ctx context.Context, q *store.Queries, event store.SecurityEvent, suspend bool) error {
+func applySuspension(ctx context.Context, q *store.Queries, event store.SecurityEvent, suspend bool) (int64, error) {
 	if !suspend {
-		return q.AppendSecurityEvent(ctx, event)
+		return q.AppendSecurityEventID(ctx, event)
 	}
 	if err := q.RevokeAccountCredentials(ctx, event.AccountID, event.At); err != nil {
-		return err
+		return 0, err
 	}
 	if err := q.MarkAccountTunnelsDeleting(ctx, event.AccountID); err != nil {
-		return err
+		return 0, err
 	}
 	event.Type = store.EventAccountSuspended
 	return q.QueueSecurityEmail(ctx, event)

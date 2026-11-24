@@ -14,7 +14,7 @@ UPDATE tunnels
 SET state = 'reserved', generation = generation + 1, created_at = sqlc.arg(created_at),
     cf_tunnel_id = NULL, hosted_origin = NULL, delete_after = NULL
 WHERE computer_id = sqlc.arg(computer_id) AND generation = sqlc.arg(generation)
-  AND state = 'deleted'
+  AND state = 'deleted' AND admin_takedown_at IS NULL
 RETURNING *;
 
 -- name: UpdateHostedTunnel :one

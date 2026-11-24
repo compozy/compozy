@@ -51,6 +51,16 @@ func (q *Queries) LockIdentityAccount(
 	switch err = authLookupError(err); {
 	case err == nil:
 		account, err := q.LockAuthAccount(ctx, id)
+		if err != nil {
+			return AuthAccount{}, false, err
+		}
+		// Identity detachment and deletion both hold the same account lock.
+		currentID, err := q.generated.FindIdentityAccount(ctx, sqlcgen.FindIdentityAccountParams{
+			Provider: identity.Provider, Subject: identity.Subject,
+		})
+		if errors.Is(authLookupError(err), ErrAuthNotFound) || err == nil && currentID != account.ID {
+			return AuthAccount{}, false, ErrIdentityRace
+		}
 		return account, false, err
 	case !errors.Is(err, ErrAuthNotFound):
 		return AuthAccount{}, false, err
@@ -94,7 +104,7 @@ func (q *Queries) SaveIdentity(
 	}
 	err = q.generated.UpdateAuthAccountEmail(
 		ctx,
-		sqlcgen.UpdateAuthAccountEmailParams{ID: account.ID, Email: identity.Email},
+		sqlcgen.UpdateAuthAccountEmailParams{ID: account.ID, Email: identity.Email, AsOf: timestamp(now)},
 	)
 	if constraint, ok := errors.AsType[*pgconn.PgError](err); ok && constraint.Code == "23505" {
 		return ErrIdentityConflict

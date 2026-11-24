@@ -250,6 +250,35 @@ func (q *Queries) MarkRestoredTunnelDeleting(ctx context.Context, arg MarkRestor
 	return err
 }
 
+const restoreAdminTunnelTakedown = `-- name: RestoreAdminTunnelTakedown :exec
+UPDATE tunnels t
+SET admin_takedown_at = coalesce(t.admin_takedown_at, $1),
+    state = CASE WHEN t.state = 'deleted' THEN 'deleted' ELSE 'deleting' END
+FROM computers c
+WHERE t.computer_id = c.id AND c.account_id = $2
+  AND t.computer_id = $3 AND t.hostname = $4
+  AND t.generation <= $5
+`
+
+type RestoreAdminTunnelTakedownParams struct {
+	At         pgtype.Timestamptz
+	AccountID  string
+	ComputerID string
+	Hostname   string
+	Generation int64
+}
+
+func (q *Queries) RestoreAdminTunnelTakedown(ctx context.Context, arg RestoreAdminTunnelTakedownParams) error {
+	_, err := q.db.Exec(ctx, restoreAdminTunnelTakedown,
+		arg.At,
+		arg.AccountID,
+		arg.ComputerID,
+		arg.Hostname,
+		arg.Generation,
+	)
+	return err
+}
+
 const restoreKnownTunnels = `-- name: RestoreKnownTunnels :many
 SELECT hostname, generation, cf_tunnel_id FROM tunnels WHERE state <> 'deleted' ORDER BY hostname
 `

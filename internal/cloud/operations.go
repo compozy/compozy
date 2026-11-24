@@ -82,12 +82,20 @@ func (a *App) publishMetrics(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	now := a.now()
-	gauges, err := a.Store.OperationalGauges(ctx, now, a.monthly, a.annual)
+	samples, err := a.operationalSamples(ctx, now)
 	if err != nil {
 		return err
 	}
+	return a.publisher.Publish(ctx, now, samples)
+}
+
+func (a *App) operationalSamples(ctx context.Context, now time.Time) ([]observe.Sample, error) {
+	gauges, err := a.Store.OperationalGauges(ctx, now, a.monthly, a.annual)
+	if err != nil {
+		return nil, err
+	}
 	gauges = append(gauges, observe.Sample{Name: "cloud_control_links", Value: float64(a.Control.ComputersConnected())})
-	return a.publisher.Publish(ctx, now, append(a.Metrics.Samples(), gauges...))
+	return append(a.Metrics.Samples(), gauges...), nil
 }
 
 func (a *App) reportOperation(ctx context.Context, operation string, fn func(context.Context) error) {

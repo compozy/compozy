@@ -28,6 +28,7 @@ func (s *Service) RevokeSignInNotice(
 		if err != nil {
 			return err
 		}
-		return s.revokeDevice(ctx, q, account.ID, device.ID, auditSystem)
+		_, err = s.revokeDevice(ctx, q, account.ID, device.ID, auditSystem)
+		return err
 	})
 }

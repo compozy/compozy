@@ -53,6 +53,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, out io.
 		}
 		_, err = fmt.Fprintf(out, "Cloud schema version %d (%d migrations applied)\n", report.Version, report.Applied)
 		return err
+	case len(args) >= 2 && slices.Equal(args[:2], []string{"broadcast", "send"}):
+		return sendBroadcast(ctx, args[2:], getenv, out)
 	case len(args) == 3 && slices.Equal(args[:2], []string{"keys", "generate"}):
 		return generateSigningKey(args[2], out)
 	case slices.Equal(args, []string{"keys", "jwk"}):
@@ -72,7 +74,9 @@ func run(ctx context.Context, args []string, getenv func(string) string, out io.
 		return restoreFinalize(ctx, args[3], getenv, out, logger)
 	default:
 		return errors.New(
-			"usage: compozy-cloud serve | migrate up | keys {generate|jwk|publish|retire} | email privacy-reply --request-id <id> <file> | backup security-events | restore finalize --restore-point <time>",
+			"usage: compozy-cloud serve | migrate up | keys {generate|jwk|publish|retire} | " +
+				"email privacy-reply --request-id <id> <file> | broadcast send | " +
+				"backup security-events | restore finalize --restore-point <time>",
 		)
 	}
 }

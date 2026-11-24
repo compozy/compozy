@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"slices"
 	"strconv"
 	"time"
 
@@ -61,7 +62,11 @@ func (s *Service) SweepAccountEmail(ctx context.Context) error {
 	if s.config.Email == nil {
 		return nil
 	}
-	return errors.Join(s.deliverSecurityEmails(ctx), s.syncMarketingContacts(ctx))
+	securityErr := s.deliverSecurityEmails(ctx)
+	if !s.config.Email.SyncsContacts() || s.config.Unsubscribe == nil {
+		return securityErr
+	}
+	return errors.Join(securityErr, s.syncMarketingContacts(ctx))
 }
 
 func (s *Service) syncMarketingContacts(ctx context.Context) error {
@@ -76,8 +81,7 @@ func (s *Service) syncMarketingContacts(ctx context.Context) error {
 		err := s.syncMarketingAccount(work, id, now)
 		cancel()
 		if err != nil {
-			retryErr := s.db.RetryMarketingAccount(ctx, id, now.Add(lifecycleRetry))
-			failures = append(failures, errors.Join(err, retryErr))
+			failures = append(failures, err)
 		}
 		if ctx.Err() != nil {
 			break
@@ -87,7 +91,8 @@ func (s *Service) syncMarketingContacts(ctx context.Context) error {
 }
 
 func (s *Service) syncMarketingAccount(ctx context.Context, id string, now time.Time) error {
-	return s.db.Transaction(ctx, func(q *store.Queries) error {
+	var syncErr error
+	err := s.db.Transaction(ctx, func(q *store.Queries) error {
 		a, err := q.ClaimMarketingAccount(ctx, id, now)
 		if errors.Is(err, store.ErrAuthNotFound) {
 			return nil
@@ -95,28 +100,51 @@ func (s *Service) syncMarketingAccount(ctx context.Context, id string, now time.
 		if err != nil {
 			return err
 		}
-		known, err := q.MarketingAddresses(ctx, id)
-		if err != nil {
-			return err
-		}
-		for _, address := range known {
-			if a.MarketingOptIn && address == a.Email {
-				continue
-			}
-			if err := s.config.Email.DeleteContact(ctx, address); err != nil {
-				return err
-			}
-			if err := q.ForgetMarketingAddress(ctx, id, address); err != nil {
-				return err
-			}
-		}
-		if a.MarketingOptIn {
-			if err := s.config.Email.UpsertContact(ctx, a.Email, a.Name, s.config.Unsubscribe.URL(id)); err != nil {
-				return err
-			}
+		syncErr = s.syncClaimedMarketingAccount(ctx, q, a)
+		if syncErr != nil {
+			// Keep the retry with the consent revision locked by the claim.
+			return q.RetryMarketingAccount(ctx, id, s.config.Now().Add(lifecycleRetry))
 		}
 		return q.RecordMarketingSync(ctx, id, s.config.Now())
 	})
+	return errors.Join(syncErr, err)
+}
+
+func (s *Service) syncClaimedMarketingAccount(ctx context.Context, q *store.Queries, a store.AuthAccount) error {
+	known, err := q.MarketingAddresses(ctx, a.ID)
+	if err != nil {
+		return err
+	}
+	if a.MarketingOptIn {
+		known = append(known, a.Email)
+	}
+	slices.Sort(known)
+	for _, address := range slices.Compact(known) {
+		if err := q.LockMarketingAddress(ctx, address); err != nil {
+			return err
+		}
+		if a.MarketingOptIn && address == a.Email {
+			if err := s.config.Email.UpsertContact(ctx, a.Email, a.Name, s.config.Unsubscribe.URL(a.ID)); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := s.removeMarketingContact(ctx, q, a.ID, address); err != nil {
+			return err
+		}
+		if err := q.ForgetMarketingAddress(ctx, a.ID, address); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) removeMarketingContact(ctx context.Context, q *store.Queries, accountID, address string) error {
+	owned, err := q.OtherMarketingContactOwner(ctx, accountID, address)
+	if err != nil || owned {
+		return err
+	}
+	return s.config.Email.DeleteContact(ctx, address)
 }
 
 func (s *Service) deliverSecurityEmails(ctx context.Context) error {
@@ -175,6 +203,9 @@ func (s *Service) securityEmail(address string, id int64, event store.AccountEma
 	}
 	name, location := event.Notice.Name, cmp.Or(event.Notice.Location, "Unknown location")
 	link := s.config.Issuer + "/account/sign-ins/" + strconv.FormatInt(id, 10)
-	return email.Message{To: address, Subject: "New sign-in to Compozy on " + name + " (" + location + ")",
-		Text: "A device signed in to your Compozy account. If this wasn’t you, sign in again to revoke this device:\n" + link}
+	return email.Message{
+		To:      address,
+		Subject: "New sign-in to Compozy on " + name + " (" + location + ")",
+		Text:    "A device signed in to your Compozy account. If this wasn’t you, sign in again to revoke this device:\n" + link,
+	}
 }

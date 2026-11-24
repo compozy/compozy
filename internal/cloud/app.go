@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/admin"
 	"github.com/compozy/compozy/internal/cloud/api"
 	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/cloud/billing"
@@ -42,6 +43,7 @@ type Config struct {
 	Reporter        *observe.Sentry
 	ExpectedRestore time.Time
 	Revision        string
+	Admin           *admin.AccessConfig
 }
 
 type App struct {
@@ -135,6 +137,14 @@ func (a *App) configureServices(ctx context.Context, cfg Config) error {
 		Email: cfg.Email, Unsubscribe: links,
 	})
 	a.Accounts = service
+	if err := admin.Register(a.Routes(), a.Store, service, a.Billing, admin.Config{
+		Access: cfg.Admin, Now: a.now, Logger: a.logger,
+		Metrics: func(ctx context.Context) ([]observe.Sample, error) {
+			return a.operationalSamples(ctx, a.now())
+		},
+	}); err != nil {
+		return err
+	}
 	var authenticator api.DeviceAuthenticator
 	if cfg.Auth != nil {
 		if err := a.registerAuth(*cfg.Auth, links); err != nil {

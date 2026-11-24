@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/cloud/email"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
 
@@ -480,4 +481,132 @@ func lifecycleComputerRequest(t *testing.T, f authFixture, key ed25519.PrivateKe
 		t.Fatal(err)
 	}
 	return callAuth(t, f.replica, http.MethodPost, path, in, nil, map[string]string{remoteproto.ComputerProofHeader: proof})
+}
+
+func TestCloudResendContactSync(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retry consent sync and remove contacts on unsubscribe or deletion (UT-142)", func(t *testing.T) {
+		t.Parallel()
+		// The HTTP consent contract is authoritative even while the external contact update is failing.
+		f, resend := newAccountEmailFixture(t, false)
+		const address = "resend-sync@example.test"
+		owner := newBillingDevice(t, f, address)
+		change := func(optIn bool) {
+			t.Helper()
+			remoteCloudRequest(t, f, owner, http.MethodPatch, cloudAccountPath,
+				remoteproto.AccountEmailPatch{MarketingOptIn: &optIn, Source: "settings"}).
+				expect(t, http.StatusOK, "marketing_opt_in")
+		}
+		sweep := func() {
+			t.Helper()
+			testutil.Eventually(t, "the consent revision reaches Resend", 3*time.Second, func() bool {
+				if err := f.replica.App.Accounts.SweepAccountEmail(t.Context()); err != nil {
+					t.Logf("waiting for contact sync: %v", err)
+					return false
+				}
+				var synced bool
+				err := f.conn.QueryRow(t.Context(), `SELECT
+					contact_synced_at >= marketing_consent_at AND contact_retry_at IS NULL
+					FROM accounts WHERE id = $1`, owner.account).Scan(&synced)
+				return err == nil && synced
+			})
+		}
+
+		change(true)
+		sweep()
+		if resend.ContactName(address) == "" || resend.ContactWrites() != 1 {
+			t.Fatal("the opted-in contact did not reach the news segment with a name")
+		}
+
+		// Repeating an explicit opt-in updates the existing contact.
+		f.clock.Advance(time.Second)
+		change(true)
+		sweep()
+		if resend.ContactWrites() != 2 {
+			t.Fatal("the existing contact was not updated")
+		}
+
+		resend.FailContactDeletes(2)
+		f.clock.Advance(time.Second)
+		change(false)
+		for attempt := 1; attempt <= 2; attempt++ {
+			testutil.Eventually(t, "failed removal is scheduled for retry", 3*time.Second, func() bool {
+				_ = f.replica.App.Accounts.SweepAccountEmail(t.Context())
+				var pending bool
+				err := f.conn.QueryRow(t.Context(), `SELECT NOT marketing_opt_in AND
+					contact_synced_at < marketing_consent_at AND contact_retry_at > $1
+					FROM accounts WHERE id = $2`, f.clock.Now(), owner.account).Scan(&pending)
+				return err == nil && pending
+			})
+			if resend.ContactDeletes() != attempt || resend.ContactName(address) == "" {
+				t.Fatal("the sync did not retain the failed removal for retry")
+			}
+			f.clock.Advance(time.Minute)
+		}
+		sweep()
+		if resend.ContactName(address) != "" {
+			t.Fatal("the contact remained after the retry succeeded")
+		}
+
+		f.clock.Advance(time.Second)
+		change(true)
+		sweep()
+		sent := sendFixtureBroadcast(t, f, resend, owner, address)
+		unsubscribe := strings.Trim(sent.Headers["List-Unsubscribe"], "<>")
+		if unsubscribe != resend.UnsubscribeURL(address) ||
+			sent.Headers["List-Unsubscribe-Post"] != "List-Unsubscribe=One-Click" ||
+			!strings.Contains(sent.Text, remotetest.ResendPostalAddress) || !strings.Contains(sent.Text, unsubscribe) {
+			t.Fatalf("broadcast did not send the configured footer and cloud unsubscribe headers")
+		}
+		link, err := url.Parse(unsubscribe)
+		if err != nil || link.Path != email.UnsubscribePath || link.Query().Get("t") == "" {
+			t.Fatalf("broadcast did not use the signed cloud unsubscribe endpoint")
+		}
+		f.request(t, http.MethodPost, link.RequestURI(), url.Values{"List-Unsubscribe": {"One-Click"}}).
+			expect(t, http.StatusOK, "product news and offers anymore.")
+		sweep()
+		if resend.ContactName(address) != "" {
+			t.Fatal("the one-click POST did not remove the contact")
+		}
+
+		f.clock.Advance(time.Second)
+		change(true)
+		sweep()
+		if resend.ContactName(address) == "" {
+			t.Fatal("a fresh opt-in did not restore the contact")
+		}
+		deletion := remoteproto.AccountDeleteRequest{ConfirmEmail: address}
+		remoteCloudRequest(t, f, owner, http.MethodDelete, cloudAccountPath, deletion).
+			expect(t, http.StatusAccepted, "deleting")
+		awaitDeletionSweep(t, f, func() bool {
+			deleted, err := f.replica.App.Store.AuthAccountDeleted(t.Context(), owner.account)
+			return err == nil && deleted
+		})
+		if resend.ContactName(address) != "" {
+			t.Fatal("account deletion retained the Resend contact")
+		}
+	})
+}
+
+func sendFixtureBroadcast(
+	t *testing.T, f authFixture, resend *remotetest.ResendFixture, owner remoteTestDevice, address string,
+) remotetest.ResendMessage {
+	t.Helper()
+	links, err := email.NewUnsubscribeLinks(f.replica.App.Issuer, f.cfg.Auth.EncryptionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const subject = "Product news"
+	if err := resend.Client.SendBroadcast(t.Context(), email.Broadcast{
+		ID: "fixture-news", Subject: subject, Text: "The latest release is available.",
+	}, owner.account, address, links); err != nil {
+		t.Fatal(err)
+	}
+	for _, message := range resend.Messages() {
+		if message.Subject == subject {
+			return message
+		}
+	}
+	t.Fatal("no product news reached the fake Resend API")
+	return remotetest.ResendMessage{}
 }

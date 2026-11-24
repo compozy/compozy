@@ -18,13 +18,14 @@ import (
 )
 
 type hostedFakeCloudflare struct {
-	t       *testing.T
-	mu      sync.Mutex
-	created int
-	deleted int
-	tunnels map[string]fakeCloudflareTunnel
-	dns     map[string]fakeCloudflareDNS
-	client  *cloudflare.Client
+	t           *testing.T
+	mu          sync.Mutex
+	created     int
+	deleted     int
+	failDeletes int
+	tunnels     map[string]fakeCloudflareTunnel
+	dns         map[string]fakeCloudflareDNS
+	client      *cloudflare.Client
 }
 
 type fakeCloudflareTunnel struct {
@@ -127,6 +128,11 @@ func (f *hostedFakeCloudflare) tunnel(w http.ResponseWriter, r *http.Request, pa
 	case "DELETE connections":
 		hostedFakeReply(w, nil)
 	case "DELETE ":
+		if f.failDeletes > 0 {
+			f.failDeletes--
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 		delete(f.tunnels, id)
 		f.deleted++
 		hostedFakeReply(w, tunnel)
@@ -196,6 +202,12 @@ func (f *hostedFakeCloudflare) record(w http.ResponseWriter, r *http.Request, pa
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+func (f *hostedFakeCloudflare) failNextDelete() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.failDeletes++
 }
 
 func (f *hostedFakeCloudflare) counts() (created, deleted int) {

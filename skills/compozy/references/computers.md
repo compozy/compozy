@@ -88,7 +88,7 @@ The same operations are available over HTTP and UDS under `/api/remote`. Use `co
 
 ## Hosted route and webhook ingress
 
-On a linked Pro computer, run `compozy remote cloud-route enable`. Read `cloud_route.hostname`, `cloud_route.state`, and any `cloud_route.diagnosis` from local remote status. A blocked Cloudflare port 7844 shows a diagnosis while the daemon retries. The controller learns the hostname through the account list and tries it after direct and SSH. Turning the hosted route off with `compozy remote cloud-route disable` or unlinking removes the tunnel.
+On a linked Pro computer, run `compozy remote cloud-route enable`. Read `cloud_route.hostname`, `cloud_route.state`, and any `cloud_route.diagnosis` from local remote status. A blocked Cloudflare port 7844 shows a diagnosis while the daemon retries. The controller learns the hostname through the account list and tries it after direct and SSH. Turning the hosted route off with `compozy remote cloud-route disable` or unlinking removes the tunnel. If provisioning returns `hosted_route_taken_down`, send the operator to support@compozy.com.
 
 A hosted browser reaches the computer at its own HTTPS hostname. Compozy Cloud starts sign-in at `GET /v1/browser/authorize`. The browser redeems the callback code through `POST /remote/v1/browser/session` with its PKCE verifier and a `DPoP` proof. The daemon exchanges the code at `POST /v1/browser/token` and issues a secure HTTP-only session cookie after the new key is trusted and any required approval is complete.
 

@@ -74,7 +74,7 @@ Free has one slot. An enabled computer or active reservation uses it. A reservat
 
 ## Account lifecycle
 
-Use the device access token and DPoP with `PATCH /v1/account`. Send `marketing_opt_in` and a `source` of `sign_in`, `cli`, or `settings`. `GET /v1/account` includes `recent_sign_ins` for the last seven days. The signed link at `GET /v1/email/unsubscribe?t=…` shows a confirmation form. Submitting it or using the RFC 8058 one-click POST opts out.
+Use the device access token and DPoP with `PATCH /v1/account`. Send `marketing_opt_in` and a `source` of `sign_in`, `cli`, or `settings`. `GET /v1/account` includes `recent_sign_ins` for the last seven days. The signed link at `GET /v1/email/unsubscribe?t=…` shows a confirmation form. Submitting it or using the RFC 8058 one-click POST opts out. Compozy Cloud syncs the contact with the email provider and retries failed updates.
 
 An admin device can start deletion with `DELETE /v1/account` and `{"confirm_email":"…"}`. The cloud returns `202` with `state: "deleting"`, `subscription_cancelled`, and `refund`. The acceptance transaction revokes sessions and tokens, marks existing checkout links unavailable, and stops remote access. A cloud job expires open Stripe checkouts and cancels Pro before removing connected resources and account data. Refresh reports `reauth_required` with reason `account_deleted` during deletion and while the 90-day tombstone is retained.
 
@@ -110,5 +110,7 @@ A linked computer uses its key proof to provision or read its hosted tunnel at `
 When Pro ends, the most recently used linked and enabled computer keeps the Free slot on direct and SSH routes. Other enabled computers show **Needs Pro**. Use [the cloud upgrade page](https://cloud.compozy.com/billing/upgrade) to restore the plan. The saved hosted URL allows its owner to buy Pro and return to the same hostname for seven days. During that window hosted API calls and webhook deliveries return `402 plan_required`. Cloud deletes the retained tunnel after seven days.
 
 Compozy Pro includes ten hosted routes by default. The Cloud reserves a slot before provisioning. A request beyond the account's limit returns `cloud_routes_limit_reached`. Turning off the hosted route removes the tunnel with `DELETE /v1/computers/{id}/tunnel`. Unlinking also deletes the tunnel. The Cloud sweeps tunnels after 14 days offline.
+
+If the service operator removes a hosted route for abuse, provisioning returns `403 hosted_route_taken_down`. Contact support@compozy.com about a removed route.
 
 Discover the assigned hostname from the account's computer list. The control link sends `peers` updates with the account's other active hosted routes.

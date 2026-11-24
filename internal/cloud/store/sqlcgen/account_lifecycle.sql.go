@@ -83,7 +83,8 @@ func (q *Queries) ClaimAccountDeletion(ctx context.Context, arg ClaimAccountDele
 
 const claimMarketingAccount = `-- name: ClaimMarketingAccount :one
 SELECT id, email, name, state, suspended_at, first_sign_in_provider, marketing_opt_in, marketing_consent_at, marketing_consent_source, contact_synced_at, cloud_routes_max, security_epoch, created_at, last_seen_at, billing_reconciled_at, contact_retry_at, activated_at, pro_ended_at FROM accounts
-WHERE id = $1 AND state <> 'deleting' AND marketing_consent_at IS NOT NULL AND contact_synced_at IS NULL
+WHERE id = $1 AND state <> 'deleting' AND marketing_consent_at IS NOT NULL
+  AND (contact_retry_at IS NOT NULL OR contact_synced_at IS NULL)
   AND (contact_retry_at IS NULL OR contact_retry_at <= $2::timestamptz)
 FOR UPDATE SKIP LOCKED
 `
@@ -162,7 +163,8 @@ func (q *Queries) DeletingAccountTunnelRefs(ctx context.Context, accountID strin
 
 const dirtyMarketingAccounts = `-- name: DirtyMarketingAccounts :many
 SELECT id FROM accounts
-WHERE state <> 'deleting' AND marketing_consent_at IS NOT NULL AND contact_synced_at IS NULL
+WHERE state <> 'deleting' AND marketing_consent_at IS NOT NULL
+  AND (contact_retry_at IS NOT NULL OR contact_synced_at IS NULL)
   AND (contact_retry_at IS NULL OR contact_retry_at <= $1::timestamptz)
 ORDER BY marketing_consent_at, id LIMIT 32
 `
@@ -347,6 +349,15 @@ func (q *Queries) LockClaimedAccountDeletion(ctx context.Context, arg LockClaime
 	return step, err
 }
 
+const lockMarketingAddress = `-- name: LockMarketingAddress :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 436094))
+`
+
+func (q *Queries) LockMarketingAddress(ctx context.Context, email string) error {
+	_, err := q.db.Exec(ctx, lockMarketingAddress, email)
+	return err
+}
+
 const markLifecycleTunnelsDeleting = `-- name: MarkLifecycleTunnelsDeleting :exec
 UPDATE tunnels t SET state = 'deleting'
 FROM computers c
@@ -380,6 +391,25 @@ func (q *Queries) MarketingAddresses(ctx context.Context, accountID string) ([]s
 		return nil, err
 	}
 	return items, nil
+}
+
+const otherMarketingContactOwner = `-- name: OtherMarketingContactOwner :one
+SELECT EXISTS (
+    SELECT 1 FROM accounts
+    WHERE email = $1 AND id <> $2 AND marketing_opt_in AND state <> 'deleting'
+)
+`
+
+type OtherMarketingContactOwnerParams struct {
+	Email     string
+	AccountID string
+}
+
+func (q *Queries) OtherMarketingContactOwner(ctx context.Context, arg OtherMarketingContactOwnerParams) (bool, error) {
+	row := q.db.QueryRow(ctx, otherMarketingContactOwner, arg.Email, arg.AccountID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const queueAccountEmail = `-- name: QueueAccountEmail :exec
@@ -435,7 +465,9 @@ func (q *Queries) RecentSignInEvents(ctx context.Context, arg RecentSignInEvents
 }
 
 const recordMarketingSync = `-- name: RecordMarketingSync :exec
-UPDATE accounts SET contact_synced_at = $1, contact_retry_at = NULL WHERE id = $2
+UPDATE accounts
+SET contact_synced_at = greatest($1::timestamptz, marketing_consent_at, contact_synced_at), contact_retry_at = NULL
+WHERE id = $2
 `
 
 type RecordMarketingSyncParams struct {
@@ -516,7 +548,7 @@ func (q *Queries) RetryAccountEmail(ctx context.Context, arg RetryAccountEmailPa
 
 const retryMarketingAccount = `-- name: RetryMarketingAccount :exec
 UPDATE accounts SET contact_retry_at = $1
-WHERE id = $2 AND contact_synced_at IS NULL
+WHERE id = $2
 `
 
 type RetryMarketingAccountParams struct {
@@ -633,7 +665,7 @@ func (q *Queries) UpdateLifecycleState(ctx context.Context, arg UpdateLifecycleS
 const updateMarketingConsent = `-- name: UpdateMarketingConsent :exec
 UPDATE accounts
 SET marketing_opt_in = $1, marketing_consent_at = $2,
-    marketing_consent_source = $3, contact_synced_at = NULL, contact_retry_at = NULL
+    marketing_consent_source = $3, contact_retry_at = $2
 WHERE id = $4
 `
 

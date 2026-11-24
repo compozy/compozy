@@ -80,7 +80,7 @@ DELETE FROM deleted_accounts WHERE deleted_at <= $1;
 -- name: UpdateMarketingConsent :exec
 UPDATE accounts
 SET marketing_opt_in = sqlc.arg(opt_in), marketing_consent_at = sqlc.arg(as_of),
-    marketing_consent_source = sqlc.arg(source), contact_synced_at = NULL, contact_retry_at = NULL
+    marketing_consent_source = sqlc.arg(source), contact_retry_at = sqlc.arg(as_of)
 WHERE id = sqlc.arg(account_id);
 
 -- name: TrackMarketingAddress :exec
@@ -94,22 +94,26 @@ DELETE FROM account_contact_addresses WHERE account_id = $1 AND email = $2;
 
 -- name: DirtyMarketingAccounts :many
 SELECT id FROM accounts
-WHERE state <> 'deleting' AND marketing_consent_at IS NOT NULL AND contact_synced_at IS NULL
+WHERE state <> 'deleting' AND marketing_consent_at IS NOT NULL
+  AND (contact_retry_at IS NOT NULL OR contact_synced_at IS NULL)
   AND (contact_retry_at IS NULL OR contact_retry_at <= sqlc.arg(as_of)::timestamptz)
 ORDER BY marketing_consent_at, id LIMIT 32;
 
 -- name: ClaimMarketingAccount :one
 SELECT * FROM accounts
-WHERE id = sqlc.arg(account_id) AND state <> 'deleting' AND marketing_consent_at IS NOT NULL AND contact_synced_at IS NULL
+WHERE id = sqlc.arg(account_id) AND state <> 'deleting' AND marketing_consent_at IS NOT NULL
+  AND (contact_retry_at IS NOT NULL OR contact_synced_at IS NULL)
   AND (contact_retry_at IS NULL OR contact_retry_at <= sqlc.arg(as_of)::timestamptz)
 FOR UPDATE SKIP LOCKED;
 
 -- name: RecordMarketingSync :exec
-UPDATE accounts SET contact_synced_at = sqlc.arg(as_of), contact_retry_at = NULL WHERE id = sqlc.arg(account_id);
+UPDATE accounts
+SET contact_synced_at = greatest(sqlc.arg(as_of)::timestamptz, marketing_consent_at, contact_synced_at), contact_retry_at = NULL
+WHERE id = sqlc.arg(account_id);
 
 -- name: RetryMarketingAccount :exec
 UPDATE accounts SET contact_retry_at = sqlc.arg(retry_at)
-WHERE id = sqlc.arg(account_id) AND contact_synced_at IS NULL;
+WHERE id = sqlc.arg(account_id);
 
 -- name: QueueAccountEmail :exec
 INSERT INTO account_email_outbox (event_id, retry_at) VALUES ($1, $2);
@@ -149,3 +153,12 @@ SELECT EXISTS (SELECT 1 FROM device_keys WHERE device_id = $1 AND activated_at I
 UPDATE tunnels t SET state = 'deleting'
 FROM computers c
 WHERE t.computer_id = c.id AND c.account_id = $1 AND t.state NOT IN ('deleted', 'deleting');
+
+-- name: LockMarketingAddress :exec
+SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg(email)::text, 436094));
+
+-- name: OtherMarketingContactOwner :one
+SELECT EXISTS (
+    SELECT 1 FROM accounts
+    WHERE email = sqlc.arg(email) AND id <> sqlc.arg(account_id) AND marketing_opt_in AND state <> 'deleting'
+);

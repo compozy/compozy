@@ -22,13 +22,14 @@ type HostedTunnel struct {
 	CloudflareID string
 	Origin       string
 	DeleteAfter  time.Time
+	TakenDown    bool
 }
 
 func hostedTunnel(row sqlcgen.Tunnel, err error) (HostedTunnel, error) {
 	return HostedTunnel{
-		ComputerID: remoteproto.ComputerID(row.ComputerID), Generation: row.Generation,
-		Hostname: row.Hostname, State: row.State, CloudflareID: row.CfTunnelID.String,
-		Origin: row.HostedOrigin.String, DeleteAfter: row.DeleteAfter.Time,
+		TunnelRef: TunnelRef{ComputerID: remoteproto.ComputerID(row.ComputerID), Generation: row.Generation},
+		Hostname:  row.Hostname, State: row.State, CloudflareID: row.CfTunnelID.String,
+		Origin: row.HostedOrigin.String, DeleteAfter: row.DeleteAfter.Time, TakenDown: row.AdminTakedownAt.Valid,
 	}, err
 }
 

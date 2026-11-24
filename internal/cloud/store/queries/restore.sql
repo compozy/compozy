@@ -102,3 +102,12 @@ SELECT cloud_revoke_restored_account_tokens(sqlc.arg(account_id)::text,
 -- name: RevokeRestoredAccountTokens :exec
 SELECT cloud_revoke_restored_account_tokens(sqlc.arg(account_id)::text, NULL,
     sqlc.arg(revoked_at)::timestamptz);
+
+-- name: RestoreAdminTunnelTakedown :exec
+UPDATE tunnels t
+SET admin_takedown_at = coalesce(t.admin_takedown_at, sqlc.arg(at)),
+    state = CASE WHEN t.state = 'deleted' THEN 'deleted' ELSE 'deleting' END
+FROM computers c
+WHERE t.computer_id = c.id AND c.account_id = sqlc.arg(account_id)
+  AND t.computer_id = sqlc.arg(computer_id) AND t.hostname = sqlc.arg(hostname)
+  AND t.generation <= sqlc.arg(generation);

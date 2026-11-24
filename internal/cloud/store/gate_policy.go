@@ -28,15 +28,23 @@ func (q *Queries) GatePolicy(ctx context.Context) (remoteproto.GatePolicy, error
 }
 
 func (s *Store) SetGatePolicy(ctx context.Context, actor string, policy remoteproto.GatePolicy, now time.Time) error {
+	_, err := s.ChangeGatePolicy(ctx, actor, policy, now)
+	return err
+}
+
+func (s *Store) ChangeGatePolicy(
+	ctx context.Context, actor string, policy remoteproto.GatePolicy, now time.Time,
+) (int64, error) {
 	email, admin := strings.CutPrefix(actor, "admin:")
 	if !admin || strings.TrimSpace(email) == "" {
-		return errors.New("gate policy changes require an admin actor")
+		return 0, errors.New("gate policy changes require an admin actor")
 	}
 	enforce := policy.Mode == remoteproto.GateEnforce && policy.Until == nil
 	if len(policy.Message) > 2_048 || (!enforce && !policy.GraceAt(now)) {
-		return remoteproto.ErrGatePolicyInvalid
+		return 0, remoteproto.ErrGatePolicyInvalid
 	}
-	return s.Transaction(ctx, func(q *Queries) error {
+	var eventID int64
+	err := s.Transaction(ctx, func(q *Queries) error {
 		params := sqlcgen.UpdateGatePolicyParams{
 			Mode: string(policy.Mode), Message: policy.Message,
 			UpdatedBy: actor, UpdatedAt: timestamp(now),
@@ -51,9 +59,11 @@ func (s *Store) SetGatePolicy(ctx context.Context, actor string, policy remotepr
 		if changed == 0 {
 			return nil
 		}
-		return q.AppendSecurityEvent(ctx, SecurityEvent{
+		eventID, err = q.AppendSecurityEventID(ctx, SecurityEvent{
 			Type: "gate_policy_changed", Actor: actor, At: now,
 			Details: map[string]any{"mode": policy.Mode, "until": policy.Until},
 		})
+		return err
 	})
+	return eventID, err
 }

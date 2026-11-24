@@ -97,7 +97,7 @@ const insertHostedTunnel = `-- name: InsertHostedTunnel :one
 INSERT INTO tunnels (computer_id, hostname, state, created_at)
 VALUES ($1, $2, 'reserved', $3)
 ON CONFLICT DO NOTHING
-RETURNING computer_id, cf_tunnel_id, hostname, state, generation, created_at, delete_after, hosted_origin
+RETURNING computer_id, cf_tunnel_id, hostname, state, generation, created_at, delete_after, hosted_origin, admin_takedown_at
 `
 
 type InsertHostedTunnelParams struct {
@@ -118,13 +118,14 @@ func (q *Queries) InsertHostedTunnel(ctx context.Context, arg InsertHostedTunnel
 		&i.CreatedAt,
 		&i.DeleteAfter,
 		&i.HostedOrigin,
+		&i.AdminTakedownAt,
 	)
 	return i, err
 }
 
 const lockHostedTunnel = `-- name: LockHostedTunnel :one
 
-SELECT computer_id, cf_tunnel_id, hostname, state, generation, created_at, delete_after, hosted_origin FROM tunnels WHERE computer_id = $1 FOR UPDATE
+SELECT computer_id, cf_tunnel_id, hostname, state, generation, created_at, delete_after, hosted_origin, admin_takedown_at FROM tunnels WHERE computer_id = $1 FOR UPDATE
 `
 
 // SPDX-License-Identifier: FSL-1.1-MIT
@@ -140,6 +141,7 @@ func (q *Queries) LockHostedTunnel(ctx context.Context, computerID string) (Tunn
 		&i.CreatedAt,
 		&i.DeleteAfter,
 		&i.HostedOrigin,
+		&i.AdminTakedownAt,
 	)
 	return i, err
 }
@@ -149,8 +151,8 @@ UPDATE tunnels
 SET state = 'reserved', generation = generation + 1, created_at = $1,
     cf_tunnel_id = NULL, hosted_origin = NULL, delete_after = NULL
 WHERE computer_id = $2 AND generation = $3
-  AND state = 'deleted'
-RETURNING computer_id, cf_tunnel_id, hostname, state, generation, created_at, delete_after, hosted_origin
+  AND state = 'deleted' AND admin_takedown_at IS NULL
+RETURNING computer_id, cf_tunnel_id, hostname, state, generation, created_at, delete_after, hosted_origin, admin_takedown_at
 `
 
 type ReserveHostedTunnelParams struct {
@@ -171,6 +173,7 @@ func (q *Queries) ReserveHostedTunnel(ctx context.Context, arg ReserveHostedTunn
 		&i.CreatedAt,
 		&i.DeleteAfter,
 		&i.HostedOrigin,
+		&i.AdminTakedownAt,
 	)
 	return i, err
 }
@@ -223,7 +226,7 @@ const updateHostedTunnel = `-- name: UpdateHostedTunnel :one
 UPDATE tunnels
 SET state = $1, cf_tunnel_id = $2, hosted_origin = $3
 WHERE computer_id = $4 AND generation = $5
-RETURNING computer_id, cf_tunnel_id, hostname, state, generation, created_at, delete_after, hosted_origin
+RETURNING computer_id, cf_tunnel_id, hostname, state, generation, created_at, delete_after, hosted_origin, admin_takedown_at
 `
 
 type UpdateHostedTunnelParams struct {
@@ -252,6 +255,7 @@ func (q *Queries) UpdateHostedTunnel(ctx context.Context, arg UpdateHostedTunnel
 		&i.CreatedAt,
 		&i.DeleteAfter,
 		&i.HostedOrigin,
+		&i.AdminTakedownAt,
 	)
 	return i, err
 }

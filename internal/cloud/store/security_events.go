@@ -30,11 +30,12 @@ type SecurityEvent struct {
 
 // AppendSecurityEvent can participate in the same transaction as its domain change.
 func (q *Queries) AppendSecurityEvent(ctx context.Context, event SecurityEvent) error {
-	_, err := q.appendSecurityEvent(ctx, event)
+	_, err := q.AppendSecurityEventID(ctx, event)
 	return err
 }
 
-func (q *Queries) appendSecurityEvent(ctx context.Context, event SecurityEvent) (int64, error) {
+// AppendSecurityEventID returns the receipt for a committed action.
+func (q *Queries) AppendSecurityEventID(ctx context.Context, event SecurityEvent) (int64, error) {
 	if event.Details == nil {
 		event.Details = map[string]any{}
 	}

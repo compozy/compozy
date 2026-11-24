@@ -341,9 +341,10 @@ func operatorProviderState(t *testing.T, reply authReply) string {
 
 func TestDaemonAccountSuspension(t *testing.T) {
 	root := t.TempDir()
-	t.Run("Should close active streams and restore only link sign-in after unsuspension (IT-106)", func(t *testing.T) {
+	t.Run("Should close streams and restore link sign-in (IT-106, IT-108)", func(t *testing.T) {
 		// Safety Invariants 10, 22 and 34. Release installers and the remote host observe a single epoch boundary.
-		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+		admin := newAdminFixture(t, nil)
+		f := admin.authFixture
 		const address = "suspension@example.test"
 		owner, ring := startDaemonAccountFixture(t, f, filepath.Join(root, "owner"))
 		progress := owner.stream(t, contract.AccountSignInEventsPath, "")
@@ -365,8 +366,8 @@ func TestDaemonAccountSuspension(t *testing.T) {
 		})
 		t.Setenv("COMPOZY_ACCOUNT_TOKEN", "")
 
-		admin := enrollRemoteDevice(t, f, address, "ins_suspend_controller_helper")
-		link := remoteCloudRequest(t, f, admin, http.MethodPost, "/v1/computers/link-tokens", nil)
+		device := enrollRemoteDevice(t, f, address, "ins_suspend_controller_helper")
+		link := remoteCloudRequest(t, f, device, http.MethodPost, "/v1/computers/link-tokens", nil)
 		link.expect(t, http.StatusCreated, "token")
 		linkToken := authJSON[struct {
 			Token string `json:"token"`
@@ -382,9 +383,9 @@ func TestDaemonAccountSuspension(t *testing.T) {
 		waitComputerRoute(t, owner, id, remoteproto.RouteDirect)
 		terminal := attachOperatorTerminal(t, owner, id, openOperatorTerminal(t, owner, id, workspace), 0)
 
-		if err := f.replica.App.Accounts.SuspendAccount(t.Context(), accountID, "operator@example.test"); err != nil {
-			t.Fatal(err)
-		}
+		admin.requestAdmin(t, http.MethodGet, "/admin/confirm/suspend?account_id="+accountID, nil).
+			expect(t, http.StatusOK, "Signs out every installation and stops every remote session of "+address+".")
+		admin.action(t, url.Values{"account_id": {accountID}}, "suspend", "account_suspended")
 		expectTerminalClose(t, terminal, 4503)
 		f.clock.Advance(25 * time.Hour)
 		for _, daemon := range []daemonAccountFixture{owner, host, ci} {
@@ -395,9 +396,7 @@ func TestDaemonAccountSuspension(t *testing.T) {
 		}
 		callback, _ := f.signIn(t, auth.Google, providerProfile{subject: address, email: address, verified: true}, false)
 		callback.expect(t, http.StatusForbidden, "account_suspended")
-		if err := f.replica.App.Accounts.UnsuspendAccount(t.Context(), accountID, "operator@example.test"); err != nil {
-			t.Fatal(err)
-		}
+		admin.action(t, url.Values{"account_id": {accountID}}, "unsuspend", "account_unsuspended")
 		f.clock.Advance(25 * time.Hour)
 		requireSuspensionAccountState(t, host, "signed_in", "link", "")
 		requireSuspensionAccountState(t, ci, "reauth_required", "", "")

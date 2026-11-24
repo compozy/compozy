@@ -354,12 +354,13 @@ type Subscription struct {
 }
 
 type Tunnel struct {
-	ComputerID   string
-	CfTunnelID   pgtype.Text
-	Hostname     string
-	State        string
-	Generation   int64
-	CreatedAt    pgtype.Timestamptz
-	DeleteAfter  pgtype.Timestamptz
-	HostedOrigin pgtype.Text
+	ComputerID      string
+	CfTunnelID      pgtype.Text
+	Hostname        string
+	State           string
+	Generation      int64
+	CreatedAt       pgtype.Timestamptz
+	DeleteAfter     pgtype.Timestamptz
+	HostedOrigin    pgtype.Text
+	AdminTakedownAt pgtype.Timestamptz
 }

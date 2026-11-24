@@ -197,16 +197,18 @@ func (q *Queries) RecordSignInIdentity(ctx context.Context, arg RecordSignInIden
 
 const updateAuthAccountEmail = `-- name: UpdateAuthAccountEmail :exec
 UPDATE accounts
-SET email = $2, contact_synced_at = CASE WHEN marketing_opt_in THEN NULL ELSE contact_synced_at END
-WHERE id = $1
+SET email = $1, contact_retry_at = CASE
+    WHEN marketing_opt_in THEN $2::timestamptz ELSE contact_retry_at END
+WHERE id = $3
 `
 
 type UpdateAuthAccountEmailParams struct {
-	ID    string
 	Email string
+	AsOf  pgtype.Timestamptz
+	ID    string
 }
 
 func (q *Queries) UpdateAuthAccountEmail(ctx context.Context, arg UpdateAuthAccountEmailParams) error {
-	_, err := q.db.Exec(ctx, updateAuthAccountEmail, arg.ID, arg.Email)
+	_, err := q.db.Exec(ctx, updateAuthAccountEmail, arg.Email, arg.AsOf, arg.ID)
 	return err
 }

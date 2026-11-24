@@ -117,6 +117,7 @@ func loadServeConfig(getenv func(string) string) (serveConfig, error) {
 			Email:          resend,
 			UnsubscribeKey: unsubscribeKey,
 			MetricsToken:   strings.TrimSpace(getenv("COMPOZY_CLOUD_METRICS_TOKEN")),
+			Admin:          loadAdminAccess(getenv),
 		},
 	}
 	if err := configureOperations(&settings.Cloud, environment, getenv); err != nil {

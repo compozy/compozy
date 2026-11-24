@@ -34,6 +34,7 @@ import (
 	"github.com/compozy/compozy/internal/cloud"
 	"github.com/compozy/compozy/internal/cloud/api"
 	"github.com/compozy/compozy/internal/cloud/control"
+	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -348,6 +349,11 @@ func TestCloudRestore(t *testing.T) {
 		owner := source.SeedControlDevice(t, account, "dev_restore_keep", true, cfg.Keys.Signer(), at)
 		revoke := source.SeedControlDevice(t, account, "dev_restore_revoke", false, cfg.Keys.Signer(), at)
 		computerKey := source.SeedControlComputer(t, account, computer, at)
+		const hostname = "restore-abuse.compozy.run"
+		source.Exec(t, `INSERT INTO %s.tunnels (computer_id, hostname, state, created_at)
+			VALUES ($1, $2, 'deleted', $3)`, computer, hostname, at)
+		source.Exec(t, `INSERT INTO %s.identities (provider, subject, account_id, email)
+			VALUES ('github', 'restore-subject', $1, 'restore@example.test')`, account)
 		source.Exec(t, "UPDATE %s.accounts SET security_epoch = 6 WHERE id = $1", account)
 		source.Exec(t, `INSERT INTO %s.cloud_web_sessions (id_sha256, account_id, expires_at) VALUES ($1, $2, $3)`,
 			[]byte("fixture-web-session"), account, at.Add(time.Hour))
@@ -363,6 +369,17 @@ func TestCloudRestore(t *testing.T) {
 		if err := replica.App.Accounts.RevokeDevice(t.Context(), control.DevicePrincipal{
 			AccountID: account, DeviceID: owner.ID, JKT: owner.JKT, SessionID: "ds_" + string(owner.ID),
 		}, revoke.ID); err != nil {
+			t.Fatal(err)
+		}
+		// The archived takedown is for a later generation of the hostname in the backup.
+		if err := replica.App.Store.AppendSecurityEvent(t.Context(), store.SecurityEvent{
+			AccountID: account, Actor: "admin:operator@example.test", Type: "hosted_tunnel_takedown", At: now(),
+			Details: map[string]any{"computer_id": computer, "hostname": hostname, "generation": 2},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := replica.App.Accounts.AdminDetachIdentity(t.Context(), account, "operator@example.test",
+			"github", "restore-subject", "Please detach this GitHub identity."); err != nil {
 			t.Fatal(err)
 		}
 		env[envRestoreThrough] = strings.TrimSpace(runRestoreCommand(t, env, "backup", "security-events"))
@@ -402,6 +419,10 @@ func TestCloudRestore(t *testing.T) {
 		assertRestoreCount(t, restored, "SELECT count(*) FROM %s.cloud_web_sessions WHERE revoked_at IS NOT NULL", 1)
 		assertRestoreCount(t, restored, "SELECT count(*) FROM %s.devices", 2)
 		assertRestoreCount(t, restored, "SELECT count(*) FROM %s.device_keys", 2)
+		assertRestoreCount(t, restored, "SELECT count(*) FROM %s.identities WHERE subject = 'restore-subject'", 0)
+		assertRestoreCount(t, restored, `SELECT count(*) FROM %s.tunnels
+			WHERE hostname = 'restore-abuse.compozy.run' AND generation = 1
+			AND state = 'deleted' AND admin_takedown_at IS NOT NULL`, 1)
 		assertRestoreCount(
 			t,
 			restored,
@@ -462,7 +483,7 @@ func assertRestoreCount(t *testing.T, db *remotetest.Database, query string, exp
 func copyCloudRestorePoint(t *testing.T, source, target *remotetest.Database) {
 	t.Helper()
 	for _, relation := range []string{"accounts", "devices", "device_keys", "device_sessions",
-		"cloud_web_sessions", "computers", "subscriptions"} {
+		"cloud_web_sessions", "computers", "subscriptions", "identities", "tunnels"} {
 		statement := fmt.Sprintf(
 			"INSERT INTO %s.%s SELECT * FROM %s.%s",
 			target.Schema,
