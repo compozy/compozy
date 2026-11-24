@@ -96,7 +96,7 @@ CompozyOS archives them on load instead of failing; see
 | `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                                   | agents may force release, force fail, and retry                                                       |
 | `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                          | empty list                                                                                            |
 | `[gateway]`                          | Remote gateway ceiling, listener ports, and bounded security tunables.                 | disabled; both tier ports assigned by the operating system                                            |
-| `[computers]`                        | Local agent execution and automatic session placement.                                | local execution on, Auto off, local weight `50`                                                      |
+| `[computers]`                        | Local agent execution and automatic session placement.                                 | local execution on, Auto off, local weight `50`                                                       |
 
 ## Load And Merge Order
 
@@ -2947,11 +2947,11 @@ a profile for the command.
 
 These keys apply live from the installation's global `config.toml`.
 
-| Field | Default | Behavior |
-| --- | --- | --- |
-| `local_run_agents` | `true` | Set to `false` after adding a remote computer to turn off new local sessions, Loop runs, and automation runs. Existing records remain readable. |
-| `load_balancing` | `false` | Enable Auto placement for new sessions in a project that has a Git origin. |
-| `local_load_balancing_weight` | `50` | Use `100` for Prefer, `50` for Normal, `25` for Less often, or `0` for Manual only. |
+| Field                         | Default | Behavior                                                                                                                                        |
+| ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `local_run_agents`            | `true`  | Set to `false` after adding a remote computer to turn off new local sessions, Loop runs, and automation runs. Existing records remain readable. |
+| `load_balancing`              | `false` | Enable Auto placement for new sessions in a project that has a Git origin.                                                                      |
+| `local_load_balancing_weight` | `50`    | Use `100` for Prefer, `50` for Normal, `25` for Less often, or `0` for Manual only.                                                             |
 
 Manage a linked computer's weight through its controller entry. See [Place new sessions automatically](/docs/computers/controller#place-new-sessions-automatically).
 

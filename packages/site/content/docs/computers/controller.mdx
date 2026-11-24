@@ -49,13 +49,13 @@ For operator tool calls, inspect `descriptor.remote_scope` in the tool catalog. 
 
 ### Placement endpoints
 
-| Request | Result |
-| --- | --- |
-| `GET /api/host/resources` | Logical CPU count, normalized CPU load, total and available physical memory in bytes, and the sample timestamp. Unavailable CPU or memory readings are `null`. The tunnel requires `sessions:operate`. |
-| `PATCH /api/computers/local` | Updates `run_agents`, `load_balancing`, or `load_balancing_weight` on the controller. `GET /api/computers` returns these values in `local`. |
-| `PATCH /api/computers/{id}` | Updates `load_balancing_weight` for an added computer. |
-| `POST /api/computers/placement` | Resolves a draft's `workspace` to `{computer_id, name, workspace_id}`. Pass `project_computer_id` when the draft workspace belongs to a linked computer. |
-| `POST /api/sessions` with `computer` set to `auto` | Resolves placement again and creates the session in the selected workspace. The response includes `computer_id`. |
+| Request                                            | Result                                                                                                                                                                                                 |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/host/resources`                          | Logical CPU count, normalized CPU load, total and available physical memory in bytes, and the sample timestamp. Unavailable CPU or memory readings are `null`. The tunnel requires `sessions:operate`. |
+| `PATCH /api/computers/local`                       | Updates `run_agents`, `load_balancing`, or `load_balancing_weight` on the controller. `GET /api/computers` returns these values in `local`.                                                            |
+| `PATCH /api/computers/{id}`                        | Updates `load_balancing_weight` for an added computer.                                                                                                                                                 |
+| `POST /api/computers/placement`                    | Resolves a draft's `workspace` to `{computer_id, name, workspace_id}`. Pass `project_computer_id` when the draft workspace belongs to a linked computer.                                               |
+| `POST /api/sessions` with `computer` set to `auto` | Resolves placement again and creates the session in the selected workspace. The response includes `computer_id`.                                                                                       |
 
 When Auto has no eligible computer, placement returns `409 no_eligible_computer` with reason codes in `details`, keyed by computer ID when the controller can evaluate the project.
 
