@@ -23,6 +23,9 @@ export type AccountApprovalDecisionRequest =
 export type ApprovalDeliveryPayload = components["schemas"]["ApprovalDelivery"];
 export type AccountSignInProgressPayload = components["schemas"]["AccountSignInProgress"];
 export type AccountStateEventPayload = components["schemas"]["AccountStatePayload"];
+export type AccountSubscriptionPayload = components["schemas"]["AccountSubscription"];
+export type AccountCheckoutRequest = components["schemas"]["AccountCheckoutRequest"];
+export type AccountBillingResponse = components["schemas"]["AccountBillingResponse"];
 
 export type AccountChangedEventData = Omit<components["schemas"]["Change"], "approval"> & {
   state?: string;
@@ -146,6 +149,32 @@ export async function decideAccountApproval(
     throwAccountError("Failed to send approval decision", response, error);
   }
   return requireResponseData(data, response, "Failed to send approval decision");
+}
+
+export async function startAccountCheckout(
+  interval: "year" | "month",
+  signal?: AbortSignal
+): Promise<AccountBillingResponse> {
+  const { data, error, response } = await apiClient.POST("/api/account/checkout", {
+    body: { interval },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throwAccountError("Failed to start checkout", response, error);
+  }
+  return requireResponseData(data, response, "Failed to start checkout");
+}
+
+export async function openAccountBillingPortal(
+  signal?: AbortSignal
+): Promise<AccountBillingResponse> {
+  const { data, error, response } = await apiClient.POST("/api/account/billing-portal", {
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throwAccountError("Failed to open billing portal", response, error);
+  }
+  return requireResponseData(data, response, "Failed to open billing portal");
 }
 
 export interface AccountStreamHandlers {

@@ -26,6 +26,7 @@ const (
 	fixtureEmail    = "pedro@example.com"
 	cliName         = "Linux CLI"
 	testHostName    = "testhost"
+	testHost2Name   = "testhost2"
 	searchTitle     = "Remote release handoff"
 	sshAdd          = "ssh-add"
 	accountAdd      = "account-add"
@@ -35,6 +36,7 @@ const (
 	hostedPurchase  = "hosted-purchase"
 	projectFileName = "remote-notes.txt"
 	projectFileBody = "hello from remote computer project\n"
+	freeUpgrade     = "free-upgrade"
 )
 
 const echoFixture = `{
@@ -72,7 +74,7 @@ type computerTarget struct {
 func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	f.Helper()
 	if name != sshAdd && name != accountAdd && name != revokeDevice && name != remoteSession &&
-		name != browserPurchase && name != hostedPurchase && name != hostedBrowser {
+		name != browserPurchase && name != hostedPurchase && name != hostedBrowser && name != freeUpgrade {
 		f.Fatalf("unknown remotetest scenario %q", name)
 	}
 	const pgEnv = "COMPOZY_CLOUD_TEST_POSTGRES"
@@ -92,7 +94,7 @@ func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	}
 	listenHost := ""
 	var assets remotetest.SSHAssets
-	if name == sshAdd {
+	if name == sshAdd || name == freeUpgrade {
 		assets = remotetest.PrepareSSHAssets(f, repo)
 		listenHost = assets.Gateway
 	}
@@ -101,6 +103,9 @@ func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	if name == browserPurchase || name == hostedPurchase {
 		return preparePurchase(f, db, name)
 	}
+	if name == freeUpgrade {
+		return prepareFreeUpgrade(f, db, assets)
+	}
 	cloudURL := startCloud(f, db, listenHost, nil).Server.URL
 	controller := prepareDaemon(f, false)
 	mock := filepath.Join(f.TempDir(), "echo.json")
@@ -108,7 +113,7 @@ func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	result := scenarioManifest{Scenario: name, CloudURL: cloudURL, Controller: controller, Email: fixtureEmail}
 
 	if name == sshAdd {
-		host, releaseEnv := prepareSSH(f, controller, assets, cloudURL, mock)
+		host, releaseEnv := prepareSSH(f, controller, assets, cloudURL, mock, testHostName)
 		result.Computers = []computerTarget{host}
 		startDaemon(f, controller, cloudURL, releaseEnv...)
 	} else {
@@ -157,7 +162,7 @@ func startCloud(
 }
 
 func prepareSSH(
-	f *fixture, controller daemonInstance, assets remotetest.SSHAssets, cloudURL, mock string,
+	f *fixture, controller daemonInstance, assets remotetest.SSHAssets, cloudURL, mock, hostName string,
 ) (computerTarget, []string) {
 	f.Helper()
 	release := remotetest.StartReleaseOn(
@@ -180,9 +185,9 @@ func prepareSSH(
 	remotetest.ConfigureSSHACP(f, host, mock)
 	writeFile(f, filepath.Join(controller.OperatorHome, ".ssh", "config"), fmt.Sprintf(
 		"Host %s\n HostName 127.0.0.1\n User %s\n Port %d\n IdentityFile %s\n IdentitiesOnly yes\n",
-		testHostName, remotetest.SSHUser, host.Port, key,
+		hostName, remotetest.SSHUser, host.Port, key,
 	))
-	return computerTarget{Name: testHostName, Container: host.Container,
+	return computerTarget{Name: hostName, Container: host.Container,
 			Socket: remotetest.SSHHome + "/.compozy/daemon.sock"},
 		[]string{releaseEnv + "=" + release.Server.URL, trustEnv + "=" + trust}
 }

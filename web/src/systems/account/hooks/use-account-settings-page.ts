@@ -18,6 +18,7 @@ import {
   cancelAccountLogin,
   decideAccountApproval,
   logoutAccount,
+  openAccountBillingPortal,
   openAccountSignInStream,
   openAccountStream,
   patchAccountDevice,
@@ -25,18 +26,22 @@ import {
   startAccountLogin,
   type AccountLoginResponse,
 } from "../adapters/account-api";
+import { useOptionalUpgradeSheetActions } from "../contexts/upgrade-sheet-context";
 import {
+  describeBillingApiError,
   isAccountCloudUnreachableError,
   toAccountDeviceView,
   toAccountView,
   toPendingApprovalView,
 } from "../lib/account-view";
+import { openBillingBrowserWindow } from "../lib/billing-window";
 import { accountKeys } from "../lib/query-keys";
 import {
   accountApprovalsOptions,
   accountDevicesOptions,
   accountStatusOptions,
 } from "../lib/query-options";
+import { useUpgradeSheet, type UpgradeSheetController } from "./use-upgrade-sheet";
 
 export interface UseAccountSettingsPageResult {
   account: AccountStateFixture | null;
@@ -59,6 +64,8 @@ export interface UseAccountSettingsPageResult {
   signOutOpen: boolean;
   signOutError: string | null;
   isSigningOut: boolean;
+  isOpeningBillingPortal: boolean;
+  fallbackUpgradeSheet: UpgradeSheetController | null;
   setRevokeTarget: (device: AccountDeviceFixture | null) => void;
   setSignOutOpen: (open: boolean) => void;
   handleToggleAdmin: (device: AccountDeviceFixture, nextAdmin: boolean) => void;
@@ -72,10 +79,14 @@ export interface UseAccountSettingsPageResult {
   handleCancelSignIn: () => void;
   handleUnlinkLocal: () => void;
   handleRetryCloud: () => void;
+  handleOpenUpgrade: () => void;
+  handleManageBilling: () => void;
 }
 
 export function useAccountSettingsPage(): UseAccountSettingsPageResult {
   const queryClient = useQueryClient();
+  const sharedUpgradeSheet = useOptionalUpgradeSheetActions();
+  const localUpgradeSheet = useUpgradeSheet();
 
   const statusQuery = useQuery(accountStatusOptions());
   const signedIn = Boolean(statusQuery.data?.signed_in);
@@ -332,6 +343,36 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     },
   });
 
+  const billingPortalMutation = useMutation({
+    mutationFn: async () => {
+      const tab = openBillingBrowserWindow();
+      try {
+        const result = await openAccountBillingPortal();
+        tab.navigate(result.url);
+        return result;
+      } catch (err) {
+        tab.close();
+        throw err;
+      }
+    },
+    onError: err => {
+      toast.error(describeBillingApiError(err, "Couldn't open billing portal. Try again."));
+    },
+  });
+
+  const handleOpenUpgrade = useCallback(() => {
+    if (sharedUpgradeSheet) {
+      sharedUpgradeSheet.openUpgradeSheet();
+      return;
+    }
+    localUpgradeSheet.openUpgradeSheet();
+  }, [sharedUpgradeSheet, localUpgradeSheet]);
+
+  const handleManageBilling = useCallback(() => {
+    if (billingPortalMutation.isPending) return;
+    billingPortalMutation.mutate();
+  }, [billingPortalMutation]);
+
   const handleCancelSignIn = useCallback(() => {
     const attemptId = loginAttempt?.attempt_id;
     setLoginAttempt(null);
@@ -378,6 +419,8 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     signOutOpen,
     signOutError,
     isSigningOut: signOutMutation.isPending,
+    isOpeningBillingPortal: billingPortalMutation.isPending,
+    fallbackUpgradeSheet: sharedUpgradeSheet ? null : localUpgradeSheet,
     setRevokeTarget,
     setSignOutOpen: open => {
       setSignOutOpen(open);
@@ -396,5 +439,7 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     handleCancelSignIn,
     handleUnlinkLocal: () => unlinkMutation.mutate(),
     handleRetryCloud,
+    handleOpenUpgrade,
+    handleManageBilling,
   };
 }

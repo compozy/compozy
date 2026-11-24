@@ -55,6 +55,7 @@ type StripeFixture struct {
 	checkouts     []StripeCheckout
 	reads         map[string]int
 	onRead        func(*http.Request, StripeSubscription)
+	onComplete    func(StripeCheckout)
 	refunds       map[string]url.Values
 	deleteFailure bool
 	deletes       []string
@@ -95,6 +96,12 @@ func (f *StripeFixture) SetReadBarrier(afterRead func(*http.Request, StripeSubsc
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.onRead = afterRead
+}
+
+func (f *StripeFixture) SetOnComplete(afterComplete func(StripeCheckout)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.onComplete = afterComplete
 }
 
 func (f *StripeFixture) Reads(id string) int {
@@ -329,6 +336,12 @@ func (f *StripeFixture) browserCheckout(w http.ResponseWriter, r *http.Request) 
 		if checkout.ID == "" {
 			http.NotFound(w, r)
 			return
+		}
+		f.mu.Lock()
+		callback := f.onComplete
+		f.mu.Unlock()
+		if callback != nil {
+			callback(checkout)
 		}
 		next := strings.ReplaceAll(checkout.Form.Get("success_url"), "{CHECKOUT_SESSION_ID}", id)
 		// #nosec G710 -- the fixture uses the return URL supplied by the real checkout service.

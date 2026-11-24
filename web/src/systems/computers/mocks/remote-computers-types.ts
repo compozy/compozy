@@ -49,6 +49,12 @@ export interface AccountStateFixture {
   cancelAtPeriodEnd: boolean;
   renewsAt: string | null;
   endsAt: string | null;
+  /** Subscription billing source from `/api/account` (`stripe` or `complimentary`). */
+  subscriptionSource?: "stripe" | "complimentary" | null;
+  /** Billing interval (`year` or `month`) when subscribed through Stripe. */
+  subscriptionInterval?: "year" | "month" | null;
+  /** ISO deadline for an automatic full refund on deletion (14 days from eligible payment). */
+  refundEligibleUntil?: string | null;
   formerSubscriber: boolean;
   cloudUnreachable: boolean;
   /** Days remaining in the 7-day entitlement-only hosted-route window after downgrade. */

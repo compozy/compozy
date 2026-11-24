@@ -208,4 +208,39 @@ describe("AddComputerDialog (live mode)", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Add$/i }));
     expect(live.onAddAccountComputer).toHaveBeenCalledWith(detected);
   });
+
+  it("stops at Checking your plan on plan_limit_reached and invokes onUpgrade from Upgrade to Pro", () => {
+    const onUpgrade = vi.fn();
+    const live = makeLiveController({
+      sshStage: "plan_limit",
+      setupStatus: {
+        setup_id: "stp_limit",
+        computer_id: null,
+        state: "failed",
+        step: "admit",
+        prompt: null,
+        error: {
+          code: "plan_limit_reached",
+          error: "Free includes 1 remote computer. Upgrade to Pro for unlimited computers.",
+        },
+      },
+    });
+
+    render(
+      <AddComputerDialog
+        accountEmail="pedro@example.com"
+        isFreePlan
+        live={live}
+        onUpgrade={onUpgrade}
+        open
+        sshSuggestions={[]}
+        unaddedComputers={[]}
+      />
+    );
+
+    expect(screen.getByText("Checking your plan")).toBeInTheDocument();
+    expect(screen.getByText("Free includes 1 remote computer")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Upgrade to Pro" }));
+    expect(onUpgrade).toHaveBeenCalledTimes(1);
+  });
 });

@@ -6,14 +6,16 @@ import {
   AccountPlanSection,
   AccountRevokeDeviceDialog,
   AccountSignOutDialog,
+  ConnectedUpgradeSheet,
   useAccountSettingsPage,
 } from "@/systems/account";
 import { SettingsPageFrame, SettingsPageState, useSettingsTopbar } from "@/systems/settings";
 
 /**
- * Settings → Account (`_uiux.md` U3):
+ * Settings → Account (`_uiux.md` U3, U9):
  * - Profile & sign-out (or sign-in flow when signed out / link-only / account token)
- * - Plan and usage display (checkout & Upgrade sheet land in S12)
+ * - Payment-issue & downgraded banners with Manage billing
+ * - Plan and usage with Upgrade sheet (U9) and Stripe Customer Portal (Manage billing)
  * - Pending device approvals (Approve / Deny / Delivering / Recent 24h)
  * - Devices across the account with admin trust promotion and Q3 revoke dialog
  */
@@ -45,7 +47,13 @@ export function AccountSettingsPage() {
         slug="account"
         width="form"
       >
-        <AccountBanners account={view.account} onRetryCloud={view.handleRetryCloud} />
+        <AccountBanners
+          account={view.account}
+          downgradedNeedsProCount={view.downgradedNeedsProCount}
+          isOpeningBillingPortal={view.isOpeningBillingPortal}
+          onManageBilling={isFullSession ? view.handleManageBilling : undefined}
+          onRetryCloud={view.handleRetryCloud}
+        />
 
         <AccountIdentitySection
           account={view.account}
@@ -65,6 +73,9 @@ export function AccountSettingsPage() {
             <AccountPlanSection
               account={view.account}
               downgradedNeedsProCount={view.downgradedNeedsProCount}
+              isOpeningBillingPortal={view.isOpeningBillingPortal}
+              onManageBilling={view.handleManageBilling}
+              onUpgrade={view.handleOpenUpgrade}
             />
 
             <AccountPendingApprovalsSection
@@ -102,6 +113,10 @@ export function AccountSettingsPage() {
         onConfirm={view.handleConfirmSignOut}
         open={view.signOutOpen}
       />
+
+      {view.fallbackUpgradeSheet ? (
+        <ConnectedUpgradeSheet sheet={view.fallbackUpgradeSheet} />
+      ) : null}
     </>
   );
 }

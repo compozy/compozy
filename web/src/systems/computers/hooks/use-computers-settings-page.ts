@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "@compozy/ui";
@@ -10,10 +10,14 @@ import {
   isAccountCloudUnreachableError,
   patchAccountDevice,
   toAccountView,
+  useOptionalUpgradeSheetActions,
+  useUpgradeSheet,
+  type OpenUpgradeSheetOptions,
 } from "@/systems/account";
 
 import {
   addAccountComputer,
+  ComputersApiError,
   fetchComputerSetupStatus,
   openComputersStream,
   patchComputer,
@@ -71,6 +75,19 @@ const FALLBACK_ACCOUNT: AccountStateFixture = {
 
 export function useComputersSettingsPage(options: UseComputerProvidersOptions = {}) {
   const queryClient = useQueryClient();
+  const sharedUpgradeSheet = useOptionalUpgradeSheetActions();
+  const localUpgradeSheet = useUpgradeSheet();
+
+  const openUpgrade = useCallback(
+    (options?: OpenUpgradeSheetOptions) => {
+      if (sharedUpgradeSheet) {
+        sharedUpgradeSheet.openUpgradeSheet(options);
+        return;
+      }
+      localUpgradeSheet.openUpgradeSheet(options);
+    },
+    [sharedUpgradeSheet, localUpgradeSheet]
+  );
 
   const accountQuery = useQuery(accountStatusOptions());
   const signedIn = Boolean(accountQuery.data?.signed_in);
@@ -88,6 +105,7 @@ export function useComputersSettingsPage(options: UseComputerProvidersOptions = 
     signedIn,
     currentDeviceId,
     currentDeviceIsAdmin,
+    onPlanRequired: () => openUpgrade(),
   });
   const localSettings = useLocalComputerSettings({
     signedIn,
@@ -184,6 +202,7 @@ export function useComputersSettingsPage(options: UseComputerProvidersOptions = 
       setAddDialogOpen(false);
       if (target) setRemoveTarget(target);
     },
+    onPlanRequired: () => openUpgrade(),
   });
 
   useEffect(() => {
@@ -278,7 +297,21 @@ export function useComputersSettingsPage(options: UseComputerProvidersOptions = 
       void queryClient.invalidateQueries({ queryKey: accountKeys.status() });
       toast.success(`Added ${computer.name} to your computers.`);
     },
-    onError: err => toast.error(err instanceof Error ? err.message : "Failed to add computer."),
+    onError: err => {
+      if (
+        err instanceof ComputersApiError &&
+        (err.code === "plan_required" || err.code === "plan_limit_reached")
+      ) {
+        toast.error(
+          err.code === "plan_required"
+            ? "This computer can only be reached through the hosted route (Pro)."
+            : "Free includes 1 remote computer. Upgrade to Pro for unlimited computers."
+        );
+        openUpgrade();
+        return;
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to add computer.");
+    },
   });
 
   const handleToggleComputerScope = useCallback(
@@ -329,6 +362,30 @@ export function useComputersSettingsPage(options: UseComputerProvidersOptions = 
     }
   }, []);
 
+  const addDialogStateRef = useRef({
+    open: addDialogOpen,
+    sshStage: addComputer.controller.sshStage,
+    onRetrySetup: addComputer.controller.onRetrySetup,
+  });
+  useEffect(() => {
+    addDialogStateRef.current = {
+      open: addDialogOpen,
+      sshStage: addComputer.controller.sshStage,
+      onRetrySetup: addComputer.controller.onRetrySetup,
+    };
+  }, [addDialogOpen, addComputer.controller.sshStage, addComputer.controller.onRetrySetup]);
+
+  const handleOpenUpgradeFromAdd = useCallback(() => {
+    openUpgrade({
+      onUpgraded: () => {
+        const current = addDialogStateRef.current;
+        if (current.open && current.sshStage === "plan_limit") {
+          current.onRetrySetup();
+        }
+      },
+    });
+  }, [openUpgrade]);
+
   const handleRetryCloud = useCallback(() => {
     void Promise.all([
       accountQuery.refetch(),
@@ -342,6 +399,8 @@ export function useComputersSettingsPage(options: UseComputerProvidersOptions = 
     signedIn && computersQuery.error && !isComputersCloudUnreachableError(computersQuery.error)
       ? computersQuery.error
       : null;
+
+  const upgradeSheetOpen = sharedUpgradeSheet ? sharedUpgradeSheet.open : localUpgradeSheet.open;
 
   return {
     account,
@@ -359,6 +418,7 @@ export function useComputersSettingsPage(options: UseComputerProvidersOptions = 
     error: hardError,
     addDialogOpen,
     setAddDialogOpen: (open: boolean) => {
+      if (!open && upgradeSheetOpen) return;
       setAddDialogOpen(open);
       if (!open) addComputer.resetSetup();
     },
@@ -397,6 +457,9 @@ export function useComputersSettingsPage(options: UseComputerProvidersOptions = 
     handleToggleRemoteEnabled: localRemote.handleToggleRemoteEnabled,
     handleToggleHostedRoute: localRemote.handleToggleHostedRoute,
     handleToggleRequireApproval: localRemote.handleToggleRequireApproval,
+    handleOpenUpgrade: () => openUpgrade(),
+    handleOpenUpgradeFromAdd,
+    fallbackUpgradeSheet: sharedUpgradeSheet ? null : localUpgradeSheet,
     handleToggleLocalDeviceScope: localRemote.handleToggleLocalDeviceScope,
     handleApproveLocalPending: localRemote.handleApproveLocalPending,
     handleDenyLocalPending: localRemote.handleDenyLocalPending,

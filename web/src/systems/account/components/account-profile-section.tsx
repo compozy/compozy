@@ -19,21 +19,8 @@ import { SettingRow } from "@/systems/settings/components/setting-row";
 import { SettingsGroup } from "@/systems/settings/components/settings-group";
 
 import type { AccountLoginResponse } from "../adapters/account-api";
-import { PlanUsageMeter } from "./plan-usage-meter";
 
 const COMPOZY_STATUS_URL = "https://status.compozy.com";
-
-function formatDateLabel(iso: string | null): string | null {
-  if (!iso) return null;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
 
 function providerLabel(provider: AccountProvider | null): string {
   return provider === "github" ? "Signed in with GitHub" : "Signed in with Google";
@@ -41,6 +28,8 @@ function providerLabel(provider: AccountProvider | null): string {
 
 export interface AccountBannersProps {
   account: AccountStateFixture;
+  downgradedNeedsProCount?: number;
+  isOpeningBillingPortal?: boolean;
   onRetryCloud: () => void;
   onManageBilling?: () => void;
 }
@@ -68,10 +57,21 @@ function CloudUnreachableActions({ onRetryCloud }: { onRetryCloud: () => void })
 /**
  * Top-of-page notices for Settings → Account (`_uiux.md` U3):
  * - Cloud unreachable: warning + Try again + Status link
- * - Payment failed (`past_due`): destructive alert (billing action wired in S12)
+ * - Payment failed (`past_due`): destructive alert + Manage billing
  * - Downgraded grace window: info alert
  */
-export function AccountBanners({ account, onRetryCloud, onManageBilling }: AccountBannersProps) {
+export function AccountBanners({
+  account,
+  downgradedNeedsProCount = 0,
+  isOpeningBillingPortal = false,
+  onRetryCloud,
+  onManageBilling,
+}: AccountBannersProps) {
+  const showDowngradedBanner =
+    account.signedIn &&
+    (account.hostedRouteGraceDaysLeft !== null ||
+      (account.plan === "free" && downgradedNeedsProCount > 0));
+
   return (
     <>
       {account.cloudUnreachable ? (
@@ -94,7 +94,13 @@ export function AccountBanners({ account, onRetryCloud, onManageBilling }: Accou
           <AlertTitle className="flex flex-wrap items-center justify-between gap-2">
             <span>Payment failed. Update your card.</span>
             {onManageBilling ? (
-              <Button onClick={onManageBilling} size="xs" type="button" variant="secondary">
+              <Button
+                disabled={isOpeningBillingPortal}
+                onClick={onManageBilling}
+                size="xs"
+                type="button"
+                variant="secondary"
+              >
                 <ExternalLink aria-hidden="true" />
                 Manage billing
               </Button>
@@ -104,14 +110,14 @@ export function AccountBanners({ account, onRetryCloud, onManageBilling }: Accou
         </Alert>
       ) : null}
 
-      {account.signedIn && account.hostedRouteGraceDaysLeft !== null ? (
-        <Alert className="gap-y-1 py-2.5" variant="info">
+      {showDowngradedBanner ? (
+        <Alert className="gap-y-1 py-2.5" data-testid="account-downgraded-banner" variant="info">
           <Info aria-hidden="true" />
           <AlertTitle>Pro ended. 1 computer stays active.</AlertTitle>
           <AlertDescription>
-            Your most recently used computer stays connected over LAN and SSH. Hosted route
-            addresses stay reserved for {account.hostedRouteGraceDaysLeft} more days so you can
-            re-subscribe without re-adding computers.
+            {account.hostedRouteGraceDaysLeft !== null
+              ? `Your most recently used computer stays connected over LAN and SSH. Hosted route addresses stay reserved for ${account.hostedRouteGraceDaysLeft} more days so you can re-subscribe without re-adding computers.`
+              : "Your most recently used computer stays connected over LAN and SSH. Hosted route addresses stay reserved for 7 days after Pro ends so you can re-subscribe without re-adding computers."}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -389,87 +395,5 @@ export function AccountIdentitySection({
       isAdmin={Boolean(currentDevice?.admin)}
       onRequestSignOut={onRequestSignOut}
     />
-  );
-}
-
-export interface AccountPlanSectionProps {
-  account: AccountStateFixture;
-  downgradedNeedsProCount?: number;
-}
-
-/**
- * Plan and usage display for Settings → Account (`_uiux.md` U3).
- * Checkout, Upgrade sheet, and Customer Portal actions belong to S12.
- */
-export function AccountPlanSection({
-  account,
-  downgradedNeedsProCount = 0,
-}: AccountPlanSectionProps) {
-  const renewsLabel = formatDateLabel(account.renewsAt);
-  const endsLabel = formatDateLabel(account.endsAt);
-  const hostedAtCap =
-    account.plan === "pro" &&
-    account.cloudRoutesLimit > 0 &&
-    account.cloudRoutesUsed >= account.cloudRoutesLimit;
-
-  const description = (() => {
-    if (account.plan === "pro" && account.cancelAtPeriodEnd) {
-      return endsLabel
-        ? `Compozy Pro · Ends ${endsLabel}. After that, 1 computer stays active on Free.`
-        : "Compozy Pro · Ends at period end.";
-    }
-    if (account.plan === "pro") {
-      return renewsLabel ? `Compozy Pro · Renews ${renewsLabel}` : "Compozy Pro";
-    }
-    if (account.formerSubscriber) {
-      return "Free plan";
-    }
-    return "Everything on this computer stays free. Pro adds unlimited computers, hosted routes, and phone access.";
-  })();
-
-  return (
-    <SettingsGroup
-      data-testid="account-plan"
-      description={description}
-      title={
-        account.plan === "pro" && account.cancelAtPeriodEnd ? (
-          <span className="inline-flex items-center gap-2">
-            <span>Plan</span>
-            <Pill size="xs" tone="warning">
-              Ending
-            </Pill>
-          </span>
-        ) : (
-          "Plan"
-        )
-      }
-    >
-      <div className="flex flex-col divide-y divide-line-soft">
-        <div className="px-4 py-3.5">
-          <PlanUsageMeter
-            label="Remote computers"
-            limit={account.remoteComputersLimit}
-            needsProCount={downgradedNeedsProCount}
-            unitLabel="remote computers"
-            used={account.remoteComputersUsed}
-          />
-        </div>
-
-        <div className="flex flex-col gap-2 px-4 py-3.5">
-          <PlanUsageMeter
-            label="Hosted routes"
-            limit={account.cloudRoutesLimit}
-            lockedLabel="Part of Pro"
-            unitLabel="hosted routes"
-            used={account.cloudRoutesUsed}
-          />
-          {hostedAtCap ? (
-            <p className="text-meta text-muted-foreground">
-              Pro includes 10 computers on the hosted route. Contact support to raise it.
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </SettingsGroup>
   );
 }

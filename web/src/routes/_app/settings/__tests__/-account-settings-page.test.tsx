@@ -1,7 +1,9 @@
-// Suite: Settings → Account route page composition (S8 / U3)
-// Invariant: AccountSettingsPage renders profile, plan display without checkout, pending
-// approvals, devices with admin promotion & Q3 revoke dialog, sign-out dialog, and signed-out /
-// link-only / account-token states cleanly.
+// Suite: Settings → Account route page composition (S8 + S12 / U3, U9)
+// Invariant: AccountSettingsPage renders profile, plan & billing controls (Upgrade on Free,
+//            Manage billing on Stripe Pro, absent Manage billing on complimentary Pro, past_due
+//            payment issue banner, downgraded needs_pro usage), pending approvals, devices with
+//            admin promotion & Q3 revoke dialog, sign-out dialog, and signed-out / link-only /
+//            account-token states cleanly.
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -56,6 +58,8 @@ function makeView(overrides: Record<string, unknown> = {}) {
     signOutOpen: false,
     signOutError: null,
     isSigningOut: false,
+    isOpeningBillingPortal: false,
+    fallbackUpgradeSheet: null,
     setRevokeTarget: vi.fn(),
     setSignOutOpen: vi.fn(),
     handleToggleAdmin: vi.fn(),
@@ -69,6 +73,8 @@ function makeView(overrides: Record<string, unknown> = {}) {
     handleCancelSignIn: vi.fn(),
     handleUnlinkLocal: vi.fn(),
     handleRetryCloud: vi.fn(),
+    handleOpenUpgrade: vi.fn(),
+    handleManageBilling: vi.fn(),
     ...overrides,
   };
 }
@@ -78,15 +84,69 @@ describe("AccountSettingsPage", () => {
     state.view = makeView();
   });
 
-  it("renders Profile, Plan without checkout, Pending approvals, and Devices for a signed-in session", () => {
+  it("renders Profile, Plan with Manage billing on Pro, Pending approvals, and Devices for a signed-in session", () => {
+    const manageBilling = vi.fn();
+    state.view = makeView({ handleManageBilling: manageBilling });
+
     render(<AccountSettingsPage />);
 
     expect(screen.getByTestId("account-identity")).toBeInTheDocument();
     expect(screen.getByTestId("account-plan")).toBeInTheDocument();
     expect(screen.getByTestId("account-pending-approvals")).toBeInTheDocument();
     expect(screen.getByTestId("account-devices")).toBeInTheDocument();
-    // Checkout/Upgrade button belongs to S12 and must not appear in S8 Plan section.
-    expect(screen.queryByRole("button", { name: /Upgrade/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Manage billing/i }));
+    expect(manageBilling).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders Upgrade on Free plan and hides Manage billing on complimentary Pro", () => {
+    const openUpgrade = vi.fn();
+    state.view = makeView({
+      account: ACCOUNT_PRESETS.free,
+      handleOpenUpgrade: openUpgrade,
+    });
+
+    const { rerender } = render(<AccountSettingsPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Upgrade/i }));
+    expect(openUpgrade).toHaveBeenCalledTimes(1);
+
+    state.view = makeView({
+      account: {
+        ...ACCOUNT_PRESETS.pro,
+        subscriptionSource: "complimentary",
+        renewsAt: null,
+        endsAt: "2027-06-01T00:00:00Z",
+      },
+    });
+    rerender(<AccountSettingsPage />);
+    expect(screen.getByText(/complimentary until Jun 1, 2027/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Manage billing/i })).not.toBeInTheDocument();
+  });
+
+  it("renders payment issue banner with Manage billing and downgraded plan-limited banner", () => {
+    const manageBilling = vi.fn();
+    state.view = makeView({
+      account: ACCOUNT_PRESETS.past_due,
+      handleManageBilling: manageBilling,
+    });
+
+    const { rerender } = render(<AccountSettingsPage />);
+    const banner = screen.getByTestId("account-payment-issue");
+    expect(banner).toHaveTextContent("Payment failed. Update your card.");
+    // Single Manage billing button lives in the banner while past_due.
+    const manageButtons = screen.getAllByRole("button", { name: /Manage billing/i });
+    expect(manageButtons).toHaveLength(1);
+    fireEvent.click(manageButtons[0]!);
+    expect(manageBilling).toHaveBeenCalledTimes(1);
+
+    state.view = makeView({
+      account: { ...ACCOUNT_PRESETS.free, hostedRouteGraceDaysLeft: null },
+      downgradedNeedsProCount: 2,
+    });
+    rerender(<AccountSettingsPage />);
+    expect(screen.getByTestId("account-downgraded-banner")).toHaveTextContent(
+      "Pro ended. 1 computer stays active."
+    );
+    expect(screen.getByText("1 active · 2 need Pro")).toBeInTheDocument();
   });
 
   it("renders signed-out login buttons and handles Google/GitHub sign-in", () => {

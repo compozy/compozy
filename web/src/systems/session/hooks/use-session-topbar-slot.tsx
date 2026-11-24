@@ -3,6 +3,7 @@ import { AgentAvatar, Pill, StateGlyph, useTopbarSlot } from "@compozy/ui";
 
 import { isRemoteComputerId } from "@/lib/computer-scope";
 import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { useOptionalUpgradeSheetActions } from "@/systems/account";
 import { ComputerChip, findComputerById, toComputerView, useComputers } from "@/systems/computers";
 import { OsShellContext, useOpenProjectFiles } from "@/systems/os";
 import {
@@ -278,6 +279,7 @@ function alwaysOnMainActions(input: UseSessionTopbarSlotInput, instance: AgentIn
 function useRemoteSessionTopbar(session: SessionPayload) {
   const shell = use(OsShellContext);
   const openProjectFiles = useOpenProjectFiles();
+  const upgradeSheet = useOptionalUpgradeSheetActions();
   const computerId = useCurrentComputerId();
   const isRemote = isRemoteComputerId(computerId);
   const computers = useComputers({ enabled: isRemote });
@@ -320,9 +322,11 @@ function useRemoteSessionTopbar(session: SessionPayload) {
       onOpenDetails={shell ? () => openSettingsSection("computers") : undefined}
       onReconnect={remoteComputer.status === "offline" ? () => void computers.refetch() : undefined}
       onUpgrade={
-        remoteComputer.status === "needs_pro" && shell
-          ? () => openSettingsSection("account")
-          : undefined
+        upgradeSheet
+          ? () => upgradeSheet.openUpgradeSheet()
+          : remoteComputer.status === "needs_pro" && shell
+            ? () => openSettingsSection("account")
+            : undefined
       }
     />
   );
