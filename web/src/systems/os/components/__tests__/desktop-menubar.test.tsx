@@ -158,7 +158,7 @@ function renderMenubar({
   });
   if (usage) {
     serveUsage(usage);
-    queryClient.setQueryData(["provider-usage", "envelope", "default"], usage);
+    queryClient.setQueryData(["computer", "local", "provider-usage", "envelope", "default"], usage);
   }
   const tree = (listed: WorkspacePayload[], overlay = activeOverlay) => (
     <QueryClientProvider client={queryClient}>
@@ -726,7 +726,7 @@ describe("DesktopMenubar provider usage control", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { enabled: false, retry: false } },
     });
-    queryClient.setQueryData(["provider-usage", "envelope", "work"], consent);
+    queryClient.setQueryData(["computer", "local", "provider-usage", "envelope", "work"], consent);
     render(
       <QueryClientProvider client={queryClient}>
         <UIProvider reducedMotion="never" skipAnimations>

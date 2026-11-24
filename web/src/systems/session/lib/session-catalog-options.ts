@@ -1,4 +1,5 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../adapters/session-catalog-api";
 import { fetchSessionFolders, type SessionLayoutScope } from "../adapters/session-folders-api";
 import { fetchWorkspaceLayout } from "../adapters/workspace-layout-api";
@@ -11,15 +12,19 @@ export interface SessionCatalogCursor {
   previous: (string | undefined)[];
 }
 
-export function sessionCatalogOptions(filters: SessionListFilters = {}) {
+export function sessionCatalogOptions(
+  filters: SessionListFilters = {},
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
   const normalized = normalizeSessionListFilters({
     ...filters,
     skip_total: filters.skip_total ?? true,
   });
+  const keys = sessionKeys.forComputer(computerId);
   return infiniteQueryOptions({
-    queryKey: sessionKeys.catalogPage(normalized),
+    queryKey: keys.catalogPage(normalized),
     queryFn: ({ pageParam, signal }) =>
-      fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal),
+      fetchSessionCatalogPage({ ...normalized, cursor: pageParam.cursor }, signal, computerId),
     initialPageParam: { previous: [] } as SessionCatalogCursor,
     getNextPageParam: (page, _pages, current) =>
       page.page.has_more && page.page.next_cursor

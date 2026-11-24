@@ -1,5 +1,12 @@
 import { useState } from "react";
 
+import {
+  isRemoteComputerId,
+  LOCAL_COMPUTER_ID,
+  normalizeComputerId,
+  type ComputerId,
+} from "@/lib/computer-scope";
+import { useComputerWorkspaces } from "@/systems/computers";
 import { useProfileReadScope, useProfiles } from "@/systems/profiles";
 import {
   DESTINATION_COPY,
@@ -66,36 +73,53 @@ export function useSessionCreateTarget({
   resetKey,
   focusedBinding,
   seed,
+  computerId = LOCAL_COMPUTER_ID,
+  open = true,
 }: {
   resetKey: unknown;
   focusedBinding?: string | null;
   /** The destination the opening surface named; each opening starts its picks from it. */
   seed?: { project: string | null; profile: string | null };
+  /** Target computer selected in Run on; remote targets query that computer's workspaces (UT-081). */
+  computerId?: ComputerId;
+  open?: boolean;
 }): SessionCreateTarget {
   const active = useActiveWorkspace();
   const profileScope = useProfileReadScope();
-  const projectAxis = active.breadthMode === "all" && !active.pending;
-  const profileAxis = profileScope.aggregate;
+  const scopedComputerId = normalizeComputerId(computerId);
+  const isRemote = isRemoteComputerId(scopedComputerId);
+  const remoteWorkspacesQuery = useComputerWorkspaces(scopedComputerId, open && isRemote);
+  const remoteProjectWorkspaces = (remoteWorkspacesQuery.data?.workspaces ?? []).filter(
+    workspace => !workspace.archived_at
+  );
+  const projectWorkspaces = isRemote ? remoteProjectWorkspaces : active.projectWorkspaces;
+  const projectAxis = isRemote ? true : active.breadthMode === "all" && !active.pending;
+  const profileAxis = !isRemote && profileScope.aggregate;
   const profiles = useProfiles(profileAxis);
-  const opening = { key: resetKey, project: seed?.project ?? null, profile: seed?.profile ?? null };
+  const pickKey = `${String(resetKey)}:${scopedComputerId}`;
+  const opening = {
+    key: pickKey,
+    project: isRemote ? null : (seed?.project ?? null),
+    profile: seed?.profile ?? null,
+  };
   const [picks, setPicks] = useState<Picks>(opening);
-  const current = picks.key === resetKey ? picks : opening;
+  const current = picks.key === pickKey ? picks : opening;
   if (current !== picks) setPicks(current);
 
-  const projectOptions = projectAxis ? sessionProjectOptions(active.projectWorkspaces) : [];
+  const projectOptions = projectAxis ? sessionProjectOptions(projectWorkspaces) : [];
   const projectValue = resolveProjectPick(
     projectAxis,
     projectOptions,
     current.project,
-    focusedBinding
+    isRemote ? null : focusedBinding
   );
   const profileOptions = profileAxis ? sessionProfileOptions(profiles.data ?? []) : [];
   const profile = resolveProfilePick(profileOptions, current.profile, profileScope.destination);
-  const named = resolveNamedProject(projectAxis, current.project, active.projectWorkspaces);
+  const named = resolveNamedProject(projectAxis, current.project, projectWorkspaces);
   const scope = named.workspace
     ? sessionTargetScope(named.workspace.id)
-    : resolveCreateScope(projectValue, active.dataScope);
-  const workspace = projectWorkspaceOf(scope, active.projectWorkspaces);
+    : resolveCreateScope(projectValue, isRemote ? null : active.dataScope);
+  const workspace = projectWorkspaceOf(scope, projectWorkspaces);
 
   return {
     projectAxis,

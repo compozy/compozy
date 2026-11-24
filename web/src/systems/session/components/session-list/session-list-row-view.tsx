@@ -46,6 +46,11 @@ import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
 import type { WorkspaceBadgeIdentity } from "@/systems/workspace/lib/workspace-badge-identity";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
 import {
+  SessionListComputerContext,
+  type SessionRowComputerInfo,
+} from "../../lib/session-list-computer";
+import { ComputerMetaLabel } from "@/systems/computers";
+import {
   sessionCheckboxGesture,
   sessionSelectionGesture,
 } from "../../lib/session-selection-gesture";
@@ -105,13 +110,17 @@ export interface SessionListRowViewProps extends SessionListRowProps {
 export function SessionListRowView(props: SessionListRowViewProps) {
   const { session, showActions = true, wrapRow, selection } = props;
   const selected = selection?.selectedIds.has(session.id) ?? false;
+  const computer = useContext(SessionListComputerContext)?.get(session.id);
   const row = (
     <SessionRowDragFrame
       className={cn(
         SESSION_ROW_FRAME,
         "group/session-row transition-colors hover:bg-surface-2 has-[[data-slot=session-row-target]:focus-visible]:shadow-focus-ring",
-        (selected || props.current) && "bg-selected"
+        (selected || props.current) && "bg-selected",
+        computer?.offline && "opacity-70"
       )}
+      data-computer-id={computer?.id}
+      data-computer-offline={computer?.offline ? "true" : undefined}
       data-slot="session-list-row"
       drag={props.drag}
       dropEdge={props.dropEdge ?? null}
@@ -156,6 +165,7 @@ function SessionListRowBody({
   const agentLabel = session.agent_name ? agent.label : "";
   const meta = rowMeta({ session, agentLabel, runtime, signal, orphanedSubagent });
   const badgeOf = useContext(SessionListBadgeContext);
+  const computer = useContext(SessionListComputerContext)?.get(session.id);
   const badge = inheritsProject ? undefined : badgeOf?.(session);
   const activate = (event: React.MouseEvent<HTMLElement>) =>
     activateSessionRow(event, session.id, selection, onSelect);
@@ -189,6 +199,7 @@ function SessionListRowBody({
         model={runtime.model || (runtime.next ? runtime.label : "")}
         nextModel={runtime.next ? runtime.next.model || runtime.next.label : ""}
         badge={badge}
+        computer={computer}
         owner={owner}
         meta={meta}
         mark={
@@ -311,6 +322,7 @@ function SessionRowMetaLine({
   model,
   nextModel,
   badge,
+  computer,
   owner,
   meta,
   mark,
@@ -321,6 +333,7 @@ function SessionRowMetaLine({
   /** The model the next message switches to; empty when nothing is pending. */
   nextModel: string;
   badge: WorkspaceBadgeIdentity | undefined;
+  computer: SessionRowComputerInfo | undefined;
   owner: ProfileOwner | undefined;
   meta: RowMeta;
   mark: React.ReactNode;
@@ -334,6 +347,14 @@ function SessionRowMetaLine({
             identity={badge}
             className="max-w-40 shrink-[1000]"
             data-testid={`session-row-project-${session.id}`}
+          />
+        ) : null}
+        {computer ? (
+          <ComputerMetaLabel
+            iconKind={computer.iconKind}
+            name={computer.name}
+            offline={computer.offline}
+            platform={computer.platform}
           />
         ) : null}
         {owner ? <ProfileOwnerTag compact size="xs" owner={owner} /> : null}

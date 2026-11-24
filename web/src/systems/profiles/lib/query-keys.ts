@@ -1,3 +1,5 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+
 /**
  * Profile query identities.
  *
@@ -6,7 +8,7 @@
  * can only ever reach the slot it names.
  */
 export const profileKeys = {
-  all: ["profiles"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "profiles"),
   lists: () => [...profileKeys.all, "list"] as const,
   list: () => [...profileKeys.lists()] as const,
   details: () => [...profileKeys.all, "detail"] as const,

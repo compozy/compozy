@@ -1,8 +1,10 @@
 import {
   apiClient,
+  apiClientFor,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
+  type ComputerId,
 } from "@/lib/api-client";
 
 import type { DirectoryBrowseQuery, FSBrowseResponse, OnboardingStatus } from "../types";
@@ -52,9 +54,10 @@ export async function resetOnboarding(signal?: AbortSignal): Promise<OnboardingS
 
 export async function browseDirectory(
   query: DirectoryBrowseQuery,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<FSBrowseResponse> {
-  const { data, error, response } = await apiClient.GET("/api/fs/browse", {
+  const { data, error, response } = await apiClientFor(computerId).GET("/api/fs/browse", {
     params: {
       query: {
         ...(query.path ? { path: query.path } : {}),

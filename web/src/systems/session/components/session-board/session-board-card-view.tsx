@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useContext, type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import {
   ArrowRightLeft,
   CornerDownRight,
@@ -12,7 +12,6 @@ import {
   type LucideIcon,
   PencilLine,
 } from "@compozy/ui/icons";
-import type { ComponentProps, MouseEvent } from "react";
 
 import {
   formatAbsoluteTime,
@@ -26,6 +25,11 @@ import {
 } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
+import { ComputerMetaLabel } from "@/systems/computers";
+import {
+  SessionListComputerContext,
+  type SessionRowComputerInfo,
+} from "../../lib/session-list-computer";
 
 import type { SessionRuntimeLabel } from "../../hooks/use-session-runtime-label";
 import {
@@ -160,6 +164,7 @@ export function SessionBoardCardView({
   ...intentHandlers
 }: SessionBoardCardViewProps) {
   const selected = selection?.selected === true;
+  const computer = useContext(SessionListComputerContext)?.get(session.id);
   const title = getSessionDisplayTitle(session);
   const untitled = title === UNTITLED_SESSION_TITLE;
   const status = sessionBoardCardStatus(session);
@@ -189,11 +194,14 @@ export function SessionBoardCardView({
         "cursor-pointer text-left transition-colors duration-base ease-out outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring",
         current && "bg-selected shadow-inset-strong",
         archived && "bg-transparent shadow-hairline-inset",
-        selected && "bg-selected shadow-inset-strong hover:bg-selected"
+        selected && "bg-selected shadow-inset-strong hover:bg-selected",
+        computer?.offline && "opacity-70"
       )}
       data-archived={archived ? "true" : undefined}
       data-agent-name={session.agent_name}
       data-board-column={session.board_column}
+      data-computer-id={computer?.id}
+      data-computer-offline={computer?.offline ? "true" : undefined}
       data-selected={selected ? "true" : undefined}
       data-session-id={session.id}
       data-testid={`session-board-card-${session.id}`}
@@ -203,6 +211,7 @@ export function SessionBoardCardView({
       type="button"
     >
       <SessionBoardCardMetaRow
+        computer={computer}
         extra={metaExtra}
         meta={meta}
         sessionId={session.id}
@@ -243,17 +252,21 @@ export function SessionBoardCardView({
 }
 
 function SessionBoardCardMetaRow({
+  computer,
   sessionId,
   meta,
   status,
   extra,
 }: {
+  computer?: SessionRowComputerInfo;
   sessionId: string;
   meta: SessionBoardCardMeta;
   status: SessionBoardCardStatus | null;
   extra?: ReactNode;
 }) {
-  if (meta.shape === null && meta.workspaceName === null && status === null && !extra) return null;
+  if (!computer && meta.shape === null && meta.workspaceName === null && status === null && !extra) {
+    return null;
+  }
   const Icon = meta.shape ? SHAPE_ICON[meta.shape] : null;
   return (
     <span className={SESSION_BOARD_CARD_META_ROW}>
@@ -265,6 +278,14 @@ function SessionBoardCardMetaRow({
           <span className="min-w-0 truncate font-sans text-eyebrow tracking-eyebrow text-muted-foreground">
             {meta.workspaceName}
           </span>
+        ) : null}
+        {computer ? (
+          <ComputerMetaLabel
+            iconKind={computer.iconKind}
+            name={computer.name}
+            offline={computer.offline}
+            platform={computer.platform}
+          />
         ) : null}
         {Icon ? <Icon aria-hidden="true" className="size-3 shrink-0 text-subtle" /> : null}
         {meta.branch ? (

@@ -25,6 +25,9 @@ import {
   useSessionContext,
   useSessionUsageTurns,
 } from "@/systems/session";
+import { isRemoteComputerId } from "@/lib/computer-scope";
+import { useCurrentComputerId } from "@/lib/computer-scope-context";
+import { findComputerById, useComputers } from "@/systems/computers";
 import { alwaysOnMainInstance, useAgentInstances } from "@/systems/agent";
 import type { WorktreePayload } from "@/systems/workspace";
 
@@ -136,6 +139,12 @@ export function useSessionWindowController(input: {
   const instances = useAgentInstances();
   const successorId = sessionSuccessorId(session, instances);
   const linkedWork = useSessionLinkedWork({ session, workspaceId, enabled: liveDataEnabled });
+  const computerId = useCurrentComputerId();
+  const isRemote = isRemoteComputerId(computerId);
+  const computers = useComputers({ enabled: isRemote });
+  const remoteComputer = isRemote ? findComputerById(computers.computers, computerId) : undefined;
+  const remoteOfflineComputerName =
+    isRemote && remoteComputer?.status === "offline" ? remoteComputer.name : null;
 
   useSessionTopbarSlot({
     session,
@@ -207,5 +216,6 @@ export function useSessionWindowController(input: {
     pullRequestExitSurface: pullRequest.exitSurface,
     promptRuntimeSnapshot,
     activityGoal: goal.snapshot,
+    remoteOfflineComputerName,
   };
 }

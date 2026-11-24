@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
+import type { ScopedComputerFailureItem } from "@/systems/computers";
 import { useProfileReadScope } from "@/systems/profiles";
 import {
   useActiveWorkspace,
@@ -19,6 +20,7 @@ import {
   sessionFacetsOptions,
 } from "../lib/session-catalog-options";
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
+import type { SessionRowComputerInfo } from "../lib/session-list-computer";
 import type { SessionListGroupSpec } from "../lib/session-list-groups";
 import {
   availableSessionListGroupBys,
@@ -28,7 +30,8 @@ import {
   type SessionListSort,
 } from "../lib/session-list-preferences";
 import { sessionListShelfFilters } from "../lib/session-list-shelf";
-import type { SessionListFilters } from "../types";
+import type { SessionListFilters, SessionPayload } from "../types";
+import { useRemoteSessionsFanout } from "./use-remote-sessions-fanout";
 import { useSessionGroupFolds } from "./use-session-group-folds";
 import { useSessionListGroups } from "./use-session-list-groups";
 import { useProjectFolderGroups } from "./use-workspace-layout";
@@ -102,6 +105,10 @@ export interface SessionsBoardView {
   focusedWorkspaceId: string | null;
   /** The board's identity for its selection: breadth, profile lens and grouping. */
   selectionKey: string;
+  /** Remote-computer provenance by session ID for merged multi-computer cards (`_uiux.md` U5). */
+  computerBySessionId?: ReadonlyMap<string, SessionRowComputerInfo>;
+  /** Remote computers whose board fan-out failed, rendered in a compact strip above columns. */
+  failedComputers?: readonly ScopedComputerFailureItem[];
 }
 
 function useSessionsBoardPage(filters: SessionListFilters, enabled: boolean): SessionsBoardPage {
@@ -212,6 +219,14 @@ export function useSessionsBoard({
   };
   const base = sessionCatalogScopedFilters(scope, shared, params);
   const columns = useSessionsBoardColumns(base, active && !grouped);
+  const remote = useRemoteSessionsFanout({
+    enabled: active && !grouped,
+    filters: shared,
+  });
+  const mergedColumns = mergeRemoteSessionsIntoBoardColumns(
+    columns,
+    remote.remoteSessions.map(row => row.session)
+  );
   const grouping = useSessionListGroups({
     groupBy: effectiveGroupBy,
     scope,
@@ -242,7 +257,7 @@ export function useSessionsBoard({
 
   return {
     focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
-    columns: grouped ? [] : columns,
+    columns: grouped ? [] : mergedColumns,
     lanes: grouped
       ? arranged.groups.map(group => ({
           group,
@@ -261,5 +276,50 @@ export function useSessionsBoard({
     workspaceNameOf: session =>
       allProjects ? workspaceBadgeIdentity(session.workspace_id, names).name : null,
     selectionKey: JSON.stringify([scope, params, effectiveGroupBy]),
+    computerBySessionId: remote.computerBySessionId,
+    failedComputers: remote.failedComputers,
   };
+}
+
+function deriveBoardColumnForRemote(session: SessionPayload): SessionBoardColumnId {
+  const column = (session as Partial<SessionBoardPayload>).board_column;
+  if (
+    column === "needs_you" ||
+    column === "working" ||
+    column === "waiting" ||
+    column === "in_review" ||
+    column === "done"
+  ) {
+    return column;
+  }
+  if (session.badge === "needs_you") return "needs_you";
+  if (session.state === "running" || session.state === "starting") return "working";
+  return "done";
+}
+
+function mergeRemoteSessionsIntoBoardColumns(
+  columns: SessionsBoardColumnView[],
+  remoteSessions: readonly SessionPayload[]
+): SessionsBoardColumnView[] {
+  if (remoteSessions.length === 0) return columns;
+  const byColumn = new Map<SessionBoardColumnId, SessionBoardPayload[]>();
+  for (const session of remoteSessions) {
+    const columnId = deriveBoardColumnForRemote(session);
+    const list = byColumn.get(columnId) ?? [];
+    list.push({ ...session, board_column: columnId } as SessionBoardPayload);
+    byColumn.set(columnId, list);
+  }
+  return columns.map(column => {
+    const extras = byColumn.get(column.id);
+    if (!extras || extras.length === 0) return column;
+    const seen = new Set(column.sessions.map(item => item.id));
+    const combined = [...column.sessions, ...extras.filter(item => !seen.has(item.id))].sort(
+      (left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at)
+    );
+    return {
+      ...column,
+      sessions: combined,
+      count: column.count !== undefined ? column.count + extras.length : combined.length,
+    };
+  });
 }

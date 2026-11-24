@@ -2,6 +2,21 @@ import { useSelector, useStore } from "@xstate/store-react";
 
 import type { EntityMode } from "@compozy/ui";
 
+import {
+  isRemoteComputerId,
+  normalizeComputerId,
+  type ComputerId,
+} from "@/lib/computer-scope";
+import {
+  findComputerById,
+  useComputers,
+  type RunOnTarget,
+} from "@/systems/computers";
+import type {
+  ComputerFixture,
+  LocalComputerFixture,
+} from "@/systems/computers/mocks/remote-computers-types";
+
 import type { SessionCreateDialogDraft } from "../lib/session-create-draft";
 import { ROOT_ENVIRONMENT_TARGET } from "../lib/session-environment-target";
 import { restorePendingTerminalQuoteAfterFailedCreate } from "../lib/session-terminal-quote";
@@ -60,10 +75,17 @@ export interface SessionCreateDialogState {
   /** True while a submit the operator already asked for waits on its worktree. */
   isAwaitingEnvironment: boolean;
   destinationAxes: SessionCreateDestinationAxes;
+  computerId: ComputerId;
+  computers: readonly ComputerFixture[];
+  localComputer: LocalComputerFixture;
+  computerLocked: boolean;
+  submitDisabled: boolean;
+  offlineComputerName: string | null;
 }
 
 export interface SessionCreateDialogApi extends SessionCreateDialogState {
   onCancelEnvironment: () => void;
+  onComputerChange: (next: RunOnTarget) => void;
   onOpenChange: (open: boolean) => void;
   onModeChange: (mode: EntityMode) => void;
   onAgentChange: (agentName: string) => void;
@@ -94,17 +116,27 @@ export function useSessionCreateDialogViewModel(
   const userHomeDir = useUserHomeDir();
   const flow = useSelector(store, snapshot => snapshot.context);
   const { draft } = flow;
+  const computerId = normalizeComputerId(draft.computerId);
+  const isRemote = isRemoteComputerId(computerId);
+  const computers = useComputers({ enabled: flow.open });
+  const selectedComputer = findComputerById(computers.computers, computerId);
+  const offlineComputerName =
+    isRemote && selectedComputer?.status === "offline" ? selectedComputer.name : null;
+  const submitDisabled =
+    isRemote && selectedComputer !== undefined && selectedComputer.status !== "connected";
   const { isSubmitting, pendingAgentName, pendingWorkspaceId } = pendingCreateOperation(
     flow.operation
   );
   const { pendingSubmit } = flow;
-  // Each opening starts from the prefill; under All projects the picked project
-  // (or User) is the destination, otherwise the project the opening named, else the
+  // Each opening starts from the prefill; under All projects (or a remote computer) the picked
+  // project (or User) is the destination, otherwise the project the opening named, else the
   // menubar destination.
   const target = useSessionCreateTarget({
     resetKey: flow.open,
     focusedBinding,
     seed: flow.target,
+    computerId,
+    open: flow.open,
   });
   const destination = resolveSessionCreateDestination(
     target.projectAxis || target.namedProject
@@ -118,7 +150,13 @@ export function useSessionCreateDialogViewModel(
   );
   // A named project the catalog has not confirmed blocks creation instead of falling back.
   const binding = target.namedProjectUnresolved ? null : destination.binding;
-  const agentList = useSessionCreateAgents({ destination, target, open: flow.open, agents });
+  const agentList = useSessionCreateAgents({
+    computerId,
+    destination,
+    target,
+    open: flow.open,
+    agents,
+  });
   const selectedAgentName = draft.agentName;
   const environment = useSessionEnvironment({
     workspaceId: destination.environmentWorkspaceId,
@@ -129,12 +167,13 @@ export function useSessionCreateDialogViewModel(
       );
       store.trigger.environmentSelected({ environment: next });
     },
-    enabled: flow.open && destination.scope === "project" && binding !== null,
+    enabled: flow.open && !isRemote && destination.scope === "project" && binding !== null,
   });
 
   const submit = useSessionCreateSubmit({
     agents: agentList,
     binding,
+    computerId,
     environment,
     environmentWorkspaceId: destination.environmentWorkspaceId,
     runtimeWorkspaceId: destination.runtimeWorkspaceId,
@@ -171,6 +210,16 @@ export function useSessionCreateDialogViewModel(
     environmentListingState: environment.listingState,
     environmentListingError: environment.listingError,
     isAwaitingEnvironment: pendingSubmit !== null,
+    computerId,
+    computers: computers.computerViews,
+    localComputer: computers.localView,
+    computerLocked: draft.sent || isSubmitting,
+    submitDisabled,
+    offlineComputerName,
+    onComputerChange: next => {
+      if (next === "auto") return;
+      store.trigger.computerSelected({ computerId: next });
+    },
     destinationAxes: {
       ...(target.projectAxis && target.projectValue !== null
         ? {
@@ -223,11 +272,13 @@ function pendingCreateOperation(operation: {
  * the picked profile. The shell's list is reused only when no picker changes the destination.
  */
 function useSessionCreateAgents({
+  computerId,
   destination,
   target,
   open,
   agents,
 }: {
+  computerId: ComputerId;
   destination: ReturnType<typeof resolveSessionCreateDestination>;
   target: ReturnType<typeof useSessionCreateTarget>;
   open: boolean;
@@ -238,10 +289,12 @@ function useSessionCreateAgents({
   const query = useAgents(userTarget ? null : (runtimeWorkspaceId ?? ""), {
     enabled: userTarget ? open : Boolean(runtimeWorkspaceId),
     profile: target.profile,
+    computerId,
   });
   if (query.data) return query.data;
   // The shell's agents belong to its own project: never stand in for another target's.
-  return runtimeWorkspaceId &&
+  return !isRemoteComputerId(computerId) &&
+    runtimeWorkspaceId &&
     !target.projectAxis &&
     !target.profileAxis &&
     !target.namedProject &&

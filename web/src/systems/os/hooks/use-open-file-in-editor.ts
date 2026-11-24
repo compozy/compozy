@@ -1,16 +1,22 @@
 import { useNavigate } from "@tanstack/react-router";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import { useCurrentComputerId } from "@/lib/computer-scope-context";
 import { desktopShellBridge, type OpenInEditorResult } from "../lib/desktop-shell-bridge";
 import { EDITOR_SETTINGS_PATH, reportOpenInEditorResult } from "../lib/open-in-editor-report";
 
 /**
  * Opens a local file in the operator's editor through the desktop shell. `undefined` on
- * browser and remote clients and on shells without the `files` bridge, so the page hides it.
+ * browser and remote sessions/computers (US-012.AC-2, UT-090) and on shells without the
+ * `files` bridge, so the page hides it.
  */
-export function useOpenFileInEditor(): ((path: string) => void) | undefined {
+export function useOpenFileInEditor(
+  computerId?: ComputerId
+): ((path: string) => void) | undefined {
   const navigate = useNavigate();
+  const effectiveComputerId = useCurrentComputerId(computerId);
   const files = desktopShellBridge()?.files;
-  if (!files) return undefined;
+  if (isRemoteComputerId(effectiveComputerId) || !files) return undefined;
   return path => {
     const folder = path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
     void files

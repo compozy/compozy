@@ -52,6 +52,7 @@ func remoteOperatorRoutes(deps *RuntimeDeps) http.Handler {
 		TransportName:                remoteConfigKey,
 		MaskInternalErrors:           true,
 		IncludeSessionWorkspaceInSSE: true,
+		Automation:                   deps.Automation,
 		Sessions:                     deps.Sessions,
 		SessionCatalog:               deps.Registry,
 		SessionHealth:                deps.SessionHealth,
@@ -68,11 +69,22 @@ func remoteOperatorRoutes(deps *RuntimeDeps) http.Handler {
 	return httpapi.NewRemoteRoutes(func(routes *httpapi.RemoteRoutes) {
 		remoteSessions := routes.Group("/api/sessions", remoteproto.ScopeSessions)
 		remoteSessions.GET("", handlers.ListSessions)
+		remoteSessions.GET("/facets", handlers.ListSessionFacets)
 		remoteSessions.POST("", handlers.CreateSession)
 		remoteSessions.GET("/:session_id", handlers.GetSessionByID)
 		remoteSessions.GET("/:session_id/stream", handlers.StreamSession)
 		remoteSessions.GET("/:session_id/status", handlers.GetSessionStatus)
 		remoteSessions.GET("/:session_id/transcript", handlers.SessionTranscript)
+		remoteWorkspaces := routes.Group("/api/workspaces", remoteproto.ScopeSessions)
+		remoteWorkspaces.GET("", handlers.ListWorkspaces)
+		remoteJobs := routes.Group("/api/automation/jobs", remoteproto.ScopeSessions)
+		remoteJobs.GET("", handlers.ListAutomationJobs)
+		remoteJobs.POST("", handlers.CreateAutomationJob)
+		remoteJobs.GET("/:id", handlers.GetAutomationJob)
+		remoteJobs.PATCH("/:id", handlers.UpdateAutomationJob)
+		remoteJobs.DELETE("/:id", handlers.DeleteAutomationJob)
+		remoteJobs.POST("/:id/trigger", handlers.TriggerAutomationJob)
+		remoteJobs.GET("/:id/runs", handlers.AutomationJobRuns)
 		sessions := routes.Group(
 			"/api/workspaces/:workspace_id/sessions",
 			remoteproto.ScopeSessions,

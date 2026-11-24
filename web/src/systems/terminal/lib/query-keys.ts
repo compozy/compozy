@@ -1,40 +1,47 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import type { TerminalJournalFilters, TerminalScopeKey } from "../types";
+
+export function terminalKeysFor(computerId: ComputerId = LOCAL_COMPUTER_ID) {
+  const root = computerQueryKey(computerId, "terminal");
+  return {
+    all: () => root,
+    catalog: (scope: TerminalScopeKey) =>
+      [...root, "catalog", scope.workspaceId, scope.profileKey] as const,
+    /** The All projects list, per Project-filter selection and profile lens. */
+    aggregate: (selection: string, profileKey: string) =>
+      [...root, "aggregate", selection, profileKey] as const,
+    detail: (scope: TerminalScopeKey, terminalId: string) =>
+      [...root, "detail", scope.workspaceId, scope.profileKey, terminalId] as const,
+    read: (scope: TerminalScopeKey, terminalId: string, view: string) =>
+      [...root, "read", scope.workspaceId, scope.profileKey, terminalId, view] as const,
+    inputRequests: (scope: TerminalScopeKey) =>
+      [...root, "input-requests", scope.workspaceId, scope.profileKey] as const,
+    journalScope: (scope: TerminalScopeKey) =>
+      [...root, "journal", scope.workspaceId, scope.profileKey] as const,
+    journal: (scope: TerminalScopeKey, filters: TerminalJournalFilters) =>
+      [
+        ...root,
+        "journal",
+        scope.workspaceId,
+        scope.profileKey,
+        journalFilterKey(terminalJournalFiltersWithDefaults(filters)),
+      ] as const,
+    recording: (scope: TerminalScopeKey, recordingId: string) =>
+      [...root, "recording", scope.workspaceId, scope.profileKey, recordingId] as const,
+    /** Live recording presence, distinct from a downloaded recording artifact. */
+    recordings: (scope: TerminalScopeKey) =>
+      [...root, "recordings", scope.workspaceId, scope.profileKey] as const,
+  } as const;
+}
 
 /**
  * Cache identity for every terminal read.
  *
- * Every key carries `(workspace, profile)`. That is not decoration: terminals
- * are segmented by the profile that opened them, so a key missing either half
- * would let one profile's answer be served to another after a switch.
+ * Every key carries `(computer, workspace, profile)`.
  */
 export const terminalKeys = {
-  all: () => ["terminal"] as const,
-  catalog: (scope: TerminalScopeKey) =>
-    ["terminal", "catalog", scope.workspaceId, scope.profileKey] as const,
-  /** The All projects list, per Project-filter selection and profile lens. */
-  aggregate: (selection: string, profileKey: string) =>
-    ["terminal", "aggregate", selection, profileKey] as const,
-  detail: (scope: TerminalScopeKey, terminalId: string) =>
-    ["terminal", "detail", scope.workspaceId, scope.profileKey, terminalId] as const,
-  read: (scope: TerminalScopeKey, terminalId: string, view: string) =>
-    ["terminal", "read", scope.workspaceId, scope.profileKey, terminalId, view] as const,
-  inputRequests: (scope: TerminalScopeKey) =>
-    ["terminal", "input-requests", scope.workspaceId, scope.profileKey] as const,
-  journalScope: (scope: TerminalScopeKey) =>
-    ["terminal", "journal", scope.workspaceId, scope.profileKey] as const,
-  journal: (scope: TerminalScopeKey, filters: TerminalJournalFilters) =>
-    [
-      "terminal",
-      "journal",
-      scope.workspaceId,
-      scope.profileKey,
-      journalFilterKey(terminalJournalFiltersWithDefaults(filters)),
-    ] as const,
-  recording: (scope: TerminalScopeKey, recordingId: string) =>
-    ["terminal", "recording", scope.workspaceId, scope.profileKey, recordingId] as const,
-  /** Live recording presence, distinct from a downloaded recording artifact. */
-  recordings: (scope: TerminalScopeKey) =>
-    ["terminal", "recordings", scope.workspaceId, scope.profileKey] as const,
+  ...terminalKeysFor(LOCAL_COMPUTER_ID),
+  forComputer: terminalKeysFor,
 } as const;
 
 /** The server's page size. Paging is cursor-driven; there is no total. */

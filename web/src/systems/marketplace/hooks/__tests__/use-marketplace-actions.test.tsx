@@ -73,14 +73,18 @@ describe("marketplace acquisition cache boundaries", () => {
       })
     );
     await waitFor(() =>
-      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] })
+      expect(invalidateQueries).toHaveBeenCalledWith({
+        queryKey: ["computer", "local", "marketplace"],
+      })
     );
     releaseStaleRead(listing(false));
     await waitFor(() => expect(result.current.install.isSuccess).toBe(true));
     await waitFor(() =>
       expect(result.current.listing.data?.pages[0]?.items[0]?.installed).toBe(true)
     );
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["extensions"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "extensions"],
+    });
   });
 
   it("Should update the canonical installed extension and reconcile both cache families", async () => {
@@ -100,7 +104,11 @@ describe("marketplace acquisition cache boundaries", () => {
       allow_unverified: false,
       version: "2.0.0",
     });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["marketplace"] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["extensions"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "marketplace"],
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "extensions"],
+    });
   });
 });

@@ -22,6 +22,8 @@ import {
   useUpdateAutomationTrigger,
 } from "./use-automation-actions";
 import { createWorkspaceEditorLogic, type WorkspaceEditorFailure } from "./automation-editor-store";
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import { useComputerWorkspaces } from "@/systems/computers";
 import { useAgents } from "@/systems/agent";
 
 /** What the save produced: the daemon entity decides the detail route. */
@@ -110,8 +112,22 @@ export function useAutomationEditor({
   const submitError = useSelector(store, snapshot => snapshot.context.submitError);
   const submitErrorField = useSelector(store, snapshot => snapshot.context.submitErrorField);
   const [handle] = useState(createAutomationDialogHandle);
-  // A global automation still addresses the active project's agents.
-  const agentsQuery = useAgents(activeWorkspaceId);
+  const targetComputerId = normalizeComputerId(editor?.draft.computerId);
+  const isRemoteComputer = isRemoteComputerId(targetComputerId);
+  const remoteWorkspacesQuery = useComputerWorkspaces(
+    targetComputerId,
+    editor !== null && isRemoteComputer
+  );
+  const effectiveWorkspaces: ReadonlyArray<WorkspaceOption> | undefined = isRemoteComputer
+    ? (remoteWorkspacesQuery.data?.workspaces ?? [])
+        .filter(workspace => !workspace.archived_at)
+        .map(workspace => ({ id: workspace.id, name: workspace.name }))
+    : workspaces;
+  // A global automation still addresses the active project's agents on the chosen computer.
+  const agentsQuery = useAgents(
+    isRemoteComputer ? (editor?.draft.workspace_id ?? null) : activeWorkspaceId,
+    { computerId: targetComputerId }
+  );
   const createJob = useCreateAutomationJob();
   const updateJob = useUpdateAutomationJob();
   const createTrigger = useCreateAutomationTrigger();
@@ -145,13 +161,13 @@ export function useAutomationEditor({
 
   const openEdit = (
     automation: AutomationJob | AutomationTrigger,
-    { section }: { section?: AutomationEditorSection } = {}
+    { section, computerId }: { section?: AutomationEditorSection; computerId?: ComputerId } = {}
   ) => {
     const isTrigger = "event" in automation;
     open({
       draft: isTrigger
         ? automationTriggerToFormDraft(automation)
-        : automationJobToFormDraft(automation),
+        : automationJobToFormDraft(automation, computerId),
       entity: isTrigger ? "trigger" : "job",
       id: automation.id,
       mode: "edit",
@@ -165,10 +181,12 @@ export function useAutomationEditor({
   const save = async (current: AutomationEditorState): Promise<AutomationSaveResult> => {
     const request = buildAutomationFormRequest(current.draft);
     if (request.entity === "job") {
+      const computerId = normalizeComputerId(current.draft.computerId);
       const automation =
         current.mode === "create"
-          ? await createJob.mutateAsync(request.create)
+          ? await createJob.mutateAsync({ ...request.create, computerId })
           : await updateJob.mutateAsync({
+              computerId,
               data: request.update,
               id: current.id,
               profile: current.profile,
@@ -206,7 +224,7 @@ export function useAutomationEditor({
     agentsError: agentCatalogErrorMessage(agentsQuery.error),
     agentsLoading: agentsQuery.isLoading,
     handle,
-    workspaces,
+    workspaces: effectiveWorkspaces,
     editor: editor
       ? {
           ...editor,

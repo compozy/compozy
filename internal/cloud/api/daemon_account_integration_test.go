@@ -261,9 +261,10 @@ func startDaemonAccountFixture(t *testing.T, f authFixture, home string) (daemon
 }
 
 type daemonAccountBoot struct {
-	keyring *daemonAccountKeyring
-	options []daemon.Option
-	direct  bool
+	keyring    *daemonAccountKeyring
+	options    []daemon.Option
+	direct     bool
+	automation bool
 }
 
 func startConfiguredDaemonAccount(
@@ -307,7 +308,9 @@ func startConfiguredDaemonAccount(
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Automation.Enabled = false
+	if !boot.automation {
+		cfg.Automation.Enabled = false
+	}
 	cfg.HTTP.Host, cfg.HTTP.Port = "127.0.0.1", testutil.FreeTCPPort(t)
 	ring := boot.keyring
 	if ring == nil {

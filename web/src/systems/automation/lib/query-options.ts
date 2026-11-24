@@ -1,4 +1,5 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 
 import {
   getAutomationJob,
@@ -67,13 +68,17 @@ export function automationSuggestionsSourceOptions(
   });
 }
 
-export function automationJobsListOptions(filters: AutomationJobStableFilter = {}) {
+export function automationJobsListOptions(
+  filters: AutomationJobStableFilter = {},
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
   const normalizedFilters = normalizeAutomationJobFilter(filters);
   const population = automationListPopulation(normalizedFilters);
+  const keys = automationKeys.forComputer(computerId);
   return infiniteQueryOptions({
-    queryKey: automationKeys.jobList(normalizedFilters),
+    queryKey: keys.jobList(normalizedFilters),
     queryFn: ({ pageParam, signal }) =>
-      listAutomationJobs(automationJobRequest(normalizedFilters, pageParam), signal),
+      listAutomationJobs(automationJobRequest(normalizedFilters, pageParam), signal, computerId),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     meta: { population },

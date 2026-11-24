@@ -1,4 +1,11 @@
-import { apiClient, apiRequestFailed, daemonFetch, requireResponseData } from "@/lib/api-client";
+import {
+  apiClient,
+  apiClientFor,
+  apiRequestFailed,
+  daemonFetch,
+  requireResponseData,
+  type ComputerId,
+} from "@/lib/api-client";
 
 import type {
   ApproveSessionParams,
@@ -83,9 +90,10 @@ export async function createSession(
   params: CreateSessionParams,
   /** The profile that will own the session. Omitting it files into `default`. */
   profile?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.POST("/api/sessions", {
+  const { data, error, response } = await apiClientFor(computerId).POST("/api/sessions", {
     body: params,
     params: { query: profile ? { profile } : {} },
     signal,
@@ -102,9 +110,10 @@ export async function createSession(
 export async function fetchSession(
   workspaceId: string,
   id: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPayload> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
       params: {

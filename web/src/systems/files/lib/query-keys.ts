@@ -1,3 +1,4 @@
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import type { FileSearchParams, FilesRootRef } from "../adapters/files-api";
 
 function rootKey(root: FilesRootRef): readonly string[] {
@@ -7,7 +8,7 @@ function rootKey(root: FilesRootRef): readonly string[] {
 }
 
 export const filesKeys = {
-  all: ["files"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "files"),
   openTargets: () => [...filesKeys.all, "desktop-open-targets"] as const,
   root: (root: FilesRootRef) => [...filesKeys.all, ...rootKey(root)] as const,
   entriesRoot: (root: FilesRootRef) => [...filesKeys.root(root), "entries"] as const,

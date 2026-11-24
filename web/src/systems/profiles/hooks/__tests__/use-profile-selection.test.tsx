@@ -114,7 +114,7 @@ describe("global profile selection", () => {
 
   it("Should enter a cached choice only once its reread lands, even when the answer is unchanged [#1736]", async () => {
     const { queryClient, wrapper } = createWrapper();
-    queryClient.setQueryData(["profiles", "selection", "global"], {
+    queryClient.setQueryData(["computer", "local", "profiles", "selection", "global"], {
       scope: "global",
       profile: "marketing",
     });
@@ -146,7 +146,7 @@ describe("global profile selection", () => {
     );
     let reread: Promise<void> = Promise.resolve();
     act(() => {
-      reread = queryClient.refetchQueries({ queryKey: ["profiles", "selection", "global"] });
+      reread = queryClient.refetchQueries({ queryKey: ["computer", "local", "profiles", "selection", "global"] });
     });
 
     // The reread lands while the view is held, so it never wakes the hook; then the view clears.
@@ -175,7 +175,7 @@ describe("global profile selection", () => {
       expect(localProfileView()).toEqual({ kind: "profile", profile: "marketing" })
     );
     await waitFor(() =>
-      expect(queryClient.getQueryState(["profiles", "selection", "global"])?.fetchStatus).toBe(
+      expect(queryClient.getQueryState(["computer", "local", "profiles", "selection", "global"])?.fetchStatus).toBe(
         "idle"
       )
     );
@@ -187,10 +187,10 @@ describe("global profile selection", () => {
 
     let reread: Promise<void> = Promise.resolve();
     act(() => {
-      reread = queryClient.refetchQueries({ queryKey: ["profiles", "selection", "global"] });
+      reread = queryClient.refetchQueries({ queryKey: ["computer", "local", "profiles", "selection", "global"] });
     });
     await act(() => new Promise(resolve => setTimeout(resolve, 20)));
-    expect(queryClient.getQueryState(["profiles", "selection", "global"])?.fetchStatus).toBe(
+    expect(queryClient.getQueryState(["computer", "local", "profiles", "selection", "global"])?.fetchStatus).toBe(
       "fetching"
     );
     await act(async () => {
@@ -275,13 +275,13 @@ describe("global profile selection", () => {
 
     // The aggregate rereads the choice while the write is pending; the daemon still answers
     // "marketing", and that answer must not bring it back.
-    await act(() => queryClient.refetchQueries({ queryKey: ["profiles", "selection", "global"] }));
+    await act(() => queryClient.refetchQueries({ queryKey: ["computer", "local", "profiles", "selection", "global"] }));
     expect(result.current.read.destination).toBe("open-design");
 
     vi.mocked(fetchProfileSelection).mockResolvedValue({ scope: "global", profile: "open-design" });
     act(() => settlePut());
     await waitFor(() =>
-      expect(queryClient.getQueryData(["profiles", "selection", "global"])).toEqual({
+      expect(queryClient.getQueryData(["computer", "local", "profiles", "selection", "global"])).toEqual({
         scope: "global",
         profile: "open-design",
       })
@@ -365,7 +365,7 @@ describe("global profile selection", () => {
     });
 
     expect(localProfileView()).toEqual({ kind: "aggregate" });
-    expect(queryClient.getQueryData(["profiles", "selection", "global"])).toEqual({
+    expect(queryClient.getQueryData(["computer", "local", "profiles", "selection", "global"])).toEqual({
       scope: "global",
       profile: "marketing",
     });

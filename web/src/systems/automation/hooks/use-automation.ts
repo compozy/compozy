@@ -1,5 +1,10 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 
+import {
+  mergeAutomationJobPages,
+  useComputers,
+  type ComputerAutomationJobsInput,
+} from "@/systems/computers";
 import {
   automationJobDetailOptions,
   automationJobRunsOptions,
@@ -14,6 +19,7 @@ import {
   flattenAutomationTriggerPages,
 } from "../lib/automation-list-query";
 import type {
+  AutomationJob,
   AutomationJobStableFilter,
   AutomationRunHistoryFilter,
   AutomationRunListFilter,
@@ -26,20 +32,73 @@ interface QueryHookOptions {
   profileScope?: ProfileScopeParams;
 }
 
+export interface AutomationJobComputerMeta {
+  id: string;
+  name: string;
+  offline: boolean;
+}
+
 export function useAutomationJobs(
   filters: AutomationJobStableFilter = {},
   options: QueryHookOptions = {}
 ) {
+  const enabled = options.enabled ?? true;
   // Scope applied at the single list hook, so a switch moves every consumer.
   const { params } = useProfileReadScope();
   const query = useInfiniteQuery({
     ...automationJobsListOptions({ ...filters, ...params }),
-    enabled: options.enabled ?? true,
+    enabled,
   });
+  const computers = useComputers({ enabled });
+  const remoteComputers = computers.enabledComputers;
+  const remoteQueries = useQueries({
+    queries: remoteComputers.map(computer => ({
+      ...automationJobsListOptions({ ...filters, ...params }, computer.id),
+      enabled: enabled && computer.status === "connected",
+    })),
+  });
+
+  const localJobs = flattenAutomationJobPages(query.data);
+  const computerByJobId = new Map<string, AutomationJobComputerMeta>();
+  let jobs: AutomationJob[] = localJobs;
+  let remoteTotal = 0;
+
+  if (remoteComputers.length > 0) {
+    const inputs: ComputerAutomationJobsInput<AutomationJob>[] = [
+      {
+        computer: { id: "local", name: "This computer", status: "connected" },
+        jobs: localJobs,
+      },
+    ];
+    for (let index = 0; index < remoteComputers.length; index++) {
+      const computer = remoteComputers[index];
+      const remoteQuery = remoteQueries[index];
+      if (!computer || !remoteQuery) continue;
+      const remoteJobs = flattenAutomationJobPages(remoteQuery.data);
+      remoteTotal += remoteQuery.data?.pages[0]?.page.total ?? remoteJobs.length;
+      inputs.push({
+        computer: { id: computer.id, name: computer.name, status: computer.status },
+        jobs: remoteJobs,
+      });
+    }
+    const merged = mergeAutomationJobPages(inputs);
+    jobs = merged.map(row => row.job);
+    for (const row of merged) {
+      if (row.computerId !== "local") {
+        computerByJobId.set(row.job.id, {
+          id: row.computerId,
+          name: row.computerName,
+          offline: row.offline,
+        });
+      }
+    }
+  }
+
   return {
     ...query,
-    jobs: flattenAutomationJobPages(query.data),
-    total: query.data?.pages[0]?.page.total ?? 0,
+    jobs,
+    computerByJobId,
+    total: (query.data?.pages[0]?.page.total ?? 0) + remoteTotal,
   };
 }
 

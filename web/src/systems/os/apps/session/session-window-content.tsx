@@ -23,6 +23,7 @@ import { useSessionWindowController } from "./use-session-window-controller";
 import { useSessionWindowDerivedSessions } from "./hooks/use-session-window-derived-sessions";
 import type { useSessionWindowDerive } from "./use-session-window-derive";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
+import { RemoteOfflineComposerBanner } from "@/systems/session/components/remote-offline-composer-banner";
 import { sessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import { requestSessionInspectorSection } from "@/systems/session/hooks/use-session-inspector-focus";
 import {
@@ -201,6 +202,7 @@ export function SessionWindowContent({
     onSendPrompt,
     successorId,
     alwaysOnMain,
+    remoteOfflineComputerName,
   } = page;
   const environmentControl = useRef<SessionEnvironmentControlHandle>(null);
   const deadSession = useForkDeadSession(session, sessionId, workspaceId, sidebar.onSelectSession);
@@ -273,8 +275,8 @@ export function SessionWindowContent({
                       />
                       <SessionReportSendContext value={successorId ? null : onSendPrompt}>
                         <SessionThread
-                          liveDataEnabled={liveDataEnabled}
-                          readOnly={successorId !== null}
+                          liveDataEnabled={liveDataEnabled && remoteOfflineComputerName === null}
+                          readOnly={successorId !== null || remoteOfflineComputerName !== null}
                           sessionId={sessionId}
                           workspaceId={workspaceId}
                           agentName={agentName}
@@ -283,7 +285,7 @@ export function SessionWindowContent({
                           failure={session.failure}
                           statusSession={session}
                           stopCompletionNote={controls.stopCompletionNote}
-                          canPrompt={controls.canPrompt}
+                          canPrompt={controls.canPrompt && remoteOfflineComputerName === null}
                           onCancelPrompt={controls.handleCancelPrompt}
                           onQueuePrompt={controls.handleQueuePrompt}
                           onSteerPrompt={controls.handleSteerPrompt}
@@ -355,6 +357,9 @@ export function SessionWindowContent({
                           )}
                         />
                       </SessionReportSendContext>
+                      {remoteOfflineComputerName ? (
+                        <RemoteOfflineComposerBanner computerName={remoteOfflineComputerName} />
+                      ) : null}
                       {successorId ? (
                         <SupersededNotice
                           onOpenCurrent={() =>

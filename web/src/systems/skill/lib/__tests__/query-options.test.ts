@@ -5,7 +5,7 @@ import { skillDetailOptions, skillShadowsOptions, skillsListOptions } from "../q
 describe("skillsListOptions", () => {
   it("includes workspace and profile in query key", () => {
     const options = skillsListOptions("ws_123", true, "research");
-    expect(options.queryKey).toEqual(["skills", "list", "ws_123", "research"]);
+    expect(options.queryKey).toEqual(["computer", "local", "skills", "list", "ws_123", "research"]);
   });
 
   it("uses an empty workspace as the global scope", () => {
@@ -22,7 +22,15 @@ describe("skillsListOptions", () => {
 describe("skillDetailOptions", () => {
   it("includes name, workspace, and profile in query key", () => {
     const options = skillDetailOptions("my-skill", "ws_123", "research");
-    expect(options.queryKey).toEqual(["skills", "detail", "my-skill", "ws_123", "research"]);
+    expect(options.queryKey).toEqual([
+      "computer",
+      "local",
+      "skills",
+      "detail",
+      "my-skill",
+      "ws_123",
+      "research",
+    ]);
   });
 
   it("is disabled when name is empty", () => {
@@ -44,7 +52,15 @@ describe("skillDetailOptions", () => {
 describe("skillShadowsOptions", () => {
   it("includes name, workspace, and profile in query key", () => {
     const options = skillShadowsOptions("my-skill", "ws_123", "research");
-    expect(options.queryKey).toEqual(["skills", "shadows", "my-skill", "ws_123", "research"]);
+    expect(options.queryKey).toEqual([
+      "computer",
+      "local",
+      "skills",
+      "shadows",
+      "my-skill",
+      "ws_123",
+      "research",
+    ]);
   });
 
   it("is disabled until a name is provided and accepts global scope", () => {

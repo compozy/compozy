@@ -1,9 +1,11 @@
 import {
   apiClient,
+  apiClientFor,
   apiErrorMessage,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
+  type ComputerId,
 } from "@/lib/api-client";
 
 import type {
@@ -117,9 +119,10 @@ function composeAgentApiErrorMessage(fallback: string, response: Response, error
 export async function fetchAgents(
   workspace?: string | null,
   signal?: AbortSignal,
-  profile?: string
+  profile?: string,
+  computerId?: ComputerId
 ): Promise<AgentPayload[]> {
-  const { data, error, response } = await apiClient.GET("/api/agents", {
+  const { data, error, response } = await apiClientFor(computerId).GET("/api/agents", {
     params: { query: { ...agentWorkspaceQuery(workspace), ...(profile ? { profile } : {}) } },
     signal,
   });
