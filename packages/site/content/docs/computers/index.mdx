@@ -1,0 +1,81 @@
+---
+title: Remote Computers
+description: Run coding agents across your laptops, desktops, Linux servers, and phone from one CompozyOS app.
+icon: Monitor
+---
+
+Remote Computers lets one CompozyOS app drive agents across every machine you own. Add a Linux
+server or desktop over SSH without installing the daemon by hand, choose where each new session runs
+with **Run on**, follow sessions from every connected machine in one sidebar and board, and check in
+from your phone browser over a Pro hosted route.
+
+Sessions, prompts, files, and transcripts stay on the computer running the agent. Compozy Cloud
+only coordinates sign-in, plan entitlements, and connection handshakes between your devices.
+
+## Plans
+
+| Plan     | What is included                                                                                                                  |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Free** | Every local feature, unlimited projects and sessions on your own computers, and **1 remote computer** over LAN or SSH.            |
+| **Pro**  | Unlimited remote computers, **hosted routes** from any network (up to 10 at once), phone and browser access, and hosted webhooks. |
+
+See [Pricing](/pricing) for monthly and annual rates, or [Manage Compozy Pro](/docs/account/billing)
+for checkout, plan switching, and refunds.
+
+## Guides in this section
+
+<RouteList>
+  <RouteRow
+    href="/docs/computers/ssh-setup"
+    label="SSH"
+    title="Add a computer over SSH"
+    description="Install, verify, start the background service, and link a Linux or macOS machine from your controller."
+    meta="Start here"
+  />
+  <RouteRow
+    href="/docs/computers/controller"
+    label="Controller"
+    title="Use a linked computer"
+    description="Add account-linked computers, inspect route priority (LAN, SSH, hosted route), enable Auto load balancing, and target computers from CLI or tools."
+    meta="Run on & Auto"
+  />
+  <RouteRow
+    href="/docs/computers/remote-host"
+    label="Host"
+    title="Remote access to this computer"
+    description="Link a computer directly, enable a Pro hosted route for phone and browser access, confirm webhook ingress, and manage device approvals and scopes."
+    meta="Hosted route & Phone"
+  />
+  <RouteRow
+    href="/docs/computers/account"
+    label="Account"
+    title="Sign in to CompozyOS"
+    description="Sign in from the CLI, inspect your account and device trust, and use the local account endpoints."
+    meta="CLI & API"
+  />
+  <RouteRow
+    href="/docs/computers/cloud-service"
+    label="Cloud"
+    title="Compozy Cloud service"
+    description="How Compozy Cloud issues grants, maintains security snapshots, runs hosted tunnels, and processes Stripe billing."
+    meta="Reference"
+  />
+</RouteList>
+
+## Related account guides
+
+- [Why CompozyOS asks you to sign in](/docs/account/sign-in) explains what Compozy Cloud stores,
+  what never leaves your computers, offline use after first sign-in, and account deletion.
+- [Account tokens (CI & headless)](/docs/account/tokens) shows how to unlock local daemon use in CI
+  and headless environments with `COMPOZY_ACCOUNT_TOKEN`.
+- [Manage Compozy Pro](/docs/account/billing) covers browser checkout, switching between monthly and
+  annual billing, and the 14-day refund policy.
+- [Account security and privacy](/docs/account/security) covers recent sign-in notices, product news
+  preferences, and account deletion.
+
+## Source licenses
+
+The CompozyOS daemon, CLI, desktop app, web UI, and shared protocol packages are open source under
+the **MIT License**. The Compozy Cloud service source code (`cmd/compozy-cloud/`,
+`internal/cloud/`, and `infra/cloud-edge/`) is available under the **Functional Source License 1.1
+with the MIT future license (`FSL-1.1-MIT`)**.

@@ -4,6 +4,7 @@ import {
   BuiltIn,
   Community,
   Comparison,
+  Computers,
   Extensibility,
   FinalCta,
   Hero,
@@ -16,7 +17,6 @@ import {
   UseCases,
 } from "@/components/landing";
 import { WebSiteJsonLd } from "@/components/seo/structured-data";
-import { getCurrentRelease } from "@/lib/release/current-release";
 import { countPublishedReleases } from "@/lib/release/release-count";
 import { createPageMetadata, siteConfig } from "@/lib/site-config";
 import type { Metadata } from "next";
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const [release, published] = await Promise.all([getCurrentRelease(), countPublishedReleases()]);
+  const published = await countPublishedReleases();
   const releaseCount = published === 0 ? null : published;
   return (
     // The draft inherits the app's 13.5px/1.5 body; the marketing shell's base is larger.
@@ -53,8 +53,9 @@ export default async function HomePage() {
       <Loops />
       <Automations />
       <Extensibility />
+      <Computers />
       <Comparison />
-      <Install releaseTag={release.tag} />
+      <Install />
       <FinalCta />
     </div>
   );

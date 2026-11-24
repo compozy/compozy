@@ -2,6 +2,7 @@
 
 v0.4.0 is the first stable CompozyOS release. It follows the v0.3.0 beta line, and Homebrew and npm `latest` move from v0.2.15 to v0.4.0.
 
+- **From v0.7.x to v0.8.0:** update in place, then follow [Remote Computers, mandatory sign-in, and Remote Gateway removal](#remote-computers-0-8-0).
 - **From v0.5.0:** update in place, then follow [Stays on is now Always-on](#always-on-vocabulary) before upgrading beyond v0.5.2.
 - **From any v0.3.0 beta:** update in place from the app's Update action or with `compozy update`; no reinstall is needed. The first start applies [User scope and All projects](#user-scope-and-all-projects). Before that, follow [Memory removal](#memory-removal), then [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal), if you are upgrading from a beta that predates them.
 - **From v0.2:** v0.2 has reached end of life and receives no further releases. The numbered sections below describe the v0.2.15 clean-state transition.
@@ -13,6 +14,27 @@ extension contracts, and review behavior do not carry forward automatically.
 
 This guide uses v0.2.15 (`8f8908afd70c731b815e20282bacad05aa026827`) as the legacy baseline.
 Back up your global and workspace `.compozy/` directories before changing installations.
+
+<a id="remote-computers-0-8-0"></a>
+
+## Remote Computers, mandatory sign-in, and Remote Gateway removal (v0.8.0)
+
+v0.8.0 replaces the legacy Remote Gateway with [Remote Computers](https://compozy.com/docs/computers)
+and requires a one-time sign-in with Google or GitHub on official release builds. Read the launch
+post [Compozy 0.8: your agents on all your computers](https://compozy.com/blog/compozy-0-8-remote-computers).
+
+- **Sign in once:** update in place, then sign in with Google or GitHub (`compozy account login` or
+  the desktop app). First sign-in needs an internet connection; local sessions keep working offline
+  after enrollment. See [Why CompozyOS asks you to sign in](https://compozy.com/docs/account/sign-in)
+  and [Account tokens](https://compozy.com/docs/account/tokens) for CI runners.
+- **Remote Gateway removed:** `compozy connect`, `compozy gateway`, `compozy pair`, and
+  `compozy device` are replaced by `compozy computer` and `compozy remote`. App tokens and webhook
+  triggers migrate automatically; triggers whose public base changed require re-confirmation.
+  Former gateway users receive a one-time notice in Settings with a 3-month Pro migration coupon.
+- **Official install methods:** `go install` is removed from official install methods. Use the
+  desktop app, verified installer, Homebrew, npm, or Linux release packages from
+  [compozy.com/download](https://compozy.com/download); source builds are documented in
+  `.github/CONTRIBUTING.md`.
 
 <a id="always-on-vocabulary"></a>
 

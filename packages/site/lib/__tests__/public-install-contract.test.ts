@@ -23,7 +23,6 @@ import {
   VERIFIED_INSTALLER_COMMAND,
   curlEnvInstallCommand,
   curlPinnedInstallCommand,
-  goInstallCommand,
 } from "../release/install-commands";
 
 vi.mock("../release/current-release", () => ({
@@ -38,6 +37,7 @@ const migrationPagePath = resolve(siteRoot, "content/docs/migration/index.mdx");
 const launchPostPath = resolve(siteRoot, "content/blog/posts/introducing-compozyos.mdx");
 const landingContentPath = resolve(siteRoot, "components/landing/content.ts");
 const readmePath = resolve(repoRoot, "README.md");
+const contributingPath = resolve(repoRoot, ".github/CONTRIBUTING.md");
 const rootMigrationGuidePath = resolve(repoRoot, "MIGRATION_GUIDE.md");
 const homebrewNoticePath = resolve(repoRoot, "docs/release/homebrew-beta-notice.md");
 const releaseHeaderPath = resolve(repoRoot, ".goreleaser.release-header.md.tmpl");
@@ -683,10 +683,11 @@ exit 23
     expect(offenders).toEqual([]);
   });
 
-  it("keeps living install surfaces on the dynamic release contract", () => {
+  it("keeps living install surfaces on the dynamic release contract without go install", () => {
     const installPage = readSiteFile(installPagePath);
     const launchPost = readSiteFile(launchPostPath);
     const readme = readSiteFile(readmePath);
+    const contributing = readSiteFile(contributingPath);
     const landing = readSiteFile(landingContentPath);
 
     for (const command of [VERIFIED_INSTALLER_COMMAND, NPM_INSTALL_COMMAND]) {
@@ -696,11 +697,14 @@ exit 23
       expect(missingPrimaryCommand, command).toEqual([]);
     }
 
-    for (const method of ["curl-pinned", "curl-env", "go"]) {
+    for (const method of ["curl-pinned", "curl-env"]) {
       expect(installPage, method).toContain(`<InstallCommand method="${method}" />`);
     }
+    expect(installPage).not.toContain('<InstallCommand method="go" />');
+    expect(installPage).not.toContain("go install");
+    expect(installPage).not.toContain(sourceInstallCommand);
+    expect(installPage).toContain("compozy account login");
     expect(installPage).toContain("<CurrentReleaseTag />");
-    expect(installPage).toContain(sourceInstallCommand);
     expect(installPage).toContain("pinned temporary cosign verifier");
     expect(installPage).toContain("checksums.txt.sigstore.json");
     // --version/--dir and the env-var trio reach readers through the generated
@@ -716,16 +720,20 @@ exit 23
     expect(curlEnvInstallCommand(resolvedRouteTag)).toContain(
       `COMPOZY_VERSION=${resolvedRouteTag}`
     );
-    expect(goInstallCommand(resolvedRouteTag)).toBe(
-      `go install github.com/compozy/compozy@${resolvedRouteTag}`
-    );
 
-    expect(readme).toContain("go install github.com/compozy/compozy@");
+    // ADR-014 §3: go install is removed from official install methods; source builds live only in
+    // the contributor guide and state that they are development builds without the sign-in gate.
+    expect(readme).not.toContain("go install github.com/compozy/compozy@");
     expect(readme).toContain(latestReleaseUrl);
+    expect(readme).toContain("compozy account login");
     expect(readme).toContain(firstSessionCommand);
+    expect(contributing).toContain(sourceInstallCommand);
+    expect(contributing).toContain("development builds");
+    expect(contributing).toContain("sign-in gate");
     // The landing renders the shared install constants instead of copying them.
     expect(landing).toContain('from "@/lib/release/install-commands"');
     expect(landing).toContain('command: "compozy install"');
+    expect(landing).toContain('command: "compozy account login"');
     expect(landing).toContain(firstSessionCommand);
     for (const guidePath of [rootMigrationGuidePath, migrationPagePath]) {
       expect(readSiteFile(guidePath)).toContain(latestReleaseUrl);
@@ -742,12 +750,11 @@ exit 23
 
     for (const content of [readme, header]) {
       expect(content).toContain(NPM_INSTALL_COMMAND);
-      expect(content).toContain("go install github.com/compozy/compozy@");
+      expect(content).not.toContain("go install github.com/compozy/compozy@");
       expect(content).toContain(VERIFIED_INSTALLER_COMMAND);
     }
     expect(readme).toContain("brew install compozy/compozy/compozy");
     expect(readme).not.toContain("@compozy/cli@beta");
-    expect(header).toContain(goInstallCommand("{{ .Tag }}"));
     expect(footer).toContain("github\\.com/compozy/compozy/");
     expect(cliff).toContain("github.com/compozy/compozy/compare/");
   });

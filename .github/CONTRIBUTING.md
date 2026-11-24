@@ -17,6 +17,22 @@ make test       # Go unit tests (race detector on)
 make web-dev    # run the web UI locally
 ```
 
+### Building from source
+
+To compile a local `compozy` binary directly from a checkout:
+
+```bash
+git clone https://github.com/compozy/compozy
+cd compozy
+go build -o ./bin/compozy .
+export PATH="$PWD/bin:$PATH"
+```
+
+Source builds are **development builds**: they run without the mandatory sign-in gate and without
+Compozy Cloud features (`version.SignInRequired` is stamped only on official release builds). Official
+end-user install methods (desktop app, verified installer, Homebrew, npm, and Linux packages) are
+documented at [compozy.com/download](https://compozy.com/download).
+
 ## Quality gates
 
 - `make gate` — runs the checks affected by your diff. Run it before every push.
