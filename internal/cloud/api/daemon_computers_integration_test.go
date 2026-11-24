@@ -120,10 +120,10 @@ func startComputerController(
 }
 
 func startSessionComputer(
-	t *testing.T, f authFixture, home string, withACP bool,
+	t *testing.T, f authFixture, home string, withACP bool, options ...daemon.Option,
 ) (daemonAccountFixture, *daemonAccountKeyring) {
 	t.Helper()
-	boot := daemonAccountBoot{direct: true}
+	boot := daemonAccountBoot{direct: true, options: options}
 	if withACP {
 		configureComputerACP(t, home)
 	}
@@ -226,7 +226,9 @@ func expectComputerSessions(t *testing.T, reply authReply, want []string) {
 func addFixtureForward(t *testing.T, registry *computers.Registry, id remoteproto.ComputerID) {
 	t.Helper()
 	err := registry.AddSSHRoute(t.Context(), id, store.ComputerRoute{
-		Kind: remoteproto.RouteSSH, Address: "fixture@testhost", SSH: &store.ComputerSSHTarget{User: "fixture", Port: 22},
+		Kind:    remoteproto.RouteSSH,
+		Address: "fixture@testhost",
+		SSH:     &store.ComputerSSHTarget{User: "fixture", Port: 22},
 	})
 	if err != nil {
 		t.Fatal(err)

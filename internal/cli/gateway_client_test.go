@@ -311,49 +311,35 @@ func TestGatewayClientTargetConstructionAndMatrix(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refuse local-only operations before network I/O [UT-102]", func(t *testing.T) {
+	// The transport forwards operator operations and keeps local agent identity off the wire.
+	t.Run("Should send remote operator calls without local agent credentials", func(t *testing.T) {
 		t.Parallel()
 		target, err := GatewayClientTarget("remote", "gateway.example", 443, testGatewayCredential('l'))
 		if err != nil {
 			t.Fatalf("GatewayClientTarget() error = %v", err)
 		}
 		var calls atomic.Int32
-		transport := roundTripperFunc(func(*http.Request) (*http.Response, error) {
-			calls.Add(1)
-			return newHTTPResponse(http.StatusOK, `{}`), nil
-		})
-		client := &daemonClient{
-			target:       target,
-			httpClient:   &http.Client{Transport: transport},
-			streamClient: &http.Client{Transport: transport},
-		}
-		localOnly := []struct {
-			method string
-			path   string
-		}{
-			{method: http.MethodPost, path: "/api/agent/tasks/claim-next"},
-			{method: http.MethodPost, path: "/api/tasks/task-1/runs"},
-			{method: http.MethodPost, path: "/api/task-runs/run-1/complete"},
-			{method: http.MethodPost, path: "/api/runs/run-1/retry"},
-			{method: http.MethodPost, path: "/api/runs/bulk/release"},
-			{method: http.MethodGet, path: "/api/scheduler"},
-			{method: http.MethodPut, path: "/api/resources/skills/coder"},
-			{method: http.MethodPost, path: "/api/internal/mcp/call"},
-		}
-		for _, operation := range localOnly {
-			err = client.doJSON(t.Context(), operation.method, operation.path, nil, nil, nil)
-			assertGatewayClientErrorCode(t, err, "gateway_local_only_operation")
-		}
-		err = client.doSSE(
+		client := &daemonClient{target: target, httpClient: &http.Client{Transport: roundTripperFunc(
+			func(request *http.Request) (*http.Response, error) {
+				calls.Add(1)
+				if request.Header.Get(agentidentity.HeaderSessionID) != "" ||
+					request.Header.Get(agentidentity.HeaderAgent) != "" {
+					t.Error("local agent caller identity traveled to another daemon")
+				}
+				return newHTTPResponse(http.StatusOK, `{}`), nil
+			},
+		)}}
+		ctx := withClientAgentCredentials(
 			t.Context(),
-			"/api/internal/hosted-mcp/projection/stream",
-			nil,
-			"",
-			func(SSEEvent) error { return nil },
+			agentidentity.Credentials{SessionID: "local-session", AgentName: "coder"},
 		)
-		assertGatewayClientErrorCode(t, err, "gateway_local_only_operation")
-		if calls.Load() != 0 {
-			t.Fatalf("transport calls = %d, want 0", calls.Load())
+		for _, path := range []string{"/api/tasks/task-1/runs", "/api/scheduler/pause", "/api/workspaces/ws/terminals"} {
+			if err := client.doJSON(ctx, http.MethodPost, path, nil, nil, nil); err != nil {
+				t.Fatalf("POST %s: %v", path, err)
+			}
+		}
+		if calls.Load() != 3 {
+			t.Fatalf("transport calls = %d, want 3", calls.Load())
 		}
 	})
 

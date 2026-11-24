@@ -4,6 +4,10 @@ import "github.com/gin-gonic/gin"
 
 func registerAppSDKRoutes(api gin.IRouter, handlers *Handlers) {
 	api.GET("/openapi.json", handlers.GetOpenAPIDocument)
+	registerAppTokenRoutes(api, handlers)
+}
+
+func registerAppTokenRoutes(api gin.IRouter, handlers *Handlers) {
 	tokens := api.Group("/app-tokens")
 	privileged := handlers.privilegedMutationGuard()
 	tokens.POST("", privileged, handlers.CreateAppToken)

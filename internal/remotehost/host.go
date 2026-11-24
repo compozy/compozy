@@ -61,6 +61,7 @@ type HostOptions struct {
 	Persist            func(context.Context, Patch, func(config.RemoteConfig) error) error
 	InstallCloudflared func(context.Context, string) (string, error)
 	SyncIngress        func(context.Context, ingress.RemoteEndpoint) error
+	WrapTunnelHandler  func(http.Handler) http.Handler
 }
 
 type Patch struct {

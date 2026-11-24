@@ -22,10 +22,5 @@ func (d *Daemon) prepareServerDependencies(ctx context.Context, state *bootState
 			installer.SetGoalCommandHandler(handler)
 		}
 	}
-	if state.remoteOperator != nil {
-		// Rebuild the remote operator router once late-booted dependencies
-		// (worktrees, automation) have been wired into state.deps.
-		state.remoteOperator.swap(remoteOperatorRoutes(&state.deps))
-	}
 	return ctx.Err()
 }

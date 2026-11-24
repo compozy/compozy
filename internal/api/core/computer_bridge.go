@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/computers"
 	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -33,11 +32,7 @@ func AliasLocalComputer(next http.Handler) http.Handler {
 
 func (h *BaseHandlers) BridgeComputer(c *gin.Context) {
 	if p, remote := remotehost.PrincipalFromContext(c.Request.Context()); remote {
-		code, message := "remote_bridge_not_transitive", "A remote connection cannot reach another computer."
-		if p.Browser {
-			code, message = "remote_bridge_browser_denied", "Open the computer from its own address."
-		}
-		c.AbortWithStatusJSON(http.StatusForbidden, contract.ErrorPayload{Code: code, Error: message})
+		RespondRemoteError(c, remotehost.OperatorRouteRejection(c.Request.URL.Path, p.Browser))
 		return
 	}
 	request := c.Request

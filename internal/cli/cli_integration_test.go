@@ -1350,7 +1350,7 @@ func TestRemoteCLIProfilesIntegrationIT060ThroughIT066(t *testing.T) {
 		localOnlyErr := reconnected.(*daemonClient).doJSON(
 			t.Context(), http.MethodPost, "/api/agent/tasks/claim-next", nil, struct{}{}, nil,
 		)
-		assertGatewayClientErrorCode(t, localOnlyErr, "gateway_local_only_operation")
+		assertGatewayKernelNotMounted(t, localOnlyErr)
 
 		_, err = remoteGateway.RevokeGatewayDevice(t.Context(), state.deviceID)
 		if err != nil {
@@ -1381,6 +1381,15 @@ func TestRemoteCLIProfilesIntegrationIT060ThroughIT066(t *testing.T) {
 			t.Fatalf("credential file after remove error = %v, want not-exist", err)
 		}
 	})
+}
+
+// The authenticated gateway's route table is the authority for kernel access.
+func assertGatewayKernelNotMounted(t *testing.T, err error) {
+	t.Helper()
+	apiErr, ok := errors.AsType[*daemonAPIError](err)
+	if !ok || apiErr.statusCode != http.StatusNotFound {
+		t.Fatalf("remote kernel request = %T %v, want HTTP 404", err, err)
+	}
 }
 
 type remoteCLIIntegrationState struct {

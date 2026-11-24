@@ -129,14 +129,19 @@ func configureComputerACP(t *testing.T, home string) {
 		filepath.Dir(file),
 		"../../testutil/acpmock/testdata/browser_session_messages_fixture.json",
 	)
+	registerComputerACP(t, home, acpmock.RegisterOptions{
+		FixturePath: fixture, FixtureAgent: "session-message-receiver", AgentName: computerFixtureAgent,
+		ProviderName: acpmock.ProviderName,
+	})
+}
+
+func registerComputerACP(t *testing.T, home string, options acpmock.RegisterOptions) {
+	t.Helper()
 	paths, err := config.ResolveHomePathsFrom(home)
 	if err != nil {
 		t.Fatal(err)
 	}
-	registration, err := acpmock.Register(paths, acpmock.RegisterOptions{
-		FixturePath: fixture, FixtureAgent: "session-message-receiver", AgentName: computerFixtureAgent,
-		ProviderName: acpmock.ProviderName,
-	})
+	registration, err := acpmock.Register(paths, options)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -148,15 +148,8 @@ func (h *BaseHandlers) InvokeTool(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var req contract.ToolInvokeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.respondToolError(c, toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			id,
-			fmt.Sprintf("%s: decode tool invoke request: %v", h.transportName(), err),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
-			toolspkg.ReasonSchemaInvalid,
-		))
+	req, ok := h.bindToolInvoke(c, id)
+	if !ok {
 		return
 	}
 	scope, err := h.resolveOperatorToolScope(c)
@@ -291,6 +284,7 @@ func ToolsetPayloadFromView(view toolspkg.ToolsetView) contract.ToolsetPayload {
 // toolDescriptorPayload detaches registry-owned descriptor data from transport DTOs.
 func toolDescriptorPayload(d *toolspkg.Descriptor) contract.ToolDescriptorPayload {
 	presentation := d.Presentation()
+	metadata := d.ExecutionMetadata()
 	return contract.ToolDescriptorPayload{
 		Access:              string(toolspkg.AccessOf(*d)),
 		CheckInWritable:     d.CheckInWritable(),
@@ -302,18 +296,19 @@ func toolDescriptorPayload(d *toolspkg.Descriptor) contract.ToolDescriptorPayloa
 		Description:         d.Description,
 		InputSchema:         cloneRawMessage(d.InputSchema),
 		OutputSchema:        cloneRawMessage(d.OutputSchema),
-		OutputViews:         d.ResultViews(),
+		OutputViews:         metadata.OutputViews,
 		InputSchemaDigest:   d.InputSchemaDigest,
 		OutputSchemaDigest:  d.OutputSchemaDigest,
 		Source:              toolSourcePayload(d.Source),
 		Visibility:          d.Visibility,
 		Risk:                d.Risk,
+		RemoteScope:         metadata.RemoteScope,
 		ReadOnly:            d.ReadOnly,
 		Destructive:         d.Destructive,
 		OpenWorld:           d.OpenWorld,
 		RequiresInteraction: d.RequiresInteraction,
 		ConcurrencySafe:     d.ConcurrencySafe,
-		MaxResultBytes:      d.ExecutionMetadata().MaxResultBytes,
+		MaxResultBytes:      metadata.MaxResultBytes,
 		Toolsets:            append([]toolspkg.ToolsetID(nil), d.Toolsets...),
 		Tags:                append([]string(nil), d.Tags...),
 		SearchHints:         append([]string(nil), d.SearchHints...),

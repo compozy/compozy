@@ -41,6 +41,10 @@ func (h listenerHandler) guardHosted(next http.Handler) http.Handler {
 			http.NotFound(w, req)
 			return
 		}
+		if err := RejectClaimToken(req); err != nil {
+			writeFailure(w, err)
+			return
+		}
 		mode := h.run.hostedEntitlement(view)
 		if req.Method == http.MethodGet && req.URL.Path == remoteproto.BrowserStatusPath {
 			state := view.status.State
@@ -56,9 +60,8 @@ func (h listenerHandler) guardHosted(next http.Handler) http.Handler {
 			writeFailure(w, ErrPlanRequired)
 			return
 		}
-		if strings.HasPrefix(req.URL.Path, "/c/") {
-			writeFailure(w, &Failure{http.StatusForbidden, "remote_bridge_browser_denied",
-				"A browser can only access the computer that served it.", nil})
+		if err := OperatorRouteRejection(req.URL.Path, true); err != nil {
+			writeFailure(w, err)
 			return
 		}
 		if mode != remoteproto.HostedTunnelActive && req.URL.Path != DescriptorPath {

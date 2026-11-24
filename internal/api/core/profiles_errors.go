@@ -82,12 +82,3 @@ func isProfileDomainError(err error) bool {
 		errors.Is(err, profilepkg.ErrNotFound) || errors.Is(err, profilepkg.ErrArchived) ||
 		errors.Is(err, profilepkg.ErrUnavailable)
 }
-
-// ProfileRemoteWriteForbidden rejects profile-state writes on paired listeners.
-func (h *BaseHandlers) ProfileRemoteWriteForbidden(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusForbidden, contract.ProfileErrorPayload{Error: contract.ProfileError{
-		Code:    profileRemoteManagementForbiddenCode,
-		Message: "profile management is available only on the local Compozy surface",
-		Action:  "manage profiles from the local CLI or desktop app",
-	}})
-}

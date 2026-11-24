@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"log/slog"
 	"os"
@@ -217,6 +218,7 @@ type Daemon struct {
 
 	accountOptions         []account.Option
 	computersOptions       []computers.Option
+	wrapRemoteTunnel       func(http.Handler) http.Handler
 	sshSetupOptions        sshsetup.Options
 	installCloudflared     func(context.Context, string) (string, error)
 	homePaths              compozyconfig.HomePaths
