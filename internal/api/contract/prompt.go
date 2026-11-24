@@ -7,6 +7,8 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+const PromptResponseFormatResult = "result"
+
 // PromptMode selects how prompt input is handled while the session is busy.
 type PromptMode string
 

@@ -353,13 +353,7 @@ func (c *daemonClient) SendSessionPrompt(
 	id string,
 	request SessionPromptRequest,
 ) (SessionPromptRecord, error) {
-	query := url.Values{}
-	query.Set(cliFormatKey, "raw")
-	path, err := c.sessionScopedPath(ctx, id, "/prompt")
-	if err != nil {
-		return SessionPromptRecord{}, err
-	}
-	return c.doSessionPrompt(ctx, http.MethodPost, path, query, request)
+	return c.SendSessionPromptAs(ctx, id, request, agentidentity.Credentials{})
 }
 
 // SendSessionPromptAs sends a prompt on behalf of a validated agent session identity, which stamps the
@@ -370,12 +364,15 @@ func (c *daemonClient) SendSessionPromptAs(
 	request SessionPromptRequest,
 	credentials agentidentity.Credentials,
 ) (SessionPromptRecord, error) {
-	query := url.Values{}
-	query.Set(cliFormatKey, "raw")
 	path, err := c.sessionScopedPath(ctx, id, "/prompt")
 	if err != nil {
 		return SessionPromptRecord{}, err
 	}
+	format := "raw"
+	if c.target.computerID != "" {
+		format = contract.PromptResponseFormatResult
+	}
+	query := url.Values{cliFormatKey: {format}}
 	return c.doSessionPromptAs(ctx, http.MethodPost, path, query, request, credentials)
 }
 
