@@ -87,7 +87,7 @@ func previewExtensionInstallOperationSpec() OperationSpec {
 			{
 				Status:      422,
 				Description: "Extension trust decision, dependency graph refusal, or package validation failure",
-				Bodies: responseBodiesOf(
+				Bodies: overlappingResponseBodiesOf(
 					responseBodyOf[contract.ErrorPayload](),
 					responseBodyOf[contract.ExtensionOperationErrorPayload](),
 					responseBodyOf[contract.ExtensionValidationErrorPayload](),
@@ -412,7 +412,7 @@ func removeExtensionOperationSpec() OperationSpec {
 			{
 				Status:      409,
 				Description: "Extension is in use, or experimental: an installed dependent still needs it",
-				Bodies: responseBodiesOf(
+				Bodies: overlappingResponseBodiesOf(
 					responseBodyOf[contract.ErrorPayload](), responseBodyOf[contract.ExtensionOperationErrorPayload](),
 				),
 			},

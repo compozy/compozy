@@ -7340,18 +7340,20 @@ func addExtensionDependencyGuardFields(t *testing.T, baseline, current, componen
 	oldRemove["parameters"] = slices.Insert(parameters, afterPermanent, any(map[string]any{
 		"name": "force", "in": "query", "schema": map[string]any{"type": "boolean"},
 	}))
-	conflict := func(operation map[string]any) map[string]any {
-		return operation["responses"].(map[string]any)["409"].(map[string]any)["content"].(map[string]any)
+	responseMedia := func(operation map[string]any, status string) map[string]any {
+		response := operation["responses"].(map[string]any)[status].(map[string]any)
+		return response["content"].(map[string]any)["application/json"].(map[string]any)
 	}
-	conflict(oldRemove)["application/json"] = inlineSchemaRefs(conflict(newRemove)["application/json"], components)
-	// B-8: preview's 422 also carries the operation error shape of trust and dependency graph refusals.
-	unprocessable := func(paths map[string]any) map[string]any {
-		operation := paths["/api/extensions/preview-install"].(map[string]any)["post"].(map[string]any)
-		return operation["responses"].(map[string]any)["422"].(map[string]any)["content"].(map[string]any)
+	// Both new alternatives can also match the generic error schema, so these unions use anyOf.
+	operationError := inlineSchemaRefs(components["ExtensionOperationErrorPayload"], components)
+	genericError := inlineSchemaRefs(components["ErrorPayload"], components)
+	conflict := responseMedia(oldRemove, "409")
+	conflict["schema"] = map[string]any{"anyOf": []any{conflict["schema"], operationError}}
+	oldPreview := oldPaths["/api/extensions/preview-install"].(map[string]any)["post"].(map[string]any)
+	unprocessable := responseMedia(oldPreview, "422")
+	unprocessable["schema"] = map[string]any{
+		"anyOf": []any{genericError, operationError, unprocessable["schema"]},
 	}
-	unprocessable(oldPaths)["application/json"] = inlineSchemaRefs(
-		unprocessable(newPaths)["application/json"], components,
-	)
 }
 
 func addSchemaPropertiesBySignature(
