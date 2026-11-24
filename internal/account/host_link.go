@@ -27,7 +27,7 @@ func (s *Service) restoreHostLink(ctx context.Context) error {
 		}
 	}
 	switch s.installation.SignedOutReason {
-	case reasonAccountSuspended, reasonAccountDeleted, "computer_unlinked", "signed_out":
+	case reasonAccountSuspended, reasonAccountDeleted, "computer_unlinked", string(SignedOut):
 		return nil
 	default:
 		return s.useHostLinkLocked(ctx)
@@ -112,11 +112,11 @@ func (s *Service) ObserveHostLink(ctx context.Context, id, reason string) error 
 		if s.installation.State != ReauthRequired || s.installation.SignedOutReason != reason {
 			return s.signedOutLocked(ctx, ReauthRequired, reason)
 		}
-	case "computer_unlinked", reasonAccountDeleted, "signed_out":
+	case "computer_unlinked", reasonAccountDeleted, string(SignedOut):
 		if s.installation.Source == SourceLink || s.installation.State == ReauthRequired ||
 			reason == reasonAccountDeleted {
 			state := ReauthRequired
-			if reason == "signed_out" {
+			if reason == string(SignedOut) {
 				state = SignedOut
 			}
 			if err := s.signedOutLocked(ctx, state, reason); err != nil {

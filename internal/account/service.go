@@ -236,7 +236,7 @@ func (s *Service) Logout(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.signedOutLocked(s.ctx, SignedOut, "signed_out"); err != nil {
+	if err := s.signedOutLocked(s.ctx, SignedOut, string(SignedOut)); err != nil {
 		return err
 	}
 	s.token = ""
