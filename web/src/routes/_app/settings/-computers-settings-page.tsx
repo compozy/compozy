@@ -106,6 +106,7 @@ export function ComputersSettingsPage() {
           onRequestRevokeDevice={view.setRevokeTarget}
           onRequestToggleRunAgents={view.handleRequestToggleRunAgents}
           onToggleDeviceScope={view.handleToggleLocalDeviceScope}
+          onToggleHostedRoute={view.handleToggleHostedRoute}
           onToggleRemoteEnabled={view.handleToggleRemoteEnabled}
           onToggleRequireApproval={view.handleToggleRequireApproval}
           pendingApprovals={view.localPendingApprovals}

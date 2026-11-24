@@ -4,6 +4,12 @@ import type { paths as compozyPaths } from "@compozy/client";
 import { createClientId } from "./client-id";
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, normalizeComputerId } from "./computer-scope";
 import { reportGatewayResponse } from "./gateway-access-signal";
+import {
+  buildBrowserDPoP,
+  isHostedBrowserMode,
+  reportHostedBrowserResponse,
+  shouldAttachBrowserDPoP,
+} from "./hosted-browser-auth";
 
 export { LOCAL_COMPUTER_ID, type ComputerId } from "./computer-scope";
 
@@ -54,18 +60,49 @@ function applyTraceparent(url: string, headers: Headers): void {
   }
 }
 
+async function fetchWithHostedDPoP(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  if (input instanceof Request && init === undefined) {
+    applyTraceparent(input.url, input.headers);
+    if (!input.headers.has("DPoP")) {
+      input.headers.set("DPoP", await buildBrowserDPoP(input.method || "GET", input.url));
+    }
+    const response = await globalThis.fetch(input);
+    await reportHostedBrowserResponse(response);
+    return response;
+  }
+  const url = input instanceof Request ? input.url : String(input);
+  const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+  const headers = new Headers(
+    init?.headers ?? (input instanceof Request ? input.headers : undefined)
+  );
+  applyTraceparent(url, headers);
+  if (!headers.has("DPoP")) {
+    headers.set("DPoP", await buildBrowserDPoP(method, url));
+  }
+  const response = await globalThis.fetch(input, { ...init, headers });
+  await reportHostedBrowserResponse(response);
+  return response;
+}
+
 /**
  * The web client's only `fetch` for daemon requests: `apiClient`, adapters that call the daemon
- * directly, prompt streaming, and raw `Request`s. It applies the traceparent rule, keeps the
- * caller's `(input, init)` shape, and delegates through `globalThis.fetch` at call time so tests
- * can stub it after module import (openapi-fetch captures its fetch at client creation).
+ * directly, prompt streaming, and raw `Request`s. It applies the traceparent rule, attaches a
+ * per-request browser DPoP proof on hosted origins, keeps the caller's `(input, init)` shape,
+ * and delegates through `globalThis.fetch` at call time so tests can stub it after module import
+ * (openapi-fetch captures its fetch at client creation).
  */
 export const daemonFetch: typeof globalThis.fetch = (input, init) => {
+  const url = input instanceof Request ? input.url : String(input);
+  if (shouldAttachBrowserDPoP(url)) {
+    return fetchWithHostedDPoP(input, init);
+  }
   if (input instanceof Request && init === undefined) {
     applyTraceparent(input.url, input.headers);
     return globalThis.fetch(input);
   }
-  const url = input instanceof Request ? input.url : String(input);
   const headers = new Headers(
     init?.headers ?? (input instanceof Request ? input.headers : undefined)
   );
@@ -80,7 +117,11 @@ function attachClientMiddleware(client: Client<compozyPaths>): Client<compozyPat
       return request;
     },
     async onResponse({ response }) {
-      await reportGatewayResponse(response);
+      if (isHostedBrowserMode()) {
+        await reportHostedBrowserResponse(response);
+      } else {
+        await reportGatewayResponse(response);
+      }
       return undefined;
     },
   });

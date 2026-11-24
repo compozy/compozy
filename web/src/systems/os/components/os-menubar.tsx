@@ -80,6 +80,8 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
    * losing mark + toggle + chip.
    */
   scopeControl?: React.ReactNode;
+  /** Hosted browser computer picker + Sign out control (present on `*.compozy.run`). */
+  hostedControl?: React.ReactNode;
   /** Desktop pager, the first control of the trailing tray (shell wiring). */
   pager?: React.ReactNode;
   /**
@@ -224,6 +226,7 @@ export function OsMenuBar({
   logoMenu,
   workspaceMenu,
   scopeControl,
+  hostedControl,
   wrapBellTrigger,
   pager,
   usageControl,
@@ -293,6 +296,7 @@ export function OsMenuBar({
             ) : (
               workspaceControl
             )}
+            {hostedControl ? <div className="ml-1 flex items-center">{hostedControl}</div> : null}
           </div>
           {menus ? (
             <>

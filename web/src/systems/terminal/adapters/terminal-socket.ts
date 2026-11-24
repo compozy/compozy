@@ -1,13 +1,14 @@
 /**
  * The terminal stream socket.
  *
- * Terminals are a local surface in v1 — remote/gateway terminal access is an
- * explicit non-goal — so this deliberately does not go through the gateway
- * stream-ticket path: that helper spends the same `?ticket=` parameter the
- * terminal attach pass already owns, and a second authority on one query
- * parameter is how a stream ends up authorised as the wrong thing.
+ * Local listeners use the terminal's own `?ticket=` attach pass directly.
+ * Hosted browser origins additionally mint a single-use `?remote_ticket=` via
+ * `POST /remote/v1/stream-tickets`, keeping the two parameters distinct so the
+ * hosted listener authenticates the upgrade without colliding with `?ticket=`.
  */
 
+import { acquireHostedStreamTicket, appendHostedStreamTicket } from "@/lib/gateway-stream-auth";
+import { isHostedBrowserMode } from "@/lib/hosted-browser-auth";
 import { TERMINAL_SUBPROTOCOL, type TerminalFrameBytes } from "../lib/terminal-wire";
 
 export interface TerminalSocket {
@@ -21,7 +22,74 @@ export interface TerminalSocket {
 
 export type TerminalSocketFactory = (path: string) => TerminalSocket;
 
+class HostedTerminalSocket implements TerminalSocket {
+  onopen: ((event: Event) => void) | null = null;
+  onmessage: ((event: MessageEvent<unknown>) => void) | null = null;
+  onclose: ((event: CloseEvent) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+
+  private native: WebSocket | null = null;
+  private readonly controller = new AbortController();
+  private closed = false;
+
+  constructor(private readonly path: string) {
+    void this.connect();
+  }
+
+  close(code?: number, reason?: string): void {
+    this.closed = true;
+    this.controller.abort();
+    const native = this.native;
+    this.native = null;
+    if (!native) return;
+    native.onopen = null;
+    native.onmessage = null;
+    native.onclose = null;
+    native.onerror = null;
+    native.close(code, reason);
+  }
+
+  send(data: TerminalFrameBytes): void {
+    if (this.closed || this.native?.readyState !== WebSocket.OPEN) return;
+    this.native.send(data);
+  }
+
+  private async connect(): Promise<void> {
+    if (this.closed || typeof WebSocket === "undefined" || typeof window === "undefined") return;
+    let authorizedPath: string;
+    try {
+      const ticket = await acquireHostedStreamTicket(this.path, this.controller.signal);
+      authorizedPath = appendHostedStreamTicket(this.path, ticket);
+    } catch {
+      if (this.closed) return;
+      this.onerror?.(new Event("error"));
+      const closeEvent =
+        typeof CloseEvent === "function"
+          ? new CloseEvent("close")
+          : (new Event("close") as CloseEvent);
+      this.onclose?.(closeEvent);
+      return;
+    }
+    if (this.closed) return;
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const native = new WebSocket(
+      `${protocol}//${window.location.host}${authorizedPath}`,
+      TERMINAL_SUBPROTOCOL
+    );
+    native.binaryType = "arraybuffer";
+    this.native = native;
+    native.onopen = event => this.onopen?.(event);
+    native.onmessage = event => this.onmessage?.(event as MessageEvent<unknown>);
+    native.onerror = event => this.onerror?.(event);
+    native.onclose = event => this.onclose?.(event);
+  }
+}
+
 export function createTerminalSocket(path: string): TerminalSocket {
+  if (isHostedBrowserMode()) {
+    return new HostedTerminalSocket(path);
+  }
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(`${protocol}//${window.location.host}${path}`, TERMINAL_SUBPROTOCOL);
   socket.binaryType = "arraybuffer";

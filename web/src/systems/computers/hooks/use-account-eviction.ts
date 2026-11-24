@@ -3,6 +3,7 @@ import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-quer
 
 import { clearRemoteApiClients } from "@/lib/api-client";
 import { evictRemoteComputerQueries } from "@/lib/computer-scope";
+import { isHostedBrowserMode } from "@/lib/hosted-browser-auth";
 import {
   accountKeys,
   accountStatusOptions,
@@ -35,14 +36,15 @@ function handleAccountChangedEvent(queryClient: QueryClient, event: AccountChang
  * whenever the signed-in account signs out or switches (Rule 23, US-001.EC-4, IT-026).
  */
 export function useAccountRemoteEviction(enabled = true): { signedIn: boolean } {
+  const active = enabled && !isHostedBrowserMode();
   const queryClient = useQueryClient();
-  const accountQuery = useQuery(accountStatusOptions(enabled));
+  const accountQuery = useQuery(accountStatusOptions(active));
   const previousIdentityRef = useRef<string | null | undefined>(undefined);
-  const signedIn = accountQuery.data?.signed_in === true;
+  const signedIn = active && accountQuery.data?.signed_in === true;
   const accountIdentity = accountIdentityKey(accountQuery.data);
 
   useEffect(() => {
-    if (!enabled || accountIdentity === undefined) return;
+    if (!active || accountIdentity === undefined) return;
     const previous = previousIdentityRef.current;
     previousIdentityRef.current = accountIdentity;
     if (previous === undefined || previous === accountIdentity) return;
@@ -51,10 +53,10 @@ export function useAccountRemoteEviction(enabled = true): { signedIn: boolean } 
     if (accountIdentity !== null) {
       void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
     }
-  }, [accountIdentity, enabled, queryClient]);
+  }, [accountIdentity, active, queryClient]);
 
   useEffect(() => {
-    if (!enabled || !signedIn) return;
+    if (!active || !signedIn) return;
     return openAccountStream({
       onAccountChanged: event => handleAccountChangedEvent(queryClient, event),
       onReset: () => {
@@ -62,7 +64,7 @@ export function useAccountRemoteEviction(enabled = true): { signedIn: boolean } 
         void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
       },
     });
-  }, [enabled, queryClient, signedIn]);
+  }, [active, queryClient, signedIn]);
 
   return { signedIn };
 }

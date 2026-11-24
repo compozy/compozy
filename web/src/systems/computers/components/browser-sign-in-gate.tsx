@@ -49,6 +49,8 @@ export interface BrowserSignInGateProps {
   signedInEmail?: string;
   /** Days remaining in the 7-day entitlement-only window (`needs_pro`). */
   graceDaysLeft?: number | null;
+  /** Optional inline error detail (e.g. failed callback state check). */
+  errorMessage?: string;
   onSignInProvider?: (provider: AccountProvider) => void;
   onPrimaryAction?: () => void;
   onSecondaryAction?: () => void;
@@ -117,6 +119,7 @@ export function BrowserSignInGate({
   trustedAdminDeviceName = "MacBook Pro",
   signedInEmail,
   graceDaysLeft,
+  errorMessage,
   onSignInProvider,
   onPrimaryAction,
   onSecondaryAction,
@@ -281,6 +284,15 @@ export function BrowserSignInGate({
               <span className="font-medium text-fg tabular-nums">
                 {graceDaysLeft} {graceDaysLeft === 1 ? "day" : "days"} left
               </span>
+            </div>
+          ) : null}
+
+          {errorMessage ? (
+            <div
+              className="rounded-md border border-line bg-destructive-tint px-3 py-2 text-center text-small-body text-destructive"
+              role="alert"
+            >
+              {errorMessage}
             </div>
           ) : null}
 

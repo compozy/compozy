@@ -15,6 +15,7 @@ import { windowManagerCommandsAvailable } from "../lib/window-manager-command-av
 import { activationTarget, appRunState, type OsAppRunState } from "../lib/window-instance-lookup";
 import { pickLastCreatedSession } from "../lib/last-created-session";
 import type { OsAppId, OsPresentation } from "../lib/os-types";
+import { useHostedBrowserContext } from "@/systems/computers";
 import type { SessionPayload } from "@/systems/session";
 import { useAttentionJump } from "./use-attention-jump";
 import { useDesktop } from "./use-desktop";
@@ -60,6 +61,7 @@ export function useDesktopDock(
   { onNewSession, onPreload, terminalLive, onOpenTerminalLauncher }: UseDesktopDockOptions
 ): DesktopDockModel {
   const { manager, coordinator } = useOsShell();
+  const hosted = useHostedBrowserContext();
   const launchCatalog = useSessionLaunchCatalog();
   const jumpToSession = useAttentionJump();
   const openFiles = useOpenFilesApp();
@@ -98,18 +100,21 @@ export function useDesktopDock(
     [commandsAvailable, launchCatalog.ready, launchCatalog.sessions, manager, onPreload]
   );
   // The rail keeps catalog order without group seams (shell-rail v2).
-  const entries: OsDockItemData[] = dockStripDescriptors().map(app => {
-    const state = windowStates[app.id];
-    return {
-      id: app.id,
-      name: app.id === sessionApp.id ? "Sessions" : app.title,
-      icon: dockIconForApp(app),
-      running:
-        app.id === "terminal" ? terminalLive === true : state === "open" || state === "focused",
-      active: state === "focused" && (app.id !== "terminal" || terminalLive === true),
-      badge: dockBadgeFor(app, badges),
-    };
-  });
+  // Hosted browser sessions without `terminal:operate` omit the Terminal item.
+  const entries: OsDockItemData[] = dockStripDescriptors()
+    .filter(app => app.id !== "terminal" || hosted === null || hosted.canOperateTerminal)
+    .map(app => {
+      const state = windowStates[app.id];
+      return {
+        id: app.id,
+        name: app.id === sessionApp.id ? "Sessions" : app.title,
+        icon: dockIconForApp(app),
+        running:
+          app.id === "terminal" ? terminalLive === true : state === "open" || state === "focused",
+        active: state === "focused" && (app.id !== "terminal" || terminalLive === true),
+        badge: dockBadgeFor(app, badges),
+      };
+    });
 
   // Sessions launches its picker window: the latest session already has its
   // one home (plain click jumps there), so a new placement starts from the list.

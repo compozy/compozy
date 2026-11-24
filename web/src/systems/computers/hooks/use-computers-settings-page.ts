@@ -83,7 +83,11 @@ export function useComputersSettingsPage() {
     withHostResources: true,
   });
   const availableQuery = useQuery(availableComputersOptions(signedIn));
-  const localRemote = useLocalRemoteControls({ signedIn, currentDeviceId });
+  const localRemote = useLocalRemoteControls({
+    signedIn,
+    currentDeviceId,
+    currentDeviceIsAdmin,
+  });
   const localSettings = useLocalComputerSettings({
     signedIn,
     localRunAgents: computersQuery.local?.run_agents ?? true,
@@ -381,6 +385,7 @@ export function useComputersSettingsPage() {
     handleChangeLocalWeight: localSettings.handleChangeLocalWeight,
     handleChangeComputerWeight: localSettings.handleChangeComputerWeight,
     handleToggleRemoteEnabled: localRemote.handleToggleRemoteEnabled,
+    handleToggleHostedRoute: localRemote.handleToggleHostedRoute,
     handleToggleRequireApproval: localRemote.handleToggleRequireApproval,
     handleToggleLocalDeviceScope: localRemote.handleToggleLocalDeviceScope,
     handleApproveLocalPending: localRemote.handleApproveLocalPending,

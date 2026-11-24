@@ -10,6 +10,7 @@ import {
   fetchHostResources,
   previewComputerPlacement,
 } from "../adapters/computers-api";
+import { fetchHostedBrowserPeers } from "../adapters/hosted-browser-api";
 import { fetchRemoteDevices, fetchRemoteStatus } from "../adapters/remote-host-api";
 import { computerRegistryKeys } from "./query-keys";
 
@@ -69,6 +70,15 @@ export function remoteDevicesOptions(enabled = true) {
     queryFn: ({ signal }) => fetchRemoteDevices(signal),
     enabled,
     staleTime: 15_000,
+    retry: false,
+  });
+}
+export function hostedBrowserPeersOptions(enabled = true) {
+  return queryOptions({
+    queryKey: computerRegistryKeys.hostedBrowserPeers(),
+    queryFn: ({ signal }) => fetchHostedBrowserPeers(signal),
+    enabled,
+    staleTime: 30_000,
     retry: false,
   });
 }

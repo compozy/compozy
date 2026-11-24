@@ -19,6 +19,7 @@ import {
   decideAccountApproval,
   logoutAccount,
   openAccountSignInStream,
+  openAccountStream,
   patchAccountDevice,
   revokeAccountDevice,
   startAccountLogin,
@@ -92,6 +93,21 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
   const [revokeApprovalFailure, setRevokeApprovalFailure] = useState<string | null>(null);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
+
+  // Keep account status, devices, and pending approvals synchronized live.
+  useEffect(() => {
+    if (!isSession) return;
+    return openAccountStream({
+      onAccountChanged: () => {
+        void queryClient.invalidateQueries({ queryKey: accountKeys.all });
+        void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteDevices() });
+        void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteStatus() });
+      },
+      onReset: () => {
+        void queryClient.invalidateQueries({ queryKey: accountKeys.all });
+      },
+    });
+  }, [isSession, queryClient]);
 
   // Subscribe to `/api/account/sign-in/events` while a login attempt is in progress.
   useEffect(() => {

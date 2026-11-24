@@ -1,7 +1,7 @@
-import type { BrowserContext, Locator, Page } from "@playwright/test";
+import { chromium, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 import { appWindow, openCommandPalette } from "../fixtures/os-navigation";
-import { cliComputerStatus, expect, test } from "../fixtures/remote-computers";
+import { cliComputerStatus, cliSessionPrompt, expect, test } from "../fixtures/remote-computers";
 
 async function openSettings(page: Page, section: "computers" | "account"): Promise<Locator> {
   await page.goto(`/settings/${section}`, { waitUntil: "domcontentloaded" });
@@ -318,5 +318,106 @@ test.describe("Device revocation", () => {
       )
       .toBe("device_revoked");
     await expect(row).toBeHidden();
+  });
+});
+
+test.describe("Hosted browser", () => {
+  test.use({ scenario: "hosted-browser" });
+
+  test("E2E-006 open a computer from a hosted browser, stream a live turn, and revoke within 3 s", async ({
+    page,
+    lab,
+  }) => {
+    const { session_id: sessionID, session_title: title, edge_port: edgePort } = lab;
+    if (!sessionID || !title || !edgePort) {
+      throw new Error("The hosted-browser scenario requires a seeded session and TLS edge port.");
+    }
+
+    // Context 1 (desktop host): turn on Hosted route and wait until ready.
+    const settings = await openSettings(page, "computers");
+    const thisComputer = settings.getByTestId("computers-this-computer");
+    await thisComputer.getByRole("switch", { name: "Hosted route" }).click();
+    await expect(thisComputer.getByText("Hosted route ready", { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+    const hostLabel = await thisComputer
+      .locator("span.font-mono")
+      .filter({ hasText: /\.compozy\.run$/ })
+      .first()
+      .textContent();
+    const hostname = hostLabel?.trim() ?? "";
+    expect(hostname).toMatch(/^[a-z0-9-]+\.compozy\.run$/);
+
+    // Context 2 (remote browser): resolve cloud.compozy.com and *.compozy.run to the fixture edge.
+    const hostedBrowser = await chromium.launch({
+      args: [
+        `--host-resolver-rules=MAP cloud.compozy.com 127.0.0.1:${edgePort}, MAP *.compozy.run 127.0.0.1:${edgePort}, MAP * ~NOTFOUND`,
+        "--ignore-certificate-errors",
+        "--no-proxy-server",
+      ],
+    });
+    try {
+      const hostedContext = await hostedBrowser.newContext({
+        ignoreHTTPSErrors: true,
+        viewport: { width: 1280, height: 800 },
+      });
+      const hostedPage = await hostedContext.newPage();
+
+      await hostedPage.goto(`https://${hostname}/`, { waitUntil: "domcontentloaded" });
+      await expect(hostedPage.getByRole("heading", { name: "Sign in to CompozyOS" })).toBeVisible();
+      await hostedPage.getByRole("button", { name: /Continue with Google/i }).click();
+
+      await expect(hostedPage.getByTestId("root-shell")).toBeVisible({ timeout: 30_000 });
+      await hostedPage.goto(`https://${hostname}/sessions`, { waitUntil: "domcontentloaded" });
+      const hostedSession = appWindow(hostedPage, "session");
+      const sidebar = await sessionSidebar(hostedSession);
+      await sidebar
+        .locator('[data-slot="session-list-row"]')
+        .filter({ hasText: title })
+        .first()
+        .click();
+
+      // Prompt the session via the host CLI and assert the live transcript line streams in.
+      await cliSessionPrompt(lab, sessionID, "echo");
+      await expect(hostedSession.getByText("echo from testhost", { exact: true })).toBeVisible({
+        timeout: 15_000,
+      });
+
+      // Verify the installable PWA manifest on the hosted origin.
+      const manifestResponse = await hostedContext.request.get(
+        `https://${hostname}/manifest.webmanifest`
+      );
+      expect(manifestResponse.status()).toBe(200);
+      const manifest = (await manifestResponse.json()) as { display?: string };
+      expect(manifest.display).toBe("standalone");
+
+      // Context 1: revoke the browser device in Settings -> Account -> Devices.
+      const accountSettings = await openSettings(page, "account");
+      const browserRow = accountSettings
+        .getByTestId("account-devices")
+        .locator('[data-device-id]:not([data-this-device="true"])')
+        .filter({ hasText: "Browser" })
+        .first();
+      await expect(browserRow).toBeVisible({ timeout: 15_000 });
+      const browserDeviceId = await browserRow.getAttribute("data-device-id");
+      if (!browserDeviceId) throw new Error("Browser device row did not expose data-device-id.");
+
+      await browserRow.getByRole("button", { name: "Revoke" }).click();
+      const revoked = page.waitForResponse(
+        response =>
+          response.request().method() === "DELETE" &&
+          new URL(response.url()).pathname === `/api/account/devices/${browserDeviceId}`
+      );
+      const confirm = page.getByRole("alertdialog").or(page.getByRole("dialog"));
+      await confirm.getByRole("button", { name: "Revoke device" }).click();
+      expect((await revoked).status()).toBe(204);
+
+      // Context 2: transitions to device_removed within 3 s.
+      await expect(
+        hostedPage.getByRole("heading", { name: "This device was removed from your account" })
+      ).toBeVisible({ timeout: 3_000 });
+    } finally {
+      await hostedBrowser.close();
+    }
   });
 });

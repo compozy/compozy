@@ -1,9 +1,17 @@
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "@compozy/ui";
 
-import { accountKeys } from "@/systems/account";
+import {
+  AccountApiError,
+  accountApprovalsOptions,
+  accountDevicesOptions,
+  accountKeys,
+  decideAccountApproval,
+  openAccountStream,
+  type AccountDevicePayload,
+} from "@/systems/account";
 
 import {
   patchRemoteDevice,
@@ -19,34 +27,76 @@ import type {
   RemoteScope,
 } from "../mocks/remote-computers-types";
 
+const HOSTED_ROUTE_POLL_INTERVAL_MS = 1_500;
+
 export function useLocalRemoteControls({
   signedIn,
   currentDeviceId,
+  currentDeviceIsAdmin = false,
 }: {
   signedIn: boolean;
   currentDeviceId: string | null;
+  currentDeviceIsAdmin?: boolean;
 }) {
   const queryClient = useQueryClient();
 
   const remoteStatusQuery = useQuery(remoteStatusOptions(signedIn));
-  const remoteDevicesQuery = useQuery(
-    remoteDevicesOptions(signedIn && Boolean(remoteStatusQuery.data?.enabled))
-  );
+  const remoteEnabled = Boolean(remoteStatusQuery.data?.enabled);
+  const remoteDevicesQuery = useQuery(remoteDevicesOptions(signedIn && remoteEnabled));
+  const accountApprovalsQuery = useQuery(accountApprovalsOptions(signedIn && remoteEnabled));
+  const accountDevicesQuery = useQuery(accountDevicesOptions(signedIn && remoteEnabled));
 
   const [revokeTarget, setRevokeTarget] = useState<AccountDeviceFixture | null>(null);
   const [revokeApprovalFailure, setRevokeApprovalFailure] = useState<string | null>(null);
 
-  const localDevices = useMemo<AccountDeviceFixture[]>(
-    () =>
-      (remoteDevicesQuery.data?.devices ?? []).map(device =>
-        toRemoteDeviceView(device, currentDeviceId)
-      ),
-    [remoteDevicesQuery.data?.devices, currentDeviceId]
+  // Poll `/api/remote` while Hosted route is starting or retrying until it reaches `ready`.
+  const hostedRouteEnabled = Boolean(remoteStatusQuery.data?.cloud_route?.enabled);
+  const hostedRouteState = remoteStatusQuery.data?.cloud_route?.state;
+  const shouldPollHostedRoute =
+    signedIn && remoteEnabled && hostedRouteEnabled && hostedRouteState !== "ready";
+
+  useEffect(() => {
+    if (!shouldPollHostedRoute) return;
+    const timer = setInterval(() => {
+      void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteStatus() });
+    }, HOSTED_ROUTE_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [queryClient, shouldPollHostedRoute]);
+
+  // Keep pending browser/device approvals and local device list live via `/api/account/stream`.
+  useEffect(() => {
+    if (!signedIn || !remoteEnabled) return;
+    return openAccountStream({
+      onAccountChanged: () => {
+        void queryClient.invalidateQueries({ queryKey: accountKeys.approvals() });
+        void queryClient.invalidateQueries({ queryKey: accountKeys.devices() });
+        void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteDevices() });
+        void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteStatus() });
+      },
+      onReset: () => {
+        void queryClient.invalidateQueries({ queryKey: accountKeys.approvals() });
+        void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteDevices() });
+        void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteStatus() });
+      },
+    });
+  }, [queryClient, remoteEnabled, signedIn]);
+
+  const accountDevicesById = new Map<string, AccountDevicePayload>(
+    (accountDevicesQuery.data?.devices ?? []).map(device => [device.id, device])
   );
 
-  const localPendingApprovals = useMemo<PendingApprovalFixture[]>(
-    () => extractLocalPendingApprovals(remoteDevicesQuery.data?.devices ?? []),
-    [remoteDevicesQuery.data?.devices]
+  const localDevices: AccountDeviceFixture[] = (remoteDevicesQuery.data?.devices ?? []).map(
+    device => toRemoteDeviceView(device, currentDeviceId, accountDevicesById)
+  );
+
+  const localPendingApprovals: PendingApprovalFixture[] = extractLocalPendingApprovals(
+    remoteDevicesQuery.data?.devices ?? [],
+    {
+      accountApprovals: accountApprovalsQuery.data?.approvals,
+      accountDevicesById,
+      localComputerId: remoteStatusQuery.data?.computer_id,
+      currentDeviceIsAdmin,
+    }
   );
 
   const remotePatchMutation = useMutation({
@@ -54,6 +104,7 @@ export function useLocalRemoteControls({
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteStatus() });
       void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteDevices() });
+      void queryClient.invalidateQueries({ queryKey: accountKeys.status() });
     },
     onError: err => {
       toast.error(err instanceof Error ? err.message : "Failed to update remote access.");
@@ -70,9 +121,54 @@ export function useLocalRemoteControls({
     }) => patchRemoteDevice(deviceId, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteDevices() });
+      void queryClient.invalidateQueries({ queryKey: accountKeys.approvals() });
     },
     onError: err => {
       toast.error(err instanceof Error ? err.message : "Failed to update device.");
+    },
+  });
+
+  const decideApprovalMutation = useMutation({
+    mutationFn: async ({ approvalId, approved }: { approvalId: string; approved: boolean }) => {
+      const localDevice = remoteDevicesQuery.data?.devices.find(device =>
+        device.approvals?.some(approval => approval.id === approvalId)
+      );
+      const hasAccountApproval = (accountApprovalsQuery.data?.approvals ?? []).some(
+        approval => approval.id === approvalId
+      );
+
+      if (currentDeviceIsAdmin && (hasAccountApproval || !localDevice)) {
+        try {
+          await decideAccountApproval(approvalId, approved);
+          return;
+        } catch (err) {
+          const canFallbackLocally =
+            localDevice !== undefined &&
+            err instanceof AccountApiError &&
+            (err.code === "approver_not_approved_on_computer" || err.status === 404);
+          if (!canFallbackLocally) throw err;
+        }
+      }
+
+      if (!localDevice) {
+        await decideAccountApproval(approvalId, approved);
+        return;
+      }
+
+      await patchRemoteDevice(localDevice.id, {
+        approval_id: approvalId,
+        approved,
+      });
+    },
+    onSuccess: (_data, vars) => {
+      void queryClient.invalidateQueries({ queryKey: accountKeys.approvals() });
+      void queryClient.invalidateQueries({ queryKey: accountKeys.devices() });
+      void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteDevices() });
+      void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteStatus() });
+      toast.success(vars.approved ? "Device approved." : "Request denied.");
+    },
+    onError: err => {
+      toast.error(err instanceof Error ? err.message : "Failed to decide device approval.");
     },
   });
 
@@ -129,31 +225,14 @@ export function useLocalRemoteControls({
     },
   });
 
-  const handleToggleLocalDeviceScope = useCallback(
-    (deviceId: string, scope: RemoteScope, next: boolean) => {
-      const target = localDevices.find(item => item.id === deviceId);
-      if (!target) return;
-      const set = new Set<RemoteScope>(target.scopesOnLocal);
-      if (next) set.add(scope);
-      else set.delete(scope);
-      localDevicePatchMutation.mutate({ deviceId, body: { scopes: [...set] } });
-    },
-    [localDevices, localDevicePatchMutation]
-  );
-
-  const handleDecideLocalPending = useCallback(
-    (approvalId: string, approved: boolean) => {
-      const target = remoteDevicesQuery.data?.devices.find(device =>
-        device.approvals?.some(a => a.id === approvalId)
-      );
-      if (!target) return;
-      localDevicePatchMutation.mutate({
-        deviceId: target.id,
-        body: { approval_id: approvalId, approved },
-      });
-    },
-    [remoteDevicesQuery.data?.devices, localDevicePatchMutation]
-  );
+  const handleToggleLocalDeviceScope = (deviceId: string, scope: RemoteScope, next: boolean) => {
+    const target = localDevices.find(item => item.id === deviceId);
+    if (!target) return;
+    const set = new Set<RemoteScope>(target.scopesOnLocal);
+    if (next) set.add(scope);
+    else set.delete(scope);
+    localDevicePatchMutation.mutate({ deviceId, body: { scopes: [...set] } });
+  };
 
   return {
     remoteStatus: remoteStatusQuery.data,
@@ -169,11 +248,14 @@ export function useLocalRemoteControls({
       setRevokeApprovalFailure(null);
     },
     handleToggleRemoteEnabled: (next: boolean) => remotePatchMutation.mutate({ enabled: next }),
+    handleToggleHostedRoute: (next: boolean) => remotePatchMutation.mutate({ cloud_route: next }),
     handleToggleRequireApproval: (next: boolean) =>
       remotePatchMutation.mutate({ require_device_approval: next }),
     handleToggleLocalDeviceScope,
-    handleApproveLocalPending: (approvalId: string) => handleDecideLocalPending(approvalId, true),
-    handleDenyLocalPending: (approvalId: string) => handleDecideLocalPending(approvalId, false),
+    handleApproveLocalPending: (approvalId: string) =>
+      decideApprovalMutation.mutate({ approvalId, approved: true }),
+    handleDenyLocalPending: (approvalId: string) =>
+      decideApprovalMutation.mutate({ approvalId, approved: false }),
     handleConfirmRevokeDevice: (device: AccountDeviceFixture, enableApproval: boolean) =>
       revokeLocalDeviceMutation.mutate({ device, enableApproval }),
     handleRetryEnableApproval: () => retryApprovalMutation.mutate(),

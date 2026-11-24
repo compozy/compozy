@@ -1,4 +1,10 @@
-import { acquireStreamTicket, appendStreamTicket } from "./gateway-stream-auth";
+import {
+  acquireHostedStreamTicket,
+  acquireStreamTicket,
+  appendHostedStreamTicket,
+  appendStreamTicket,
+} from "./gateway-stream-auth";
+import { isHostedBrowserMode } from "./hosted-browser-auth";
 
 /** The `WebSocket` surface the window-manager stream consumes. */
 export interface StreamWebSocket {
@@ -61,8 +67,13 @@ class TicketedWebSocket implements StreamWebSocket {
     if (this.closed || typeof WebSocket === "undefined" || typeof window === "undefined") return;
     let authorizedPath: string;
     try {
-      const ticket = await acquireStreamTicket(this.controller.signal);
-      authorizedPath = ticket === null ? this.path : appendStreamTicket(this.path, ticket);
+      if (isHostedBrowserMode()) {
+        const ticket = await acquireHostedStreamTicket(this.path, this.controller.signal);
+        authorizedPath = appendHostedStreamTicket(this.path, ticket);
+      } else {
+        const ticket = await acquireStreamTicket(this.controller.signal);
+        authorizedPath = ticket === null ? this.path : appendStreamTicket(this.path, ticket);
+      }
     } catch {
       this.reportFailure();
       return;

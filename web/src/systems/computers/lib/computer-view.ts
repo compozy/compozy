@@ -1,6 +1,5 @@
 import { ComputersApiError } from "../adapters/computers-api";
 import type {
-  AccountDeviceFixture,
   AccountUnaddedComputerFixture,
   ComputerAttentionReasonFixture,
   ComputerDiagnosisFixture,
@@ -14,7 +13,6 @@ import type {
   DiagnosisHop,
   HostedRouteState,
   LocalComputerFixture,
-  PendingApprovalFixture,
   RemoteScope,
   SshHostSuggestionFixture,
 } from "../mocks/remote-computers-types";
@@ -25,7 +23,6 @@ import type {
   ComputerSSHHostPayload,
   HostResourcesResponse,
   LocalComputerPayload,
-  RemoteDevicePayload,
   RemoteStatusPayload,
 } from "../types";
 import {
@@ -33,6 +30,8 @@ import {
   toHostLoadView,
   UNSAMPLED_LOCAL_LOAD,
 } from "./placement-view";
+
+export { extractLocalPendingApprovals, toRemoteDeviceView } from "./remote-device-view";
 
 const KNOWN_PLATFORMS: ReadonlySet<ComputerPlatform> = new Set([
   "darwin_arm64",
@@ -287,10 +286,15 @@ export function toComputerView(
   };
 }
 
-function normalizeHostedRouteState(state: string | undefined, enabled: boolean): HostedRouteState {
+function normalizeHostedRouteState(
+  state: string | undefined,
+  enabled: boolean,
+  diagnosis?: string | null
+): HostedRouteState {
   if (!enabled) return "off";
   if (state === "ready" || state === "connected" || state === "active") return "ready";
   if (state === "starting" || state === "connecting" || state === "pending") return "starting";
+  if (state === "retrying") return diagnosis ? "unreachable" : "starting";
   if (state === "unreachable" || state === "error" || state === "failed") return "unreachable";
   return "starting";
 }
@@ -309,7 +313,12 @@ export function toLocalComputerView(
   const platform = options.platform ?? "darwin_arm64";
   const remote = options.remote;
   const hostedEnabled = Boolean(remote?.cloud_route?.enabled);
-  const hostedState = normalizeHostedRouteState(remote?.cloud_route?.state, hostedEnabled);
+  const hostedDiagnosis = remote?.cloud_route?.diagnosis?.trim() || undefined;
+  const hostedState = normalizeHostedRouteState(
+    remote?.cloud_route?.state,
+    hostedEnabled,
+    hostedDiagnosis
+  );
 
   return {
     id: "local",
@@ -322,6 +331,7 @@ export function toLocalComputerView(
     remoteEnabled: Boolean(remote?.enabled),
     hostedRouteEnabled: hostedEnabled,
     hostedRouteState: hostedState,
+    ...(hostedDiagnosis ? { hostedRouteError: hostedDiagnosis } : {}),
     hostedUrl: remote?.cloud_route?.hostname ?? "",
     requireDeviceApproval: Boolean(remote?.require_device_approval),
     load: toHostLoadView(options.load) ?? UNSAMPLED_LOCAL_LOAD,
@@ -367,51 +377,6 @@ export function toSSHHostSuggestionView(
     source: host.source === "known_hosts" ? "known_hosts" : "ssh_config",
     alreadyAdded,
   };
-}
-
-export function toRemoteDeviceView(
-  device: RemoteDevicePayload,
-  currentDeviceId?: string | null
-): AccountDeviceFixture {
-  const scopesOnLocal = device.scopes.filter((scope): scope is RemoteScope =>
-    KNOWN_SCOPES.has(scope as RemoteScope)
-  );
-  return {
-    id: device.id,
-    name: device.name,
-    kind: "desktop",
-    admin: device.admin,
-    thisDevice: Boolean(currentDeviceId && device.id === currentDeviceId),
-    lastSeenAt: device.last_seen_at ?? "",
-    lastSeenLabel: formatRelativeLabel(device.last_seen_at),
-    keyFingerprint: device.approvals?.[0]?.jkt ?? "",
-    scopesOnLocal,
-  };
-}
-
-export function extractLocalPendingApprovals(
-  devices: readonly RemoteDevicePayload[]
-): PendingApprovalFixture[] {
-  const approvals: PendingApprovalFixture[] = [];
-  for (const device of devices) {
-    for (const approval of device.approvals ?? []) {
-      if (approval.state !== "pending") continue;
-      approvals.push({
-        id: approval.id,
-        computerId: "local",
-        computerName: "This computer",
-        deviceName: approval.name || device.name,
-        deviceKind: "desktop",
-        keyFingerprint: approval.jkt,
-        createdAt: approval.created_at,
-        createdLabel: formatRelativeLabel(approval.created_at),
-        state: "pending",
-        appliedResult: null,
-        canDecide: true,
-      });
-    }
-  }
-  return approvals;
 }
 
 export interface RunOnOption {

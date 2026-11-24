@@ -1,4 +1,10 @@
-import { acquireStreamTicket, appendStreamTicket } from "./gateway-stream-auth";
+import {
+  acquireHostedStreamTicket,
+  acquireStreamTicket,
+  appendHostedStreamTicket,
+  appendStreamTicket,
+} from "./gateway-stream-auth";
+import { isHostedBrowserMode } from "./hosted-browser-auth";
 import { WebSocketEventSource } from "./web-socket-event-source";
 
 /**
@@ -129,7 +135,6 @@ class TicketedEventSource implements StreamEventSource {
     this.controller = controller;
     let authorizedUrl: string;
     try {
-      const ticket = await acquireStreamTicket(controller.signal);
       const resumeUrl =
         this.options.resumeWithLastEventId && this.lastEventId !== ""
           ? appendEventCursor(
@@ -138,7 +143,13 @@ class TicketedEventSource implements StreamEventSource {
               this.options.transport === "websocket" ? "last_event_id" : "after_sequence"
             )
           : this.url;
-      authorizedUrl = ticket === null ? resumeUrl : appendStreamTicket(resumeUrl, ticket);
+      if (isHostedBrowserMode()) {
+        const ticket = await acquireHostedStreamTicket(resumeUrl, controller.signal);
+        authorizedUrl = appendHostedStreamTicket(resumeUrl, ticket);
+      } else {
+        const ticket = await acquireStreamTicket(controller.signal);
+        authorizedUrl = ticket === null ? resumeUrl : appendStreamTicket(resumeUrl, ticket);
+      }
     } catch {
       // A failed mint is indistinguishable from a dropped stream to consumers:
       // report the error and retry on the same backoff curve. An ended session
@@ -250,7 +261,7 @@ class TicketedEventSource implements StreamEventSource {
 }
 
 function isTicketedUrl(url: string): boolean {
-  return url.includes("ticket=");
+  return url.includes("ticket=") || url.includes("remote_ticket=");
 }
 
 function appendEventCursor(url: string, cursor: string, parameter: string): string {
