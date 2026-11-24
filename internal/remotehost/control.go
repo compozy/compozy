@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"log/slog"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -80,7 +81,11 @@ func (c *controlLink) connect(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer func() { _ = socket.CloseNow() }()
+	defer func() {
+		if err := socket.CloseNow(); err != nil && !errors.Is(err, net.ErrClosed) {
+			c.logger.DebugContext(ctx, "Remote control link close interrupted")
+		}
+	}()
 	if err := c.authenticate(ctx, socket); err != nil {
 		return false, err
 	}
@@ -275,14 +280,15 @@ func (c *controlLink) finishSecurity(
 	socket *websocket.Conn,
 	snapshot remoteproto.SecuritySnapshot,
 ) error {
+	ack := remoteproto.SecurityAck{SecurityEpoch: snapshot.SecurityEpoch}
 	if !snapshot.Linked {
 		c.unlink(ctx)
-		_ = sendControl(ctx, socket, remoteproto.ControlAck, snapshot.SecurityEpoch,
-			remoteproto.SecurityAck{SecurityEpoch: snapshot.SecurityEpoch})
+		if err := sendControl(ctx, socket, remoteproto.ControlAck, snapshot.SecurityEpoch, ack); err != nil {
+			c.logger.DebugContext(ctx, "Could not acknowledge remote unlink", "computer_id", c.id)
+		}
 		return errControlUnlinked
 	}
-	return sendControl(ctx, socket, remoteproto.ControlAck, snapshot.SecurityEpoch,
-		remoteproto.SecurityAck{SecurityEpoch: snapshot.SecurityEpoch})
+	return sendControl(ctx, socket, remoteproto.ControlAck, snapshot.SecurityEpoch, ack)
 }
 
 func readControl(ctx context.Context, socket *websocket.Conn) (remoteproto.ControlMessage, error) {

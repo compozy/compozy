@@ -97,6 +97,7 @@ type Host struct {
 	platform string
 	version  string
 
+	linkMu   sync.Mutex // Serializes link and unlink through the config commit.
 	mu       sync.Mutex
 	config   config.RemoteConfig
 	identity Identity
@@ -125,12 +126,15 @@ func NewHost(
 	cfg config.RemoteConfig,
 	opts HostOptions,
 ) (*Host, error) {
-	name, _ := os.Hostname()
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
+	}
+	name, err := os.Hostname()
+	if err != nil {
+		opts.Logger.DebugContext(ctx, "Could not read the computer name", "error", err)
 	}
 	identity, err := storage.RemoteIdentity(ctx)
 	if err != nil && !errors.Is(err, ErrMissing) {

@@ -16,6 +16,9 @@ func (s *Sessions) ApplySnapshot(ctx context.Context, snapshot remoteproto.Secur
 		return s.reconcileSnapshot(ctx, next)
 	})
 	if changed {
+		s.snapshotBlocked = false
+	}
+	if err == nil && !s.snapshotBlocked && s.security.Snapshot().SecurityEpoch == snapshot.SecurityEpoch {
 		err = s.applyEntitlement(ctx)
 	}
 	return changed, err
@@ -31,6 +34,7 @@ func (s *Sessions) ApplyIncremental(
 		return s.reconcileSnapshot(ctx, next)
 	})
 	if changed {
+		s.snapshotBlocked = false
 		err = s.applyEntitlement(ctx)
 	}
 	return changed, request, err
@@ -47,7 +51,7 @@ func (s *Sessions) ApplyLease(ctx context.Context, lease remoteproto.Entitlement
 	defer s.serial.Unlock()
 	now := s.now()
 	result, err := s.security.ApplyLease(lease, now)
-	if err != nil || result != remoteproto.LeaseApplied {
+	if err != nil || result != remoteproto.LeaseApplied || s.snapshotBlocked {
 		return err
 	}
 	return s.applyEntitlement(ctx)
@@ -55,6 +59,7 @@ func (s *Sessions) ApplyLease(ctx context.Context, lease remoteproto.Entitlement
 
 func (s *Sessions) reconcileSnapshot(ctx context.Context, next remoteproto.SecuritySnapshot) error {
 	s.blockCommits()
+	s.snapshotBlocked = true
 	if !next.Linked {
 		s.endRequests(func(Session) error { return ErrDeviceRevoked })
 		return s.store.WriteRemote(ctx, func(ctx context.Context, tx Tx) error { return tx.ClearLink(ctx) })
@@ -67,7 +72,7 @@ func (s *Sessions) reconcileSnapshot(ctx context.Context, next remoteproto.Secur
 		}
 		return nil
 	})
-	return s.revokeMatching(ctx, func(ctx context.Context, tx Tx, session Session) (error, error) {
+	return s.revokeMatching(ctx, func(_ context.Context, _ Tx, session Session) (error, error) {
 		if !state.allows(session) {
 			return ErrDeviceRevoked, nil
 		}
@@ -121,7 +126,7 @@ func (s *Sessions) Reconfigure(ctx context.Context, requireApproval bool, maximu
 	if s.policy.requireApproval == policy.requireApproval && slices.Equal(s.policy.maxScopes, policy.maxScopes) {
 		return nil
 	}
-	s.blockCommits()
+	blocked := s.blockCommits()
 	state := admissionState{snapshot: s.security.Snapshot(), policy: policy}
 	err := s.revokeMatching(ctx, func(ctx context.Context, tx Tx, session Session) (error, error) {
 		if !state.allows(session) {
@@ -136,10 +141,13 @@ func (s *Sessions) Reconfigure(ctx context.Context, requireApproval bool, maximu
 		}
 		return nil, nil
 	}, nil)
+	s.mu.Lock()
 	if err == nil {
 		s.policy = policy
-		s.publishLocked()
+		s.admission.policy = policy
 	}
+	s.admission.blocked = blocked
+	s.mu.Unlock()
 	return err
 }
 
@@ -151,27 +159,31 @@ func (s *Sessions) RevokeDevice(ctx context.Context, device remoteproto.DeviceID
 }
 
 func (s *Sessions) RevokeAll(ctx context.Context, reason string) error {
-	err := error(ErrDeviceRevoked)
+	err := ErrDeviceRevoked
 	if reason == ErrEntitlement.Code {
 		err = ErrEntitlement
 	}
-	_, revokeErr := s.revoke(ctx, err, func(Session) bool { return true })
-	return revokeErr
+	return s.revoke(ctx, err, func(Session) bool { return true })
 }
 
 func (s *Sessions) RevokeSession(ctx context.Context, id string) error {
-	_, err := s.revoke(ctx, ErrDeviceRevoked, func(session Session) bool { return session.ID == id })
+	return s.revoke(ctx, ErrDeviceRevoked, func(session Session) bool { return session.ID == id })
+}
+
+func (s *Sessions) revoke(ctx context.Context, reason error, match func(Session) bool) error {
+	s.serial.Lock()
+	defer s.serial.Unlock()
+	_, err := s.revokeLocked(ctx, reason, match)
 	return err
 }
 
-func (s *Sessions) revoke(ctx context.Context, reason error, match func(Session) bool) (int, error) {
-	s.serial.Lock()
-	defer s.serial.Unlock()
-	return s.revokeLocked(ctx, reason, match)
-}
-
 func (s *Sessions) revokeLocked(ctx context.Context, reason error, match func(Session) bool) (int, error) {
-	s.blockCommits()
+	blocked := s.blockCommits()
+	defer func() {
+		s.mu.Lock()
+		s.admission.blocked = blocked
+		s.mu.Unlock()
+	}()
 	closed := s.endRequests(func(session Session) error {
 		if match(session) {
 			return reason
@@ -184,9 +196,6 @@ func (s *Sessions) revokeLocked(ctx context.Context, reason error, match func(Se
 		}
 		return nil, nil
 	}, nil)
-	if err == nil {
-		s.publishLocked()
-	}
 	return closed, err
 }
 
@@ -243,7 +252,7 @@ func (s *Sessions) Expire(ctx context.Context) error {
 	s.mu.RLock()
 	lease := s.admission.lease
 	s.mu.RUnlock()
-	if lease.Sequence > 0 && lease.ValidUntil <= now.Unix() {
+	if lease.Sequence > 0 && lease.ValidUntil <= now.Unix() && !s.snapshotBlocked {
 		return s.applyEntitlement(ctx)
 	}
 	return nil
@@ -263,10 +272,12 @@ func (s *Sessions) Stop() {
 	s.signalSnapshotLocked()
 }
 
-func (s *Sessions) blockCommits() {
+func (s *Sessions) blockCommits() bool {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	blocked := s.admission.blocked
 	s.admission.blocked = true
-	s.mu.Unlock()
+	return blocked
 }
 
 func (s *Sessions) publishLocked() {

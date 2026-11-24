@@ -2,11 +2,15 @@ package builtin
 
 import toolspkg "github.com/compozy/compozy/internal/tools"
 
+var singleResultRemoteHost = map[toolspkg.ToolID]SingleResultReason{
+	toolspkg.ToolIDRemoteStatus: SingleResultMinimal,
+}
+
 func remoteHostDescriptors() []toolspkg.Descriptor {
 	descriptor := nativeDescriptor(
 		toolspkg.ToolIDRemoteStatus, "remote_status", "Remote status",
 		"Read remote access status for this computer.", `{"type":"object","additionalProperties":false}`,
-		toolspkg.RiskRead, true, false, true, nil,
+		toolspkg.RiskRead, true, false, false, nil,
 		[]string{"remote access", "computer", "listeners"}, []string{"remote status", "is remote access enabled"},
 	)
 	descriptor.OutputSchema = []byte(remoteStatusOutput)

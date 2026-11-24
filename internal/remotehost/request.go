@@ -54,7 +54,7 @@ func (s *Sessions) BeginRequest(
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := s.checkApproval(ctx, session); err != nil {
+	if err := s.checkDevice(ctx, session); err != nil {
 		return nil, nil, err
 	}
 	s.mu.Lock()

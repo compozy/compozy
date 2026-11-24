@@ -77,7 +77,8 @@ func (c *Client) computerJSON(
 	if err != nil {
 		return err
 	}
-	defer drain(response.Body)
+	defer response.Body.Close()
+	defer drain(request, response.Body)
 	if output != nil {
 		if err := json.UnmarshalRead(io.LimitReader(response.Body, maxBody), output); err != nil {
 			return unavailable()
@@ -99,7 +100,8 @@ func (c *Client) OpenComputerControl(ctx context.Context, id remoteproto.Compute
 	connection, response, err := websocket.Dial(dial, target, &websocket.DialOptions{HTTPClient: c.http})
 	if err != nil {
 		if response != nil && response.Body != nil {
-			defer drain(response.Body)
+			defer response.Body.Close()
+			defer drain(dial, response.Body)
 			return nil, c.readFailure(response)
 		}
 		if ctx.Err() != nil {

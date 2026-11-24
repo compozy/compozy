@@ -72,6 +72,8 @@ func (h *Host) finishLinkLogin(events <-chan account.SignInEvent, login account.
 }
 
 func (h *Host) link(ctx context.Context, token string) (LinkResult, error) {
+	h.linkMu.Lock()
+	defer h.linkMu.Unlock()
 	identity, err := h.registerComputer(ctx, token)
 	if err != nil {
 		return LinkResult{}, err
@@ -172,6 +174,8 @@ func (h *Host) submitLink(
 }
 
 func (h *Host) Unlink(ctx context.Context) error {
+	h.linkMu.Lock()
+	defer h.linkMu.Unlock()
 	if err := h.unlink(ctx); err != nil {
 		return err
 	}

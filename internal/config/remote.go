@@ -90,7 +90,10 @@ func (r RemoteConfig) DirectAddress(input string) (string, bool) {
 	host, port, err := net.SplitHostPort(input)
 	if err != nil {
 		host = input
-		_, port, _ = net.SplitHostPort(r.Listener)
+		_, port, err = net.SplitHostPort(r.Listener)
+		if err != nil {
+			return "", false
+		}
 	}
 	parsed, err := netip.ParseAddr(host)
 	if err != nil {

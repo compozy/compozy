@@ -14,6 +14,11 @@ import (
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
+const (
+	remoteConfigKey  = "remote"
+	remoteEnabledKey = "enabled"
+)
+
 func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	storage, ok := state.registry.(remotehost.Store)
 	workers := &state.runtimeWorkers
@@ -42,8 +47,13 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 
 func remoteOperatorRoutes(deps *RuntimeDeps) http.Handler {
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-		TransportName: "remote", MaskInternalErrors: true, Sessions: deps.Sessions, Workspaces: deps.WorkspaceService,
-		WorkspaceAccess: deps.WorkspaceAccess, Profiles: deps.Profiles, Config: deps.Config,
+		TransportName:      remoteConfigKey,
+		MaskInternalErrors: true,
+		Sessions:           deps.Sessions,
+		Workspaces:         deps.WorkspaceService,
+		WorkspaceAccess:    deps.WorkspaceAccess,
+		Profiles:           deps.Profiles,
+		Config:             deps.Config,
 	})
 	return httpapi.NewRemoteRoutes(func(routes *httpapi.RemoteRoutes) {
 		sessions := routes.Group(
@@ -70,10 +80,10 @@ func (d *Daemon) persistRemoteConfig(
 			path  []string
 			value *bool
 		}{
-			{[]string{"remote", "enabled"}, patch.Enabled},
-			{[]string{"remote", "direct", "enabled"}, patch.Direct},
-			{[]string{"remote", "cloud_route", "enabled"}, patch.CloudRoute},
-			{[]string{"remote", "require_device_approval"}, patch.RequireDeviceApproval},
+			{[]string{remoteConfigKey, remoteEnabledKey}, patch.Enabled},
+			{[]string{remoteConfigKey, "direct", remoteEnabledKey}, patch.Direct},
+			{[]string{remoteConfigKey, "cloud_route", remoteEnabledKey}, patch.CloudRoute},
+			{[]string{remoteConfigKey, "require_device_approval"}, patch.RequireDeviceApproval},
 		}
 		for _, change := range changes {
 			if change.value != nil {
@@ -96,7 +106,7 @@ func (a daemonSettingsRuntimeApplier) applyRemoteConfig(
 		return nil
 	}
 	if err := host.ApplyConfig(ctx, next.Remote); err != nil {
-		return new(configApplyFailure("remote", "Remote access settings could not be applied", err))
+		return new(configApplyFailure(remoteConfigKey, "Remote access settings could not be applied", err))
 	}
 	return nil
 }

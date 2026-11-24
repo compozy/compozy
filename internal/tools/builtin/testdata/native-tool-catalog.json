@@ -2550,9 +2550,11 @@
     "risk": "read",
     "read_only": true,
     "destructive": false,
-    "open_world": true,
+    "open_world": false,
     "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
-    "output_schema_digest": "b3be115568956b73e3051d4866739e87cae2e80304d8d234311fc54bed242083"
+    "output_schema_digest": "b3be115568956b73e3051d4866739e87cae2e80304d8d234311fc54bed242083",
+    "result_contract": "single",
+    "single_result_reason": "minimal"
   },
   {
     "tool_id": "compozy__resources_info",

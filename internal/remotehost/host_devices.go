@@ -42,8 +42,10 @@ func (h *Host) Devices(ctx context.Context) ([]Device, error) {
 	}
 	byID := make(map[remoteproto.DeviceID]remoteproto.AccountDevice)
 	if h.account.Status().AccountID == identity.AccountID {
-		list, _ := h.account.Devices(ctx)
-		if h.account.Status().AccountID == identity.AccountID {
+		list, err := h.account.Devices(ctx)
+		if err != nil {
+			h.opts.Logger.DebugContext(ctx, "Could not read account device names", "code", hostFailureCode(err))
+		} else if h.account.Status().AccountID == identity.AccountID {
 			for _, item := range list {
 				byID[item.ID] = item
 			}
@@ -109,7 +111,7 @@ func (h *Host) PatchDevice(ctx context.Context, id remoteproto.DeviceID, patch D
 	if patch.Approved == nil && patch.Scopes == nil {
 		return Device{}, &Failure{
 			http.StatusBadRequest,
-			"invalid_remote_request",
+			invalidRemoteRequestCode,
 			"Specify scopes or an approval decision.",
 			nil,
 		}
@@ -120,7 +122,7 @@ func (h *Host) PatchDevice(ctx context.Context, id remoteproto.DeviceID, patch D
 		if slices.ContainsFunc(requested, func(scope remoteproto.Scope) bool { return !scope.Valid() }) {
 			return Device{}, &Failure{
 				http.StatusBadRequest,
-				"invalid_remote_request",
+				invalidRemoteRequestCode,
 				"An unknown scope was supplied.",
 				nil,
 			}

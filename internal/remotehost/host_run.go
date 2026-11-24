@@ -40,6 +40,7 @@ func (h *Host) start(ctx context.Context, cfg config.RemoteConfig, syncCloud boo
 		cancel()
 		return err
 	}
+	link.sessions = sessions
 	run.sessions, run.control = sessions, link
 	run.handler = h.newListenerHandler(identity, keys, sessions)
 	publish := func(endpoints []string) error {
@@ -53,7 +54,12 @@ func (h *Host) start(ctx context.Context, cfg config.RemoteConfig, syncCloud boo
 		return err
 	}
 	h.run = run
-	run.workers.Go(func() { link.run(run.ctx) })
+	run.workers.Go(func() {
+		link.run(run.ctx)
+		if run.unlinked.Load() {
+			run.cancel()
+		}
+	})
 	run.workers.Go(func() { h.sweepSessions(run) })
 	return nil
 }

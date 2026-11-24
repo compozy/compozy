@@ -7,6 +7,8 @@ import (
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
+const invalidRemoteRequestCode = "invalid_remote_request"
+
 var (
 	// ErrDeviceRevoked reports an epoch fence invalidated by revocation.
 	ErrDeviceRevoked = errors.New("gateway device revoked")

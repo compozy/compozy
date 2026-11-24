@@ -166,7 +166,10 @@ func decideApproval(approval Approval, approved bool, jti string, now time.Time)
 	return approval
 }
 
-func (s *Sessions) checkApproval(ctx context.Context, session Session) error {
+func (s *Sessions) checkDevice(ctx context.Context, session Session) error {
+	if s.locallyRevoked[session.DeviceID] {
+		return ErrDeviceRevoked
+	}
 	if !s.policy.requireApproval {
 		return nil
 	}

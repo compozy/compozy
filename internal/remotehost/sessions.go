@@ -36,6 +36,7 @@ type Sessions struct {
 
 	serial            sync.Mutex
 	security          *remoteproto.SecurityState
+	snapshotBlocked   bool
 	snapshotChanged   chan struct{}
 	snapshotRequested uint64
 	policy            sessionPolicy
@@ -248,7 +249,7 @@ func (s *Sessions) Authenticate(
 	if _, err := s.proofs.VerifyDPoP(proof.Token, binding, now); err != nil {
 		return Principal{}, err
 	}
-	if err := s.checkApproval(ctx, session); err != nil {
+	if err := s.checkDevice(ctx, session); err != nil {
 		return Principal{}, err
 	}
 	s.mu.RLock()
@@ -285,7 +286,7 @@ func (s admissionState) entitled(route remoteproto.RouteKind, now time.Time) err
 }
 
 func (s admissionState) check(session Session, now time.Time) error {
-	if session.Revoked || (s.snapshot.Linked && !s.allows(session)) {
+	if s.snapshot.Linked && !s.allows(session) {
 		return ErrDeviceRevoked
 	}
 	if !now.Before(session.ExpiresAt) {
@@ -294,7 +295,13 @@ func (s admissionState) check(session Session, now time.Time) error {
 	if s.blocked {
 		return ErrSnapshotPending
 	}
-	return s.entitled(session.Route, now)
+	if err := s.entitled(session.Route, now); err != nil {
+		return err
+	}
+	if session.Revoked {
+		return ErrDeviceRevoked
+	}
+	return nil
 }
 
 func (s admissionState) allows(session Session) bool {

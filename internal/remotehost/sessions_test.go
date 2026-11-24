@@ -238,7 +238,7 @@ func TestRemoteSessionAdmission(t *testing.T) {
 			remoteOK(t, err)
 			ctx, release, err := f.sessions.BeginRequest(t.Context(), principal, false)
 			remoteOK(t, err)
-			defer release()
+			t.Cleanup(release)
 			streams = append(streams, ctx)
 			remotehost.OnStreamClose(ctx, func(code int, _ string) { closes = append(closes, code) })
 		}

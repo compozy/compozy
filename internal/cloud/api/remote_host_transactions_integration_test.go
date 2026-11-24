@@ -8,18 +8,23 @@ import (
 	"database/sql"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
+	"github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestCloudRemoteHostTransactions(t *testing.T) {
@@ -79,26 +84,26 @@ func TestCloudRemoteHostTransactions(t *testing.T) {
 		if err := lab.db.RegisterSession(t.Context(), &record); err != nil {
 			t.Fatal(err)
 		}
-		const path = "/api/workspaces/user/sessions/sess_remote_rename"
-		operator := httpapi.NewRemoteRoutes(func(routes *httpapi.RemoteRoutes) {
-			routes.Group(path, remoteproto.ScopeSessions).PATCH("", func(c *gin.Context) {
-				ctx := store.ContextWithMutationCommitFence(c.Request.Context(), func(ctx context.Context) error {
-					close(paused)
-					<-ctx.Done()
-					return nil
-				})
-				renamed := record
-				renamed.Name = "Renamed"
-				if err := lab.db.RegisterSession(ctx, &renamed); err != nil {
-					core.RespondError(c, http.StatusInternalServerError, err, true)
-					return
-				}
-				c.JSON(http.StatusOK, renamed.Name)
-			})
-		})
+		metaPath := store.SessionMetaFile(filepath.Join(lab.paths.SessionsDir, record.ID))
+		if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
+			ID: record.ID, Name: record.Name, ProfileID: record.ProfileID, AgentName: record.AgentName,
+			Provider: record.Provider, State: record.State, RuntimeStatus: record.RuntimeStatus,
+			SessionType: string(session.SessionTypeUser), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		path := "/api/workspaces/" + workspaceaccess.UserSelector + "/sessions/" + record.ID
+		operator := remoteRenameRoutes(t, lab, paused)
 		tunnel := lab.start(t, lab.db, operator)
 		mint := lab.mint(t, tunnel, lab.member)
-		request := lab.input(t, http.MethodPatch, path, map[string]string{"name": "Renamed"}, lab.member, mint)
+		request := lab.input(
+			t,
+			http.MethodPatch,
+			path,
+			contract.RenameSessionRequest{Name: "Renamed"},
+			lab.member,
+			mint,
+		)
 		type result struct {
 			status int
 			body   []byte
@@ -122,6 +127,43 @@ func TestCloudRemoteHostTransactions(t *testing.T) {
 			Scan(&name); err != nil || name != record.Name {
 			t.Fatalf("rename escaped the fence: %q %v", name, err)
 		}
+		if meta, err := store.ReadSessionMeta(metaPath); err != nil || meta.Name != record.Name {
+			t.Fatalf("rename escaped the metadata rollback: %q %v", meta.Name, err)
+		}
+	})
+}
+
+func remoteRenameRoutes(t *testing.T, lab *remoteHostLab, paused chan<- struct{}) http.Handler {
+	t.Helper()
+	manager, err := session.NewManager(session.WithHomePaths(lab.paths), session.WithSessionCatalog(lab.db))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := manager.Shutdown(ctx); err != nil {
+			t.Errorf("shut down session manager: %v", err)
+		}
+	})
+	workspaces, err := workspace.NewResolver(lab.db, workspace.WithHomePaths(lab.paths))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+		TransportName: "remote", MaskInternalErrors: true, Sessions: manager, Workspaces: workspaces,
+	})
+	pauseBeforeCommit := func(c *gin.Context) {
+		ctx := store.ContextWithMutationCommitFence(c.Request.Context(), func(ctx context.Context) error {
+			close(paused)
+			<-ctx.Done()
+			return nil
+		})
+		c.Request = c.Request.WithContext(ctx)
+	}
+	return httpapi.NewRemoteRoutes(func(routes *httpapi.RemoteRoutes) {
+		routes.Group("/api/workspaces/:workspace_id/sessions", remoteproto.ScopeSessions,
+			handlers.WorkspaceReferenceGuard, pauseBeforeCommit).PATCH("/:session_id", handlers.RenameSession)
 	})
 }
 

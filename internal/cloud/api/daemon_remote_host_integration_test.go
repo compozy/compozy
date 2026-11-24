@@ -3,7 +3,6 @@
 package api_test
 
 import (
-	"context"
 	"crypto"
 	"encoding/json/v2"
 	"net"

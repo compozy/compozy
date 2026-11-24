@@ -3,6 +3,7 @@ package remotehost
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"maps"
 	"net"
 	"net/http"
@@ -163,7 +164,9 @@ func (r *listenerRun) serve(parent context.Context, handler http.Handler) {
 	}
 	go func() {
 		defer close(r.done)
-		_ = r.server.Serve(r.listener)
+		if err := r.server.Serve(r.listener); !errors.Is(err, http.ErrServerClosed) {
+			slog.WarnContext(ctx, "Remote listener stopped", "error", err)
+		}
 	}()
 }
 

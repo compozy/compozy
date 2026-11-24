@@ -52,6 +52,7 @@
         "logs",
         "support",
         "account",
+        "remote",
         "gateway",
         "pair",
         "device",

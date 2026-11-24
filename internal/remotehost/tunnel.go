@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json/v2"
+	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -46,7 +48,11 @@ func (h listenerHandler) serveTunnel(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	stream := websocket.NetConn(req.Context(), socket, websocket.MessageBinary)
-	defer func() { _ = socket.CloseNow() }()
+	defer func() {
+		if err := socket.CloseNow(); err != nil && !errors.Is(err, net.ErrClosed) {
+			slog.DebugContext(req.Context(), "Remote tunnel close interrupted")
+		}
+	}()
 	connection := tls.Server(stream, h.tls)
 	handshake, cancel := context.WithTimeout(req.Context(), headerTimeout)
 	defer cancel()
@@ -68,7 +74,9 @@ func (h listenerHandler) serveTunnel(w http.ResponseWriter, req *http.Request) {
 	defer func() { _ = server.Close() }()
 	stop := context.AfterFunc(req.Context(), func() { _ = mux.Close() })
 	defer stop()
-	_ = server.Serve(mux)
+	if err := server.Serve(mux); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		slog.DebugContext(req.Context(), "Remote tunnel stopped")
+	}
 }
 
 func (h listenerHandler) inner() http.Handler {
@@ -93,7 +101,7 @@ func (h listenerHandler) inner() http.Handler {
 func (h listenerHandler) mint(w http.ResponseWriter, req *http.Request) {
 	var input remoteproto.MintRequest
 	if err := json.UnmarshalRead(http.MaxBytesReader(w, req.Body, 128<<10), &input); err != nil {
-		writeFailure(w, &Failure{http.StatusBadRequest, "invalid_remote_request", "The mint request is invalid.", nil})
+		writeFailure(w, &Failure{http.StatusBadRequest, invalidRemoteRequestCode, "The mint request is invalid.", nil})
 		return
 	}
 	proof := requestProof(req, h.kind, input.DPoP)
@@ -140,7 +148,9 @@ func (h listenerHandler) serveOperator(w http.ResponseWriter, req *http.Request)
 
 func (h listenerHandler) endSession(w http.ResponseWriter, req *http.Request) {
 	p, _ := PrincipalFromContext(req.Context())
-	if err := h.sessions.RevokeSession(req.Context(), p.SessionID); err != nil {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(req.Context()), headerTimeout)
+	defer cancel()
+	if err := h.sessions.RevokeSession(ctx, p.SessionID); err != nil {
 		writeFailure(w, err)
 		return
 	}
@@ -165,5 +175,7 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.MarshalWrite(w, value)
+	if err := json.MarshalWrite(w, value); err != nil {
+		slog.Debug("Could not write remote host response", "status", status)
+	}
 }
