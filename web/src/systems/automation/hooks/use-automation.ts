@@ -4,7 +4,7 @@ import {
   mergeAutomationJobPages,
   useComputers,
   type ComputerAutomationJobsInput,
-  type ComputerView,
+  type ComputerPayload,
 } from "@/systems/computers";
 import {
   automationJobDetailOptions,
@@ -46,7 +46,7 @@ interface RemoteAutomationPageResult {
 
 function projectMergedAutomationJobs(
   localJobs: AutomationJob[],
-  remoteComputers: ComputerView[],
+  remoteComputers: ComputerPayload[],
   remoteQueries: RemoteAutomationPageResult[]
 ): {
   jobs: AutomationJob[];
