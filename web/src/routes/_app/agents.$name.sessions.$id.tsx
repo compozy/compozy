@@ -15,12 +15,15 @@ export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
   loaderDeps: ({ search }) => ({
     workspaceSwitch: search.workspaceSwitch,
     workspace: search.workspace,
+    computer: search.computer,
   }),
   loader: async ({ context, params, deps, preload }) => {
     const { prefetchAgentSessionRoute } = await import("./-agent-session-route-loader");
     const data = await prefetchAgentSessionRoute({
       queryClient: context.queryClient,
       sessionId: params.id,
+      computerId: deps.computer,
+      workspaceHint: deps.workspace,
     });
     // The All projects desktop binds the window to the session's own scope.
     if (!preload && data.status === "loaded" && data.binding && deps.workspace !== data.binding) {

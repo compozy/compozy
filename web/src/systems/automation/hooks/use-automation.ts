@@ -1,9 +1,16 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 
+import {
+  mergeAutomationJobPages,
+  useComputers,
+  type ComputerAutomationJobsInput,
+  type ComputerPayload,
+} from "@/systems/computers";
 import {
   automationJobDetailOptions,
   automationJobRunsOptions,
   automationJobsListOptions,
+  automationJobsPageOptions,
   automationRunsListOptions,
   automationTriggerDetailOptions,
   automationTriggerRunsOptions,
@@ -14,6 +21,7 @@ import {
   flattenAutomationTriggerPages,
 } from "../lib/automation-list-query";
 import type {
+  AutomationJob,
   AutomationJobStableFilter,
   AutomationRunHistoryFilter,
   AutomationRunListFilter,
@@ -26,20 +34,97 @@ interface QueryHookOptions {
   profileScope?: ProfileScopeParams;
 }
 
+export interface AutomationJobComputerMeta {
+  id: string;
+  name: string;
+  offline: boolean;
+}
+
+interface RemoteAutomationPageResult {
+  data?: { jobs: AutomationJob[]; page: { total: number } };
+}
+
+function projectMergedAutomationJobs(
+  localJobs: AutomationJob[],
+  remoteComputers: ComputerPayload[],
+  remoteQueries: RemoteAutomationPageResult[]
+): {
+  jobs: AutomationJob[];
+  computerByJobId: Map<string, AutomationJobComputerMeta>;
+  remoteTotal: number;
+} {
+  const computerByJobId = new Map<string, AutomationJobComputerMeta>();
+  if (remoteComputers.length === 0) {
+    return { jobs: localJobs, computerByJobId, remoteTotal: 0 };
+  }
+
+  let remoteTotal = 0;
+  const inputs: ComputerAutomationJobsInput<AutomationJob>[] = [
+    {
+      computer: { id: "local", name: "This computer", status: "connected" },
+      jobs: localJobs,
+    },
+  ];
+  for (let index = 0; index < remoteComputers.length; index++) {
+    const computer = remoteComputers[index];
+    const remoteQuery = remoteQueries[index];
+    if (!computer || !remoteQuery) continue;
+    const remoteJobs = remoteQuery.data?.jobs ?? [];
+    remoteTotal += remoteQuery.data?.page.total ?? remoteJobs.length;
+    inputs.push({
+      computer: { id: computer.id, name: computer.name, status: computer.status },
+      jobs: remoteJobs,
+    });
+  }
+  const merged = mergeAutomationJobPages(inputs);
+  for (const row of merged) {
+    if (row.computerId !== "local") {
+      computerByJobId.set(row.job.id, {
+        id: row.computerId,
+        name: row.computerName,
+        offline: row.offline,
+      });
+    }
+  }
+  return {
+    jobs: merged.map(row => row.job),
+    computerByJobId,
+    remoteTotal,
+  };
+}
+
 export function useAutomationJobs(
   filters: AutomationJobStableFilter = {},
   options: QueryHookOptions = {}
 ) {
+  const enabled = options.enabled ?? true;
   // Scope applied at the single list hook, so a switch moves every consumer.
   const { params } = useProfileReadScope();
   const query = useInfiniteQuery({
     ...automationJobsListOptions({ ...filters, ...params }),
-    enabled: options.enabled ?? true,
+    enabled,
   });
+  const computers = useComputers({ enabled, passive: true });
+  const remoteComputers = computers.enabledComputers;
+  const remoteQueries = useQueries({
+    queries: remoteComputers.map(computer => ({
+      ...automationJobsPageOptions({ ...filters, ...params }, computer.id),
+      enabled: enabled && computer.status === "connected",
+    })),
+  });
+
+  const localJobs = flattenAutomationJobPages(query.data);
+  const { jobs, computerByJobId, remoteTotal } = projectMergedAutomationJobs(
+    localJobs,
+    remoteComputers,
+    remoteQueries
+  );
+
   return {
     ...query,
-    jobs: flattenAutomationJobPages(query.data),
-    total: query.data?.pages[0]?.page.total ?? 0,
+    jobs,
+    computerByJobId,
+    total: (query.data?.pages[0]?.page.total ?? 0) + remoteTotal,
   };
 }
 

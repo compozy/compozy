@@ -145,10 +145,12 @@ describe("loop mutation hooks", () => {
     });
 
     await waitFor(() => {
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "catalog", WS] });
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["computer", "local", "loops", "catalog", WS],
+      });
     });
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["loops", "detail", WS, "implement-tasks"],
+      queryKey: ["computer", "local", "loops", "detail", WS, "implement-tasks"],
     });
   });
 
@@ -174,14 +176,14 @@ describe("loop mutation hooks", () => {
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["loops", "detail", WS, "implement-tasks"],
+        queryKey: ["computer", "local", "loops", "detail", WS, "implement-tasks"],
       });
     });
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["loops", "config", WS, "implement-tasks"],
+      queryKey: ["computer", "local", "loops", "config", WS, "implement-tasks"],
     });
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["loops", "annotations", WS, "implement-tasks"],
+      queryKey: ["computer", "local", "loops", "annotations", WS, "implement-tasks"],
     });
   });
 
@@ -197,14 +199,14 @@ describe("loop mutation hooks", () => {
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["loops", "detail", WS, "implement-tasks"],
+        queryKey: ["computer", "local", "loops", "detail", WS, "implement-tasks"],
       });
     });
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["loops", "config", WS, "implement-tasks"],
+      queryKey: ["computer", "local", "loops", "config", WS, "implement-tasks"],
     });
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["loops", "annotations", WS, "implement-tasks"],
+      queryKey: ["computer", "local", "loops", "annotations", WS, "implement-tasks"],
     });
   });
 
@@ -216,16 +218,18 @@ describe("loop mutation hooks", () => {
 
     await waitFor(() => {
       expect(remove).toHaveBeenCalledWith({
-        queryKey: ["loops", "detail", WS, "implement-tasks"],
+        queryKey: ["computer", "local", "loops", "detail", WS, "implement-tasks"],
       });
     });
     expect(remove).toHaveBeenCalledWith({
-      queryKey: ["loops", "config", WS, "implement-tasks"],
+      queryKey: ["computer", "local", "loops", "config", WS, "implement-tasks"],
     });
     expect(remove).toHaveBeenCalledWith({
-      queryKey: ["loops", "annotations", WS, "implement-tasks"],
+      queryKey: ["computer", "local", "loops", "annotations", WS, "implement-tasks"],
     });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "catalog", WS] });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "loops", "catalog", WS],
+    });
   });
 
   it("Should preserve cached Loop projections when useDeleteLoop fails", async () => {
@@ -251,9 +255,13 @@ describe("loop mutation hooks", () => {
       profile: "default",
     });
     await waitFor(() => {
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "runs", WS] });
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["computer", "local", "loops", "runs", WS],
+      });
     });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "catalog", WS] });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "loops", "catalog", WS],
+    });
 
     invalidate.mockClear();
     await result.current.mutateAsync({
@@ -277,11 +285,15 @@ describe("loop mutation hooks", () => {
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["loops", "run-detail", WS, "looprun_running"],
+        queryKey: ["computer", "local", "loops", "run-detail", WS, "looprun_running"],
       });
     });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "runs", WS] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "catalog", WS] });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "loops", "runs", WS],
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "loops", "catalog", WS],
+    });
   });
 
   it("Should invalidate the run after an approval decision", async () => {
@@ -296,7 +308,7 @@ describe("loop mutation hooks", () => {
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["loops", "run-detail", WS, "looprun_running"],
+        queryKey: ["computer", "local", "loops", "run-detail", WS, "looprun_running"],
       });
     });
   });
@@ -327,10 +339,12 @@ describe("loop mutation hooks", () => {
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["loops", "config", WS, "implement-tasks"],
+        queryKey: ["computer", "local", "loops", "config", WS, "implement-tasks"],
       });
     });
-    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["loops", "runs", WS] });
+    expect(invalidate).not.toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "loops", "runs", WS],
+    });
   });
 });
 
@@ -348,10 +362,10 @@ describe("graph-completion mutation hooks", () => {
   });
 
   const REQUEST_KEYS = [
-    ["loops", "run-detail", WS, GRAPH_ENG_RUN_ID],
-    ["loops", "runs", WS],
-    ["loops", "node-inventory", WS],
-    ["loops", "requests", WS],
+    ["computer", "local", "loops", "run-detail", WS, GRAPH_ENG_RUN_ID],
+    ["computer", "local", "loops", "runs", WS],
+    ["computer", "local", "loops", "node-inventory", WS],
+    ["computer", "local", "loops", "requests", WS],
   ];
 
   it("Should reconcile an answered request through every owner key without an optimistic paint", async () => {
@@ -390,7 +404,9 @@ describe("graph-completion mutation hooks", () => {
     ).rejects.toMatchObject({ code: "request_validation_failed" });
 
     await waitFor(() => {
-      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "requests", WS] });
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["computer", "local", "loops", "requests", WS],
+      });
     });
   });
 
@@ -425,12 +441,18 @@ describe("graph-completion mutation hooks", () => {
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["loops", "run-detail", WS, GRAPH_ENG_RUN_ID],
+        queryKey: ["computer", "local", "loops", "run-detail", WS, GRAPH_ENG_RUN_ID],
       });
     });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "run-diff"] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "runs", WS] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "catalog", WS] });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "loops", "run-diff"],
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "loops", "runs", WS],
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["computer", "local", "loops", "catalog", WS],
+    });
   });
 
   it("Should invalidate both sides of the lineage after a fork", async () => {
@@ -446,11 +468,11 @@ describe("graph-completion mutation hooks", () => {
 
     await waitFor(() => {
       expect(invalidate).toHaveBeenCalledWith({
-        queryKey: ["loops", "run-detail", WS, GRAPH_ENG_RUN_ID],
+        queryKey: ["computer", "local", "loops", "run-detail", WS, GRAPH_ENG_RUN_ID],
       });
     });
     expect(invalidate).toHaveBeenCalledWith({
-      queryKey: ["loops", "run-detail", WS, GRAPH_ENG_FORK_RUN_ID],
+      queryKey: ["computer", "local", "loops", "run-detail", WS, GRAPH_ENG_FORK_RUN_ID],
     });
   });
 });

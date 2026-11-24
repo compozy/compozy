@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
+import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import {
   getSessionChanges,
   listSessionChangeBases,
@@ -7,7 +8,7 @@ import {
 } from "../adapters/session-changes-api";
 
 export const sessionChangesKeys = {
-  all: ["session-changes"] as const,
+  all: ["computer", LOCAL_COMPUTER_ID, "session-changes"] as const,
   session: (workspaceId: string, sessionId: string) =>
     [...sessionChangesKeys.all, workspaceId, sessionId] as const,
   summary: (request: SessionChangesRequest) =>

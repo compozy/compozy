@@ -21,28 +21,36 @@ type TaskLiveRefreshEvents = {
 
 type TaskLiveRefreshEnqueue = EnqueueObject<TaskLiveRefreshContext, never, TaskLiveRefreshEvents>;
 
+function isTasksKey(key: readonly unknown[]): boolean {
+  return (
+    key.length >= tasksKeys.all.length &&
+    tasksKeys.all.every((segment, index) => key[index] === segment)
+  );
+}
+
 function isTaskCatalogQuery(query: Query): boolean {
   const key = query.queryKey;
+  const base = tasksKeys.all.length;
   return (
-    key[0] === tasksKeys.all[0] &&
-    (key[1] === "list" || key[1] === "dashboard" || key[1] === "inbox")
+    isTasksKey(key) && (key[base] === "list" || key[base] === "dashboard" || key[base] === "inbox")
   );
 }
 
 function isTaskLiveQuery(query: Query, taskId: string): boolean {
   const key = query.queryKey;
-  if (key[0] !== tasksKeys.all[0]) return false;
+  if (!isTasksKey(key)) return false;
+  const base = tasksKeys.all.length;
 
-  switch (key[1]) {
+  switch (key[base]) {
     case "detail":
     case "runs":
     case "timeline":
     case "tree":
     case "profile":
-      return key[2] === taskId;
+      return key[base + 1] === taskId;
     case "inspect": {
-      if (key[2] === "task") return key[3] === taskId;
-      if (key[2] !== "run") return false;
+      if (key[base + 1] === "task") return key[base + 2] === taskId;
+      if (key[base + 1] !== "run") return false;
       const inspect = query.state.data as TaskRunInspectView | undefined;
       return !inspect?.task?.id || inspect.task.id === taskId;
     }
@@ -54,7 +62,7 @@ function isTaskLiveQuery(query: Query, taskId: string): boolean {
     case "agent-context":
       return true;
     case "reviews":
-      return key[2] !== "task" || key[3] === taskId;
+      return key[base + 1] !== "task" || key[base + 2] === taskId;
     default:
       return false;
   }

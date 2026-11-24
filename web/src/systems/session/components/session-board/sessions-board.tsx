@@ -1,8 +1,10 @@
+import { ScopedComputerBoardFailureStrip } from "@/systems/computers";
 import { SessionMenuOpenContext } from "../../contexts/session-menu-open-context-value";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { useSessionBoardColumnFolds } from "../../hooks/use-session-window-view-state";
 import type { SessionsBoardView as SessionsBoardModel } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
+import { SessionListComputerContext } from "../../lib/session-list-computer";
 import type { SessionListTarget } from "../../types";
 import { AlwaysOnListTop } from "../always-on/always-on-list-top";
 import { SessionBoardCard } from "./session-board-card";
@@ -30,26 +32,31 @@ export function SessionsBoard(props: SessionsBoardProps) {
   // A card's menu opens a rolled-up item's child session in the drawer, like a card click.
   const openTarget = (session: SessionListTarget) => props.onOpen(session as SessionBoardPayload);
   return (
-    <SessionMenuOpenContext value={openTarget}>
-      <SessionBoardCardSlot value={SessionBoardCard}>
-        <SessionsBoardView
-          {...props}
-          collapsedColumns={folds.collapsed}
-          onColumnCollapsedChange={folds.setCollapsed}
-          header={
-            <AlwaysOnListTop
-              currentSessionId={props.currentSessionId}
-              groupBy={props.board.groupBy}
-              onOpenSession={openTarget}
-              surface="ring-canvas"
-              workspaceId={props.board.focusedWorkspaceId}
-            />
-          }
-          renderLane={(lane, row) => (
-            <SessionsBoardSwimlane {...row} key={lane.group.key} lane={lane} />
-          )}
-        />
-      </SessionBoardCardSlot>
-    </SessionMenuOpenContext>
+    <SessionListComputerContext value={props.board.computerBySessionId}>
+      <SessionMenuOpenContext value={openTarget}>
+        <SessionBoardCardSlot value={SessionBoardCard}>
+          <SessionsBoardView
+            {...props}
+            collapsedColumns={folds.collapsed}
+            onColumnCollapsedChange={folds.setCollapsed}
+            header={
+              <>
+                <AlwaysOnListTop
+                  currentSessionId={props.currentSessionId}
+                  groupBy={props.board.groupBy}
+                  onOpenSession={openTarget}
+                  surface="ring-canvas"
+                  workspaceId={props.board.focusedWorkspaceId}
+                />
+                <ScopedComputerBoardFailureStrip failures={props.board.failedComputers ?? []} />
+              </>
+            }
+            renderLane={(lane, row) => (
+              <SessionsBoardSwimlane {...row} key={lane.group.key} lane={lane} />
+            )}
+          />
+        </SessionBoardCardSlot>
+      </SessionMenuOpenContext>
+    </SessionListComputerContext>
   );
 }

@@ -1,6 +1,12 @@
 import { use, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector } from "@xstate/store-react";
+import {
+  isRemoteComputerId,
+  LOCAL_COMPUTER_ID,
+  normalizeComputerId,
+  type ComputerId,
+} from "@/lib/computer-scope";
 import type { AgentPayload } from "@/systems/agent";
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { TerminalQuote } from "@/systems/terminal/parts";
@@ -24,6 +30,7 @@ import type { SessionCreateTarget } from "./use-session-create-target";
 interface UseSessionCreateSubmitOptions {
   agents: readonly AgentPayload[];
   binding: ReturnType<typeof sessionCreateBinding>;
+  computerId?: ComputerId;
   environment: SessionEnvironmentModel;
   environmentWorkspaceId: string;
   runtimeWorkspaceId: string | null;
@@ -37,6 +44,7 @@ interface UseSessionCreateSubmitOptions {
 
 /** How a created session lands: in place under All projects, else today's switch. */
 interface SessionLanding {
+  computerId: ComputerId;
   scope: DestinationKind;
   currentWorkspaceId: string | null;
   /** The All-projects picker value to remember; `null` outside All projects. */
@@ -57,6 +65,7 @@ type ValidatedSessionCreate =
 export function useSessionCreateSubmit({
   agents,
   binding,
+  computerId = LOCAL_COMPUTER_ID,
   environment,
   environmentWorkspaceId,
   runtimeWorkspaceId,
@@ -68,6 +77,8 @@ export function useSessionCreateSubmit({
   const navigate = useNavigate();
   const shell = use(OsShellContext);
   const createSession = useCreateSession();
+  const scopedComputerId = normalizeComputerId(computerId);
+  const isRemote = isRemoteComputerId(scopedComputerId);
   const flow = useSelector(store, snapshot => snapshot.context);
   const pendingSubmit = flow.pendingSubmit;
   const worktreeId = environment.worktreeId;
@@ -91,6 +102,7 @@ export function useSessionCreateSubmit({
         executeCreatedSession(
           createSessionAsync({
             ...request,
+            ...(isRemote ? { computerId: scopedComputerId } : {}),
             worktree: worktreeId,
             ...(profile ? { profile } : {}),
           }),
@@ -100,7 +112,12 @@ export function useSessionCreateSubmit({
       navigate: session =>
         openCreatedSession(
           session,
-          { scope, currentWorkspaceId: actingWorkspaceId, allProjectsTarget },
+          {
+            computerId: scopedComputerId,
+            scope,
+            currentWorkspaceId: actingWorkspaceId,
+            allProjectsTarget,
+          },
           navigate,
           shell
         ),
@@ -109,11 +126,13 @@ export function useSessionCreateSubmit({
     allProjectsTarget,
     createSessionAsync,
     environment.status,
+    isRemote,
     navigate,
     pendingSubmit,
     profile,
     actingWorkspaceId,
     scope,
+    scopedComputerId,
     shell,
     store,
     worktreeId,
@@ -126,7 +145,7 @@ export function useSessionCreateSubmit({
       store.trigger.validationFailed({ message: validated.message });
       return;
     }
-    if (scope === "project") {
+    if (scope === "project" && !isRemote) {
       const readiness = environment.ensureReady();
       if (readiness === "blocked") {
         store.trigger.validationFailed({
@@ -156,7 +175,8 @@ export function useSessionCreateSubmit({
         executeCreatedSession(
           createSessionAsync({
             ...validated.request,
-            ...(scope === "project" && worktreeId ? { worktree: worktreeId } : {}),
+            ...(isRemote ? { computerId: scopedComputerId } : {}),
+            ...(scope === "project" && !isRemote && worktreeId ? { worktree: worktreeId } : {}),
             ...(profile ? { profile } : {}),
           }),
           validated.pendingPrompt,
@@ -165,7 +185,12 @@ export function useSessionCreateSubmit({
       navigate: session =>
         openCreatedSession(
           session,
-          { scope, currentWorkspaceId: actingWorkspaceId, allProjectsTarget },
+          {
+            computerId: scopedComputerId,
+            scope,
+            currentWorkspaceId: actingWorkspaceId,
+            allProjectsTarget,
+          },
           navigate,
           shell
         ),
@@ -207,6 +232,19 @@ async function openCreatedSession(
   // Named before the workspace switch: the route reconciliation that lands it — after the
   // target workspace hydrates — prefers the operator's existing Session window (#825).
   shell?.coordinator.noteCreatedSession(session.id);
+  if (isRemoteComputerId(landing.computerId)) {
+    await navigate({
+      to: "/agents/$name/sessions/$id",
+      params: { name: session.agent_name, id: session.id },
+      search: {
+        computer: landing.computerId,
+        ...(session.workspace_id
+          ? { workspace: windowBindingValue(ownerDataScope(session.workspace_id)) }
+          : {}),
+      },
+    });
+    return;
+  }
   if (landing.allProjectsTarget !== null) {
     // All projects stays on: the session opens in place, bound to its own scope.
     writeLastSessionProject(landing.allProjectsTarget);

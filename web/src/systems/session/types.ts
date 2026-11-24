@@ -2,6 +2,7 @@ import type { components } from "@compozy/client";
 import type { UIMessage as AIUIMessage } from "ai";
 
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
+import type { ComputerId } from "@/lib/computer-scope";
 import type { SessionBusyInputAction } from "./lib/session-busy-input";
 import type { SessionSendOutcome } from "./lib/session-send-outcome";
 
@@ -26,6 +27,7 @@ export type SessionPayload = SessionsResponse["sessions"][number];
 /** What opening a session from the list needs: a catalog row, or a subagent's child session. */
 export type SessionListTarget = Pick<SessionPayload, "id" | "agent_name" | "workspace_id"> & {
   subagentId?: string;
+  computerId?: ComputerId;
 };
 export type SessionResponse = OperationResponse<"getSession", 200>;
 export type SessionByIDResponse = OperationResponse<"getSessionByID", 200>;

@@ -491,3 +491,6 @@ export * from "./side-chat";
 export * from "./processes";
 export * from "./board-drawer";
 export * from "./always-on";
+export { useRemoteSessionsFanout } from "./hooks/use-remote-sessions-fanout";
+export { markSessionDraftSent, setSessionDraftComputer } from "./lib/session-create-draft";
+export { RemoteOfflineComposerBanner } from "./components/remote-offline-composer-banner";
