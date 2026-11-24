@@ -33,7 +33,8 @@ func cloudBoundaryViolations() ([]string, error) {
 				"internal/testutil/remotetest/cmd/remotetest/billing.go",
 				"internal/testutil/remotetest/cmd/remotetest/hosted.go",
 				"internal/testutil/remotetest/cmd/remotetest/hosted_cloudflare.go",
-				"internal/testutil/remotetest/cmd/remotetest/scenarios.go":
+				"internal/testutil/remotetest/cmd/remotetest/scenarios.go",
+				"internal/testutil/remotetest/cmd/remotetest/sign_in.go":
 				continue
 			}
 			violations = append(violations, fmt.Sprintf("%s imports cloud runtime outside the cloud binary", name))

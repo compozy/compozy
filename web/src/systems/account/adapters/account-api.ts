@@ -9,6 +9,15 @@ import {
 } from "@/lib/api-client";
 
 export type AccountStatusPayload = components["schemas"]["AccountStatusResponse"];
+export type AccountGracePayload = components["schemas"]["AccountGrace"];
+export type AccountSignInNoticePayload = components["schemas"]["AccountSignInNotice"];
+export type AccountEmailPatchRequest = components["schemas"]["AccountEmailPatchRequest"];
+export type AccountDeleteRequest = components["schemas"]["AccountDeleteRequest"];
+export type AccountDeleteResponse = components["schemas"]["AccountDeleteResponse"];
+export type AccountTokenPayload = components["schemas"]["AccountToken"];
+export type AccountTokenListResponse = components["schemas"]["AccountTokenList"];
+export type AccountTokenCreateRequest = components["schemas"]["AccountTokenCreate"];
+export type AccountTokenCreatedResponse = components["schemas"]["AccountTokenCreated"];
 export type AccountLoginRequest = components["schemas"]["AccountLoginRequest"];
 export type AccountLoginResponse = components["schemas"]["AccountLoginResponse"];
 export type AccountLogoutRequest = components["schemas"]["AccountLogoutRequest"];
@@ -36,27 +45,116 @@ export class AccountApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
-    public readonly code?: string
+    public readonly code?: string,
+    public readonly retryAfterSeconds?: number
   ) {
     super(message);
     this.name = "AccountApiError";
   }
 }
 
+function parseRetryAfterSeconds(response: Response): number | undefined {
+  const raw = response.headers.get("Retry-After")?.trim();
+  if (!raw) return undefined;
+  const parsed = Number(raw);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return Math.ceil(parsed);
+  }
+  const timestamp = Date.parse(raw);
+  if (!Number.isNaN(timestamp)) {
+    const diff = Math.ceil((timestamp - Date.now()) / 1000);
+    return diff > 0 ? diff : undefined;
+  }
+  return undefined;
+}
+
 function throwAccountError(fallback: string, response: Response, error: unknown): never {
   throw new AccountApiError(
     defaultApiErrorMessage(fallback, response, error),
     response.status,
-    apiErrorCode(error)
+    apiErrorCode(error),
+    parseRetryAfterSeconds(response)
   );
 }
 
-export async function fetchAccountStatus(signal?: AbortSignal): Promise<AccountStatusPayload> {
-  const { data, error, response } = await apiClient.GET("/api/account", { signal });
+export async function fetchAccountStatus(
+  signal?: AbortSignal,
+  options: { refresh?: boolean } = {}
+): Promise<AccountStatusPayload> {
+  const { data, error, response } = await apiClient.GET("/api/account", {
+    params: options.refresh ? { query: { refresh: true } } : undefined,
+    signal,
+  });
   if (apiRequestFailed(response, error)) {
     throwAccountError("Failed to fetch account status", response, error);
   }
   return requireResponseData(data, response, "Failed to fetch account status");
+}
+
+export async function patchAccountEmail(
+  body: AccountEmailPatchRequest,
+  signal?: AbortSignal
+): Promise<AccountStatusPayload> {
+  const { data, error, response } = await apiClient.PATCH("/api/account", { body, signal });
+  if (apiRequestFailed(response, error)) {
+    throwAccountError("Failed to update email preference", response, error);
+  }
+  return requireResponseData(data, response, "Failed to update email preference");
+}
+
+export async function deleteAccount(
+  confirmEmail: string,
+  signal?: AbortSignal
+): Promise<AccountDeleteResponse> {
+  const { data, error, response } = await apiClient.DELETE("/api/account", {
+    body: { confirm_email: confirmEmail },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throwAccountError("Failed to delete account", response, error);
+  }
+  return requireResponseData(data, response, "Failed to delete account");
+}
+
+export async function dismissAccountSignInNotices(signal?: AbortSignal): Promise<void> {
+  const { error, response } = await apiClient.POST("/api/account/sign-in-notices/dismiss", {
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throwAccountError("Failed to dismiss sign-in notices", response, error);
+  }
+}
+
+export async function fetchAccountTokens(signal?: AbortSignal): Promise<AccountTokenListResponse> {
+  const { data, error, response } = await apiClient.GET("/api/account/tokens", { signal });
+  if (apiRequestFailed(response, error)) {
+    throwAccountError("Failed to fetch account tokens", response, error);
+  }
+  return requireResponseData(data, response, "Failed to fetch account tokens");
+}
+
+export async function createAccountToken(
+  name: string,
+  signal?: AbortSignal
+): Promise<AccountTokenCreatedResponse> {
+  const { data, error, response } = await apiClient.POST("/api/account/tokens", {
+    body: { name },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throwAccountError("Failed to create account token", response, error);
+  }
+  return requireResponseData(data, response, "Failed to create account token");
+}
+
+export async function revokeAccountToken(id: string, signal?: AbortSignal): Promise<void> {
+  const { error, response } = await apiClient.DELETE("/api/account/tokens/{id}", {
+    params: { path: { id } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throwAccountError(`Failed to revoke account token "${id}"`, response, error);
+  }
 }
 
 export async function startAccountLogin(

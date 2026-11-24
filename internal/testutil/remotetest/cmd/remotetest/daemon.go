@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/computers/sshsetup"
 	"github.com/compozy/compozy/internal/daemon"
@@ -23,9 +24,10 @@ import (
 )
 
 const (
-	daemonBinaryEnv = "COMPOZY_TEST_DAEMON_BIN"
-	releaseEnv      = "COMPOZY_TEST_SSH_RELEASE"
-	trustEnv        = "COMPOZY_TEST_SSH_TRUST_ROOT"
+	daemonBinaryEnv   = "COMPOZY_TEST_DAEMON_BIN"
+	releaseEnv        = "COMPOZY_TEST_SSH_RELEASE"
+	trustEnv          = "COMPOZY_TEST_SSH_TRUST_ROOT"
+	signInRequiredEnv = "COMPOZY_TEST_SIGN_IN_REQUIRED"
 )
 
 type daemonInstance struct {
@@ -141,6 +143,9 @@ func runDaemon(ctx context.Context) error {
 	})}
 	if os.Getenv(fixtureConnectorEnv) == "1" {
 		options = append(options, daemon.WithCloudflaredInstaller(fixtureConnectorPath))
+	}
+	if os.Getenv(signInRequiredEnv) == "1" {
+		options = append(options, daemon.WithAccountOptions(account.WithSignInRequired(true)))
 	}
 	if release := os.Getenv(releaseEnv); release != "" {
 		root, err := os.ReadFile(os.Getenv(trustEnv))

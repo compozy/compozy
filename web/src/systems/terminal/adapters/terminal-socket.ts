@@ -8,6 +8,7 @@
  * without colliding with `?ticket=`.
  */
 
+import { isAccountSignInCloseCode, reportAccountGateSignal } from "@/lib/account-gate-signal";
 import { acquireHostedStreamTicket, appendHostedStreamTicket } from "@/lib/gateway-stream-auth";
 import { isHostedBrowserMode } from "@/lib/hosted-browser-auth";
 import { TERMINAL_SUBPROTOCOL, type TerminalFrameBytes } from "../lib/terminal-wire";
@@ -94,6 +95,11 @@ export function createTerminalSocket(path: string): TerminalSocket {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(`${protocol}//${window.location.host}${path}`, TERMINAL_SUBPROTOCOL);
   socket.binaryType = "arraybuffer";
+  socket.addEventListener("close", event => {
+    if (isAccountSignInCloseCode(event.code)) {
+      reportAccountGateSignal({ kind: "sign_in_required", code: "sign_in_required" });
+    }
+  });
   return {
     close: (code, reason) => socket.close(code, reason),
     send: data => socket.send(data),

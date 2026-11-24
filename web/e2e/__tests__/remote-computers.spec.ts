@@ -1,7 +1,13 @@
 import { chromium, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 import { appWindow, openCommandPalette, windowID } from "../fixtures/os-navigation";
-import { cliComputerStatus, cliSessionPrompt, expect, test } from "../fixtures/remote-computers";
+import {
+  cliComputerStatus,
+  cliOnboardingComplete,
+  cliSessionPrompt,
+  expect,
+  test,
+} from "../fixtures/remote-computers";
 
 async function openSettings(page: Page, section: "computers" | "account"): Promise<Locator> {
   await page.goto(`/settings/${section}`, { waitUntil: "domcontentloaded" });
@@ -547,5 +553,120 @@ test.describe("Free limit upgrade", () => {
       accountSettings.getByTestId("account-identity").getByText("Pro", { exact: true })
     ).toBeVisible();
     await expect(accountSettings.getByRole("button", { name: "Manage billing" })).toBeVisible();
+  });
+});
+
+test.describe("Mandatory sign-in first run", () => {
+  test.use({ scenario: "sign-in-first-run" });
+
+  test("E2E-010 fresh home shows U0, completes Google sign-in with marketing consent, and opens the app shell", async ({
+    page,
+    context,
+    lab,
+  }) => {
+    await installPurchaseTurnstile(context);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/sign-in/);
+    await expect(page.getByRole("heading", { name: "Sign in to CompozyOS" })).toBeVisible();
+    await expect(page.getByTestId("os-desktop")).toHaveCount(0);
+
+    const consent = page.getByRole("checkbox", { name: "Email me product news and offers" });
+    await consent.click();
+    await expect(consent).toBeChecked();
+
+    const loginPromise = page.waitForResponse(
+      response =>
+        new URL(response.url()).pathname === "/api/account/login" &&
+        response.request().method() === "POST"
+    );
+    const activationTabPromise = context.waitForEvent("page");
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+
+    const loginResponse = await loginPromise;
+    expect(loginResponse.ok()).toBe(true);
+    const { user_code: userCode } = (await loginResponse.json()) as { user_code: string };
+    expect(userCode).toBeTruthy();
+
+    await expect(page.locator('[data-slot="sign-in-verification-code"]')).toContainText(userCode);
+
+    const activationTab = await activationTabPromise;
+    await expect(activationTab.getByText(userCode)).toBeVisible({ timeout: 15_000 });
+    await activationTab.getByRole("button", { name: "Continue with Google" }).click();
+    await expect(activationTab.getByRole("heading")).toHaveText(
+      "You're signed in. Return to CompozyOS."
+    );
+    await activationTab.close();
+
+    await expect(page).not.toHaveURL(/\/sign-in/, { timeout: 20_000 });
+    await expect(page.getByTestId("os-desktop")).toBeVisible({ timeout: 20_000 });
+
+    await cliOnboardingComplete(lab);
+    const settings = await openSettings(page, "account");
+    await expect(
+      settings.getByTestId("account-email").getByRole("switch", { name: "Product news and offers" })
+    ).toBeChecked({ timeout: 15_000 });
+  });
+});
+
+test.describe("Signed-in account and sign out", () => {
+  test.use({ scenario: "sign-in-sign-out" });
+
+  test("E2E-001 Settings → Account shows identity and Free tier, and signing out returns to U0", async ({
+    page,
+  }) => {
+    const settings = await openSettings(page, "account");
+    const identity = settings.getByTestId("account-identity");
+    await expect(identity.getByText("Pedro", { exact: true })).toBeVisible();
+    await expect(identity.getByText("Free", { exact: true })).toBeVisible();
+    await expect(identity.getByText("pedro@example.com · Signed in with Google")).toBeVisible();
+
+    await identity.getByRole("button", { name: "Sign out" }).click();
+    const confirm = page.getByRole("alertdialog").or(page.getByRole("dialog"));
+    await expect(confirm.getByText("Sign out of CompozyOS?")).toBeVisible();
+    await confirm.getByRole("button", { name: "Sign out", exact: true }).click();
+
+    await expect(page).toHaveURL(/\/sign-in/, { timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "Sign in to CompozyOS" })).toBeVisible();
+    await expect(page.getByTestId("os-desktop")).toHaveCount(0);
+  });
+});
+
+test.describe("Account deletion on Pro", () => {
+  test.use({ scenario: "account-delete-pro" });
+
+  test("E2E-014 delete Pro account inside the 14-day refund window, return to U0, and confirm Stripe cancellation and refund", async ({
+    page,
+    context,
+    lab,
+  }) => {
+    const settings = await openSettings(page, "account");
+    await settings
+      .getByTestId("account-delete")
+      .getByRole("button", { name: "Delete account" })
+      .click();
+
+    const dialog = page.getByRole("alertdialog").or(page.getByRole("dialog"));
+    await expect(dialog.getByText("Deleting your account also cancels Pro.")).toBeVisible();
+    await expect(dialog.getByText(/is refunded in full\./)).toBeVisible();
+
+    await dialog.getByRole("textbox", { name: "Confirm your email" }).fill(lab.email);
+    await dialog.getByRole("button", { name: "Delete account and cancel Pro" }).click();
+
+    await expect(page).toHaveURL(/\/sign-in/, { timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "Sign in to CompozyOS" })).toBeVisible();
+
+    await expect
+      .poll(
+        async () => {
+          const response = await context.request.get(lab.cloud_url + "/fixture/deletion");
+          expect(response.ok()).toBe(true);
+          return (await response.json()) as { deletes: string[]; refunds: number };
+        },
+        { timeout: 15_000 }
+      )
+      .toMatchObject({
+        deletes: ["sub_e2e_delete_pro"],
+        refunds: 1,
+      });
   });
 });

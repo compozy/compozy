@@ -16,6 +16,13 @@ export const appRouteStories = [
     storyName: "Default",
   },
   {
+    system: "settings",
+    routePath: "/sign-in",
+    storybookPath: "/sign-in",
+    title: "systems/account/routes/SignIn",
+    storyName: "Default",
+  },
+  {
     system: "runtime",
     routePath: "/",
     storybookPath: "/",

@@ -1,6 +1,7 @@
 import createClient, { type Client } from "openapi-fetch";
 
 import type { paths as compozyPaths } from "@compozy/client";
+import { reportAccountGateResponse } from "./account-gate-signal";
 import { createClientId } from "./client-id";
 import { isRemoteComputerId, LOCAL_COMPUTER_ID, normalizeComputerId } from "./computer-scope";
 import { reportGatewayResponse } from "./gateway-access-signal";
@@ -121,6 +122,7 @@ function attachClientMiddleware(client: Client<compozyPaths>): Client<compozyPat
         await reportHostedBrowserResponse(response);
       } else {
         await reportGatewayResponse(response);
+        await reportAccountGateResponse(response);
       }
       return undefined;
     },

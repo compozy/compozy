@@ -1,3 +1,4 @@
+import { reportAccountGateSignal } from "./account-gate-signal";
 import {
   acquireHostedStreamTicket,
   acquireStreamTicket,
@@ -58,6 +59,10 @@ class TicketedEventSource implements StreamEventSource {
 
   private readonly listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
   private readonly forwarders = new Map<string, EventListener>();
+  private readonly onSignInRequiredFrame: EventListener = () => {
+    reportAccountGateSignal({ kind: "sign_in_required", code: "sign_in_required" });
+    this.close();
+  };
   private native: (StreamEventSource & { readonly url: string }) | null = null;
   private attachedTypes = new Set<string>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -177,6 +182,7 @@ class TicketedEventSource implements StreamEventSource {
       this.onerror?.(event);
       this.handleNativeError(native);
     };
+    native.addEventListener("sign_in_required", this.onSignInRequiredFrame);
     for (const type of this.listeners.keys()) {
       this.attachedTypes.add(type);
       native.addEventListener(type, this.forwarderFor(type));
@@ -191,6 +197,10 @@ class TicketedEventSource implements StreamEventSource {
    */
   private handleNativeError(native: StreamEventSource & { readonly url: string }): void {
     if (this.closed || this.native !== native) return;
+    if (native instanceof WebSocketEventSource && native.closedForSignIn) {
+      this.close();
+      return;
+    }
     if (this.options.transport !== "websocket" && !isTicketedUrl(native.url)) return;
     this.teardownNative();
     this.scheduleReconnect();
@@ -245,6 +255,7 @@ class TicketedEventSource implements StreamEventSource {
     native.onmessage = null;
     native.onerror = null;
     native.onopen = null;
+    native.removeEventListener("sign_in_required", this.onSignInRequiredFrame);
     for (const type of this.attachedTypes) {
       native.removeEventListener(type, this.forwarderFor(type));
     }

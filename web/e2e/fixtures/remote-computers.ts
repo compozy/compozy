@@ -21,7 +21,17 @@ type Scenario =
   | "browser-purchase"
   | "hosted-purchase"
   | "hosted-browser"
-  | "free-upgrade";
+  | "free-upgrade"
+  | "sign-in-first-run"
+  | "sign-in-sign-out"
+  | "account-delete-pro";
+
+const CONTROLLER_ONLY_SCENARIOS: ReadonlySet<Scenario> = new Set([
+  "browser-purchase",
+  "sign-in-first-run",
+  "sign-in-sign-out",
+  "account-delete-pro",
+]);
 
 interface Daemon {
   web_url: string;
@@ -88,7 +98,7 @@ export const test = base.extend<{ scenario: Scenario; lab: RemoteComputersLab }>
         if (
           lab.scenario !== scenario ||
           !lab.controller.web_url ||
-          (scenario !== "browser-purchase" && !lab.computers.length)
+          (!CONTROLLER_ONLY_SCENARIOS.has(scenario) && !lab.computers.length)
         ) {
           throw new Error(`Invalid manifest for remotetest scenario ${scenario}`);
         }
@@ -179,6 +189,26 @@ export async function cliComputerStatus(
     timeout: 1_000,
   }).then(result => result.stdout, failureOutput);
   return JSON.parse(output) as ComputerStatus;
+}
+
+export async function cliOnboardingComplete(lab: RemoteComputersLab): Promise<void> {
+  const binary = process.env.COMPOZY_TEST_DAEMON_BIN;
+  if (!binary) throw new Error("COMPOZY_TEST_DAEMON_BIN is required for CLI onboarding complete.");
+  const device = lab.controller;
+  await execFileAsync(binary, ["onboarding", "complete", "--json"], {
+    cwd: device.operator_home,
+    env: {
+      ...process.env,
+      HOME: device.operator_home,
+      COMPOZY_HOME: device.home,
+      COMPOZY_CLOUD_URL: lab.cloud_url,
+      COMPOZY_SESSION_ID: "",
+      COMPOZY_AGENT: "",
+      COMPOZY_PROFILE: "",
+      COMPOZY_WORKSPACE: "",
+    },
+    timeout: 15_000,
+  });
 }
 
 export async function cliSessionPrompt(

@@ -6,10 +6,13 @@ import {
   type ComponentType,
   type LazyExoticComponent,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { VIEW_TRANSITION_CLASS } from "@compozy/ui";
 
 import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
+import { isHostedOriginCandidate } from "@/lib/hosted-browser-auth";
+import { accountStatusOptions } from "@/systems/account";
 import { OsWindowErrorBoundary } from "../../components/os-window-error-boundary";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { SettingsWindowNav } from "./settings-window-nav";
@@ -201,6 +204,9 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
   const connection = useDaemonConnectionStatus();
   const { coordinator } = useOsShell();
   const activeSlug = settingsSectionSlugFromPathname(route.pathname);
+  const hosted = isHostedOriginCandidate();
+  const accountQuery = useQuery(accountStatusOptions(!hosted));
+  const recentSignInsCount = accountQuery.data?.recent_sign_ins?.length ?? 0;
   useProfileFlowIntent(windowId, activeSlug === "profiles" ? route : undefined);
 
   // The container declaration lives on the outer wrapper: an element cannot
@@ -218,6 +224,11 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
       >
         <SettingsWindowNav
           activeSlug={activeSlug}
+          badges={
+            recentSignInsCount > 0
+              ? { account: { count: recentSignInsCount, tone: "warning" } }
+              : undefined
+          }
           connection={connection}
           onNavigate={next => coordinator.userNavigate(next)}
           onPreload={preloadSettingsSection}

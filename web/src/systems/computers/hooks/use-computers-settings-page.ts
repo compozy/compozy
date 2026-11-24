@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 
 import { toast } from "@compozy/ui";
 
@@ -8,6 +9,7 @@ import {
   accountKeys,
   accountStatusOptions,
   isAccountCloudUnreachableError,
+  isAccountGraceActive,
   patchAccountDevice,
   toAccountView,
   useOptionalUpgradeSheetActions,
@@ -75,6 +77,7 @@ const FALLBACK_ACCOUNT: AccountStateFixture = {
 
 export function useComputersSettingsPage(options: UseComputerProvidersOptions = {}) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const sharedUpgradeSheet = useOptionalUpgradeSheetActions();
   const localUpgradeSheet = useUpgradeSheet();
 
@@ -404,6 +407,10 @@ export function useComputersSettingsPage(options: UseComputerProvidersOptions = 
 
   return {
     account,
+    isGraceMode: isAccountGraceActive(accountQuery.data),
+    handleGoToSignIn: () => {
+      void router.navigate({ to: "/sign-in", search: { redirect: "/settings/computers" } });
+    },
     local,
     computers,
     unaddedComputers,

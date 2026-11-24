@@ -1,38 +1,42 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 
 import { toast } from "@compozy/ui";
 
+import { evictRemoteComputerQueries } from "@/lib/computer-scope";
+import { unlinkRemoteHost } from "@/systems/computers/adapters/remote-host-api";
+import { computerRegistryKeys } from "@/systems/computers/lib/query-keys";
+import { computersListOptions, remoteStatusOptions } from "@/systems/computers/lib/query-options";
+import type { CreatedAccountTokenFixture } from "@/systems/computers/mocks/remote-computers-fixtures-lane-a";
 import type {
   AccountDeviceFixture,
   AccountProvider,
   AccountStateFixture,
+  AccountTokenFixture,
   PendingApprovalFixture,
 } from "@/systems/computers/mocks/remote-computers-types";
-import { patchRemoteStatus, unlinkRemoteHost } from "@/systems/computers/adapters/remote-host-api";
-import { computerRegistryKeys } from "@/systems/computers/lib/query-keys";
-import { computersListOptions, remoteStatusOptions } from "@/systems/computers/lib/query-options";
 
 import {
   AccountApiError,
   cancelAccountLogin,
-  decideAccountApproval,
   logoutAccount,
   openAccountBillingPortal,
   openAccountSignInStream,
   openAccountStream,
-  patchAccountDevice,
-  revokeAccountDevice,
   startAccountLogin,
   type AccountLoginResponse,
+  type AccountStatusPayload,
 } from "../adapters/account-api";
 import { useOptionalUpgradeSheetActions } from "../contexts/upgrade-sheet-context";
 import {
   describeBillingApiError,
   isAccountCloudUnreachableError,
   toAccountDeviceView,
+  toAccountSignInNoticeView,
   toAccountView,
   toPendingApprovalView,
+  type AccountSignInNoticeView,
 } from "../lib/account-view";
 import { openBillingBrowserWindow } from "../lib/billing-window";
 import { accountKeys } from "../lib/query-keys";
@@ -41,14 +45,20 @@ import {
   accountDevicesOptions,
   accountStatusOptions,
 } from "../lib/query-options";
+import { isAccountGraceActive } from "../lib/sign-in-gate";
+import { useAccountDeviceMutations } from "./use-account-device-mutations";
+import { useAccountLifecycleMutations } from "./use-account-lifecycle-mutations";
 import { useUpgradeSheet, type UpgradeSheetController } from "./use-upgrade-sheet";
 
 export interface UseAccountSettingsPageResult {
   account: AccountStateFixture | null;
+  isGraceMode: boolean;
   devices: AccountDeviceFixture[];
   currentDevice: AccountDeviceFixture | undefined;
   currentDeviceIsAdmin: boolean;
   approvals: PendingApprovalFixture[];
+  recentSignIns: AccountSignInNoticeView[];
+  tokens: AccountTokenFixture[];
   downgradedNeedsProCount: number;
   localRemoteEnabled: boolean;
   requireDeviceApproval: boolean;
@@ -62,12 +72,26 @@ export interface UseAccountSettingsPageResult {
   revokeApprovalFailure: string | null;
   isRevoking: boolean;
   signOutOpen: boolean;
+  signOutRequiresUnlink: boolean;
   signOutError: string | null;
   isSigningOut: boolean;
   isOpeningBillingPortal: boolean;
+  isUpdatingEmail: boolean;
+  createTokenOpen: boolean;
+  createTokenError: string | null;
+  isCreatingToken: boolean;
+  createdToken: CreatedAccountTokenFixture | null;
+  revokingTokenId: string | null;
+  isDismissingNotices: boolean;
+  deleteOpen: boolean;
+  deleteError: string | null;
+  isDeletingAccount: boolean;
   fallbackUpgradeSheet: UpgradeSheetController | null;
   setRevokeTarget: (device: AccountDeviceFixture | null) => void;
   setSignOutOpen: (open: boolean) => void;
+  setCreateTokenOpen: (open: boolean) => void;
+  setCreatedToken: (token: CreatedAccountTokenFixture | null) => void;
+  setDeleteOpen: (open: boolean) => void;
   handleToggleAdmin: (device: AccountDeviceFixture, nextAdmin: boolean) => void;
   handleConfirmRevoke: (device: AccountDeviceFixture, enableApproval: boolean) => void;
   handleRetryEnableApproval: () => void;
@@ -81,31 +105,44 @@ export interface UseAccountSettingsPageResult {
   handleRetryCloud: () => void;
   handleOpenUpgrade: () => void;
   handleManageBilling: () => void;
+  handleToggleMarketingOptIn: (next: boolean) => void;
+  handleCreateToken: (name: string) => void;
+  handleRevokeToken: (token: AccountTokenFixture) => void;
+  handleRevokeSignInNotice: (notice: AccountSignInNoticeView) => void;
+  handleDismissSignInNotices: () => void;
+  handleConfirmDeleteAccount: () => void;
+  handleGoToSignIn: () => void;
 }
 
 export function useAccountSettingsPage(): UseAccountSettingsPageResult {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const sharedUpgradeSheet = useOptionalUpgradeSheetActions();
   const localUpgradeSheet = useUpgradeSheet();
 
   const statusQuery = useQuery(accountStatusOptions());
   const signedIn = Boolean(statusQuery.data?.signed_in);
   const isSession = signedIn && statusQuery.data?.source === "session";
+  const isGraceMode = isAccountGraceActive(statusQuery.data);
 
   const devicesQuery = useQuery(accountDevicesOptions(isSession));
   const approvalsQuery = useQuery(accountApprovalsOptions(isSession));
   const computersQuery = useQuery(computersListOptions(isSession));
   const remoteQuery = useQuery(remoteStatusOptions(signedIn));
 
+  const lifecycle = useAccountLifecycleMutations({
+    isSession,
+    email: statusQuery.data?.email ?? "",
+    gate: statusQuery.data?.gate,
+  });
+
   const [loginAttempt, setLoginAttempt] = useState<AccountLoginResponse | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [linkMismatchNotice, setLinkMismatchNotice] = useState(false);
-  const [revokeTarget, setRevokeTarget] = useState<AccountDeviceFixture | null>(null);
-  const [revokeApprovalFailure, setRevokeApprovalFailure] = useState<string | null>(null);
   const [signOutOpen, setSignOutOpen] = useState(false);
+  const [signOutRequiresUnlink, setSignOutRequiresUnlink] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
-  // Keep account status, devices, and pending approvals synchronized live.
   useEffect(() => {
     if (!isSession) return;
     return openAccountStream({
@@ -120,12 +157,18 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     });
   }, [isSession, queryClient]);
 
-  // Subscribe to `/api/account/sign-in/events` while a login attempt is in progress.
   useEffect(() => {
     if (!loginAttempt) return;
     return openAccountSignInStream({
       onProgress: progress => {
-        if (progress.state === "done" || progress.state === "succeeded") {
+        if (progress.attempt_id && progress.attempt_id !== loginAttempt.attempt_id) {
+          return;
+        }
+        if (
+          progress.state === "signed_in" ||
+          progress.state === "done" ||
+          progress.state === "succeeded"
+        ) {
           setLoginAttempt(null);
           setLoginError(null);
           setLinkMismatchNotice(false);
@@ -134,12 +177,18 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
           toast.success("Signed in to CompozyOS.");
         } else if (progress.state === "failed" || progress.state === "expired") {
           setLoginAttempt(null);
+          if (progress.code === "installation_linked_to_other_account") {
+            setLinkMismatchNotice(true);
+            return;
+          }
           setLoginError(
-            progress.code
-              ? `Sign-in did not complete (${progress.code}).`
-              : "Sign-in did not complete."
+            progress.code === "account_login_expired"
+              ? "Sign-in timed out. Try again."
+              : progress.code
+                ? `Sign-in did not complete (${progress.code}).`
+                : "Sign-in did not complete."
           );
-        } else if (progress.state === "canceled") {
+        } else if (progress.state === "cancelled" || progress.state === "canceled") {
           setLoginAttempt(null);
         }
       },
@@ -165,9 +214,12 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     return toAccountView(statusQuery.data, { cloudUnreachable });
   }, [statusQuery.data, cloudUnreachable]);
 
-  const devices = useMemo<AccountDeviceFixture[]>(() => {
-    return (devicesQuery.data?.devices ?? []).map(device => toAccountDeviceView(device));
-  }, [devicesQuery.data?.devices]);
+  const devices = useMemo<AccountDeviceFixture[]>(
+    () => (devicesQuery.data?.devices ?? []).map(device => toAccountDeviceView(device)),
+    [devicesQuery.data?.devices]
+  );
+
+  const deviceMutations = useAccountDeviceMutations(devices);
 
   const currentDevice = useMemo(() => {
     const fromList = devices.find(device => device.thisDevice);
@@ -195,11 +247,18 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     return map;
   }, [computersQuery.data?.computers]);
 
-  const approvals = useMemo<PendingApprovalFixture[]>(() => {
-    return (approvalsQuery.data?.approvals ?? []).map(approval =>
-      toPendingApprovalView(approval, computerNameById)
-    );
-  }, [approvalsQuery.data?.approvals, computerNameById]);
+  const approvals = useMemo<PendingApprovalFixture[]>(
+    () =>
+      (approvalsQuery.data?.approvals ?? []).map(approval =>
+        toPendingApprovalView(approval, computerNameById)
+      ),
+    [approvalsQuery.data?.approvals, computerNameById]
+  );
+
+  const recentSignIns = useMemo<AccountSignInNoticeView[]>(
+    () => (statusQuery.data?.recent_sign_ins ?? []).map(toAccountSignInNoticeView),
+    [statusQuery.data?.recent_sign_ins]
+  );
 
   const downgradedNeedsProCount = useMemo(
     () =>
@@ -208,103 +267,33 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     [computersQuery.data?.computers]
   );
 
-  const toggleAdminMutation = useMutation({
-    mutationFn: ({ id, admin }: { id: string; admin: boolean }) =>
-      patchAccountDevice(id, { admin }),
-    onSuccess: (_data, vars) => {
-      void queryClient.invalidateQueries({ queryKey: accountKeys.devices() });
-      const target = devices.find(device => device.id === vars.id);
-      toast.message(
-        vars.admin
-          ? `${target?.name ?? "Device"} is now trusted for admin.`
-          : `Removed admin trust from ${target?.name ?? "device"}.`
-      );
-    },
-    onError: err => {
-      toast.error(err instanceof Error ? err.message : "Failed to update device.");
-    },
-  });
-
-  const revokeMutation = useMutation({
-    mutationFn: async ({
-      device,
-      enableApproval,
-    }: {
-      device: AccountDeviceFixture;
-      enableApproval: boolean;
-    }) => {
-      await revokeAccountDevice(device.id);
-      if (enableApproval) {
-        try {
-          await patchRemoteStatus({ require_device_approval: true });
-        } catch (err) {
-          return {
-            approvalFailed:
-              err instanceof Error ? err.message : "Couldn't turn on device approval.",
-          };
-        }
-      }
-      return { approvalFailed: null as string | null };
-    },
-    onSuccess: (result, vars) => {
-      void queryClient.invalidateQueries({ queryKey: accountKeys.devices() });
-      void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteDevices() });
-      void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteStatus() });
-      if (result.approvalFailed) {
-        setRevokeApprovalFailure(result.approvalFailed);
-        return;
-      }
-      setRevokeTarget(null);
-      setRevokeApprovalFailure(null);
-      toast.success(
-        vars.enableApproval
-          ? `Revoked ${vars.device.name} and enabled approval for new devices.`
-          : `Revoked ${vars.device.name}.`
-      );
-    },
-    onError: err => {
-      toast.error(err instanceof Error ? err.message : "Failed to revoke device.");
-    },
-  });
-
-  const retryApprovalMutation = useMutation({
-    mutationFn: () => patchRemoteStatus({ require_device_approval: true }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteStatus() });
-      setRevokeTarget(null);
-      setRevokeApprovalFailure(null);
-      toast.success("Enabled approval for new devices on this computer.");
-    },
-    onError: err => {
-      setRevokeApprovalFailure(
-        err instanceof Error ? err.message : "Couldn't turn on device approval."
-      );
-    },
-  });
-
-  const decideApprovalMutation = useMutation({
-    mutationFn: ({ id, approve }: { id: string; approve: boolean }) =>
-      decideAccountApproval(id, approve),
-    onSuccess: (_data, vars) => {
-      void queryClient.invalidateQueries({ queryKey: accountKeys.approvals() });
-      void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteDevices() });
-      toast.success(vars.approve ? "Approval decision sent." : "Request denied.");
-    },
-    onError: err => {
-      toast.error(err instanceof Error ? err.message : "Failed to send decision.");
-    },
-  });
-
   const signOutMutation = useMutation({
-    mutationFn: () => logoutAccount({ unlink: Boolean(account?.installationLinked) }),
+    mutationFn: () =>
+      logoutAccount({ unlink: Boolean(account?.installationLinked || signOutRequiresUnlink) }),
     onSuccess: () => {
+      const gate = statusQuery.data?.gate;
       setSignOutOpen(false);
+      setSignOutRequiresUnlink(false);
       setSignOutError(null);
+      evictRemoteComputerQueries(queryClient, { includeComputers: true });
+      queryClient.setQueryData<AccountStatusPayload | undefined>(accountKeys.status(), current =>
+        current
+          ? { ...current, signed_in: false, state: "signed_out", signed_out_reason: "signed_out" }
+          : current
+      );
       void queryClient.invalidateQueries({ queryKey: accountKeys.all });
       void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
       toast.message("Signed out of CompozyOS.");
+      if (gate && gate !== "off") {
+        void router.navigate({ to: "/sign-in", replace: true });
+      }
     },
     onError: err => {
+      if (err instanceof AccountApiError && err.code === "logout_requires_unlink") {
+        setSignOutRequiresUnlink(true);
+        setSignOutError("Signing out also unlinks this computer from remote access.");
+        return;
+      }
       setSignOutError(err instanceof Error ? err.message : "Failed to sign out.");
     },
   });
@@ -321,7 +310,9 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     onError: err => {
       if (
         err instanceof AccountApiError &&
-        (err.code === "link_account_mismatch" || err.status === 409)
+        (err.code === "installation_linked_to_other_account" ||
+          err.code === "link_account_mismatch" ||
+          err.status === 409)
       ) {
         setLinkMismatchNotice(true);
         return;
@@ -379,11 +370,6 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     void cancelAccountLogin(attemptId).catch(() => undefined);
   }, [loginAttempt?.attempt_id]);
 
-  const handleCloseRevoke = useCallback(() => {
-    setRevokeTarget(null);
-    setRevokeApprovalFailure(null);
-  }, []);
-
   const handleRetryCloud = useCallback(() => {
     void Promise.all([
       statusQuery.refetch(),
@@ -393,6 +379,10 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     ]);
   }, [statusQuery, devicesQuery, approvalsQuery, remoteQuery]);
 
+  const handleGoToSignIn = useCallback(() => {
+    void router.navigate({ to: "/sign-in", search: { redirect: "/settings/account" } });
+  }, [router]);
+
   const hardError =
     statusQuery.error && !isAccountCloudUnreachableError(statusQuery.error)
       ? statusQuery.error
@@ -400,10 +390,13 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
 
   return {
     account,
+    isGraceMode,
     devices,
     currentDevice,
     currentDeviceIsAdmin: Boolean(currentDevice?.admin),
     approvals,
+    recentSignIns,
+    tokens: lifecycle.tokens,
     downgradedNeedsProCount,
     localRemoteEnabled: Boolean(remoteQuery.data?.enabled),
     requireDeviceApproval: Boolean(remoteQuery.data?.require_device_approval),
@@ -413,27 +406,42 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     loginError,
     linkMismatchNotice,
     isStartingLogin: startSignInMutation.isPending,
-    revokeTarget,
-    revokeApprovalFailure,
-    isRevoking: revokeMutation.isPending || retryApprovalMutation.isPending,
+    revokeTarget: deviceMutations.revokeTarget,
+    revokeApprovalFailure: deviceMutations.revokeApprovalFailure,
+    isRevoking: deviceMutations.isRevoking,
     signOutOpen,
+    signOutRequiresUnlink: Boolean(account?.installationLinked || signOutRequiresUnlink),
     signOutError,
     isSigningOut: signOutMutation.isPending,
     isOpeningBillingPortal: billingPortalMutation.isPending,
+    isUpdatingEmail: lifecycle.isUpdatingEmail,
+    createTokenOpen: lifecycle.createTokenOpen,
+    createTokenError: lifecycle.createTokenError,
+    isCreatingToken: lifecycle.isCreatingToken,
+    createdToken: lifecycle.createdToken,
+    revokingTokenId: lifecycle.revokingTokenId,
+    isDismissingNotices: lifecycle.isDismissingNotices,
+    deleteOpen: lifecycle.deleteOpen,
+    deleteError: lifecycle.deleteError,
+    isDeletingAccount: lifecycle.isDeletingAccount,
     fallbackUpgradeSheet: sharedUpgradeSheet ? null : localUpgradeSheet,
-    setRevokeTarget,
+    setRevokeTarget: deviceMutations.setRevokeTarget,
     setSignOutOpen: open => {
       setSignOutOpen(open);
-      if (!open) setSignOutError(null);
+      if (!open) {
+        setSignOutError(null);
+        setSignOutRequiresUnlink(false);
+      }
     },
-    handleToggleAdmin: (device, nextAdmin) =>
-      toggleAdminMutation.mutate({ id: device.id, admin: nextAdmin }),
-    handleConfirmRevoke: (device, enableApproval) =>
-      revokeMutation.mutate({ device, enableApproval }),
-    handleRetryEnableApproval: () => retryApprovalMutation.mutate(),
-    handleCloseRevoke,
-    handleApprove: approvalId => decideApprovalMutation.mutate({ id: approvalId, approve: true }),
-    handleDeny: approvalId => decideApprovalMutation.mutate({ id: approvalId, approve: false }),
+    setCreateTokenOpen: lifecycle.setCreateTokenOpen,
+    setCreatedToken: lifecycle.setCreatedToken,
+    setDeleteOpen: lifecycle.setDeleteOpen,
+    handleToggleAdmin: deviceMutations.handleToggleAdmin,
+    handleConfirmRevoke: deviceMutations.handleConfirmRevoke,
+    handleRetryEnableApproval: deviceMutations.handleRetryEnableApproval,
+    handleCloseRevoke: deviceMutations.handleCloseRevoke,
+    handleApprove: deviceMutations.handleApprove,
+    handleDeny: deviceMutations.handleDeny,
     handleConfirmSignOut: () => signOutMutation.mutate(),
     handleStartSignIn: provider => startSignInMutation.mutate(provider),
     handleCancelSignIn,
@@ -441,5 +449,12 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     handleRetryCloud,
     handleOpenUpgrade,
     handleManageBilling,
+    handleToggleMarketingOptIn: lifecycle.handleToggleMarketingOptIn,
+    handleCreateToken: lifecycle.handleCreateToken,
+    handleRevokeToken: lifecycle.handleRevokeToken,
+    handleRevokeSignInNotice: deviceMutations.handleRevokeSignInNotice,
+    handleDismissSignInNotices: lifecycle.handleDismissSignInNotices,
+    handleConfirmDeleteAccount: lifecycle.handleConfirmDeleteAccount,
+    handleGoToSignIn,
   };
 }

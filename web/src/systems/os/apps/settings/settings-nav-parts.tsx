@@ -1,8 +1,13 @@
 import type { ComponentProps, ReactNode } from "react";
 
-import { cn } from "@compozy/ui";
+import { cn, Pill } from "@compozy/ui";
 
 import type { SettingsSectionDescriptor } from "@/systems/settings";
+
+export interface SettingsNavBadge {
+  count: number;
+  tone?: "warning" | "neutral";
+}
 
 // The frame of the Settings navigation, shared by the live nav and by the window's loading
 // fallback so the two hold the same geometry: a horizontal strip in a narrow window and a
@@ -63,13 +68,15 @@ export function SettingsNavGroup({ label, children }: { label: ReactNode; childr
   );
 }
 
-/** A section's glyph and name. */
+/** A section's glyph, name, and optional count badge. */
 export function SettingsNavItemContent({
   section,
   isActive,
+  badge,
 }: {
-  section: Pick<SettingsSectionDescriptor, "icon" | "label">;
+  section: Pick<SettingsSectionDescriptor, "icon" | "label"> & { slug?: string };
   isActive: boolean;
+  badge?: SettingsNavBadge;
 }) {
   const Icon = section.icon;
   return (
@@ -81,6 +88,16 @@ export function SettingsNavItemContent({
       <span className="whitespace-nowrap @min-settings-takeover:truncate" title={section.label}>
         {section.label}
       </span>
+      {badge && badge.count > 0 ? (
+        <Pill
+          className="ml-auto shrink-0"
+          data-testid={section.slug ? `settings-section-badge-${section.slug}` : undefined}
+          size="xs"
+          tone={badge.tone ?? "warning"}
+        >
+          {badge.count}
+        </Pill>
+      ) : null}
     </>
   );
 }

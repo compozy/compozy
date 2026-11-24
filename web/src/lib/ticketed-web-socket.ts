@@ -1,3 +1,4 @@
+import { isAccountSignInCloseCode, reportAccountGateSignal } from "./account-gate-signal";
 import {
   acquireHostedStreamTicket,
   acquireStreamTicket,
@@ -86,7 +87,12 @@ class TicketedWebSocket implements StreamWebSocket {
     native.onopen = event => this.onopen?.(event);
     native.onmessage = event => this.onmessage?.(event);
     native.onerror = event => this.onerror?.(event);
-    native.onclose = event => this.onclose?.(event);
+    native.onclose = event => {
+      if (isAccountSignInCloseCode(event.code)) {
+        reportAccountGateSignal({ kind: "sign_in_required", code: "sign_in_required" });
+      }
+      this.onclose?.(event);
+    };
   }
 
   private reportFailure(): void {

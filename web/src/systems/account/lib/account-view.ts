@@ -4,6 +4,7 @@ import type {
   AccountProvider,
   AccountSessionSource,
   AccountStateFixture,
+  AccountTokenFixture,
   ApprovalState,
   DeviceKind,
   PendingApprovalFixture,
@@ -14,7 +15,9 @@ import {
   AccountApiError,
   type AccountApprovalPayload,
   type AccountDevicePayload,
+  type AccountSignInNoticePayload,
   type AccountStatusPayload,
+  type AccountTokenPayload,
 } from "../adapters/account-api";
 
 export function formatRelativeTimeLabel(iso: string | null | undefined): string {
@@ -46,7 +49,7 @@ function normalizeProvider(provider: string | undefined): AccountProvider | null
 
 function normalizeSource(source: string | null | undefined): AccountSessionSource {
   if (source === "link" || source === "host_link") return "host_link";
-  if (source === "account_token") return "account_token";
+  if (source === "token" || source === "account_token") return "account_token";
   return "session";
 }
 
@@ -132,7 +135,11 @@ export function toAccountView(
   };
 }
 
+export const COMPOZY_TERMS_URL = "https://compozy.com/legal/terms";
+export const COMPOZY_PRIVACY_URL = "https://compozy.com/legal/privacy";
 export const COMPOZY_REFUNDS_URL = "https://compozy.com/legal/refunds";
+export const COMPOZY_WHY_SIGN_IN_URL = "https://compozy.com/docs/account/sign-in";
+export const COMPOZY_STATUS_URL = "https://status.compozy.com";
 export const COMPOZY_SUPPORT_MAILTO = "mailto:support@compozy.com";
 
 const REFUND_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
@@ -302,4 +309,52 @@ export function toPendingApprovalView(
     appliedResult,
     canDecide: approval.can_decide,
   };
+}
+
+export interface AccountSignInNoticeView {
+  deviceId: string;
+  name: string;
+  kind: DeviceKind;
+  location: string;
+  at: string;
+  whenLabel: string;
+}
+
+/** Projects a live `/api/account` `recent_sign_ins` entry into the U3 notice view model. */
+export function toAccountSignInNoticeView(
+  notice: AccountSignInNoticePayload
+): AccountSignInNoticeView {
+  return {
+    deviceId: notice.device_id,
+    name: notice.name,
+    kind: normalizeDeviceKind(notice.kind),
+    location: notice.location,
+    at: notice.at,
+    whenLabel: formatRelativeTimeLabel(notice.at),
+  };
+}
+
+/** Projects a live `/api/account/tokens` item into `AccountTokenFixture`. */
+export function toAccountTokenView(token: AccountTokenPayload): AccountTokenFixture {
+  return {
+    id: token.id,
+    name: token.name,
+    createdLabel: "",
+    lastUsedLabel: token.last_used_at ? formatRelativeTimeLabel(token.last_used_at) : null,
+  };
+}
+
+/** Formats a grace-period deadline (`Dec 3, 14:00` or date) for the grace banner. */
+export function formatGraceUntil(iso: string | null | undefined): string {
+  if (!iso) return "later";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  });
 }

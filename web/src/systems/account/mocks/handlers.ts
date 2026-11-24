@@ -114,4 +114,30 @@ export const handlers = [
     HttpResponse.json({ url: "https://billing.stripe.com/p/session/bps_story_fixture" })
   ),
   compozyApiMock.post("/api/account/logout", () => HttpResponse.json({ state: "signed_out" })),
+  compozyApiMock.patch("/api/account", async ({ request }) => {
+    const patch = (await request.json()) as { marketing_opt_in?: boolean | null };
+    return HttpResponse.json({
+      ...accountStatusStoryFixture,
+      marketing_opt_in: Boolean(patch.marketing_opt_in),
+    });
+  }),
+  compozyApiMock.delete("/api/account", () =>
+    HttpResponse.json(
+      { state: "deleting", subscription_cancelled: false, refund: "none" },
+      { status: 202 }
+    )
+  ),
+  compozyApiMock.post(
+    "/api/account/sign-in-notices/dismiss",
+    () => new HttpResponse(null, { status: 204 })
+  ),
+  compozyApiMock.get("/api/account/tokens", () => HttpResponse.json({ tokens: [] })),
+  compozyApiMock.post("/api/account/tokens", async ({ request }) => {
+    const body = (await request.json()) as { name: string };
+    return HttpResponse.json(
+      { id: "atk_story", name: body.name, token: "cpzat_story_token_secret" },
+      { status: 201 }
+    );
+  }),
+  compozyApiMock.delete("/api/account/tokens/{id}", () => new HttpResponse(null, { status: 204 })),
 ];

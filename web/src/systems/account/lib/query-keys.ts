@@ -3,4 +3,5 @@ export const accountKeys = {
   status: () => [...accountKeys.all, "status"] as const,
   devices: () => [...accountKeys.all, "devices"] as const,
   approvals: () => [...accountKeys.all, "approvals"] as const,
+  tokens: () => [...accountKeys.all, "tokens"] as const,
 };

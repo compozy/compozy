@@ -31,6 +31,7 @@ import { SettingsGroup } from "@/systems/settings/components/settings-group";
 
 export interface AccountEmailSectionProps {
   marketingOptIn: boolean;
+  disabled?: boolean;
   onToggleMarketingOptIn: (next: boolean) => void;
 }
 
@@ -40,6 +41,7 @@ export interface AccountEmailSectionProps {
  */
 export function AccountEmailSection({
   marketingOptIn,
+  disabled = false,
   onToggleMarketingOptIn,
 }: AccountEmailSectionProps) {
   return (
@@ -49,6 +51,7 @@ export function AccountEmailSection({
           <Switch
             aria-label="Product news and offers"
             checked={marketingOptIn}
+            disabled={disabled}
             onCheckedChange={onToggleMarketingOptIn}
             size="sm"
           />
@@ -62,6 +65,7 @@ export function AccountEmailSection({
 
 export interface AccountTokensSectionProps {
   tokens: readonly AccountTokenFixture[];
+  revokingTokenId?: string | null;
   onCreateToken: () => void;
   onRevokeToken: (token: AccountTokenFixture) => void;
 }
@@ -72,6 +76,7 @@ export interface AccountTokensSectionProps {
  */
 export function AccountTokensSection({
   tokens,
+  revokingTokenId = null,
   onCreateToken,
   onRevokeToken,
 }: AccountTokensSectionProps) {
@@ -119,8 +124,12 @@ export function AccountTokensSection({
                 <ListingRow.Title>{token.name}</ListingRow.Title>
               </ListingRow.Name>
               <ListingRow.Meta className="mt-1">
-                <span>Created {token.createdLabel}</span>
-                <ListingRow.MetaDot />
+                {token.createdLabel ? (
+                  <>
+                    <span>Created {token.createdLabel}</span>
+                    <ListingRow.MetaDot />
+                  </>
+                ) : null}
                 <span>
                   {token.lastUsedLabel ? `Last used ${token.lastUsedLabel}` : "Never used"}
                 </span>
@@ -131,6 +140,7 @@ export function AccountTokensSection({
 
             <ListingRow.Trail>
               <Button
+                disabled={revokingTokenId === token.id}
                 onClick={() => onRevokeToken(token)}
                 size="sm"
                 type="button"
@@ -148,6 +158,8 @@ export function AccountTokensSection({
 
 export interface AccountCreateTokenDialogProps {
   open: boolean;
+  isPending?: boolean;
+  error?: string | null;
   onClose: () => void;
   onCreate: (name: string) => void;
 }
@@ -155,6 +167,8 @@ export interface AccountCreateTokenDialogProps {
 /** Prompts for a short name before generating an account token. */
 export function AccountCreateTokenDialog({
   open,
+  isPending = false,
+  error = null,
   onClose,
   onCreate,
 }: AccountCreateTokenDialogProps) {
@@ -166,7 +180,7 @@ export function AccountCreateTokenDialog({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!trimmed) return;
+    if (!trimmed || isPending) return;
     onCreate(trimmed);
     setName("");
   };
@@ -205,17 +219,22 @@ export function AccountCreateTokenDialog({
                 Helps you identify which environment uses this token if you need to revoke it later.
               </FieldDescription>
             </Field>
+            {error ? (
+              <Alert className="mt-3" variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
           </EntityDialogBody>
           <EntityDialogFooter
             cancelLabel="Cancel"
             hint="Unlocks local use only."
             onCancel={onClose}
             onPrimary={() => {
-              if (!trimmed) return;
+              if (!trimmed || isPending) return;
               onCreate(trimmed);
               setName("");
             }}
-            primaryDisabled={!trimmed}
+            primaryDisabled={!trimmed || isPending}
             primaryLabel="Create token"
           />
         </form>

@@ -74,7 +74,8 @@ type computerTarget struct {
 func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	f.Helper()
 	if name != sshAdd && name != accountAdd && name != revokeDevice && name != remoteSession &&
-		name != browserPurchase && name != hostedPurchase && name != hostedBrowser && name != freeUpgrade {
+		name != browserPurchase && name != hostedPurchase && name != hostedBrowser && name != freeUpgrade &&
+		name != signInFirstRun && name != signInSignOut && name != accountDeletePro {
 		f.Fatalf("unknown remotetest scenario %q", name)
 	}
 	const pgEnv = "COMPOZY_CLOUD_TEST_POSTGRES"
@@ -105,6 +106,15 @@ func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	}
 	if name == freeUpgrade {
 		return prepareFreeUpgrade(f, db, assets)
+	}
+	if name == signInFirstRun {
+		return prepareSignInFirstRun(f, db)
+	}
+	if name == signInSignOut {
+		return prepareSignInSignOut(f, db)
+	}
+	if name == accountDeletePro {
+		return prepareAccountDeletePro(f, db)
 	}
 	cloudURL := startCloud(f, db, listenHost, nil).Server.URL
 	controller := prepareDaemon(f, false)

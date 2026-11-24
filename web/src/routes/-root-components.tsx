@@ -11,9 +11,15 @@ import { AlertTriangle, Compass, RefreshCw } from "@compozy/ui/icons";
 import { Button, Empty, buttonVariants } from "@compozy/ui";
 
 import { useReleaseActivationFocus } from "@/hooks/use-release-activation-focus";
+import { useAccountGateWatcher } from "@/systems/account";
 import { HostedBrowserAccessBoundary } from "@/systems/computers";
 import { GatewayAccessBoundary } from "@/systems/gateway";
 import { FontAppearanceSync, TypeAppearanceSync } from "@/systems/theme";
+
+function AccountGateWatcherHost() {
+  useAccountGateWatcher();
+  return null;
+}
 
 function RootAccessBoundary({ children }: { children: ReactNode }) {
   return (
@@ -33,6 +39,7 @@ export function RootComponent() {
         data-testid="root-shell"
         className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"
       >
+        <AccountGateWatcherHost />
         <FontAppearanceSync />
         <TypeAppearanceSync />
         <Outlet />

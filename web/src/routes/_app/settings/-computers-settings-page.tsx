@@ -3,7 +3,11 @@ import { Plus } from "@compozy/ui/icons";
 
 import { Button } from "@compozy/ui";
 
-import { AccountRevokeDeviceDialog, ConnectedUpgradeSheet } from "@/systems/account";
+import {
+  AccountGraceSignInPrompt,
+  AccountRevokeDeviceDialog,
+  ConnectedUpgradeSheet,
+} from "@/systems/account";
 import {
   AccountComputersSection,
   AddComputerDialog,
@@ -37,7 +41,7 @@ export function ComputersSettingsPage() {
   });
 
   useSettingsTopbar({
-    actions: (
+    actions: view.isGraceMode ? undefined : (
       <Button
         data-testid="computers-add-button"
         onClick={() => view.setAddDialogOpen(true)}
@@ -62,6 +66,21 @@ export function ComputersSettingsPage() {
         slug="computers"
         state="error"
       />
+    );
+  }
+
+  if (view.isGraceMode) {
+    return (
+      <SettingsPageFrame
+        description="Run agents on other machines, share this computer with your devices, and see how each connection is routed."
+        slug="computers"
+        width="wide"
+      >
+        <AccountGraceSignInPrompt
+          onSignIn={view.handleGoToSignIn}
+          testId="computers-grace-sign-in-prompt"
+        />
+      </SettingsPageFrame>
     );
   }
 

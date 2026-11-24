@@ -4,6 +4,7 @@ import {
   fetchAccountApprovals,
   fetchAccountDevices,
   fetchAccountStatus,
+  fetchAccountTokens,
 } from "../adapters/account-api";
 import { accountKeys } from "./query-keys";
 
@@ -31,6 +32,16 @@ export function accountApprovalsOptions(enabled = true) {
   return queryOptions({
     queryKey: accountKeys.approvals(),
     queryFn: ({ signal }) => fetchAccountApprovals(signal),
+    enabled,
+    staleTime: 15_000,
+    retry: false,
+  });
+}
+
+export function accountTokensOptions(enabled = true) {
+  return queryOptions({
+    queryKey: accountKeys.tokens(),
+    queryFn: ({ signal }) => fetchAccountTokens(signal),
     enabled,
     staleTime: 15_000,
     retry: false,

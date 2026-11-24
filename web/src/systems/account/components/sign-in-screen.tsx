@@ -1,10 +1,12 @@
 import { useId } from "react";
 import {
+  ArrowLeft,
   CircleAlert,
   ClockAlert,
   ExternalLink,
   KeyRound,
   ShieldOff,
+  Unplug,
   WifiOff,
 } from "@compozy/ui/icons";
 
@@ -13,6 +15,7 @@ import {
   AlertActions,
   AlertDescription,
   Button,
+  buttonVariants,
   Checkbox,
   cn,
   CodeBlock,
@@ -22,15 +25,20 @@ import {
 
 import {
   SIGN_IN_CLI_LOGIN_COMMAND,
-  SIGN_IN_PRIVACY_URL,
-  SIGN_IN_TERMS_URL,
   type SignInNoticeFixture,
-  type SignInNoticeKind,
   type SignInProvider,
   type SignInWaitingAttemptFixture,
 } from "@/systems/computers/mocks/remote-computers-fixtures-sign-in";
 
+import {
+  COMPOZY_PRIVACY_URL,
+  COMPOZY_STATUS_URL,
+  COMPOZY_SUPPORT_MAILTO,
+  COMPOZY_TERMS_URL,
+  COMPOZY_WHY_SIGN_IN_URL,
+} from "../lib/account-view";
 import { providerDisplayName } from "../lib/provider-display-name";
+import type { ExtendedSignInNoticeKind, ResolvedSignInNotice } from "../lib/sign-in-gate";
 import { BrandStage } from "./brand-stage";
 import { SignInProviderButton, SignInVerificationCode } from "./sign-in-provider-buttons";
 
@@ -39,7 +47,7 @@ const PROVIDERS: readonly SignInProvider[] = ["google", "github"];
 export interface SignInScreenProps {
   title: string;
   subtitle?: string;
-  notice?: SignInNoticeFixture;
+  notice?: SignInNoticeFixture | ResolvedSignInNotice;
   waiting?: SignInWaitingAttemptFixture;
   buttonsDisabled?: boolean;
   /** Account-token installation whose token was revoked: shows CLI hint without provider buttons. */
@@ -47,28 +55,36 @@ export interface SignInScreenProps {
   cliHintCommand?: string;
   marketingOptIn?: boolean;
   autoFocusFirstProvider?: boolean;
+  isUnlinking?: boolean;
   onMarketingOptInChange?: (checked: boolean) => void;
   onSelectProvider?: (provider: SignInProvider) => void;
   onReopenBrowser?: (attempt: SignInWaitingAttemptFixture) => void;
   onCancelWaiting?: () => void;
   onRetryConnection?: () => void;
+  onUnlinkInstallation?: () => void;
+  /** Shown while the daemon is inside a grace window so the person can return to the app. */
+  onBackToApp?: () => void;
   onOpenLegalLink?: (kind: "terms" | "privacy") => void;
   className?: string;
 }
 
-function noticeVariant(kind: SignInNoticeKind): "default" | "warning" {
+function noticeVariant(kind: ExtendedSignInNoticeKind): "default" | "warning" {
   return kind === "cancelled" ? "default" : "warning";
 }
 
-function NoticeIcon({ kind }: { kind: SignInNoticeKind }) {
+function NoticeIcon({ kind }: { kind: ExtendedSignInNoticeKind }) {
   switch (kind) {
     case "cloud_unreachable":
       return <WifiOff aria-hidden="true" />;
     case "reauth":
+    case "suspended":
       return <ShieldOff aria-hidden="true" />;
     case "token_revoked":
       return <KeyRound aria-hidden="true" />;
+    case "linked_other_account":
+      return <Unplug aria-hidden="true" />;
     case "timed_out":
+    case "rate_limited":
     case "account_deleting":
       return <ClockAlert aria-hidden="true" />;
     case "cancelled":
@@ -139,15 +155,27 @@ export function SignInScreen({
   cliHintCommand = SIGN_IN_CLI_LOGIN_COMMAND,
   marketingOptIn = false,
   autoFocusFirstProvider = false,
+  isUnlinking = false,
   onMarketingOptInChange,
   onSelectProvider,
   onReopenBrowser,
   onCancelWaiting,
   onRetryConnection,
+  onUnlinkInstallation,
+  onBackToApp,
   onOpenLegalLink,
   className,
 }: SignInScreenProps) {
   const consentId = useId();
+  const showStatusLink =
+    notice?.kind === "cloud_unreachable" ||
+    Boolean(notice && "showStatusLink" in notice && notice.showStatusLink);
+  const showSupportLink =
+    notice?.kind === "suspended" ||
+    Boolean(notice && "showSupportLink" in notice && notice.showSupportLink);
+  const showUnlinkAction =
+    notice?.kind === "linked_other_account" ||
+    Boolean(notice && "showUnlinkAction" in notice && notice.showUnlinkAction);
 
   return (
     <BrandStage
@@ -162,6 +190,15 @@ export function SignInScreen({
       </p>
 
       <div className="flex w-full max-w-[380px] flex-col">
+        {onBackToApp ? (
+          <div className="mb-4 flex justify-start">
+            <Button onClick={onBackToApp} size="sm" type="button" variant="ghost">
+              <ArrowLeft aria-hidden="true" className="size-3.5" />
+              Back
+            </Button>
+          </div>
+        ) : null}
+
         <div className="flex flex-col items-center text-center">
           <h1 className="text-display-2xl font-medium tracking-detail-h1 text-fg-strong text-balance">
             {title}
@@ -174,14 +211,58 @@ export function SignInScreen({
         </div>
 
         {notice ? (
-          <Alert className="mt-6" variant={noticeVariant(notice.kind)}>
+          <Alert
+            className="mt-6"
+            data-notice-kind={notice.kind}
+            data-testid="sign-in-notice"
+            variant={noticeVariant(notice.kind)}
+          >
             <NoticeIcon kind={notice.kind} />
-            <AlertDescription className="text-fg">{notice.message}</AlertDescription>
-            {notice.retryable ? (
+            <AlertDescription className="text-fg">
+              {showSupportLink ? (
+                <span>
+                  Contact{" "}
+                  <a
+                    className="font-medium underline decoration-line-strong underline-offset-3 hover:text-fg-strong"
+                    href={COMPOZY_SUPPORT_MAILTO}
+                  >
+                    support@compozy.com
+                  </a>
+                  .
+                </span>
+              ) : (
+                notice.message
+              )}
+            </AlertDescription>
+            {notice.retryable || showStatusLink || showUnlinkAction ? (
               <AlertActions className="justify-start pt-0.5">
-                <Button onClick={onRetryConnection} size="sm" type="button" variant="secondary">
-                  Try again
-                </Button>
+                {notice.retryable ? (
+                  <Button onClick={onRetryConnection} size="sm" type="button" variant="secondary">
+                    Try again
+                  </Button>
+                ) : null}
+                {showStatusLink ? (
+                  <a
+                    className={buttonVariants({ size: "sm", variant: "ghost" })}
+                    href={COMPOZY_STATUS_URL}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Status
+                    <ExternalLink aria-hidden="true" className="size-3" />
+                  </a>
+                ) : null}
+                {showUnlinkAction && onUnlinkInstallation ? (
+                  <Button
+                    disabled={isUnlinking}
+                    onClick={onUnlinkInstallation}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Unlink
+                  </Button>
+                ) : null}
               </AlertActions>
             ) : null}
           </Alert>
@@ -255,7 +336,7 @@ export function SignInScreen({
               By continuing, you agree to the{" "}
               <a
                 className="text-fg-2 underline decoration-line-strong underline-offset-3 transition-colors hover:text-fg"
-                href={SIGN_IN_TERMS_URL}
+                href={COMPOZY_TERMS_URL}
                 onClick={event => {
                   if (onOpenLegalLink) {
                     event.preventDefault();
@@ -270,7 +351,7 @@ export function SignInScreen({
               and{" "}
               <a
                 className="text-fg-2 underline decoration-line-strong underline-offset-3 transition-colors hover:text-fg"
-                href={SIGN_IN_PRIVACY_URL}
+                href={COMPOZY_PRIVACY_URL}
                 onClick={event => {
                   if (onOpenLegalLink) {
                     event.preventDefault();
@@ -284,6 +365,18 @@ export function SignInScreen({
               </a>
               .
             </p>
+
+            <div className="mt-3 flex justify-center">
+              <a
+                className="inline-flex items-center gap-1 text-meta text-subtle transition-colors hover:text-fg"
+                href={COMPOZY_WHY_SIGN_IN_URL}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <span>Why sign in?</span>
+                <ExternalLink aria-hidden="true" className="size-3" />
+              </a>
+            </div>
           </>
         )}
       </div>

@@ -6,8 +6,10 @@ import {
   RootRouteErrorBoundary,
   RootRouteNotFoundBoundary,
 } from "./-root-components";
+import { guardRootSignInGate } from "./-root-gate";
 
 export const Route = createRootRouteWithContext<RouterContext>()({
+  beforeLoad: ({ context, location }) => guardRootSignInGate(context.queryClient, location),
   component: RootComponent,
   errorComponent: RootRouteErrorBoundary,
   notFoundComponent: RootRouteNotFoundBoundary,

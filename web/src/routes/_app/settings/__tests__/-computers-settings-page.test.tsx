@@ -41,6 +41,8 @@ import { ComputersSettingsPage } from "../-computers-settings-page";
 function makeView(overrides: Record<string, unknown> = {}) {
   return {
     account: ACCOUNT_PRESETS.pro,
+    isGraceMode: false,
+    handleGoToSignIn: vi.fn(),
     local: LOCAL_COMPUTER,
     computers: COMPUTERS_PRO,
     unaddedComputers: ACCOUNT_UNADDED_COMPUTERS,
@@ -301,5 +303,23 @@ describe("ComputersSettingsPage", () => {
     expect(upgradeButtons.length).toBeGreaterThanOrEqual(4);
     fireEvent.click(upgradeButtons[0]!);
     expect(openUpgrade).toHaveBeenCalledTimes(1);
+  });
+
+  it("UT-138: renders Sign in to use this prompt instead of computers list during grace mode", () => {
+    const goToSignIn = vi.fn();
+    state.view = makeView({
+      account: ACCOUNT_PRESETS.signed_out,
+      isGraceMode: true,
+      handleGoToSignIn: goToSignIn,
+    });
+
+    render(<ComputersSettingsPage />);
+
+    expect(screen.getByTestId("computers-grace-sign-in-prompt")).toHaveTextContent(
+      "Sign in to use this."
+    );
+    expect(screen.queryByTestId("computers-list")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Sign in/i }));
+    expect(goToSignIn).toHaveBeenCalledTimes(1);
   });
 });
