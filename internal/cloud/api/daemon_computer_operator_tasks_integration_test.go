@@ -194,11 +194,16 @@ func (b operatorBridge) enqueueTask(workspace string, mode taskpkg.WorktreeMode)
 	t.Helper()
 	path := b.createTask(workspace, "S9b "+string(mode))
 	b.request(http.MethodPut, path+"/execution-profile", contract.SetTaskExecutionProfileRequest{
-		Worker:   taskpkg.WorkerProfile{Mode: taskpkg.WorkerModeSelect, AgentName: operatorTaskAgent},
+		Worker:   taskpkg.WorkerProfile{Mode: taskpkg.WorkerModeInherit, AgentName: operatorTaskAgent},
 		Worktree: taskpkg.WorktreePolicy{Mode: mode},
 	}).expect(t, http.StatusOK, string(mode))
-	reply := b.request(http.MethodPost, path+"/runs", contract.EnqueueTaskRunRequest{IdempotencyKey: "s9b-queue"})
-	reply.expect(t, http.StatusCreated, "queued")
+	reply := b.request(http.MethodPost, path+"/runs", contract.EnqueueTaskRunRequest{
+		IdempotencyKey: "s9b-queue-" + string(mode),
+	})
+	if reply.StatusCode != http.StatusCreated {
+		payload := authJSON[contract.ErrorPayload](t, reply)
+		t.Fatalf("enqueue %s task: HTTP %d: %s", mode, reply.StatusCode, payload.Error)
+	}
 	run := authJSON[contract.TaskRunResponse](t, reply).Run
 	if run.Status != taskpkg.TaskRunStatusQueued || run.SessionID != "" {
 		t.Fatalf("enqueued run %q = %s in %q, want queued with no owner", run.ID, run.Status, run.SessionID)

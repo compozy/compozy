@@ -91,7 +91,7 @@ func expectRemoteRouteError(
 ) contract.ErrorPayload {
 	t.Helper()
 	reply := httptest.NewRecorder()
-	handler.ServeHTTP(reply, httptest.NewRequest(method, path, http.NoBody))
+	handler.ServeHTTP(reply, httptest.NewRequestWithContext(t.Context(), method, path, http.NoBody))
 	var payload contract.ErrorPayload
 	if err := json.Unmarshal(reply.Body.Bytes(), &payload); err != nil || reply.Code != status || payload.Code != code {
 		t.Fatalf("%s %s = HTTP %d %s, want HTTP %d %s", method, path, reply.Code, reply.Body, status, code)
@@ -107,7 +107,10 @@ func TestPairedGatewayProfileWrites(t *testing.T) {
 		api := operatorRouteGroups{router: router.Group("/api")}
 		registerProfileRoutes(api, newHandlers(nil), false)
 		reply := httptest.NewRecorder()
-		router.ServeHTTP(reply, httptest.NewRequest(http.MethodPost, "/api/profiles", http.NoBody))
+		router.ServeHTTP(
+			reply,
+			httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/profiles", http.NoBody),
+		)
 		var payload contract.ProfileErrorPayload
 		if err := json.Unmarshal(reply.Body.Bytes(), &payload); err != nil || reply.Code != http.StatusForbidden ||
 			payload.Error.Code != "profile_remote_management_forbidden" || payload.Error.Action == "" {
