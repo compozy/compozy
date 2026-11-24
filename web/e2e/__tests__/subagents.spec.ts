@@ -405,7 +405,7 @@ test("E2E-004: a card opens a read-only drawer, Open as session navigates, and m
   await expect(scene.window).toBeVisible();
 });
 
-test("E2E-005: an idle parent waits on two subagents, shows the delegated glyph, and Stop cancels both", async ({
+test("E2E-005: an idle parent waits on two subagents, leads with the running glyph, and Stop cancels both", async ({
   appPage,
   runtime,
 }) => {
@@ -420,10 +420,11 @@ test("E2E-005: an idle parent waits on two subagents, shows the delegated glyph,
   await expect(
     banner.getByRole("button", { name: "Open subagent Long audit of refunds" })
   ).toBeVisible();
-  // The sidebar's parent row reads delegated, not done.
+  // The sidebar's parent row leads with running work below it (#1926); the branch draws no glyph.
   await expect(
-    scene.window.locator('[data-segment="subagents"][data-state="delegated"]')
+    scene.window.locator('[data-slot="session-row-target"] [data-descendants="running"]')
   ).toBeVisible();
+  await expect(scene.window.locator('[data-segment="subagents"][data-state]')).toHaveCount(0);
 
   await banner.getByRole("button", { name: "Stop" }).click();
   await expect(banner).toHaveCount(0, { timeout: 30_000 });

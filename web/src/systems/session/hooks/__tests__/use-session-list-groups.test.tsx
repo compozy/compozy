@@ -41,6 +41,7 @@ import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/sess
 import { sessionCatalogOptions, sessionFacetsOptions } from "../../lib/session-catalog-options";
 import { useSessionListGroups, type SessionListGroupsInput } from "../use-session-list-groups";
 import { SESSION_LIST_MANUAL_SORT_NOTE, useSessionListView } from "../use-session-list-view";
+import { useSessionSidebarState } from "../use-session-sidebar-state";
 import { useWorkspaceWorkingSessions } from "../use-workspace-working-sessions";
 
 // The instance row isn't under test here, and these suites count catalog reads.
@@ -626,6 +627,45 @@ describe("useSessionListView", () => {
 
     response.resolve(new Response("unavailable", { status: 503 }));
     await waitFor(() => expect(result.current.folderOf?.get(row.id)).toBeNull());
+  });
+
+  // Invariant (#1926): a collapsed folder reads its count only, and that read carries the
+  // daemon's running count so the folder's leading signal needs no rows.
+  it("Should carry the running count on a collapsed folder's count-only page", async () => {
+    sessionFolders = [{ id: "sfold-alpha", name: "Alpha", position: 0, session_count: 4 }];
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(
+      async query =>
+        ({
+          sessions: query?.folder === "@root" ? [{ id: "root-row" }] : [{ id: "filed-row" }],
+          page:
+            query?.folder === "@root"
+              ? { limit: 100, has_more: false, total: 1, working: 0 }
+              : { limit: query?.limit ?? 100, has_more: false, total: 4, working: 2 },
+        }) as never
+    );
+    const { result } = renderHook(
+      () => ({ view: useSessionListView(), sidebar: useSessionSidebarState() }),
+      { wrapper }
+    );
+    await waitFor(() =>
+      expect(result.current.view.partitions?.get("sfold-alpha")).toMatchObject({ total: 4 })
+    );
+
+    act(() => result.current.sidebar.toggleFolder("sfold-alpha"));
+    await waitFor(() =>
+      expect(result.current.view.partitions?.get("sfold-alpha")).toMatchObject({
+        countOnly: true,
+        sessions: [],
+        total: 4,
+        working: 2,
+      })
+    );
+    expect(fetchSessionCatalogPage).toHaveBeenCalledWith(
+      expect.objectContaining({ folder: "sfold-alpha", limit: 1 }),
+      expect.any(AbortSignal)
+    );
+    // The sidebar fold store outlives the hook; leave the folder open for later cases.
+    act(() => result.current.sidebar.toggleFolder("sfold-alpha"));
   });
 
   // #1085: with empty projects hidden, a reorder of the projects on screen writes the hidden

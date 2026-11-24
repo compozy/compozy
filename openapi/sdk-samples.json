@@ -155,6 +155,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "archiveStoppedSessions": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.archiveStoppedSessions({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ArchiveStoppedSessions(ctx, client.ArchiveStoppedSessionsParams{}, client.SessionArchiveStoppedRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
+        },
         "archiveTask": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tasks.archiveTask({ path: { \"id\": \"id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ArchiveTask(ctx, client.ArchiveTaskParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",

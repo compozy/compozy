@@ -3260,6 +3260,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/archive-stopped": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Archive every stopped thread of one workspace or all workspaces that is not running, waiting on the operator, holding queued input, pinned, in Later, or an always-on agent's main session; dry_run reports the same result without archiving */
+    post: operations["archiveStoppedSessions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/attention-summary": {
     parameters: {
       query?: never;
@@ -10069,6 +10086,27 @@ export interface components {
       on_exhausted?: components["schemas"]["EffectSpec"][];
       on_failed?: components["schemas"]["EffectSpec"][];
       on_noop?: components["schemas"]["EffectSpec"][];
+      on_result?: {
+        [key: string]:
+          | ("continue" | "done" | "next_generation" | "halt" | "escalate")
+          | {
+              /** @enum {string} */
+              action: "continue" | "done" | "next_generation" | "escalate";
+            }
+          | {
+              /** @enum {string} */
+              action: "halt";
+              /** @enum {string} */
+              terminal_status?:
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+            };
+      };
       on_stalled?: components["schemas"]["EffectSpec"][];
       runtime_defaults?: components["schemas"]["RuntimeDefaults"] | null;
       runtime_rules?: components["schemas"]["RuntimeRule"][];
@@ -11963,7 +12001,28 @@ export interface components {
             }
         )[];
         on_result?: {
-          [key: string]: unknown;
+          [key: string]:
+            | ("continue" | "revise" | "next_generation" | "halt" | "escalate")
+            | {
+                route: string;
+              }
+            | {
+                /** @enum {string} */
+                action: "continue" | "revise" | "next_generation" | "escalate";
+              }
+            | {
+                /** @enum {string} */
+                action: "halt";
+                /** @enum {string} */
+                terminal_status?:
+                  | "done"
+                  | "no-op"
+                  | "blocked"
+                  | "failed"
+                  | "exhausted"
+                  | "stalled"
+                  | "canceled";
+              };
         };
         on_retry?: (
           | {
@@ -12905,6 +12964,27 @@ export interface components {
       on_exhausted?: components["schemas"]["LoopEffectSpec"][];
       on_failed?: components["schemas"]["LoopEffectSpec"][];
       on_noop?: components["schemas"]["LoopEffectSpec"][];
+      on_result?: {
+        [key: string]:
+          | ("continue" | "done" | "next_generation" | "halt" | "escalate")
+          | {
+              /** @enum {string} */
+              action: "continue" | "done" | "next_generation" | "escalate";
+            }
+          | {
+              /** @enum {string} */
+              action: "halt";
+              /** @enum {string} */
+              terminal_status?:
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+            };
+      };
       on_stalled?: components["schemas"]["LoopEffectSpec"][];
       runtime_defaults?: components["schemas"]["LoopRuntimeDefaults"] | null;
       runtime_rules?: components["schemas"]["LoopRuntimeRule"][];
@@ -13640,6 +13720,7 @@ export interface components {
         | "exhausted"
         | "stalled"
         | "canceled";
+      terminal?: components["schemas"]["LoopRunTerminal"] | null;
       /** Format: int64 */
       tokens_used: number;
       workspace_id: string;
@@ -13660,6 +13741,17 @@ export interface components {
       run: components["schemas"]["LoopRunPayload"];
       waits: components["schemas"]["LoopNodeWaitPayload"][];
       watch_events?: components["schemas"]["LoopWatchEventsState"] | null;
+    };
+    LoopRunTerminal: {
+      /** Format: date-time */
+      at?: string;
+      cause?: string;
+      gate_id?: string;
+      message?: string;
+      node_id?: string;
+      reason_code?: string;
+      /** @enum {string} */
+      status: "done" | "no-op" | "blocked" | "failed" | "exhausted" | "stalled" | "canceled";
     };
     LoopRunsAggregatePayload: {
       failed: number;
@@ -13720,6 +13812,7 @@ export interface components {
       kind: string;
     };
     LoopTarget: {
+      input_command?: string;
       input_mapping?: {
         [key: string]: string;
       };
@@ -15999,6 +16092,45 @@ export interface components {
       request_id: string;
       resolved_decision?: string;
     };
+    SessionArchiveStoppedFailure: {
+      code: string;
+      message: string;
+      root_id: string;
+      title: string;
+      workspace_id: string;
+    };
+    SessionArchiveStoppedRequest: {
+      all_workspaces?: boolean;
+      dry_run?: boolean;
+      workspace_id?: string;
+    };
+    SessionArchiveStoppedResponse: {
+      archived: components["schemas"]["SessionArchiveStoppedThread"][];
+      archived_session_count: number;
+      archived_thread_count: number;
+      dry_run: boolean;
+      failure_count: number;
+      failures: components["schemas"]["SessionArchiveStoppedFailure"][];
+      failures_truncated: boolean;
+      skip_counts: {
+        [key: string]: number;
+      };
+      skipped: components["schemas"]["SessionArchiveStoppedSkip"][];
+      skipped_truncated: boolean;
+    };
+    SessionArchiveStoppedSkip: {
+      reason: string;
+      root_id: string;
+      title: string;
+      workspace_id: string;
+    };
+    SessionArchiveStoppedThread: {
+      restore_ids: string[];
+      root_id: string;
+      session_ids: string[];
+      title: string;
+      workspace_id: string;
+    };
     SessionAttachPayload: {
       /** Format: date-time */
       attach_expires_at: string;
@@ -16108,6 +16240,7 @@ export interface components {
       limit: number;
       next_cursor?: string;
       total?: number | null;
+      working?: number | null;
     };
     SessionCatalogResponse: {
       page: components["schemas"]["SessionCatalogPagePayload"];
@@ -21954,6 +22087,7 @@ export interface components {
     UpdateJobRequest: {
       enabled?: boolean | null;
       fire_limit?: components["schemas"]["FireLimitConfig"] | null;
+      loop_input_command?: string | null;
       loop_target?: components["schemas"]["LoopTarget"] | null;
       name?: string | null;
       prompt?: string | null;
@@ -40365,6 +40499,79 @@ export interface operations {
         };
       };
       /** @description New-work admission is unavailable while the daemon is draining */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  archiveStoppedSessions: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SessionArchiveStoppedRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionArchiveStoppedResponse"];
+        };
+      };
+      /** @description Choose exactly one of workspace_id and all_workspaces */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace not found or archived */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
       503: {
         headers: {
           [name: string]: unknown;

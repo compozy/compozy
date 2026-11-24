@@ -29,21 +29,29 @@ type nativeSubagentTargetInput struct {
 	ACPOptions      []contract.AgentACPOptionSelection `json:"acp_options"`
 }
 
+type nativeSubagentHandoffInput struct {
+	Objections string   `json:"objections"`
+	Findings   string   `json:"findings"`
+	Files      []string `json:"files"`
+}
+
 type nativeSubagentDelegateInput struct {
-	Isolation      string                    `json:"isolation"`
-	BaseRef        string                    `json:"base_ref"`
-	Task           string                    `json:"task"`
-	Title          string                    `json:"title"`
-	Role           string                    `json:"role"`
-	Target         nativeSubagentTargetInput `json:"target"`
-	Mode           string                    `json:"mode"`
-	TimeoutMS      *int64                    `json:"timeout_ms"`
-	IdempotencyKey string                    `json:"idempotency_key"`
-	PermissionMode string                    `json:"permission_mode"`
-	Tools          []string                  `json:"tools"`
-	Skills         []string                  `json:"skills"`
-	MCPServers     []string                  `json:"mcp_servers"`
-	WorkspacePaths []string                  `json:"workspace_paths"`
+	PriorSubagentID string                      `json:"prior_subagent_id"`
+	Handoff         *nativeSubagentHandoffInput `json:"handoff"`
+	Isolation       string                      `json:"isolation"`
+	BaseRef         string                      `json:"base_ref"`
+	Task            string                      `json:"task"`
+	Title           string                      `json:"title"`
+	Role            string                      `json:"role"`
+	Target          nativeSubagentTargetInput   `json:"target"`
+	Mode            string                      `json:"mode"`
+	TimeoutMS       *int64                      `json:"timeout_ms"`
+	IdempotencyKey  string                      `json:"idempotency_key"`
+	PermissionMode  string                      `json:"permission_mode"`
+	Tools           []string                    `json:"tools"`
+	Skills          []string                    `json:"skills"`
+	MCPServers      []string                    `json:"mcp_servers"`
+	WorkspacePaths  []string                    `json:"workspace_paths"`
 }
 
 func (in nativeSubagentDelegateInput) request(caller session.SubagentCaller) (session.SubagentRequest, error) {
@@ -72,18 +80,28 @@ func (in nativeSubagentDelegateInput) request(caller session.SubagentCaller) (se
 			WorkspacePaths: in.WorkspacePaths,
 		}
 	}
+	var handoff *session.SubagentHandoff
+	if in.Handoff != nil {
+		handoff = &session.SubagentHandoff{
+			Objections: in.Handoff.Objections,
+			Findings:   in.Handoff.Findings,
+			Files:      in.Handoff.Files,
+		}
+	}
 	return session.SubagentRequest{
-		Isolation:      in.Isolation,
-		BaseRef:        in.BaseRef,
-		Caller:         caller,
-		Task:           in.Task,
-		Title:          title,
-		Role:           cmp.Or(in.Role, "general"),
-		Mode:           cmp.Or(in.Mode, session.SubagentModeAsync),
-		Timeout:        time.Duration(timeout) * time.Millisecond,
-		IdempotencyKey: cmp.Or(in.IdempotencyKey, caller.ToolCallID),
-		PermissionMode: mode,
-		Narrowing:      narrowing,
+		PriorSubagentID: strings.TrimSpace(in.PriorSubagentID),
+		Handoff:         handoff,
+		Isolation:       in.Isolation,
+		BaseRef:         in.BaseRef,
+		Caller:          caller,
+		Task:            in.Task,
+		Title:           title,
+		Role:            cmp.Or(in.Role, "general"),
+		Mode:            cmp.Or(in.Mode, session.SubagentModeAsync),
+		Timeout:         time.Duration(timeout) * time.Millisecond,
+		IdempotencyKey:  cmp.Or(in.IdempotencyKey, caller.ToolCallID),
+		PermissionMode:  mode,
+		Narrowing:       narrowing,
 		Target: session.SubagentTarget{
 			Agent:           in.Target.Agent,
 			Provider:        in.Target.Provider,
@@ -110,6 +128,17 @@ func (in nativeSubagentDelegateInput) validate() error {
 	}
 	if utf8.RuneCountInString(in.IdempotencyKey) > 256 {
 		return invalid("idempotency_key exceeds 256 characters.")
+	}
+	if utf8.RuneCountInString(in.PriorSubagentID) > 64 {
+		return invalid("prior_subagent_id exceeds 64 characters.")
+	}
+	if in.Handoff != nil {
+		if utf8.RuneCountInString(in.Handoff.Objections) > 40000 {
+			return invalid("handoff.objections exceeds 40000 characters.")
+		}
+		if utf8.RuneCountInString(in.Handoff.Findings) > 40000 {
+			return invalid("handoff.findings exceeds 40000 characters.")
+		}
 	}
 	if !slices.Contains([]string{"", "general", "implementation", "research", "review", "design", "test"}, in.Role) {
 		return invalid("role must be general, implementation, research, review, design, or test.")

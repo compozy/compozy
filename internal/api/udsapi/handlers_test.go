@@ -500,6 +500,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/workspaces/:workspace_id/loops/:name/run",
 			"POST /api/workspaces/:workspace_id/loops/:name/validate",
 			"POST /api/sessions",
+			"POST /api/sessions/archive-stopped",
 			"POST /api/sessions/history-cleanup",
 			"POST /api/sessions/history-cleanup/stop",
 			"POST /api/sessions/:session_id/pull-request/refresh",

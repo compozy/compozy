@@ -7,6 +7,44 @@ import (
 	"time"
 )
 
+// PutVaultSecretRequest is a daemon API value.
+type PutVaultSecretRequest struct {
+	Ref         string `json:"ref"`
+	Kind        string `json:"kind,omitempty"`
+	SecretValue string `json:"secret_value"`
+}
+
+// QueryHit is a daemon API value.
+type QueryHit struct {
+	Query     string    `json:"query"`
+	CommandID CommandID `json:"command_id"`
+	Weight    float64   `json:"weight"`
+}
+
+// QuietWarning is a daemon API value.
+type QuietWarning struct {
+	QuietSince time.Time  `json:"quiet_since"`
+	WarnedAt   time.Time  `json:"warned_at"`
+	StopAt     *time.Time `json:"stop_at"`
+}
+
+// ReasonCode is a daemon API value.
+type ReasonCode string
+
+// ReasoningSource is a daemon API value.
+type ReasoningSource string
+
+// RecapPayload is a daemon API value.
+type RecapPayload struct {
+	Session        SessionPayload            `json:"session"`
+	ActiveRun      *TaskRunPayload           `json:"active_run,omitzero"`
+	RecentMarkers  []TranscriptMarkerPayload `json:"recent_markers"`
+	RecentMessages []UIMessage               `json:"recent_messages"`
+	PendingInputs  int                       `json:"pending_inputs"`
+	PendingMarkers int                       `json:"pending_markers"`
+	Snapshot       RecapSnapshotPayload      `json:"snapshot"`
+}
+
 // RecapSnapshotPayload is a daemon API value.
 type RecapSnapshotPayload struct {
 	GeneratedAt      time.Time `json:"generated_at"`
@@ -409,36 +447,3 @@ type ReviewContinuation struct {
 
 // ReviewDecision is a daemon API value.
 type ReviewDecision string
-
-// ReviewPolicy is a daemon API value.
-type ReviewPolicy string
-
-// ReviewProfile is a daemon API value.
-type ReviewProfile struct {
-	AgentName             string               `json:"agent_name,omitempty"`
-	Provider              string               `json:"provider,omitempty"`
-	Model                 string               `json:"model,omitempty"`
-	ReasoningEffort       string               `json:"reasoning_effort,omitempty"`
-	Speed                 Speed                `json:"speed,omitempty"`
-	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
-	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
-	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
-	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
-	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
-}
-
-// ReviewSpec is a daemon API value.
-type ReviewSpec struct {
-	Decisions  []ReviewDecision `json:"decisions,omitempty"`
-	When       string           `json:"when,omitempty"`
-	Prompt     string           `json:"prompt,omitempty"`
-	Responders *ResponderSpec   `json:"responders,omitzero"`
-	OnReject   *RejectPolicy    `json:"on_reject,omitzero"`
-	Expires    *WaitExpiry      `json:"expires,omitzero"`
-}
-
-// Revision is a daemon API value.
-type Revision uint64
-
-// RiskClass is a daemon API value.
-type RiskClass string

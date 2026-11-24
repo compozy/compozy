@@ -378,8 +378,10 @@ test.describe("Sessions Kanban E2E-004 waiting is not done", () => {
     expect((waiting as SessionPayload & { waiting_on?: string }).waiting_on).toBe("sessions");
     const modal = await openSessionsModal(page);
     const row = modal.getByTestId(`os-sessions-modal-session-${coordinator.id}`);
+    // The child is idle (created, never prompted), so nothing lifts the mark (#1926).
     const mark = row.getByRole("img", { name: "Session badge: waiting" });
     await expect(mark).toHaveAttribute("data-waiting-on", "sessions");
+    await expect(mark).not.toHaveAttribute("data-descendants");
     await expect(row.locator("..")).toContainText("Waiting on sessions");
     await page.keyboard.press("Escape");
     await expect(modal).toBeHidden();

@@ -76,6 +76,9 @@ import type {
   ArchiveSessionData,
   ArchiveSessionErrors,
   ArchiveSessionResponses,
+  ArchiveStoppedSessionsData,
+  ArchiveStoppedSessionsErrors,
+  ArchiveStoppedSessionsResponses,
   ArchiveTaskData,
   ArchiveTaskErrors,
   ArchiveTaskResponses,
@@ -8390,6 +8393,33 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/sessions",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Archive every stopped thread of one workspace or all workspaces that is not running, waiting on the operator, holding queued input, pinned, in Later, or an always-on agent's main session; dry_run reports the same result without archiving
+   */
+  public archiveStoppedSessions<ThrowOnError extends boolean = true>(
+    options: Options<ArchiveStoppedSessionsData, ThrowOnError>
+  ): RequestResult<
+    ArchiveStoppedSessionsResponses,
+    ArchiveStoppedSessionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ArchiveStoppedSessionsResponses,
+      ArchiveStoppedSessionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/archive-stopped",
       ...options,
       headers: {
         "Content-Type": "application/json",

@@ -182,6 +182,9 @@ func (q SessionCatalogPageQuery) validateCursor() error {
 type SessionCatalogPage struct {
 	Sessions []SessionInfo
 	Total    int
+	// Working counts the rows in Total whose catalog badge is running, the facets' working
+	// notion. It is counted with Total, so a pinned-sort read or SkipTotal leaves it zero.
+	Working int
 	// PinnedRootIDs lists every pin a pinned-sort read counts in Total; it is empty for other sorts.
 	PinnedRootIDs []string
 	// FolderMemberIDs identifies excluded overlay rows carried by the selected folder,

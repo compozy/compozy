@@ -10,6 +10,30 @@ import (
 	"strings"
 )
 
+// DeleteLoopInputDefault Delete one scoped Loop input default
+func (c *Client) DeleteLoopInputDefault(ctx context.Context, params DeleteLoopInputDefaultParams) (*DeleteLoopInputDefaultResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	path = strings.ReplaceAll(path, "{key}", url.PathEscape(params.Key))
+	query := url.Values{}
+	query.Set("scope", params.Scope)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out DeleteLoopInputDefaultResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteProfileParams carries the path, query, and header parameters.
+type DeleteProfileParams struct {
+	Name         string `url:"name"`
+	PlanRevision string `url:"plan_revision"`
+}
+
 // DeleteProfile Delete a profile
 func (c *Client) DeleteProfile(ctx context.Context, params DeleteProfileParams) (*DeleteProfileResponse, error) {
 	path := "/api/profiles/{name}"
@@ -421,14 +445,4 @@ func (c *Client) DeliverGlobalWebhook(ctx context.Context, params DeliverGlobalW
 		return nil, err
 	}
 	return &out, nil
-}
-
-// DeliverWorkspaceWebhookParams carries the path, query, and header parameters.
-type DeliverWorkspaceWebhookParams struct {
-	WorkspaceID               string  `url:"workspace_id"`
-	Endpoint                  string  `url:"endpoint"`
-	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
-	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
-	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
-	Profile                   *string `url:"profile"`
 }

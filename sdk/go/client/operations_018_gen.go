@@ -5,10 +5,61 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// InvokeCmdPaletteCommand Invoke one command palette command
+func (c *Client) InvokeCmdPaletteCommand(ctx context.Context, params InvokeCmdPaletteCommandParams, body CmdPaletteInvokeRequest) (*CmdPaletteInvokeResult, error) {
+	path := "/api/cmd-palette/commands/{id}/invoke"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	headers := http.Header{}
+	headers.Set("X-Compozy-Client-Token", params.XCompozyClientToken)
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out CmdPaletteInvokeResult
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InvokeToolParams carries the path, query, and header parameters.
+type InvokeToolParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// InvokeToolFrame preserves each response payload; select its variant using the event name or HTTP status.
+type InvokeToolFrame struct {
+	Raw        json.RawMessage
+	StatusCode int `json:"-"`
+}
+
+var _ json.Unmarshaler = (*InvokeToolFrame)(nil)
+
+var _ json.Marshaler = InvokeToolFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *InvokeToolFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f InvokeToolFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+func (f *InvokeToolFrame) setResponseStatus(status int) {
+	f.StatusCode = status
+}
 
 // AsToolInvokeResponse decodes this payload as ToolInvokeResponse.
 func (f InvokeToolFrame) AsToolInvokeResponse() (*ToolInvokeResponse, error) {
@@ -396,18 +447,4 @@ func (c *Client) ListAgents(ctx context.Context, params ListAgentsParams) (*Agen
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListAgentsAggregateParams carries the path, query, and header parameters.
-type ListAgentsAggregateParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Group         *string   `url:"group"`
-	Name          *string   `url:"name"`
-	Q             *string   `url:"q"`
-	Category      *string   `url:"category"`
-	Status        *string   `url:"status"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
 }

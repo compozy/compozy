@@ -1924,6 +1924,12 @@ func TestInstanceCallApproval(t *testing.T) {
 		{"hook escalates setup read", ToolIDExtensionsSetup, `{"name":"kit"}`, `{"name":"kit","inputs":{"project":{}}}`,
 			PermissionModeApproveReads, false, false},
 		{"setup at deny all", ToolIDExtensionsSetup, `{"name":"kit"}`, "", PermissionModeDenyAll, false, false},
+		{"archive stopped dry run", ToolIDSessionArchiveStopped, `{"dry_run":true}`, "", PermissionModeApproveReads, false, true},
+		{"archive stopped dry run at auto", ToolIDSessionArchiveStopped, `{"dry_run":true}`, "", PermissionModeAuto, false, true},
+		{"archive stopped default", ToolIDSessionArchiveStopped, `{}`, "", PermissionModeApproveReads, false, false},
+		{"archive stopped run", ToolIDSessionArchiveStopped, `{"dry_run":false}`, "", PermissionModeApproveEdits, false, false},
+		{"hook escalates archive stopped dry run", ToolIDSessionArchiveStopped, `{"dry_run":true}`, `{"dry_run":false}`, PermissionModeApproveReads, false, false},
+		{"archive stopped dry run at deny all", ToolIDSessionArchiveStopped, `{"dry_run":true}`, "", PermissionModeDenyAll, false, false},
 	} {
 		t.Run("Should enforce input approval for "+tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronRight, Folder, Pencil, Plus, Trash2 } from "@compozy/ui/icons";
+import { ArrowDown, ArrowUp, Folder, Pencil, Plus, Trash2 } from "@compozy/ui/icons";
 import type * as React from "react";
 
 import {
@@ -16,11 +16,16 @@ import { openContextMenuFromKeyboard } from "@/systems/os/lib/context-menu-keybo
 
 import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
 import { onDisclosureArrowKey } from "../../lib/session-list-stops";
+import { SessionListDisclosureMark } from "./session-list-disclosure-mark";
 
 export interface SessionListFolderProps {
   folder: { id: string; name: string };
   /** Matching sessions or projects, once counted. */
   count?: number;
+  /** Member rows working; a collapsed folder shows it in the leading column (#1926). */
+  running?: number;
+  /** Member rows needing you; outranks `running` in the collapsed leading glyph. */
+  needsYou?: number;
   /**
    * What the folder holds. A project folder (issue #1044) starts no sessions and
    * hangs its projects on a tree rail; a session folder indents its threads.
@@ -49,6 +54,8 @@ export interface SessionListFolderProps {
 export function SessionListFolder({
   folder,
   count,
+  running = 0,
+  needsYou = 0,
   holds = "sessions",
   expanded,
   onToggle,
@@ -93,12 +100,11 @@ export function SessionListFolder({
         data-sidebar-stop={holds === "projects" ? "project-folder" : "folder"}
         onClick={onToggle}
         onKeyDown={event => onDisclosureArrowKey(event, expanded, onToggle)}
-        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left text-small-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
+        className="group/disclosure flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left text-small-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
       >
-        <Icon
-          as={ChevronRight}
-          size="sm"
-          className={cn("shrink-0 text-faint transition-transform", expanded && "rotate-90")}
+        <SessionListDisclosureMark
+          open={expanded}
+          signal={{ needsYou, working: running, slot: "session-folder" }}
         />
         <Icon as={Folder} size="sm" className="shrink-0 text-faint" />
         <span className="min-w-0 flex-1 truncate font-medium text-fg">{folder.name}</span>

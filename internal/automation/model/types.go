@@ -155,6 +155,10 @@ type LoopTarget struct {
 	Inputs map[string]any `json:"inputs,omitempty" toml:"inputs,omitempty"`
 
 	InputMapping map[string]string `json:"input_mapping,omitempty" toml:"input_mapping,omitempty"`
+
+	// InputCommand resolves Loop inputs at each fire instead of only using the static Inputs.
+	// The daemon runs it in the target workspace and parses key=value lines from stdout.
+	InputCommand string `json:"input_command,omitempty" toml:"input_command,omitempty"`
 }
 
 // Job is the canonical scheduled automation definition used by runtime and storage layers.

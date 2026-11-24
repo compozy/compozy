@@ -9,6 +9,7 @@ import { agentInstanceFixture } from "@/systems/agent/mocks";
 import { GLOBAL_SCOPE, type AgentInstancePayload } from "@/systems/agent";
 
 import { useSessionCreator } from "../../../hooks/use-session-creator";
+import { alwaysOnOwnerOf } from "../../../lib/always-on-owner";
 import { sessionListShelfFilters } from "../../../lib/session-list-shelf";
 import { normalizeSessionListFilters } from "../../../lib/session-list-query";
 import { withInstanceProjectGroups } from "../../../lib/session-list-groups";
@@ -101,6 +102,75 @@ describe("useSessionCreator", () => {
 
     await waitFor(() => expect(mockInstances).toHaveBeenCalled());
     expect(result.current).toBeUndefined();
+  });
+});
+
+describe("alwaysOnOwnerOf", () => {
+  const triage = agentInstanceFixture();
+  const review = agentInstanceFixture({ id: "ainst-review", main_session_id: "sess-main-review" });
+  const lineage = (parent: string, root: string) =>
+    ({ parent_session_id: parent, root_session_id: root }) as never;
+
+  it("Should own a main session, its side chat, and a child below it by lineage", () => {
+    expect(alwaysOnOwnerOf([triage, review], { id: "sess-main-triage", lineage: undefined })).toBe(
+      triage
+    );
+    expect(
+      alwaysOnOwnerOf([triage, review], {
+        id: "sess-side",
+        lineage: lineage("sess-main-triage", "sess-main-triage"),
+      })
+    ).toBe(triage);
+    expect(
+      alwaysOnOwnerOf([triage, review], {
+        id: "sess-grandchild",
+        lineage: lineage("sess-side", "sess-main-review"),
+      })
+    ).toBe(review);
+  });
+
+  it("Should prefer the session's own agent over the one that spawned it", () => {
+    expect(
+      alwaysOnOwnerOf([triage, review], {
+        id: "sess-main-review",
+        lineage: lineage("sess-main-triage", "sess-main-triage"),
+      })
+    ).toBe(review);
+  });
+
+  it("Should leave a fork or continuation of a main to itself, unless it is the main", () => {
+    for (const kind of ["fork", "continue"]) {
+      const source = {
+        kind,
+        parent_session_id: "sess-main-triage",
+        root_session_id: "sess-main-triage",
+      };
+      expect(
+        alwaysOnOwnerOf([triage], { id: "sess-copy", lineage: source as never })
+      ).toBeUndefined();
+      expect(
+        alwaysOnOwnerOf([{ ...triage, main_session_id: "sess-copy" }], {
+          id: "sess-copy",
+          lineage: source as never,
+        })?.id
+      ).toBe(triage.id);
+    }
+  });
+
+  it("Should not find a grandchild whose root moved with a reparent of the main", () => {
+    // ponytail limit: the payload carries parent and root only, no ancestor list.
+    expect(
+      alwaysOnOwnerOf([triage], {
+        id: "sess-grandchild",
+        lineage: lineage("sess-side", "sess-new-root"),
+      })
+    ).toBeUndefined();
+  });
+
+  it("Should find no owner for an ordinary session", () => {
+    expect(
+      alwaysOnOwnerOf([triage], { id: "sess-x", lineage: lineage("sess-y", "sess-y") })
+    ).toBeUndefined();
   });
 });
 

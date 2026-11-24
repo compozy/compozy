@@ -35,6 +35,8 @@ const (
 	ToolIDSessionArchive ToolID = "compozy__session_archive"
 	// ToolIDSessionUnarchive restores one archived runtime session.
 	ToolIDSessionUnarchive ToolID = "compozy__session_unarchive"
+	// ToolIDSessionArchiveStopped archives every eligible stopped thread of a workspace.
+	ToolIDSessionArchiveStopped ToolID = "compozy__session_archive_stopped"
 	// ToolIDSessionCleanup previews or deletes archived session history in bulk.
 	ToolIDSessionCleanup ToolID = "compozy__session_cleanup"
 	// ToolIDSessionLater stops a session tree and parks it in Later.

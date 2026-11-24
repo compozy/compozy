@@ -1,5 +1,6 @@
 import { Button } from "@compozy/ui";
 
+import { useListArchiveStopped } from "../../hooks/use-list-archive-stopped";
 import type { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import { AlwaysOnCreateMenu } from "../always-on/always-on-create-menu";
@@ -22,6 +23,7 @@ export function SessionListControls({
   newFolderUnavailable: string | null;
   testIdPrefix: string;
 }) {
+  const archiveStopped = useListArchiveStopped(view);
   return bulk.active ? (
     <SessionListSelectionBar {...bulk.bar} testIdPrefix={testIdPrefix} />
   ) : (
@@ -58,6 +60,7 @@ export function SessionListControls({
             variant="quiet"
           />
         }
+        archiveStopped={archiveStopped}
         testIdPrefix={testIdPrefix}
       />
       {view.sortNote ? (
