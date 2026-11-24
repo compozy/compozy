@@ -29,6 +29,16 @@ func (c *Client) AcceptAutomationSuggestion(ctx context.Context, params AcceptAu
 	return &out, nil
 }
 
+// AccountBillingPortal Open account billing
+func (c *Client) AccountBillingPortal(ctx context.Context) (*AccountBillingResponse, error) {
+	path := "/api/account/billing-portal"
+	var out AccountBillingResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AcknowledgeAttentionNotificationsParams carries the path, query, and header parameters.
 type AcknowledgeAttentionNotificationsParams struct {
 	ReceiptProfile *string `url:"receipt_profile"`
@@ -426,22 +436,4 @@ func (c *Client) ApproveAgentHeartbeatScript(ctx context.Context, params Approve
 type ApproveAgentSkillReviewParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// ApproveAgentSkillReview Decide a skill review as the operator (experimental)
-func (c *Client) ApproveAgentSkillReview(ctx context.Context, params ApproveAgentSkillReviewParams, body AgentSkillReviewDecisionRequest) (*AgentSkillReviewResponse, error) {
-	path := "/api/agent-skill-reviews/{id}/approve"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSkillReviewResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

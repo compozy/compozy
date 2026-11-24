@@ -8,6 +8,13 @@
             "resource": "automation",
             "app_access": "allowed"
         },
+        "accountBillingPortal": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.accountBillingPortal();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.AccountBillingPortal(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "account",
+            "app_access": "denied"
+        },
         "acknowledgeAttentionNotifications": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.notifications.acknowledgeAttentionNotifications({ body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.AcknowledgeAttentionNotifications(ctx, client.AcknowledgeAttentionNotificationsParams{}, client.AcknowledgeAttentionRequest{ /* request fields */ })\nif err != nil { return err }",
@@ -239,6 +246,13 @@
             "resource": "tasks",
             "app_access": "denied"
         },
+        "cancelAccountLogin": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.cancelAccountLogin();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.CancelAccountLogin(ctx, client.CancelAccountLoginParams{})\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "account",
+            "app_access": "denied"
+        },
         "cancelAutomationRun": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.automation.cancelAutomationRun({ path: { \"id\": \"id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CancelAutomationRun(ctx, client.CancelAutomationRunParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -363,6 +377,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CheckSettingsUpdate(ctx)\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "settings",
+            "app_access": "denied"
+        },
+        "checkoutAccount": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.checkoutAccount({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CheckoutAccount(ctx, client.AccountCheckoutRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "account",
             "app_access": "denied"
         },
         "claimNextAgentTask": {
@@ -587,6 +608,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CurateProviderModel(ctx, client.CurateProviderModelParams{ProviderID: \"provider_id\"}, client.ProviderModelCurationRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "providers",
+            "app_access": "denied"
+        },
+        "decideAccountApproval": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.decideAccountApproval({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.DecideAccountApproval(ctx, client.DecideAccountApprovalParams{ID: \"id\"}, client.AccountApprovalDecisionRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "account",
             "app_access": "denied"
         },
         "deleteAgent": {
@@ -1007,6 +1035,20 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ForkSessionToWorktree(ctx, client.ForkSessionToWorktreeParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.ForkSessionWorktreeRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "sessions",
+            "app_access": "denied"
+        },
+        "getAccount": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.getAccount();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetAccount(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "account",
+            "app_access": "denied"
+        },
+        "getAccountApproval": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.getAccountApproval({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetAccountApproval(ctx, client.GetAccountApprovalParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "account",
             "app_access": "denied"
         },
         "getAgent": {
@@ -1961,6 +2003,20 @@
             "resource": "tools",
             "app_access": "denied"
         },
+        "listAccountApprovals": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.listAccountApprovals();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListAccountApprovals(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "account",
+            "app_access": "denied"
+        },
+        "listAccountDevices": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.listAccountDevices();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListAccountDevices(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "account",
+            "app_access": "denied"
+        },
         "listAgentCatalog": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.listAgentCatalog({ query: { \"status\": \"active\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListAgentCatalog(ctx, client.ListAgentCatalogParams{})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2612,6 +2668,13 @@
             "resource": "worktrees",
             "app_access": "denied"
         },
+        "logoutAccount": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.logoutAccount({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.LogoutAccount(ctx, client.AccountLogoutRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "account",
+            "app_access": "denied"
+        },
         "logoutSettingsMCPAuth": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.logoutSettingsMCPAuth({ path: { \"name\": \"name\" }, query: { \"scope\": \"user\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.LogoutSettingsMCPAuth(ctx, client.LogoutSettingsMCPAuthParams{Name: \"name\", Scope: \"user\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2716,6 +2779,13 @@
             "kind": "json",
             "resource": "sessions",
             "app_access": "allowed"
+        },
+        "patchAccountDevice": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.patchAccountDevice({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PatchAccountDevice(ctx, client.PatchAccountDeviceParams{ID: \"id\"}, client.AccountDevicePatch{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "account",
+            "app_access": "denied"
         },
         "patchLoop": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.patchLoop({ path: { \"workspace_id\": \"workspace_id\", \"name\": \"name\" }, body: { /* request fields */ } });",
@@ -3445,6 +3515,13 @@
             "resource": "tasks",
             "app_access": "denied"
         },
+        "revokeAccountDevice": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.revokeAccountDevice({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.RevokeAccountDevice(ctx, client.RevokeAccountDeviceParams{ID: \"id\"})\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "account",
+            "app_access": "denied"
+        },
         "revokeAgentHeartbeatAuthority": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.revokeAgentHeartbeatAuthority({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.RevokeAgentHeartbeatAuthority(ctx, client.RevokeAgentHeartbeatAuthorityParams{Name: \"name\"})\nif err != nil { return err }",
@@ -3676,6 +3753,13 @@
             "resource": "agent",
             "app_access": "denied"
         },
+        "startAccountLogin": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.startAccountLogin({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.StartAccountLogin(ctx, client.AccountLoginRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "account",
+            "app_access": "denied"
+        },
         "startAgentTaskRun": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agent.startAgentTaskRun({ path: { \"run_id\": \"run_id\" }, headers: { \"X-Compozy-Session-ID\": \"X-Compozy-Session-ID\", \"X-Compozy-Agent\": \"X-Compozy-Agent\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.StartAgentTaskRun(ctx, client.StartAgentTaskRunParams{XCompozySessionID: \"X-Compozy-Session-ID\", XCompozyAgent: \"X-Compozy-Agent\", RunID: \"run_id\"}, client.StartTaskRunRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -3716,6 +3800,20 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.StopSessionHistoryCleanup(ctx, client.StopSessionHistoryCleanupParams{})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "sessions",
+            "app_access": "denied"
+        },
+        "streamAccount": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nfor await (const frame of compozy.events(\"streamAccount\", {})) {\n  console.log(frame);\n}",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nstream, err := c.StreamAccount(ctx, client.StreamAccountParams{})\nif err != nil { return err }\ndefer stream.Close()\nfor {\n  frame, err := stream.Next()\n  if errors.Is(err, io.EOF) { break }\n  if err != nil { return err }\n  fmt.Println(frame.Data)\n}",
+            "kind": "sse",
+            "resource": "account",
+            "app_access": "denied"
+        },
+        "streamAccountSignIn": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nfor await (const frame of compozy.events(\"streamAccountSignIn\", {})) {\n  console.log(frame);\n}",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nstream, err := c.StreamAccountSignIn(ctx)\nif err != nil { return err }\ndefer stream.Close()\nfor {\n  frame, err := stream.Next()\n  if errors.Is(err, io.EOF) { break }\n  if err != nil { return err }\n  fmt.Println(frame.Data)\n}",
+            "kind": "sse",
+            "resource": "account",
             "app_access": "denied"
         },
         "streamCmdPalette": {

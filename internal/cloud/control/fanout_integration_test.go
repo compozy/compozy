@@ -233,7 +233,7 @@ func testApprovalRelay(
 		ApprovalID: id, DeviceID: waiting.ID, JKT: waiting.JKT,
 	})
 	readAccountEvent(t, events, "approval.pending")
-	var approval control.Approval
+	var approval remoteproto.AccountApproval
 	path := "/v1/approvals/" + id
 	body := controlHTTP(t, replica, now, admin, http.MethodGet, path, nil, http.StatusOK)
 	if err := json.Unmarshal(body, &approval); err != nil || approval.ID != id || approval.CanDecide ||
@@ -285,7 +285,7 @@ func testApprovalRelay(
 	}
 	body = controlHTTP(t, replica, now, admin, http.MethodGet, "/v1/approvals", nil, http.StatusOK)
 	var recent struct {
-		Approvals []control.Approval `json:"approvals"`
+		Approvals []remoteproto.AccountApproval `json:"approvals"`
 	}
 	if err := json.Unmarshal(body, &recent); err != nil || len(recent.Approvals) != 1 {
 		t.Fatalf("recent decisions = %+v, %v", recent, err)

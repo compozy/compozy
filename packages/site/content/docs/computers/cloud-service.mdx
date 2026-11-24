@@ -43,6 +43,7 @@ Device-authenticated requests carry a bound access token and a fresh `DPoP` proo
 
 | Endpoint                                         | Purpose                                                               |
 | ------------------------------------------------ | --------------------------------------------------------------------- |
+| `GET /v1/account`                                | Read the account profile, plan usage, and calling device              |
 | `GET /v1/devices`                                | List account devices and identify the calling device                  |
 | `PATCH /v1/devices/{id}`                         | Change a device's name, admin trust, or scopes for a computer         |
 | `DELETE /v1/devices/{id}`                        | Revoke a device and all its keys                                      |

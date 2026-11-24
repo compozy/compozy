@@ -41,3 +41,7 @@ func (q *Queries) Subscriptions(ctx context.Context, accountID string) ([]plan.S
 	}
 	return subscriptions, nil
 }
+
+func (q *Queries) AccountHostedRouteUsage(ctx context.Context, accountID string) (int64, error) {
+	return q.generated.AccountHostedRouteUsage(ctx, accountID)
+}

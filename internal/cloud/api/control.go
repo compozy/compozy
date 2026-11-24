@@ -54,6 +54,14 @@ func (r *Router) RegisterControl(cfg ControlRoutesConfig) {
 	r.mux.Handle("GET /v1/approvals/{id}", h.device(h.getApproval))
 	r.mux.Handle("POST /v1/approvals/{id}/decision", h.device(h.decideApproval))
 	r.mux.Handle("GET /v1/account/events", h.device(h.accountEvents))
+	r.mux.Handle("GET /v1/account", h.device(h.account))
+}
+
+func (r *controlRoutes) account(w http.ResponseWriter, req *http.Request, principal control.DevicePrincipal) {
+	ctx, cancel := controlContext(req)
+	defer cancel()
+	account, err := r.config.Service.Account(ctx, principal)
+	r.respond(w, req, http.StatusOK, account, err)
 }
 
 type deviceHandler func(http.ResponseWriter, *http.Request, control.DevicePrincipal)

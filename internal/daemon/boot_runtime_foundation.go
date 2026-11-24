@@ -44,7 +44,7 @@ func (d *Daemon) bootRuntimeFoundation(ctx context.Context, state *bootState, cl
 	if err := d.bootRegistryState(ctx, state, cleanup); err != nil {
 		return err
 	}
-	return nil
+	return d.bootAccount(ctx, state, cleanup)
 }
 
 func (d *Daemon) bootLockAndSocket(

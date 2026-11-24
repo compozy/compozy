@@ -17,10 +17,13 @@ var (
 
 type AuthAccount struct {
 	ID, Email, Name, State string
+	MarketingOptIn         bool
+	CloudRoutesMax         int32
 }
 
 func mapAuthAccount(a sqlcgen.Account) AuthAccount {
-	return AuthAccount{ID: a.ID, Email: a.Email, Name: a.Name, State: a.State}
+	return AuthAccount{ID: a.ID, Email: a.Email, Name: a.Name, State: a.State,
+		MarketingOptIn: a.MarketingOptIn, CloudRoutesMax: a.CloudRoutesMax}
 }
 
 func (q *Queries) LockAuthAccount(ctx context.Context, id string) (AuthAccount, error) {

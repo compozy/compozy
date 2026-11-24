@@ -14,14 +14,6 @@ import (
 
 const accountKeepAlive = 15 * time.Second
 
-type accountEvent struct {
-	ComputerID    remoteproto.ComputerID `json:"computer_id,omitempty"`
-	DeviceID      remoteproto.DeviceID   `json:"device_id,omitempty"`
-	SecurityEpoch uint64                 `json:"security_epoch,omitzero"`
-	ApprovalID    string                 `json:"approval_id,omitempty"`
-	Result        string                 `json:"result,omitempty"`
-}
-
 func (r *controlRoutes) accountEvents(w http.ResponseWriter, req *http.Request, principal control.DevicePrincipal) {
 	sub, ok := r.config.Hub.Subscribe(principal.AccountID, "")
 	if !ok {
@@ -98,26 +90,37 @@ func (r *controlRoutes) onAccountEvent(
 	return writeAccountFrame(w, fmt.Sprintf("event: %s\ndata: %s\n\n", name, body))
 }
 
-func accountEventPayload(event store.ControlEvent) (string, accountEvent) {
+func accountEventPayload(event store.ControlEvent) (string, remoteproto.CloudAccountEvent) {
 	switch event.Type {
 	case remoteproto.ControlSnapshot, remoteproto.ControlRevokeDevice, remoteproto.ControlScopesChanged,
 		remoteproto.ControlDevicesChanged:
-		return "devices.changed", accountEvent{
+		return "devices.changed", remoteproto.CloudAccountEvent{
 			DeviceID:      remoteproto.DeviceID(event.ResourceID),
 			SecurityEpoch: event.SecurityEpoch,
 		}
 	case remoteproto.ControlUnlink, remoteproto.ControlComputersChanged:
-		return "computers.changed", accountEvent{ComputerID: event.ComputerID, SecurityEpoch: event.SecurityEpoch}
+		return "computers.changed", remoteproto.CloudAccountEvent{
+			ComputerID: event.ComputerID, SecurityEpoch: event.SecurityEpoch,
+		}
 	case remoteproto.ControlPlanChanged:
-		return "plan.changed", accountEvent{}
+		return "plan.changed", remoteproto.CloudAccountEvent{}
 	case remoteproto.ControlApprovalPending:
-		return "approval.pending", accountEvent{ApprovalID: event.ResourceID, ComputerID: event.ComputerID}
+		return "approval.pending", remoteproto.CloudAccountEvent{
+			ApprovalID: event.ResourceID,
+			ComputerID: event.ComputerID,
+		}
 	case remoteproto.ControlApprovalDecided:
-		return "approval_decided", accountEvent{ApprovalID: event.ResourceID, ComputerID: event.ComputerID}
+		return "approval_decided", remoteproto.CloudAccountEvent{
+			ApprovalID: event.ResourceID,
+			ComputerID: event.ComputerID,
+		}
 	case remoteproto.ControlApprovalApplied:
-		return "approval.applied", accountEvent{ApprovalID: event.ResourceID, ComputerID: event.ComputerID}
+		return "approval.applied", remoteproto.CloudAccountEvent{
+			ApprovalID: event.ResourceID,
+			ComputerID: event.ComputerID,
+		}
 	default:
-		return "", accountEvent{}
+		return "", remoteproto.CloudAccountEvent{}
 	}
 }
 

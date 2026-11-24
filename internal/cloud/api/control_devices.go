@@ -13,7 +13,7 @@ func (r *controlRoutes) devices(w http.ResponseWriter, req *http.Request, princi
 	defer cancel()
 	devices, err := r.config.Service.ListDevices(ctx, principal)
 	r.respond(w, req, http.StatusOK, struct {
-		Devices []control.Device `json:"devices"`
+		Devices []remoteproto.AccountDevice `json:"devices"`
 	}{Devices: devices}, err)
 }
 
@@ -25,7 +25,7 @@ func (r *controlRoutes) getDevice(w http.ResponseWriter, req *http.Request, prin
 }
 
 func (r *controlRoutes) patchDevice(w http.ResponseWriter, req *http.Request, principal control.DevicePrincipal) {
-	var patch control.DevicePatch
+	var patch remoteproto.AccountDevicePatch
 	if _, ok := r.decode(w, req, &patch, false); !ok {
 		return
 	}
@@ -47,7 +47,7 @@ func (r *controlRoutes) approvals(w http.ResponseWriter, req *http.Request, prin
 	defer cancel()
 	approvals, err := r.config.Service.ListApprovals(ctx, principal)
 	r.respond(w, req, http.StatusOK, struct {
-		Approvals []control.Approval `json:"approvals"`
+		Approvals []remoteproto.AccountApproval `json:"approvals"`
 	}{Approvals: approvals}, err)
 }
 
@@ -74,8 +74,5 @@ func (r *controlRoutes) decideApproval(w http.ResponseWriter, req *http.Request,
 	ctx, cancel := controlContext(req)
 	defer cancel()
 	err := r.config.Service.DecideApproval(ctx, principal, id, decision.DecisionJWS)
-	r.respond(w, req, http.StatusAccepted, struct {
-		ID    string `json:"approval_id"`
-		State string `json:"state"`
-	}{ID: id, State: "delivering"}, err)
+	r.respond(w, req, http.StatusAccepted, remoteproto.ApprovalDelivery{ApprovalID: id, State: "delivering"}, err)
 }

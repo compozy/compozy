@@ -106,12 +106,28 @@ type Replica struct {
 
 func StartReplica(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *Replica {
 	t.Helper()
+	return startReplica(t, cfg, register, false)
+}
+
+// StartLocalReplica uses the actual test listener as the issuer and DPoP origin.
+func StartLocalReplica(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *Replica {
+	t.Helper()
+	return startReplica(t, cfg, register, true)
+}
+
+func startReplica(t *testing.T, cfg cloud.Config, register func(*cloud.App), localOrigin bool) *Replica {
+	t.Helper()
 	if cfg.Keys == nil {
 		var err error
 		cfg.Keys, err = api.NewSigningKeys(NewSigner(t, "test-cloud"), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+	server := httptest.NewUnstartedServer(nil)
+	t.Cleanup(server.Close)
+	if localOrigin {
+		cfg.Issuer = "http://" + server.Listener.Addr().String()
 	}
 	app, err := cloud.Open(t.Context(), cfg)
 	if err != nil {
@@ -131,7 +147,8 @@ func StartReplica(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *Re
 		cancel()
 		<-done
 	})
-	server := httptest.NewServer(app)
+	server.Config.Handler = app
+	server.Start()
 	t.Cleanup(func() {
 		app.StartDrain()
 		server.Close()

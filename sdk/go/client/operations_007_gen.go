@@ -10,6 +10,71 @@ import (
 	"strings"
 )
 
+// DeleteWorkspaceFolderParams carries the path, query, and header parameters.
+type DeleteWorkspaceFolderParams struct {
+	FolderID string  `url:"folder_id"`
+	Profile  *string `url:"profile"`
+}
+
+// DeleteWorkspaceFolder Delete a workspace folder; its workspaces return to the root
+func (c *Client) DeleteWorkspaceFolder(ctx context.Context, params DeleteWorkspaceFolderParams) (*WorkspaceLayoutResponse, error) {
+	path := "/api/workspace-folders/{folder_id}"
+	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkspaceLayoutResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeliverGlobalWebhookParams carries the path, query, and header parameters.
+type DeliverGlobalWebhookParams struct {
+	Endpoint                  string  `url:"endpoint"`
+	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
+	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
+	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
+	Profile                   *string `url:"profile"`
+}
+
+// DeliverGlobalWebhook Deliver one global automation webhook
+func (c *Client) DeliverGlobalWebhook(ctx context.Context, params DeliverGlobalWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
+	path := "/api/webhooks/global/{endpoint}"
+	path = strings.ReplaceAll(path, "{endpoint}", url.PathEscape(params.Endpoint))
+	headers := http.Header{}
+	headers.Set("X-Compozy-Webhook-Delivery-ID", params.XCompozyWebhookDeliveryID)
+	headers.Set("X-Compozy-Webhook-Timestamp", params.XCompozyWebhookTimestamp)
+	headers.Set("X-Compozy-Webhook-Signature", params.XCompozyWebhookSignature)
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WebhookDeliveryResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeliverWorkspaceWebhookParams carries the path, query, and header parameters.
+type DeliverWorkspaceWebhookParams struct {
+	WorkspaceID               string  `url:"workspace_id"`
+	Endpoint                  string  `url:"endpoint"`
+	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
+	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
+	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
+	Profile                   *string `url:"profile"`
+}
+
 // DeliverWorkspaceWebhook Deliver one workspace-scoped automation webhook
 func (c *Client) DeliverWorkspaceWebhook(ctx context.Context, params DeliverWorkspaceWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
 	path := "/api/webhooks/workspaces/{workspace_id}/{endpoint}"
@@ -376,71 +441,4 @@ func (c *Client) DuplicateAgent(ctx context.Context, params DuplicateAgentParams
 // EnableGatewayProviderParams carries the path, query, and header parameters.
 type EnableGatewayProviderParams struct {
 	Name string `url:"name"`
-}
-
-// EnableGatewayProvider Enable one connectivity provider for a gateway tier
-func (c *Client) EnableGatewayProvider(ctx context.Context, params EnableGatewayProviderParams, body GatewayProviderEnableRequest) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/providers/{name}/enable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// EnableSkillParams carries the path, query, and header parameters.
-type EnableSkillParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-	ForAgent  *string `url:"for_agent"`
-}
-
-// EnableSkill Enable one skill
-func (c *Client) EnableSkill(ctx context.Context, params EnableSkillParams) (*SkillActionResponse, error) {
-	path := "/api/skills/{name}/enable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillActionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// EnqueueTaskRunParams carries the path, query, and header parameters.
-type EnqueueTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// EnqueueTaskRun Enqueue one task run
-func (c *Client) EnqueueTaskRun(ctx context.Context, params EnqueueTaskRunParams, body EnqueueTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/tasks/{id}/runs"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

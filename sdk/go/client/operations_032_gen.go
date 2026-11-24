@@ -9,6 +9,145 @@ import (
 	"strings"
 )
 
+// RemoveWorktree Remove a worktree
+func (c *Client) RemoveWorktree(ctx context.Context, params RemoveWorktreeParams) (*WorktreeCleanupResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	query := url.Values{}
+	if params.Force != nil {
+		query.Set("force", strconv.FormatBool(*params.Force))
+	}
+	if params.DeleteBranch != nil {
+		query.Set("delete_branch", strconv.FormatBool(*params.DeleteBranch))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorktreeCleanupResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RemoveWorktreesParams carries the path, query, and header parameters.
+type RemoveWorktreesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RemoveWorktrees Remove multiple worktrees or preview per-target removal risk
+func (c *Client) RemoveWorktrees(ctx context.Context, params RemoveWorktreesParams, body RemoveWorktreesRequest) (*RemoveWorktreesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/remove"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RemoveWorktreesResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RenameGatewayDeviceParams carries the path, query, and header parameters.
+type RenameGatewayDeviceParams struct {
+	ID string `url:"id"`
+}
+
+// RenameGatewayDevice Rename one paired gateway device
+func (c *Client) RenameGatewayDevice(ctx context.Context, params RenameGatewayDeviceParams, body GatewayDeviceRenameRequest) (*GatewayDevicePayload, error) {
+	path := "/api/gateway/devices/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out GatewayDevicePayload
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RenameProfileParams carries the path, query, and header parameters.
+type RenameProfileParams struct {
+	Name string `url:"name"`
+}
+
+// RenameProfile Rename a profile
+func (c *Client) RenameProfile(ctx context.Context, params RenameProfileParams, body RenameProfileRequest) (*RenameProfileResponse, error) {
+	path := "/api/profiles/{name}/rename"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out RenameProfileResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RenameSessionParams carries the path, query, and header parameters.
+type RenameSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RenameSession Rename one user session
+func (c *Client) RenameSession(ctx context.Context, params RenameSessionParams, body RenameSessionRequest) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RenameSessionFolderParams carries the path, query, and header parameters.
+type RenameSessionFolderParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	FolderID    string  `url:"folder_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RenameSessionFolder Rename a session folder
+func (c *Client) RenameSessionFolder(ctx context.Context, params RenameSessionFolderParams, body RenameSessionFolderRequest) (*SessionFolderResponse, error) {
+	path := "/api/workspaces/{workspace_id}/session-folders/{folder_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionFolderResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RenameWorkspaceFolderParams carries the path, query, and header parameters.
+type RenameWorkspaceFolderParams struct {
+	FolderID string  `url:"folder_id"`
+	Profile  *string `url:"profile"`
+}
+
 // RenameWorkspaceFolder Rename a workspace folder
 func (c *Client) RenameWorkspaceFolder(ctx context.Context, params RenameWorkspaceFolderParams, body RenameWorkspaceFolderRequest) (*WorkspaceFolderResponse, error) {
 	path := "/api/workspace-folders/{folder_id}"
@@ -290,159 +429,4 @@ type RerunLoopRunParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	RunID       string  `url:"run_id"`
 	Profile     *string `url:"profile"`
-}
-
-// RerunLoopRun Rerun a Loop from one settled node
-func (c *Client) RerunLoopRun(ctx context.Context, params RerunLoopRunParams, body RerunLoopRequest) (*RerunLoopResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/rerun"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RerunLoopResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResetCmdPalettePersonalizationParams carries the path, query, and header parameters.
-type ResetCmdPalettePersonalizationParams struct {
-	Workspace string  `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// ResetCmdPalettePersonalization Reset command palette personalization
-func (c *Client) ResetCmdPalettePersonalization(ctx context.Context, params ResetCmdPalettePersonalizationParams) (*CmdPalettePersonalizationResetResponse, error) {
-	path := "/api/cmd-palette/personalization"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPalettePersonalizationResetResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResetOnboarding Clear the onboarding completion flag
-func (c *Client) ResetOnboarding(ctx context.Context) (*OnboardingStatusResponse, error) {
-	path := "/api/onboarding"
-	var out OnboardingStatusResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResolvePendingToolApprovalParams carries the path, query, and header parameters.
-type ResolvePendingToolApprovalParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ResolvePendingToolApproval Approve or deny one pending tool approval
-func (c *Client) ResolvePendingToolApproval(ctx context.Context, params ResolvePendingToolApprovalParams, body ResolveToolApprovalRequest) (*ToolApprovalStatusResponse, error) {
-	path := "/api/tools/approvals/{id}/resolve"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolApprovalStatusResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResolveWorkspace Resolve or register a workspace from a path
-func (c *Client) ResolveWorkspace(ctx context.Context, body ResolveWorkspaceRequest) (*WorkspaceResponse, error) {
-	path := "/api/workspaces/resolve"
-	var out WorkspaceResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RespondLoopRequestParams carries the path, query, and header parameters.
-type RespondLoopRequestParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	NodeID      string  `url:"node_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RespondLoopRequest Answer one Loop human request
-func (c *Client) RespondLoopRequest(ctx context.Context, params RespondLoopRequestParams, body RespondLoopRequest) (*RespondLoopRequestResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/respond"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	path = strings.ReplaceAll(path, "{node_id}", url.PathEscape(params.NodeID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RespondLoopRequestResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RestoreExtensionParams carries the path, query, and header parameters.
-type RestoreExtensionParams struct {
-	Name string `url:"name"`
-}
-
-// RestoreExtension Restore one permanently removed built-in extension
-func (c *Client) RestoreExtension(ctx context.Context, params RestoreExtensionParams) (*ExtensionRestorePayload, error) {
-	path := "/api/extensions/{name}/restore"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out ExtensionRestorePayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResumeAgentInstanceParams carries the path, query, and header parameters.
-type ResumeAgentInstanceParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ResumeAgentInstance Resume an agent instance
-func (c *Client) ResumeAgentInstance(ctx context.Context, params ResumeAgentInstanceParams) (*AgentInstanceResponse, error) {
-	path := "/api/agent-instances/{id}/resume"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -9,6 +9,69 @@ import (
 	"strings"
 )
 
+// CreateAutomationJob Create an automation job
+func (c *Client) CreateAutomationJob(ctx context.Context, params CreateAutomationJobParams, body CreateJobRequest) (*JobResponse, error) {
+	path := "/api/automation/jobs"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out JobResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateAutomationTriggerParams carries the path, query, and header parameters.
+type CreateAutomationTriggerParams struct {
+	Profile *string `url:"profile"`
+}
+
+// CreateAutomationTrigger Create an automation trigger
+func (c *Client) CreateAutomationTrigger(ctx context.Context, params CreateAutomationTriggerParams, body CreateTriggerRequest) (*TriggerResponse, error) {
+	path := "/api/automation/triggers"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TriggerResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateChildTaskParams carries the path, query, and header parameters.
+type CreateChildTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// CreateChildTask Create one child task
+func (c *Client) CreateChildTask(ctx context.Context, params CreateChildTaskParams, body CreateTaskChildRequest) (*TaskResponse, error) {
+	path := "/api/tasks/{id}/children"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CreateLoopParams carries the path, query, and header parameters.
 type CreateLoopParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -250,6 +313,22 @@ func (c *Client) CurateProviderModel(ctx context.Context, params CurateProviderM
 	return &out, nil
 }
 
+// DecideAccountApprovalParams carries the path, query, and header parameters.
+type DecideAccountApprovalParams struct {
+	ID string `url:"id"`
+}
+
+// DecideAccountApproval Deliver an approval decision
+func (c *Client) DecideAccountApproval(ctx context.Context, params DecideAccountApprovalParams, body AccountApprovalDecisionRequest) (*ApprovalDelivery, error) {
+	path := "/api/account/approvals/{id}/decision"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out ApprovalDelivery
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // DeleteAgentParams carries the path, query, and header parameters.
 type DeleteAgentParams struct {
 	Name      string  `url:"name"`
@@ -364,84 +443,4 @@ func (c *Client) DeleteAutomationTrigger(ctx context.Context, params DeleteAutom
 		path += "?" + query.Encode()
 	}
 	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteExtensionSecretParams carries the path, query, and header parameters.
-type DeleteExtensionSecretParams struct {
-	Name      string  `url:"name"`
-	EnvName   string  `url:"env_name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// DeleteExtensionSecret Remove one extension environment secret binding
-func (c *Client) DeleteExtensionSecret(ctx context.Context, params DeleteExtensionSecretParams) error {
-	path := "/api/extensions/{name}/secrets/{env_name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	path = strings.ReplaceAll(path, "{env_name}", url.PathEscape(params.EnvName))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteLoopParams carries the path, query, and header parameters.
-type DeleteLoopParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
-}
-
-// DeleteLoop Delete one writable Loop definition
-func (c *Client) DeleteLoop(ctx context.Context, params DeleteLoopParams) error {
-	path := "/api/workspaces/{workspace_id}/loops/{name}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteLoopInputDefaultParams carries the path, query, and header parameters.
-type DeleteLoopInputDefaultParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	Name        string `url:"name"`
-	Key         string `url:"key"`
-	Scope       string `url:"scope"`
-}
-
-// DeleteLoopInputDefault Delete one scoped Loop input default
-func (c *Client) DeleteLoopInputDefault(ctx context.Context, params DeleteLoopInputDefaultParams) (*DeleteLoopInputDefaultResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	path = strings.ReplaceAll(path, "{key}", url.PathEscape(params.Key))
-	query := url.Values{}
-	query.Set("scope", params.Scope)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out DeleteLoopInputDefaultResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteProfileParams carries the path, query, and header parameters.
-type DeleteProfileParams struct {
-	Name         string `url:"name"`
-	PlanRevision string `url:"plan_revision"`
 }

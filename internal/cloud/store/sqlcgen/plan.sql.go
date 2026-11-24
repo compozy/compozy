@@ -11,6 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const accountHostedRouteUsage = `-- name: AccountHostedRouteUsage :one
+SELECT count(*) FROM tunnels t JOIN computers c ON c.id = t.computer_id
+WHERE c.account_id = $1 AND c.unlinked_at IS NULL AND t.state IN ('reserved', 'provisioning', 'active')
+`
+
+func (q *Queries) AccountHostedRouteUsage(ctx context.Context, accountID string) (int64, error) {
+	row := q.db.QueryRow(ctx, accountHostedRouteUsage, accountID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const lockPlanAccount = `-- name: LockPlanAccount :one
 SELECT id FROM accounts WHERE id = $1 FOR UPDATE
 `

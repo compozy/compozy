@@ -292,6 +292,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specOnboardingKey},
 			{Name: specFilesystemKey},
 			{Name: specGatewayKey},
+			{Name: specAccountKey},
 			{Name: specNotificationsKey},
 			{Name: specExtensionsKey},
 			{Name: specHooksKey},

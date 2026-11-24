@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/admission"
 	core "github.com/compozy/compozy/internal/api/core"
 
@@ -212,6 +213,7 @@ type extensionManagerDeps struct {
 type Daemon struct {
 	mu sync.Mutex
 
+	accountOptions         []account.Option
 	homePaths              compozyconfig.HomePaths
 	loadConfig             ConfigLoader
 	logger                 *slog.Logger

@@ -113,6 +113,7 @@ type TaskRunRepo struct {
 	leaseRecoveryVersion atomic.Uint64
 }
 type AutomationRepo struct{ *repoBase }
+type AccountRepo struct{ *repoBase }
 
 type GatewayRepo struct{ *repoBase }
 
@@ -177,6 +178,7 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	taskRepo.runs = taskRunRepo
 	taskRunRepo.tasks = taskRepo
 	g.AutomationRepo = &AutomationRepo{repoBase: base}
+	g.AccountRepo = &AccountRepo{repoBase: base}
 	g.GatewayRepo = &GatewayRepo{repoBase: base}
 	loopRepo := &LoopRepo{repoBase: base}
 	g.LoopRepo = loopRepo

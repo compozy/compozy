@@ -5,36 +5,20 @@ import (
 	"errors"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
-type Device struct {
-	ID         remoteproto.DeviceID `json:"id"`
-	Name       string               `json:"name"`
-	Kind       string               `json:"kind"`
-	Admin      bool                 `json:"admin"`
-	LastSeenAt time.Time            `json:"last_seen_at"`
-	ThisDevice bool                 `json:"this_device"`
-}
-
-type DevicePatch struct {
-	Name   *string                                        `json:"name,omitempty"`
-	Admin  *bool                                          `json:"admin,omitempty"`
-	Scopes map[remoteproto.ComputerID][]remoteproto.Scope `json:"scopes,omitempty"`
-}
-
-func viewDevice(device store.ControlDevice, caller remoteproto.DeviceID) Device {
-	return Device{
+func viewDevice(device store.ControlDevice, caller remoteproto.DeviceID) remoteproto.AccountDevice {
+	return remoteproto.AccountDevice{
 		ID: device.ID, Name: device.Name, Kind: device.Kind, Admin: device.Admin,
 		LastSeenAt: device.LastSeenAt, ThisDevice: device.ID == caller,
 	}
 }
 
-func (s *Service) ListDevices(ctx context.Context, principal DevicePrincipal) ([]Device, error) {
-	var devices []Device
+func (s *Service) ListDevices(ctx context.Context, principal DevicePrincipal) ([]remoteproto.AccountDevice, error) {
+	var devices []remoteproto.AccountDevice
 	err := s.deviceTransaction(
 		ctx,
 		principal,
@@ -43,7 +27,7 @@ func (s *Service) ListDevices(ctx context.Context, principal DevicePrincipal) ([
 			if err != nil {
 				return err
 			}
-			devices = make([]Device, 0, len(found))
+			devices = make([]remoteproto.AccountDevice, 0, len(found))
 			for _, device := range found {
 				devices = append(devices, viewDevice(device, principal.DeviceID))
 			}
@@ -53,8 +37,12 @@ func (s *Service) ListDevices(ctx context.Context, principal DevicePrincipal) ([
 	return devices, err
 }
 
-func (s *Service) GetDevice(ctx context.Context, principal DevicePrincipal, id remoteproto.DeviceID) (Device, error) {
-	var result Device
+func (s *Service) GetDevice(
+	ctx context.Context,
+	principal DevicePrincipal,
+	id remoteproto.DeviceID,
+) (remoteproto.AccountDevice, error) {
+	var result remoteproto.AccountDevice
 	err := s.deviceTransaction(
 		ctx,
 		principal,
@@ -81,9 +69,9 @@ func findDevice(
 }
 
 func (s *Service) PatchDevice(
-	ctx context.Context, principal DevicePrincipal, id remoteproto.DeviceID, patch DevicePatch,
-) (Device, error) {
-	var result Device
+	ctx context.Context, principal DevicePrincipal, id remoteproto.DeviceID, patch remoteproto.AccountDevicePatch,
+) (remoteproto.AccountDevice, error) {
+	var result remoteproto.AccountDevice
 	err := s.deviceTransaction(
 		ctx,
 		principal,
@@ -114,7 +102,11 @@ func (s *Service) PatchDevice(
 }
 
 func (s *Service) applyDevicePatch(
-	ctx context.Context, q *store.Queries, device *store.ControlDevice, patch DevicePatch, caller remoteproto.DeviceID,
+	ctx context.Context,
+	q *store.Queries,
+	device *store.ControlDevice,
+	patch remoteproto.AccountDevicePatch,
+	caller remoteproto.DeviceID,
 	event *store.ControlEvent,
 ) error {
 	if patch.Name != nil {

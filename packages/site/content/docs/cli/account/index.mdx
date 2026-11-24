@@ -1,0 +1,42 @@
+---
+title: "compozy account"
+description: "Manage the Compozy Cloud account on this computer"
+---
+
+## compozy account
+
+Manage the Compozy Cloud account on this computer
+
+### Options
+
+```
+  -h, --help   help for account
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                              | Description                           |
+| ---------------------------------------------------- | ------------------------------------- |
+| [compozy account login](/docs/cli/account/login)     | Sign in through a browser             |
+| [compozy account logout](/docs/cli/account/logout)   | Sign out on this computer             |
+| [compozy account status](/docs/cli/account/status)   | Show account, plan, and device status |
+| [compozy account upgrade](/docs/cli/account/upgrade) | Open a Pro checkout in your browser   |

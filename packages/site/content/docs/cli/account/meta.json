@@ -1,0 +1,4 @@
+{
+    "title": "Account",
+    "pages": ["index", "login", "logout", "status", "upgrade"]
+}

@@ -13,6 +13,9 @@ import type {
   AcceptAutomationSuggestionData,
   AcceptAutomationSuggestionErrors,
   AcceptAutomationSuggestionResponses,
+  AccountBillingPortalData,
+  AccountBillingPortalErrors,
+  AccountBillingPortalResponses,
   AcknowledgeAttentionNotificationsData,
   AcknowledgeAttentionNotificationsErrors,
   AcknowledgeAttentionNotificationsResponses,
@@ -112,6 +115,9 @@ import type {
   BulkForceReleaseTaskRunsData,
   BulkForceReleaseTaskRunsErrors,
   BulkForceReleaseTaskRunsResponses,
+  CancelAccountLoginData,
+  CancelAccountLoginErrors,
+  CancelAccountLoginResponses,
   CancelAutomationRunData,
   CancelAutomationRunErrors,
   CancelAutomationRunResponses,
@@ -157,6 +163,9 @@ import type {
   CheckAgentInstanceData,
   CheckAgentInstanceErrors,
   CheckAgentInstanceResponses,
+  CheckoutAccountData,
+  CheckoutAccountErrors,
+  CheckoutAccountResponses,
   CheckSessionMCPData,
   CheckSessionMCPErrors,
   CheckSessionMCPResponses,
@@ -262,6 +271,9 @@ import type {
   CurateProviderModelData,
   CurateProviderModelErrors,
   CurateProviderModelResponses,
+  DecideAccountApprovalData,
+  DecideAccountApprovalErrors,
+  DecideAccountApprovalResponses,
   DeleteAgentData,
   DeleteAgentErrors,
   DeleteAgentHeartbeatData,
@@ -442,6 +454,12 @@ import type {
   ForkSessionToWorktreeData,
   ForkSessionToWorktreeErrors,
   ForkSessionToWorktreeResponses,
+  GetAccountApprovalData,
+  GetAccountApprovalErrors,
+  GetAccountApprovalResponses,
+  GetAccountData,
+  GetAccountErrors,
+  GetAccountResponses,
   GetAgentActivityData,
   GetAgentActivityErrors,
   GetAgentActivityResponses,
@@ -849,6 +867,12 @@ import type {
   InvokeToolData,
   InvokeToolErrors,
   InvokeToolResponses,
+  ListAccountApprovalsData,
+  ListAccountApprovalsErrors,
+  ListAccountApprovalsResponses,
+  ListAccountDevicesData,
+  ListAccountDevicesErrors,
+  ListAccountDevicesResponses,
   ListAgentCatalogData,
   ListAgentCatalogErrors,
   ListAgentCatalogResponses,
@@ -1128,6 +1152,9 @@ import type {
   ListWorktreesData,
   ListWorktreesErrors,
   ListWorktreesResponses,
+  LogoutAccountData,
+  LogoutAccountErrors,
+  LogoutAccountResponses,
   LogoutSettingsMCPAuthData,
   LogoutSettingsMCPAuthErrors,
   LogoutSettingsMCPAuthResponses,
@@ -1173,6 +1200,9 @@ import type {
   OpenSessionSideData,
   OpenSessionSideErrors,
   OpenSessionSideResponses,
+  PatchAccountDeviceData,
+  PatchAccountDeviceErrors,
+  PatchAccountDeviceResponses,
   PatchLoopData,
   PatchLoopErrors,
   PatchLoopResponses,
@@ -1485,6 +1515,9 @@ import type {
   RetryTaskRunData,
   RetryTaskRunErrors,
   RetryTaskRunResponses,
+  RevokeAccountDeviceData,
+  RevokeAccountDeviceErrors,
+  RevokeAccountDeviceResponses,
   RevokeAgentHeartbeatAuthorityData,
   RevokeAgentHeartbeatAuthorityErrors,
   RevokeAgentHeartbeatAuthorityResponses,
@@ -1581,6 +1614,9 @@ import type {
   SpawnAgentSessionData,
   SpawnAgentSessionErrors,
   SpawnAgentSessionResponses,
+  StartAccountLoginData,
+  StartAccountLoginErrors,
+  StartAccountLoginResponses,
   StartAgentTaskRunData,
   StartAgentTaskRunErrors,
   StartAgentTaskRunResponses,
@@ -1795,6 +1831,259 @@ class HeyApiRegistry<T> {
 
   set(value: T, key?: string): void {
     this.instances.set(key ?? this.defaultKey, value);
+  }
+}
+
+export class account extends HeyApiClient {
+  /**
+   * Read the installation account
+   */
+  public getAccount<ThrowOnError extends boolean = true>(
+    options?: Options<GetAccountData, ThrowOnError>
+  ): RequestResult<GetAccountResponses, GetAccountErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      GetAccountResponses,
+      GetAccountErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account",
+      ...options,
+    });
+  }
+
+  /**
+   * List pending and recently decided approvals
+   */
+  public listAccountApprovals<ThrowOnError extends boolean = true>(
+    options?: Options<ListAccountApprovalsData, ThrowOnError>
+  ): RequestResult<
+    ListAccountApprovalsResponses,
+    ListAccountApprovalsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListAccountApprovalsResponses,
+      ListAccountApprovalsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/approvals",
+      ...options,
+    });
+  }
+
+  /**
+   * Read an approval and its applied result
+   */
+  public getAccountApproval<ThrowOnError extends boolean = true>(
+    options: Options<GetAccountApprovalData, ThrowOnError>
+  ): RequestResult<GetAccountApprovalResponses, GetAccountApprovalErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAccountApprovalResponses,
+      GetAccountApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/approvals/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Deliver an approval decision
+   */
+  public decideAccountApproval<ThrowOnError extends boolean = true>(
+    options: Options<DecideAccountApprovalData, ThrowOnError>
+  ): RequestResult<
+    DecideAccountApprovalResponses,
+    DecideAccountApprovalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      DecideAccountApprovalResponses,
+      DecideAccountApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/approvals/{id}/decision",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Open account billing
+   */
+  public accountBillingPortal<ThrowOnError extends boolean = true>(
+    options?: Options<AccountBillingPortalData, ThrowOnError>
+  ): RequestResult<
+    AccountBillingPortalResponses,
+    AccountBillingPortalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).post<
+      AccountBillingPortalResponses,
+      AccountBillingPortalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/billing-portal",
+      ...options,
+    });
+  }
+
+  /**
+   * Start a Pro checkout
+   */
+  public checkoutAccount<ThrowOnError extends boolean = true>(
+    options: Options<CheckoutAccountData, ThrowOnError>
+  ): RequestResult<CheckoutAccountResponses, CheckoutAccountErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CheckoutAccountResponses,
+      CheckoutAccountErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/checkout",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List the account's devices
+   */
+  public listAccountDevices<ThrowOnError extends boolean = true>(
+    options?: Options<ListAccountDevicesData, ThrowOnError>
+  ): RequestResult<ListAccountDevicesResponses, ListAccountDevicesErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListAccountDevicesResponses,
+      ListAccountDevicesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/devices",
+      ...options,
+    });
+  }
+
+  /**
+   * Revoke a device on this account
+   */
+  public revokeAccountDevice<ThrowOnError extends boolean = true>(
+    options: Options<RevokeAccountDeviceData, ThrowOnError>
+  ): RequestResult<RevokeAccountDeviceResponses, RevokeAccountDeviceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RevokeAccountDeviceResponses,
+      RevokeAccountDeviceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/devices/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Update a device on this account
+   */
+  public patchAccountDevice<ThrowOnError extends boolean = true>(
+    options: Options<PatchAccountDeviceData, ThrowOnError>
+  ): RequestResult<PatchAccountDeviceResponses, PatchAccountDeviceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchAccountDeviceResponses,
+      PatchAccountDeviceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/devices/{id}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Cancel account sign-in
+   */
+  public cancelAccountLogin<ThrowOnError extends boolean = true>(
+    options?: Options<CancelAccountLoginData, ThrowOnError>
+  ): RequestResult<CancelAccountLoginResponses, CancelAccountLoginErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).delete<
+      CancelAccountLoginResponses,
+      CancelAccountLoginErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/login",
+      ...options,
+    });
+  }
+
+  /**
+   * Start account sign-in
+   */
+  public startAccountLogin<ThrowOnError extends boolean = true>(
+    options?: Options<StartAccountLoginData, ThrowOnError>
+  ): RequestResult<StartAccountLoginResponses, StartAccountLoginErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).post<
+      StartAccountLoginResponses,
+      StartAccountLoginErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/login",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
+  }
+
+  /**
+   * Sign out this installation
+   */
+  public logoutAccount<ThrowOnError extends boolean = true>(
+    options?: Options<LogoutAccountData, ThrowOnError>
+  ): RequestResult<LogoutAccountResponses, LogoutAccountErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).post<
+      LogoutAccountResponses,
+      LogoutAccountErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/account/logout",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
   }
 }
 
@@ -14527,6 +14816,11 @@ export class Compozy extends HeyApiClient {
   constructor(args?: { client?: Client; key?: string }) {
     super(args);
     Compozy.__registry.set(this, args?.key);
+  }
+
+  private _account?: account;
+  get account(): account {
+    return (this._account ??= new account({ client: this.client }));
   }
 
   private _agents?: agents;

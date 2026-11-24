@@ -7,6 +7,230 @@ import (
 	"time"
 )
 
+// FSEntryPayload is a daemon API value.
+type FSEntryPayload struct {
+	Name  string `json:"name"`
+	Path  string `json:"path"`
+	IsDir bool   `json:"is_dir"`
+}
+
+// FailTaskRunRequest is a daemon API value.
+type FailTaskRunRequest struct {
+	Error    string          `json:"error"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// FailureKind is a daemon API value.
+type FailureKind string
+
+// FailureReasonCode is a daemon API value.
+type FailureReasonCode string
+
+// FanOutTaskRunsRequest is a daemon API value.
+type FanOutTaskRunsRequest struct {
+	Designations   []TaskFanOutRunDesignationRequest `json:"designations"`
+	IdempotencyKey string                            `json:"idempotency_key,omitempty"`
+	WorktreePerRun bool                              `json:"worktree_per_run,omitzero"`
+}
+
+// FanOutTaskRunsResponse is a daemon API value.
+type FanOutTaskRunsResponse struct {
+	DesignationGroupID string           `json:"designation_group_id"`
+	Runs               []TaskRunPayload `json:"runs"`
+}
+
+// FanoutRollup is a daemon API value.
+type FanoutRollup struct {
+	Generation int    `json:"generation"`
+	NodeID     NodeID `json:"node_id"`
+	Done       int    `json:"done"`
+	Total      int    `json:"total"`
+	Failed     int    `json:"failed"`
+}
+
+// FileChangePayload is a daemon API value.
+type FileChangePayload struct {
+	Path        string `json:"path"`
+	OldPath     string `json:"old_path,omitempty"`
+	Status      string `json:"status"`
+	Additions   int    `json:"additions"`
+	Deletions   int    `json:"deletions"`
+	Binary      bool   `json:"binary,omitzero"`
+	Generated   bool   `json:"generated,omitzero"`
+	Sensitive   bool   `json:"sensitive,omitzero"`
+	Fingerprint string `json:"fingerprint"`
+}
+
+// FileContentResponse is a daemon API value.
+type FileContentResponse struct {
+	Root        FileRootPayload `json:"root"`
+	Path        string          `json:"path"`
+	Kind        string          `json:"kind"`
+	Size        int64           `json:"size"`
+	Language    string          `json:"language,omitempty"`
+	Text        *string         `json:"text,omitempty"`
+	ImageMIME   string          `json:"image_mime,omitempty"`
+	ImageBase64 string          `json:"image_base64,omitempty"`
+	Sensitive   bool            `json:"sensitive,omitzero"`
+	Truncated   bool            `json:"truncated"`
+	Revision    string          `json:"revision,omitempty"`
+}
+
+// FileEntriesResponse is a daemon API value.
+type FileEntriesResponse struct {
+	Root              FileRootPayload    `json:"root"`
+	Path              string             `json:"path"`
+	Entries           []FileEntryPayload `json:"entries"`
+	Truncated         bool               `json:"truncated"`
+	StatusUnavailable bool               `json:"status_unavailable,omitzero"`
+}
+
+// FileEntryPayload is a daemon API value.
+type FileEntryPayload struct {
+	Name            string `json:"name"`
+	Path            string `json:"path"`
+	Kind            string `json:"kind"`
+	Size            int64  `json:"size,omitzero"`
+	Symlink         bool   `json:"symlink,omitzero"`
+	Ignored         bool   `json:"ignored,omitzero"`
+	Sensitive       bool   `json:"sensitive,omitzero"`
+	GitStatus       string `json:"git_status,omitempty"`
+	ContainsChanges bool   `json:"contains_changes,omitzero"`
+}
+
+// FileFindMatch is a daemon API value.
+type FileFindMatch struct {
+	Path        string  `json:"path"`
+	Kind        string  `json:"kind"`
+	Sensitive   bool    `json:"sensitive,omitzero"`
+	Score       int     `json:"score"`
+	MatchRanges [][]int `json:"match_ranges"`
+}
+
+// FileFindResponse is a daemon API value.
+type FileFindResponse struct {
+	Root           FileRootPayload `json:"root"`
+	Query          string          `json:"query"`
+	Results        []FileFindMatch `json:"results"`
+	IndexedFiles   int             `json:"indexed_files"`
+	IndexTruncated bool            `json:"index_truncated"`
+}
+
+// FileParseKind is a daemon API value.
+type FileParseKind string
+
+// FileRootPayload is a daemon API value.
+type FileRootPayload struct {
+	Kind        string `json:"kind"`
+	WorkspaceID string `json:"workspace_id"`
+	WorktreeID  string `json:"worktree_id,omitempty"`
+	Name        string `json:"name"`
+	Branch      string `json:"branch,omitempty"`
+}
+
+// FileSearchFile is a daemon API value.
+type FileSearchFile struct {
+	Path             string            `json:"path"`
+	Matches          []FileSearchMatch `json:"matches"`
+	TruncatedMatches bool              `json:"truncated_matches,omitzero"`
+}
+
+// FileSearchMatch is a daemon API value.
+type FileSearchMatch struct {
+	Line       int     `json:"line"`
+	Column     int     `json:"column"`
+	Text       string  `json:"text"`
+	Ranges     [][]int `json:"ranges"`
+	TextOffset int     `json:"text_offset"`
+}
+
+// FileSearchQuery is a daemon API value.
+type FileSearchQuery struct {
+	Pattern       string   `json:"pattern"`
+	Regex         bool     `json:"regex"`
+	CaseSensitive bool     `json:"case_sensitive"`
+	WholeWord     bool     `json:"whole_word"`
+	Include       []string `json:"include"`
+	Exclude       []string `json:"exclude"`
+}
+
+// FileSearchResponse is a daemon API value.
+type FileSearchResponse struct {
+	Root              FileRootPayload  `json:"root"`
+	Query             FileSearchQuery  `json:"query"`
+	Engine            string           `json:"engine"`
+	Files             []FileSearchFile `json:"files"`
+	Totals            FileSearchTotals `json:"totals"`
+	Truncated         bool             `json:"truncated"`
+	TimedOut          bool             `json:"timed_out"`
+	SensitiveExcluded int              `json:"sensitive_excluded"`
+}
+
+// FileSearchTotals is a daemon API value.
+type FileSearchTotals struct {
+	Files   int `json:"files"`
+	Matches int `json:"matches"`
+}
+
+// FireLimitConfig is a daemon API value.
+type FireLimitConfig struct {
+	Max    int    `json:"max"`
+	Window string `json:"window"`
+}
+
+// FocusPolicy is a daemon API value.
+type FocusPolicy string
+
+// ForceFailTaskRunRequest is a daemon API value.
+type ForceFailTaskRunRequest struct {
+	Reason   string          `json:"reason"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// ForceReleaseTaskRunRequest is a daemon API value.
+type ForceReleaseTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// ForkLoopRequest is a daemon API value.
+type ForkLoopRequest struct {
+	Generation int64          `json:"generation"`
+	Inputs     map[string]any `json:"inputs,omitempty"`
+	Reason     string         `json:"reason,omitempty"`
+	RequestID  string         `json:"request_id,omitempty"`
+}
+
+// ForkLoopResponse is a daemon API value.
+type ForkLoopResponse struct {
+	Run      LoopRunPayload `json:"run"`
+	Replayed bool           `json:"replayed,omitzero"`
+}
+
+// ForkSessionRequest is a daemon API value.
+type ForkSessionRequest struct {
+	MessageID           string `json:"message_id,omitempty"`
+	Name                string `json:"name,omitempty"`
+	IdempotencyKey      string `json:"idempotency_key"`
+	ExpectedEpoch       *int64 `json:"expected_epoch,omitzero"`
+	ExpectedGeneration  *int64 `json:"expected_generation,omitzero"`
+	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitzero"`
+}
+
+// ForkSessionWorktreeRequest is a daemon API value.
+type ForkSessionWorktreeRequest struct {
+	Worktree    string                     `json:"worktree,omitempty"`
+	NewWorktree *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
+	Confirmed   bool                       `json:"confirmed"`
+}
+
+// FormBody is a daemon API value.
+type FormBody struct {
+	Fields   []FormField `json:"fields"`
+	Submit   *RowAction  `json:"submit,omitempty"`
+	OnSubmit string      `json:"on_submit,omitempty"`
+}
+
 // FormField is a daemon API value.
 type FormField struct {
 	ID          string            `json:"id"`
@@ -223,224 +447,4 @@ type GatewayStatusPayload struct {
 	Devices   []GatewayDevicePayload   `json:"devices"`
 	Bindings  []GatewayIngressPayload  `json:"bindings"`
 	Refusal   *GatewayRefusalPayload   `json:"refusal,omitzero"`
-}
-
-// GatewayStreamTicketPayload is a daemon API value.
-type GatewayStreamTicketPayload struct {
-	Ticket    string    `json:"ticket"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
-// GatewaySurfacePayload is a daemon API value.
-type GatewaySurfacePayload struct {
-	Surface    string `json:"surface"`
-	Tier       string `json:"tier"`
-	Desired    string `json:"desired"`
-	Observed   string `json:"observed"`
-	Generation uint64 `json:"generation"`
-}
-
-// GatewaySurfaceRequest is a daemon API value.
-type GatewaySurfaceRequest struct {
-	Surface            string `json:"surface"`
-	Tier               string `json:"tier"`
-	Desired            string `json:"desired"`
-	ExpectedGeneration uint64 `json:"expected_generation"`
-	Consent            bool   `json:"consent"`
-}
-
-// GatewayTierPayload is a daemon API value.
-type GatewayTierPayload struct {
-	Tier            string `json:"tier"`
-	Desired         string `json:"desired"`
-	Observed        string `json:"observed"`
-	ListenerAddress string `json:"listener_address,omitempty"`
-	Advertised      bool   `json:"advertised"`
-}
-
-// GlobalShortcut is a daemon API value.
-type GlobalShortcut struct {
-	IntendedChord string `json:"intended_chord"`
-	ActiveChord   string `json:"active_chord,omitempty"`
-	Status        string `json:"status,omitempty"`
-	Reason        string `json:"reason,omitempty"`
-	SettingsURL   string `json:"settings_url,omitempty"`
-}
-
-// GlobalShortcutRegistration is a daemon API value.
-type GlobalShortcutRegistration struct {
-	CommandID     string               `json:"command_id"`
-	IntendedChord string               `json:"intended_chord"`
-	ActiveChord   string               `json:"active_chord,omitempty"`
-	Status        GlobalShortcutStatus `json:"status"`
-	Reason        string               `json:"reason,omitempty"`
-	SettingsURL   string               `json:"settings_url,omitempty"`
-}
-
-// GlobalShortcutStatus is a daemon API value.
-type GlobalShortcutStatus string
-
-// GoalBlockingIssue is a daemon API value.
-type GoalBlockingIssue struct {
-	ID   string `json:"id"`
-	Note string `json:"note"`
-}
-
-// GoalCommandOutcome is a daemon API value.
-type GoalCommandOutcome string
-
-// GoalCommandResult is a daemon API value.
-type GoalCommandResult struct {
-	Outcome       GoalCommandOutcome `json:"outcome"`
-	ReasonCode    *GoalReasonCode    `json:"reason_code"`
-	Snapshot      *GoalSnapshot      `json:"snapshot"`
-	ReplacedRunID *string            `json:"replaced_run_id"`
-}
-
-// GoalContextSnapshot is a daemon API value.
-type GoalContextSnapshot struct {
-	State      GoalContextState `json:"state"`
-	Diagnostic string           `json:"diagnostic,omitempty"`
-	Used       *int64           `json:"used"`
-	Size       *int64           `json:"size"`
-	Ratio      *float64         `json:"ratio"`
-	NudgeRatio float64          `json:"nudge_ratio"`
-	ReportedAt *time.Time       `json:"reported_at"`
-}
-
-// GoalContextState is a daemon API value.
-type GoalContextState string
-
-// GoalCriterionResult is a daemon API value.
-type GoalCriterionResult struct {
-	ID             string                  `json:"id"`
-	Type           string                  `json:"type"`
-	Outcome        GoalVerdictOutcome      `json:"outcome"`
-	Passed         bool                    `json:"passed"`
-	Broken         bool                    `json:"broken,omitzero"`
-	ExitCode       *int                    `json:"exit_code,omitzero"`
-	Stdout         string                  `json:"stdout,omitempty"`
-	Stderr         string                  `json:"stderr,omitempty"`
-	Score          *float64                `json:"score,omitzero"`
-	Evidence       json.RawMessage         `json:"evidence,omitempty"`
-	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues,omitempty"`
-	Warnings       []GoalDiagnosticWarning `json:"warnings,omitempty"`
-	Payload        json.RawMessage         `json:"payload,omitempty"`
-}
-
-// GoalDiagnosticWarning is a daemon API value.
-type GoalDiagnosticWarning struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
-// GoalPromptKind is a daemon API value.
-type GoalPromptKind string
-
-// GoalPromptMeta is a daemon API value.
-type GoalPromptMeta struct {
-	Kind          GoalPromptKind `json:"kind"`
-	RunID         string         `json:"run_id"`
-	NodeID        string         `json:"node_id"`
-	Generation    int64          `json:"generation"`
-	ItemIndex     int            `json:"item_index"`
-	Turn          *int           `json:"turn"`
-	PromptAttempt int            `json:"prompt_attempt"`
-	PromptID      string         `json:"prompt_id"`
-}
-
-// GoalReasonCode is a daemon API value.
-type GoalReasonCode string
-
-// GoalSnapshot is a daemon API value.
-type GoalSnapshot struct {
-	RunID           string              `json:"run_id"`
-	NodeID          string              `json:"node_id"`
-	Objective       string              `json:"objective"`
-	OriginSessionID string              `json:"origin_session_id"`
-	BoundSessionID  string              `json:"bound_session_id"`
-	Status          GoalStatus          `json:"status"`
-	RunStatus       LoopRunStatus       `json:"run_status"`
-	Cause           *GoalReasonCode     `json:"cause"`
-	TurnsUsed       int                 `json:"turns_used"`
-	TurnLimit       int                 `json:"turn_limit"`
-	Live            bool                `json:"live"`
-	PauseRequested  bool                `json:"pause_requested,omitzero"`
-	ContractSummary string              `json:"contract_summary"`
-	LastVerdict     *GoalVerdictSummary `json:"last_verdict"`
-	Context         GoalContextSnapshot `json:"context"`
-}
-
-// GoalSnapshotChangeCause is a daemon API value.
-type GoalSnapshotChangeCause string
-
-// GoalSnapshotChangedPayload is a daemon API value.
-type GoalSnapshotChangedPayload struct {
-	SessionID      string                  `json:"session_id"`
-	RunID          *string                 `json:"run_id"`
-	BoundSessionID *string                 `json:"bound_session_id"`
-	Revision       int64                   `json:"revision"`
-	Cause          GoalSnapshotChangeCause `json:"cause"`
-}
-
-// GoalStatus is a daemon API value.
-type GoalStatus string
-
-// GoalTurn is a daemon API value.
-type GoalTurn struct {
-	Seq            int64                   `json:"seq"`
-	Generation     int64                   `json:"generation"`
-	NodeID         string                  `json:"node_id"`
-	ItemIndex      int                     `json:"item_index"`
-	Turn           int                     `json:"turn"`
-	PromptAttempt  int                     `json:"prompt_attempt"`
-	SessionID      string                  `json:"session_id"`
-	BindingHandle  string                  `json:"binding_handle"`
-	BindingEpoch   int64                   `json:"binding_epoch"`
-	PromptID       string                  `json:"prompt_id"`
-	ResultStatus   *GoalTurnResultStatus   `json:"result_status"`
-	ReasonCode     *GoalReasonCode         `json:"reason_code"`
-	StopReason     *ACPPromptStopReason    `json:"stop_reason"`
-	VerdictOutcome *GoalVerdictOutcome     `json:"verdict_outcome"`
-	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues"`
-	Criteria       []GoalCriterionResult   `json:"criteria"`
-	Warnings       []GoalDiagnosticWarning `json:"warnings"`
-	EvidenceRef    *string                 `json:"evidence_ref"`
-	PromptRef      *string                 `json:"prompt_ref"`
-	TokensUsed     *int64                  `json:"tokens_used"`
-	ActorKind      string                  `json:"actor_kind"`
-	ActorID        string                  `json:"actor_id"`
-	StartedAt      time.Time               `json:"started_at"`
-	EndedAt        *time.Time              `json:"ended_at"`
-}
-
-// GoalTurnPage is a daemon API value.
-type GoalTurnPage struct {
-	Turns        []GoalTurn `json:"turns"`
-	NextAfterSeq *int64     `json:"next_after_seq"`
-}
-
-// GoalTurnResultStatus is a daemon API value.
-type GoalTurnResultStatus string
-
-// GoalVerdictOutcome is a daemon API value.
-type GoalVerdictOutcome string
-
-// GoalVerdictSummary is a daemon API value.
-type GoalVerdictSummary struct {
-	Outcome        GoalVerdictOutcome  `json:"outcome"`
-	BlockingIssues []GoalBlockingIssue `json:"blocking_issues"`
-	EvidenceRef    *string             `json:"evidence_ref"`
-	EvaluatedAt    time.Time           `json:"evaluated_at"`
-}
-
-// Graph is a daemon API value.
-type Graph struct {
-	Nodes []Node `json:"nodes"`
-	Edges []Edge `json:"edges"`
-}
-
-// GridBody is a daemon API value.
-type GridBody struct {
-	Sections []GridSection `json:"sections"`
 }

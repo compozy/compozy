@@ -24,6 +24,7 @@ func registerRootCommands(cmd *cobra.Command, deps commandDeps) {
 		newProcessCommand(deps),
 		newProviderCommand(deps),
 		newProfileCommand(deps),
+		newAccountCommand(deps),
 		newGatewayCommand(deps),
 		newPairCommand(deps),
 		newDeviceCommand(deps),

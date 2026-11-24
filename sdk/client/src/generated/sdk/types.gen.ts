@@ -31,6 +31,128 @@ export type ACPOptionSelection = {
   value_id?: string;
 };
 
+export type AccountApproval = {
+  applied_result: string | null;
+  can_decide: boolean;
+  computer_id: string;
+  created_at: string;
+  device_name: string;
+  id: string;
+  key_fingerprint: string;
+  state: string;
+};
+
+export type AccountApprovalDecisionRequest = {
+  approve: boolean | null;
+};
+
+export type AccountApprovalsResponse = {
+  approvals: Array<AccountApproval>;
+};
+
+export type AccountBillingResponse = {
+  url: string;
+};
+
+export type AccountCheckoutRequest = {
+  interval: string;
+};
+
+export type AccountDevice = {
+  admin: boolean;
+  id: string;
+  kind: string;
+  last_seen_at: string;
+  name: string;
+  this_device: boolean;
+};
+
+export type AccountDevicePatch = {
+  admin?: boolean | null;
+  name?: string | null;
+  scopes?: {
+    [key: string]: Array<string>;
+  };
+};
+
+export type AccountDeviceSummary = {
+  admin: boolean;
+  id: string;
+  name: string;
+};
+
+export type AccountDevicesResponse = {
+  devices: Array<AccountDevice>;
+};
+
+export type AccountGrace = {
+  message: string;
+  source: string;
+  until: string;
+};
+
+export type AccountLoginRequest = {
+  marketing_opt_in: boolean;
+  provider: string | null;
+};
+
+export type AccountLoginResponse = {
+  attempt_id: string;
+  expires_at: string;
+  user_code: string;
+  verification_uri: string;
+  verification_uri_complete: string;
+};
+
+export type AccountLogoutRequest = {
+  unlink: boolean;
+};
+
+export type AccountLogoutResponse = {
+  state: string;
+};
+
+export type AccountSignInNotice = {
+  at: string;
+  device_id: string;
+  kind: string;
+  location: string;
+  name: string;
+};
+
+export type AccountStatusResponse = {
+  cloud_routes_limit: number;
+  cloud_routes_used: number;
+  device: AccountDeviceSummary | null;
+  email?: string;
+  gate: string;
+  grace: AccountGrace | null;
+  installation_linked: boolean;
+  marketing_opt_in: boolean;
+  name?: string;
+  payment_issue: boolean;
+  plan: string;
+  pre_account_install: boolean;
+  provider?: string;
+  recent_sign_ins: Array<AccountSignInNotice>;
+  remote_computers_limit: number | null;
+  remote_computers_used: number;
+  signed_in: boolean;
+  signed_out_reason: string | null;
+  source: string | null;
+  state: string;
+  subscription: AccountSubscription | null;
+  token_name: string | null;
+};
+
+export type AccountSubscription = {
+  cancel_at_period_end: boolean;
+  current_period_end: string | null;
+  interval: string | null;
+  refund_eligible_until: string | null;
+  source: string;
+};
+
 export type AcknowledgeAttentionRequest = {
   id?: string;
   snapshot: string;
@@ -996,6 +1118,11 @@ export type AppTokenRevokeResponse = {
 
 export type AppTokensResponse = {
   app_tokens: Array<AppTokenPayload>;
+};
+
+export type ApprovalDelivery = {
+  approval_id: string;
+  state: string;
 };
 
 export type ApproveLoopRunRequest = {
@@ -14126,6 +14253,646 @@ export type ValueWritable =
   | {
       vault_ref: string;
     };
+
+export type GetAccountData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account";
+};
+
+export type GetAccountErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetAccountError = GetAccountErrors[keyof GetAccountErrors];
+
+export type GetAccountResponses = {
+  /**
+   * Installation account status
+   */
+  200: AccountStatusResponse;
+};
+
+export type GetAccountResponse = GetAccountResponses[keyof GetAccountResponses];
+
+export type ListAccountApprovalsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account/approvals";
+};
+
+export type ListAccountApprovalsErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListAccountApprovalsError =
+  ListAccountApprovalsErrors[keyof ListAccountApprovalsErrors];
+
+export type ListAccountApprovalsResponses = {
+  /**
+   * Account approvals
+   */
+  200: AccountApprovalsResponse;
+};
+
+export type ListAccountApprovalsResponse =
+  ListAccountApprovalsResponses[keyof ListAccountApprovalsResponses];
+
+export type GetAccountApprovalData = {
+  body?: never;
+  path: {
+    /**
+     * Account resource ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/account/approvals/{id}";
+};
+
+export type GetAccountApprovalErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetAccountApprovalError = GetAccountApprovalErrors[keyof GetAccountApprovalErrors];
+
+export type GetAccountApprovalResponses = {
+  /**
+   * Device approval
+   */
+  200: AccountApproval;
+};
+
+export type GetAccountApprovalResponse =
+  GetAccountApprovalResponses[keyof GetAccountApprovalResponses];
+
+export type DecideAccountApprovalData = {
+  /**
+   * JSON request body
+   */
+  body: AccountApprovalDecisionRequest;
+  path: {
+    /**
+     * Account resource ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/account/approvals/{id}/decision";
+};
+
+export type DecideAccountApprovalErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type DecideAccountApprovalError =
+  DecideAccountApprovalErrors[keyof DecideAccountApprovalErrors];
+
+export type DecideAccountApprovalResponses = {
+  /**
+   * Decision queued for the computer
+   */
+  202: ApprovalDelivery;
+};
+
+export type DecideAccountApprovalResponse =
+  DecideAccountApprovalResponses[keyof DecideAccountApprovalResponses];
+
+export type AccountBillingPortalData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account/billing-portal";
+};
+
+export type AccountBillingPortalErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type AccountBillingPortalError =
+  AccountBillingPortalErrors[keyof AccountBillingPortalErrors];
+
+export type AccountBillingPortalResponses = {
+  /**
+   * Billing portal URL
+   */
+  200: AccountBillingResponse;
+};
+
+export type AccountBillingPortalResponse =
+  AccountBillingPortalResponses[keyof AccountBillingPortalResponses];
+
+export type CheckoutAccountData = {
+  /**
+   * JSON request body
+   */
+  body: AccountCheckoutRequest;
+  path?: never;
+  query?: never;
+  url: "/api/account/checkout";
+};
+
+export type CheckoutAccountErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CheckoutAccountError = CheckoutAccountErrors[keyof CheckoutAccountErrors];
+
+export type CheckoutAccountResponses = {
+  /**
+   * Checkout URL
+   */
+  200: AccountBillingResponse;
+};
+
+export type CheckoutAccountResponse = CheckoutAccountResponses[keyof CheckoutAccountResponses];
+
+export type ListAccountDevicesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account/devices";
+};
+
+export type ListAccountDevicesErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListAccountDevicesError = ListAccountDevicesErrors[keyof ListAccountDevicesErrors];
+
+export type ListAccountDevicesResponses = {
+  /**
+   * Account devices
+   */
+  200: AccountDevicesResponse;
+};
+
+export type ListAccountDevicesResponse =
+  ListAccountDevicesResponses[keyof ListAccountDevicesResponses];
+
+export type RevokeAccountDeviceData = {
+  body?: never;
+  path: {
+    /**
+     * Account resource ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/account/devices/{id}";
+};
+
+export type RevokeAccountDeviceErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RevokeAccountDeviceError = RevokeAccountDeviceErrors[keyof RevokeAccountDeviceErrors];
+
+export type RevokeAccountDeviceResponses = {
+  /**
+   * Device revoked
+   */
+  204: void;
+};
+
+export type RevokeAccountDeviceResponse =
+  RevokeAccountDeviceResponses[keyof RevokeAccountDeviceResponses];
+
+export type PatchAccountDeviceData = {
+  /**
+   * JSON request body
+   */
+  body: AccountDevicePatch;
+  path: {
+    /**
+     * Account resource ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/account/devices/{id}";
+};
+
+export type PatchAccountDeviceErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PatchAccountDeviceError = PatchAccountDeviceErrors[keyof PatchAccountDeviceErrors];
+
+export type PatchAccountDeviceResponses = {
+  /**
+   * Updated device
+   */
+  200: AccountDevice;
+};
+
+export type PatchAccountDeviceResponse =
+  PatchAccountDeviceResponses[keyof PatchAccountDeviceResponses];
+
+export type CancelAccountLoginData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Cancel only the named sign-in attempt
+     */
+    attempt_id?: string;
+  };
+  url: "/api/account/login";
+};
+
+export type CancelAccountLoginErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CancelAccountLoginError = CancelAccountLoginErrors[keyof CancelAccountLoginErrors];
+
+export type CancelAccountLoginResponses = {
+  /**
+   * Sign-in attempt ended
+   */
+  204: void;
+};
+
+export type CancelAccountLoginResponse =
+  CancelAccountLoginResponses[keyof CancelAccountLoginResponses];
+
+export type StartAccountLoginData = {
+  /**
+   * JSON request body
+   */
+  body?: AccountLoginRequest;
+  path?: never;
+  query?: never;
+  url: "/api/account/login";
+};
+
+export type StartAccountLoginErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type StartAccountLoginError = StartAccountLoginErrors[keyof StartAccountLoginErrors];
+
+export type StartAccountLoginResponses = {
+  /**
+   * Device activation
+   */
+  200: AccountLoginResponse;
+};
+
+export type StartAccountLoginResponse =
+  StartAccountLoginResponses[keyof StartAccountLoginResponses];
+
+export type LogoutAccountData = {
+  /**
+   * JSON request body
+   */
+  body?: AccountLogoutRequest;
+  path?: never;
+  query?: never;
+  url: "/api/account/logout";
+};
+
+export type LogoutAccountErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type LogoutAccountError = LogoutAccountErrors[keyof LogoutAccountErrors];
+
+export type LogoutAccountResponses = {
+  /**
+   * Signed out
+   */
+  200: AccountLogoutResponse;
+};
+
+export type LogoutAccountResponse = LogoutAccountResponses[keyof LogoutAccountResponses];
 
 export type ListAgentInstancesData = {
   body?: never;

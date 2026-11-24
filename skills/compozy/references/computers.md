@@ -12,6 +12,14 @@
 
 Verify the gate policy signature against the cloud JWKS. A grace policy applies only before its `until` deadline. For `429 rate_limited` and `503 cloud_unavailable`, honor the `Retry-After` header.
 
+## Local account
+
+Use `compozy account login` to sign in through the browser. Show the activation URL and code to the operator and let them approve the grant. Use `compozy account status --json` to read the account, plan usage, and current device. Use `compozy account logout` to end the session on this computer. `compozy account upgrade --annual` opens annual checkout when billing is available.
+
+Local HTTP and UDS expose the same `/api/account` routes for sign-in, status, devices, approvals, and billing. Subscribe to `GET /api/account/sign-in/events` before starting a login. It carries attempt progress and state without account details. Follow `GET /api/account/stream` after sign-in. On `stream_reset`, read current status and approvals before following changes again.
+
+A cloud outage leaves an existing sign-in intact. Retry account actions after the response's `Retry-After` when present. The account tool and routes are local to the installation.
+
 ## Cloud sign-in
 
 Start a device grant with `POST /v1/device-flow`. Show the operator the returned user code and `verification_uri_complete`. The operator compares the code with `/activate` and completes Google or GitHub sign-in in the browser. Poll `POST /v1/device-flow/token` at the returned interval. Add five seconds on `slow_down`, and stop on `access_denied` or `expired_token`. Cancel a superseded attempt with `DELETE /v1/device-flow/{device_code}`.

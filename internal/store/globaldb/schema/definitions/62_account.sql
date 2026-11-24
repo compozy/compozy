@@ -1,0 +1,19 @@
+CREATE TABLE installation_account (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  installation_id TEXT NOT NULL,
+  pre_account_install INTEGER NOT NULL CHECK (pre_account_install IN (0, 1)),
+  state TEXT NOT NULL CHECK (state IN ('signed_out', 'signed_in', 'reauth_required')),
+  source TEXT CHECK (source IN ('session', 'link', 'token')),
+  account_id TEXT,
+  email TEXT,
+  name TEXT,
+  provider TEXT,
+  device_id TEXT,
+  device_name TEXT,
+  device_admin INTEGER CHECK (device_admin IN (0, 1)),
+  marketing_opt_in INTEGER NOT NULL DEFAULT 0 CHECK (marketing_opt_in IN (0, 1)),
+  plan_json TEXT,
+  signed_out_reason TEXT,
+  auth_generation INTEGER NOT NULL DEFAULT 0 CHECK (auth_generation >= 0),
+  last_validated_at TEXT
+);

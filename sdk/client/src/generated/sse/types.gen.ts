@@ -4,6 +4,17 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type AccountSignInProgress = {
+  attempt_id: string;
+  code?: string;
+  state: string;
+};
+
+export type AccountStatePayload = {
+  signed_out_reason: string | null;
+  state: string;
+};
+
 export type Action = {
   app?: string;
   args?: {
@@ -75,6 +86,20 @@ export type AgentInstancePayload = {
   unattended_turns: number;
   updated_at: string;
   workspace_id: string;
+};
+
+export type ApprovalResult = {
+  id: string;
+  result: string;
+};
+
+export type Change = {
+  approval?: ApprovalResult | null;
+  approval_id?: string;
+  computer_id?: string;
+  device_id?: string;
+  kind?: string;
+  security_epoch?: number;
 };
 
 export type Chip = {
@@ -184,6 +209,12 @@ export type ErrorPayload = {
   provider_error?: string;
   retryable?: boolean;
   unknown_keys?: Array<string>;
+};
+
+export type Event = {
+  data: Change;
+  event: string;
+  id: string;
 };
 
 export type FormBody = {
@@ -1020,6 +1051,110 @@ export type WorktreeCatalogEventPayload = {
   workspace_id: string;
   worktree_id: string;
 };
+
+export type StreamAccountSignInData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account/sign-in/events";
+};
+
+export type StreamAccountSignInErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type StreamAccountSignInError = StreamAccountSignInErrors[keyof StreamAccountSignInErrors];
+
+export type StreamAccountSignInResponses = {
+  /**
+   * Sign-in progress and account state
+   */
+  200: AccountSignInProgress | AccountStatePayload;
+};
+
+export type StreamAccountSignInResponse =
+  StreamAccountSignInResponses[keyof StreamAccountSignInResponses];
+
+export type StreamAccountData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Last account event ID in this auth generation
+     */
+    after_sequence?: string;
+  };
+  url: "/api/account/stream";
+};
+
+export type StreamAccountErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type StreamAccountError = StreamAccountErrors[keyof StreamAccountErrors];
+
+export type StreamAccountResponses = {
+  /**
+   * Account changes and stream resets
+   */
+  200: Event;
+};
+
+export type StreamAccountResponse = StreamAccountResponses[keyof StreamAccountResponses];
 
 export type StreamCmdPaletteData = {
   body?: never;

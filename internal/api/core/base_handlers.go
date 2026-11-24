@@ -115,6 +115,7 @@ type BaseHandlerConfig struct {
 	AppTokens                   AppTokenManager
 	OpenAPI                     *OpenAPIDocument
 	Gateway                     GatewayService
+	Account                     AccountService
 	Ingress                     IngressService
 	GatewayPairingSource        string
 	HomePaths                   compozyconfig.HomePaths
@@ -212,6 +213,7 @@ type BaseHandlers struct {
 	AppTokens                    AppTokenManager
 	OpenAPI                      *OpenAPIDocument
 	Gateway                      GatewayService
+	Account                      AccountService
 	Ingress                      IngressService
 	GatewayPairingSource         string
 	HomePaths                    compozyconfig.HomePaths
@@ -244,6 +246,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	handlers.SessionChanges = cfg.SessionChanges
 	handlers.TelemetryStatus = cfg.TelemetryStatus
 	handlers.Gateway = cfg.Gateway
+	handlers.Account = cfg.Account
 	handlers.Ingress = cfg.Ingress
 	handlers.GatewayPairingSource = strings.TrimSpace(cfg.GatewayPairingSource)
 	handlers.applyAuthoredContextConfig(cfg)
