@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
 
 const pollPath = deviceFlowPath + "/token"
@@ -168,7 +169,7 @@ func (f authFixture) continueGrant(t *testing.T, g remoteproto.DeviceFlowRespons
 	reply := f.request(t, http.MethodPost, activatePath, form, cookie)
 	reply.expect(t, http.StatusSeeOther, "")
 	location, err := reply.Location()
-	if err != nil || !strings.HasPrefix(location.String(), f.provider.origin+"/") {
+	if err != nil || !strings.HasPrefix(location.String(), f.provider.Origin+"/") {
 		t.Fatal("activation did not redirect to the configured provider")
 	}
 	return reply
@@ -189,12 +190,10 @@ func (f authFixture) callbackPath(t *testing.T, provider string, redirect authRe
 	if query.Get("state") == "" || query.Get("code_challenge") == "" {
 		t.Fatal("provider request lacked OAuth state or PKCE")
 	}
-	code := auth.Secret()
-	f.provider.mu.Lock()
-	f.provider.exchanges[code] = providerExchange{
-		profile: profile, challenge: query.Get("code_challenge"), nonce: query.Get("nonce"),
-	}
-	f.provider.mu.Unlock()
+	code := f.provider.IssueCode(query, remotetest.ProviderProfile{
+		Subject: profile.subject, Email: profile.email, Issuer: profile.issuer, Audience: profile.audience,
+		Nonce: profile.nonce, GitHubID: profile.githubID, Verified: profile.verified, AuthTime: profile.authTime,
+	})
 	return "/v1/auth/callback/" + provider + "?" + url.Values{"state": {query.Get("state")}, "code": {code}}.Encode()
 }
 

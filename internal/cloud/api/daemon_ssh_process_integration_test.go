@@ -91,20 +91,20 @@ func runSSHFixtureDaemon(ctx context.Context, releaseBase string) error {
 }
 
 type sshJourney struct {
-	assets                           sshFixtureAssets
+	assets                           remotetest.SSHAssets
 	cloud                            authFixture
 	release                          *remotetest.Release
 	home, operator, socket, trust    string
 	key, publicKey, config, httpBase string
 }
 
-func newSSHJourney(t *testing.T, assets sshFixtureAssets) sshJourney {
+func newSSHJourney(t *testing.T, assets remotetest.SSHAssets) sshJourney {
 	t.Helper()
 	f := newAuthFixtureWithTime(t, func(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *remotetest.Replica {
 		t.Helper()
-		return remotetest.StartLocalReplicaOn(t, assets.gateway, cfg, register)
+		return remotetest.StartLocalReplicaOn(t, assets.Gateway, cfg, register)
 	}, time.Now)
-	release := remotetest.StartReleaseOn(t, assets.gateway, assets.archiveName, sshFixtureVersion, assets.archive)
+	release := remotetest.StartReleaseOn(t, assets.Gateway, assets.ArchiveName, sshFixtureVersion, assets.Archive)
 	root, err := os.MkdirTemp("", "rcssh-")
 	if err != nil {
 		t.Fatal(err)
@@ -237,9 +237,9 @@ func signInSSHController(t *testing.T, f authFixture, d daemonAccountFixture) {
 	})
 }
 
-func (j sshJourney) host(t *testing.T, bastion string) sshFixtureHost {
+func (j sshJourney) host(t *testing.T, bastion string) remotetest.SSHHost {
 	t.Helper()
-	return startSSHFixtureHost(t, j.assets, j.cloud.replica.Server.URL, j.publicKey, bastion)
+	return remotetest.StartSSHHost(t, j.assets, j.cloud.replica.Server.URL, j.publicKey, bastion)
 }
 
 func (j sshJourney) cli(t *testing.T, args ...string) string {
@@ -255,15 +255,15 @@ func (j sshJourney) callCLI(t *testing.T, args ...string) (out string, err error
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, j.assets.binary, args...)
+	cmd := exec.CommandContext(ctx, j.assets.Binary, args...)
 	cmd.Env = j.clientEnv()
 	result, err := cmd.CombinedOutput()
 	return string(result), err
 }
 
-func (j sshJourney) hostEntry(alias string, h sshFixtureHost, settings ...string) string {
+func (j sshJourney) hostEntry(alias string, h remotetest.SSHHost, settings ...string) string {
 	return fmt.Sprintf("Host %s\n HostName 127.0.0.1\n User %s\n Port %d\n IdentityFile %s\n IdentitiesOnly yes\n%s\n",
-		alias, sshFixtureUser, h.port, j.key, strings.Join(settings, "\n"))
+		alias, sshFixtureUser, h.Port, j.key, strings.Join(settings, "\n"))
 }
 
 func writeSSHFixtureFile(t *testing.T, path, body string) {

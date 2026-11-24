@@ -12,7 +12,6 @@ import (
 	"os"
 	"strings"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	protobundle "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
@@ -30,8 +29,9 @@ import (
 )
 
 const (
-	testIssuer   = "https://issuer.example.test"
-	testIdentity = "release@example.test"
+	SSHFixtureVersion = "0.8.0"
+	testIssuer        = "https://issuer.example.test"
+	testIdentity      = "release@example.test"
 )
 
 type Release struct {
@@ -49,12 +49,12 @@ type ManifestGate struct {
 	Resume    <-chan struct{}
 }
 
-func StartRelease(t *testing.T, platform, version string, archive []byte) *Release {
+func StartRelease(t Fixture, platform, version string, archive []byte) *Release {
 	t.Helper()
 	return StartReleaseOn(t, "", platform, version, archive)
 }
 
-func StartReleaseOn(t *testing.T, host, platform, version string, archive []byte) *Release {
+func StartReleaseOn(t Fixture, host, platform, version string, archive []byte) *Release {
 	t.Helper()
 	authority, err := ca.NewVirtualSigstore()
 	if err != nil {
@@ -85,13 +85,13 @@ func StartReleaseOn(t *testing.T, host, platform, version string, archive []byte
 	}
 	r := &Release{Verifier: verifier, TrustRoot: trustRoot, Server: fixtureHTTPServer(t, host)}
 	r.Server.Config.Handler = r.handler(t, "/v"+version+"/", platform, manifest, valid, invalid, archive)
-	r.Server.Start()
 	t.Cleanup(r.Server.Close)
+	r.Server.Start()
 	return r
 }
 
 func (r *Release) handler(
-	t *testing.T, prefix, platform string, manifest, valid, invalid, archive []byte,
+	t Fixture, prefix, platform string, manifest, valid, invalid, archive []byte,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		path, ok := strings.CutPrefix(req.URL.Path, prefix)
@@ -132,7 +132,7 @@ func (r *Release) handler(
 	}
 }
 
-func fixtureHTTPServer(t *testing.T, host string) *httptest.Server {
+func fixtureHTTPServer(t Fixture, host string) *httptest.Server {
 	t.Helper()
 	if host == "" {
 		return httptest.NewUnstartedServer(nil)
@@ -186,7 +186,7 @@ func (v *releaseVerifier) VerifyChecksums(ctx context.Context, sum, proof string
 	return err
 }
 
-func signManifest(t *testing.T, authority *ca.VirtualSigstore, manifest []byte, identity string) []byte {
+func signManifest(t Fixture, authority *ca.VirtualSigstore, manifest []byte, identity string) []byte {
 	t.Helper()
 	signed, err := authority.SignWithVersion(identity, testIssuer, manifest, "v0.1")
 	if err != nil {
@@ -219,7 +219,7 @@ func signManifest(t *testing.T, authority *ca.VirtualSigstore, manifest []byte, 
 }
 
 func marshalReleaseBundle(
-	t *testing.T,
+	t Fixture,
 	content verify.VerificationContent,
 	signature verify.SignatureContent,
 	log *protorekor.TransparencyLogEntry,

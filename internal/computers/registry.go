@@ -159,6 +159,10 @@ func (r *Registry) watchScope(scope *registryScope) {
 
 func (r *Registry) current() (*registryScope, error) {
 	lifetime, identity := r.account.IdentityLifetime()
+	if identity.State == account.ReauthRequired && identity.SignedOutReason == CodeDeviceRevoked {
+		return nil, &Failure{Status: http.StatusForbidden, Code: CodeDeviceRevoked,
+			Message: "This device was removed from your account."}
+	}
 	if identity.State != account.SignedIn || identity.AccountID == "" {
 		return nil, account.ErrSignInRequired
 	}
