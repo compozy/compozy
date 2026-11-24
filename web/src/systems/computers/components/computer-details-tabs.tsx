@@ -17,6 +17,7 @@ const ROUTE_KIND_LABEL: Record<ComputerRouteFixture["kind"], string> = {
 export interface ComputerDetailsRoutesTabProps {
   computerName: string;
   routes: readonly ComputerRouteFixture[];
+  showReorder?: boolean;
   onMoveRoute?: (routeId: string, direction: "up" | "down") => void;
   onRemoveRoute?: (routeId: string) => void;
 }
@@ -25,6 +26,7 @@ export interface ComputerDetailsRoutesTabProps {
 export function ComputerDetailsRoutesTab({
   computerName,
   routes,
+  showReorder = true,
   onMoveRoute,
   onRemoveRoute,
 }: ComputerDetailsRoutesTabProps) {
@@ -71,26 +73,30 @@ export function ComputerDetailsRoutesTab({
                 </div>
 
                 <div className="flex shrink-0 items-center gap-0.5">
-                  <Button
-                    aria-label={`Move ${ROUTE_KIND_LABEL[route.kind]} route up`}
-                    disabled={idx === 0}
-                    onClick={() => onMoveRoute?.(route.id, "up")}
-                    size="icon-xs"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <ArrowUp aria-hidden="true" className="size-3.5" />
-                  </Button>
-                  <Button
-                    aria-label={`Move ${ROUTE_KIND_LABEL[route.kind]} route down`}
-                    disabled={idx === routes.length - 1}
-                    onClick={() => onMoveRoute?.(route.id, "down")}
-                    size="icon-xs"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <ArrowDown aria-hidden="true" className="size-3.5" />
-                  </Button>
+                  {showReorder ? (
+                    <>
+                      <Button
+                        aria-label={`Move ${ROUTE_KIND_LABEL[route.kind]} route up`}
+                        disabled={idx === 0}
+                        onClick={() => onMoveRoute?.(route.id, "up")}
+                        size="icon-xs"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <ArrowUp aria-hidden="true" className="size-3.5" />
+                      </Button>
+                      <Button
+                        aria-label={`Move ${ROUTE_KIND_LABEL[route.kind]} route down`}
+                        disabled={idx === routes.length - 1}
+                        onClick={() => onMoveRoute?.(route.id, "down")}
+                        size="icon-xs"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <ArrowDown aria-hidden="true" className="size-3.5" />
+                      </Button>
+                    </>
+                  ) : null}
                   <Button
                     aria-label={`Remove ${ROUTE_KIND_LABEL[route.kind]} route`}
                     disabled={!canRemove}
@@ -141,9 +147,11 @@ export function ComputerDetailsRoutesTab({
 
 export interface ComputerDetailsPermissionsTabProps {
   computerName: string;
+  currentDeviceName?: string;
   scopes: readonly RemoteScope[];
   /** When true, renders interactive switches (admin editing device scopes on this computer). */
   editable?: boolean;
+  suppressToast?: boolean;
   onToggleScope?: (scope: RemoteScope, next: boolean) => void;
 }
 
@@ -153,8 +161,10 @@ export interface ComputerDetailsPermissionsTabProps {
  */
 export function ComputerDetailsPermissionsTab({
   computerName,
+  currentDeviceName = "MacBook Pro",
   scopes,
   editable = false,
+  suppressToast = false,
   onToggleScope,
 }: ComputerDetailsPermissionsTabProps) {
   const granted = new Set(scopes);
@@ -165,7 +175,7 @@ export function ComputerDetailsPermissionsTab({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-small-body text-muted-foreground">
           {editable
-            ? `Choose what MacBook Pro is allowed to do on ${computerName}.`
+            ? `Choose what ${currentDeviceName} is allowed to do on ${computerName}.`
             : `Permissions granted to this device on ${computerName}.`}
         </p>
         <Pill size="xs" tone="neutral">
@@ -207,11 +217,13 @@ export function ComputerDetailsPermissionsTab({
                   checked={allowed}
                   onCheckedChange={next => {
                     onToggleScope?.(item.scope, next);
-                    toast.message(
-                      next
-                        ? `Allowed ${item.label} on ${computerName}.`
-                        : `Turned off ${item.label} on ${computerName}.`
-                    );
+                    if (!suppressToast) {
+                      toast.message(
+                        next
+                          ? `Allowed ${item.label} on ${computerName}.`
+                          : `Turned off ${item.label} on ${computerName}.`
+                      );
+                    }
                   }}
                   size="sm"
                 />

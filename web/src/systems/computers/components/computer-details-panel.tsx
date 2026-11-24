@@ -1,12 +1,11 @@
-import { useEffect, useState } from "react";
 import { XIcon } from "@compozy/ui/icons";
 
-import { Button, StatusDot, Tabs, TabsList, TabsTrigger, toast } from "@compozy/ui";
+import { Button, cn, StatusDot, Tabs, TabsList, TabsTrigger } from "@compozy/ui";
 
+import { useComputerDetailsPanel } from "../hooks/use-computer-details-panel";
 import type {
   ComputerFixture,
   ComputerProviderAuthFixture,
-  ComputerRouteFixture,
   RemoteScope,
 } from "../mocks/remote-computers-fixtures";
 import type { UpdateRunState } from "../mocks/remote-computers-fixtures-lane-b";
@@ -18,6 +17,7 @@ import {
   ComputerDetailsUpdateTab,
 } from "./computer-details-providers-update-tabs";
 import { ComputerDetailsPermissionsTab, ComputerDetailsRoutesTab } from "./computer-details-tabs";
+import type { StepProgressItem } from "./step-progress-list";
 
 export type ComputerDetailsTabId = "status" | "routes" | "permissions" | "providers" | "update";
 
@@ -25,12 +25,27 @@ export interface ComputerDetailsPanelProps {
   computer: ComputerFixture;
   open: boolean;
   initialTab?: ComputerDetailsTabId;
+  /**
+   * Positioning mode:
+   * - `"viewport"` (default, used by standalone prototype drafts below global chrome)
+   * - `"pane"` (docked flush inside `SettingsSectionOutlet` at `top-0`)
+   */
+  placement?: "viewport" | "pane";
   /** Enables interactive scope switches in the Permissions tab. */
   editablePermissions?: boolean;
+  currentDeviceName?: string;
   /** Optional provider already expanded with the inline remote sign-in terminal preview. */
   initialSignInProviderId?: ComputerProviderAuthFixture["id"] | null;
   /** Initial state of the SSH update stepper when `status === "incompatible"`. */
   initialUpdateState?: UpdateRunState;
+  liveUpdateState?: UpdateRunState;
+  liveUpdateSteps?: readonly StepProgressItem[];
+  showRouteReorder?: boolean;
+  onRemoveRoute?: (routeId: string) => void;
+  onRetryConnection?: () => void;
+  onToggleScope?: (scope: RemoteScope, next: boolean) => void;
+  onStartUpdate?: () => void;
+  onCheckVersion?: () => void;
   onOpenChange?: (open: boolean) => void;
 }
 
@@ -44,72 +59,49 @@ export function ComputerDetailsPanel({
   computer,
   open,
   initialTab = "status",
+  placement = "viewport",
   editablePermissions = false,
+  currentDeviceName,
   initialSignInProviderId = null,
   initialUpdateState = "idle",
+  liveUpdateState,
+  liveUpdateSteps,
+  showRouteReorder = true,
+  onRemoveRoute,
+  onRetryConnection,
+  onToggleScope,
+  onStartUpdate,
+  onCheckVersion,
   onOpenChange,
 }: ComputerDetailsPanelProps) {
-  const showUpdateTab = computer.status === "incompatible";
-  const resolvedInitialTab: ComputerDetailsTabId =
-    initialTab === "update" && !showUpdateTab ? "status" : initialTab;
-
-  const [activeTab, setActiveTab] = useState<ComputerDetailsTabId>(resolvedInitialTab);
-  const [routes, setRoutes] = useState<ComputerRouteFixture[]>([...computer.routes]);
-  const [scopes, setScopes] = useState<RemoteScope[]>([...computer.scopes]);
-
-  useEffect(() => {
-    if (!open || !onOpenChange) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onOpenChange(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onOpenChange]);
+  const panel = useComputerDetailsPanel({
+    computer,
+    open,
+    initialTab,
+    onRemoveRoute,
+    onToggleScope,
+    onOpenChange,
+  });
 
   if (!open) return null;
 
   const hasSignedOutProvider = computer.providers.some(item => item.status === "signed_out");
-  const hasRouteMismatch = routes.some(item => item.identityMismatch);
-
-  const handleMoveRoute = (routeId: string, direction: "up" | "down") => {
-    setRoutes(current => {
-      const index = current.findIndex(item => item.id === routeId);
-      if (index < 0) return current;
-      const targetIndex = direction === "up" ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= current.length) return current;
-      const copy = [...current];
-      const [moved] = copy.splice(index, 1);
-      if (!moved) return current;
-      copy.splice(targetIndex, 0, moved);
-      return copy;
-    });
-    toast.message("Updated route priority order.");
-  };
-
-  const handleRemoveRoute = (routeId: string) => {
-    setRoutes(current => current.filter(item => item.id !== routeId));
-    toast.message(`Removed learned route from ${computer.name}.`);
-  };
-
-  const handleToggleScope = (scope: RemoteScope, next: boolean) => {
-    setScopes(current => {
-      const set = new Set(current);
-      if (next) set.add(scope);
-      else set.delete(scope);
-      return [...set];
-    });
-  };
-
+  const hasRouteMismatch = panel.routes.some(item => item.identityMismatch);
   const liveComputer: ComputerFixture = {
     ...computer,
-    routes,
-    scopes,
+    routes: panel.routes,
+    scopes: panel.scopes,
   };
 
   return (
     <aside
       aria-label={`${computer.name} details`}
-      className="absolute top-[calc(var(--height-menubar)+2.5rem+var(--height-window-head)+1px)] right-0 bottom-0 z-40 isolate flex w-[460px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden border-l border-line bg-canvas text-fg shadow-overlay"
+      className={cn(
+        "absolute right-0 bottom-0 z-40 isolate flex w-[460px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden border-l border-line bg-canvas text-fg shadow-overlay",
+        placement === "pane"
+          ? "top-0"
+          : "top-[calc(var(--height-menubar)+2.5rem+var(--height-window-head)+1px)]"
+      )}
       data-slot="computer-details-panel"
     >
       <header className="flex shrink-0 items-start gap-3 border-b border-line px-5 pt-4 pb-3.5">
@@ -131,7 +123,7 @@ export function ComputerDetailsPanel({
             <ComputerStatusChip status={computer.status} />
           </div>
           <p className="truncate text-meta text-muted-foreground">
-            CompozyOS {computer.version}
+            {computer.version ? `CompozyOS ${computer.version}` : "CompozyOS"}
             {computer.routeInUse
               ? ` · ${computer.routeInUse.label}`
               : ` · Last connected ${computer.lastConnectedLabel}`}
@@ -152,13 +144,13 @@ export function ComputerDetailsPanel({
       <Tabs
         className="flex min-h-0 flex-1 flex-col gap-0"
         onValueChange={next => {
-          if (typeof next === "string") setActiveTab(next as ComputerDetailsTabId);
+          if (typeof next === "string") panel.setActiveTab(next as ComputerDetailsTabId);
         }}
-        value={activeTab}
+        value={panel.activeTab}
       >
         <TabsList className="shrink-0 overflow-x-auto px-5">
           <TabsTrigger value="status">Status</TabsTrigger>
-          <TabsTrigger count={routes.length} value="routes">
+          <TabsTrigger count={panel.routes.length} value="routes">
             <span className="inline-flex items-center gap-1.5">
               <span>Routes</span>
               {hasRouteMismatch ? <StatusDot size="sm" tone="warning" /> : null}
@@ -171,7 +163,7 @@ export function ComputerDetailsPanel({
               {hasSignedOutProvider ? <StatusDot size="sm" tone="warning" /> : null}
             </span>
           </TabsTrigger>
-          {showUpdateTab ? (
+          {panel.showUpdateTab ? (
             <TabsTrigger value="update">
               <span className="inline-flex items-center gap-1.5">
                 <span>Update</span>
@@ -182,32 +174,36 @@ export function ComputerDetailsPanel({
         </TabsList>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-gutter:stable]">
-          {activeTab === "status" ? (
+          {panel.activeTab === "status" ? (
             <ComputerDetailsStatusTab
               computer={liveComputer}
-              onSelectTab={next => setActiveTab(next)}
+              onRetry={onRetryConnection}
+              onSelectTab={next => panel.setActiveTab(next)}
             />
           ) : null}
 
-          {activeTab === "routes" ? (
+          {panel.activeTab === "routes" ? (
             <ComputerDetailsRoutesTab
               computerName={computer.name}
-              onMoveRoute={handleMoveRoute}
-              onRemoveRoute={handleRemoveRoute}
-              routes={routes}
+              onMoveRoute={panel.handleMoveRoute}
+              onRemoveRoute={panel.handleRemoveRoute}
+              routes={panel.routes}
+              showReorder={showRouteReorder}
             />
           ) : null}
 
-          {activeTab === "permissions" ? (
+          {panel.activeTab === "permissions" ? (
             <ComputerDetailsPermissionsTab
               computerName={computer.name}
+              currentDeviceName={currentDeviceName}
               editable={editablePermissions}
-              onToggleScope={handleToggleScope}
-              scopes={scopes}
+              onToggleScope={panel.handleToggleScope}
+              scopes={panel.scopes}
+              suppressToast={Boolean(onToggleScope)}
             />
           ) : null}
 
-          {activeTab === "providers" ? (
+          {panel.activeTab === "providers" ? (
             <ComputerDetailsProvidersTab
               computerName={computer.name}
               initialSignInProviderId={initialSignInProviderId}
@@ -215,10 +211,14 @@ export function ComputerDetailsPanel({
             />
           ) : null}
 
-          {activeTab === "update" && showUpdateTab ? (
+          {panel.activeTab === "update" && panel.showUpdateTab ? (
             <ComputerDetailsUpdateTab
               computer={liveComputer}
               initialUpdateState={initialUpdateState}
+              liveUpdateState={liveUpdateState}
+              liveUpdateSteps={liveUpdateSteps}
+              onCheckVersion={onCheckVersion}
+              onStartUpdate={onStartUpdate}
             />
           ) : null}
         </div>
