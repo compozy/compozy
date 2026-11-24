@@ -11,13 +11,24 @@ import { AlertTriangle, Compass, RefreshCw } from "@compozy/ui/icons";
 import { Button, Empty, buttonVariants } from "@compozy/ui";
 
 import { useReleaseActivationFocus } from "@/hooks/use-release-activation-focus";
+import { HostedBrowserAccessBoundary } from "@/systems/computers";
 import { GatewayAccessBoundary } from "@/systems/gateway";
 import { FontAppearanceSync, TypeAppearanceSync } from "@/systems/theme";
+
+function RootAccessBoundary({ children }: { children: ReactNode }) {
+  return (
+    <HostedBrowserAccessBoundary
+      fallbackBoundary={<GatewayAccessBoundary>{children}</GatewayAccessBoundary>}
+    >
+      {children}
+    </HostedBrowserAccessBoundary>
+  );
+}
 
 export function RootComponent() {
   useReleaseActivationFocus();
   return (
-    <GatewayAccessBoundary>
+    <RootAccessBoundary>
       <div
         data-testid="root-shell"
         className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"
@@ -26,7 +37,7 @@ export function RootComponent() {
         <TypeAppearanceSync />
         <Outlet />
       </div>
-    </GatewayAccessBoundary>
+    </RootAccessBoundary>
   );
 }
 
@@ -40,7 +51,7 @@ export function RootRouteErrorBoundary({ error }: ErrorComponentProps) {
   };
 
   return (
-    <GatewayAccessBoundary>
+    <RootAccessBoundary>
       <RootBoundaryFrame testId="root-route-error">
         <Empty
           className="max-w-xl"
@@ -67,13 +78,13 @@ export function RootRouteErrorBoundary({ error }: ErrorComponentProps) {
           }
         />
       </RootBoundaryFrame>
-    </GatewayAccessBoundary>
+    </RootAccessBoundary>
   );
 }
 
 export function RootRouteNotFoundBoundary({ routeId }: NotFoundRouteProps) {
   return (
-    <GatewayAccessBoundary>
+    <RootAccessBoundary>
       <RootBoundaryFrame routeId={routeId} testId="root-route-not-found">
         <Empty
           className="max-w-xl"
@@ -89,7 +100,7 @@ export function RootRouteNotFoundBoundary({ routeId }: NotFoundRouteProps) {
           }
         />
       </RootBoundaryFrame>
-    </GatewayAccessBoundary>
+    </RootAccessBoundary>
   );
 }
 

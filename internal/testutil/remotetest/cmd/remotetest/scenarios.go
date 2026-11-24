@@ -56,6 +56,7 @@ type scenarioManifest struct {
 	Hostname           string           `json:"hostname,omitempty"`
 	ProjectFile        string           `json:"project_file,omitempty"`
 	ProjectFileContent string           `json:"project_file_content,omitempty"`
+	EdgePort           int              `json:"edge_port,omitempty"`
 	HostedURL          string           `json:"hosted_url,omitempty"`
 	HostedProxy        string           `json:"hosted_proxy,omitempty"`
 	StripeURL          string           `json:"stripe_url,omitempty"`
@@ -71,7 +72,7 @@ type computerTarget struct {
 func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	f.Helper()
 	if name != sshAdd && name != accountAdd && name != revokeDevice && name != remoteSession &&
-		name != browserPurchase && name != hostedPurchase {
+		name != browserPurchase && name != hostedPurchase && name != hostedBrowser {
 		f.Fatalf("unknown remotetest scenario %q", name)
 	}
 	const pgEnv = "COMPOZY_CLOUD_TEST_POSTGRES"
@@ -81,6 +82,13 @@ func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	}
 	if os.Getenv(daemonBinaryEnv) == "" {
 		f.Fatalf("set %s to the CompozyOS CLI binary", daemonBinaryEnv)
+	}
+	if name == hostedBrowser {
+		db := remotetest.OpenDatabase(f, dsn)
+		db.Migrate(f)
+		mock := filepath.Join(f.TempDir(), "echo.json")
+		writeFile(f, mock, echoFixture)
+		return prepareHostedBrowser(f, repo, db, mock)
 	}
 	listenHost := ""
 	var assets remotetest.SSHAssets

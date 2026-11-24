@@ -1,5 +1,6 @@
 import { apiClient } from "./api-client";
 import { readGatewayListenerTier } from "./gateway-access-signal";
+import { isHostedBrowserMode } from "./hosted-browser-auth";
 
 /**
  * Stream authentication for the page's own origin.
@@ -26,6 +27,7 @@ export class GatewayStreamAuthError extends Error {
 }
 
 const TICKET_QUERY_PARAM = "ticket";
+const HOSTED_TICKET_QUERY_PARAM = "remote_ticket";
 
 interface ListenerDiscovery {
   controller: AbortController;
@@ -148,23 +150,65 @@ async function readListenerMode(signal: AbortSignal): Promise<GatewayStreamAuthM
 }
 
 /**
- * Returns `url` unchanged on a local same-origin session, or with a freshly
- * minted single-use ticket appended on a remote gateway session.
+ * Mints a single-use hosted browser stream ticket bound to one stream path
+ * (`POST /remote/v1/stream-tickets`). Passed as `?remote_ticket=` so it never
+ * collides with terminal `?ticket=` attach passes.
+ */
+export async function acquireHostedStreamTicket(
+  targetUrl: string,
+  signal?: AbortSignal
+): Promise<string> {
+  const baseOrigin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+  const path = new URL(targetUrl, baseOrigin).pathname;
+
+  const { data, error, response } = await apiClient.POST("/remote/v1/stream-tickets", {
+    body: { path },
+    signal,
+  });
+
+  if (!response.ok || error !== undefined) {
+    throw new GatewayStreamAuthError(
+      `Failed to authorize the hosted live stream: ${response.status}`,
+      response.status
+    );
+  }
+
+  const rawTicket = data?.ticket;
+  if (typeof rawTicket !== "string" || rawTicket.trim() === "") {
+    throw new GatewayStreamAuthError(
+      `Failed to authorize the hosted live stream: invalid ticket (${response.status})`,
+      response.status
+    );
+  }
+
+  return rawTicket.trim();
+}
+
+/**
+ * Returns `url` unchanged on a local same-origin session, with `?remote_ticket=`
+ * on a hosted browser session, or with `?ticket=` on a legacy gateway session.
  */
 export async function authorizeStreamUrl(url: string, signal?: AbortSignal): Promise<string> {
+  if (isHostedBrowserMode()) {
+    const ticket = await acquireHostedStreamTicket(url, signal);
+    return appendHostedStreamTicket(url, ticket);
+  }
   const ticket = await acquireStreamTicket(signal);
   return ticket === null ? url : appendStreamTicket(url, ticket);
 }
 
 /**
- * Authorizes a streaming `fetch` target. The session prompt endpoint is a POST
- * that streams its response, so the daemon classifies it as a stream and
- * authenticates it with a ticket rather than the device credential.
+ * Authorizes a streaming `fetch` target.
+ *
+ * On hosted browser sessions, POST streams (such as session prompt) authenticate
+ * directly via the browser session cookie + DPoP header attached by `daemonFetch`,
+ * while `POST /remote/v1/stream-tickets` only authorizes GET SSE/WebSocket streams.
  */
 export async function authorizeStreamFetchInput(
   input: RequestInfo | URL,
   signal?: AbortSignal
 ): Promise<RequestInfo | URL> {
+  if (isHostedBrowserMode()) return input;
   const ticket = await acquireStreamTicket(signal);
   if (ticket === null) return input;
   if (typeof input === "string") return appendStreamTicket(input, ticket);
@@ -172,11 +216,20 @@ export async function authorizeStreamFetchInput(
   return new Request(appendStreamTicket(input.url, ticket), input);
 }
 
-/** Appends the ticket to a relative or absolute URL without disturbing its other params. */
+/** Appends a gateway `?ticket=` to a relative or absolute URL without disturbing other params. */
 export function appendStreamTicket(url: string, ticket: string): string {
+  return appendNamedStreamTicket(url, TICKET_QUERY_PARAM, ticket);
+}
+
+/** Appends a hosted `?remote_ticket=` to a relative or absolute URL without disturbing other params. */
+export function appendHostedStreamTicket(url: string, ticket: string): string {
+  return appendNamedStreamTicket(url, HOSTED_TICKET_QUERY_PARAM, ticket);
+}
+
+function appendNamedStreamTicket(url: string, param: string, ticket: string): string {
   const [beforeHash, hash] = splitHash(url);
   const separator = beforeHash.includes("?") ? "&" : "?";
-  const authorized = `${beforeHash}${separator}${TICKET_QUERY_PARAM}=${encodeURIComponent(ticket)}`;
+  const authorized = `${beforeHash}${separator}${param}=${encodeURIComponent(ticket)}`;
   return hash === undefined ? authorized : `${authorized}#${hash}`;
 }
 

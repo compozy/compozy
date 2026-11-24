@@ -19,7 +19,8 @@ type Scenario =
   | "revoke-device"
   | "remote-session"
   | "browser-purchase"
-  | "hosted-purchase";
+  | "hosted-purchase"
+  | "hosted-browser";
 
 interface Daemon {
   web_url: string;
@@ -49,6 +50,7 @@ interface RemoteComputersLab {
   hostname?: string;
   project_file?: string;
   project_file_content?: string;
+  edge_port?: number;
   hosted_url?: string;
   hosted_proxy?: string;
   stripe_url?: string;
@@ -176,4 +178,28 @@ export async function cliComputerStatus(
     timeout: 1_000,
   }).then(result => result.stdout, failureOutput);
   return JSON.parse(output) as ComputerStatus;
+}
+
+export async function cliSessionPrompt(
+  lab: RemoteComputersLab,
+  sessionId: string,
+  message: string
+): Promise<void> {
+  const binary = process.env.COMPOZY_TEST_DAEMON_BIN;
+  if (!binary) throw new Error("COMPOZY_TEST_DAEMON_BIN is required for CLI session prompts.");
+  const device = lab.controller;
+  await execFileAsync(binary, ["session", "prompt", sessionId, message], {
+    cwd: device.operator_home,
+    env: {
+      ...process.env,
+      HOME: device.operator_home,
+      COMPOZY_HOME: device.home,
+      COMPOZY_CLOUD_URL: lab.cloud_url,
+      COMPOZY_SESSION_ID: "",
+      COMPOZY_AGENT: "",
+      COMPOZY_PROFILE: "",
+      COMPOZY_WORKSPACE: "",
+    },
+    timeout: 15_000,
+  });
 }

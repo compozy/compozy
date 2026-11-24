@@ -295,7 +295,9 @@ export function ComputersThisComputerSection({
   onRequestRevokeDevice,
   onUpgrade,
 }: ComputersThisComputerSectionProps) {
-  const localApprovals = pendingApprovals.filter(item => item.state === "pending");
+  const localApprovals = pendingApprovals.filter(
+    item => item.state === "pending" || item.state === "delivering"
+  );
   const runAgentsDisabled = !hasRemoteComputers && local.localRunAgents;
 
   return (
@@ -404,12 +406,18 @@ export function ComputersThisComputerSection({
                             <span className="truncate text-small-body font-medium text-fg">
                               {approval.deviceName}
                             </span>
-                            <TriangleAlert
-                              aria-hidden="true"
-                              className="size-3.5 shrink-0 text-attn"
-                            />
+                            {approval.state === "delivering" ? (
+                              <Spinner aria-hidden="true" className="size-3 shrink-0 text-attn" />
+                            ) : (
+                              <TriangleAlert
+                                aria-hidden="true"
+                                className="size-3.5 shrink-0 text-attn"
+                              />
+                            )}
                             <span className="text-eyebrow font-medium text-attn">
-                              Waiting for approval
+                              {approval.state === "delivering"
+                                ? "Delivering decision…"
+                                : "Waiting for approval"}
                             </span>
                             <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
                             <span className="text-eyebrow text-faint">{approval.createdLabel}</span>
@@ -426,6 +434,7 @@ export function ComputersThisComputerSection({
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
                         <Button
+                          disabled={approval.state === "delivering"}
                           onClick={() => onDenyPending(approval.id, approval.computerId)}
                           size="xs"
                           type="button"
@@ -435,6 +444,7 @@ export function ComputersThisComputerSection({
                           Deny
                         </Button>
                         <Button
+                          disabled={approval.state === "delivering"}
                           onClick={() => onApprovePending(approval.id, approval.computerId)}
                           size="xs"
                           type="button"

@@ -20,6 +20,20 @@ export {
   type ComputersStreamHandlers,
 } from "./adapters/computers-api";
 export {
+  endHostedBrowserSession,
+  fetchHostedBrowserApproval,
+  fetchHostedBrowserPeers,
+  fetchHostedBrowserStatus,
+  HostedBrowserApiError,
+  startHostedBrowserSession,
+  type BrowserApprovalStatusPayload,
+  type BrowserPeersResponsePayload,
+  type BrowserSessionRequestPayload,
+  type BrowserSessionResponsePayload,
+  type BrowserStatusPayload,
+  type HostedPeerPayload,
+} from "./adapters/hosted-browser-api";
+export {
   fetchRemoteDevices,
   fetchRemoteStatus,
   linkRemoteHost,
@@ -30,6 +44,21 @@ export {
   unlinkRemoteHost,
 } from "./adapters/remote-host-api";
 export { AddComputerDialog, type AddComputerDialogProps } from "./components/add-computer-dialog";
+export {
+  BrowserSignInGate,
+  type BrowserSignInGateKind,
+  type BrowserSignInGateProps,
+} from "./components/browser-sign-in-gate";
+export {
+  HostedBrowserAccessBoundary,
+  type HostedBrowserAccessBoundaryProps,
+} from "./components/hosted-browser-access-boundary";
+export {
+  HostedComputerMenu,
+  type HostedComputerMenuProps,
+} from "./components/hosted-computer-menu";
+export { HostedPhoneApp } from "./components/hosted-phone-app";
+export { PhoneComputerMenu, type PhoneComputerMenuProps } from "./components/phone-computer-menu";
 export {
   ComputerChip,
   ComputerMetaLabel,
@@ -100,8 +129,29 @@ export { useComputerWorkspaces } from "./hooks/use-computer-workspaces";
 export { providerLoginCommand, toComputerProviderAuthView } from "./lib/provider-view";
 export { findComputerById, useComputer, useComputers } from "./hooks/use-computers";
 export { useComputersSettingsPage } from "./hooks/use-computers-settings-page";
+export {
+  useHostedBrowserAccess,
+  type HostedBrowserAccessModel,
+  type HostedBrowserGateState,
+  type UseHostedBrowserAccessOptions,
+} from "./hooks/use-hosted-browser-access";
+export { useHostedBrowserContext } from "./hooks/use-hosted-browser-context";
 export { useComputersHostResources } from "./hooks/use-host-resources";
+export { useIsWideBrowser, WIDE_BROWSER_MIN_WIDTH } from "./hooks/use-is-wide-browser";
 export { useLiveAddComputer, type AddComputerLiveController } from "./hooks/use-live-add-computer";
+export {
+  HostedBrowserContext,
+  type HostedBrowserContextValue,
+} from "./contexts/hosted-browser-context";
+export {
+  DEFAULT_HOSTED_SCOPES,
+  hasHostedScope,
+  hostnameFromHostedUrl,
+  normalizeHostedScopes,
+  peerTargetUrl,
+  toHostedComputerFixture,
+  toHostedPeerViews,
+} from "./lib/hosted-browser-view";
 export {
   buildAutoPlacementCandidates,
   describeNoEligibleComputerReason,
@@ -152,6 +202,7 @@ export {
   computerPlacementOptions,
   computersListOptions,
   computerSSHHostsOptions,
+  hostedBrowserPeersOptions,
   hostResourcesOptions,
   remoteDevicesOptions,
   remoteStatusOptions,

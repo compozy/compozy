@@ -2,6 +2,7 @@ import { useContext, useEffect, useMemo } from "react";
 import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
 
 import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+import { isHostedBrowserMode } from "@/lib/hosted-browser-auth";
 import { accountKeys, type AccountStatusPayload } from "@/systems/account";
 
 import { openComputersStream } from "../adapters/computers-api";
@@ -35,7 +36,11 @@ export function useComputers(
   const queryClient = contextClient ?? NOOP_QUERY_CLIENT;
   const cachedAccount = contextClient?.getQueryData<AccountStatusPayload>(accountKeys.status());
   const signedOutInCache = cachedAccount !== undefined && !cachedAccount.signed_in;
-  const enabled = (options.enabled ?? true) && contextClient !== undefined && !signedOutInCache;
+  const enabled =
+    (options.enabled ?? true) &&
+    !isHostedBrowserMode() &&
+    contextClient !== undefined &&
+    !signedOutInCache;
   const passive = options.passive ?? false;
   const stream = options.stream ?? false;
   const query = useQuery(computersListOptions(enabled && !passive), queryClient);

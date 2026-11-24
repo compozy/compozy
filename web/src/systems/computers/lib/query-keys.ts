@@ -8,6 +8,7 @@ export const computerRegistryKeys = {
   sshHosts: () => [...computerRegistryKeys.all, "ssh-hosts"] as const,
   remoteStatus: () => [...computerRegistryKeys.all, "remote", "status"] as const,
   remoteDevices: () => [...computerRegistryKeys.all, "remote", "devices"] as const,
+  hostedBrowserPeers: () => [...computerRegistryKeys.all, "hosted", "peers"] as const,
   placement: (workspace: string, projectComputerId?: string) =>
     [
       ...computerRegistryKeys.all,
