@@ -345,16 +345,11 @@ func (h *Handlers) resourceAuthMiddleware() []gin.HandlerFunc {
 }
 
 func (h *Handlers) privilegedMutationGuard() gin.HandlerFunc {
-	boundHost := ""
-	if h != nil {
-		boundHost = h.boundHost
-	}
-	loopback := loopbackMutationGuard(boundHost)
 	return func(c *gin.Context) {
 		if c.GetString(appTokenOriginKey) != "" {
 			core.RespondAppTokenError(c, apptoken.ErrRouteForbidden, true)
 			return
 		}
-		loopback(c)
+		c.Next()
 	}
 }

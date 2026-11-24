@@ -80,6 +80,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 	descriptors := make([]toolspkg.Descriptor, 0, total)
 	for _, group := range groups {
 		for _, descriptor := range group {
+			descriptor.RemoteScope, _ = RemoteToolScope(string(descriptor.ID))
 			descriptors = append(descriptors, cloneDescriptor(descriptor))
 		}
 	}

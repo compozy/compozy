@@ -46,10 +46,11 @@ type HostCloud interface {
 }
 
 type HostOptions struct {
-	Now      func() time.Time
-	Logger   *slog.Logger
-	Operator http.Handler
-	Persist  func(context.Context, Patch, func(config.RemoteConfig) error) error
+	Now               func() time.Time
+	Logger            *slog.Logger
+	Operator          http.Handler
+	Persist           func(context.Context, Patch, func(config.RemoteConfig) error) error
+	WrapTunnelHandler func(http.Handler) http.Handler
 }
 
 type Patch struct {

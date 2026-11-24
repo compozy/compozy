@@ -148,15 +148,8 @@ func (h *BaseHandlers) InvokeTool(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var req contract.ToolInvokeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		h.respondToolError(c, toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			id,
-			fmt.Sprintf("%s: decode tool invoke request: %v", h.transportName(), err),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
-			toolspkg.ReasonSchemaInvalid,
-		))
+	req, ok := h.bindToolInvoke(c, id)
+	if !ok {
 		return
 	}
 	scope, err := h.resolveOperatorToolScope(c)
@@ -308,6 +301,7 @@ func toolDescriptorPayload(d *toolspkg.Descriptor) contract.ToolDescriptorPayloa
 		Source:              toolSourcePayload(d.Source),
 		Visibility:          d.Visibility,
 		Risk:                d.Risk,
+		RemoteScope:         d.RemoteScope,
 		ReadOnly:            d.ReadOnly,
 		Destructive:         d.Destructive,
 		OpenWorld:           d.OpenWorld,

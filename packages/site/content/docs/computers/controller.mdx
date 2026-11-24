@@ -28,3 +28,11 @@ Use `--computer local` to target the local daemon. The `account`, `computer`, `d
 Local HTTP and UDS expose the same `/api/computers` registry. Subscribe to `GET /api/computers/stream` for `computer.changed` events. Reconnect with the last event ID. After a `stream_reset`, fetch the registry again.
 
 Prefix the target API path with `/c/{computer_id}`, for example `GET /c/cmp_7f3k2q9x/api/sessions?all_workspaces=true`. For a session SSE connection, send `Last-Event-ID` when reconnecting. The controller supplies the remote credential, and task leases stay on the computer that owns them.
+
+Use the same operator routes for files, Changes, worktrees, Tasks, terminals, extensions, settings, and provider status. Each route checks the device's scope on the target. A `403 remote_scope_denied` response identifies the required scope in `details.scope`.
+
+To run a task on the target, create it and enqueue a run with `POST /c/{computer_id}/api/tasks/{id}/runs`. Prompt an agent session on the same computer to claim the run. The session that owns the lease heartbeats and completes it there. Read progress with `GET /c/{computer_id}/api/task-runs/{run_id}`. Sending an `X-Compozy-Claim-Token` header returns `400 claim_token_not_remote`.
+
+The tunnel returns `404 route_not_remote` for account, computer registry, and agent-kernel routes. A second `/c/{computer_id}` prefix returns `403 remote_bridge_not_transitive`.
+
+For operator tool calls, inspect `descriptor.remote_scope` in the tool catalog. Invoke a tool with that scope using `POST /c/{computer_id}/api/tools/{id}/invoke`. Use `workspace_id` to select a target workspace. A remote invocation that supplies `session_id`, `agent_name`, `turn_id`, or `approval_token` returns `400 remote_caller_override_forbidden`.

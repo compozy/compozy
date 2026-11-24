@@ -19,10 +19,6 @@ const (
 	sessionAttachmentUploadRoutePath = "/api/workspaces/:workspace_id/sessions/:session_id/attachments"
 )
 
-var errLoopbackMutationRequired = errors.New(
-	"remote HTTP settings and extension mutations are disabled in v1 unless the daemon is bound to a loopback host",
-)
-
 var errLoopbackAPIRequired = errors.New(
 	"remote HTTP API access is disabled unless the daemon is bound to a loopback host",
 )
@@ -434,24 +430,16 @@ func requestBodyLimitMiddlewareWithUploadLimit(maxBytes int64, uploadMaxBytes in
 }
 
 func loopbackAPIGuard(boundHost string) gin.HandlerFunc {
-	return loopbackGuard(boundHost, errLoopbackAPIRequired, true)
-}
-
-func loopbackMutationGuard(boundHost string) gin.HandlerFunc {
-	return loopbackGuard(boundHost, errLoopbackMutationRequired, false)
-}
-
-func loopbackGuard(boundHost string, guardErr error, openAICompatible bool) gin.HandlerFunc {
 	allowed := isLoopbackHost(canonicalHost(boundHost))
 	return func(c *gin.Context) {
 		if allowed {
 			c.Next()
 			return
 		}
-		if openAICompatible && isOpenAICompatiblePath(c) {
-			core.RespondOpenAIError(c, http.StatusForbidden, guardErr, false)
+		if isOpenAICompatiblePath(c) {
+			core.RespondOpenAIError(c, http.StatusForbidden, errLoopbackAPIRequired, false)
 		} else {
-			core.RespondError(c, http.StatusForbidden, guardErr, false)
+			core.RespondError(c, http.StatusForbidden, errLoopbackAPIRequired, false)
 		}
 		c.Abort()
 	}

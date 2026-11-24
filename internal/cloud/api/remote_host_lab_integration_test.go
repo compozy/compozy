@@ -278,10 +278,16 @@ func expectTerminalClose(t *testing.T, socket *websocket.Conn, code int) {
 	if err := socket.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err := socket.ReadMessage()
-	closed, ok := errors.AsType[*websocket.CloseError](err)
-	if !ok || closed.Code != code {
-		t.Fatalf("remote terminal closed with %v, want %d", err, code)
+	for {
+		_, _, err := socket.ReadMessage()
+		if err == nil {
+			continue
+		}
+		closed, ok := errors.AsType[*websocket.CloseError](err)
+		if !ok || closed.Code != code {
+			t.Fatalf("remote terminal closed with %v, want %d", err, code)
+		}
+		return
 	}
 }
 

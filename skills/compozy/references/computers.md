@@ -10,6 +10,10 @@
 - Target a computer through the local Unix socket with `compozy session list --computer <name|id> --json`. Select the local daemon with `--computer local`. Machine-local verbs return `flag_not_applicable` if you pass the flag.
 - Use `GET /api/computers` for the registry and `GET /api/computers/stream` for `computer.changed`. Reconnect with `Last-Event-ID` or `after_sequence`; refetch after `stream_reset`.
 - Forward an operator API call through `/c/{computer_id}/api/…` on local HTTP or UDS. The registry and event cursors belong to the active account. The controller injects the remote proof, rejects requests carrying claim tokens, and refuses to chain through another controller.
+- Use the target's operator routes for files, Changes, worktrees, Tasks, the scheduler, settings, extensions, provider status, and Vault metadata. The target returns `remote_scope_denied` with the required scope in `details.scope`. Open and attach to a terminal with the target workspace and `terminal:operate`. Reconnect a live terminal with a fresh attach ticket and its last output cursor.
+- To execute a task there, enqueue it with `POST /api/tasks/{id}/runs` through the bridge. Prompt an agent session on the target to call `compozy__task_run_claim_next`. The lease owner calls the heartbeat and completion tools locally on that computer. Read the run through `GET /api/task-runs/{run_id}`.
+- A tool descriptor's `remote_scope` is the scope required for a remote operator invocation. Send `workspace_id` to select a target workspace. The destination applies its operator policy. Supplying `session_id`, `agent_name`, `turn_id`, or `approval_token` returns `remote_caller_override_forbidden`.
+- Account, controller registry, and agent-kernel routes return `route_not_remote` through a tunnel. A second bridge hop returns `remote_bridge_not_transitive`.
 - `compozy computer remove <name|id>` removes the local entry. `--unlink` also frees the account slot. Use `compozy computer routes <name|id> remove <kind:address>` to remove a learned address.
 
 | Endpoint                                       | Purpose                                               |

@@ -12932,6 +12932,7 @@ export type ToolDescriptorPayload = {
   output_views?: ResultViews | null;
   preview?: string;
   read_only: boolean;
+  remote_scope?: string;
   requires_interaction: boolean;
   risk: "read" | "mutating" | "open_world" | "destructive";
   search_hints?: Array<string>;
@@ -35771,13 +35772,13 @@ export type InvokeToolData = {
 
 export type InvokeToolErrors = {
   /**
-   * Invalid invocation request or profile selection
+   * Invalid request, remote_caller_override_forbidden or tool_not_forwardable
    */
-  400: ProfileErrorPayload | ToolErrorResponse;
+  400: ProfileErrorPayload | ToolErrorResponse | ErrorPayload;
   /**
-   * Invocation denied
+   * Invocation denied or remote_scope_denied
    */
-  403: ToolErrorResponse;
+  403: ToolErrorResponse | ErrorPayload;
   /**
    * Tool or profile not found
    */

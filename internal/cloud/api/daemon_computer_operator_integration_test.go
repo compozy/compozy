@@ -1,0 +1,325 @@
+//go:build integration
+
+package api_test
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gorilla/websocket"
+
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/daemon"
+	"github.com/compozy/compozy/internal/remoteproto"
+	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
+	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/remotetest"
+)
+
+func TestDaemonComputerOperatorBridgeIsolation(t *testing.T) {
+	root := t.TempDir()
+	// IT-048. Safety Invariant 11. A is a working controller for B, but its
+	// authenticated remote device cannot use that registry as a second hop.
+	t.Run("Should refuse a second hop without a request reaching the next computer", func(t *testing.T) {
+		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+		var targetCapture operatorTrafficCapture
+		first, _ := startSessionComputer(t, f, filepath.Join(root, "first"), false)
+		second, _ := startSessionComputer(t, f, filepath.Join(root, "second"), false,
+			daemon.WithRemoteTunnelMiddleware(targetCapture.wrap))
+		provisionRegistryPro(t, f)
+		a, b := linkSessionComputer(t, first), linkSessionComputer(t, second)
+		controller, _ := startComputerController(t, f, filepath.Join(root, "controller"), registryTestEmail, nil)
+		addAccountComputer(t, first, b)
+		addAccountComputer(t, controller, a)
+		waitComputerRoute(t, first, b, remoteproto.RouteDirect)
+		waitComputerRoute(t, controller, a, remoteproto.RouteDirect)
+
+		sessions := makeSessionIDs(t, second, "Second computer")
+		path := controllerSessions + "?all_workspaces=true"
+		firstToSecond := operatorBridge{t: t, controller: first, computer: b}
+		expectComputerSessions(t, firstToSecond.request(http.MethodGet, path, nil), sessions)
+		arrivals := targetCapture.requests.Load()
+		if arrivals != 1 || targetCapture.failed.Load() {
+			t.Fatalf("positive control: observed %d requests at the second computer, want one", arrivals)
+		}
+
+		controllerToFirst := operatorBridge{t: t, controller: controller, computer: a}
+		controllerToFirst.request(http.MethodGet, bridgeAPI(b, path), nil).
+			expect(t, http.StatusForbidden, "remote_bridge_not_transitive")
+		if got := targetCapture.requests.Load(); got != arrivals {
+			t.Fatalf("a chained request reached the second computer: before/after %d/%d", arrivals, got)
+		}
+	})
+}
+
+// The daemon computer journey owns the terminal process and replay across a real bridge.
+func TestDaemonComputerOperatorTerminal(t *testing.T) {
+	root := t.TempDir()
+	t.Run("Should open, write, resume and revoke a PTY on the target daemon", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("the terminal fixture uses a Unix shell and FIFO")
+		}
+		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+		hostHome, controllerHome := filepath.Join(root, "host"), filepath.Join(root, "controller")
+		configureOperatorProvider(t, hostHome, true)
+		configureOperatorProvider(t, controllerHome, false)
+		host, _ := startSessionComputer(t, f, hostHome, false)
+		id := linkSessionComputer(t, host)
+		controller, ring := startConfiguredDaemonAccount(t, f, controllerHome, daemonAccountBoot{})
+		progress := controller.stream(t, contract.AccountSignInEventsPath, "")
+		device := signInAccountDevice(t, f, controller, progress, registryTestEmail).Device.ID
+		progress.cancel()
+		addAccountComputer(t, controller, id)
+		waitComputerRoute(t, controller, id, remoteproto.RouteDirect)
+		assertRemoteProviderState(t, controller, host, id)
+
+		project := filepath.Join(root, "project")
+		if err := os.Mkdir(project, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		fifo := filepath.Join(project, "resume")
+		if output, err := exec.CommandContext(t.Context(), "mkfifo", fifo).CombinedOutput(); err != nil {
+			t.Fatalf("create terminal replay fixture: %s: %v", output, err)
+		}
+		workspace := registerOperatorWorkspace(t, host, project)
+		path := openOperatorTerminal(t, controller, id, workspace)
+		socket := attachOperatorTerminal(t, controller, id, path, 0)
+		cursor := startOperatorTerminalReplay(t, socket)
+
+		// IT-041. Only the controller stops; the target produces the intervening output.
+		controller.stop()
+		releaseOperatorTerminalReplay(t, fifo)
+		controller, _ = startConfiguredDaemonAccount(t, f, controllerHome, daemonAccountBoot{keyring: ring})
+		waitComputerRoute(t, controller, id, remoteproto.RouteDirect)
+		resumed := attachOperatorTerminal(t, controller, id, path, cursor)
+		replay, _ := readOperatorOutput(t, resumed, "\r\ns9b-replay-c\r\n")
+		if !strings.Contains(replay, "\r\ns9b-replay-a\r\ns9b-replay-b\r\ns9b-replay-c\r\n") {
+			t.Fatalf("terminal replay after %d missed output: %q", cursor, replay)
+		}
+		narrowOperatorTerminalScope(t, host, controller, id, device, resumed)
+	})
+}
+
+func registerOperatorWorkspace(t *testing.T, host daemonAccountFixture, root string) string {
+	t.Helper()
+	reply := host.uds(t, http.MethodPost, "/api/workspaces", contract.CreateWorkspaceRequest{
+		RootDir: root, Name: "Remote operator project",
+	})
+	reply.expect(t, http.StatusCreated, "workspace")
+	return authJSON[contract.WorkspaceResponse](t, reply).Workspace.ID
+}
+
+func openOperatorTerminal(
+	t *testing.T, controller daemonAccountFixture, id remoteproto.ComputerID, workspace string,
+) string {
+	t.Helper()
+	// IT-040. Safety Invariants 5, 11 and 18. Creation uses the local workspace route through UDS.
+	path := "/api/workspaces/" + workspace + "/terminals"
+	reply := controller.uds(t, http.MethodPost, bridgeAPI(id, path), contract.TerminalCreateRequest{
+		Shell: "sh", Cols: 80, Rows: 24, Title: "S9b shell", ClientID: "controller-window",
+	})
+	reply.expect(t, http.StatusCreated, "S9b shell")
+	terminal := authJSON[contract.TerminalResponse](t, reply).Terminal
+	controller.request(t, http.MethodGet, bridgeAPI(id, "/api/terminals"), nil).
+		expect(t, http.StatusOK, string(terminal.ID))
+	local := controller.request(t, http.MethodGet, "/api/terminals", nil)
+	local.expect(t, http.StatusOK, "terminals")
+	if bytes.Contains(local.body, []byte(terminal.ID)) {
+		t.Fatal("a remote terminal was registered on the controller")
+	}
+	return path + "/" + string(terminal.ID)
+}
+
+func attachOperatorTerminal(
+	t *testing.T, controller daemonAccountFixture, id remoteproto.ComputerID, path string, after uint64,
+) *websocket.Conn {
+	t.Helper()
+	reply := controller.request(t, http.MethodPost, bridgeAPI(id, path+"/attach-ticket"),
+		contract.TerminalAttachTicketRequest{Mode: contract.TerminalAttachModeWrite, ClientID: "controller-window"})
+	reply.expect(t, http.StatusCreated, "ticket")
+	ticket := authJSON[contract.TerminalAttachTicketResponse](t, reply).Ticket
+	query := url.Values{
+		"mode": {"write"}, "flow": {"ack"}, "ticket": {ticket}, "after_seq": {strconv.FormatUint(after, 10)},
+	}
+	target := "ws" + strings.TrimPrefix(controller.httpBase, "http") + bridgeAPI(id, path+"/stream?"+query.Encode())
+	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second, Subprotocols: []string{terminalwire.Subprotocol}}
+	socket, response, err := dialer.DialContext(t.Context(), target, http.Header{"Origin": {controller.httpBase}})
+	if err != nil {
+		if response != nil && response.Body != nil {
+			body, _ := io.ReadAll(response.Body)
+			_ = response.Body.Close()
+			t.Fatalf("attach target terminal: HTTP %d %s: %v", response.StatusCode, body, err)
+		}
+		t.Fatalf("attach target terminal: %v", err)
+	}
+	t.Cleanup(func() { _ = socket.Close() })
+	if got := readOperatorTerminalFrame(t, socket); got.Op != terminalwire.ServerOpAttached {
+		t.Fatalf("first terminal frame = %d, want attached", got.Op)
+	}
+	return socket
+}
+
+func startOperatorTerminalReplay(t *testing.T, socket *websocket.Conn) uint64 {
+	t.Helper()
+	// Print markers in a form distinguishable from the PTY's echo of the command.
+	input := "echo hi; printf 's9b-pid-%s\\n' \"$$\"; printf 's9b-%s\\n' ready; " +
+		"read line < resume; printf 's9b-replay-%s\\n' a b c\n"
+	frame, err := terminalwire.EncodeClient(terminalwire.Frame{Op: terminalwire.ClientOpInput, Payload: []byte(input)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := socket.WriteMessage(websocket.BinaryMessage, frame); err != nil {
+		t.Fatal(err)
+	}
+	output, cursor := readOperatorOutput(t, socket, "\r\ns9b-ready\r\n")
+	if !strings.Contains(output, "\r\nhi\r\n") {
+		t.Fatalf("echo output did not come from the remote PTY: %q", output)
+	}
+	_, marker, ok := strings.Cut(output, "\r\ns9b-pid-")
+	pid, _, _ := strings.Cut(marker, "\r\n")
+	if _, err := strconv.Atoi(pid); !ok || err != nil {
+		t.Fatalf("remote shell PID missing from %q", output)
+	}
+	if result, err := exec.CommandContext(t.Context(), "ps", "-p", pid, "-o", "comm=").CombinedOutput(); err != nil ||
+		len(bytes.TrimSpace(result)) == 0 {
+		t.Fatalf("remote shell PID %s absent from the target process table: %s: %v", pid, result, err)
+	}
+	return cursor
+}
+
+func releaseOperatorTerminalReplay(t *testing.T, fifo string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Second)
+	defer cancel()
+	if result, err := exec.CommandContext(ctx, "sh", "-c", `printf '\n' > "$1"`, "fixture", fifo).
+		CombinedOutput(); err != nil {
+		t.Fatalf("release remote shell while the controller is offline: %s: %v", result, err)
+	}
+}
+
+func readOperatorOutput(t *testing.T, socket *websocket.Conn, marker string) (string, uint64) {
+	t.Helper()
+	var output strings.Builder
+	for {
+		frame := readOperatorTerminalFrame(t, socket)
+		switch frame.Op {
+		case terminalwire.ServerOpOutput:
+			output.Write(frame.Payload)
+			if strings.Contains(output.String(), marker) {
+				return output.String(), frame.Seq + uint64(len(frame.Payload))
+			}
+		case terminalwire.ServerOpGap, terminalwire.ServerOpExit, terminalwire.ServerOpError:
+			t.Fatalf("terminal did not reach %q: opcode %d, %s", marker, frame.Op, frame.Payload)
+		}
+	}
+}
+
+func readOperatorTerminalFrame(t *testing.T, socket *websocket.Conn) terminalwire.Frame {
+	t.Helper()
+	if err := socket.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	kind, message, err := socket.ReadMessage()
+	if err != nil || kind != websocket.BinaryMessage {
+		t.Fatalf("terminal frame kind %d: %v", kind, err)
+	}
+	frame, err := terminalwire.DecodeServer(message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return frame
+}
+
+func narrowOperatorTerminalScope(
+	t *testing.T,
+	host, controller daemonAccountFixture,
+	id remoteproto.ComputerID,
+	device string,
+	socket *websocket.Conn,
+) {
+	t.Helper()
+	// IT-042. Safety Invariants 4, 5 and 10. The real stream closes before a narrowed lease is used.
+	host.uds(t, http.MethodPatch, contract.RemoteDevicesPath+"/"+device, contract.RemoteDevicePatchRequest{
+		Scopes: new([]remoteproto.Scope{remoteproto.ScopeSessions}),
+	}).expect(t, http.StatusOK, "sessions:operate")
+	expectTerminalClose(t, socket, 4503)
+	testutil.Eventually(t, "terminal scope removed", 10*time.Second, func() bool {
+		reply := controller.uds(t, http.MethodGet, bridgeAPI(id, "/api/terminals"), nil)
+		return reply.StatusCode == http.StatusForbidden &&
+			bytes.Contains(reply.body, []byte("\"code\":\"remote_scope_denied\"")) &&
+			bytes.Contains(reply.body, []byte("\"scope\":\"terminal:operate\""))
+	})
+}
+
+const operatorProviderName = "remote-auth-fixture"
+
+func configureOperatorProvider(t *testing.T, home string, signedIn bool) {
+	t.Helper()
+	paths, err := config.ResolveHomePathsFrom(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(home, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	executable := filepath.Join(home, "provider-status")
+	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' '{\"loggedIn\":%t}'\n", signedIn)
+	if err := os.WriteFile(executable, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	target, err := config.ResolveConfigWriteTarget(paths, "", config.WriteScopeUser, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = config.EditConfigOverlay(paths, "", target, func(editor *config.OverlayEditor) error {
+		return editor.SetTable([]string{"providers", operatorProviderName}, map[string]any{
+			"command": executable, "auth_status_command": executable, "auth_mode": "native_cli", "harness": "acp",
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertRemoteProviderState(t *testing.T, controller, host daemonAccountFixture, id remoteproto.ComputerID) {
+	t.Helper()
+	// IT-044. Safety Invariants 5 and 11. The same provider has opposite live verdicts on the two daemons.
+	const path = "/api/providers"
+	probe := path + "/" + operatorProviderName + "/auth/probe"
+	host.uds(t, http.MethodPost, probe, nil).expect(t, http.StatusOK, contract.ProviderAuthStateAuthenticated)
+	controller.uds(t, http.MethodPost, probe, nil).expect(t, http.StatusOK, contract.ProviderAuthStateNeedsLogin)
+	remote := controller.request(t, http.MethodGet, bridgeAPI(id, path), nil)
+	remote.expect(t, http.StatusOK, operatorProviderName)
+	local := controller.request(t, http.MethodGet, path, nil)
+	local.expect(t, http.StatusOK, operatorProviderName)
+	if got := operatorProviderState(t, remote); got != contract.ProviderAuthStateAuthenticated {
+		t.Fatalf("bridged provider sign-in state = %q", got)
+	}
+	if got := operatorProviderState(t, local); got != contract.ProviderAuthStateNeedsLogin {
+		t.Fatalf("controller provider sign-in state = %q", got)
+	}
+}
+
+func operatorProviderState(t *testing.T, reply authReply) string {
+	t.Helper()
+	for _, provider := range authJSON[contract.ProviderListResponse](t, reply).Providers {
+		if provider.Name == operatorProviderName {
+			return provider.AuthStatus.State
+		}
+	}
+	t.Fatalf("provider %q was not in the inventory", operatorProviderName)
+	return ""
+}

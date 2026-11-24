@@ -87,6 +87,7 @@ func (h *Host) newListenerHandler(identity Identity, keys hostKeys, sessions *Se
 				BrowserSignIn: kind == ListenerHosted,
 			},
 			kind: kind, tls: tlsConfig, sessions: sessions, operator: h.opts.Operator,
+			wrapTunnelHandler: h.opts.WrapTunnelHandler,
 		}
 		return handler.outer()
 	}

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/gin-gonic/gin"
 )
 
@@ -33,7 +34,7 @@ func registerPrivateTierRoutes(router gin.IRouter, handlers *Handlers) {
 	registerGatewayRedeemRoute(api, handlers)
 	api.Use(handlers.deviceAuthMiddleware())
 	api.Use(handlers.WorkspaceReferenceGuard)
-	registerOperatorRoutes(api, handlers, false)
+	registerOperatorRoutes(operatorRouteGroups{router: api}, handlers, false)
 	registerRemoteResourceReadRoutes(api, handlers)
 	registerGatewayManagementRoutes(api, handlers, true)
 	registerStaticFallback(router, handlers)
@@ -56,45 +57,45 @@ func registerPublicOperatorRoutes(router gin.IRouter, handlers *Handlers, includ
 	api.Use(handlers.gatewayAdmissionMiddleware(gateway.TierPublic, gateway.SurfaceOperatorUI))
 	api.Use(handlers.deviceAuthMiddleware())
 	api.Use(handlers.WorkspaceReferenceGuard)
-	registerOperatorRoutes(api, handlers, false)
+	registerOperatorRoutes(operatorRouteGroups{router: api}, handlers, false)
 	registerRemoteResourceReadRoutes(api, handlers)
 	registerPublicGatewayManagementRoutes(api, handlers)
 	registerStaticFallback(router, handlers)
 }
 
-func registerOperatorRoutes(api gin.IRouter, handlers *Handlers, includeLocalOnlyTaskLifecycle bool) {
+func registerOperatorRoutes(api operatorRouteGroups, handlers *Handlers, fullOperator bool) {
 	registerStatusRoutes(api, handlers)
-	registerOnboardingRoutes(api, handlers)
-	registerFilesystemRoutes(api, handlers)
-	registerNotificationRoutes(api, handlers, includeLocalOnlyTaskLifecycle)
-	registerProfileRoutes(api, handlers, includeLocalOnlyTaskLifecycle)
+	registerOnboardingRoutes(api.group("", remoteproto.ScopeSettings), handlers)
+	registerFilesystemRoutes(api.group("", remoteproto.ScopeFilesR), handlers)
+	registerNotificationRoutes(api.group("", remoteproto.ScopeSessions), handlers)
+	registerProfileRoutes(api, handlers, fullOperator)
 	registerWorkspaceRoutes(api, handlers)
 	registerWorktreeRoutes(api, handlers)
-	registerWindowManagerRoutes(api, handlers)
-	if includeLocalOnlyTaskLifecycle {
-		registerTerminalRoutes(api, handlers)
+	registerWindowManagerRoutes(api.group("", remoteproto.ScopeSessions), handlers)
+	if fullOperator {
+		registerTerminalRoutes(api.group("", remoteproto.ScopeTerminal), handlers)
 	}
 	registerCmdPaletteRoutes(api, handlers)
 	registerSessionRoutes(api, handlers)
-	registerAgentManagementRoutes(api, handlers)
-	registerRoleRoutes(api, handlers)
-	registerLogsRoutes(api, handlers)
-	registerSupportRoutes(api, handlers)
+	registerAgentManagementRoutes(api.group("", remoteproto.ScopeSettings), handlers)
+	registerRoleRoutes(api.group("", remoteproto.ScopeSettings), handlers)
+	registerLogsRoutes(api.group("", remoteproto.ScopeSettings), handlers)
+	registerSupportRoutes(api.group("", remoteproto.ScopeSettings), handlers)
 	registerObserveRoutes(api, handlers)
-	registerHookRoutes(api, handlers)
+	registerHookRoutes(api.group("", remoteproto.ScopeSettings), handlers)
 	registerToolRoutes(api, handlers)
-	registerAutomationRoutes(api, handlers)
-	registerLoopRoutes(api, handlers)
-	registerTaskRoutes(api, handlers, includeLocalOnlyTaskLifecycle)
-	registerMarketplaceRoutes(api, handlers)
-	registerSkillRoutes(api, handlers)
-	registerExtensionRoutes(api, handlers, includeLocalOnlyTaskLifecycle)
-	registerSettingsRoutes(api, handlers)
+	registerAutomationRoutes(api.group("", remoteproto.ScopeSessions), handlers)
+	registerLoopRoutes(api.group("", remoteproto.ScopeSessions), handlers)
+	registerTaskRoutes(api.group("", remoteproto.ScopeTasks), handlers, fullOperator, api.remote)
+	registerMarketplaceRoutes(api.group("", remoteproto.ScopeSettings), handlers)
+	registerSkillRoutes(api.group("", remoteproto.ScopeSettings), handlers)
+	registerExtensionRoutes(api.group("", remoteproto.ScopeSettings), handlers, fullOperator)
+	registerSettingsRoutes(api.group("", remoteproto.ScopeSettings), handlers)
 	registerVaultRoutes(api, handlers)
-	registerProviderRoutes(api, handlers)
+	registerProviderRoutes(api.group("", remoteproto.ScopeSessions), handlers)
 	registerModelCatalogRoutes(api, handlers)
-	registerProviderUsageRoutes(api, handlers)
-	registerOpenAIModelRoutes(api, handlers)
+	registerProviderUsageRoutes(api.group("", remoteproto.ScopeSettings), handlers)
+	registerOpenAIModelRoutes(api.group("", remoteproto.ScopeSessions), handlers)
 }
 
 func registerStaticFallback(router gin.IRouter, handlers *Handlers) {

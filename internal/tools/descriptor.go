@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/toolmeta"
 )
 
@@ -37,14 +38,15 @@ type Descriptor struct {
 	Backend BackendRef `json:"backend"`
 	*ToolPresentation
 	*ToolExecutionMetadata
-	Description                 string          `json:"description"`
-	InputSchema                 json.RawMessage `json:"input_schema"`
-	OutputSchema                json.RawMessage `json:"output_schema,omitempty"`
-	InputSchemaDigest           string          `json:"input_schema_digest"`
-	OutputSchemaDigest          string          `json:"output_schema_digest,omitempty"`
-	Source                      SourceRef       `json:"source"`
-	Visibility                  Visibility      `json:"visibility"`
-	Risk                        RiskClass       `json:"risk"`
+	Description                 string            `json:"description"`
+	InputSchema                 json.RawMessage   `json:"input_schema"`
+	OutputSchema                json.RawMessage   `json:"output_schema,omitempty"`
+	InputSchemaDigest           string            `json:"input_schema_digest"`
+	OutputSchemaDigest          string            `json:"output_schema_digest,omitempty"`
+	Source                      SourceRef         `json:"source"`
+	Visibility                  Visibility        `json:"visibility"`
+	Risk                        RiskClass         `json:"risk"`
+	RemoteScope                 remoteproto.Scope `json:"remote_scope,omitempty"`
 	mcpReadOnlyOverride         bool
 	mcpReadOnlyOperatorOverride bool
 	ReadOnly                    bool        `json:"read_only"`
@@ -111,6 +113,9 @@ func (d Descriptor) Tool() Tool {
 
 // Validate ensures the descriptor is dispatchable metadata.
 func (d Descriptor) Validate() error {
+	if d.RemoteScope != "" && !d.RemoteScope.Valid() {
+		return NewValidationError("remote_scope", ReasonPolicyDenied, "must be a declared remote scope")
+	}
 	if d.ExecutionMetadata().InputErrorCode != "" && d.ExecutionMetadata().InputErrorCode != ErrorCodeInvalidRequest {
 		return NewValidationError("input_error_code", ReasonSchemaInvalid, "must be invalid_request or omitted")
 	}

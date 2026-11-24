@@ -246,6 +246,7 @@ type ToolDescriptorPayload struct {
 	Source              ToolSourceRefPayload  `json:"source"`
 	Visibility          Visibility            `json:"visibility"`
 	Risk                RiskClass             `json:"risk"`
+	RemoteScope         Scope                 `json:"remote_scope,omitempty"`
 	ReadOnly            bool                  `json:"read_only"`
 	Destructive         bool                  `json:"destructive"`
 	OpenWorld           bool                  `json:"open_world"`

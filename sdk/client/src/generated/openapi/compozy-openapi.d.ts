@@ -21965,6 +21965,7 @@ export interface components {
       output_views?: components["schemas"]["ResultViews"] | null;
       preview?: string;
       read_only: boolean;
+      remote_scope?: string;
       requires_interaction: boolean;
       /** @enum {string} */
       risk: "read" | "mutating" | "open_world" | "destructive";
@@ -52929,7 +52930,7 @@ export interface operations {
           "application/json": components["schemas"]["ToolErrorResponse"];
         };
       };
-      /** @description Invalid invocation request or profile selection */
+      /** @description Invalid request, remote_caller_override_forbidden or tool_not_forwardable */
       400: {
         headers: {
           [name: string]: unknown;
@@ -52937,16 +52938,19 @@ export interface operations {
         content: {
           "application/json":
             | components["schemas"]["ProfileErrorPayload"]
-            | components["schemas"]["ToolErrorResponse"];
+            | components["schemas"]["ToolErrorResponse"]
+            | components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Invocation denied */
+      /** @description Invocation denied or remote_scope_denied */
       403: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ToolErrorResponse"];
+          "application/json":
+            | components["schemas"]["ToolErrorResponse"]
+            | components["schemas"]["ErrorPayload"];
         };
       };
       /** @description Tool or profile not found */
