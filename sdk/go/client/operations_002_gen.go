@@ -333,6 +333,16 @@ func (c *Client) BindGatewayIngress(ctx context.Context, body GatewayIngressBind
 	return &out, nil
 }
 
+// BindIngress Confirm a webhook trigger against its advertised HTTPS endpoint
+func (c *Client) BindIngress(ctx context.Context, body GatewayIngressBindRequest) (*GatewayIngressBindingResponse, error) {
+	path := "/api/ingress/bindings"
+	var out GatewayIngressBindingResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // BindSessionWorktreeParams carries the path, query, and header parameters.
 type BindSessionWorktreeParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -433,9 +443,4 @@ func (c *Client) BulkForceFailTaskRuns(ctx context.Context, params BulkForceFail
 		return nil, err
 	}
 	return &out, nil
-}
-
-// BulkForceReleaseTaskRunsParams carries the path, query, and header parameters.
-type BulkForceReleaseTaskRunsParams struct {
-	Profile *string `url:"profile"`
 }

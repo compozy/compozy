@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/cloud/api"
 	"github.com/compozy/compozy/internal/cloud/auth"
+	"github.com/compozy/compozy/internal/cloud/cloudflare"
 	"github.com/compozy/compozy/internal/cloud/control"
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/cloud/web"
@@ -19,14 +20,15 @@ import (
 )
 
 type Config struct {
-	Postgres     store.Config
-	Keys         *api.SigningKeys
-	Issuer       string
-	Now          func() time.Time
-	Logger       *slog.Logger
-	Auth         *auth.Config
-	MonthlyPrice string
-	AnnualPrice  string
+	Postgres      store.Config
+	Keys          *api.SigningKeys
+	Issuer        string
+	Now           func() time.Time
+	Logger        *slog.Logger
+	Auth          *auth.Config
+	MonthlyPrice  string
+	AnnualPrice   string
+	HostedTunnels *cloudflare.Client
 }
 
 type App struct {
@@ -38,6 +40,7 @@ type App struct {
 	Auth         *auth.Service
 
 	router   *api.Router
+	tunnels  *control.Service
 	draining atomic.Bool
 	now      func() time.Time
 	logger   *slog.Logger
@@ -77,7 +80,11 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 	service := control.NewService(db, control.ServiceConfig{
 		Signer: a.Keys.Signer(), Issuer: a.Issuer, Now: a.now,
 		MonthlyPrice: cfg.MonthlyPrice, AnnualPrice: cfg.AnnualPrice,
+		Logger: a.logger, HostedTunnels: cfg.HostedTunnels,
 	})
+	if cfg.HostedTunnels != nil {
+		a.tunnels = service
+	}
 	a.router.RegisterControl(api.ControlRoutesConfig{
 		Service: service, Hub: a.Control, Authenticator: authenticator,
 		Limiter: a.AccountLimit, Issuer: a.Issuer, Logger: a.logger,
@@ -110,6 +117,9 @@ func (a *App) RunBackground(ctx context.Context) {
 	var group sync.WaitGroup
 	group.Go(func() { a.Control.Listen(ctx, a.Store.ConnectDirect, a.logger) })
 	group.Go(func() { a.runRetention(ctx) })
+	if a.tunnels != nil {
+		group.Go(func() { a.runHostedTunnelSweep(ctx) })
+	}
 	if a.Auth != nil {
 		group.Go(func() { a.runAuthCleanup(ctx) })
 	}
@@ -159,6 +169,24 @@ func (a *App) runRetention(ctx context.Context) {
 			timer.Stop()
 			return
 		case <-timer.C:
+		}
+	}
+}
+
+func (a *App) runHostedTunnelSweep(ctx context.Context) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		work, cancel := context.WithTimeout(ctx, time.Minute)
+		err := errors.Join(a.tunnels.SweepHostedTunnels(work), a.tunnels.LogHostedTunnelCapacity(work))
+		cancel()
+		if err != nil && ctx.Err() == nil {
+			a.logger.WarnContext(ctx, "Hosted tunnel maintenance failed", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 		}
 	}
 }

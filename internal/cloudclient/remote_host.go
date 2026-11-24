@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/coder/websocket"
 
@@ -68,10 +69,18 @@ func computerPath(id remoteproto.ComputerID) string {
 	return "/v1/computers/" + url.PathEscape(string(id))
 }
 
+const hostedTunnelRequestTimeout = 25 * time.Second
+
 func (c *Client) computerJSON(
 	ctx context.Context, method, path string, input, output any, device Credentials, key ed25519.PrivateKey,
 ) error {
-	request, cancel := context.WithTimeout(ctx, requestTimeout)
+	return c.computerJSONWithin(ctx, requestTimeout, method, path, input, output, device, key)
+}
+
+func (c *Client) computerJSONWithin(
+	ctx context.Context, timeout time.Duration, method, path string, input, output any, device Credentials, key ed25519.PrivateKey,
+) error {
+	request, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	response, err := c.open(request, method, path, input, device.AccessToken, device.Key, true, "application/json", key)
 	if err != nil {
@@ -111,4 +120,18 @@ func (c *Client) OpenComputerControl(ctx context.Context, id remoteproto.Compute
 	}
 	connection.SetReadLimit(maxBody)
 	return connection, nil
+}
+
+func (c *Client) ProvisionHostedTunnel(
+	ctx context.Context, id remoteproto.ComputerID, key ed25519.PrivateKey, listener string,
+) (remoteproto.HostedTunnel, error) {
+	var tunnel remoteproto.HostedTunnel
+	err := c.computerJSONWithin(ctx, hostedTunnelRequestTimeout, http.MethodPost, computerPath(id)+"/tunnel",
+		remoteproto.HostedTunnelRequest{Listener: listener}, &tunnel, Credentials{}, key)
+	return tunnel, err
+}
+
+func (c *Client) DeleteHostedTunnel(ctx context.Context, id remoteproto.ComputerID, key ed25519.PrivateKey) error {
+	return c.computerJSONWithin(ctx, hostedTunnelRequestTimeout, http.MethodDelete, computerPath(id)+"/tunnel",
+		nil, nil, Credentials{}, key)
 }

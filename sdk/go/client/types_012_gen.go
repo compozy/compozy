@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// LoopGateVerdictPayload is a daemon API value.
+type LoopGateVerdictPayload struct {
+	GateID         string                           `json:"gate_id"`
+	ItemIndex      int                              `json:"item_index"`
+	Outcome        LoopGateVerdictOutcome           `json:"outcome"`
+	Score          *float64                         `json:"score,omitzero"`
+	RouteCauseRank *int                             `json:"route_cause_rank,omitzero"`
+	BlockingIssues []LoopGateBlockingIssuePayload   `json:"blocking_issues"`
+	Criteria       []LoopGateCriterionDetailPayload `json:"criteria"`
+}
+
 // LoopGateVerdictRunEventPayload is a daemon API value.
 type LoopGateVerdictRunEventPayload struct {
 	ID          string                      `json:"id"`

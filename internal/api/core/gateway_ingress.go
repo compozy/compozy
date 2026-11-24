@@ -16,7 +16,11 @@ func gatewayIngressForbidden(err error) error {
 	return errors.Join(ingress.ErrForbidden, err)
 }
 
-func (h *BaseHandlers) BindGatewayIngress(c *gin.Context) {
+func (h *BaseHandlers) BindGatewayIngress(c *gin.Context) { h.bindIngress(c, false) }
+
+func (h *BaseHandlers) BindIngress(c *gin.Context) { h.bindIngress(c, true) }
+
+func (h *BaseHandlers) bindIngress(c *gin.Context, remote bool) {
 	var request contract.GatewayIngressBindRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		h.respondGatewayRequestError(c)
@@ -42,6 +46,12 @@ func (h *BaseHandlers) BindGatewayIngress(c *gin.Context) {
 		Subject: ref, Confirmed: request.Confirmed, Caller: caller,
 	})
 	if err != nil {
+		if remote && errors.Is(err, ingress.ErrUnreachable) {
+			c.JSON(http.StatusServiceUnavailable, contract.ErrorPayload{
+				Error: "Webhook ingress is unavailable.", Code: ingress.ErrUnavailable.Error(), Retryable: true,
+			})
+			return
+		}
 		h.respondGatewayError(c, err)
 		return
 	}
@@ -59,7 +69,11 @@ func (h *BaseHandlers) BindGatewayIngress(c *gin.Context) {
 	})
 }
 
-func (h *BaseHandlers) UnbindGatewayIngress(c *gin.Context) {
+func (h *BaseHandlers) UnbindGatewayIngress(c *gin.Context) { h.unbindIngress(c, false) }
+
+func (h *BaseHandlers) UnbindIngress(c *gin.Context) { h.unbindIngress(c, true) }
+
+func (h *BaseHandlers) unbindIngress(c *gin.Context, noContent bool) {
 	ref := ingress.SubjectRef{
 		Kind: ingress.SubjectKind(c.Param("subject_kind")),
 		ID:   strings.TrimSpace(c.Param("subject_id")),
@@ -82,6 +96,10 @@ func (h *BaseHandlers) UnbindGatewayIngress(c *gin.Context) {
 	})
 	if err != nil {
 		h.respondGatewayError(c, err)
+		return
+	}
+	if noContent {
+		c.Status(http.StatusNoContent)
 		return
 	}
 	c.JSON(http.StatusOK, GatewayIngressUnbindPayload(result))

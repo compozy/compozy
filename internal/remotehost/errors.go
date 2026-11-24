@@ -37,6 +37,9 @@ var (
 		"Remote access paused: entitlement unavailable.",
 		nil,
 	}
+	ErrHostedUnavailable = &Failure{
+		http.StatusServiceUnavailable, "hosted_route_unavailable", "The hosted route is temporarily unavailable.", nil,
+	}
 	ErrPlanRequired = &Failure{
 		http.StatusPaymentRequired,
 		"plan_required",

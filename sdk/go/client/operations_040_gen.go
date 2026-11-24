@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+// UpdateExtensionParams carries the path, query, and header parameters.
+type UpdateExtensionParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
 // UpdateExtension Update one marketplace-installed extension
 func (c *Client) UpdateExtension(ctx context.Context, params UpdateExtensionParams, body UpdateExtensionRequest) (*ExtensionUpdateResponse, error) {
 	path := "/api/extensions/{name}"
@@ -440,10 +446,4 @@ func (c *Client) UploadSessionAttachment(ctx context.Context, params UploadSessi
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ValidateAgentDefinitionSoulParams carries the path, query, and header parameters.
-type ValidateAgentDefinitionSoulParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
 }
