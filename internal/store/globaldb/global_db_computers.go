@@ -6,15 +6,14 @@ import (
 	"encoding/json/v2"
 	"time"
 
-	"github.com/compozy/compozy/internal/computers"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-var _ computers.Store = (*ComputersRepo)(nil)
+var _ store.ComputerStore = (*ComputersRepo)(nil)
 
-func (r *ComputersRepo) ControllerComputers(ctx context.Context, owner string) (_ []computers.Computer, err error) {
+func (r *ComputersRepo) ControllerComputers(ctx context.Context, owner string) (_ []store.Computer, err error) {
 	tx, err := r.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return nil, err
@@ -29,11 +28,11 @@ func (r *ComputersRepo) ControllerComputers(ctx context.Context, owner string) (
 	if err != nil {
 		return nil, err
 	}
-	byComputer := make(map[string][]computers.Route)
+	byComputer := make(map[string][]store.ComputerRoute)
 	for _, route := range routes {
 		byComputer[route.ComputerID] = append(byComputer[route.ComputerID], computerRouteFromRow(route))
 	}
-	result := make([]computers.Computer, 0, len(rows))
+	result := make([]store.Computer, 0, len(rows))
 	for _, row := range rows {
 		item, err := computerFromRow(row)
 		if err != nil {
@@ -45,8 +44,8 @@ func (r *ComputersRepo) ControllerComputers(ctx context.Context, owner string) (
 	return result, nil
 }
 
-func computerFromRow(row sqlcgen.Computer) (computers.Computer, error) {
-	item := computers.Computer{
+func computerFromRow(row sqlcgen.Computer) (store.Computer, error) {
+	item := store.Computer{
 		ID: remoteproto.ComputerID(row.ID), AccountID: row.AccountID, Name: row.Name, Enabled: row.Enabled != 0,
 		Platform: row.Platform.String, Version: row.Version.String, TLSRootSHA: row.TlsRootSha256,
 		Weight: int(row.Weight),
@@ -54,25 +53,25 @@ func computerFromRow(row sqlcgen.Computer) (computers.Computer, error) {
 	var err error
 	item.AddedAt, err = store.ParseTimestamp(row.AddedAt)
 	if err != nil {
-		return computers.Computer{}, err
+		return store.Computer{}, err
 	}
 	if row.LastConnectedAt.Valid {
 		at, err := store.ParseTimestamp(row.LastConnectedAt.String)
 		if err != nil {
-			return computers.Computer{}, err
+			return store.Computer{}, err
 		}
 		item.LastConnAt = &at
 	}
 	return item, nil
 }
 
-func computerRouteFromRow(row sqlcgen.ComputerRoute) computers.Route {
-	route := computers.Route{
+func computerRouteFromRow(row sqlcgen.ComputerRoute) store.ComputerRoute {
+	route := store.ComputerRoute{
 		ID: row.ID, Kind: remoteproto.RouteKind(row.Kind), Address: row.Address,
 		Position: int(row.Position), Learned: row.Learned != 0,
 	}
 	if route.Kind == remoteproto.RouteSSH {
-		route.SSH = &computers.SSHTarget{
+		route.SSH = &store.ComputerSSHTarget{
 			User:  row.SshUser.String,
 			Port:  int(row.SshPort.Int64),
 			Alias: row.SshAlias.String,
@@ -81,7 +80,7 @@ func computerRouteFromRow(row sqlcgen.ComputerRoute) computers.Route {
 	return route
 }
 
-func (r *ComputersRepo) AddComputer(ctx context.Context, item computers.Computer) error {
+func (r *ComputersRepo) AddComputer(ctx context.Context, item store.Computer) error {
 	return r.executeWriteQuery(ctx, "globaldb.AddComputer", func(ctx context.Context, q *sqlcgen.Queries) error {
 		err := q.AddControllerComputer(ctx, sqlcgen.AddControllerComputerParams{
 			ID: string(item.ID), AccountID: item.AccountID, Name: item.Name,
@@ -102,14 +101,14 @@ func (r *ComputersRepo) AddComputer(ctx context.Context, item computers.Computer
 }
 
 func (r *ComputersRepo) UpdateComputer(
-	ctx context.Context, owner string, id remoteproto.ComputerID, patch computers.Patch,
+	ctx context.Context, owner string, id remoteproto.ComputerID, patch store.ComputerPatch,
 ) error {
 	return r.executeWriteQuery(ctx, "globaldb.UpdateComputer", func(ctx context.Context, q *sqlcgen.Queries) error {
 		count, err := q.UpdateControllerComputer(ctx, sqlcgen.UpdateControllerComputerParams{
 			AccountID: owner, ID: string(id), Name: nullableSessionStringPointer(patch.Name),
 			Enabled: nullableBool(patch.Enabled), Weight: nullableInt(patch.Weight),
 		})
-		return computerRowsChanged(count, err, computers.ErrNotFound)
+		return computerRowsChanged(count, err, store.ErrComputerNotFound)
 	})
 }
 
@@ -118,12 +117,12 @@ func (r *ComputersRepo) RemoveComputer(ctx context.Context, owner string, id rem
 		count, err := q.DeleteControllerComputer(ctx, sqlcgen.DeleteControllerComputerParams{
 			AccountID: owner, ID: string(id),
 		})
-		return computerRowsChanged(count, err, computers.ErrNotFound)
+		return computerRowsChanged(count, err, store.ErrComputerNotFound)
 	})
 }
 
 func (r *ComputersRepo) AddComputerRoute(
-	ctx context.Context, owner string, id remoteproto.ComputerID, route computers.Route,
+	ctx context.Context, owner string, id remoteproto.ComputerID, route store.ComputerRoute,
 ) error {
 	return r.executeWriteQuery(ctx, "globaldb.AddComputerRoute", func(ctx context.Context, q *sqlcgen.Queries) error {
 		return addComputerRoute(ctx, q, owner, id, route)
@@ -131,7 +130,7 @@ func (r *ComputersRepo) AddComputerRoute(
 }
 
 func addComputerRoute(
-	ctx context.Context, q *sqlcgen.Queries, owner string, id remoteproto.ComputerID, route computers.Route,
+	ctx context.Context, q *sqlcgen.Queries, owner string, id remoteproto.ComputerID, route store.ComputerRoute,
 ) error {
 	input := sqlcgen.AddControllerRouteParams{
 		RouteID: route.ID, ComputerID: string(id), AccountID: owner, Kind: string(route.Kind),
@@ -155,7 +154,7 @@ func (r *ComputersRepo) ForgetComputerRoute(
 			count, err := q.ForgetControllerRoute(ctx, sqlcgen.ForgetControllerRouteParams{
 				ComputerID: string(id), AccountID: owner, RouteID: routeID,
 			})
-			return computerRowsChanged(count, err, computers.ErrRouteNotFound)
+			return computerRowsChanged(count, err, store.ErrComputerRouteNotFound)
 		},
 	)
 }
@@ -168,10 +167,10 @@ func computerRowsChanged(count int64, err, notFound error) error {
 }
 
 func (r *ComputersRepo) LearnComputerRoutes(
-	ctx context.Context, owner string, id remoteproto.ComputerID, routes []computers.Route,
-) ([]computers.Route, error) {
+	ctx context.Context, owner string, id remoteproto.ComputerID, routes []store.ComputerRoute,
+) ([]store.ComputerRoute, error) {
 	return executeWriteQueryResult(ctx, r.repoBase, "globaldb.LearnComputerRoutes",
-		func(ctx context.Context, q *sqlcgen.Queries) ([]computers.Route, error) {
+		func(ctx context.Context, q *sqlcgen.Queries) ([]store.ComputerRoute, error) {
 			for _, route := range routes {
 				if err := addComputerRoute(ctx, q, owner, id, route); err != nil {
 					return nil, err
@@ -186,7 +185,7 @@ func (r *ComputersRepo) LearnComputerRoutes(
 			if err != nil {
 				return nil, err
 			}
-			result := make([]computers.Route, 0, len(rows))
+			result := make([]store.ComputerRoute, 0, len(rows))
 			for _, row := range rows {
 				result = append(result, computerRouteFromRow(row))
 			}
@@ -195,7 +194,7 @@ func (r *ComputersRepo) LearnComputerRoutes(
 }
 
 func pruneComputerRoutes(
-	ctx context.Context, q *sqlcgen.Queries, owner string, id remoteproto.ComputerID, routes []computers.Route,
+	ctx context.Context, q *sqlcgen.Queries, owner string, id remoteproto.ComputerID, routes []store.ComputerRoute,
 ) error {
 	for _, kind := range []remoteproto.RouteKind{remoteproto.RouteDirect, remoteproto.RouteCloud} {
 		addresses := make([]string, 0, len(routes))

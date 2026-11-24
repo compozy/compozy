@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp/yamux"
 
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -42,7 +43,7 @@ type tunnel struct {
 
 type connection struct {
 	*tunnel
-	route      Route
+	route      store.ComputerRoute
 	descriptor remoteproto.Descriptor
 	key        crypto.Signer
 	credential string

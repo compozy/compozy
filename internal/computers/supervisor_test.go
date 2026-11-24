@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -45,14 +46,14 @@ func TestRouteSelection(t *testing.T) {
 		hosted := serveProbeTunnel(t, descriptor, pair, clock, true, delayed(20*time.Millisecond))
 		sshAddress := probeURL(t, ssh.URL).Host
 		cloud := &routingCloud{}
-		routes := []Route{
+		routes := []store.ComputerRoute{
 			{ID: "hosted", Kind: remoteproto.RouteCloud, Address: probeURL(t, hosted.URL).Host},
 			{ID: "ssh", Kind: remoteproto.RouteSSH},
 			{ID: "direct", Kind: remoteproto.RouteDirect, Address: probeURL(t, direct.URL).Host},
 		}
-		rows := []Computer{{ID: probeComputer, AccountID: probeAccount, Enabled: true, TLSRootSHA: pin, Routes: routes}}
+		rows := []store.Computer{{ID: probeComputer, AccountID: probeAccount, Enabled: true, TLSRootSHA: pin, Routes: routes}}
 		registry := New(t.Context(), &routingStore{computers: rows}, newRoutingAccount(t), cloud, WithClock(clock),
-			WithSSHForward(func(context.Context, Route) (string, error) { return sshAddress, nil }),
+			WithSSHForward(func(context.Context, store.ComputerRoute) (string, error) { return sshAddress, nil }),
 			func(r *Registry) { r.routeHTTP = testRouteHTTP(hosted.Client()) })
 		t.Cleanup(registry.Close)
 		waitUnitRoute(t, registry, remoteproto.RouteDirect)
@@ -73,9 +74,9 @@ func TestRouteSelection(t *testing.T) {
 		hosted := serveProbeTunnel(t, descriptor, pair, clock, true, func() bool { return true })
 		directURL := probeURL(t, direct.URL)
 		hostedURL := probeURL(t, hosted.URL)
-		rows := []Computer{{
+		rows := []store.Computer{{
 			ID: probeComputer, AccountID: probeAccount, Enabled: true, TLSRootSHA: pin,
-			Routes: []Route{
+			Routes: []store.ComputerRoute{
 				{ID: "direct", Kind: remoteproto.RouteDirect, Address: directURL.Host},
 				{ID: "hosted", Kind: remoteproto.RouteCloud, Address: hostedURL.Host},
 			},
@@ -104,14 +105,14 @@ func TestRouteSelection(t *testing.T) {
 		t.Parallel()
 		// UT-034. A held route cannot enter descriptor preflight.
 		clock := clockwork.NewFakeClock()
-		route := Route{ID: "direct", Kind: remoteproto.RouteDirect, Address: "127.0.0.1:1"}
+		route := store.ComputerRoute{ID: "direct", Kind: remoteproto.RouteDirect, Address: "127.0.0.1:1"}
 		h := routeHealth{}.dropped(clock.Now())
 		clock.Advance(dropWindow - time.Second)
 		h = h.dropped(clock.Now())
 		clock.Advance(holdBack - time.Second)
 		s := supervisor{scope: &registryScope{registry: &Registry{clock: clock}}, ctx: t.Context(),
 			health: map[string]routeHealth{route.ID: h}}
-		probes := s.probe([]Route{route})
+		probes := s.probe([]store.ComputerRoute{route})
 		if !h.heldUntil.Equal(clock.Now().Add(time.Second)) || probes[0].problem.err != nil {
 			t.Fatalf("hold-back did not skip preflight: %v", probes)
 		}
@@ -124,11 +125,11 @@ func TestRouteSelection(t *testing.T) {
 		server := serveProbeTunnel(t, remoteproto.Descriptor{
 			ComputerID: "cmp_other", TLSRootSHA256: pin, Protocol: remoteproto.CurrentProtocol,
 		}, pair, clock, false, func() bool { return true })
-		route := Route{ID: "wrong", Kind: remoteproto.RouteDirect, Address: probeURL(t, server.URL).Host}
+		route := store.ComputerRoute{ID: "wrong", Kind: remoteproto.RouteDirect, Address: probeURL(t, server.URL).Host}
 		cloud := &routingCloud{}
 		s := supervisor{scope: &registryScope{registry: &Registry{clock: clock, cloud: cloud, routeHTTP: routeClient}},
-			ctx: t.Context(), computer: Computer{ID: probeComputer, TLSRootSHA: pin}, errors: make(map[string]string)}
-		link, problem := s.connect(s.probe([]Route{route}))
+			ctx: t.Context(), computer: store.Computer{ID: probeComputer, TLSRootSHA: pin}, errors: make(map[string]string)}
+		link, problem := s.connect(s.probe([]store.ComputerRoute{route}))
 		if link != nil || !errors.Is(problem.err, ErrIdentityMismatch) || cloud.grants.Load() != 0 {
 			t.Fatalf("wrong descriptor admitted: error = %v, grants = %d", problem.err, cloud.grants.Load())
 		}
@@ -176,11 +177,11 @@ func waitUnitRoute(t *testing.T, registry *Registry, kind remoteproto.RouteKind)
 }
 
 type routingStore struct {
-	Store
-	computers []Computer
+	store.ComputerStore
+	computers []store.Computer
 }
 
-func (s *routingStore) ControllerComputers(context.Context, string) ([]Computer, error) {
+func (s *routingStore) ControllerComputers(context.Context, string) ([]store.Computer, error) {
 	return s.computers, nil
 }
 func (*routingStore) RecordComputerConnection(context.Context, string, remoteproto.Descriptor, time.Time) error {

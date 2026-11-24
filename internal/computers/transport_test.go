@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
@@ -49,7 +50,13 @@ func TestTunnelTransport(t *testing.T) {
 		account := newRoutingAccount(t)
 		c := &connection{key: account.key, credential: "fixture-credential", expiresAt: clock.Now().Add(time.Hour)}
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/sessions", nil)
-		for _, header := range localHeaders {
+		headers := []string{
+			"Cookie", "Authorization", "DPoP", ClaimTokenHeader,
+			agentidentity.HeaderSessionID, agentidentity.HeaderAgent,
+			"X-Compozy-Client-Token", "X-Compozy-Client-Workspace",
+			"X-Compozy-Gateway-Session", "X-Compozy-Gateway-Device",
+		}
+		for _, header := range headers {
 			req.Header.Set(header, "local-value")
 		}
 		r := &Registry{clock: clock}
@@ -57,6 +64,11 @@ func TestTunnelTransport(t *testing.T) {
 			t.Fatalf("claim token request = %v", err)
 		}
 		req.Header.Del(ClaimTokenHeader)
+		req.Trailer = http.Header{ClaimTokenHeader: nil}
+		if _, err := r.RoundTrip(t.Context(), probeComputer, req); !errors.Is(err, ErrClaimToken) {
+			t.Fatalf("declared claim token trailer = %v", err)
+		}
+		req.Trailer = nil
 		out, err := c.bridgeRequest(t.Context(), req, r)
 		if err != nil {
 			t.Fatal(err)
@@ -64,7 +76,7 @@ func TestTunnelTransport(t *testing.T) {
 		if out.Host != remoteproto.TunnelHost || out.Header.Get("Authorization") != "CompozyRemote fixture-credential" {
 			t.Fatalf("incorrect tunnel target or authorization header")
 		}
-		for _, header := range localHeaders {
+		for _, header := range headers {
 			if out.Header.Get(header) == "local-value" {
 				t.Fatalf("local header survived the bridge: %s", header)
 			}

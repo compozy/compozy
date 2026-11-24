@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type Status string
@@ -29,51 +30,16 @@ const (
 	PlanLimited   = "limited"
 )
 
-type Computer struct {
-	ID         remoteproto.ComputerID
-	AccountID  string
-	Name       string
-	Enabled    bool
-	Platform   string
-	Version    string
-	TLSRootSHA string
-	Weight     int
-	Routes     []Route
-	AddedAt    time.Time
-	LastConnAt *time.Time
-}
-
-type Route struct {
-	ID       string
-	Kind     remoteproto.RouteKind
-	Address  string
-	Position int
-	Learned  bool
-	SSH      *SSHTarget
-}
-
-type SSHTarget struct {
-	User  string
-	Port  int
-	Alias string
-}
-
-type Patch struct {
-	Name    *string
-	Enabled *bool
-	Weight  *int
-}
-
 type RemoveOptions struct {
 	Unlink    bool
 	Uninstall bool
 }
 
 type View struct {
-	Computer
+	store.Computer
 	Status      Status
 	PlanState   string
-	RouteInUse  *Route
+	RouteInUse  *store.ComputerRoute
 	RouteErrors map[string]string
 	Scopes      []remoteproto.Scope
 	Diagnosis   *Diagnosis
@@ -85,17 +51,6 @@ type Diagnosis struct {
 	Code    string
 	Message string
 	At      time.Time
-}
-
-type Store interface {
-	ControllerComputers(context.Context, string) ([]Computer, error)
-	AddComputer(context.Context, Computer) error
-	UpdateComputer(context.Context, string, remoteproto.ComputerID, Patch) error
-	RemoveComputer(context.Context, string, remoteproto.ComputerID) error
-	AddComputerRoute(context.Context, string, remoteproto.ComputerID, Route) error
-	ForgetComputerRoute(context.Context, string, remoteproto.ComputerID, string) error
-	LearnComputerRoutes(context.Context, string, remoteproto.ComputerID, []Route) ([]Route, error)
-	RecordComputerConnection(context.Context, string, remoteproto.Descriptor, time.Time) error
 }
 
 type Account interface {
@@ -115,7 +70,7 @@ type Cloud interface {
 }
 
 // ForwardResolver returns the loopback socket of an established SSH forward.
-type ForwardResolver func(context.Context, Route) (string, error)
+type ForwardResolver func(context.Context, store.ComputerRoute) (string, error)
 
 type Failure struct {
 	Status  int

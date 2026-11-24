@@ -55,7 +55,8 @@ func TestDaemonComputerJourneys(t *testing.T) {
 			expect(t, http.StatusOK, `"enabled":false`)
 		testutil.Eventually(t, "CLI reports SSH within ten seconds", 10*time.Second, func() bool {
 			row := cliComputerStatus(t)
-			return row.RouteInUse != nil && row.RouteInUse.Kind == remoteproto.RouteSSH
+			return row.RouteInUse != nil && row.RouteInUse.Kind == remoteproto.RouteSSH &&
+				hasCurrentComputerRoute(row.Routes, remoteproto.RouteSSH)
 		})
 		original.cancel()
 		promptFixtureSession(t, host, session, "", computerFixturePrompt)
@@ -198,6 +199,7 @@ func fixturePrompt(message string) contract.SendPromptRequest {
 		Message:        message,
 		MessageID:      "m_remote_fixture",
 		IdempotencyKey: "k_remote_fixture",
+		Runtime:        &contract.PromptRuntimeSelectionPayload{Provider: acpmock.ProviderName},
 	}
 }
 

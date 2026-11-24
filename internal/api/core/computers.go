@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/computers"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type ComputersService interface {
@@ -18,7 +19,7 @@ type ComputersService interface {
 	Available(context.Context) ([]remoteproto.AccountComputer, error)
 	Get(context.Context, remoteproto.ComputerID) (computers.View, error)
 	AddFromAccount(context.Context, remoteproto.ComputerID) (computers.View, error)
-	Update(context.Context, remoteproto.ComputerID, computers.Patch) (computers.View, error)
+	Update(context.Context, remoteproto.ComputerID, store.ComputerPatch) (computers.View, error)
 	Remove(context.Context, remoteproto.ComputerID, computers.RemoveOptions) (string, error)
 	RemoveRoute(context.Context, remoteproto.ComputerID, string) error
 	Subscribe(context.Context, string) (computers.Subscription, error)
@@ -83,7 +84,7 @@ func (h *BaseHandlers) PatchComputer(c *gin.Context) {
 		invalidComputerBody(c)
 		return
 	}
-	view, err := h.Computers.Update(c.Request.Context(), computerID(c), computers.Patch(input))
+	view, err := h.Computers.Update(c.Request.Context(), computerID(c), store.ComputerPatch(input))
 	h.computerResult(c, http.StatusOK, computerDTO(view), err)
 }
 

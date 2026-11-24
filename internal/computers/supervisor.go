@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const reconnectInterval = time.Second
@@ -19,13 +20,13 @@ type supervisor struct {
 	scope    *registryScope
 	ctx      context.Context
 	cancel   context.CancelFunc
-	computer Computer
+	computer store.Computer
 	health   map[string]routeHealth
 	errors   map[string]string
 }
 
 type routeProbe struct {
-	route      Route
+	route      store.ComputerRoute
 	origin     *url.URL
 	descriptor remoteproto.Descriptor
 	problem    routeProblem
@@ -129,7 +130,7 @@ func (s *supervisor) retry(err error) bool {
 	}
 }
 
-func (s *supervisor) probe(routes []Route) []routeProbe {
+func (s *supervisor) probe(routes []store.ComputerRoute) []routeProbe {
 	r := s.scope.registry
 	probes := make([]routeProbe, len(routes))
 	var jobs sync.WaitGroup
@@ -145,7 +146,7 @@ func (s *supervisor) probe(routes []Route) []routeProbe {
 	return probes
 }
 
-func (s *supervisor) preflight(route Route) routeProbe {
+func (s *supervisor) preflight(route store.ComputerRoute) routeProbe {
 	ctx, cancel := context.WithTimeout(s.ctx, probeTimeout)
 	defer cancel()
 	probe := routeProbe{route: route}
@@ -263,7 +264,7 @@ func (s *supervisor) observe(link *connection) (*connection, error) {
 }
 
 func (s *supervisor) betterLink(current *connection) *connection {
-	index := slices.IndexFunc(s.computer.Routes, func(route Route) bool {
+	index := slices.IndexFunc(s.computer.Routes, func(route store.ComputerRoute) bool {
 		return route.ID == current.route.ID
 	})
 	if index <= 0 {

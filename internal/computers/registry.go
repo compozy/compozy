@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type Option func(*Registry)
@@ -24,16 +25,16 @@ func WithSSHForward(resolve ForwardResolver) Option {
 	return func(r *Registry) { r.forward = resolve }
 }
 
-func WithSSHUninstall(uninstall func(context.Context, Route) error) Option {
+func WithSSHUninstall(uninstall func(context.Context, store.ComputerRoute) error) Option {
 	return func(r *Registry) { r.uninstall = uninstall }
 }
 
 type Registry struct {
-	store     Store
+	store     store.ComputerStore
 	account   Account
 	cloud     Cloud
 	forward   ForwardResolver
-	uninstall func(context.Context, Route) error
+	uninstall func(context.Context, store.ComputerRoute) error
 	routeHTTP func(remoteproto.RouteKind) *http.Client
 	clock     clockwork.Clock
 	logger    *slog.Logger
@@ -65,7 +66,7 @@ type registryEntry struct {
 	fault error
 }
 
-func New(ctx context.Context, store Store, accounts Account, cloud Cloud, opts ...Option) *Registry {
+func New(ctx context.Context, store store.ComputerStore, accounts Account, cloud Cloud, opts ...Option) *Registry {
 	// #nosec G118 -- the registry owns cancel until Close.
 	lifetime, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	r := &Registry{
@@ -286,7 +287,7 @@ func (r *Registry) Available(ctx context.Context) ([]remoteproto.AccountComputer
 	}), nil
 }
 
-func initialView(computer Computer, connecting bool) View {
+func initialView(computer store.Computer, connecting bool) View {
 	status := Offline
 	switch {
 	case !computer.Enabled:

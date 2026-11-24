@@ -11,6 +11,11 @@ import (
 
 const ClaimTokenHeader = "X-Compozy-Claim-Token"
 
+func CarriesClaimToken(req *http.Request) bool {
+	_, declared := req.Trailer[ClaimTokenHeader]
+	return declared || len(req.Header.Values(ClaimTokenHeader)) != 0
+}
+
 var localHeaders = []string{
 	"Cookie", "Authorization", "DPoP", ClaimTokenHeader,
 	agentidentity.HeaderSessionID, agentidentity.HeaderAgent,
@@ -21,7 +26,7 @@ var localHeaders = []string{
 func (r *Registry) RoundTrip(
 	ctx context.Context, id remoteproto.ComputerID, req *http.Request,
 ) (*http.Response, error) {
-	if len(req.Header.Values(ClaimTokenHeader)) != 0 || len(req.Trailer.Values(ClaimTokenHeader)) != 0 {
+	if CarriesClaimToken(req) {
 		return nil, ErrClaimToken
 	}
 	s, err := r.current()

@@ -41,8 +41,7 @@ func (h *BaseHandlers) BridgeComputer(c *gin.Context) {
 		return
 	}
 	request := c.Request
-	if len(request.Header.Values(computers.ClaimTokenHeader)) != 0 ||
-		len(request.Trailer.Values(computers.ClaimTokenHeader)) != 0 {
+	if computers.CarriesClaimToken(request) {
 		h.computerResult(c, 0, nil, computers.ErrClaimToken)
 		return
 	}

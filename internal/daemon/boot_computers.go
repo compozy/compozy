@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/compozy/compozy/internal/computers"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func WithComputersOptions(options ...computers.Option) Option {
@@ -11,7 +12,7 @@ func WithComputersOptions(options ...computers.Option) Option {
 }
 
 func (d *Daemon) bootComputers(ctx context.Context, state *bootState, cleanup *bootCleanup) {
-	storage, ok := state.registry.(computers.Store)
+	storage, ok := state.registry.(store.ComputerStore)
 	workers := &state.runtimeWorkers
 	if !ok || workers.account == nil {
 		return

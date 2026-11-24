@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -45,7 +46,7 @@ func routePriority(kind remoteproto.RouteKind) int {
 	}
 }
 
-func compareRoutes(a, b Route) int {
+func compareRoutes(a, b store.ComputerRoute) int {
 	return cmp.Or(
 		cmp.Compare(routePriority(a.Kind), routePriority(b.Kind)),
 		cmp.Compare(a.Position, b.Position),
@@ -53,10 +54,10 @@ func compareRoutes(a, b Route) int {
 	)
 }
 
-func advertisedRoutes(info remoteproto.AccountComputer) []Route {
-	routes := make([]Route, 0, len(info.Endpoints)+1)
+func advertisedRoutes(info remoteproto.AccountComputer) []store.ComputerRoute {
+	routes := make([]store.ComputerRoute, 0, len(info.Endpoints)+1)
 	for _, address := range info.Endpoints {
-		if validSocketAddress(address) && !slices.ContainsFunc(routes, func(route Route) bool {
+		if validSocketAddress(address) && !slices.ContainsFunc(routes, func(route store.ComputerRoute) bool {
 			return route.Address == address
 		}) {
 			routes = append(routes, learnedRoute(remoteproto.RouteDirect, address, len(routes)))
@@ -68,8 +69,8 @@ func advertisedRoutes(info remoteproto.AccountComputer) []Route {
 	return routes
 }
 
-func learnedRoute(kind remoteproto.RouteKind, address string, position int) Route {
-	return Route{ID: "rt_" + rand.Text(), Kind: kind, Address: address, Position: position, Learned: true}
+func learnedRoute(kind remoteproto.RouteKind, address string, position int) store.ComputerRoute {
+	return store.ComputerRoute{ID: "rt_" + rand.Text(), Kind: kind, Address: address, Position: position, Learned: true}
 }
 
 func validSocketAddress(address string) bool {
@@ -81,7 +82,7 @@ func validSocketAddress(address string) bool {
 	return err == nil && port > 0
 }
 
-func (r *Registry) routeOrigin(ctx context.Context, route Route) (*url.URL, error) {
+func (r *Registry) routeOrigin(ctx context.Context, route store.ComputerRoute) (*url.URL, error) {
 	switch route.Kind {
 	case remoteproto.RouteDirect:
 		if validSocketAddress(route.Address) {

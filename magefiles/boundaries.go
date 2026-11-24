@@ -201,6 +201,7 @@ func Boundaries() error {
 		{"internal/computers", "internal/cli"},
 		{"internal/computers", "internal/store/globaldb"},
 		{"internal/remotehost", "internal/computers"},
+		{"internal/store/globaldb", "internal/computers"},
 	}
 	for _, rule := range prefixForbidden {
 		importerDir := rule.importer

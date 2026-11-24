@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/computers"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestControllerComputers(t *testing.T) {
@@ -62,7 +63,7 @@ func TestControllerComputers(t *testing.T) {
 		db := openTestGlobalDB(t)
 		ctx := t.Context()
 		const a, b = "account-a", "account-b"
-		for _, item := range []computers.Computer{
+		for _, item := range []store.Computer{
 			{ID: "cmp_a", AccountID: a, Name: "A", AddedAt: time.Unix(1, 0)},
 			{ID: "cmp_b", AccountID: b, Name: "B", AddedAt: time.Unix(1, 0)},
 		} {
@@ -78,7 +79,7 @@ func TestControllerComputers(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer old.Close()
-		if _, err := registry.Update(ctx, "cmp_a", computers.Patch{Name: new("A edited")}); err != nil {
+		if _, err := registry.Update(ctx, "cmp_a", store.ComputerPatch{Name: new("A edited")}); err != nil {
 			t.Fatal(err)
 		}
 		cursor := (<-old.Events).ID

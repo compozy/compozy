@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
@@ -224,8 +225,8 @@ func expectComputerSessions(t *testing.T, reply authReply, want []string) {
 
 func addFixtureForward(t *testing.T, registry *computers.Registry, id remoteproto.ComputerID) {
 	t.Helper()
-	err := registry.AddSSHRoute(t.Context(), id, computers.Route{
-		Kind: remoteproto.RouteSSH, Address: "fixture@testhost", SSH: &computers.SSHTarget{User: "fixture", Port: 22},
+	err := registry.AddSSHRoute(t.Context(), id, store.ComputerRoute{
+		Kind: remoteproto.RouteSSH, Address: "fixture@testhost", SSH: &store.ComputerSSHTarget{User: "fixture", Port: 22},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -233,5 +234,5 @@ func addFixtureForward(t *testing.T, registry *computers.Registry, id remoteprot
 }
 
 func fixedFixtureForward(address string) computers.ForwardResolver {
-	return func(context.Context, computers.Route) (string, error) { return address, nil }
+	return func(context.Context, store.ComputerRoute) (string, error) { return address, nil }
 }

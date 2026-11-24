@@ -3,12 +3,14 @@ package computers
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -46,7 +48,7 @@ func (r *Registry) AddFromAccount(ctx context.Context, id remoteproto.ComputerID
 		len(routes) == 1 && routes[0].Kind == remoteproto.RouteCloud) {
 		return View{}, ErrPlanRequired
 	}
-	computer := Computer{
+	computer := store.Computer{
 		ID: id, AccountID: s.accountID, Name: info.Name, Enabled: true,
 		Platform: info.Platform, Version: info.Version, TLSRootSHA: info.TLSRootSHA256,
 		Weight: DefaultWeight, Routes: routes, AddedAt: r.clock.Now().UTC(),
@@ -54,7 +56,7 @@ func (r *Registry) AddFromAccount(ctx context.Context, id remoteproto.ComputerID
 	return s.add(ctx, computer, info.Online && len(routes) > 0)
 }
 
-func (s *registryScope) add(ctx context.Context, computer Computer, connecting bool) (View, error) {
+func (s *registryScope) add(ctx context.Context, computer store.Computer, connecting bool) (View, error) {
 	ctx, done := s.operation(ctx)
 	defer done()
 	s.mu.Lock()
@@ -75,7 +77,7 @@ func (s *registryScope) add(ctx context.Context, computer Computer, connecting b
 	return entry.view, nil
 }
 
-func (r *Registry) Update(ctx context.Context, id remoteproto.ComputerID, patch Patch) (View, error) {
+func (r *Registry) Update(ctx context.Context, id remoteproto.ComputerID, patch store.ComputerPatch) (View, error) {
 	if err := validatePatch(&patch); err != nil {
 		return View{}, err
 	}
@@ -92,7 +94,7 @@ func (r *Registry) Update(ctx context.Context, id remoteproto.ComputerID, patch 
 		return View{}, err
 	}
 	if err := r.store.UpdateComputer(ctx, s.accountID, id, patch); err != nil {
-		return View{}, err
+		return View{}, computerStoreFailure(err)
 	}
 	if patch.Name != nil {
 		entry.view.Name = *patch.Name
@@ -108,7 +110,7 @@ func (r *Registry) Update(ctx context.Context, id remoteproto.ComputerID, patch 
 	return entry.view, nil
 }
 
-func validatePatch(patch *Patch) error {
+func validatePatch(patch *store.ComputerPatch) error {
 	if patch.Name != nil {
 		patch.Name = new(strings.TrimSpace(*patch.Name))
 		if *patch.Name == "" || *patch.Name == "local" {
@@ -162,7 +164,7 @@ func (s *registryScope) remove(ctx context.Context, id remoteproto.ComputerID) e
 		return err
 	}
 	if err := s.registry.store.RemoveComputer(ctx, s.accountID, id); err != nil {
-		return err
+		return computerStoreFailure(err)
 	}
 	s.stop(entry)
 	delete(s.entries, id)
@@ -170,11 +172,14 @@ func (s *registryScope) remove(ctx context.Context, id remoteproto.ComputerID) e
 	return nil
 }
 
-func (r *Registry) uninstallRoute(ctx context.Context, routes []Route, requested bool) string {
+func (r *Registry) uninstallRoute(ctx context.Context, routes []store.ComputerRoute, requested bool) string {
 	if !requested {
 		return UninstallSkipped
 	}
-	index := slices.IndexFunc(routes, func(route Route) bool { return route.Kind == remoteproto.RouteSSH })
+	index := slices.IndexFunc(
+		routes,
+		func(route store.ComputerRoute) bool { return route.Kind == remoteproto.RouteSSH },
+	)
 	if index < 0 {
 		return UninstallSkipped
 	}
@@ -198,16 +203,27 @@ func (r *Registry) RemoveRoute(ctx context.Context, id remoteproto.ComputerID, r
 		return err
 	}
 	if err := r.store.ForgetComputerRoute(ctx, s.accountID, id, routeID); err != nil {
-		return err
+		return computerStoreFailure(err)
 	}
-	s.setRoutes(entry, slices.DeleteFunc(slices.Clone(entry.view.Routes), func(route Route) bool {
+	s.setRoutes(entry, slices.DeleteFunc(slices.Clone(entry.view.Routes), func(route store.ComputerRoute) bool {
 		return route.ID == routeID
 	}))
 	return nil
 }
 
+func computerStoreFailure(err error) error {
+	switch {
+	case errors.Is(err, store.ErrComputerNotFound):
+		return ErrNotFound
+	case errors.Is(err, store.ErrComputerRouteNotFound):
+		return ErrRouteNotFound
+	default:
+		return err
+	}
+}
+
 // AddSSHRoute saves an established forward's SSH target in the current account's registry.
-func (r *Registry) AddSSHRoute(ctx context.Context, id remoteproto.ComputerID, route Route) error {
+func (r *Registry) AddSSHRoute(ctx context.Context, id remoteproto.ComputerID, route store.ComputerRoute) error {
 	if route.Kind != remoteproto.RouteSSH || route.SSH == nil || route.Address == "" || route.Learned {
 		return invalidComputerRequest("An SSH target is required.")
 	}
@@ -223,7 +239,7 @@ func (r *Registry) AddSSHRoute(ctx context.Context, id remoteproto.ComputerID, r
 	if err != nil {
 		return err
 	}
-	if slices.ContainsFunc(entry.view.Routes, func(existing Route) bool {
+	if slices.ContainsFunc(entry.view.Routes, func(existing store.ComputerRoute) bool {
 		return existing.Kind == route.Kind && existing.Address == route.Address
 	}) {
 		return nil
@@ -251,9 +267,9 @@ func (s *registryScope) entry(ctx context.Context, id remoteproto.ComputerID) (*
 	return entry, nil
 }
 
-func (s *registryScope) setRoutes(entry *registryEntry, routes []Route) {
+func (s *registryScope) setRoutes(entry *registryEntry, routes []store.ComputerRoute) {
 	slices.SortFunc(routes, compareRoutes)
-	if slices.EqualFunc(entry.view.Routes, routes, func(a, b Route) bool {
+	if slices.EqualFunc(entry.view.Routes, routes, func(a, b store.ComputerRoute) bool {
 		return a.ID == b.ID && a.Kind == b.Kind && a.Address == b.Address && a.Position == b.Position
 	}) {
 		return
