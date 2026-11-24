@@ -46,6 +46,9 @@ import type {
   AmendLoopNodeData,
   AmendLoopNodeErrors,
   AmendLoopNodeResponses,
+  AnswerComputerSetupData,
+  AnswerComputerSetupErrors,
+  AnswerComputerSetupResponses,
   AnswerSessionClarificationData,
   AnswerSessionClarificationErrors,
   AnswerSessionClarificationResponses,
@@ -124,6 +127,9 @@ import type {
   CancelAutomationRunData,
   CancelAutomationRunErrors,
   CancelAutomationRunResponses,
+  CancelComputerSetupData,
+  CancelComputerSetupErrors,
+  CancelComputerSetupResponses,
   CancelLoopNodeData,
   CancelLoopNodeErrors,
   CancelLoopNodeResponses,
@@ -532,6 +538,9 @@ import type {
   GetComputerData,
   GetComputerErrors,
   GetComputerResponses,
+  GetComputerSetupData,
+  GetComputerSetupErrors,
+  GetComputerSetupResponses,
   GetDoctorData,
   GetDoctorErrors,
   GetDoctorResponses,
@@ -954,6 +963,9 @@ import type {
   ListComputersData,
   ListComputersErrors,
   ListComputersResponses,
+  ListComputerSSHHostsData,
+  ListComputerSSHHostsErrors,
+  ListComputerSSHHostsResponses,
   ListExtensionCommandsData,
   ListExtensionCommandsErrors,
   ListExtensionCommandsResponses,
@@ -1659,6 +1671,9 @@ import type {
   StartAgentTaskRunData,
   StartAgentTaskRunErrors,
   StartAgentTaskRunResponses,
+  StartComputerUpdateData,
+  StartComputerUpdateErrors,
+  StartComputerUpdateResponses,
   StartTaskData,
   StartTaskErrors,
   StartTaskResponses,
@@ -4685,7 +4700,7 @@ export class computers extends HeyApiClient {
   }
 
   /**
-   * Add a linked account computer
+   * Add a linked account computer or start SSH setup
    */
   public addAccountComputer<ThrowOnError extends boolean = true>(
     options: Options<AddAccountComputerData, ThrowOnError>
@@ -4725,6 +4740,87 @@ export class computers extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/computers/available",
+      ...options,
+    });
+  }
+
+  /**
+   * Cancel an unlinked SSH setup
+   */
+  public cancelComputerSetup<ThrowOnError extends boolean = true>(
+    options: Options<CancelComputerSetupData, ThrowOnError>
+  ): RequestResult<CancelComputerSetupResponses, CancelComputerSetupErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      CancelComputerSetupResponses,
+      CancelComputerSetupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/setups/{setup_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Read or wait for SSH setup progress
+   */
+  public getComputerSetup<ThrowOnError extends boolean = true>(
+    options: Options<GetComputerSetupData, ThrowOnError>
+  ): RequestResult<GetComputerSetupResponses, GetComputerSetupErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetComputerSetupResponses,
+      GetComputerSetupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/setups/{setup_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Answer an SSH setup prompt
+   */
+  public answerComputerSetup<ThrowOnError extends boolean = true>(
+    options: Options<AnswerComputerSetupData, ThrowOnError>
+  ): RequestResult<AnswerComputerSetupResponses, AnswerComputerSetupErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      AnswerComputerSetupResponses,
+      AnswerComputerSetupErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/setups/{setup_id}/answer",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Discover SSH hosts on the controller
+   */
+  public listComputerSSHHosts<ThrowOnError extends boolean = true>(
+    options?: Options<ListComputerSSHHostsData, ThrowOnError>
+  ): RequestResult<
+    ListComputerSSHHostsResponses,
+    ListComputerSSHHostsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListComputerSSHHostsResponses,
+      ListComputerSSHHostsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/ssh-hosts",
       ...options,
     });
   }
@@ -4801,6 +4897,24 @@ export class computers extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/computers/{id}/routes/{route_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Start an SSH computer update
+   */
+  public startComputerUpdate<ThrowOnError extends boolean = true>(
+    options: Options<StartComputerUpdateData, ThrowOnError>
+  ): RequestResult<StartComputerUpdateResponses, StartComputerUpdateErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      StartComputerUpdateResponses,
+      StartComputerUpdateErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/{id}/update",
       ...options,
     });
   }

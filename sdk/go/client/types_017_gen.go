@@ -7,6 +7,55 @@ import (
 	"time"
 )
 
+// Redaction is a daemon API value.
+type Redaction struct {
+	Path   string     `json:"path"`
+	Reason ReasonCode `json:"reason"`
+	Bytes  int64      `json:"bytes,omitempty"`
+}
+
+// Ref is a daemon API value.
+type Ref struct {
+	ID     string          `json:"id"`
+	Kind   string          `json:"kind,omitempty"`
+	Script string          `json:"script,omitempty"`
+	With   json.RawMessage `json:"with,omitempty"`
+}
+
+// Reference is a daemon API value.
+type Reference struct {
+	ID              string     `json:"id"`
+	Identifier      string     `json:"identifier,omitempty"`
+	Title           string     `json:"title"`
+	Status          TaskStatus `json:"status"`
+	Priority        Priority   `json:"priority,omitempty"`
+	Owner           *Ownership `json:"owner,omitempty"`
+	Scope           TaskScope  `json:"scope"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	LatestEventSeq  int64      `json:"latest_event_seq"`
+	Paused          bool       `json:"paused,omitzero"`
+	EffectivePaused bool       `json:"effective_paused,omitzero"`
+	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
+}
+
+// RejectPolicy is a daemon API value.
+type RejectPolicy struct {
+	Route NodeID `json:"route"`
+}
+
+// ReloadExtensionRequest is a daemon API value.
+type ReloadExtensionRequest struct {
+	GenerationHash       string `json:"generation_hash"`
+	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
+}
+
+// RemoteDevicePatchRequest is a daemon API value.
+type RemoteDevicePatchRequest struct {
+	Scopes     *[]Scope `json:"scopes,omitempty"`
+	Approved   *bool    `json:"approved,omitempty"`
+	ApprovalID string   `json:"approval_id,omitempty"`
+}
+
 // RemoteDeviceResponse is a daemon API value.
 type RemoteDeviceResponse struct {
 	ID              DeviceID   `json:"id"`
@@ -391,58 +440,4 @@ type RetryTaskRunRequest struct {
 type RetryTaskRunResponse struct {
 	PreviousRun TaskRunPayload `json:"previous_run"`
 	Run         TaskRunPayload `json:"run"`
-}
-
-// ReviewContinuation is a daemon API value.
-type ReviewContinuation struct {
-	ReviewID          string   `json:"review_id"`
-	ReviewedRunID     string   `json:"reviewed_run_id"`
-	ReviewRound       int      `json:"review_round"`
-	Outcome           string   `json:"outcome"`
-	Reason            string   `json:"reason"`
-	MissingWork       []string `json:"missing_work"`
-	NextRoundGuidance string   `json:"next_round_guidance"`
-}
-
-// ReviewDecision is a daemon API value.
-type ReviewDecision string
-
-// ReviewPolicy is a daemon API value.
-type ReviewPolicy string
-
-// ReviewProfile is a daemon API value.
-type ReviewProfile struct {
-	AgentName             string               `json:"agent_name,omitempty"`
-	Provider              string               `json:"provider,omitempty"`
-	Model                 string               `json:"model,omitempty"`
-	ReasoningEffort       string               `json:"reasoning_effort,omitempty"`
-	Speed                 Speed                `json:"speed,omitempty"`
-	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
-	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
-	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
-	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
-	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
-}
-
-// ReviewSpec is a daemon API value.
-type ReviewSpec struct {
-	Decisions  []ReviewDecision `json:"decisions,omitempty"`
-	When       string           `json:"when,omitempty"`
-	Prompt     string           `json:"prompt,omitempty"`
-	Responders *ResponderSpec   `json:"responders,omitzero"`
-	OnReject   *RejectPolicy    `json:"on_reject,omitzero"`
-	Expires    *WaitExpiry      `json:"expires,omitzero"`
-}
-
-// Revision is a daemon API value.
-type Revision uint64
-
-// RiskClass is a daemon API value.
-type RiskClass string
-
-// RoleDiagnostic is a daemon API value.
-type RoleDiagnostic struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Agent   string `json:"agent,omitempty"`
 }

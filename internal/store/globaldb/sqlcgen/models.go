@@ -537,16 +537,39 @@ type Computer struct {
 }
 
 type ComputerRoute struct {
-	ID         string         `json:"id"`
-	ComputerID string         `json:"computer_id"`
-	Kind       string         `json:"kind"`
-	Address    string         `json:"address"`
-	Position   int64          `json:"position"`
-	Learned    int64          `json:"learned"`
-	Removed    int64          `json:"removed"`
-	SshUser    sql.NullString `json:"ssh_user"`
-	SshPort    sql.NullInt64  `json:"ssh_port"`
-	SshAlias   sql.NullString `json:"ssh_alias"`
+	ID                string         `json:"id"`
+	ComputerID        string         `json:"computer_id"`
+	Kind              string         `json:"kind"`
+	Address           string         `json:"address"`
+	Position          int64          `json:"position"`
+	Learned           int64          `json:"learned"`
+	Removed           int64          `json:"removed"`
+	SshUser           sql.NullString `json:"ssh_user"`
+	SshPort           sql.NullInt64  `json:"ssh_port"`
+	SshAlias          sql.NullString `json:"ssh_alias"`
+	SshTunnelAddress  sql.NullString `json:"ssh_tunnel_address"`
+	SshServiceWarning sql.NullString `json:"ssh_service_warning"`
+}
+
+type ComputerSshSetup struct {
+	ID                 string `json:"id"`
+	AccountID          string `json:"account_id"`
+	HostKey            string `json:"host_key"`
+	TargetAlias        string `json:"target_alias"`
+	Name               string `json:"name"`
+	Kind               string `json:"kind"`
+	Step               string `json:"step"`
+	ReleaseVersion     string `json:"release_version"`
+	Platform           string `json:"platform"`
+	BinaryPath         string `json:"binary_path"`
+	ServiceWarning     string `json:"service_warning"`
+	ReservationID      string `json:"reservation_id"`
+	LinkTokenRef       string `json:"link_token_ref"`
+	LinkTokenExpiresAt string `json:"link_token_expires_at"`
+	ComputerID         string `json:"computer_id"`
+	ErrorCode          string `json:"error_code"`
+	ErrorDetail        string `json:"error_detail"`
+	UpdatedAt          string `json:"updated_at"`
 }
 
 type ConfigApplyRecord struct {

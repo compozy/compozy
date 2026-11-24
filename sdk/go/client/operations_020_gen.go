@@ -9,6 +9,126 @@ import (
 	"strings"
 )
 
+// ListAutomationRuns List automation runs
+func (c *Client) ListAutomationRuns(ctx context.Context, params ListAutomationRunsParams) (*RunsResponse, error) {
+	path := "/api/automation/runs"
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.JobID != nil {
+		query.Set("job_id", *params.JobID)
+	}
+	if params.TriggerID != nil {
+		query.Set("trigger_id", *params.TriggerID)
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Until != nil {
+		query.Set("until", *params.Until)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RunsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListAutomationSuggestionsParams carries the path, query, and header parameters.
+type ListAutomationSuggestionsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Status      *string `url:"status"`
+}
+
+// ListAutomationSuggestions List consent-first automation suggestions for one workspace
+func (c *Client) ListAutomationSuggestions(ctx context.Context, params ListAutomationSuggestionsParams) (*AutomationSuggestionsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/automation/suggestions"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AutomationSuggestionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListAutomationSuggestionsAggregateParams carries the path, query, and header parameters.
+type ListAutomationSuggestionsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Status        *string   `url:"status"`
+}
+
+// ListAutomationSuggestionsAggregate List consent-first automation suggestions for one workspace
+func (c *Client) ListAutomationSuggestionsAggregate(ctx context.Context, params ListAutomationSuggestionsAggregateParams) (*AutomationSuggestionsResponse, error) {
+	path := "/api/automation/suggestions"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AutomationSuggestionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListAutomationTriggerRunsParams carries the path, query, and header parameters.
+type ListAutomationTriggerRunsParams struct {
+	ID          string  `url:"id"`
+	Status      *string `url:"status"`
+	Since       *string `url:"since"`
+	Until       *string `url:"until"`
+	Cursor      *string `url:"cursor"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ListAutomationTriggerRuns List run history for one automation trigger
 func (c *Client) ListAutomationTriggerRuns(ctx context.Context, params ListAutomationTriggerRunsParams) (*RunsResponse, error) {
 	path := "/api/automation/triggers/{id}/runs"
@@ -191,6 +311,16 @@ func (c *Client) ListCmdPaletteCommands(ctx context.Context, params ListCmdPalet
 	return &out, nil
 }
 
+// ListComputerSSHHosts Discover SSH hosts on the controller
+func (c *Client) ListComputerSSHHosts(ctx context.Context) (*ComputerSSHHostsResponse, error) {
+	path := "/api/computers/ssh-hosts"
+	var out ComputerSSHHostsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListComputers List computers added to this controller
 func (c *Client) ListComputers(ctx context.Context) (*ComputerListResponse, error) {
 	path := "/api/computers"
@@ -299,140 +429,4 @@ func (c *Client) ListExtensionSecrets(ctx context.Context, params ListExtensionS
 type ListExtensionsParams struct {
 	Workspace *string `url:"workspace"`
 	Profile   *string `url:"profile"`
-}
-
-// ListExtensions List installed extensions
-func (c *Client) ListExtensions(ctx context.Context, params ListExtensionsParams) (*ExtensionsResponse, error) {
-	path := "/api/extensions"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListFileEntriesParams carries the path, query, and header parameters.
-type ListFileEntriesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	WorktreeID  *string `url:"worktree_id"`
-	Path        *string `url:"path"`
-	ShowIgnored *bool   `url:"show_ignored"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListFileEntries List project file entries
-func (c *Client) ListFileEntries(ctx context.Context, params ListFileEntriesParams) (*FileEntriesResponse, error) {
-	path := "/api/workspaces/{workspace_id}/files/entries"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.WorktreeID != nil {
-		query.Set("worktree_id", *params.WorktreeID)
-	}
-	if params.Path != nil {
-		query.Set("path", *params.Path)
-	}
-	if params.ShowIgnored != nil {
-		query.Set("show_ignored", strconv.FormatBool(*params.ShowIgnored))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FileEntriesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListGatewayDevices List the operator-global paired device inventory
-func (c *Client) ListGatewayDevices(ctx context.Context) (*GatewayDevicesResponse, error) {
-	path := "/api/gateway/devices"
-	var out GatewayDevicesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListGlobalSessionEventsParams carries the path, query, and header parameters.
-type ListGlobalSessionEventsParams struct {
-	SessionID     string  `url:"session_id"`
-	Since         *string `url:"since"`
-	Limit         *int    `url:"limit"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Type          *string `url:"type"`
-	AgentName     *string `url:"agent_name"`
-	TurnID        *string `url:"turn_id"`
-	Archive       *string `url:"archive"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// ListGlobalSessionEvents List persisted session events for a Global session
-func (c *Client) ListGlobalSessionEvents(ctx context.Context, params ListGlobalSessionEventsParams) (*SessionEventsResponse, error) {
-	path := "/api/sessions/{session_id}/events"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if params.TurnID != nil {
-		query.Set("turn_id", *params.TurnID)
-	}
-	if params.Archive != nil {
-		query.Set("archive", *params.Archive)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionEventsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListGoalTurnsParams carries the path, query, and header parameters.
-type ListGoalTurnsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	Node        *string `url:"node"`
-	Item        *int    `url:"item"`
-	AfterSeq    *int    `url:"after_seq"`
-	Limit       *int    `url:"limit"`
 }

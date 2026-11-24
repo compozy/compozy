@@ -8,6 +8,94 @@ import (
 	"strings"
 )
 
+// UpdateAgentInstance Update instance checks or operator-owned daily spend limits
+func (c *Client) UpdateAgentInstance(ctx context.Context, params UpdateAgentInstanceParams, body AgentInstanceUpdateRequest) (*AgentInstanceResponse, error) {
+	path := "/api/agent-instances/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateAppTokenParams carries the path, query, and header parameters.
+type UpdateAppTokenParams struct {
+	AppTokenID string `url:"app_token_id"`
+}
+
+// UpdateAppToken Change an app token name or replace its origin allowlist Experimental: pin the exact SDK version.
+func (c *Client) UpdateAppToken(ctx context.Context, params UpdateAppTokenParams, body UpdateAppTokenRequest) (*AppTokenResponse, error) {
+	path := "/api/app-tokens/{app_token_id}"
+	path = strings.ReplaceAll(path, "{app_token_id}", url.PathEscape(params.AppTokenID))
+	var out AppTokenResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateAutomationJobParams carries the path, query, and header parameters.
+type UpdateAutomationJobParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// UpdateAutomationJob Update one automation job
+func (c *Client) UpdateAutomationJob(ctx context.Context, params UpdateAutomationJobParams, body UpdateJobRequest) (*JobResponse, error) {
+	path := "/api/automation/jobs/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out JobResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateAutomationTriggerParams carries the path, query, and header parameters.
+type UpdateAutomationTriggerParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// UpdateAutomationTrigger Update one automation trigger
+func (c *Client) UpdateAutomationTrigger(ctx context.Context, params UpdateAutomationTriggerParams, body UpdateTriggerRequest) (*TriggerResponse, error) {
+	path := "/api/automation/triggers/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TriggerResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateExtensionParams carries the path, query, and header parameters.
+type UpdateExtensionParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
 // UpdateExtension Update one marketplace-installed extension
 func (c *Client) UpdateExtension(ctx context.Context, params UpdateExtensionParams, body UpdateExtensionRequest) (*ExtensionUpdateResponse, error) {
 	path := "/api/extensions/{name}"
@@ -355,95 +443,5 @@ func (c *Client) UpdateSettingsWindowManager(ctx context.Context, params UpdateS
 // UpdateTaskParams carries the path, query, and header parameters.
 type UpdateTaskParams struct {
 	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateTask Update one task
-func (c *Client) UpdateTask(ctx context.Context, params UpdateTaskParams, body UpdateTaskRequest) (*TaskResponse, error) {
-	path := "/api/tasks/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateWindowManagerMigrationParams carries the path, query, and header parameters.
-type UpdateWindowManagerMigrationParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UpdateWindowManagerMigration Acknowledge or retry window layout migration
-func (c *Client) UpdateWindowManagerMigration(ctx context.Context, params UpdateWindowManagerMigrationParams, body WindowManagerMigrationRequest) (*MigrationStatus, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/migration"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MigrationStatus
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateWorkspaceParams carries the path, query, and header parameters.
-type UpdateWorkspaceParams struct {
-	ID string `url:"id"`
-}
-
-// UpdateWorkspace Update a registered workspace
-func (c *Client) UpdateWorkspace(ctx context.Context, params UpdateWorkspaceParams, body UpdateWorkspaceRequest) (*WorkspaceResponse, error) {
-	path := "/api/workspaces/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out WorkspaceResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UploadSessionAttachmentParams carries the path, query, and header parameters.
-type UploadSessionAttachmentParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UploadSessionAttachment Upload a session attachment
-func (c *Client) UploadSessionAttachment(ctx context.Context, params UploadSessionAttachmentParams, body *UploadFile) (*SessionAttachmentUploadResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionAttachmentUploadResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "multipart/form-data", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ValidateAgentDefinitionSoulParams carries the path, query, and header parameters.
-type ValidateAgentDefinitionSoulParams struct {
-	Name    string  `url:"name"`
 	Profile *string `url:"profile"`
 }

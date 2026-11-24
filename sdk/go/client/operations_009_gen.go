@@ -10,6 +10,61 @@ import (
 	"strings"
 )
 
+// ForceFailTaskRunParams carries the path, query, and header parameters.
+type ForceFailTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// ForceFailTaskRun Force fail one queued or claimed task run
+func (c *Client) ForceFailTaskRun(ctx context.Context, params ForceFailTaskRunParams, body ForceFailTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/runs/{id}/fail"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ForceReleaseTaskRunParams carries the path, query, and header parameters.
+type ForceReleaseTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// ForceReleaseTaskRun Force release one claimed task run
+func (c *Client) ForceReleaseTaskRun(ctx context.Context, params ForceReleaseTaskRunParams, body ForceReleaseTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/runs/{id}/release"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ForkLoopRunParams carries the path, query, and header parameters.
+type ForkLoopRunParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	Profile     *string `url:"profile"`
+}
+
 // ForkLoopRun Fork a linked Loop run from history
 func (c *Client) ForkLoopRun(ctx context.Context, params ForkLoopRunParams, body ForkLoopRequest) (*ForkLoopResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/fork"
@@ -383,64 +438,6 @@ func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstancePa
 		path += "?" + query.Encode()
 	}
 	var out AgentInstanceResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentInstanceAwayParams carries the path, query, and header parameters.
-type GetAgentInstanceAwayParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetAgentInstanceAway Read the operator's instance away digest
-func (c *Client) GetAgentInstanceAway(ctx context.Context, params GetAgentInstanceAwayParams) (*AgentInstanceAwayResponse, error) {
-	path := "/api/agent-instances/{id}/away"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceAwayResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentInstanceOccurrenceParams carries the path, query, and header parameters.
-type GetAgentInstanceOccurrenceParams struct {
-	ID          string  `url:"id"`
-	Occurrence  string  `url:"occurrence"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetAgentInstanceOccurrence Read an instance check occurrence
-func (c *Client) GetAgentInstanceOccurrence(ctx context.Context, params GetAgentInstanceOccurrenceParams) (*AgentInstanceOccurrenceResponse, error) {
-	path := "/api/agent-instances/{id}/occurrences/{occurrence}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	path = strings.ReplaceAll(path, "{occurrence}", url.PathEscape(params.Occurrence))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceOccurrenceResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

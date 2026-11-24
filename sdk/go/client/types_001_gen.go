@@ -250,8 +250,13 @@ type ActorKind string
 
 // AddComputerRequest is a daemon API value.
 type AddComputerRequest struct {
-	Kind       string     `json:"kind"`
-	ComputerID ComputerID `json:"computer_id"`
+	Kind                 string     `json:"kind"`
+	ComputerID           ComputerID `json:"computer_id,omitempty"`
+	Host                 string     `json:"host,omitempty"`
+	User                 string     `json:"user,omitempty"`
+	Port                 int        `json:"port,omitzero"`
+	Name                 string     `json:"name,omitempty"`
+	TrustHostFingerprint string     `json:"trust_host_fingerprint,omitempty"`
 }
 
 // AddMarketplaceSourceRequest is a daemon API value.
@@ -435,12 +440,4 @@ type AgentFallbackRoutePayload struct {
 	Speed           Speed                               `json:"speed,omitempty"`
 	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
 	Command         string                              `json:"command,omitempty"`
-}
-
-// AgentIdentityPayload is a daemon API value.
-type AgentIdentityPayload struct {
-	SessionID string `json:"session_id"`
-	AgentName string `json:"agent_name"`
-	Provider  string `json:"provider"`
-	Model     string `json:"model,omitempty"`
 }

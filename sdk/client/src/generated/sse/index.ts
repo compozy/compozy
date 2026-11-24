@@ -43,6 +43,7 @@ export type {
   ComputerEvent,
   ComputerRoute,
   ComputerRouteInUse,
+  ComputerSetupPrompt,
   Confirmation,
   CopyEffect,
   DetailBody,

@@ -20,6 +20,14 @@
 
 Verify the gate policy signature against the cloud JWKS. A grace policy applies only before its `until` deadline. For `429 rate_limited` and `503 cloud_unavailable`, honor the `Retry-After` header.
 
+## Set up an SSH computer
+
+Run `compozy computer add ssh <host> --json` to start a setup and get its ID. An operator can use the interactive CLI to confirm a host key, or pass a separately verified fingerprint with `--trust-host-fingerprint`. Read host suggestions from `GET /api/computers/ssh-hosts`.
+
+Inspect `compozy computer setup status <setup_id> --json` or long-poll `GET /api/computers/setups/{setup_id}?wait_ms=30000`. A `trust_host` prompt contains only the host and its fingerprint. For `needs_operator_secret`, direct the operator to the app or `compozy computer setup answer <setup_id>` from a TTY. The operator's password or code goes directly to SSH.
+
+Use `compozy__computer_setup_cancel` with `setup_id`, the CLI `compozy computer setup cancel <setup_id>`, or the matching local DELETE route to release the slot. `computer_setup_linked` means the host already has a link. Manage it through the computer registry. Repeat the add command to resume an interrupted setup. Use `compozy computer update <name|id>` for a managed SSH upgrade.
+
 ## Local account
 
 Use `compozy account login` to sign in through the browser. Show the activation URL and code to the operator and let them approve the grant. Use `compozy account status --json` to read the account, plan usage, and current device. Use `compozy account logout` to end the session on this computer. `compozy account upgrade --annual` opens annual checkout when billing is available.

@@ -1,0 +1,18 @@
+---
+id: RT-computers-ssh-add
+area: RT
+title: Set up a remote computer over SSH
+persona: Iris
+journey: J-operate-remote-computers
+expected: The controller verifies the release and host key, installs a persistent service, and connects over SSH.
+entry_points: compozy computer add ssh, compozy computer setup, compozy service, Settings → Computers
+qa_status: pending
+---
+
+1. Set up a fresh Linux VM with a user systemd session. Add its alias and `StrictHostKeyChecking accept-new` to the controller's SSH config. Record the VM's fingerprint independently.
+2. Start SSH setup and decline the fingerprint. Confirm the setup stops, the Free slot is available, and no runtime or service was written to the VM. Repeat and accept the correct fingerprint. Verify release, install, service, link, and forward progress.
+3. Verify `compozy service status --json` on the VM and `compozy computer status <name> --json` on the controller. Start a remote session. Quit and restart the controller while a turn is running and confirm the final reply appeared on the host.
+4. Interrupt a second setup before linking. Repeat the add command and verify it resumes at the first incomplete step. Cancel it and verify the slot becomes available before another add proceeds.
+5. Rotate a trusted VM host key and verify the controller reports `ssh_host_key_changed`. Confirm the previously trusted key stays pinned.
+
+Walk this scenario after the Remote Computers slices are integrated.

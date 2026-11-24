@@ -106,16 +106,22 @@ type Replica struct {
 
 func StartReplica(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *Replica {
 	t.Helper()
-	return startReplica(t, cfg, register, false)
+	return startReplica(t, cfg, register, false, "")
 }
 
 // StartLocalReplica uses the actual test listener as the issuer and DPoP origin.
 func StartLocalReplica(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *Replica {
 	t.Helper()
-	return startReplica(t, cfg, register, true)
+	return startReplica(t, cfg, register, true, "")
 }
 
-func startReplica(t *testing.T, cfg cloud.Config, register func(*cloud.App), localOrigin bool) *Replica {
+// StartLocalReplicaOn also makes the fixture reachable from a container on the test network.
+func StartLocalReplicaOn(t *testing.T, host string, cfg cloud.Config, register func(*cloud.App)) *Replica {
+	t.Helper()
+	return startReplica(t, cfg, register, true, host)
+}
+
+func startReplica(t *testing.T, cfg cloud.Config, register func(*cloud.App), localOrigin bool, host string) *Replica {
 	t.Helper()
 	if cfg.Keys == nil {
 		var err error
@@ -124,7 +130,7 @@ func startReplica(t *testing.T, cfg cloud.Config, register func(*cloud.App), loc
 			t.Fatal(err)
 		}
 	}
-	server := httptest.NewUnstartedServer(nil)
+	server := fixtureHTTPServer(t, host)
 	t.Cleanup(server.Close)
 	if localOrigin {
 		cfg.Issuer = "http://" + server.Listener.Addr().String()

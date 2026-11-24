@@ -751,12 +751,26 @@
           "computer_id": {
             "type": "string"
           },
+          "host": {
+            "type": "string"
+          },
           "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "trust_host_fingerprint": {
+            "type": "string"
+          },
+          "user": {
             "type": "string"
           }
         },
         "required": [
-          "computer_id",
           "kind"
         ],
         "type": "object"
@@ -6332,6 +6346,9 @@
       },
       "ComputerChange": {
         "properties": {
+          "answered": {
+            "type": "boolean"
+          },
           "computer": {
             "oneOf": [
               {
@@ -6348,8 +6365,43 @@
           "computer_id": {
             "type": "string"
           },
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ErrorPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "prompt": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ComputerSetupPrompt"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "removed": {
             "type": "boolean"
+          },
+          "setup_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "step": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -6463,6 +6515,179 @@
           "id",
           "kind",
           "label"
+        ],
+        "type": "object"
+      },
+      "ComputerSSHHost": {
+        "properties": {
+          "alias": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "alias",
+          "hostname",
+          "port",
+          "source",
+          "user"
+        ],
+        "type": "object"
+      },
+      "ComputerSSHHostsResponse": {
+        "properties": {
+          "hosts": {
+            "items": {
+              "$ref": "#/components/schemas/ComputerSSHHost"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "hosts"
+        ],
+        "type": "object"
+      },
+      "ComputerSetupAnswer": {
+        "properties": {
+          "accept": {
+            "nullable": true,
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "ComputerSetupCanceled": {
+        "properties": {
+          "setup_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "setup_id",
+          "state"
+        ],
+        "type": "object"
+      },
+      "ComputerSetupPrompt": {
+        "properties": {
+          "fingerprint": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "ComputerSetupStarted": {
+        "properties": {
+          "computer_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "setup_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "computer_id",
+          "setup_id"
+        ],
+        "type": "object"
+      },
+      "ComputerSetupStatus": {
+        "properties": {
+          "computer_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ErrorPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "prompt": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ComputerSetupPrompt"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "prompt_kind": {
+            "type": "string"
+          },
+          "setup_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "step": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "computer_id",
+          "error",
+          "prompt",
+          "setup_id",
+          "state",
+          "step"
+        ],
+        "type": "object"
+      },
+      "ComputerUpdateStarted": {
+        "properties": {
+          "setup_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "setup_id"
         ],
         "type": "object"
       },
@@ -45820,6 +46045,9 @@
           "read_only": {
             "type": "boolean"
           },
+          "remote_scope": {
+            "type": "string"
+          },
           "requires_interaction": {
             "type": "boolean"
           },
@@ -67053,6 +67281,16 @@
             },
             "description": "Computer added"
           },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComputerSetupStarted"
+                }
+              }
+            },
+            "description": "SSH setup started"
+          },
           "400": {
             "content": {
               "application/json": {
@@ -67113,6 +67351,16 @@
             },
             "description": "Conflict"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "SSH setup input failed"
+          },
           "429": {
             "content": {
               "application/json": {
@@ -67134,7 +67382,7 @@
             "description": "Service Unavailable"
           }
         },
-        "summary": "Add a linked account computer",
+        "summary": "Add a linked account computer or start SSH setup",
         "tags": [
           "computers"
         ],
@@ -67241,6 +67489,474 @@
           }
         },
         "summary": "List linked computers available to add",
+        "tags": [
+          "computers"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/computers/setups/{setup_id}": {
+      "delete": {
+        "operationId": "cancelComputerSetup",
+        "parameters": [
+          {
+            "description": "SSH setup ID",
+            "in": "path",
+            "name": "setup_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComputerSetupCanceled"
+                }
+              }
+            },
+            "description": "Setup stopped and slot released"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Payment Required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Cancel an unlinked SSH setup",
+        "tags": [
+          "computers"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "get": {
+        "operationId": "getComputerSetup",
+        "parameters": [
+          {
+            "description": "SSH setup ID",
+            "in": "path",
+            "name": "setup_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Wait for up to 30,000 ms",
+            "in": "query",
+            "name": "wait_ms",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComputerSetupStatus"
+                }
+              }
+            },
+            "description": "Current SSH setup status"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Payment Required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Read or wait for SSH setup progress",
+        "tags": [
+          "computers"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/computers/setups/{setup_id}/answer": {
+      "post": {
+        "operationId": "answerComputerSetup",
+        "parameters": [
+          {
+            "description": "SSH setup ID",
+            "in": "path",
+            "name": "setup_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComputerSetupAnswer"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Answer accepted"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Payment Required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Answer an SSH setup prompt",
+        "tags": [
+          "computers"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/computers/ssh-hosts": {
+      "get": {
+        "operationId": "listComputerSSHHosts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComputerSSHHostsResponse"
+                }
+              }
+            },
+            "description": "SSH hosts"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Payment Required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Discover SSH hosts on the controller",
         "tags": [
           "computers"
         ],
@@ -67860,6 +68576,123 @@
           }
         },
         "summary": "Remove a learned route",
+        "tags": [
+          "computers"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/computers/{id}/update": {
+      "post": {
+        "operationId": "startComputerUpdate",
+        "parameters": [
+          {
+            "description": "Computer ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComputerUpdateStarted"
+                }
+              }
+            },
+            "description": "Update setup started"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Payment Required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Start an SSH computer update",
         "tags": [
           "computers"
         ],

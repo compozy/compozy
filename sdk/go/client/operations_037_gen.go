@@ -11,6 +11,83 @@ import (
 	"strings"
 )
 
+// StreamAccountSignInFrame preserves each response payload; select its variant using the event name or HTTP status.
+type StreamAccountSignInFrame struct {
+	Raw json.RawMessage
+}
+
+var _ json.Unmarshaler = (*StreamAccountSignInFrame)(nil)
+
+var _ json.Marshaler = StreamAccountSignInFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *StreamAccountSignInFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f StreamAccountSignInFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+// AsAccountSignInProgress decodes this payload as AccountSignInProgress.
+func (f StreamAccountSignInFrame) AsAccountSignInProgress() (*AccountSignInProgress, error) {
+	var out AccountSignInProgress
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsAccountStatePayload decodes this payload as AccountStatePayload.
+func (f StreamAccountSignInFrame) AsAccountStatePayload() (*AccountStatePayload, error) {
+	var out AccountStatePayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StreamAccountSignIn Stream anonymous sign-in progress
+func (c *Client) StreamAccountSignIn(ctx context.Context) (*Stream[StreamAccountSignInFrame], error) {
+	path := "/api/account/sign-in/events"
+	return newStream[StreamAccountSignInFrame](ctx, c, "GET", path, nil, nil, "streamAccountSignIn")
+}
+
+// StreamCmdPaletteParams carries the path, query, and header parameters.
+type StreamCmdPaletteParams struct {
+	Workspace   string  `url:"workspace"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// StreamCmdPalette Stream command palette catalog invalidations
+func (c *Client) StreamCmdPalette(ctx context.Context, params StreamCmdPaletteParams) (*Stream[CmdPaletteCatalogChangedEvent], error) {
+	path := "/api/cmd-palette/stream"
+	query := url.Values{}
+	query.Set("workspace", params.Workspace)
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[CmdPaletteCatalogChangedEvent](ctx, c, "GET", path, nil, nil, "streamCmdPalette")
+}
+
+// StreamCmdPaletteViewParams carries the path, query, and header parameters.
+type StreamCmdPaletteViewParams struct {
+	ID          string  `url:"id"`
+	Workspace   string  `url:"workspace"`
+	After       *string `url:"after"`
+	StreamEpoch *string `url:"stream_epoch"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // StreamCmdPaletteView Stream declarative command palette view patches
 func (c *Client) StreamCmdPaletteView(ctx context.Context, params StreamCmdPaletteViewParams) (*Stream[CmdPaletteViewPatch], error) {
 	path := "/api/cmd-palette/views/{id}/stream"
@@ -365,74 +442,4 @@ func (f *StreamLoopRunEventsFrame) UnmarshalJSON(data []byte) error {
 // MarshalJSON returns the original event payload.
 func (f StreamLoopRunEventsFrame) MarshalJSON() ([]byte, error) {
 	return json.Marshal(f.Raw)
-}
-
-// AsLoopGenerationStartedRunEventPayload decodes this payload as LoopGenerationStartedRunEventPayload.
-func (f StreamLoopRunEventsFrame) AsLoopGenerationStartedRunEventPayload() (*LoopGenerationStartedRunEventPayload, error) {
-	var out LoopGenerationStartedRunEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsLoopGateVerdictRunEventPayload decodes this payload as LoopGateVerdictRunEventPayload.
-func (f StreamLoopRunEventsFrame) AsLoopGateVerdictRunEventPayload() (*LoopGateVerdictRunEventPayload, error) {
-	var out LoopGateVerdictRunEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsLoopRunEventPayload decodes this payload as LoopRunEventPayload.
-func (f StreamLoopRunEventsFrame) AsLoopRunEventPayload() (*LoopRunEventPayload, error) {
-	var out LoopRunEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamLoopRunEvents Stream Loop run events
-func (c *Client) StreamLoopRunEvents(ctx context.Context, params StreamLoopRunEventsParams) (*Stream[StreamLoopRunEventsFrame], error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/events"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", *params.AfterSequence)
-	}
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[StreamLoopRunEventsFrame](ctx, c, "GET", path, headers, nil, "streamLoopRunEvents")
-}
-
-// StreamProviderUsageParams carries the path, query, and header parameters.
-type StreamProviderUsageParams struct {
-	Profile *string `url:"profile"`
-}
-
-// StreamProviderUsage Stream provider usage invalidations (experimental) Experimental: pin the exact SDK version.
-func (c *Client) StreamProviderUsage(ctx context.Context, params StreamProviderUsageParams) (*Stream[ProviderUsageStreamEvent], error) {
-	path := "/api/provider-usage/stream"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[ProviderUsageStreamEvent](ctx, c, "GET", path, nil, nil, "streamProviderUsage")
 }

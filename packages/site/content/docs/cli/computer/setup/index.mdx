@@ -1,0 +1,42 @@
+---
+title: "compozy computer setup"
+description: "Manage an SSH computer setup"
+---
+
+## compozy computer setup
+
+Manage an SSH computer setup
+
+### Options
+
+```
+  -h, --help   help for setup
+```
+
+### Options inherited from parent commands
+
+```
+      --computer string   Target a computer by name or ID
+      --json              Emit JSON output
+  -o, --output string     Output format: human, json, jsonl, or toon (default "human")
+      --profile string    Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                          | Description                                   |
+| ---------------------------------------------------------------- | --------------------------------------------- |
+| [compozy computer setup answer](/docs/cli/computer/setup/answer) | Answer the current SSH prompt from a terminal |
+| [compozy computer setup cancel](/docs/cli/computer/setup/cancel) | Stop the setup and release its slot           |
+| [compozy computer setup status](/docs/cli/computer/setup/status) | Read the current SSH setup status             |

@@ -31,11 +31,17 @@ UPDATE computers SET last_connected_at = ?, platform = ?, version = ? WHERE acco
 DELETE FROM computers WHERE account_id = ? AND id = ?;
 
 -- name: AddControllerRoute :exec
-INSERT INTO computer_routes (id, computer_id, kind, address, position, learned, ssh_user, ssh_port, ssh_alias)
+INSERT INTO computer_routes (
+    id, computer_id, kind, address, position, learned, ssh_user, ssh_port, ssh_alias,
+    ssh_tunnel_address, ssh_service_warning
+)
 SELECT sqlc.arg(route_id), c.id, sqlc.arg(kind), sqlc.arg(address), sqlc.arg(position), sqlc.arg(learned),
-       sqlc.narg(ssh_user), sqlc.narg(ssh_port), sqlc.narg(ssh_alias)
+       sqlc.narg(ssh_user), sqlc.narg(ssh_port), sqlc.narg(ssh_alias),
+       sqlc.narg(ssh_tunnel_address), sqlc.narg(ssh_service_warning)
 FROM computers c WHERE c.account_id = sqlc.arg(account_id) AND c.id = sqlc.arg(computer_id)
-ON CONFLICT (computer_id, kind, address) DO NOTHING;
+ON CONFLICT (computer_id, kind, address) DO UPDATE SET
+    ssh_tunnel_address = excluded.ssh_tunnel_address, ssh_service_warning = excluded.ssh_service_warning
+WHERE excluded.kind = 'ssh';
 
 -- name: ForgetControllerRoute :execrows
 UPDATE computer_routes SET removed = 1

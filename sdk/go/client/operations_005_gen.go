@@ -9,6 +9,65 @@ import (
 	"strings"
 )
 
+// CreateAgentParams carries the path, query, and header parameters.
+type CreateAgentParams struct {
+	Profile *string `url:"profile"`
+}
+
+// CreateAgent Create a global or workspace-local AGENT.md definition
+func (c *Client) CreateAgent(ctx context.Context, params CreateAgentParams, body CreateAgentRequest) (*AgentResponse, error) {
+	path := "/api/agents"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateAgentInstanceParams carries the path, query, and header parameters.
+type CreateAgentInstanceParams struct {
+	Profile *string `url:"profile"`
+}
+
+// CreateAgentInstance Create an always-on agent instance
+func (c *Client) CreateAgentInstance(ctx context.Context, params CreateAgentInstanceParams, body AgentInstanceCreateRequest) (*AgentInstanceResponse, error) {
+	path := "/api/agent-instances"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateAppToken Create an app token and reveal its bearer secret once Experimental: pin the exact SDK version.
+func (c *Client) CreateAppToken(ctx context.Context, body CreateAppTokenRequest) (*AppTokenIssuedResponse, error) {
+	path := "/api/app-tokens"
+	var out AppTokenIssuedResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateAutomationJobParams carries the path, query, and header parameters.
+type CreateAutomationJobParams struct {
+	Profile *string `url:"profile"`
+}
+
 // CreateAutomationJob Create an automation job
 func (c *Client) CreateAutomationJob(ctx context.Context, params CreateAutomationJobParams, body CreateJobRequest) (*JobResponse, error) {
 	path := "/api/automation/jobs"
@@ -385,62 +444,4 @@ func (c *Client) DeleteAgentHeartbeat(ctx context.Context, params DeleteAgentHea
 type DeleteAgentSoulParams struct {
 	Name    string  `url:"name"`
 	Profile *string `url:"profile"`
-}
-
-// DeleteAgentSoul Delete SOUL.md through managed authoring
-func (c *Client) DeleteAgentSoul(ctx context.Context, params DeleteAgentSoulParams, body AgentSoulDeleteByPathRequest) (*AgentSoulMutationResponse, error) {
-	path := "/api/agents/{name}/soul"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSoulMutationResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteAutomationJobParams carries the path, query, and header parameters.
-type DeleteAutomationJobParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// DeleteAutomationJob Delete one automation job
-func (c *Client) DeleteAutomationJob(ctx context.Context, params DeleteAutomationJobParams) error {
-	path := "/api/automation/jobs/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteAutomationTriggerParams carries the path, query, and header parameters.
-type DeleteAutomationTriggerParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// DeleteAutomationTrigger Delete one automation trigger
-func (c *Client) DeleteAutomationTrigger(ctx context.Context, params DeleteAutomationTriggerParams) error {
-	path := "/api/automation/triggers/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }

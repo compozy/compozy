@@ -24,5 +24,7 @@ CREATE TABLE computer_routes (
     ssh_user TEXT,
     ssh_port INTEGER,
     ssh_alias TEXT,
+    ssh_tunnel_address TEXT,
+    ssh_service_warning TEXT,
     UNIQUE (computer_id, kind, address)
 );

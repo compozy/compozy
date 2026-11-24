@@ -1,9 +1,13 @@
 package builtin
 
-import toolspkg "github.com/compozy/compozy/internal/tools"
+import (
+	"github.com/compozy/compozy/internal/remoteproto"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+)
 
 var singleResultRemoteHost = map[toolspkg.ToolID]SingleResultReason{
-	toolspkg.ToolIDRemoteStatus: SingleResultMinimal,
+	toolspkg.ToolIDRemoteStatus:        SingleResultMinimal,
+	toolspkg.ToolIDComputerSetupCancel: SingleResultMinimal,
 }
 
 func remoteHostDescriptors() []toolspkg.Descriptor {
@@ -14,7 +18,24 @@ func remoteHostDescriptors() []toolspkg.Descriptor {
 		[]string{"remote access", "computer", "listeners"}, []string{"remote status", "is remote access enabled"},
 	)
 	descriptor.OutputSchema = []byte(remoteStatusOutput)
-	return []toolspkg.Descriptor{descriptor}
+	cancel := nativeDescriptor(
+		toolspkg.ToolIDComputerSetupCancel,
+		"computer_setup_cancel",
+		"Cancel computer setup",
+		"Stop an unlinked SSH setup on this controller and release its slot.",
+		`{"type":"object","additionalProperties":false,"required":["setup_id"],"properties":{"setup_id":{"type":"string","minLength":1}}}`,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		nil,
+		[]string{"ssh", "computer", "setup"},
+		[]string{"cancel ssh computer setup", "release free computer slot"},
+	)
+	cancel.ToolExecutionMetadata = &toolspkg.ToolExecutionMetadata{RemoteScope: remoteproto.ScopeAdmin}
+	cancel.OutputSchema = []byte(`{"type":"object","additionalProperties":false,"required":["setup_id","state"],
+		"properties":{"setup_id":{"type":"string"},"state":{"const":"cancelled"}}}`) //nolint:misspell // Public state.
+	return []toolspkg.Descriptor{descriptor, cancel}
 }
 
 const remoteStatusOutput = `{

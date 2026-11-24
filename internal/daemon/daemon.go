@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/computers"
+	"github.com/compozy/compozy/internal/computers/sshsetup"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -216,6 +217,7 @@ type Daemon struct {
 
 	accountOptions         []account.Option
 	computersOptions       []computers.Option
+	sshSetupOptions        sshsetup.Options
 	homePaths              compozyconfig.HomePaths
 	loadConfig             ConfigLoader
 	logger                 *slog.Logger

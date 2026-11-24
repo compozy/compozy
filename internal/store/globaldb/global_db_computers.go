@@ -72,9 +72,11 @@ func computerRouteFromRow(row sqlcgen.ComputerRoute) store.ComputerRoute {
 	}
 	if route.Kind == remoteproto.RouteSSH {
 		route.SSH = &store.ComputerSSHTarget{
-			User:  row.SshUser.String,
-			Port:  int(row.SshPort.Int64),
-			Alias: row.SshAlias.String,
+			User:           row.SshUser.String,
+			Port:           int(row.SshPort.Int64),
+			Alias:          row.SshAlias.String,
+			TunnelAddress:  row.SshTunnelAddress.String,
+			ServiceWarning: row.SshServiceWarning.String,
 		}
 	}
 	return route
@@ -140,6 +142,8 @@ func addComputerRoute(
 		input.SshUser = nullableSessionStringPointer(&ssh.User)
 		input.SshPort = nullableInt(&ssh.Port)
 		input.SshAlias = nullableSessionStringPointer(&ssh.Alias)
+		input.SshTunnelAddress = nullableSessionStringPointer(&ssh.TunnelAddress)
+		input.SshServiceWarning = nullableSessionStringPointer(&ssh.ServiceWarning)
 	}
 	return q.AddControllerRoute(ctx, input)
 }

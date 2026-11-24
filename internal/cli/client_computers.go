@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -26,6 +27,17 @@ type computerCommandClient interface {
 }
 
 var _ computerCommandClient = (*daemonClient)(nil)
+
+type computerSetupClient interface {
+	computerCommandClient
+	StartSSHComputer(context.Context, contract.AddComputerRequest) (contract.ComputerSetupStarted, error)
+	StartComputerUpdate(context.Context, remoteproto.ComputerID) (contract.ComputerUpdateStarted, error)
+	GetComputerSetup(context.Context, string, time.Duration) (contract.ComputerSetupStatus, error)
+	AnswerComputerSetup(context.Context, string, contract.ComputerSetupAnswer) error
+	CancelComputerSetup(context.Context, string) (contract.ComputerSetupCanceled, error)
+}
+
+var _ computerSetupClient = (*daemonClient)(nil)
 
 func computerClientFromDeps(deps commandDeps) (computerCommandClient, error) {
 	home, err := deps.resolveHome()
@@ -94,4 +106,45 @@ func (c *daemonClient) RemoveComputer(
 
 func (c *daemonClient) RemoveComputerRoute(ctx context.Context, id remoteproto.ComputerID, route string) error {
 	return c.doJSON(ctx, http.MethodDelete, computerResourcePath(id)+"/routes/"+url.PathEscape(route), nil, nil, nil)
+}
+
+func (c *daemonClient) StartSSHComputer(
+	ctx context.Context, input contract.AddComputerRequest,
+) (result contract.ComputerSetupStarted, err error) {
+	err = c.doJSON(ctx, http.MethodPost, contract.ComputersPath, nil, input, &result)
+	return result, err
+}
+
+func (c *daemonClient) StartComputerUpdate(
+	ctx context.Context, id remoteproto.ComputerID,
+) (result contract.ComputerUpdateStarted, err error) {
+	err = c.doJSON(ctx, http.MethodPost, computerResourcePath(id)+"/update", nil, nil, &result)
+	return result, err
+}
+
+func (c *daemonClient) GetComputerSetup(
+	ctx context.Context, id string, wait time.Duration,
+) (result contract.ComputerSetupStatus, err error) {
+	ctx, cancel := context.WithTimeout(ctx, wait+10*time.Second)
+	defer cancel()
+	query := url.Values{"wait_ms": {strconv.FormatInt(wait.Milliseconds(), 10)}}
+	err = c.doJSONWithClient(ctx, http.MethodGet, computerSetupPath(id), query, nil, &result, c.streamHTTPClient())
+	return result, err
+}
+
+func (c *daemonClient) AnswerComputerSetup(ctx context.Context, id string, input contract.ComputerSetupAnswer) error {
+	return c.doJSON(ctx, http.MethodPost, computerSetupPath(id)+"/answer", nil, input, nil)
+}
+
+func (c *daemonClient) CancelComputerSetup(
+	ctx context.Context, id string,
+) (result contract.ComputerSetupCanceled, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	err = c.doJSONWithClient(ctx, http.MethodDelete, computerSetupPath(id), nil, nil, &result, c.streamHTTPClient())
+	return result, err
+}
+
+func computerSetupPath(id string) string {
+	return contract.ComputerSetupsPath + "/" + url.PathEscape(id)
 }

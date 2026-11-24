@@ -1,0 +1,27 @@
+---
+title: Add a computer over SSH
+description: Install and link a Linux or macOS computer from a signed-in controller.
+---
+
+Sign in on the controller, then add a Linux or macOS host you can reach with OpenSSH.
+
+```sh
+compozy computer add ssh devbox
+compozy computer status devbox --json
+compozy session list --computer devbox --json
+```
+
+CompozyOS uses your SSH aliases, keys, agent, and jump hosts. The controller reserves an account slot and verifies the release before contacting the target. Confirm its host-key fingerprint when prompted, or provide a fingerprint you verified separately with `--trust-host-fingerprint`. For password or one-time code prompts, use the app or run `compozy computer setup answer <setup_id>` from a terminal.
+
+The setup starts a user service through systemd or launchd. Sessions continue on the host after the controller disconnects. On Linux, when the status reports `linger_off`, run the `sudo loginctl enable-linger <user>` command shown in the diagnosis to keep the service running after logout.
+
+## Resume, cancel, or update
+
+- Repeat `compozy computer add ssh devbox` to resume an interrupted setup. On Free, the controller checks that the slot is available again before continuing.
+- Use `compozy computer setup status <setup_id> --json` to see the current step. Use `compozy computer setup cancel <setup_id>` to stop an unlinked setup and release its slot. Once linked, use `compozy computer remove devbox --unlink` to remove the link.
+- Run `compozy computer update devbox` to install the controller's verified release and restart the SSH computer's service. For a computer without an SSH route, run `compozy update` on that computer.
+- Add `--uninstall` to the remove command to stop and remove the managed service and runtime on the host. Use `compozy service status` or `compozy service uninstall` locally on the host when the controller cannot reach it.
+
+## Use the setup API
+
+Local HTTP and UDS expose `GET /api/computers/ssh-hosts`, `POST /api/computers` with `kind: "ssh"`, and `POST /api/computers/{id}/update`. Use the returned setup ID with `GET /api/computers/setups/{setup_id}?wait_ms=30000` for progress and with `DELETE /api/computers/setups/{setup_id}` to cancel. The controller stream emits `computer.setup` events. Answers go to `POST /api/computers/setups/{setup_id}/answer`.

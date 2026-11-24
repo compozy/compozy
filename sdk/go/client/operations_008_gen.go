@@ -10,6 +10,72 @@ import (
 	"strings"
 )
 
+// DraftAgentInstructions Draft agent instructions without saving a definition
+func (c *Client) DraftAgentInstructions(ctx context.Context, params DraftAgentInstructionsParams, body DraftAgentInstructionsRequest) (*DraftAgentInstructionsResponse, error) {
+	path := "/api/agents/draft-instructions"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out DraftAgentInstructionsResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DrainDaemon Stop admitting new work
+func (c *Client) DrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
+	path := "/api/drain"
+	var out DrainStatusResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DrainScheduler Pause the scheduler and wait for active claims to drain
+func (c *Client) DrainScheduler(ctx context.Context, body SchedulerDrainRequest) (*SchedulerDrainResponse, error) {
+	path := "/api/scheduler/drain"
+	var out SchedulerDrainResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DuplicateAgentParams carries the path, query, and header parameters.
+type DuplicateAgentParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
+// DuplicateAgent Duplicate one effective authored agent definition server-side
+func (c *Client) DuplicateAgent(ctx context.Context, params DuplicateAgentParams, body DuplicateAgentRequest) (*AgentResponse, error) {
+	path := "/api/agents/{name}/duplicate"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// EnableGatewayProviderParams carries the path, query, and header parameters.
+type EnableGatewayProviderParams struct {
+	Name string `url:"name"`
+}
+
 // EnableGatewayProvider Enable one connectivity provider for a gateway tier
 func (c *Client) EnableGatewayProvider(ctx context.Context, params EnableGatewayProviderParams, body GatewayProviderEnableRequest) (*GatewayStatusPayload, error) {
 	path := "/api/gateway/providers/{name}/enable"
@@ -376,59 +442,4 @@ func (c *Client) FindSessionFiles(ctx context.Context, params FindSessionFilesPa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ForceFailTaskRunParams carries the path, query, and header parameters.
-type ForceFailTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ForceFailTaskRun Force fail one queued or claimed task run
-func (c *Client) ForceFailTaskRun(ctx context.Context, params ForceFailTaskRunParams, body ForceFailTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/runs/{id}/fail"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ForceReleaseTaskRunParams carries the path, query, and header parameters.
-type ForceReleaseTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ForceReleaseTaskRun Force release one claimed task run
-func (c *Client) ForceReleaseTaskRun(ctx context.Context, params ForceReleaseTaskRunParams, body ForceReleaseTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/runs/{id}/release"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ForkLoopRunParams carries the path, query, and header parameters.
-type ForkLoopRunParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	Profile     *string `url:"profile"`
 }

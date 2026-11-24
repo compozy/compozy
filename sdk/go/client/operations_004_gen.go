@@ -10,6 +10,65 @@ import (
 	"strings"
 )
 
+// CheckAgentInstance Check an agent instance
+func (c *Client) CheckAgentInstance(ctx context.Context, params CheckAgentInstanceParams, body AgentInstanceCheckRequest) (*AgentInstanceCheckResponse, error) {
+	path := "/api/agent-instances/{id}/check"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceCheckResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CheckSessionMCPParams carries the path, query, and header parameters.
+type CheckSessionMCPParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Name        string  `url:"name"`
+	Owner       *string `url:"owner"`
+	Profile     *string `url:"profile"`
+}
+
+// CheckSessionMCP Retry discovery for one session MCP server without restarting the runtime
+func (c *Client) CheckSessionMCP(ctx context.Context, params CheckSessionMCPParams) (*MCP, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Owner != nil {
+		query.Set("owner", *params.Owner)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MCP
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CheckSettingsMCPServerParams carries the path, query, and header parameters.
+type CheckSettingsMCPServerParams struct {
+	Name        string  `url:"name"`
+	Scope       string  `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	Owner       *string `url:"owner"`
+}
+
 // CheckSettingsMCPServer Retry one scoped MCP server runtime probe
 func (c *Client) CheckSettingsMCPServer(ctx context.Context, params CheckSettingsMCPServerParams) (*SettingsMCPServerItemPayload, error) {
 	path := "/api/settings/mcp-servers/{name}/check"
@@ -384,63 +443,4 @@ func (c *Client) ControlTerminalRecording(ctx context.Context, params ControlTer
 		return nil, err
 	}
 	return &out, nil
-}
-
-// CreateAgentParams carries the path, query, and header parameters.
-type CreateAgentParams struct {
-	Profile *string `url:"profile"`
-}
-
-// CreateAgent Create a global or workspace-local AGENT.md definition
-func (c *Client) CreateAgent(ctx context.Context, params CreateAgentParams, body CreateAgentRequest) (*AgentResponse, error) {
-	path := "/api/agents"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateAgentInstanceParams carries the path, query, and header parameters.
-type CreateAgentInstanceParams struct {
-	Profile *string `url:"profile"`
-}
-
-// CreateAgentInstance Create an always-on agent instance
-func (c *Client) CreateAgentInstance(ctx context.Context, params CreateAgentInstanceParams, body AgentInstanceCreateRequest) (*AgentInstanceResponse, error) {
-	path := "/api/agent-instances"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateAppToken Create an app token and reveal its bearer secret once Experimental: pin the exact SDK version.
-func (c *Client) CreateAppToken(ctx context.Context, body CreateAppTokenRequest) (*AppTokenIssuedResponse, error) {
-	path := "/api/app-tokens"
-	var out AppTokenIssuedResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateAutomationJobParams carries the path, query, and header parameters.
-type CreateAutomationJobParams struct {
-	Profile *string `url:"profile"`
 }
