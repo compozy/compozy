@@ -4,6 +4,27 @@ package client
 
 import "time"
 
+// SettingsHooksExtensionsResponse is a daemon API value.
+type SettingsHooksExtensionsResponse struct {
+	Section         SettingsSectionName                 `json:"section"`
+	Scope           SettingsUserScopeKind               `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind             `json:"available_scopes"`
+	Hooks           []SettingsHookItemPayload           `json:"hooks,omitempty"`
+	Config          SettingsExtensionsConfigPayload     `json:"config"`
+	Installed       []SettingsInstalledExtensionPayload `json:"installed,omitempty"`
+	TransportParity SettingsTransportParityPayload      `json:"transport_parity"`
+}
+
+// SettingsHooksResponse is a daemon API value.
+type SettingsHooksResponse struct {
+	Collection      SettingsCollectionName     `json:"collection"`
+	Scope           SettingsLayeredScopeKind   `json:"scope"`
+	WorkspaceID     string                     `json:"workspace_id,omitempty"`
+	Profile         string                     `json:"profile,omitempty"`
+	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
+	Hooks           []SettingsHookItemPayload  `json:"hooks"`
+}
+
 // SettingsInstalledExtensionPaletteCommandPayload is a daemon API value.
 type SettingsInstalledExtensionPaletteCommandPayload struct {
 	ID             string   `json:"id"`
@@ -425,22 +446,4 @@ type SettingsProviderModelsPayload struct {
 	Curated   []SettingsProviderModelPayload          `json:"curated,omitempty"`
 	Discovery *SettingsProviderModelsDiscoveryPayload `json:"discovery,omitzero"`
 	Reasoning *SettingsProviderReasoningPayload       `json:"reasoning,omitzero"`
-}
-
-// SettingsProviderReasoningPayload is a daemon API value.
-type SettingsProviderReasoningPayload struct {
-	Apply string `json:"apply"`
-}
-
-// SettingsProviderResponse is a daemon API value.
-type SettingsProviderResponse struct {
-	Provider SettingsProviderItemPayload `json:"provider"`
-}
-
-// SettingsProviderSecretWritePayload is a daemon API value.
-type SettingsProviderSecretWritePayload struct {
-	Name      string `json:"name,omitempty"`
-	SecretRef string `json:"secret_ref"`
-	Kind      string `json:"kind,omitempty"`
-	Value     string `json:"value"`
 }

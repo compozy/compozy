@@ -67,6 +67,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	))
 	addNativeToolBindings(bindings, n.observeToolBindings(availability.observe))
 	addNativeToolBindings(bindings, n.gatewayToolBindings(availability.gateway))
+	addNativeToolBindings(bindings, n.remoteHostBindings())
 	addNativeToolBindings(bindings, n.taskToolBindings(availability.tasks))
 	addNativeToolBindings(bindings, n.autonomyToolBindings(availability.tasks))
 	addNativeToolBindings(bindings, n.configToolBindings(availability.config))

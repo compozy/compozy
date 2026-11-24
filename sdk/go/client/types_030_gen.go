@@ -7,6 +7,51 @@ import (
 	"time"
 )
 
+// ToolApprovalStatusResponse is a daemon API value.
+type ToolApprovalStatusResponse struct {
+	ApprovalStatus  ApprovalOutcome         `json:"approval_status"`
+	ExecutionStatus ApprovalExecutionStatus `json:"execution_status,omitempty"`
+	Result          json.RawMessage         `json:"result,omitempty"`
+	Error           json.RawMessage         `json:"error,omitempty"`
+	ExpiresAt       *time.Time              `json:"expires_at,omitempty"`
+}
+
+// ToolArtifactPageResponse is a daemon API value.
+type ToolArtifactPageResponse struct {
+	Artifact   ArtifactRef `json:"artifact"`
+	Offset     int64       `json:"offset"`
+	Bytes      int64       `json:"bytes"`
+	TotalBytes int64       `json:"total_bytes"`
+	DataBase64 string      `json:"data_base64"`
+	NextOffset int64       `json:"next_offset"`
+	EOF        bool        `json:"eof"`
+}
+
+// ToolAvailabilityPayload is a daemon API value.
+type ToolAvailabilityPayload struct {
+	Registered  bool         `json:"registered"`
+	Enabled     bool         `json:"enabled"`
+	Available   bool         `json:"available"`
+	Authorized  bool         `json:"authorized"`
+	Executable  bool         `json:"executable"`
+	Conflicted  bool         `json:"conflicted"`
+	ReasonCodes []ReasonCode `json:"reason_codes,omitempty"`
+}
+
+// ToolBackendRefPayload is a daemon API value.
+type ToolBackendRefPayload struct {
+	Kind                 BackendKind `json:"kind"`
+	ExtensionID          string      `json:"extension_id,omitempty"`
+	Handler              string      `json:"handler,omitempty"`
+	MCPServer            string      `json:"mcp_server,omitempty"`
+	MCPTool              string      `json:"mcp_tool,omitempty"`
+	NativeName           string      `json:"native_name,omitempty"`
+	RequiresCapabilities []string    `json:"requires_capabilities,omitempty"`
+}
+
+// ToolCallEventKind is a daemon API value.
+type ToolCallEventKind string
+
 // ToolCallEventPayload is a daemon API value.
 type ToolCallEventPayload struct {
 	Kind                 ToolCallEventKind `json:"kind"`
@@ -401,49 +446,4 @@ type UpdateProfileRequest struct {
 	Color *string `json:"color,omitzero"`
 	Icon  *string `json:"icon,omitzero"`
 	Emoji *string `json:"emoji,omitzero"`
-}
-
-// UpdateSettingsAttentionPayload is a daemon API value.
-type UpdateSettingsAttentionPayload struct {
-	Toasts          bool      `json:"toasts"`
-	Sound           bool      `json:"sound"`
-	System          bool      `json:"system"`
-	MutedWorkspaces *[]string `json:"muted_workspaces,omitzero"`
-}
-
-// UpdateSettingsAttentionRequest is a daemon API value.
-type UpdateSettingsAttentionRequest struct {
-	Config UpdateSettingsAttentionPayload `json:"config"`
-}
-
-// UpdateSettingsAutomationRequest is a daemon API value.
-type UpdateSettingsAutomationRequest struct {
-	Config SettingsAutomationConfigPayload `json:"config"`
-}
-
-// UpdateSettingsCmdPaletteRequest is a daemon API value.
-type UpdateSettingsCmdPaletteRequest struct {
-	FallbackAgentEnabled *bool              `json:"fallback_agent_enabled,omitzero"`
-	Personalization      *bool              `json:"personalization,omitzero"`
-	Aliases              *map[string]string `json:"aliases,omitzero"`
-}
-
-// UpdateSettingsGeneralRequest is a daemon API value.
-type UpdateSettingsGeneralRequest struct {
-	Config SettingsGeneralConfigPayload `json:"config"`
-}
-
-// UpdateSettingsHooksExtensionsRequest is a daemon API value.
-type UpdateSettingsHooksExtensionsRequest struct {
-	Config SettingsExtensionsConfigPayload `json:"config"`
-}
-
-// UpdateSettingsMarketplaceRequest is a daemon API value.
-type UpdateSettingsMarketplaceRequest struct {
-	Config SettingsMarketplaceCatalogPayload `json:"config"`
-}
-
-// UpdateSettingsObservabilityRequest is a daemon API value.
-type UpdateSettingsObservabilityRequest struct {
-	Config SettingsObservabilityConfigPayload `json:"config"`
 }

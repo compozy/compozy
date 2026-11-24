@@ -39,6 +39,7 @@ func CloneConfig(source *Config) Config {
 		source.Gateway.Connections...,
 	)
 	cloned.Loops = cloneLoopsConfig(&source.Loops)
+	cloned.Remote = source.Remote.Clone()
 	cloned.Hooks.Declarations = cloneHookDecls(source.Hooks.Declarations)
 	return cloned
 }

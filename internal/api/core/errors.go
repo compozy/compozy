@@ -74,6 +74,17 @@ var ErrRequestBodyTooLarge = errors.New("request body too large")
 
 // RespondError writes a transport error response, optionally masking internal error details.
 func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool) {
+	if c.Request != nil {
+		ctx := c.Request.Context()
+		if _, ok := remotehost.PrincipalFromContext(ctx); ok {
+			err = remoteRequestError(ctx, err)
+			if errors.Is(err, remotehost.ErrDeviceRevoked) || errors.Is(err, remotehost.ErrEntitlement) ||
+				errors.Is(err, remotehost.ErrPlanRequired) || errors.Is(err, remotehost.ErrSessionExpired) {
+				RespondRemoteError(c, err)
+				return
+			}
+		}
+	}
 	status, err = requestErrorStatus(c, status, err)
 	if c.Request != nil {
 		if _, ok := AppTokenFromContext(c.Request.Context()); ok && errors.Is(err, remotehost.ErrDeviceRevoked) {

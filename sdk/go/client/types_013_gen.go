@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// LoopRuntimeValidationItemPayload is a daemon API value.
+type LoopRuntimeValidationItemPayload struct {
+	TaskID string `json:"task_id,omitempty"`
+	Field  string `json:"field"`
+	Value  string `json:"value"`
+	Reason string `json:"reason"`
+}
+
+// LoopSource is a daemon API value.
+type LoopSource string
+
 // LoopStartBinding is a daemon API value.
 type LoopStartBinding struct {
 	Kind         string            `json:"kind"`
@@ -422,28 +433,4 @@ type ModelCatalogSourceRefPayload struct {
 	RefreshedAt string `json:"refreshed_at,omitempty"`
 	Stale       bool   `json:"stale"`
 	LastError   string `json:"last_error,omitempty"`
-}
-
-// ModelCatalogSourceStatusPayload is a daemon API value.
-type ModelCatalogSourceStatusPayload struct {
-	FailureReason string `json:"failure_reason,omitempty"`
-	SourceID      string `json:"source_id"`
-	SourceKind    string `json:"source_kind"`
-	ProviderID    string `json:"provider_id"`
-	Priority      int    `json:"priority"`
-	LastRefresh   string `json:"last_refresh,omitempty"`
-	NextRefresh   string `json:"next_refresh,omitempty"`
-	LastSuccess   string `json:"last_success,omitempty"`
-	LastError     string `json:"last_error,omitempty"`
-	RefreshState  string `json:"refresh_state"`
-	RowCount      int    `json:"row_count"`
-	Stale         bool   `json:"stale"`
-}
-
-// ModelScope is a daemon API value.
-type ModelScope string
-
-// MoveSessionRequest is a daemon API value.
-type MoveSessionRequest struct {
-	FolderID string `json:"folder_id,omitempty"`
 }

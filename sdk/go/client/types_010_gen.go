@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// HeartbeatScriptApprovalPayload is a daemon API value.
+type HeartbeatScriptApprovalPayload struct {
+	Script     string    `json:"script"`
+	SHA256     string    `json:"sha256"`
+	ApprovedAt time.Time `json:"approved_at"`
+}
+
+// HeartbeatScriptApprovalRequest is a daemon API value.
+type HeartbeatScriptApprovalRequest struct {
+	SHA256 string `json:"sha256"`
+}
+
 // HeartbeatSourceCatalogPayload is a daemon API value.
 type HeartbeatSourceCatalogPayload struct {
 	Agent          string                         `json:"agent"`
@@ -235,6 +247,13 @@ type HookRunsResponse struct {
 	Runs []HookRunPayload `json:"runs"`
 }
 
+// HostedStatus is a daemon API value.
+type HostedStatus struct {
+	Enabled  bool    `json:"enabled"`
+	State    string  `json:"state"`
+	Hostname *string `json:"hostname"`
+}
+
 // Image is a daemon API value.
 type Image struct {
 	URL   string `json:"url,omitempty"`
@@ -427,13 +446,3 @@ type LoopAnnotationPayload struct {
 type LoopAnnotationsResponse struct {
 	Annotations []LoopAnnotationPayload `json:"annotations"`
 }
-
-// LoopBudget is a daemon API value.
-type LoopBudget struct {
-	Tokens       int                `json:"tokens"`
-	WallClockSec int                `json:"wall_clock_sec"`
-	OnExceeded   LoopBudgetExceeded `json:"on_exceeded,omitempty"`
-}
-
-// LoopBudgetExceeded is a daemon API value.
-type LoopBudgetExceeded string

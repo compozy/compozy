@@ -340,6 +340,12 @@ type DiagnosticItem struct {
 	Evidence         map[string]any `json:"evidence,omitempty"`
 }
 
+// DirectStatus is a daemon API value.
+type DirectStatus struct {
+	Enabled   bool     `json:"enabled"`
+	Addresses []string `json:"addresses,omitempty"`
+}
+
 // DiscoveredWorktreePayload is a daemon API value.
 type DiscoveredWorktreePayload struct {
 	Name        string `json:"name"`
@@ -437,13 +443,4 @@ type DuplicateAgentOverrides struct {
 	CategoryPath      []string                            `json:"category_path,omitempty"`
 	Skills            *CreateAgentSkillsConfig            `json:"skills,omitzero"`
 	Prompt            string                              `json:"prompt,omitempty"`
-}
-
-// DuplicateAgentRequest is a daemon API value.
-type DuplicateAgentRequest struct {
-	Kind      string                   `json:"kind,omitempty"`
-	Name      string                   `json:"name"`
-	Scope     AgentCreateScope         `json:"scope,omitempty"`
-	Workspace string                   `json:"workspace,omitempty"`
-	Overrides *DuplicateAgentOverrides `json:"overrides,omitzero"`
 }

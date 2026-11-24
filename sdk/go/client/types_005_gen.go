@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// CheckInToolCall is a daemon API value.
+type CheckInToolCall struct {
+	Seq         int64  `json:"seq"`
+	ToolID      string `json:"tool_id"`
+	Backend     string `json:"backend"`
+	MCPServer   string `json:"mcp_server,omitempty"`
+	Access      string `json:"access"`
+	Decision    string `json:"decision"`
+	DenyReason  string `json:"deny_reason,omitempty"`
+	Outcome     string `json:"outcome"`
+	Effect      string `json:"effect"`
+	ErrorCode   string `json:"error_code,omitempty"`
+	ArgsPreview string `json:"args_preview,omitempty"`
+	DurationMS  int64  `json:"duration_ms"`
+}
+
 // CheckInToolSummary is a daemon API value.
 type CheckInToolSummary struct {
 	Total       int64 `json:"total"`

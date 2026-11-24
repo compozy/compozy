@@ -9,6 +9,246 @@ import (
 	"strings"
 )
 
+// PutLoopInputDefaults Replace one scoped Loop input-default table
+func (c *Client) PutLoopInputDefaults(ctx context.Context, params PutLoopInputDefaultsParams, body PutLoopInputDefaultsRequest) (*LoopInputDefaultsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out LoopInputDefaultsResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutProfileSelection Remember a profile selection
+func (c *Client) PutProfileSelection(ctx context.Context, body ProfileSelection) (*ProfileSelection, error) {
+	path := "/api/profiles/selection"
+	var out ProfileSelection
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutResourceParams carries the path, query, and header parameters.
+type PutResourceParams struct {
+	Kind string `url:"kind"`
+	ID   string `url:"id"`
+}
+
+// PutResource Create or replace one desired-state resource on the local operator control plane
+func (c *Client) PutResource(ctx context.Context, params PutResourceParams, body PutResourceRequest) (*ResourceResponse, error) {
+	path := "/api/resources/{kind}/{id}"
+	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out ResourceResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutSettingsHookParams carries the path, query, and header parameters.
+type PutSettingsHookParams struct {
+	Name        string  `url:"name"`
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// PutSettingsHook Create or replace one settings-backed hook declaration
+func (c *Client) PutSettingsHook(ctx context.Context, params PutSettingsHookParams, body PutSettingsHookRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/hooks/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutSettingsMCPApprovalParams carries the path, query, and header parameters.
+type PutSettingsMCPApprovalParams struct {
+	Name string `url:"name"`
+}
+
+// PutSettingsMCPApproval Approve an exact workspace MCP definition
+func (c *Client) PutSettingsMCPApproval(ctx context.Context, params PutSettingsMCPApprovalParams, body SettingsMCPApprovalRequest) (*SettingsMCPApprovalResponse, error) {
+	path := "/api/settings/mcp-servers/{name}/approval"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out SettingsMCPApprovalResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutSettingsMCPServerParams carries the path, query, and header parameters.
+type PutSettingsMCPServerParams struct {
+	Name        string  `url:"name"`
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	Owner       *string `url:"owner"`
+	Target      *string `url:"target"`
+}
+
+// PutSettingsMCPServer Replace a manual MCP server or its extension override
+func (c *Client) PutSettingsMCPServer(ctx context.Context, params PutSettingsMCPServerParams, body PutSettingsMCPServerRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/mcp-servers/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Owner != nil {
+		query.Set("owner", *params.Owner)
+	}
+	if params.Target != nil {
+		query.Set("target", *params.Target)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutSettingsProviderParams carries the path, query, and header parameters.
+type PutSettingsProviderParams struct {
+	Name string `url:"name"`
+}
+
+// PutSettingsProvider Create or replace one settings-backed provider overlay
+func (c *Client) PutSettingsProvider(ctx context.Context, params PutSettingsProviderParams, body PutSettingsProviderRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/providers/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutVaultSecret Create or update one write-only vault secret
+func (c *Client) PutVaultSecret(ctx context.Context, body PutVaultSecretRequest) (*VaultSecretResponse, error) {
+	path := "/api/vault/secrets"
+	var out VaultSecretResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutWindowManagerLayoutProfileParams carries the path, query, and header parameters.
+type PutWindowManagerLayoutProfileParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ProfileID   string  `url:"profile_id"`
+	Profile     *string `url:"profile"`
+}
+
+// PutWindowManagerLayoutProfile Create or replace one workspace-visible layout profile
+func (c *Client) PutWindowManagerLayoutProfile(ctx context.Context, params PutWindowManagerLayoutProfileParams, body PutResourceRequest) (*ResourceResponse, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{profile_id}", url.PathEscape(params.ProfileID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ResourceResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// QueryTerminalJournalParams carries the path, query, and header parameters.
+type QueryTerminalJournalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Actor       *string `url:"actor"`
+	Since       *string `url:"since"`
+	Failed      *bool   `url:"failed"`
+	TerminalID  *string `url:"terminal_id"`
+	Limit       *int    `url:"limit"`
+	Cursor      *string `url:"cursor"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// QueryTerminalJournal Query terminal command history
+func (c *Client) QueryTerminalJournal(ctx context.Context, params QueryTerminalJournalParams) (*TerminalJournalResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/journal"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Actor != nil {
+		query.Set("actor", *params.Actor)
+	}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Failed != nil {
+		query.Set("failed", strconv.FormatBool(*params.Failed))
+	}
+	if params.TerminalID != nil {
+		query.Set("terminal_id", *params.TerminalID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalJournalResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReadFileBytesParams carries the path, query, and header parameters.
+type ReadFileBytesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Path        string  `url:"path"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ReadFileBytes Stream project file bytes
 func (c *Client) ReadFileBytes(ctx context.Context, params ReadFileBytesParams) (*[]byte, error) {
 	path := "/api/workspaces/{workspace_id}/files/raw/{path}"
@@ -203,241 +443,4 @@ func (c *Client) ReadTaskRunResult(ctx context.Context, params ReadTaskRunResult
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ReadTerminalParams carries the path, query, and header parameters.
-type ReadTerminalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	View        *string `url:"view"`
-	MaxBytes    *int    `url:"max_bytes"`
-	Grep        *string `url:"grep"`
-	SinceSeq    *string `url:"since_seq"`
-	From        *int    `url:"from"`
-	To          *int    `url:"to"`
-	Profile     *string `url:"profile"`
-}
-
-// ReadTerminal Read bounded untrusted terminal output
-func (c *Client) ReadTerminal(ctx context.Context, params ReadTerminalParams) (*TerminalReadResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}/read"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.View != nil {
-		query.Set("view", *params.View)
-	}
-	if params.MaxBytes != nil {
-		query.Set("max_bytes", strconv.Itoa(*params.MaxBytes))
-	}
-	if params.Grep != nil {
-		query.Set("grep", *params.Grep)
-	}
-	if params.SinceSeq != nil {
-		query.Set("since_seq", *params.SinceSeq)
-	}
-	if params.From != nil {
-		query.Set("from", strconv.Itoa(*params.From))
-	}
-	if params.To != nil {
-		query.Set("to", strconv.Itoa(*params.To))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalReadResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadToolArtifactParams carries the path, query, and header parameters.
-type ReadToolArtifactParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ArtifactID  string  `url:"artifact_id"`
-	Offset      *int64  `url:"offset"`
-	Limit       *int64  `url:"limit"`
-	Profile     *string `url:"profile"`
-}
-
-// ReadToolArtifact Read one retained oversized tool-result page
-func (c *Client) ReadToolArtifact(ctx context.Context, params ReadToolArtifactParams) (*ToolArtifactPageResponse, error) {
-	path := "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{artifact_id}", url.PathEscape(params.ArtifactID))
-	query := url.Values{}
-	if params.Offset != nil {
-		query.Set("offset", strconv.FormatInt(*params.Offset, 10))
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.FormatInt(*params.Limit, 10))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolArtifactPageResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReadWorktreeFileBytesParams carries the path, query, and header parameters.
-type ReadWorktreeFileBytesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	WorktreeID  string  `url:"worktree_id"`
-	Path        string  `url:"path"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ReadWorktreeFileBytes Stream worktree file bytes
-func (c *Client) ReadWorktreeFileBytes(ctx context.Context, params ReadWorktreeFileBytesParams) (*[]byte, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/files/raw/{path}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	path = strings.ReplaceAll(path, "{path}", url.PathEscape(params.Path))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out []byte
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RecordCmdPaletteUsageParams carries the path, query, and header parameters.
-type RecordCmdPaletteUsageParams struct {
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// RecordCmdPaletteUsage Record command palette usage
-func (c *Client) RecordCmdPaletteUsage(ctx context.Context, params RecordCmdPaletteUsageParams, body CmdPaletteUsageRequest) error {
-	path := "/api/cmd-palette/usage"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
-}
-
-// RecoverTaskParams carries the path, query, and header parameters.
-type RecoverTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// RecoverTask Recover one task from needs_attention
-func (c *Client) RecoverTask(ctx context.Context, params RecoverTaskParams, body RecoverTaskRequest) (*TaskResponse, error) {
-	path := "/api/tasks/{id}/recover"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RecoverTaskRunParams carries the path, query, and header parameters.
-type RecoverTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// RecoverTaskRun Recover one needs_attention task run
-func (c *Client) RecoverTaskRun(ctx context.Context, params RecoverTaskRunParams, body RecoverTaskRunRequest) (*RetryTaskRunResponse, error) {
-	path := "/api/runs/{id}/recover"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RetryTaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RedeemGatewayPairing Redeem a one-time gateway pairing artifact
-func (c *Client) RedeemGatewayPairing(ctx context.Context, body GatewayPairingRedeemRequest) (*GatewayIssuedCredentialPayload, error) {
-	path := "/api/gateway/pairings/redeem"
-	var out GatewayIssuedCredentialPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshMarketplaceCatalog Refresh the extension catalog
-func (c *Client) RefreshMarketplaceCatalog(ctx context.Context) (*MarketplaceRefreshResponse, error) {
-	path := "/api/marketplace/refresh"
-	var out MarketplaceRefreshResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshMarketplaceSourceParams carries the path, query, and header parameters.
-type RefreshMarketplaceSourceParams struct {
-	Name string `url:"name"`
-}
-
-// RefreshMarketplaceSource Refresh one enabled marketplace source Experimental: pin the exact SDK version.
-func (c *Client) RefreshMarketplaceSource(ctx context.Context, params RefreshMarketplaceSourceParams) (*MarketplaceSourceResponse, error) {
-	path := "/api/marketplace/sources/{name}/refresh"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out MarketplaceSourceResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshProviderModels Refresh provider model catalog sources across providers
-func (c *Client) RefreshProviderModels(ctx context.Context, body ProviderModelRefreshRequest) (*ProviderModelRefreshResponse, error) {
-	path := "/api/model-catalog/models/refresh"
-	var out ProviderModelRefreshResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshProviderModelsByProviderParams carries the path, query, and header parameters.
-type RefreshProviderModelsByProviderParams struct {
-	ProviderID string `url:"provider_id"`
 }

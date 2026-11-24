@@ -53,7 +53,7 @@ func (s *Server) handlerDependencies() *handlerConfig {
 		agentSync:             s.agentSync,
 		contextWindowResolver: s.contextWindowResolver,
 		modelCatalog:          s.modelCatalog,
-		account:               s.account,
+		account:               s.account, remote: s.remote,
 		providerUsage:         s.providerUsage,
 		marketplaceCatalog:    s.marketplaceCatalog,
 		agentContext:          s.agentContext,

@@ -76,6 +76,7 @@ type handlerConfig struct {
 	contextWindowResolver core.ContextWindowResolver
 	modelCatalog          core.ModelCatalogService
 	account               core.AccountService
+	remote                core.RemoteHostService
 	providerUsage         core.ProviderUsageService
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService
@@ -282,6 +283,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		ContextWindowResolver:  cfg.contextWindowResolver,
 		ModelCatalog:           cfg.modelCatalog,
 		Account:                cfg.account,
+		Remote:                 cfg.remote,
 		ProviderUsage:          cfg.providerUsage,
 		MarketplaceCatalog:     cfg.marketplaceCatalog,
 		AgentContextService:    cfg.agentContext,

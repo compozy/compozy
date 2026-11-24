@@ -1,4 +1,4 @@
 {
     "title": "Remote Computers",
-    "pages": ["account", "cloud-service"]
+    "pages": ["account", "remote-host", "cloud-service"]
 }

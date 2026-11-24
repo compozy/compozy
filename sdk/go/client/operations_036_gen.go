@@ -11,6 +11,249 @@ import (
 	"strings"
 )
 
+// SetSettingsMCPServerEnabled Turn one scoped MCP server on or off
+func (c *Client) SetSettingsMCPServerEnabled(ctx context.Context, params SetSettingsMCPServerEnabledParams, body SettingsMCPServerEnabledRequest) (*SettingsMCPServerResponse, error) {
+	path := "/api/settings/mcp-servers/{name}/enabled"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("scope", params.Scope)
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Owner != nil {
+		query.Set("owner", *params.Owner)
+	}
+	if params.DefinitionSource != nil {
+		query.Set("definition_source", *params.DefinitionSource)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsMCPServerResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SetSettingsProviderEnabledParams carries the path, query, and header parameters.
+type SetSettingsProviderEnabledParams struct {
+	Name string `url:"name"`
+}
+
+// SetSettingsProviderEnabled Enable or disable one provider
+func (c *Client) SetSettingsProviderEnabled(ctx context.Context, params SetSettingsProviderEnabledParams, body SetSettingsProviderEnabledRequest) (*SettingsProviderEnabledResponse, error) {
+	path := "/api/settings/providers/{name}/enabled"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out SettingsProviderEnabledResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SetTaskExecutionProfileParams carries the path, query, and header parameters.
+type SetTaskExecutionProfileParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// SetTaskExecutionProfile Replace one task execution profile
+func (c *Client) SetTaskExecutionProfile(ctx context.Context, params SetTaskExecutionProfileParams, body ExecutionProfile) (*TaskExecutionProfileResponse, error) {
+	path := "/api/tasks/{id}/execution-profile"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskExecutionProfileResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SetTaskWorktreePolicyParams carries the path, query, and header parameters.
+type SetTaskWorktreePolicyParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// SetTaskWorktreePolicy Set one task worktree policy
+func (c *Client) SetTaskWorktreePolicy(ctx context.Context, params SetTaskWorktreePolicyParams, body WorktreePolicy) (*TaskExecutionProfileResponse, error) {
+	path := "/api/tasks/{id}/execution-profile/worktree"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskExecutionProfileResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SetToolApprovalGrantParams carries the path, query, and header parameters.
+type SetToolApprovalGrantParams struct {
+	WorkspaceID string `url:"workspace_id"`
+}
+
+// SetToolApprovalGrant Set an explicit agent-wide or tool-wide native-tool approval decision
+func (c *Client) SetToolApprovalGrant(ctx context.Context, params SetToolApprovalGrantParams, body ToolApprovalGrantSetRequest) (*ToolApprovalGrantResponse, error) {
+	path := "/api/tool-approval-grants"
+	query := url.Values{}
+	query.Set("workspace_id", params.WorkspaceID)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolApprovalGrantResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SignalTerminalParams carries the path, query, and header parameters.
+type SignalTerminalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+}
+
+// SignalTerminal Signal one running terminal
+func (c *Client) SignalTerminal(ctx context.Context, params SignalTerminalParams, body TerminalSignalRequest) (*TerminalDeliveredResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}/signal"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalDeliveredResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SpawnAgentSessionParams carries the path, query, and header parameters.
+type SpawnAgentSessionParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+}
+
+// SpawnAgentSession Spawn a narrowed child session for the calling agent
+func (c *Client) SpawnAgentSession(ctx context.Context, params SpawnAgentSessionParams, body AgentSpawnRequest) (*AgentSpawnResponse, error) {
+	path := "/api/agent/spawn"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	var out AgentSpawnResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StartAccountLogin Start account sign-in
+func (c *Client) StartAccountLogin(ctx context.Context, body AccountLoginRequest) (*AccountLoginResponse, error) {
+	path := "/api/account/login"
+	var out AccountLoginResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StartAgentTaskRunParams carries the path, query, and header parameters.
+type StartAgentTaskRunParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+	RunID             string `url:"run_id"`
+}
+
+// StartAgentTaskRun Start a claimed task run under the calling agent's lease
+func (c *Client) StartAgentTaskRun(ctx context.Context, params StartAgentTaskRunParams, body StartTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/agent/tasks/{run_id}/start"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StartTaskParams carries the path, query, and header parameters.
+type StartTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// StartTask Start one task by enqueueing executable work
+func (c *Client) StartTask(ctx context.Context, params StartTaskParams, body TaskExecutionRequest) (*TaskExecutionResponse, error) {
+	path := "/api/tasks/{id}/start"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskExecutionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StartTaskRunParams carries the path, query, and header parameters.
+type StartTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// StartTaskRun Start one claimed task run
+func (c *Client) StartTaskRun(ctx context.Context, params StartTaskRunParams, body StartTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/task-runs/{id}/start"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SteerSessionPromptParams carries the path, query, and header parameters.
+type SteerSessionPromptParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
 // SteerSessionPrompt Stage steering input for the active session turn
 func (c *Client) SteerSessionPrompt(ctx context.Context, params SteerSessionPromptParams, body SteerPromptRequest) (*SendPromptResultResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/steer"
@@ -201,207 +444,4 @@ func (c *Client) StreamCmdPaletteView(ctx context.Context, params StreamCmdPalet
 type StreamCmdPaletteViewSessionParams struct {
 	Session string `url:"session"`
 	Token   string `url:"token"`
-}
-
-// StreamCmdPaletteViewSession Stream one programmable command palette view
-func (c *Client) StreamCmdPaletteViewSession(ctx context.Context, params StreamCmdPaletteViewSessionParams) (*Stream[ViewFrame], error) {
-	path := "/api/cmd-palette/view-sessions/{session}/stream"
-	path = strings.ReplaceAll(path, "{session}", url.PathEscape(params.Session))
-	query := url.Values{}
-	query.Set("token", params.Token)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[ViewFrame](ctx, c, "GET", path, nil, nil, "streamCmdPaletteViewSession")
-}
-
-// StreamGlobalSessionParams carries the path, query, and header parameters.
-type StreamGlobalSessionParams struct {
-	SessionID     string  `url:"session_id"`
-	LastEventID   *string `url:"Last-Event-ID"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Frames        *string `url:"frames"`
-	Epoch         *int64  `url:"epoch"`
-	Generation    *int64  `url:"generation"`
-	Limit         *int    `url:"limit"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// StreamGlobalSessionFrame preserves each response payload; select its variant using the event name or HTTP status.
-type StreamGlobalSessionFrame struct {
-	Raw json.RawMessage
-}
-
-var _ json.Unmarshaler = (*StreamGlobalSessionFrame)(nil)
-
-var _ json.Marshaler = StreamGlobalSessionFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamGlobalSessionFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamGlobalSessionFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-// AsSubagentsSnapshotEvent decodes this payload as SubagentsSnapshotEvent.
-func (f StreamGlobalSessionFrame) AsSubagentsSnapshotEvent() (*SubagentsSnapshotEvent, error) {
-	var out SubagentsSnapshotEvent
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSubagentUpdatedEvent decodes this payload as SubagentUpdatedEvent.
-func (f StreamGlobalSessionFrame) AsSubagentUpdatedEvent() (*SubagentUpdatedEvent, error) {
-	var out SubagentUpdatedEvent
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSubagentRemovedEvent decodes this payload as SubagentRemovedEvent.
-func (f StreamGlobalSessionFrame) AsSubagentRemovedEvent() (*SubagentRemovedEvent, error) {
-	var out SubagentRemovedEvent
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionUsageChangedPayload decodes this payload as SessionUsageChangedPayload.
-func (f StreamGlobalSessionFrame) AsSessionUsageChangedPayload() (*SessionUsageChangedPayload, error) {
-	var out SessionUsageChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionConsumerDegradedPayload decodes this payload as SessionConsumerDegradedPayload.
-func (f StreamGlobalSessionFrame) AsSessionConsumerDegradedPayload() (*SessionConsumerDegradedPayload, error) {
-	var out SessionConsumerDegradedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionEventPayload decodes this payload as SessionEventPayload.
-func (f StreamGlobalSessionFrame) AsSessionEventPayload() (*SessionEventPayload, error) {
-	var out SessionEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsTranscriptSnapshotPayload decodes this payload as TranscriptSnapshotPayload.
-func (f StreamGlobalSessionFrame) AsTranscriptSnapshotPayload() (*TranscriptSnapshotPayload, error) {
-	var out TranscriptSnapshotPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsTranscriptDeltaPayload decodes this payload as TranscriptDeltaPayload.
-func (f StreamGlobalSessionFrame) AsTranscriptDeltaPayload() (*TranscriptDeltaPayload, error) {
-	var out TranscriptDeltaPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsGoalSnapshotChangedPayload decodes this payload as GoalSnapshotChangedPayload.
-func (f StreamGlobalSessionFrame) AsGoalSnapshotChangedPayload() (*GoalSnapshotChangedPayload, error) {
-	var out GoalSnapshotChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionCommandsChangedPayload decodes this payload as SessionCommandsChangedPayload.
-func (f StreamGlobalSessionFrame) AsSessionCommandsChangedPayload() (*SessionCommandsChangedPayload, error) {
-	var out SessionCommandsChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsErrorPayload decodes this payload as ErrorPayload.
-func (f StreamGlobalSessionFrame) AsErrorPayload() (*ErrorPayload, error) {
-	var out ErrorPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamGlobalSession Stream raw session events or fenced transcript changes for a Global session
-func (c *Client) StreamGlobalSession(ctx context.Context, params StreamGlobalSessionParams) (*Stream[StreamGlobalSessionFrame], error) {
-	path := "/api/sessions/{session_id}/stream"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
-	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Frames != nil {
-		query.Set("frames", *params.Frames)
-	}
-	if params.Epoch != nil {
-		query.Set("epoch", strconv.FormatInt(*params.Epoch, 10))
-	}
-	if params.Generation != nil {
-		query.Set("generation", strconv.FormatInt(*params.Generation, 10))
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[StreamGlobalSessionFrame](ctx, c, "GET", path, headers, nil, "streamGlobalSession")
-}
-
-// StreamLogsParams carries the path, query, and header parameters.
-type StreamLogsParams struct {
-	WorkspaceID      *string `url:"workspace_id"`
-	SessionID        *string `url:"session_id"`
-	AgentName        *string `url:"agent_name"`
-	Type             *string `url:"type"`
-	Run              *string `url:"run"`
-	Actor            *string `url:"actor"`
-	ActorKind        *string `url:"actor_kind"`
-	ActorID          *string `url:"actor_id"`
-	Provider         *string `url:"provider"`
-	Outcome          *string `url:"outcome"`
-	Component        *string `url:"component"`
-	ErrorOnly        *bool   `url:"error_only"`
-	AfterSeq         *int    `url:"after_seq"`
-	Since            *string `url:"since"`
-	Limit            *int    `url:"limit"`
-	Replay           *bool   `url:"replay"`
-	LastEventID      *string `url:"Last-Event-ID"`
-	LastEventIDQuery *string `url:"last_event_id"`
-	Profile          *string `url:"profile"`
-	AllProfiles      *bool   `url:"all_profiles"`
 }

@@ -7,6 +7,64 @@ import (
 	"time"
 )
 
+// TaskPayload is a daemon API value.
+type TaskPayload struct {
+	ID                   string          `json:"id"`
+	ProfileID            string          `json:"profile_id"`
+	ProfileName          string          `json:"profile_name"`
+	ProfileColor         string          `json:"profile_color,omitempty"`
+	ProfileIcon          string          `json:"profile_icon,omitempty"`
+	Identifier           string          `json:"identifier,omitempty"`
+	Scope                TaskScope       `json:"scope"`
+	WorkspaceID          string          `json:"workspace_id,omitempty"`
+	ParentTaskID         string          `json:"parent_task_id,omitempty"`
+	Title                string          `json:"title"`
+	Description          string          `json:"description,omitempty"`
+	Priority             Priority        `json:"priority,omitempty"`
+	MaxAttempts          int             `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady   bool            `json:"auto_enqueue_on_ready,omitempty"`
+	Status               TaskStatus      `json:"status"`
+	ApprovalPolicy       ApprovalPolicy  `json:"approval_policy,omitempty"`
+	ApprovalState        ApprovalState   `json:"approval_state,omitempty"`
+	Draft                bool            `json:"draft,omitempty"`
+	Owner                *Ownership      `json:"owner,omitempty"`
+	CurrentRunID         string          `json:"current_run_id,omitempty"`
+	LatestEventSeq       int64           `json:"latest_event_seq"`
+	Paused               bool            `json:"paused,omitempty"`
+	PausedBy             string          `json:"paused_by,omitempty"`
+	PausedAt             *time.Time      `json:"paused_at,omitempty"`
+	PausedReason         string          `json:"paused_reason,omitempty"`
+	EffectivePaused      bool            `json:"effective_paused,omitempty"`
+	PausedByTaskID       string          `json:"paused_by_task_id,omitempty"`
+	BlockedReasons       []BlockedReason `json:"blocked_reasons,omitempty"`
+	NeedsAttention       bool            `json:"needs_attention,omitempty"`
+	NeedsAttentionReason string          `json:"needs_attention_reason,omitempty"`
+	NeedsAttentionAt     *time.Time      `json:"needs_attention_at,omitempty"`
+	NeedsAttentionBy     *ActorIdentity  `json:"needs_attention_by,omitempty"`
+	WakeCreator          bool            `json:"wake_creator"`
+	CreatedBy            ActorIdentity   `json:"created_by"`
+	Origin               Origin          `json:"origin"`
+	CreatedAt            time.Time       `json:"created_at"`
+	UpdatedAt            time.Time       `json:"updated_at"`
+	ClosedAt             *time.Time      `json:"closed_at,omitempty"`
+	Metadata             json.RawMessage `json:"metadata,omitempty"`
+	Loop                 *LoopProvenance `json:"loop,omitempty"`
+}
+
+// TaskQueueDepthPayload is a daemon API value.
+type TaskQueueDepthPayload struct {
+	Count               int        `json:"count"`
+	OldestQueuedAt      *time.Time `json:"oldest_queued_at,omitempty"`
+	OldestQueueAgeMilli int64      `json:"oldest_queue_age_ms"`
+}
+
+// TaskRecoveryTotalsPayload is a daemon API value.
+type TaskRecoveryTotalsPayload struct {
+	Requeued      int `json:"requeued"`
+	MarkedRunning int `json:"marked_running"`
+	Failed        int `json:"failed"`
+}
+
 // TaskReferencePayload is a daemon API value.
 type TaskReferencePayload struct {
 	ID              string     `json:"id"`
@@ -389,53 +447,4 @@ type TerminalAttachTicketRequest struct {
 type TerminalAttachTicketResponse struct {
 	Ticket    string    `json:"ticket"`
 	ExpiresAt time.Time `json:"expires_at"`
-}
-
-// TerminalCapabilitiesPayload is a daemon API value.
-type TerminalCapabilitiesPayload struct {
-	Interactive bool `json:"interactive"`
-}
-
-// TerminalCatalogSnapshot is a daemon API value.
-type TerminalCatalogSnapshot struct {
-	Terminals []TerminalInfoPayload `json:"terminals"`
-}
-
-// TerminalCloseRequest is a daemon API value.
-type TerminalCloseRequest struct {
-	Signal TerminalSignal `json:"signal"`
-}
-
-// TerminalCommandActorPayload is a daemon API value.
-type TerminalCommandActorPayload struct {
-	Kind TerminalActorKind `json:"kind"`
-	ID   string            `json:"id"`
-}
-
-// TerminalCommandApproval is a daemon API value.
-type TerminalCommandApproval string
-
-// TerminalCommandDetection is a daemon API value.
-type TerminalCommandDetection string
-
-// TerminalCommandRowPayload is a daemon API value.
-type TerminalCommandRowPayload struct {
-	ID          string                      `json:"command_id"`
-	TerminalID  *TerminalID                 `json:"terminal_id"`
-	ProfileID   string                      `json:"profile_id"`
-	ProfileName string                      `json:"profile_name"`
-	Actor       TerminalCommandActorPayload `json:"actor"`
-	Command     string                      `json:"command"`
-	ArgvDigest  *string                     `json:"argv_digest,omitzero"`
-	Cwd         string                      `json:"cwd"`
-	StartedAt   time.Time                   `json:"started_at"`
-	DurationMs  *int64                      `json:"duration_ms"`
-	ExitCode    *int                        `json:"exit_code"`
-	ExitSignal  *TerminalSignal             `json:"signal"`
-	ExitCause   TerminalExitCause           `json:"exit_cause"`
-	DetectedBy  TerminalCommandDetection    `json:"detected_by"`
-	Approval    TerminalCommandApproval     `json:"approval"`
-	OutputBytes int64                       `json:"output_bytes"`
-	Truncated   bool                        `json:"truncated"`
-	RecordingID *string                     `json:"recording,omitzero"`
 }

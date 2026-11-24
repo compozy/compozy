@@ -4,6 +4,36 @@ package client
 
 import "time"
 
+// SessionMonitorResponse is a daemon API value.
+type SessionMonitorResponse struct {
+	Monitor SessionMonitorPayload `json:"monitor"`
+}
+
+// SessionMonitorSummaryPayload is a daemon API value.
+type SessionMonitorSummaryPayload struct {
+	Active int `json:"active"`
+}
+
+// SessionMonitorTargetPayload is a daemon API value.
+type SessionMonitorTargetPayload struct {
+	SessionID string `json:"session_id"`
+	Name      string `json:"name,omitempty"`
+	State     string `json:"state"`
+	Matched   bool   `json:"matched"`
+}
+
+// SessionMonitorsResponse is a daemon API value.
+type SessionMonitorsResponse struct {
+	Monitors []SessionMonitorPayload `json:"monitors"`
+}
+
+// SessionOwner is a daemon API value.
+type SessionOwner struct {
+	SessionID     string `json:"session_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceName string `json:"workspace_name"`
+}
+
 // SessionPayload is a daemon API value.
 type SessionPayload struct {
 	MCPSummary               *MCPSummary                      `json:"mcp_summary,omitempty"`
@@ -414,31 +444,4 @@ type SessionStopPayload struct {
 	Phase        StopPhase    `json:"phase,omitempty"`
 	StoppedAfter string       `json:"stopped_after,omitempty"`
 	Attention    string       `json:"attention,omitempty"`
-}
-
-// SessionTranscriptFences is a daemon API value.
-type SessionTranscriptFences struct {
-	Epoch       int64 `json:"epoch"`
-	Generation  int64 `json:"generation"`
-	MaxSequence int64 `json:"max_sequence"`
-}
-
-// SessionTranscriptResponse is a daemon API value.
-type SessionTranscriptResponse struct {
-	Entries            []Entry `json:"entries"`
-	Epoch              int64   `json:"epoch"`
-	Generation         int64   `json:"generation"`
-	MaxSequence        int64   `json:"max_sequence"`
-	HasOlder           bool    `json:"has_older"`
-	NextBeforeSequence int64   `json:"next_before_sequence,omitzero"`
-	Limit              int     `json:"limit"`
-}
-
-// SessionTurnInjectedPayload is a daemon API value.
-type SessionTurnInjectedPayload struct {
-	Estimate string                      `json:"estimate"`
-	Tokens   int64                       `json:"tokens"`
-	Sequence int64                       `json:"sequence"`
-	SentAt   time.Time                   `json:"sent_at"`
-	Spans    []SessionContextSpanPayload `json:"spans"`
 }

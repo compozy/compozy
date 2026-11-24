@@ -7,6 +7,35 @@ import (
 	"time"
 )
 
+// OverviewUsagePayload is a daemon API value.
+type OverviewUsagePayload struct {
+	WindowDays    int                           `json:"window_days"`
+	RetentionDays int                           `json:"retention_days"`
+	Truncated     bool                          `json:"truncated"`
+	TotalTokens   int64                         `json:"total_tokens"`
+	EstimatedCost *float64                      `json:"estimated_cost,omitzero"`
+	CostCurrency  string                        `json:"cost_currency,omitempty"`
+	CostStatus    string                        `json:"cost_status,omitempty"`
+	Days          []OverviewUsageDayPayload     `json:"days"`
+	AgentShare    []OverviewAgentSharePayload   `json:"agent_share"`
+	Profiles      []OverviewProfileUsagePayload `json:"profiles"`
+}
+
+// OwnerKind is a daemon API value.
+type OwnerKind string
+
+// Ownership is a daemon API value.
+type Ownership struct {
+	Kind OwnerKind `json:"kind"`
+	Ref  string    `json:"ref"`
+}
+
+// Pagination is a daemon API value.
+type Pagination struct {
+	HasMore  bool `json:"has_more"`
+	PageSize int  `json:"page_size,omitempty"`
+}
+
 // ParentClosePolicy is a daemon API value.
 type ParentClosePolicy string
 
@@ -416,34 +445,4 @@ type ProviderModelRefreshRequest struct {
 type ProviderModelRefreshResponse struct {
 	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
 	Error   string                            `json:"error,omitempty"`
-}
-
-// ProviderModelStatusResponse is a daemon API value.
-type ProviderModelStatusResponse struct {
-	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
-}
-
-// ProviderRecommendedAction is a daemon API value.
-type ProviderRecommendedAction string
-
-// ProviderRuntimeLiveApply is a daemon API value.
-type ProviderRuntimeLiveApply string
-
-// ProviderRuntimeStrategy is a daemon API value.
-type ProviderRuntimeStrategy string
-
-// ProviderStatusPayload is a daemon API value.
-type ProviderStatusPayload struct {
-	Name          string                         `json:"name"`
-	DisplayName   string                         `json:"display_name,omitempty"`
-	Default       bool                           `json:"default"`
-	Mode          string                         `json:"mode,omitempty"`
-	EnvPolicy     string                         `json:"env_policy,omitempty"`
-	HomePolicy    string                         `json:"home_policy,omitempty"`
-	State         string                         `json:"state"`
-	Code          string                         `json:"code,omitempty"`
-	Message       string                         `json:"message,omitempty"`
-	StatusCommand string                         `json:"status_command,omitempty"`
-	Login         ProviderLoginDescriptorPayload `json:"login"`
-	LastProbeAt   *time.Time                     `json:"last_probe_at,omitempty"`
 }

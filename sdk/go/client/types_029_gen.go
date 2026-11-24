@@ -7,6 +7,55 @@ import (
 	"time"
 )
 
+// TerminalCapabilitiesPayload is a daemon API value.
+type TerminalCapabilitiesPayload struct {
+	Interactive bool `json:"interactive"`
+}
+
+// TerminalCatalogSnapshot is a daemon API value.
+type TerminalCatalogSnapshot struct {
+	Terminals []TerminalInfoPayload `json:"terminals"`
+}
+
+// TerminalCloseRequest is a daemon API value.
+type TerminalCloseRequest struct {
+	Signal TerminalSignal `json:"signal"`
+}
+
+// TerminalCommandActorPayload is a daemon API value.
+type TerminalCommandActorPayload struct {
+	Kind TerminalActorKind `json:"kind"`
+	ID   string            `json:"id"`
+}
+
+// TerminalCommandApproval is a daemon API value.
+type TerminalCommandApproval string
+
+// TerminalCommandDetection is a daemon API value.
+type TerminalCommandDetection string
+
+// TerminalCommandRowPayload is a daemon API value.
+type TerminalCommandRowPayload struct {
+	ID          string                      `json:"command_id"`
+	TerminalID  *TerminalID                 `json:"terminal_id"`
+	ProfileID   string                      `json:"profile_id"`
+	ProfileName string                      `json:"profile_name"`
+	Actor       TerminalCommandActorPayload `json:"actor"`
+	Command     string                      `json:"command"`
+	ArgvDigest  *string                     `json:"argv_digest,omitzero"`
+	Cwd         string                      `json:"cwd"`
+	StartedAt   time.Time                   `json:"started_at"`
+	DurationMs  *int64                      `json:"duration_ms"`
+	ExitCode    *int                        `json:"exit_code"`
+	ExitSignal  *TerminalSignal             `json:"signal"`
+	ExitCause   TerminalExitCause           `json:"exit_cause"`
+	DetectedBy  TerminalCommandDetection    `json:"detected_by"`
+	Approval    TerminalCommandApproval     `json:"approval"`
+	OutputBytes int64                       `json:"output_bytes"`
+	Truncated   bool                        `json:"truncated"`
+	RecordingID *string                     `json:"recording,omitzero"`
+}
+
 // TerminalCreateRequest is a daemon API value.
 type TerminalCreateRequest struct {
 	Worktree string `json:"worktree,omitempty"`
@@ -396,48 +445,3 @@ type ToolApprovalRequest struct {
 type ToolApprovalResponse struct {
 	Approval ToolApprovalPayload `json:"approval"`
 }
-
-// ToolApprovalStatusResponse is a daemon API value.
-type ToolApprovalStatusResponse struct {
-	ApprovalStatus  ApprovalOutcome         `json:"approval_status"`
-	ExecutionStatus ApprovalExecutionStatus `json:"execution_status,omitempty"`
-	Result          json.RawMessage         `json:"result,omitempty"`
-	Error           json.RawMessage         `json:"error,omitempty"`
-	ExpiresAt       *time.Time              `json:"expires_at,omitempty"`
-}
-
-// ToolArtifactPageResponse is a daemon API value.
-type ToolArtifactPageResponse struct {
-	Artifact   ArtifactRef `json:"artifact"`
-	Offset     int64       `json:"offset"`
-	Bytes      int64       `json:"bytes"`
-	TotalBytes int64       `json:"total_bytes"`
-	DataBase64 string      `json:"data_base64"`
-	NextOffset int64       `json:"next_offset"`
-	EOF        bool        `json:"eof"`
-}
-
-// ToolAvailabilityPayload is a daemon API value.
-type ToolAvailabilityPayload struct {
-	Registered  bool         `json:"registered"`
-	Enabled     bool         `json:"enabled"`
-	Available   bool         `json:"available"`
-	Authorized  bool         `json:"authorized"`
-	Executable  bool         `json:"executable"`
-	Conflicted  bool         `json:"conflicted"`
-	ReasonCodes []ReasonCode `json:"reason_codes,omitempty"`
-}
-
-// ToolBackendRefPayload is a daemon API value.
-type ToolBackendRefPayload struct {
-	Kind                 BackendKind `json:"kind"`
-	ExtensionID          string      `json:"extension_id,omitempty"`
-	Handler              string      `json:"handler,omitempty"`
-	MCPServer            string      `json:"mcp_server,omitempty"`
-	MCPTool              string      `json:"mcp_tool,omitempty"`
-	NativeName           string      `json:"native_name,omitempty"`
-	RequiresCapabilities []string    `json:"requires_capabilities,omitempty"`
-}
-
-// ToolCallEventKind is a daemon API value.
-type ToolCallEventKind string

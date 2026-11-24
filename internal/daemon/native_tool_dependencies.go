@@ -91,6 +91,7 @@ type daemonNativeToolsDeps struct {
 	Roles            core.RolesStatusProvider
 
 	Gateway               func() core.GatewayService
+	Remote                core.RemoteHostService
 	Ingress               func() core.IngressService
 	GatewayPermissionMode func(context.Context, string) (string, error)
 	HomePaths             compozyconfig.HomePaths

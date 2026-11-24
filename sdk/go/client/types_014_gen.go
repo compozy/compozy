@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// ModelCatalogSourceStatusPayload is a daemon API value.
+type ModelCatalogSourceStatusPayload struct {
+	FailureReason string `json:"failure_reason,omitempty"`
+	SourceID      string `json:"source_id"`
+	SourceKind    string `json:"source_kind"`
+	ProviderID    string `json:"provider_id"`
+	Priority      int    `json:"priority"`
+	LastRefresh   string `json:"last_refresh,omitempty"`
+	NextRefresh   string `json:"next_refresh,omitempty"`
+	LastSuccess   string `json:"last_success,omitempty"`
+	LastError     string `json:"last_error,omitempty"`
+	RefreshState  string `json:"refresh_state"`
+	RowCount      int    `json:"row_count"`
+	Stale         bool   `json:"stale"`
+}
+
+// ModelScope is a daemon API value.
+type ModelScope string
+
+// MoveSessionRequest is a daemon API value.
+type MoveSessionRequest struct {
+	FolderID string `json:"folder_id,omitempty"`
+}
+
 // MoveSessionToLaterRequest is a daemon API value.
 type MoveSessionToLaterRequest struct {
 	Reason   string     `json:"reason,omitempty"`
@@ -417,33 +441,4 @@ type OverviewTodayPayload struct {
 type OverviewUsageDayPayload struct {
 	Date   string `json:"date"`
 	Tokens int64  `json:"tokens"`
-}
-
-// OverviewUsagePayload is a daemon API value.
-type OverviewUsagePayload struct {
-	WindowDays    int                           `json:"window_days"`
-	RetentionDays int                           `json:"retention_days"`
-	Truncated     bool                          `json:"truncated"`
-	TotalTokens   int64                         `json:"total_tokens"`
-	EstimatedCost *float64                      `json:"estimated_cost,omitzero"`
-	CostCurrency  string                        `json:"cost_currency,omitempty"`
-	CostStatus    string                        `json:"cost_status,omitempty"`
-	Days          []OverviewUsageDayPayload     `json:"days"`
-	AgentShare    []OverviewAgentSharePayload   `json:"agent_share"`
-	Profiles      []OverviewProfileUsagePayload `json:"profiles"`
-}
-
-// OwnerKind is a daemon API value.
-type OwnerKind string
-
-// Ownership is a daemon API value.
-type Ownership struct {
-	Kind OwnerKind `json:"kind"`
-	Ref  string    `json:"ref"`
-}
-
-// Pagination is a daemon API value.
-type Pagination struct {
-	HasMore  bool `json:"has_more"`
-	PageSize int  `json:"page_size,omitempty"`
 }

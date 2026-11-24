@@ -640,6 +640,9 @@ import type {
   GetProviderUsageData,
   GetProviderUsageErrors,
   GetProviderUsageResponses,
+  GetRemoteStatusData,
+  GetRemoteStatusErrors,
+  GetRemoteStatusResponses,
   GetResourceData,
   GetResourceErrors,
   GetResourceResponses,
@@ -867,6 +870,9 @@ import type {
   InvokeToolData,
   InvokeToolErrors,
   InvokeToolResponses,
+  LinkRemoteData,
+  LinkRemoteErrors,
+  LinkRemoteResponses,
   ListAccountApprovalsData,
   ListAccountApprovalsErrors,
   ListAccountApprovalsResponses,
@@ -1017,6 +1023,9 @@ import type {
   ListProviderUsageData,
   ListProviderUsageErrors,
   ListProviderUsageResponses,
+  ListRemoteDevicesData,
+  ListRemoteDevicesErrors,
+  ListRemoteDevicesResponses,
   ListRemovedBuiltinExtensionsData,
   ListRemovedBuiltinExtensionsErrors,
   ListRemovedBuiltinExtensionsResponses,
@@ -1206,6 +1215,12 @@ import type {
   PatchLoopData,
   PatchLoopErrors,
   PatchLoopResponses,
+  PatchRemoteDeviceData,
+  PatchRemoteDeviceErrors,
+  PatchRemoteDeviceResponses,
+  PatchRemoteStatusData,
+  PatchRemoteStatusErrors,
+  PatchRemoteStatusResponses,
   PauseAgentInstanceData,
   PauseAgentInstanceErrors,
   PauseAgentInstanceResponses,
@@ -1530,6 +1545,9 @@ import type {
   RevokeGatewayDeviceData,
   RevokeGatewayDeviceErrors,
   RevokeGatewayDeviceResponses,
+  RevokeRemoteDeviceData,
+  RevokeRemoteDeviceErrors,
+  RevokeRemoteDeviceResponses,
   RevokeToolApprovalGrantData,
   RevokeToolApprovalGrantErrors,
   RevokeToolApprovalGrantResponses,
@@ -1671,6 +1689,9 @@ import type {
   UnexposeSkillData,
   UnexposeSkillErrors,
   UnexposeSkillResponses,
+  UnlinkRemoteData,
+  UnlinkRemoteErrors,
+  UnlinkRemoteResponses,
   UnpinCmdPaletteCommandData,
   UnpinCmdPaletteCommandErrors,
   UnpinCmdPaletteCommandResponses,
@@ -11171,6 +11192,146 @@ export class profiles extends HeyApiClient {
   }
 }
 
+export class remote extends HeyApiClient {
+  /**
+   * Read this computer's remote access status
+   */
+  public getRemoteStatus<ThrowOnError extends boolean = true>(
+    options?: Options<GetRemoteStatusData, ThrowOnError>
+  ): RequestResult<GetRemoteStatusResponses, GetRemoteStatusErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      GetRemoteStatusResponses,
+      GetRemoteStatusErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote",
+      ...options,
+    });
+  }
+
+  /**
+   * Update this computer's remote access
+   */
+  public patchRemoteStatus<ThrowOnError extends boolean = true>(
+    options: Options<PatchRemoteStatusData, ThrowOnError>
+  ): RequestResult<PatchRemoteStatusResponses, PatchRemoteStatusErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchRemoteStatusResponses,
+      PatchRemoteStatusErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List devices allowed on this computer
+   */
+  public listRemoteDevices<ThrowOnError extends boolean = true>(
+    options?: Options<ListRemoteDevicesData, ThrowOnError>
+  ): RequestResult<ListRemoteDevicesResponses, ListRemoteDevicesErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListRemoteDevicesResponses,
+      ListRemoteDevicesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote/devices",
+      ...options,
+    });
+  }
+
+  /**
+   * Revoke a device on this account
+   */
+  public revokeRemoteDevice<ThrowOnError extends boolean = true>(
+    options: Options<RevokeRemoteDeviceData, ThrowOnError>
+  ): RequestResult<RevokeRemoteDeviceResponses, RevokeRemoteDeviceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RevokeRemoteDeviceResponses,
+      RevokeRemoteDeviceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote/devices/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Change device scopes or decide a local approval
+   */
+  public patchRemoteDevice<ThrowOnError extends boolean = true>(
+    options: Options<PatchRemoteDeviceData, ThrowOnError>
+  ): RequestResult<PatchRemoteDeviceResponses, PatchRemoteDeviceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchRemoteDeviceResponses,
+      PatchRemoteDeviceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote/devices/{id}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Unlink this computer
+   */
+  public unlinkRemote<ThrowOnError extends boolean = true>(
+    options?: Options<UnlinkRemoteData, ThrowOnError>
+  ): RequestResult<UnlinkRemoteResponses, UnlinkRemoteErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).delete<
+      UnlinkRemoteResponses,
+      UnlinkRemoteErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote/link",
+      ...options,
+    });
+  }
+
+  /**
+   * Link this computer to the account
+   */
+  public linkRemote<ThrowOnError extends boolean = true>(
+    options: Options<LinkRemoteData, ThrowOnError>
+  ): RequestResult<LinkRemoteResponses, LinkRemoteErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      LinkRemoteResponses,
+      LinkRemoteErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/remote/link",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
 export class resources extends HeyApiClient {
   /**
    * List desired-state resources on the local operator control plane
@@ -14926,6 +15087,11 @@ export class Compozy extends HeyApiClient {
   private _profiles?: profiles;
   get profiles(): profiles {
     return (this._profiles ??= new profiles({ client: this.client }));
+  }
+
+  private _remote?: remote;
+  get remote(): remote {
+    return (this._remote ??= new remote({ client: this.client }));
   }
 
   private _resources?: resources;

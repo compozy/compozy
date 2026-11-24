@@ -36,3 +36,11 @@ Use the Google activation page's **Recover admin access** action after losing th
 - Follow `GET /v1/account/events` for device, computer, plan, and approval changes. After a reconnect, read the current state. A decision accepted for delivery can be checked at `GET /v1/approvals/{id}` until the computer provides its `applied_result`.
 
 Keep link tokens, grants, computer key proofs and private keys out of logs and tool results.
+
+## This computer
+
+Use `compozy remote link` to link this computer and turn on its remote access. Use the printed activation URL and user code if sign-in is needed. SSH setup pipes the single-use link token to `compozy remote link --token-stdin`.
+
+Read status with `compozy remote status --json` or `compozy__remote_status`. The tool is local to this computer and has no remote scope. Use `compozy remote disable` to close the listeners and keep the account link, `compozy remote enable` to reopen them, and `compozy remote unlink` to remove the account link and directory entry. Unlinking uses a device session from the linked account.
+
+The same operations are available over HTTP and UDS under `/api/remote`. List effective scopes and pending keys with `compozy remote devices list --json`. Narrow one device with `compozy remote devices scopes <device> --set <scopes>`. Approve or deny a pending key with `compozy remote devices approve|deny <device>`, using `--approval-id` to choose among multiple pending keys. `compozy remote devices revoke <device>` revokes that device on the account.

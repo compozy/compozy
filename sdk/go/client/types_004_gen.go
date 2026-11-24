@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// ApprovalState is a daemon API value.
+type ApprovalState string
+
+// ApproveLoopRunRequest is a daemon API value.
+type ApproveLoopRunRequest struct {
+	GateID   string           `json:"gate_id"`
+	Decision LoopGateDecision `json:"decision"`
+}
+
 // ApproveSessionRequest is a daemon API value.
 type ApproveSessionRequest struct {
 	RequestID string `json:"request_id"`
@@ -431,20 +440,4 @@ type ChangeTotalsPayload struct {
 type CheckInProposalSummary struct {
 	AutoAccepted int64 `json:"auto_accepted"`
 	Waiting      int64 `json:"waiting"`
-}
-
-// CheckInToolCall is a daemon API value.
-type CheckInToolCall struct {
-	Seq         int64  `json:"seq"`
-	ToolID      string `json:"tool_id"`
-	Backend     string `json:"backend"`
-	MCPServer   string `json:"mcp_server,omitempty"`
-	Access      string `json:"access"`
-	Decision    string `json:"decision"`
-	DenyReason  string `json:"deny_reason,omitempty"`
-	Outcome     string `json:"outcome"`
-	Effect      string `json:"effect"`
-	ErrorCode   string `json:"error_code,omitempty"`
-	ArgsPreview string `json:"args_preview,omitempty"`
-	DurationMS  int64  `json:"duration_ms"`
 }

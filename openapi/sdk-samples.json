@@ -1471,6 +1471,13 @@
             "resource": "providers",
             "app_access": "allowed"
         },
+        "getRemoteStatus": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.remote.getRemoteStatus();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetRemoteStatus(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "remote",
+            "app_access": "denied"
+        },
         "getResource": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.resources.getResource({ path: { \"kind\": \"kind\", \"id\": \"id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetResource(ctx, client.GetResourceParams{Kind: \"kind\", ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2003,6 +2010,13 @@
             "resource": "tools",
             "app_access": "denied"
         },
+        "linkRemote": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.remote.linkRemote({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.LinkRemote(ctx, client.RemoteLinkRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "remote",
+            "app_access": "denied"
+        },
         "listAccountApprovals": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.listAccountApprovals();",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListAccountApprovals(ctx)\nif err != nil { return err }\nfmt.Println(result)",
@@ -2351,6 +2365,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListProviders(ctx)\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "providers",
+            "app_access": "denied"
+        },
+        "listRemoteDevices": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.remote.listRemoteDevices();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListRemoteDevices(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "remote",
             "app_access": "denied"
         },
         "listRemovedBuiltinExtensions": {
@@ -2793,6 +2814,20 @@
             "kind": "json",
             "resource": "loops",
             "app_access": "allowed"
+        },
+        "patchRemoteDevice": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.remote.patchRemoteDevice({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PatchRemoteDevice(ctx, client.PatchRemoteDeviceParams{ID: \"id\"}, client.RemoteDevicePatchRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "remote",
+            "app_access": "denied"
+        },
+        "patchRemoteStatus": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.remote.patchRemoteStatus({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PatchRemoteStatus(ctx, client.RemotePatchRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "remote",
+            "app_access": "denied"
         },
         "pauseAgentInstance": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.pauseAgentInstance({ path: { \"id\": \"id\" } });",
@@ -3550,6 +3585,13 @@
             "resource": "gateway",
             "app_access": "denied"
         },
+        "revokeRemoteDevice": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.remote.revokeRemoteDevice({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.RevokeRemoteDevice(ctx, client.RevokeRemoteDeviceParams{ID: \"id\"})\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "remote",
+            "app_access": "denied"
+        },
         "revokeToolApprovalGrant": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tools.revokeToolApprovalGrant({ path: { \"id\": \"id\" }, query: { \"workspace_id\": \"workspace_id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.RevokeToolApprovalGrant(ctx, client.RevokeToolApprovalGrantParams{ID: \"id\", WorkspaceID: \"workspace_id\"})\nif err != nil { return err }",
@@ -4017,6 +4059,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.UnexposeSkill(ctx, client.UnexposeSkillParams{Name: \"name\"}, client.SkillExposureRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "skills",
+            "app_access": "denied"
+        },
+        "unlinkRemote": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.remote.unlinkRemote();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.UnlinkRemote(ctx)\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "remote",
             "app_access": "denied"
         },
         "unpinCmdPaletteCommand": {

@@ -116,6 +116,7 @@ type BaseHandlerConfig struct {
 	OpenAPI                     *OpenAPIDocument
 	Gateway                     GatewayService
 	Account                     AccountService
+	Remote                      RemoteHostService
 	Ingress                     IngressService
 	GatewayPairingSource        string
 	HomePaths                   compozyconfig.HomePaths
@@ -214,6 +215,7 @@ type BaseHandlers struct {
 	OpenAPI                      *OpenAPIDocument
 	Gateway                      GatewayService
 	Account                      AccountService
+	Remote                       RemoteHostService
 	Ingress                      IngressService
 	GatewayPairingSource         string
 	HomePaths                    compozyconfig.HomePaths
@@ -247,6 +249,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	handlers.TelemetryStatus = cfg.TelemetryStatus
 	handlers.Gateway = cfg.Gateway
 	handlers.Account = cfg.Account
+	handlers.Remote = cfg.Remote
 	handlers.Ingress = cfg.Ingress
 	handlers.GatewayPairingSource = strings.TrimSpace(cfg.GatewayPairingSource)
 	handlers.applyAuthoredContextConfig(cfg)
