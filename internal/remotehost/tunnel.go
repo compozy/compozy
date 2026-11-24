@@ -26,13 +26,14 @@ const (
 )
 
 type listenerHandler struct {
-	descriptor remoteproto.Descriptor
-	kind       Listener
-	tls        *tls.Config
-	sessions   *Sessions
-	operator   http.Handler
-	run        *hostRun
-	webhook    func() http.Handler
+	descriptor        remoteproto.Descriptor
+	kind              Listener
+	tls               *tls.Config
+	sessions          *Sessions
+	operator          http.Handler
+	run               *hostRun
+	webhook           func() http.Handler
+	wrapTunnelHandler func(http.Handler) http.Handler
 }
 
 func (h listenerHandler) outer() http.Handler {
@@ -74,8 +75,12 @@ func (h listenerHandler) serveTunnel(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer func() { _ = mux.Close() }()
+	handler := h.inner()
+	if h.wrapTunnelHandler != nil {
+		handler = h.wrapTunnelHandler(handler)
+	}
 	server := &http.Server{
-		Handler: h.inner(), ReadHeaderTimeout: headerTimeout,
+		Handler: handler, ReadHeaderTimeout: headerTimeout,
 		BaseContext: func(net.Listener) context.Context { return req.Context() },
 	}
 	server.SetKeepAlivesEnabled(false)
@@ -94,15 +99,14 @@ func (h listenerHandler) inner() http.Handler {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	routes.HandleFunc("DELETE "+SessionPath, h.authenticate(h.endSession))
-	routes.HandleFunc("/api/", h.authenticate(h.serveOperator))
-	routes.HandleFunc("/c/", h.authenticate(func(w http.ResponseWriter, _ *http.Request) {
-		writeFailure(w, &Failure{http.StatusForbidden, "remote_bridge_not_transitive",
-			"A remote connection cannot use this computer to reach another computer.", nil})
-	}))
+	operator := h.authenticate(h.serveOperator)
+	routes.HandleFunc("/api", operator)
+	routes.HandleFunc("/api/", operator)
+	routes.HandleFunc("/c", operator)
+	routes.HandleFunc("/c/", operator)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if len(req.Header.Values("X-Compozy-Claim-Token")) != 0 {
-			writeFailure(w, &Failure{http.StatusBadRequest, "claim_token_not_remote",
-				"Task leases stay on the computer that owns them.", nil})
+		if err := RejectClaimToken(req); err != nil {
+			writeFailure(w, err)
 			return
 		}
 		routes.ServeHTTP(w, req)
@@ -150,6 +154,10 @@ func (h listenerHandler) authenticate(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (h listenerHandler) serveOperator(w http.ResponseWriter, req *http.Request) {
+	if err := OperatorRouteRejection(req.URL.Path, false); err != nil {
+		writeFailure(w, err)
+		return
+	}
 	if h.operator == nil {
 		writeFailure(w, ErrRouteNotRemote)
 		return

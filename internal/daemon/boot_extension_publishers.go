@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/compozy/compozy/internal/api/httpapi"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -78,6 +79,10 @@ func (d *Daemon) bootServers(ctx context.Context, state *bootState, cleanup *boo
 	state.httpServer = httpServer
 	state.udsServer = udsServer
 	state.info = info
+	if state.remoteOperator != nil {
+		// Publish only after the same late-bound services are ready on local HTTP and UDS.
+		state.remoteOperator.swap(httpapi.NewRemoteOperatorHandler(false, httpServerOptions(&state.deps)...))
+	}
 	return nil
 }
 

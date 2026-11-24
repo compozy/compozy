@@ -1060,6 +1060,7 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 		{name: "Should block reading restart status", path: "/api/settings/actions/restart/op-123"},
 		{name: "Should block listing extensions", path: "/api/extensions"},
 		{name: "Should block reading extension status", path: "/api/extensions/demo"},
+		{name: "Should block the controller bridge", path: "/c/cmp_fixture/api/sessions"},
 	}
 	for _, tc := range readCases {
 		t.Run(tc.name, func(t *testing.T) {

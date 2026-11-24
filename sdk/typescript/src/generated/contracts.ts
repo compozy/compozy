@@ -6187,6 +6187,7 @@ export interface Tool {
   max_result_bytes?: number;
   idempotent?: boolean;
   input_error_code?: ErrorCode;
+  remote_scope?: Scope;
   description: string;
   input_schema: JSONValue;
   output_schema?: JSONValue;

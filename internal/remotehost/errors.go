@@ -98,6 +98,18 @@ var (
 		"This route is not available remotely.",
 		nil,
 	}
+	ErrClaimTokenNotRemote = &Failure{
+		http.StatusBadRequest,
+		"claim_token_not_remote",
+		"Task leases stay on the computer that owns them.",
+		nil,
+	}
+	ErrRemoteCallerOverride = &Failure{
+		http.StatusBadRequest,
+		"remote_caller_override_forbidden",
+		"Remote tool calls use the authenticated device identity.",
+		nil,
+	}
 	ErrDeviceNotFound = &Failure{http.StatusNotFound, "device_not_found", "The device was not found.", nil}
 )
 

@@ -23,7 +23,6 @@ import (
 	"github.com/compozy/compozy/internal/sse"
 )
 
-const clientTasksPath = "/api/tasks"
 const clientJSONMediaType = "application/json"
 
 func (c *daemonClient) doJSON(
@@ -105,9 +104,6 @@ func (c *daemonClient) doSSE(
 	lastEventID string,
 	handler SSEHandler,
 ) (err error) {
-	if err := c.validateTargetOperation(http.MethodGet, path); err != nil {
-		return err
-	}
 	query, err = c.withFreshStreamTicket(ctx, query)
 	if err != nil {
 		return err
@@ -274,9 +270,6 @@ func (c *daemonClient) doRequestWithReaderAndClient(
 	if options.Client == nil {
 		return nil, errors.New("cli: http client is required")
 	}
-	if err := c.validateTargetOperation(options.Method, options.Path); err != nil {
-		return nil, err
-	}
 	options.Query = profileQueryValues(ctx, options.Query)
 
 	target := c.target.requestBaseURL() + options.Path
@@ -304,9 +297,12 @@ func (c *daemonClient) doRequestWithReaderAndClient(
 	if strings.TrimSpace(options.LastEventID) != "" {
 		req.Header.Set("Last-Event-ID", strings.TrimSpace(options.LastEventID))
 	}
-	setAgentIdentityHeaders(req, options.Credentials)
-	if c.target.isRemoteGateway() && strings.TrimSpace(c.target.credential) != "" {
-		req.Header.Set("Authorization", "Bearer "+c.target.credential)
+	if c.target.isRemoteGateway() {
+		if strings.TrimSpace(c.target.credential) != "" {
+			req.Header.Set("Authorization", "Bearer "+c.target.credential)
+		}
+	} else {
+		setAgentIdentityHeaders(req, options.Credentials)
 	}
 
 	response, err := options.Client.Do(req)
@@ -320,13 +316,6 @@ func (c *daemonClient) doRequestWithReaderAndClient(
 		return nil, fmt.Errorf("cli: %s %s via %s: %w", options.Method, options.Path, c.target.displayName(), err)
 	}
 	return response, nil
-}
-
-func (c *daemonClient) validateTargetOperation(method string, path string) error {
-	if c.target.isRemoteGateway() && isLocalOnlyClientOperation(method, path) {
-		return newGatewayLocalOnlyError(method, path)
-	}
-	return nil
 }
 
 func (c *daemonClient) withFreshStreamTicket(ctx context.Context, query url.Values) (url.Values, error) {
@@ -353,45 +342,6 @@ func (c *daemonClient) withFreshStreamTicket(ctx context.Context, query url.Valu
 	}
 	values.Set("ticket", strings.TrimSpace(ticket.Ticket))
 	return values, nil
-}
-
-func isLocalOnlyClientOperation(method string, path string) bool {
-	method = strings.ToUpper(strings.TrimSpace(method))
-	normalized := "/" + strings.TrimLeft(strings.TrimSpace(path), "/")
-	if hasAPIPathPrefix(normalized, "/api/agent") || hasAPIPathPrefix(normalized, "/api/internal") ||
-		hasAPIPathPrefix(normalized, "/api/account") {
-		return true
-	}
-	if hasAPIPathPrefix(normalized, "/api/scheduler") {
-		return true
-	}
-	if strings.HasPrefix(normalized, "/api/workspaces/") && strings.Contains(normalized, "/terminals") {
-		return true
-	}
-	if hasAPIPathPrefix(normalized, "/api/resources") &&
-		(method == http.MethodPut || method == http.MethodPost ||
-			method == http.MethodPatch || method == http.MethodDelete) {
-		return true
-	}
-	if method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions {
-		return false
-	}
-	return normalized == clientTasksPath || strings.HasPrefix(normalized, clientTasksPath+"/") ||
-		strings.HasPrefix(normalized, "/api/task-runs/") ||
-		strings.HasPrefix(normalized, "/api/task-reviews/") ||
-		strings.HasPrefix(normalized, "/api/runs/")
-}
-
-func hasAPIPathPrefix(path string, prefix string) bool {
-	return path == prefix || strings.HasPrefix(path, prefix+"/")
-}
-
-func newGatewayLocalOnlyError(method string, path string) error {
-	return &gatewayClientError{
-		code:       "gateway_local_only_operation",
-		statusCode: http.StatusForbidden,
-		message:    fmt.Sprintf("%s %s is available only through local UDS or an SSH forward", method, path),
-	}
 }
 
 func newDaemonUnavailableError(socketPath string, method string, path string, err error) error {

@@ -46048,6 +46048,9 @@
           "read_only": {
             "type": "boolean"
           },
+          "remote_scope": {
+            "type": "string"
+          },
           "requires_interaction": {
             "type": "boolean"
           },
@@ -95748,22 +95751,32 @@
                     },
                     {
                       "$ref": "#/components/schemas/ToolErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
                     }
                   ]
                 }
               }
             },
-            "description": "Invalid invocation request or profile selection"
+            "description": "Invalid request, remote_caller_override_forbidden or tool_not_forwardable"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ToolErrorResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ToolErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    }
+                  ]
                 }
               }
             },
-            "description": "Invocation denied"
+            "description": "Invocation denied or remote_scope_denied"
           },
           "404": {
             "content": {

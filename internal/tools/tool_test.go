@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"unsafe"
+
+	"github.com/compozy/compozy/internal/remoteproto"
 )
 
 type testProvider struct {
@@ -360,7 +362,8 @@ func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
 			if (Descriptor{}).ResultViews() != nil || (Tool{}).ResultViews() != nil {
 				t.Fatal("zero metadata has views")
 			}
-			for _, metadata := range []*ToolExecutionMetadata{nil, NewToolExecutionMetadata(true, ErrorCodeInvalidRequest, 4096),
+			for _, metadata := range []*ToolExecutionMetadata{nil, {RemoteScope: remoteproto.ScopeTerminal},
+				NewToolExecutionMetadata(true, ErrorCodeInvalidRequest, 4096),
 				NewToolExecutionMetadata(false, "", 0, &ResultViews{Compact: ResultViewContract{Schema: json.RawMessage(`{"type":"object","additionalProperties":false}`)}, Full: ResultViewContract{Schema: json.RawMessage(`{"type":"object"}`)}})} {
 				descriptor := validDescriptor()
 				descriptor.ToolExecutionMetadata = metadata
@@ -376,6 +379,10 @@ func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
 				_, hasViews := object["output_views"]
 				if hasViews != (want.OutputViews != nil) {
 					t.Fatalf("top-level views presence: %s", wire)
+				}
+				_, hasScope := object["remote_scope"]
+				if hasScope != (want.RemoteScope != "") {
+					t.Fatalf("top-level remote scope presence: %s", wire)
 				}
 				if _, nested := object["ToolExecutionMetadata"]; nested {
 					t.Fatal("metadata must remain flat")
@@ -411,6 +418,7 @@ func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
 						t.Fatal(copied.ExecutionMetadata())
 					}
 					if copied.ToolExecutionMetadata != nil {
+						copied.RemoteScope = ""
 						copied.InputErrorCode = "changed"
 						copied.Idempotent = false
 						if copied.OutputViews != nil {

@@ -123,7 +123,7 @@ func TestRemoteGatewayE2EProfileWorkSurvivesDisconnectAndReconnect(t *testing.T)
 				struct{}{},
 				nil,
 			)
-			assertGatewayClientErrorCode(t, localOnlyErr, "gateway_local_only_operation")
+			assertGatewayKernelNotMounted(t, localOnlyErr)
 		},
 	)
 }

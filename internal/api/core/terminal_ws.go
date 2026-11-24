@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/remotehost"
+	"github.com/compozy/compozy/internal/remoteproto"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/gin-gonic/gin"
@@ -88,6 +90,14 @@ func (h *BaseHandlers) StreamTerminal(c *gin.Context) {
 		conn: conn, handle: handle, subscription: subscription, actor: ticket.Actor,
 		mode: mode, stop: stop,
 	}
+	remotehost.OnStreamClose(c.Request.Context(), func(code int, reason string) {
+		// Keep revocation acknowledgement bounded even when a peer stopped reading.
+		if err := conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason),
+			time.Now().Add(time.Second)); err != nil && !terminalExpectedSocketError(err) {
+			h.terminalStreamLogger().
+				Debug("terminal websocket close frame failed", "terminal_id", terminalID, "error", err)
+		}
+	})
 	if err := socket.run(c.Request.Context()); err != nil && !terminalExpectedSocketError(err) {
 		h.terminalStreamLogger().Debug("terminal websocket closed with error", "terminal_id", terminalID, "error", err)
 	}
@@ -171,6 +181,10 @@ func parseTerminalUint(value string, bits int) (uint64, error) {
 }
 
 func (h *BaseHandlers) terminalHostAllowed(request *http.Request) bool {
+	if principal, ok := remotehost.PrincipalFromContext(request.Context()); ok {
+		// Browser credentials are bound to the hosted listener's own hostname.
+		return principal.Browser || request.Host == remoteproto.TunnelHost
+	}
 	if h.isUDSTransport() {
 		return true
 	}
@@ -186,7 +200,8 @@ func (h *BaseHandlers) isUDSTransport() bool {
 func (h *BaseHandlers) terminalOriginAllowed(request *http.Request) bool {
 	origin := strings.TrimSpace(request.Header.Get("Origin"))
 	if origin == "" {
-		return h.isUDSTransport()
+		principal, remote := remotehost.PrincipalFromContext(request.Context())
+		return h.isUDSTransport() || remote && !principal.Browser && request.Host == remoteproto.TunnelHost
 	}
 	parsed, err := url.Parse(origin)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
@@ -279,6 +294,9 @@ func (s *terminalSocket) readPump(ctx context.Context, operationErrors chan<- er
 	for {
 		messageType, encoded, err := s.conn.ReadMessage()
 		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		if messageType != websocket.BinaryMessage {

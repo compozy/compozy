@@ -8,14 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
-	"github.com/compozy/compozy/internal/api/core"
-	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/remotehost"
-	"github.com/compozy/compozy/internal/remoteproto"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 )
 
@@ -32,10 +27,9 @@ type remoteOperatorHandler struct {
 	current atomic.Pointer[http.Handler]
 }
 
-func newRemoteOperatorHandler(initial http.Handler) *remoteOperatorHandler {
-	slot := &remoteOperatorHandler{}
-	slot.swap(initial)
-	return slot
+// WithRemoteTunnelMiddleware wraps the HTTP handler inside the encrypted tunnel.
+func WithRemoteTunnelMiddleware(wrap func(http.Handler) http.Handler) Option {
+	return func(d *Daemon) { d.wrapRemoteTunnel = wrap }
 }
 
 func (h *remoteOperatorHandler) swap(next http.Handler) {
@@ -56,7 +50,7 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 	if !ok || workers.account == nil {
 		return nil
 	}
-	state.remoteOperator = newRemoteOperatorHandler(remoteOperatorRoutes(&state.deps))
+	state.remoteOperator = &remoteOperatorHandler{}
 	host, err := remotehost.NewHost(
 		ctx,
 		storage,
@@ -71,6 +65,7 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 			Persist:            d.persistRemoteConfig,
 			InstallCloudflared: d.installCloudflared,
 			SyncIngress:        remoteIngressSync(state, d.now),
+			WrapTunnelHandler:  d.wrapRemoteTunnel,
 		},
 	)
 	if err != nil {
@@ -92,66 +87,6 @@ func remoteIngressSync(state *bootState, now func() time.Time) func(context.Cont
 	return func(ctx context.Context, endpoint ingress.RemoteEndpoint) error {
 		return registry.SyncRemoteIngressEndpoint(ctx, endpoint, now())
 	}
-}
-
-func remoteOperatorRoutes(deps *RuntimeDeps) http.Handler {
-	config := &core.BaseHandlerConfig{
-		TransportName:                remoteConfigKey,
-		MaskInternalErrors:           true,
-		IncludeSessionWorkspaceInSSE: true,
-		Automation:                   deps.Automation,
-		Sessions:                     deps.Sessions,
-		SessionCatalog:               deps.Registry,
-		SessionHealth:                deps.SessionHealth,
-		Worktrees:                    deps.Worktrees,
-		Workspaces:                   deps.WorkspaceService,
-		WorkspaceAccess:              deps.WorkspaceAccess,
-		Profiles:                     deps.Profiles,
-		Config:                       deps.Config,
-	}
-	if acceptance, ok := deps.Sessions.(core.SessionAcceptanceManager); ok {
-		config.SessionAcceptance = acceptance
-	}
-	handlers := core.NewBaseHandlers(config)
-	return httpapi.NewRemoteRoutes(func(routes *httpapi.RemoteRoutes) {
-		workspaces := routes.Group("/api/workspaces", remoteproto.ScopeSessions)
-		workspaces.GET("/:workspace_id", handlers.GetWorkspace)
-		profiles := routes.Group("/api/profiles", remoteproto.ScopeSessions)
-		profiles.GET("", handlers.ListProfiles)
-		profiles.GET("/selection", handlers.GetProfileSelections)
-		remoteSessions := routes.Group("/api/sessions", remoteproto.ScopeSessions)
-		remoteSessions.GET("", handlers.ListSessions)
-		remoteSessions.GET("/facets", handlers.ListSessionFacets)
-		remoteSessions.POST("", handlers.CreateSession)
-		remoteSessions.GET("/:session_id", handlers.GetSessionByID)
-		remoteSessions.GET("/:session_id/history", handlers.SessionHistory)
-		remoteSessions.GET("/:session_id/stream", handlers.StreamSession)
-		remoteSessions.GET("/:session_id/status", handlers.GetSessionStatus)
-		remoteSessions.GET("/:session_id/transcript", handlers.SessionTranscript)
-		remoteWorkspaces := routes.Group("/api/workspaces", remoteproto.ScopeSessions)
-		remoteWorkspaces.GET("", handlers.ListWorkspaces)
-		remoteJobs := routes.Group("/api/automation/jobs", remoteproto.ScopeSessions)
-		remoteJobs.GET("", handlers.ListAutomationJobs)
-		remoteJobs.POST("", handlers.CreateAutomationJob)
-		remoteJobs.GET("/:id", handlers.GetAutomationJob)
-		remoteJobs.PATCH("/:id", handlers.UpdateAutomationJob)
-		remoteJobs.DELETE("/:id", handlers.DeleteAutomationJob)
-		remoteJobs.POST("/:id/trigger", handlers.TriggerAutomationJob)
-		remoteJobs.GET("/:id/runs", handlers.AutomationJobRuns)
-		sessions := routes.Group(
-			"/api/workspaces/:workspace_id/sessions",
-			remoteproto.ScopeSessions,
-			handlers.WorkspaceReferenceGuard,
-		)
-		sessions.GET("/:session_id/history", handlers.SessionHistory)
-		sessions.GET("/:session_id/status", handlers.GetSessionStatus)
-		sessions.PATCH("/:session_id", handlers.RenameSession)
-		sessions.POST("/:session_id/prompt", func(c *gin.Context) {
-			if dispatch, ok := handlers.DispatchSessionPrompt(c); ok {
-				handlers.RespondPromptV1(c, dispatch)
-			}
-		})
-	})
 }
 
 func (d *Daemon) persistRemoteConfig(

@@ -120,6 +120,7 @@ func (h *Host) newListenerHandler(identity Identity, keys hostKeys, run *hostRun
 				}
 				return nil
 			},
+			wrapTunnelHandler: h.opts.WrapTunnelHandler,
 		}
 		return handler.outer()
 	}

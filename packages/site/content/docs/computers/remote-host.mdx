@@ -19,6 +19,20 @@ The SSH forward targets the loopback listener at `127.0.0.1:47823` by default. T
 
 Local HTTP and UDS share the same `/api/remote` routes for status, link settings, and devices. `compozy__remote_status` gives agents the same status that the CLI prints as JSON.
 
+## Operator scopes
+
+| Scope              | Access on this computer                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `sessions:operate` | Sessions, prompts, approvals, Automations, profile and workspace lists, provider sign-in state, model catalogs, and Vault entry names |
+| `terminal:operate` | Open, attach to, write to, signal, and close terminals                                                                                |
+| `files:read`       | Browse workspace files, read Changes, and inspect worktrees                                                                           |
+| `files:write`      | Write files and create or remove worktrees                                                                                            |
+| `tasks:operate`    | Manage Tasks, enqueue runs, and operate the task scheduler                                                                            |
+| `settings:write`   | Manage configuration, providers, extensions, MCP, Vault entries, hooks, and agents                                                    |
+| `remote:admin`     | Manage remote access, devices, ingress bindings, and app tokens                                                                       |
+
+A device with terminal access can run commands as the daemon's OS user. Across a connection drop, a live terminal replays retained output from the client's last received byte cursor. The shell and the provider sign-in command run on this computer.
+
 ## Hosted route
 
 On a linked computer with Compozy Pro, run `compozy remote cloud-route enable`. Compozy Cloud assigns a hostname under `compozy.run`, and the daemon downloads and verifies the connector on first use. The connector makes an outbound connection to Cloudflare and forwards requests to the hosted listener on `127.0.0.1:47824` by default.

@@ -4,6 +4,7 @@ package api_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -58,6 +59,7 @@ func TestDaemonHostedRoute(t *testing.T) {
 		}
 		assertHostedRetry(t, host, home, connector)
 		edge := hostedEdgeClient(t, home)
+		expectHostedOperatorRejections(t, edge, "https://"+hostname)
 		controller, _ := startComputerController(
 			t,
 			f,
@@ -149,6 +151,44 @@ func TestDaemonHostedRoute(t *testing.T) {
 				expect(t, http.StatusNoContent, "")
 		},
 	)
+}
+
+func expectHostedOperatorRejections(t *testing.T, client *http.Client, base string) {
+	t.Helper()
+	// UT-039, hosted-listener wiring. Safety Invariants 11, 13 and 20.
+	tests := []struct {
+		method, path, code string
+		status             int
+		claim              bool
+	}{
+		{http.MethodGet, "/api/account/x", "route_not_remote", http.StatusNotFound, false},
+		{http.MethodGet, "/api/computers", "route_not_remote", http.StatusNotFound, false},
+		{http.MethodPost, "/api/agent/tasks/claim-next", "route_not_remote", http.StatusNotFound, false},
+		{http.MethodGet, "/c/cmp_x/api/sessions", "remote_bridge_browser_denied", http.StatusForbidden, false},
+		{http.MethodGet, "/api/status", "claim_token_not_remote", http.StatusBadRequest, true},
+	}
+	for _, tc := range tests {
+		request, err := http.NewRequestWithContext(t.Context(), tc.method, base+tc.path, http.NoBody)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tc.claim {
+			request.Header.Set("X-Compozy-Claim-Token", "fixture")
+		}
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload contract.ErrorPayload
+		decodeErr := json.NewDecoder(response.Body).Decode(&payload)
+		if closeErr := response.Body.Close(); closeErr != nil {
+			t.Errorf("close hosted response: %v", closeErr)
+		}
+		if decodeErr != nil || response.StatusCode != tc.status || payload.Code != tc.code {
+			t.Fatalf("%s %s = HTTP %d, code %q, decode error %v; want HTTP %d, code %q",
+				tc.method, tc.path, response.StatusCode, payload.Code, decodeErr, tc.status, tc.code)
+		}
+	}
 }
 
 func startHostedDaemon(
