@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"reflect"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/config"
@@ -46,22 +48,42 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 }
 
 func remoteOperatorRoutes(deps *RuntimeDeps) http.Handler {
-	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-		TransportName:      remoteConfigKey,
-		MaskInternalErrors: true,
-		Sessions:           deps.Sessions,
-		Workspaces:         deps.WorkspaceService,
-		WorkspaceAccess:    deps.WorkspaceAccess,
-		Profiles:           deps.Profiles,
-		Config:             deps.Config,
-	})
+	config := &core.BaseHandlerConfig{
+		TransportName:                remoteConfigKey,
+		MaskInternalErrors:           true,
+		IncludeSessionWorkspaceInSSE: true,
+		Sessions:                     deps.Sessions,
+		SessionCatalog:               deps.Registry,
+		SessionHealth:                deps.SessionHealth,
+		Worktrees:                    deps.Worktrees,
+		Workspaces:                   deps.WorkspaceService,
+		WorkspaceAccess:              deps.WorkspaceAccess,
+		Profiles:                     deps.Profiles,
+		Config:                       deps.Config,
+	}
+	if acceptance, ok := deps.Sessions.(core.SessionAcceptanceManager); ok {
+		config.SessionAcceptance = acceptance
+	}
+	handlers := core.NewBaseHandlers(config)
 	return httpapi.NewRemoteRoutes(func(routes *httpapi.RemoteRoutes) {
+		remoteSessions := routes.Group("/api/sessions", remoteproto.ScopeSessions)
+		remoteSessions.GET("", handlers.ListSessions)
+		remoteSessions.POST("", handlers.CreateSession)
+		remoteSessions.GET("/:session_id", handlers.GetSessionByID)
+		remoteSessions.GET("/:session_id/stream", handlers.StreamSession)
+		remoteSessions.GET("/:session_id/status", handlers.GetSessionStatus)
+		remoteSessions.GET("/:session_id/transcript", handlers.SessionTranscript)
 		sessions := routes.Group(
 			"/api/workspaces/:workspace_id/sessions",
 			remoteproto.ScopeSessions,
 			handlers.WorkspaceReferenceGuard,
 		)
 		sessions.PATCH("/:session_id", handlers.RenameSession)
+		sessions.POST("/:session_id/prompt", func(c *gin.Context) {
+			if dispatch, ok := handlers.DispatchSessionPrompt(c); ok {
+				handlers.RespondPromptV1(c, dispatch)
+			}
+		})
 	})
 }
 

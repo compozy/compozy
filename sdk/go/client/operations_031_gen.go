@@ -9,6 +9,33 @@ import (
 	"strings"
 )
 
+// ReadTaskRunResult Read one exact byte page from a task-run result
+func (c *Client) ReadTaskRunResult(ctx context.Context, params ReadTaskRunResultParams) (*TaskRunResultPageResponse, error) {
+	path := "/api/task-runs/{id}/result"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Offset != nil {
+		query.Set("offset", strconv.Itoa(*params.Offset))
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResultPageResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ReadTerminalParams carries the path, query, and header parameters.
 type ReadTerminalParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -410,34 +437,6 @@ func (c *Client) RejectTask(ctx context.Context, params RejectTaskParams) (*Task
 	}
 	var out TaskResponse
 	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RejectTerminalInputRequestParams carries the path, query, and header parameters.
-type RejectTerminalInputRequestParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	RequestID   string  `url:"request_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RejectTerminalInputRequest Reject one terminal input request
-func (c *Client) RejectTerminalInputRequest(ctx context.Context, params RejectTerminalInputRequestParams, body TerminalRejectInputRequest) (*TerminalInputRejectResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}/input-requests/{request_id}/reject"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	path = strings.ReplaceAll(path, "{request_id}", url.PathEscape(params.RequestID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalInputRejectResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

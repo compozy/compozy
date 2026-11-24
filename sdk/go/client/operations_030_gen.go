@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+// PutLoopInputDefaultsParams carries the path, query, and header parameters.
+type PutLoopInputDefaultsParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	Name        string `url:"name"`
+}
+
 // PutLoopInputDefaults Replace one scoped Loop input-default table
 func (c *Client) PutLoopInputDefaults(ctx context.Context, params PutLoopInputDefaultsParams, body PutLoopInputDefaultsRequest) (*LoopInputDefaultsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults"
@@ -416,31 +422,4 @@ type ReadTaskRunResultParams struct {
 	Limit       *int    `url:"limit"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ReadTaskRunResult Read one exact byte page from a task-run result
-func (c *Client) ReadTaskRunResult(ctx context.Context, params ReadTaskRunResultParams) (*TaskRunResultPageResponse, error) {
-	path := "/api/task-runs/{id}/result"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Offset != nil {
-		query.Set("offset", strconv.Itoa(*params.Offset))
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResultPageResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

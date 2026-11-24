@@ -38,6 +38,15 @@ func loadRuntimeContext(deps commandDeps) (runtime *runtimeContext, returnErr er
 	if strings.TrimSpace(cfg.Daemon.Socket) == "" {
 		cfg.Daemon.Socket = homePaths.DaemonSocket
 	}
+	if deps.computerTarget != nil {
+		if selection, selected := deps.computerTarget(); selected {
+			target, err := bridgeClientTarget(ctx, deps, cfg.Daemon.Socket, selection)
+			if err != nil {
+				return nil, err
+			}
+			return &runtimeContext{HomePaths: homePaths, Config: cfg, Target: target}, nil
+		}
+	}
 	if active := strings.TrimSpace(cfg.Gateway.ActiveConnection); active != "" {
 		if err := ensureGatewayProfileTransactionReady(homePaths.GatewayCredentialsDir, active); err != nil {
 			return nil, err

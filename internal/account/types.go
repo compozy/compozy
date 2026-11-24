@@ -84,6 +84,7 @@ type SignInEvent struct {
 
 type Change struct {
 	Kind          string                 `json:"kind,omitempty"`
+	EvictRemote   bool                   `json:"evict_remote,omitzero"`
 	Approval      *ApprovalResult        `json:"approval,omitempty"`
 	ApprovalID    string                 `json:"approval_id,omitempty"`
 	ComputerID    remoteproto.ComputerID `json:"computer_id,omitempty"`

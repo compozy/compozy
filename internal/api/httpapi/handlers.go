@@ -77,6 +77,7 @@ type handlerConfig struct {
 	modelCatalog          core.ModelCatalogService
 	account               core.AccountService
 	remote                core.RemoteHostService
+	computers             core.ComputersService
 	providerUsage         core.ProviderUsageService
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService
@@ -284,6 +285,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		ModelCatalog:           cfg.modelCatalog,
 		Account:                cfg.account,
 		Remote:                 cfg.remote,
+		Computers:              cfg.computers,
 		ProviderUsage:          cfg.providerUsage,
 		MarketplaceCatalog:     cfg.marketplaceCatalog,
 		AgentContextService:    cfg.agentContext,

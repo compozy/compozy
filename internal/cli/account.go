@@ -15,10 +15,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const accountSignInHint = "Sign in to use CompozyOS: compozy account login"
+const (
+	accountCommandName = "account"
+	accountSignInHint  = "Sign in to use CompozyOS: compozy account login"
+)
 
 func newAccountCommand(deps commandDeps) *cobra.Command {
-	cmd := &cobra.Command{Use: "account", Short: "Manage the Compozy Cloud account on this computer"}
+	cmd := &cobra.Command{Use: accountCommandName, Short: "Manage the Compozy Cloud account on this computer"}
 	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return newCLIUsageError(err.Error()) })
 	cmd.AddCommand(
 		accountVerb(

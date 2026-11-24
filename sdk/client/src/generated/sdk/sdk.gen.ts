@@ -19,6 +19,9 @@ import type {
   AcknowledgeAttentionNotificationsData,
   AcknowledgeAttentionNotificationsErrors,
   AcknowledgeAttentionNotificationsResponses,
+  AddAccountComputerData,
+  AddAccountComputerErrors,
+  AddAccountComputerResponses,
   AddAgentMemoryData,
   AddAgentMemoryErrors,
   AddAgentMemoryResponses,
@@ -526,6 +529,9 @@ import type {
   GetCmdPaletteViewData,
   GetCmdPaletteViewErrors,
   GetCmdPaletteViewResponses,
+  GetComputerData,
+  GetComputerErrors,
+  GetComputerResponses,
   GetDoctorData,
   GetDoctorErrors,
   GetDoctorResponses,
@@ -936,12 +942,18 @@ import type {
   ListAutomationTriggersData,
   ListAutomationTriggersErrors,
   ListAutomationTriggersResponses,
+  ListAvailableComputersData,
+  ListAvailableComputersErrors,
+  ListAvailableComputersResponses,
   ListCmdPaletteClientsData,
   ListCmdPaletteClientsErrors,
   ListCmdPaletteClientsResponses,
   ListCmdPaletteCommandsData,
   ListCmdPaletteCommandsErrors,
   ListCmdPaletteCommandsResponses,
+  ListComputersData,
+  ListComputersErrors,
+  ListComputersResponses,
   ListExtensionCommandsData,
   ListExtensionCommandsErrors,
   ListExtensionCommandsResponses,
@@ -1212,6 +1224,9 @@ import type {
   PatchAccountDeviceData,
   PatchAccountDeviceErrors,
   PatchAccountDeviceResponses,
+  PatchComputerData,
+  PatchComputerErrors,
+  PatchComputerResponses,
   PatchLoopData,
   PatchLoopErrors,
   PatchLoopResponses,
@@ -1416,6 +1431,12 @@ import type {
   RemoveAgentMemoryData,
   RemoveAgentMemoryErrors,
   RemoveAgentMemoryResponses,
+  RemoveComputerData,
+  RemoveComputerErrors,
+  RemoveComputerResponses,
+  RemoveComputerRouteData,
+  RemoveComputerRouteErrors,
+  RemoveComputerRouteResponses,
   RemoveDiscoveredWorktreeData,
   RemoveDiscoveredWorktreeErrors,
   RemoveDiscoveredWorktreeResponses,
@@ -4640,6 +4661,147 @@ export class cmdPalette extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+}
+
+export class computers extends HeyApiClient {
+  /**
+   * List computers added to this controller
+   */
+  public listComputers<ThrowOnError extends boolean = true>(
+    options?: Options<ListComputersData, ThrowOnError>
+  ): RequestResult<ListComputersResponses, ListComputersErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListComputersResponses,
+      ListComputersErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers",
+      ...options,
+    });
+  }
+
+  /**
+   * Add a linked account computer
+   */
+  public addAccountComputer<ThrowOnError extends boolean = true>(
+    options: Options<AddAccountComputerData, ThrowOnError>
+  ): RequestResult<AddAccountComputerResponses, AddAccountComputerErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      AddAccountComputerResponses,
+      AddAccountComputerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List linked computers available to add
+   */
+  public listAvailableComputers<ThrowOnError extends boolean = true>(
+    options?: Options<ListAvailableComputersData, ThrowOnError>
+  ): RequestResult<
+    ListAvailableComputersResponses,
+    ListAvailableComputersErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListAvailableComputersResponses,
+      ListAvailableComputersErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/available",
+      ...options,
+    });
+  }
+
+  /**
+   * Remove a computer from this controller
+   */
+  public removeComputer<ThrowOnError extends boolean = true>(
+    options: Options<RemoveComputerData, ThrowOnError>
+  ): RequestResult<RemoveComputerResponses, RemoveComputerErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RemoveComputerResponses,
+      RemoveComputerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Inspect a computer and its routes
+   */
+  public getComputer<ThrowOnError extends boolean = true>(
+    options: Options<GetComputerData, ThrowOnError>
+  ): RequestResult<GetComputerResponses, GetComputerErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetComputerResponses,
+      GetComputerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Update a computer in this controller
+   */
+  public patchComputer<ThrowOnError extends boolean = true>(
+    options: Options<PatchComputerData, ThrowOnError>
+  ): RequestResult<PatchComputerResponses, PatchComputerErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchComputerResponses,
+      PatchComputerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/{id}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove a learned route
+   */
+  public removeComputerRoute<ThrowOnError extends boolean = true>(
+    options: Options<RemoveComputerRouteData, ThrowOnError>
+  ): RequestResult<RemoveComputerRouteResponses, RemoveComputerRouteErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      RemoveComputerRouteResponses,
+      RemoveComputerRouteErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/computers/{id}/routes/{route_id}",
+      ...options,
     });
   }
 }
@@ -15007,6 +15169,11 @@ export class Compozy extends HeyApiClient {
   private _cmdPalette?: cmdPalette;
   get cmdPalette(): cmdPalette {
     return (this._cmdPalette ??= new cmdPalette({ client: this.client }));
+  }
+
+  private _computers?: computers;
+  get computers(): computers {
+    return (this._computers ??= new computers({ client: this.client }));
   }
 
   private _diagnostics?: diagnostics;

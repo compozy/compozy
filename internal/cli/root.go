@@ -65,6 +65,7 @@ type commandDeps struct {
 	restartMigrationIdleTimeout time.Duration
 	vaultKeyring                vault.Keyring
 	commandContext              func() context.Context
+	computerTarget              func() (string, bool)
 	loadConfig                  func() (compozyconfig.Config, error)
 	windowManagerWarning        compozyconfig.LoadOption
 	resolveHome                 func() (compozyconfig.HomePaths, error)
@@ -145,6 +146,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	}
 	configureRootClientTargetReporting(cmd, &deps)
 	configureRootFlags(cmd)
+	configureRootComputerFlag(cmd, &deps)
 	registerRootCommands(cmd, deps)
 	configureProfileIndependentCompletionCommands(cmd)
 

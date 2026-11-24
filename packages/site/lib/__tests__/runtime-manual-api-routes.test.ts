@@ -18,6 +18,8 @@ type APIRoute = {
   source: string;
 };
 
+type RouteHelper = { router: string; body: string };
+
 const ignoredExternalPrefixes = ["/api/v1"];
 
 // Routes the memory removal retired. Only the migration guide may still name them.
@@ -61,21 +63,27 @@ function joinRoute(left: string, right: string): string {
   return `${left.replace(/\/$/, "")}/${right.replace(/^\//, "")}`;
 }
 
-function extractRegisteredRoutes(
-  sourcePath: string,
-  source = readRepoFile(sourcePath)
-): APIRoute[] {
-  const routes: APIRoute[] = [];
-  const helpers = new Map<string, { router: string; body: string }>();
+function readRouteHelpers(source: string, prefix = ""): Map<string, RouteHelper> {
+  const helpers = new Map<string, RouteHelper>();
   for (const match of source.matchAll(
     /^func (\w+)\((\w+) gin\.IRouter[^)]*\) \{\n([\s\S]*?)^\}/gm
   )) {
     const [, name, router, body] = match;
-    if (name && router && body !== undefined) helpers.set(name, { router, body });
+    if (name && router && body !== undefined) helpers.set(`${prefix}${name}`, { router, body });
   }
+  return helpers;
+}
+
+function extractRegisteredRoutes(
+  sourcePath: string,
+  source = readRepoFile(sourcePath),
+  sharedHelpers: ReadonlyMap<string, RouteHelper> = new Map()
+): APIRoute[] {
+  const routes: APIRoute[] = [];
+  const helpers = readRouteHelpers(source);
   const assignmentMatcher = /^\s*(\w+)\s*:=\s*(\w+)\.Group\("([^"]*)"/;
   const methodMatcher = /^\s*(\w+)\.(GET|POST|PATCH|PUT|DELETE)\("([^"]*)"/;
-  const helperMatcher = /^\s*(\w+)\((\w+),/;
+  const helperMatcher = /^\s*((?:\w+\.)?\w+)\((\w+),/;
 
   function visit(body: string, groups: Map<string, string>) {
     for (const line of body.split("\n")) {
@@ -105,7 +113,8 @@ function extractRegisteredRoutes(
 
       const call = line.match(helperMatcher);
       if (call) {
-        const helper = helpers.get(call[1] ?? "");
+        const name = call[1] ?? "";
+        const helper = helpers.get(name) ?? sharedHelpers.get(name);
         const prefix = groups.get(call[2] ?? "");
         if (helper && prefix !== undefined) {
           visit(helper.body, new Map([[helper.router, prefix]]));
@@ -119,10 +128,17 @@ function extractRegisteredRoutes(
 }
 
 function implementedRoutes(): APIRoute[] {
+  const sharedHelpers = new Map(
+    listRouteSourcePaths("internal/api/core").flatMap(path => [
+      ...readRouteHelpers(readRepoFile(path), "core."),
+    ])
+  );
   return [
     ...listRouteSourcePaths("internal/api/httpapi"),
     ...listRouteSourcePaths("internal/api/udsapi"),
-  ].flatMap(sourcePath => extractRegisteredRoutes(sourcePath));
+  ].flatMap(sourcePath =>
+    extractRegisteredRoutes(sourcePath, readRepoFile(sourcePath), sharedHelpers)
+  );
 }
 
 // The full docs scan compares each registered route many times; compile each pattern once.
@@ -195,19 +211,28 @@ describe("manual API route references", () => {
   // Invariant: route registration delegates preserve each caller's Gin prefix.
   // Owner: this manual-doc contract scanner; live HTTP/UDS tests own runtime routing.
   it("resolves shared route helpers at both Global and workspace prefixes", () => {
+    const sharedHelpers = readRouteHelpers(
+      `
+func RegisterSessionReadRoutes(reads gin.IRouter, handlers *BaseHandlers, mw ...gin.HandlerFunc) {
+  reads.GET("/:session_id/status", handlers.GetSessionStatus)
+}
+`,
+      "core."
+    );
     const routes = extractRegisteredRoutes(
       "session_routes.go",
       `
 func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
   sessions := api.Group("/sessions")
-  registerSessionReadRoutes(sessions, handlers)
+  core.RegisterSessionReadRoutes(sessions, handlers.BaseHandlers, handlers.guard())
   workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
   registerSessionReadRoutes(workspaceSessions, handlers)
 }
 func registerSessionReadRoutes(reads gin.IRouter, handlers *Handlers) {
   reads.GET("/:session_id/status", handlers.GetSessionStatus)
 }
-`
+`,
+      sharedHelpers
     );
     expect(routes.map(route => route.path)).toEqual([
       "/api/sessions/:session_id/status",

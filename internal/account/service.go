@@ -130,11 +130,21 @@ func (s *Service) SessionLifetime() (context.Context, string, error) {
 	return s.generation.ctx, s.installation.AccountID, nil
 }
 
+// IdentityLifetime changes on every authentication transition, including sign-in.
+func (s *Service) IdentityLifetime() (context.Context, Installation) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.generation.ctx, s.installation
+}
+
 func (s *Service) transitionLocked(ctx context.Context, next Installation, session deviceSession) error {
 	previous := s.installation.AuthGeneration
 	next.AuthGeneration = previous + 1
 	if err := s.store.SaveInstallationAccount(ctx, previous, next); err != nil {
 		return err
+	}
+	if s.installation.State == SignedIn {
+		s.generation.evictRemote()
 	}
 	s.generation.cancel()
 	s.generation = newGeneration(s.ctx, next.AuthGeneration)

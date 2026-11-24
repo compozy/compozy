@@ -18,6 +18,31 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
+func TestMachineLocalComputerFlag(t *testing.T) {
+	t.Parallel()
+	// Machine-local commands reject the target before they contact or change an installation.
+	for _, args := range [][]string{
+		{"daemon", "start"}, {"account", "status"}, {"computer", "list"}, {"remote", "status"},
+		{"install"}, {"uninstall"}, {"update"},
+	} {
+		t.Run("Should refuse targeting from "+strings.Join(args, " "), func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+			code := ExecuteContext(t.Context(), append(args, "--computer=somewhere", "--json"), &stdout, &stderr)
+			var failure contract.ErrorPayload
+			if code != 2 || json.Unmarshal(stderr.Bytes(), &failure) != nil ||
+				failure.Code != "flag_not_applicable" || !strings.Contains(failure.Error, strings.Join(args, " ")) {
+				t.Fatalf(
+					"machine-local computer flag exit %d, stdout %s, stderr %s",
+					code,
+					stdout.Bytes(),
+					stderr.Bytes(),
+				)
+			}
+		})
+	}
+}
+
 func TestRenderHumanExecutionError(t *testing.T) {
 	t.Parallel()
 

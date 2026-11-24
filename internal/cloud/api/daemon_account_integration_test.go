@@ -24,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cloud/auth"
 	cloudstore "github.com/compozy/compozy/internal/cloud/store"
+	"github.com/compozy/compozy/internal/computers"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -130,6 +131,17 @@ func signInDaemonAccount(
 	t *testing.T, f authFixture, d daemonAccountFixture, progress accountIntegrationStream, email string,
 ) contract.AccountStatusResponse {
 	t.Helper()
+	signedIn := signInAccountDevice(t, f, d, progress, email)
+	if signedIn.Plan != "free" || !signedIn.Device.Admin {
+		t.Fatalf("daemon status = %#v, want first trusted device for this account", signedIn)
+	}
+	return signedIn
+}
+
+func signInAccountDevice(
+	t *testing.T, f authFixture, d daemonAccountFixture, progress accountIntegrationStream, email string,
+) contract.AccountStatusResponse {
+	t.Helper()
 	login := d.request(t, http.MethodPost, contract.AccountLoginPath, contract.AccountLoginRequest{
 		Provider: new(auth.Google), MarketingOptIn: true,
 	})
@@ -168,9 +180,8 @@ func signInDaemonAccount(
 	status := d.request(t, http.MethodGet, contract.AccountPath, nil)
 	status.expect(t, http.StatusOK, email)
 	signedIn := authJSON[contract.AccountStatusResponse](t, status)
-	if !signedIn.SignedIn || signedIn.Email != email || signedIn.Provider != "google" ||
-		signedIn.Plan != "free" || signedIn.Device == nil || !signedIn.Device.Admin {
-		t.Fatalf("daemon status = %#v, want first trusted device for this account", signedIn)
+	if !signedIn.SignedIn || signedIn.Email != email || signedIn.Provider != "google" || signedIn.Device == nil {
+		t.Fatalf("daemon status = %#v, want the signed-in device", signedIn)
 	}
 	return signedIn
 }
@@ -240,9 +251,24 @@ func recordAccountApproval(
 type daemonAccountFixture struct {
 	httpClient, udsClient *http.Client
 	httpBase              string
+	socket                string
+	stop                  func()
 }
 
 func startDaemonAccountFixture(t *testing.T, f authFixture, home string) (daemonAccountFixture, *daemonAccountKeyring) {
+	t.Helper()
+	return startConfiguredDaemonAccount(t, f, home, daemonAccountBoot{})
+}
+
+type daemonAccountBoot struct {
+	keyring *daemonAccountKeyring
+	options []daemon.Option
+	direct  bool
+}
+
+func startConfiguredDaemonAccount(
+	t *testing.T, f authFixture, home string, boot daemonAccountBoot,
+) (daemonAccountFixture, *daemonAccountKeyring) {
 	t.Helper()
 	t.Setenv("COMPOZY_HOME", home)
 	t.Setenv("COMPOZY_CLOUD_URL", f.replica.Server.URL)
@@ -263,6 +289,19 @@ func startDaemonAccountFixture(t *testing.T, f authFixture, home string) (daemon
 		if err := editor.SetValue([]string{"defaults", "provider"}, "codex"); err != nil {
 			return err
 		}
+		if err := editor.SetValue([]string{"daemon", "socket"}, paths.DaemonSocket); err != nil {
+			return err
+		}
+		if boot.direct {
+			if err := editor.SetValue(
+				[]string{"remote", "listener"}, fmt.Sprintf("127.0.0.1:%d", testutil.FreeTCPPort(t)),
+			); err != nil {
+				return err
+			}
+			if err := editor.SetValue([]string{"remote", "direct", "enabled"}, true); err != nil {
+				return err
+			}
+		}
 		return editor.SetValue([]string{"user_scope", "work_dir"}, home)
 	})
 	if err != nil {
@@ -270,17 +309,38 @@ func startDaemonAccountFixture(t *testing.T, f authFixture, home string) (daemon
 	}
 	cfg.Automation.Enabled = false
 	cfg.HTTP.Host, cfg.HTTP.Port = "127.0.0.1", testutil.FreeTCPPort(t)
-	ring := &daemonAccountKeyring{}
-	daemonInstance, err := daemon.New(
+	ring := boot.keyring
+	if ring == nil {
+		ring = &daemonAccountKeyring{}
+	}
+	options := append([]daemon.Option{
 		daemon.WithHomePaths(paths),
 		daemon.WithConfig(&cfg),
 		daemon.WithLogger(slog.New(slog.NewTextHandler(t.Output(), &slog.HandlerOptions{Level: slog.LevelWarn}))),
 		daemon.WithNow(f.clock.Now),
 		daemon.WithAccountOptions(account.WithClock(f.clock), account.WithKeyring(ring)),
-	)
+		daemon.WithComputersOptions(computers.WithClock(f.clock)),
+	}, boot.options...)
+	daemonInstance, err := daemon.New(options...)
 	if err != nil {
 		t.Fatal(err)
 	}
+	stop := runAccountDaemon(t, daemonInstance)
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", paths.DaemonSocket)
+	}}
+	t.Cleanup(transport.CloseIdleConnections)
+	return daemonAccountFixture{
+		httpBase:   fmt.Sprintf("http://%s:%d", cfg.HTTP.Host, cfg.HTTP.Port),
+		httpClient: &http.Client{Timeout: 20 * time.Second},
+		udsClient:  &http.Client{Timeout: 10 * time.Second, Transport: transport},
+		socket:     paths.DaemonSocket,
+		stop:       stop,
+	}, ring
+}
+
+func runAccountDaemon(t *testing.T, daemonInstance *daemon.Daemon) func() {
+	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	var runErr error
 	stopped := make(chan struct{})
@@ -288,7 +348,7 @@ func startDaemonAccountFixture(t *testing.T, f authFixture, home string) (daemon
 		defer close(stopped)
 		runErr = daemonInstance.Run(ctx)
 	}()
-	t.Cleanup(func() {
+	stop := sync.OnceFunc(func() {
 		cancel()
 		select {
 		case <-stopped:
@@ -299,6 +359,7 @@ func startDaemonAccountFixture(t *testing.T, f authFixture, home string) (daemon
 			t.Error("account integration daemon did not stop")
 		}
 	})
+	t.Cleanup(stop)
 	testutil.Eventually(t, "daemon ready", 20*time.Second, func() bool {
 		select {
 		case <-stopped:
@@ -309,15 +370,7 @@ func startDaemonAccountFixture(t *testing.T, f authFixture, home string) (daemon
 		return status != nil && status.Phase == contract.DaemonReadinessReady
 	})
 
-	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, "unix", paths.DaemonSocket)
-	}}
-	t.Cleanup(transport.CloseIdleConnections)
-	return daemonAccountFixture{
-		httpBase:   fmt.Sprintf("http://%s:%d", cfg.HTTP.Host, cfg.HTTP.Port),
-		httpClient: &http.Client{Timeout: 20 * time.Second},
-		udsClient:  &http.Client{Timeout: 10 * time.Second, Transport: transport},
-	}, ring
+	return stop
 }
 
 func (d daemonAccountFixture) request(t *testing.T, method, path string, input any) authReply {

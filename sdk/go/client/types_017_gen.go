@@ -7,6 +7,136 @@ import (
 	"time"
 )
 
+// RemoteDeviceResponse is a daemon API value.
+type RemoteDeviceResponse struct {
+	ID              DeviceID   `json:"id"`
+	Name            string     `json:"name"`
+	Scopes          []Scope    `json:"scopes"`
+	Admin           bool       `json:"admin"`
+	LastSeenAt      *time.Time `json:"last_seen_at"`
+	PendingApproval bool       `json:"pending_approval"`
+	Approvals       []Approval `json:"approvals,omitempty"`
+}
+
+// RemoteDevicesResponse is a daemon API value.
+type RemoteDevicesResponse struct {
+	Devices []RemoteDeviceResponse `json:"devices"`
+}
+
+// RemoteLinkRequest is a daemon API value.
+type RemoteLinkRequest struct {
+	LinkToken string `json:"link_token,omitempty"`
+}
+
+// RemoteLinkResponse is a daemon API value.
+type RemoteLinkResponse struct {
+	ComputerID              ComputerID `json:"computer_id,omitempty"`
+	Name                    string     `json:"name,omitempty"`
+	Enabled                 bool       `json:"enabled,omitzero"`
+	AttemptID               string     `json:"attempt_id,omitempty"`
+	VerificationURI         string     `json:"verification_uri,omitempty"`
+	VerificationURIComplete string     `json:"verification_uri_complete,omitempty"`
+	UserCode                string     `json:"user_code,omitempty"`
+	ExpiresAt               time.Time  `json:"expires_at,omitzero"`
+}
+
+// RemotePatchRequest is a daemon API value.
+type RemotePatchRequest struct {
+	Enabled               *bool `json:"enabled,omitempty"`
+	Direct                *bool `json:"direct,omitempty"`
+	CloudRoute            *bool `json:"cloud_route,omitempty"`
+	RequireDeviceApproval *bool `json:"require_device_approval,omitempty"`
+}
+
+// RemoteStatusResponse is a daemon API value.
+type RemoteStatusResponse struct {
+	ComputerID            ComputerID         `json:"computer_id"`
+	Enabled               bool               `json:"enabled"`
+	Listener              string             `json:"listener"`
+	Direct                DirectStatus       `json:"direct"`
+	CloudRoute            HostedStatus       `json:"cloud_route"`
+	Entitlement           *EntitlementStatus `json:"entitlement"`
+	ControlLink           string             `json:"control_link"`
+	RequireDeviceApproval bool               `json:"require_device_approval"`
+}
+
+// RemoveComputerResponse is a daemon API value.
+type RemoveComputerResponse struct {
+	Removed   bool   `json:"removed"`
+	Uninstall string `json:"uninstall"`
+}
+
+// RemoveDiscoveredWorktreeRequest is a daemon API value.
+type RemoveDiscoveredWorktreeRequest struct {
+	Path        string `json:"path"`
+	Force       bool   `json:"force,omitempty"`
+	ExpectStale bool   `json:"expect_stale,omitempty"`
+}
+
+// RemoveWorktreesRequest is a daemon API value.
+type RemoveWorktreesRequest struct {
+	Targets      []WorktreeRemovalTarget `json:"targets"`
+	Force        bool                    `json:"force,omitempty"`
+	DeleteBranch bool                    `json:"delete_branch,omitempty"`
+	DryRun       bool                    `json:"dry_run,omitempty"`
+}
+
+// RemoveWorktreesResponse is a daemon API value.
+type RemoveWorktreesResponse struct {
+	DryRun  bool                    `json:"dry_run"`
+	Results []WorktreeRemovalResult `json:"results"`
+}
+
+// RenameProfilePlan is a daemon API value.
+type RenameProfilePlan struct {
+	Revision          string             `json:"revision"`
+	MachineFolders    []string           `json:"machine_folders"`
+	RepoCandidates    []ProfileFolderRef `json:"repo_candidates"`
+	DormantPlacements []ProfilePlacement `json:"dormant_placements"`
+	VaultRefRewrites  int                `json:"vault_ref_rewrites"`
+}
+
+// RenameProfileRequest is a daemon API value.
+type RenameProfileRequest struct {
+	NewName      string   `json:"new_name"`
+	Repos        []string `json:"repos,omitempty"`
+	PlanRevision string   `json:"plan_revision"`
+}
+
+// RenameProfileResponse is a daemon API value.
+type RenameProfileResponse struct {
+	Renamed           bool                       `json:"renamed"`
+	RepoResults       []ProfileRepoRenameOutcome `json:"repo_results"`
+	DormantPlacements []ProfilePlacement         `json:"dormant_placements"`
+}
+
+// RenameSessionFolderRequest is a daemon API value.
+type RenameSessionFolderRequest struct {
+	Name string `json:"name"`
+}
+
+// RenameSessionRequest is a daemon API value.
+type RenameSessionRequest struct {
+	Name string `json:"name"`
+}
+
+// RenameWorkspaceFolderRequest is a daemon API value.
+type RenameWorkspaceFolderRequest struct {
+	Name string `json:"name"`
+}
+
+// ReorderSessionFoldersRequest is a daemon API value.
+type ReorderSessionFoldersRequest struct {
+	FolderIDs []string `json:"folder_ids"`
+}
+
+// ReorderSessionsRequest is a daemon API value.
+type ReorderSessionsRequest struct {
+	FolderID   string   `json:"folder_id,omitempty"`
+	Pinned     bool     `json:"pinned,omitempty"`
+	SessionIDs []string `json:"session_ids"`
+}
+
 // ReorderWorkspaceFoldersRequest is a daemon API value.
 type ReorderWorkspaceFoldersRequest struct {
 	FolderIDs []string `json:"folder_ids"`
@@ -316,134 +446,3 @@ type RoleDiagnostic struct {
 	Message string `json:"message"`
 	Agent   string `json:"agent,omitempty"`
 }
-
-// RoleFallbackStatus is a daemon API value.
-type RoleFallbackStatus struct {
-	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Provider           string                              `json:"provider"`
-	Model              string                              `json:"model"`
-	ReasoningEffort    string                              `json:"reasoning_effort,omitempty"`
-	Speed              Speed                               `json:"speed,omitempty"`
-	ACPOptions         []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	Command            string                              `json:"command,omitempty"`
-	CommandFingerprint string                              `json:"command_fingerprint,omitempty"`
-}
-
-// RoleResolutionMode is a daemon API value.
-type RoleResolutionMode string
-
-// RoleStatus is a daemon API value.
-type RoleStatus struct {
-	Role            string                    `json:"role"`
-	Enabled         bool                      `json:"enabled"`
-	ResolutionMode  RoleResolutionMode        `json:"resolution_mode"`
-	Agent           *string                   `json:"agent"`
-	Provider        *string                   `json:"provider"`
-	Model           *string                   `json:"model"`
-	ReasoningEffort *string                   `json:"reasoning_effort"`
-	Speed           *Speed                    `json:"speed"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options"`
-	Timeout         *string                   `json:"timeout,omitzero"`
-	FallbackChain   []RoleFallbackStatus      `json:"fallback_chain"`
-	Provenance      map[string]string         `json:"provenance"`
-	Diagnostics     []RoleDiagnostic          `json:"diagnostics"`
-}
-
-// RoleStatusResponse is a daemon API value.
-type RoleStatusResponse struct {
-	Role RoleStatus `json:"role"`
-}
-
-// RolesResponse is a daemon API value.
-type RolesResponse struct {
-	Roles []RoleStatus `json:"roles"`
-}
-
-// RosterNode is a daemon API value.
-type RosterNode struct {
-	Generation     int               `json:"generation"`
-	NodeID         NodeID            `json:"node_id"`
-	ItemIndex      int               `json:"item_index"`
-	State          NodeState         `json:"state"`
-	Attempt        int               `json:"attempt"`
-	Attempts       []NodeAttemptView `json:"attempts"`
-	NextRetryAt    *time.Time        `json:"next_retry_at,omitempty"`
-	ChildLoopRunID string            `json:"child_loop_run_id,omitempty"`
-	Cancellation   *NodeCancellation `json:"cancellation,omitzero"`
-	StartedAt      *time.Time        `json:"started_at,omitempty"`
-	EndedAt        *time.Time        `json:"ended_at,omitempty"`
-	SessionID      string            `json:"session_id,omitempty"`
-	CellTaskID     string            `json:"cell_task_id,omitempty"`
-	Usage          *NodeUsage        `json:"usage,omitzero"`
-}
-
-// RosterPage is a daemon API value.
-type RosterPage struct {
-	RunID         RunID          `json:"run_id"`
-	LoopName      string         `json:"loop_name"`
-	RunStatus     Status         `json:"run_status"`
-	Nodes         []RosterNode   `json:"nodes"`
-	FanoutRollups []FanoutRollup `json:"fanout_rollups"`
-	NextCursor    string         `json:"next_cursor,omitempty"`
-}
-
-// RouteIntent is a daemon API value.
-// RouteIntent preserves its custom JSON wire representation.
-type RouteIntent = json.RawMessage
-
-// RouteSpec is a daemon API value.
-type RouteSpec struct {
-	When string `json:"when"`
-	To   NodeID `json:"to"`
-}
-
-// Row is a daemon API value.
-type Row struct {
-	ID          string            `json:"id"`
-	Title       string            `json:"title"`
-	Subtitle    string            `json:"subtitle,omitempty"`
-	Icon        string            `json:"icon,omitempty"`
-	Badge       *ViewBadge        `json:"badge,omitempty"`
-	Keywords    []string          `json:"keywords,omitempty"`
-	Accessories []string          `json:"accessories,omitempty"`
-	Detail      *DetailBody       `json:"detail,omitempty"`
-	Actions     []RowAction       `json:"actions,omitempty"`
-	Requires    map[string]string `json:"requires,omitempty"`
-	Fallback    string            `json:"fallback,omitempty"`
-}
-
-// RowAction is a daemon API value.
-type RowAction struct {
-	Title        string            `json:"title"`
-	Icon         string            `json:"icon,omitempty"`
-	Section      string            `json:"section,omitempty"`
-	Primary      bool              `json:"primary,omitempty"`
-	Destructive  bool              `json:"destructive,omitempty"`
-	Confirmation *Confirmation     `json:"confirmation,omitempty"`
-	Shortcut     string            `json:"shortcut,omitempty"`
-	Action       *Action           `json:"action,omitempty"`
-	Handler      string            `json:"handler,omitempty"`
-	SubmitForm   bool              `json:"submit_form,omitempty"`
-	Requires     map[string]string `json:"requires,omitempty"`
-	Fallback     string            `json:"fallback,omitempty"`
-}
-
-// RunArtifact is a daemon API value.
-type RunArtifact struct {
-	Name         string               `json:"name"`
-	Output       string               `json:"output,omitempty"`
-	Ref          string               `json:"ref,omitempty"`
-	Availability ArtifactAvailability `json:"availability"`
-}
-
-// RunDesignationSummary is a daemon API value.
-type RunDesignationSummary struct {
-	Index int    `json:"index"`
-	Brief string `json:"brief,omitempty"`
-}
-
-// RunEventKind is a daemon API value.
-type RunEventKind string
-
-// RunID is a daemon API value.
-type RunID string

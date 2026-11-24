@@ -26,6 +26,13 @@ const (
 	GrantLeeway = 30 * time.Second
 )
 
+const (
+	DescriptorPath = "/remote/v1/descriptor"
+	TunnelPath     = "/remote/v1/tunnel"
+	SessionPath    = "/remote/v1/session"
+	TunnelHost     = "compozy-remote"
+)
+
 type ProtocolRange struct {
 	Min int `json:"min"`
 	Max int `json:"max"`
@@ -106,9 +113,10 @@ type MintRequest struct {
 }
 
 type MintResponse struct {
-	SessionID  string `json:"session_id"`
-	Credential string `json:"credential"`
-	ExpiresAt  int64  `json:"expires_at"`
+	SessionID  string  `json:"session_id"`
+	Credential string  `json:"credential"`
+	ExpiresAt  int64   `json:"expires_at"`
+	Scopes     []Scope `json:"scopes"`
 }
 
 type EntitlementLease struct {

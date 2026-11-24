@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// ChangeTotalsPayload is a daemon API value.
+type ChangeTotalsPayload struct {
+	Files     int  `json:"files"`
+	Additions int  `json:"additions"`
+	Deletions int  `json:"deletions"`
+	Partial   bool `json:"partial,omitzero"`
+}
+
+// CheckInProposalSummary is a daemon API value.
+type CheckInProposalSummary struct {
+	AutoAccepted int64 `json:"auto_accepted"`
+	Waiting      int64 `json:"waiting"`
+}
+
 // CheckInToolCall is a daemon API value.
 type CheckInToolCall struct {
 	Seq         int64  `json:"seq"`
@@ -277,8 +291,73 @@ type CompleteTaskRunRequest struct {
 	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
 }
 
+// Computer is a daemon API value.
+type Computer struct {
+	ID                  ComputerID          `json:"id"`
+	AccountID           string              `json:"account_id"`
+	Name                string              `json:"name"`
+	Enabled             bool                `json:"enabled"`
+	Status              string              `json:"status"`
+	PlanState           string              `json:"plan_state"`
+	Version             string              `json:"version"`
+	Platform            string              `json:"platform"`
+	RouteInUse          *ComputerRouteInUse `json:"route_in_use"`
+	Routes              []ComputerRoute     `json:"routes"`
+	Scopes              []Scope             `json:"scopes"`
+	Diagnosis           *ComputerDiagnosis  `json:"diagnosis"`
+	Protocol            *ProtocolRange      `json:"protocol"`
+	LoadBalancingWeight int                 `json:"load_balancing_weight"`
+	AddedAt             time.Time           `json:"added_at"`
+	LastConnectedAt     *time.Time          `json:"last_connected_at"`
+}
+
+// ComputerChange is a daemon API value.
+type ComputerChange struct {
+	ComputerID ComputerID `json:"computer_id,omitempty"`
+	Computer   *Computer  `json:"computer,omitempty"`
+	Removed    bool       `json:"removed,omitzero"`
+}
+
+// ComputerDiagnosis is a daemon API value.
+type ComputerDiagnosis struct {
+	Step    string    `json:"step"`
+	Code    string    `json:"code"`
+	Message string    `json:"message"`
+	At      time.Time `json:"at"`
+}
+
+// ComputerEvent is a daemon API value.
+type ComputerEvent struct {
+	ID    string         `json:"id"`
+	Event string         `json:"event"`
+	Data  ComputerChange `json:"data"`
+}
+
 // ComputerID is a daemon API value.
 type ComputerID string
+
+// ComputerListResponse is a daemon API value.
+type ComputerListResponse struct {
+	Computers []Computer    `json:"computers"`
+	Local     LocalComputer `json:"local"`
+}
+
+// ComputerRoute is a daemon API value.
+type ComputerRoute struct {
+	ID        string    `json:"id"`
+	Kind      RouteKind `json:"kind"`
+	Address   string    `json:"address"`
+	InUse     bool      `json:"in_use"`
+	Learned   bool      `json:"learned"`
+	LastError *string   `json:"last_error"`
+}
+
+// ComputerRouteInUse is a daemon API value.
+type ComputerRouteInUse struct {
+	ID    string    `json:"id"`
+	Kind  RouteKind `json:"kind"`
+	Label string    `json:"label"`
+}
 
 // ConcurrencyPolicy is a daemon API value.
 type ConcurrencyPolicy string
@@ -366,74 +445,4 @@ type ContinueSessionRequest struct {
 	ExpectedEpoch       *int64                         `json:"expected_epoch,omitzero"`
 	ExpectedGeneration  *int64                         `json:"expected_generation,omitzero"`
 	ExpectedMaxSequence *int64                         `json:"expected_max_sequence,omitzero"`
-}
-
-// Contract is a daemon API value.
-type Contract struct {
-	Goal             string             `json:"goal"`
-	DefinitionOfDone string             `json:"definition_of_done"`
-	Constraints      []string           `json:"constraints,omitempty"`
-	Boundaries       []string           `json:"boundaries,omitempty"`
-	StopWhen         StopWhenSpec       `json:"stop_when,omitzero"`
-	Verification     []GateCriterion    `json:"verification,omitempty"`
-	IterationCap     int                `json:"iteration_cap"`
-	NoProgress       NoProgress         `json:"no_progress"`
-	Budget           Budget             `json:"budget"`
-	RuntimeDefaults  *RuntimeDefaults   `json:"runtime_defaults,omitzero"`
-	RuntimeRules     []RuntimeRule      `json:"runtime_rules,omitempty"`
-	TerminalStates   []DslTerminalState `json:"terminal_states,omitempty"`
-	OnDone           []EffectSpec       `json:"on_done,omitempty"`
-	OnNoOp           []EffectSpec       `json:"on_noop,omitempty"`
-	OnBlocked        []EffectSpec       `json:"on_blocked,omitempty"`
-	OnFailed         []EffectSpec       `json:"on_failed,omitempty"`
-	OnExhausted      []EffectSpec       `json:"on_exhausted,omitempty"`
-	OnStalled        []EffectSpec       `json:"on_stalled,omitempty"`
-	OnCanceled       []EffectSpec       `json:"on_canceled,omitempty"`
-}
-
-// CoordinatorConfigPayload is a daemon API value.
-type CoordinatorConfigPayload struct {
-	Enabled                       bool                    `json:"enabled"`
-	AgentName                     string                  `json:"agent_name"`
-	Provider                      string                  `json:"provider,omitempty"`
-	Model                         string                  `json:"model,omitempty"`
-	DefaultTTLSeconds             int64                   `json:"default_ttl_seconds"`
-	MaxChildren                   int                     `json:"max_children"`
-	MaxActiveSessionsPerWorkspace int                     `json:"max_active_sessions_per_workspace"`
-	Source                        CoordinatorConfigSource `json:"source"`
-	WorkspaceID                   string                  `json:"workspace_id,omitempty"`
-}
-
-// CoordinatorConfigSource is a daemon API value.
-type CoordinatorConfigSource string
-
-// CoordinatorMode is a daemon API value.
-type CoordinatorMode string
-
-// CoordinatorProfile is a daemon API value.
-type CoordinatorProfile struct {
-	Mode      CoordinatorMode `json:"mode"`
-	AgentName string          `json:"agent_name,omitempty"`
-	Provider  string          `json:"provider,omitempty"`
-	Model     string          `json:"model,omitempty"`
-	Guidance  string          `json:"guidance,omitempty"`
-}
-
-// CopyEffect is a daemon API value.
-type CopyEffect struct {
-	Content string `json:"content"`
-}
-
-// CostSource is a daemon API value.
-type CostSource string
-
-// CostStatus is a daemon API value.
-type CostStatus string
-
-// CountedCursorPagePayload is a daemon API value.
-type CountedCursorPagePayload struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-	Total      int    `json:"total"`
-	Limit      int    `json:"limit"`
 }

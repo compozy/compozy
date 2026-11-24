@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// AgentInstanceAdoptRequest is a daemon API value.
+type AgentInstanceAdoptRequest struct {
+	Agent     string `json:"agent"`
+	SessionID string `json:"session_id"`
+}
+
 // AgentInstanceAwayResponse is a daemon API value.
 type AgentInstanceAwayResponse struct {
 	LastSeenAt    *time.Time                   `json:"last_seen_at"`

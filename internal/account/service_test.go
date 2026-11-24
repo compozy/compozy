@@ -304,8 +304,22 @@ func TestAccountRefresh(t *testing.T) {
 		t.Parallel()
 		cloud := accountCloudStub{}
 		s, store, clock := newAccountTest(t, &cloud, signedInInstallation())
+		// UT-093. Safety Invariant 11. An old account stream has one final eviction notice.
+		sub, err := s.Subscribe("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer sub.Close()
 		if err := s.Logout(t.Context()); err != nil {
 			t.Fatal(err)
+		}
+		select {
+		case <-sub.Done:
+			if event := sub.Eviction(); event == nil || event.Event != "account.changed" || !event.Data.EvictRemote {
+				t.Fatalf("account eviction = %+v", event)
+			}
+		default:
+			t.Fatal("the old account stream remained open after sign-out")
 		}
 		s.Close()
 		reopened, err := New(

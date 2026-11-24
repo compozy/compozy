@@ -248,6 +248,12 @@ type ActorIdentity struct {
 // ActorKind is a daemon API value.
 type ActorKind string
 
+// AddComputerRequest is a daemon API value.
+type AddComputerRequest struct {
+	Kind       string     `json:"kind"`
+	ComputerID ComputerID `json:"computer_id"`
+}
+
 // AddMarketplaceSourceRequest is a daemon API value.
 type AddMarketplaceSourceRequest struct {
 	Ref  string `json:"ref"`
@@ -437,10 +443,4 @@ type AgentIdentityPayload struct {
 	AgentName string `json:"agent_name"`
 	Provider  string `json:"provider"`
 	Model     string `json:"model,omitempty"`
-}
-
-// AgentInstanceAdoptRequest is a daemon API value.
-type AgentInstanceAdoptRequest struct {
-	Agent     string `json:"agent"`
-	SessionID string `json:"session_id"`
 }

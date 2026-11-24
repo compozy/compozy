@@ -202,6 +202,11 @@ export type ActorIdentity = {
   ref: string;
 };
 
+export type AddComputerRequest = {
+  computer_id: string;
+  kind: string;
+};
+
 export type AddMarketplaceSourceRequest = {
   name?: string;
   ref: string;
@@ -1319,6 +1324,17 @@ export type AutonomyMatcher = {
   workflow_id?: string;
 };
 
+export type AvailableComputer = {
+  added: boolean;
+  id: string;
+  name: string;
+  online: boolean;
+};
+
+export type AvailableComputersResponse = {
+  computers: Array<AvailableComputer>;
+};
+
 export type BindSessionWorktreeRequest = {
   expected_worktree_id?: string | null;
   worktree: string;
@@ -1709,6 +1725,52 @@ export type CommandFlag = {
 export type CompleteTaskRunRequest = {
   created_task_ids?: Array<string>;
   result?: unknown;
+};
+
+export type Computer = {
+  account_id: string;
+  added_at: string;
+  diagnosis: ComputerDiagnosis | null;
+  enabled: boolean;
+  id: string;
+  last_connected_at: string | null;
+  load_balancing_weight: number;
+  name: string;
+  plan_state: string;
+  platform: string;
+  protocol: ProtocolRange | null;
+  route_in_use: ComputerRouteInUse | null;
+  routes: Array<ComputerRoute>;
+  scopes: Array<string>;
+  status: string;
+  version: string;
+};
+
+export type ComputerDiagnosis = {
+  at: string;
+  code: string;
+  message: string;
+  step: string;
+};
+
+export type ComputerListResponse = {
+  computers: Array<Computer>;
+  local: LocalComputer;
+};
+
+export type ComputerRoute = {
+  address: string;
+  id: string;
+  in_use: boolean;
+  kind: string;
+  last_error: string | null;
+  learned: boolean;
+};
+
+export type ComputerRouteInUse = {
+  id: string;
+  kind: string;
+  label: string;
 };
 
 export type ConfigApplyRecordPayload = {
@@ -4444,6 +4506,10 @@ export type KindDescriptor = {
   title: string;
 };
 
+export type LocalComputer = {
+  run_agents: boolean;
+};
+
 export type LogEventPayload = {
   actor_id?: string;
   actor_kind?: string;
@@ -6103,6 +6169,12 @@ export type ParticipantPolicy = {
   required_capabilities?: Array<string>;
 };
 
+export type PatchComputerRequest = {
+  enabled?: boolean | null;
+  load_balancing_weight?: number | null;
+  name?: string | null;
+};
+
 export type PatchLoopRequest = {
   definition: LoopDefinitionDocument;
   expected_version?: number | null;
@@ -6321,6 +6393,11 @@ export type PromptRuntimeSelectionPayload = {
   provider: string;
   reasoning_effort?: string;
   speed?: "normal" | "fast";
+};
+
+export type ProtocolRange = {
+  max: number;
+  min: number;
 };
 
 export type ProvenancePayload = {
@@ -6839,6 +6916,11 @@ export type RemoteStatusResponse = {
   entitlement: EntitlementStatus | null;
   listener: string;
   require_device_approval: boolean;
+};
+
+export type RemoveComputerResponse = {
+  removed: boolean;
+  uninstall: string;
 };
 
 export type RemoveDiscoveredWorktreeRequest = {
@@ -21467,6 +21549,420 @@ export type OpenCmdPaletteViewSessionResponses = {
 
 export type OpenCmdPaletteViewSessionResponse =
   OpenCmdPaletteViewSessionResponses[keyof OpenCmdPaletteViewSessionResponses];
+
+export type ListComputersData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/computers";
+};
+
+export type ListComputersErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListComputersError = ListComputersErrors[keyof ListComputersErrors];
+
+export type ListComputersResponses = {
+  /**
+   * Computer registry
+   */
+  200: ComputerListResponse;
+};
+
+export type ListComputersResponse = ListComputersResponses[keyof ListComputersResponses];
+
+export type AddAccountComputerData = {
+  /**
+   * JSON request body
+   */
+  body: AddComputerRequest;
+  path?: never;
+  query?: never;
+  url: "/api/computers";
+};
+
+export type AddAccountComputerErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type AddAccountComputerError = AddAccountComputerErrors[keyof AddAccountComputerErrors];
+
+export type AddAccountComputerResponses = {
+  /**
+   * Computer added
+   */
+  201: Computer;
+};
+
+export type AddAccountComputerResponse =
+  AddAccountComputerResponses[keyof AddAccountComputerResponses];
+
+export type ListAvailableComputersData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/computers/available";
+};
+
+export type ListAvailableComputersErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListAvailableComputersError =
+  ListAvailableComputersErrors[keyof ListAvailableComputersErrors];
+
+export type ListAvailableComputersResponses = {
+  /**
+   * Available account computers
+   */
+  200: AvailableComputersResponse;
+};
+
+export type ListAvailableComputersResponse =
+  ListAvailableComputersResponses[keyof ListAvailableComputersResponses];
+
+export type RemoveComputerData = {
+  body?: never;
+  path: {
+    /**
+     * Computer ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Also unlink the computer from the account
+     */
+    unlink?: boolean;
+    /**
+     * Also uninstall the managed SSH service
+     */
+    uninstall?: boolean;
+  };
+  url: "/api/computers/{id}";
+};
+
+export type RemoveComputerErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RemoveComputerError = RemoveComputerErrors[keyof RemoveComputerErrors];
+
+export type RemoveComputerResponses = {
+  /**
+   * Computer removed
+   */
+  200: RemoveComputerResponse;
+};
+
+export type RemoveComputerResponse2 = RemoveComputerResponses[keyof RemoveComputerResponses];
+
+export type GetComputerData = {
+  body?: never;
+  path: {
+    /**
+     * Computer ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/computers/{id}";
+};
+
+export type GetComputerErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetComputerError = GetComputerErrors[keyof GetComputerErrors];
+
+export type GetComputerResponses = {
+  /**
+   * Computer status
+   */
+  200: Computer;
+};
+
+export type GetComputerResponse = GetComputerResponses[keyof GetComputerResponses];
+
+export type PatchComputerData = {
+  /**
+   * JSON request body
+   */
+  body: PatchComputerRequest;
+  path: {
+    /**
+     * Computer ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/computers/{id}";
+};
+
+export type PatchComputerErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PatchComputerError = PatchComputerErrors[keyof PatchComputerErrors];
+
+export type PatchComputerResponses = {
+  /**
+   * Updated computer
+   */
+  200: Computer;
+};
+
+export type PatchComputerResponse = PatchComputerResponses[keyof PatchComputerResponses];
+
+export type RemoveComputerRouteData = {
+  body?: never;
+  path: {
+    /**
+     * Computer ID
+     */
+    id: string;
+    /**
+     * Learned route ID
+     */
+    route_id: string;
+  };
+  query?: never;
+  url: "/api/computers/{id}/routes/{route_id}";
+};
+
+export type RemoveComputerRouteErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RemoveComputerRouteError = RemoveComputerRouteErrors[keyof RemoveComputerRouteErrors];
+
+export type RemoveComputerRouteResponses = {
+  /**
+   * Route removed
+   */
+  204: void;
+};
+
+export type RemoveComputerRouteResponse =
+  RemoveComputerRouteResponses[keyof RemoveComputerRouteResponses];
 
 export type CaptureDaemonProfileData = {
   body?: never;

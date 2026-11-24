@@ -75,6 +75,7 @@ type RuntimeDeps struct {
 	ModelCatalog          core.ModelCatalogService
 	Account               core.AccountService
 	Remote                core.RemoteHostService
+	Computers             core.ComputersService
 	ProviderUsage         core.ProviderUsageService
 	MarketplaceCatalog    core.MarketplaceCatalogService
 	AgentContext          *situation.Service

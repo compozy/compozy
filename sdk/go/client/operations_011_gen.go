@@ -9,6 +9,26 @@ import (
 	"strings"
 )
 
+// GetGatewayAudit Audit the current gateway security posture
+func (c *Client) GetGatewayAudit(ctx context.Context) (*GatewayAuditPayload, error) {
+	path := "/api/gateway/audit"
+	var out GatewayAuditPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetGatewayStatus Get the operator-global gateway posture
+func (c *Client) GetGatewayStatus(ctx context.Context) (*GatewayStatusPayload, error) {
+	path := "/api/gateway/status"
+	var out GatewayStatusPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetGlobalSessionHistoryParams carries the path, query, and header parameters.
 type GetGlobalSessionHistoryParams struct {
 	SessionID     string  `url:"session_id"`
@@ -416,32 +436,4 @@ type GetLoopInputDefaultsParams struct {
 	WorkspaceID string `url:"workspace_id"`
 	Name        string `url:"name"`
 	Scope       string `url:"scope"`
-}
-
-// GetLoopInputDefaults Get one scoped Loop input-default table
-func (c *Client) GetLoopInputDefaults(ctx context.Context, params GetLoopInputDefaultsParams) (*LoopInputDefaultsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("scope", params.Scope)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopInputDefaultsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetLoopRequestParams carries the path, query, and header parameters.
-type GetLoopRequestParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	NodeID      string  `url:"node_id"`
-	Generation  int     `url:"generation"`
-	ItemIndex   *int    `url:"item_index"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/cloudclient"
+	"github.com/compozy/compozy/internal/computers"
 	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/retention"
 
@@ -19,6 +20,7 @@ type daemonRuntimeWorkers struct {
 	account               *account.Service
 	cloud                 *cloudclient.Client
 	remote                *remotehost.Host
+	computers             *computers.Registry
 	proactiveChecks       *heartbeat.CheckService
 	instanceMaintenance   *retention.PeriodicWorker
 	supervision           *retention.PeriodicWorker
@@ -36,6 +38,9 @@ type daemonRuntimeWorkers struct {
 }
 
 func (w daemonRuntimeWorkers) shutdown(ctx context.Context, errs *[]error) {
+	if w.computers != nil {
+		w.computers.Close()
+	}
 	if w.remote != nil {
 		w.remote.Close()
 	}

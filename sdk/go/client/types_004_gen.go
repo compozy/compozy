@@ -233,6 +233,19 @@ type AutonomyMatcher struct {
 	ReleaseReason        string `json:"release_reason,omitempty"`
 }
 
+// AvailableComputer is a daemon API value.
+type AvailableComputer struct {
+	ID     ComputerID `json:"id"`
+	Name   string     `json:"name"`
+	Online bool       `json:"online"`
+	Added  bool       `json:"added"`
+}
+
+// AvailableComputersResponse is a daemon API value.
+type AvailableComputersResponse struct {
+	Computers []AvailableComputer `json:"computers"`
+}
+
 // Axis is a daemon API value.
 type Axis string
 
@@ -371,6 +384,7 @@ type CatalogMeta struct {
 // Change is a daemon API value.
 type Change struct {
 	Kind          string          `json:"kind,omitempty"`
+	EvictRemote   bool            `json:"evict_remote,omitzero"`
 	Approval      *ApprovalResult `json:"approval,omitempty"`
 	ApprovalID    string          `json:"approval_id,omitempty"`
 	ComputerID    ComputerID      `json:"computer_id,omitempty"`
@@ -426,18 +440,4 @@ type ChangeSet struct {
 type ChangeSidePayload struct {
 	Text      *string `json:"text,omitempty"`
 	Sensitive bool    `json:"sensitive,omitzero"`
-}
-
-// ChangeTotalsPayload is a daemon API value.
-type ChangeTotalsPayload struct {
-	Files     int  `json:"files"`
-	Additions int  `json:"additions"`
-	Deletions int  `json:"deletions"`
-	Partial   bool `json:"partial,omitzero"`
-}
-
-// CheckInProposalSummary is a daemon API value.
-type CheckInProposalSummary struct {
-	AutoAccepted int64 `json:"auto_accepted"`
-	Waiting      int64 `json:"waiting"`
 }

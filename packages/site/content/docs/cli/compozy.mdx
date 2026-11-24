@@ -25,11 +25,12 @@ compozy [flags]
 ### Options
 
 ```
-  -h, --help             help for compozy
-      --json             Emit JSON output
-  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
-      --profile string   Act as a profile for this command
-  -v, --version          version for compozy
+      --computer string   Target a computer by name or ID
+  -h, --help              help for compozy
+      --json              Emit JSON output
+  -o, --output string     Output format: human, json, jsonl, or toon (default "human")
+      --profile string    Act as a profile for this command
+  -v, --version           version for compozy
 ```
 
 ## Output Formats
@@ -55,6 +56,7 @@ This command displays human-readable help and its subcommand list. The inherited
 | [compozy automation](/docs/cli/automation)         | Manage automation jobs, triggers, suggestions, and runs               |
 | [compozy cmd-palette](/docs/cli/cmd-palette)       | List, inspect, and invoke command palette commands                    |
 | [compozy completion](/docs/cli/completion)         | Generate the autocompletion script for the specified shell            |
+| [compozy computer](/docs/cli/computer)             | Manage computers used by this controller                              |
 | [compozy config](/docs/cli/config)                 | Inspect and mutate CompozyOS configuration                            |
 | [compozy connect](/docs/cli/connect)               | Manage CLI connection profiles                                        |
 | [compozy daemon](/docs/cli/daemon)                 | Manage the CompozyOS daemon                                           |

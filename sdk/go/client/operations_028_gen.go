@@ -165,6 +165,22 @@ func (c *Client) PatchAccountDevice(ctx context.Context, params PatchAccountDevi
 	return &out, nil
 }
 
+// PatchComputerParams carries the path, query, and header parameters.
+type PatchComputerParams struct {
+	ID string `url:"id"`
+}
+
+// PatchComputer Update a computer in this controller
+func (c *Client) PatchComputer(ctx context.Context, params PatchComputerParams, body PatchComputerRequest) (*Computer, error) {
+	path := "/api/computers/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out Computer
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PatchLoopParams carries the path, query, and header parameters.
 type PatchLoopParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -430,17 +446,4 @@ func (f *PlanSessionHistoryCleanupFrame) UnmarshalJSON(data []byte) error {
 // MarshalJSON returns the original event payload.
 func (f PlanSessionHistoryCleanupFrame) MarshalJSON() ([]byte, error) {
 	return json.Marshal(f.Raw)
-}
-
-func (f *PlanSessionHistoryCleanupFrame) setResponseStatus(status int) {
-	f.StatusCode = status
-}
-
-// AsSessionHistoryCleanupPreviewResponse decodes this payload as SessionHistoryCleanupPreviewResponse.
-func (f PlanSessionHistoryCleanupFrame) AsSessionHistoryCleanupPreviewResponse() (*SessionHistoryCleanupPreviewResponse, error) {
-	var out SessionHistoryCleanupPreviewResponse
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -10,6 +10,19 @@ import (
 	"strings"
 )
 
+func (f *PlanSessionHistoryCleanupFrame) setResponseStatus(status int) {
+	f.StatusCode = status
+}
+
+// AsSessionHistoryCleanupPreviewResponse decodes this payload as SessionHistoryCleanupPreviewResponse.
+func (f PlanSessionHistoryCleanupFrame) AsSessionHistoryCleanupPreviewResponse() (*SessionHistoryCleanupPreviewResponse, error) {
+	var out SessionHistoryCleanupPreviewResponse
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AsSessionHistoryCleanupStartResponse decodes this payload as SessionHistoryCleanupStartResponse.
 func (f PlanSessionHistoryCleanupFrame) AsSessionHistoryCleanupStartResponse() (*SessionHistoryCleanupStartResponse, error) {
 	var out SessionHistoryCleanupStartResponse
@@ -430,10 +443,4 @@ func (c *Client) PutLoopInputDefault(ctx context.Context, params PutLoopInputDef
 		return nil, err
 	}
 	return &out, nil
-}
-
-// PutLoopInputDefaultsParams carries the path, query, and header parameters.
-type PutLoopInputDefaultsParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	Name        string `url:"name"`
 }
