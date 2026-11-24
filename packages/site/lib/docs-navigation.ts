@@ -39,7 +39,7 @@ export const API_SECTIONS: ApiSection[] = [
       "computers",
       "remote",
       "ingress",
-      "gateway",
+      "migration-notices",
       "app-tokens",
       "vault",
       "agent",

@@ -53,9 +53,9 @@ The same account routes are available over the daemon's local HTTP and Unix sock
 | `GET /api/account/approvals` and `GET /api/account/approvals/{id}`  | Read device approvals and recent results.                                             |
 | `POST /api/account/approvals/{id}/decision`                         | Submit an approval decision from a trusted admin device.                              |
 | `GET /api/account/stream`                                           | Follow account changes, including approval results.                                   |
-| `GET /api/account/tokens`                                            | List local-use account tokens and their last use.                                    |
-| `POST /api/account/tokens`                                           | Create a named token and return its value once.                                      |
-| `DELETE /api/account/tokens/{id}`                                    | Revoke a token.                                                                      |
+| `GET /api/account/tokens`                                           | List local-use account tokens and their last use.                                     |
+| `POST /api/account/tokens`                                          | Create a named token and return its value once.                                       |
+| `DELETE /api/account/tokens/{id}`                                   | Revoke a token.                                                                       |
 | `POST /api/account/checkout` and `POST /api/account/billing-portal` | Open hosted checkout or the billing portal.                                           |
 
 `POST /api/account/login` accepts `marketing_opt_in: true` to opt in after enrollment. `GET /api/account` includes `recent_sign_ins` for the last seven days. Use `GET /api/account?refresh=true` to read current billing details before confirming deletion. Deletion requires an admin device and returns `202` with `state`, `subscription_cancelled`, and `refund`.

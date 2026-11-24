@@ -1,4 +1,4 @@
-import { BadgeCheck, PackageX, Radio } from "@compozy/ui/icons";
+import { BadgeCheck, PackageX } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import {

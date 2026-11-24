@@ -47,7 +47,8 @@ export class BootstrapRunner {
     this.#appVersion = options.appVersion;
     this.#channel = options.channel;
     this.#bootId = options.bootId;
-    const { COMPOZY_ACCOUNT_TOKEN: accountToken, ...environment } = options.environment ?? process.env;
+    const { COMPOZY_ACCOUNT_TOKEN: accountToken, ...environment } =
+      options.environment ?? process.env;
     if (accountToken !== undefined) environment.COMPOZY_INTERNAL_ACCOUNT_TOKEN = accountToken;
     this.#environment = environment;
   }

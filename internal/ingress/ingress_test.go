@@ -493,7 +493,7 @@ func newIngressTestManager(
 		bindings: make(map[SubjectRef]Binding),
 		endpoint: EndpointState{
 			URL: "https://gateway.example.test", Generation: 1,
-			Reachable: true, UpdatedAt: time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC),
+			Reachable: publicOn, UpdatedAt: time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC),
 		},
 	}
 	manager, err := NewManager(

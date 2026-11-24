@@ -7,7 +7,7 @@ export class CloudContainer extends Container<Env> {
   override sleepAfter = "24h";
   override enableInternet = true;
 
-  constructor(ctx: DurableObjectState, env: Env) {
+  constructor(ctx: ConstructorParameters<typeof Container<Env>>[0], env: Env) {
     const bindings = Object.fromEntries(
       Object.entries(env).filter(
         ([name, value]) =>

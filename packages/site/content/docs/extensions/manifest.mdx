@@ -99,18 +99,16 @@ generated manifest can be installed on a daemon the extension's SDK does not act
 `provides` is a closed set. Registering a tool through the SDK adds `tool.provider` automatically, so
 most authors never write this block.
 
-| Provide                 | CompozyOS calls the extension with                                       | Public |
-| ----------------------- | ------------------------------------------------------------------------ | ------ |
-| `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
-| `model.source`          | `models/list`                                                            | yes    |
-| `loop.watch_source`     | `watch/poll`                                                             | yes    |
-| `heartbeat.source`      | `heartbeat/source_poll`                                                  | yes    |
-| `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
+| Provide             | CompozyOS calls the extension with                      | Public |
+| ------------------- | ------------------------------------------------------- | ------ |
+| `tool.provider`     | `provide_tools`, `tools/call`                           | yes    |
+| `model.source`      | `models/list`                                           | yes    |
+| `loop.watch_source` | `watch/poll`                                            | yes    |
+| `heartbeat.source`  | `heartbeat/source_poll`                                 | yes    |
+| `forge.provider`    | `forge/capabilities`, `forge/status`, `forge/pr_create` | yes    |
 
 An unknown value fails manifest load with the valid set in the error. There is no shape-only
 validation and no silent no-op.
-
-
 
 A `forge.provider` must register all three daemon-initiated methods and return the closed
 capabilities/status/create contract. See

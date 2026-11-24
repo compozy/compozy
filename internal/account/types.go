@@ -128,7 +128,7 @@ type ApprovalResult struct {
 
 var (
 	ErrSignInRequired = &cloudclient.Failure{Status: http.StatusUnauthorized, Code: "sign_in_required",
-		Message: "Sign in to use Compozy: compozy account login"}
+		Message: "Sign in to use CompozyOS: compozy account login"}
 	ErrTokenLocalOnly = &cloudclient.Failure{Status: http.StatusForbidden, Code: "account_token_local_only",
 		Message: "Account tokens unlock local use only. Sign in with Google or GitHub for this."}
 	ErrLogoutRequiresUnlink = &cloudclient.Failure{Status: http.StatusConflict, Code: "logout_requires_unlink",

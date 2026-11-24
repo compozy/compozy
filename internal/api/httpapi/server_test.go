@@ -1391,13 +1391,17 @@ func newLifecycleServer(t *testing.T, entered chan<- struct{}, release <-chan st
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = freeTCPPort(t)
 	engine := gin.New()
-	engine.GET("/lifecycle-block", func(c *gin.Context) {
+	engine.Use(func(c *gin.Context) {
+		if c.Request.URL.Path != "/api/status" {
+			c.Next()
+			return
+		}
 		select {
 		case entered <- struct{}{}:
 		default:
 		}
 		<-release
-		c.Status(http.StatusNoContent)
+		c.AbortWithStatus(http.StatusNoContent)
 	})
 
 	server, err := New(
@@ -1450,7 +1454,7 @@ func requestLifecycleBlock(ctx context.Context, server *Server) <-chan error {
 		req, err := http.NewRequestWithContext(
 			ctx,
 			http.MethodGet,
-			mustURL("127.0.0.1", server.Port(), "/lifecycle-block"),
+			mustURL("127.0.0.1", server.Port(), "/api/status"),
 			http.NoBody,
 		)
 		if err != nil {

@@ -85,6 +85,20 @@ func RegisterAgentKernelRoutes(api gin.IRouter, handlers *BaseHandlers, signIn *
 	})
 }
 
+func RegisterRemoteHostRoutes(routes gin.IRouter, handlers *BaseHandlers, signIn *SignInRoutes) {
+	signIn.RequireSignedIn(SignInAnonymous, func() {
+		routes.GET("", handlers.RemoteStatus)
+		routes.POST("/link", handlers.LinkRemote)
+	})
+	signIn.RequireSignedIn(SignInAccount, func() {
+		routes.PATCH("", handlers.PatchRemoteStatus)
+		routes.DELETE("/link", handlers.UnlinkRemote)
+		routes.GET("/devices", handlers.ListRemoteDevices)
+		routes.PATCH("/devices/:id", handlers.PatchRemoteDevice)
+		routes.DELETE("/devices/:id", handlers.RevokeRemoteDevice)
+	})
+}
+
 func (t *SignInRoutes) Validate() {
 	for _, route := range t.engine.Routes() {
 		key := route.Method + " " + route.Path

@@ -17,7 +17,7 @@ Use `compozy remote disable` to close the listeners and free the remote computer
 
 The SSH forward targets the loopback listener at `127.0.0.1:47823` by default. To also accept connections on your local network or tailnet, set `remote.direct.enabled = true`. You can restrict it to individual addresses in `remote.direct.addresses`. The computer verifies device grants and proof of possession inside the encrypted tunnel on both routes.
 
-Local HTTP and UDS share the same `/api/remote` routes for status, link settings, and devices. `compozy__remote_status` gives agents the same status that the CLI prints as JSON.
+Local HTTP and UDS share the same remote routes, including `GET /api/remote`, for status, link settings, and devices. `compozy__remote_status` gives agents the same status that the CLI prints as JSON.
 
 ## Operator scopes
 

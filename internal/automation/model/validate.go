@@ -118,7 +118,7 @@ func (r SchedulerSkipReason) Validate(path string) error {
 		return nil
 	default:
 		return fmt.Errorf(
-			"%s must be one of %q or %q: %q",
+			"%s must be one of %q, %q, or %q: %q",
 			path,
 			SchedulerSkipReasonGraceExceeded,
 			SchedulerSkipReasonSelfOverlap,

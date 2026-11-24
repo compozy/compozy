@@ -20,7 +20,7 @@ import (
 
 const (
 	accountCommandName = "account"
-	accountSignInHint  = "Sign in to use Compozy: compozy account login"
+	accountSignInHint  = "Sign in to use CompozyOS: compozy account login"
 )
 
 func newAccountCommand(deps commandDeps) *cobra.Command {
@@ -128,7 +128,7 @@ func newAccountLogoutCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			return writeCommandOutput(cmd, outputBundle{jsonValue: result, human: func() (string, error) {
-				return "Signed out. Compozy needs you to sign in again before it can be used on this computer.", nil
+				return "Signed out. CompozyOS needs you to sign in again before it can be used on this computer.", nil
 			}})
 		},
 	)

@@ -215,7 +215,7 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 			migration: "stalled",
 		},
 		{
-			name:   "Should restart the configured local socket even with a remote connection selected",
+			name:   "Should restart the configured local socket",
 			status: DaemonStatus{PID: 4242, Version: "0.3.0-beta.20"}, replaced: true, customSocket: true,
 		},
 	} {
@@ -237,7 +237,6 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 				deps.loadConfig = func() (compozyconfig.Config, error) {
 					cfg := compozyconfig.DefaultWithHome(homePaths)
 					cfg.Daemon.Socket = socketPath
-					cfg.Gateway.ActiveConnection = "remote"
 					return cfg, nil
 				}
 			}
@@ -735,7 +734,7 @@ func TestProbeBootstrapDaemonUsesLocalIdentity(t *testing.T) {
 		healthy      bool
 	}{
 		{name: "Should reject a status response that does not match daemon.json", pid: 99},
-		{name: "Should verify the configured local socket despite a selected remote connection", pid: 42, customSocket: true, healthy: true},
+		{name: "Should verify the configured local socket", pid: 42, customSocket: true, healthy: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -751,7 +750,6 @@ func TestProbeBootstrapDaemonUsesLocalIdentity(t *testing.T) {
 				deps.loadConfig = func() (compozyconfig.Config, error) {
 					cfg := compozyconfig.DefaultWithHome(homePaths)
 					cfg.Daemon.Socket = socketPath
-					cfg.Gateway.ActiveConnection = "remote"
 					return cfg, nil
 				}
 			}

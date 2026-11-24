@@ -6,7 +6,7 @@ type: breaking
 CompozyOS 0.8.0 introduces **Remote Computers**, **Compozy Pro**, and one-time account sign-in for
 official release builds, and removes the legacy Remote Gateway.
 
-Read the launch post: [Compozy 0.8: your agents on all your computers](https://compozy.com/blog/compozy-0-8-remote-computers).
+Read the launch post: [CompozyOS 0.8: your agents on all your computers](https://compozy.com/blog/compozy-0-8-remote-computers).
 
 ## Highlights
 
@@ -76,5 +76,5 @@ The legacy Remote Gateway (`internal/gateway`, the bundled Tailscale provider, p
 `go install` is no longer an official install method. Use the desktop app, the verified installer
 (`curl -fsSL https://compozy.com/install.sh | sh`), Homebrew, npm, or Linux release packages from
 [compozy.com/download](https://compozy.com/download). Building from source is documented in
-`.github/CONTRIBUTING.md` and produces a development build without the sign-in gate or Compozy
-Cloud features.
+`.github/CONTRIBUTING.md` and produces a development build without the sign-in gate or
+Compozy Cloud features.

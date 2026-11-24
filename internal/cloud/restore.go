@@ -3,7 +3,6 @@
 package cloud
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -16,7 +15,10 @@ import (
 )
 
 func FinalizeRestore(ctx context.Context, cfg Config, bucket *backup.R2, point, through time.Time) error {
-	now := cmp.Or(cfg.Now, time.Now)
+	now := cfg.Now
+	if now == nil {
+		now = time.Now
+	}
 	if point.IsZero() || !through.After(point) || through.After(now()) {
 		return errors.New("restore archive cutoff must cover the restore point and be in the past")
 	}

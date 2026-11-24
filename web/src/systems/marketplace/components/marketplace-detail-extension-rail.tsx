@@ -92,6 +92,7 @@ function MarketplaceExtensionAdvancedCard({
   return (
     <MarketplaceDetailRailCard
       data-testid="marketplace-extension-advanced"
+      defaultOpen={false}
       icon={Wrench}
       title="Advanced"
     >

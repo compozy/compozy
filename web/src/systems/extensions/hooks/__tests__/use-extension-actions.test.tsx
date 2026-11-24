@@ -41,7 +41,6 @@ vi.mock("../../adapters/extensions-api", async () => {
   };
 });
 
-import { ExtensionsApiError } from "../../adapters/extensions-api";
 import {
   useRemoveExtension,
   useToggleExtension,

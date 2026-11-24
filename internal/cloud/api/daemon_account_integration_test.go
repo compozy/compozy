@@ -798,7 +798,7 @@ func TestRequiredSignInDaemon(t *testing.T) {
 		}
 		enableAccountFixtureCLI(t)
 		status, _, stderr := runAccountFixtureCLI(t, "session", "list")
-		if status != 1 || !strings.Contains(stderr, "Sign in to use Compozy: compozy account login") {
+		if status != 1 || !strings.Contains(stderr, "Sign in to use CompozyOS: compozy account login") {
 			t.Fatalf("signed-out CLI exit = %d, stderr = %q", status, stderr)
 		}
 		d.stop()
@@ -894,11 +894,11 @@ func TestRequiredSignInDaemon(t *testing.T) {
 			d.request(t, http.MethodGet, "/api/computers", nil).expect(t, http.StatusUnauthorized, "sign_in_required")
 			enableAccountFixtureCLI(t)
 			status, _, stderr := runAccountFixtureCLI(t, "session", "list")
-			if status != 0 || !strings.Contains(stderr, "Compozy keeps working without sign-in until ") {
+			if status != 0 || !strings.Contains(stderr, "CompozyOS keeps working without sign-in until ") {
 				t.Fatalf("session list exit = %d, stderr = %q", status, stderr)
 			}
 			status, _, stderr = runAccountFixtureCLI(t, "computer", "list")
-			if status != 1 || !strings.Contains(stderr, "Sign in to use Compozy: compozy account login") {
+			if status != 1 || !strings.Contains(stderr, "Sign in to use CompozyOS: compozy account login") {
 				t.Fatalf("computer list exit = %d, stderr = %q", status, stderr)
 			}
 			created := d.uds(t, http.MethodPost, "/api/automation/jobs", contract.CreateJobRequest{
@@ -979,7 +979,7 @@ func TestRequiredSignInDaemon(t *testing.T) {
 			t.Fatalf("removed command exit = %d, stderr = %q", status, stderr)
 		}
 		status, _, stderr = runAccountFixtureCLI(t, "session", "list")
-		if status != 1 || !strings.Contains(stderr, "Sign in to use Compozy: compozy account login") {
+		if status != 1 || !strings.Contains(stderr, "Sign in to use CompozyOS: compozy account login") {
 			t.Fatalf("signed-out CLI exit = %d, stderr = %q", status, stderr)
 		}
 		testCLIAccountLogin(t, f, d)

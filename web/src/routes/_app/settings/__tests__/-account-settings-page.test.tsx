@@ -257,8 +257,6 @@ describe("AccountSettingsPage", () => {
         },
       ],
       tokens: [{ id: "atk_1", name: "ci", createdLabel: "", lastUsedLabel: "2h ago" }],
-      createdToken: { id: "atk_2", name: "deploy", token: "cpzat_secret_once" },
-      deleteOpen: true,
       handleToggleMarketingOptIn: toggleEmail,
       handleDismissSignInNotices: dismissNotices,
       handleRevokeSignInNotice: revokeNotice,
@@ -266,7 +264,7 @@ describe("AccountSettingsPage", () => {
       setDeleteOpen: openDelete,
     });
 
-    render(<AccountSettingsPage />);
+    const { rerender } = render(<AccountSettingsPage />);
 
     expect(screen.getByTestId("account-sign-in-notices")).toBeInTheDocument();
     expect(screen.getByText("New sign-in on iPhone")).toBeInTheDocument();
@@ -278,10 +276,18 @@ describe("AccountSettingsPage", () => {
     expect(toggleEmail).toHaveBeenCalledTimes(1);
 
     expect(screen.getByTestId("account-tokens")).toBeInTheDocument();
+    const view = state.view;
+    state.view = {
+      ...view,
+      createdToken: { id: "atk_2", name: "deploy", token: "cpzat_secret_once" },
+    };
+    rerender(<AccountSettingsPage />);
     expect(screen.getByTestId("account-token-created-dialog")).toHaveTextContent(
       "cpzat_secret_once"
     );
 
+    state.view = { ...view, deleteOpen: true };
+    rerender(<AccountSettingsPage />);
     const proBlock = screen.getByTestId("account-delete-pro-block");
     expect(proBlock).toHaveTextContent("Deleting your account also cancels Pro.");
     expect(

@@ -174,7 +174,7 @@ written, loading fails and the original file remains unchanged.
 
 ## Complete Annotated Example
 
-```toml
+````toml
 # ~/.compozy/config.toml
 
 [daemon]
@@ -1013,7 +1013,7 @@ leftover `scope` key never blocks the daemon from starting. To migrate now:
 ```bash
 compozy config unset shell.sessions.scope
 compozy config set shell.sessions.group_by project
-```
+````
 
 All fields have the `live` lifecycle. The daemon stores them in global `config.toml`, so the
 preference survives browser restarts without browser-local storage. Workspace overlays and

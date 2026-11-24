@@ -62,8 +62,8 @@ export function useUpgradeSheet(options: UseUpgradeSheetOptions = {}): UpgradeSh
   const queryClient = useQueryClient();
 
   const [open, setOpen] = useState(false);
-  const [phase, setPhase] = useState<UpgradeSheetPhase>("select");
-  const [interval, setInterval] = useState<UpgradeInterval>("year");
+  const [checkoutPhase, setPhase] = useState<UpgradeSheetPhase>("select");
+  const [interval, setCheckoutInterval] = useState<UpgradeInterval>("year");
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutCancelled, setCheckoutCancelled] = useState(false);
@@ -73,8 +73,11 @@ export function useUpgradeSheet(options: UseUpgradeSheetOptions = {}): UpgradeSh
   const onUpgradedRef = useRef<(() => void) | undefined>(undefined);
   const upgradedNotifiedRef = useRef(false);
 
-  const isWaiting = open && (phase === "waiting" || phase === "waiting_timeout");
-  const statusQuery = useQuery(accountStatusOptions(isWaiting));
+  const waitingForCheckout =
+    open && (checkoutPhase === "waiting" || checkoutPhase === "waiting_timeout");
+  const statusQuery = useQuery(accountStatusOptions(waitingForCheckout));
+  const phase = waitingForCheckout && statusQuery.data?.plan === "pro" ? "done" : checkoutPhase;
+  const isWaiting = waitingForCheckout && phase !== "done";
 
   const invalidateBillingQueries = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: accountKeys.all });
@@ -96,18 +99,11 @@ export function useUpgradeSheet(options: UseUpgradeSheetOptions = {}): UpgradeSh
     callback?.();
   }, []);
 
-  // Transition immediately if the shared `/api/account` query already observes `plan: "pro"`.
-  useEffect(() => {
-    if (isWaiting && statusQuery.data?.plan === "pro") {
-      markUpgraded();
-    }
-  }, [isWaiting, statusQuery.data?.plan, markUpgraded]);
-
   // Subscribe to `/api/account/stream` while waiting for checkout completion.
   useEffect(() => {
     if (!isWaiting) return;
     let active = true;
-    return openAccountStream({
+    const close = openAccountStream({
       onAccountChanged: event => {
         if (!active) return;
         invalidateBillingQueries();
@@ -140,6 +136,10 @@ export function useUpgradeSheet(options: UseUpgradeSheetOptions = {}): UpgradeSh
           .catch(() => undefined);
       },
     });
+    return () => {
+      active = false;
+      close();
+    };
   }, [isWaiting, invalidateBillingQueries, markUpgraded, queryClient]);
 
   // Move from `waiting` to `waiting_timeout` after 15 minutes (`_uiux.md` U9).
@@ -154,7 +154,7 @@ export function useUpgradeSheet(options: UseUpgradeSheetOptions = {}): UpgradeSh
   const openUpgradeSheet = useCallback((next?: OpenUpgradeSheetOptions) => {
     onUpgradedRef.current = next?.onUpgraded;
     upgradedNotifiedRef.current = false;
-    setInterval(next?.interval ?? "year");
+    setCheckoutInterval(next?.interval ?? "year");
     setPhase("select");
     setCheckoutUrl(null);
     setCheckoutError(null);
@@ -167,7 +167,7 @@ export function useUpgradeSheet(options: UseUpgradeSheetOptions = {}): UpgradeSh
   const handleContinueToCheckout = useCallback(
     (chosen: UpgradeInterval) => {
       if (isStartingCheckout) return;
-      setInterval(chosen);
+      setCheckoutInterval(chosen);
       setCheckoutError(null);
       setCheckoutCancelled(false);
       setIsStartingCheckout(true);
@@ -256,7 +256,7 @@ export function useUpgradeSheet(options: UseUpgradeSheetOptions = {}): UpgradeSh
     isStartingCheckout,
     isCheckingStatus,
     openUpgradeSheet,
-    setInterval,
+    setInterval: setCheckoutInterval,
     handleContinueToCheckout,
     handleReopenCheckout,
     handleCheckAgain,

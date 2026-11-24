@@ -100,27 +100,26 @@ export function useHostedBrowserAccess({
   const hostname = currentHostname();
   const deviceName = describeBrowserDevice();
 
-  const beginAuthorize = useEffectEvent(
-    (options: { provider?: HostedBrowserProvider; replaceKey?: boolean } = {}) => {
-      if (redirectingRef.current) return;
-      redirectingRef.current = true;
-      void prepareBrowserAuthorizeRedirect({
-        hostname: currentHostname(),
-        provider: options.provider,
-        replaceKey: options.replaceKey,
+  const beginAuthorize = (options: { provider?: HostedBrowserProvider; replaceKey?: boolean }) => {
+    if (redirectingRef.current) return;
+    redirectingRef.current = true;
+    void prepareBrowserAuthorizeRedirect({
+      hostname: currentHostname(),
+      provider: options.provider,
+      replaceKey: options.replaceKey,
+    })
+      .then(({ url }) => {
+        navigate(url);
       })
-        .then(({ url }) => {
-          navigate(url);
-        })
-        .catch(() => {
-          redirectingRef.current = false;
-          setState({
-            kind: "sign_in",
-            errorMessage: "Couldn't start sign-in in this browser. Try again.",
-          });
+      .catch(() => {
+        redirectingRef.current = false;
+        setState({
+          kind: "sign_in",
+          errorMessage: "Couldn't start sign-in in this browser. Try again.",
         });
-    }
-  );
+      });
+  };
+  const authorizeFromEffect = useEffectEvent(beginAuthorize);
 
   // Bootstrap hosted session state on mount.
   useEffect(() => {
@@ -133,7 +132,7 @@ export function useHostedBrowserAccess({
         if (cancelled) return;
         setBrowserFingerprint(outcome.fingerprint);
         if (outcome.kind === "authorize") {
-          beginAuthorize({ provider: outcome.provider, replaceKey: outcome.replaceKey });
+          authorizeFromEffect({ provider: outcome.provider, replaceKey: outcome.replaceKey });
         } else {
           setState(outcome.state);
         }
@@ -167,7 +166,7 @@ export function useHostedBrowserAccess({
         if (cancelled) return;
         if (result.state === "approved") {
           clearPendingApproval();
-          beginAuthorize({ provider: waitingProvider, replaceKey: false });
+          authorizeFromEffect({ provider: waitingProvider, replaceKey: false });
         } else if (result.state === "denied") {
           clearPendingApproval();
           setState({ kind: "not_approved", provider: waitingProvider });
@@ -215,11 +214,11 @@ export function useHostedBrowserAccess({
         return;
       }
       if (signal.kind === "session_expired") {
-        beginAuthorize({ replaceKey: false });
+        authorizeFromEffect({ replaceKey: false });
         return;
       }
       if (signal.kind === "key_rebind_required") {
-        beginAuthorize({ replaceKey: true });
+        authorizeFromEffect({ replaceKey: true });
         return;
       }
       if (signal.kind === "another_account") {
@@ -248,7 +247,7 @@ export function useHostedBrowserAccess({
     const targetMs = readyExpiresAt * 1000 - Date.now() - PROACTIVE_REFRESH_LEAD_MS;
     const delayMs = Math.max(MIN_PROACTIVE_REFRESH_MS, targetMs);
     const timer = setTimeout(() => {
-      beginAuthorize({ replaceKey: false });
+      authorizeFromEffect({ replaceKey: false });
     }, delayMs);
     return () => clearTimeout(timer);
   }, [enabled, readyExpiresAt]);

@@ -102,20 +102,20 @@ describe("HostedBrowserAccessBoundary & phone layout (UT-072, U8)", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  it("renders fallbackBoundary on non-hosted origins without probing /remote/v1/browser/*", () => {
+  it("renders its children on non-hosted origins without probing /remote/v1/browser/*", () => {
     setHostedBrowserMode(false);
     const fetchMock = vi.fn<typeof globalThis.fetch>();
     vi.stubGlobal("fetch", fetchMock);
 
     render(
       <QueryClientProvider client={createQueryClient()}>
-        <HostedBrowserAccessBoundary fallbackBoundary={<div data-testid="local-fallback" />}>
+        <HostedBrowserAccessBoundary>
           <div data-testid="app-children" />
         </HostedBrowserAccessBoundary>
       </QueryClientProvider>
     );
 
-    expect(screen.getByTestId("local-fallback")).toBeInTheDocument();
+    expect(screen.getByTestId("app-children")).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

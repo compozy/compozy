@@ -26,20 +26,6 @@ type RemoteHostService interface {
 
 var _ RemoteHostService = (*remotehost.Host)(nil)
 
-func RegisterRemoteHostRoutes(routes gin.IRouter, handlers *BaseHandlers, signIn *SignInRoutes) {
-	signIn.RequireSignedIn(SignInAnonymous, func() {
-		routes.GET("", handlers.RemoteStatus)
-		routes.POST("/link", handlers.LinkRemote)
-	})
-	signIn.RequireSignedIn(SignInAccount, func() {
-		routes.PATCH("", handlers.PatchRemoteStatus)
-		routes.DELETE("/link", handlers.UnlinkRemote)
-		routes.GET("/devices", handlers.ListRemoteDevices)
-		routes.PATCH("/devices/:id", handlers.PatchRemoteDevice)
-		routes.DELETE("/devices/:id", handlers.RevokeRemoteDevice)
-	})
-}
-
 func (h *BaseHandlers) RemoteStatus(c *gin.Context) {
 	if h.remoteReady(c) {
 		c.JSON(http.StatusOK, contract.RemoteStatusResponse(h.Remote.Status()))

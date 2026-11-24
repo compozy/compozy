@@ -157,7 +157,7 @@ function InteractiveCloudPurchase({
 
   const [status, setStatus] = useState<CloudUpgradeStatus>(initialStatus);
   const [provider, setProvider] = useState<AccountProvider | null>(initialProvider);
-  const [interval, setInterval] = useState<UpgradeInterval>(initialInterval);
+  const [interval, setCheckoutInterval] = useState<UpgradeInterval>(initialInterval);
   const [checkoutCancelled, setCheckoutCancelled] = useState(Boolean(preset.checkoutCancelled));
   const [address, setAddress] = useState(initialAddress);
 
@@ -180,7 +180,7 @@ function InteractiveCloudPurchase({
   };
 
   const handleIntervalChange = (next: UpgradeInterval) => {
-    setInterval(next);
+    setCheckoutInterval(next);
     if (status === "ready" && provider) {
       setAddress(`cloud.compozy.com/billing/upgrade?interval=${next}`);
     }

@@ -5,7 +5,7 @@
 //            sign-in notice + nav badge renders exact spec copy and actions.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -175,7 +175,7 @@ describe("U0 SignInScreen states and legal/help links (UT-120, UT-138)", () => {
       <SignInScreen subtitle={preAccount.subtitle} title={preAccount.title} />
     );
     expect(
-      screen.getByRole("heading", { name: /Sign in to keep using Compozy/i })
+      screen.getByRole("heading", { name: /Sign in to keep using CompozyOS/i })
     ).toBeInTheDocument();
     expect(
       screen.getByText("Your sessions, projects and settings are still here.")
@@ -278,7 +278,7 @@ describe("U0 SignInScreen states and legal/help links (UT-120, UT-138)", () => {
     });
     const unlinkButton = screen.getByRole("button", { name: "Unlink" });
     fireEvent.click(unlinkButton);
-    expect(mocks.unlinkRemoteHost).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mocks.unlinkRemoteHost).toHaveBeenCalledTimes(1));
 
     // Cloud unreachable disables provider buttons and shows Status link.
     mocks.startAccountLogin.mockRejectedValueOnce(

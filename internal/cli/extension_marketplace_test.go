@@ -578,10 +578,7 @@ func TestExtensionInstallPromptsForRequiredInputs(t *testing.T) {
 		})
 		server := httptest.NewServer(mux)
 		t.Cleanup(server.Close)
-		client, err := NewClient(ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL})
-		if err != nil {
-			t.Fatal(err)
-		}
+		client := testDaemonHTTPClient(t, server)
 		deps, _ := newExtensionLocalDeps(t, client)
 		markExtensionDaemonRunning(&deps)
 		_, stderr, err := executeRootCommand(t, deps, "extension", "install", "git:https://example.com/r.git@v2",
@@ -1266,10 +1263,7 @@ func TestExtensionRemoveDependencyGuard(t *testing.T) {
 			})
 			server := httptest.NewServer(mux)
 			t.Cleanup(server.Close)
-			client, err := NewClient(ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL})
-			if err != nil {
-				t.Fatal(err)
-			}
+			client := testDaemonHTTPClient(t, server)
 			deps, _ := newExtensionLocalDeps(t, client)
 			markExtensionDaemonRunning(&deps)
 			args := []string{"extension", "remove", "acme-core", "--global"}

@@ -371,7 +371,8 @@ describe("useSessionLinkDialogModel", () => {
         WORKSPACE,
         session.id,
         expect.objectContaining({ q: "nothing in these titles", kind: "pull_requests", page: 1 }),
-        expect.anything()
+        expect.any(AbortSignal),
+        undefined
       )
     );
     await waitFor(() => {
@@ -400,7 +401,8 @@ describe("useSessionLinkDialogModel", () => {
       WORKSPACE,
       session.id,
       expect.objectContaining({ kind: "pull_requests", page: 2 }),
-      expect.anything()
+      expect.any(AbortSignal),
+      undefined
     );
     const { search } = result.current;
     expect(search.kind === "results" ? search.pullRequests : []).toEqual(

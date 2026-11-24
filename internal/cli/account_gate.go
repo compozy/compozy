@@ -57,7 +57,7 @@ func checkAccountGate(cmd *cobra.Command, deps commandDeps) error {
 	}
 	if current.Grace != nil && current.Gate == account.GateGrace {
 		if _, err := fmt.Fprintf(cmd.ErrOrStderr(),
-			"Compozy keeps working without sign-in until %s. Sign in: compozy account login\n",
+			"CompozyOS keeps working without sign-in until %s. Sign in: compozy account login\n",
 			current.Grace.Until.Local().Format("Jan 2, 15:04"),
 		); err != nil {
 			return err

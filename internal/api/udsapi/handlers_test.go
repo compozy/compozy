@@ -3503,7 +3503,7 @@ func TestDaemonProfiles(t *testing.T) {
 				t.Fatalf("profile exposed on HTTP: %s", route.Path)
 			}
 		}
-		response := httptest.NewRecorder()
+		response = httptest.NewRecorder()
 		httpEngine.ServeHTTP(
 			response,
 			httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/daemon/profile/heap", nil),

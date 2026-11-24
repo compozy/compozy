@@ -82,7 +82,7 @@ A machine running CompozyOS that can run agents on behalf of this installation. 
 means the local daemon. A **route** is how one device reaches a computer. A **hosted route** uses
 Compozy Cloud and has a `compozy.run` address.
 
-A **Compozy account** is the identity used to sign in and enroll devices. **Compozy Cloud** manages
+A **CompozyOS account** is the identity used to sign in and enroll devices. **Compozy Cloud** manages
 accounts, devices, computer links, and hosted routes. **Compozy Pro** is the paid plan.
 
 

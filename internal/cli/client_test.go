@@ -43,6 +43,23 @@ func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
+func testDaemonHTTPClient(t *testing.T, server *httptest.Server) *daemonClient {
+	t.Helper()
+	serverURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := server.Client().Transport
+	return &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
+		httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			request := r.Clone(r.Context())
+			request.URL.Scheme, request.URL.Host = serverURL.Scheme, serverURL.Host
+			return transport.RoundTrip(request)
+		})},
+	}
+}
+
 type responseBodyProbe struct {
 	reader     io.Reader
 	closeErr   error
@@ -2928,17 +2945,7 @@ func TestSessionPullRequestClient(t *testing.T) {
 		})
 		server := httptest.NewServer(mux)
 		t.Cleanup(server.Close)
-		client := &daemonClient{
-			target: LocalClientTarget("/tmp/compozy.sock"),
-			httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
-				target, err := url.Parse(server.URL)
-				if err != nil {
-					return nil, err
-				}
-				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
-				return server.Client().Transport.RoundTrip(r)
-			})},
-		}
+		client := testDaemonHTTPClient(t, server)
 		result, err := client.RefreshSessionPullRequest(t.Context(), "sess-1")
 		if err != nil || result.Branch != "topic" || result.PullRequest == nil || result.PullRequest.Number != 43 {
 			t.Fatalf("refresh = %#v, %v", result, err)
@@ -3766,7 +3773,8 @@ func TestUnixSocketClientWorktreeCleanup(t *testing.T) {
 		}))
 		defer server.Close()
 		defer close(release)
-		transport := server.Client()
+		client := testDaemonHTTPClient(t, server)
+		transport := client.httpClient
 		base := transport.Transport
 		transport.Transport = roundTripperFunc(func(r *http.Request) (*http.Response, error) {
 			deadline, ok := r.Context().Deadline()
@@ -3777,9 +3785,6 @@ func TestUnixSocketClientWorktreeCleanup(t *testing.T) {
 			return base.RoundTrip(r)
 		})
 		transport.Timeout = timeout
-		client := &daemonClient{
-			httpClient: transport, target: ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL},
-		}
 		type outcome struct {
 			response contract.RemoveWorktreesResponse
 			err      error
@@ -3817,11 +3822,8 @@ func TestUnixSocketClientWorktreeCleanup(t *testing.T) {
 			<-r.Context().Done()
 		}))
 		defer server.Close()
-		transport := server.Client()
-		transport.Timeout = time.Millisecond
-		client := &daemonClient{
-			httpClient: transport, target: ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL},
-		}
+		client := testDaemonHTTPClient(t, server)
+		client.httpClient.Timeout = time.Millisecond
 		_, err := client.RemoveWorktrees(t.Context(), "ws-1", contract.RemoveWorktreesRequest{
 			Targets: []contract.WorktreeRemovalTarget{{Ref: "one"}, {Ref: "two"}},
 		})
@@ -6066,7 +6068,7 @@ func TestTriggerAutomationJobWaitBudget(t *testing.T) {
 		}
 		client := &daemonClient{
 			httpClient: transport,
-			target:     ClientTarget{kind: clientTargetSSHForward, baseURL: "http://daemon"},
+			target:     LocalClientTarget("/tmp/compozy.sock"),
 		}
 		if _, err := client.TriggerAutomationJob(t.Context(), "job", time.Second); err != nil {
 			t.Fatal(err)
@@ -6102,12 +6104,9 @@ func TestTriggerAutomationJobWaitBudget(t *testing.T) {
 			}
 		}))
 		defer server.Close()
-		transport := server.Client()
+		client := testDaemonHTTPClient(t, server)
+		transport := client.httpClient
 		transport.Timeout = time.Millisecond
-		client := &daemonClient{
-			httpClient: transport,
-			target:     ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL},
-		}
 		run, err := client.TriggerAutomationJob(t.Context(), "job-1", time.Second)
 		if err != nil || run.ID != "run-long" || run.Status != automationpkg.RunCompleted {
 			t.Fatalf("trigger = %#v, %v", run, err)

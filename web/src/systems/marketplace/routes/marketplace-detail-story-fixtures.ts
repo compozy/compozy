@@ -80,6 +80,7 @@ export function kitDetailHandlers() {
             installed_version: "1.0.0",
             manage_path: "/marketplace/installed",
             name: "dep-kit-ops",
+            update_available: false,
             source: "compozy-catalog",
             source_ref: "catalog:compozy",
           },

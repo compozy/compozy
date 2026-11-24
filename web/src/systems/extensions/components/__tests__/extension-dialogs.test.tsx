@@ -201,7 +201,13 @@ describe("RemoveExtensionDialog permanent removal", () => {
 describe("RemoveExtensionDialog", () => {
   it("Should show declared permissions without gating removal on unrelated state", async () => {
     const user = userEvent.setup();
-    render(<RemoveExtensionDialog extension={extensionFixtures[1]!} onOpenChange={vi.fn()} open />);
+    render(
+      <RemoveExtensionDialog
+        extension={{ ...extensionFixtures[1]!, permissions: ["sessions/list"] }}
+        onOpenChange={vi.fn()}
+        open
+      />
+    );
 
     expect(screen.getByRole("note")).toHaveTextContent("Permissions removed: sessions/list");
     await user.type(screen.getByLabelText("Type to confirm"), "slack-notify");

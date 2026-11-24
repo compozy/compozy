@@ -405,8 +405,6 @@ means enabled. Disable stores one exception and removes extension resources from
 enable deletes the exception and republishes resources whose placement matches the profile. Each
 change writes `extension.enablement_changed`.
 
-
-
 Inside a workspace, `remove` unlinks a dev overlay and lets the published installation resume;
 `--global` removes the published installation. Removal deletes the managed install directory and
 registry row with rollback handling. Post-commit cleanup failure leaves `status: "removed"` with an
@@ -754,16 +752,16 @@ Host API methods in `permissions.requires`, such as `resources/list`, `resources
 
 ## Troubleshooting
 
-| Symptom                                         | Cause                                                                             | Fix                                                                         |
-| ----------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `extension_unverified_policy_blocked`           | Live policy is off.                                                               | Review the source, then set `extensions.trust.allow_unverified` and reload. |
-| `extension_checksum_unverified`                 | Consent missing on the request.                                                   | Add `--allow-unverified` (`--yes` for structured output).                   |
-| `extension_archive_digest_mismatch`             | Curated archive differs from the pinned bytes.                                    | Stop; refresh the catalog or wait for the entry to be corrected.            |
-| `extension_git_unavailable`                     | No `git` binary on the daemon host.                                               | Install `git` or install from another source.                               |
-| `extension_git_version_unsupported`             | The daemon host has Git older than 2.37.                                          | Install Git 2.37 or newer, then retry.                                      |
-| `extension_agent_plugin_schema_unsupported`     | The package declares an unsupported Agent Plugins schema.                         | Publish a package using schema `1.0.0`.                                     |
-| Extension is `enabled` but not `active`         | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
-| Daemon-required error on a marketplace verb     | Search, install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry.                                                 |
+| Symptom                                     | Cause                                                                             | Fix                                                                         |
+| ------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `extension_unverified_policy_blocked`       | Live policy is off.                                                               | Review the source, then set `extensions.trust.allow_unverified` and reload. |
+| `extension_checksum_unverified`             | Consent missing on the request.                                                   | Add `--allow-unverified` (`--yes` for structured output).                   |
+| `extension_archive_digest_mismatch`         | Curated archive differs from the pinned bytes.                                    | Stop; refresh the catalog or wait for the entry to be corrected.            |
+| `extension_git_unavailable`                 | No `git` binary on the daemon host.                                               | Install `git` or install from another source.                               |
+| `extension_git_version_unsupported`         | The daemon host has Git older than 2.37.                                          | Install Git 2.37 or newer, then retry.                                      |
+| `extension_agent_plugin_schema_unsupported` | The package declares an unsupported Agent Plugins schema.                         | Publish a package using schema `1.0.0`.                                     |
+| Extension is `enabled` but not `active`     | Daemon offline, disabled, or activation failed.                                   | `compozy extension status <name>` and `compozy extension logs <name>`.      |
+| Daemon-required error on a marketplace verb | Search, install, update, remove, enable, status, and provenance are daemon-owned. | Start the daemon and retry.                                                 |
 
 Related references:
 

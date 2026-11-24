@@ -57,20 +57,20 @@ matches the active profile; unmatched directories stay dormant.
 
 ## Global Home
 
-| Path                                 | Created by home layout | Description                                                                   |
-| ------------------------------------ | ---------------------- | ----------------------------------------------------------------------------- |
-| `$COMPOZY_HOME`                      | yes                    | Home root. Defaults to `~/.compozy`; `COMPOZY_HOME` overrides it.             |
-| `$COMPOZY_HOME/config.toml`          | no                     | Global TOML config file.                                                      |
-| `$COMPOZY_HOME/mcp.json`             | no                     | Global MCP sidecar loaded after global TOML by the general config loader.     |
-| `$COMPOZY_HOME/agents/`              | yes                    | Global agent definitions.                                                     |
-| `$COMPOZY_HOME/skills/`              | yes                    | Global user and marketplace skills.                                           |
-| `$COMPOZY_HOME/profiles/`            | yes                    | Parent for per-profile config, MCP, agent, and skill files.                   |
-| `$COMPOZY_HOME/profiles/default/`    | yes                    | The permanent `default` profile's directory.                                  |
-| `$COMPOZY_HOME/providers/`           | no                     | Parent for opt-in isolated provider homes. Created by provider launch/auth.   |
-| `$COMPOZY_HOME/sessions/`            | yes                    | Parent directory for per-session state.                                       |
-| `$COMPOZY_HOME/logs/`                | yes                    | Parent directory for daemon logs.                                             |
-| `$COMPOZY_HOME/extensions/`          | no                     | Managed installed extension root. Created when installing managed extensions. |
-| `$COMPOZY_HOME/support-bundles/`     | no                     | Created when the daemon builds or the CLI downloads a support bundle.         |
+| Path                              | Created by home layout | Description                                                                   |
+| --------------------------------- | ---------------------- | ----------------------------------------------------------------------------- |
+| `$COMPOZY_HOME`                   | yes                    | Home root. Defaults to `~/.compozy`; `COMPOZY_HOME` overrides it.             |
+| `$COMPOZY_HOME/config.toml`       | no                     | Global TOML config file.                                                      |
+| `$COMPOZY_HOME/mcp.json`          | no                     | Global MCP sidecar loaded after global TOML by the general config loader.     |
+| `$COMPOZY_HOME/agents/`           | yes                    | Global agent definitions.                                                     |
+| `$COMPOZY_HOME/skills/`           | yes                    | Global user and marketplace skills.                                           |
+| `$COMPOZY_HOME/profiles/`         | yes                    | Parent for per-profile config, MCP, agent, and skill files.                   |
+| `$COMPOZY_HOME/profiles/default/` | yes                    | The permanent `default` profile's directory.                                  |
+| `$COMPOZY_HOME/providers/`        | no                     | Parent for opt-in isolated provider homes. Created by provider launch/auth.   |
+| `$COMPOZY_HOME/sessions/`         | yes                    | Parent directory for per-session state.                                       |
+| `$COMPOZY_HOME/logs/`             | yes                    | Parent directory for daemon logs.                                             |
+| `$COMPOZY_HOME/extensions/`       | no                     | Managed installed extension root. Created when installing managed extensions. |
+| `$COMPOZY_HOME/support-bundles/`  | no                     | Created when the daemon builds or the CLI downloads a support bundle.         |
 
 `EnsureHomeLayout` creates the root, `agents`, `skills`, `loops`, `profiles`, the `default` profile
 directory, `sessions`, and `logs` directories. Individual files

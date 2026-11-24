@@ -14,6 +14,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type ingressServiceStub struct {
+	bind    func(context.Context, ingress.BindRequest) (ingress.Binding, error)
+	unbind  func(context.Context, ingress.UnbindRequest) (ingress.UnbindResult, error)
+	project func(context.Context, ingress.SubjectRef) (ingress.Projection, error)
+}
+
+func (s ingressServiceStub) Bind(ctx context.Context, request ingress.BindRequest) (ingress.Binding, error) {
+	return s.bind(ctx, request)
+}
+
+func (s ingressServiceStub) Unbind(ctx context.Context, request ingress.UnbindRequest) (ingress.UnbindResult, error) {
+	return s.unbind(ctx, request)
+}
+
+func (s ingressServiceStub) Project(ctx context.Context, subject ingress.SubjectRef) (ingress.Projection, error) {
+	return s.project(ctx, subject)
+}
+
 func TestIngressAgentCallerBoundary(t *testing.T) {
 	t.Parallel()
 
