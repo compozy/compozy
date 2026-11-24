@@ -22,13 +22,13 @@ func BillingStatus(subscriptions []Subscription, monthlyPrice, annualPrice strin
 		if result.Plan == Free {
 			result.Plan, result.Subscription = Pro, s
 		}
-		result.PaymentIssue = result.PaymentIssue || (s.Source == "stripe" && s.Status == "past_due")
+		result.PaymentIssue = result.PaymentIssue || (s.Source == stripeSource && s.Status == "past_due")
 	}
 	return result
 }
 
 func (s Subscription) RefundEligibleUntil() time.Time {
-	if s.Source == "stripe" && s.RefundablePayment && !s.LastPaymentAt.IsZero() {
+	if s.Source == stripeSource && s.RefundablePayment && !s.LastPaymentAt.IsZero() {
 		return s.LastPaymentAt.Add(14 * 24 * time.Hour)
 	}
 	return time.Time{}

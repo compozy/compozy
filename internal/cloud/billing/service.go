@@ -66,6 +66,11 @@ var (
 		"Your account is being deleted. Try again in a few minutes."}
 )
 
+const (
+	stripeSource     = "stripe"
+	stripeStatusPaid = "paid"
+)
+
 type Target struct {
 	Interval string
 	Hostname string
@@ -98,7 +103,7 @@ func (s *Service) validTarget(target Target) bool {
 		return true
 	}
 	label, ok := strings.CutSuffix(target.Hostname, "."+s.cfg.HostedDomain)
-	return ok && s.cfg.HostedDomain != "" && len(label) > 0 && len(label) <= 63 &&
+	return ok && s.cfg.HostedDomain != "" && label != "" && len(label) <= 63 &&
 		label[0] != '-' && label[len(label)-1] != '-' &&
 		!strings.ContainsFunc(label, func(r rune) bool {
 			return r != '-' && (r < 'a' || r > 'z') && (r < '0' || r > '9')
@@ -238,7 +243,7 @@ func (s *Service) CompleteCheckout(
 		return result, ErrInvalidRequest
 	}
 	if current.Status != "complete" ||
-		(current.PaymentStatus != "paid" && current.PaymentStatus != "no_payment_required") {
+		(current.PaymentStatus != stripeStatusPaid && current.PaymentStatus != "no_payment_required") {
 		return result, ErrPaymentPending
 	}
 	if err := s.refreshSubscription(ctx, current.Subscription, stripeEvent{}, accountID); err != nil {
@@ -299,7 +304,7 @@ func (s *Service) status(subscriptions []plan.Subscription, now time.Time) plan.
 
 func billingCustomer(subscriptions []plan.Subscription) string {
 	for _, sub := range subscriptions {
-		if sub.Source == "stripe" && sub.CustomerID != "" {
+		if sub.Source == stripeSource && sub.CustomerID != "" {
 			return sub.CustomerID
 		}
 	}

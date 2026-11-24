@@ -53,7 +53,7 @@ func (q *Queries) SaveStripeSubscription(ctx context.Context, s plan.Subscriptio
 		LastInvoiceID: dbText(s.LastInvoiceID), RefundablePayment: s.RefundablePayment, AsOf: timestamp(now),
 	})
 	if err == nil && count != 1 {
-		return errors.New("Stripe subscription already belongs to another entitlement")
+		return errors.New("stripe subscription already belongs to another entitlement")
 	}
 	return err
 }

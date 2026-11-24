@@ -55,6 +55,8 @@ type billingPage struct {
 	AlreadyPro, OpeningCheckout                                   bool
 }
 
+const billingIntervalYear = "year"
+
 func (p billingPage) Monthly() bool { return p.Target.Interval == "month" }
 
 func (p billingPage) PlanLabel() string {
@@ -67,7 +69,7 @@ func (p billingPage) PlanLabel() string {
 		interval = sub.Interval
 	}
 	switch interval {
-	case "year":
+	case billingIntervalYear:
 		return "Pro annual"
 	case "month":
 		return "Pro monthly"
@@ -162,7 +164,7 @@ func (p billingPages) signIn(w http.ResponseWriter, r *http.Request) {
 
 func (p billingPages) afterOAuth(w http.ResponseWriter, r *http.Request, next string, err error) {
 	if err != nil {
-		page := purchasePage(billing.Target{Interval: "year"})
+		page := purchasePage(billing.Target{Interval: billingIntervalYear})
 		page.RetryURL = next
 		p.render(w, page, err)
 		return
@@ -256,7 +258,7 @@ func (p billingPages) success(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	page := purchasePage(billing.Target{Interval: "year"})
+	page := purchasePage(billing.Target{Interval: billingIntervalYear})
 	page.ShowPlans = false
 	session, err := p.auth.WebSession(r.Context(), readCookie(r, webSessionCookie))
 	if errors.Is(err, auth.ErrWebSession) {
@@ -277,7 +279,7 @@ func (p billingPages) success(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, overview.HostedURL, http.StatusSeeOther)
 		return
 	}
-	page.Title, page.Success, page.Email = "You're on Pro. Open Compozy to use your computers.", err == nil, session.Email
+	page.Title, page.Success, page.Email = "You're on Pro. Open CompozyOS to use your computers.", err == nil, session.Email
 	if err == nil {
 		page.Overview = overview
 	}
@@ -310,6 +312,7 @@ func (p billingPages) webAccess(r *http.Request, accountID string) billing.Autho
 
 func redirectPurchase(w http.ResponseWriter, r *http.Request, target billing.Target) {
 	setPageHeaders(w)
+	// #nosec G710 -- target.URL() builds a validated relative /billing/upgrade path.
 	http.Redirect(w, r, target.URL(), http.StatusSeeOther)
 }
 

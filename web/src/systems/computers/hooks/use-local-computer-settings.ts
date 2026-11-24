@@ -3,31 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "@compozy/ui";
 
-import { apiClient, apiRequestFailed, LOCAL_COMPUTER_ID } from "@/lib/api-client";
-import { computerQueryKey } from "@/lib/computer-scope";
-
 import { patchComputer, patchLocalComputer } from "../adapters/computers-api";
 import { computerRegistryKeys } from "../lib/query-keys";
+import { activeLocalSessionsCountOptions } from "../lib/query-options";
 import type { LoadBalancingWeight } from "../mocks/remote-computers-types";
 import type { ComputerListResponse, PatchLocalComputerRequest } from "../types";
-
-async function fetchActiveLocalSessionCount(signal?: AbortSignal): Promise<number> {
-  const { data, error, response } = await apiClient.GET("/api/sessions", {
-    params: {
-      query: {
-        all_workspaces: true,
-        all_profiles: true,
-        state: "active",
-        limit: 1,
-      },
-    },
-    signal,
-  });
-  if (apiRequestFailed(response, error) || !data) {
-    return 0;
-  }
-  return data.page.total ?? data.sessions.length;
-}
 
 /**
  * Owns `PATCH /api/computers/local` (`run_agents`, `load_balancing`, `load_balancing_weight`),
@@ -38,13 +18,9 @@ export function useLocalComputerSettings(options: { signedIn: boolean; localRunA
   const queryClient = useQueryClient();
   const [disableAgentsOpen, setDisableAgentsOpen] = useState(false);
 
-  const activeSessionsQuery = useQuery({
-    queryKey: computerQueryKey(LOCAL_COMPUTER_ID, "sessions", "active-count"),
-    queryFn: ({ signal }) => fetchActiveLocalSessionCount(signal),
-    enabled: options.signedIn && options.localRunAgents,
-    staleTime: 10_000,
-    retry: false,
-  });
+  const activeSessionsQuery = useQuery(
+    activeLocalSessionsCountOptions(options.signedIn && options.localRunAgents)
+  );
 
   const activeLocalSessions = activeSessionsQuery.data ?? 0;
 

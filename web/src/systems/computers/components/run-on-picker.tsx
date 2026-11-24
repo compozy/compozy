@@ -132,6 +132,162 @@ function triggerLabel(
   return { kind: "remote", name: found.name, computer: found };
 }
 
+type TriggerSummary = ReturnType<typeof triggerLabel>;
+
+function RunOnTriggerInner({
+  current,
+  localComputer,
+  showRunOnLabel,
+}: {
+  current: TriggerSummary;
+  localComputer: LocalComputerFixture;
+  showRunOnLabel: boolean;
+}) {
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+      {current.kind === "auto" ? (
+        <Scale
+          aria-hidden="true"
+          className={cn(
+            "size-3.5 shrink-0",
+            current.degraded === "warning" ? "text-warning" : "text-subtle"
+          )}
+        />
+      ) : current.kind === "local" ? (
+        <ComputerPlatformIcon
+          className="size-3.5 shrink-0"
+          iconKind={localComputer.iconKind}
+          platform={localComputer.platform}
+          size="sm"
+          tone="muted"
+        />
+      ) : (
+        <ComputerPlatformIcon
+          className="size-3.5 shrink-0"
+          iconKind={current.computer?.iconKind}
+          platform={current.computer?.platform}
+          size="sm"
+          tone="muted"
+        />
+      )}
+      {showRunOnLabel ? <span className="shrink-0 text-muted-foreground">Run on</span> : null}
+      <span className="truncate font-medium text-fg">{current.name}</span>
+      {current.suffix ? (
+        <span
+          className={cn(
+            "inline-flex shrink-0 items-center gap-1 text-eyebrow",
+            current.degraded === "warning"
+              ? "text-warning"
+              : current.degraded === "pro"
+                ? "text-brand"
+                : "text-muted-foreground"
+          )}
+        >
+          {current.degraded === "connecting" ? (
+            <Spinner aria-hidden="true" className="size-3" />
+          ) : null}
+          {current.kind !== "auto" ? <span aria-hidden="true">·</span> : null}
+          <span>{current.suffix}</span>
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function RunOnDefaultGroup({
+  showAuto,
+  localComputer,
+  value,
+  autoResolution,
+  autoLoading,
+  testId,
+  onSelect,
+}: {
+  showAuto: boolean;
+  localComputer: LocalComputerFixture;
+  value: RunOnTarget;
+  autoResolution: AutoResolutionSummary | null;
+  autoLoading: boolean;
+  testId: string;
+  onSelect: (next: RunOnTarget) => void;
+}) {
+  if (!showAuto && !localComputer.localRunAgents) {
+    return null;
+  }
+
+  return (
+    <CommandSelectGroup heading="Default">
+      {showAuto ? (
+        <CommandItem
+          className="items-center gap-2.5 py-1.5"
+          data-checked={value === "auto" ? "true" : "false"}
+          data-testid={`${testId}-item-auto`}
+          onSelect={() => onSelect("auto")}
+          value={`Auto load balancing ${autoResolution?.computerName ?? ""}`}
+        >
+          <Scale
+            aria-hidden="true"
+            className={cn(
+              "size-4 shrink-0",
+              autoResolution || autoLoading ? "text-subtle" : "text-warning"
+            )}
+          />
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="flex items-center gap-1.5 text-small-body font-medium text-fg">
+              <span>Auto</span>
+              {autoLoading ? (
+                <Spinner aria-hidden="true" className="size-3" />
+              ) : autoResolution ? (
+                <span className="font-normal text-muted-foreground">
+                  → {autoResolution.computerName}
+                </span>
+              ) : null}
+            </span>
+            <span
+              className={cn(
+                "truncate text-eyebrow",
+                autoResolution || autoLoading ? "text-subtle" : "text-warning"
+              )}
+            >
+              {autoLoading
+                ? "Checking eligible computers…"
+                : autoResolution
+                  ? "Picks the least busy computer"
+                  : "No computer can run this project"}
+            </span>
+          </span>
+        </CommandItem>
+      ) : null}
+
+      {localComputer.localRunAgents ? (
+        <CommandItem
+          className="items-center gap-2.5 py-1.5"
+          data-checked={value === "local" ? "true" : "false"}
+          data-testid={`${testId}-item-local`}
+          onSelect={() => onSelect("local")}
+          value={`This computer ${localComputer.name} local`}
+        >
+          <ComputerPlatformIcon
+            className="size-4 shrink-0"
+            iconKind={localComputer.iconKind}
+            platform={localComputer.platform}
+            size="sm"
+            tone="muted"
+          />
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="truncate text-small-body font-medium text-fg">This computer</span>
+            <span className="flex items-center gap-1.5 truncate text-eyebrow text-subtle">
+              <StatusDot size="sm" tone="success" />
+              <span className="truncate">{localComputer.name}</span>
+            </span>
+          </span>
+          <ComputerLoadMeter computerName={localComputer.name} load={localComputer.load} />
+        </CommandItem>
+      ) : null}
+    </CommandSelectGroup>
+  );
+}
+
 /**
  * Pure, prop-driven `Run on` computer picker (`_uiux.md` U4).
  *
@@ -186,58 +342,7 @@ export function RunOnPicker({
   const current = triggerLabel(value, localComputer, enabledComputers, autoResolution, autoLoading);
   const isCompact = variant === "compact";
   const isInline = variant === "inline";
-
-  const triggerInner = (
-    <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-      {current.kind === "auto" ? (
-        <Scale
-          aria-hidden="true"
-          className={cn(
-            "size-3.5 shrink-0",
-            current.degraded === "warning" ? "text-warning" : "text-subtle"
-          )}
-        />
-      ) : current.kind === "local" ? (
-        <ComputerPlatformIcon
-          className="size-3.5 shrink-0"
-          iconKind={localComputer.iconKind}
-          platform={localComputer.platform}
-          size="sm"
-          tone="muted"
-        />
-      ) : (
-        <ComputerPlatformIcon
-          className="size-3.5 shrink-0"
-          iconKind={current.computer?.iconKind}
-          platform={current.computer?.platform}
-          size="sm"
-          tone="muted"
-        />
-      )}
-      {isCompact || isInline ? (
-        <span className="shrink-0 text-muted-foreground">Run on</span>
-      ) : null}
-      <span className="truncate font-medium text-fg">{current.name}</span>
-      {current.suffix ? (
-        <span
-          className={cn(
-            "inline-flex shrink-0 items-center gap-1 text-eyebrow",
-            current.degraded === "warning"
-              ? "text-warning"
-              : current.degraded === "pro"
-                ? "text-brand"
-                : "text-muted-foreground"
-          )}
-        >
-          {current.degraded === "connecting" ? (
-            <Spinner aria-hidden="true" className="size-3" />
-          ) : null}
-          {current.kind !== "auto" ? <span aria-hidden="true">·</span> : null}
-          <span>{current.suffix}</span>
-        </span>
-      ) : null}
-    </span>
-  );
+  const showRunOnLabel = isCompact || isInline;
 
   if (locked) {
     return (
@@ -251,7 +356,11 @@ export function RunOnPicker({
         data-slot="run-on-picker"
         data-testid={testId}
       >
-        {triggerInner}
+        <RunOnTriggerInner
+          current={current}
+          localComputer={localComputer}
+          showRunOnLabel={showRunOnLabel}
+        />
       </span>
     );
   }
@@ -261,6 +370,8 @@ export function RunOnPicker({
     setOpen(false);
     setQuery("");
   };
+
+  const reconnectingSet = new Set(reconnectingIds);
 
   return (
     <CommandSelect
@@ -294,8 +405,12 @@ export function RunOnPicker({
         }}
         selected
       >
-        {triggerInner}
-        {isCompact || isInline ? (
+        <RunOnTriggerInner
+          current={current}
+          localComputer={localComputer}
+          showRunOnLabel={showRunOnLabel}
+        />
+        {showRunOnLabel ? (
           <ChevronDown aria-hidden="true" className="size-3 shrink-0 text-subtle" />
         ) : null}
       </CommandSelectTrigger>
@@ -323,100 +438,33 @@ export function RunOnPicker({
         >
           <CommandEmpty>No matching computer.</CommandEmpty>
 
-          {showAuto || localComputer.localRunAgents ? (
-            <CommandSelectGroup heading="Default">
-              {showAuto ? (
-                <CommandItem
-                  className="items-center gap-2.5 py-1.5"
-                  data-checked={value === "auto" ? "true" : "false"}
-                  data-testid={`${testId}-item-auto`}
-                  onSelect={() => handleSelect("auto")}
-                  value={`Auto load balancing ${autoResolution?.computerName ?? ""}`}
-                >
-                  <Scale
-                    aria-hidden="true"
-                    className={cn(
-                      "size-4 shrink-0",
-                      autoResolution || autoLoading ? "text-subtle" : "text-warning"
-                    )}
-                  />
-                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="flex items-center gap-1.5 text-small-body font-medium text-fg">
-                      <span>Auto</span>
-                      {autoLoading ? (
-                        <Spinner aria-hidden="true" className="size-3" />
-                      ) : autoResolution ? (
-                        <span className="font-normal text-muted-foreground">
-                          → {autoResolution.computerName}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span
-                      className={cn(
-                        "truncate text-eyebrow",
-                        autoResolution || autoLoading ? "text-subtle" : "text-warning"
-                      )}
-                    >
-                      {autoLoading
-                        ? "Checking eligible computers…"
-                        : autoResolution
-                          ? "Picks the least busy computer"
-                          : "No computer can run this project"}
-                    </span>
-                  </span>
-                </CommandItem>
-              ) : null}
-
-              {localComputer.localRunAgents ? (
-                <CommandItem
-                  className="items-center gap-2.5 py-1.5"
-                  data-checked={value === "local" ? "true" : "false"}
-                  data-testid={`${testId}-item-local`}
-                  onSelect={() => handleSelect("local")}
-                  value={`This computer ${localComputer.name} local`}
-                >
-                  <ComputerPlatformIcon
-                    className="size-4 shrink-0"
-                    iconKind={localComputer.iconKind}
-                    platform={localComputer.platform}
-                    size="sm"
-                    tone="muted"
-                  />
-                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate text-small-body font-medium text-fg">
-                      This computer
-                    </span>
-                    <span className="flex items-center gap-1.5 truncate text-eyebrow text-subtle">
-                      <StatusDot size="sm" tone="success" />
-                      <span className="truncate">{localComputer.name}</span>
-                    </span>
-                  </span>
-                  <ComputerLoadMeter computerName={localComputer.name} load={localComputer.load} />
-                </CommandItem>
-              ) : null}
-            </CommandSelectGroup>
-          ) : null}
+          <RunOnDefaultGroup
+            autoLoading={autoLoading}
+            autoResolution={autoResolution}
+            localComputer={localComputer}
+            onSelect={handleSelect}
+            showAuto={showAuto}
+            testId={testId}
+            value={value}
+          />
 
           {enabledComputers.length > 0 ? (
             <>
               {showAuto || localComputer.localRunAgents ? <CommandSeparator /> : null}
               <CommandSelectGroup heading="Computers">
-                {(() => {
-                  const reconnectingSet = new Set(reconnectingIds);
-                  return enabledComputers.map(computer => (
-                    <RunOnComputerItem
-                      computer={computer}
-                      highlightReconnect={highlightedReconnectId === computer.id}
-                      key={computer.id}
-                      onReconnect={onReconnect}
-                      onSelect={handleSelect}
-                      onUpgrade={onUpgrade}
-                      reconnecting={reconnectingSet.has(computer.id)}
-                      selected={value === computer.id}
-                      testIdPrefix={testId}
-                    />
-                  ));
-                })()}
+                {enabledComputers.map(computer => (
+                  <RunOnComputerItem
+                    computer={computer}
+                    highlightReconnect={highlightedReconnectId === computer.id}
+                    key={computer.id}
+                    onReconnect={onReconnect}
+                    onSelect={handleSelect}
+                    onUpgrade={onUpgrade}
+                    reconnecting={reconnectingSet.has(computer.id)}
+                    selected={value === computer.id}
+                    testIdPrefix={testId}
+                  />
+                ))}
               </CommandSelectGroup>
             </>
           ) : null}

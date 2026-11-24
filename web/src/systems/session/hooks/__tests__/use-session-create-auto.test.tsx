@@ -34,7 +34,10 @@ const { mockMutateAsync, mockNavigate, mockUseAgents, mockActive } = vi.hoisted(
       breadthMode: "focused" as "focused" | "all",
       pending: false,
       projectWorkspaces: [] as WorkspacePayload[],
-      dataScope: { kind: "project", workspaceId: "ws_local_api" } as const,
+      dataScope: { kind: "project", workspaceId: "ws_local_api" } as {
+        kind: "project";
+        workspaceId: string;
+      },
     },
   },
 }));

@@ -38,7 +38,7 @@ async function installPurchaseTurnstile(context: BrowserContext) {
 test.describe("Purchase from the cloud", () => {
   test.use({ scenario: "browser-purchase" });
 
-  test("E2E-013 and IT-109 buy annual Pro before installing, then use the same account in Compozy", async ({
+  test("E2E-013 and IT-109 buy annual Pro before installing, then use the same account in CompozyOS", async ({
     page,
     context,
     browser,
@@ -58,9 +58,9 @@ test.describe("Purchase from the cloud", () => {
     await page.getByRole("button", { name: "Continue to checkout" }).click();
     await page.getByRole("button", { name: "Complete payment" }).click();
     await expect(page.getByRole("heading")).toHaveText(
-      "You're on Pro. Open Compozy to use your computers."
+      "You're on Pro. Open CompozyOS to use your computers."
     );
-    await expect(page.getByRole("link", { name: "Open Compozy", exact: true })).toHaveAttribute(
+    await expect(page.getByRole("link", { name: "Open CompozyOS", exact: true })).toHaveAttribute(
       "href",
       "compozyos://open/"
     );

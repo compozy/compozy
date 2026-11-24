@@ -21,7 +21,7 @@ func (s *Service) CancelForDeletion(ctx context.Context, accountID string) error
 		return err
 	}
 	for _, sub := range subscriptions {
-		if sub.Source == "stripe" && sub.Entitled(s.cfg.MonthlyPrice, s.cfg.AnnualPrice, s.cfg.Now()) {
+		if sub.Source == stripeSource && sub.Entitled(s.cfg.MonthlyPrice, s.cfg.AnnualPrice, s.cfg.Now()) {
 			if err := s.cancelForDeletion(ctx, sub); err != nil {
 				return err
 			}
@@ -120,9 +120,9 @@ type stripeInvoicePayment struct {
 
 func (s *Stripe) refundInvoice(ctx context.Context, invoice, subscription string) error {
 	if !validStripeID(invoice, "in_") {
-		return errors.New("Stripe invoice for the refundable payment is missing")
+		return errors.New("stripe invoice for the refundable payment is missing")
 	}
-	params := url.Values{"invoice": {invoice}, "status": {"paid"}, "limit": {"100"}}
+	params := url.Values{"invoice": {invoice}, "status": {stripeStatusPaid}, "limit": {"100"}}
 	var page stripeList[stripeInvoicePayment]
 	if err := s.request(ctx, http.MethodGet, "/v1/invoice_payments", params, "", &page); err != nil {
 		return err
