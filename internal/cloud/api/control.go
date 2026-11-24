@@ -50,7 +50,8 @@ func (r *Router) RegisterControl(cfg ControlRoutesConfig) {
 	r.mux.Handle("DELETE /v1/computers/{id}", h.device(h.unlink))
 	r.mux.Handle("POST /v1/computers/{id}/grants", h.device(h.grant))
 	r.mux.HandleFunc("POST /v1/computers/{id}/tunnel", h.provisionHostedTunnel)
-	r.mux.HandleFunc("DELETE /v1/computers/{id}/tunnel", h.deleteHostedTunnel)
+	// The fixed reservations path takes precedence over computer subresources.
+	r.mux.HandleFunc("DELETE /v1/computers/{id}/{resource}", h.deleteComputerResource)
 	r.mux.HandleFunc("GET /v1/computers/control", h.controlLink)
 	r.mux.Handle("GET /v1/approvals", h.device(h.approvals))
 	r.mux.Handle("GET /v1/approvals/{id}", h.device(h.getApproval))

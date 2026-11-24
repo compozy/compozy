@@ -20,7 +20,11 @@ func (r *controlRoutes) provisionHostedTunnel(w http.ResponseWriter, req *http.R
 	})
 }
 
-func (r *controlRoutes) deleteHostedTunnel(w http.ResponseWriter, req *http.Request) {
+func (r *controlRoutes) deleteComputerResource(w http.ResponseWriter, req *http.Request) {
+	if req.PathValue("resource") != "tunnel" {
+		http.NotFound(w, req)
+		return
+	}
 	body, err := readControlBody(w, req)
 	if err != nil || len(body) > 0 {
 		r.fail(w, req, control.ErrInvalidInput)
