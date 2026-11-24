@@ -19,11 +19,11 @@ import (
 )
 
 func TestDaemonRemoteHost(t *testing.T) {
+	f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+	daemon, ring := startDaemonAccountFixture(t, f)
 	t.Run(
 		"Should link, admit a newly enrolled device on the same control link, disable, and unlink",
 		func(t *testing.T) {
-			f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
-			daemon, ring := startDaemonAccountFixture(t, f)
 			progress := daemon.stream(t, contract.AccountSignInEventsPath, "")
 			const email = "remote-owner@example.test"
 			owner := signInDaemonAccount(t, f, daemon, progress, email)
@@ -96,14 +96,23 @@ type remoteTestDevice struct {
 
 func enrollRemoteDevice(t *testing.T, f authFixture, email, installation string) remoteTestDevice {
 	t.Helper()
-	reply, grant := f.signIn(t, auth.Google, providerProfile{email: email, subject: email, verified: true}, false)
-	reply.expect(t, http.StatusOK, "Return to CompozyOS.")
-	token := f.redeem(t, grant)
-	key, jwk := newDeviceKey(t)
 	cloud, err := cloudclient.New(cloudclient.WithClock(f.clock.Now))
 	if err != nil {
 		t.Fatal(err)
 	}
+	grant, err := cloud.StartDeviceFlow(t.Context(), remoteproto.DeviceFlowRequest{
+		Provider: auth.Google, InstallationID: installation, ClientName: "MacBook Pro", ClientPlatform: "macOS",
+	})
+	if err != nil {
+		t.Fatalf("start device flow: %v", err)
+	}
+	cookie := f.openActivation(t, grant, auth.Google)
+	redirect := f.continueGrant(t, grant, auth.Google, cookie, false)
+	profile := providerProfile{email: email, subject: email, verified: true}
+	callback := f.callbackPath(t, auth.Google, redirect, profile)
+	f.request(t, http.MethodGet, callback, nil, cookie).expect(t, http.StatusOK, "Return to CompozyOS.")
+	token := f.redeem(t, grant)
+	key, jwk := newDeviceKey(t)
 	input := enrollInput(jwk)
 	input.InstallationID = installation
 	result, err := cloud.Enroll(t.Context(), token.EnrollmentToken, key, input)

@@ -171,6 +171,7 @@ var nativeEntries = map[string]Entry{
 	"compozy__provider_models_list":          nativeEntry("Reading", " ", false, "🤖", "auto"),
 	"compozy__provider_models_refresh":       nativeEntry("Refreshing", " ", false, "🤖", "auto"),
 	"compozy__provider_models_status":        nativeEntry("Reading", " ", false, "🤖", "auto"),
+	"compozy__remote_status":                 nativeEntry("Reading", " ", false, "🖥️", "auto"),
 	"compozy__resources_info":                nativeEntry("Reading", " ", false, "📚", "auto"),
 	"compozy__resources_list":                nativeEntry("Reading", " ", false, "📚", "auto"),
 	"compozy__resources_snapshot":            nativeEntry("Reading", " ", false, "📚", "auto"),

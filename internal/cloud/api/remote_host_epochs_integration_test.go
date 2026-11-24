@@ -20,7 +20,7 @@ func TestCloudRemoteHostEpochs(t *testing.T) {
 	t.Run("Should discard a stale snapshot and stop mints behind an incremental gap", func(t *testing.T) {
 		// IT-081. Safety Invariants 6, 22 and 23.
 		f, first, second, relay := remoteFailoverFixture(t)
-		lab := newRemoteHostLab(t, f)
+		lab := newRemoteHostLab(t, f, t.TempDir())
 		other := enrollRemoteDevice(t, f, remoteFixtureEmail, "remote-lab-epoch-revocation")
 		f.db.Exec(t, "UPDATE %s.accounts SET security_epoch = 10 WHERE id = $1", lab.owner.account)
 		tunnel := lab.start(t, lab.db, nil)

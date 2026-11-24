@@ -18,12 +18,14 @@ import (
 )
 
 func TestCloudRemoteHostSecurity(t *testing.T) {
+	// The CLI subtest uses the daemon socket under this home.
+	udsHome := t.TempDir()
 	t.Run(
 		"Should close revoked streams, reconcile narrowed scopes across replicas, and expire offline",
 		func(t *testing.T) {
 			// IT-019. Safety Invariants 4, 6, 10, 16 and 23.
 			f, _, second, relay := remoteFailoverFixture(t)
-			lab := newRemoteHostLab(t, f)
+			lab := newRemoteHostLab(t, f, t.TempDir())
 			var closed atomic.Bool
 			tunnel := lab.start(t, lab.db, remoteScopeFixture(&closed))
 			member := lab.member
@@ -75,7 +77,7 @@ func TestCloudRemoteHostSecurity(t *testing.T) {
 	t.Run("Should invalidate a stream and narrow the next session through the CLI", func(t *testing.T) {
 		// IT-045. Safety Invariants 4, 10 and 23.
 		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
-		lab := newRemoteHostLab(t, f)
+		lab := newRemoteHostLab(t, f, udsHome)
 		var closed atomic.Bool
 		tunnel := lab.start(t, lab.db, remoteScopeFixture(&closed))
 		lab.startUDS(t)

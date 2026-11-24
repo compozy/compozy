@@ -31,7 +31,7 @@ func TestCloudRemoteHostTransactions(t *testing.T) {
 	t.Run("Should roll back a used grant when storing the session encounters SQLite busy", func(t *testing.T) {
 		// IT-038. Safety Invariant 3.
 		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
-		lab := newRemoteHostLab(t, f)
+		lab := newRemoteHostLab(t, f, t.TempDir())
 		target := url.URL{Scheme: "file", Path: lab.db.Path(), RawQuery: "_pragma=busy_timeout(0)"}
 		contender, err := sql.Open("sqlite", target.String())
 		if err != nil {
@@ -76,7 +76,7 @@ func TestCloudRemoteHostTransactions(t *testing.T) {
 	t.Run("Should reject a rename already at the commit boundary when its device is revoked", func(t *testing.T) {
 		// IT-047. Safety Invariants 10 and 16.
 		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
-		lab := newRemoteHostLab(t, f)
+		lab := newRemoteHostLab(t, f, t.TempDir())
 		paused := make(chan struct{})
 		record := store.SessionInfo{ID: "sess_remote_rename", Name: "Original", ProfileID: store.DefaultProfileID,
 			AgentName: "general", Provider: "codex", RuntimeStatus: store.SessionRuntimeUnbound,

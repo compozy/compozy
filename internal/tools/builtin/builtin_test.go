@@ -1658,6 +1658,7 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__profile_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: toolspkg.ToolIDRemoteStatus, risk: toolspkg.RiskRead, readOnly: true},
 		{id: "compozy__resources_info", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__resources_list", risk: toolspkg.RiskRead,

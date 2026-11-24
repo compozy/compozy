@@ -42,9 +42,8 @@ type remoteHostLab struct {
 	member  remoteTestDevice
 }
 
-func newRemoteHostLab(t *testing.T, f authFixture) *remoteHostLab {
+func newRemoteHostLab(t *testing.T, f authFixture, home string) *remoteHostLab {
 	t.Helper()
-	home := t.TempDir()
 	t.Setenv("COMPOZY_HOME", home)
 	t.Setenv("COMPOZY_CLOUD_URL", f.replica.Server.URL)
 	paths, err := config.ResolveHomePathsFrom(home)
