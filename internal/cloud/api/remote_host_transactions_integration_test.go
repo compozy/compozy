@@ -24,7 +24,6 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 	"github.com/compozy/compozy/internal/workspace"
-	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestCloudRemoteHostTransactions(t *testing.T) {
@@ -77,23 +76,33 @@ func TestCloudRemoteHostTransactions(t *testing.T) {
 		// IT-047. Safety Invariants 10 and 16.
 		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
 		lab := newRemoteHostLab(t, f, t.TempDir())
+		manager, workspaces := lab.sessionServices(t)
+		project, err := workspaces.Register(t.Context(), workspace.RegisterOptions{
+			RootDir: t.TempDir(), Name: "remote-rename",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 		paused := make(chan struct{})
-		record := store.SessionInfo{ID: "sess_remote_rename", Name: "Original", ProfileID: store.DefaultProfileID,
+		record := store.SessionInfo{
+			ID: "sess_remote_rename", Name: "Original", ProfileID: store.DefaultProfileID, WorkspaceID: project.ID,
 			AgentName: "general", Provider: "codex", RuntimeStatus: store.SessionRuntimeUnbound,
-			State: "stopped", CreatedAt: f.clock.Now(), UpdatedAt: f.clock.Now()}
+			State: "stopped", CreatedAt: f.clock.Now(), UpdatedAt: f.clock.Now(),
+		}
 		if err := lab.db.RegisterSession(t.Context(), &record); err != nil {
 			t.Fatal(err)
 		}
 		metaPath := store.SessionMetaFile(filepath.Join(lab.paths.SessionsDir, record.ID))
 		if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
-			ID: record.ID, Name: record.Name, ProfileID: record.ProfileID, AgentName: record.AgentName,
-			Provider: record.Provider, State: record.State, RuntimeStatus: record.RuntimeStatus,
-			SessionType: string(session.SessionTypeUser), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
+			ID: record.ID, Name: record.Name, ProfileID: record.ProfileID, WorkspaceID: record.WorkspaceID,
+			AgentName: record.AgentName, Provider: record.Provider, State: record.State,
+			RuntimeStatus: record.RuntimeStatus,
+			SessionType:   string(session.SessionTypeUser), CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt,
 		}); err != nil {
 			t.Fatal(err)
 		}
-		path := "/api/workspaces/" + workspaceaccess.UserSelector + "/sessions/" + record.ID
-		operator := remoteRenameRoutes(t, lab, paused)
+		path := "/api/workspaces/" + project.ID + "/sessions/" + record.ID
+		operator := remoteRenameRoutes(manager, workspaces, paused)
 		tunnel := lab.start(t, lab.db, operator)
 		mint := lab.mint(t, tunnel, lab.member)
 		request := lab.input(
@@ -114,7 +123,13 @@ func TestCloudRemoteHostTransactions(t *testing.T) {
 			status, body, err := tunnel.RoundTrip(request)
 			completed <- result{status, body, err}
 		}()
-		receiveRemote(t, paused, 2*time.Second)
+		select {
+		case <-paused:
+		case rename := <-completed:
+			t.Fatalf("rename returned before the commit boundary: %d %s %v", rename.status, rename.body, rename.err)
+		case <-time.After(2 * time.Second):
+			t.Fatal("rename did not reach the commit boundary")
+		}
 		remoteCloudRequest(t, f, lab.owner, http.MethodDelete, "/v1/devices/"+string(lab.member.id), nil).
 			expect(t, http.StatusNoContent, "")
 		rename := receiveRemote(t, completed, 3*time.Second)
@@ -133,23 +148,7 @@ func TestCloudRemoteHostTransactions(t *testing.T) {
 	})
 }
 
-func remoteRenameRoutes(t *testing.T, lab *remoteHostLab, paused chan<- struct{}) http.Handler {
-	t.Helper()
-	manager, err := session.NewManager(session.WithHomePaths(lab.paths), session.WithSessionCatalog(lab.db))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := manager.Shutdown(ctx); err != nil {
-			t.Errorf("shut down session manager: %v", err)
-		}
-	})
-	workspaces, err := workspace.NewResolver(lab.db, workspace.WithHomePaths(lab.paths))
-	if err != nil {
-		t.Fatal(err)
-	}
+func remoteRenameRoutes(manager *session.Manager, workspaces *workspace.Resolver, paused chan<- struct{}) http.Handler {
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 		TransportName: "remote", MaskInternalErrors: true, Sessions: manager, Workspaces: workspaces,
 	})
