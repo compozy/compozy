@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PROFILE_AGGREGATE } from "@/systems/profiles";
 
 import { SessionApiError } from "../../adapters/session-api-errors";
+import { primarySessionFixture } from "../../mocks/fixtures";
 import type { SessionInteractionRecord, SessionPayload } from "../../types";
 import {
   sessionAcrossProfilesOptions,
@@ -402,6 +403,31 @@ describe("sessionInputsOptions", () => {
 // Owner: session query policy. A live session stream invalidates these reads as they change,
 // so every stream-backed read drops to the safety cadence while that session's stream is live.
 describe("stream-backed session reads", () => {
+  it("Should keep a remote stream's cadence and invalidations on its computer", async () => {
+    const client = new QueryClient();
+    const computerId = "cmp_remote";
+    const workspaceId = "ws_alpha";
+    const sessionId = "sess_shared";
+    const local = sessionDetailOptions(workspaceId, sessionId);
+    const remote = sessionDetailOptions(workspaceId, sessionId, computerId);
+    const session = { ...primarySessionFixture, id: sessionId, workspace_id: workspaceId };
+    const release = retainSessionStreamLiveness(sessionId, computerId);
+    try {
+      client.setQueryData(local.queryKey, session);
+      client.setQueryData(remote.queryKey, session);
+
+      expect(sessionStreamBackedRefetchInterval(sessionId, "active", computerId)).toBe(30_000);
+      expect(sessionStreamBackedRefetchInterval(sessionId, "active")).toBe(5_000);
+
+      await invalidateSessionLiveQueries(client, workspaceId, sessionId, computerId);
+      expect(client.getQueryState(remote.queryKey)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(local.queryKey)?.isInvalidated).toBe(false);
+    } finally {
+      release();
+      client.clear();
+    }
+  });
+
   // Invariant: losing the live edge re-arms every mounted read and profile lens
   // for that session immediately, without fetching or touching another session.
   // Owning layer: session query policy; canonical suite: stream-backed reads.

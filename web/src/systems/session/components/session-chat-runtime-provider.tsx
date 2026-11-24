@@ -12,6 +12,7 @@ import {
 import { useStore } from "@xstate/store-react";
 import { toast } from "@compozy/ui";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { SessionPromptDispatchPendingProvider } from "@/components/assistant-ui/session-prompt-dispatch-context";
 import {
   sessionPromptDispatchLogic,
@@ -64,6 +65,7 @@ function SessionPromptRecoveryBridge({
   workspaceId: string;
 }) {
   const aui = useAui();
+  const computerId = useCurrentComputerId();
   // A refused draft returns whole — its own text and files — into an empty composer, in
   // arrival order. While the operator holds another draft there, it waits instead of losing
   // its text or folding its files into someone else's message.
@@ -78,14 +80,14 @@ function SessionPromptRecoveryBridge({
 
   useEffect(
     () =>
-      recovery.subscribe({ workspaceId, sessionId }, restored =>
+      recovery.subscribe({ computerId, workspaceId, sessionId }, restored =>
         setRestore(current =>
           current.queue.includes(restored)
             ? current
             : { ...current, queue: [...current.queue, restored] }
         )
       ),
-    [recovery, sessionId, workspaceId]
+    [computerId, recovery, sessionId, workspaceId]
   );
 
   useEffect(() => {
@@ -107,7 +109,7 @@ function SessionPromptRecoveryBridge({
         .finally(() => {
           // A composer torn down mid-restore leaves the draft with recovery for the next one.
           if (!active) return;
-          if (restored) recovery.settle({ workspaceId, sessionId }, draft);
+          if (restored) recovery.settle({ computerId, workspaceId, sessionId }, draft);
           setRestore(current => ({
             queue: restored
               ? current.queue.filter(candidate => candidate !== draft)
@@ -120,7 +122,7 @@ function SessionPromptRecoveryBridge({
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [aui, draft, recovery, sessionId, workspaceId]);
+  }, [aui, computerId, draft, recovery, sessionId, workspaceId]);
 
   return null;
 }

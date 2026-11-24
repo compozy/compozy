@@ -248,8 +248,13 @@ export function useOsPaletteEntities({
     },
     paletteSessionEnabled && worktreeFilter.resolved
   );
+  // Remote catalog search still works without a local project's ranking signals.
+  const remoteSearchEnabled =
+    open &&
+    dataScope !== null &&
+    (paletteSessionEnabled || (signals === null && remoteQuery !== ""));
   const remoteSessions = useRemoteSessionsFanout({
-    enabled: paletteSessionEnabled,
+    enabled: remoteSearchEnabled,
     filters: { q: remoteQuery, search_fields: "title_agent" },
   });
   const sessionRows = mergeRemotePaletteSessions(
@@ -260,8 +265,7 @@ export function useOsPaletteEntities({
     }),
     remoteSessions.remoteSessions
   );
-  const sessionSearchRan =
-    remoteQuery !== "" && paletteEntityQueryEnabled(destination, remoteQuery, signals);
+  const sessionSearchRan = remoteQuery !== "" && (paletteSessionEnabled || remoteSearchEnabled);
   const linkSessionId = paletteFocusedSessionCommand(
     focus?.sessionId ?? null,
     LINK_COMMAND,

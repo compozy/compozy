@@ -112,7 +112,7 @@ export function SessionWindowSession({ windowId }: { windowId: string }) {
   }
 
   return (
-    <ComputerScopeContext value={computerId}>
+    <ComputerScopeContext key={computerId} value={computerId}>
       <SessionWindowBody>
         <SessionWindowView
           windowId={windowId}

@@ -84,3 +84,49 @@ export function createSessionPromptChatTransport({
     },
   });
 }
+
+export function completeWhenResponseBodySettles(
+  response: Response,
+  onComplete: () => void
+): Response {
+  if (response.body === null) {
+    onComplete();
+    return response;
+  }
+
+  const reader = response.body.getReader();
+  let completed = false;
+  const complete = () => {
+    if (completed) return;
+    completed = true;
+    onComplete();
+  };
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const chunk = await reader.read();
+        if (chunk.done) {
+          complete();
+          controller.close();
+          return;
+        }
+        controller.enqueue(chunk.value);
+      } catch (error) {
+        complete();
+        controller.error(error);
+      }
+    },
+    async cancel(reason) {
+      try {
+        await reader.cancel(reason);
+      } finally {
+        complete();
+      }
+    },
+  });
+  return new Response(body, {
+    headers: response.headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
