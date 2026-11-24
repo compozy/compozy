@@ -4,6 +4,8 @@
 // fatal `TerminalApiError`s, and resumes with `after_seq` after a disconnect.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createDeferred } from "@/test/event-recorder";
+
 import {
   TERMINAL_SERVER_OP,
   encodeTerminalServerControlFrame,
@@ -119,10 +121,10 @@ describe("remote terminal adapter & protocol client", () => {
 
     const openedPaths: string[] = [];
     const sockets: TerminalSocket[] = [];
-    const firstOpened = Promise.withResolvers<string>();
-    const secondOpened = Promise.withResolvers<string>();
-    const writeDone = Promise.withResolvers<void>();
-    const reconnectScheduled = Promise.withResolvers<() => void>();
+    const firstOpened = createDeferred<string>();
+    const secondOpened = createDeferred<string>();
+    const writeDone = createDeferred<void>();
+    const reconnectScheduled = createDeferred<() => void>();
 
     const client = new TerminalProtocolClient({
       workspaceId: WORKSPACE_ID,
