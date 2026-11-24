@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
@@ -109,7 +110,7 @@ func TestDaemonComputerOperatorTerminal(t *testing.T) {
 		if !strings.HasPrefix(replay, "s9b-replay-a\r\ns9b-replay-b\r\ns9b-replay-c\r\n") {
 			t.Fatalf("terminal replay after %d missed output: %q", cursor, replay)
 		}
-		narrowOperatorTerminalScope(t, host, controller, id, device, resumed)
+		narrowOperatorTerminalScope(t, f.clock, host, controller, id, device, resumed)
 	})
 }
 
@@ -246,6 +247,7 @@ func readOperatorTerminalFrame(t *testing.T, socket *websocket.Conn) terminalwir
 
 func narrowOperatorTerminalScope(
 	t *testing.T,
+	clock *clockwork.FakeClock,
 	host, controller daemonAccountFixture,
 	id remoteproto.ComputerID,
 	device string,
@@ -257,12 +259,21 @@ func narrowOperatorTerminalScope(
 		Scopes: new([]remoteproto.Scope{remoteproto.ScopeSessions}),
 	}).expect(t, http.StatusOK, "sessions:operate")
 	expectTerminalClose(t, socket, 4503)
-	testutil.Eventually(t, "terminal scope removed", 10*time.Second, func() bool {
-		reply := controller.uds(t, http.MethodGet, bridgeAPI(id, "/api/terminals"), nil)
-		return reply.StatusCode == http.StatusForbidden &&
-			bytes.Contains(reply.body, []byte("\"code\":\"remote_scope_denied\"")) &&
-			bytes.Contains(reply.body, []byte("\"scope\":\"terminal:operate\""))
+	path := bridgeAPI(id, "/api/terminals")
+	controller.uds(t, http.MethodGet, path, nil).expect(t, http.StatusForbidden, "device_revoked")
+
+	// The controller refreshes its tunnel credential on a health tick.
+	clock.Advance(3 * time.Second)
+	testutil.Eventually(t, "controller connects with only sessions:operate", 10*time.Second, func() bool {
+		scopes := readControllerComputer(t, controller, id).Scopes
+		return len(scopes) == 1 && scopes[0] == remoteproto.ScopeSessions
 	})
+	reply := controller.uds(t, http.MethodGet, path, nil)
+	reply.expect(t, http.StatusForbidden, "")
+	failure := authJSON[contract.ErrorPayload](t, reply)
+	if failure.Code != "remote_scope_denied" || failure.Details["scope"] != string(remoteproto.ScopeTerminal) {
+		t.Fatalf("narrowed terminal request returned code=%q details=%v", failure.Code, failure.Details)
+	}
 }
 
 const operatorProviderName = "remote-auth-fixture"
