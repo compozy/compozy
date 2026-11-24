@@ -92,7 +92,7 @@ func newClient(signInRequired bool, opts ...Option) (*Client, error) {
 		return nil, errors.New("default HTTP transport has an unexpected type")
 	}
 	transport = transport.Clone()
-	transport.ResponseHeaderTimeout = requestTimeout
+	transport.ResponseHeaderTimeout = hostedTunnelRequestTimeout
 	client := &Client{
 		base: base, now: time.Now,
 		http: &http.Client{

@@ -173,7 +173,7 @@ func (s *Service) LinkPeers(ctx context.Context, link Link) ([]remoteproto.Hoste
 				return err
 			}
 			if plan.Derive(subscriptions, s.config.MonthlyPrice, s.config.AnnualPrice, now) == plan.Pro {
-				peers, err = q.ListControlPeers(ctx, computer)
+				peers, err = q.ListControlPeers(ctx, computer, now)
 			}
 			return err
 		},

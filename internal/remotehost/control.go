@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,6 +39,8 @@ type controlLink struct {
 	outgoing  chan remoteproto.ControlMessage
 	connected atomic.Bool
 	unlink    func(context.Context)
+	onLease   func(context.Context)
+	peers     atomic.Pointer[[]remoteproto.HostedPeer]
 }
 
 var errControlUnlinked = errors.New("computer unlinked by cloud")
@@ -100,6 +103,7 @@ func (c *controlLink) connect(ctx context.Context) (bool, error) {
 		cancel()
 		writer.Wait()
 		c.connected.Store(false)
+		c.peers.Store(nil)
 	}()
 	return c.readUpdates(ctx, socket)
 }
@@ -190,7 +194,20 @@ func (c *controlLink) applyControl(
 		if lease.SecurityEpoch != message.SecurityEpoch {
 			return remoteproto.ErrLeaseInvalid
 		}
-		return c.sessions.ApplyLease(ctx, lease)
+		if err := c.sessions.ApplyLease(ctx, lease); err != nil {
+			return err
+		}
+		if c.onLease != nil {
+			c.onLease(ctx)
+		}
+		return nil
+	case remoteproto.ControlPeers:
+		var peers []remoteproto.HostedPeer
+		if err := json.Unmarshal(message.Data, &peers); err != nil {
+			return err
+		}
+		c.peers.Store(&peers)
+		return nil
 	case remoteproto.ControlRevokeDevice, remoteproto.ControlScopesChanged, remoteproto.ControlUnlink:
 		return c.applyDelta(ctx, socket, message)
 	case remoteproto.ControlJWKS:
@@ -331,4 +348,16 @@ func writeControl(ctx context.Context, socket *websocket.Conn, message remotepro
 	write, cancel := context.WithTimeout(ctx, controlWrite)
 	defer cancel()
 	return socket.Write(write, websocket.MessageText, frame)
+}
+
+func (h *Host) HostedPeers() []remoteproto.HostedPeer {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.run == nil || h.run.hostedEntitlement(h.run.hostedView()) != remoteproto.HostedTunnelActive {
+		return nil
+	}
+	if peers := h.run.control.peers.Load(); peers != nil {
+		return slices.Clone(*peers)
+	}
+	return nil
 }

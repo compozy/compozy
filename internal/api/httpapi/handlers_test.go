@@ -113,6 +113,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PATCH /api/remote",
 		"PATCH /api/remote/devices/:id",
 		"POST /api/remote/link",
+		"DELETE /api/ingress/bindings/:subject_kind/:subject_id",
+		"POST /api/ingress/bindings",
 		"DELETE /api/app-tokens/:app_token_id",
 		"GET /api/app-tokens",
 		"GET /api/processes",

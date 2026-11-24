@@ -420,9 +420,10 @@ type HookRunsResponse struct {
 
 // HostedStatus is a daemon API value.
 type HostedStatus struct {
-	Enabled  bool    `json:"enabled"`
-	State    string  `json:"state"`
-	Hostname *string `json:"hostname"`
+	Enabled   bool    `json:"enabled"`
+	State     string  `json:"state"`
+	Hostname  *string `json:"hostname"`
+	Diagnosis string  `json:"diagnosis,omitempty"`
 }
 
 // Image is a daemon API value.

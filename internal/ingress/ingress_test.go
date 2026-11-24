@@ -661,3 +661,32 @@ func (p *ingressAccessPolicy) Authorize(
 	}
 	return decision, p.err
 }
+
+func TestAdvertisedBase(t *testing.T) {
+	t.Parallel()
+	const path = "/api/webhooks/workspaces/ws-a/deploy--wbh_specific"
+	for _, tc := range []struct {
+		name, hostname, custom, want string
+	}{
+		{"Should prefer the active hosted route (UT-073)", "devbox-7f3k.compozy.run",
+			"https://hooks.example.test", "https://devbox-7f3k.compozy.run"},
+		{"Should advertise the configured HTTPS proxy (UT-073)", "",
+			"https://hooks.example.test/", "https://hooks.example.test"},
+		{"Should report unavailable without a public endpoint (UT-073)", "", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			base, err := AdvertisedBase(tc.hostname, tc.custom)
+			if tc.want == "" {
+				if base != "" || !errors.Is(err, ErrUnavailable) {
+					t.Fatalf("advertised base = %q, %v", base, err)
+				}
+				return
+			}
+			endpoint, pathErr := publicIngressURL(base, path)
+			if err != nil || pathErr != nil || base != tc.want || endpoint != tc.want+path {
+				t.Fatalf("advertised endpoint = %q, %v", endpoint, errors.Join(err, pathErr))
+			}
+		})
+	}
+}
