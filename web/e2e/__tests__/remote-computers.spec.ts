@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { appWindow, openAppWindow } from "../fixtures/os-navigation";
+import { appWindow, openCommandPalette } from "../fixtures/os-navigation";
 import { cliComputerStatus, expect, test } from "../fixtures/remote-computers";
 
 async function openSettings(page: Page, section: "computers" | "account"): Promise<Locator> {
@@ -89,15 +89,15 @@ test.describe("Account-linked computer", () => {
     await expect(settings.locator(`[data-computer-id="${host.id}"]`)).toContainText("Connected");
     await settings.getByRole("button", { name: "Close window" }).click();
 
-    const sidebar = await sessionSidebar(await openAppWindow(page, "Session", "session"));
+    await page.goto("/sessions", { waitUntil: "domcontentloaded" });
+    const sidebar = await sessionSidebar(appWindow(page, "session"));
     const remoteRow = sidebar
       .locator(`[data-slot="session-list-row"][data-computer-id="${host.id}"]`)
       .filter({ hasText: title });
     await expect(remoteRow.getByText(title, { exact: true })).toBeVisible();
     await expect(remoteRow.getByText(host.name, { exact: true })).toBeVisible();
 
-    await page.keyboard.press("ControlOrMeta+K");
-    const palette = page.getByTestId("os-command-palette");
+    const palette = await openCommandPalette(page);
     await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(title);
     const result = palette.getByTestId(`os-palette-session-${sessionID}`);
     await expect(result).toContainText(title);

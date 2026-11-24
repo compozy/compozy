@@ -75,7 +75,7 @@ export function toLiveSshStage(
   if (errorCode === "ssh_unsupported_platform") return "unsupported";
 
   const promptKind = status.prompt?.kind ?? status.prompt_kind;
-  if (status.state === "needs_host_key" || promptKind === "host_key") {
+  if (status.state === "needs_input" && promptKind === "trust_host") {
     return "trust_host";
   }
   if (status.state === "needs_operator_secret" || promptKind === "secret") {
@@ -113,8 +113,7 @@ export function extractLiveHostKeyPrompt(
     };
   }
 
-  const promptKind = status.prompt?.kind ?? status.prompt_kind;
-  if (status.state === "needs_host_key" || promptKind === "host_key") {
+  if (toLiveSshStage(status) === "trust_host") {
     const host = status.prompt?.host || fallbackHost;
     const pinEntry = formatKnownHostsPinEntry(host, fallbackPort);
     return {
