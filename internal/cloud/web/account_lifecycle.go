@@ -46,7 +46,13 @@ func registerAccountPages(
 	if err != nil {
 		return accountPages{}, err
 	}
-	p := accountPages{auth: authService, accounts: service, links: links, view: view, csrf: http.NewCrossOriginProtection()}
+	p := accountPages{
+		auth:     authService,
+		accounts: service,
+		links:    links,
+		view:     view,
+		csrf:     http.NewCrossOriginProtection(),
+	}
 	mux.HandleFunc("GET "+email.UnsubscribePath, p.unsubscribe)
 	mux.HandleFunc("POST "+email.UnsubscribePath, p.unsubscribe)
 	mux.HandleFunc("GET "+signInNoticePath+"{event_id}", p.signInNotice)
@@ -83,24 +89,33 @@ func (p accountPages) unsubscribe(w http.ResponseWriter, r *http.Request) {
 
 func parseUnsubscribeForm(w http.ResponseWriter, r *http.Request) bool {
 	const formLimit = 4 << 10
+	const field = "List-Unsubscribe"
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
 		return false
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, formLimit)
+	var values []string
 	switch mediaType {
 	case "application/x-www-form-urlencoded":
-		err = r.ParseForm()
-	case "multipart/form-data":
-		err = r.ParseMultipartForm(formLimit)
-		if r.MultipartForm != nil {
-			err = errors.Join(err, r.MultipartForm.RemoveAll())
+		if err := r.ParseForm(); err != nil {
+			return false
 		}
+		values = r.PostForm[field]
+	case "multipart/form-data":
+		reader, err := r.MultipartReader()
+		if err != nil {
+			return false
+		}
+		form, err := reader.ReadForm(formLimit)
+		if err != nil || form.RemoveAll() != nil {
+			return false
+		}
+		values = form.Value[field]
 	default:
 		return false
 	}
-	values := r.PostForm["List-Unsubscribe"]
-	return err == nil && len(values) == 1 && values[0] == "One-Click"
+	return len(values) == 1 && values[0] == "One-Click"
 }
 
 func (p accountPages) signInNotice(w http.ResponseWriter, r *http.Request) {

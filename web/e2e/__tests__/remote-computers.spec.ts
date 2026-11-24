@@ -157,11 +157,30 @@ test.describe("Purchase from the cloud", () => {
 });
 
 test.describe("Purchase from a lapsed hosted route", () => {
-  // The hosted origin is served through Playwright routes in this fixture.
   test.use({
     scenario: "hosted-purchase",
-    serviceWorkers: "block",
-    viewport: { width: 390, height: 844 },
+    context: async ({ lab }, use) => {
+      if (!lab.hosted_url || !lab.edge_port) {
+        throw new Error("Missing retained hostname or TLS edge in purchase fixture");
+      }
+      const hostname = new URL(lab.hosted_url).hostname;
+      const hostedBrowser = await chromium.launch({
+        args: [
+          `--host-resolver-rules=MAP ${hostname} 127.0.0.1:${lab.edge_port}`,
+          "--ignore-certificate-errors",
+          "--no-proxy-server",
+        ],
+      });
+      try {
+        const mobile = await hostedBrowser.newContext({
+          ignoreHTTPSErrors: true,
+          viewport: { width: 390, height: 844 },
+        });
+        await use(mobile);
+      } finally {
+        await hostedBrowser.close();
+      }
+    },
   });
 
   test("E2E-012 return to the original hostname after buying Pro as its owner", async ({
@@ -172,19 +191,10 @@ test.describe("Purchase from a lapsed hosted route", () => {
   }) => {
     // IT-074 browser assertion. The real retained hosted listener serves the plan-required SPA state.
     const hostedURL = lab.hosted_url;
-    const proxy = lab.hosted_proxy;
-    if (!hostedURL || !proxy) throw new Error("Missing retained hostname in purchase fixture");
+    if (!hostedURL) throw new Error("Missing retained hostname in purchase fixture");
     const hostname = new URL(hostedURL).hostname;
     await installPurchaseTurnstile(context);
     await installStripeCheckout(context, lab.stripe_url);
-    await context.route(hostedURL + "/**", async route => {
-      const target = new URL(route.request().url());
-      const response = await route.fetch({
-        url: proxy + target.pathname + target.search,
-        maxRedirects: 0,
-      });
-      await route.fulfill({ response });
-    });
     await context.route("https://cloud.compozy.com/billing/upgrade**", route => {
       const target = new URL(route.request().url());
       return route.fulfill({

@@ -16,7 +16,7 @@ func newAgentMemoryCommand(deps commandDeps) *cobra.Command {
 		loopInspectKey,
 		agentMemoryAddOperation,
 		agentMemoryReplaceOperation,
-		"remove",
+		cliRemoveAction,
 		terminalStreamModeWrite,
 		cliValidateVerb,
 		agentMemorySearchOperation,
@@ -39,7 +39,7 @@ func newAgentMemoryOperation(deps commandDeps, operation string) *cobra.Command 
 	case agentMemoryReplaceOperation:
 		count = 3
 		use += " <match> <text>"
-	case "remove":
+	case cliRemoveAction:
 		count = 2
 		use += " <match>"
 	case agentMemorySearchOperation:
@@ -172,7 +172,7 @@ func (options agentMemoryOptions) requestBody(
 		body = contract.AgentMemoryAddRequest{Text: args[1], Until: options.until, Kind: options.kind}
 	case agentMemoryReplaceOperation:
 		body = contract.AgentMemoryReplaceRequest{Match: args[1], Text: args[2]}
-	case "remove":
+	case cliRemoveAction:
 		body = contract.AgentMemoryRemoveRequest{Match: args[1]}
 	case agentMemorySearchOperation:
 		body = contract.AgentMemorySearchRequest{Query: args[1], IncludeSessions: options.includeSessions}

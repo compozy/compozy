@@ -75,7 +75,7 @@ func newAppTokenListCommand(deps commandDeps) *cobra.Command {
 		Args:  appTokenCommandArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			switch state {
-			case "active", "revoked", cliAllValue:
+			case "active", cliRevokedValue, cliAllValue:
 			default:
 				return newCLIUsageError("--state must be active, revoked, or all")
 			}

@@ -14,7 +14,7 @@ import (
 const computerUninstallFailed = "failed"
 
 func newComputerCommand(deps commandDeps) *cobra.Command {
-	cmd := &cobra.Command{Use: "computer", Short: "Manage computers used by this controller"}
+	cmd := &cobra.Command{Use: computerFlagName, Short: "Manage computers used by this controller"}
 	add := &cobra.Command{Use: "add", Short: "Add a computer to this controller"}
 	add.AddCommand(&cobra.Command{
 		Use: "account <id>", Args: cobra.ExactArgs(1), Short: "Add a computer already linked to your account",
@@ -175,7 +175,7 @@ func newComputerRoutesCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use: "routes <name|id> [remove <kind:address>]", Short: "List or remove a computer's learned routes",
 		Args: cobra.RangeArgs(1, 3), RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) != 1 && (len(args) != 3 || args[1] != "remove") {
+			if len(args) != 1 && (len(args) != 3 || args[1] != cliRemoveAction) {
 				return &cliUsageError{message: "Use computer routes <name|id> [remove <kind:address>]."}
 			}
 			client, item, err := computerCommandTarget(cmd, deps, args[0])

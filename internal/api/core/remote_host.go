@@ -48,7 +48,7 @@ func (h *BaseHandlers) LinkRemote(c *gin.Context) {
 	}
 	if h.Account != nil {
 		current := h.Account.Status()
-		if current.Source == "token" {
+		if current.Source == account.SourceToken {
 			RespondRemoteError(c, account.ErrTokenLocalOnly)
 			return
 		}

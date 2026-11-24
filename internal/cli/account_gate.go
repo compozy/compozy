@@ -12,7 +12,7 @@ import (
 )
 
 func configureAccountGate(root *cobra.Command, deps commandDeps) {
-	if version.SignInRequired != "true" {
+	if version.SignInRequired != toolBoolTrue {
 		return
 	}
 	for _, cmd := range root.Commands() {
@@ -29,17 +29,16 @@ func installAccountGate(cmd *cobra.Command, deps commandDeps) {
 	if !cmd.Runnable() {
 		return
 	}
-	previous := cmd.PreRunE
-	if previous == nil && cmd.PreRun != nil {
-		fn := cmd.PreRun
-		previous = func(cmd *cobra.Command, args []string) error { fn(cmd, args); return nil }
-	}
+	previousE, previous := cmd.PreRunE, cmd.PreRun
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
 		if err := checkAccountGate(cmd, deps); err != nil {
 			return err
 		}
+		if previousE != nil {
+			return previousE(cmd, args)
+		}
 		if previous != nil {
-			return previous(cmd, args)
+			previous(cmd, args)
 		}
 		return nil
 	}
@@ -69,7 +68,7 @@ func checkAccountGate(cmd *cobra.Command, deps commandDeps) error {
 		(class == accountCommandLocal || class == accountCommandCloud) {
 		return cliSignInRequired()
 	}
-	if current.Source != nil && *current.Source == "token" && class == accountCommandCloud {
+	if current.Source != nil && *current.Source == account.SourceToken && class == accountCommandCloud {
 		return &daemonAPIError{
 			statusCode: http.StatusForbidden,
 			payload: contract.ErrorPayload{
@@ -89,7 +88,7 @@ func cliAccountStatusUnavailable(class cliAccountClass) error {
 }
 
 func handOffInstallToSignIn(cmd *cobra.Command, deps commandDeps) error {
-	if version.SignInRequired != "true" {
+	if version.SignInRequired != toolBoolTrue {
 		return nil
 	}
 	if !deps.inputIsTerminal(cmd.InOrStdin()) {
@@ -137,7 +136,7 @@ func accountCommandClass(cmd *cobra.Command, deps commandDeps) cliAccountClass {
 	switch root, _, _ := strings.Cut(path, " "); root {
 	case "update":
 		return accountCommandBootstrap
-	case "account", "computer", "remote":
+	case "account", computerFlagName, remoteCommandName:
 		return accountCommandCloud
 	case "daemon", "__internal":
 		if cmd.Hidden {

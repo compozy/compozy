@@ -4026,7 +4026,8 @@ func TestUnixSocketClientExtensionMethods(t *testing.T) {
 			Source: contract.InstallExtensionSourceLocalPath,
 			Ref:    "/tmp/ext-preview",
 		})
-		if err != nil || preview.Name != "ext-preview" || len(preview.DeclaredProfiles) != 1 || preview.DeclaredProfiles[0].Name != "default" {
+		if err != nil || preview.Name != "ext-preview" || len(preview.DeclaredProfiles) != 1 ||
+			preview.DeclaredProfiles[0].Name != "default" {
 			t.Fatalf("PreviewExtensionInstall() = %#v, %v", preview, err)
 		}
 	})

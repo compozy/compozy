@@ -1143,7 +1143,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"extension":"kit","enabled":true,
 			"items":[{"kind":"skill","id":"review","name":"Review","live":true,"extra":1}]
 		}`)
-
 	})
 
 	t.Run("Should publish native schema digests and capability roster", func(t *testing.T) {
@@ -1332,7 +1331,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatal("NativeDescriptors() reused input schema bytes")
 		}
 	})
-
 }
 
 func assertACPOptionSelectionInputSchema(t *testing.T, owner string, schema nativeObjectSchema) {
@@ -3722,7 +3720,6 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPAuthStatus}; !slices.Equal(mcpAuth, want) {
 			t.Fatalf("mcp auth expansion = %#v, want %#v", mcpAuth, want)
 		}
-
 	})
 }
 

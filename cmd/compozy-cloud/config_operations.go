@@ -14,7 +14,7 @@ import (
 const (
 	envGrafanaURL      = "COMPOZY_CLOUD_GRAFANA_PROM_URL"
 	envGrafanaUser     = "COMPOZY_CLOUD_GRAFANA_PROM_USER"
-	envGrafanaToken    = "COMPOZY_CLOUD_GRAFANA_PROM_TOKEN"
+	envGrafanaToken    = "COMPOZY_CLOUD_GRAFANA_PROM_TOKEN" // #nosec G101 -- environment variable name.
 	envSentryDSN       = "COMPOZY_CLOUD_SENTRY_DSN"
 	envInstance        = "COMPOZY_CLOUD_INSTANCE"
 	envExpectedRestore = "COMPOZY_CLOUD_EXPECTED_RESTORE_POINT"

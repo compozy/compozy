@@ -125,7 +125,7 @@ func (s *Service) removeAccountContacts(ctx context.Context, id string) error {
 		}
 		if !s.config.Email.SyncsContacts() {
 			if len(known) != 0 {
-				return errors.New("Resend contacts are required to remove the deleting account's addresses")
+				return errors.New("removing the deleting account's addresses requires Resend contacts")
 			}
 			return nil
 		}

@@ -21,6 +21,21 @@ const (
 	ReauthRequired State = "reauth_required"
 )
 
+// Installation credential sources are persisted and exposed by account status.
+const (
+	SourceSession = "session"
+	SourceLink    = "link"
+	SourceToken   = "token"
+)
+
+const (
+	reasonAccountDeleted   = "account_deleted"
+	reasonAccountSuspended = "account_suspended"
+	reasonDeviceRevoked    = "device_revoked"
+	codeInvalidRequest     = "invalid_request"
+	changeProfile          = "profile"
+)
+
 type Installation struct {
 	InstallationID                     string
 	PreAccountInstall                  bool

@@ -201,7 +201,7 @@ func (s *Service) deleteAccountTunnels(ctx context.Context, q *store.Queries, id
 		return err
 	}
 	if s.config.HostedTunnels == nil {
-		return errors.New("Cloudflare is required to remove the deleting account's tunnels")
+		return errors.New("removing the deleting account's tunnels requires Cloudflare")
 	}
 	for _, ref := range refs {
 		if err := s.DeleteHostedGeneration(ctx, ref); err != nil {

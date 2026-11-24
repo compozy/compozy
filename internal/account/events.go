@@ -118,7 +118,7 @@ func (s *Service) emitLocked(g *generation, change Change) {
 	if s.closed || g != s.generation {
 		return
 	}
-	if change.Kind == "profile" || change.Kind == "plan.changed" {
+	if change.Kind == changeProfile || change.Kind == "plan.changed" {
 		change.Plan = s.installation.Profile.Plan
 		change.PaymentIssue = new(s.installation.Profile.PaymentIssue)
 	}

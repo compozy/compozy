@@ -74,7 +74,11 @@ func deleteGatewayKeyringKeys(dir string) error {
 		if !ok || !entry.Type().IsRegular() {
 			continue
 		}
-		if err := keyring.Delete("compozy-gateway", profile+suffix); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		if err := keyring.Delete(
+			"compozy-gateway",
+			profile+suffix,
+		); err != nil &&
+			!errors.Is(err, keyring.ErrNotFound) {
 			cleanupErr = errors.Join(cleanupErr, err)
 		}
 	}

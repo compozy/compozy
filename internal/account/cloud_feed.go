@@ -52,7 +52,7 @@ func (s *Service) holdFeed(g *generation, key string, duration time.Duration) {
 }
 
 func (s *Service) updateFeedLocked(g *generation) {
-	if s.closed || g != s.generation || s.installation.Source != "session" {
+	if s.closed || g != s.generation || s.installation.Source != SourceSession {
 		return
 	}
 	wanted := len(g.subscribers) > 0 || len(g.pending) > 0
@@ -178,7 +178,7 @@ func (s *Service) applyCloudSummary(
 		}
 		s.installation = next
 		if emit {
-			s.emitLocked(g, Change{Kind: "profile"})
+			s.emitLocked(g, Change{Kind: changeProfile})
 		}
 	}
 	if summary.Plan == "pro" {

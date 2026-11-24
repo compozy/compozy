@@ -127,7 +127,7 @@ func (t *SignInRoutes) serve(c *gin.Context) {
 		switch {
 		case current.State != account.SignedIn && current.Gate != account.GateOff:
 			err = account.ErrSignInRequired
-		case current.Source == "token":
+		case current.Source == account.SourceToken:
 			err = account.ErrTokenLocalOnly
 		}
 	}
@@ -138,7 +138,7 @@ func (t *SignInRoutes) serve(c *gin.Context) {
 	// Prompt delivery is request-bound even when the execution outlives the stream.
 	if c.Request.Method == http.MethodGet || websocket.IsWebSocketUpgrade(c.Request) ||
 		strings.HasSuffix(c.FullPath(), "/prompt") {
-		t.bindOperatorStream(c, lifetime)
+		t.bindOperatorStream(lifetime, c)
 	}
 }
 
@@ -153,7 +153,7 @@ func (h *BaseHandlers) runningAgentCaller(c *gin.Context) bool {
 
 const signInCloseCode = 4401
 
-func (t *SignInRoutes) bindOperatorStream(c *gin.Context, lifetime context.Context) {
+func (t *SignInRoutes) bindOperatorStream(lifetime context.Context, c *gin.Context) {
 	if lifetime == nil {
 		return
 	}

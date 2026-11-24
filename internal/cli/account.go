@@ -54,8 +54,10 @@ func accountVerb(
 			err = run(cmd, client)
 		}
 		if err != nil {
-			var usage interface{ cliExitCode() int }
-			if errors.As(err, &usage) {
+			if _, ok := errors.AsType[interface {
+				error
+				cliExitCode() int
+			}](err); ok {
 				return err
 			}
 			return accountExecutionError{err}
@@ -260,7 +262,7 @@ func runAccountLogin(
 
 func openAccountLoginStream(ctx context.Context, deps commandDeps, client accountCommandClient) (io.ReadCloser, error) {
 	stream, err := client.OpenAccountSignIn(ctx)
-	if err == nil || version.SignInRequired != "true" || ctx.Err() != nil {
+	if err == nil || version.SignInRequired != toolBoolTrue || ctx.Err() != nil {
 		return stream, err
 	}
 	if _, ok := errors.AsType[*url.Error](err); !ok {

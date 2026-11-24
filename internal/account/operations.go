@@ -55,7 +55,7 @@ func (s *Service) withDevice(
 
 func shouldRevalidate(err error) bool {
 	switch cloudclient.FailureCode(err) {
-	case "device_revoked", "account_suspended", "account_deleting", "reauth_required":
+	case reasonDeviceRevoked, reasonAccountSuspended, "account_deleting", string(ReauthRequired):
 		return true
 	default:
 		return false
@@ -114,7 +114,7 @@ func (s *Service) RevokeDevice(ctx context.Context, id string) error {
 	if revoked != s.generation {
 		return nil
 	}
-	return s.rejectDeviceLocked("device_revoked")
+	return s.rejectDeviceLocked(reasonDeviceRevoked)
 }
 
 func (s *Service) Approvals(ctx context.Context) (approvals []remoteproto.AccountApproval, err error) {
@@ -167,7 +167,7 @@ func (s *Service) DecideApproval(
 
 func (s *Service) Checkout(ctx context.Context, interval string) (target string, err error) {
 	if interval != "month" && interval != "year" {
-		return "", &cloudclient.Failure{Status: http.StatusBadRequest, Code: "invalid_request",
+		return "", &cloudclient.Failure{Status: http.StatusBadRequest, Code: codeInvalidRequest,
 			Message: "Choose a monthly or annual checkout."}
 	}
 	err = s.withDevice(ctx, func(ctx context.Context, g *generation, creds cloudclient.Credentials) error {

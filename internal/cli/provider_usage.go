@@ -26,7 +26,7 @@ func newProviderUsageCommand(deps commandDeps) *cobra.Command {
 func newProviderUsageAction(deps commandDeps, refresh bool) *cobra.Command {
 	action := agentListKey
 	if refresh {
-		action = "refresh"
+		action = cliRefreshAction
 	}
 	var maxAge time.Duration
 	wait := 15 * time.Second

@@ -1157,7 +1157,6 @@ cost_reasoning_per_million = 30
 			)
 		}
 	})
-
 }
 
 func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *testing.T) {

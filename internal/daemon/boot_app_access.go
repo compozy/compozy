@@ -13,7 +13,9 @@ import (
 )
 
 func (d *Daemon) bootAppAccess(ctx context.Context, state *bootState) error {
-	state.deps.MigrationNotices, _ = state.registry.(core.MigrationNoticeStore)
+	if notices, ok := state.registry.(core.MigrationNoticeStore); ok {
+		state.deps.MigrationNotices = notices
+	}
 	if err := d.bootAppTokens(ctx, state); err != nil {
 		return err
 	}
@@ -24,9 +26,12 @@ func (d *Daemon) bootAppAccess(ctx context.Context, state *bootState) error {
 	if _, err := ingressStore.SweepOrphanedIngressBindings(ctx); err != nil {
 		return fmt.Errorf("daemon: sweep orphaned ingress bindings: %w", err)
 	}
-	writer, _ := state.registry.(store.EventSummaryStore)
+	audit := ingressAuditSink{now: d.now}
+	if writer, ok := state.registry.(store.EventSummaryStore); ok {
+		audit.writer = writer
+	}
 	manager, err := ingress.NewManager(
-		ingressStore, state.accessPolicy, ingressAuditSink{writer: writer, now: d.now}, d.now,
+		ingressStore, state.accessPolicy, audit, d.now,
 		func(ctx context.Context) (string, string, bool) {
 			principal, ok := remotehost.PrincipalFromContext(ctx)
 			return "remote_device", string(principal.DeviceID), ok

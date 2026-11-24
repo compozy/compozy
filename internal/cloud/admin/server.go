@@ -22,6 +22,8 @@ import (
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
+const adminPath = "/admin"
+
 //go:embed console.html console_account.html console.css console.js
 var assets embed.FS
 
@@ -75,7 +77,7 @@ func Register(
 		})
 	}
 	secured := c.authorize(pages)
-	root.Handle("/admin", secured)
+	root.Handle(adminPath, secured)
 	root.Handle("/admin/", secured)
 	return nil
 }
@@ -114,8 +116,10 @@ func (c *console) authorize(next http.Handler) http.Handler {
 }
 
 func operator(r *http.Request) string {
-	address, _ := r.Context().Value(operatorKey{}).(string)
-	return address
+	if address, ok := r.Context().Value(operatorKey{}).(string); ok {
+		return address
+	}
+	return ""
 }
 
 type page struct {
@@ -220,7 +224,7 @@ func (c *console) receipt(w http.ResponseWriter, r *http.Request) {
 		c.fail(w, err)
 		return
 	}
-	data := page{Title: "Security event", Event: &event, Back: "/admin"}
+	data := page{Title: "Security event", Event: &event, Back: adminPath}
 	if event.AccountID != "" {
 		data.Back = "/admin/accounts/" + event.AccountID
 	}

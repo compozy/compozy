@@ -283,7 +283,10 @@ func TestAppTokenGatewayUpgradeIntegration(t *testing.T) {
 			}
 
 			service := newIntegrationAppTokenService(t, database)
-			router := newAppTokenTestRouter(t, service, func(string, string) bool { return true }, nil)
+			server := httptest.NewUnstartedServer(nil)
+			t.Cleanup(server.Close)
+			router := newAppTokenTestRouter(t, server.Listener.Addr().String(), service,
+				func(string, string) bool { return true }, nil)
 			router.GET("/api/sessions", func(c *gin.Context) {
 				token, ok := core.AppTokenFromContext(c.Request.Context())
 				if !ok {
@@ -291,8 +294,8 @@ func TestAppTokenGatewayUpgradeIntegration(t *testing.T) {
 				}
 				c.JSON(http.StatusOK, map[string]string{"token_id": token.ID})
 			})
-			server := httptest.NewServer(router)
-			t.Cleanup(server.Close)
+			server.Config.Handler = router
+			server.Start()
 			for _, tc := range []struct {
 				origin string
 				status int

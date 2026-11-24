@@ -379,7 +379,7 @@ func (s *daemonExtensionService) rollbackFailedInstall(
 func (s *daemonExtensionService) Enable(
 	ctx context.Context,
 	name string,
-	req contract.EnableExtensionRequest,
+	_ contract.EnableExtensionRequest,
 	actor taskpkg.ActorContext,
 ) (contract.ExtensionEnableResult, error) {
 	if err := s.checkReady(); err != nil {
@@ -391,7 +391,9 @@ func (s *daemonExtensionService) Enable(
 	var result contract.ExtensionEnableResult
 	err := s.lifecycle.withName(ctx, name, func() error {
 		var err error
-		result, err = s.enableUnlocked(ctx, name, req, actor)
+		result, err = s.enableTargetUnlocked(
+			ctx, name, actor, extensionMutationTarget{profile: extensionDefaultProfileLens()},
+		)
 		return err
 	})
 	return result, err

@@ -30,6 +30,7 @@ func main() {
 }
 
 func run(ctx context.Context, args []string, getenv func(string) string, out io.Writer, logger *slog.Logger) error {
+	const keysCommand = "keys"
 	switch {
 	case slices.Equal(args, []string{"serve"}):
 		settings, err := loadServeConfig(getenv)
@@ -39,29 +40,16 @@ func run(ctx context.Context, args []string, getenv func(string) string, out io.
 		settings.Cloud.Logger = logger
 		return serve(ctx, settings)
 	case slices.Equal(args, []string{"migrate", "up"}):
-		environment, err := cloudEnvironment(getenv)
-		if err != nil {
-			return err
-		}
-		direct, err := databaseURL(getenv, envNeonDirect, environment)
-		if err != nil {
-			return err
-		}
-		report, err := store.MigrateUp(ctx, direct)
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprintf(out, "Cloud schema version %d (%d migrations applied)\n", report.Version, report.Applied)
-		return err
+		return migrateUp(ctx, getenv, out)
 	case len(args) >= 2 && slices.Equal(args[:2], []string{"broadcast", "send"}):
 		return sendBroadcast(ctx, args[2:], getenv, out)
-	case len(args) == 3 && slices.Equal(args[:2], []string{"keys", "generate"}):
+	case len(args) == 3 && slices.Equal(args[:2], []string{keysCommand, "generate"}):
 		return generateSigningKey(args[2], out)
-	case slices.Equal(args, []string{"keys", "jwk"}):
+	case slices.Equal(args, []string{keysCommand, "jwk"}):
 		return printSigningJWK(getenv, out)
-	case slices.Equal(args, []string{"keys", "publish"}):
+	case slices.Equal(args, []string{keysCommand, "publish"}):
 		return publishSigningKeys(ctx, "", getenv)
-	case len(args) == 3 && slices.Equal(args[:2], []string{"keys", "retire"}):
+	case len(args) == 3 && slices.Equal(args[:2], []string{keysCommand, "retire"}):
 		if args[2] == "" {
 			return errors.New("keys retire requires a KID")
 		}
@@ -79,6 +67,23 @@ func run(ctx context.Context, args []string, getenv func(string) string, out io.
 				"backup security-events | restore finalize --restore-point <time>",
 		)
 	}
+}
+
+func migrateUp(ctx context.Context, getenv func(string) string, out io.Writer) error {
+	environment, err := cloudEnvironment(getenv)
+	if err != nil {
+		return err
+	}
+	direct, err := databaseURL(getenv, envNeonDirect, environment)
+	if err != nil {
+		return err
+	}
+	report, err := store.MigrateUp(ctx, direct)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(out, "Cloud schema version %d (%d migrations applied)\n", report.Version, report.Applied)
+	return err
 }
 
 func serve(ctx context.Context, settings serveConfig) error {

@@ -1937,7 +1937,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				{`SELECT origin_kind || ':' || run_kind FROM task_runs WHERE id='retained-run'`, "daemon:worker"},
 				{`SELECT CAST(last_sequence AS TEXT) FROM notification_cursors WHERE subject_id='retained-task'`, "12"},
 				{`SELECT summary_json FROM task_designation_rollups WHERE designation_group_id='retained-group'`, `{"completed":1}`},
-				{`SELECT gateway_requirement_digest || ':' || gateway_confirmed_by || ':' || gateway_confirmed_at FROM extensions WHERE name='retained-gateway'`, "gateway-digest:operator:" + timestamp},
+				{`SELECT version || ':' || checksum FROM extensions WHERE name='retained-gateway'`, "1.0.0:checksum"},
 			} {
 				var got string
 				if err := upgraded.db.QueryRowContext(ctx, retained.query).Scan(&got); err != nil {
@@ -1975,6 +1975,9 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				t.Fatalf("retired wake/table counts = %d/%d, want zero", wakeCount, retiredTables)
 			}
 			assertTableExcludesColumns(t, upgraded.db, "sessions", []string{"network_spec_json", "sandbox_id"})
+			assertTableExcludesColumns(t, upgraded.db, "extensions",
+				[]string{"gateway_requirement_digest", "gateway_confirmed_by", "gateway_confirmed_at"},
+			)
 			assertTableExcludesColumns(
 				t,
 				upgraded.db,

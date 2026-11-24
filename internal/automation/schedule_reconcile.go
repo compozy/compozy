@@ -50,14 +50,7 @@ func (s *Scheduler) reconcileSchedulerState(
 		return state, nil
 	}
 	if !plan.register {
-		if state.NextRunAt != nil && !state.NextRunAt.IsZero() && (state.HeldForSignIn || signedOut) {
-			state.HeldForSignIn = true
-			return s.store.SaveSchedulerState(ctx, state)
-		}
-		state.NextRunAt = nil
-		state.LastMisfireAt = new(now)
-		state.MisfireCount++
-		state.UpdatedAt = now
+		state = unregisteredSchedulerState(state, signedOut, now)
 		return s.store.SaveSchedulerState(ctx, state)
 	}
 	if state.NextRunAt == nil || state.NextRunAt.IsZero() {
@@ -69,6 +62,18 @@ func (s *Scheduler) reconcileSchedulerState(
 		return s.reconcileMissedSchedulerState(ctx, job, state, now)
 	}
 	return s.store.SaveSchedulerState(ctx, state)
+}
+
+func unregisteredSchedulerState(state SchedulerState, signedOut bool, now time.Time) SchedulerState {
+	if state.NextRunAt != nil && !state.NextRunAt.IsZero() && (state.HeldForSignIn || signedOut) {
+		state.HeldForSignIn = true
+		return state
+	}
+	state.NextRunAt = nil
+	state.LastMisfireAt = new(now)
+	state.MisfireCount++
+	state.UpdatedAt = now
+	return state
 }
 
 func (s *Scheduler) initialSchedulerState(

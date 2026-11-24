@@ -57,15 +57,16 @@ func accountMetrics(ctx context.Context, db AccountMetricsStore, now time.Time) 
 		metrics = fmt.Appendf(metrics, "cloud_accounts_total{provider=%q} %d\n", provider, byProvider[provider])
 	}
 	metrics = append(metrics, "# TYPE cloud_accounts_active gauge\n# TYPE cloud_installations_active gauge\n"...)
+	const installationActivityMetric = "cloud_installations_active{window=\"%dd\",source=%q} %d\n"
 	for _, days := range []int{1, 7, 30} {
 		active, err := db.CloudAccountActivity(ctx, now.Add(-time.Duration(days)*24*time.Hour))
 		if err != nil {
 			return nil, err
 		}
 		metrics = fmt.Appendf(metrics, "cloud_accounts_active{window=\"%dd\"} %d\n", days, active.Accounts)
-		metrics = fmt.Appendf(metrics, "cloud_installations_active{window=\"%dd\",source=\"session\"} %d\n", days, active.Sessions)
-		metrics = fmt.Appendf(metrics, "cloud_installations_active{window=\"%dd\",source=\"link\"} %d\n", days, active.Links)
-		metrics = fmt.Appendf(metrics, "cloud_installations_active{window=\"%dd\",source=\"token\"} %d\n", days, active.Tokens)
+		metrics = fmt.Appendf(metrics, installationActivityMetric, days, "session", active.Sessions)
+		metrics = fmt.Appendf(metrics, installationActivityMetric, days, "link", active.Links)
+		metrics = fmt.Appendf(metrics, installationActivityMetric, days, "token", active.Tokens)
 	}
 	return metrics, nil
 }

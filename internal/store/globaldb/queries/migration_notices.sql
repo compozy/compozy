@@ -21,7 +21,7 @@ VALUES (
 	sqlc.arg(created_at)
 )
 ON CONFLICT(key) DO UPDATE SET
-	payload = json_set(payload, '$.connection_profiles', sqlc.arg(profiles));
+	payload = json_set(payload, '$.connection_profiles', json_extract(excluded.payload, '$.connection_profiles'));
 
 -- name: RefreshGatewayRemovalBindingCount :exec
 UPDATE migration_notices

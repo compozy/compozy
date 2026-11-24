@@ -810,7 +810,6 @@ func TestManifestFromDescribeResources(t *testing.T) {
 			t.Fatalf("manifest.Resources.Hooks[0].Profile = %q, want finance", got)
 		}
 	})
-
 }
 
 func TestManifestFromDescribeInputs(t *testing.T) {

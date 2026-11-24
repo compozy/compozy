@@ -11,7 +11,7 @@ import (
 
 func (s *Service) SetMarketingConsent(ctx context.Context, optIn bool, source string) (Installation, error) {
 	if source != "settings" && source != "cli" {
-		return Installation{}, &cloudclient.Failure{Status: http.StatusBadRequest, Code: "invalid_request",
+		return Installation{}, &cloudclient.Failure{Status: http.StatusBadRequest, Code: codeInvalidRequest,
 			Message: "Check the email preference and try again."}
 	}
 	var result Installation
@@ -57,7 +57,7 @@ func (s *Service) DeleteAccount(ctx context.Context, confirmEmail string) (remot
 		return result, nil
 	}
 	s.cancelAttemptLocked()
-	if err := s.signedOutLocked(s.ctx, SignedOut, "account_deleted"); err != nil {
+	if err := s.signedOutLocked(s.ctx, SignedOut, reasonAccountDeleted); err != nil {
 		if deleted == s.generation {
 			return result, err
 		}
@@ -78,7 +78,7 @@ func (s *Service) DismissSignInNotices(ctx context.Context) error {
 		return err
 	}
 	s.installation = next
-	s.emitLocked(s.generation, Change{Kind: "profile"})
+	s.emitLocked(s.generation, Change{Kind: changeProfile})
 	return nil
 }
 

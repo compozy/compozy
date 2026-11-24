@@ -15,7 +15,7 @@ func WithLinkedAccount(id string) Option {
 
 func (s *Service) restoreHostLink(ctx context.Context) error {
 	if s.linkedAccountID == "" {
-		if s.installation.Source == "link" {
+		if s.installation.Source == SourceLink {
 			return s.signedOutLocked(ctx, ReauthRequired, "computer_unlinked")
 		}
 		return nil
@@ -27,7 +27,7 @@ func (s *Service) restoreHostLink(ctx context.Context) error {
 		}
 	}
 	switch s.installation.SignedOutReason {
-	case "account_suspended", "account_deleted", "computer_unlinked", "signed_out":
+	case reasonAccountSuspended, reasonAccountDeleted, "computer_unlinked", "signed_out":
 		return nil
 	default:
 		return s.useHostLinkLocked(ctx)
@@ -42,7 +42,7 @@ func (s *Service) CommitHostLink(ctx context.Context, id, email string, commit f
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current := s.installation
-	if current.Source == "token" {
+	if current.Source == SourceToken {
 		return ErrTokenLocalOnly
 	}
 	if current.State == SignedIn && current.AccountID != id {
@@ -62,12 +62,12 @@ func (s *Service) CommitHostLink(ctx context.Context, id, email string, commit f
 	}
 	s.token = ""
 	if current.State == SignedIn {
-		if current.Source == "session" && s.linkedEmail == "" {
+		if current.Source == SourceSession && s.linkedEmail == "" {
 			s.linkedEmail = current.Profile.Email
 		}
 		return nil
 	}
-	if current.State == ReauthRequired && current.SignedOutReason == "account_suspended" {
+	if current.State == ReauthRequired && current.SignedOutReason == reasonAccountSuspended {
 		return nil
 	}
 	return s.useHostLinkLocked(ctx)
@@ -75,7 +75,7 @@ func (s *Service) CommitHostLink(ctx context.Context, id, email string, commit f
 
 func (s *Service) useHostLinkLocked(ctx context.Context) error {
 	next := s.installation
-	next.State, next.Source, next.SignedOutReason = SignedIn, "link", ""
+	next.State, next.Source, next.SignedOutReason = SignedIn, SourceLink, ""
 	next.AccountID, next.TokenName = s.linkedAccountID, ""
 	next.Profile = remoteproto.AccountSummary{Email: s.linkedEmail}
 	next.LastValidatedAt = s.clock.Now()
@@ -96,11 +96,11 @@ func (s *Service) ObserveHostLink(ctx context.Context, id, reason string) error 
 	}
 	switch reason {
 	case "":
-		if (s.installation.State == SignedOut && s.installation.SignedOutReason != "account_deleted") ||
-			(s.installation.State == ReauthRequired && s.installation.SignedOutReason == "account_suspended") {
+		if (s.installation.State == SignedOut && s.installation.SignedOutReason != reasonAccountDeleted) ||
+			(s.installation.State == ReauthRequired && s.installation.SignedOutReason == reasonAccountSuspended) {
 			return s.useHostLinkLocked(ctx)
 		}
-		if s.installation.Source == "link" {
+		if s.installation.Source == SourceLink {
 			next := s.installation
 			next.LastValidatedAt = s.clock.Now()
 			if err := s.store.SaveInstallationAccount(ctx, next.AuthGeneration, next); err != nil {
@@ -108,12 +108,13 @@ func (s *Service) ObserveHostLink(ctx context.Context, id, reason string) error 
 			}
 			s.installation = next
 		}
-	case "account_suspended":
+	case reasonAccountSuspended:
 		if s.installation.State != ReauthRequired || s.installation.SignedOutReason != reason {
 			return s.signedOutLocked(ctx, ReauthRequired, reason)
 		}
-	case "computer_unlinked", "account_deleted", "signed_out":
-		if s.installation.Source == "link" || s.installation.State == ReauthRequired || reason == "account_deleted" {
+	case "computer_unlinked", reasonAccountDeleted, "signed_out":
+		if s.installation.Source == SourceLink || s.installation.State == ReauthRequired ||
+			reason == reasonAccountDeleted {
 			state := ReauthRequired
 			if reason == "signed_out" {
 				state = SignedOut
@@ -129,7 +130,7 @@ func (s *Service) ObserveHostLink(ctx context.Context, id, reason string) error 
 
 func (s *Service) rejectDeviceLocked(reason string) error {
 	if s.linkedAccountID == s.installation.AccountID && s.linkedAccountID != "" &&
-		(reason == "device_revoked" || reason == "session_invalid") {
+		(reason == reasonDeviceRevoked || reason == "session_invalid") {
 		id := s.installation.AccountID
 		if err := s.useHostLinkLocked(s.ctx); err != nil {
 			return err

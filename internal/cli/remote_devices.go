@@ -142,7 +142,7 @@ func runRemoteDeviceRevoke(cmd *cobra.Command, client remoteCommandClient, args 
 	}
 	return writeCommandOutput(
 		cmd,
-		outputBundle{jsonValue: map[string]bool{"revoked": true}, human: func() (string, error) {
+		outputBundle{jsonValue: map[string]bool{cliRevokedValue: true}, human: func() (string, error) {
 			return "Device revoked.", nil
 		}},
 	)

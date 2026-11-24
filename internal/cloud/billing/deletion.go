@@ -112,7 +112,7 @@ func (s *Service) cancelForDeletion(ctx context.Context, sub plan.Subscription, 
 		if err := s.cfg.Stripe.cancelSubscription(ctx, current.ID); err != nil {
 			return err
 		}
-		current.Status, current.EndsAt = "canceled", now
+		current.Status, current.EndsAt = stripeStatusCanceled, now
 		current.CancelAtPeriodEnd = false
 		return q.SaveStripeSubscription(ctx, current, now)
 	})
@@ -132,7 +132,7 @@ func (s *Stripe) refundInvoice(ctx context.Context, invoice, subscription string
 	if !validStripeID(invoice, "in_") {
 		return errors.New("stripe invoice for the refundable payment is missing")
 	}
-	params := url.Values{"invoice": {invoice}, "status": {stripeStatusPaid}, "limit": {"100"}}
+	params := url.Values{"invoice": {invoice}, "status": {stripeStatusPaid}, stripeLimitParam: {"100"}}
 	var page stripeList[stripeInvoicePayment]
 	if err := s.request(ctx, http.MethodGet, "/v1/invoice_payments", params, "", &page); err != nil {
 		return err
@@ -189,7 +189,7 @@ func (s *Stripe) cancelSubscription(ctx context.Context, id string) error {
 			return errors.Join(err, readErr)
 		}
 	}
-	if current.ID != id || current.Status != "canceled" {
+	if current.ID != id || current.Status != stripeStatusCanceled {
 		return errors.Join(err, errors.New("Stripe has not confirmed immediate cancellation"))
 	}
 	return nil

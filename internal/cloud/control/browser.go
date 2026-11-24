@@ -178,7 +178,16 @@ func admitBrowserKey(
 		if err != nil {
 			return err
 		}
-		if err := q.RecordDeviceEnrollment(ctx, account.ID, device.ID, device.Name, device.Kind, code.Location, device.Admin, now); err != nil {
+		if err := q.RecordDeviceEnrollment(
+			ctx,
+			account.ID,
+			device.ID,
+			device.Name,
+			device.Kind,
+			code.Location,
+			device.Admin,
+			now,
+		); err != nil {
 			return err
 		}
 	}

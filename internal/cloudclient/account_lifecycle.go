@@ -8,7 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
-const accountTokensPath = "/v1/account/tokens"
+const accountTokensPath = "/v1/account/tokens" // #nosec G101 -- public API path.
 
 func (c *Client) ExchangeAccountToken(
 	ctx context.Context, token, installationID string,

@@ -51,7 +51,6 @@ func TestGlobalDBAppTokenLifecycle(t *testing.T) {
 		if err != nil || !token.LastSeenAt.IsZero() {
 			t.Fatalf("read-only authentication = (%#v, %v)", token, err)
 		}
-
 	})
 
 	t.Run(
@@ -261,7 +260,7 @@ func TestGlobalDBAppTokenLifecycle(t *testing.T) {
 			0,
 		); !errors.Is(
 			err,
-			remotehost.ErrDeviceRevoked,
+			apptoken.ErrRevoked,
 		) {
 			t.Fatalf("revoked token acquired mutation lease: %v", err)
 		}

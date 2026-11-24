@@ -78,7 +78,7 @@ func (s *Service) CompleteOAuth(ctx context.Context, cb Callback) (result Callba
 		defer func() {
 			if retErr != nil {
 				s.cfg.Metrics.Count("cloud_sign_ins_total", observe.Labels{
-					"provider": cb.Provider, "result": "error", "new_account": "false",
+					providerField: cb.Provider, "result": "error", "new_account": "false",
 				})
 			}
 		}()
@@ -210,10 +210,10 @@ func (s *Service) signIn(
 		if !retryIdentity(err) {
 			if err == nil {
 				s.cfg.Metrics.Count("cloud_sign_ins_total", observe.Labels{
-					"provider": identity.Provider, "result": "ok", "new_account": strconv.FormatBool(created),
+					providerField: identity.Provider, "result": "ok", "new_account": strconv.FormatBool(created),
 				})
 				if created {
-					s.cfg.Metrics.Count("cloud_new_accounts_total", observe.Labels{"provider": identity.Provider})
+					s.cfg.Metrics.Count("cloud_new_accounts_total", observe.Labels{providerField: identity.Provider})
 				}
 			}
 			return account, err

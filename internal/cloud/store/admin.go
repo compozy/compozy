@@ -46,7 +46,7 @@ func (q *Queries) AdminTunnel(ctx context.Context, hostname string) (AdminTunnel
 	row, err := q.generated.AdminTunnel(ctx, hostname)
 	return AdminTunnel{
 		AccountID: row.AccountID, Email: row.Email, Hostname: row.Hostname, State: row.State,
-		TunnelRef: TunnelRef{ComputerID: remoteproto.ComputerID(row.ComputerID), Generation: row.Generation},
+		TunnelRef: {ComputerID: remoteproto.ComputerID(row.ComputerID), Generation: row.Generation},
 	}, err
 }
 
@@ -56,8 +56,11 @@ func (q *Queries) TakeDownAdminTunnel(ctx context.Context, ref TunnelRef, now ti
 	})
 }
 
-func (q *Queries) SetAdminHostedRouteCap(ctx context.Context, id string, cap int32) (bool, error) {
-	n, err := q.generated.SetAdminHostedRouteCap(ctx, sqlcgen.SetAdminHostedRouteCapParams{AccountID: id, Cap: cap})
+func (q *Queries) SetAdminHostedRouteCap(ctx context.Context, id string, routeCap int32) (bool, error) {
+	n, err := q.generated.SetAdminHostedRouteCap(
+		ctx,
+		sqlcgen.SetAdminHostedRouteCapParams{AccountID: id, Cap: routeCap},
+	)
 	return n != 0, err
 }
 

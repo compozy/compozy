@@ -29,8 +29,9 @@ func sendPrivacyReply(ctx context.Context, requestID, path string, getenv func(s
 		return err
 	}
 	if resend == nil {
-		return errors.New("Resend is required for privacy replies")
+		return errors.New("configure Resend to send privacy replies")
 	}
+	// #nosec G703 -- the local cloud operator explicitly supplies the reply file path.
 	file, err := os.Open(path)
 	if err != nil {
 		return errors.New("open private reply file")

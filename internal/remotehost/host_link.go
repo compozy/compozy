@@ -231,13 +231,15 @@ func (h *Host) unlinkAtCloud(ctx context.Context, identity Identity) error {
 	return h.cloud.UnlinkComputerWithKey(ctx, identity.ComputerID, keys.signing)
 }
 
+const reasonComputerUnlinked = "computer_unlinked"
+
 func alreadyUnlinked(err error) bool {
 	switch cloudclient.FailureCode(err) {
-	case "computer_not_found", "computer_unlinked":
+	case "computer_not_found", reasonComputerUnlinked:
 		return true
 	case "reauth_required":
 		failure, ok := errors.AsType[*cloudclient.Failure](err)
-		return ok && (failure.Reason == "computer_unlinked" || failure.Reason == "account_deleted")
+		return ok && (failure.Reason == reasonComputerUnlinked || failure.Reason == "account_deleted")
 	}
 	return false
 }

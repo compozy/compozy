@@ -20,7 +20,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -184,7 +183,12 @@ func TestCloudAdmin(t *testing.T) {
 				}
 				callAuth(t, f.replica, http.MethodGet, "/admin", nil, nil, headers).
 					expect(t, http.StatusForbidden, "Admin access denied.")
-				assertAuthRow(t, f, "SELECT count(*) FROM security_events WHERE type = 'admin_access_denied'", index+1)
+				assertAuthRow(
+					t,
+					f.authFixture,
+					"SELECT count(*) FROM security_events WHERE type = 'admin_access_denied'",
+					index+1,
+				)
 			})
 		}
 		f.requestAdmin(t, http.MethodGet, "/admin", nil).expect(t, http.StatusOK, "Gate policy")
@@ -194,7 +198,7 @@ func TestCloudAdmin(t *testing.T) {
 		callAuth(t, f.replica, http.MethodPost, "/admin/contacts.csv", nil, nil,
 			map[string]string{accessHeader: assertion, "Sec-Fetch-Site": "cross-site"}).
 			expect(t, http.StatusForbidden, "Admin access denied.")
-		assertAuthRow(t, f, "SELECT count(*) FROM security_events WHERE type = 'contacts_exported'", 0)
+		assertAuthRow(t, f.authFixture, "SELECT count(*) FROM security_events WHERE type = 'contacts_exported'", 0)
 	})
 
 	t.Run("Should change entitlement and take down only the confirmed tunnel generation (IT-108)", func(t *testing.T) {

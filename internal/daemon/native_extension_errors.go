@@ -88,7 +88,13 @@ func nativeExtensionToolError(id toolspkg.ToolID, err error) error {
 			toolspkg.ReasonExtensionValidationFailed,
 		)
 	case errors.Is(err, extensionpkg.ErrExtensionKindRemoved):
-		return toolspkg.NewToolError("extension_kind_removed", id, err.Error(), err, toolspkg.ReasonExtensionValidationFailed)
+		return toolspkg.NewToolError(
+			"extension_kind_removed",
+			id,
+			err.Error(),
+			err,
+			toolspkg.ReasonExtensionValidationFailed,
+		)
 	case isExtensionValidationError(err):
 		return nativeExtensionValidationError(id, err)
 	case errors.Is(err, extensionmcp.ErrNameTaken):

@@ -45,12 +45,6 @@ func (d *Daemon) nativeToolsDeps(
 		TaskClaimHandoff: taskClaimHandoffForState(state),
 		Roles:            roleResolverForState(state),
 
-		Ingress: func() core.IngressService {
-			if state.deps.Ingress == nil {
-				return nil
-			}
-			return state.deps.Ingress
-		},
 		Remote:          state.deps.Remote,
 		Account:         state.deps.Account,
 		Computers:       func() core.ComputersService { return state.deps.Computers },

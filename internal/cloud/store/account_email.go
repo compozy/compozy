@@ -161,7 +161,11 @@ func (q *Queries) RemoveAccountEmail(ctx context.Context, id int64) error {
 	return q.generated.RemoveAccountEmail(ctx, id)
 }
 
-func (q *Queries) RecentSignIns(ctx context.Context, id string, now time.Time) ([]remoteproto.AccountSignInNotice, error) {
+func (q *Queries) RecentSignIns(
+	ctx context.Context,
+	id string,
+	now time.Time,
+) ([]remoteproto.AccountSignInNotice, error) {
 	rows, err := q.generated.RecentSignInEvents(ctx, sqlcgen.RecentSignInEventsParams{
 		AccountID: authText(id), Since: timestamp(now.Add(-remoteproto.SignInNoticeTTL)),
 	})
@@ -182,7 +186,11 @@ func (q *Queries) RecentSignIns(ctx context.Context, id string, now time.Time) (
 	return notices, nil
 }
 
-func (q *Queries) AccountSignInNotice(ctx context.Context, accountID string, eventID int64) (remoteproto.AccountSignInNotice, error) {
+func (q *Queries) AccountSignInNotice(
+	ctx context.Context,
+	accountID string,
+	eventID int64,
+) (remoteproto.AccountSignInNotice, error) {
 	row, err := q.generated.AccountSignInEvent(ctx, sqlcgen.AccountSignInEventParams{
 		ID: eventID, AccountID: authText(accountID),
 	})
@@ -207,6 +215,10 @@ func readSignInEvent(details []byte, at time.Time) (remoteproto.AccountSignInNot
 		return remoteproto.AccountSignInNotice{}, fmt.Errorf("decode sign-in notice: %w", err)
 	}
 	return remoteproto.AccountSignInNotice{
-		DeviceID: payload.DeviceID, Name: cmp.Or(payload.Name, "Device"), Kind: payload.Kind, Location: payload.Location, At: at,
+		DeviceID: payload.DeviceID,
+		Name:     cmp.Or(payload.Name, "Device"),
+		Kind:     payload.Kind,
+		Location: payload.Location,
+		At:       at,
 	}, nil
 }

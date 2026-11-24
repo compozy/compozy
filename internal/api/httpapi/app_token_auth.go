@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/apptoken"
 	"github.com/compozy/compozy/internal/remotehost"
@@ -230,8 +229,4 @@ func (s *Server) warnAppTokenAuthFailure(c *gin.Context, origin string, err erro
 	_, reason := core.AppTokenErrorStatus(err, true)
 	logger.WarnContext(c.Request.Context(), "app_token.auth_failed",
 		"origin", origin, "remote", c.Request.RemoteAddr, "reason", reason)
-}
-
-func abortAppTokenAccess(c *gin.Context, status int, code, message string) {
-	c.AbortWithStatusJSON(status, contract.ErrorPayload{Error: message, Code: code})
 }

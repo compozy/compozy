@@ -59,9 +59,9 @@ type billingPage struct {
 
 const billingIntervalYear = "year"
 
-func (p billingPage) Monthly() bool { return p.Target.Interval == "month" }
+func (p *billingPage) Monthly() bool { return p.Target.Interval == "month" }
 
-func (p billingPage) PlanLabel() string {
+func (p *billingPage) PlanLabel() string {
 	interval := p.Target.Interval
 	if p.AlreadyPro || p.Success {
 		sub := p.Overview.Billing.Subscription
@@ -80,7 +80,7 @@ func (p billingPage) PlanLabel() string {
 	}
 }
 
-func (p billingPage) PeriodEnd() string {
+func (p *billingPage) PeriodEnd() string {
 	subscription := p.Overview.Billing.AccountSubscription()
 	if subscription == nil || subscription.CurrentPeriodEnd == nil {
 		return ""
@@ -88,7 +88,7 @@ func (p billingPage) PeriodEnd() string {
 	return subscription.CurrentPeriodEnd.UTC().Format("Jan 2, 2006")
 }
 
-func (p billingPage) PeriodEndLabel() string {
+func (p *billingPage) PeriodEndLabel() string {
 	subscription := p.Overview.Billing.Subscription
 	if subscription.Source == "complimentary" || subscription.CancelAtPeriodEnd {
 		return "Ends"
@@ -96,12 +96,12 @@ func (p billingPage) PeriodEndLabel() string {
 	return "Renews"
 }
 
-func purchasePage(target billing.Target) billingPage {
+func purchasePage(target billing.Target) *billingPage {
 	title := "Get Compozy Pro"
 	if target.Hostname != "" {
 		title = "Upgrade to Compozy Pro"
 	}
-	return billingPage{Target: target, Title: title, ShowPlans: true}
+	return &billingPage{Target: target, Title: title, ShowPlans: true}
 }
 
 func (p billingPages) upgrade(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +130,7 @@ func (p billingPages) upgrade(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (p billingPages) renderOverview(w http.ResponseWriter, r *http.Request, page billingPage, accountID string) {
+func (p billingPages) renderOverview(w http.ResponseWriter, r *http.Request, page *billingPage, accountID string) {
 	overview, err := p.billing.Overview(r.Context(), accountID, page.Target, p.webAccess(r, accountID))
 	if err == nil {
 		page.Overview = overview
@@ -227,7 +227,7 @@ func (p billingPages) mutate(w http.ResponseWriter, r *http.Request, portal bool
 func (p billingPages) openStripe(
 	w http.ResponseWriter,
 	r *http.Request,
-	page billingPage,
+	page *billingPage,
 	accountID string,
 	portal bool,
 ) {
@@ -319,7 +319,7 @@ func redirectPurchase(w http.ResponseWriter, r *http.Request, target billing.Tar
 	http.Redirect(w, r, target.URL(), http.StatusSeeOther)
 }
 
-func (p billingPages) render(w http.ResponseWriter, page billingPage, err error) {
+func (p billingPages) render(w http.ResponseWriter, page *billingPage, err error) {
 	setPageHeaders(w, p.auth.OAuthFormOrigins()...)
 	status := http.StatusOK
 	switch {
@@ -327,7 +327,7 @@ func (p billingPages) render(w http.ResponseWriter, page billingPage, err error)
 	case errors.Is(err, auth.ErrTurnstile):
 		status, page.Code, page.Message = auth.ErrTurnstile.Status, auth.ErrTurnstile.Code, auth.ErrTurnstile.Message
 	default:
-		status = purchaseError(&page, err)
+		status = purchaseError(page, err)
 	}
 	if page.RetryAfter > 0 {
 		w.Header().Set("Retry-After", strconv.Itoa(page.RetryAfter))

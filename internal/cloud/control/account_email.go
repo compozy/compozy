@@ -18,27 +18,38 @@ import (
 func (s *Service) PatchAccountEmail(
 	ctx context.Context, principal DevicePrincipal, patch remoteproto.AccountEmailPatch,
 ) (remoteproto.AccountSummary, error) {
-	if patch.MarketingOptIn == nil || (patch.Source != "settings" && patch.Source != "cli" && patch.Source != "sign_in") ||
+	if patch.MarketingOptIn == nil ||
+		(patch.Source != "settings" && patch.Source != "cli" && patch.Source != "sign_in") ||
 		(patch.Source == "sign_in" && !*patch.MarketingOptIn) {
 		return remoteproto.AccountSummary{}, ErrInvalidInput
 	}
 	var result remoteproto.AccountSummary
-	err := s.deviceTransaction(ctx, principal, func(q *store.Queries, a store.ControlAccount, device store.ControlDevice) error {
-		account, err := q.LockAuthAccount(ctx, a.ID)
-		if err != nil {
+	err := s.deviceTransaction(
+		ctx,
+		principal,
+		func(q *store.Queries, a store.ControlAccount, device store.ControlDevice) error {
+			account, err := q.LockAuthAccount(ctx, a.ID)
+			if err != nil {
+				return err
+			}
+			if err := s.recordConsent(ctx, q, account, *patch.MarketingOptIn, patch.Source); err != nil {
+				return err
+			}
+			account.MarketingOptIn = *patch.MarketingOptIn
+			result, err = s.accountSummary(ctx, q, account, device, principal)
 			return err
-		}
-		if err := s.recordConsent(ctx, q, account, *patch.MarketingOptIn, patch.Source); err != nil {
-			return err
-		}
-		account.MarketingOptIn = *patch.MarketingOptIn
-		result, err = s.accountSummary(ctx, q, account, device, principal)
-		return err
-	})
+		},
+	)
 	return result, err
 }
 
-func (s *Service) recordConsent(ctx context.Context, q *store.Queries, account store.AuthAccount, optIn bool, source string) error {
+func (s *Service) recordConsent(
+	ctx context.Context,
+	q *store.Queries,
+	account store.AuthAccount,
+	optIn bool,
+	source string,
+) error {
 	if err := q.UpdateMarketingConsent(ctx, account, optIn, source, s.config.Now()); err != nil {
 		return err
 	}
@@ -206,6 +217,7 @@ func (s *Service) securityEmail(address string, id int64, event store.AccountEma
 	return email.Message{
 		To:      address,
 		Subject: "New sign-in to Compozy on " + name + " (" + location + ")",
-		Text:    "A device signed in to your Compozy account. If this wasn’t you, sign in again to revoke this device:\n" + link,
+		Text: "A device signed in to your Compozy account. " +
+			"If this wasn’t you, sign in again to revoke this device:\n" + link,
 	}
 }

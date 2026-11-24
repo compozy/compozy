@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-const TokenEnv = "COMPOZY_ACCOUNT_TOKEN"
+const TokenEnv = "COMPOZY_ACCOUNT_TOKEN" // #nosec G101 -- environment variable name.
 
 // TakeLauncherToken consumes the one-shot credential before the daemon can
 // start providers, terminals, hooks, or extensions.

@@ -3190,21 +3190,6 @@ func appendMarkerLine(path string, line string) (err error) {
 	return err
 }
 
-func markerLineCount(path string) int {
-	payload, err := os.ReadFile(strings.TrimSpace(path))
-	if err != nil {
-		return 0
-	}
-	count := 0
-	for line := range strings.SplitSeq(string(payload), "\n") {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		count++
-	}
-	return count
-}
-
 func envListToMap(t testing.TB, env []string) map[string]string {
 	t.Helper()
 

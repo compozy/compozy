@@ -16,12 +16,12 @@ func (s *Service) ReplayAfterRestore(ctx context.Context, after time.Time) error
 		return ErrUnavailable
 	}
 	params := url.Values{
-		"created[gte]": {strconv.FormatInt(after.Unix(), 10)},
-		"created[lte]": {strconv.FormatInt(s.cfg.Now().Unix(), 10)},
-		"limit":        {"100"},
+		"created[gte]":   {strconv.FormatInt(after.Unix(), 10)},
+		"created[lte]":   {strconv.FormatInt(s.cfg.Now().Unix(), 10)},
+		stripeLimitParam: {"100"},
 		"types[]": {
 			"customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted",
-			"invoice.paid", "invoice.payment_failed", "checkout.session.completed", "checkout.session.expired",
+			"invoice.paid", "invoice.payment_failed", checkoutCompleted, checkoutExpired,
 		},
 	}
 	for {

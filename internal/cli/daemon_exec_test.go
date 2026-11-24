@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/account"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -182,9 +184,12 @@ func testDaemonTokenHandoff() int {
 	if err != nil {
 		return 6
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	for _, env := range [][]string{os.Environ(), procutil.FilteredDaemonEnv(nil), procutil.IsolatedDaemonEnv(nil)} {
-		child := exec.Command(path, os.Args[1:]...)
-		child.Env = append(env, "COMPOZY_TEST_DAEMON_MODE=account-descendant")
+		child := exec.CommandContext(ctx, path, os.Args[1:]...)
+		env = append(env, "COMPOZY_TEST_DAEMON_MODE=account-descendant")
+		child.Env = env
 		if err := child.Run(); err != nil {
 			return 7
 		}

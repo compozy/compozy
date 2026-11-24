@@ -25,6 +25,17 @@ type ArchivedEvent struct {
 	Details   map[string]any `json:"details"`
 }
 
+const restoredAccountDeleted = "account_deleted"
+
+// Older archive records may omit details. Apply the conservative defaults at replay.
+func restoredDetail[T any](event ArchivedEvent, key string) T {
+	if value, ok := event.Details[key].(T); ok {
+		return value
+	}
+	var missing T
+	return missing
+}
+
 func (s *Store) WithBackupRecoveryLock(ctx context.Context, ship func() error) (retErr error) {
 	conn, err := s.ConnectDirect(ctx)
 	if err != nil {
@@ -163,7 +174,7 @@ func (q *Queries) replayRestoreEvent(ctx context.Context, event ArchivedEvent) e
 		return err
 	}
 	replay, err := q.applyRestoreRevocation(ctx, event)
-	if err != nil || !replay || event.Type == "account_deleted" {
+	if err != nil || !replay || event.Type == restoredAccountDeleted {
 		return err
 	}
 	return q.AppendSecurityEvent(ctx, SecurityEvent{
@@ -172,28 +183,27 @@ func (q *Queries) replayRestoreEvent(ctx context.Context, event ArchivedEvent) e
 }
 
 func (q *Queries) applyRestoreRevocation(ctx context.Context, event ArchivedEvent) (bool, error) {
-	device, _ := event.Details["device_id"].(string)
-	computer, _ := event.Details["computer_id"].(string)
+	device := restoredDetail[string](event, "device_id")
 	switch event.Type {
 	case "device_revoked":
 		return true, q.revokeRestoredDevice(ctx, event, device)
 	case "device_session_revoked":
-		session, _ := event.Details["session_id"].(string)
+		session := restoredDetail[string](event, "session_id")
 		if session == "" || event.AccountID == "" {
 			return false, errors.New("archived device-session revocation lacks its target")
 		}
 		_, err := q.RevokeAdminDeviceSession(ctx, event.AccountID, session, event.At)
 		return true, err
 	case "identity_detached":
-		provider, _ := event.Details["provider"].(string)
-		subject, _ := event.Details["subject"].(string)
+		provider := restoredDetail[string](event, "provider")
+		subject := restoredDetail[string](event, "subject")
 		if provider == "" || subject == "" || event.AccountID == "" {
 			return false, errors.New("archived identity detachment lacks its target")
 		}
 		_, err := q.DetachAdminIdentity(ctx, event.AccountID, provider, subject)
 		return true, err
 	case "device_key_revoked", "browser_key_revoked":
-		jkt, _ := event.Details["jkt"].(string)
+		jkt := restoredDetail[string](event, "jkt")
 		if jkt == "" {
 			return true, q.revokeRestoredDevice(ctx, event, device)
 		}
@@ -201,8 +211,7 @@ func (q *Queries) applyRestoreRevocation(ctx context.Context, event ArchivedEven
 			AccountID: event.AccountID, Jkt: jkt, RevokedAt: timestamp(event.At),
 		})
 	case "device_admin_changed":
-		admin, _ := event.Details["admin"].(bool)
-		if admin {
+		if restoredDetail[bool](event, "admin") {
 			return false, nil
 		}
 		return true, q.generated.DisableRestoredAdmin(ctx, sqlcgen.DisableRestoredAdminParams{
@@ -210,27 +219,34 @@ func (q *Queries) applyRestoreRevocation(ctx context.Context, event ArchivedEven
 		})
 	case "device_scopes_changed":
 		return true, q.restoreDeviceScopes(ctx, event, remoteproto.DeviceID(device))
+	default:
+		return q.applyRestoreCloudRevocation(ctx, event)
+	}
+}
+
+func (q *Queries) applyRestoreCloudRevocation(ctx context.Context, event ArchivedEvent) (bool, error) {
+	computer := restoredDetail[string](event, "computer_id")
+	switch event.Type {
 	case "computer_unlinked":
 		return true, q.UnlinkControlComputer(ctx, ControlComputer{
 			ID: remoteproto.ComputerID(computer), AccountID: event.AccountID,
 		}, event.At)
 	case "computer_remote_access_changed":
-		enabled, _ := event.Details["remote_enabled"].(bool)
-		if enabled {
+		if restoredDetail[bool](event, "remote_enabled") {
 			return false, nil
 		}
 		return true, q.generated.RevokeRestoredComputerAccess(ctx, sqlcgen.RevokeRestoredComputerAccessParams{
 			ID: computer, AccountID: event.AccountID,
 		})
 	case "hosted_tunnel_deleted":
-		generation, _ := event.Details["generation"].(float64)
+		generation := restoredDetail[float64](event, "generation")
 		return true, q.generated.MarkRestoredTunnelDeleting(ctx, sqlcgen.MarkRestoredTunnelDeletingParams{
 			ComputerID: computer, AccountID: event.AccountID, Generation: int64(generation),
 		})
 	case "hosted_tunnel_takedown":
 		return true, q.restoreAdminTunnelTakedown(ctx, event, computer)
 	case "cloud_signing_key_retired":
-		kid, _ := event.Details["kid"].(string)
+		kid := restoredDetail[string](event, "kid")
 		if kid == "" {
 			return false, errors.New("archived signing-key retirement lacks its target")
 		}
@@ -239,14 +255,14 @@ func (q *Queries) applyRestoreRevocation(ctx context.Context, event ArchivedEven
 		})
 		return true, err
 	case "account_token_revoked":
-		token, _ := event.Details["token_id"].(string)
+		token := restoredDetail[string](event, "token_id")
 		if token == "" || event.AccountID == "" {
 			return false, errors.New("archived account-token revocation lacks its target")
 		}
 		return true, q.generated.RevokeRestoredAccountToken(ctx, sqlcgen.RevokeRestoredAccountTokenParams{
 			TokenID: token, AccountID: event.AccountID, RevokedAt: timestamp(event.At),
 		})
-	case "account_suspended", "account_unsuspended", "account_deletion_started", "account_deleted":
+	case "account_suspended", "account_unsuspended", "account_deletion_started", restoredAccountDeleted:
 		return true, q.restoreAccountState(ctx, event)
 	default:
 		return false, nil
@@ -254,8 +270,8 @@ func (q *Queries) applyRestoreRevocation(ctx context.Context, event ArchivedEven
 }
 
 func (q *Queries) restoreAdminTunnelTakedown(ctx context.Context, event ArchivedEvent, computer string) error {
-	hostname, _ := event.Details["hostname"].(string)
-	generation, _ := event.Details["generation"].(float64)
+	hostname := restoredDetail[string](event, "hostname")
+	generation := restoredDetail[float64](event, "generation")
 	if hostname == "" || computer == "" || generation < 1 || event.AccountID == "" {
 		return errors.New("archived tunnel takedown lacks its target")
 	}
@@ -292,9 +308,9 @@ func (q *Queries) restoreDeviceScopes(ctx context.Context, event ArchivedEvent, 
 		}
 		scopes := make([]remoteproto.Scope, 0, len(items))
 		for _, item := range items {
-			name, _ := item.(string)
+			name, ok := item.(string)
 			scope := remoteproto.Scope(name)
-			if !scope.Valid() {
+			if !ok || !scope.Valid() {
 				return errors.New("invalid archived device scope")
 			}
 			scopes = append(scopes, scope)
@@ -326,7 +342,7 @@ func (q *Queries) restoreAccountState(ctx context.Context, event ArchivedEvent) 
 	switch event.Type {
 	case "account_suspended":
 		state, suspendedAt = "suspended", event.At
-	case "account_deleted", "account_deletion_started":
+	case restoredAccountDeleted, "account_deletion_started":
 		state = "deleting"
 	}
 	if err := q.generated.MarkRestoredAccountState(ctx, sqlcgen.MarkRestoredAccountStateParams{
@@ -342,7 +358,7 @@ func (q *Queries) restoreAccountState(ctx context.Context, event ArchivedEvent) 
 		if err != nil {
 			return err
 		}
-		if event.Type == "account_deleted" {
+		if event.Type == restoredAccountDeleted {
 			return q.FinishAccountDeletion(ctx, event.AccountID, event.At)
 		}
 		if err := q.BeginAccountDeletion(ctx, event.AccountID, event.At); err != nil {

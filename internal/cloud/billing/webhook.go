@@ -20,7 +20,11 @@ import (
 	"github.com/compozy/compozy/internal/cloud/store"
 )
 
-const stripeSignatureAge = 5 * time.Minute
+const (
+	stripeSignatureAge = 5 * time.Minute
+	checkoutCompleted  = "checkout.session.completed"
+	checkoutExpired    = "checkout.session.expired"
+)
 
 var errStripeSignature = &Failure{http.StatusBadRequest, "stripe_signature_invalid", "Invalid Stripe signature."}
 
@@ -63,12 +67,12 @@ func (s *Service) applyStripeEvent(ctx context.Context, event stripeEvent) error
 		subscription = object.ID
 	case "invoice.paid", "invoice.payment_failed":
 		subscription = object.Parent.SubscriptionDetails.Subscription
-		if subscription == "" && event.Type != "checkout.session.completed" {
+		if subscription == "" {
 			subscription = object.Subscription
 		}
-	case "checkout.session.completed":
+	case checkoutCompleted:
 		subscription = object.Subscription
-	case "checkout.session.expired":
+	case checkoutExpired:
 		return s.refreshSubscription(ctx, "", event, "")
 	default:
 		return nil
@@ -132,7 +136,7 @@ func (s *Service) refreshSubscription(ctx context.Context, id string, event stri
 			}
 		}
 		switch event.Type {
-		case "checkout.session.completed", "checkout.session.expired":
+		case checkoutCompleted, checkoutExpired:
 			var err error
 			interval, err = q.BillingCheckoutInterval(ctx, event.Data.Object.ID)
 			if err != nil {
@@ -178,14 +182,8 @@ func (s *Service) fetchAndSaveSubscription(
 	if err != nil {
 		return err
 	}
-	if old.AccountID != "" {
-		if current.AccountID != "" && current.AccountID != old.AccountID {
-			return errors.New("Stripe subscription account changed")
-		}
-		current.AccountID = old.AccountID
-	}
-	if expectedAccount != "" && current.AccountID != expectedAccount {
-		return ErrInvalidRequest
+	if err := bindSubscriptionAccount(&current, old.AccountID, expectedAccount); err != nil {
+		return err
 	}
 	if current.AccountID == "" {
 		return nil
@@ -209,7 +207,7 @@ func (s *Service) fetchAndSaveSubscription(
 		return err
 	}
 	before, after := s.status(previous, now), s.status(subscriptions, now)
-	if current.Status == "canceled" && old.Status != "canceled" && current.PriceID != "" {
+	if current.Status == stripeStatusCanceled && old.Status != stripeStatusCanceled && current.PriceID != "" {
 		*ended = current.CancellationReason
 		if *ended == "" {
 			*ended = "unknown"
@@ -221,4 +219,17 @@ func (s *Service) fetchAndSaveSubscription(
 		}
 	}
 	return q.ApplyAccountPlan(ctx, current.AccountID, after.Plan, now, before != after)
+}
+
+func bindSubscriptionAccount(current *plan.Subscription, previous, expected string) error {
+	if previous != "" {
+		if current.AccountID != "" && current.AccountID != previous {
+			return errors.New("Stripe subscription account changed")
+		}
+		current.AccountID = previous
+	}
+	if expected != "" && current.AccountID != expected {
+		return ErrInvalidRequest
+	}
+	return nil
 }

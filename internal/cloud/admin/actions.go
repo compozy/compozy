@@ -23,13 +23,15 @@ type confirmation struct {
 	GraceUntil                            string
 }
 
+const suspendAction = "suspend"
+
 func (c *console) confirm(w http.ResponseWriter, r *http.Request) {
 	ctx, query := r.Context(), r.URL.Query()
 	action := confirmation{
 		Kind: r.PathValue("action"), AccountID: query.Get("account_id"),
 		Target: query.Get("target"), Provider: query.Get("provider"),
 	}
-	data := page{Confirm: &action, Back: "/admin"}
+	data := page{Confirm: &action, Back: adminPath}
 	switch action.Kind {
 	case "gate-policy":
 		policy, err := c.db.GatePolicy(ctx)
@@ -72,7 +74,7 @@ func (c *console) confirm(w http.ResponseWriter, r *http.Request) {
 func accountConfirmation(a *confirmation, account store.AdminAccount) bool {
 	email := account.Email
 	switch a.Kind {
-	case "suspend":
+	case suspendAction:
 		a.Label, a.Consequence = "Suspend", "Signs out every installation and stops every remote session of "+email+"."
 	case "unsuspend":
 		a.Label, a.Consequence = "Unsuspend", "Lets "+email+" sign in again."
@@ -106,7 +108,7 @@ func (c *console) apply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if id == 0 {
-		back := "/admin"
+		back := adminPath
 		if account := r.PostForm.Get("account_id"); strings.HasPrefix(account, "acc_") {
 			back += "/accounts/" + account
 		}
@@ -121,8 +123,8 @@ func (c *console) applyAction(r *http.Request) (int64, error) {
 	ctx, form := r.Context(), r.PostForm
 	account, email := form.Get("account_id"), operator(r)
 	switch r.PathValue("action") {
-	case "suspend", "unsuspend":
-		return c.accounts.SetAdminSuspension(ctx, account, email, r.PathValue("action") == "suspend")
+	case suspendAction, "unsuspend":
+		return c.accounts.SetAdminSuspension(ctx, account, email, r.PathValue("action") == suspendAction)
 	case "revoke-device":
 		return c.accounts.AdminRevokeDevice(ctx, account, email, remoteproto.DeviceID(form.Get("target")))
 	case "revoke-session":
@@ -130,11 +132,11 @@ func (c *console) applyAction(r *http.Request) (int64, error) {
 	case "delete-tunnel":
 		return c.takeDownTunnel(r)
 	case "hosted-route-cap":
-		cap, err := strconv.ParseInt(form.Get("cap"), 10, 32)
+		routeCap, err := strconv.ParseInt(form.Get("cap"), 10, 32)
 		if err != nil {
 			return 0, control.ErrInvalidInput
 		}
-		return c.accounts.AdminSetHostedRouteCap(ctx, account, email, int32(cap))
+		return c.accounts.AdminSetHostedRouteCap(ctx, account, email, int32(routeCap))
 	case "complimentary-pro":
 		end, ok := parseAdminTime(form.Get("ends_at"))
 		if !ok {

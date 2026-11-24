@@ -125,7 +125,14 @@ func (c *daemonClient) RevokeAccountToken(ctx context.Context, id string) error 
 }
 
 func (c *daemonClient) ReadAccountForDelete(ctx context.Context) (result contract.AccountStatusResponse, err error) {
-	err = c.doJSON(ctx, http.MethodGet, contract.AccountPath, url.Values{"refresh": {"true"}}, nil, &result)
+	err = c.doJSON(
+		ctx,
+		http.MethodGet,
+		contract.AccountPath,
+		url.Values{cliRefreshAction: {toolBoolTrue}},
+		nil,
+		&result,
+	)
 	return result, err
 }
 

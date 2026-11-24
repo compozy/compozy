@@ -52,7 +52,7 @@ func newAccessVerifier(cfg *AccessConfig) (*accessVerifier, error) {
 	}
 	domain, audience := strings.ToLower(strings.TrimSpace(cfg.TeamDomain)), strings.TrimSpace(cfg.Audience)
 	if !teamDomain.MatchString(domain) || audience == "" || len(cfg.Allowlist) == 0 {
-		return nil, errors.New("Cloudflare Access requires a team domain, application audience and operator allowlist")
+		return nil, errors.New("configure a Cloudflare Access team domain, application audience and operator allowlist")
 	}
 	allowlist := make(map[string]struct{}, len(cfg.Allowlist))
 	for _, item := range cfg.Allowlist {
@@ -177,7 +177,7 @@ type accessJWK struct {
 }
 
 func (v *accessVerifier) fetchKeys(ctx context.Context) (map[string]*rsa.PublicKey, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, v.issuer+"/cdn-cgi/access/certs", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, v.issuer+"/cdn-cgi/access/certs", http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func (v *accessVerifier) fetchKeys(ctx context.Context) (map[string]*rsa.PublicK
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, errors.New("Cloudflare Access keys are unavailable")
+		return nil, errors.New("could not load Cloudflare Access keys")
 	}
 	var document struct {
 		Keys []accessJWK `json:"keys"`

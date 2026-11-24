@@ -10,6 +10,8 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
+const retiredGatewayKey = "gateway"
+
 // MigrateRemovedGateway records the retired profiles before publishing the cleaned config.
 func MigrateRemovedGateway(path string, record func(int) error) (_ []string, err error) {
 	configOverlayWriteMu.Lock()
@@ -49,7 +51,7 @@ func stripRemovedGateway(contents []byte) ([]byte, []string, int, error) {
 		// Let the owning decoder report errors with the normal source and position.
 		return contents, nil, 0, nil
 	}
-	gateway, exists := values["gateway"]
+	gateway, exists := values[retiredGatewayKey]
 	if !exists {
 		return contents, nil, 0, nil
 	}
@@ -58,14 +60,14 @@ func stripRemovedGateway(contents []byte) ([]byte, []string, int, error) {
 		return nil, nil, 0, err
 	}
 	for _, expr := range slices.Backward(document.expressions) {
-		if pathHasPrefix(expr.path, []string{"gateway"}) {
+		if pathHasPrefix(expr.path, []string{retiredGatewayKey}) {
 			contents = replaceOffsets(contents, rangeStart(expr.raw), rangeEnd(expr.raw), nil)
 		}
 	}
 
 	keys := make(map[string]struct{})
 	for _, key := range meta.Keys() {
-		if len(key) > 1 && key[0] == "gateway" {
+		if len(key) > 1 && key[0] == retiredGatewayKey {
 			if key[1] == "connections" {
 				key = key[:2]
 			}
@@ -73,7 +75,7 @@ func stripRemovedGateway(contents []byte) ([]byte, []string, int, error) {
 		}
 	}
 	if len(keys) == 0 {
-		keys["gateway"] = struct{}{}
+		keys[retiredGatewayKey] = struct{}{}
 	}
 	var count int
 	if table, ok := gateway.(map[string]any); ok {

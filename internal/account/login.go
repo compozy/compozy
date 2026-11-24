@@ -30,7 +30,7 @@ func (s *Service) StartLogin(ctx context.Context, provider string) (Login, error
 
 func (s *Service) StartLoginWithConsent(ctx context.Context, provider string, marketingOptIn bool) (Login, error) {
 	if provider != "" && provider != "google" && provider != "github" {
-		return Login{}, &cloudclient.Failure{Status: http.StatusBadRequest, Code: "invalid_request",
+		return Login{}, &cloudclient.Failure{Status: http.StatusBadRequest, Code: codeInvalidRequest,
 			Message: "Choose Google or GitHub."}
 	}
 	if err := ctx.Err(); err != nil {
@@ -325,7 +325,7 @@ func (s *Service) commitLogin(
 	if err := s.credentials.write(refreshEntry, id, session.refresh); err != nil {
 		return nil, err
 	}
-	next.State, next.Source, next.AccountID, next.SignedOutReason = SignedIn, "session", id, ""
+	next.State, next.Source, next.AccountID, next.SignedOutReason = SignedIn, SourceSession, id, ""
 	next.TokenName = ""
 	next.Profile, next.LastValidatedAt = profile, now
 	if previousID != id {
@@ -335,7 +335,7 @@ func (s *Service) commitLogin(
 		return nil, errors.Join(err, s.restoreRefresh(id, oldRefresh))
 	}
 	s.token = ""
-	if previousSource == "token" {
+	if previousSource == SourceToken {
 		if err := s.credentials.remove(tokenEntry, next.InstallationID); err != nil {
 			s.logger.Warn("previous account token could not be removed", "code", cloudclient.FailureCode(err))
 		}
@@ -343,7 +343,7 @@ func (s *Service) commitLogin(
 	if s.linkedAccountID == id {
 		s.linkedEmail = profile.Email
 	}
-	if previousSource == "session" && previousID != "" && previousID != id {
+	if previousSource == SourceSession && previousID != "" && previousID != id {
 		if err := s.credentials.remove(refreshEntry, previousID); err != nil {
 			s.logger.Warn("previous account credential could not be removed", "code", cloudclient.FailureCode(err))
 		}

@@ -187,7 +187,7 @@ func TestAppTokenBrowserAdmission(t *testing.T) {
 				},
 			}
 			router := newAppTokenTestRouter(
-				t,
+				t, appTokenTestHost,
 				auth,
 				func(_ string, path string) bool { return path == "/api/sessions" },
 				nil,
@@ -266,7 +266,7 @@ func TestAppTokenRouteAuthorization(t *testing.T) {
 				},
 				touch: func(context.Context, string, uint64) error { touches++; return nil },
 			}
-			router := newAppTokenTestRouter(t, auth, func(method, path string) bool {
+			router := newAppTokenTestRouter(t, appTokenTestHost, auth, func(method, path string) bool {
 				return method == http.MethodGet && path == "/api/sessions"
 			}, nil)
 			if route.path != "/api/unregistered" {
@@ -303,7 +303,7 @@ func TestAppTokenRequestLifecycle(t *testing.T) {
 					}, nil
 				},
 			}
-			router := newAppTokenTestRouter(t, auth, func(string, string) bool { return true }, nil)
+			router := newAppTokenTestRouter(t, appTokenTestHost, auth, func(string, string) bool { return true }, nil)
 			path := "/api/sessions"
 			if stream {
 				path = "/api/workspaces/ws-1/sessions/sess-1/stream"
@@ -374,7 +374,7 @@ func TestAppTokenAuthenticationFailureWindows(t *testing.T) {
 					Origins: []string{"http://a.test", "http://b.test"}}, nil
 			},
 		}
-		router := newAppTokenTestRouter(t, auth, func(string, string) bool { return true }, limiter)
+		router := newAppTokenTestRouter(t, appTokenTestHost, auth, func(string, string) bool { return true }, limiter)
 		router.GET("/api/sessions", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"admitted": true}) })
 		request := func(origin, secret string, status int, code string) {
 			t.Helper()
@@ -488,7 +488,9 @@ func TestAppTokenRequestLogging(t *testing.T) {
 	})
 }
 
-func newAppTokenTestRouter(t *testing.T, auth AppTokenAuthenticator,
+const appTokenTestHost = "127.0.0.1:2123"
+
+func newAppTokenTestRouter(t *testing.T, host string, auth AppTokenAuthenticator,
 	allowed func(string, string) bool, limiter *remotehost.AuthFailureLimiter,
 ) *gin.Engine {
 	t.Helper()
@@ -496,11 +498,11 @@ func newAppTokenTestRouter(t *testing.T, auth AppTokenAuthenticator,
 		limiter = remotehost.NewAuthFailureLimiter(10, time.Minute, nil)
 	}
 	router := gin.New()
-	server := &Server{host: "127.0.0.1:2123", appTokenAuth: auth, appAccess: allowed}
+	server := &Server{host: host, appTokenAuth: auth, appAccess: allowed}
 	WithAppTokenAuthLimiter(limiter)(server)
 	router.Use(server.appTokenAuthMiddleware())
-	router.Use(corsMiddleware("127.0.0.1:2123"))
-	router.Use(browserRequestProtectionMiddleware("127.0.0.1:2123"))
+	router.Use(corsMiddleware(host))
+	router.Use(browserRequestProtectionMiddleware(host))
 	return router
 }
 
@@ -553,7 +555,7 @@ func TestAppTokenTaskBreadthAdmission(t *testing.T) {
 				},
 				touch: func(context.Context, string, uint64) error { return nil },
 			}
-			router := newAppTokenTestRouter(t, auth, func(method, path string) bool {
+			router := newAppTokenTestRouter(t, appTokenTestHost, auth, func(method, path string) bool {
 				for _, op := range apispec.Operations() {
 					if op.Method == method && op.Path == path {
 						return op.AppAccess == apispec.AppAccessAllowed
@@ -619,7 +621,7 @@ func TestAppTokenLoopAggregateAdmission(t *testing.T) {
 				},
 				touch: func(context.Context, string, uint64) error { return nil },
 			}
-			router := newAppTokenTestRouter(t, auth, func(method, path string) bool {
+			router := newAppTokenTestRouter(t, appTokenTestHost, auth, func(method, path string) bool {
 				for _, op := range apispec.Operations() {
 					if op.Method == method && op.Path == path {
 						return op.AppAccess == apispec.AppAccessAllowed

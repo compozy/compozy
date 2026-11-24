@@ -5,7 +5,7 @@ import "time"
 const (
 	AccountTokenPrefix       = "cpzat_"
 	AccountTokenIDPrefix     = "atk_"
-	AccountTokenExchangePath = "/v1/account-tokens/exchange"
+	AccountTokenExchangePath = "/v1/account-tokens/exchange" // #nosec G101 -- public API path.
 )
 
 type AccountTokenExchange struct {

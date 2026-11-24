@@ -194,10 +194,10 @@ func (s *Service) signedOutLocked(ctx context.Context, state State, reason strin
 		return err
 	}
 	s.sendProgressLocked(SignInEvent{State: string(state), SignedOutReason: reason})
-	if previous.Source == "token" {
+	if previous.Source == SourceToken {
 		return s.credentials.remove(tokenEntry, previous.InstallationID)
 	}
-	if previous.Source == "session" && previous.AccountID != "" {
+	if previous.Source == SourceSession && previous.AccountID != "" {
 		if err := s.credentials.remove(refreshEntry, previous.AccountID); err != nil {
 			return err
 		}
@@ -224,7 +224,7 @@ func (s *Service) Logout(ctx context.Context) error {
 		s.mu.Unlock()
 		return nil
 	}
-	if current.State == SignedIn && current.Source == "session" {
+	if current.State == SignedIn && current.Source == SourceSession {
 		var err error
 		session, err = s.loadSession(current, session)
 		if err != nil {
@@ -260,11 +260,11 @@ func (s *Service) loadSession(current Installation, session deviceSession) (devi
 
 func reauthReason(err error) string {
 	failure, ok := errors.AsType[*cloudclient.Failure](err)
-	if !ok || failure.Code != "reauth_required" {
+	if !ok || failure.Code != string(ReauthRequired) {
 		return ""
 	}
 	switch failure.Reason {
-	case "device_revoked", "account_deleted", "account_suspended", "session_invalid":
+	case reasonDeviceRevoked, reasonAccountDeleted, reasonAccountSuspended, "session_invalid":
 		return failure.Reason
 	default:
 		return ""
@@ -284,8 +284,8 @@ func (s *Service) refreshLoop() {
 		s.mu.Lock()
 		current, generation := s.installation, s.generation
 		var next time.Time
-		token := s.token != "" && (current.Source == "token" || current.State != SignedIn)
-		if token || (current.State == SignedIn && current.Source == "session") {
+		token := s.token != "" && (current.Source == SourceToken || current.State != SignedIn)
+		if token || (current.State == SignedIn && current.Source == SourceSession) {
 			next = cmp.Or(s.retryAt, current.LastValidatedAt.Add(dailyRefresh))
 		}
 		s.mu.Unlock()
@@ -331,9 +331,9 @@ func (s *Service) refresh(g *generation, forAccess bool) (cloudclient.Credential
 		return cloudclient.Credentials{}, ErrSignInRequired
 	}
 	switch current.Source {
-	case "token":
+	case SourceToken:
 		return cloudclient.Credentials{}, ErrTokenLocalOnly
-	case "link":
+	case SourceLink:
 		return cloudclient.Credentials{}, ErrSignInRequired
 	}
 	now := s.clock.Now()

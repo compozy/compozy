@@ -56,21 +56,21 @@ func (s *Service) AdminRevokeSession(
 }
 
 func (s *Service) AdminSetHostedRouteCap(
-	ctx context.Context, accountID, operatorEmail string, cap int32,
+	ctx context.Context, accountID, operatorEmail string, routeCap int32,
 ) (int64, error) {
-	if cap < 0 {
+	if routeCap < 0 {
 		return 0, ErrInvalidInput
 	}
 	return s.adminAccountChange(ctx, accountID, operatorEmail, "hosted_route_cap_changed",
-		map[string]any{"cloud_routes_max": cap}, func(q *store.Queries) (bool, error) {
+		map[string]any{"cloud_routes_max": routeCap}, func(q *store.Queries) (bool, error) {
 			current, err := q.AdminAccount(ctx, accountID)
 			if err != nil {
 				return false, err
 			}
-			if cap < current.CloudRoutesMax {
+			if routeCap < current.CloudRoutesMax {
 				return false, errAdminResourceChanged
 			}
-			return q.SetAdminHostedRouteCap(ctx, accountID, cap)
+			return q.SetAdminHostedRouteCap(ctx, accountID, routeCap)
 		})
 }
 

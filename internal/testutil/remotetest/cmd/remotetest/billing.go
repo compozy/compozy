@@ -145,13 +145,16 @@ func prepareRetainedHost(f *fixture, db *remotetest.Database, m *scenarioManifes
 			status.CloudRoute.Hostname != nil && *status.CloudRoute.Hostname == fixtureHostname
 	})
 	target := &url.URL{Scheme: "http", Host: origin}
-	proxy := httputil.NewSingleHostReverseProxy(target)
-	edge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Host = fixtureHostname
-		proxy.ServeHTTP(w, r)
-	}))
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(request *httputil.ProxyRequest) {
+			request.SetURL(target)
+			request.Out.Host = fixtureHostname
+			request.Out.Header.Set("X-Forwarded-Proto", "https")
+		},
+	}
+	edge := httptest.NewTLSServer(proxy)
 	f.Cleanup(edge.Close)
-	m.HostedProxy = edge.URL
+	m.EdgePort = edge.Listener.Addr().(*net.TCPAddr).Port
 	m.Computers = append(m.Computers, computerTarget{ID: result.ComputerID, Name: result.Name, Socket: host.Socket})
 }
 

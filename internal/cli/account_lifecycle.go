@@ -33,7 +33,7 @@ func newAccountEmailCommand(deps commandDeps) *cobra.Command {
 	)
 	cmd.Flags().StringVar(&news, "news", "", "Set product news and offers (on or off)")
 	cmd.PreRunE = func(_ *cobra.Command, _ []string) error {
-		if news != "on" && news != "off" {
+		if news != "on" && news != cliOffValue {
 			return newCLIUsageError("--news must be on or off")
 		}
 		return nil

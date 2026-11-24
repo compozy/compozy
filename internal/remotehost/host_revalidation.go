@@ -92,7 +92,7 @@ func (h *Host) revalidateLink(ctx context.Context, identity Identity) error {
 	switch reason {
 	case "account_suspended":
 		return h.account.ObserveHostLink(ctx, identity.AccountID, reason)
-	case "computer_unlinked", "account_deleted":
+	case reasonComputerUnlinked, "account_deleted":
 		h.mu.Lock()
 		defer h.mu.Unlock()
 		return h.clearLinkedComputer(ctx, identity, reason)

@@ -34,7 +34,7 @@ func (h *Host) start(ctx context.Context, cfg config.RemoteConfig, syncCloud boo
 			run.unlinked.Store(true)
 			run.listeners.close()
 			run.syncIngress(ctx)
-			if err := h.account.ObserveHostLink(ctx, identity.AccountID, "computer_unlinked"); err != nil {
+			if err := h.account.ObserveHostLink(ctx, identity.AccountID, reasonComputerUnlinked); err != nil {
 				h.opts.Logger.WarnContext(ctx, "Could not reconcile the unlinked installation", "error", err)
 			}
 			h.deleteKeys(ctx, identity)

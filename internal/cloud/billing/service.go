@@ -71,8 +71,10 @@ var (
 )
 
 const (
-	stripeSource     = "stripe"
-	stripeStatusPaid = "paid"
+	stripeSource         = "stripe"
+	stripeStatusPaid     = "paid"
+	stripeStatusCanceled = "canceled"
+	stripeLimitParam     = "limit"
 )
 
 type Target struct {

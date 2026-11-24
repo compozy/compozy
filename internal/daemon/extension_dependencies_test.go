@@ -692,26 +692,29 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refuse a root package without its own trust consent before installing any dependency", func(t *testing.T) {
-		t.Parallel()
-		fixture := newDependencyFixture(t)
-		fixture.write(t, "dep-core", "1.0.0")
-		fixture.write(t, "root", "1.0.0", "dep-core")
-		req := fixture.rootRequest(t, map[string]contract.ExtensionDependencyConsent{
-			"dep-core": {AllowUnverified: true},
-		})
-		req.AllowUnverified = false
-		_, err := fixture.service.Install(t.Context(), req, dependencyOperator(t))
-		if !errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified) {
-			t.Fatalf("error = %v, want the root checksum_unverified refusal", err)
-		}
-		if _, partial := errors.AsType[*extensionpkg.DependenciesInstalledError](err); partial {
-			t.Fatalf("error = %v reports installed dependencies", err)
-		}
-		if fixture.installed(t, "dep-core") || fixture.installed(t, "root") {
-			t.Fatal("root trust refusal left a package installed")
-		}
-	})
+	t.Run(
+		"Should refuse a root package without its own trust consent before installing any dependency",
+		func(t *testing.T) {
+			t.Parallel()
+			fixture := newDependencyFixture(t)
+			fixture.write(t, "dep-core", "1.0.0")
+			fixture.write(t, "root", "1.0.0", "dep-core")
+			req := fixture.rootRequest(t, map[string]contract.ExtensionDependencyConsent{
+				"dep-core": {AllowUnverified: true},
+			})
+			req.AllowUnverified = false
+			_, err := fixture.service.Install(t.Context(), req, dependencyOperator(t))
+			if !errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified) {
+				t.Fatalf("error = %v, want the root checksum_unverified refusal", err)
+			}
+			if _, partial := errors.AsType[*extensionpkg.DependenciesInstalledError](err); partial {
+				t.Fatalf("error = %v reports installed dependencies", err)
+			}
+			if fixture.installed(t, "dep-core") || fixture.installed(t, "root") {
+				t.Fatal("root trust refusal left a package installed")
+			}
+		},
+	)
 
 	t.Run("Should refuse a version_unmet dependency even with consent", func(t *testing.T) {
 		t.Parallel()

@@ -330,7 +330,6 @@ func TestUnixSocketClientWindowManagerRoutes(t *testing.T) {
 			}
 		}
 	})
-
 }
 
 func TestWindowManagerMutationCommands(t *testing.T) {

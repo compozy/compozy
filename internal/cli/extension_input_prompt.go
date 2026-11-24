@@ -153,7 +153,7 @@ func extensionPromptAnswer(input extensionPromptInput, answer string) (json.RawM
 	if input.Type == extensionInputTypeBoolean {
 		switch strings.ToLower(answer) {
 		case "y", yesFlagName, toolBoolTrue:
-			raw = json.RawMessage("true")
+			raw = json.RawMessage(toolBoolTrue)
 		case "n", "no", "false":
 			raw = json.RawMessage("false")
 		default:
@@ -186,7 +186,7 @@ func extensionInputPromptLabel(input extensionPromptInput) string {
 	var text string
 	switch {
 	case input.State == contract.ExtensionInputStateSet:
-	case input.Type == extensionInputTypeBoolean && string(input.Default) == "true":
+	case input.Type == extensionInputTypeBoolean && string(input.Default) == toolBoolTrue:
 		label += " [Y/n]"
 	case input.Type == extensionInputTypeBoolean:
 		label += " [y/N]"

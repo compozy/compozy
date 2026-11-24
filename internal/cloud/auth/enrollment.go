@@ -141,7 +141,16 @@ func registerEnrolledDevice(
 	if err := q.RecordAuthDeviceChange(ctx, d.AccountID); err != nil {
 		return d, err
 	}
-	return d, q.RecordDeviceEnrollment(ctx, d.AccountID, remoteproto.DeviceID(d.ID), d.Name, d.Kind, token.Location, d.Admin, now)
+	return d, q.RecordDeviceEnrollment(
+		ctx,
+		d.AccountID,
+		remoteproto.DeviceID(d.ID),
+		d.Name,
+		d.Kind,
+		token.Location,
+		d.Admin,
+		now,
+	)
 }
 
 func recoverDeviceAdmin(ctx context.Context, q *store.Queries, d store.AuthDevice, now time.Time) error {

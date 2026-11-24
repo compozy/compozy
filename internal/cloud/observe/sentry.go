@@ -33,7 +33,8 @@ type Sentry struct {
 func NewSentry(dsn, environment string) (*Sentry, error) {
 	u, err := url.Parse(dsn)
 	if err != nil || u.Host == "" || u.User == nil || u.User.Username() == "" ||
-		u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "https" && (u.Scheme != "http" || environment != "development")) {
+		u.RawQuery != "" || u.Fragment != "" ||
+		(u.Scheme != "https" && (u.Scheme != "http" || environment != "development")) {
 		return nil, errors.New("invalid Sentry DSN")
 	}
 	base, project, ok := strings.CutLast(u.Path, "/")

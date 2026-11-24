@@ -211,7 +211,7 @@ func (s *daemonExtensionService) enableDependency(
 ) error {
 	err := s.lifecycle.withName(ctx, name, func() error {
 		if target.profile.ID == extensionDefaultProfileLens().ID {
-			_, err := s.enableTargetUnlocked(ctx, name, contract.EnableExtensionRequest{}, actor, target)
+			_, err := s.enableTargetUnlocked(ctx, name, actor, target)
 			return err
 		}
 		return s.applyProfileEnablement(ctx, name, target.profile.ID, target.profile.Name, true, actor)

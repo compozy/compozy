@@ -28,7 +28,11 @@ func (s *Service) Account(ctx context.Context, principal DevicePrincipal) (remot
 }
 
 func (s *Service) accountSummary(
-	ctx context.Context, q *store.Queries, identity store.AuthAccount, device store.ControlDevice, principal DevicePrincipal,
+	ctx context.Context,
+	q *store.Queries,
+	identity store.AuthAccount,
+	device store.ControlDevice,
+	principal DevicePrincipal,
 ) (remoteproto.AccountSummary, error) {
 	session, err := q.ReadDeviceSession(ctx, principal.SessionID, identity.ID)
 	if err != nil {

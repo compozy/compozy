@@ -151,6 +151,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"misfire_count",
 		"updated_at",
 		"deferred_until",
+		"held_for_sign_in",
 	})
 	assertIndexesPresent(t, globalDB.db, "automation_jobs",
 		"uq_automation_jobs_global_name",

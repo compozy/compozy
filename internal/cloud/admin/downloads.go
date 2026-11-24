@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/cloud/store"
 )
@@ -101,11 +102,9 @@ func contactsCSV(contacts []store.AdminContact) ([]byte, error) {
 }
 
 func csvText(s string) string {
-	for _, first := range strings.TrimLeftFunc(s, unicode.IsSpace) {
-		if strings.ContainsRune("=+-@", first) {
-			return "'" + s
-		}
-		break
+	first, _ := utf8.DecodeRuneInString(strings.TrimLeftFunc(s, unicode.IsSpace))
+	if strings.ContainsRune("=+-@", first) {
+		return "'" + s
 	}
 	return s
 }

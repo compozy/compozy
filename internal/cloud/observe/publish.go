@@ -76,14 +76,14 @@ func (p *Publisher) Publish(ctx context.Context, at time.Time, samples []Sample)
 	req.Header.Set("X-Prometheus-Remote-Write-Version", "0.1.0")
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return errors.New("Grafana Cloud remote-write request failed")
+		return errors.New("send remote-write request to Grafana Cloud")
 	}
 	defer func() {
 		_, err := io.Copy(io.Discard, resp.Body)
 		retErr = errors.Join(retErr, err, resp.Body.Close())
 	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("Grafana Cloud remote-write returned HTTP %d", resp.StatusCode)
+		return fmt.Errorf("remote-write request to Grafana Cloud returned HTTP %d", resp.StatusCode)
 	}
 	return nil
 }

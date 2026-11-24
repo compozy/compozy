@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/testutil"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
@@ -29,8 +30,8 @@ func TestGlobalDBIngressLifecycle(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(first) error = %v", err)
 		}
 		at := time.Date(2026, 8, 6, 11, 0, 0, 0, time.UTC)
-		endpoint, changed, err := syncIngressEndpointForTest(first,
-			ctx, "https://gateway.example.test", at,
+		endpoint, changed, err := syncIngressEndpointForTest(ctx, first,
+			"https://gateway.example.test", at,
 		)
 		if err != nil || !changed || endpoint.Generation != 1 || !endpoint.Reachable {
 			t.Fatalf("SyncIngressEndpoint(first) = (%#v, %t, %v)", endpoint, changed, err)
@@ -55,8 +56,8 @@ func TestGlobalDBIngressLifecycle(t *testing.T) {
 		if persisted.URL != endpoint.URL || persisted.Generation != 1 || !persisted.Reachable {
 			t.Fatalf("reopened endpoint = %#v, want stable generation 1", persisted)
 		}
-		stable, changed, err := syncIngressEndpointForTest(reopened,
-			ctx, endpoint.URL, at.Add(time.Minute),
+		stable, changed, err := syncIngressEndpointForTest(ctx, reopened,
+			endpoint.URL, at.Add(time.Minute),
 		)
 		if err != nil || changed || stable.Generation != 1 {
 			t.Fatalf("SyncIngressEndpoint(reopened stable) = (%#v, %t, %v)", stable, changed, err)
@@ -69,20 +70,20 @@ func TestGlobalDBIngressLifecycle(t *testing.T) {
 		ctx := testutil.Context(t)
 		at := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
 
-		first, changed, err := syncIngressEndpointForTest(database,
-			ctx, "https://gateway.example.test", at,
+		first, changed, err := syncIngressEndpointForTest(ctx, database,
+			"https://gateway.example.test", at,
 		)
 		if err != nil || !changed || first.Generation != 1 {
 			t.Fatalf("SyncIngressEndpoint(first) = (%#v, %t, %v), want generation 1 changed", first, changed, err)
 		}
-		stable, changed, err := syncIngressEndpointForTest(database,
-			ctx, "https://gateway.example.test", at.Add(time.Minute),
+		stable, changed, err := syncIngressEndpointForTest(ctx, database,
+			"https://gateway.example.test", at.Add(time.Minute),
 		)
 		if err != nil || changed || stable.Generation != 1 {
 			t.Fatalf("SyncIngressEndpoint(stable) = (%#v, %t, %v), want generation 1 unchanged", stable, changed, err)
 		}
-		moved, changed, err := syncIngressEndpointForTest(database,
-			ctx, "https://gateway-two.example.test", at.Add(2*time.Minute),
+		moved, changed, err := syncIngressEndpointForTest(ctx, database,
+			"https://gateway-two.example.test", at.Add(2*time.Minute),
 		)
 		if err != nil || !changed || moved.Generation != 2 {
 			t.Fatalf("SyncIngressEndpoint(changed) = (%#v, %t, %v), want generation 2 changed", moved, changed, err)
@@ -493,13 +494,17 @@ func assertNoIngressBindingRow(
 }
 
 func syncIngressEndpointForTest(
-	database *GlobalDB, ctx context.Context, url string, at time.Time,
+	ctx context.Context, database *GlobalDB, url string, at time.Time,
 ) (ingress.EndpointState, bool, error) {
 	previous, err := database.GetIngressEndpoint(ctx)
 	if err != nil && !errors.Is(err, ingress.ErrEndpointUnverified) {
 		return ingress.EndpointState{}, false, err
 	}
-	if err := database.SyncRemoteIngressEndpoint(ctx, ingress.RemoteEndpoint{Base: url, Managed: true, Reachable: true}, at); err != nil {
+	if err := database.SyncRemoteIngressEndpoint(
+		ctx,
+		ingress.RemoteEndpoint{Base: url, Managed: true, Reachable: true},
+		at,
+	); err != nil {
 		return ingress.EndpointState{}, false, err
 	}
 	current, err := database.GetIngressEndpoint(ctx)
@@ -534,7 +539,12 @@ func TestIngressBindingGatewayUpgrade(t *testing.T) {
 				"endpoint_generation": 3, "confirmed_at": created,
 			})
 		}
-		if err := prior.Close(); err != nil {
+		telemetry, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		bindErr := bindTelemetryDestination(ctx, prior, telemetry.DB())
+		if err := errors.Join(bindErr, telemetry.Close(ctx), prior.Close()); err != nil {
 			t.Fatal(err)
 		}
 		database, err := openGlobalMigrationUpgrade(t, path)
@@ -568,7 +578,12 @@ func TestIngressBindingGatewayUpgrade(t *testing.T) {
 			t.Fatalf("retained ingress triggers = %d, %v", triggerCount, err)
 		}
 		deleteIngressResourceRecord(ctx, t, database, "automation.trigger", "trigger-delete")
-		assertNoIngressBindingRow(ctx, t, database, ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: "trigger-delete"})
+		assertNoIngressBindingRow(
+			ctx,
+			t,
+			database,
+			ingress.SubjectRef{Kind: ingress.SubjectWebhookTrigger, ID: "trigger-delete"},
+		)
 
 		manager, err := ingress.NewManager(database, nil, nil, nil, nil)
 		if err != nil {

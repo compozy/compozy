@@ -114,7 +114,7 @@ func (i stripeInvoice) annualRenewal(annual string) bool {
 }
 
 func (s *Stripe) lastPaidInvoice(ctx context.Context, subscription string) (stripeInvoice, bool, error) {
-	params := url.Values{"status": {stripeStatusPaid}, "subscription": {subscription}, "limit": {"100"}}
+	params := url.Values{"status": {stripeStatusPaid}, "subscription": {subscription}, stripeLimitParam: {"100"}}
 	var latest stripeInvoice
 	paid := 0
 	for {

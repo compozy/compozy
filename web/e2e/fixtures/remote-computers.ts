@@ -65,7 +65,6 @@ interface RemoteComputersLab {
   project_file_content?: string;
   edge_port?: number;
   hosted_url?: string;
-  hosted_proxy?: string;
   stripe_url?: string;
 }
 

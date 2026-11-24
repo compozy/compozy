@@ -115,7 +115,7 @@ func (c *Client) deleteTunnel(
 	}
 	if id != "" {
 		record, err := c.findRecord(ctx, hostname, id)
-		if err != nil && !(preserveOtherDNS && errors.Is(err, ErrOutsideDomain)) {
+		if err != nil && (!preserveOtherDNS || !errors.Is(err, ErrOutsideDomain)) {
 			return err
 		}
 		if record.ID != "" {

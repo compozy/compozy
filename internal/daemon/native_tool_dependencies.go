@@ -93,7 +93,6 @@ type daemonNativeToolsDeps struct {
 	Remote               core.RemoteHostService
 	Account              core.AccountService
 	Computers            func() core.ComputersService
-	Ingress              func() core.IngressService
 	HomePaths            compozyconfig.HomePaths
 	Observer             core.Observer
 	HookBindings         hookBindingPublisher
@@ -143,11 +142,4 @@ func (d *daemonNativeToolsDeps) agentSkills() agentSkillPublisher {
 		}
 	}
 	return d.AgentSkills
-}
-
-func (d *daemonNativeToolsDeps) ingressService() core.IngressService {
-	if d == nil || d.Ingress == nil {
-		return nil
-	}
-	return d.Ingress()
 }

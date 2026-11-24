@@ -3411,7 +3411,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
 		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
-		removeRetiredGatewaySchemas(baseline)
+		removeRetiredGatewaySchemas(t, baseline)
 		addMCPHotActivationSchemas(t, baseline, current)
 		addMarketplacePluginCatalogSchemas(baseline)
 		oldComponents["ExtensionValidatePayload"].(map[string]any)["properties"].(map[string]any)["inputs"] = map[string]any{
@@ -7524,9 +7524,22 @@ func addMCPReloadErrorFields(value any) int {
 }
 
 // ADR-002 removes the Gateway routes and the fields carrying its runtime state and consent.
-func removeRetiredGatewaySchemas(baseline map[string]any) {
+func removeRetiredGatewaySchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
 	paths := baseline["paths"].(map[string]any)
 	maps.DeleteFunc(paths, func(path string, _ any) bool { return strings.HasPrefix(path, "/api/gateway/") })
+	for path, method := range map[string]string{
+		"/api/extensions/update": "post",
+		"/api/extensions/{name}": "put",
+	} {
+		operation := paths[path].(map[string]any)[method].(map[string]any)
+		responses := operation["responses"].(map[string]any)
+		conflict, ok := responses["409"].(map[string]any)
+		if !ok || conflict["description"] != "Gateway confirmation required" {
+			t.Fatalf("%s %s has unexpected historical conflict response: %v", method, path, conflict)
+		}
+		delete(responses, "409")
+	}
 	schemas := baseline["components"].(map[string]any)["schemas"].(map[string]any)
 	maps.DeleteFunc(schemas, func(name string, _ any) bool { return strings.HasPrefix(name, "Gateway") })
 	var visit func(any)

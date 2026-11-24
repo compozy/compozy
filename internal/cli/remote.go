@@ -13,8 +13,10 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
+const remoteCommandName = "remote"
+
 func newRemoteCommand(deps commandDeps) *cobra.Command {
-	cmd := &cobra.Command{Use: "remote", Short: "Manage access to this computer"}
+	cmd := &cobra.Command{Use: remoteCommandName, Short: "Manage access to this computer"}
 	cmd.AddCommand(
 		newRemoteLinkCommand(deps),
 		remoteVerb(deps, "status", "Show remote access status", cobra.NoArgs, runRemoteStatus),

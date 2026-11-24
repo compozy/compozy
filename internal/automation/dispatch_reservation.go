@@ -22,6 +22,8 @@ func WithDispatcherSignInWait(wait func(context.Context) error) DispatcherOption
 	return func(d *Dispatcher) { d.waitForSignIn = wait }
 }
 
+const runAttributionRecorded = "recorded"
+
 func (d *Dispatcher) checkLocalExecution() error {
 	if d.localExecution == nil {
 		return nil
@@ -71,7 +73,7 @@ func (d *Dispatcher) recordSignInSkip(ctx context.Context, req DispatchRequest) 
 	now := d.now()
 	run, err := d.runs.CreateRun(ctx, Run{
 		ProfileID: req.profileID(), WorkspaceID: new(req.Trigger.WorkspaceID), TriggerID: req.Trigger.ID,
-		Attribution: "recorded", Status: RunCancelled, Attempt: 1, StartedAt: &now, EndedAt: &now,
+		Attribution: runAttributionRecorded, Status: RunCancelled, Attempt: 1, StartedAt: &now, EndedAt: &now,
 		Metadata: map[string]any{SchedulerSkipReasonMetadataKey: string(SchedulerSkipReasonSignInRequired)},
 	})
 	if err != nil {
@@ -197,7 +199,7 @@ func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attemp
 	now := d.now()
 	run := Run{
 		ProfileID:   req.profileID(),
-		Attribution: "recorded",
+		Attribution: runAttributionRecorded,
 		Status:      RunScheduled,
 		Attempt:     attempt,
 		StartedAt:   new(now),

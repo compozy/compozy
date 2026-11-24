@@ -27,12 +27,17 @@ type Metrics struct {
 func NewMetrics() *Metrics {
 	m := &Metrics{values: make(map[string]Sample)}
 	m.add("cloud_stripe_webhook_failures_total", nil, 0)
+	const providerMetricLabel = "provider"
 	for _, provider := range [...]string{"github", "google"} {
 		for _, outcome := range [...]string{"ok", "error"} {
-			m.add("cloud_sign_ins_total", Labels{"provider": provider, "result": outcome, "new_account": "false"}, 0)
+			m.add(
+				"cloud_sign_ins_total",
+				Labels{providerMetricLabel: provider, "result": outcome, "new_account": "false"},
+				0,
+			)
 		}
-		m.add("cloud_sign_ins_total", Labels{"provider": provider, "result": "ok", "new_account": "true"}, 0)
-		m.add("cloud_new_accounts_total", Labels{"provider": provider}, 0)
+		m.add("cloud_sign_ins_total", Labels{providerMetricLabel: provider, "result": "ok", "new_account": "true"}, 0)
+		m.add("cloud_new_accounts_total", Labels{providerMetricLabel: provider}, 0)
 	}
 	return m
 }

@@ -60,7 +60,6 @@ type scenarioManifest struct {
 	ProjectFileContent string           `json:"project_file_content,omitempty"`
 	EdgePort           int              `json:"edge_port,omitempty"`
 	HostedURL          string           `json:"hosted_url,omitempty"`
-	HostedProxy        string           `json:"hosted_proxy,omitempty"`
 	StripeURL          string           `json:"stripe_url,omitempty"`
 }
 
@@ -245,15 +244,28 @@ func prepareAccountHost(f *fixture, db *remotetest.Database, cloudURL, mock stri
 		}
 		m.SessionID, m.SessionTitle, m.WorkspaceID = session.ID, searchTitle, session.WorkspaceID
 		if m.Scenario == remoteSession {
-			cliJSON[contract.Computer](f, m.Controller, cloudURL, "computer", "add", "account", string(linked.ComputerID))
+			cliJSON[contract.Computer](
+				f,
+				m.Controller,
+				cloudURL,
+				"computer",
+				"add",
+				"account",
+				string(linked.ComputerID),
+			)
 			controllerClient := httpClientFor(m.Controller)
 			defer controllerClient.CloseIdleConnections()
 			path := contract.ComputersPath + "/" + string(linked.ComputerID)
-			remotetest.Await(f, "controller's direct connection to remote host", 20*time.Second, func(ctx context.Context) bool {
-				var view contract.Computer
-				return requestJSON(ctx, controllerClient, http.MethodGet, path, nil, &view) == nil &&
-					view.Status == "connected"
-			})
+			remotetest.Await(
+				f,
+				"controller's direct connection to remote host",
+				20*time.Second,
+				func(ctx context.Context) bool {
+					var view contract.Computer
+					return requestJSON(ctx, controllerClient, http.MethodGet, path, nil, &view) == nil &&
+						view.Status == "connected"
+				},
+			)
 		}
 	}
 	m.Computers = []computerTarget{target}

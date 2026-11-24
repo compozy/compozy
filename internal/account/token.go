@@ -22,11 +22,11 @@ func (s *Service) startToken(ctx context.Context) error {
 	if _, ok := s.cloud.(tokenCloud); !ok {
 		s.token = ""
 	}
-	if s.installation.State == SignedIn && s.installation.Source != "token" {
+	if s.installation.State == SignedIn && s.installation.Source != SourceToken {
 		s.token = ""
 		return nil
 	}
-	if s.token == "" && s.installation.Source == "token" {
+	if s.token == "" && s.installation.Source == SourceToken {
 		token, err := s.credentials.read(tokenEntry, s.installation.InstallationID)
 		if errors.Is(err, keyring.ErrNotFound) {
 			return s.signedOutLocked(ctx, ReauthRequired, "session_invalid")
@@ -50,7 +50,7 @@ func (s *Service) exchangeToken(ctx context.Context) {
 	s.mu.Lock()
 	current, token := s.installation, s.token
 	s.mu.Unlock()
-	if token == "" || (current.State == SignedIn && current.Source != "token") {
+	if token == "" || (current.State == SignedIn && current.Source != SourceToken) {
 		return
 	}
 	result, err := cloud.ExchangeAccountToken(ctx, token, current.InstallationID)
@@ -59,9 +59,9 @@ func (s *Service) exchangeToken(ctx context.Context) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if failure, ok := errors.AsType[*cloudclient.Failure](err); ok && failure.Code == "reauth_required" {
+	if failure, ok := errors.AsType[*cloudclient.Failure](err); ok && failure.Code == string(ReauthRequired) {
 		switch failure.Reason {
-		case "token_revoked", "account_suspended", "account_deleted":
+		case "token_revoked", reasonAccountSuspended, reasonAccountDeleted:
 			if saveErr := s.signedOutLocked(ctx, ReauthRequired, failure.Reason); saveErr != nil {
 				s.postponeRefreshLocked(saveErr)
 				return
@@ -90,7 +90,7 @@ func (s *Service) saveTokenIdentityLocked(ctx context.Context, result remoteprot
 		return err
 	}
 	next.LastValidatedAt = s.clock.Now()
-	if next.State == SignedIn && next.Source == "token" && next.AccountID == result.AccountID &&
+	if next.State == SignedIn && next.Source == SourceToken && next.AccountID == result.AccountID &&
 		next.TokenName == result.TokenName && next.Profile.Email == result.Email {
 		if err := s.store.SaveInstallationAccount(ctx, next.AuthGeneration, next); err != nil {
 			return err
@@ -99,7 +99,7 @@ func (s *Service) saveTokenIdentityLocked(ctx context.Context, result remoteprot
 		s.retryAt, s.backoff, s.retryErr = time.Time{}, 0, nil
 		return nil
 	}
-	next.State, next.Source, next.SignedOutReason = SignedIn, "token", ""
+	next.State, next.Source, next.SignedOutReason = SignedIn, SourceToken, ""
 	next.AccountID, next.TokenName = result.AccountID, result.TokenName
 	next.Profile = remoteproto.AccountSummary{Email: result.Email}
 	if err := s.transitionLocked(ctx, next, deviceSession{}); err != nil {

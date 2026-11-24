@@ -9,16 +9,8 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-func (s *daemonExtensionService) enableUnlocked(
-	ctx context.Context, name string, req contract.EnableExtensionRequest, actor taskpkg.ActorContext,
-) (contract.ExtensionEnableResult, error) {
-	return s.enableTargetUnlocked(
-		ctx, name, req, actor, extensionMutationTarget{profile: extensionDefaultProfileLens()},
-	)
-}
-
 func (s *daemonExtensionService) enableTargetUnlocked(
-	ctx context.Context, name string, req contract.EnableExtensionRequest, actor taskpkg.ActorContext,
+	ctx context.Context, name string, actor taskpkg.ActorContext,
 	target extensionMutationTarget,
 ) (contract.ExtensionEnableResult, error) {
 	var result contract.ExtensionEnableResult
