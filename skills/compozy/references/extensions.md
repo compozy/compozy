@@ -57,9 +57,13 @@ state. Read the fresh detail when following events; the creation result can prec
 
 Native manifests declare install values with `[[inputs]]`: unique `id`, `prompt`,
 `type = string|identifier|boolean|secret`, `required`, and `binding = {type, name}`.
-An `env` binding must match a server's `env` or `secret_env` key; the map value is the input id.
-A `url_query` binding must match a parameter declared in a remote server URL. Secrets require
-`secret_env`, cannot bind URLs, and cannot have defaults. Boolean defaults are booleans; other
+An `env` binding must match a server's `env` or `secret_env` key (the map value is the input id),
+or name an author-declared `requires_env` entry; the latter delivers the value to the extension
+subprocess as that env var and needs `min_compozy_version >= 0.7.9` when no server references it.
+SDK-built extensions declare the same inputs with `inputs` (TS) / `Inputs` (Go); `build` writes them
+into the generated manifest.
+A `url_query` binding must match a parameter declared in a remote server URL. Server-bound secrets
+require `secret_env`; secrets cannot bind URLs or have defaults. Boolean defaults are booleans; other
 non-secret defaults are strings. Values are NUL-free and at most 8 KiB; identifier values use
 URL-safe unreserved characters.
 
@@ -84,9 +88,18 @@ extension/profile/workspace under `vault:extensions/`; manual MCP references are
 Install typed values with `compozy extension install compozy/supabase --input project_ref=my-project`.
 Use `--input-file` for structured value/vault_ref envelopes; existing scoped extension-secret refs
 stay in that instance. The CLI derives types from the manifest. Required-field failures include
-`inputs` and candidate `input_definitions` in `extension_inputs_required`; prompt for those fields
-and retry the same scoped request. Inputs remain isolated by profile: an unconfigured profile
+`inputs` and candidate `input_definitions` in `extension_inputs_required`, plus the acquired package
+digest in `fetched_digest`; prompt for those fields and retry the same scoped request with
+`expected_digest` set to it, so the values reach only the package the refusal described. Inputs remain isolated by profile: an unconfigured profile
 publishes no packaged MCPs and does not block installation or restart in a configured profile.
+Subprocess inputs share this gate and the same `inputs`/`input_definitions` lists. Their values,
+non-secret ones included, are stored as instance env bindings in the Vault, so
+`compozy extension secrets set <name> --env <KEY>` also satisfies them, and `secrets unset` removes
+the value for the process and its MCP servers until it is written again; removing the installation
+discards it. Launch injects the bound
+value or the input default; the daemon environment never reaches the subprocess and never satisfies
+a subprocess-only input. A stored value that no longer fits a changed input type reads invalid:
+required ones block enable, optional ones are omitted from the process and its MCP servers.
 `extension_input_invalid` names the invalid input_id, and
 `extension_source_changed` requires reviewing the current artifact before retrying.
 
@@ -197,9 +210,39 @@ Every catalog entry has exactly one category id: `productivity`, `communication`
   install, the result is still success (`201`, exit 0) with `extension.enabled: false` and
   `enable_error {error, code}`; the package stays installed. Retry with
   `compozy extension enable <name>` / `compozy__extensions_enable`.
-- Setup state after Add: missing inputs via `compozy extension status <name>` /
-  `compozy__extensions_info`, servers waiting for sign-in via `compozy__mcp_auth_status`, then
+- Setup state after Add: read input state with `compozy extension setup <name> -o json`,
+  `compozy__extensions_setup {name}` or `GET /api/extensions/{name}/inputs`, servers waiting for sign-in via `compozy__mcp_auth_status`, then
   `compozy mcp auth login <server>`. Do not report a plugin as ready from install success alone.
+  Each input has `state`: `set` (binding, stored value or default), `missing`, `invalid` (stored value
+  fails the current type) or `daemon_env` (an MCP server also consumes it and only the daemon
+  environment satisfies it; still ready, but an extension process that uses it does not receive it). Key prompts
+  off `state`, never off the `set` boolean, which stays true for `daemon_env`. `missing` lists required
+  inputs only; `missing_env` lists bare `requires_env` keys for `secrets set`; `mcp_auth_servers` lists
+  OAuth servers needing sign-in. Values and Vault references are never returned.
+- Complete inputs with `compozy__extensions_setup {name, inputs}` or `PUT /api/extensions/{name}/inputs`
+  (`{"inputs": {...}}`, same value/vault_ref envelopes as install, same scope/workspace/profile
+  selectors). Writes merge: omitted inputs keep their value. The result adds `changed` and `reloaded`;
+  an enabled instance restarts only when a value changed, a disabled one stays disabled, and the
+  installed version, attachments and enablement never change. A development (`extension dev`) base
+  keeps its launch values and reports `reloaded: false` until `extension dev reload`. Only that
+  instance's runtime restarts;
+  other profiles, workspaces and extensions keep running. A write that leaves a required subprocess
+  input missing still succeeds with `missing` populated and does not restart. A global installation
+  serves every workspace from one input cell, so a workspace-scoped write to it is refused; set it up
+  with scope global as the operator. The native tool uses the caller's trusted
+  workspace and profile and may write only `missing`, `invalid` or `daemon_env` inputs; including a
+  `set` input refuses the whole call with `extension_input_overwrite_denied` (`input_ids`), nothing
+  written. Changing a set value is operator-only. A call without `inputs` is a read for approvals.
+- Operator CLI: `compozy extension setup <name> [--scope global|workspace] [--workspace <ref>]
+  [--profile <name>]` prompts on a terminal for required `missing`/`invalid` inputs and every
+  `daemon_env` input (Enter keeps a `daemon_env` input unbound and says so); `--all` revisits every input,
+  Enter keeping `set` values; `--input id=value`/`--input-file f.json` write without prompting;
+  `-o json|toon` never prompts. Exit 0 when nothing required is missing or for any structured read, 2
+  when required inputs stay missing in human output or a value is invalid, 1 otherwise. The output ends
+  with `Sign in: compozy mcp auth login <server>` when an input feeds an OAuth server. `compozy extension
+  install` on a terminal prompts for the inputs an `extension_inputs_required` refusal lists and retries,
+  pinned to the refused package's `fetched_digest` when no digest was pinned;
+  without a terminal or with structured output it keeps the `--input` guidance and exit 2.
 
 Plugin sources accept `url` and `git-subdir` source objects and the Codex index
 `.agents/plugins/marketplace.json`; an unreadable shape is reported as `unsupported_source`.

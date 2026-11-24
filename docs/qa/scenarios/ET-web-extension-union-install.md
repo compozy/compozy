@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: web/src/systems/marketplace/components/extension-install-dialog.tsx;web/src/systems/marketplace/components/extension-install-model.ts;web/e2e/__tests__/extensions.spec.ts;/Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/browser/extension-management.json;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa;/Users/pedronauck/dev/qa-labs/compozy-go-modernization-closeout-20260804-121411-946266-lab/qa-artifacts/qa/evidence/extensions-closeout.json;/Users/pedronauck/dev/qa-labs/compozy-go-modernization-closeout-20260804-121411-946266-lab/qa-artifacts/qa/screenshots
-last_report: docs/qa/reports/2026-08-20-pr-440-coderabbit.md
+evidence: docs/qa/evidence/2026-11-22-gh-1845-pr-a/screenshots
+last_report: docs/qa/reports/2026-11-22-gh-1845-pr-a-extension-inputs.md
 overlaps: ET-web-extensions-manage; ET-extension-published-source-installs
 ---
 
@@ -41,3 +41,15 @@ Git recovery state are linked above.
 QA impact 2026-09-28 (ui-normie-pass): Version, Asset and "Allow an unverified package" now sit under a
 closed "More options" fold in the install dialog; open it before setting them. Request shape is unchanged.
 The description reads "Install from GitHub, a git link, or a folder on this computer." Reset to untested.
+
+QA impact 2026-11-22 (GH-1845 subprocess inputs): inputs bound to the extension subprocess now arrive
+in preview `inputs` and in the `extension_inputs_required` refusal's `input_definitions` next to MCP
+inputs, and the same input form renders them (secret masked, boolean as a switch). No form change
+ships. Walk an Add of an extension that declares one subprocess-only secret and one MCP input: both
+appear, Add stays disabled until the required ones are filled, the install succeeds, and the
+subprocess input is bound (Installed shows no "Needs setup" notice). Reset to untested.
+
+QA 2026-11-22 (GH-1845 subprocess inputs): the Add of a local extension with one subprocess-only
+secret and MCP inputs rendered both masked secrets and a boolean switch; Install stayed disabled
+until both required secrets were filled, consent ran, the install succeeded and Installed showed
+no Needs setup. Dependency parts are out of scope; source-guidance parts were not re-walked.

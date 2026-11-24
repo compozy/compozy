@@ -1805,7 +1805,7 @@ describe("SessionList subagents", () => {
     expect(clean).not.toHaveAttribute("data-state");
   });
 
-  it("UT-W14: a parent the daemon reports waiting on sessions reads delegated, a running one does not", () => {
+  it("UT-W14: a parent the daemon reports waiting on sessions with live subagents leads with running", () => {
     renderList({
       sessions: [
         row("waiting-parent", { badge: "waiting", waiting_on: "sessions", ...summary(2, 2) }),
@@ -1814,18 +1814,56 @@ describe("SessionList subagents", () => {
     });
 
     const waiting = screen.getByTestId("session-sidebar-session-waiting-parent");
-    const mark = within(waiting).getByRole("img", { name: "Session badge: waiting" });
+    // Its live subagents lift the waiting mark to running (#1926); the word still names its state.
+    const mark = within(waiting).getByRole("img", {
+      name: "Session badge: waiting, working below",
+    });
     expect(mark).toHaveAttribute("data-waiting-on", "sessions");
-    expect(mark.querySelector("[data-state]")).toHaveAttribute("data-state", "delegated");
+    expect(mark.querySelector("[data-state]")).toHaveAttribute("data-state", "running");
     expect(waiting.closest("li") ?? waiting.parentElement!).toHaveTextContent(
       "Waiting on sessions"
     );
-    expect(screen.getAllByRole("button", { name: "2 of 2 subagents running" })[0]).toHaveAttribute(
-      "data-state",
-      "delegated"
-    );
+    // The row's own mark carries the delegated ring; the branch draws escalations only (#1926).
+    expect(
+      screen.getAllByRole("button", { name: "2 of 2 subagents running" })[0]
+    ).not.toHaveAttribute("data-state");
     const working = screen.getByTestId("session-sidebar-session-working-parent");
     expect(within(working).getByRole("img")).toHaveAttribute("data-badge", "running");
+  });
+
+  // Invariant (#1926): running work sits in the row's leading mark column. A resting row
+  // with a running child session or live subagent draws the running glyph there, its own
+  // badge token unchanged; an escalation keeps its tone; the branch toggle draws no running.
+  it("Should lead a resting parent's mark with running work below it", () => {
+    renderList({
+      sessions: [
+        row("idle-parent"),
+        row("kid", { badge: "running", lineage: lineage("idle-parent") }),
+        row("sub-parent", summary(1, 2)),
+        row("asking-parent", { badge: "waiting-for-input", ...summary(1, 1) }),
+        row("quiet-parent", summary(0, 2)),
+      ],
+    });
+    const mark = (id: string) =>
+      within(screen.getByTestId(`session-sidebar-session-${id}`)).getByRole("img", {
+        name: /^Session badge:/,
+      });
+    const glyph = (id: string) => mark(id).querySelector("[data-state]");
+
+    for (const id of ["idle-parent", "sub-parent"]) {
+      expect(mark(id)).toHaveAccessibleName("Session badge: done, working below");
+      expect(mark(id)).toHaveAttribute("data-badge", "done");
+      expect(glyph(id)).toHaveAttribute("data-state", "running");
+    }
+    expect(glyph("asking-parent")).toHaveAttribute("data-state", "attention");
+    expect(mark("asking-parent")).not.toHaveAttribute("data-descendants");
+    expect(glyph("quiet-parent")).toHaveAttribute("data-state", "done");
+    expect(screen.getByTestId("session-sidebar-thread-toggle-idle-parent")).not.toHaveAttribute(
+      "data-state"
+    );
+    expect(screen.getByRole("button", { name: "1 of 2 subagents running" })).not.toHaveAttribute(
+      "data-state"
+    );
   });
 
   it("UT-075: reads the daemon's waiting reason, never a client guess from monitors or subagents", () => {
@@ -3270,6 +3308,78 @@ describe("SessionList folders and manual order", () => {
     expect(screen.getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
   });
 
+  // Invariant (#1926): a collapsed folder shows its members' running work in the leading
+  // column, where the chevron sits at rest; an open folder shows its rows instead.
+  it("Should lead a collapsed folder with its running signal", async () => {
+    const user = userEvent.setup();
+    const rows = layoutRows.map(session => ({
+      ...session,
+      state: "active" as const,
+      badge: session.id === "f1" ? ("running" as const) : ("done" as const),
+    }));
+    renderList({ sessions: rows, view: { ...view, sort: "manual", layout: fakeLayout() } });
+    const alpha = screen.getByTestId("session-sidebar-folder-fa-toggle");
+    const working = { name: "1 session working" };
+    expect(within(alpha).queryByRole("img", working)).not.toBeInTheDocument();
+
+    await user.click(alpha);
+    expect(alpha).toHaveAttribute("aria-expanded", "false");
+    expect(
+      within(alpha.firstElementChild as HTMLElement).getByRole("img", working)
+    ).toBeInTheDocument();
+    // Keyboard focus brings the chevron back; the running name stays announced on the toggle.
+    act(() => alpha.focus());
+    expect(alpha).toHaveFocus();
+    expect(alpha).toHaveAccessibleName(/1 session working/);
+    await user.click(screen.getByTestId("session-sidebar-folder-fb-toggle"));
+    expect(
+      within(screen.getByTestId("session-sidebar-folder-fb-toggle")).queryByRole("img")
+    ).not.toBeInTheDocument();
+  });
+
+  // Invariant (#1926): a collapsed paged folder loads its count only, so its leading
+  // running glyph comes from the daemon's working count, not from rows it never loads.
+  it("Should lead a collapsed paged folder with the daemon's working count", () => {
+    const roots = layoutRows.filter(row => !row.folder_id);
+    const countOnly = (total: number, working: number) => ({
+      ...sessionListCatalogFixture({ total, working }),
+      countOnly: true,
+      showNavigation: false,
+    });
+    renderList({
+      sessions: roots,
+      view: {
+        ...view,
+        sort: "manual",
+        layout: fakeLayout(),
+        partitions: new Map([
+          [
+            "@root",
+            {
+              ...sessionListCatalogFixture({ sessions: roots, total: roots.length, working: 0 }),
+              countOnly: false,
+              showNavigation: false,
+            },
+          ],
+          ["fa", countOnly(3, 2)],
+          ["fb", countOnly(1, 0)],
+        ]),
+        folderOf: new Map(roots.map(row => [row.id, null])),
+      },
+    });
+
+    const alpha = screen.getByTestId("session-sidebar-folder-fa-toggle");
+    expect(alpha).toHaveAttribute("aria-expanded", "false");
+    expect(
+      within(alpha.firstElementChild as HTMLElement).getByRole("img", {
+        name: "2 sessions working",
+      })
+    ).toBeInTheDocument();
+    const beta = screen.getByTestId("session-sidebar-folder-fb-toggle");
+    expect(beta).toHaveAttribute("aria-expanded", "false");
+    expect(within(beta).queryByRole("img")).not.toBeInTheDocument();
+  });
+
   // Invariant: a header toggle takes tree disclosure keys — ArrowLeft collapses,
   // ArrowRight expands, each a no-op in its own state — and is a session-walk stop.
   it("Should collapse and expand a folder from its header with the arrow keys", async () => {
@@ -3351,6 +3461,7 @@ describe("SessionList folders and manual order", () => {
       sessions: layoutRows,
       facets: undefined,
       total: undefined,
+      working: undefined,
       loading: false,
       placeholder: false,
       failed: false,
@@ -4102,6 +4213,70 @@ describe("SessionList breadth and Group by", () => {
     expect(setGroupBy).toHaveBeenCalledWith("project");
   });
 
+  // #1924 (T-09): View options archives the list's stopped threads in its own scope.
+  it.each([
+    {
+      name: "Archive stopped in all projects",
+      scope: { allProjects: true },
+      body: { all_workspaces: true, dry_run: false },
+    },
+    {
+      name: "Archive stopped",
+      scope: { focusedWorkspaceId: "ws-alpha" },
+      body: { workspace_id: "ws-alpha", dry_run: false },
+    },
+  ])("Should offer $name in View options for the list's scope", async ({ name, scope, body }) => {
+    const user = userEvent.setup();
+    let answer!: (response: Response) => void;
+    const reads = globalThis.fetch;
+    // The run is held open so the item reads as in flight; every other read answers as before.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>((input, init) =>
+        new URL((input as Request).url).pathname === "/api/sessions/archive-stopped"
+          ? new Promise(resolve => (answer = resolve))
+          : reads(input, init)
+      )
+    );
+    try {
+      renderList({ view: { ...view, ...scope } });
+      await user.click(screen.getByRole("button", { name: "View options" }));
+      await user.click(await screen.findByRole("menuitem", { name }));
+
+      const sent = await waitFor(() => {
+        const request = vi
+          .mocked(globalThis.fetch)
+          .mock.calls.map(([input]) => input as Request)
+          .find(input => new URL(input.url).pathname === "/api/sessions/archive-stopped");
+        expect(request).toBeDefined();
+        return request!;
+      });
+      expect(new URL(sent.url).search).toBe("?profile=default");
+      expect(sent.method).toBe("POST");
+      expect(await sent.clone().json()).toEqual(body);
+      await user.click(screen.getByRole("button", { name: "View options" }));
+      expect(await screen.findByRole("menuitem", { name })).toHaveAttribute(
+        "aria-disabled",
+        "true"
+      );
+      answer(Response.json({ archived: [], skip_counts: {}, failures: [] }));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each<{ case: string; patch: Partial<SessionListViewModel> }>([
+    { case: "the archive shelf", patch: { allProjects: true, shelf: "archive" } },
+    { case: "All profiles", patch: { allProjects: true, aggregate: true, scopeLabel: null } },
+    { case: "the User scope", patch: { allProjects: false, focusedWorkspaceId: "@user" } },
+  ])("Should not offer Archive stopped on $case", async ({ patch }) => {
+    const user = userEvent.setup();
+    renderList({ view: { ...view, ...patch } });
+    await user.click(screen.getByRole("button", { name: "View options" }));
+    expect(await screen.findByRole("menuitemradio", { name: "Created" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /^Archive stopped/ })).not.toBeInTheDocument();
+  });
+
   // #1846: the toolbar's fold control is a menu; its name and checked item say the current depth.
   it.each([
     { foldAll: null, name: "Expand or collapse", checked: "nothing", pick: "Expand groups" },
@@ -4375,6 +4550,38 @@ describe("SessionList breadth and Group by", () => {
 
     await user.click(beta);
     expect(toggleGroup).toHaveBeenCalledWith("project:ws-beta");
+  });
+
+  // Invariant (#1926): a collapsed group's leading column carries one glyph with the rows'
+  // precedence, needs you over running, named for both; the right keeps no needs-you dot.
+  it("Should lead a collapsed group with needs-you over running, named for both", async () => {
+    const groups = projectSessionGroups(
+      {
+        by_workspace: [
+          { workspace_id: "ws-alpha", facets: { ...facet(1), working: 1 } },
+          { workspace_id: "ws-beta", facets: { ...facet(4, 2), working: 3 } },
+        ],
+      },
+      { workspaces: WORKSPACES, lens: { profile: "default" } }
+    );
+    renderList({
+      sessions: [],
+      view: grouped({
+        groups,
+        collapsedGroupKeys: new Set(["project:ws-alpha", "project:ws-beta"]),
+      }),
+    });
+
+    const beta = await screen.findByTestId("session-sidebar-group-project:ws-beta");
+    const leading = beta.firstElementChild as HTMLElement;
+    const both = within(leading).getByRole("img", { name: "2 need you, 3 sessions working" });
+    expect(leading.querySelector("[data-slot='session-group-needs-you']")).toContainElement(both);
+    expect(beta.querySelectorAll("[data-slot^='session-group-']")).toHaveLength(1);
+    expect(within(beta).queryByRole("img", { name: "2 need you" })).not.toBeInTheDocument();
+    const alpha = screen.getByTestId("session-sidebar-group-project:ws-alpha");
+    expect(
+      within(alpha.firstElementChild as HTMLElement).getByRole("img", { name: "1 session working" })
+    ).toBeInTheDocument();
   });
 
   // Invariant: group headers take the same disclosure keys as folder headers.
@@ -4732,6 +4939,27 @@ describe("SessionList breadth and Group by", () => {
     expect(
       screen.queryByTestId("session-sidebar-project-folder-wf-1-menu-new-session")
     ).not.toBeInTheDocument();
+  });
+
+  // Invariant (#1926): a collapsed project folder leads with its projects' needs-you glyph,
+  // the rows' precedence over running, in the chevron's place.
+  it("Should lead a collapsed project folder with its projects' needs-you signal", async () => {
+    const user = userEvent.setup();
+    const { view: foldered } = projectFoldered([
+      { workspace_id: "ws-beta", folder_id: "wf-1", position: 0 },
+    ]);
+    renderList({ sessions: [], view: foldered });
+    const toggle = await screen.findByTestId("session-sidebar-project-folder-wf-1-toggle");
+    expect(within(toggle).queryByRole("img", { name: "2 need you" })).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(
+      within(toggle.firstElementChild as HTMLElement).getByRole("img", { name: "2 need you" })
+    ).toBeInTheDocument();
+    // Folder folds persist in the sidebar state; reopen so later cases start expanded.
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
   });
 
   it("Should create a project folder from the list's New folder", async () => {

@@ -7,6 +7,44 @@ import (
 	"time"
 )
 
+// ForkLoopRequest is a daemon API value.
+type ForkLoopRequest struct {
+	Generation int64          `json:"generation"`
+	Inputs     map[string]any `json:"inputs,omitempty"`
+	Reason     string         `json:"reason,omitempty"`
+	RequestID  string         `json:"request_id,omitempty"`
+}
+
+// ForkLoopResponse is a daemon API value.
+type ForkLoopResponse struct {
+	Run      LoopRunPayload `json:"run"`
+	Replayed bool           `json:"replayed,omitzero"`
+}
+
+// ForkSessionRequest is a daemon API value.
+type ForkSessionRequest struct {
+	MessageID           string `json:"message_id,omitempty"`
+	Name                string `json:"name,omitempty"`
+	IdempotencyKey      string `json:"idempotency_key"`
+	ExpectedEpoch       *int64 `json:"expected_epoch,omitzero"`
+	ExpectedGeneration  *int64 `json:"expected_generation,omitzero"`
+	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitzero"`
+}
+
+// ForkSessionWorktreeRequest is a daemon API value.
+type ForkSessionWorktreeRequest struct {
+	Worktree    string                     `json:"worktree,omitempty"`
+	NewWorktree *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
+	Confirmed   bool                       `json:"confirmed"`
+}
+
+// FormBody is a daemon API value.
+type FormBody struct {
+	Fields   []FormField `json:"fields"`
+	Submit   *RowAction  `json:"submit,omitempty"`
+	OnSubmit string      `json:"on_submit,omitempty"`
+}
+
 // FormField is a daemon API value.
 type FormField struct {
 	ID          string            `json:"id"`
@@ -385,62 +423,3 @@ type GoalSnapshotChangedPayload struct {
 
 // GoalStatus is a daemon API value.
 type GoalStatus string
-
-// GoalTurn is a daemon API value.
-type GoalTurn struct {
-	Seq            int64                   `json:"seq"`
-	Generation     int64                   `json:"generation"`
-	NodeID         string                  `json:"node_id"`
-	ItemIndex      int                     `json:"item_index"`
-	Turn           int                     `json:"turn"`
-	PromptAttempt  int                     `json:"prompt_attempt"`
-	SessionID      string                  `json:"session_id"`
-	BindingHandle  string                  `json:"binding_handle"`
-	BindingEpoch   int64                   `json:"binding_epoch"`
-	PromptID       string                  `json:"prompt_id"`
-	ResultStatus   *GoalTurnResultStatus   `json:"result_status"`
-	ReasonCode     *GoalReasonCode         `json:"reason_code"`
-	StopReason     *ACPPromptStopReason    `json:"stop_reason"`
-	VerdictOutcome *GoalVerdictOutcome     `json:"verdict_outcome"`
-	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues"`
-	Criteria       []GoalCriterionResult   `json:"criteria"`
-	Warnings       []GoalDiagnosticWarning `json:"warnings"`
-	EvidenceRef    *string                 `json:"evidence_ref"`
-	PromptRef      *string                 `json:"prompt_ref"`
-	TokensUsed     *int64                  `json:"tokens_used"`
-	ActorKind      string                  `json:"actor_kind"`
-	ActorID        string                  `json:"actor_id"`
-	StartedAt      time.Time               `json:"started_at"`
-	EndedAt        *time.Time              `json:"ended_at"`
-}
-
-// GoalTurnPage is a daemon API value.
-type GoalTurnPage struct {
-	Turns        []GoalTurn `json:"turns"`
-	NextAfterSeq *int64     `json:"next_after_seq"`
-}
-
-// GoalTurnResultStatus is a daemon API value.
-type GoalTurnResultStatus string
-
-// GoalVerdictOutcome is a daemon API value.
-type GoalVerdictOutcome string
-
-// GoalVerdictSummary is a daemon API value.
-type GoalVerdictSummary struct {
-	Outcome        GoalVerdictOutcome  `json:"outcome"`
-	BlockingIssues []GoalBlockingIssue `json:"blocking_issues"`
-	EvidenceRef    *string             `json:"evidence_ref"`
-	EvaluatedAt    time.Time           `json:"evaluated_at"`
-}
-
-// Graph is a daemon API value.
-type Graph struct {
-	Nodes []Node `json:"nodes"`
-	Edges []Edge `json:"edges"`
-}
-
-// GridBody is a daemon API value.
-type GridBody struct {
-	Sections []GridSection `json:"sections"`
-}

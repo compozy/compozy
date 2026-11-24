@@ -204,6 +204,7 @@ type extensionManagerDeps struct {
 	ProcessRegistry   *toolruntime.Registry
 	SecretResolver    extensionpkg.SecretRefResolver
 	EnvBindings       extensionpkg.EnvBindingStore
+	InputRows         extensionpkg.InputRowReader
 	LifecycleEvents   extensionpkg.LifecycleEventSink
 	CompozyExecutable func() (string, error)
 }

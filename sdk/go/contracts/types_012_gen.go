@@ -7,6 +7,31 @@ import (
 	"time"
 )
 
+type LoopContext struct {
+	ProfileID       string `json:"profile_id,omitempty"`
+	LoopRunID       string `json:"loop_run_id,omitempty"`
+	ParentLoopRunID string `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID     string `json:"workspace_id,omitempty"`
+	LoopName        string `json:"loop_name,omitempty"`
+	Generation      int    `json:"generation,omitempty"`
+	TaskID          string `json:"task_id,omitempty"`
+	RunID           string `json:"run_id,omitempty"`
+	RunKind         string `json:"run_kind,omitempty"`
+	NodeID          string `json:"node_id,omitempty"`
+	WorkflowID      string `json:"workflow_id,omitempty"`
+	AgentName       string `json:"agent_name,omitempty"`
+	SessionID       string `json:"session_id,omitempty"`
+	ActorKind       string `json:"actor_kind,omitempty"`
+	ActorID         string `json:"actor_id,omitempty"`
+	OriginKind      string `json:"origin_kind,omitempty"`
+	OriginRef       string `json:"origin_ref,omitempty"`
+}
+
+type LoopControlPatch struct {
+	Deny       bool   `json:"deny,omitempty"`
+	DenyReason string `json:"deny_reason,omitempty"`
+}
+
 type LoopGatePostPayload struct {
 	Event           HookEvent `json:"event"`
 	Timestamp       time.Time `json:"timestamp"`
@@ -382,41 +407,6 @@ type MessageEndPayload struct {
 }
 
 type MessagePatch struct {
-	Deny       bool    `json:"deny,omitempty"`
-	DenyReason string  `json:"deny_reason,omitempty"`
-	Role       *string `json:"role,omitempty"`
-	DeltaType  *string `json:"delta_type,omitempty"`
-	Text       *string `json:"text,omitempty"`
-}
-
-type MessagePayload struct {
-	Event           HookEvent       `json:"event"`
-	Timestamp       time.Time       `json:"timestamp"`
-	LineageKind     string          `json:"lineage_kind,omitempty"`
-	ParentSessionID string          `json:"parent_session_id,omitempty"`
-	ProfileID       string          `json:"profile_id,omitempty"`
-	SessionID       string          `json:"session_id,omitempty"`
-	SessionName     string          `json:"session_name,omitempty"`
-	SessionType     string          `json:"session_type,omitempty"`
-	AgentName       string          `json:"agent_name,omitempty"`
-	WorkspaceID     string          `json:"workspace_id,omitempty"`
-	Workspace       string          `json:"workspace,omitempty"`
-	WorktreeID      string          `json:"worktree_id,omitempty"`
-	ACPSessionID    string          `json:"acp_session_id,omitempty"`
-	State           string          `json:"state,omitempty"`
-	SoulSnapshotID  string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest      string          `json:"soul_digest,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
-	TurnID          string          `json:"turn_id,omitempty"`
-	MessageID       string          `json:"message_id,omitempty"`
-	Role            string          `json:"role,omitempty"`
-	DeltaType       string          `json:"delta_type,omitempty"`
-	Text            string          `json:"text,omitempty"`
-	Raw             json.RawMessage `json:"raw,omitempty"`
-}
-
-type MessageStartPatch struct {
 	Deny       bool    `json:"deny,omitempty"`
 	DenyReason string  `json:"deny_reason,omitempty"`
 	Role       *string `json:"role,omitempty"`

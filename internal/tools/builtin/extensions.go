@@ -225,9 +225,10 @@ func extensionDescriptors() []toolspkg.Descriptor {
 	items := make(
 		[]toolspkg.Descriptor,
 		0,
-		len(extensionTools)+len(extensionDistributionTools)+len(extensionBuiltinTools),
+		len(extensionTools)+len(extensionSetupTools)+len(extensionDistributionTools)+len(extensionBuiltinTools),
 	)
 	items = append(items, extensionTools...)
+	items = append(items, extensionSetupTools...)
 	items = append(items, extensionDistributionTools...)
 	items = append(items, extensionBuiltinTools...)
 	return items

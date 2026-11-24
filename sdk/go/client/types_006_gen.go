@@ -421,30 +421,17 @@ type ExtensionInputStatePayload struct {
 	Type   string `json:"type"`
 	Set    bool   `json:"set"`
 	Active bool   `json:"active"`
+	State  string `json:"state,omitempty"`
 }
 
-// ExtensionInstallDeclaredProfilePayload is a daemon API value.
-type ExtensionInstallDeclaredProfilePayload struct {
-	Name        string                         `json:"name"`
-	Create      bool                           `json:"create"`
-	Credentials []ProfileCredentialRequirement `json:"credentials,omitempty"`
-}
-
-// ExtensionInstallPreviewPayload is a daemon API value.
-type ExtensionInstallPreviewPayload struct {
-	DigestSHA256             string                                   `json:"digest_sha256,omitempty"`
-	Inputs                   []MarketplaceInputPayload                `json:"inputs"`
-	Name                     string                                   `json:"name"`
-	DeclaredProfiles         []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
-	Placements               []ExtensionPlacementPayload              `json:"placements"`
-	GatewayRequirementDigest string                                   `json:"gateway_requirement_digest,omitempty"`
-}
-
-// ExtensionInventoryPayload is a daemon API value.
-type ExtensionInventoryPayload struct {
-	Extension   string                    `json:"extension"`
-	Format      string                    `json:"format"`
-	Enabled     bool                      `json:"enabled"`
-	Items       []ExtensionKitItemPayload `json:"items"`
-	Diagnostics []DiagnosticItem          `json:"diagnostics,omitempty"`
+// ExtensionInputStatusPayload is a daemon API value.
+type ExtensionInputStatusPayload struct {
+	ID       string                         `json:"id"`
+	Prompt   string                         `json:"prompt"`
+	Type     string                         `json:"type"`
+	Required bool                           `json:"required"`
+	Binding  MarketplaceInputBindingPayload `json:"binding"`
+	Default  json.RawMessage                `json:"default,omitempty"`
+	Targets  []string                       `json:"targets"`
+	State    string                         `json:"state"`
 }

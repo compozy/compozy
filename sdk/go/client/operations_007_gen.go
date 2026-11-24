@@ -10,6 +10,16 @@ import (
 	"strings"
 )
 
+// DeliverWorkspaceWebhookParams carries the path, query, and header parameters.
+type DeliverWorkspaceWebhookParams struct {
+	WorkspaceID               string  `url:"workspace_id"`
+	Endpoint                  string  `url:"endpoint"`
+	XCompozyWebhookDeliveryID string  `url:"X-Compozy-Webhook-Delivery-ID"`
+	XCompozyWebhookTimestamp  string  `url:"X-Compozy-Webhook-Timestamp"`
+	XCompozyWebhookSignature  string  `url:"X-Compozy-Webhook-Signature"`
+	Profile                   *string `url:"profile"`
+}
+
 // DeliverWorkspaceWebhook Deliver one workspace-scoped automation webhook
 func (c *Client) DeliverWorkspaceWebhook(ctx context.Context, params DeliverWorkspaceWebhookParams, body map[string]any) (*WebhookDeliveryResponse, error) {
 	path := "/api/webhooks/workspaces/{workspace_id}/{endpoint}"
@@ -425,22 +435,4 @@ func (c *Client) EnableSkill(ctx context.Context, params EnableSkillParams) (*Sk
 type EnqueueTaskRunParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// EnqueueTaskRun Enqueue one task run
-func (c *Client) EnqueueTaskRun(ctx context.Context, params EnqueueTaskRunParams, body EnqueueTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/tasks/{id}/runs"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

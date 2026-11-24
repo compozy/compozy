@@ -159,6 +159,28 @@ func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams
 	return &out, nil
 }
 
+// ArchiveStoppedSessionsParams carries the path, query, and header parameters.
+type ArchiveStoppedSessionsParams struct {
+	Profile *string `url:"profile"`
+}
+
+// ArchiveStoppedSessions Archive every stopped thread of one workspace or all workspaces that is not running, waiting on the operator, holding queued input, pinned, in Later, or an always-on agent's main session; dry_run reports the same result without archiving
+func (c *Client) ArchiveStoppedSessions(ctx context.Context, params ArchiveStoppedSessionsParams, body SessionArchiveStoppedRequest) (*SessionArchiveStoppedResponse, error) {
+	path := "/api/sessions/archive-stopped"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionArchiveStoppedResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ArchiveTaskParams carries the path, query, and header parameters.
 type ArchiveTaskParams struct {
 	ID      string  `url:"id"`
@@ -419,28 +441,5 @@ func (c *Client) BulkForceFailTaskRuns(ctx context.Context, params BulkForceFail
 
 // BulkForceReleaseTaskRunsParams carries the path, query, and header parameters.
 type BulkForceReleaseTaskRunsParams struct {
-	Profile *string `url:"profile"`
-}
-
-// BulkForceReleaseTaskRuns Force release a bounded set of claimed task runs
-func (c *Client) BulkForceReleaseTaskRuns(ctx context.Context, params BulkForceReleaseTaskRunsParams, body BulkForceTaskRunRequest) (*BulkForceTaskRunResponse, error) {
-	path := "/api/runs/bulk/release"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out BulkForceTaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CancelAutomationRunParams carries the path, query, and header parameters.
-type CancelAutomationRunParams struct {
-	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
 }

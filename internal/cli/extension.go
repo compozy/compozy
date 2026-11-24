@@ -82,6 +82,7 @@ func newExtensionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newExtensionInventoryCommand(deps))
 	cmd.AddCommand(newExtensionProvenanceCommand(deps))
 	cmd.AddCommand(newExtensionSecretsCommand(deps))
+	cmd.AddCommand(newExtensionSetupCommand(deps))
 	cmd.AddCommand(newExtensionPublishCommand(deps))
 	return cmd
 }
@@ -230,7 +231,17 @@ func runExtensionInstall(
 	}
 	item, err := executeExtensionInstallPlan(cmd.Context(), deps, plan)
 	if err != nil {
-		return err
+		retry, prompted, promptErr := promptExtensionInstallInputs(cmd, deps, plan, err)
+		if promptErr != nil {
+			return promptErr
+		}
+		if !prompted {
+			return err
+		}
+		plan = retry
+		if item, err = executeExtensionInstallPlan(cmd.Context(), deps, plan); err != nil {
+			return err
+		}
 	}
 	report := extensionInstallValidationReport(deps, plan, &item)
 	return writeCommandOutput(cmd, extensionInstallResultBundle(&item, report, f.enable))

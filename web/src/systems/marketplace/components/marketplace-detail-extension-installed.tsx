@@ -1,5 +1,6 @@
 import {
   BadgeCheck,
+  CircleAlert,
   CircleCheck,
   Hand,
   KeyRound,
@@ -9,7 +10,7 @@ import {
   Stethoscope,
 } from "@compozy/ui/icons";
 
-import { MonoId } from "@compozy/ui";
+import { Alert, AlertActions, AlertTitle, Button, MonoId } from "@compozy/ui";
 
 import type { MarketplaceCatalogEntryResponse } from "../types";
 import {
@@ -26,6 +27,7 @@ import { MarketplaceDetailColumns, MarketplaceDetailSection } from "./marketplac
 import { MarketplaceDetailWarnings } from "./marketplace-detail-warnings";
 import { MarketplaceTrustWarningList } from "./marketplace-trust-warning-list";
 import { MarketplaceDetailManageFallbackCard } from "./marketplace-detail-manage-state";
+import { ExtensionSetupDialog } from "./extension-setup-dialog";
 import {
   type ExtensionEntry,
   ExtensionDeclaredProfiles,
@@ -118,11 +120,16 @@ function MarketplaceDetailExtensionInstalled({
         }
         rail={
           <>
+            <MarketplaceExtensionSetupNotice
+              missing={extension.missing_inputs.length}
+              onRequestSetup={state.requestSetup}
+            />
             <MarketplaceExtensionManageCard
               extension={extension}
               facts={facts}
               onRequestProvenance={state.requestProvenance}
               onRequestRemoval={state.requestRemoval}
+              onRequestSetup={state.requestSetup}
               onToggleEnabled={state.requestToggle}
               togglePending={state.toggle.isPending}
             />
@@ -150,6 +157,9 @@ function MarketplaceDetailExtensionInstalled({
           pending={state.update.isPending}
         />
       ) : null}
+      {state.activeDialog === "setup" ? (
+        <ExtensionSetupDialog extension={extension} onClose={state.dismissDialog} />
+      ) : null}
       <ExtensionProvenanceDialog
         extension={extension}
         onOpenChange={open => (open ? state.requestProvenance() : state.dismissDialog())}
@@ -167,6 +177,30 @@ function MarketplaceDetailExtensionInstalled({
 }
 
 type ExtensionDetailState = ReturnType<typeof useExtensionDetailState>;
+
+/** Required inputs the daemon reports unresolved; Set up opens the same dialog as Actions → Setup…. */
+function MarketplaceExtensionSetupNotice({
+  missing,
+  onRequestSetup,
+}: {
+  missing: number;
+  onRequestSetup: () => void;
+}) {
+  if (missing === 0) return null;
+  return (
+    <Alert data-testid="marketplace-extension-setup-notice" role="status" variant="warning">
+      <CircleAlert aria-hidden="true" />
+      <AlertTitle>
+        Needs setup: {missing} required {missing === 1 ? "input" : "inputs"}
+      </AlertTitle>
+      <AlertActions>
+        <Button onClick={onRequestSetup} size="sm" type="button" variant="neutral">
+          Set up
+        </Button>
+      </AlertActions>
+    </Alert>
+  );
+}
 
 function MarketplaceExtensionKitSection({ state }: { state: ExtensionDetailState }) {
   const items = state.inventory.data?.items;

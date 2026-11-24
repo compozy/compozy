@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -42,6 +43,17 @@ func (g *SessionRepo) ArchiveSessionTree(
 	workspaceID string,
 	sessionID string,
 ) (store.SessionTreeArchive, error) {
+	return g.archiveSessionTree(ctx, workspaceID, sessionID, nil)
+}
+
+// archiveSessionTree runs the tree archive transaction; a non-nil recheck runs
+// first inside it and may refuse the archive or narrow the archived members.
+func (g *SessionRepo) archiveSessionTree(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	recheck func(context.Context, globalSQLExecutor, *store.SessionInfo) (map[string]bool, error),
+) (store.SessionTreeArchive, error) {
 	if err := g.checkReady(ctx, "archive session tree"); err != nil {
 		return store.SessionTreeArchive{}, err
 	}
@@ -59,6 +71,12 @@ func (g *SessionRepo) ArchiveSessionTree(
 		if e != nil {
 			return e
 		}
+		var archivable map[string]bool
+		if recheck != nil {
+			if archivable, e = recheck(ctx, exec, &root); e != nil {
+				return e
+			}
+		}
 		if root.Lineage != nil && root.Lineage.SpawnRole == store.SubagentSpawnRole {
 			return store.ErrSubagentArchiveFollowsParent
 		}
@@ -66,25 +84,9 @@ func (g *SessionRepo) ArchiveSessionTree(
 		if e != nil {
 			return e
 		}
-		q := sqlcgen.New(exec)
-		if e := guardInstanceMainArchive(ctx, q, root.ID); e != nil {
+		ids, e := archiveTreeMemberIDs(ctx, sqlcgen.New(exec), &root, descendants)
+		if e != nil {
 			return e
-		}
-		for i := range descendants {
-			if e := guardInstanceMainArchive(ctx, q, descendants[i].ID); e != nil {
-				return e
-			}
-		}
-		if root.State != globalDBSessionStateStopped {
-			return &store.SessionArchiveLiveMemberError{SessionID: root.ID}
-		}
-		ids := make([]string, 1, len(descendants)+1)
-		ids[0] = root.ID
-		for i := range descendants {
-			if descendants[i].State != globalDBSessionStateStopped {
-				return &store.SessionArchiveLiveMemberError{SessionID: descendants[i].ID}
-			}
-			ids = append(ids, descendants[i].ID)
 		}
 		encoded, e := subagentIDsJSON(ids)
 		if e != nil {
@@ -99,13 +101,50 @@ func (g *SessionRepo) ArchiveSessionTree(
 		if result.Root, e = sessionInWorkspace(ctx, exec, workspaceID, sessionID); e != nil {
 			return e
 		}
-		result.Descendants, e = sessionTreeDescendants(ctx, exec, workspaceID, sessionID)
-		return e
+		if result.Descendants, e = sessionTreeDescendants(ctx, exec, workspaceID, sessionID); e != nil {
+			return e
+		}
+		if archivable != nil {
+			result.Descendants = slices.DeleteFunc(result.Descendants, func(member store.SessionInfo) bool {
+				return !archivable[member.ID]
+			})
+		}
+		return nil
 	})
 	if err != nil {
 		return store.SessionTreeArchive{}, err
 	}
 	return result, nil
+}
+
+// archiveTreeMemberIDs refuses a tree holding an instance main session or a
+// live member and returns its member IDs, root first.
+func archiveTreeMemberIDs(
+	ctx context.Context,
+	q *sqlcgen.Queries,
+	root *store.SessionInfo,
+	descendants []store.SessionInfo,
+) ([]string, error) {
+	if err := guardInstanceMainArchive(ctx, q, root.ID); err != nil {
+		return nil, err
+	}
+	for i := range descendants {
+		if err := guardInstanceMainArchive(ctx, q, descendants[i].ID); err != nil {
+			return nil, err
+		}
+	}
+	if root.State != globalDBSessionStateStopped {
+		return nil, &store.SessionArchiveLiveMemberError{SessionID: root.ID}
+	}
+	ids := make([]string, 1, len(descendants)+1)
+	ids[0] = root.ID
+	for i := range descendants {
+		if descendants[i].State != globalDBSessionStateStopped {
+			return nil, &store.SessionArchiveLiveMemberError{SessionID: descendants[i].ID}
+		}
+		ids = append(ids, descendants[i].ID)
+	}
+	return ids, nil
 }
 
 func sessionInWorkspace(

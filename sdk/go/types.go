@@ -138,6 +138,7 @@ type ExtensionDefinition struct {
 	// the generated manifest, so a declared floor never lowers the SDK's own.
 	MinCompozyVersion   string              `json:"min_compozy_version,omitempty"`
 	RequiresEnv         []string            `json:"requires_env,omitempty"`
+	Inputs              []Input             `json:"inputs,omitempty"`
 	Profiles            []DescribeProfile   `json:"profiles,omitempty"`
 	Resources           DescribeResources   `json:"resources,omitempty"` //nolint:modernize // omitempty is a no-op on this struct; omitzero would drop the zero DescribeResources object from the wire.
 	Subprocess          DescribeSubprocess  `json:"subprocess"`

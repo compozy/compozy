@@ -76,6 +76,9 @@ import type {
   ArchiveSessionData,
   ArchiveSessionErrors,
   ArchiveSessionResponses,
+  ArchiveStoppedSessionsData,
+  ArchiveStoppedSessionsErrors,
+  ArchiveStoppedSessionsResponses,
   ArchiveTaskData,
   ArchiveTaskErrors,
   ArchiveTaskResponses,
@@ -513,6 +516,9 @@ import type {
   GetDoctorResponses,
   GetExtensionData,
   GetExtensionErrors,
+  GetExtensionInputsData,
+  GetExtensionInputsErrors,
+  GetExtensionInputsResponses,
   GetExtensionInventoryData,
   GetExtensionInventoryErrors,
   GetExtensionInventoryResponses,
@@ -1548,6 +1554,9 @@ import type {
   SetExtensionEnablementData,
   SetExtensionEnablementErrors,
   SetExtensionEnablementResponses,
+  SetExtensionInputsData,
+  SetExtensionInputsErrors,
+  SetExtensionInputsResponses,
   SetExtensionSecretsData,
   SetExtensionSecretsErrors,
   SetExtensionSecretsResponses,
@@ -4727,6 +4736,46 @@ export class extensions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/extensions/{name}/enablement",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read declared extension inputs and their setup state without values
+   */
+  public getExtensionInputs<ThrowOnError extends boolean = true>(
+    options: Options<GetExtensionInputsData, ThrowOnError>
+  ): RequestResult<GetExtensionInputsResponses, GetExtensionInputsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetExtensionInputsResponses,
+      GetExtensionInputsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/extensions/{name}/inputs",
+      ...options,
+    });
+  }
+
+  /**
+   * Write extension input values for one installed instance
+   */
+  public setExtensionInputs<ThrowOnError extends boolean = true>(
+    options: Options<SetExtensionInputsData, ThrowOnError>
+  ): RequestResult<SetExtensionInputsResponses, SetExtensionInputsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      SetExtensionInputsResponses,
+      SetExtensionInputsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/extensions/{name}/inputs",
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -8344,6 +8393,33 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/sessions",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Archive every stopped thread of one workspace or all workspaces that is not running, waiting on the operator, holding queued input, pinned, in Later, or an always-on agent's main session; dry_run reports the same result without archiving
+   */
+  public archiveStoppedSessions<ThrowOnError extends boolean = true>(
+    options: Options<ArchiveStoppedSessionsData, ThrowOnError>
+  ): RequestResult<
+    ArchiveStoppedSessionsResponses,
+    ArchiveStoppedSessionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ArchiveStoppedSessionsResponses,
+      ArchiveStoppedSessionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/archive-stopped",
       ...options,
       headers: {
         "Content-Type": "application/json",

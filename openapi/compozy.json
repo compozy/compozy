@@ -6059,6 +6059,68 @@
             },
             "type": "array"
           },
+          "on_result": {
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "continue",
+                    "done",
+                    "next_generation",
+                    "halt",
+                    "escalate"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "continue",
+                        "done",
+                        "next_generation",
+                        "escalate"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "halt"
+                      ],
+                      "type": "string"
+                    },
+                    "terminal_status": {
+                      "enum": [
+                        "done",
+                        "no-op",
+                        "blocked",
+                        "failed",
+                        "exhausted",
+                        "stalled",
+                        "canceled"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "type": "object"
+          },
           "on_stalled": {
             "items": {
               "$ref": "#/components/schemas/EffectSpec"
@@ -8989,6 +9051,9 @@
           "set": {
             "type": "boolean"
           },
+          "state": {
+            "type": "string"
+          },
           "type": {
             "type": "string"
           }
@@ -8998,6 +9063,119 @@
           "id",
           "set",
           "type"
+        ],
+        "type": "object"
+      },
+      "ExtensionInputStatusPayload": {
+        "properties": {
+          "binding": {
+            "$ref": "#/components/schemas/MarketplaceInputBindingPayload"
+          },
+          "default": {},
+          "id": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "binding",
+          "id",
+          "prompt",
+          "required",
+          "state",
+          "targets",
+          "type"
+        ],
+        "type": "object"
+      },
+      "ExtensionInputsPayload": {
+        "properties": {
+          "changed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "daemon_env": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "extension": {
+            "type": "string"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/ExtensionInputStatusPayload"
+            },
+            "type": "array"
+          },
+          "invalid": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mcp_auth_servers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "missing_env": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "reloaded": {
+            "type": "boolean"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "daemon_env",
+          "enabled",
+          "extension",
+          "inputs",
+          "invalid",
+          "mcp_auth_servers",
+          "missing",
+          "missing_env",
+          "profile",
+          "workspace_id"
         ],
         "type": "object"
       },
@@ -9271,6 +9449,12 @@
           "input_id": {
             "type": "string"
           },
+          "input_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "inputs": {
             "items": {
               "type": "string"
@@ -9289,6 +9473,12 @@
                 "nullable": true
               }
             ]
+          },
+          "invalid": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "listed_digest": {
             "type": "string"
@@ -12696,7 +12886,78 @@
                   "type": "array"
                 },
                 "on_result": {
-                  "additionalProperties": {},
+                  "additionalProperties": {
+                    "oneOf": [
+                      {
+                        "enum": [
+                          "continue",
+                          "revise",
+                          "next_generation",
+                          "halt",
+                          "escalate"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "route": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "route"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "action": {
+                            "enum": [
+                              "continue",
+                              "revise",
+                              "next_generation",
+                              "escalate"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "action"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "action": {
+                            "enum": [
+                              "halt"
+                            ],
+                            "type": "string"
+                          },
+                          "terminal_status": {
+                            "enum": [
+                              "done",
+                              "no-op",
+                              "blocked",
+                              "failed",
+                              "exhausted",
+                              "stalled",
+                              "canceled"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "action"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
                   "type": "object"
                 },
                 "on_retry": {
@@ -15786,6 +16047,68 @@
             },
             "type": "array"
           },
+          "on_result": {
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "continue",
+                    "done",
+                    "next_generation",
+                    "halt",
+                    "escalate"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "continue",
+                        "done",
+                        "next_generation",
+                        "escalate"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "halt"
+                      ],
+                      "type": "string"
+                    },
+                    "terminal_status": {
+                      "enum": [
+                        "done",
+                        "no-op",
+                        "blocked",
+                        "failed",
+                        "exhausted",
+                        "stalled",
+                        "canceled"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "type": "object"
+          },
           "on_stalled": {
             "items": {
               "$ref": "#/components/schemas/LoopEffectSpec"
@@ -18187,6 +18510,19 @@
             ],
             "type": "string"
           },
+          "terminal": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LoopRunTerminal"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "tokens_used": {
             "format": "int64",
             "type": "integer"
@@ -18316,6 +18652,45 @@
           "requests",
           "run",
           "waits"
+        ],
+        "type": "object"
+      },
+      "LoopRunTerminal": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cause": {
+            "type": "string"
+          },
+          "gate_id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "done",
+              "no-op",
+              "blocked",
+              "failed",
+              "exhausted",
+              "stalled",
+              "canceled"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
         ],
         "type": "object"
       },
@@ -26634,6 +27009,162 @@
         ],
         "type": "object"
       },
+      "SessionArchiveStoppedFailure": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "root_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "root_id",
+          "title",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "SessionArchiveStoppedRequest": {
+        "properties": {
+          "all_workspaces": {
+            "type": "boolean"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SessionArchiveStoppedResponse": {
+        "properties": {
+          "archived": {
+            "items": {
+              "$ref": "#/components/schemas/SessionArchiveStoppedThread"
+            },
+            "type": "array"
+          },
+          "archived_session_count": {
+            "type": "integer"
+          },
+          "archived_thread_count": {
+            "type": "integer"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "failure_count": {
+            "type": "integer"
+          },
+          "failures": {
+            "items": {
+              "$ref": "#/components/schemas/SessionArchiveStoppedFailure"
+            },
+            "type": "array"
+          },
+          "failures_truncated": {
+            "type": "boolean"
+          },
+          "skip_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SessionArchiveStoppedSkip"
+            },
+            "type": "array"
+          },
+          "skipped_truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived",
+          "archived_session_count",
+          "archived_thread_count",
+          "dry_run",
+          "failure_count",
+          "failures",
+          "failures_truncated",
+          "skip_counts",
+          "skipped",
+          "skipped_truncated"
+        ],
+        "type": "object"
+      },
+      "SessionArchiveStoppedSkip": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "root_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "root_id",
+          "title",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "SessionArchiveStoppedThread": {
+        "properties": {
+          "restore_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "root_id": {
+            "type": "string"
+          },
+          "session_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "restore_ids",
+          "root_id",
+          "session_ids",
+          "title",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
       "SessionAttachPayload": {
         "properties": {
           "attach_expires_at": {
@@ -26968,6 +27499,10 @@
             "type": "string"
           },
           "total": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "working": {
             "nullable": true,
             "type": "integer"
           }
@@ -31828,6 +32363,20 @@
         "required": [
           "enabled",
           "profile"
+        ],
+        "type": "object"
+      },
+      "SetExtensionInputsRequest": {
+        "properties": {
+          "inputs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Value"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "inputs"
         ],
         "type": "object"
       },
@@ -64661,7 +65210,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
+                  "anyOf": [
                     {
                       "$ref": "#/components/schemas/ErrorPayload"
                     },
@@ -64678,7 +65227,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
+                  "anyOf": [
                     {
                       "$ref": "#/components/schemas/ErrorPayload"
                     },
@@ -65123,7 +65672,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
+                  "anyOf": [
                     {
                       "$ref": "#/components/schemas/ErrorPayload"
                     },
@@ -65476,7 +66025,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
+                  "anyOf": [
                     {
                       "$ref": "#/components/schemas/ErrorPayload"
                     },
@@ -65691,6 +66240,197 @@
           }
         },
         "summary": "Set one extension's effective state for a profile",
+        "tags": [
+          "extensions"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/extensions/{name}/inputs": {
+      "get": {
+        "operationId": "getExtensionInputs",
+        "parameters": [
+          {
+            "description": "Extension name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Installation scope: global or workspace",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operator workspace reference; omit for the global instance",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionInputsPayload"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Extension not found"
+          }
+        },
+        "summary": "Read declared extension inputs and their setup state without values",
+        "tags": [
+          "extensions"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "put": {
+        "operationId": "setExtensionInputs",
+        "parameters": [
+          {
+            "description": "Extension name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Installation scope: global or workspace",
+            "in": "query",
+            "name": "scope",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Operator workspace reference; omit for the global instance",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetExtensionInputsRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionInputsPayload"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden, or an agent tried to overwrite inputs that are already set"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Extension not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionOperationErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid input value"
+          }
+        },
+        "summary": "Write extension input values for one installed instance",
         "tags": [
           "extensions"
         ],
@@ -76381,6 +77121,103 @@
           "sessions"
         ],
         "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/sessions/archive-stopped": {
+      "post": {
+        "operationId": "archiveStoppedSessions",
+        "parameters": [
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionArchiveStoppedRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionArchiveStoppedResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Choose exactly one of workspace_id and all_workspaces"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent identity is denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace not found or archived"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Archive every stopped thread of one workspace or all workspaces that is not running, waiting on the operator, holding queued input, pinned, in Later, or an always-on agent's main session; dry_run reports the same result without archiving",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"

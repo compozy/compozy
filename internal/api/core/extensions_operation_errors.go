@@ -32,7 +32,8 @@ func extensionOperationErrorPayload(
 		extensionErrorSourceUnreachable,
 		extensionErrorMarketplaceSourceNotFound,
 		extensionErrorInputsRequired,
-		extensionErrorInputInvalid:
+		extensionErrorInputInvalid,
+		extensionErrorInputOverwriteDenied:
 		payload, _ = ExtensionAcquisitionErrorPayload(err)
 	case extensionErrorGatewayConfirmationRequired:
 		confirmationErr, ok := errors.AsType[*extensionpkg.GatewayConfirmationRequiredError](err)
@@ -77,15 +78,6 @@ func extensionOperationErrorPayload(
 	case extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported:
 		payload.Code = ExtensionAgentPluginErrorCode(err)
-	case extensionErrorNotBuiltin:
-		payload.Code = diagnosticcontract.CodeExtensionNotBuiltin
-		payload.Diagnostic = extensionOperationDiagnostic(
-			"extension.not_builtin",
-			payload.Code,
-			"Extension is not a built-in",
-			message,
-			"",
-		)
 	default:
 		var ok bool
 		if payload, ok = extensionBuiltinOperationPayload(kind, message, name); !ok {
@@ -96,8 +88,9 @@ func extensionOperationErrorPayload(
 	return payload, true
 }
 
-// extensionBuiltinOperationPayload maps the built-in lifecycle conflicts (not removed, existing copy, failed
-// restore, failed removal compensation) onto their stable codes. It reports false for every other kind.
+// extensionBuiltinOperationPayload maps the built-in lifecycle conflicts (not a built-in, not removed,
+// existing copy, failed restore, failed removal compensation) onto their stable codes. It reports false for
+// every other kind.
 func extensionBuiltinOperationPayload(
 	kind extensionErrorKind,
 	message string,
@@ -105,6 +98,15 @@ func extensionBuiltinOperationPayload(
 ) (contract.ExtensionOperationErrorPayload, bool) {
 	payload := contract.ExtensionOperationErrorPayload{}
 	switch kind {
+	case extensionErrorNotBuiltin:
+		payload.Code = diagnosticcontract.CodeExtensionNotBuiltin
+		payload.Diagnostic = extensionOperationDiagnostic(
+			"extension.not_builtin",
+			payload.Code,
+			"Extension is not a built-in",
+			message,
+			"",
+		)
 	case extensionErrorBuiltinNotRemoved:
 		payload.Code = diagnosticcontract.CodeExtensionBuiltinNotRemoved
 		payload.Diagnostic = extensionOperationDiagnostic(
@@ -254,6 +256,8 @@ func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErr
 		payload.Code = diagnosticcontract.CodeExtensionInputsRequired
 		if required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err); ok {
 			payload.Inputs, payload.MissingEnv = slices.Clone(required.MissingInputs), slices.Clone(required.MissingEnv)
+			payload.Invalid = slices.Clone(required.InvalidInputs)
+			payload.FetchedDigest = required.Digest
 			for _, input := range required.InputDefinitions {
 				payload.InputDefinitions = append(payload.InputDefinitions, contract.MarketplaceInputPayload{
 					ID:       input.ID,
@@ -272,6 +276,11 @@ func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErr
 		payload.Code = diagnosticcontract.CodeExtensionInputInvalid
 		if invalid, ok := errors.AsType[*extensionpkg.InputValidationError](err); ok {
 			payload.InputID = invalid.InputID
+		}
+	case extensionErrorInputOverwriteDenied:
+		payload.Code = diagnosticcontract.CodeExtensionInputOverwriteDenied
+		if denied, ok := errors.AsType[*extensionpkg.InputOverwriteDeniedError](err); ok {
+			payload.InputIDs = slices.Clone(denied.InputIDs)
 		}
 	default:
 		return payload, false

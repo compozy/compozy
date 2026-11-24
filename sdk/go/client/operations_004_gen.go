@@ -10,6 +10,25 @@ import (
 	"strings"
 )
 
+// ClaimNextAgentTaskParams carries the path, query, and header parameters.
+type ClaimNextAgentTaskParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+}
+
+// ClaimNextAgentTask Atomically claim the next matching task run for the calling agent
+func (c *Client) ClaimNextAgentTask(ctx context.Context, params ClaimNextAgentTaskParams, body AgentTaskClaimNextRequest) (*AgentTaskClaimResponse, error) {
+	path := "/api/agent/tasks/claim-next"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	var out AgentTaskClaimResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ClearSessionConversationParams carries the path, query, and header parameters.
 type ClearSessionConversationParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -424,22 +443,4 @@ func (c *Client) CreateAutomationTrigger(ctx context.Context, params CreateAutom
 type CreateChildTaskParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// CreateChildTask Create one child task
-func (c *Client) CreateChildTask(ctx context.Context, params CreateChildTaskParams, body CreateTaskChildRequest) (*TaskResponse, error) {
-	path := "/api/tasks/{id}/children"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

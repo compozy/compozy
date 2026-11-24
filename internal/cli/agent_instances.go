@@ -93,7 +93,7 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 	}
 	if action == agentListKey || action == configShowKey {
 		configureProfileReadCommand(cmd, deps)
-		cmd.Annotations = map[string]string{agentAggregateProfileReadAnnotation: "true"}
+		cmd.Annotations = map[string]string{agentAggregateProfileReadAnnotation: toolBoolTrue}
 	}
 	return cmd
 }

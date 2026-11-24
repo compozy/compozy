@@ -4,6 +4,20 @@ package contracts
 
 import "time"
 
+type ForgePRSearchResponse struct {
+	Items   []ForgePRCandidate `json:"items"`
+	HasMore bool               `json:"has_more"`
+}
+
+type ForgeReview struct {
+	ID          string     `json:"id"`
+	Author      string     `json:"author,omitempty"`
+	IsBot       bool       `json:"is_bot,omitempty"`
+	State       string     `json:"state"`
+	SubmittedAt *time.Time `json:"submitted_at,omitempty"`
+	Commit      string     `json:"commit,omitempty"`
+}
+
 type ForgeReviewThread struct {
 	ID     string `json:"id"`
 	Commit string `json:"commit,omitempty"`
@@ -179,36 +193,4 @@ type HeartbeatHistoryResponse struct {
 type HeartbeatMutationResponse struct {
 	Heartbeat HeartbeatPolicyPayload   `json:"heartbeat"`
 	Revision  HeartbeatRevisionPayload `json:"revision"`
-}
-
-type HeartbeatPolicyPayload struct {
-	Actions          []ActionDecl                       `json:"actions"`
-	Authority        HeartbeatAuthorityPayload          `json:"authority"`
-	AgentName        string                             `json:"agent_name,omitempty"`
-	Enabled          bool                               `json:"enabled"`
-	Present          bool                               `json:"present"`
-	Active           bool                               `json:"active"`
-	Valid            bool                               `json:"valid"`
-	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
-	SourcePath       string                             `json:"source_path,omitempty"`
-	Digest           string                             `json:"digest,omitempty"`
-	ConfigDigest     string                             `json:"config_digest,omitempty"`
-	SnapshotID       string                             `json:"snapshot_id,omitempty"`
-	SchemaVersion    int                                `json:"schema_version"`
-	Summary          string                             `json:"summary,omitempty"`
-	GuidanceMarkdown string                             `json:"guidance_markdown,omitempty"`
-	Frontmatter      HeartbeatFrontmatterPayload        `json:"frontmatter"`
-	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
-	ConfigProvenance HeartbeatConfigProvenancePayload   `json:"config_provenance"`
-	Prompt           HeartbeatPromptContributionPayload `json:"prompt"`
-	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-	Limits           AuthoredContextLimitsPayload       `json:"limits"`
-	CreatedAt        *time.Time                         `json:"created_at,omitempty"`
-}
-
-type HeartbeatPreferencesPayload struct {
-	MinInterval  string                            `json:"min_interval"`
-	ActiveHours  []HeartbeatTimeWindowPayload      `json:"active_hours,omitempty"`
-	QuietWindows []HeartbeatTimeWindowPayload      `json:"quiet_windows,omitempty"`
-	Context      HeartbeatContextProjectionPayload `json:"context"`
 }

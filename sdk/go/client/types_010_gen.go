@@ -7,6 +7,67 @@ import (
 	"time"
 )
 
+// HookEventPayload is a daemon API value.
+type HookEventPayload struct {
+	Event         string `json:"event"`
+	Family        string `json:"family"`
+	SyncEligible  bool   `json:"sync_eligible"`
+	PayloadSchema string `json:"payload_schema"`
+	PatchSchema   string `json:"patch_schema,omitempty"`
+}
+
+// HookEventsResponse is a daemon API value.
+type HookEventsResponse struct {
+	Events []HookEventPayload `json:"events"`
+}
+
+// HookExecutorKind is a daemon API value.
+type HookExecutorKind string
+
+// HookMatcher is a daemon API value.
+type HookMatcher struct {
+	AgentName        string           `json:"agent_name,omitempty"`
+	AgentType        string           `json:"agent_type,omitempty"`
+	WorkspaceID      string           `json:"workspace_id,omitempty"`
+	WorktreeID       string           `json:"worktree_id,omitempty"`
+	WorkspaceRoot    string           `json:"workspace_root,omitempty"`
+	SessionType      string           `json:"session_type,omitempty"`
+	InputClass       string           `json:"input_class,omitempty"`
+	ACPEventType     string           `json:"acp_event_type,omitempty"`
+	TurnID           string           `json:"turn_id,omitempty"`
+	ToolID           string           `json:"tool_id,omitempty"`
+	ToolName         string           `json:"tool_name,omitempty"`
+	ToolReadOnly     *bool            `json:"tool_read_only,omitempty"`
+	DecisionClass    string           `json:"decision_class,omitempty"`
+	MessageRole      string           `json:"message_role,omitempty"`
+	MessageDeltaType string           `json:"message_delta_type,omitempty"`
+	Trigger          string           `json:"compaction_trigger,omitempty"`
+	Autonomy         *AutonomyMatcher `json:"autonomy,omitempty"`
+}
+
+// HookMode is a daemon API value.
+type HookMode string
+
+// HookRunPayload is a daemon API value.
+type HookRunPayload struct {
+	HookName      string          `json:"hook_name"`
+	Event         string          `json:"event"`
+	Source        string          `json:"source"`
+	Mode          string          `json:"mode"`
+	DurationMS    int64           `json:"duration_ms"`
+	Outcome       string          `json:"outcome"`
+	DispatchDepth int             `json:"dispatch_depth"`
+	PatchApplied  json.RawMessage `json:"patch_applied,omitempty"`
+	Error         string          `json:"error,omitempty"`
+	Required      bool            `json:"required,omitzero"`
+	RecordedAt    time.Time       `json:"recorded_at"`
+}
+
+// HookRunsResponse is a daemon API value.
+type HookRunsResponse struct {
+	Runs []HookRunPayload `json:"runs"`
+}
+
 // Image is a daemon API value.
 type Image struct {
 	URL   string `json:"url,omitempty"`
@@ -326,6 +387,7 @@ type LoopContract struct {
 	Boundaries       []string             `json:"boundaries,omitempty"`
 	StopWhen         StopWhenSpec         `json:"stop_when,omitzero"`
 	Verification     []LoopGateCriterion  `json:"verification,omitempty"`
+	OnResult         map[string]any       `json:"on_result,omitempty"`
 	TerminalStates   []string             `json:"terminal_states,omitempty"`
 	IterationCap     int                  `json:"iteration_cap"`
 	NoProgress       LoopNoProgress       `json:"no_progress"`
@@ -379,71 +441,4 @@ type LoopDiffInputRow struct {
 	Key     string        `json:"key"`
 	Base    LoopDiffValue `json:"base"`
 	Against LoopDiffValue `json:"against"`
-}
-
-// LoopDiffNodeRow is a daemon API value.
-type LoopDiffNodeRow struct {
-	NodeID    string        `json:"node_id"`
-	ItemIndex int           `json:"item_index,omitzero"`
-	Change    string        `json:"change"`
-	Base      LoopDiffValue `json:"base,omitzero"`
-	Against   LoopDiffValue `json:"against,omitzero"`
-	Cause     string        `json:"cause,omitempty"`
-}
-
-// LoopDiffResponse is a daemon API value.
-type LoopDiffResponse struct {
-	Kind                 string               `json:"kind"`
-	Base                 LoopDiffEndpoint     `json:"base"`
-	Against              LoopDiffEndpoint     `json:"against"`
-	Inputs               []LoopDiffInputRow   `json:"inputs"`
-	Nodes                []LoopDiffNodeRow    `json:"nodes"`
-	Terminal             *LoopDiffTerminalRow `json:"terminal,omitzero"`
-	DefinitionDivergence bool                 `json:"definition_divergence,omitzero"`
-}
-
-// LoopDiffTerminalRow is a daemon API value.
-type LoopDiffTerminalRow struct {
-	Base    LoopRunStatus `json:"base"`
-	Against LoopRunStatus `json:"against"`
-}
-
-// LoopDiffValue is a daemon API value.
-type LoopDiffValue struct {
-	Inline json.RawMessage `json:"inline,omitempty"`
-	Size   int             `json:"size,omitzero"`
-	Hash   string          `json:"hash,omitempty"`
-}
-
-// LoopEffectSpec is a daemon API value.
-type LoopEffectSpec struct {
-	Emit *LoopEmitSpec  `json:"emit,omitzero"`
-	Tool string         `json:"tool,omitempty"`
-	With map[string]any `json:"with,omitempty"`
-}
-
-// LoopEffectiveConfig is a daemon API value.
-type LoopEffectiveConfig struct {
-	HumanGateEnabled   bool                  `json:"human_gate_enabled"`
-	ReattemptStrategy  LoopReattemptStrategy `json:"reattempt_strategy"`
-	EnabledChecks      json.RawMessage       `json:"enabled_checks_json"`
-	IterationCap       int                   `json:"iteration_cap"`
-	BudgetTokens       int                   `json:"budget_tokens"`
-	BudgetWallSec      int                   `json:"budget_wall_sec"`
-	BudgetOnExceeded   LoopBudgetExceeded    `json:"budget_on_exceeded"`
-	NoProgressWindow   int                   `json:"no_progress_window"`
-	FanOutWidth        int                   `json:"fan_out_width"`
-	GateMaxRevisions   int                   `json:"gate_max_revisions"`
-	RuntimeDefaults    LoopRuntimeDefaults   `json:"runtime_defaults"`
-	RuntimeRules       []LoopRuntimeRule     `json:"runtime_rules"`
-	RunRuntimeRules    []LoopRuntimeRule     `json:"run_runtime_rules,omitempty"`
-	Environment        LoopEnvironment       `json:"environment"`
-	RequestExpireAfter string                `json:"request_expire_after"`
-	Sources            map[string]string     `json:"sources,omitempty"`
-}
-
-// LoopEmitSpec is a daemon API value.
-type LoopEmitSpec struct {
-	Kind    string         `json:"kind"`
-	Payload map[string]any `json:"payload,omitempty"`
 }

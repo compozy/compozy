@@ -65,7 +65,13 @@ func (s *daemonExtensionService) prepareExtensionSecrets(
 		inputID := ""
 		if input.MCPServer == "" {
 			inputID = headerInputs[name]
+			if inputID == "" {
+				// Keep the input link after an unset dropped the prior binding, so the next input write
+				// sees this binding as the input's own and does not rewrite it (rule 3).
+				inputID = envBindingInputID(ext.Manifest, name)
+			}
 		}
+		// A binding linked to a typed input becomes that input's value, so the instance must own it.
 		if inputID != "" && input.VaultRef != nil && !strings.HasPrefix(
 			vault.NormalizeRef(
 				*input.VaultRef,

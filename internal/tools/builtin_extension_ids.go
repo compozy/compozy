@@ -17,6 +17,8 @@ const (
 	ToolIDExtensionsEnable ToolID = "compozy__extensions_enable"
 	// ToolIDExtensionsDisable disables one installed extension.
 	ToolIDExtensionsDisable ToolID = "compozy__extensions_disable"
+	// ToolIDExtensionsSetup reads or completes the inputs of one installed extension instance.
+	ToolIDExtensionsSetup ToolID = "compozy__extensions_setup"
 	// ToolIDExtensionsInit scaffolds one extension project from an embedded template.
 	ToolIDExtensionsInit ToolID = "compozy__extensions_init"
 	// ToolIDExtensionsBuild builds one immutable extension generation.

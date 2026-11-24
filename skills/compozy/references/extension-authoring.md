@@ -41,6 +41,11 @@ floor of the SDK release you build against: `build` checks semantic-version synt
 against the daemon's embedded SDK floor, but cannot detect a declaration below your own SDK
 release's floor, so declaring lower understates compatibility.
 
+SDK definitions declare install inputs with `inputs` (TS) / `Inputs` (Go) in the manifest
+`[[inputs]]` grammar, each env binding listed in `requires_env`; describe emits them only when
+non-empty and then raises `min_compozy_version` to at least 0.7.9. `build` validates them like TOML
+inputs and fails on a secret default or an unlisted binding name.
+
 ## Templates
 
 `compozy extension init <name> --template <template> [--dir <path>]` writes source plus
