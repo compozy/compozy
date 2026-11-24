@@ -16,18 +16,18 @@ import (
 )
 
 type hostedFakeCloudflare struct {
-	t        *testing.T
-	mu       sync.Mutex
-	created  int
-	deleted  int
-	tunnels  map[string]fakeCloudflareTunnel
-	dns      map[string]fakeCloudflareDNS
-	client   *cloudflare.Client
+	t       *testing.T
+	mu      sync.Mutex
+	created int
+	deleted int
+	tunnels map[string]fakeCloudflareTunnel
+	dns     map[string]fakeCloudflareDNS
+	client  *cloudflare.Client
 }
 
 type fakeCloudflareTunnel struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID   string              `json:"id"`
+	Name string              `json:"name"`
 	Edge hostedFakeConnector `json:"-"`
 }
 
@@ -99,10 +99,10 @@ func (f *hostedFakeCloudflare) tunnel(w http.ResponseWriter, r *http.Request, pa
 		var cfg struct {
 			Config struct {
 				Ingress []struct {
-					Hostname string
-					Service  string
-				}
-			}
+					Hostname string `json:"hostname"`
+					Service  string `json:"service"`
+				} `json:"ingress"`
+			} `json:"config"`
 		}
 		if err := json.UnmarshalRead(r.Body, &cfg); err != nil || len(cfg.Config.Ingress) != 2 ||
 			cfg.Config.Ingress[1].Service != "http_status:404" || cfg.Config.Ingress[1].Hostname != "" {
@@ -149,7 +149,11 @@ func (f *hostedFakeCloudflare) tunnelCollection(w http.ResponseWriter, r *http.R
 			Name string `json:"name"`
 			Mode string `json:"config_src"`
 		}
-		if err := json.UnmarshalRead(r.Body, &request); err != nil || request.Mode != "cloudflare" || request.Name == "" {
+		if err := json.UnmarshalRead(
+			r.Body,
+			&request,
+		); err != nil || request.Mode != "cloudflare" ||
+			request.Name == "" {
 			f.t.Errorf("unexpected tunnel creation: %+v, %v", request, err)
 			w.WriteHeader(http.StatusBadRequest)
 			return

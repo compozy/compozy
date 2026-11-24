@@ -88,7 +88,7 @@ func (s *Service) reserveHostedTunnel(
 		if tunnel.State != "" && tunnel.State != tunnelDeleted {
 			return nil
 		}
-		if err := admitHostedTunnel(ctx, q, account); err != nil {
+		if err := admitHostedTunnel(ctx, q, account.ID); err != nil {
 			return err
 		}
 		if tunnel.Generation > 0 {
@@ -117,8 +117,12 @@ func (s *Service) hostedTunnelMode(
 	return "", errCloudPlanRequired
 }
 
-func admitHostedTunnel(ctx context.Context, q *store.Queries, account store.ControlAccount) error {
-	used, err := q.AccountHostedRouteUsage(ctx, account.ID)
+func admitHostedTunnel(ctx context.Context, q *store.Queries, accountID string) error {
+	account, err := q.LockAuthAccount(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	used, err := q.AccountHostedRouteUsage(ctx, accountID)
 	if err != nil {
 		return err
 	}
