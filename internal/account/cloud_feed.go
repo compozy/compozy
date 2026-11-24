@@ -44,7 +44,7 @@ func (s *Service) holdFeed(g *generation, key string, duration time.Duration) {
 		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		if g.pending[key] == unavailableAfter {
+		if g.pending[key].Equal(unavailableAfter) {
 			delete(g.pending, key)
 			s.updateFeedLocked(g)
 		}

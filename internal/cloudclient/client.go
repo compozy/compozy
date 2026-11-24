@@ -9,6 +9,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -116,7 +117,8 @@ func (c *Client) json(
 		}
 		return err
 	}
-	defer drain(response.Body)
+	defer response.Body.Close()
+	defer drain(request, response.Body)
 	if output != nil {
 		if err := json.UnmarshalRead(io.LimitReader(response.Body, maxBody), output); err != nil {
 			return unavailable()
@@ -172,7 +174,8 @@ func (c *Client) open(
 		return nil, cmp.Or(ctx.Err(), error(unavailable()))
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		defer drain(response.Body)
+		defer response.Body.Close()
+		defer drain(ctx, response.Body)
 		return nil, c.readFailure(response)
 	}
 	return response, nil
@@ -222,7 +225,8 @@ func unavailable() *Failure {
 		Message: "Can't reach Compozy Cloud. Local work is unaffected."}
 }
 
-func drain(body io.ReadCloser) {
-	_, _ = io.Copy(io.Discard, io.LimitReader(body, maxBody))
-	_ = body.Close()
+func drain(ctx context.Context, body io.Reader) {
+	if _, err := io.Copy(io.Discard, io.LimitReader(body, maxBody)); err != nil {
+		slog.DebugContext(ctx, "Cloud response drain interrupted")
+	}
 }

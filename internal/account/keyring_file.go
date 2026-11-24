@@ -114,7 +114,8 @@ func readSealedCredentials(dir *fileutil.Directory) (map[string]string, error) {
 
 func credentialSeal(dir *fileutil.Directory, create bool) (cipher.AEAD, error) {
 	secret, info, err := dir.ReadRegularFile(credentialSealFile)
-	if create && errors.Is(err, os.ErrNotExist) {
+	switch {
+	case create && errors.Is(err, os.ErrNotExist):
 		secret = make([]byte, sealSize)
 		if _, err := rand.Read(secret); err != nil {
 			return nil, err
@@ -122,9 +123,9 @@ func credentialSeal(dir *fileutil.Directory, create bool) (cipher.AEAD, error) {
 		if err := dir.AtomicWriteFile(credentialSealFile, secret, 0o600, false); err != nil {
 			return nil, err
 		}
-	} else if err != nil {
+	case err != nil:
 		return nil, err
-	} else if len(secret) != sealSize || info.Mode().Perm() != 0o600 {
+	case len(secret) != sealSize || info.Mode().Perm() != 0o600:
 		return nil, errKeyring
 	}
 	key, err := hkdf.Key(sha256.New, secret, nil, sealPurpose, sealSize)

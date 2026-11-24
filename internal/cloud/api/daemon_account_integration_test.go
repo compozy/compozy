@@ -36,11 +36,13 @@ import (
 const accountStreamPath = contract.AccountPath + "/stream"
 
 func TestDaemonCloudAccount(t *testing.T) {
+	// Create the home before the descriptive subtest name can lengthen the Unix socket path.
+	home := t.TempDir()
 	t.Run(
 		"Should sign in, isolate approval streams, sign out, and admit local work during an outage",
 		func(t *testing.T) {
 			f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
-			d, ring := startDaemonAccountFixture(t, f)
+			d, ring := startDaemonAccountFixture(t, f, home)
 
 			// IT-010, IT-099. The daemon owns the grant and the device credential.
 			progress := d.stream(t, contract.AccountSignInEventsPath, "")
@@ -240,9 +242,8 @@ type daemonAccountFixture struct {
 	httpBase              string
 }
 
-func startDaemonAccountFixture(t *testing.T, f authFixture) (daemonAccountFixture, *daemonAccountKeyring) {
+func startDaemonAccountFixture(t *testing.T, f authFixture, home string) (daemonAccountFixture, *daemonAccountKeyring) {
 	t.Helper()
-	home := t.TempDir()
 	t.Setenv("COMPOZY_HOME", home)
 	t.Setenv("COMPOZY_CLOUD_URL", f.replica.Server.URL)
 	paths, err := config.ResolveHomePathsFrom(home)
