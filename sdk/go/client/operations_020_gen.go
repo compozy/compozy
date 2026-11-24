@@ -4,10 +4,27 @@ package client
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// ListAutomationRunsParams carries the path, query, and header parameters.
+type ListAutomationRunsParams struct {
+	WorkspaceID   *string   `url:"workspace_id"`
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Cursor        *string   `url:"cursor"`
+	JobID         *string   `url:"job_id"`
+	TriggerID     *string   `url:"trigger_id"`
+	Status        *string   `url:"status"`
+	Since         *string   `url:"since"`
+	Until         *string   `url:"until"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
 
 // ListAutomationRuns List automation runs
 func (c *Client) ListAutomationRuns(ctx context.Context, params ListAutomationRunsParams) (*RunsResponse, error) {
@@ -251,6 +268,23 @@ func (c *Client) ListAvailableComputers(ctx context.Context) (*AvailableComputer
 	return &out, nil
 }
 
+// ListBrowserPeersParams carries the path, query, and header parameters.
+type ListBrowserPeersParams struct {
+	DPoP string `url:"DPoP"`
+}
+
+// ListBrowserPeers List other hosted computers on this account
+func (c *Client) ListBrowserPeers(ctx context.Context, params ListBrowserPeersParams) (*BrowserPeersResponse, error) {
+	path := "/remote/v1/browser/peers"
+	headers := http.Header{}
+	headers.Set("DPoP", params.DPoP)
+	var out BrowserPeersResponse
+	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListCmdPaletteClientsParams carries the path, query, and header parameters.
 type ListCmdPaletteClientsParams struct {
 	Workspace   string  `url:"workspace"`
@@ -399,34 +433,4 @@ type ListExtensionSecretsParams struct {
 	Workspace   *string `url:"workspace"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListExtensionSecrets List declared and bound extension environment names
-func (c *Client) ListExtensionSecrets(ctx context.Context, params ListExtensionSecretsParams) (*ExtensionSecretsPayload, error) {
-	path := "/api/extensions/{name}/secrets"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionSecretsPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListExtensionsParams carries the path, query, and header parameters.
-type ListExtensionsParams struct {
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
 }

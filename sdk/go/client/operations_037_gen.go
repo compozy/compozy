@@ -11,6 +11,24 @@ import (
 	"strings"
 )
 
+// StreamAccountParams carries the path, query, and header parameters.
+type StreamAccountParams struct {
+	AfterSequence *string `url:"after_sequence"`
+}
+
+// StreamAccount Stream changes for the active account
+func (c *Client) StreamAccount(ctx context.Context, params StreamAccountParams) (*Stream[Event], error) {
+	path := "/api/account/stream"
+	query := url.Values{}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", *params.AfterSequence)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[Event](ctx, c, "GET", path, nil, nil, "streamAccount")
+}
+
 // StreamAccountSignInFrame preserves each response payload; select its variant using the event name or HTTP status.
 type StreamAccountSignInFrame struct {
 	Raw json.RawMessage
@@ -428,18 +446,4 @@ type StreamLoopRunEventsParams struct {
 // StreamLoopRunEventsFrame preserves each response payload; select its variant using the event name or HTTP status.
 type StreamLoopRunEventsFrame struct {
 	Raw json.RawMessage
-}
-
-var _ json.Unmarshaler = (*StreamLoopRunEventsFrame)(nil)
-
-var _ json.Marshaler = StreamLoopRunEventsFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamLoopRunEventsFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamLoopRunEventsFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
 }

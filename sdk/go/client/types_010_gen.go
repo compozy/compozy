@@ -418,6 +418,13 @@ type HookRunsResponse struct {
 	Runs []HookRunPayload `json:"runs"`
 }
 
+// HostedPeer is a daemon API value.
+type HostedPeer struct {
+	ComputerID ComputerID `json:"computer_id"`
+	Name       string     `json:"name"`
+	HostedURL  string     `json:"hosted_url"`
+}
+
 // HostedStatus is a daemon API value.
 type HostedStatus struct {
 	Enabled   bool    `json:"enabled"`
@@ -431,19 +438,4 @@ type Image struct {
 	URL   string `json:"url,omitempty"`
 	Token string `json:"token,omitempty"`
 	Emoji string `json:"emoji,omitempty"`
-}
-
-// Input is a daemon API value.
-type Input struct {
-	Type        InputType `json:"type"`
-	Required    bool      `json:"required,omitzero"`
-	Description string    `json:"description,omitempty"`
-	Ref         *InputRef `json:"ref,omitzero"`
-	Enum        []string  `json:"enum,omitempty"`
-	Default     any       `json:"default,omitempty"`
-}
-
-// InputRef is a daemon API value.
-type InputRef struct {
-	Kind InputRefKind `json:"kind"`
 }

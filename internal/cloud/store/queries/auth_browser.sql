@@ -37,6 +37,24 @@ WHERE device_id = $1 AND origin = $2 AND state = 'pending' AND pending_expires_a
 INSERT INTO browser_codes (code_sha256, account_id, device_id, computer_id, jkt, code_challenge, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7);
 
+-- name: CloudBrowserCode :one
+SELECT * FROM browser_codes WHERE code_sha256 = $1;
+
+-- name: UseCloudBrowserCode :execrows
+UPDATE browser_codes SET used_at = sqlc.arg(as_of)
+WHERE code_sha256 = $1 AND used_at IS NULL AND expires_at > sqlc.arg(as_of);
+
+-- name: RetireBrowserOriginKey :exec
+UPDATE device_keys SET state = 'revoked', revoked_at = sqlc.arg(as_of)
+WHERE device_id = $1 AND origin = $2 AND state = 'active';
+
+-- name: ActivateBrowserKey :execrows
+UPDATE device_keys SET state = 'active', activated_at = sqlc.arg(as_of), pending_expires_at = NULL
+WHERE jkt = $1 AND device_id = $2 AND state = 'pending' AND pending_expires_at > sqlc.arg(as_of);
+
+-- name: SweepBrowserCodes :exec
+DELETE FROM browser_codes WHERE expires_at <= $1;
+
 -- name: SweepPendingBrowserKeys :exec
 DELETE FROM device_keys WHERE state = 'pending' AND pending_expires_at <= $1;
 

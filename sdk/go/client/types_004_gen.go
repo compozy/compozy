@@ -320,6 +320,47 @@ type Briefing struct {
 // BriefingTone is a daemon API value.
 type BriefingTone string
 
+// BrowserApprovalStatus is a daemon API value.
+type BrowserApprovalStatus struct {
+	ApprovalID string    `json:"approval_id"`
+	State      string    `json:"state"`
+	ExpiresAt  time.Time `json:"expires_at"`
+}
+
+// BrowserPeersResponse is a daemon API value.
+type BrowserPeersResponse struct {
+	Peers []HostedPeer `json:"peers"`
+}
+
+// BrowserSessionRequest is a daemon API value.
+type BrowserSessionRequest struct {
+	Code         string `json:"code"`
+	CodeVerifier string `json:"code_verifier"`
+}
+
+// BrowserSessionResponse is a daemon API value.
+type BrowserSessionResponse struct {
+	SessionID string  `json:"session_id"`
+	ExpiresAt int64   `json:"expires_at"`
+	Scopes    []Scope `json:"scopes"`
+}
+
+// BrowserStatus is a daemon API value.
+type BrowserStatus struct {
+	State string `json:"state"`
+}
+
+// BrowserStreamTicketRequest is a daemon API value.
+type BrowserStreamTicketRequest struct {
+	Path string `json:"path"`
+}
+
+// BrowserStreamTicketResponse is a daemon API value.
+type BrowserStreamTicketResponse struct {
+	Ticket    string    `json:"ticket"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 // Budget is a daemon API value.
 type Budget struct {
 	Tokens       int32          `json:"tokens"`
@@ -405,39 +446,4 @@ type ChangeBaseRefPayload struct {
 	Kind      string `json:"kind"`
 	IsDefault bool   `json:"is_default,omitzero"`
 	Source    string `json:"source,omitempty"`
-}
-
-// ChangeHeadPayload is a daemon API value.
-type ChangeHeadPayload struct {
-	Branch string `json:"branch"`
-	SHA    string `json:"sha"`
-}
-
-// ChangePatchPayload is a daemon API value.
-type ChangePatchPayload struct {
-	Path        string `json:"path"`
-	Patch       string `json:"patch,omitempty"`
-	TooLarge    bool   `json:"too_large,omitzero"`
-	Sensitive   bool   `json:"sensitive,omitzero"`
-	Fingerprint string `json:"fingerprint"`
-}
-
-// ChangeSet is a daemon API value.
-type ChangeSet struct {
-	TabIDs         []TabID                 `json:"tab_ids,omitempty"`
-	TabSplit       []TabID                 `json:"tab_split,omitempty"`
-	TabUnsplit     []TabID                 `json:"tab_unsplit,omitempty"`
-	DesktopIDs     []DesktopID             `json:"desktop_ids,omitempty"`
-	WindowIDs      []WindowID              `json:"window_ids,omitempty"`
-	GroupIDs       []GroupID               `json:"group_ids,omitempty"`
-	NodeIDs        []WindowmanagerNodeID   `json:"node_ids,omitempty"`
-	ClientIDs      []WindowmanagerClientID `json:"client_ids,omitempty"`
-	StackGrouped   []WindowmanagerNodeID   `json:"stack_grouped,omitempty"`
-	StackUngrouped []WindowmanagerNodeID   `json:"stack_ungrouped,omitempty"`
-}
-
-// ChangeSidePayload is a daemon API value.
-type ChangeSidePayload struct {
-	Text      *string `json:"text,omitempty"`
-	Sensitive bool    `json:"sensitive,omitzero"`
 }

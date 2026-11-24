@@ -92,6 +92,12 @@ var (
 		"The approval request is no longer pending.",
 		nil,
 	}
+	ErrApprovalLocalOnly = &Failure{
+		http.StatusForbidden,
+		"approval_local_only",
+		"Decide this request on the computer or from an approved admin device.",
+		nil,
+	}
 	ErrRouteNotRemote = &Failure{
 		http.StatusNotFound,
 		"route_not_remote",

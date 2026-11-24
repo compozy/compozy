@@ -119,6 +119,19 @@ func (c *Client) EnableSkill(ctx context.Context, params EnableSkillParams) (*Sk
 	return &out, nil
 }
 
+// EndBrowserSessionParams carries the path, query, and header parameters.
+type EndBrowserSessionParams struct {
+	DPoP string `url:"DPoP"`
+}
+
+// EndBrowserSession Revoke the current browser session
+func (c *Client) EndBrowserSession(ctx context.Context, params EndBrowserSessionParams) error {
+	path := "/remote/v1/browser/session"
+	headers := http.Header{}
+	headers.Set("DPoP", params.DPoP)
+	return c.doContent(ctx, "DELETE", path, headers, nil, nil, "", "")
+}
+
 // EnqueueTaskRunParams carries the path, query, and header parameters.
 type EnqueueTaskRunParams struct {
 	ID      string  `url:"id"`
@@ -416,30 +429,4 @@ type FindSessionFilesParams struct {
 	Limit       *int    `url:"limit"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// FindSessionFiles Find project files
-func (c *Client) FindSessionFiles(ctx context.Context, params FindSessionFilesParams) (*FileFindResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	query.Set("q", params.Q)
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FileFindResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

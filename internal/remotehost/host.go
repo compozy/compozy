@@ -58,6 +58,7 @@ type HostOptions struct {
 	Logger             *slog.Logger
 	Home               string
 	Operator           http.Handler
+	HostedApp          http.Handler
 	Persist            func(context.Context, Patch, func(config.RemoteConfig) error) error
 	InstallCloudflared func(context.Context, string) (string, error)
 	SyncIngress        func(context.Context, ingress.RemoteEndpoint) error

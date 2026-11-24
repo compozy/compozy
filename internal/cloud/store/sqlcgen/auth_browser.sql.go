@@ -11,6 +11,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const activateBrowserKey = `-- name: ActivateBrowserKey :execrows
+UPDATE device_keys SET state = 'active', activated_at = $3, pending_expires_at = NULL
+WHERE jkt = $1 AND device_id = $2 AND state = 'pending' AND pending_expires_at > $3
+`
+
+type ActivateBrowserKeyParams struct {
+	Jkt      string
+	DeviceID string
+	AsOf     pgtype.Timestamptz
+}
+
+func (q *Queries) ActivateBrowserKey(ctx context.Context, arg ActivateBrowserKeyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, activateBrowserKey, arg.Jkt, arg.DeviceID, arg.AsOf)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const bindCloudWebSession = `-- name: BindCloudWebSession :execrows
 UPDATE cloud_web_sessions SET browser_device_id = $2
 WHERE id_sha256 = $1 AND account_id = $3 AND revoked_at IS NULL
@@ -29,6 +48,26 @@ func (q *Queries) BindCloudWebSession(ctx context.Context, arg BindCloudWebSessi
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const cloudBrowserCode = `-- name: CloudBrowserCode :one
+SELECT code_sha256, account_id, device_id, computer_id, jkt, code_challenge, expires_at, used_at FROM browser_codes WHERE code_sha256 = $1
+`
+
+func (q *Queries) CloudBrowserCode(ctx context.Context, codeSha256 []byte) (BrowserCode, error) {
+	row := q.db.QueryRow(ctx, cloudBrowserCode, codeSha256)
+	var i BrowserCode
+	err := row.Scan(
+		&i.CodeSha256,
+		&i.AccountID,
+		&i.DeviceID,
+		&i.ComputerID,
+		&i.Jkt,
+		&i.CodeChallenge,
+		&i.ExpiresAt,
+		&i.UsedAt,
+	)
+	return i, err
 }
 
 const expirePendingBrowserKey = `-- name: ExpirePendingBrowserKey :exec
@@ -159,6 +198,31 @@ func (q *Queries) InsertCloudWebSession(ctx context.Context, arg InsertCloudWebS
 	return err
 }
 
+const retireBrowserOriginKey = `-- name: RetireBrowserOriginKey :exec
+UPDATE device_keys SET state = 'revoked', revoked_at = $3
+WHERE device_id = $1 AND origin = $2 AND state = 'active'
+`
+
+type RetireBrowserOriginKeyParams struct {
+	DeviceID string
+	Origin   pgtype.Text
+	AsOf     pgtype.Timestamptz
+}
+
+func (q *Queries) RetireBrowserOriginKey(ctx context.Context, arg RetireBrowserOriginKeyParams) error {
+	_, err := q.db.Exec(ctx, retireBrowserOriginKey, arg.DeviceID, arg.Origin, arg.AsOf)
+	return err
+}
+
+const sweepBrowserCodes = `-- name: SweepBrowserCodes :exec
+DELETE FROM browser_codes WHERE expires_at <= $1
+`
+
+func (q *Queries) SweepBrowserCodes(ctx context.Context, expiresAt pgtype.Timestamptz) error {
+	_, err := q.db.Exec(ctx, sweepBrowserCodes, expiresAt)
+	return err
+}
+
 const sweepPendingBrowserKeys = `-- name: SweepPendingBrowserKeys :exec
 DELETE FROM device_keys WHERE state = 'pending' AND pending_expires_at <= $1
 `
@@ -207,4 +271,22 @@ func (q *Queries) TouchCloudWebSession(ctx context.Context, arg TouchCloudWebSes
 	var i TouchCloudWebSessionRow
 	err := row.Scan(&i.AccountID, &i.Email, &i.BrowserDeviceID)
 	return i, err
+}
+
+const useCloudBrowserCode = `-- name: UseCloudBrowserCode :execrows
+UPDATE browser_codes SET used_at = $2
+WHERE code_sha256 = $1 AND used_at IS NULL AND expires_at > $2
+`
+
+type UseCloudBrowserCodeParams struct {
+	CodeSha256 []byte
+	AsOf       pgtype.Timestamptz
+}
+
+func (q *Queries) UseCloudBrowserCode(ctx context.Context, arg UseCloudBrowserCodeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, useCloudBrowserCode, arg.CodeSha256, arg.AsOf)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

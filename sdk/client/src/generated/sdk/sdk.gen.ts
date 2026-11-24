@@ -415,6 +415,9 @@ import type {
   EnableSkillData,
   EnableSkillErrors,
   EnableSkillResponses,
+  EndBrowserSessionData,
+  EndBrowserSessionErrors,
+  EndBrowserSessionResponses,
   EnqueueTaskRunData,
   EnqueueTaskRunErrors,
   EnqueueTaskRunResponses,
@@ -529,6 +532,12 @@ import type {
   GetAutomationTriggerData,
   GetAutomationTriggerErrors,
   GetAutomationTriggerResponses,
+  GetBrowserApprovalData,
+  GetBrowserApprovalErrors,
+  GetBrowserApprovalResponses,
+  GetBrowserStatusData,
+  GetBrowserStatusErrors,
+  GetBrowserStatusResponses,
   GetCmdPalettePersonalizationData,
   GetCmdPalettePersonalizationErrors,
   GetCmdPalettePersonalizationResponses,
@@ -957,6 +966,9 @@ import type {
   ListAvailableComputersData,
   ListAvailableComputersErrors,
   ListAvailableComputersResponses,
+  ListBrowserPeersData,
+  ListBrowserPeersErrors,
+  ListBrowserPeersResponses,
   ListCmdPaletteClientsData,
   ListCmdPaletteClientsErrors,
   ListCmdPaletteClientsResponses,
@@ -1203,6 +1215,9 @@ import type {
   MarkTaskReadData,
   MarkTaskReadErrors,
   MarkTaskReadResponses,
+  MintBrowserStreamTicketData,
+  MintBrowserStreamTicketErrors,
+  MintBrowserStreamTicketResponses,
   MintGatewayPairingData,
   MintGatewayPairingErrors,
   MintGatewayPairingResponses,
@@ -1674,6 +1689,9 @@ import type {
   StartAgentTaskRunData,
   StartAgentTaskRunErrors,
   StartAgentTaskRunResponses,
+  StartBrowserSessionData,
+  StartBrowserSessionErrors,
+  StartBrowserSessionResponses,
   StartComputerUpdateData,
   StartComputerUpdateErrors,
   StartComputerUpdateResponses,
@@ -11647,6 +11665,127 @@ export class remote extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/remote/link",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read the approval for the waiting browser key
+   */
+  public getBrowserApproval<ThrowOnError extends boolean = true>(
+    options: Options<GetBrowserApprovalData, ThrowOnError>
+  ): RequestResult<GetBrowserApprovalResponses, GetBrowserApprovalErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetBrowserApprovalResponses,
+      GetBrowserApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/remote/v1/browser/approvals/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * List other hosted computers on this account
+   */
+  public listBrowserPeers<ThrowOnError extends boolean = true>(
+    options: Options<ListBrowserPeersData, ThrowOnError>
+  ): RequestResult<ListBrowserPeersResponses, ListBrowserPeersErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListBrowserPeersResponses,
+      ListBrowserPeersErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/remote/v1/browser/peers",
+      ...options,
+    });
+  }
+
+  /**
+   * Revoke the current browser session
+   */
+  public endBrowserSession<ThrowOnError extends boolean = true>(
+    options: Options<EndBrowserSessionData, ThrowOnError>
+  ): RequestResult<EndBrowserSessionResponses, EndBrowserSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      EndBrowserSessionResponses,
+      EndBrowserSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/remote/v1/browser/session",
+      ...options,
+    });
+  }
+
+  /**
+   * Redeem a hosted sign-in code
+   */
+  public startBrowserSession<ThrowOnError extends boolean = true>(
+    options: Options<StartBrowserSessionData, ThrowOnError>
+  ): RequestResult<StartBrowserSessionResponses, StartBrowserSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      StartBrowserSessionResponses,
+      StartBrowserSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/remote/v1/browser/session",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read the hosted listener status
+   */
+  public getBrowserStatus<ThrowOnError extends boolean = true>(
+    options?: Options<GetBrowserStatusData, ThrowOnError>
+  ): RequestResult<GetBrowserStatusResponses, GetBrowserStatusErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      GetBrowserStatusResponses,
+      GetBrowserStatusErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/remote/v1/browser/status",
+      ...options,
+    });
+  }
+
+  /**
+   * Mint a single-use ticket for one stream path
+   */
+  public mintBrowserStreamTicket<ThrowOnError extends boolean = true>(
+    options: Options<MintBrowserStreamTicketData, ThrowOnError>
+  ): RequestResult<
+    MintBrowserStreamTicketResponses,
+    MintBrowserStreamTicketErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      MintBrowserStreamTicketResponses,
+      MintBrowserStreamTicketErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/remote/v1/stream-tickets",
       ...options,
       headers: {
         "Content-Type": "application/json",

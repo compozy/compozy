@@ -11,6 +11,25 @@ import (
 	"strings"
 )
 
+// ImportRuntimeMCPServer Copy a runtime MCP server into CompozyOS
+func (c *Client) ImportRuntimeMCPServer(ctx context.Context, params ImportRuntimeMCPServerParams, body RuntimeMCPImportRequest) (*RuntimeMCPImportResponse, error) {
+	path := "/api/settings/runtime-mcp-servers/{runtime}/{name}/import"
+	path = strings.ReplaceAll(path, "{runtime}", url.PathEscape(params.Runtime))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out RuntimeMCPImportResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InspectRunParams carries the path, query, and header parameters.
+type InspectRunParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // InspectRun Inspect one task run with diagnostics
 func (c *Client) InspectRun(ctx context.Context, params InspectRunParams) (*TaskInspectResponse, error) {
 	path := "/api/runs/{id}/inspect"
@@ -421,17 +440,4 @@ func (c *Client) ListAgentInstanceReports(ctx context.Context, params ListAgentI
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListAgentInstancesParams carries the path, query, and header parameters.
-type ListAgentInstancesParams struct {
-	Workspace     *string `url:"workspace"`
-	AllWorkspaces *string `url:"all_workspaces"`
-	Peers         *string `url:"peers"`
-	Agent         *string `url:"agent"`
-	State         *string `url:"state"`
-	Cursor        *string `url:"cursor"`
-	Limit         *string `url:"limit"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
 }

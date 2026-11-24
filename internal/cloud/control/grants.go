@@ -12,10 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
-type Grant struct {
-	Grant     string    `json:"grant"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
+type Grant = remoteproto.GrantResponse
 
 func (s *Service) IssueGrant(
 	ctx context.Context, principal DevicePrincipal, id remoteproto.ComputerID, route remoteproto.RouteKind,
@@ -40,7 +37,7 @@ func (s *Service) IssueGrant(
 			if err := admitGrant(computer, tier, route); err != nil {
 				return err
 			}
-			result, err = s.issueGrant(ctx, q, account, device, principal.JKT, computer.ID, route, now)
+			result, err = s.issueGrant(ctx, q, account, device, principal.JKT, computer.ID, route, false, now)
 			return err
 		},
 	)
@@ -62,7 +59,7 @@ func admitGrant(computer store.ControlComputer, tier plan.Plan, route remoteprot
 
 func (s *Service) issueGrant(
 	ctx context.Context, q *store.Queries, account store.ControlAccount, device store.ControlDevice, jkt string,
-	computer remoteproto.ComputerID, route remoteproto.RouteKind, now time.Time,
+	computer remoteproto.ComputerID, route remoteproto.RouteKind, browser bool, now time.Time,
 ) (Grant, error) {
 	scopes, err := q.EffectiveControlScopes(ctx, device, computer)
 	if err != nil {
@@ -70,7 +67,7 @@ func (s *Service) issueGrant(
 	}
 	claims := remoteproto.GrantClaims{
 		Issuer: s.config.Issuer, Audience: computer, Subject: device.ID, AccountID: account.ID,
-		Cnf: remoteproto.Confirmation{JKT: jkt}, Route: route, Scopes: scopes, JTI: rand.Text(),
+		Cnf: remoteproto.Confirmation{JKT: jkt}, Route: route, Browser: browser, Scopes: scopes, JTI: rand.Text(),
 		IssuedAt: now.Unix(), ExpiresAt: now.Add(remoteproto.GrantTTL).Unix(), SecurityEpoch: account.SecurityEpoch,
 	}
 	token, err := s.config.Signer.SignGrant(claims)
