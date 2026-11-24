@@ -249,63 +249,50 @@ export interface AddComputerFooterProps {
   onRemoveLinked: () => void;
 }
 
-/** Context-sensitive footer for `AddComputerDialog` reflecting setup phase & Rule 19. */
-export function AddComputerFooter({
-  method,
+const TERMINAL_SSH_STAGES: ReadonlySet<AddComputerSshStage> = new Set([
+  "plan_limit",
+  "failed",
+  "host_key_changed",
+  "unsupported",
+  "done",
+]);
+
+const PROMPT_SSH_STAGES: ReadonlySet<AddComputerSshStage> = new Set([
+  "trust_host",
+  "password",
+  "agent_secret",
+]);
+
+function SshTerminalStageFooter({
   sshStage,
-  accountEmail,
   hostLabel,
-  pickerBlocked,
-  commandDetected,
-  linkedCommitReached,
   onClose,
-  onRequestCancel,
-  onStartSsh,
   onRetry,
   onUpgrade,
   onOpenComputer,
   onSwitchToCommand,
-  onRemoveLinked,
-}: AddComputerFooterProps) {
-  if (method === "account") {
-    return (
-      <SingleActionFooter
-        actionLabel="Done"
-        hint={`Linked to ${accountEmail}. Adding connects this app right away.`}
-        onAction={onClose}
-        variant="default"
-      />
-    );
-  }
-
-  if (method === "command") {
-    return (
-      <SingleActionFooter
-        actionLabel={commandDetected ? "Done" : "Close"}
-        hint="Keep this dialog open or add the computer later under On your account."
-        onAction={onClose}
-        variant={commandDetected ? "default" : "outline"}
-      />
-    );
-  }
-
-  if (sshStage === "picker") {
-    return (
-      <EntityDialogFooter
-        cancelLabel="Cancel"
-        hint="Checks your plan and release signature before touching the host."
-        onCancel={onClose}
-        onPrimary={onStartSsh}
-        primaryDisabled={pickerBlocked}
-        primaryIcon={Plus}
-        primaryLabel="Add computer"
-      />
-    );
-  }
-
-  if (sshStage === "plan_limit") {
-    if (!onUpgrade) {
-      return (
+}: Pick<
+  AddComputerFooterProps,
+  | "sshStage"
+  | "hostLabel"
+  | "onClose"
+  | "onRetry"
+  | "onUpgrade"
+  | "onOpenComputer"
+  | "onSwitchToCommand"
+>) {
+  switch (sshStage) {
+    case "plan_limit":
+      return onUpgrade ? (
+        <EntityDialogFooter
+          cancelLabel="Cancel"
+          hint="Unlinking your existing remote computer also frees your Free slot."
+          onCancel={onClose}
+          onPrimary={onUpgrade}
+          primaryIcon={Sparkles}
+          primaryLabel="Upgrade to Pro"
+        />
+      ) : (
         <SingleActionFooter
           actionLabel="Close"
           hint="Unlinking your existing remote computer frees your Free slot."
@@ -313,68 +300,62 @@ export function AddComputerFooter({
           variant="outline"
         />
       );
-    }
-    return (
-      <EntityDialogFooter
-        cancelLabel="Cancel"
-        hint="Unlinking your existing remote computer also frees your Free slot."
-        onCancel={onClose}
-        onPrimary={onUpgrade}
-        primaryIcon={Sparkles}
-        primaryLabel="Upgrade to Pro"
-      />
-    );
+    case "failed":
+      return (
+        <EntityDialogFooter
+          cancelLabel="Cancel"
+          hint="Retry resumes from the failed step without repeating completed work."
+          onCancel={onClose}
+          onPrimary={onRetry}
+          primaryIcon={RefreshCw}
+          primaryLabel="Retry"
+        />
+      );
+    case "host_key_changed":
+      return (
+        <EntityDialogFooter
+          cancelLabel="Cancel"
+          onCancel={onClose}
+          onPrimary={onRetry}
+          primaryIcon={RefreshCw}
+          primaryLabel="Retry"
+        />
+      );
+    case "unsupported":
+      return (
+        <EntityDialogFooter
+          cancelLabel="Cancel"
+          onCancel={onClose}
+          onPrimary={onSwitchToCommand}
+          primaryIcon={Link2}
+          primaryLabel="Link with a command"
+        />
+      );
+    case "done":
+      return (
+        <EntityDialogFooter
+          cancelLabel="Done"
+          hint={`${hostLabel} is ready in your Computers list and Run on picker.`}
+          onCancel={onClose}
+          onPrimary={() => onOpenComputer?.(hostLabel)}
+          primaryLabel={`Open ${hostLabel}`}
+        />
+      );
+    default:
+      return null;
   }
+}
 
-  if (sshStage === "failed") {
-    return (
-      <EntityDialogFooter
-        cancelLabel="Cancel"
-        hint="Retry resumes from the failed step without repeating completed work."
-        onCancel={onClose}
-        onPrimary={onRetry}
-        primaryIcon={RefreshCw}
-        primaryLabel="Retry"
-      />
-    );
-  }
-
-  if (sshStage === "host_key_changed") {
-    return (
-      <EntityDialogFooter
-        cancelLabel="Cancel"
-        onCancel={onClose}
-        onPrimary={onRetry}
-        primaryIcon={RefreshCw}
-        primaryLabel="Retry"
-      />
-    );
-  }
-
-  if (sshStage === "unsupported") {
-    return (
-      <EntityDialogFooter
-        cancelLabel="Cancel"
-        onCancel={onClose}
-        onPrimary={onSwitchToCommand}
-        primaryIcon={Link2}
-        primaryLabel="Link with a command"
-      />
-    );
-  }
-
-  if (sshStage === "done") {
-    return (
-      <EntityDialogFooter
-        cancelLabel="Done"
-        hint={`${hostLabel} is ready in your Computers list and Run on picker.`}
-        onCancel={onClose}
-        onPrimary={() => onOpenComputer?.(hostLabel)}
-        primaryLabel={`Open ${hostLabel}`}
-      />
-    );
-  }
-
+function SshProgressStageFooter({
+  sshStage,
+  linkedCommitReached,
+  onClose,
+  onRemoveLinked,
+  onRequestCancel,
+}: Pick<
+  AddComputerFooterProps,
+  "sshStage" | "linkedCommitReached" | "onClose" | "onRemoveLinked" | "onRequestCancel"
+>) {
   if (linkedCommitReached) {
     return (
       <EntityDialogFooter
@@ -386,8 +367,7 @@ export function AddComputerFooter({
       />
     );
   }
-
-  if (sshStage === "trust_host" || sshStage === "password" || sshStage === "agent_secret") {
+  if (PROMPT_SSH_STAGES.has(sshStage)) {
     return (
       <SingleActionFooter
         actionLabel="Cancel setup"
@@ -397,7 +377,6 @@ export function AddComputerFooter({
       />
     );
   }
-
   return (
     <EntityDialogFooter
       cancelLabel="Cancel setup"
@@ -406,6 +385,67 @@ export function AddComputerFooter({
       onCancel={onRequestCancel}
       primaryDisabled
       primaryLabel="Adding computer…"
+    />
+  );
+}
+
+/** Context-sensitive footer for `AddComputerDialog` reflecting setup phase & Rule 19. */
+export function AddComputerFooter(props: AddComputerFooterProps) {
+  if (props.method === "account") {
+    return (
+      <SingleActionFooter
+        actionLabel="Done"
+        hint={`Linked to ${props.accountEmail}. Adding connects this app right away.`}
+        onAction={props.onClose}
+        variant="default"
+      />
+    );
+  }
+  if (props.method === "command") {
+    return (
+      <SingleActionFooter
+        actionLabel={props.commandDetected ? "Done" : "Close"}
+        hint="Keep this dialog open or add the computer later under On your account."
+        onAction={props.onClose}
+        variant={props.commandDetected ? "default" : "outline"}
+      />
+    );
+  }
+  if (props.sshStage === "picker") {
+    return (
+      <EntityDialogFooter
+        cancelLabel="Cancel"
+        hint="Checks your plan and release signature before touching the host."
+        onCancel={props.onClose}
+        onPrimary={props.onStartSsh}
+        primaryDisabled={props.pickerBlocked}
+        primaryIcon={Plus}
+        primaryLabel="Add computer"
+      />
+    );
+  }
+
+  if (TERMINAL_SSH_STAGES.has(props.sshStage)) {
+    return (
+      <SshTerminalStageFooter
+        hostLabel={props.hostLabel}
+        onClose={props.onClose}
+        onOpenComputer={props.onOpenComputer}
+        onRetry={props.onRetry}
+        onSwitchToCommand={props.onSwitchToCommand}
+        onUpgrade={props.onUpgrade}
+        sshStage={props.sshStage}
+      />
+    );
+  }
+
+  return (
+    <SshProgressStageFooter
+      linkedCommitReached={props.linkedCommitReached}
+      onClose={props.onClose}
+      onRemoveLinked={props.onRemoveLinked}
+      onRequestCancel={props.onRequestCancel}
+      sshStage={props.sshStage}
     />
   );
 }

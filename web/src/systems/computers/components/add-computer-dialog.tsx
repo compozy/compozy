@@ -87,29 +87,135 @@ function resolveTarget(draft: SshTargetDraft, sshSuggestions: readonly SshHostSu
   return { targetAddress, hostLabel, pickerBlocked };
 }
 
-/**
- * Add computer modal (`_uiux.md` U2):
- * - Three mutually exclusive paths via `RadioCardGroup` (SSH, On your account, Link with a command)
- * - Deterministic 7-step SSH progress list with inline anchored Trust / Password prompts
- * - Safe Cancel confirmation before `Linking` commits; honest `Remove` afterwards (Rule 19)
- */
-export function AddComputerDialog({
-  open,
-  accountEmail,
-  isFreePlan = false,
-  sshSuggestions,
-  unaddedComputers,
-  initialMethod = "ssh",
-  initialSshStage = "picker",
-  initialHostDraft = DEFAULT_DRAFT,
-  defaultHostPickerOpen = false,
-  initialCommandDetected = false,
-  linkedCommitReached = false,
-  live,
-  onClose,
-  onUpgrade,
-  onOpenComputer,
-}: AddComputerDialogProps) {
+function buildMethodOptions(unaddedCount: number): Array<RadioCardGroupOption<AddComputerMethod>> {
+  const accountCountLabel =
+    unaddedCount === 1 ? "1 computer ready to add" : `${unaddedCount} computers ready to add`;
+  const options: Array<RadioCardGroupOption<AddComputerMethod>> = [
+    {
+      value: "ssh",
+      title: "SSH",
+      description: "Install and connect over SSH using your SSH config",
+      icon: Terminal,
+    },
+  ];
+  if (unaddedCount > 0) {
+    options.push({
+      value: "account",
+      title: "On your account",
+      description: accountCountLabel,
+      icon: UserCheck,
+    });
+  }
+  options.push({
+    value: "command",
+    title: "Link with a command",
+    description: "Run one command on the other computer, including Windows",
+    icon: Link2,
+  });
+  return options;
+}
+
+function buildLiveDialogView(
+  live: AddComputerLiveController,
+  sshSuggestions: readonly SshHostSuggestionFixture[],
+  cancelConfirmOpen: boolean,
+  setCancelConfirmOpen: (open: boolean) => void,
+  setLocalSshStage: ReturnType<typeof useAddComputerDialog>["setSshStage"],
+  onClose?: () => void
+) {
+  const target = resolveTarget(live.draft, sshSuggestions);
+  const isSshProgressView = live.method === "ssh" && live.sshStage !== "picker";
+  const selectMethod = (next: AddComputerMethod) => {
+    live.setMethod(next);
+    live.onBackToPicker();
+  };
+  return {
+    method: live.method,
+    draft: live.draft,
+    sshStage: live.sshStage,
+    isSshProgressView,
+    resolvedLinkedCommit: live.linkedCommitReached,
+    addedIds: live.addedIds,
+    commandDetected: Boolean(live.detectedCommandComputer),
+    targetAddress: target.targetAddress,
+    hostLabel: target.hostLabel,
+    pickerBlocked: target.pickerBlocked,
+    cancelConfirmOpen,
+    setCancelConfirmOpen,
+    setDraft: live.setDraft,
+    setSshStage: setLocalSshStage,
+    onAddAccountComputer: live.onAddAccountComputer,
+    onStartSsh: live.onStartSsh,
+    onRetry: live.onRetrySetup,
+    onRemoveLinked: live.onRemoveLinked,
+    selectMethod,
+    switchToCommand: () => selectMethod("command"),
+    handleRequestCancel: () => {
+      if (isSshProgressView && ACTIVE_SSH_STAGES.has(live.sshStage) && !live.linkedCommitReached) {
+        setCancelConfirmOpen(true);
+        return;
+      }
+      onClose?.();
+    },
+    handleConfirmCancel: () => {
+      setCancelConfirmOpen(false);
+      live.onConfirmCancel();
+    },
+  };
+}
+
+function buildLocalDialogView(
+  localState: ReturnType<typeof useAddComputerDialog>,
+  initialCommandDetected: boolean,
+  linkedCommitReached: boolean
+) {
+  const selectMethod = (next: AddComputerMethod) => {
+    localState.setMethod(next);
+    localState.setSshStage("picker");
+  };
+  return {
+    method: localState.method,
+    draft: localState.draft,
+    sshStage: localState.sshStage,
+    isSshProgressView: localState.method === "ssh" && localState.sshStage !== "picker",
+    resolvedLinkedCommit: linkedCommitReached,
+    addedIds: localState.addedIds,
+    commandDetected: initialCommandDetected,
+    targetAddress: localState.targetAddress,
+    hostLabel: localState.hostLabel,
+    pickerBlocked: localState.pickerBlocked,
+    cancelConfirmOpen: localState.cancelConfirmOpen,
+    setCancelConfirmOpen: localState.setCancelConfirmOpen,
+    setDraft: localState.setDraft,
+    setSshStage: localState.setSshStage,
+    onAddAccountComputer: localState.handleAddAccountItem,
+    onStartSsh: localState.handleStartSsh,
+    onRetry: localState.handleRetryFailed,
+    onRemoveLinked: () => toast.message(`Opens Remove dialog for ${localState.hostLabel}`),
+    selectMethod,
+    switchToCommand: () => selectMethod("command"),
+    handleRequestCancel: localState.handleRequestCancel,
+    handleConfirmCancel: () => {
+      localState.setCancelConfirmOpen(false);
+      localState.setSshStage("picker");
+      toast.message("Setup cancelled.");
+    },
+  };
+}
+
+function useAddComputerDialogView(props: AddComputerDialogProps) {
+  const {
+    isFreePlan = false,
+    sshSuggestions,
+    initialMethod = "ssh",
+    initialSshStage = "picker",
+    initialHostDraft = DEFAULT_DRAFT,
+    initialCommandDetected = false,
+    linkedCommitReached = false,
+    live,
+    onClose,
+  } = props;
+
   const localState = useAddComputerDialog({
     isFreePlan,
     sshSuggestions,
@@ -121,68 +227,45 @@ export function AddComputerDialog({
   });
   const [liveCancelConfirmOpen, setLiveCancelConfirmOpen] = useState(false);
 
-  const method = live ? live.method : localState.method;
-  const draft = live ? live.draft : localState.draft;
-  const sshStage = live ? live.sshStage : localState.sshStage;
-  const isSshProgressView = method === "ssh" && sshStage !== "picker";
-  const resolvedLinkedCommit = live ? live.linkedCommitReached : linkedCommitReached;
-  const addedIds = live ? live.addedIds : localState.addedIds;
-  const commandDetected = live ? Boolean(live.detectedCommandComputer) : initialCommandDetected;
+  return live
+    ? buildLiveDialogView(
+        live,
+        sshSuggestions,
+        liveCancelConfirmOpen,
+        setLiveCancelConfirmOpen,
+        localState.setSshStage,
+        onClose
+      )
+    : buildLocalDialogView(localState, initialCommandDetected, linkedCommitReached);
+}
 
-  const { targetAddress, hostLabel, pickerBlocked } = live
-    ? resolveTarget(draft, sshSuggestions)
-    : localState;
-
-  const cancelConfirmOpen = live ? liveCancelConfirmOpen : localState.cancelConfirmOpen;
-  const setCancelConfirmOpen = live ? setLiveCancelConfirmOpen : localState.setCancelConfirmOpen;
-
-  const handleRequestCancel = () => {
-    if (live) {
-      if (isSshProgressView && ACTIVE_SSH_STAGES.has(sshStage) && !resolvedLinkedCommit) {
-        setLiveCancelConfirmOpen(true);
-        return;
-      }
-      onClose?.();
-      return;
-    }
-    localState.handleRequestCancel();
-  };
-
-  const accountCountLabel =
-    unaddedComputers.length === 1
-      ? "1 computer ready to add"
-      : `${unaddedComputers.length} computers ready to add`;
-
-  const methodOptions: Array<RadioCardGroupOption<AddComputerMethod>> = [
-    {
-      value: "ssh",
-      title: "SSH",
-      description: "Install and connect over SSH using your SSH config",
-      icon: Terminal,
-    },
-    ...(unaddedComputers.length > 0
-      ? [
-          {
-            value: "account" as const,
-            title: "On your account",
-            description: accountCountLabel,
-            icon: UserCheck,
-          },
-        ]
-      : []),
-    {
-      value: "command",
-      title: "Link with a command",
-      description: "Run one command on the other computer, including Windows",
-      icon: Link2,
-    },
-  ];
+/**
+ * Add computer modal (`_uiux.md` U2):
+ * - Three mutually exclusive paths via `RadioCardGroup` (SSH, On your account, Link with a command)
+ * - Deterministic 7-step SSH progress list with inline anchored Trust / Password prompts
+ * - Safe Cancel confirmation before `Linking` commits; honest `Remove` afterwards (Rule 19)
+ */
+export function AddComputerDialog(props: AddComputerDialogProps) {
+  const {
+    open,
+    accountEmail,
+    isFreePlan = false,
+    sshSuggestions,
+    unaddedComputers,
+    defaultHostPickerOpen = false,
+    live,
+    onClose,
+    onUpgrade,
+    onOpenComputer,
+  } = props;
+  const view = useAddComputerDialogView(props);
+  const methodOptions = buildMethodOptions(unaddedComputers.length);
 
   return (
     <>
       <Dialog
         onOpenChange={next => {
-          if (!next) handleRequestCancel();
+          if (!next) view.handleRequestCancel();
         }}
         open={open}
       >
@@ -195,113 +278,83 @@ export function AddComputerDialog({
             description="Connect another machine so your sessions, terminals, and files run there."
             eyebrow="Computers"
             icon={Laptop}
-            onClose={handleRequestCancel}
+            onClose={view.handleRequestCancel}
             title="Add computer"
           />
 
           <EntityDialogBody className="flex flex-col gap-5">
-            {!isSshProgressView ? (
+            {!view.isSshProgressView ? (
               <RadioCardGroup
                 aria-label="How to add a computer"
                 className={methodOptions.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}
                 iconWellSize="lg"
-                onValueChange={next => {
-                  if (live) {
-                    live.setMethod(next);
-                    live.onBackToPicker();
-                  } else {
-                    localState.setMethod(next);
-                    localState.setSshStage("picker");
-                  }
-                }}
+                onValueChange={view.selectMethod}
                 options={methodOptions}
-                value={method}
+                value={view.method}
               />
             ) : null}
 
-            {method === "ssh" && sshStage === "picker" ? (
+            {view.method === "ssh" && view.sshStage === "picker" ? (
               <AddComputerSshPicker
                 defaultPickerOpen={defaultHostPickerOpen}
-                onChange={live ? live.setDraft : localState.setDraft}
-                onSwitchToCommand={() =>
-                  live ? live.setMethod("command") : localState.setMethod("command")
-                }
+                onChange={view.setDraft}
+                onSwitchToCommand={view.switchToCommand}
                 suggestions={sshSuggestions}
-                value={draft}
+                value={view.draft}
               />
             ) : null}
 
-            {isSshProgressView ? (
+            {view.isSshProgressView ? (
               <AddComputerSshProgressView
                 accountEmail={accountEmail}
-                hostLabel={hostLabel}
+                hostLabel={view.hostLabel}
                 live={live}
-                onRequestCancel={handleRequestCancel}
-                onSetSshStage={localState.setSshStage}
-                onSwitchToCommand={() => {
-                  if (live) {
-                    live.setMethod("command");
-                    live.onBackToPicker();
-                  } else {
-                    localState.setMethod("command");
-                    localState.setSshStage("picker");
-                  }
-                }}
-                sshStage={sshStage}
-                targetAddress={targetAddress}
+                onRequestCancel={view.handleRequestCancel}
+                onSetSshStage={view.setSshStage}
+                onSwitchToCommand={view.switchToCommand}
+                sshStage={view.sshStage}
+                targetAddress={view.targetAddress}
               />
             ) : null}
 
-            {method === "account" ? (
+            {view.method === "account" ? (
               <AddComputerAccountPath
                 accountEmail={accountEmail}
-                addedIds={addedIds}
+                addedIds={view.addedIds}
                 isFreePlan={isFreePlan}
-                onAdd={live ? live.onAddAccountComputer : localState.handleAddAccountItem}
+                onAdd={view.onAddAccountComputer}
                 onUpgrade={onUpgrade}
                 unaddedComputers={unaddedComputers}
               />
             ) : null}
 
-            {method === "command" ? (
+            {view.method === "command" ? (
               <AddComputerCommandPath
                 accountEmail={accountEmail}
-                addedIds={addedIds}
-                detected={commandDetected}
+                addedIds={view.addedIds}
+                detected={view.commandDetected}
                 detectedComputer={live?.detectedCommandComputer}
-                onAdd={live ? live.onAddAccountComputer : localState.handleAddAccountItem}
+                onAdd={view.onAddAccountComputer}
               />
             ) : null}
           </EntityDialogBody>
 
           <AddComputerFooter
             accountEmail={accountEmail}
-            commandDetected={commandDetected}
-            hostLabel={hostLabel}
-            linkedCommitReached={resolvedLinkedCommit}
-            method={method}
+            commandDetected={view.commandDetected}
+            hostLabel={view.hostLabel}
+            linkedCommitReached={view.resolvedLinkedCommit}
+            method={view.method}
             onClose={() => onClose?.()}
             onOpenComputer={onOpenComputer}
-            onRemoveLinked={
-              live
-                ? live.onRemoveLinked
-                : () => toast.message(`Opens Remove dialog for ${hostLabel}`)
-            }
-            onRequestCancel={handleRequestCancel}
-            onRetry={live ? live.onRetrySetup : localState.handleRetryFailed}
-            onStartSsh={live ? live.onStartSsh : localState.handleStartSsh}
-            onSwitchToCommand={() => {
-              if (live) {
-                live.setMethod("command");
-                live.onBackToPicker();
-              } else {
-                localState.setMethod("command");
-                localState.setSshStage("picker");
-              }
-            }}
+            onRemoveLinked={view.onRemoveLinked}
+            onRequestCancel={view.handleRequestCancel}
+            onRetry={view.onRetry}
+            onStartSsh={view.onStartSsh}
+            onSwitchToCommand={view.switchToCommand}
             onUpgrade={onUpgrade}
-            pickerBlocked={pickerBlocked}
-            sshStage={sshStage}
+            pickerBlocked={view.pickerBlocked}
+            sshStage={view.sshStage}
           />
         </DialogContent>
       </Dialog>
@@ -309,19 +362,11 @@ export function AddComputerDialog({
       <ConfirmDialog
         cancelLabel="Keep adding"
         confirmLabel="Stop setup"
-        description={`Stops adding ${hostLabel} right now and frees your computer slot. Nothing further will be changed on ${targetAddress}.`}
-        onConfirm={() => {
-          setCancelConfirmOpen(false);
-          if (live) {
-            live.onConfirmCancel();
-          } else {
-            localState.setSshStage("picker");
-            toast.message("Setup cancelled.");
-          }
-        }}
-        onOpenChange={setCancelConfirmOpen}
-        open={cancelConfirmOpen}
-        title={`Stop adding ${hostLabel}?`}
+        description={`Stops adding ${view.hostLabel} right now and frees your computer slot. Nothing further will be changed on ${view.targetAddress}.`}
+        onConfirm={view.handleConfirmCancel}
+        onOpenChange={view.setCancelConfirmOpen}
+        open={view.cancelConfirmOpen}
+        title={`Stop adding ${view.hostLabel}?`}
         tone="warning"
       />
     </>
