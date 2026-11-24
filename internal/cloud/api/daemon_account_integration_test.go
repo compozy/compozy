@@ -254,15 +254,27 @@ func startDaemonAccountFixture(t *testing.T, f authFixture, home string) (daemon
 	if _, _, err := config.EnsureBootstrapAgent(paths); err != nil {
 		t.Fatal(err)
 	}
-	cfg := config.DefaultWithHome(paths)
-	cfg.UserScope.WorkDir = home
+	// User sessions resolve their provider and working directory from the profile config on disk.
+	target, err := config.ResolveConfigWriteTarget(paths, "", config.WriteScopeUser, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.EditConfigOverlay(paths, "", target, func(editor *config.OverlayEditor) error {
+		if err := editor.SetValue([]string{"defaults", "provider"}, "codex"); err != nil {
+			return err
+		}
+		return editor.SetValue([]string{"user_scope", "work_dir"}, home)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg.Automation.Enabled = false
 	cfg.HTTP.Host, cfg.HTTP.Port = "127.0.0.1", testutil.FreeTCPPort(t)
 	ring := &daemonAccountKeyring{}
 	daemonInstance, err := daemon.New(
 		daemon.WithHomePaths(paths),
 		daemon.WithConfig(&cfg),
-		daemon.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		daemon.WithLogger(slog.New(slog.NewTextHandler(t.Output(), &slog.HandlerOptions{Level: slog.LevelWarn}))),
 		daemon.WithNow(f.clock.Now),
 		daemon.WithAccountOptions(account.WithClock(f.clock), account.WithKeyring(ring)),
 	)
