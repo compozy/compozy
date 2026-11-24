@@ -172,6 +172,9 @@ func addAccountComputer(t *testing.T, controller daemonAccountFixture, id remote
 		Kind: "account", ComputerID: id,
 	})
 	reply.expect(t, http.StatusCreated, string(id))
+	if authJSON[contract.Computer](t, reply).Scopes == nil {
+		t.Fatal("added computer scopes must be an array before the first connection grants scopes")
+	}
 }
 
 func waitComputerRoute(

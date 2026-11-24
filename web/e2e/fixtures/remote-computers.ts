@@ -7,6 +7,9 @@ import { promisify } from "node:util";
 
 import { test as base } from "@playwright/test";
 
+import { ArtifactCollector } from "./artifacts";
+import { BrowserArtifactSession } from "./browser-artifact-session";
+
 const execFileAsync = promisify(execFile);
 const repo = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -107,6 +110,19 @@ export const test = base.extend<{ scenario: Scenario; lab: RemoteComputersLab }>
   ],
   baseURL: async ({ lab }, use) => {
     await use(lab.controller.web_url);
+  },
+  page: async ({ page, context }, use, testInfo) => {
+    const collector = await ArtifactCollector.create(testInfo.outputPath("compozy-artifacts"));
+    const artifacts = await BrowserArtifactSession.start({ collector, context });
+    try {
+      await use(page);
+    } finally {
+      if (testInfo.status !== testInfo.expectedStatus) {
+        await artifacts.persist(page);
+      } else {
+        await context.tracing.stop();
+      }
+    }
   },
 });
 

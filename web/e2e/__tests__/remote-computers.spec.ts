@@ -100,6 +100,7 @@ test.describe("Account-linked computer", () => {
     const palette = await openCommandPalette(page);
     await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(title);
     const result = palette.getByTestId(`os-palette-session-${sessionID}`);
+    await expect(result).toBeVisible();
     await expect(result).toContainText(title);
     await expect(result).toContainText(host.name);
   });
