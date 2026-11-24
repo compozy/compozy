@@ -7,6 +7,69 @@ import (
 	"time"
 )
 
+// ExtensionRemovedBuiltinsResponse is a daemon API value.
+type ExtensionRemovedBuiltinsResponse struct {
+	Removed []ExtensionRemovedBuiltinPayload `json:"removed"`
+}
+
+// ExtensionResponse is a daemon API value.
+type ExtensionResponse struct {
+	Extension ExtensionPayload `json:"extension"`
+}
+
+// ExtensionRestorePayload is a daemon API value.
+type ExtensionRestorePayload struct {
+	Name    string `json:"name"`
+	Status  string `json:"status"`
+	Source  string `json:"source"`
+	Version string `json:"version"`
+	Enabled bool   `json:"enabled"`
+	Path    string `json:"path"`
+}
+
+// ExtensionSecretBindingInput is a daemon API value.
+type ExtensionSecretBindingInput struct {
+	EnvName    string  `json:"env_name"`
+	Value      *string `json:"value,omitzero"`
+	VaultRef   *string `json:"vault_ref,omitzero"`
+	MCPServer  string  `json:"mcp_server,omitempty"`
+	HeaderName string  `json:"header_name,omitempty"`
+}
+
+// ExtensionSecretBindingPayload is a daemon API value.
+type ExtensionSecretBindingPayload struct {
+	EnvName    string `json:"env_name"`
+	Stale      bool   `json:"stale"`
+	MCPServer  string `json:"mcp_server,omitempty"`
+	HeaderName string `json:"header_name,omitempty"`
+}
+
+// ExtensionSecretsPayload is a daemon API value.
+type ExtensionSecretsPayload struct {
+	DeclaredEnv  []string                        `json:"declared_env"`
+	BoundEnvKeys []string                        `json:"bound_env_keys"`
+	Bindings     []ExtensionSecretBindingPayload `json:"bindings"`
+}
+
+// ExtensionTrustReportPayload is a daemon API value.
+type ExtensionTrustReportPayload struct {
+	Decision         string           `json:"decision"`
+	RegistryTier     string           `json:"registry_tier"`
+	ChecksumVerified bool             `json:"checksum_verified"`
+	AllowUnverified  bool             `json:"allow_unverified"`
+	Warnings         []DiagnosticItem `json:"warnings,omitempty"`
+}
+
+// ExtensionUpdateBatchResponse is a daemon API value.
+type ExtensionUpdateBatchResponse struct {
+	Updates []ManagedExtensionUpdatePayload `json:"updates"`
+}
+
+// ExtensionUpdateResponse is a daemon API value.
+type ExtensionUpdateResponse struct {
+	Update ManagedExtensionUpdatePayload `json:"update"`
+}
+
 // ExtensionsResponse is a daemon API value.
 type ExtensionsResponse struct {
 	Extensions []ExtensionPayload `json:"extensions"`
@@ -380,65 +443,4 @@ type GatewayIngressPayload struct {
 	ConfirmedEndpointGeneration uint64     `json:"confirmed_endpoint_generation,omitempty"`
 	ConfirmedAt                 *time.Time `json:"confirmed_at,omitempty"`
 	EnablePath                  string     `json:"enable_path,omitempty"`
-}
-
-// GatewayIngressUnbindResponse is a daemon API value.
-type GatewayIngressUnbindResponse struct {
-	SubjectKind string `json:"subject_kind"`
-	SubjectID   string `json:"subject_id"`
-	Changed     bool   `json:"changed"`
-}
-
-// GatewayIssuedCredentialPayload is a daemon API value.
-type GatewayIssuedCredentialPayload struct {
-	Device     GatewayDevicePayload `json:"device"`
-	Credential string               `json:"credential,omitempty"`
-}
-
-// GatewayPairingArtifactPayload is a daemon API value.
-type GatewayPairingArtifactPayload struct {
-	Artifact   string    `json:"artifact"`
-	ManualCode string    `json:"manual_code"`
-	ExpiresAt  time.Time `json:"expires_at"`
-}
-
-// GatewayPairingRedeemRequest is a daemon API value.
-type GatewayPairingRedeemRequest struct {
-	Artifact   string `json:"artifact,omitempty"`
-	ManualCode string `json:"manual_code,omitempty"`
-	Name       string `json:"name"`
-	ActorKind  string `json:"actor_kind"`
-	Credential string `json:"credential,omitempty"`
-}
-
-// GatewayProviderEnableRequest is a daemon API value.
-type GatewayProviderEnableRequest struct {
-	Tier               string `json:"tier"`
-	InstallSource      string `json:"install_source"`
-	DigestConfirmed    string `json:"digest_confirmed,omitempty"`
-	ExpectedGeneration uint64 `json:"expected_generation"`
-}
-
-// GatewayProviderPayload is a daemon API value.
-type GatewayProviderPayload struct {
-	Name       string `json:"name"`
-	Tier       string `json:"tier"`
-	Desired    string `json:"desired"`
-	Observed   string `json:"observed"`
-	Generation uint64 `json:"generation"`
-	Health     string `json:"health"`
-	Cause      string `json:"cause,omitempty"`
-}
-
-// GatewayRefusalPayload is a daemon API value.
-type GatewayRefusalPayload struct {
-	Cause string `json:"cause"`
-	Fix   string `json:"fix"`
-}
-
-// GatewayRemovedDevicePayload is a daemon API value.
-type GatewayRemovedDevicePayload struct {
-	Device   GatewayDevicePayload `json:"device"`
-	Revoked  bool                 `json:"revoked"`
-	Canceled int                  `json:"canceled"`
 }

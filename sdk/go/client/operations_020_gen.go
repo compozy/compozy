@@ -121,6 +121,16 @@ func (c *Client) ListAutomationTriggers(ctx context.Context, params ListAutomati
 	return &out, nil
 }
 
+// ListAvailableComputers List linked computers available to add
+func (c *Client) ListAvailableComputers(ctx context.Context) (*AvailableComputersResponse, error) {
+	path := "/api/computers/available"
+	var out AvailableComputersResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListCmdPaletteClientsParams carries the path, query, and header parameters.
 type ListCmdPaletteClientsParams struct {
 	Workspace   string  `url:"workspace"`
@@ -175,6 +185,16 @@ func (c *Client) ListCmdPaletteCommands(ctx context.Context, params ListCmdPalet
 		path += "?" + query.Encode()
 	}
 	var out CmdPaletteCommandsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListComputers List computers added to this controller
+func (c *Client) ListComputers(ctx context.Context) (*ComputerListResponse, error) {
+	path := "/api/computers"
+	var out ComputerListResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
@@ -415,32 +435,4 @@ type ListGoalTurnsParams struct {
 	Item        *int    `url:"item"`
 	AfterSeq    *int    `url:"after_seq"`
 	Limit       *int    `url:"limit"`
-}
-
-// ListGoalTurns List Goal turns in run-wide sequence order
-func (c *Client) ListGoalTurns(ctx context.Context, params ListGoalTurnsParams) (*GoalTurnPage, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Node != nil {
-		query.Set("node", *params.Node)
-	}
-	if params.Item != nil {
-		query.Set("item", strconv.Itoa(*params.Item))
-	}
-	if params.AfterSeq != nil {
-		query.Set("after_seq", strconv.Itoa(*params.AfterSeq))
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out GoalTurnPage
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

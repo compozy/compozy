@@ -69,7 +69,7 @@ func newClientWithTimeout(target ClientTarget, requestTimeout time.Duration) (Da
 		transport.Proxy = nil
 	}
 	checkRedirect := defaultCLIRedirectPolicy
-	if target.isRemoteGateway() {
+	if target.isRemoteGateway() || target.computerID != "" {
 		checkRedirect = func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}

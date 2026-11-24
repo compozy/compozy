@@ -22,6 +22,13 @@
             "resource": "notifications",
             "app_access": "allowed"
         },
+        "addAccountComputer": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.addAccountComputer({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.AddAccountComputer(ctx, client.AddComputerRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
+            "app_access": "denied"
+        },
         "addAgentMemory": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.addAgentMemory({ path: { \"name\": \"name\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.AddAgentMemory(ctx, client.AddAgentMemoryParams{Name: \"name\"}, client.AgentMemoryAddRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -1205,6 +1212,13 @@
             "resource": "cmdPalette",
             "app_access": "denied"
         },
+        "getComputer": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.getComputer({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetComputer(ctx, client.GetComputerParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
+            "app_access": "denied"
+        },
         "getDoctor": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.diagnostics.getDoctor();",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetDoctor(ctx, client.GetDoctorParams{})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2164,6 +2178,13 @@
             "resource": "automation",
             "app_access": "allowed"
         },
+        "listAvailableComputers": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.listAvailableComputers();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListAvailableComputers(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
+            "app_access": "denied"
+        },
         "listCmdPaletteClients": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.cmdPalette.listCmdPaletteClients({ query: { \"workspace\": \"workspace\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListCmdPaletteClients(ctx, client.ListCmdPaletteClientsParams{Workspace: \"workspace\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2176,6 +2197,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListCmdPaletteCommands(ctx, client.ListCmdPaletteCommandsParams{Workspace: \"workspace\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "cmdPalette",
+            "app_access": "denied"
+        },
+        "listComputers": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.listComputers();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListComputers(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
             "app_access": "denied"
         },
         "listExtensionCommands": {
@@ -2808,6 +2836,13 @@
             "resource": "account",
             "app_access": "denied"
         },
+        "patchComputer": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.patchComputer({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PatchComputer(ctx, client.PatchComputerParams{ID: \"id\"}, client.PatchComputerRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
+            "app_access": "denied"
+        },
         "patchLoop": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.patchLoop({ path: { \"workspace_id\": \"workspace_id\", \"name\": \"name\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PatchLoop(ctx, client.PatchLoopParams{WorkspaceID: \"workspace_id\", Name: \"name\"}, client.PatchLoopRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -3282,6 +3317,20 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RemoveAgentMemory(ctx, client.RemoveAgentMemoryParams{Name: \"name\"}, client.AgentMemoryRemoveRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "agents",
+            "app_access": "denied"
+        },
+        "removeComputer": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.removeComputer({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RemoveComputer(ctx, client.RemoveComputerParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
+            "app_access": "denied"
+        },
+        "removeComputerRoute": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.removeComputerRoute({ path: { \"id\": \"id\", \"route_id\": \"route_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.RemoveComputerRoute(ctx, client.RemoveComputerRouteParams{ID: \"id\", RouteID: \"route_id\"})\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "computers",
             "app_access": "denied"
         },
         "removeDiscoveredWorktree": {
@@ -3877,6 +3926,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nstream, err := c.StreamCmdPaletteViewSession(ctx, client.StreamCmdPaletteViewSessionParams{Session: \"session\", Token: \"token\"})\nif err != nil { return err }\ndefer stream.Close()\nfor {\n  frame, err := stream.Next()\n  if errors.Is(err, io.EOF) { break }\n  if err != nil { return err }\n  fmt.Println(frame.Data)\n}",
             "kind": "sse",
             "resource": "cmdPalette",
+            "app_access": "denied"
+        },
+        "streamComputers": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nfor await (const frame of compozy.events(\"streamComputers\", {})) {\n  console.log(frame);\n}",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nstream, err := c.StreamComputers(ctx, client.StreamComputersParams{})\nif err != nil { return err }\ndefer stream.Close()\nfor {\n  frame, err := stream.Next()\n  if errors.Is(err, io.EOF) { break }\n  if err != nil { return err }\n  fmt.Println(frame.Data)\n}",
+            "kind": "sse",
+            "resource": "computers",
             "app_access": "denied"
         },
         "streamGlobalSession": {

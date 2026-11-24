@@ -4,6 +4,14 @@
 
 `https://cloud.compozy.com` serves the Remote Computers control plane. Agent sessions and their data stay on their computers.
 
+## Use a linked computer from the controller
+
+- Discover linked computers with `compozy computer available --json`, add one with `compozy computer add account <id>`, and inspect routes with `compozy computer status <name|id> --json`.
+- Target a computer through the local Unix socket with `compozy session list --computer <name|id> --json`. Select the local daemon with `--computer local`. Machine-local verbs return `flag_not_applicable` if you pass the flag.
+- Use `GET /api/computers` for the registry and `GET /api/computers/stream` for `computer.changed`. Reconnect with `Last-Event-ID` or `after_sequence`; refetch after `stream_reset`.
+- Forward an operator API call through `/c/{computer_id}/api/…` on local HTTP or UDS. The registry and event cursors belong to the active account. The controller injects the remote proof, rejects requests carrying claim tokens, and refuses to chain through another controller.
+- `compozy computer remove <name|id>` removes the local entry. `--unlink` also frees the account slot. Use `compozy computer routes <name|id> remove <kind:address>` to remove a learned address.
+
 | Endpoint                                       | Purpose                                               |
 | ---------------------------------------------- | ----------------------------------------------------- |
 | `GET /healthz`                                 | Check replica readiness                               |

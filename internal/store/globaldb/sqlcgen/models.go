@@ -523,6 +523,32 @@ type CmdPaletteUsage struct {
 	UpdatedAt      int64   `json:"updated_at"`
 }
 
+type Computer struct {
+	ID              string         `json:"id"`
+	AccountID       string         `json:"account_id"`
+	Name            string         `json:"name"`
+	Enabled         int64          `json:"enabled"`
+	Platform        sql.NullString `json:"platform"`
+	Version         sql.NullString `json:"version"`
+	TlsRootSha256   string         `json:"tls_root_sha256"`
+	Weight          int64          `json:"weight"`
+	AddedAt         string         `json:"added_at"`
+	LastConnectedAt sql.NullString `json:"last_connected_at"`
+}
+
+type ComputerRoute struct {
+	ID         string         `json:"id"`
+	ComputerID string         `json:"computer_id"`
+	Kind       string         `json:"kind"`
+	Address    string         `json:"address"`
+	Position   int64          `json:"position"`
+	Learned    int64          `json:"learned"`
+	Removed    int64          `json:"removed"`
+	SshUser    sql.NullString `json:"ssh_user"`
+	SshPort    sql.NullInt64  `json:"ssh_port"`
+	SshAlias   sql.NullString `json:"ssh_alias"`
+}
+
 type ConfigApplyRecord struct {
 	ID                string         `json:"id"`
 	DesiredConfigHash string         `json:"desired_config_hash"`

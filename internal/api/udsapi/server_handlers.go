@@ -110,6 +110,7 @@ func withHandlerServices(cfg *handlerConfig, base *core.BaseHandlerConfig) *core
 	base.TelemetryStatus = cfg.telemetryStatus
 	base.Gateway = cfg.gateway
 	base.Ingress = cfg.ingress
+	base.Computers = cfg.computers
 	base.GatewayPairingSource = string(gateway.PairingSourceLocal)
 	base.OnProviderAuthSuccess = cfg.onProviderAuthSuccess
 	base.ProviderAuthVerdicts = cfg.providerAuthVerdicts

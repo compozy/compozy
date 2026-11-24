@@ -15,10 +15,11 @@ type Event struct {
 }
 
 type Subscription struct {
-	Replay []Event
-	Events <-chan Event
-	Done   <-chan struct{}
-	Close  func()
+	Replay   []Event
+	Events   <-chan Event
+	Done     <-chan struct{}
+	Close    func()
+	Eviction func() *Event
 }
 
 type generation struct {
@@ -30,6 +31,7 @@ type generation struct {
 	feed           *cloudFeed
 	pending        map[string]time.Time
 	results        map[string]seenResult
+	eviction       *Event
 }
 
 type seenResult struct {
@@ -67,11 +69,25 @@ func (s *Service) Subscribe(after string) (Subscription, error) {
 	events := make(chan Event, 32)
 	g.subscribers[events] = struct{}{}
 	s.updateFeedLocked(g)
-	return Subscription{Replay: g.replay(after), Events: events, Done: g.ctx.Done(), Close: func() {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		s.removeSubscriberLocked(g, events)
-	}}, nil
+	return Subscription{
+		Replay: g.replay(after), Events: events, Done: g.ctx.Done(),
+		Close: func() {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			s.removeSubscriberLocked(g, events)
+		},
+		Eviction: func() *Event {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			return g.eviction
+		},
+	}, nil
+}
+
+func (g *generation) evictRemote() {
+	g.eviction = &Event{
+		ID: strconv.FormatUint(g.sequence+1, 10), Event: "account.changed", Data: Change{EvictRemote: true},
+	}
 }
 
 func (g *generation) replay(after string) []Event {

@@ -111,6 +111,16 @@ func (l *remoteHostLab) start(t *testing.T, storage remotehost.Store, operator h
 	t.Helper()
 	cfg := config.DefaultRemoteConfig()
 	cfg.Listener = "127.0.0.1:0"
+	l.startHost(t, storage, operator, cfg)
+	address := l.host.Status().Listener
+	descriptor := remotetest.TunnelDescriptor(t, address)
+	return remotetest.DialTunnel(t, address, descriptor, l.test.clock.Now)
+}
+
+func (l *remoteHostLab) startHost(
+	t *testing.T, storage remotehost.Store, operator http.Handler, cfg config.RemoteConfig,
+) {
+	t.Helper()
 	host, err := remotehost.NewHost(t.Context(), storage, l.cloud, l.service, cfg, remotehost.HostOptions{
 		Now: l.test.clock.Now, Operator: operator,
 	})
@@ -127,9 +137,6 @@ func (l *remoteHostLab) start(t *testing.T, storage remotehost.Store, operator h
 		status := host.Status()
 		return status.ControlLink == "connected" && status.Entitlement != nil
 	})
-	address := host.Status().Listener
-	descriptor := remotetest.TunnelDescriptor(t, address)
-	return remotetest.DialTunnel(t, address, descriptor, l.test.clock.Now)
 }
 
 func (l *remoteHostLab) startUDS(t *testing.T) {

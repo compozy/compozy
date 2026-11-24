@@ -115,6 +115,7 @@ type TaskRunRepo struct {
 type AutomationRepo struct{ *repoBase }
 type AccountRepo struct{ *repoBase }
 type RemoteHostRepo struct{ *repoBase }
+type ComputersRepo struct{ *repoBase }
 
 type GatewayRepo struct{ *repoBase }
 
@@ -181,6 +182,7 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	g.AutomationRepo = &AutomationRepo{repoBase: base}
 	g.AccountRepo = &AccountRepo{repoBase: base}
 	g.RemoteHostRepo = &RemoteHostRepo{repoBase: base}
+	g.ComputersRepo = &ComputersRepo{repoBase: base}
 	g.GatewayRepo = &GatewayRepo{repoBase: base}
 	loopRepo := &LoopRepo{repoBase: base}
 	g.LoopRepo = loopRepo

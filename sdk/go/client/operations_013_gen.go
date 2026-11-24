@@ -10,6 +10,32 @@ import (
 	"strings"
 )
 
+// GetProfileSelectionsParams carries the path, query, and header parameters.
+type GetProfileSelectionsParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+}
+
+// GetProfileSelectionsFrame preserves each response payload; select its variant using the event name or HTTP status.
+type GetProfileSelectionsFrame struct {
+	Raw        json.RawMessage
+	StatusCode int `json:"-"`
+}
+
+var _ json.Unmarshaler = (*GetProfileSelectionsFrame)(nil)
+
+var _ json.Marshaler = GetProfileSelectionsFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *GetProfileSelectionsFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f GetProfileSelectionsFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
 func (f *GetProfileSelectionsFrame) setResponseStatus(status int) {
 	f.StatusCode = status
 }
@@ -412,32 +438,4 @@ type GetSessionChangesParams struct {
 	Base        *string `url:"base"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionChanges Read session changes
-func (c *Client) GetSessionChanges(ctx context.Context, params GetSessionChangesParams) (*SessionChangesResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/changes"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Base != nil {
-		query.Set("base", *params.Base)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionChangesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

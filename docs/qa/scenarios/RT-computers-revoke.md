@@ -12,7 +12,8 @@ qa_status: pending
 1. Use two signed-in installations and one linked computer. Open a remote terminal from the second installation.
 2. From a trusted admin device, remove the second device's terminal scope for the linked computer. On the host, use `compozy remote devices scopes <device> --set sessions:operate`. The terminal stream closes within two seconds. A fresh session can use its remaining scopes.
 3. Disconnect the computer from Compozy Cloud and revoke the second device. Reconnect the computer through a different cloud replica. Confirm it reconciles the new snapshot before accepting a lease and the revoked device cannot obtain a new grant.
-4. Repeat with the computer left disconnected. Existing remote streams end when the last lease expires. Local work continues.
+4. Repeat with the computer left disconnected. Existing remote streams end with close code `4402` when the last lease expires. On the controller, check that `compozy computer status <name> --json` reports `needs_attention` with diagnosis step `cloud`. Local work continues.
 5. Turn off remote access with `compozy remote disable`. Check that the descriptor port refuses connections and the computer is still linked. Enable access, then run `compozy remote unlink` on the signed-in host. Check that its listeners close and its directory entry disappears.
+6. Add the linked computer on two controllers with a working direct route and SSH forward. Keep a session stream open. Block the direct address and check that `compozy computer status <name> --json` reports the SSH route within ten seconds. Reconnect the stream through `/c/{id}` with its last event ID and check the transcript for gaps.
 
 Walk this scenario after integrating the host and controller. Record timestamps and redacted event IDs in the QA report.

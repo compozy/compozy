@@ -9,6 +9,15 @@ import (
 	"strings"
 )
 
+// ListAgentSoulHistoryParams carries the path, query, and header parameters.
+type ListAgentSoulHistoryParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID *string `url:"workspace_id"`
+	Limit       *int    `url:"limit"`
+	Cursor      *string `url:"cursor"`
+	Profile     *string `url:"profile"`
+}
+
 // ListAgentSoulHistory List managed SOUL.md authoring revisions
 func (c *Client) ListAgentSoulHistory(ctx context.Context, params ListAgentSoulHistoryParams) (*AgentSoulHistoryResponse, error) {
 	path := "/api/agents/{name}/soul/history"

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"reflect"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/config"
@@ -46,22 +48,38 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 }
 
 func remoteOperatorRoutes(deps *RuntimeDeps) http.Handler {
+	acceptance, _ := deps.Sessions.(core.SessionAcceptanceManager)
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 		TransportName:      remoteConfigKey,
 		MaskInternalErrors: true,
 		Sessions:           deps.Sessions,
+		SessionAcceptance:  acceptance,
+		SessionCatalog:     deps.Registry,
+		Worktrees:          deps.Worktrees,
 		Workspaces:         deps.WorkspaceService,
 		WorkspaceAccess:    deps.WorkspaceAccess,
 		Profiles:           deps.Profiles,
 		Config:             deps.Config,
 	})
 	return httpapi.NewRemoteRoutes(func(routes *httpapi.RemoteRoutes) {
+		remoteSessions := routes.Group("/api/sessions", remoteproto.ScopeSessions)
+		remoteSessions.GET("", handlers.ListSessions)
+		remoteSessions.POST("", handlers.CreateSession)
+		remoteSessions.GET("/:session_id", handlers.GetSessionByID)
+		remoteSessions.GET("/:session_id/stream", handlers.StreamSession)
+		remoteSessions.GET("/:session_id/status", handlers.GetSessionStatus)
+		remoteSessions.GET("/:session_id/transcript", handlers.SessionTranscript)
 		sessions := routes.Group(
 			"/api/workspaces/:workspace_id/sessions",
 			remoteproto.ScopeSessions,
 			handlers.WorkspaceReferenceGuard,
 		)
 		sessions.PATCH("/:session_id", handlers.RenameSession)
+		sessions.POST("/:session_id/prompt", func(c *gin.Context) {
+			if dispatch, ok := handlers.DispatchSessionPrompt(c); ok {
+				handlers.RespondPromptV1(c, dispatch)
+			}
+		})
 	})
 }
 

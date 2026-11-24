@@ -46,9 +46,14 @@ type daemonProcess interface {
 
 func newDaemonCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:               daemonDaemonKey,
-		Short:             "Manage the CompozyOS daemon",
-		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error { return rejectMachineProfileFlag(cmd) },
+		Use:   daemonDaemonKey,
+		Short: "Manage the CompozyOS daemon",
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if err := validateComputerFlag(cmd); err != nil {
+				return err
+			}
+			return rejectMachineProfileFlag(cmd)
+		},
 	}
 	configureMachineProfileFlag(cmd, true)
 

@@ -11,6 +11,35 @@ import (
 	"strings"
 )
 
+// SetSessionRuntime Select the default runtime for future prompts
+func (c *Client) SetSessionRuntime(ctx context.Context, params SetSessionRuntimeParams, body SetSessionRuntimeRequest) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SetSettingsMCPServerEnabledParams carries the path, query, and header parameters.
+type SetSettingsMCPServerEnabledParams struct {
+	Name             string  `url:"name"`
+	Scope            string  `url:"scope"`
+	WorkspaceID      *string `url:"workspace_id"`
+	Profile          *string `url:"profile"`
+	Owner            *string `url:"owner"`
+	DefinitionSource *string `url:"definition_source"`
+}
+
 // SetSettingsMCPServerEnabled Turn one scoped MCP server on or off
 func (c *Client) SetSettingsMCPServerEnabled(ctx context.Context, params SetSettingsMCPServerEnabledParams, body SettingsMCPServerEnabledRequest) (*SettingsMCPServerResponse, error) {
 	path := "/api/settings/mcp-servers/{name}/enabled"
@@ -414,34 +443,4 @@ type StreamCmdPaletteViewParams struct {
 	StreamEpoch *string `url:"stream_epoch"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// StreamCmdPaletteView Stream declarative command palette view patches
-func (c *Client) StreamCmdPaletteView(ctx context.Context, params StreamCmdPaletteViewParams) (*Stream[CmdPaletteViewPatch], error) {
-	path := "/api/cmd-palette/views/{id}/stream"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.After != nil {
-		query.Set("after", *params.After)
-	}
-	if params.StreamEpoch != nil {
-		query.Set("stream_epoch", *params.StreamEpoch)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[CmdPaletteViewPatch](ctx, c, "GET", path, nil, nil, "streamCmdPaletteView")
-}
-
-// StreamCmdPaletteViewSessionParams carries the path, query, and header parameters.
-type StreamCmdPaletteViewSessionParams struct {
-	Session string `url:"session"`
-	Token   string `url:"token"`
 }

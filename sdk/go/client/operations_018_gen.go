@@ -11,6 +11,30 @@ import (
 	"strings"
 )
 
+// InstallExtension Install a local or marketplace extension
+func (c *Client) InstallExtension(ctx context.Context, params InstallExtensionParams, body InstallExtensionRequest) (*InstallExtensionResponse, error) {
+	path := "/api/extensions"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out InstallExtensionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InvokeCmdPaletteCommandParams carries the path, query, and header parameters.
+type InvokeCmdPaletteCommandParams struct {
+	ID                  string  `url:"id"`
+	XCompozyClientToken string  `url:"X-Compozy-Client-Token"`
+	Profile             *string `url:"profile"`
+}
+
 // InvokeCmdPaletteCommand Invoke one command palette command
 func (c *Client) InvokeCmdPaletteCommand(ctx context.Context, params InvokeCmdPaletteCommandParams, body CmdPaletteInvokeRequest) (*CmdPaletteInvokeResult, error) {
 	path := "/api/cmd-palette/commands/{id}/invoke"
@@ -415,13 +439,4 @@ func (c *Client) ListAgentSkillReviews(ctx context.Context, params ListAgentSkil
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListAgentSoulHistoryParams carries the path, query, and header parameters.
-type ListAgentSoulHistoryParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Limit       *int    `url:"limit"`
-	Cursor      *string `url:"cursor"`
-	Profile     *string `url:"profile"`
 }

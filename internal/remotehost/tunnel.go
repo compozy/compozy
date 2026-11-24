@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	DescriptorPath      = "/remote/v1/descriptor"
-	TunnelPath          = "/remote/v1/tunnel"
-	SessionPath         = "/remote/v1/session"
+	DescriptorPath      = remoteproto.DescriptorPath
+	TunnelPath          = remoteproto.TunnelPath
+	SessionPath         = remoteproto.SessionPath
 	authorizationScheme = "CompozyRemote "
 )
 
@@ -82,6 +82,9 @@ func (h listenerHandler) serveTunnel(w http.ResponseWriter, req *http.Request) {
 func (h listenerHandler) inner() http.Handler {
 	routes := http.NewServeMux()
 	routes.HandleFunc("POST "+SessionPath, h.mint)
+	routes.HandleFunc("GET "+SessionPath, h.authenticate(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
 	routes.HandleFunc("DELETE "+SessionPath, h.authenticate(h.endSession))
 	routes.HandleFunc("/api/", h.authenticate(h.serveOperator))
 	routes.HandleFunc("/c/", h.authenticate(func(w http.ResponseWriter, _ *http.Request) {

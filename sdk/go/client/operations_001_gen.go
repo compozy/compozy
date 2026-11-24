@@ -77,6 +77,16 @@ func (c *Client) AcknowledgeAttentionNotifications(ctx context.Context, params A
 	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
 }
 
+// AddAccountComputer Add a linked account computer
+func (c *Client) AddAccountComputer(ctx context.Context, body AddComputerRequest) (*Computer, error) {
+	path := "/api/computers"
+	var out Computer
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AddAgentMemoryParams carries the path, query, and header parameters.
 type AddAgentMemoryParams struct {
 	Name      string  `url:"name"`

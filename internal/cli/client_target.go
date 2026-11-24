@@ -32,6 +32,7 @@ type ClientTarget struct {
 	socketPath string
 	baseURL    string
 	credential string
+	computerID string
 }
 
 // LocalClientTarget resolves the unchanged HTTP-over-UDS transport.
@@ -132,6 +133,9 @@ func (t ClientTarget) isRemoteGateway() bool {
 
 func (t ClientTarget) requestBaseURL() string {
 	if t.kind == clientTargetLocal {
+		if t.computerID != "" {
+			return baseURL + "/c/" + url.PathEscape(t.computerID)
+		}
 		return baseURL
 	}
 	return t.baseURL

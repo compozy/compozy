@@ -23,7 +23,7 @@ func (h *BaseHandlers) StreamAccount(c *gin.Context) {
 		return
 	}
 	defer sub.Close()
-	serveAccountEvents(c, h, sub.Done, sub.Events, sub.Replay, func(event account.Event) SSEMessage {
+	serveAccountEvents(c, h, sub.Done, sub.Events, sub.Replay, sub.Eviction, func(event account.Event) SSEMessage {
 		return SSEMessage{ID: event.ID, Name: event.Event, Data: event}
 	})
 }
@@ -34,7 +34,7 @@ func (h *BaseHandlers) StreamAccountSignIn(c *gin.Context) {
 	}
 	events, unsubscribe := h.Account.SubscribeSignIn()
 	defer unsubscribe()
-	serveAccountEvents(c, h, nil, events, nil, func(event account.SignInEvent) SSEMessage {
+	serveAccountEvents(c, h, nil, events, nil, nil, func(event account.SignInEvent) SSEMessage {
 		if event.AttemptID == "" {
 			return SSEMessage{Name: contract.AccountStateEvent, Data: contract.AccountStatePayload{
 				State: event.State, SignedOutReason: optionalAccountString(event.SignedOutReason),
@@ -48,6 +48,7 @@ func (h *BaseHandlers) StreamAccountSignIn(c *gin.Context) {
 
 func serveAccountEvents[T any](
 	c *gin.Context, h *BaseHandlers, generationDone <-chan struct{}, updates <-chan T, replay []T,
+	final func() *T,
 	message func(T) SSEMessage,
 ) {
 	writer, err := PrepareSSE(c)
@@ -55,6 +56,13 @@ func serveAccountEvents[T any](
 		return
 	}
 	cancel, shutdown := c.Request.Context().Done(), h.StreamDoneChannel()
+	defer func() {
+		if final != nil && c.Request.Context().Err() == nil {
+			if event := final(); event != nil {
+				_ = WriteSSE(writer, message(*event))
+			}
+		}
+	}()
 	for _, event := range replay {
 		select {
 		case <-cancel:

@@ -15,6 +15,8 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerAppSDKRoutes(api, handlers)
 	registerAccountRoutes(api, handlers)
 	registerRemoteHostRoutes(api, handlers)
+	core.RegisterComputerRoutes(api, handlers.BaseHandlers)
+	router.Any(core.ComputerBridgeRoute, handlers.BridgeComputer)
 	registerStatusRoutes(api, handlers)
 	registerOnboardingRoutes(api, handlers)
 	registerFilesystemRoutes(api, handlers)

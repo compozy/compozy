@@ -117,6 +117,7 @@ type BaseHandlerConfig struct {
 	Gateway                     GatewayService
 	Account                     AccountService
 	Remote                      RemoteHostService
+	Computers                   ComputersService
 	Ingress                     IngressService
 	GatewayPairingSource        string
 	HomePaths                   compozyconfig.HomePaths
@@ -216,6 +217,7 @@ type BaseHandlers struct {
 	Gateway                      GatewayService
 	Account                      AccountService
 	Remote                       RemoteHostService
+	Computers                    ComputersService
 	Ingress                      IngressService
 	GatewayPairingSource         string
 	HomePaths                    compozyconfig.HomePaths
@@ -250,6 +252,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	handlers.Gateway = cfg.Gateway
 	handlers.Account = cfg.Account
 	handlers.Remote = cfg.Remote
+	handlers.Computers = cfg.Computers
 	handlers.Ingress = cfg.Ingress
 	handlers.GatewayPairingSource = strings.TrimSpace(cfg.GatewayPairingSource)
 	handlers.applyAuthoredContextConfig(cfg)

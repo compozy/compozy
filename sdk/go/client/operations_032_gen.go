@@ -10,6 +10,34 @@ import (
 	"strings"
 )
 
+// RejectTerminalInputRequestParams carries the path, query, and header parameters.
+type RejectTerminalInputRequestParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	RequestID   string  `url:"request_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RejectTerminalInputRequest Reject one terminal input request
+func (c *Client) RejectTerminalInputRequest(ctx context.Context, params RejectTerminalInputRequestParams, body TerminalRejectInputRequest) (*TerminalInputRejectResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}/input-requests/{request_id}/reject"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	path = strings.ReplaceAll(path, "{request_id}", url.PathEscape(params.RequestID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalInputRejectResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ReleaseAgentTaskRunParams carries the path, query, and header parameters.
 type ReleaseAgentTaskRunParams struct {
 	XCompozySessionID string `url:"X-Compozy-Session-ID"`
@@ -95,6 +123,48 @@ func (c *Client) RemoveAgentMemory(ctx context.Context, params RemoveAgentMemory
 		return nil, err
 	}
 	return &out, nil
+}
+
+// RemoveComputerParams carries the path, query, and header parameters.
+type RemoveComputerParams struct {
+	ID        string `url:"id"`
+	Unlink    *bool  `url:"unlink"`
+	Uninstall *bool  `url:"uninstall"`
+}
+
+// RemoveComputer Remove a computer from this controller
+func (c *Client) RemoveComputer(ctx context.Context, params RemoveComputerParams) (*RemoveComputerResponse, error) {
+	path := "/api/computers/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Unlink != nil {
+		query.Set("unlink", strconv.FormatBool(*params.Unlink))
+	}
+	if params.Uninstall != nil {
+		query.Set("uninstall", strconv.FormatBool(*params.Uninstall))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RemoveComputerResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RemoveComputerRouteParams carries the path, query, and header parameters.
+type RemoveComputerRouteParams struct {
+	ID      string `url:"id"`
+	RouteID string `url:"route_id"`
+}
+
+// RemoveComputerRoute Remove a learned route
+func (c *Client) RemoveComputerRoute(ctx context.Context, params RemoveComputerRouteParams) error {
+	path := "/api/computers/{id}/routes/{route_id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	path = strings.ReplaceAll(path, "{route_id}", url.PathEscape(params.RouteID))
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }
 
 // RemoveDiscoveredWorktreeParams carries the path, query, and header parameters.
@@ -375,75 +445,4 @@ func (c *Client) RenameSessionFolder(ctx context.Context, params RenameSessionFo
 type RenameWorkspaceFolderParams struct {
 	FolderID string  `url:"folder_id"`
 	Profile  *string `url:"profile"`
-}
-
-// RenameWorkspaceFolder Rename a workspace folder
-func (c *Client) RenameWorkspaceFolder(ctx context.Context, params RenameWorkspaceFolderParams, body RenameWorkspaceFolderRequest) (*WorkspaceFolderResponse, error) {
-	path := "/api/workspace-folders/{folder_id}"
-	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorkspaceFolderResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReorderSessionFoldersParams carries the path, query, and header parameters.
-type ReorderSessionFoldersParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ReorderSessionFolders Set the complete session folder order
-func (c *Client) ReorderSessionFolders(ctx context.Context, params ReorderSessionFoldersParams, body ReorderSessionFoldersRequest) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-order/folders"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReorderSessionsParams carries the path, query, and header parameters.
-type ReorderSessionsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ReorderSessions Set the manual session order in a folder, the workspace root, or Pinned
-func (c *Client) ReorderSessions(ctx context.Context, params ReorderSessionsParams, body ReorderSessionsRequest) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-order/sessions"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReorderWorkspaceFoldersParams carries the path, query, and header parameters.
-type ReorderWorkspaceFoldersParams struct {
-	Profile *string `url:"profile"`
 }

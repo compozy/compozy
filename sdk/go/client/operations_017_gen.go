@@ -10,6 +10,38 @@ import (
 	"strings"
 )
 
+// GetTerminal Read one terminal
+func (c *Client) GetTerminal(ctx context.Context, params GetTerminalParams) (*TerminalResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetToolParams carries the path, query, and header parameters.
+type GetToolParams struct {
+	ID          string  `url:"id"`
+	WorkspaceID *string `url:"workspace_id"`
+	Workspace   *string `url:"workspace"`
+	SessionID   *string `url:"session_id"`
+	AgentName   *string `url:"agent_name"`
+	Profile     *string `url:"profile"`
+}
+
 // GetTool Get one operator-visible registry tool
 func (c *Client) GetTool(ctx context.Context, params GetToolParams) (*ToolResponse, error) {
 	path := "/api/tools/{id}"
@@ -406,28 +438,4 @@ func (c *Client) InspectWorktree(ctx context.Context, params InspectWorktreePara
 // InstallExtensionParams carries the path, query, and header parameters.
 type InstallExtensionParams struct {
 	Profile *string `url:"profile"`
-}
-
-// InstallExtension Install a local or marketplace extension
-func (c *Client) InstallExtension(ctx context.Context, params InstallExtensionParams, body InstallExtensionRequest) (*InstallExtensionResponse, error) {
-	path := "/api/extensions"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out InstallExtensionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// InvokeCmdPaletteCommandParams carries the path, query, and header parameters.
-type InvokeCmdPaletteCommandParams struct {
-	ID                  string  `url:"id"`
-	XCompozyClientToken string  `url:"X-Compozy-Client-Token"`
-	Profile             *string `url:"profile"`
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/admission"
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/computers"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -214,6 +215,7 @@ type Daemon struct {
 	mu sync.Mutex
 
 	accountOptions         []account.Option
+	computersOptions       []computers.Option
 	homePaths              compozyconfig.HomePaths
 	loadConfig             ConfigLoader
 	logger                 *slog.Logger

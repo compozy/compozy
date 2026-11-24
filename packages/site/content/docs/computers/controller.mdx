@@ -1,0 +1,30 @@
+---
+title: Use a linked computer
+description: Add a computer to your app, inspect its routes, and target it from the CLI.
+---
+
+Sign in on the controller and link the computer you want to use. List computers linked to your account and add one by ID.
+
+```sh
+compozy computer available --json
+compozy computer add account cmp_7f3k2q9x
+compozy computer list
+compozy computer status devbox --json
+compozy session list --computer devbox --json
+```
+
+The controller keeps the entry while the computer is offline. It prefers a direct LAN or tailnet connection, then an established SSH forward. The status reports the route in use and the step that needs attention when the connection fails. Each route must identify the linked computer and present its pinned TLS root before the controller sends credentials.
+
+## Change how the controller connects
+
+- Run `compozy computer routes devbox` to see available routes. Remove a learned address with `compozy computer routes devbox remove direct:10.0.0.42:47823`.
+- Run `compozy computer disable devbox` to pause connections from this controller. Run `compozy computer enable devbox` to resume them.
+- Run `compozy computer remove devbox` to remove the entry and its routes from this controller. Add `--unlink` to unlink the computer from the account and free its slot. Agents already running there keep running.
+
+Use `--computer local` to target the local daemon. The `account`, `computer`, `daemon`, `install`, `remote`, `service`, `uninstall`, and `update` commands act on the local installation.
+
+## Use the controller API
+
+Local HTTP and UDS expose the same `/api/computers` registry. Subscribe to `GET /api/computers/stream` for `computer.changed` events. Reconnect with the last event ID. After a `stream_reset`, fetch the registry again.
+
+Prefix the target API path with `/c/{computer_id}`, for example `GET /c/cmp_7f3k2q9x/api/sessions?all_workspaces=true`. For a session SSE connection, send `Last-Event-ID` when reconnecting. The controller supplies the remote credential, and task leases stay on the computer that owns them.

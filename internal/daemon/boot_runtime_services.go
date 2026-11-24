@@ -56,6 +56,7 @@ func (d *Daemon) bootRuntimeServices(
 	if err := d.bootSessionRuntime(ctx, state, cleanup); err != nil {
 		return err
 	}
+	d.bootComputers(ctx, state, cleanup)
 	return d.bootRemoteHost(ctx, state, cleanup)
 }
 

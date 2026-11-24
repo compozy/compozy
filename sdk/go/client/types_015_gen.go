@@ -7,6 +7,107 @@ import (
 	"time"
 )
 
+// OverviewAgentSharePayload is a daemon API value.
+type OverviewAgentSharePayload struct {
+	AgentName string  `json:"agent_name"`
+	Tokens    int64   `json:"tokens"`
+	Fraction  float64 `json:"fraction"`
+}
+
+// OverviewAttentionItemPayload is a daemon API value.
+type OverviewAttentionItemPayload struct {
+	NotificationID string    `json:"notification_id,omitempty"`
+	Kind           string    `json:"kind"`
+	Title          string    `json:"title"`
+	Detail         string    `json:"detail,omitempty"`
+	TaskID         string    `json:"task_id,omitempty"`
+	RunID          string    `json:"run_id,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+	WorkspaceID    string    `json:"workspace_id"`
+	OccurredAt     time.Time `json:"occurred_at"`
+	Actions        []string  `json:"actions"`
+}
+
+// OverviewAttentionPayload is a daemon API value.
+type OverviewAttentionPayload struct {
+	Snapshot string                         `json:"snapshot,omitempty"`
+	Total    int                            `json:"total"`
+	ByKind   map[string]int                 `json:"by_kind"`
+	Items    []OverviewAttentionItemPayload `json:"items"`
+}
+
+// OverviewLongestSessionPayload is a daemon API value.
+type OverviewLongestSessionPayload struct {
+	SessionID       string `json:"session_id"`
+	AgentName       string `json:"agent_name"`
+	DurationSeconds int64  `json:"duration_seconds"`
+	Date            string `json:"date"`
+}
+
+// OverviewOutcomeDayPayload is a daemon API value.
+type OverviewOutcomeDayPayload struct {
+	Date      string `json:"date"`
+	Completed int    `json:"completed"`
+	Failed    int    `json:"failed"`
+	Canceled  int    `json:"canceled"`
+}
+
+// OverviewOutcomesPayload is a daemon API value.
+type OverviewOutcomesPayload struct {
+	WindowDays int                         `json:"window_days"`
+	Days       []OverviewOutcomeDayPayload `json:"days"`
+	Completed  int                         `json:"completed"`
+	Failed     int                         `json:"failed"`
+	Canceled   int                         `json:"canceled"`
+	SuccessPct float64                     `json:"success_pct"`
+}
+
+// OverviewProfileUsagePayload is a daemon API value.
+type OverviewProfileUsagePayload struct {
+	ProfileID   string `json:"profile_id"`
+	ProfileName string `json:"profile_name"`
+	Color       string `json:"profile_color"`
+	Icon        string `json:"profile_icon,omitempty"`
+	Emoji       string `json:"profile_emoji,omitempty"`
+	Archived    bool   `json:"profile_archived"`
+	Tokens      int64  `json:"tokens"`
+}
+
+// OverviewPulseBucketPayload is a daemon API value.
+type OverviewPulseBucketPayload struct {
+	Weekday int `json:"weekday"`
+	Hour    int `json:"hour"`
+	Events  int `json:"events"`
+}
+
+// OverviewPulsePayload is a daemon API value.
+type OverviewPulsePayload struct {
+	WindowDays     int                            `json:"window_days"`
+	Buckets        []OverviewPulseBucketPayload   `json:"buckets"`
+	Busiest        *OverviewPulseBucketPayload    `json:"busiest,omitzero"`
+	LongestSession *OverviewLongestSessionPayload `json:"longest_session,omitzero"`
+}
+
+// OverviewSystemPayload is a daemon API value.
+type OverviewSystemPayload struct {
+	HookRunsToday     int `json:"hook_runs_today"`
+	HookFailuresToday int `json:"hook_failures_today"`
+	RetentionDays     int `json:"retention_days"`
+}
+
+// OverviewTodayPayload is a daemon API value.
+type OverviewTodayPayload struct {
+	RunsCompleted int `json:"runs_completed"`
+	RunsFailed    int `json:"runs_failed"`
+	TasksClosed   int `json:"tasks_closed"`
+}
+
+// OverviewUsageDayPayload is a daemon API value.
+type OverviewUsageDayPayload struct {
+	Date   string `json:"date"`
+	Tokens int64  `json:"tokens"`
+}
+
 // OverviewUsagePayload is a daemon API value.
 type OverviewUsagePayload struct {
 	WindowDays    int                           `json:"window_days"`
@@ -45,6 +146,13 @@ type ParticipantPolicy struct {
 	PreferredAgentNames   []string `json:"preferred_agent_names,omitempty"`
 	RequiredCapabilities  []string `json:"required_capabilities,omitempty"`
 	PreferredCapabilities []string `json:"preferred_capabilities,omitempty"`
+}
+
+// PatchComputerRequest is a daemon API value.
+type PatchComputerRequest struct {
+	Name    *string `json:"name,omitempty"`
+	Enabled *bool   `json:"enabled,omitempty"`
+	Weight  *int    `json:"load_balancing_weight,omitempty"`
 }
 
 // PatchLoopRequest is a daemon API value.
@@ -301,6 +409,12 @@ type PromptRuntimeSelectionPayload struct {
 	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
 }
 
+// ProtocolRange is a daemon API value.
+type ProtocolRange struct {
+	Min int `json:"min"`
+	Max int `json:"max"`
+}
+
 // ProvenancePayload is a daemon API value.
 type ProvenancePayload struct {
 	Slug                   string                    `json:"slug,omitempty"`
@@ -325,124 +439,4 @@ type ProviderAuthProbeResult struct {
 	Stdout     string `json:"stdout,omitempty"`
 	Stderr     string `json:"stderr,omitempty"`
 	DurationMs int64  `json:"duration_ms"`
-}
-
-// ProviderAuthStatusPayload is a daemon API value.
-type ProviderAuthStatusPayload struct {
-	Mode        string                         `json:"mode"`
-	EnvPolicy   string                         `json:"env_policy"`
-	HomePolicy  string                         `json:"home_policy"`
-	State       string                         `json:"state"`
-	Code        string                         `json:"code,omitempty"`
-	Message     string                         `json:"message,omitempty"`
-	StatusCmd   string                         `json:"status_command,omitempty"`
-	Login       ProviderLoginDescriptorPayload `json:"login"`
-	LastProbeAt *time.Time                     `json:"last_probe_at,omitempty"`
-}
-
-// ProviderErrorDiagnostic is a daemon API value.
-type ProviderErrorDiagnostic struct {
-	Code            string                `json:"code"`
-	Provider        string                `json:"provider"`
-	NextAction      ProviderFailureAction `json:"next_action"`
-	Guidance        string                `json:"guidance"`
-	OccurrenceCount uint64                `json:"occurrence_count"`
-	FirstSeenAt     time.Time             `json:"first_seen_at"`
-	LastSeenAt      time.Time             `json:"last_seen_at"`
-}
-
-// ProviderFailureAction is a daemon API value.
-type ProviderFailureAction string
-
-// ProviderListResponse is a daemon API value.
-type ProviderListResponse struct {
-	Providers []ProviderSummaryPayload `json:"providers"`
-}
-
-// ProviderLoginDescriptorPayload is a daemon API value.
-type ProviderLoginDescriptorPayload struct {
-	Configured        bool                      `json:"configured"`
-	Source            ProviderLoginSource       `json:"source,omitempty"`
-	Executable        string                    `json:"executable,omitempty"`
-	Presence          ProviderLoginPresence     `json:"presence"`
-	RecommendedAction ProviderRecommendedAction `json:"recommended_action,omitempty"`
-}
-
-// ProviderLoginPresence is a daemon API value.
-type ProviderLoginPresence string
-
-// ProviderLoginSource is a daemon API value.
-type ProviderLoginSource string
-
-// ProviderModelConfigurationPayload is a daemon API value.
-type ProviderModelConfigurationPayload struct {
-	ReasoningEffort *Effort `json:"reasoning_effort,omitempty"`
-	Fast            *bool   `json:"fast,omitempty"`
-	Thinking        *bool   `json:"thinking,omitempty"`
-}
-
-// ProviderModelCurationRequest is a daemon API value.
-type ProviderModelCurationRequest struct {
-	ModelID                string  `json:"model_id"`
-	Hidden                 *bool   `json:"hidden,omitzero"`
-	Featured               *bool   `json:"featured,omitzero"`
-	Deprecated             *bool   `json:"deprecated,omitzero"`
-	DefaultReasoningEffort *Effort `json:"default_effort,omitzero"`
-	DefaultSpeed           *Speed  `json:"default_speed,omitzero"`
-}
-
-// ProviderModelCurationResponse is a daemon API value.
-type ProviderModelCurationResponse struct {
-	Model        ProviderModelPayload  `json:"model"`
-	Apply        SettingsApplyResponse `json:"apply"`
-	DefaultSpeed Speed                 `json:"default_speed,omitempty"`
-}
-
-// ProviderModelListResponse is a daemon API value.
-type ProviderModelListResponse struct {
-	Models []ProviderModelPayload `json:"models"`
-}
-
-// ProviderModelPayload is a daemon API value.
-type ProviderModelPayload struct {
-	ProviderID             string                              `json:"provider_id"`
-	ModelID                string                              `json:"model_id"`
-	DisplayName            string                              `json:"display_name,omitempty"`
-	Sources                []ModelCatalogSourceRefPayload      `json:"sources"`
-	Available              *bool                               `json:"available"`
-	AvailabilityState      string                              `json:"availability_state"`
-	Stale                  bool                                `json:"stale"`
-	RefreshedAt            string                              `json:"refreshed_at,omitempty"`
-	ContextWindow          *int64                              `json:"context_window,omitempty"`
-	MaxInputTokens         *int64                              `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens        *int64                              `json:"max_output_tokens,omitempty"`
-	SupportsTools          *bool                               `json:"supports_tools,omitempty"`
-	SupportsReasoning      *bool                               `json:"supports_reasoning,omitempty"`
-	ReasoningEfforts       []Effort                            `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *Effort                             `json:"default_reasoning_effort,omitempty"`
-	ConfigOptions          []SessionConfigOptionPayload        `json:"config_options,omitempty"`
-	Configurations         []ProviderModelConfigurationPayload `json:"configurations,omitempty"`
-	Cost                   *ModelCatalogCostPayload            `json:"cost,omitempty"`
-	Curated                bool                                `json:"curated"`
-	Deprecated             bool                                `json:"deprecated"`
-	Hidden                 bool                                `json:"hidden"`
-	Featured               bool                                `json:"featured"`
-	ReleaseDate            string                              `json:"release_date,omitempty"`
-	ReasoningKnown         bool                                `json:"reasoning_known,omitempty"`
-	ReasoningApply         string                              `json:"reasoning_apply,omitempty"`
-	ReasoningSource        ReasoningSource                     `json:"reasoning_source,omitempty"`
-	LastError              string                              `json:"last_error,omitempty"`
-}
-
-// ProviderModelRefreshRequest is a daemon API value.
-type ProviderModelRefreshRequest struct {
-	SourceID  string `json:"source_id,omitempty"`
-	Force     bool   `json:"force,omitzero"`
-	RequestID string `json:"request_id,omitempty"`
-}
-
-// ProviderModelRefreshResponse is a daemon API value.
-type ProviderModelRefreshResponse struct {
-	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
-	Error   string                            `json:"error,omitempty"`
 }

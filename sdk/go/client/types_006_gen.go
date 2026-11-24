@@ -7,6 +7,76 @@ import (
 	"time"
 )
 
+// Contract is a daemon API value.
+type Contract struct {
+	Goal             string             `json:"goal"`
+	DefinitionOfDone string             `json:"definition_of_done"`
+	Constraints      []string           `json:"constraints,omitempty"`
+	Boundaries       []string           `json:"boundaries,omitempty"`
+	StopWhen         StopWhenSpec       `json:"stop_when,omitzero"`
+	Verification     []GateCriterion    `json:"verification,omitempty"`
+	IterationCap     int                `json:"iteration_cap"`
+	NoProgress       NoProgress         `json:"no_progress"`
+	Budget           Budget             `json:"budget"`
+	RuntimeDefaults  *RuntimeDefaults   `json:"runtime_defaults,omitzero"`
+	RuntimeRules     []RuntimeRule      `json:"runtime_rules,omitempty"`
+	TerminalStates   []DslTerminalState `json:"terminal_states,omitempty"`
+	OnDone           []EffectSpec       `json:"on_done,omitempty"`
+	OnNoOp           []EffectSpec       `json:"on_noop,omitempty"`
+	OnBlocked        []EffectSpec       `json:"on_blocked,omitempty"`
+	OnFailed         []EffectSpec       `json:"on_failed,omitempty"`
+	OnExhausted      []EffectSpec       `json:"on_exhausted,omitempty"`
+	OnStalled        []EffectSpec       `json:"on_stalled,omitempty"`
+	OnCanceled       []EffectSpec       `json:"on_canceled,omitempty"`
+}
+
+// CoordinatorConfigPayload is a daemon API value.
+type CoordinatorConfigPayload struct {
+	Enabled                       bool                    `json:"enabled"`
+	AgentName                     string                  `json:"agent_name"`
+	Provider                      string                  `json:"provider,omitempty"`
+	Model                         string                  `json:"model,omitempty"`
+	DefaultTTLSeconds             int64                   `json:"default_ttl_seconds"`
+	MaxChildren                   int                     `json:"max_children"`
+	MaxActiveSessionsPerWorkspace int                     `json:"max_active_sessions_per_workspace"`
+	Source                        CoordinatorConfigSource `json:"source"`
+	WorkspaceID                   string                  `json:"workspace_id,omitempty"`
+}
+
+// CoordinatorConfigSource is a daemon API value.
+type CoordinatorConfigSource string
+
+// CoordinatorMode is a daemon API value.
+type CoordinatorMode string
+
+// CoordinatorProfile is a daemon API value.
+type CoordinatorProfile struct {
+	Mode      CoordinatorMode `json:"mode"`
+	AgentName string          `json:"agent_name,omitempty"`
+	Provider  string          `json:"provider,omitempty"`
+	Model     string          `json:"model,omitempty"`
+	Guidance  string          `json:"guidance,omitempty"`
+}
+
+// CopyEffect is a daemon API value.
+type CopyEffect struct {
+	Content string `json:"content"`
+}
+
+// CostSource is a daemon API value.
+type CostSource string
+
+// CostStatus is a daemon API value.
+type CostStatus string
+
+// CountedCursorPagePayload is a daemon API value.
+type CountedCursorPagePayload struct {
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore    bool   `json:"has_more"`
+	Total      int    `json:"total"`
+	Limit      int    `json:"limit"`
+}
+
 // CreateAgentPayload is a daemon API value.
 type CreateAgentPayload struct {
 	MCPServers         []AgentMCPServerInput               `json:"mcp_servers,omitempty"`
@@ -377,70 +447,4 @@ type DoctorPayload struct {
 	Status        string               `json:"status"`
 	Summary       DoctorSummaryPayload `json:"summary"`
 	Items         []DiagnosticItem     `json:"items"`
-}
-
-// DoctorSummaryPayload is a daemon API value.
-type DoctorSummaryPayload struct {
-	Total            int            `json:"total"`
-	CountsBySeverity map[string]int `json:"counts_by_severity"`
-}
-
-// DraftAgentInstructionsRequest is a daemon API value.
-type DraftAgentInstructionsRequest struct {
-	Goal    string            `json:"goal"`
-	Runtime AgentDraftRuntime `json:"runtime"`
-}
-
-// DraftAgentInstructionsResponse is a daemon API value.
-type DraftAgentInstructionsResponse struct {
-	Instructions string `json:"instructions"`
-}
-
-// DragAwayPolicy is a daemon API value.
-type DragAwayPolicy string
-
-// DrainState is a daemon API value.
-type DrainState string
-
-// DrainStatusResponse is a daemon API value.
-type DrainStatusResponse struct {
-	State                      DrainState `json:"state"`
-	AdmissionClosed            bool       `json:"admission_closed"`
-	ActiveSessionExecutions    int        `json:"active_session_executions"`
-	ActiveTaskClaims           int        `json:"active_task_claims"`
-	AuthoritativeClaimsSettled bool       `json:"authoritative_claims_settled"`
-	SessionExecutionSettled    bool       `json:"session_execution_settled"`
-	SafeToStop                 bool       `json:"safe_to_stop"`
-}
-
-// DslTerminalState is a daemon API value.
-type DslTerminalState string
-
-// DuplicateAgentOverrides is a daemon API value.
-type DuplicateAgentOverrides struct {
-	DisplayName       *string                             `json:"display_name,omitempty"`
-	Description       *string                             `json:"description,omitempty"`
-	Kind              string                              `json:"kind,omitempty"`
-	Appearance        map[string]any                      `json:"appearance,omitempty"`
-	SessionEnv        map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	AutoCompactWindow *int                                `json:"auto_compact_window,omitempty"`
-	LeanEnvironment   *bool                               `json:"lean_environment,omitempty"`
-	Provider          string                              `json:"provider,omitempty"`
-	Command           string                              `json:"command,omitempty"`
-	Model             string                              `json:"model,omitempty"`
-	ReasoningEffort   Effort                              `json:"reasoning_effort,omitempty"`
-	Speed             Speed                               `json:"speed,omitempty"`
-	ACPOptions        []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	ClearSpeed        bool                                `json:"clear_speed,omitzero"`
-	ClearACPOptions   bool                                `json:"clear_acp_options,omitzero"`
-	Tools             []string                            `json:"tools,omitempty"`
-	Toolsets          []string                            `json:"toolsets,omitempty"`
-	DenyTools         []string                            `json:"deny_tools,omitempty"`
-	SessionApproval   string                              `json:"session_approval,omitempty"`
-	PermissionRules   []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
-	WorkspaceAccess   string                              `json:"workspace_access,omitempty"`
-	Permissions       SettingsPermissionMode              `json:"permissions,omitempty"`
-	CategoryPath      []string                            `json:"category_path,omitempty"`
-	Skills            *CreateAgentSkillsConfig            `json:"skills,omitzero"`
-	Prompt            string                              `json:"prompt,omitempty"`
 }

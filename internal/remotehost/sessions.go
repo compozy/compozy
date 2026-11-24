@@ -218,7 +218,9 @@ func (s *Sessions) commitMint(
 	s.emit(remoteproto.ControlSessionMinted, remoteproto.SessionMinted{
 		DeviceID: session.DeviceID, JKT: session.JKT, At: now.Unix(),
 	})
-	return MintResult{SessionID: session.ID, Credential: credential, ExpiresAt: session.ExpiresAt.Unix()}, nil
+	return MintResult{
+		SessionID: session.ID, Credential: credential, ExpiresAt: session.ExpiresAt.Unix(), Scopes: session.Scopes,
+	}, nil
 }
 
 func (s *Sessions) Authenticate(

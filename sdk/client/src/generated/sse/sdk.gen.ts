@@ -29,6 +29,10 @@ import type {
   StreamCmdPaletteViewSessionErrors,
   StreamCmdPaletteViewSessionResponse,
   StreamCmdPaletteViewSessionResponses,
+  StreamComputersData,
+  StreamComputersErrors,
+  StreamComputersResponse,
+  StreamComputersResponses,
   StreamGlobalSessionData,
   StreamGlobalSessionErrors,
   StreamGlobalSessionResponse,
@@ -183,6 +187,23 @@ export const streamCmdPaletteView = <ThrowOnError extends boolean = true>(
   >({
     responseStyle: "data",
     url: "/api/cmd-palette/views/{id}/stream",
+    ...options,
+  });
+
+/**
+ * Stream changes for the active account's computers
+ */
+export const streamComputers = <ThrowOnError extends boolean = true>(
+  options?: Options<StreamComputersData, ThrowOnError, StreamComputersResponse>
+): Promise<ServerSentEventsResult<StreamComputersResponses>> =>
+  (options?.client ?? client).sse.get<
+    StreamComputersResponses,
+    StreamComputersErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseStyle: "data",
+    url: "/api/computers/stream",
     ...options,
   });
 

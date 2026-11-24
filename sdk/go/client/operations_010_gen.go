@@ -270,6 +270,22 @@ func (c *Client) GetCmdPaletteView(ctx context.Context, params GetCmdPaletteView
 	return &out, nil
 }
 
+// GetComputerParams carries the path, query, and header parameters.
+type GetComputerParams struct {
+	ID string `url:"id"`
+}
+
+// GetComputer Inspect a computer and its routes
+func (c *Client) GetComputer(ctx context.Context, params GetComputerParams) (*Computer, error) {
+	path := "/api/computers/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out Computer
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetDoctorParams carries the path, query, and header parameters.
 type GetDoctorParams struct {
 	Only    *string `url:"only"`
@@ -418,26 +434,6 @@ func (c *Client) GetExtensionProvenance(ctx context.Context, params GetExtension
 		path += "?" + query.Encode()
 	}
 	var out ExtensionProvenanceResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetGatewayAudit Audit the current gateway security posture
-func (c *Client) GetGatewayAudit(ctx context.Context) (*GatewayAuditPayload, error) {
-	path := "/api/gateway/audit"
-	var out GatewayAuditPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetGatewayStatus Get the operator-global gateway posture
-func (c *Client) GetGatewayStatus(ctx context.Context) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/status"
-	var out GatewayStatusPayload
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

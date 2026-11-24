@@ -7,6 +7,72 @@ import (
 	"time"
 )
 
+// DoctorSummaryPayload is a daemon API value.
+type DoctorSummaryPayload struct {
+	Total            int            `json:"total"`
+	CountsBySeverity map[string]int `json:"counts_by_severity"`
+}
+
+// DraftAgentInstructionsRequest is a daemon API value.
+type DraftAgentInstructionsRequest struct {
+	Goal    string            `json:"goal"`
+	Runtime AgentDraftRuntime `json:"runtime"`
+}
+
+// DraftAgentInstructionsResponse is a daemon API value.
+type DraftAgentInstructionsResponse struct {
+	Instructions string `json:"instructions"`
+}
+
+// DragAwayPolicy is a daemon API value.
+type DragAwayPolicy string
+
+// DrainState is a daemon API value.
+type DrainState string
+
+// DrainStatusResponse is a daemon API value.
+type DrainStatusResponse struct {
+	State                      DrainState `json:"state"`
+	AdmissionClosed            bool       `json:"admission_closed"`
+	ActiveSessionExecutions    int        `json:"active_session_executions"`
+	ActiveTaskClaims           int        `json:"active_task_claims"`
+	AuthoritativeClaimsSettled bool       `json:"authoritative_claims_settled"`
+	SessionExecutionSettled    bool       `json:"session_execution_settled"`
+	SafeToStop                 bool       `json:"safe_to_stop"`
+}
+
+// DslTerminalState is a daemon API value.
+type DslTerminalState string
+
+// DuplicateAgentOverrides is a daemon API value.
+type DuplicateAgentOverrides struct {
+	DisplayName       *string                             `json:"display_name,omitempty"`
+	Description       *string                             `json:"description,omitempty"`
+	Kind              string                              `json:"kind,omitempty"`
+	Appearance        map[string]any                      `json:"appearance,omitempty"`
+	SessionEnv        map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	AutoCompactWindow *int                                `json:"auto_compact_window,omitempty"`
+	LeanEnvironment   *bool                               `json:"lean_environment,omitempty"`
+	Provider          string                              `json:"provider,omitempty"`
+	Command           string                              `json:"command,omitempty"`
+	Model             string                              `json:"model,omitempty"`
+	ReasoningEffort   Effort                              `json:"reasoning_effort,omitempty"`
+	Speed             Speed                               `json:"speed,omitempty"`
+	ACPOptions        []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	ClearSpeed        bool                                `json:"clear_speed,omitzero"`
+	ClearACPOptions   bool                                `json:"clear_acp_options,omitzero"`
+	Tools             []string                            `json:"tools,omitempty"`
+	Toolsets          []string                            `json:"toolsets,omitempty"`
+	DenyTools         []string                            `json:"deny_tools,omitempty"`
+	SessionApproval   string                              `json:"session_approval,omitempty"`
+	PermissionRules   []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
+	WorkspaceAccess   string                              `json:"workspace_access,omitempty"`
+	Permissions       SettingsPermissionMode              `json:"permissions,omitempty"`
+	CategoryPath      []string                            `json:"category_path,omitempty"`
+	Skills            *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	Prompt            string                              `json:"prompt,omitempty"`
+}
+
 // DuplicateAgentRequest is a daemon API value.
 type DuplicateAgentRequest struct {
 	Kind      string                   `json:"kind,omitempty"`
@@ -380,67 +446,4 @@ type ExtensionRemovedBuiltinPayload struct {
 	Name      string `json:"name"`
 	RemovedAt string `json:"removed_at"`
 	RemovedBy string `json:"removed_by"`
-}
-
-// ExtensionRemovedBuiltinsResponse is a daemon API value.
-type ExtensionRemovedBuiltinsResponse struct {
-	Removed []ExtensionRemovedBuiltinPayload `json:"removed"`
-}
-
-// ExtensionResponse is a daemon API value.
-type ExtensionResponse struct {
-	Extension ExtensionPayload `json:"extension"`
-}
-
-// ExtensionRestorePayload is a daemon API value.
-type ExtensionRestorePayload struct {
-	Name    string `json:"name"`
-	Status  string `json:"status"`
-	Source  string `json:"source"`
-	Version string `json:"version"`
-	Enabled bool   `json:"enabled"`
-	Path    string `json:"path"`
-}
-
-// ExtensionSecretBindingInput is a daemon API value.
-type ExtensionSecretBindingInput struct {
-	EnvName    string  `json:"env_name"`
-	Value      *string `json:"value,omitzero"`
-	VaultRef   *string `json:"vault_ref,omitzero"`
-	MCPServer  string  `json:"mcp_server,omitempty"`
-	HeaderName string  `json:"header_name,omitempty"`
-}
-
-// ExtensionSecretBindingPayload is a daemon API value.
-type ExtensionSecretBindingPayload struct {
-	EnvName    string `json:"env_name"`
-	Stale      bool   `json:"stale"`
-	MCPServer  string `json:"mcp_server,omitempty"`
-	HeaderName string `json:"header_name,omitempty"`
-}
-
-// ExtensionSecretsPayload is a daemon API value.
-type ExtensionSecretsPayload struct {
-	DeclaredEnv  []string                        `json:"declared_env"`
-	BoundEnvKeys []string                        `json:"bound_env_keys"`
-	Bindings     []ExtensionSecretBindingPayload `json:"bindings"`
-}
-
-// ExtensionTrustReportPayload is a daemon API value.
-type ExtensionTrustReportPayload struct {
-	Decision         string           `json:"decision"`
-	RegistryTier     string           `json:"registry_tier"`
-	ChecksumVerified bool             `json:"checksum_verified"`
-	AllowUnverified  bool             `json:"allow_unverified"`
-	Warnings         []DiagnosticItem `json:"warnings,omitempty"`
-}
-
-// ExtensionUpdateBatchResponse is a daemon API value.
-type ExtensionUpdateBatchResponse struct {
-	Updates []ManagedExtensionUpdatePayload `json:"updates"`
-}
-
-// ExtensionUpdateResponse is a daemon API value.
-type ExtensionUpdateResponse struct {
-	Update ManagedExtensionUpdatePayload `json:"update"`
 }
