@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { once } from "node:events";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -87,8 +87,10 @@ export const test = base.extend<{ scenario: Scenario; lab: RemoteComputersLab }>
         [exitCode] = await closed;
         for (const [index, log] of logs.entries()) {
           if (log) {
+            const path = testInfo.outputPath(`remotetest-daemon-${index}.log`);
+            await writeFile(path, log);
             await testInfo.attach(`remotetest-daemon-${index}`, {
-              body: log,
+              path,
               contentType: "text/plain",
             });
           }

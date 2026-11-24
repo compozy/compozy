@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { appWindow, openAppWindow, windowID } from "../fixtures/os-navigation";
+import { appWindow, openCommandPalette, windowID } from "../fixtures/os-navigation";
 import { cliComputerStatus, expect, test } from "../fixtures/remote-computers";
 
 async function openSettings(page: Page, section: "computers" | "account"): Promise<Locator> {
@@ -89,15 +89,15 @@ test.describe("Account-linked computer", () => {
     await expect(settings.locator(`[data-computer-id="${host.id}"]`)).toContainText("Connected");
     await settings.getByRole("button", { name: "Close window" }).click();
 
-    const sidebar = await sessionSidebar(await openAppWindow(page, "Session", "session"));
+    await page.goto("/sessions", { waitUntil: "domcontentloaded" });
+    const sidebar = await sessionSidebar(appWindow(page, "session"));
     const remoteRow = sidebar
       .locator(`[data-slot="session-list-row"][data-computer-id="${host.id}"]`)
       .filter({ hasText: title });
     await expect(remoteRow.getByText(title, { exact: true })).toBeVisible();
     await expect(remoteRow.getByText(host.name, { exact: true })).toBeVisible();
 
-    await page.keyboard.press("ControlOrMeta+K");
-    const palette = page.getByTestId("os-command-palette");
+    const palette = await openCommandPalette(page);
     await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(title);
     const result = palette.getByTestId(`os-palette-session-${sessionID}`);
     await expect(result).toContainText(title);
@@ -161,7 +161,9 @@ test.describe("Remote session terminal and files", () => {
       throw new Error("The remote-session scenario did not seed required fixture fields.");
     }
 
-    const session = await openAppWindow(page, "Session", "session");
+    await page.goto("/sessions", { waitUntil: "domcontentloaded" });
+    const session = appWindow(page, "session");
+    await expect(session).toBeVisible();
     const sidebar = await sessionSidebar(session);
     const remoteRow = sidebar
       .locator(`[data-slot="session-list-row"][data-computer-id="${host.id}"]`)

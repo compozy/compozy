@@ -68,10 +68,10 @@ describe("ssh-setup-view", () => {
     const trustStatus: ComputerSetupStatusPayload = {
       setup_id: "stp_1",
       computer_id: null,
-      state: "needs_host_key",
+      state: "needs_input",
       step: "connect",
       prompt: {
-        kind: "host_key",
+        kind: "trust_host",
         host: "deploy@10.0.0.71:22",
         fingerprint: "SHA256:abcdef123456",
       },
