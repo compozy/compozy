@@ -25,3 +25,12 @@ Walk each listed public entry point, then reload and read the stored result inde
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+For Remote Computers, configure `remote.ingress.public_url` with an HTTPS endpoint
+that forwards to the tunnel listener. Confirm two webhook triggers with the same
+slug in separate workspaces using `POST /api/ingress/bindings` through local HTTP or
+UDS. Deliver a signed payload to each advertised URL and verify that each starts
+the automation in its own workspace. Enable the hosted route, confirm that the
+base changes and both triggers show **Needs confirmation**, then attempt both
+deliveries again. Reconfirm the triggers through the same API and retry the
+refused delivery IDs. Verify that each delivery starts one run.

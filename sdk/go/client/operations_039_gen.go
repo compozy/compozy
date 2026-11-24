@@ -170,6 +170,20 @@ func (c *Client) UnbindGatewayIngress(ctx context.Context, params UnbindGatewayI
 	return &out, nil
 }
 
+// UnbindIngressParams carries the path, query, and header parameters.
+type UnbindIngressParams struct {
+	SubjectKind string `url:"subject_kind"`
+	SubjectID   string `url:"subject_id"`
+}
+
+// UnbindIngress Remove one public ingress confirmation
+func (c *Client) UnbindIngress(ctx context.Context, params UnbindIngressParams) error {
+	path := "/api/ingress/bindings/{subject_kind}/{subject_id}"
+	path = strings.ReplaceAll(path, "{subject_kind}", url.PathEscape(params.SubjectKind))
+	path = strings.ReplaceAll(path, "{subject_id}", url.PathEscape(params.SubjectID))
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
 // UnbindSessionWorktreeParams carries the path, query, and header parameters.
 type UnbindSessionWorktreeParams struct {
 	WorkspaceID        string  `url:"workspace_id"`
@@ -428,10 +442,4 @@ func (c *Client) UpdateAutomationTrigger(ctx context.Context, params UpdateAutom
 		return nil, err
 	}
 	return &out, nil
-}
-
-// UpdateExtensionParams carries the path, query, and header parameters.
-type UpdateExtensionParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
 }

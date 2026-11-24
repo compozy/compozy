@@ -24,6 +24,7 @@ const (
 	DPoPReplayWindow   = 120 * time.Second
 	defaultReplayLimit = 65_536
 	maxProofSize       = 8 << 10
+	httpScheme         = "http"
 )
 
 var (
@@ -173,11 +174,11 @@ func (v *DPoPVerifier) consume(jti string, now time.Time) error {
 
 func proofURL(target string) (string, error) {
 	u, err := url.Parse(target)
-	if err != nil || u.User != nil || u.Hostname() == "" || (u.Scheme != "https" && u.Scheme != "http") {
+	if err != nil || u.User != nil || u.Hostname() == "" || (u.Scheme != "https" && u.Scheme != httpScheme) {
 		return "", ErrDPoPInvalid
 	}
 	u.Host = strings.ToLower(u.Host)
-	if (u.Scheme == "https" && u.Port() == "443") || (u.Scheme == "http" && u.Port() == "80") {
+	if (u.Scheme == "https" && u.Port() == "443") || (u.Scheme == httpScheme && u.Port() == "80") {
 		u.Host, _, _ = strings.CutLast(u.Host, ":")
 	}
 	if u.Path == "" {

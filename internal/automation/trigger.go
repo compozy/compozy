@@ -135,14 +135,15 @@ type ParsedWebhookEndpoint struct {
 
 // WebhookRequest is the transport-neutral webhook delivery input consumed by the trigger engine.
 type WebhookRequest struct {
-	Scope       Scope          `json:"scope"`
-	WorkspaceID string         `json:"workspace_id,omitempty"`
-	Endpoint    string         `json:"endpoint"`
-	DeliveryID  string         `json:"delivery_id"`
-	Timestamp   time.Time      `json:"timestamp"`
-	Signature   string         `json:"signature"`
-	Payload     []byte         `json:"payload,omitempty"`
-	Data        map[string]any `json:"data,omitempty"`
+	Scope       Scope                                `json:"scope"`
+	WorkspaceID string                               `json:"workspace_id,omitempty"`
+	Endpoint    string                               `json:"endpoint"`
+	DeliveryID  string                               `json:"delivery_id"`
+	Timestamp   time.Time                            `json:"timestamp"`
+	Signature   string                               `json:"signature"`
+	Payload     []byte                               `json:"payload,omitempty"`
+	Data        map[string]any                       `json:"data,omitempty"`
+	Admit       func(context.Context, Trigger) error `json:"-"`
 }
 
 // Validate ensures the request can be normalized before any dispatch occurs.

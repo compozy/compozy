@@ -36,7 +36,7 @@ type listenerRun struct {
 
 func (s *listenerSet) apply(
 	ctx context.Context, cfg config.RemoteConfig, handler func(Listener) http.Handler,
-	publish func([]string) error,
+	publish func([]string, string) error,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -51,7 +51,8 @@ func (s *listenerSet) apply(
 	if err != nil {
 		return err
 	}
-	if err := publish(boundAddresses(next, ListenerDirect)); err != nil {
+	hosted, _ := firstBoundAddress(next, ListenerHosted)
+	if err := publish(boundAddresses(next, ListenerDirect), hosted); err != nil {
 		return errors.Join(err, closeStagedListeners(created))
 	}
 	for addr, run := range created {
@@ -80,6 +81,15 @@ func (s *listenerSet) addresses(kind Listener) []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return boundAddresses(s.entries, kind)
+}
+
+func firstBoundAddress(entries map[listenAddress]*listenerRun, kind Listener) (string, bool) {
+	for addr, run := range entries {
+		if addr.kind == kind {
+			return run.listener.Addr().String(), true
+		}
+	}
+	return "", false
 }
 
 func boundAddresses(entries map[listenAddress]*listenerRun, kind Listener) []string {

@@ -19,6 +19,21 @@ The SSH forward targets the loopback listener at `127.0.0.1:47823` by default. T
 
 Local HTTP and UDS share the same `/api/remote` routes for status, link settings, and devices. `compozy__remote_status` gives agents the same status that the CLI prints as JSON.
 
+## Hosted route
+
+On a linked computer with Compozy Pro, run `compozy remote cloud-route enable`. Compozy Cloud assigns a hostname under `compozy.run`, and the daemon downloads and verifies the connector on first use. The connector makes an outbound connection to Cloudflare and forwards requests to the hosted listener on `127.0.0.1:47824` by default.
+
+Read the assigned hostname and connector state with `compozy remote status --json`. If it reports **Hosted route can't reach Cloudflare (port 7844 blocked)**, allow the outbound connection on port 7844. The daemon retries with backoff. Run `compozy remote cloud-route disable` to remove the hosted route and its tunnel. Unlinking the computer also deletes its tunnel.
+
+## Webhook ingress
+
+An active hosted route supplies the public base URL for incoming webhooks. If you run your own HTTPS endpoint, set `remote.ingress.public_url` and forward webhook requests to the tunnel listener. The advertised URL keeps the trigger's existing path.
+
+- Global trigger path is `/api/webhooks/global/{slug}--{webhook_id}`.
+- Workspace trigger path is `/api/webhooks/workspaces/{workspace_id}/{slug}--{webhook_id}`.
+
+Read the trigger to get its full URL. Confirm it with `POST /api/ingress/bindings` over local HTTP or UDS, sending `subject_kind: "webhook_trigger"`, the trigger ID as `subject_id`, and `confirmed: true`. Send deliveries with the trigger's existing signature, timestamp, and delivery ID headers. If the public base changes, the trigger shows **Needs confirmation**. Confirm the new URL before retrying deliveries.
+
 ## Device approvals and revocation
 
 The device list shows devices that opened a session or requested approval on this computer. The last seen time reflects the most recent session opened here.

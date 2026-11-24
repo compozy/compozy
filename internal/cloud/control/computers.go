@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/plan"
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
@@ -213,7 +214,8 @@ func (s *Service) ListComputers(ctx context.Context, principal DevicePrincipal) 
 		principal,
 		func(q *store.Queries, account store.ControlAccount, _ store.ControlDevice) error {
 			now := s.config.Now()
-			if _, err := s.reconcilePlan(ctx, q, account.ID, now); err != nil {
+			tier, err := s.reconcilePlan(ctx, q, account.ID, now)
+			if err != nil {
 				return err
 			}
 			rows, err := q.ListControlComputers(ctx, account.ID)
@@ -223,6 +225,9 @@ func (s *Service) ListComputers(ctx context.Context, principal DevicePrincipal) 
 			computers = make([]Computer, 0, len(rows))
 			for _, row := range rows {
 				computers = append(computers, computerView(row, now))
+			}
+			if tier == plan.Pro {
+				return s.attachHostedRoutes(ctx, q, account.ID, now, computers)
 			}
 			return nil
 		},
@@ -398,7 +403,8 @@ func invalidEndpoint(address string) bool {
 }
 
 func (s *Service) UnlinkComputer(ctx context.Context, principal DevicePrincipal, id remoteproto.ComputerID) error {
-	return s.deviceTransaction(
+	var tunnel store.TunnelRef
+	err := s.deviceTransaction(
 		ctx,
 		principal,
 		func(q *store.Queries, account store.ControlAccount, device store.ControlDevice) error {
@@ -408,6 +414,10 @@ func (s *Service) UnlinkComputer(ctx context.Context, principal DevicePrincipal,
 			}
 			now := s.config.Now()
 			if err := q.UnlinkControlComputer(ctx, computer, now); err != nil {
+				return err
+			}
+			tunnel, err = s.markHostedDeleting(ctx, q, computer)
+			if err != nil {
 				return err
 			}
 			if _, err := s.reconcilePlan(ctx, q, account.ID, now); err != nil {
@@ -423,6 +433,10 @@ func (s *Service) UnlinkComputer(ctx context.Context, principal DevicePrincipal,
 			return err
 		},
 	)
+	if err == nil {
+		s.finishHostedDelete(ctx, tunnel)
+	}
+	return err
 }
 
 func notifyComputerChanged(ctx context.Context, q *store.Queries, computer store.ControlComputer) error {

@@ -103,6 +103,9 @@ import type {
   BindGatewayIngressData,
   BindGatewayIngressErrors,
   BindGatewayIngressResponses,
+  BindIngressData,
+  BindIngressErrors,
+  BindIngressResponses,
   BindSessionWorktreeData,
   BindSessionWorktreeErrors,
   BindSessionWorktreeResponses,
@@ -1701,6 +1704,9 @@ import type {
   UnbindGatewayIngressData,
   UnbindGatewayIngressErrors,
   UnbindGatewayIngressResponses,
+  UnbindIngressData,
+  UnbindIngressErrors,
+  UnbindIngressResponses,
   UnbindSessionWorktreeData,
   UnbindSessionWorktreeErrors,
   UnbindSessionWorktreeResponses,
@@ -5773,6 +5779,48 @@ export class hooks extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/hooks/runs",
+      ...options,
+    });
+  }
+}
+
+export class ingress extends HeyApiClient {
+  /**
+   * Confirm a webhook trigger against its advertised HTTPS endpoint
+   */
+  public bindIngress<ThrowOnError extends boolean = true>(
+    options: Options<BindIngressData, ThrowOnError>
+  ): RequestResult<BindIngressResponses, BindIngressErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      BindIngressResponses,
+      BindIngressErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/ingress/bindings",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove one public ingress confirmation
+   */
+  public unbindIngress<ThrowOnError extends boolean = true>(
+    options: Options<UnbindIngressData, ThrowOnError>
+  ): RequestResult<UnbindIngressResponses, UnbindIngressErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      UnbindIngressResponses,
+      UnbindIngressErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/ingress/bindings/{subject_kind}/{subject_id}",
       ...options,
     });
   }
@@ -15199,6 +15247,11 @@ export class Compozy extends HeyApiClient {
   private _hooks?: hooks;
   get hooks(): hooks {
     return (this._hooks ??= new hooks({ client: this.client }));
+  }
+
+  private _ingress?: ingress;
+  get ingress(): ingress {
+    return (this._ingress ??= new ingress({ client: this.client }));
   }
 
   private _logs?: logs;

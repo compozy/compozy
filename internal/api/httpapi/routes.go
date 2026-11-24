@@ -30,6 +30,7 @@ func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 	registerAppSDKRoutes(api, handlers)
 	registerAccountRoutes(api, handlers)
 	registerRemoteHostRoutes(api, handlers)
+	core.RegisterIngressRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
 	core.RegisterComputerRoutes(api, handlers.BaseHandlers, handlers.privilegedMutationGuard())
 	router.Any(core.ComputerBridgeRoute,
 		localListenerTierMiddleware(), browserRequestProtectionMiddleware(handlers.boundHost),
@@ -422,9 +423,8 @@ func registerOpenAIModelRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {
-	webhooks := api.Group("/webhooks", handlers.gatewayIngressRateLimitMiddleware())
-	webhooks.POST("/global/:endpoint", handlers.DeliverGlobalWebhook)
-	webhooks.POST("/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
+	registerWebhookEndpoints(api, handlers.gatewayIngressRateLimitMiddleware(),
+		handlers.DeliverGlobalWebhook, handlers.DeliverWorkspaceWebhook)
 }
 
 func registerProviderUsageRoutes(api gin.IRouter, handlers *Handlers) {

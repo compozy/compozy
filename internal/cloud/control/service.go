@@ -3,9 +3,11 @@ package control
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/cloudflare"
 	"github.com/compozy/compozy/internal/cloud/plan"
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -29,11 +31,13 @@ type DevicePrincipal struct {
 }
 
 type ServiceConfig struct {
-	Signer       *remoteproto.Signer
-	Issuer       string
-	MonthlyPrice string
-	AnnualPrice  string
-	Now          func() time.Time
+	Signer        *remoteproto.Signer
+	Issuer        string
+	MonthlyPrice  string
+	AnnualPrice   string
+	Now           func() time.Time
+	Logger        *slog.Logger
+	HostedTunnels *cloudflare.Client
 }
 
 type Service struct {
@@ -42,6 +46,9 @@ type Service struct {
 }
 
 func NewService(db *store.Store, config ServiceConfig) *Service {
+	if config.Logger == nil {
+		config.Logger = slog.Default()
+	}
 	return &Service{db: db, config: config}
 }
 

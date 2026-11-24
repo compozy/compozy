@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/apptoken"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/gateway"
@@ -119,6 +120,11 @@ func (d *Daemon) bootDeviceGateway(
 	state.gateway = policy
 	state.deps.Gateway = service
 	state.deps.Ingress = ingressManager
+	if host := state.runtimeWorkers.remote; host != nil {
+		host.SetWebhookHandler(
+			httpapi.NewRemoteWebhookRoutes(state.deps.Automation, ingressManager.AdmitDelivery, d.now),
+		)
+	}
 	return reconcileGatewayPolicy(ctx, state, policy)
 }
 

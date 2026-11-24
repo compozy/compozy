@@ -262,8 +262,13 @@ func (p *computerControlLink) handleEvent(ctx context.Context, event store.Contr
 	case remoteproto.ControlSnapshot, remoteproto.ControlRevokeDevice, remoteproto.ControlScopesChanged,
 		remoteproto.ControlUnlink, remoteproto.ControlLinkReplaced, remoteproto.ControlApprovalDecided:
 		return p.refreshSecurity(ctx, event, false)
-	case remoteproto.ControlComputersChanged, remoteproto.ControlPlanChanged:
+	case remoteproto.ControlComputersChanged:
 		return p.refreshLease(ctx)
+	case remoteproto.ControlPlanChanged:
+		if err := p.refreshLease(ctx); err != nil {
+			return err
+		}
+		return p.refreshPeers(ctx)
 	case remoteproto.ControlJWKS:
 		return p.send(remoteproto.ControlJWKS, p.sentEpoch, p.routes.keys.JWKS())
 	case remoteproto.ControlPeers:
