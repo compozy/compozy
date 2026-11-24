@@ -55,10 +55,9 @@ func (c *daemonClient) doSessionPrompt(
 	ctx context.Context,
 	method string,
 	path string,
-	query url.Values,
 	requestBody any,
 ) (SessionPromptRecord, error) {
-	return c.doSessionPromptAs(ctx, method, path, query, requestBody, agentidentity.Credentials{})
+	return c.doSessionPromptAs(ctx, method, path, nil, requestBody, agentidentity.Credentials{})
 }
 
 func (c *daemonClient) doSessionPromptAs(

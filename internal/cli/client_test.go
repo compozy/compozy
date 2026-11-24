@@ -550,7 +550,6 @@ func TestUnixSocketClientSessionPromptTerminalContract(t *testing.T) {
 			t.Context(),
 			http.MethodPost,
 			"/api/workspaces/ws-1/sessions/sess-1/prompt",
-			nil,
 			SessionPromptRequest{Message: "hello"},
 		)
 		assertErrorContains(t, err, "peer disconnected before response")
@@ -638,7 +637,6 @@ func TestUnixSocketClientSessionPromptTerminalContract(t *testing.T) {
 			t.Context(),
 			http.MethodPost,
 			"/api/workspaces/ws-1/sessions/sess-1/prompt",
-			nil,
 			SessionPromptRequest{Message: "hello"},
 		)
 		assertErrorContains(t, err, "ended before a terminal event")
@@ -5611,7 +5609,6 @@ func TestClientCallersShouldOwnResponseBodies(t *testing.T) {
 			t.Context(),
 			http.MethodPost,
 			"/api/workspaces/ws-1/sessions/sess-1/prompt",
-			nil,
 			SessionPromptRequest{Message: "hello"},
 		)
 		if !errors.Is(err, closeErr) {
