@@ -17006,13 +17006,14 @@ func TestNativeSessionCleanupTool(t *testing.T) {
 func TestNativeSessionArchiveStoppedTool(t *testing.T) {
 	t.Parallel()
 
+	const callerProfileID = "profile-archive-stopped"
 	agent := toolspkg.Scope{WorkspaceID: "ws-1", SessionID: "sess-agent", AgentName: "coder"}
 	newRegistry := func(t *testing.T, access string) (*nativeArchiveStoppedSessions, *toolspkg.RuntimeRegistry) {
 		t.Helper()
 		sessions := &nativeArchiveStoppedSessions{}
 		sessions.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
 			return &session.Info{
-				ID: id, ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", State: session.StateActive,
+				ID: id, ProfileID: callerProfileID, WorkspaceID: "ws-1", State: session.StateActive,
 				EffectiveWorkspaceAccess: access,
 			}, nil
 		}
@@ -17052,7 +17053,7 @@ func TestNativeSessionArchiveStoppedTool(t *testing.T) {
 			t.Fatalf("session_archive_stopped error = %v", err)
 		}
 		want := session.ArchiveStoppedRequest{
-			ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", DryRun: true, CallerSessionID: "sess-agent",
+			ProfileID: callerProfileID, WorkspaceID: "ws-1", DryRun: true, CallerSessionID: "sess-agent",
 		}
 		if len(sessions.requests) != 1 || sessions.requests[0] != want {
 			t.Fatalf("requests = %+v, want %+v", sessions.requests, want)
