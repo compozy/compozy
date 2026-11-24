@@ -57,10 +57,8 @@ func (t target) valid() bool {
 }
 
 func safeSSHName(s string) bool {
-	return s != "" && !strings.HasPrefix(s, "-") && !strings.ContainsFunc(s, func(r rune) bool {
-		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' ||
-			strings.ContainsRune("._-:", r))
-	})
+	const allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-:"
+	return s != "" && !strings.HasPrefix(s, "-") && strings.Trim(s, allowed) == ""
 }
 
 func safeSSHUser(s string) bool {

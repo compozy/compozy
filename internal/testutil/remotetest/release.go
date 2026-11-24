@@ -158,7 +158,7 @@ func ReleaseVerifier(trustRoot []byte) (update.BundleVerifier, error) {
 	if err != nil {
 		return nil, err
 	}
-	return releaseVerifier{verifier, identity}, nil
+	return &releaseVerifier{verifier, identity}, nil
 }
 
 type releaseVerifier struct {
@@ -166,9 +166,9 @@ type releaseVerifier struct {
 	identity verify.CertificateIdentity
 }
 
-var _ update.BundleVerifier = releaseVerifier{}
+var _ update.BundleVerifier = (*releaseVerifier)(nil)
 
-func (v releaseVerifier) VerifyChecksums(ctx context.Context, sum, proof string) error {
+func (v *releaseVerifier) VerifyChecksums(ctx context.Context, sum, proof string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

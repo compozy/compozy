@@ -68,7 +68,7 @@ func (r releaseSource) verifyFiles(ctx context.Context, manifest releaseManifest
 }
 
 func (r releaseSource) fetch(ctx context.Context, url, path string) (err error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func parseUname(output string) (string, error) {
 	}
 }
 
-var curlStatusLine = regexp.MustCompile("^curl: \\([0-9]{1,3}\\) (?:The requested URL returned error: )?[0-9]{3}$")
+var curlStatusLine = regexp.MustCompile(`^curl: \([0-9]{1,3}\) (?:The requested URL returned error: )?[0-9]{3}$`)
 
 func installFailure(t target, result commandResult, err error) error {
 	if err == nil {

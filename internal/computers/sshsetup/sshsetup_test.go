@@ -321,24 +321,22 @@ func TestSSHAskpass(t *testing.T) {
 }
 
 func readAskpassAnswer(ctx context.Context, env []string) (string, error) {
-	for _, entry := range env {
-		value, ok := strings.CutPrefix(entry, askpassEnv+"=")
-		if !ok {
-			continue
-		}
-		addr, token, _ := strings.Cut(value, "/")
-		conn, err := new(net.Dialer).DialContext(ctx, "tcp4", addr)
-		if err != nil {
-			return "", err
-		}
-		defer conn.Close()
-		if _, err := fmt.Fprintf(conn, "%s %s\n", token, classifyPrompt("Password:")); err != nil {
-			return "", err
-		}
-		line, err := bufio.NewReader(conn).ReadString('\n')
-		return strings.TrimSpace(line), err
+	const prefix = promptEndpointEnv + "="
+	index := slices.IndexFunc(env, func(entry string) bool { return strings.HasPrefix(entry, prefix) })
+	if index < 0 {
+		return "", errors.New("missing askpass environment")
 	}
-	return "", errors.New("missing askpass environment")
+	addr, token, _ := strings.Cut(strings.TrimPrefix(env[index], prefix), "/")
+	conn, err := new(net.Dialer).DialContext(ctx, "tcp4", addr)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+	if _, err := fmt.Fprintf(conn, "%s %s\n", token, classifyPrompt("Password:")); err != nil {
+		return "", err
+	}
+	line, err := bufio.NewReader(conn).ReadString('\n')
+	return strings.TrimSpace(line), err
 }
 
 type setupFixture struct {
@@ -437,7 +435,10 @@ func awaitSetupState(t *testing.T, manager *Manager, id, state string) Status {
 
 func awaitCommand(t *testing.T, calls <-chan string, expected string) {
 	t.Helper()
-	for !strings.HasPrefix(awaitResult(t, calls), expected) {
+	for {
+		if strings.HasPrefix(awaitResult(t, calls), expected) {
+			return
+		}
 	}
 }
 

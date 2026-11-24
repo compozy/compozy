@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	askpassEnv = "COMPOZY_SSH_ASKPASS_ENDPOINT"
-	maxAnswer  = 4096
+	promptEndpointEnv = "COMPOZY_SSH_ASKPASS_ENDPOINT"
+	maxAnswer         = 4096
 )
 
 type askpassPrompt func(context.Context, string, func(string) error) error
@@ -47,7 +47,7 @@ func serveAskpass(ctx context.Context, ask askpassPrompt) ([]string, func(), err
 	}()
 	env := []string{
 		"SSH_ASKPASS=" + executable, "SSH_ASKPASS_REQUIRE=force", "DISPLAY=compozy",
-		askpassEnv + "=" + listener.Addr().String() + "/" + token,
+		promptEndpointEnv + "=" + listener.Addr().String() + "/" + token,
 	}
 	return env, func() {
 		cancel()
@@ -91,7 +91,7 @@ func relayAnswer(ctx context.Context, conn net.Conn, token string, ask askpassPr
 
 // RunAskpass handles the single prompt argument OpenSSH passes to its helper.
 func RunAskpass(ctx context.Context, args []string, out io.Writer) (bool, error) {
-	endpoint := os.Getenv(askpassEnv)
+	endpoint := os.Getenv(promptEndpointEnv)
 	if endpoint == "" || len(args) != 1 {
 		return false, nil
 	}

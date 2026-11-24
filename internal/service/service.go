@@ -17,10 +17,12 @@ import (
 )
 
 const (
-	linuxManager = "systemd --user"
-	macManager   = "launchd"
-	LingerOff    = "linger_off"
-	NoManager    = "no_service_manager"
+	linuxPlatform  = "linux"
+	darwinPlatform = "darwin"
+	linuxManager   = "systemd --user"
+	macManager     = "launchd"
+	LingerOff      = "linger_off"
+	NoManager      = "no_service_manager"
 )
 
 type Result struct {
@@ -59,9 +61,9 @@ func executablePath(executable string) (string, error) {
 
 func (m *Manager) Install(ctx context.Context) (Result, error) {
 	switch m.platform {
-	case "linux":
+	case linuxPlatform:
 		return m.installLinux(ctx)
-	case "darwin":
+	case darwinPlatform:
 		return m.installMac(ctx)
 	default:
 		return Result{Warning: NoManager}, nil
@@ -70,9 +72,9 @@ func (m *Manager) Install(ctx context.Context) (Result, error) {
 
 func (m *Manager) Uninstall(ctx context.Context) (Result, error) {
 	switch m.platform {
-	case "linux":
+	case linuxPlatform:
 		return m.uninstallLinux(ctx)
-	case "darwin":
+	case darwinPlatform:
 		return m.uninstallMac(ctx)
 	default:
 		return Result{Warning: NoManager}, nil
@@ -81,9 +83,9 @@ func (m *Manager) Uninstall(ctx context.Context) (Result, error) {
 
 func (m *Manager) Status(ctx context.Context) (Result, error) {
 	switch m.platform {
-	case "linux":
+	case linuxPlatform:
 		return m.statusLinux(ctx)
-	case "darwin":
+	case darwinPlatform:
 		return m.statusMac(ctx)
 	default:
 		return Result{Warning: NoManager}, nil

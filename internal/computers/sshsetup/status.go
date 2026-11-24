@@ -137,7 +137,7 @@ func (m *Manager) ask(job *setupRun) askpassPrompt {
 			if answer.Kind != Secret {
 				return ErrNoPrompt
 			}
-			if len(answer.Value) == 0 || len(answer.Value) > maxAnswer ||
+			if answer.Value == "" || len(answer.Value) > maxAnswer ||
 				strings.ContainsAny(answer.Value, "\x00\n\r") {
 				return failure(http.StatusBadRequest, "invalid_computer_request", "Enter a password or code.")
 			}

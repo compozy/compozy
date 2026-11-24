@@ -221,7 +221,7 @@ func TestRemoveSSHComputer(t *testing.T) {
 		t.Parallel()
 		route := store.ComputerRoute{ID: "ssh", Kind: remoteproto.RouteSSH, Address: "pedro@devbox:22"}
 		rows := []store.Computer{{ID: probeComputer, AccountID: probeAccount, Routes: []store.ComputerRoute{route}}}
-		storage := &removalStore{routingStore: routingStore{computers: rows}}
+		storage := &removalStore{routingStore: {computers: rows}}
 		var tried string
 		registry := New(t.Context(), storage, newRoutingAccount(t), &routingCloud{},
 			WithSSHUninstall(func(_ context.Context, route store.ComputerRoute) error {
