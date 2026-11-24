@@ -10,7 +10,6 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
-	"github.com/compozy/compozy/internal/fileutil"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -31,10 +30,14 @@ type dependencyNode struct {
 	payload    contract.ExtensionDependencyPayload
 	declaredBy string
 	// declaredRef is the ref before physical resolution, absolute for local dependencies.
-	declaredRef string
-	installed   bool
-	enabled     bool
-	children    []extensionpkg.ExtensionDependency
+	declaredRef         string
+	declaredDir         string
+	installed           bool
+	installedGlobally   bool
+	enabled             bool
+	children            []extensionpkg.ExtensionDependency
+	expandedDepth       int
+	expandedGlobalDepth int
 	// candidate is the acquired package of a missing node; whoever installs it takes ownership.
 	candidate *preparedDaemonExtensionInstall
 	// unverifiedErr is the trust refusal replayed when a consent-required node lacks allow_unverified.
@@ -110,7 +113,7 @@ type dependencyResolver struct {
 }
 
 // resolveDependencies walks root's transitive requires.extensions before any mutation (rules 11 and 12).
-// A completed subtree is revisited only when reached at a greater depth, so its deeper path still counts.
+// A completed subtree is revisited only for a deeper path or to check a global parent's visibility.
 func (s *daemonExtensionService) resolveDependencies(
 	ctx context.Context, root *extensionpkg.Manifest, rootDir string, target extensionMutationTarget,
 	consent map[string]contract.ExtensionDependencyConsent, actor taskpkg.ActorContext,
@@ -122,7 +125,14 @@ func (s *daemonExtensionService) resolveDependencies(
 	resolver := dependencyResolver{
 		service: s, target: target, consent: consent, actor: actor, graph: graph,
 	}
-	if err := resolver.expand(ctx, root.Name, rootDir, root.Requires.Extensions, []string{root.Name}); err != nil {
+	if err := resolver.expand(
+		ctx,
+		root.Name,
+		rootDir,
+		root.Requires.Extensions,
+		[]string{root.Name},
+		false,
+	); err != nil {
 		return nil, errors.Join(err, graph.Close())
 	}
 	cell := extensionpkg.InstallationScope{ProfileID: target.profile.ID, WorkspaceID: target.scope.WorkspaceID}
@@ -140,6 +150,7 @@ func (s *daemonExtensionService) resolveDependencies(
 
 func (r *dependencyResolver) expand(
 	ctx context.Context, parent, parentDir string, dependencies []extensionpkg.ExtensionDependency, path []string,
+	globalOnly bool,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -164,17 +175,27 @@ func (r *dependencyResolver) expand(
 		}
 		depth := len(chain) - 1
 		previous := r.graph.nodes[dependency.Name]
-		expandChildren := previous == nil || previous.payload.Depth < depth
+		if globalOnly && (previous == nil || !previous.installedGlobally) {
+			if err := r.requireGlobalDependency(ctx, parent, dependency, ref, depth); err != nil {
+				return err
+			}
+		}
 		node, err := r.visit(ctx, parent, parentDir, ref, dependency, depth)
 		if err != nil {
 			return err
 		}
-		if !expandChildren {
+		childGlobalOnly := globalOnly || (r.target.scope.WorkspaceID != "" && node.installedGlobally)
+		expandedDepth := &node.expandedDepth
+		if childGlobalOnly {
+			expandedDepth = &node.expandedGlobalDepth
+		}
+		if *expandedDepth >= depth {
 			continue
 		}
-		if err := r.expand(ctx, dependency.Name, node.sourceDir, node.children, chain); err != nil {
+		if err := r.expand(ctx, dependency.Name, node.sourceDir, node.children, chain, childGlobalOnly); err != nil {
 			return err
 		}
+		*expandedDepth = depth
 		if previous == nil {
 			r.graph.order = append(r.graph.order, node)
 		}
@@ -190,14 +211,13 @@ func (r *dependencyResolver) visit(
 	}
 	if node, ok := r.graph.nodes[dependency.Name]; ok {
 		matchingRef := node.declaredRef == ref
-		if (!matchingRef || node.declaredBy != parent) && node.candidate != nil &&
-			node.payload.Source == dependency.Source &&
+		if node.payload.Source == dependency.Source &&
 			contract.InstallExtensionSource(dependency.Source) == contract.InstallExtensionSourceLocalPath {
-			resolved, err := resolveLocalDependencyRef(ctx, dependency, parentDir, ref)
+			resolved, matches, err := node.matchLocalDependencyRef(ctx, parent, parentDir, dependency, ref)
 			if err != nil {
 				return nil, err
 			}
-			ref, matchingRef = resolved, node.payload.Ref == resolved
+			ref, matchingRef = resolved, matches
 		}
 		if node.payload.Source != dependency.Source || !matchingRef {
 			return nil, &extensionpkg.DependencyGraphInvalidError{
@@ -217,7 +237,7 @@ func (r *dependencyResolver) visit(
 		return node, nil
 	}
 	node := &dependencyNode{
-		declaredBy: parent, declaredRef: ref,
+		declaredBy: parent, declaredRef: ref, declaredDir: parentDir,
 		payload: contract.ExtensionDependencyPayload{
 			Name: dependency.Name, Source: dependency.Source, Ref: ref, MinVersion: dependency.MinVersion,
 			RequiredBy: []string{parent}, Depth: depth,
@@ -235,7 +255,7 @@ func (r *dependencyResolver) inspect(
 	ctx context.Context, node *dependencyNode, dependency extensionpkg.ExtensionDependency, parentDir string,
 ) error {
 	s, name := r.service, node.payload.Name
-	_, err := s.registry.ResolveInstallation(ctx, name, extensionpkg.InstallationScope{
+	installation, err := s.registry.ResolveInstallation(ctx, name, extensionpkg.InstallationScope{
 		ProfileID: r.target.profile.ID, WorkspaceID: r.target.scope.WorkspaceID,
 	})
 	if errors.Is(err, extensionpkg.ErrExtensionNotFound) {
@@ -269,6 +289,7 @@ func (r *dependencyResolver) inspect(
 		return err
 	}
 	node.installed, node.payload.InstalledVersion = true, info.Version
+	node.installedGlobally = installation.Scope.WorkspaceID == ""
 	node.children = manifest.Requires.Extensions
 	source := info.Provenance.SourceURL
 	if info.Provenance.InstalledFrom == extensionpkg.ExtensionInstalledFromLocalPath && filepath.IsAbs(source) {
@@ -285,6 +306,26 @@ func (r *dependencyResolver) inspect(
 		node.payload.GatewayRequirementDigest = digest
 	}
 	return nil
+}
+
+// A workspace install cannot repair a missing dependency of an already-installed global parent.
+func (r *dependencyResolver) requireGlobalDependency(
+	ctx context.Context, parent string, dependency extensionpkg.ExtensionDependency, ref string, depth int,
+) error {
+	_, err := r.service.registry.ResolveInstallation(ctx, dependency.Name, extensionpkg.InstallationScope{
+		ProfileID: r.target.profile.ID,
+	})
+	if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+		return err
+	}
+	required := &extensionpkg.DependenciesRequiredError{Dependencies: []contract.ExtensionDependencyPayload{{
+		Name: dependency.Name, Source: dependency.Source, Ref: ref, MinVersion: dependency.MinVersion,
+		RequiredBy: []string{parent}, Depth: depth, State: dependencyStateMissing,
+	}}}
+	return &extensionpkg.DependencyGateError{
+		Dependency: dependency.Name,
+		Err:        fmt.Errorf("install %s in the global scope for %s first: %w", dependency.Name, parent, required),
+	}
 }
 
 // acquire downloads a missing dependency into staging so preview and install read its own manifest (D15).
@@ -339,50 +380,6 @@ func (r *dependencyResolver) acquire(ctx context.Context, node *dependencyNode) 
 	node.payload.GatewayRequirementDigest, node.payload.RegistryTier = digest, prepared.registryTier
 	node.children, node.sourceDir = prepared.manifest.Requires.Extensions, prepared.sourceDir
 	return r.checkInstalledElsewhere(ctx, node)
-}
-
-func dependencyDeclarationRef(dependency extensionpkg.ExtensionDependency, parentDir string) (string, error) {
-	if contract.InstallExtensionSource(dependency.Source) != contract.InstallExtensionSourceLocalPath {
-		return dependency.Ref, nil
-	}
-	if !filepath.IsAbs(parentDir) {
-		return "", invalidLocalDependencyRef(
-			dependency,
-			"local_path dependency requires a local_path dependent",
-		)
-	}
-	if !filepath.IsLocal(dependency.Ref) {
-		return "", invalidLocalDependencyRef(dependency, "local_path ref must stay inside the source directory")
-	}
-	return filepath.Join(parentDir, dependency.Ref), nil
-}
-
-func resolveLocalDependencyRef(
-	ctx context.Context, dependency extensionpkg.ExtensionDependency, parentDir, ref string,
-) (string, error) {
-	if err := ctx.Err(); err != nil {
-		return "", err
-	}
-	_, resolved, err := fileutil.ResolveExistingPathWithinRoot(parentDir, ref)
-	if errors.Is(err, fileutil.ErrPathOutsideRoot) {
-		return "", invalidLocalDependencyRef(dependency, "local_path ref must resolve inside the source directory")
-	}
-	if err != nil {
-		return "", &extensionpkg.DependencyGateError{
-			Dependency: dependency.Name,
-			Err:        fmt.Errorf("daemon: resolve local dependency ref %q: %w", dependency.Ref, err),
-		}
-	}
-	return resolved, ctx.Err()
-}
-
-func invalidLocalDependencyRef(dependency extensionpkg.ExtensionDependency, message string) error {
-	return &extensionpkg.DependencyGateError{
-		Dependency: dependency.Name,
-		Err: &extensionpkg.ManifestValidationError{
-			Field: "requires.extensions.ref", Value: dependency.Ref, Message: message,
-		},
-	}
 }
 
 // checkInstalledElsewhere marks a missing node whose package is installed for another scope or profile with

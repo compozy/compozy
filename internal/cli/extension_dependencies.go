@@ -141,10 +141,11 @@ func pinExtensionDependencyDigests(
 // consolidated preview, one consent, then each artifact's own trust gate in order. It reports false when the
 // refusal is not prompted (no TTY, a node consent cannot install, or another error), so the caller keeps the error.
 func promptExtensionInstallDependencies(
-	cmd *cobra.Command, deps commandDeps, plan extensionInstallPlan, installErr error,
+	cmd *cobra.Command, deps commandDeps, prompter *extensionInputPrompter, plan extensionInstallPlan, installErr error,
 ) (extensionInstallPlan, bool, error) {
 	apiErr, ok := errors.AsType[*extensionOperationAPIError](installErr)
 	if !ok || apiErr.payload.Code != diagnosticcontract.CodeExtensionDependenciesRequired ||
+		apiErr.payload.Dependency != "" ||
 		len(apiErr.payload.Dependencies) == 0 ||
 		slices.ContainsFunc(apiErr.payload.Dependencies, extensionDependencyBlocked) {
 		return plan, false, nil
@@ -157,7 +158,6 @@ func promptExtensionInstallDependencies(
 	if err := writeExtensionDependencyPreview(cmd, dependencies); err != nil {
 		return plan, false, err
 	}
-	prompter := newExtensionInputPrompter(cmd)
 	if err := prompter.confirm(cmd.Context(), "Install these dependencies first"); err != nil {
 		return plan, false, err
 	}
@@ -244,6 +244,8 @@ func writeExtensionDependencyPreview(cmd *cobra.Command, dependencies []contract
 // the guidance of `extension enable`, which has no --with-dependencies flag.
 func extensionDependencyErrorMessage(payload contract.ExtensionOperationErrorPayload, enabling bool) (string, bool) {
 	switch {
+	case payload.Code == diagnosticcontract.CodeExtensionDependenciesRequired && payload.Dependency != "":
+		return apiErrorMessage(payload.Error, ""), true
 	case payload.Code == diagnosticcontract.CodeExtensionDependenciesRequired:
 		items := make([]string, 0, len(payload.Dependencies))
 		for _, dependency := range payload.Dependencies {

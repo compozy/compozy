@@ -237,8 +237,11 @@ func runExtensionInstall(
 	item, err := executeExtensionInstallPlanWithPrompts(cmd, deps, plan)
 	if err != nil {
 		if len(item.InstallDependenciesInstalled) > 0 {
-			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Installed dependencies first: %s.\n",
+			_, writeErr := fmt.Fprintf(cmd.ErrOrStderr(), "Installed dependencies first: %s.\n",
 				strings.Join(item.InstallDependenciesInstalled, ", "))
+			if writeErr != nil {
+				return errors.Join(err, fmt.Errorf("cli: write partial extension install notice: %w", writeErr))
+			}
 		}
 		return err
 	}

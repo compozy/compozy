@@ -357,8 +357,9 @@ Dependencies are experimental and may change without a deprecation window. A pac
 extensions it needs with `[[requires.extensions]]` entries: `name`, `source` (`curated`,
 `marketplace`, `github`, `git`, `local_path`), `ref`, and an optional `min_version` lower bound.
 Only a dependent installed from `local_path` can declare a `local_path` dependency. Use a relative
-`ref` such as `deps/acme-core` that resolves to an existing path inside the dependent's source
-directory. Absolute paths, traversal outside that directory, and symlinks that lead outside it
+`ref` such as `deps/acme-core`. When acquiring that dependency, the ref must resolve within the
+dependent's source directory. An already visible dependency uses its managed copy after its
+checkout is removed. Absolute paths, traversal outside the directory, and escaping symlinks
 are refused. Self and duplicate names are invalid, and the manifest must set
 `min_compozy_version` to at least `0.7.9`
 so older daemons refuse it instead of ignoring the table. The catalog feed carries no dependency
@@ -370,7 +371,9 @@ profile, and at least `min_version`. Install and preview resolve the transitive 
 mutation: a cycle or a chain deeper than 5 returns `422 extension_dependency_graph_invalid` with
 `reason` `cycle` or `depth` and `path`; one name declared with different `source`/`ref` by two parents
 returns `reason: "conflicting_source"` with both `parents`. Diamonds collapse to one node whose
-`min_version` is the highest bound and whose `required_by` lists every parent.
+`min_version` is the highest bound and whose `required_by` lists every parent. A workspace install
+refuses when an installed global dependency needs an extension available only in the workspace.
+Install that extension in the global scope for the selected profile before retrying.
 
 Preview (`POST /api/extensions/preview-install`) returns `dependencies[]`, dependencies first, each
 with `state` (`met`, `missing`, `disabled`, `version_unmet`, `installed_elsewhere`), `required_by`, `depth`, `registry_tier`

@@ -362,11 +362,14 @@ func isSkillSourceValidationCode(code string) bool {
 
 func parseExtensionValidationAPIError(statusCode int, status string, body []byte) (bool, error) {
 	var payload contract.ExtensionValidationErrorPayload
-	if json.Unmarshal(body, &payload) != nil || payload.Diagnostic == nil || len(payload.Issues) == 0 {
+	if json.Unmarshal(body, &payload) != nil || len(payload.Issues) == 0 ||
+		(payload.Diagnostic == nil && payload.Dependency == "" && len(payload.DependenciesInstalled) == 0) {
 		return false, nil
 	}
 	payload.Error = redactToolDiagnostic(payload.Error)
-	payload.Diagnostic = new(diagnosticspkg.RedactItem(*payload.Diagnostic))
+	if payload.Diagnostic != nil {
+		payload.Diagnostic = new(diagnosticspkg.RedactItem(*payload.Diagnostic))
+	}
 	for index := range payload.Issues {
 		payload.Issues[index].Path = redactToolDiagnostic(payload.Issues[index].Path)
 		payload.Issues[index].Scope = redactToolDiagnostic(payload.Issues[index].Scope)

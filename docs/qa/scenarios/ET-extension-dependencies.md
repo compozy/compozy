@@ -100,6 +100,11 @@ Steps:
     source checkout away, then install a new dependent whose graph references the installed
     packages. The install reuses the managed copies. Repeat with one dependency absent from
     the registry. The install stops at the missing source and identifies the dependency.
+16. Install a parent and its child globally, attach the child's same package in a workspace,
+    and force-remove its global attachment. Preview and install a new dependent of the global parent
+    from the workspace, with dependency consent. Both refuse with `extension_dependencies_required`,
+    identify the missing global child, and leave the global attachment absent. Restore the global
+    attachment and retry. The workspace install completes.
 
 Pass: no dependency is installed, enabled or updated without consent for that exact artifact;
 removal never cascades; the dependent's runtime state never changes because of the guard.

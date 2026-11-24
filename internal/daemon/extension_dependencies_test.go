@@ -22,7 +22,9 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/marketplace"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // dependencyFixtureMinVersion is the dependencies floor every dependency-declaring fixture must require.
@@ -264,6 +266,78 @@ func TestExtensionDependencyResolution(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse a workspace install when a global parent cannot see its dependency", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		const workspaceID = "ws-dependent"
+		fixture.service.workspaceResolver = &daemonExtensionWorkspaceResolverStub{
+			resolved: workspacepkg.ResolvedWorkspace{
+				Workspace: workspacepkg.Workspace{ID: workspaceID, RootDir: t.TempDir()}, WorkspaceID: workspaceID,
+			},
+		}
+		fixture.childDir(t, "dep-parent", "dep-mid")
+		fixture.childDir(t, "dep-mid", "dep-leaf")
+		fixture.write(t, "dep-leaf", "1.0.0")
+		fixture.install(t, "dep-leaf", contract.InstallExtensionRequest{})
+		fixture.write(t, "dep-mid", "1.0.0", "dep-leaf")
+		fixture.install(t, "dep-mid", contract.InstallExtensionRequest{})
+		fixture.write(t, "dep-parent", "1.0.0", "dep-mid")
+		fixture.install(t, "dep-parent", contract.InstallExtensionRequest{})
+		for _, name := range []string{"dep-mid", "dep-leaf"} {
+			if err := fixture.registry.AttachInstallation(t.Context(), name, extensionpkg.InstallationScope{
+				WorkspaceID: workspaceID,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		actor := dependencyOperator(t)
+		if _, err := fixture.service.Remove(
+			extensionpkg.WithDependencyForce(t.Context(), true),
+			"dep-leaf",
+			actor,
+		); err != nil {
+			t.Fatal(err)
+		}
+		// The direct dep-mid edge first resolves in the workspace. The dep-parent edge uses its global copy.
+		fixture.write(t, "root", "1.0.0", "dep-mid", "dep-parent")
+		req := fixture.rootRequest(t, map[string]contract.ExtensionDependencyConsent{})
+		req.WorkspaceID = workspaceID
+		requireGlobalRefusal := func(err error) {
+			t.Helper()
+			refusal, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err)
+			if !ok || len(refusal.Dependencies) != 1 {
+				t.Fatalf("error = %v, want a missing dependency of the global parent", err)
+			}
+			item := refusal.Dependencies[0]
+			if item.Name != "dep-leaf" || item.State != dependencyStateMissing ||
+				!slices.Equal(item.RequiredBy, []string{"dep-mid"}) {
+				t.Fatalf("missing dependency = %+v, want dep-leaf required by dep-mid", item)
+			}
+		}
+		_, err := fixture.service.PreviewInstall(t.Context(), req, actor)
+		requireGlobalRefusal(err)
+		_, err = fixture.service.Install(t.Context(), req, actor)
+		requireGlobalRefusal(err)
+		if fixture.installed(t, "root") {
+			t.Fatal("refused install committed root")
+		}
+		if _, err := fixture.registry.ResolveInstallation(t.Context(), "dep-leaf", extensionpkg.InstallationScope{
+			ProfileID: extensionDefaultProfileLens().ID,
+		}); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("global dep-leaf after refusal = %v, want no wider attachment", err)
+		}
+		if err := fixture.registry.AttachInstallation(
+			t.Context(),
+			"dep-leaf",
+			extensionpkg.InstallationScope{},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.service.Install(t.Context(), req, actor); err != nil || !fixture.installed(t, "root") {
+			t.Fatalf("Install() after restoring the global attachment = %v, want root installed", err)
+		}
+	})
+
 	t.Run("Should order transitive dependencies first", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDependencyFixture(t)
@@ -308,6 +382,31 @@ func TestExtensionDependencyResolution(t *testing.T) {
 		if len(nodes) != 1 || nodes[0].MinVersion != "0.3.0" || nodes[0].State != dependencyStateVersionUnmet ||
 			!slices.Equal(nodes[0].RequiredBy, []string{"dep-b", "dep-c"}) {
 			t.Fatalf("diamond nodes = %+v", nodes)
+		}
+	})
+
+	t.Run("Should recognize two local paths to the same installed dependency", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDependencyFixture(t)
+		fixture.childDir(t, "dep-a", "dep-b")
+		fixture.childDir(t, "dep-b", "dep-shared")
+		fixture.write(t, "dep-shared", "1.0.0")
+		fixture.install(t, "dep-shared", contract.InstallExtensionRequest{})
+		fixture.write(t, "dep-b", "1.0.0", "dep-shared")
+		parent := fixture.write(t, "dep-a", "1.0.0", "dep-b")
+		if err := os.Symlink(filepath.Join("dep-b", "dep-shared"), filepath.Join(parent, "shared")); err != nil {
+			t.Fatal(err)
+		}
+		appendDependencyManifest(t, parent,
+			"\n[[requires.extensions]]\nname = \"dep-shared\"\nsource = \"local_path\"\nref = \"shared\"\n")
+
+		items, err := fixture.resolve(t, dependencyRoot(localDependency("dep-a")),
+			extensionMutationTarget{profile: extensionDefaultProfileLens()})
+		if err != nil || !slices.Equal(dependencyPayloadNames(items), []string{"dep-shared", "dep-b", "dep-a"}) {
+			t.Fatalf("resolveDependencies() = %+v, %v; want one shared dependency", items, err)
+		}
+		if items[0].State != dependencyStateMet || !slices.Equal(items[0].RequiredBy, []string{"dep-b", "dep-a"}) {
+			t.Fatalf("shared dependency = %+v, want met with both parents", items[0])
 		}
 	})
 
@@ -500,6 +599,26 @@ func TestExtensionDependencyInstall(t *testing.T) {
 			t.Fatal(err)
 		}
 		fixture.write(t, "root", "1.0.0", "dep-core", "dep-off")
+		rootCommitted := false
+		fixture.service.eventWriter = &dependencyInstallEventObserver{
+			observe: func(ctx context.Context, event store.EventSummary) {
+				if event.Type != eventspkg.ExtensionInstallCompleted ||
+					event.Summary != eventspkg.ExtensionInstallCompleted+" root" {
+					return
+				}
+				rootCommitted = true
+				for _, name := range []string{"dep-core", "dep-off"} {
+					enabled, err := fixture.registry.IsEnabledForProfileContext(
+						ctx,
+						name,
+						extensionDefaultProfileLens().ID,
+					)
+					if err != nil || !enabled {
+						t.Errorf("%s enabled at root commit = %t, %v; want true", name, enabled, err)
+					}
+				}
+			},
+		}
 
 		item, err := fixture.service.Install(t.Context(), fixture.rootRequest(t,
 			map[string]contract.ExtensionDependencyConsent{"dep-core": {AllowUnverified: true}},
@@ -509,6 +628,9 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		}
 		if item.Name != "root" || !slices.Equal(item.InstallDependenciesInstalled, []string{"dep-core", "dep-off"}) {
 			t.Fatalf("install = %s, dependencies_installed = %v", item.Name, item.InstallDependenciesInstalled)
+		}
+		if !rootCommitted {
+			t.Fatal("root install completion event was not observed")
 		}
 		for _, name := range []string{"dep-core", "dep-off"} {
 			enabled, err := fixture.registry.IsEnabledForProfile(name, extensionDefaultProfileLens().ID)
@@ -1003,7 +1125,7 @@ func TestExtensionDependencyRetryCommand(t *testing.T) {
 		t.Parallel()
 		market := newMarketplaceDependencyService(t)
 		market.installGlobalDesign(t)
-		market.service.marketplaceCatalog = stalledEntryCatalog{Service: market.service.marketplaceCatalog}
+		market.service.marketplaceCatalog = stalledEntryCatalog{Service: market.service.marketplaceCatalog, t: t}
 		market.service.dependencyUpdateHintTimeout = 50 * time.Millisecond
 		cell := extensionpkg.InstallationScope{
 			ProfileID: extensionDefaultProfileLens().ID, WorkspaceID: "ws-dependent",
@@ -1094,10 +1216,27 @@ func (c *entryProbeCatalog) Entry(ctx context.Context, origin marketplace.Origin
 	return c.Service.Entry(ctx, origin)
 }
 
-// stalledEntryCatalog blocks every catalog entry lookup until its context ends, like an unresponsive source.
-type stalledEntryCatalog struct{ marketplace.Service }
+type dependencyInstallEventObserver struct {
+	extensionEventRecorder
+	observe func(context.Context, store.EventSummary)
+}
 
-func (stalledEntryCatalog) Entry(ctx context.Context, _ marketplace.Origin) (*marketplace.Entry, error) {
+func (observer *dependencyInstallEventObserver) WriteEventSummary(ctx context.Context, event store.EventSummary) error {
+	observer.observe(ctx, event)
+	return observer.extensionEventRecorder.WriteEventSummary(ctx, event)
+}
+
+// stalledEntryCatalog behaves like an unresponsive source while the lookup has a deadline.
+type stalledEntryCatalog struct {
+	marketplace.Service
+	t *testing.T
+}
+
+func (catalog stalledEntryCatalog) Entry(ctx context.Context, _ marketplace.Origin) (*marketplace.Entry, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		catalog.t.Error("marketplace entry lookup has no deadline")
+		return nil, errors.New("marketplace entry lookup has no deadline")
+	}
 	<-ctx.Done()
 	return nil, ctx.Err()
 }

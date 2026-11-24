@@ -604,6 +604,10 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		requireNativeStructuredContains(t, installed, []byte(`"dependencies_installed":["dep-core"]`))
 
 		requireInUse(toolspkg.ToolIDExtensionsDisable, `{"name":"dep-core"}`)
+		enabled, err := extRegistry.IsEnabledForProfile("dep-core", extensionDefaultProfileLens().ID)
+		if err != nil || !enabled {
+			t.Fatalf("dep-core enabled after refused disable = %t, %v; want true", enabled, err)
+		}
 		if _, err := call(toolspkg.ToolIDExtensionsDisable, `{"name":"dep-core","force":true}`); err != nil {
 			t.Fatalf("forced extensions_disable error = %v", err)
 		}

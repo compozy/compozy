@@ -132,6 +132,7 @@ func executeExtensionInstallPlanWithPrompts(
 	cmd *cobra.Command, deps commandDeps, plan extensionInstallPlan,
 ) (ExtensionRecord, error) {
 	var installed []string
+	prompter := newExtensionInputPrompter(cmd)
 	for attempt := 0; ; attempt++ {
 		item, err := executeExtensionInstallPlan(cmd.Context(), deps, plan)
 		if err == nil {
@@ -153,9 +154,9 @@ func executeExtensionInstallPlanWithPrompts(
 		if attempt == 2 {
 			return item, err
 		}
-		retry, prompted, promptErr := promptExtensionInstallDependencies(cmd, deps, plan, err)
+		retry, prompted, promptErr := promptExtensionInstallDependencies(cmd, deps, prompter, plan, err)
 		if promptErr == nil && !prompted {
-			retry, prompted, promptErr = promptExtensionInstallInputs(cmd, deps, plan, err)
+			retry, prompted, promptErr = promptExtensionInstallInputs(cmd, deps, prompter, plan, err)
 		}
 		if promptErr != nil {
 			return item, promptErr

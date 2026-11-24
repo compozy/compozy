@@ -1426,6 +1426,11 @@ func TestExtensionDependencyHandlers(t *testing.T) {
 			t.Fatalf("dependencies_installed = %v", payload.DependenciesInstalled)
 		}
 	})
+	dependencies := []contract.ExtensionDependencyPayload{{
+		Name: "acme-core", Source: "curated", Ref: "acme/core", MinVersion: "0.4.0",
+		RequiredBy: []string{"acme-tool"}, Depth: 1, State: "version_unmet", InstalledVersion: "0.3.0",
+		RetryCommand: "compozy extension update acme-core",
+	}}
 	for _, testCase := range []struct {
 		name   string
 		err    error
@@ -1433,16 +1438,12 @@ func TestExtensionDependencyHandlers(t *testing.T) {
 		check  func(contract.ExtensionOperationErrorPayload) bool
 	}{
 		{
-			name: "Should list unmet dependencies and the update retry command",
-			err: &extensionpkg.DependenciesRequiredError{Dependencies: []contract.ExtensionDependencyPayload{{
-				Name: "acme-core", Source: "curated", Ref: "acme/core", MinVersion: "0.4.0",
-				RequiredBy: []string{"acme-tool"}, Depth: 1, State: "version_unmet", InstalledVersion: "0.3.0",
-				RetryCommand: "compozy extension update acme-core",
-			}}},
+			name:   "Should list unmet dependencies and the update retry command",
+			err:    &extensionpkg.DependenciesRequiredError{Dependencies: dependencies},
 			status: http.StatusUnprocessableEntity,
 			check: func(payload contract.ExtensionOperationErrorPayload) bool {
 				return payload.Code == diagnosticcontract.CodeExtensionDependenciesRequired &&
-					len(payload.Dependencies) == 1 && payload.Dependencies[0].State == "version_unmet" &&
+					reflect.DeepEqual(payload.Dependencies, dependencies) &&
 					payload.RetryCommand == "compozy extension update acme-core"
 			},
 		},

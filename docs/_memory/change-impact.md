@@ -29,8 +29,9 @@
   `extension_dependency_graph_invalid`, `extension_dependency_in_use`. CLI `install
   --with-dependencies` and `--allow-unverified-dependency`; Web Add lists "Also installs" with
   per-dependency trust dialogs. Dependencies install into the dependent's scope and profile.
-  Local dependencies need local install provenance and a relative ref whose real path stays within
-  the dependent's source directory. QA: new ET-extension-dependencies and the dependency part of
+  A workspace install cannot satisfy a global parent's dependency with a workspace-only copy.
+  Acquiring local dependencies requires local install provenance and a relative ref whose real path
+  stays within the dependent's source directory. QA: new ET-extension-dependencies and the dependency part of
   ET-web-extension-union-install.
 
 ## Authored terminal status on Loop gates (GH-1944) — 2026-11-21

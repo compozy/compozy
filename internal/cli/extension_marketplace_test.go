@@ -498,43 +498,100 @@ func TestExtensionInstallPromptsForRequiredInputs(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			calls := 0
+			var calls []InstallExtensionRequest
+			core := contract.ExtensionDependencyPayload{
+				Name: "acme-core", Source: "curated", Ref: "acme/core", State: "missing",
+				DigestSHA256: strings.Repeat("a", 64),
+			}
 			deps, _ := newExtensionLocalDeps(t, &stubClient{
 				previewExtensionInstallFn: func(
 					context.Context, InstallExtensionRequest,
 				) (ExtensionInstallPreviewRecord, error) {
 					return ExtensionInstallPreviewRecord{Name: "typed"}, nil
 				},
-				installExtensionFn: func(context.Context, InstallExtensionRequest) (ExtensionRecord, error) {
-					calls++
-					if calls == 1 {
+				installExtensionFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionRecord, error) {
+					calls = append(calls, req)
+					switch len(calls) {
+					case 1:
+						return ExtensionRecord{}, &extensionOperationAPIError{
+							statusCode: http.StatusUnprocessableEntity,
+							payload: contract.ExtensionOperationErrorPayload{
+								Code:         diagnosticcontract.CodeExtensionDependenciesRequired,
+								Dependencies: []contract.ExtensionDependencyPayload{core},
+							},
+						}
+					case 2:
 						err := refusal()
 						err.payload.DependenciesInstalled = []string{"acme-core", "acme-base"}
 						return ExtensionRecord{}, err
+					default:
+						return ExtensionRecord{
+							Name: "typed", InstallDependenciesInstalled: []string{"acme-core", "acme-extra"},
+						}, nil
 					}
-					return ExtensionRecord{
-						Name: "typed", InstallDependenciesInstalled: []string{"acme-core", "acme-extra"},
-					}, nil
 				},
 			})
 			markExtensionDaemonRunning(&deps)
 			deps.inputIsTerminal = func(io.Reader) bool { return true }
 			deps.outputIsTerminal = func(io.Writer) bool { return true }
-			stdout, stderr, err := executeRootCommandWithInput(t, deps, tc.input,
+			stdout, stderr, err := executeRootCommandWithInput(t, deps, "y\n"+tc.input,
 				"extension", "install", "git:https://example.com/r.git@v2", "--allow-unverified", "--yes")
 			if tc.input == "" {
-				if !errors.Is(err, errExtensionInputPromptAborted) || calls != 1 ||
+				if !errors.Is(err, errExtensionInputPromptAborted) || len(calls) != 2 ||
 					!strings.Contains(stderr, "Installed dependencies first: acme-core, acme-base.") {
-					t.Fatalf("aborted install: calls=%d stderr=%q err=%v", calls, stderr, err)
+					t.Fatalf("aborted install: calls=%d stderr=%q err=%v", len(calls), stderr, err)
 				}
 				return
 			}
-			if err != nil || calls != 2 ||
+			if err != nil || len(calls) != 3 ||
 				!strings.Contains(stdout, "Installed dependencies first: acme-core, acme-base, acme-extra.") {
-				t.Fatalf("retried install: calls=%d stdout=%q err=%v", calls, stdout, err)
+				t.Fatalf("retried install: calls=%d stdout=%q err=%v", len(calls), stdout, err)
+			}
+			want := map[string]contract.ExtensionDependencyConsent{"acme-core": {ExpectedDigest: core.DigestSHA256}}
+			if !calls[2].WithDependencies || !reflect.DeepEqual(calls[2].Dependencies, want) ||
+				string(calls[2].Inputs["token"].Value) != `"token-value"` {
+				t.Fatal("final retry did not retain dependency consent and add the root input")
 			}
 		})
 	}
+
+	t.Run("Should report completed dependencies from a validation response without a diagnostic", func(t *testing.T) {
+		t.Parallel()
+		mux := http.NewServeMux()
+		mux.HandleFunc("POST /api/extensions", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			err := json.NewEncoder(w).Encode(contract.ExtensionValidationErrorPayload{
+				Error: "invalid extension manifest", Dependency: "acme-market",
+				DependenciesInstalled: []string{"acme-core"},
+				Issues: []contract.ValidationIssue{
+					{
+						Field:    "expected_digest",
+						Message:  "a listed digest is required",
+						Severity: contract.IssueSeverityError,
+					},
+				},
+			})
+			if err != nil {
+				t.Errorf("encode validation response: %v", err)
+			}
+		})
+		server := httptest.NewServer(mux)
+		t.Cleanup(server.Close)
+		client, err := NewClient(ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL})
+		if err != nil {
+			t.Fatal(err)
+		}
+		deps, _ := newExtensionLocalDeps(t, client)
+		markExtensionDaemonRunning(&deps)
+		_, stderr, err := executeRootCommand(t, deps, "extension", "install", "git:https://example.com/r.git@v2",
+			"--allow-unverified", "--yes", "-o", "json")
+		validation, ok := errors.AsType[*extensionValidationAPIError](err)
+		if !ok || validation.payload.Dependency != "acme-market" ||
+			!strings.Contains(stderr, "Installed dependencies first: acme-core.") {
+			t.Fatalf("install error = %v, stderr = %q; want validation with completed dependencies", err, stderr)
+		}
+	})
 }
 
 func TestExtensionMarketplaceInstallRequiresDaemon(t *testing.T) {
@@ -942,6 +999,9 @@ func TestExtensionInstallDependencyFlow(t *testing.T) {
 		)
 		if err != nil || len(calls) != 2 {
 			t.Fatalf("install calls = %d, err = %v; want a refusal and one consented retry", len(calls), err)
+		}
+		if first := calls[0]; first.WithDependencies || len(first.Dependencies) != 0 {
+			t.Fatalf("first request includes dependency consent before the prompt: %+v", first)
 		}
 		want := map[string]contract.ExtensionDependencyConsent{
 			"acme-core":  {ExpectedDigest: core.DigestSHA256, AllowUnverified: true, ConfirmGatewayDigest: gateway},
