@@ -179,6 +179,6 @@ func browserCodeError(err error) error {
 
 func validBrowserVerifier(verifier string) bool {
 	return len(verifier) >= 43 && len(verifier) <= 128 && !strings.ContainsFunc(verifier, func(r rune) bool {
-		return !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || strings.ContainsRune("-._~", r))
+		return (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (r < '0' || r > '9') && !strings.ContainsRune("-._~", r)
 	})
 }

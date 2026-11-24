@@ -23,6 +23,7 @@ const (
 	specEventStreamUpgrade     = "WebSocket upgrade; each text message contains one complete SSE frame"
 	specExpectedRevisionKey    = "expected_revision"
 	specFormatInt64            = "int64"
+	specParameterInHeader      = openapi3.ParameterInHeader
 	specParameterInPath        = openapi3.ParameterInPath
 	specParameterInQuery       = openapi3.ParameterInQuery
 	specArrayKind              = "array"

@@ -199,14 +199,14 @@ func redeemBrowser(
 	proof, err := remoteproto.SignComputerProof(
 		key,
 		http.MethodPost,
-		authOrigin+remoteproto.BrowserTokenPath,
+		authOrigin+remoteproto.BrowserRedemptionPath,
 		body,
 		f.clock.Now(),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return callAuth(t, f.replica, http.MethodPost, remoteproto.BrowserTokenPath, input, nil,
+	return callAuth(t, f.replica, http.MethodPost, remoteproto.BrowserRedemptionPath, input, nil,
 		map[string]string{remoteproto.ComputerProofHeader: proof})
 }
 

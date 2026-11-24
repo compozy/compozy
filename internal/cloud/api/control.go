@@ -59,7 +59,7 @@ func (r *Router) RegisterControl(cfg ControlRoutesConfig) {
 	r.mux.Handle("POST /v1/approvals/{id}/decision", h.device(h.decideApproval))
 	r.mux.Handle("GET /v1/account/events", h.device(h.accountEvents))
 	r.mux.Handle("GET /v1/account", h.device(h.account))
-	r.mux.HandleFunc("POST "+remoteproto.BrowserTokenPath, h.browserToken)
+	r.mux.HandleFunc("POST "+remoteproto.BrowserRedemptionPath, h.browserToken)
 }
 
 func (r *controlRoutes) account(w http.ResponseWriter, req *http.Request, principal control.DevicePrincipal) {

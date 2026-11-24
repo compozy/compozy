@@ -145,6 +145,6 @@ func (c *Client) RedeemBrowserCode(
 	ctx context.Context, key ed25519.PrivateKey, input remoteproto.BrowserTokenRequest,
 ) (remoteproto.GrantResponse, error) {
 	var result remoteproto.GrantResponse
-	err := c.computerJSON(ctx, http.MethodPost, remoteproto.BrowserTokenPath, input, &result, Credentials{}, key)
+	err := c.computerJSON(ctx, http.MethodPost, remoteproto.BrowserRedemptionPath, input, &result, Credentials{}, key)
 	return result, err
 }

@@ -48,7 +48,8 @@ func browserOperation(
 	if auth != "" {
 		op.Auth = map[Transport]OperationAuth{TransportHostedHTTP: auth}
 		op.Parameters = append(op.Parameters, ParameterSpec{
-			Name: "DPoP", In: "header", Required: true, Kind: specStringKey, Description: "Proof from the browser key",
+			Name: "DPoP", In: specParameterInHeader, Required: true, Kind: specStringKey,
+			Description: "Proof from the browser key",
 		})
 	}
 	return op
