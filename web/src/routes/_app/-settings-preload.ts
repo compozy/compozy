@@ -90,9 +90,10 @@ export function preloadSettingsMCPRoute(queryClient: QueryClient): Promise<void>
   ]);
 }
 
-export function preloadSettingsComputersRoute(queryClient: QueryClient): Promise<void> {
-  return settleRouteQueries([
-    queryClient.ensureQueryData(accountStatusOptions()),
+export async function preloadSettingsComputersRoute(queryClient: QueryClient): Promise<void> {
+  const account = await queryClient.ensureQueryData(accountStatusOptions()).catch(() => undefined);
+  if (!account?.signed_in) return;
+  await settleRouteQueries([
     queryClient.ensureQueryData(computersListOptions()),
     queryClient.ensureQueryData(remoteStatusOptions()),
   ]);

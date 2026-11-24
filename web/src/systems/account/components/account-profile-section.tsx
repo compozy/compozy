@@ -45,6 +45,26 @@ export interface AccountBannersProps {
   onManageBilling?: () => void;
 }
 
+function CloudUnreachableActions({ onRetryCloud }: { onRetryCloud: () => void }) {
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      <Button onClick={onRetryCloud} size="xs" type="button" variant="secondary">
+        <RefreshCw aria-hidden="true" />
+        Try again
+      </Button>
+      <a
+        className="inline-flex h-6 items-center gap-1 rounded-sm px-2 text-eyebrow font-medium text-fg hover:bg-surface-2"
+        href={COMPOZY_STATUS_URL}
+        rel="noreferrer"
+        target="_blank"
+      >
+        Status
+        <ExternalLink aria-hidden="true" className="size-3" />
+      </a>
+    </div>
+  );
+}
+
 /**
  * Top-of-page notices for Settings → Account (`_uiux.md` U3):
  * - Cloud unreachable: warning + Try again + Status link
@@ -59,21 +79,7 @@ export function AccountBanners({ account, onRetryCloud, onManageBilling }: Accou
           <CloudOff aria-hidden="true" />
           <AlertTitle className="flex flex-wrap items-center justify-between gap-2">
             <span>Can&apos;t reach Compozy Cloud.</span>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <Button onClick={onRetryCloud} size="xs" type="button" variant="secondary">
-                <RefreshCw aria-hidden="true" />
-                Try again
-              </Button>
-              <a
-                className="inline-flex h-6 items-center gap-1 rounded-sm px-2 text-eyebrow font-medium text-fg hover:bg-surface-2"
-                href={COMPOZY_STATUS_URL}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Status
-                <ExternalLink aria-hidden="true" className="size-3" />
-              </a>
-            </div>
+            <CloudUnreachableActions onRetryCloud={onRetryCloud} />
           </AlertTitle>
           <AlertDescription>
             Local work is unaffected. Cached account details stay visible until Compozy Cloud

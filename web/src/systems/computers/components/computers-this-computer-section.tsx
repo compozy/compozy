@@ -152,6 +152,54 @@ function HostedRouteSubRow({
   );
 }
 
+function LocalDeviceBadges({ admin, thisDevice }: { admin: boolean; thisDevice: boolean }) {
+  return (
+    <>
+      {thisDevice ? (
+        <Pill size="xs" tone="neutral">
+          This device
+        </Pill>
+      ) : null}
+      {admin ? (
+        <Pill size="xs" tone="info">
+          <ShieldCheck aria-hidden="true" className="size-3" />
+          Trusted for admin
+        </Pill>
+      ) : null}
+    </>
+  );
+}
+
+function LocalDeviceSummary({
+  device,
+  grantedCount,
+}: {
+  device: AccountDeviceFixture;
+  grantedCount: number;
+}) {
+  const permissionsSummary =
+    grantedCount === DISPLAYED_REMOTE_SCOPES.length
+      ? "All permissions"
+      : `${grantedCount} of ${DISPLAYED_REMOTE_SCOPES.length} permissions`;
+
+  return (
+    <div className="flex min-w-0 items-center gap-2.5">
+      <ComputerPlatformIcon deviceKind={device.kind} size="sm" tone="muted" />
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="truncate text-small-body font-medium text-fg">{device.name}</span>
+          <LocalDeviceBadges admin={device.admin} thisDevice={device.thisDevice} />
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-eyebrow text-faint">
+          <span>Last seen {device.lastSeenLabel}</span>
+          <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
+          <span>{permissionsSummary}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LocalDeviceRow({
   device,
   onToggleDeviceScope,
@@ -171,34 +219,7 @@ function LocalDeviceRow({
       data-local-device-id={device.id}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <ComputerPlatformIcon deviceKind={device.kind} size="sm" tone="muted" />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="truncate text-small-body font-medium text-fg">{device.name}</span>
-              {device.thisDevice ? (
-                <Pill size="xs" tone="neutral">
-                  This device
-                </Pill>
-              ) : null}
-              {device.admin ? (
-                <Pill size="xs" tone="info">
-                  <ShieldCheck aria-hidden="true" className="size-3" />
-                  Trusted for admin
-                </Pill>
-              ) : null}
-            </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-eyebrow text-faint">
-              <span>Last seen {device.lastSeenLabel}</span>
-              <span aria-hidden="true" className="size-0.5 rounded-full bg-faint" />
-              <span>
-                {grantedCount === DISPLAYED_REMOTE_SCOPES.length
-                  ? "All permissions"
-                  : `${grantedCount} of ${DISPLAYED_REMOTE_SCOPES.length} permissions`}
-              </span>
-            </div>
-          </div>
-        </div>
+        <LocalDeviceSummary device={device} grantedCount={grantedCount} />
 
         <div className="flex shrink-0 items-center gap-2">
           {!device.thisDevice ? (

@@ -327,7 +327,7 @@ export function useComputersSettingsPage() {
   }, [accountQuery, computersQuery, availableQuery, localRemote]);
 
   const hardError =
-    computersQuery.error && !isComputersCloudUnreachableError(computersQuery.error)
+    signedIn && computersQuery.error && !isComputersCloudUnreachableError(computersQuery.error)
       ? computersQuery.error
       : null;
 

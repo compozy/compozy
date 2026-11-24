@@ -37,6 +37,33 @@ export interface AccountComputersSectionProps {
   onUpgrade?: () => void;
 }
 
+function AccountComputerMeta({
+  hostedOnlyBlocked,
+  online,
+}: {
+  hostedOnlyBlocked: boolean;
+  online: boolean;
+}) {
+  return (
+    <ListingRow.Meta className="mt-1">
+      <span>Not added</span>
+      <ListingRow.MetaDot />
+      <span className="inline-flex items-center gap-1.5">
+        <StatusDot size="sm" tone={online ? "success" : "faint"} />
+        <span>{online ? "Online" : "Offline"}</span>
+      </span>
+      {hostedOnlyBlocked ? (
+        <>
+          <ListingRow.MetaDot />
+          <span className="text-warning">
+            This computer can only be reached through the hosted route (Pro)
+          </span>
+        </>
+      ) : null}
+    </ListingRow.Meta>
+  );
+}
+
 /** Block 3 of Settings → Computers (`_uiux.md` U1): account-linked computers not yet added here. */
 export function AccountComputersSection({
   account,
@@ -75,22 +102,7 @@ export function AccountComputersSection({
               <ListingRow.Name>
                 <ListingRow.Title>{computer.name}</ListingRow.Title>
               </ListingRow.Name>
-              <ListingRow.Meta className="mt-1">
-                <span>Not added</span>
-                <ListingRow.MetaDot />
-                <span className="inline-flex items-center gap-1.5">
-                  <StatusDot size="sm" tone={computer.online ? "success" : "faint"} />
-                  <span>{computer.online ? "Online" : "Offline"}</span>
-                </span>
-                {hostedOnlyBlocked ? (
-                  <>
-                    <ListingRow.MetaDot />
-                    <span className="text-warning">
-                      This computer can only be reached through the hosted route (Pro)
-                    </span>
-                  </>
-                ) : null}
-              </ListingRow.Meta>
+              <AccountComputerMeta hostedOnlyBlocked={hostedOnlyBlocked} online={computer.online} />
             </ListingRow.Main>
             <ListingRow.Trail>
               {hostedOnlyBlocked && onUpgrade ? (
