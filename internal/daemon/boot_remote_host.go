@@ -49,15 +49,17 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 
 func remoteOperatorRoutes(deps *RuntimeDeps) http.Handler {
 	config := &core.BaseHandlerConfig{
-		TransportName:      remoteConfigKey,
-		MaskInternalErrors: true,
-		Sessions:           deps.Sessions,
-		SessionCatalog:     deps.Registry,
-		Worktrees:          deps.Worktrees,
-		Workspaces:         deps.WorkspaceService,
-		WorkspaceAccess:    deps.WorkspaceAccess,
-		Profiles:           deps.Profiles,
-		Config:             deps.Config,
+		TransportName:                remoteConfigKey,
+		MaskInternalErrors:           true,
+		IncludeSessionWorkspaceInSSE: true,
+		Sessions:                     deps.Sessions,
+		SessionCatalog:               deps.Registry,
+		SessionHealth:                deps.SessionHealth,
+		Worktrees:                    deps.Worktrees,
+		Workspaces:                   deps.WorkspaceService,
+		WorkspaceAccess:              deps.WorkspaceAccess,
+		Profiles:                     deps.Profiles,
+		Config:                       deps.Config,
 	}
 	if acceptance, ok := deps.Sessions.(core.SessionAcceptanceManager); ok {
 		config.SessionAcceptance = acceptance

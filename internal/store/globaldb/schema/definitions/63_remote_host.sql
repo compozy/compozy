@@ -24,6 +24,11 @@ CREATE TABLE remote_sessions (
 CREATE INDEX idx_remote_sessions_device ON remote_sessions (device_id);
 CREATE INDEX idx_remote_sessions_expiry ON remote_sessions (expires_at);
 
+CREATE TABLE remote_device_connections (
+    device_id TEXT NOT NULL PRIMARY KEY,
+    last_seen_at INTEGER NOT NULL
+);
+
 CREATE TABLE remote_grant_replay (
     jti TEXT PRIMARY KEY,
     expires_at INTEGER NOT NULL

@@ -1676,6 +1676,11 @@ type RemoteDeviceApproval struct {
 	DecisionJti string        `json:"decision_jti"`
 }
 
+type RemoteDeviceConnection struct {
+	DeviceID   string `json:"device_id"`
+	LastSeenAt int64  `json:"last_seen_at"`
+}
+
 type RemoteGrantReplay struct {
 	Jti       string `json:"jti"`
 	ExpiresAt int64  `json:"expires_at"`
