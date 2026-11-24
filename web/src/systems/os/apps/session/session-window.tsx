@@ -1,3 +1,4 @@
+import { ComputerScopeContext } from "@/lib/computer-scope-context";
 import { useSessionWindowViewState } from "@/systems/session";
 
 import { useSessionWindowController } from "./hooks/use-session-window-controller";
@@ -48,6 +49,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
 export function SessionWindowSession({ windowId }: { windowId: string }) {
   const {
     agentName,
+    computerId,
     crossesWorkspace,
     deletedLocally,
     effectiveLiveTailEnabled,
@@ -110,21 +112,23 @@ export function SessionWindowSession({ windowId }: { windowId: string }) {
   }
 
   return (
-    <SessionWindowBody>
-      <SessionWindowView
-        windowId={windowId}
-        name={agentName}
-        id={sessionId}
-        workspaceId={workspaceId}
-        session={session}
-        focused={focused}
-        liveTailEnabled={effectiveLiveTailEnabled}
-        isLoading={isLoading}
-        error={error}
-        onRetry={retry}
-        retrying={isFetching}
-      />
-    </SessionWindowBody>
+    <ComputerScopeContext value={computerId}>
+      <SessionWindowBody>
+        <SessionWindowView
+          windowId={windowId}
+          name={agentName}
+          id={sessionId}
+          workspaceId={workspaceId}
+          session={session}
+          focused={focused}
+          liveTailEnabled={effectiveLiveTailEnabled}
+          isLoading={isLoading}
+          error={error}
+          onRetry={retry}
+          retrying={isFetching}
+        />
+      </SessionWindowBody>
+    </ComputerScopeContext>
   );
 }
 

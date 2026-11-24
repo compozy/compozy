@@ -6,15 +6,15 @@ import { tasksKeys } from "../query-keys";
 
 describe("tasksKeys", () => {
   it("namespaces all keys under tasks", () => {
-    expect(tasksKeys.all).toEqual(["tasks"]);
-    expect(tasksKeys.lists()).toEqual(["tasks", "list"]);
-    expect(tasksKeys.details()).toEqual(["tasks", "detail"]);
-    expect(tasksKeys.runsRoot()).toEqual(["tasks", "runs"]);
-    expect(tasksKeys.timelineRoot()).toEqual(["tasks", "timeline"]);
-    expect(tasksKeys.treeRoot()).toEqual(["tasks", "tree"]);
-    expect(tasksKeys.runDetails()).toEqual(["tasks", "run-detail"]);
-    expect(tasksKeys.runResults()).toEqual(["tasks", "run-result"]);
-    expect(tasksKeys.triageRoot()).toEqual(["tasks", "triage"]);
+    expect(tasksKeys.all).toEqual(["computer", "local", "tasks"]);
+    expect(tasksKeys.lists()).toEqual(["computer", "local", "tasks", "list"]);
+    expect(tasksKeys.details()).toEqual(["computer", "local", "tasks", "detail"]);
+    expect(tasksKeys.runsRoot()).toEqual(["computer", "local", "tasks", "runs"]);
+    expect(tasksKeys.timelineRoot()).toEqual(["computer", "local", "tasks", "timeline"]);
+    expect(tasksKeys.treeRoot()).toEqual(["computer", "local", "tasks", "tree"]);
+    expect(tasksKeys.runDetails()).toEqual(["computer", "local", "tasks", "run-detail"]);
+    expect(tasksKeys.runResults()).toEqual(["computer", "local", "tasks", "run-result"]);
+    expect(tasksKeys.triageRoot()).toEqual(["computer", "local", "tasks", "triage"]);
   });
 
   it("produces stable list keys from filter input", () => {
@@ -39,6 +39,8 @@ describe("tasksKeys", () => {
         profile: "marketing",
       })
     ).toEqual([
+      "computer",
+      "local",
       "tasks",
       "list",
       // A bounded read carries no aggregate axis.
@@ -65,13 +67,19 @@ describe("tasksKeys", () => {
       "marketing",
     ]);
 
-    expect(tasksKeys.list()).toEqual(["tasks", "list", ...Array.from({ length: 17 }, () => "")]);
+    expect(tasksKeys.list()).toEqual([
+      "computer",
+      "local",
+      "tasks",
+      "list",
+      ...Array.from({ length: 17 }, () => ""),
+    ]);
 
     // All projects is its own population, and each Project filter narrows it to
     // another one; the filter's order never forks the cache.
-    expect(tasksKeys.list({ all_workspaces: true })[2]).toBe("all");
+    expect(tasksKeys.list({ all_workspaces: true })[4]).toBe("all");
     expect(
-      tasksKeys.list({ all_workspaces: true, workspace_ids: ["ws_b", "@user", "ws_b"] })[2]
+      tasksKeys.list({ all_workspaces: true, workspace_ids: ["ws_b", "@user", "ws_b"] })[4]
     ).toBe("all,@user,ws_b");
     expect(tasksKeys.list({ all_workspaces: true, workspace_ids: ["@user", "ws_b"] })).toEqual(
       tasksKeys.list({ all_workspaces: true, workspace_ids: ["ws_b", "@user"] })
@@ -100,14 +108,18 @@ describe("tasksKeys", () => {
   });
 
   it("distinguishes detail, run, timeline, tree, and run-detail keys by id", () => {
-    expect(tasksKeys.detail("task_1")).toEqual(["tasks", "detail", "task_1"]);
+    expect(tasksKeys.detail("task_1")).toEqual(["computer", "local", "tasks", "detail", "task_1"]);
     expect(tasksKeys.detail("task_1", { all_profiles: true })).toEqual([
+      "computer",
+      "local",
       "tasks",
       "detail",
       "task_1",
       PROFILE_AGGREGATE,
     ]);
     expect(tasksKeys.runs("task_1", { status: "running", limit: 5 })).toEqual([
+      "computer",
+      "local",
       "tasks",
       "runs",
       "task_1",
@@ -117,6 +129,8 @@ describe("tasksKeys", () => {
       "",
     ]);
     expect(tasksKeys.timeline("task_1", { after_sequence: 12, limit: 50 })).toEqual([
+      "computer",
+      "local",
       "tasks",
       "timeline",
       "task_1",
@@ -125,15 +139,34 @@ describe("tasksKeys", () => {
       "",
     ]);
     expect(tasksKeys.tree("task_1", { profile: "default" })).toEqual([
+      "computer",
+      "local",
       "tasks",
       "tree",
       "task_1",
       "default",
     ]);
-    expect(tasksKeys.runDetail("run_1")).toEqual(["tasks", "run-detail", "run_1"]);
+    expect(tasksKeys.runDetail("run_1")).toEqual([
+      "computer",
+      "local",
+      "tasks",
+      "run-detail",
+      "run_1",
+    ]);
     expect(
       tasksKeys.runResult("ws_1", "run_1", "sha256:a", 16_384, 16_384, { profile: "default" })
-    ).toEqual(["tasks", "run-result", "ws_1", "run_1", "sha256:a", 16_384, 16_384, "default"]);
+    ).toEqual([
+      "computer",
+      "local",
+      "tasks",
+      "run-result",
+      "ws_1",
+      "run_1",
+      "sha256:a",
+      16_384,
+      16_384,
+      "default",
+    ]);
     expect(
       tasksKeys.runResult("ws_1", "run_1", "sha256:a", 0, 16_384, { profile: "default" })
     ).not.toEqual(
@@ -144,7 +177,20 @@ describe("tasksKeys", () => {
   it("serializes dashboard and inbox filters stably", () => {
     expect(
       tasksKeys.dashboard({ scope: "workspace", workspace: "ws_alpha", worktree: "wt_alpha" })
-    ).toEqual(["tasks", "dashboard", "", "workspace", "ws_alpha", "wt_alpha", "", "", "", ""]);
+    ).toEqual([
+      "computer",
+      "local",
+      "tasks",
+      "dashboard",
+      "",
+      "workspace",
+      "ws_alpha",
+      "wt_alpha",
+      "",
+      "",
+      "",
+      "",
+    ]);
     // All projects reads every task; the empty-scope (omission) read must not share its entry.
     expect(tasksKeys.dashboard({ all_workspaces: true })).not.toEqual(tasksKeys.dashboard({}));
 
@@ -161,6 +207,8 @@ describe("tasksKeys", () => {
         limit: 20,
       })
     ).toEqual([
+      "computer",
+      "local",
       "tasks",
       "inbox",
       "workspace",
@@ -205,11 +253,13 @@ describe("tasksKeys", () => {
   it("Should namespace orchestration roots", () => {
     const identity = { agentName: "worker", sessionId: "session_1" };
 
-    expect(tasksKeys.profilesRoot()).toEqual(["tasks", "profile"]);
-    expect(tasksKeys.reviewsRoot()).toEqual(["tasks", "reviews"]);
-    expect(tasksKeys.streamsRoot()).toEqual(["tasks", "stream"]);
-    expect(tasksKeys.agentContextsRoot()).toEqual(["tasks", "agent-context"]);
+    expect(tasksKeys.profilesRoot()).toEqual(["computer", "local", "tasks", "profile"]);
+    expect(tasksKeys.reviewsRoot()).toEqual(["computer", "local", "tasks", "reviews"]);
+    expect(tasksKeys.streamsRoot()).toEqual(["computer", "local", "tasks", "stream"]);
+    expect(tasksKeys.agentContextsRoot()).toEqual(["computer", "local", "tasks", "agent-context"]);
     expect(tasksKeys.agentContext(identity)).toEqual([
+      "computer",
+      "local",
       "tasks",
       "agent-context",
       "session_1",
@@ -224,7 +274,13 @@ describe("tasksKeys", () => {
   });
 
   it("Should bind profile keys to a task id", () => {
-    expect(tasksKeys.profile("task_1")).toEqual(["tasks", "profile", "task_1"]);
+    expect(tasksKeys.profile("task_1")).toEqual([
+      "computer",
+      "local",
+      "tasks",
+      "profile",
+      "task_1",
+    ]);
   });
 
   it("Should distinguish run, task, and detail review keys", () => {
@@ -234,9 +290,22 @@ describe("tasksKeys", () => {
         reviewer_session_id: "sess_a",
         limit: 5,
       })
-    ).toEqual(["tasks", "reviews", "run", "run_1", "in_review", "sess_a", "5", ""]);
+    ).toEqual([
+      "computer",
+      "local",
+      "tasks",
+      "reviews",
+      "run",
+      "run_1",
+      "in_review",
+      "sess_a",
+      "5",
+      "",
+    ]);
 
     expect(tasksKeys.reviewsByTask("task_1", { status: "recorded" })).toEqual([
+      "computer",
+      "local",
       "tasks",
       "reviews",
       "task",
@@ -247,17 +316,34 @@ describe("tasksKeys", () => {
       "",
     ]);
 
-    expect(tasksKeys.reviewDetail("review_1")).toEqual(["tasks", "reviews", "detail", "review_1"]);
+    expect(tasksKeys.reviewDetail("review_1")).toEqual([
+      "computer",
+      "local",
+      "tasks",
+      "reviews",
+      "detail",
+      "review_1",
+    ]);
   });
 
   it("Should encode stream resume cursor", () => {
     expect(tasksKeys.stream("task_1", { after_sequence: 12 })).toEqual([
+      "computer",
+      "local",
       "tasks",
       "stream",
       "task_1",
       "12",
       "",
     ]);
-    expect(tasksKeys.stream("task_1")).toEqual(["tasks", "stream", "task_1", "", ""]);
+    expect(tasksKeys.stream("task_1")).toEqual([
+      "computer",
+      "local",
+      "tasks",
+      "stream",
+      "task_1",
+      "",
+      "",
+    ]);
   });
 });

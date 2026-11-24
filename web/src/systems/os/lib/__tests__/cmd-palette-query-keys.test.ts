@@ -18,6 +18,8 @@ const WORKSPACE = "ws_alpha";
 describe("cmdPaletteKeys (UT-099)", () => {
   it("Should place the profile lens between the workspace and the client", () => {
     expect(cmdPaletteKeys.catalog(WORKSPACE, "marketing", "client-a")).toEqual([
+      "computer",
+      "local",
       "cmd-palette",
       "catalog",
       WORKSPACE,

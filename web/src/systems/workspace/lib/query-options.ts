@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
+import { isRemoteComputerId, LOCAL_COMPUTER_ID, type ComputerId } from "@/lib/computer-scope";
 import { fetchWorkspace, fetchWorkspaces } from "../adapters/workspace-api";
 import {
   fetchWorktrees,
@@ -16,13 +17,41 @@ import { USER_SCOPE_SELECTOR } from "./destination";
 
 export const WORKSPACE_REFETCH_INTERVAL = 10_000;
 
-export function workspacesListOptions(enabled = true, archived = false) {
+export function workspacesListOptions(
+  enabled = true,
+  archived = false,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: archived ? workspaceKeys.archived() : workspaceKeys.list(),
-    queryFn: ({ signal }) => fetchWorkspaces(signal, archived),
+    queryKey: archived ? keys.archived() : keys.list(),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchWorkspaces(signal, archived, computerId)
+        : fetchWorkspaces(signal, archived),
     enabled,
     staleTime: 60_000,
     refetchInterval: WORKSPACE_REFETCH_INTERVAL,
+  });
+}
+
+/**
+ * Computer-scoped project list used by the `Run on` picker (`["computer", id, "workspaces"]`, UT-081).
+ */
+export function computerWorkspacesOptions(
+  computerId: ComputerId = LOCAL_COMPUTER_ID,
+  enabled = true
+) {
+  const keys = workspaceKeys.forComputer(computerId);
+  return queryOptions({
+    queryKey: keys.all,
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchWorkspaces(signal, false, computerId)
+        : fetchWorkspaces(signal, false),
+    enabled,
+    staleTime: 30_000,
+    retry: false,
   });
 }
 

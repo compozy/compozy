@@ -8,6 +8,7 @@
         "./lint-plugins/compozy-design-system.mjs",
         "./lint-plugins/ui-primitive-reuse.mjs",
         "./lint-plugins/data-boundaries.mjs",
+        "./lint-plugins/computer-scope.mjs",
         { "name": "react-doctor", "specifier": "oxlint-plugin-react-doctor" },
         { "name": "landmines-testing", "specifier": "@interfere/landmines/testing" }
     ],
@@ -116,7 +117,8 @@
         "compozy-design-system/no-low-contrast-focus-ring": "error",
         "compozy-ui-reuse/no-shadow-ui-primitive": "error",
         "compozy-data-boundaries/require-canonical-query-options": "error",
-        "compozy-data-boundaries/no-inline-query-key": "error"
+        "compozy-data-boundaries/no-inline-query-key": "error",
+        "compozy/query-key-computer-scope": "error"
     },
     "overrides": [
         {

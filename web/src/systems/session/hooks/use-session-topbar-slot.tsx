@@ -1,5 +1,8 @@
 import { AgentAvatar, Pill, StateGlyph, useTopbarSlot } from "@compozy/ui";
 
+import { isRemoteComputerId } from "@/lib/computer-scope";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { ComputerChip, findComputerById, toComputerView, useComputers } from "@/systems/computers";
 import {
   agentAvatarAppearance,
   agentInstanceAvatarState,
@@ -272,6 +275,10 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { registeredWorkspaces } = useActiveWorkspace();
   const workspaceNames = new Map(registeredWorkspaces.map(row => [row.id, row.name]));
   const linkedList = useLinkedWorkList(input, actions.lifecycleControllable, workspaceNames);
+  const computerId = useCurrentComputerId();
+  const isRemote = isRemoteComputerId(computerId);
+  const computers = useComputers({ enabled: isRemote });
+  const remoteComputer = isRemote ? findComputerById(computers.computers, computerId) : undefined;
 
   useTopbarSlot({
     // The sessions list toggle leads every session head, open or closed (#1487); the board drawer
@@ -323,6 +330,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
           session={session}
           showState={false}
         />
+        {remoteComputer ? <ComputerChip computer={toComputerView(remoteComputer)} /> : null}
         {sessionIsUnrestricted(session) ? (
           <SessionUnrestrictedBadge data-testid="session-topbar-unrestricted" />
         ) : null}

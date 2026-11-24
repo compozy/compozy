@@ -6,6 +6,7 @@ import {
   requireResponseData,
 } from "@/lib/api-client";
 import type { OperationResponse } from "@/lib/api-contract";
+import type { ComputerId } from "@/lib/computer-scope";
 
 export type FileEntriesResponse = OperationResponse<"listSessionFileEntries", 200>;
 export type FileEntry = FileEntriesResponse["entries"][number];
@@ -32,8 +33,8 @@ export interface FileSearchParams {
  * (resolved by the daemon); a workspace root names the checkout or one of its worktrees.
  */
 export type FilesRootRef =
-  | { kind: "session"; workspaceId: string; sessionId: string }
-  | { kind: "workspace"; workspaceId: string; worktreeId?: string };
+  | { kind: "session"; workspaceId: string; sessionId: string; computerId?: ComputerId }
+  | { kind: "workspace"; workspaceId: string; worktreeId?: string; computerId?: ComputerId };
 
 /** A failed files read with the daemon's deterministic error code (`file_not_found`, …). */
 export class FilesApiError extends Error {

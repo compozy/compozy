@@ -20,6 +20,8 @@ describe("windowManagerKeys.config", () => {
 
   it("Should encode a missing client as null instead of a sentinel string", () => {
     expect(windowManagerKeys.config()).toEqual([
+      "computer",
+      "local",
       "settings",
       "section",
       "window-manager",
@@ -28,6 +30,8 @@ describe("windowManagerKeys.config", () => {
       "default",
     ]);
     expect(windowManagerKeys.config("ws-a", "  ")).toEqual([
+      "computer",
+      "local",
       "settings",
       "section",
       "window-manager",
@@ -36,6 +40,8 @@ describe("windowManagerKeys.config", () => {
       "default",
     ]);
     expect(windowManagerKeys.config("ws-a", "client:web")).toEqual([
+      "computer",
+      "local",
       "settings",
       "section",
       "window-manager",
@@ -53,6 +59,8 @@ describe("windowManagerSnapshotOptions", () => {
     const options = windowManagerSnapshotOptions(" workspace:alpha ", " marketing ");
 
     expect(options.queryKey).toEqual([
+      "computer",
+      "local",
       "os",
       "window-manager",
       "snapshot",

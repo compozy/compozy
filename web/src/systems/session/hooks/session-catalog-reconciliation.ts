@@ -129,13 +129,16 @@ interface CatalogChange {
 
 function catalogReadAffected(key: QueryKey, change: CatalogChange | undefined): boolean {
   if (!change || !queryKeyHasScope(key, sessionKeys.lists())) return true;
+  const listsBase = sessionKeys.lists().length;
   const workspace = change.workspace_id || "@user";
-  const keyedWorkspace = typeof key[2] === "string" ? key[2] : "";
+  const keyedWorkspace = typeof key[listsBase] === "string" ? key[listsBase] : "";
   if (keyedWorkspace && keyedWorkspace !== workspace) return false;
-  const family = key[3];
+  const family = key[listsBase + 1];
   if (family === "folders")
-    return !change.profile_name || !key[4] || key[4] === change.profile_name;
-  const scope = (typeof family === "object" ? family : key[4]) as
+    return (
+      !change.profile_name || !key[listsBase + 2] || key[listsBase + 2] === change.profile_name
+    );
+  const scope = (typeof family === "object" ? family : key[listsBase + 2]) as
     | { profile?: string; all_profiles?: boolean; workspace_ids?: string[] }
     | undefined;
   if (!scope || typeof scope !== "object") return true;
@@ -162,14 +165,17 @@ function isStreamCoveredInteractionRead(
   workspaces: ReadonlySet<string>,
   everyWorkspace: boolean
 ): boolean {
+  const base = sessionKeys.all.length;
+  const workspaceKey = key[base + 1];
   return (
-    key[0] === sessionKeys.all[0] &&
-    key[1] === "workspace" &&
-    key[3] === "detail" &&
-    key[5] === "interactions" &&
-    STREAM_COVERED_INTERACTIONS.has(key[6]) &&
+    queryKeyHasScope(key, sessionKeys.all) &&
+    key[base] === "workspace" &&
+    key[base + 2] === "detail" &&
+    key[base + 4] === "interactions" &&
+    STREAM_COVERED_INTERACTIONS.has(key[base + 5]) &&
     // The User scope reaches the wake as `@user`; its reads may key it either way.
-    (everyWorkspace || (typeof key[2] === "string" && workspaces.has(key[2] || "@user")))
+    (everyWorkspace ||
+      (typeof workspaceKey === "string" && workspaces.has(workspaceKey || "@user")))
   );
 }
 
@@ -283,7 +289,8 @@ export function createCatalogReconciler(queryClient: QueryClient) {
         for (const query of queryClient
           .getQueryCache()
           .findAll({ queryKey: sessionKeys.lists() })) {
-          if (typeof query.queryKey[2] === "string") workspaces.add(query.queryKey[2]);
+          const workspaceSegment = query.queryKey[sessionKeys.lists().length];
+          if (typeof workspaceSegment === "string") workspaces.add(workspaceSegment);
         }
       }
       schedule();

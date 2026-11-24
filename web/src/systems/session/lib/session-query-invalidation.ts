@@ -176,7 +176,8 @@ export function invalidateSessionOwnerLabelReads(queryClient: QueryClient): Prom
 }
 
 function isSessionDetailKey(key: QueryKey): boolean {
-  const [, , workspace, , id] = key;
+  const workspace = key[sessionKeys.all.length + 1];
+  const id = key[sessionKeys.all.length + 3];
   return (
     typeof workspace === "string" &&
     typeof id === "string" &&

@@ -45,6 +45,13 @@ import {
 } from "./session-query-policy";
 import { PROFILE_AGGREGATE, profileViewKey, type ProfileScopeParams } from "@/systems/profiles";
 
+import {
+  computerQueryKey,
+  isRemoteComputerId,
+  LOCAL_COMPUTER_ID,
+  normalizeComputerId,
+  type ComputerId,
+} from "@/lib/computer-scope";
 import { fetchSessionAcrossProfiles, fetchSessionById } from "../adapters/session-owner-api";
 
 const SESSION_DETAIL_STALE_TIME_MS = 2_000;
@@ -56,7 +63,7 @@ const TOOL_ARTIFACT_PAGE_BYTES = 64 * 1_024;
  * rendered session data, so they remain separate from the workspace-prefixed `sessionKeys`.
  */
 export const sessionOwnerKeys = {
-  all: ["session-owner"] as const,
+  all: computerQueryKey(LOCAL_COMPUTER_ID, "session-owner"),
   detail: (sessionId: string) => [...sessionOwnerKeys.all, sessionId] as const,
 };
 
@@ -405,9 +412,10 @@ export function sessionUsageOptions(
 export function sessionScopedDetailOptions(
   sessionId: string,
   scope: ProfileScopeParams,
-  options: { enabled?: boolean; liveTail?: boolean } = {}
+  options: { enabled?: boolean; liveTail?: boolean; computerId?: ComputerId } = {}
 ) {
   const id = sessionId.trim();
+  const scopedComputerId = normalizeComputerId(options.computerId);
   const normalizedScope: ProfileScopeParams =
     "all_profiles" in scope ? scope : { profile: scope.profile.trim() };
   const profileKey =
@@ -416,8 +424,11 @@ export function sessionScopedDetailOptions(
       : profileViewKey({ kind: "profile", profile: normalizedScope.profile });
   const { enabled = true, liveTail = true } = options;
   return queryOptions({
-    queryKey: sessionKeys.byId(id, profileKey),
-    queryFn: ({ signal }) => fetchSessionById(id, normalizedScope, signal),
+    queryKey: sessionKeys.forComputer(scopedComputerId).byId(id, profileKey),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(scopedComputerId)
+        ? fetchSessionById(id, normalizedScope, signal, scopedComputerId)
+        : fetchSessionById(id, normalizedScope, signal),
     refetchInterval: query => {
       if (!liveTail || isSessionUnavailable(query.state.error)) return false;
       return sessionDetailRefetchInterval(id, query.state.data);

@@ -5,6 +5,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-input";
 import {
   getSessionDisplayTitle,
   linkNumber,
+  useRemoteSessionsFanout,
   useSessionCatalog,
   type SessionPayload,
 } from "@/systems/session";
@@ -12,15 +13,11 @@ import { type ProfileOwner, useProfileReadScope } from "@/systems/profiles";
 import {
   DESTINATION_COPY,
   SHELL_WORKTREE_SCOPE,
-  sortWorktreeNestEntries,
-  toWorktreeNestEntries,
   useScopedWorktreeFilter,
   useWorktreeAggregate,
   useWorktrees,
   type DataScope,
-  type WorktreeListingByWorkspace,
   type WorktreeNestEntry,
-  type WorktreesResponse,
 } from "@/systems/workspace";
 
 import { getOsAppDescriptor, osAppId } from "../lib/app-catalog";
@@ -33,6 +30,12 @@ import {
   windowSlotSnapshot,
 } from "../lib/window-slot-registry";
 import { composePaletteSessionPage, keepServerSessions } from "../lib/palette-session-filters";
+import {
+  groupWorktreeAggregate,
+  mergeRemotePaletteSessions,
+  projectPaletteWorktrees,
+} from "../lib/palette-remote-sessions";
+export { groupWorktreeAggregate };
 import { applyPaletteWorktreeSelection } from "../lib/os-palette-worktree-selection";
 import { useDesktop } from "./use-desktop";
 import type { CmdPaletteRankSignals } from "../lib/cmd-palette-types";
@@ -57,6 +60,9 @@ export interface OsPaletteSessionResult {
   owner?: ProfileOwner;
   /** `#944` when the search named this session's lead pull request. */
   pullRequestLabel?: string;
+  computerId?: string;
+  computerName?: string;
+  computerOffline?: boolean;
   route: OsWindowRoute;
 }
 
@@ -230,6 +236,8 @@ export function useOsPaletteEntities({
   const worktreeFilter = useScopedWorktreeFilter(activeWorkspaceId, worktreeScopeId, {
     enabled: open && project,
   });
+  const paletteSessionEnabled =
+    open && paletteEntityQueryEnabled(destination, remoteQuery, signals);
   const sessions = useSessionCatalog(
     dataScope,
     {
@@ -238,13 +246,20 @@ export function useOsPaletteEntities({
       search_fields: "title_agent",
       ...(project ? { worktree: worktreeFilter.worktreeId } : {}),
     },
-    open && paletteEntityQueryEnabled(destination, remoteQuery, signals) && worktreeFilter.resolved
+    paletteSessionEnabled && worktreeFilter.resolved
   );
-  const sessionRows = projectPaletteSessions(sessions.sessions, profile, {
-    dataScope,
-    workspaces,
-    query: remoteQuery,
+  const remoteSessions = useRemoteSessionsFanout({
+    enabled: paletteSessionEnabled,
+    filters: { q: remoteQuery, search_fields: "title_agent" },
   });
+  const sessionRows = mergeRemotePaletteSessions(
+    projectPaletteSessions(sessions.sessions, profile, {
+      dataScope,
+      workspaces,
+      query: remoteQuery,
+    }),
+    remoteSessions.remoteSessions
+  );
   const sessionSearchRan =
     remoteQuery !== "" && paletteEntityQueryEnabled(destination, remoteQuery, signals);
   const linkSessionId = paletteFocusedSessionCommand(
@@ -448,48 +463,4 @@ function projectPaletteTabs(
   }
 
   return tabs;
-}
-
-/** The aggregate listing split back into per-project listings (adopted rows only). */
-export function groupWorktreeAggregate(
-  aggregate: WorktreesResponse | undefined
-): WorktreeListingByWorkspace {
-  if (!aggregate) return {};
-  const listings: Record<string, WorktreesResponse> = {};
-  for (const worktree of aggregate.worktrees) {
-    const listing = (listings[worktree.workspace_id] ??= {
-      worktrees: [],
-      discovered: [],
-      repo: aggregate.repo,
-    });
-    listing.worktrees.push(worktree);
-  }
-  return listings;
-}
-
-function projectPaletteWorktrees(
-  dataScope: DataScope | null,
-  workspaces: UseOsPaletteEntitiesOptions["workspaces"],
-  worktreeListings: WorktreeListingByWorkspace,
-  workspaceWorktrees: ReturnType<typeof useWorktrees>["data"]
-): OsPaletteWorktreeResult[] {
-  const worktrees: OsPaletteWorktreeResult[] = [];
-  if (dataScope?.kind === "all") {
-    for (const workspace of workspaces) {
-      const entries = sortWorktreeNestEntries(
-        toWorktreeNestEntries(worktreeListings[workspace.id])
-      );
-      for (const entry of entries) {
-        if (entry.kind !== "worktree" || entry.displayState !== "ready") continue;
-        worktrees.push({ ...entry, workspaceId: workspace.id, workspaceLabel: workspace.name });
-      }
-    }
-  } else if (dataScope?.kind === "project") {
-    worktrees.push(
-      ...sortWorktreeNestEntries(toWorktreeNestEntries(workspaceWorktrees)).filter(
-        entry => entry.kind === "worktree" && entry.displayState === "ready"
-      )
-    );
-  }
-  return worktrees;
 }
