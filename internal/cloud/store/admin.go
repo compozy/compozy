@@ -46,7 +46,7 @@ func (q *Queries) AdminTunnel(ctx context.Context, hostname string) (AdminTunnel
 	row, err := q.generated.AdminTunnel(ctx, hostname)
 	return AdminTunnel{
 		AccountID: row.AccountID, Email: row.Email, Hostname: row.Hostname, State: row.State,
-		TunnelRef: {ComputerID: remoteproto.ComputerID(row.ComputerID), Generation: row.Generation},
+		ComputerID: remoteproto.ComputerID(row.ComputerID), Generation: row.Generation,
 	}, err
 }
 

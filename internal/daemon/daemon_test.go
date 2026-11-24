@@ -2566,10 +2566,8 @@ func TestBootWaitsForSignInToRecoverWork(t *testing.T) {
 		}
 		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
 			return &signInRecoverySessionManager{
-				checkpointRecordingSessionManager: {
-					promptingSessionManager: {fakeSessionManager: &fakeSessionManager{}},
-				},
-				resumed: resumed,
+				fakeSessionManager: &fakeSessionManager{},
+				resumed:            resumed,
 			}, nil
 		}
 		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) { return &fakeObserver{}, nil }
