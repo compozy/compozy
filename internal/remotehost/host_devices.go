@@ -28,11 +28,19 @@ type DevicePatch struct {
 }
 
 func (h *Host) Devices(ctx context.Context) ([]Device, error) {
+	return h.devices(ctx, "")
+}
+
+func (h *Host) devices(ctx context.Context, includeUnseen remoteproto.DeviceID) ([]Device, error) {
 	identity, sessions, policy := h.deviceState()
 	if identity.ComputerID == "" {
 		return []Device{}, nil
 	}
 	snapshot, err := h.deviceSnapshot(ctx, identity, sessions)
+	if err != nil {
+		return nil, err
+	}
+	connections, err := h.store.RemoteDeviceConnections(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -52,29 +60,43 @@ func (h *Host) Devices(ctx context.Context) ([]Device, error) {
 		}
 	}
 	out := make([]Device, 0, len(snapshot.Devices))
+	now := h.opts.Now()
 	for _, device := range snapshot.Devices {
 		entry := Device{ID: device.DeviceID, Name: string(device.DeviceID), Admin: device.Admin,
 			Scopes: effectiveScopes(device.Scopes, device, policy)}
+		lastSeenAt, connected := connections[device.DeviceID]
+		if connected {
+			entry.LastSeenAt = new(lastSeenAt)
+		}
 		if found, ok := byID[device.DeviceID]; ok {
 			entry.Name = found.Name
-			if !found.LastSeenAt.IsZero() {
-				entry.LastSeenAt = new(found.LastSeenAt)
-			}
 		}
-		for _, approval := range approvals {
-			if approval.DeviceID != device.DeviceID || !slices.Contains(device.JKTs, approval.JKT) {
-				continue
-			}
-			approval.Name = entry.Name
-			if approval.State == approvalPending && !h.opts.Now().Before(approval.ExpiresAt) {
-				approval.State = approvalExpired
-			}
-			entry.PendingApproval = entry.PendingApproval || approval.State == approvalPending
-			entry.Approvals = append(entry.Approvals, approval)
+		entry.Approvals, entry.PendingApproval = approvalsForDevice(approvals, device, entry.Name, now)
+		if !connected && len(entry.Approvals) == 0 && device.DeviceID != includeUnseen {
+			continue
 		}
 		out = append(out, entry)
 	}
 	return out, nil
+}
+
+func approvalsForDevice(
+	approvals []Approval, device remoteproto.SnapshotDevice, name string, now time.Time,
+) ([]Approval, bool) {
+	var matches []Approval
+	var pending bool
+	for _, approval := range approvals {
+		if approval.DeviceID != device.DeviceID || !slices.Contains(device.JKTs, approval.JKT) {
+			continue
+		}
+		approval.Name = name
+		if approval.State == approvalPending && !now.Before(approval.ExpiresAt) {
+			approval.State = approvalExpired
+		}
+		pending = pending || approval.State == approvalPending
+		matches = append(matches, approval)
+	}
+	return matches, pending
 }
 
 func (h *Host) deviceSnapshot(
@@ -153,7 +175,7 @@ func (h *Host) updatedDevice(
 	id remoteproto.DeviceID,
 	requested []remoteproto.Scope,
 ) (Device, error) {
-	devices, err := h.Devices(ctx)
+	devices, err := h.devices(ctx, id)
 	if err != nil {
 		return Device{}, err
 	}

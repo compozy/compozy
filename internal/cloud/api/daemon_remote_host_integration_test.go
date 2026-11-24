@@ -40,11 +40,15 @@ func TestDaemonRemoteHost(t *testing.T) {
 			if descriptor.ComputerID != linked.ComputerID || !status.Enabled || descriptor.BrowserSignIn {
 				t.Fatalf("link status or descriptor mismatch: %v %v", status, descriptor)
 			}
+			if devices := remoteDaemonDevices(t, daemon); len(devices) != 0 {
+				t.Fatalf("account devices without a host connection appeared in the host's list: %v", devices)
+			}
 
 			// IT-029. Safety Invariants 18, 22 and 23.
 			linkID := readHostLinkID(t, f, linked.ComputerID)
 			member := enrollRemoteDevice(t, f, email, "second-installation")
 			grant := fetchRemoteGrant(t, f, member, linked.ComputerID)
+			f.clock.Advance(time.Second)
 			tunnel := remotetest.DialTunnel(t, status.Listener, descriptor, f.clock.Now)
 			started := time.Now()
 			minted := mintRemote(t, tunnel, member, grant, f.clock.Now())
@@ -53,6 +57,11 @@ func TestDaemonRemoteHost(t *testing.T) {
 			}
 			if got := readHostLinkID(t, f, linked.ComputerID); got != linkID {
 				t.Fatalf("device enrollment restarted the control connection: %q vs %q", got, linkID)
+			}
+			devices := remoteDaemonDevices(t, daemon)
+			if len(devices) != 1 || devices[0].ID != member.id || devices[0].LastSeenAt == nil ||
+				!devices[0].LastSeenAt.Equal(f.clock.Now()) {
+				t.Fatalf("host devices after mint: %v", devices)
 			}
 
 			disabled := daemon.request(
@@ -161,6 +170,13 @@ func readRemoteDaemonStatus(t *testing.T, daemon daemonAccountFixture) contract.
 	reply := daemon.request(t, http.MethodGet, contract.RemotePath, nil)
 	reply.expect(t, http.StatusOK, "control_link")
 	return authJSON[contract.RemoteStatusResponse](t, reply)
+}
+
+func remoteDaemonDevices(t *testing.T, daemon daemonAccountFixture) []contract.RemoteDeviceResponse {
+	t.Helper()
+	reply := daemon.uds(t, http.MethodGet, contract.RemoteDevicesPath, nil)
+	reply.expect(t, http.StatusOK, "devices")
+	return authJSON[contract.RemoteDevicesResponse](t, reply).Devices
 }
 
 func waitForHostLease(t *testing.T, daemon daemonAccountFixture) contract.RemoteStatusResponse {

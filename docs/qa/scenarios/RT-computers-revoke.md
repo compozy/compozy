@@ -9,7 +9,7 @@ entry_points: Settings → Account → Devices; remote session and terminal stre
 qa_status: pending
 ---
 
-1. Use two signed-in installations and one linked computer. Open a remote terminal from the second installation.
+1. Use two signed-in installations and one linked computer. Run `compozy remote devices list --json` on the host before and after connecting from the second installation. Confirm that the device appears when its first remote session opens and that `last_seen_at` shows the host's connection time. Open a remote terminal from the second installation.
 2. From a trusted admin device, remove the second device's terminal scope for the linked computer. On the host, use `compozy remote devices scopes <device> --set sessions:operate`. The terminal stream closes within two seconds. A fresh session can use its remaining scopes.
 3. Disconnect the computer from Compozy Cloud and revoke the second device. Reconnect the computer through a different cloud replica. Confirm it reconciles the new snapshot before accepting a lease and the revoked device cannot obtain a new grant.
 4. Repeat with the computer left disconnected. Existing remote streams end when the last lease expires. Local work continues.

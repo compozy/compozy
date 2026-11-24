@@ -90,6 +90,18 @@ func (r *RemoteHostRepo) RemoteGrantUsed(ctx context.Context, jti string) (bool,
 	return r.readQueries.HasRemoteGrant(ctx, jti)
 }
 
+func (r *RemoteHostRepo) RemoteDeviceConnections(ctx context.Context) (map[remoteproto.DeviceID]time.Time, error) {
+	rows, err := r.readQueries.ListRemoteDeviceConnections(ctx)
+	if err != nil {
+		return nil, err
+	}
+	connections := make(map[remoteproto.DeviceID]time.Time, len(rows))
+	for _, row := range rows {
+		connections[remoteproto.DeviceID(row.DeviceID)] = remoteTime(row.LastSeenAt)
+	}
+	return connections, nil
+}
+
 func (r *RemoteHostRepo) RemoteApprovals(ctx context.Context) ([]remotehost.Approval, error) {
 	rows, err := r.readQueries.ListRemoteApprovals(ctx)
 	if err != nil {
@@ -141,10 +153,15 @@ func (t remoteHostTx) InsertSession(ctx context.Context, session remotehost.Sess
 	if session.Browser {
 		browser = 1
 	}
-	return t.q.InsertRemoteSession(ctx, sqlcgen.InsertRemoteSessionParams{
+	if err := t.q.InsertRemoteSession(ctx, sqlcgen.InsertRemoteSessionParams{
 		ID: session.ID, CredentialSha256: session.CredentialHash[:], DeviceID: string(session.DeviceID),
 		DeviceJkt: session.JKT, Scopes: string(scopes), Route: string(session.Route), Browser: browser,
 		CreatedAt: session.CreatedAt.UnixNano(), ExpiresAt: session.ExpiresAt.UnixNano(),
+	}); err != nil {
+		return err
+	}
+	return t.q.RecordRemoteDeviceConnection(ctx, sqlcgen.RecordRemoteDeviceConnectionParams{
+		DeviceID: string(session.DeviceID), LastSeenAt: session.CreatedAt.UnixNano(),
 	})
 }
 
@@ -250,7 +267,7 @@ func (t remoteHostTx) SaveSnapshot(ctx context.Context, snapshot remoteproto.Sec
 func (t remoteHostTx) ClearLink(ctx context.Context) error {
 	for _, write := range []func(context.Context) error{
 		t.q.DeleteRemoteIdentity, t.q.DeleteRemoteSecurityState, t.q.PurgeRemoteSessions,
-		t.q.PurgeRemoteApprovals, t.q.PurgeRemoteGrants, t.q.PurgeRemoteApprovalDecisions,
+		t.q.PurgeRemoteDeviceConnections, t.q.PurgeRemoteApprovals, t.q.PurgeRemoteGrants, t.q.PurgeRemoteApprovalDecisions,
 	} {
 		if err := write(ctx); err != nil {
 			return fmt.Errorf("clear linked computer state: %w", err)

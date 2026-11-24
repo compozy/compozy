@@ -21,6 +21,8 @@ Local HTTP and UDS share the same `/api/remote` routes for status, link settings
 
 ## Device approvals and revocation
 
+The device list shows devices that opened a session or requested approval on this computer. The last seen time reflects the most recent session opened here.
+
 Set `remote.require_device_approval = true` to approve new device keys on this computer. Run `compozy remote devices list --json` to see pending requests and their key fingerprints. Use `compozy remote devices approve <device>` or `compozy remote devices deny <device>`. Add `--approval-id` to select a key if the device has multiple pending requests.
 
 You can narrow a device's scopes on this computer or revoke the device across the account. Revocation and scope narrowing end affected remote streams. If the computer loses contact with Compozy Cloud, it can honor a valid lease for up to fifteen minutes.

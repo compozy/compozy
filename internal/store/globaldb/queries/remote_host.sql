@@ -44,6 +44,16 @@ DELETE FROM remote_sessions;
 -- name: SweepRemoteSessions :exec
 DELETE FROM remote_sessions WHERE expires_at <= ?;
 
+-- name: RecordRemoteDeviceConnection :exec
+INSERT INTO remote_device_connections (device_id, last_seen_at) VALUES (?, ?)
+ON CONFLICT(device_id) DO UPDATE SET last_seen_at = MAX(last_seen_at, excluded.last_seen_at);
+
+-- name: ListRemoteDeviceConnections :many
+SELECT device_id, last_seen_at FROM remote_device_connections;
+
+-- name: PurgeRemoteDeviceConnections :exec
+DELETE FROM remote_device_connections;
+
 -- name: HasRemoteGrant :one
 SELECT EXISTS(SELECT 1 FROM remote_grant_replay WHERE jti = ?);
 

@@ -111,6 +111,7 @@ type Store interface {
 	RemoteSnapshot(context.Context, Identity) (remoteproto.SecuritySnapshot, error)
 	RemoteSession(context.Context, [32]byte) (Session, error)
 	RemoteGrantUsed(context.Context, string) (bool, error)
+	RemoteDeviceConnections(context.Context) (map[remoteproto.DeviceID]time.Time, error)
 	RemoteApprovals(context.Context) ([]Approval, error)
 	RemoteApproval(context.Context, remoteproto.DeviceID, string) (Approval, error)
 	WriteRemote(context.Context, func(context.Context, Tx) error) error

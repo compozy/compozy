@@ -231,6 +231,33 @@ func (q *Queries) ListRemoteApprovals(ctx context.Context) ([]RemoteDeviceApprov
 	return items, nil
 }
 
+const listRemoteDeviceConnections = `-- name: ListRemoteDeviceConnections :many
+SELECT device_id, last_seen_at FROM remote_device_connections
+`
+
+func (q *Queries) ListRemoteDeviceConnections(ctx context.Context) ([]RemoteDeviceConnection, error) {
+	rows, err := q.db.QueryContext(ctx, listRemoteDeviceConnections)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RemoteDeviceConnection{}
+	for rows.Next() {
+		var i RemoteDeviceConnection
+		if err := rows.Scan(&i.DeviceID, &i.LastSeenAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const purgeRemoteApprovalDecisions = `-- name: PurgeRemoteApprovalDecisions :exec
 DELETE FROM remote_approval_replay
 `
@@ -246,6 +273,15 @@ DELETE FROM remote_device_approvals
 
 func (q *Queries) PurgeRemoteApprovals(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, purgeRemoteApprovals)
+	return err
+}
+
+const purgeRemoteDeviceConnections = `-- name: PurgeRemoteDeviceConnections :exec
+DELETE FROM remote_device_connections
+`
+
+func (q *Queries) PurgeRemoteDeviceConnections(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, purgeRemoteDeviceConnections)
 	return err
 }
 
@@ -347,6 +383,21 @@ type PutRemoteSecurityStateParams struct {
 
 func (q *Queries) PutRemoteSecurityState(ctx context.Context, arg PutRemoteSecurityStateParams) error {
 	_, err := q.db.ExecContext(ctx, putRemoteSecurityState, arg.AppliedEpoch, arg.DevicesJson, arg.AppliedAt)
+	return err
+}
+
+const recordRemoteDeviceConnection = `-- name: RecordRemoteDeviceConnection :exec
+INSERT INTO remote_device_connections (device_id, last_seen_at) VALUES (?, ?)
+ON CONFLICT(device_id) DO UPDATE SET last_seen_at = MAX(last_seen_at, excluded.last_seen_at)
+`
+
+type RecordRemoteDeviceConnectionParams struct {
+	DeviceID   string `json:"device_id"`
+	LastSeenAt int64  `json:"last_seen_at"`
+}
+
+func (q *Queries) RecordRemoteDeviceConnection(ctx context.Context, arg RecordRemoteDeviceConnectionParams) error {
+	_, err := q.db.ExecContext(ctx, recordRemoteDeviceConnection, arg.DeviceID, arg.LastSeenAt)
 	return err
 }
 
