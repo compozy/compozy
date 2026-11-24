@@ -50,7 +50,7 @@ export function useLocalRemoteControls({
   );
 
   const remotePatchMutation = useMutation({
-    mutationFn: patchRemoteStatus,
+    mutationFn: (body: Parameters<typeof patchRemoteStatus>[0]) => patchRemoteStatus(body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteStatus() });
       void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteDevices() });

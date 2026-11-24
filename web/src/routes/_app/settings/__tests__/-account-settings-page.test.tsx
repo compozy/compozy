@@ -28,20 +28,17 @@ vi.mock("@/systems/settings", async () => {
 });
 
 import {
-  ACCOUNT_LINK_ONLY,
-  ACCOUNT_PRO,
-  ACCOUNT_SIGNED_OUT,
-  ACCOUNT_TOKEN_ONLY,
-  DEVICES_PRO,
+  ACCOUNT_DEVICES,
+  ACCOUNT_PRESETS,
   PENDING_APPROVALS,
 } from "@/systems/computers/mocks/remote-computers-fixtures";
 import { AccountSettingsPage } from "../-account-settings-page";
 
 function makeView(overrides: Record<string, unknown> = {}) {
   return {
-    account: ACCOUNT_PRO,
-    devices: DEVICES_PRO,
-    currentDevice: DEVICES_PRO[0],
+    account: ACCOUNT_PRESETS.pro,
+    devices: ACCOUNT_DEVICES,
+    currentDevice: ACCOUNT_DEVICES[0],
     currentDeviceIsAdmin: true,
     approvals: PENDING_APPROVALS,
     downgradedNeedsProCount: 0,
@@ -95,7 +92,7 @@ describe("AccountSettingsPage", () => {
   it("renders signed-out login buttons and handles Google/GitHub sign-in", () => {
     const startSignIn = vi.fn();
     state.view = makeView({
-      account: ACCOUNT_SIGNED_OUT,
+      account: ACCOUNT_PRESETS.signed_out,
       handleStartSignIn: startSignIn,
     });
 
@@ -111,7 +108,7 @@ describe("AccountSettingsPage", () => {
   it("renders link-only mismatch notice with Unlink and account-token local-only state", () => {
     const unlink = vi.fn();
     state.view = makeView({
-      account: ACCOUNT_LINK_ONLY,
+      account: ACCOUNT_PRESETS.link_only_installation,
       linkMismatchNotice: true,
       handleUnlinkLocal: unlink,
     });
@@ -121,7 +118,7 @@ describe("AccountSettingsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Unlink" }));
     expect(unlink).toHaveBeenCalledTimes(1);
 
-    state.view = makeView({ account: ACCOUNT_TOKEN_ONLY });
+    state.view = makeView({ account: ACCOUNT_PRESETS.token_installation });
     rerender(<AccountSettingsPage />);
     expect(screen.getByText(/Local use only/i)).toBeInTheDocument();
   });
@@ -129,7 +126,7 @@ describe("AccountSettingsPage", () => {
   it("renders Q3 revoke dialog approval failure recovery when local approval fails after revoke", () => {
     const retryApproval = vi.fn();
     state.view = makeView({
-      revokeTarget: DEVICES_PRO[1],
+      revokeTarget: ACCOUNT_DEVICES[1],
       revokeApprovalFailure: "disk full",
       handleRetryEnableApproval: retryApproval,
     });

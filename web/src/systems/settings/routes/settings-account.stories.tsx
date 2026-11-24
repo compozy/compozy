@@ -7,7 +7,7 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
 } from "@/storybook/route-story-meta";
-import { DEFAULT_ACCOUNT_STATUS } from "@/systems/account/mocks/handlers";
+import { accountStatusStoryFixture } from "@/systems/account/mocks/handlers";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/settings/routes/SettingsAccount",
@@ -40,7 +40,7 @@ export const FreePlan: Story = {
       settings: [
         http.get("/api/account", () =>
           HttpResponse.json({
-            ...DEFAULT_ACCOUNT_STATUS,
+            ...accountStatusStoryFixture,
             plan: "free",
             remote_computers_limit: 1,
             cloud_routes_limit: 0,
@@ -61,7 +61,7 @@ export const Loading: Story = {
       settings: [
         http.get("/api/account", async () => {
           await delay("infinite");
-          return HttpResponse.json(DEFAULT_ACCOUNT_STATUS);
+          return HttpResponse.json(accountStatusStoryFixture);
         }),
       ],
     }),

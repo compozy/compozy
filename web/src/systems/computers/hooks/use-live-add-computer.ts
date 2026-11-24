@@ -98,7 +98,9 @@ export function useLiveAddComputer({
   );
 
   const activeSetupIdRef = useRef<string | null>(null);
-  activeSetupIdRef.current = setupId;
+  useEffect(() => {
+    activeSetupIdRef.current = setupId;
+  }, [setupId]);
 
   const sshHostsQuery = useQuery(computerSSHHostsOptions(open && signedIn));
   const availableQuery = useQuery({
@@ -113,24 +115,30 @@ export function useLiveAddComputer({
   }, [sshHostsQuery.data?.hosts, addedComputers]);
 
   const unaddedComputers = useMemo<AccountUnaddedComputerFixture[]>(() => {
-    return (availableQuery.data?.computers ?? [])
-      .filter(computer => !computer.added)
-      .map(toAvailableComputerView);
+    const items: AccountUnaddedComputerFixture[] = [];
+    for (const computer of availableQuery.data?.computers ?? []) {
+      if (!computer.added) {
+        items.push(toAvailableComputerView(computer));
+      }
+    }
+    return items;
   }, [availableQuery.data?.computers]);
 
-  // Capture baseline unadded IDs when entering the "Link with a command" tab so newly linked
-  // computers surface in the watcher card automatically.
-  useEffect(() => {
-    if (!open || method !== "command") {
-      setBaselineAvailableIds(null);
-      return;
-    }
-    if (baselineAvailableIds === null && availableQuery.data) {
-      setBaselineAvailableIds(
-        new Set(availableQuery.data.computers.filter(c => !c.added).map(c => c.id))
-      );
-    }
-  }, [open, method, availableQuery.data, baselineAvailableIds]);
+  const handleSetMethod = useCallback(
+    (next: AddComputerMethod) => {
+      setMethod(next);
+      if (next === "command") {
+        const baseline = new Set<string>();
+        for (const item of availableQuery.data?.computers ?? []) {
+          if (!item.added) baseline.add(item.id);
+        }
+        setBaselineAvailableIds(baseline);
+      } else {
+        setBaselineAvailableIds(null);
+      }
+    },
+    [availableQuery.data?.computers]
+  );
 
   const detectedCommandComputer = useMemo<AccountUnaddedComputerFixture | null>(() => {
     if (method !== "command" || baselineAvailableIds === null) return null;
@@ -322,16 +330,13 @@ export function useLiveAddComputer({
   const handleTrustHost = useCallback(async () => {
     if (!setupId) return;
     try {
-      const next = await answerComputerSetup(setupId, { kind: "host_key", accept: true });
-      setSetupStatus(next);
+      await answerComputerSetup(setupId, { kind: "host_key", accept: true });
       toast.success(`Trusted ${draft.name || draft.host} and continued setup.`);
-      if (next.state === "done") {
-        void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
-      }
+      await syncSetupStatus(setupId);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to trust host key.");
     }
-  }, [setupId, draft.name, draft.host, queryClient]);
+  }, [setupId, draft.name, draft.host, syncSetupStatus]);
 
   const handleDeclineHost = useCallback(async () => {
     if (!setupId) {
@@ -352,16 +357,13 @@ export function useLiveAddComputer({
       if (!setupId) return;
       setSecretError(null);
       try {
-        const next = await answerComputerSetup(setupId, { kind: "secret", value: secret });
-        setSetupStatus(next);
-        if (next.state === "done") {
-          void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
-        }
+        await answerComputerSetup(setupId, { kind: "secret", value: secret });
+        await syncSetupStatus(setupId);
       } catch (err) {
         setSecretError(err instanceof Error ? err.message : "SSH authentication failed.");
       }
     },
-    [setupId, queryClient]
+    [setupId, syncSetupStatus]
   );
 
   const handleConfirmCancel = useCallback(async () => {
@@ -408,7 +410,7 @@ export function useLiveAddComputer({
 
   const controller: AddComputerLiveController = {
     method,
-    setMethod,
+    setMethod: handleSetMethod,
     draft,
     setDraft,
     sshStage,

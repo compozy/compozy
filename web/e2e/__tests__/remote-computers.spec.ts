@@ -283,9 +283,8 @@ async function installRemoteComputersRoutes(page: Page, state: RemoteComputersMo
       setup.step = "forward";
       setup.prompt = null;
       await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(setup),
+        status: 204,
+        body: "",
       });
       return;
     }

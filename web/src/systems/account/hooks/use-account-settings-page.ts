@@ -107,13 +107,17 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
           toast.success("Signed in to CompozyOS.");
         } else if (progress.state === "failed" || progress.state === "expired") {
           setLoginAttempt(null);
-          setLoginError(progress.message || "Sign-in did not complete.");
+          setLoginError(
+            progress.code
+              ? `Sign-in did not complete (${progress.code}).`
+              : "Sign-in did not complete."
+          );
         } else if (progress.state === "canceled") {
           setLoginAttempt(null);
         }
       },
       onState: state => {
-        if (state.signed_in) {
+        if (state.state === "signed_in") {
           setLoginAttempt(null);
           setLoginError(null);
           setLinkMismatchNotice(false);
@@ -279,7 +283,8 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
   });
 
   const startSignInMutation = useMutation({
-    mutationFn: (provider: AccountProvider) => startAccountLogin({ provider }),
+    mutationFn: (provider: AccountProvider) =>
+      startAccountLogin({ provider, marketing_opt_in: false }),
     onSuccess: response => {
       setLoginAttempt(response);
       setLoginError(null);

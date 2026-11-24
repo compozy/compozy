@@ -1,4 +1,4 @@
-import { HttpResponse } from "msw";
+import { http, HttpResponse } from "msw";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import type {
@@ -80,6 +80,14 @@ export const accountApprovalsStoryFixture: AccountApprovalsResponse = {
 
 export const handlers = [
   compozyApiMock.get("/api/account", () => HttpResponse.json(accountStatusStoryFixture)),
+  http.get(
+    "/api/account/stream",
+    () =>
+      new HttpResponse("", {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+  ),
   compozyApiMock.get("/api/account/devices", () => HttpResponse.json(accountDevicesStoryFixture)),
   compozyApiMock.get("/api/account/approvals", () =>
     HttpResponse.json(accountApprovalsStoryFixture)

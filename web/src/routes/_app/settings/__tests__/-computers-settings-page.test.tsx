@@ -28,21 +28,21 @@ vi.mock("@/systems/settings", async () => {
 });
 
 import {
-  ACCOUNT_PRO,
+  ACCOUNT_DEVICES,
+  ACCOUNT_PRESETS,
+  ACCOUNT_UNADDED_COMPUTERS,
   COMPUTERS_PRO,
-  DEVICES_PRO,
-  LOCAL_COMPUTER_PRO,
-  UNADDED_COMPUTERS,
+  LOCAL_COMPUTER,
 } from "@/systems/computers/mocks/remote-computers-fixtures";
 import { ComputersSettingsPage } from "../-computers-settings-page";
 
 function makeView(overrides: Record<string, unknown> = {}) {
   return {
-    account: ACCOUNT_PRO,
-    local: LOCAL_COMPUTER_PRO,
+    account: ACCOUNT_PRESETS.pro,
+    local: LOCAL_COMPUTER,
     computers: COMPUTERS_PRO,
-    unaddedComputers: UNADDED_COMPUTERS,
-    localDevices: DEVICES_PRO,
+    unaddedComputers: ACCOUNT_UNADDED_COMPUTERS,
+    localDevices: ACCOUNT_DEVICES,
     localPendingApprovals: [],
     currentDeviceIsAdmin: true,
     currentDeviceName: "MacBook Pro",
@@ -55,7 +55,7 @@ function makeView(overrides: Record<string, unknown> = {}) {
     setAddDialogOpen: vi.fn(),
     addComputer: {
       sshSuggestions: [],
-      unaddedComputers: UNADDED_COMPUTERS,
+      unaddedComputers: ACCOUNT_UNADDED_COMPUTERS,
       controller: {
         method: "ssh",
         setMethod: vi.fn(),

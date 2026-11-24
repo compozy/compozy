@@ -220,19 +220,15 @@ export async function answerComputerSetup(
   setupId: string,
   body: ComputerSetupAnswerRequest,
   signal?: AbortSignal
-): Promise<ComputerSetupStatusPayload> {
-  const { data, error, response } = await apiClient.POST(
-    "/api/computers/setups/{setup_id}/answer",
-    {
-      params: { path: { setup_id: setupId } },
-      body,
-      signal,
-    }
-  );
+): Promise<void> {
+  const { error, response } = await apiClient.POST("/api/computers/setups/{setup_id}/answer", {
+    params: { path: { setup_id: setupId } },
+    body,
+    signal,
+  });
   if (apiRequestFailed(response, error)) {
     throwComputersError("Failed to answer SSH setup prompt", response, error);
   }
-  return requireResponseData(data, response, "Failed to answer SSH setup prompt");
 }
 
 export async function cancelComputerSetup(

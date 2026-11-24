@@ -1,6 +1,6 @@
 import { HttpResponse, http, type HttpHandler } from "msw";
 
-import { accountHandlers } from "@/systems/account/mocks/handlers";
+import { handlers as accountHandlers } from "@/systems/account/mocks/handlers";
 import { handlers as agentHandlers } from "@/systems/agent/mocks";
 import { handlers as automationHandlers } from "@/systems/automation/mocks";
 import { computersHandlers } from "@/systems/computers/mocks/handlers";

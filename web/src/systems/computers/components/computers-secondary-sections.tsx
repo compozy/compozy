@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Pencil, Plus, Sparkles, Trash2 } from "@compozy/ui/icons";
 
 import {
@@ -133,15 +133,14 @@ export function RemoveComputerDialog({
   onClose,
   onConfirm,
 }: RemoveComputerDialogProps) {
-  const [unlink, setUnlink] = useState(isFreePlan);
-  const [uninstall, setUninstall] = useState(false);
-
-  useEffect(() => {
-    setUnlink(isFreePlan);
-    setUninstall(false);
-  }, [computer?.id, isFreePlan]);
+  const [draft, setDraft] = useState<{ id: string; unlink: boolean; uninstall: boolean } | null>(
+    null
+  );
 
   if (!computer) return null;
+
+  const unlink = draft && draft.id === computer.id ? draft.unlink : isFreePlan;
+  const uninstall = draft && draft.id === computer.id ? draft.uninstall : false;
 
   return (
     <ConfirmDialog
@@ -155,7 +154,9 @@ export function RemoveComputerDialog({
               checked={unlink}
               className="mt-0.5"
               id="remove-computer-unlink"
-              onCheckedChange={next => setUnlink(Boolean(next))}
+              onCheckedChange={next =>
+                setDraft({ id: computer.id, unlink: Boolean(next), uninstall })
+              }
             />
             <span className="flex flex-col gap-0.5">
               <span className="text-small-body font-medium text-fg">
@@ -178,7 +179,9 @@ export function RemoveComputerDialog({
                 checked={uninstall}
                 className="mt-0.5"
                 id="remove-computer-uninstall"
-                onCheckedChange={next => setUninstall(Boolean(next))}
+                onCheckedChange={next =>
+                  setDraft({ id: computer.id, unlink, uninstall: Boolean(next) })
+                }
               />
               <span className="flex flex-col gap-0.5">
                 <span className="text-small-body font-medium text-fg">
@@ -224,14 +227,11 @@ export function RenameComputerDialog({
   onClose,
   onConfirm,
 }: RenameComputerDialogProps) {
-  const [name, setName] = useState(computer?.name ?? "");
-
-  useEffect(() => {
-    setName(computer?.name ?? "");
-  }, [computer?.id, computer?.name]);
+  const [draft, setDraft] = useState<{ id: string; name: string } | null>(null);
 
   if (!computer) return null;
 
+  const name = draft && draft.id === computer.id ? draft.name : computer.name;
   const trimmed = name.trim();
   const canSave = trimmed.length > 0 && trimmed !== computer.name && !isPending;
 
@@ -266,7 +266,7 @@ export function RenameComputerDialog({
               <Input
                 autoFocus
                 id="rename-computer-name"
-                onChange={event => setName(event.target.value)}
+                onChange={event => setDraft({ id: computer.id, name: event.target.value })}
                 placeholder={computer.name}
                 value={name}
               />

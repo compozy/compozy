@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "@compozy/ui";
@@ -90,8 +90,6 @@ export function useComputersSettingsPage() {
   const [localRunAgentsOverride, setLocalRunAgentsOverride] = useState<boolean | null>(null);
   const [updateSetupId, setUpdateSetupId] = useState<string | null>(null);
   const [updateStatus, setUpdateStatus] = useState<ComputerSetupStatusPayload | null>(null);
-  const updateSetupIdRef = useRef<string | null>(null);
-  updateSetupIdRef.current = updateSetupId;
 
   const cloudUnreachable =
     isAccountCloudUnreachableError(accountQuery.error) ||
@@ -125,13 +123,15 @@ export function useComputersSettingsPage() {
     localRunAgentsOverride,
   ]);
 
-  const unaddedComputers = useMemo<AccountUnaddedComputerFixture[]>(
-    () =>
-      (availableQuery.data?.computers ?? [])
-        .filter(item => !item.added)
-        .map(toAvailableComputerView),
-    [availableQuery.data?.computers]
-  );
+  const unaddedComputers = useMemo<AccountUnaddedComputerFixture[]>(() => {
+    const items: AccountUnaddedComputerFixture[] = [];
+    for (const item of availableQuery.data?.computers ?? []) {
+      if (!item.added) {
+        items.push(toAvailableComputerView(item));
+      }
+    }
+    return items;
+  }, [availableQuery.data?.computers]);
 
   const selectedComputer = useMemo(
     () => computers.find(item => item.id === selectedComputerId) ?? null,
@@ -164,7 +164,7 @@ export function useComputersSettingsPage() {
     if (!updateSetupId) return;
     return openComputersStream({
       onComputerSetup: change => {
-        if (change.setup_id !== updateSetupIdRef.current) return;
+        if (change.setup_id !== updateSetupId) return;
         setUpdateStatus(prev => ({
           setup_id: updateSetupId,
           computer_id: change.computer_id ?? prev?.computer_id ?? null,
@@ -261,7 +261,7 @@ export function useComputersSettingsPage() {
       const set = new Set<RemoteScope>(computer.scopes);
       if (next) set.add(scope);
       else set.delete(scope);
-      void patchAccountDevice(currentDeviceId, { scopes: [...set] })
+      void patchAccountDevice(currentDeviceId, { scopes: { [computer.id]: [...set] } })
         .then(() => {
           void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
           toast.message(
