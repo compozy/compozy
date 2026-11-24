@@ -29,6 +29,7 @@ type RemoteRoutes struct{ router *gin.Engine }
 
 func NewRemoteRoutes(register func(*RemoteRoutes)) http.Handler {
 	router := gin.New()
+	router.UseRawPath = true // A target workspace path can contain escaped slashes in one route segment.
 	router.NoRoute(func(c *gin.Context) { core.RespondRemoteError(c, remotehost.ErrRouteNotRemote) })
 	register(&RemoteRoutes{router})
 	return router

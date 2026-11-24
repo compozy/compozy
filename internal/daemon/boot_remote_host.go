@@ -66,10 +66,16 @@ func remoteOperatorRoutes(deps *RuntimeDeps) http.Handler {
 	}
 	handlers := core.NewBaseHandlers(config)
 	return httpapi.NewRemoteRoutes(func(routes *httpapi.RemoteRoutes) {
+		workspaces := routes.Group("/api/workspaces", remoteproto.ScopeSessions)
+		workspaces.GET("/:workspace_id", handlers.GetWorkspace)
+		profiles := routes.Group("/api/profiles", remoteproto.ScopeSessions)
+		profiles.GET("", handlers.ListProfiles)
+		profiles.GET("/selection", handlers.GetProfileSelections)
 		remoteSessions := routes.Group("/api/sessions", remoteproto.ScopeSessions)
 		remoteSessions.GET("", handlers.ListSessions)
 		remoteSessions.POST("", handlers.CreateSession)
 		remoteSessions.GET("/:session_id", handlers.GetSessionByID)
+		remoteSessions.GET("/:session_id/history", handlers.SessionHistory)
 		remoteSessions.GET("/:session_id/stream", handlers.StreamSession)
 		remoteSessions.GET("/:session_id/status", handlers.GetSessionStatus)
 		remoteSessions.GET("/:session_id/transcript", handlers.SessionTranscript)
@@ -78,6 +84,8 @@ func remoteOperatorRoutes(deps *RuntimeDeps) http.Handler {
 			remoteproto.ScopeSessions,
 			handlers.WorkspaceReferenceGuard,
 		)
+		sessions.GET("/:session_id/history", handlers.SessionHistory)
+		sessions.GET("/:session_id/status", handlers.GetSessionStatus)
 		sessions.PATCH("/:session_id", handlers.RenameSession)
 		sessions.POST("/:session_id/prompt", func(c *gin.Context) {
 			if dispatch, ok := handlers.DispatchSessionPrompt(c); ok {

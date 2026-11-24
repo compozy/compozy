@@ -8,8 +8,10 @@ Sign in on the controller, then add a Linux or macOS host you can reach with Ope
 ```sh
 compozy computer add ssh devbox
 compozy computer status devbox --json
-compozy session list --computer devbox --json
+compozy session new --computer devbox --workspace '/home/pedro/code/api' --agent general
 ```
+
+Use a workspace ID or an absolute path registered on the target computer.
 
 CompozyOS uses your SSH aliases, keys, agent, and jump hosts. The controller reserves an account slot and verifies the release before contacting the target. Confirm its host-key fingerprint when prompted, or provide a fingerprint you verified separately with `--trust-host-fingerprint`. For password or one-time code prompts, use the app or run `compozy computer setup answer <setup_id>` from a terminal.
 
