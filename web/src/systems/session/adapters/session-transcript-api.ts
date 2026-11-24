@@ -1,4 +1,11 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import {
+  apiClient,
+  apiClientFor,
+  apiRequestFailed,
+  computerApiPath,
+  requireResponseData,
+  type ComputerId,
+} from "@/lib/api-client";
 
 import { normalizeTranscriptEntries } from "../lib/message-schemas";
 import type { NormalizedSessionTranscriptResponse, SessionTranscriptQuery } from "../types";
@@ -15,7 +22,8 @@ export interface SessionStreamCursor {
 export function buildSessionStreamUrl(
   workspaceId: string,
   id: string,
-  cursor: SessionStreamCursor = {}
+  cursor: SessionStreamCursor = {},
+  computerId?: ComputerId
 ): string {
   const path = `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/stream`;
   const params = new URLSearchParams({ frames: "transcript" });
@@ -31,22 +39,24 @@ export function buildSessionStreamUrl(
   if (cursor.limit !== undefined) {
     params.set("limit", String(cursor.limit));
   }
-  return `${path}?${params.toString()}`;
+  return computerApiPath(computerId, `${path}?${params.toString()}`);
 }
 
 export async function fetchSessionTranscript(
   workspaceId: string,
   id: string,
   query: SessionTranscriptQuery = {},
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<NormalizedSessionTranscriptResponse> {
+  const client = apiClientFor(computerId);
   const { data, error, response } =
     workspaceId === ""
-      ? await apiClient.GET("/api/sessions/{session_id}/transcript", {
+      ? await client.GET("/api/sessions/{session_id}/transcript", {
           params: { path: { session_id: id }, query: { ...query, all_profiles: true } },
           signal,
         })
-      : await apiClient.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", {
+      : await client.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", {
           params: {
             path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
             query: Object.keys(query).length > 0 ? query : undefined,

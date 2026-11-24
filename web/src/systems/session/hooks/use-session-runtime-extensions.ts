@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSelector } from "@xstate/store-react";
 
 import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { derivePendingClarifyRequestIds } from "../lib/clarify-event";
 import {
   deriveDecidedPermissionRequestIds,
@@ -42,6 +43,7 @@ export function useSessionRuntimeExtensions({
   workspaceId: string;
 }) {
   const aui = useAui();
+  const computerId = useCurrentComputerId();
   const hasLocalRuntimeTail = useSelector(
     promptDispatch,
     snapshot => snapshot.context.hasLocalRuntimeTail
@@ -68,7 +70,7 @@ export function useSessionRuntimeExtensions({
   });
   const controlPolling = liveTailEnabled && promptPending;
   const session = useQuery({
-    ...sessionDetailOptions(workspaceId, sessionId),
+    ...sessionDetailOptions(workspaceId, sessionId, computerId),
     enabled: liveTailEnabled && !liveTailSuppressed,
     ...(controlPolling ? { refetchInterval: PROMPT_POST_CONTROL_POLL_MS } : {}),
   });
