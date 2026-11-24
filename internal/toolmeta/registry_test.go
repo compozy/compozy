@@ -248,6 +248,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__provider_models_list":          expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
 		"compozy__provider_models_refresh":       expectedNativeEntry("Refreshing", " ", false, "🤖", "auto"),
 		"compozy__provider_models_status":        expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
+		"compozy__remote_status":                 expectedNativeEntry("Reading", " ", false, "🖥️", "auto"),
 		"compozy__resources_info":                expectedNativeEntry("Reading", " ", false, "📚", "auto"),
 		"compozy__resources_list":                expectedNativeEntry("Reading", " ", false, "📚", "auto"),
 		"compozy__resources_snapshot":            expectedNativeEntry("Reading", " ", false, "📚", "auto"),

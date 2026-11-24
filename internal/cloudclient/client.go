@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"context"
 	"crypto"
+	"crypto/ed25519"
 	"encoding/json/v2"
 	"errors"
 	"io"
@@ -129,6 +130,7 @@ func (c *Client) json(
 
 func (c *Client) open(
 	ctx context.Context, method, path string, input any, token string, key crypto.Signer, bindToken bool, accept string,
+	computerKey ...ed25519.PrivateKey,
 ) (*http.Response, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -140,8 +142,10 @@ func (c *Client) open(
 		return nil, backoff
 	}
 	var body io.Reader
+	var payload []byte
 	if input != nil {
-		payload, err := json.Marshal(input)
+		var err error
+		payload, err = json.Marshal(input)
 		if err != nil {
 			return nil, err
 		}
@@ -167,6 +171,13 @@ func (c *Client) open(
 		}
 		req.Header.Set("DPoP", proof)
 		req.Header.Set("Authorization", "DPoP "+token)
+	}
+	if len(computerKey) > 0 && len(computerKey[0]) > 0 {
+		proof, err := remoteproto.SignComputerProof(computerKey[0], method, target, payload, c.now())
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set(remoteproto.ComputerProofHeader, proof)
 	}
 	// #nosec G704 -- the configured cloud origin is fixed before constructing typed paths.
 	response, err := c.http.Do(req)

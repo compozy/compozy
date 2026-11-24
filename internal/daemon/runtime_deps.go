@@ -74,6 +74,7 @@ type RuntimeDeps struct {
 	AgentDefinitionSync   core.AgentDefinitionSync
 	ModelCatalog          core.ModelCatalogService
 	Account               core.AccountService
+	Remote                core.RemoteHostService
 	ProviderUsage         core.ProviderUsageService
 	MarketplaceCatalog    core.MarketplaceCatalogService
 	AgentContext          *situation.Service

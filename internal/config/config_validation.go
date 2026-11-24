@@ -89,7 +89,7 @@ func (c *Config) validateCore() error {
 			return err
 		}
 	}
-	return nil
+	return c.Remote.Validate()
 }
 
 func (c *Config) validateProviders() error {

@@ -15,6 +15,7 @@ func buildOperationRegistry() []OperationSpec {
 		registryFilesystemOperations(),
 		registryGatewayOperations(),
 		accountOperations(),
+		remoteHostOperations(),
 		registryExtensionOperations(),
 		registryHookOperations(),
 		registryAgentRuntimeOperations(),

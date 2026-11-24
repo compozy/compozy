@@ -2,7 +2,86 @@
 
 package client
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+// SessionDeriveResponse is a daemon API value.
+type SessionDeriveResponse struct {
+	Session *SessionPayload       `json:"session,omitzero"`
+	Derived SessionDerivedPayload `json:"derived"`
+}
+
+// SessionDerivedPayload is a daemon API value.
+type SessionDerivedPayload struct {
+	Kind                 string `json:"kind"`
+	SourceSessionID      string `json:"source_session_id"`
+	OriginAgentName      string `json:"origin_agent_name"`
+	OriginMessageID      string `json:"origin_message_id,omitempty"`
+	ThroughTurnID        string `json:"through_turn_id"`
+	Seed                 string `json:"seed"`
+	NativeState          string `json:"native_state,omitempty"`
+	ACPSessionID         string `json:"acp_session_id,omitempty"`
+	NativeForkError      string `json:"native_fork_error,omitempty"`
+	ReplayMessageCount   *int   `json:"replay_message_count,omitzero"`
+	ReplayBytes          *int   `json:"replay_bytes,omitzero"`
+	Truncated            bool   `json:"truncated"`
+	OmittedCount         int    `json:"omitted_count"`
+	SourceTurnInProgress bool   `json:"source_turn_in_progress"`
+	FirstPrompt          string `json:"first_prompt"`
+	Replayed             bool   `json:"replayed"`
+	ChildDeleted         bool   `json:"child_deleted,omitzero"`
+	ChildSessionID       string `json:"child_session_id"`
+}
+
+// SessionEnvBindingPayload is a daemon API value.
+type SessionEnvBindingPayload struct {
+	Ref      string `json:"ref"`
+	Required bool   `json:"required"`
+}
+
+// SessionEventPayload is a daemon API value.
+type SessionEventPayload struct {
+	Origin               *PromptOriginMeta        `json:"origin,omitzero"`
+	ID                   string                   `json:"id"`
+	SessionID            string                   `json:"session_id"`
+	Sequence             int64                    `json:"sequence"`
+	TurnID               string                   `json:"turn_id"`
+	Type                 string                   `json:"type"`
+	AgentName            string                   `json:"agent_name"`
+	WorkspaceID          string                   `json:"workspace_id,omitempty"`
+	WorkspacePath        string                   `json:"workspace_path,omitempty"`
+	WorktreeID           string                   `json:"worktree_id,omitempty"`
+	TaskID               string                   `json:"task_id,omitempty"`
+	RunID                string                   `json:"run_id,omitempty"`
+	Generation           int64                    `json:"generation,omitzero"`
+	WorkflowID           string                   `json:"workflow_id,omitempty"`
+	ClaimTokenHash       string                   `json:"claim_token_hash,omitempty"`
+	LeaseUntil           *time.Time               `json:"lease_until,omitempty"`
+	CoordinatorSessionID string                   `json:"coordinator_session_id,omitempty"`
+	SchedulerReason      string                   `json:"scheduler_reason,omitempty"`
+	HookEvent            string                   `json:"hook_event,omitempty"`
+	HookName             string                   `json:"hook_name,omitempty"`
+	ActorKind            string                   `json:"actor_kind,omitempty"`
+	ActorID              string                   `json:"actor_id,omitempty"`
+	ReleaseReason        string                   `json:"release_reason,omitempty"`
+	ParentSessionID      string                   `json:"parent_session_id,omitempty"`
+	RootSessionID        string                   `json:"root_session_id,omitempty"`
+	SpawnDepth           int                      `json:"spawn_depth"`
+	Content              json.RawMessage          `json:"content"`
+	Goal                 *GoalPromptMeta          `json:"goal,omitzero"`
+	StopReason           StopReason               `json:"stop_reason,omitempty"`
+	StopDetail           string                   `json:"stop_detail,omitempty"`
+	Failure              *SessionFailurePayload   `json:"failure,omitzero"`
+	ProviderError        *ProviderErrorDiagnostic `json:"provider_error,omitzero"`
+	Timestamp            time.Time                `json:"timestamp"`
+}
+
+// SessionEventsResponse is a daemon API value.
+type SessionEventsResponse struct {
+	Events []SessionEventPayload `json:"events"`
+}
 
 // SessionFailureHealthPayload is a daemon API value.
 type SessionFailureHealthPayload struct {
@@ -366,34 +445,4 @@ type SessionMonitorPayload struct {
 	TargetSessionIDs []string                      `json:"target_session_ids,omitempty"`
 	States           []string                      `json:"states,omitempty"`
 	Targets          []SessionMonitorTargetPayload `json:"targets,omitempty"`
-}
-
-// SessionMonitorResponse is a daemon API value.
-type SessionMonitorResponse struct {
-	Monitor SessionMonitorPayload `json:"monitor"`
-}
-
-// SessionMonitorSummaryPayload is a daemon API value.
-type SessionMonitorSummaryPayload struct {
-	Active int `json:"active"`
-}
-
-// SessionMonitorTargetPayload is a daemon API value.
-type SessionMonitorTargetPayload struct {
-	SessionID string `json:"session_id"`
-	Name      string `json:"name,omitempty"`
-	State     string `json:"state"`
-	Matched   bool   `json:"matched"`
-}
-
-// SessionMonitorsResponse is a daemon API value.
-type SessionMonitorsResponse struct {
-	Monitors []SessionMonitorPayload `json:"monitors"`
-}
-
-// SessionOwner is a daemon API value.
-type SessionOwner struct {
-	SessionID     string `json:"session_id"`
-	WorkspaceID   string `json:"workspace_id"`
-	WorkspaceName string `json:"workspace_name"`
 }

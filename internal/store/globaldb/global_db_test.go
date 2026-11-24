@@ -680,6 +680,58 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	t.Run(
+		"Should preserve each device's latest connection when upgrading the remote host database",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := globalMigrationTestContext(t)
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00221_schema.sql"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, seedErr := prior.ExecContext(ctx, `INSERT INTO remote_sessions
+			(id, credential_sha256, device_id, device_jkt, scopes, route, browser, created_at, expires_at)
+			VALUES ('old', X'01', 'dev_one', 'key-one', '[]', 'ssh', 0, 100, 400),
+		       ('new', X'02', 'dev_one', 'key-one', '[]', 'ssh', 0, 200, 500),
+		       ('other', X'03', 'dev_two', 'key-two', '[]', 'ssh', 0, 150, 450)`)
+			if seedErr != nil {
+				t.Fatal(errors.Join(seedErr, prior.Close()))
+			}
+			target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+			if err != nil {
+				t.Fatal(errors.Join(err, prior.Close()))
+			}
+			bindErr := bindTelemetryDestination(ctx, prior, target.DB())
+			if err := errors.Join(bindErr, target.Close(ctx), prior.Close()); err != nil {
+				t.Fatal(err)
+			}
+
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := upgraded.Close(context.WithoutCancel(ctx)); err != nil {
+					t.Error(err)
+				}
+			})
+			connections, err := upgraded.RemoteDeviceConnections(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(connections) != 2 || !connections["dev_one"].Equal(time.Unix(0, 200)) ||
+				!connections["dev_two"].Equal(time.Unix(0, 150)) {
+				t.Fatalf("migrated device connections = %v", connections)
+			}
+			status, err := store.Status(ctx, upgraded.db, MigrationStream())
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteMigrationStream(t, status, MigrationStream())
+		},
+	)
+
 	t.Run("Should assign a stable installation identity and preserve pre-account data", func(t *testing.T) {
 		t.Parallel()
 		ctx := globalMigrationTestContext(t)

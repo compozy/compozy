@@ -40,6 +40,10 @@ func ApplyConfigOverlayFile(path string, dst *Config) error {
 }
 
 func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) error {
+	if roleSource != RoleFieldSourceGlobal {
+		// Listener and device policy belong to the installation's operator.
+		overlay.Remote = remoteOverlay{}
+	}
 	if roleSource == RoleFieldSourceWorkspace || roleSource == RoleFieldSourceWorkspaceProfile {
 		overlay.Tools.Policy.restrictTo(dst.Tools.Policy)
 	}

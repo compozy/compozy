@@ -408,6 +408,18 @@ type AppTokensResponse struct {
 	AppTokens []AppTokenPayload `json:"app_tokens"`
 }
 
+// Approval is a daemon API value.
+type Approval struct {
+	ID        string     `json:"id"`
+	DeviceID  DeviceID   `json:"device_id"`
+	JKT       string     `json:"jkt"`
+	Name      string     `json:"name"`
+	State     string     `json:"state"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	DecidedAt *time.Time `json:"decided_at"`
+}
+
 // ApprovalDelivery is a daemon API value.
 type ApprovalDelivery struct {
 	ApprovalID string `json:"approval_id"`
@@ -433,13 +445,4 @@ type ApprovalPolicy string
 type ApprovalResult struct {
 	ID     string `json:"id"`
 	Result string `json:"result"`
-}
-
-// ApprovalState is a daemon API value.
-type ApprovalState string
-
-// ApproveLoopRunRequest is a daemon API value.
-type ApproveLoopRunRequest struct {
-	GateID   string           `json:"gate_id"`
-	Decision LoopGateDecision `json:"decision"`
 }

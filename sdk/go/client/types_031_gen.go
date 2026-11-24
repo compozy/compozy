@@ -7,6 +7,51 @@ import (
 	"time"
 )
 
+// UpdateSettingsAttentionPayload is a daemon API value.
+type UpdateSettingsAttentionPayload struct {
+	Toasts          bool      `json:"toasts"`
+	Sound           bool      `json:"sound"`
+	System          bool      `json:"system"`
+	MutedWorkspaces *[]string `json:"muted_workspaces,omitzero"`
+}
+
+// UpdateSettingsAttentionRequest is a daemon API value.
+type UpdateSettingsAttentionRequest struct {
+	Config UpdateSettingsAttentionPayload `json:"config"`
+}
+
+// UpdateSettingsAutomationRequest is a daemon API value.
+type UpdateSettingsAutomationRequest struct {
+	Config SettingsAutomationConfigPayload `json:"config"`
+}
+
+// UpdateSettingsCmdPaletteRequest is a daemon API value.
+type UpdateSettingsCmdPaletteRequest struct {
+	FallbackAgentEnabled *bool              `json:"fallback_agent_enabled,omitzero"`
+	Personalization      *bool              `json:"personalization,omitzero"`
+	Aliases              *map[string]string `json:"aliases,omitzero"`
+}
+
+// UpdateSettingsGeneralRequest is a daemon API value.
+type UpdateSettingsGeneralRequest struct {
+	Config SettingsGeneralConfigPayload `json:"config"`
+}
+
+// UpdateSettingsHooksExtensionsRequest is a daemon API value.
+type UpdateSettingsHooksExtensionsRequest struct {
+	Config SettingsExtensionsConfigPayload `json:"config"`
+}
+
+// UpdateSettingsMarketplaceRequest is a daemon API value.
+type UpdateSettingsMarketplaceRequest struct {
+	Config SettingsMarketplaceCatalogPayload `json:"config"`
+}
+
+// UpdateSettingsObservabilityRequest is a daemon API value.
+type UpdateSettingsObservabilityRequest struct {
+	Config SettingsObservabilityConfigPayload `json:"config"`
+}
+
 // UpdateSettingsPersonaRequest is a daemon API value.
 type UpdateSettingsPersonaRequest struct {
 	Config SettingsDefaultsPayload `json:"config"`
@@ -400,43 +445,3 @@ type WindowManagerResult struct {
 // WindowManagerRevision is a daemon API value.
 // WindowManagerRevision preserves its custom JSON wire representation.
 type WindowManagerRevision = json.RawMessage
-
-// WindowManagerSnapshot is a daemon API value.
-type WindowManagerSnapshot struct {
-	Version          uint32                         `json:"version"`
-	WorkspaceID      WindowmanagerWorkspaceID       `json:"workspace_id"`
-	Revision         WindowManagerRevision          `json:"revision"`
-	Desktops         []WindowManagerDesktop         `json:"desktops"`
-	Windows          map[string]WindowManagerWindow `json:"windows"`
-	Migration        *MigrationStatus               `json:"migration,omitzero"`
-	ClosedEntryCount int                            `json:"closed_entry_count"`
-	Overrides        WorkspaceConfig                `json:"overrides"`
-	UpdatedAt        time.Time                      `json:"updated_at"`
-}
-
-// WindowManagerTab is a daemon API value.
-type WindowManagerTab struct {
-	ID     TabID                   `json:"id"`
-	Pinned bool                    `json:"pinned"`
-	Root   WindowManagerLayoutNode `json:"root"`
-}
-
-// WindowManagerWindow is a daemon API value.
-type WindowManagerWindow struct {
-	ID          WindowID      `json:"id"`
-	App         string        `json:"app"`
-	InstanceKey *string       `json:"instance_key,omitzero"`
-	Route       RouteIntent   `json:"route"`
-	NavStack    []RouteIntent `json:"nav_stack"`
-	DesktopID   DesktopID     `json:"desktop_id"`
-	TabID       TabID         `json:"tab_id"`
-}
-
-// WindowmanagerClientID is a daemon API value.
-type WindowmanagerClientID string
-
-// WindowmanagerNodeID is a daemon API value.
-type WindowmanagerNodeID string
-
-// WindowmanagerWorkspaceID is a daemon API value.
-type WindowmanagerWorkspaceID string

@@ -4,6 +4,46 @@ package client
 
 import "time"
 
+// WindowManagerSnapshot is a daemon API value.
+type WindowManagerSnapshot struct {
+	Version          uint32                         `json:"version"`
+	WorkspaceID      WindowmanagerWorkspaceID       `json:"workspace_id"`
+	Revision         WindowManagerRevision          `json:"revision"`
+	Desktops         []WindowManagerDesktop         `json:"desktops"`
+	Windows          map[string]WindowManagerWindow `json:"windows"`
+	Migration        *MigrationStatus               `json:"migration,omitzero"`
+	ClosedEntryCount int                            `json:"closed_entry_count"`
+	Overrides        WorkspaceConfig                `json:"overrides"`
+	UpdatedAt        time.Time                      `json:"updated_at"`
+}
+
+// WindowManagerTab is a daemon API value.
+type WindowManagerTab struct {
+	ID     TabID                   `json:"id"`
+	Pinned bool                    `json:"pinned"`
+	Root   WindowManagerLayoutNode `json:"root"`
+}
+
+// WindowManagerWindow is a daemon API value.
+type WindowManagerWindow struct {
+	ID          WindowID      `json:"id"`
+	App         string        `json:"app"`
+	InstanceKey *string       `json:"instance_key,omitzero"`
+	Route       RouteIntent   `json:"route"`
+	NavStack    []RouteIntent `json:"nav_stack"`
+	DesktopID   DesktopID     `json:"desktop_id"`
+	TabID       TabID         `json:"tab_id"`
+}
+
+// WindowmanagerClientID is a daemon API value.
+type WindowmanagerClientID string
+
+// WindowmanagerNodeID is a daemon API value.
+type WindowmanagerNodeID string
+
+// WindowmanagerWorkspaceID is a daemon API value.
+type WindowmanagerWorkspaceID string
+
 // WorkCandidate is a daemon API value.
 type WorkCandidate struct {
 	Repository     string `json:"repository"`

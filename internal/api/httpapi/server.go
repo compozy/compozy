@@ -89,6 +89,7 @@ type Server struct {
 	contextWindowResolver core.ContextWindowResolver
 	modelCatalog          core.ModelCatalogService
 	account               core.AccountService
+	remote                core.RemoteHostService
 	providerUsage         core.ProviderUsageService
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService

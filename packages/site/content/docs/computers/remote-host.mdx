@@ -1,0 +1,28 @@
+---
+title: Remote access to this computer
+description: Link this computer, check reachability, and manage the devices that can connect.
+---
+
+Run `compozy remote link` on the computer you want to reach. If the computer needs to sign in, open the activation page and enter the code printed by the command. After you finish sign-in, the computer joins your account and opens its remote listener.
+
+```sh
+compozy remote status --json
+compozy remote devices list
+compozy remote devices scopes dev_5k1p9z --set sessions:operate,files:read
+```
+
+Use `compozy remote disable` to close the listeners and free the remote computer slot while keeping the account link. `compozy remote enable` reopens remote access. To remove the computer from the account directory, sign in to that account and run `compozy remote unlink`.
+
+## Listeners
+
+The SSH forward targets the loopback listener at `127.0.0.1:47823` by default. To also accept connections on your local network or tailnet, set `remote.direct.enabled = true`. You can restrict it to individual addresses in `remote.direct.addresses`. The computer verifies device grants and proof of possession inside the encrypted tunnel on both routes.
+
+Local HTTP and UDS share the same `/api/remote` routes for status, link settings, and devices. `compozy__remote_status` gives agents the same status that the CLI prints as JSON.
+
+## Device approvals and revocation
+
+The device list shows devices that opened a session or requested approval on this computer. The last seen time reflects the most recent session opened here.
+
+Set `remote.require_device_approval = true` to approve new device keys on this computer. Run `compozy remote devices list --json` to see pending requests and their key fingerprints. Use `compozy remote devices approve <device>` or `compozy remote devices deny <device>`. Add `--approval-id` to select a key if the device has multiple pending requests.
+
+You can narrow a device's scopes on this computer or revoke the device across the account. Revocation and scope narrowing end affected remote streams. If the computer loses contact with Compozy Cloud, it can honor a valid lease for up to fifteen minutes.

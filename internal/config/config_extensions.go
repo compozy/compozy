@@ -87,6 +87,7 @@ type Config struct {
 	Task          TaskConfig                `toml:"task"`
 	Hooks         HooksConfig               `toml:"hooks"`
 	Gateway       GatewayConfig             `toml:"gateway"`
+	Remote        RemoteConfig              `toml:"remote"`
 	Autonomy      AutonomyConfig            `toml:"autonomy"`
 	Worktrees     WorktreesConfig           `toml:"worktrees"`
 	Client        ClientConfig              `toml:"client"`

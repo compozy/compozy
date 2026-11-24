@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// ExtensionsResponse is a daemon API value.
+type ExtensionsResponse struct {
+	Extensions []ExtensionPayload `json:"extensions"`
+}
+
+// FSBrowseResponse is a daemon API value.
+type FSBrowseResponse struct {
+	Path    string           `json:"path"`
+	Parent  string           `json:"parent,omitempty"`
+	Home    string           `json:"home,omitempty"`
+	Roots   []string         `json:"roots"`
+	Entries []FSEntryPayload `json:"entries"`
+}
+
 // FSEntryPayload is a daemon API value.
 type FSEntryPayload struct {
 	Name  string `json:"name"`
@@ -427,24 +441,4 @@ type GatewayRemovedDevicePayload struct {
 	Device   GatewayDevicePayload `json:"device"`
 	Revoked  bool                 `json:"revoked"`
 	Canceled int                  `json:"canceled"`
-}
-
-// GatewayRevokePayload is a daemon API value.
-type GatewayRevokePayload struct {
-	Device   GatewayDevicePayload `json:"device"`
-	Changed  bool                 `json:"changed"`
-	Canceled int                  `json:"canceled"`
-}
-
-// GatewayStatusPayload is a daemon API value.
-type GatewayStatusPayload struct {
-	Enabled   bool                     `json:"enabled"`
-	Changed   bool                     `json:"changed"`
-	Tiers     []GatewayTierPayload     `json:"tiers"`
-	Surfaces  []GatewaySurfacePayload  `json:"surfaces"`
-	Providers []GatewayProviderPayload `json:"providers"`
-	Addresses []GatewayAddressPayload  `json:"addresses"`
-	Devices   []GatewayDevicePayload   `json:"devices"`
-	Bindings  []GatewayIngressPayload  `json:"bindings"`
-	Refusal   *GatewayRefusalPayload   `json:"refusal,omitzero"`
 }

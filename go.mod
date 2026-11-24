@@ -16,6 +16,7 @@ require (
 	github.com/charmbracelet/x/vt v0.1.0
 	github.com/charmbracelet/x/xpty v0.1.4
 	github.com/coder/acp-go-sdk v0.13.5
+	github.com/coder/websocket v1.8.15
 	github.com/compozy/compozy-web-assets v0.0.840
 	github.com/compozy/compozy/sdk/go v0.4.8
 	github.com/creativeprojects/go-selfupdate v1.7.0
@@ -28,6 +29,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/jsonschema-go v0.4.3
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
+	github.com/hashicorp/yamux v0.1.2
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/joho/godotenv v1.5.1
 	github.com/jonboulle/clockwork v0.5.0
@@ -104,7 +106,6 @@ require (
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudwego/base64x v0.1.7 // indirect
-	github.com/coder/websocket v1.8.15 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/creachadair/msync v0.10.1 // indirect

@@ -1120,6 +1120,17 @@ export type AppTokensResponse = {
   app_tokens: Array<AppTokenPayload>;
 };
 
+export type Approval = {
+  created_at: string;
+  decided_at: string | null;
+  device_id: string;
+  expires_at: string;
+  id: string;
+  jkt: string;
+  name: string;
+  state: string;
+};
+
 export type ApprovalDelivery = {
   approval_id: string;
   state: string;
@@ -2317,6 +2328,11 @@ export type DiagnosticItem = {
   title: string;
 };
 
+export type DirectStatus = {
+  addresses?: Array<string>;
+  enabled: boolean;
+};
+
 export type DiscoveredWorktreePayload = {
   branch: string;
   detached: boolean;
@@ -2448,6 +2464,11 @@ export type EmptyState = {
 export type EnqueueTaskRunRequest = {
   idempotency_key?: string;
   metadata?: unknown;
+};
+
+export type EntitlementStatus = {
+  plan: string;
+  valid_until: string;
 };
 
 export type Entry = {
@@ -4301,6 +4322,12 @@ export type HookRunPayload = {
 
 export type HookRunsResponse = {
   runs: Array<HookRunPayload>;
+};
+
+export type HostedStatus = {
+  enabled: boolean;
+  hostname: string | null;
+  state: string;
 };
 
 export type Image = {
@@ -6759,6 +6786,59 @@ export type Reference = {
 export type ReloadExtensionRequest = {
   confirm_gateway_digest?: string;
   generation_hash: string;
+};
+
+export type RemoteDevicePatchRequest = {
+  approval_id?: string;
+  approved?: boolean | null;
+  scopes?: Array<string> | null;
+};
+
+export type RemoteDeviceResponse = {
+  admin: boolean;
+  approvals?: Array<Approval>;
+  id: string;
+  last_seen_at: string | null;
+  name: string;
+  pending_approval: boolean;
+  scopes: Array<string>;
+};
+
+export type RemoteDevicesResponse = {
+  devices: Array<RemoteDeviceResponse>;
+};
+
+export type RemoteLinkRequest = {
+  link_token?: string;
+};
+
+export type RemoteLinkResponse = {
+  attempt_id?: string;
+  computer_id?: string;
+  enabled?: boolean;
+  expires_at?: string;
+  name?: string;
+  user_code?: string;
+  verification_uri?: string;
+  verification_uri_complete?: string;
+};
+
+export type RemotePatchRequest = {
+  cloud_route?: boolean | null;
+  direct?: boolean | null;
+  enabled?: boolean | null;
+  require_device_approval?: boolean | null;
+};
+
+export type RemoteStatusResponse = {
+  cloud_route: HostedStatus;
+  computer_id: string;
+  control_link: string;
+  direct: DirectStatus;
+  enabled: boolean;
+  entitlement: EntitlementStatus | null;
+  listener: string;
+  require_device_approval: boolean;
 };
 
 export type RemoveDiscoveredWorktreeRequest = {
@@ -26372,6 +26452,400 @@ export type ProbeProviderAuthResponses = {
 
 export type ProbeProviderAuthResponse =
   ProbeProviderAuthResponses[keyof ProbeProviderAuthResponses];
+
+export type GetRemoteStatusData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/remote";
+};
+
+export type GetRemoteStatusErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetRemoteStatusError = GetRemoteStatusErrors[keyof GetRemoteStatusErrors];
+
+export type GetRemoteStatusResponses = {
+  /**
+   * Remote access status
+   */
+  200: RemoteStatusResponse;
+};
+
+export type GetRemoteStatusResponse = GetRemoteStatusResponses[keyof GetRemoteStatusResponses];
+
+export type PatchRemoteStatusData = {
+  /**
+   * JSON request body
+   */
+  body: RemotePatchRequest;
+  path?: never;
+  query?: never;
+  url: "/api/remote";
+};
+
+export type PatchRemoteStatusErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PatchRemoteStatusError = PatchRemoteStatusErrors[keyof PatchRemoteStatusErrors];
+
+export type PatchRemoteStatusResponses = {
+  /**
+   * Updated remote access
+   */
+  200: RemoteStatusResponse;
+};
+
+export type PatchRemoteStatusResponse =
+  PatchRemoteStatusResponses[keyof PatchRemoteStatusResponses];
+
+export type ListRemoteDevicesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/remote/devices";
+};
+
+export type ListRemoteDevicesErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListRemoteDevicesError = ListRemoteDevicesErrors[keyof ListRemoteDevicesErrors];
+
+export type ListRemoteDevicesResponses = {
+  /**
+   * Remote devices and pending approvals
+   */
+  200: RemoteDevicesResponse;
+};
+
+export type ListRemoteDevicesResponse =
+  ListRemoteDevicesResponses[keyof ListRemoteDevicesResponses];
+
+export type RevokeRemoteDeviceData = {
+  body?: never;
+  path: {
+    /**
+     * Device ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/remote/devices/{id}";
+};
+
+export type RevokeRemoteDeviceErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RevokeRemoteDeviceError = RevokeRemoteDeviceErrors[keyof RevokeRemoteDeviceErrors];
+
+export type RevokeRemoteDeviceResponses = {
+  /**
+   * Device revoked
+   */
+  204: void;
+};
+
+export type RevokeRemoteDeviceResponse =
+  RevokeRemoteDeviceResponses[keyof RevokeRemoteDeviceResponses];
+
+export type PatchRemoteDeviceData = {
+  /**
+   * JSON request body
+   */
+  body: RemoteDevicePatchRequest;
+  path: {
+    /**
+     * Device ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/remote/devices/{id}";
+};
+
+export type PatchRemoteDeviceErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PatchRemoteDeviceError = PatchRemoteDeviceErrors[keyof PatchRemoteDeviceErrors];
+
+export type PatchRemoteDeviceResponses = {
+  /**
+   * Updated device
+   */
+  200: RemoteDeviceResponse;
+};
+
+export type PatchRemoteDeviceResponse =
+  PatchRemoteDeviceResponses[keyof PatchRemoteDeviceResponses];
+
+export type UnlinkRemoteData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/remote/link";
+};
+
+export type UnlinkRemoteErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type UnlinkRemoteError = UnlinkRemoteErrors[keyof UnlinkRemoteErrors];
+
+export type UnlinkRemoteResponses = {
+  /**
+   * Computer unlinked
+   */
+  204: void;
+};
+
+export type UnlinkRemoteResponse = UnlinkRemoteResponses[keyof UnlinkRemoteResponses];
+
+export type LinkRemoteData = {
+  /**
+   * JSON request body
+   */
+  body: RemoteLinkRequest;
+  path?: never;
+  query?: never;
+  url: "/api/remote/link";
+};
+
+export type LinkRemoteErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type LinkRemoteError = LinkRemoteErrors[keyof LinkRemoteErrors];
+
+export type LinkRemoteResponses = {
+  /**
+   * Computer link or device activation
+   */
+  200: RemoteLinkResponse;
+};
+
+export type LinkRemoteResponse = LinkRemoteResponses[keyof LinkRemoteResponses];
 
 export type ListResourcesData = {
   body?: never;

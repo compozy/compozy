@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"encoding/json/v2"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -49,6 +50,23 @@ func VerifyApprovalDecision(token string, now time.Time) (ApprovalDecision, stri
 		return ApprovalDecision{}, "", ErrApprovalSignature
 	}
 	return decision, jkt, nil
+}
+
+// ApprovalDecisionID extracts an unverified ID for correlating a refusal.
+func ApprovalDecisionID(token string) string {
+	if len(token) > maxProofSize {
+		return ""
+	}
+	jws, err := parseCompact(token)
+	if err != nil {
+		return ""
+	}
+	var decision ApprovalDecision
+	if json.Unmarshal(jws.body, &decision) != nil || !strings.HasPrefix(decision.ApprovalID, "apr_") ||
+		len(decision.ApprovalID) <= len("apr_") || len(decision.ApprovalID) > 128 {
+		return ""
+	}
+	return decision.ApprovalID
 }
 
 func (d ApprovalDecision) validAt(now time.Time) bool {

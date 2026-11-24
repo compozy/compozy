@@ -40,6 +40,7 @@ type configOverlay struct {
 	Task          taskOverlay                `toml:"task"`
 	Hooks         hooksOverlay               `toml:"hooks"`
 	Gateway       *gatewayOverlay            `toml:"gateway"`
+	Remote        remoteOverlay              `toml:"remote"`
 	Autonomy      autonomyOverlay            `toml:"autonomy"`
 	Worktrees     worktreesOverlay           `toml:"worktrees"`
 }
@@ -101,6 +102,7 @@ func (o *configOverlay) Apply(dst *Config) error {
 	if o.Gateway != nil {
 		o.Gateway.Apply(&dst.Gateway)
 	}
+	o.Remote.Apply(&dst.Remote)
 	o.Autonomy.Apply(&dst.Autonomy)
 	o.Worktrees.Apply(&dst.Worktrees)
 	return o.Hooks.Apply(&dst.Hooks)

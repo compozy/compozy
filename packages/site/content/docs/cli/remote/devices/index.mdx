@@ -1,0 +1,43 @@
+---
+title: "compozy remote devices"
+description: "Manage devices allowed on this computer"
+---
+
+## compozy remote devices
+
+Manage devices allowed on this computer
+
+### Options
+
+```
+  -h, --help   help for devices
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                            | Description                               |
+| ------------------------------------------------------------------ | ----------------------------------------- |
+| [compozy remote devices approve](/docs/cli/remote/devices/approve) | Decide a pending device approval          |
+| [compozy remote devices deny](/docs/cli/remote/devices/deny)       | Decide a pending device approval          |
+| [compozy remote devices list](/docs/cli/remote/devices/list)       | List devices and local approvals          |
+| [compozy remote devices revoke](/docs/cli/remote/devices/revoke)   | Revoke a device on your account           |
+| [compozy remote devices scopes](/docs/cli/remote/devices/scopes)   | Set this device's scopes on this computer |

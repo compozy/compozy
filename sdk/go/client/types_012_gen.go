@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// LoopInputOrigin is a daemon API value.
+type LoopInputOrigin string
+
+// LoopInputRef is a daemon API value.
+type LoopInputRef struct {
+	Kind InputRefKind `json:"kind"`
+}
+
 // LoopInputValidationErrorPayload is a daemon API value.
 type LoopInputValidationErrorPayload struct {
 	Loop   string `json:"loop"`
@@ -436,14 +444,3 @@ type LoopRuntimeRule struct {
 // LoopRuntimeSpec is a daemon API value.
 // LoopRuntimeSpec preserves its custom JSON wire representation.
 type LoopRuntimeSpec = json.RawMessage
-
-// LoopRuntimeValidationItemPayload is a daemon API value.
-type LoopRuntimeValidationItemPayload struct {
-	TaskID string `json:"task_id,omitempty"`
-	Field  string `json:"field"`
-	Value  string `json:"value"`
-	Reason string `json:"reason"`
-}
-
-// LoopSource is a daemon API value.
-type LoopSource string

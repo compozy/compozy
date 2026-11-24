@@ -1633,6 +1633,64 @@ type ProfileSelection struct {
 	UpdatedAt   string `json:"updated_at"`
 }
 
+type RemoteApprovalReplay struct {
+	Jti       string `json:"jti"`
+	ExpiresAt int64  `json:"expires_at"`
+}
+
+type RemoteDeviceApproval struct {
+	ID          string        `json:"id"`
+	DeviceID    string        `json:"device_id"`
+	Jkt         string        `json:"jkt"`
+	Name        string        `json:"name"`
+	State       string        `json:"state"`
+	CreatedAt   int64         `json:"created_at"`
+	ExpiresAt   int64         `json:"expires_at"`
+	DecidedAt   sql.NullInt64 `json:"decided_at"`
+	DecisionJti string        `json:"decision_jti"`
+}
+
+type RemoteDeviceConnection struct {
+	DeviceID   string `json:"device_id"`
+	LastSeenAt int64  `json:"last_seen_at"`
+}
+
+type RemoteGrantReplay struct {
+	Jti       string `json:"jti"`
+	ExpiresAt int64  `json:"expires_at"`
+}
+
+type RemoteIdentity struct {
+	ID              int64  `json:"id"`
+	ComputerID      string `json:"computer_id"`
+	AccountID       string `json:"account_id"`
+	ComputerKeyRef  string `json:"computer_key_ref"`
+	TlsRootRef      string `json:"tls_root_ref"`
+	TlsRootSha256   string `json:"tls_root_sha256"`
+	TlsLeafNotAfter string `json:"tls_leaf_not_after"`
+	LinkedAt        string `json:"linked_at"`
+}
+
+type RemoteSecurityState struct {
+	ID           int64  `json:"id"`
+	AppliedEpoch int64  `json:"applied_epoch"`
+	DevicesJson  string `json:"devices_json"`
+	AppliedAt    int64  `json:"applied_at"`
+}
+
+type RemoteSession struct {
+	ID               string        `json:"id"`
+	CredentialSha256 []byte        `json:"credential_sha256"`
+	DeviceID         string        `json:"device_id"`
+	DeviceJkt        string        `json:"device_jkt"`
+	Scopes           string        `json:"scopes"`
+	Route            string        `json:"route"`
+	Browser          int64         `json:"browser"`
+	CreatedAt        int64         `json:"created_at"`
+	ExpiresAt        int64         `json:"expires_at"`
+	RevokedAt        sql.NullInt64 `json:"revoked_at"`
+}
+
 type ResourceRecord struct {
 	Kind       string         `json:"kind"`
 	ID         string         `json:"id"`

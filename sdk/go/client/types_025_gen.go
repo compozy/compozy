@@ -4,6 +4,23 @@ package client
 
 import "time"
 
+// SettingsUpdateOperationPayload is a daemon API value.
+type SettingsUpdateOperationPayload struct {
+	ID           string                       `json:"id"`
+	Revision     int64                        `json:"revision"`
+	Targets      []SettingsUpdateTarget       `json:"targets"`
+	ActiveTarget *SettingsUpdateTarget        `json:"active_target,omitzero"`
+	Phase        SettingsUpdatePhase          `json:"phase"`
+	Percent      int                          `json:"percent"`
+	Holder       *SettingsUpdateHolderPayload `json:"holder"`
+	Waiting      SettingsUpdateWaitingState   `json:"waiting"`
+	StartedAt    time.Time                    `json:"started_at"`
+	LastError    string                       `json:"last_error"`
+}
+
+// SettingsUpdatePhase is a daemon API value.
+type SettingsUpdatePhase string
+
 // SettingsUpdateResponse is a daemon API value.
 type SettingsUpdateResponse struct {
 	Aggregate SettingsUpdateStatusKind        `json:"aggregate"`
@@ -425,26 +442,3 @@ type SpawnPromptPayload struct {
 	ReplyWatchState string `json:"reply_watch_state,omitempty"`
 	Error           string `json:"error,omitempty"`
 }
-
-// SpawnWorktreePayload is a daemon API value.
-type SpawnWorktreePayload struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Branch  string `json:"branch"`
-	Path    string `json:"path"`
-	BaseSHA string `json:"base_sha,omitempty"`
-	Created bool   `json:"created"`
-}
-
-// Speed is a daemon API value.
-type Speed string
-
-// StartBinding is a daemon API value.
-type StartBinding struct {
-	Kind         StartKind         `json:"kind"`
-	Inputs       map[string]any    `json:"inputs,omitempty"`
-	InputMapping map[string]string `json:"input_mapping,omitempty"`
-}
-
-// StartKind is a daemon API value.
-type StartKind string

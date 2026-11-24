@@ -193,6 +193,8 @@ func Boundaries() error {
 		{"internal/remotehost", "internal/daemon"},
 		{"internal/remotehost", "internal/api"},
 		{"internal/remotehost", "internal/cli"},
+		{"internal/remotehost", "internal/store/globaldb"},
+		{"internal/cloudclient", "internal/remotehost"},
 		{"internal/computers", "internal/remotehost"},
 		{"internal/remotehost", "internal/computers"},
 	}

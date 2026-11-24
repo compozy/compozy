@@ -29,6 +29,7 @@ func (d *Daemon) bootAccount(ctx context.Context, state *bootState, cleanup *boo
 		return fmt.Errorf("daemon: open installation account: %w", err)
 	}
 	state.runtimeWorkers.account = service
+	state.runtimeWorkers.cloud = cloud
 	cleanup.add(func(context.Context) error { service.Close(); return nil })
 	return nil
 }

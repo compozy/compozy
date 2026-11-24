@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// GatewayRevokePayload is a daemon API value.
+type GatewayRevokePayload struct {
+	Device   GatewayDevicePayload `json:"device"`
+	Changed  bool                 `json:"changed"`
+	Canceled int                  `json:"canceled"`
+}
+
+// GatewayStatusPayload is a daemon API value.
+type GatewayStatusPayload struct {
+	Enabled   bool                     `json:"enabled"`
+	Changed   bool                     `json:"changed"`
+	Tiers     []GatewayTierPayload     `json:"tiers"`
+	Surfaces  []GatewaySurfacePayload  `json:"surfaces"`
+	Providers []GatewayProviderPayload `json:"providers"`
+	Addresses []GatewayAddressPayload  `json:"addresses"`
+	Devices   []GatewayDevicePayload   `json:"devices"`
+	Bindings  []GatewayIngressPayload  `json:"bindings"`
+	Refusal   *GatewayRefusalPayload   `json:"refusal,omitzero"`
+}
+
 // GatewayStreamTicketPayload is a daemon API value.
 type GatewayStreamTicketPayload struct {
 	Ticket    string    `json:"ticket"`
@@ -427,16 +447,4 @@ type HeartbeatRollbackByPathRequest struct {
 	TargetDigest   string `json:"target_digest,omitempty"`
 	ExpectedDigest string `json:"expected_digest"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-// HeartbeatScriptApprovalPayload is a daemon API value.
-type HeartbeatScriptApprovalPayload struct {
-	Script     string    `json:"script"`
-	SHA256     string    `json:"sha256"`
-	ApprovedAt time.Time `json:"approved_at"`
-}
-
-// HeartbeatScriptApprovalRequest is a daemon API value.
-type HeartbeatScriptApprovalRequest struct {
-	SHA256 string `json:"sha256"`
 }

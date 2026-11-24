@@ -118,6 +118,16 @@ func (c *Client) GetProviderUsage(ctx context.Context, params GetProviderUsagePa
 	return &out, nil
 }
 
+// GetRemoteStatus Read this computer's remote access status
+func (c *Client) GetRemoteStatus(ctx context.Context) (*RemoteStatusResponse, error) {
+	path := "/api/remote"
+	var out RemoteStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetResourceParams carries the path, query, and header parameters.
 type GetResourceParams struct {
 	Kind string `url:"kind"`
@@ -430,12 +440,4 @@ func (c *Client) GetSessionChanges(ctx context.Context, params GetSessionChanges
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetSessionCommandsParams carries the path, query, and header parameters.
-type GetSessionCommandsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

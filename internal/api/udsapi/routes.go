@@ -14,6 +14,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 
 	registerAppSDKRoutes(api, handlers)
 	registerAccountRoutes(api, handlers)
+	registerRemoteHostRoutes(api, handlers)
 	registerStatusRoutes(api, handlers)
 	registerOnboardingRoutes(api, handlers)
 	registerFilesystemRoutes(api, handlers)

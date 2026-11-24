@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// LoopBudget is a daemon API value.
+type LoopBudget struct {
+	Tokens       int                `json:"tokens"`
+	WallClockSec int                `json:"wall_clock_sec"`
+	OnExceeded   LoopBudgetExceeded `json:"on_exceeded,omitempty"`
+}
+
+// LoopBudgetExceeded is a daemon API value.
+type LoopBudgetExceeded string
+
 // LoopCatalogAggregateEntryPayload is a daemon API value.
 type LoopCatalogAggregateEntryPayload struct {
 	WorkspaceID   string                      `json:"workspace_id,omitempty"`
@@ -437,11 +447,3 @@ type LoopInputDefaultsResponse struct {
 
 // LoopInputDefaultsScope is a daemon API value.
 type LoopInputDefaultsScope string
-
-// LoopInputOrigin is a daemon API value.
-type LoopInputOrigin string
-
-// LoopInputRef is a daemon API value.
-type LoopInputRef struct {
-	Kind InputRefKind `json:"kind"`
-}

@@ -9,6 +9,27 @@ import (
 	"strings"
 )
 
+// ListLogsParams carries the path, query, and header parameters.
+type ListLogsParams struct {
+	WorkspaceID *string `url:"workspace_id"`
+	SessionID   *string `url:"session_id"`
+	AgentName   *string `url:"agent_name"`
+	Type        *string `url:"type"`
+	Run         *string `url:"run"`
+	Actor       *string `url:"actor"`
+	ActorKind   *string `url:"actor_kind"`
+	ActorID     *string `url:"actor_id"`
+	Provider    *string `url:"provider"`
+	Outcome     *string `url:"outcome"`
+	Component   *string `url:"component"`
+	ErrorOnly   *bool   `url:"error_only"`
+	AfterSeq    *int    `url:"after_seq"`
+	Since       *string `url:"since"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ListLogs List runtime logs
 func (c *Client) ListLogs(ctx context.Context, params ListLogsParams) (*LogsListResponse, error) {
 	path := "/api/logs"

@@ -97,6 +97,16 @@ func (c *Client) InvokeTool(ctx context.Context, params InvokeToolParams, body T
 	return &out, nil
 }
 
+// LinkRemote Link this computer to the account
+func (c *Client) LinkRemote(ctx context.Context, body RemoteLinkRequest) (*RemoteLinkResponse, error) {
+	path := "/api/remote/link"
+	var out RemoteLinkResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListAccountApprovals List pending and recently decided approvals
 func (c *Client) ListAccountApprovals(ctx context.Context) (*AccountApprovalsResponse, error) {
 	path := "/api/account/approvals"
@@ -414,37 +424,4 @@ type ListAgentSoulHistoryParams struct {
 	Limit       *int    `url:"limit"`
 	Cursor      *string `url:"cursor"`
 	Profile     *string `url:"profile"`
-}
-
-// ListAgentSoulHistory List managed SOUL.md authoring revisions
-func (c *Client) ListAgentSoulHistory(ctx context.Context, params ListAgentSoulHistoryParams) (*AgentSoulHistoryResponse, error) {
-	path := "/api/agents/{name}/soul/history"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSoulHistoryResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentsParams carries the path, query, and header parameters.
-type ListAgentsParams struct {
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
 }

@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// DuplicateAgentRequest is a daemon API value.
+type DuplicateAgentRequest struct {
+	Kind      string                   `json:"kind,omitempty"`
+	Name      string                   `json:"name"`
+	Scope     AgentCreateScope         `json:"scope,omitempty"`
+	Workspace string                   `json:"workspace,omitempty"`
+	Overrides *DuplicateAgentOverrides `json:"overrides,omitzero"`
+}
+
 // Edge is a daemon API value.
 type Edge struct {
 	From NodeID `json:"from"`
@@ -56,6 +65,12 @@ type EmptyState struct {
 type EnqueueTaskRunRequest struct {
 	IdempotencyKey string          `json:"idempotency_key,omitempty"`
 	Metadata       json.RawMessage `json:"metadata,omitempty"`
+}
+
+// EntitlementStatus is a daemon API value.
+type EntitlementStatus struct {
+	ValidUntil time.Time `json:"valid_until"`
+	Plan       string    `json:"plan"`
 }
 
 // Entry is a daemon API value.
@@ -428,18 +443,4 @@ type ExtensionUpdateBatchResponse struct {
 // ExtensionUpdateResponse is a daemon API value.
 type ExtensionUpdateResponse struct {
 	Update ManagedExtensionUpdatePayload `json:"update"`
-}
-
-// ExtensionsResponse is a daemon API value.
-type ExtensionsResponse struct {
-	Extensions []ExtensionPayload `json:"extensions"`
-}
-
-// FSBrowseResponse is a daemon API value.
-type FSBrowseResponse struct {
-	Path    string           `json:"path"`
-	Parent  string           `json:"parent,omitempty"`
-	Home    string           `json:"home,omitempty"`
-	Roots   []string         `json:"roots"`
-	Entries []FSEntryPayload `json:"entries"`
 }

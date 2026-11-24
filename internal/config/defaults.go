@@ -90,6 +90,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Goals:   DefaultGoalsConfig(),
 		Task:    DefaultTaskConfig(),
 		Gateway: defaultGatewayConfig(homePaths),
+		Remote:  DefaultRemoteConfig(),
 		Autonomy: AutonomyConfig{
 			BlockRecurrenceLimit: DefaultBlockRecurrenceLimit,
 			Scheduler:            DefaultSchedulerConfig(),

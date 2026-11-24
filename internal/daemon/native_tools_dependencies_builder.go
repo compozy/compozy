@@ -58,6 +58,7 @@ func (d *Daemon) nativeToolsDeps(
 			return state.deps.Ingress
 		},
 		GatewayPermissionMode: nativeGatewayPermissionModeSource(state.sessions),
+		Remote:                state.deps.Remote,
 		HomePaths:             d.homePaths,
 		Observer:              state.observer,
 		HookBindings:          state.hookBindings,

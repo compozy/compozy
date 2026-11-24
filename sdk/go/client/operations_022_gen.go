@@ -338,6 +338,16 @@ func (c *Client) ListProviders(ctx context.Context) (*ProviderListResponse, erro
 	return &out, nil
 }
 
+// ListRemoteDevices List devices allowed on this computer
+func (c *Client) ListRemoteDevices(ctx context.Context) (*RemoteDevicesResponse, error) {
+	path := "/api/remote/devices"
+	var out RemoteDevicesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListRemovedBuiltinExtensions List permanently removed built-in extensions
 func (c *Client) ListRemovedBuiltinExtensions(ctx context.Context) (*ExtensionRemovedBuiltinsResponse, error) {
 	path := "/api/extensions/removed-builtins"
@@ -408,40 +418,4 @@ type ListResourcesByKindParams struct {
 	SourceKind *string `url:"source_kind"`
 	SourceID   *string `url:"source_id"`
 	Limit      *int    `url:"limit"`
-}
-
-// ListResourcesByKind List one desired-state resource kind on the local operator control plane
-func (c *Client) ListResourcesByKind(ctx context.Context, params ListResourcesByKindParams) (*ResourcesResponse, error) {
-	path := "/api/resources/{kind}"
-	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
-	query := url.Values{}
-	if params.ScopeKind != nil {
-		query.Set("scope_kind", *params.ScopeKind)
-	}
-	if params.ScopeID != nil {
-		query.Set("scope_id", *params.ScopeID)
-	}
-	if params.OwnerKind != nil {
-		query.Set("owner_kind", *params.OwnerKind)
-	}
-	if params.OwnerID != nil {
-		query.Set("owner_id", *params.OwnerID)
-	}
-	if params.SourceKind != nil {
-		query.Set("source_kind", *params.SourceKind)
-	}
-	if params.SourceID != nil {
-		query.Set("source_id", *params.SourceID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ResourcesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

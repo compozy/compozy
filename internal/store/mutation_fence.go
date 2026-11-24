@@ -6,6 +6,14 @@ import "context"
 type MutationCommitFence func(context.Context) error
 
 type mutationCommitFenceContextKey struct{}
+type mutationCommitGuardContextKey struct{}
+
+// MutationCommitGuard serializes the last authorization check with the durable commit.
+type MutationCommitGuard func(context.Context) (release func(), err error)
+
+func ContextWithMutationCommitGuard(ctx context.Context, guard MutationCommitGuard) context.Context {
+	return context.WithValue(ctx, mutationCommitGuardContextKey{}, guard)
+}
 
 // ContextWithMutationCommitFence carries a commit-time authorization check through service layers.
 func ContextWithMutationCommitFence(ctx context.Context, fence MutationCommitFence) context.Context {

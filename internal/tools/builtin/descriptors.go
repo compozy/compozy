@@ -58,6 +58,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		providerUsageDescriptors(),
 		observeDescriptors(),
 		gatewayDescriptors(),
+		remoteHostDescriptors(),
 		taskDescriptors(),
 		autonomyDescriptors(),
 		configDescriptors(),

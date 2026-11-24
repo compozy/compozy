@@ -4,6 +4,33 @@ package client
 
 import "time"
 
+// SessionTranscriptFences is a daemon API value.
+type SessionTranscriptFences struct {
+	Epoch       int64 `json:"epoch"`
+	Generation  int64 `json:"generation"`
+	MaxSequence int64 `json:"max_sequence"`
+}
+
+// SessionTranscriptResponse is a daemon API value.
+type SessionTranscriptResponse struct {
+	Entries            []Entry `json:"entries"`
+	Epoch              int64   `json:"epoch"`
+	Generation         int64   `json:"generation"`
+	MaxSequence        int64   `json:"max_sequence"`
+	HasOlder           bool    `json:"has_older"`
+	NextBeforeSequence int64   `json:"next_before_sequence,omitzero"`
+	Limit              int     `json:"limit"`
+}
+
+// SessionTurnInjectedPayload is a daemon API value.
+type SessionTurnInjectedPayload struct {
+	Estimate string                      `json:"estimate"`
+	Tokens   int64                       `json:"tokens"`
+	Sequence int64                       `json:"sequence"`
+	SentAt   time.Time                   `json:"sent_at"`
+	Spans    []SessionContextSpanPayload `json:"spans"`
+}
+
 // SessionUsageChangedPayload is a daemon API value.
 type SessionUsageChangedPayload struct {
 	Sequence int64  `json:"sequence"`
@@ -419,25 +446,4 @@ type SettingsHookItemPayload struct {
 	Name           string                         `json:"name"`
 	Declaration    SettingsHookDeclarationPayload `json:"declaration"`
 	SourceMetadata SettingsSourceMetadataPayload  `json:"source_metadata"`
-}
-
-// SettingsHooksExtensionsResponse is a daemon API value.
-type SettingsHooksExtensionsResponse struct {
-	Section         SettingsSectionName                 `json:"section"`
-	Scope           SettingsUserScopeKind               `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind             `json:"available_scopes"`
-	Hooks           []SettingsHookItemPayload           `json:"hooks,omitempty"`
-	Config          SettingsExtensionsConfigPayload     `json:"config"`
-	Installed       []SettingsInstalledExtensionPayload `json:"installed,omitempty"`
-	TransportParity SettingsTransportParityPayload      `json:"transport_parity"`
-}
-
-// SettingsHooksResponse is a daemon API value.
-type SettingsHooksResponse struct {
-	Collection      SettingsCollectionName     `json:"collection"`
-	Scope           SettingsLayeredScopeKind   `json:"scope"`
-	WorkspaceID     string                     `json:"workspace_id,omitempty"`
-	Profile         string                     `json:"profile,omitempty"`
-	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
-	Hooks           []SettingsHookItemPayload  `json:"hooks"`
 }
