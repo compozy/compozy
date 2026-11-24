@@ -240,7 +240,7 @@ describe("computer-view enrichments", () => {
     expect(suggestion.alreadyAdded).toBe(true);
 
     const local = toLocalComputerView(
-      { run_agents: true },
+      { run_agents: true, load_balancing: false, load_balancing_weight: 50 },
       {
         name: "MacBook Pro",
         remote: {

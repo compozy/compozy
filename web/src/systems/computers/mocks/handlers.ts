@@ -9,7 +9,7 @@ import type {
 } from "../types";
 
 export const DEFAULT_COMPUTERS_LIST: ComputerListResponse = {
-  local: { run_agents: true },
+  local: { run_agents: true, load_balancing: false, load_balancing_weight: 50 },
   computers: [
     {
       id: "cmp_devbox",
