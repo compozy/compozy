@@ -5,6 +5,7 @@ package api_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,6 +28,7 @@ import (
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 const operatorTaskAgent = "s9b-task-worker"
@@ -72,11 +74,11 @@ func TestDaemonComputerOperatorTasks(t *testing.T) {
 		inlineSession := bridge.createSession(workspace)
 		bridge.assertProjectParity(workspace, inlineSession)
 		bridge.assertToolInvoke(workspace, inlineSession)
-		bridge.prompt(workspace, inlineSession, "Claim and heartbeat inline")
+		bridge.prompt(workspace, inlineSession, "s9b-claim-inline", "Claim and heartbeat inline")
 		bridge.assertNativeCompletion(workspace, inlineRun, inlineSession, false)
 
 		bootstrapSession := bridge.createSession(workspace)
-		bridge.prompt(workspace, bootstrapSession, "Claim with handoff")
+		bridge.prompt(workspace, bootstrapSession, "s9b-claim-handoff", "Claim with handoff")
 		bridge.assertNativeCompletion(workspace, handoffRun, bootstrapSession, true)
 
 		claim := "/api/agent/tasks/claim-next"
@@ -149,13 +151,21 @@ func (b operatorBridge) assertProjectParity(workspace, session string) {
 		testutil.Eventually(t, origin.name+" worktree is ready", 8*time.Second, func() bool {
 			reply := b.host.uds(t, http.MethodGet, path, nil)
 			return reply.StatusCode == http.StatusOK &&
-				authJSON[contract.WorktreeInspectionResponse](t, reply).Worktree.State == "ready"
+				authJSON[contract.WorktreeInspectionResponse](t, reply).Worktree.State == string(worktree.StateReady)
 		})
-		b.assertReadParity(path, id)
+		before := authJSON[contract.WorktreeInspectionResponse](t, b.assertReadParity(path, id)).Worktree
+		if _, err := os.Stat(before.Path); err != nil {
+			t.Fatalf("%s worktree checkout before removal: %v", origin.name, err)
+		}
 		removed := origin.request(http.MethodDelete, path+"?force=true", nil)
 		removed.expect(t, http.StatusNoContent, "")
-		b.host.uds(t, http.MethodGet, path, nil).expect(t, http.StatusNotFound, "")
-		b.request(http.MethodGet, path, nil).expect(t, http.StatusNotFound, "")
+		after := authJSON[contract.WorktreeInspectionResponse](t, b.assertReadParity(path, id)).Worktree
+		if after.State != string(worktree.StateRemoved) {
+			t.Fatalf("%s worktree state after removal = %q, want removed", origin.name, after.State)
+		}
+		if _, err := os.Stat(before.Path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("%s worktree checkout remains after removal: stat error = %v", origin.name, err)
+		}
 	}
 }
 
@@ -221,12 +231,12 @@ func (b operatorBridge) createSession(workspace string) string {
 	return authJSON[contract.SessionResponse](t, reply).Session.ID
 }
 
-func (b operatorBridge) prompt(workspace, session, message string) {
+func (b operatorBridge) prompt(workspace, session, key, message string) {
 	t := b.t
 	t.Helper()
 	req := fixturePrompt(message)
-	req.IdempotencyKey = message
-	req.MessageID = ""
+	req.IdempotencyKey = "k_" + key
+	req.MessageID = "m_" + key
 	path := "/api/workspaces/" + workspace + "/sessions/" + session + "/prompt"
 	b.request(http.MethodPost, path, req).expect(t, http.StatusOK, "finish")
 }
@@ -247,7 +257,7 @@ func (b operatorBridge) assertNativeCompletion(workspace, runID, claimer string,
 		t.Fatalf("lease owner of run %q = %q; claimant %q, expected handoff %t", runID, run.SessionID, claimer, handoff)
 	}
 	owner := run.SessionID
-	b.prompt(workspace, owner, "Complete "+runID)
+	b.prompt(workspace, owner, "s9b-complete-"+runID, "Complete "+runID)
 	reply := b.request(http.MethodGet, path, nil)
 	reply.expect(t, http.StatusOK, "s9b-completed")
 	completed := authJSON[contract.TaskRunResponse](t, reply).Run
@@ -257,7 +267,7 @@ func (b operatorBridge) assertNativeCompletion(workspace, runID, claimer string,
 	}
 }
 
-func (b operatorBridge) assertReadParity(path, want string) {
+func (b operatorBridge) assertReadParity(path, want string) authReply {
 	t := b.t
 	t.Helper()
 	local := b.host.uds(t, http.MethodGet, path, nil)
@@ -267,6 +277,7 @@ func (b operatorBridge) assertReadParity(path, want string) {
 	if !bytes.Equal(local.body, remote.body) {
 		t.Fatalf("bridged read %s differs from the same target record over UDS", path)
 	}
+	return remote
 }
 
 func (b operatorBridge) assertToolInvoke(workspace, session string) {
