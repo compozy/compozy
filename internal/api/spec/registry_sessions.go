@@ -242,7 +242,6 @@ func sendSessionPromptOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
-			queryParam("format", "Use result to return the admission result without streaming turn events", false),
 		},
 		RequestBody: contract.SendPromptRequest{},
 		Responses: []ResponseSpec{
