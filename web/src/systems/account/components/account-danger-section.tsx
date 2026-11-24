@@ -69,6 +69,8 @@ export function AccountDeleteSection({
 export interface AccountSignOutDialogProps {
   open: boolean;
   installationLinked: boolean;
+  isPending?: boolean;
+  error?: string | null;
   onClose: () => void;
   onConfirm: () => void;
 }
@@ -80,6 +82,8 @@ export interface AccountSignOutDialogProps {
 export function AccountSignOutDialog({
   open,
   installationLinked,
+  isPending = false,
+  error = null,
   onClose,
   onConfirm,
 }: AccountSignOutDialogProps) {
@@ -90,7 +94,9 @@ export function AccountSignOutDialog({
       cancelLabel="Cancel"
       confirmLabel="Sign out"
       description="CompozyOS needs you to sign in again before you can use it on this computer. Running agents finish their current work."
+      error={error}
       icon={Unplug}
+      isPending={isPending}
       note={installationLinked ? "This also unlinks this computer from remote access." : undefined}
       noteTone="warning"
       onConfirm={onConfirm}

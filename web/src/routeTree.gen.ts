@@ -40,9 +40,11 @@ import { Route as AppMarketplaceEntryIdRouteImport } from './routes/_app/marketp
 import { Route as AppMarketplaceInstalledRouteImport } from './routes/_app/marketplace.installed'
 import { Route as AppSessionIdRouteImport } from './routes/_app/session.$id'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
+import { Route as AppSettingsAccountRouteImport } from './routes/_app/settings/account'
 import { Route as AppSettingsAppearanceRouteImport } from './routes/_app/settings/appearance'
 import { Route as AppSettingsAttentionRouteImport } from './routes/_app/settings/attention'
 import { Route as AppSettingsAutomationRouteImport } from './routes/_app/settings/automation'
+import { Route as AppSettingsComputersRouteImport } from './routes/_app/settings/computers'
 import { Route as AppSettingsDefaultsRouteImport } from './routes/_app/settings/defaults'
 import { Route as AppSettingsExtensionsRouteImport } from './routes/_app/settings/extensions'
 import { Route as AppSettingsGatewayRouteImport } from './routes/_app/settings/gateway'
@@ -233,6 +235,11 @@ const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsAccountRoute = AppSettingsAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppSettingsAppearanceRoute = AppSettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
@@ -246,6 +253,11 @@ const AppSettingsAttentionRoute = AppSettingsAttentionRouteImport.update({
 const AppSettingsAutomationRoute = AppSettingsAutomationRouteImport.update({
   id: '/automation',
   path: '/automation',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsComputersRoute = AppSettingsComputersRouteImport.update({
+  id: '/computers',
+  path: '/computers',
   getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppSettingsDefaultsRoute = AppSettingsDefaultsRouteImport.update({
@@ -455,9 +467,11 @@ export interface FileRoutesByFullPath {
   '/marketplace/$entryId': typeof AppMarketplaceEntryIdRoute
   '/marketplace/installed': typeof AppMarketplaceInstalledRoute
   '/session/$id': typeof AppSessionIdRoute
+  '/settings/account': typeof AppSettingsAccountRoute
   '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/attention': typeof AppSettingsAttentionRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
+  '/settings/computers': typeof AppSettingsComputersRoute
   '/settings/defaults': typeof AppSettingsDefaultsRoute
   '/settings/extensions': typeof AppSettingsExtensionsRoute
   '/settings/gateway': typeof AppSettingsGatewayRoute
@@ -519,9 +533,11 @@ export interface FileRoutesByTo {
   '/marketplace/$entryId': typeof AppMarketplaceEntryIdRoute
   '/marketplace/installed': typeof AppMarketplaceInstalledRoute
   '/session/$id': typeof AppSessionIdRoute
+  '/settings/account': typeof AppSettingsAccountRoute
   '/settings/appearance': typeof AppSettingsAppearanceRoute
   '/settings/attention': typeof AppSettingsAttentionRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
+  '/settings/computers': typeof AppSettingsComputersRoute
   '/settings/defaults': typeof AppSettingsDefaultsRoute
   '/settings/extensions': typeof AppSettingsExtensionsRoute
   '/settings/gateway': typeof AppSettingsGatewayRoute
@@ -591,9 +607,11 @@ export interface FileRoutesById {
   '/_app/marketplace/$entryId': typeof AppMarketplaceEntryIdRoute
   '/_app/marketplace/installed': typeof AppMarketplaceInstalledRoute
   '/_app/session/$id': typeof AppSessionIdRoute
+  '/_app/settings/account': typeof AppSettingsAccountRoute
   '/_app/settings/appearance': typeof AppSettingsAppearanceRoute
   '/_app/settings/attention': typeof AppSettingsAttentionRoute
   '/_app/settings/automation': typeof AppSettingsAutomationRoute
+  '/_app/settings/computers': typeof AppSettingsComputersRoute
   '/_app/settings/defaults': typeof AppSettingsDefaultsRoute
   '/_app/settings/extensions': typeof AppSettingsExtensionsRoute
   '/_app/settings/gateway': typeof AppSettingsGatewayRoute
@@ -663,9 +681,11 @@ export interface FileRouteTypes {
     | '/marketplace/$entryId'
     | '/marketplace/installed'
     | '/session/$id'
+    | '/settings/account'
     | '/settings/appearance'
     | '/settings/attention'
     | '/settings/automation'
+    | '/settings/computers'
     | '/settings/defaults'
     | '/settings/extensions'
     | '/settings/gateway'
@@ -727,9 +747,11 @@ export interface FileRouteTypes {
     | '/marketplace/$entryId'
     | '/marketplace/installed'
     | '/session/$id'
+    | '/settings/account'
     | '/settings/appearance'
     | '/settings/attention'
     | '/settings/automation'
+    | '/settings/computers'
     | '/settings/defaults'
     | '/settings/extensions'
     | '/settings/gateway'
@@ -798,9 +820,11 @@ export interface FileRouteTypes {
     | '/_app/marketplace/$entryId'
     | '/_app/marketplace/installed'
     | '/_app/session/$id'
+    | '/_app/settings/account'
     | '/_app/settings/appearance'
     | '/_app/settings/attention'
     | '/_app/settings/automation'
+    | '/_app/settings/computers'
     | '/_app/settings/defaults'
     | '/_app/settings/extensions'
     | '/_app/settings/gateway'
@@ -1066,6 +1090,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsIndexRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/settings/account': {
+      id: '/_app/settings/account'
+      path: '/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof AppSettingsAccountRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/settings/appearance': {
       id: '/_app/settings/appearance'
       path: '/appearance'
@@ -1085,6 +1116,13 @@ declare module '@tanstack/react-router' {
       path: '/automation'
       fullPath: '/settings/automation'
       preLoaderRoute: typeof AppSettingsAutomationRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/computers': {
+      id: '/_app/settings/computers'
+      path: '/computers'
+      fullPath: '/settings/computers'
+      preLoaderRoute: typeof AppSettingsComputersRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/defaults': {
@@ -1476,9 +1514,11 @@ const AppMarketplaceRouteWithChildren = AppMarketplaceRoute._addFileChildren(
 )
 
 interface AppSettingsRouteChildren {
+  AppSettingsAccountRoute: typeof AppSettingsAccountRoute
   AppSettingsAppearanceRoute: typeof AppSettingsAppearanceRoute
   AppSettingsAttentionRoute: typeof AppSettingsAttentionRoute
   AppSettingsAutomationRoute: typeof AppSettingsAutomationRoute
+  AppSettingsComputersRoute: typeof AppSettingsComputersRoute
   AppSettingsDefaultsRoute: typeof AppSettingsDefaultsRoute
   AppSettingsExtensionsRoute: typeof AppSettingsExtensionsRoute
   AppSettingsGatewayRoute: typeof AppSettingsGatewayRoute
@@ -1500,9 +1540,11 @@ interface AppSettingsRouteChildren {
 }
 
 const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsAccountRoute: AppSettingsAccountRoute,
   AppSettingsAppearanceRoute: AppSettingsAppearanceRoute,
   AppSettingsAttentionRoute: AppSettingsAttentionRoute,
   AppSettingsAutomationRoute: AppSettingsAutomationRoute,
+  AppSettingsComputersRoute: AppSettingsComputersRoute,
   AppSettingsDefaultsRoute: AppSettingsDefaultsRoute,
   AppSettingsExtensionsRoute: AppSettingsExtensionsRoute,
   AppSettingsGatewayRoute: AppSettingsGatewayRoute,

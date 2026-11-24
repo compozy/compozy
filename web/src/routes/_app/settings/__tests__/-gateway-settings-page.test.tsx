@@ -118,7 +118,7 @@ describe("GatewaySettingsPage", () => {
       "Gateway unavailable"
     );
     expect(screen.getByTestId("settings-page-gateway-error")).toHaveTextContent(
-      "Couldn't load Remote access"
+      "Couldn't load this section"
     );
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(view.page.refetch).toHaveBeenCalledTimes(1);

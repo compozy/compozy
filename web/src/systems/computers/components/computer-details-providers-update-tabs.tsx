@@ -25,7 +25,7 @@ import {
   buildSshUpdateSteps,
   type UpdateRunState,
 } from "../mocks/remote-computers-fixtures-lane-b";
-import { StepProgressList } from "./step-progress-list";
+import { StepProgressList, type StepProgressItem } from "./step-progress-list";
 
 const PROVIDER_STATUS_VIEW: Record<
   ComputerProviderAuthFixture["status"],
@@ -62,61 +62,68 @@ export function ComputerDetailsProvidersTab({
         never copied to this computer.
       </p>
 
-      <div className="overflow-hidden rounded-lg border border-line bg-card">
-        {providers.map(provider => {
-          const view = PROVIDER_STATUS_VIEW[provider.status];
-          return (
-            <ListingRow
-              className="min-h-14 border-b border-line-soft py-3 last:border-b-0"
-              interactive={false}
-              key={provider.id}
-            >
-              <ListingRow.Icon>
-                <ProviderLogo provider={provider.id} />
-              </ListingRow.Icon>
-              <ListingRow.Main>
-                <ListingRow.Name>
-                  <ListingRow.Title>{provider.name}</ListingRow.Title>
-                  <ProviderStatusLabel label={view.label} tone={view.tone} />
-                </ListingRow.Name>
-                <ListingRow.Meta className="mt-1">
-                  {provider.status === "ready" ? (
-                    <span>Signed in as {provider.accountLabel ?? "your account"}</span>
-                  ) : provider.status === "signed_out" ? (
-                    <span className="text-warning">
-                      Sessions using {provider.name} fail until signed in on {computerName}
-                    </span>
-                  ) : (
-                    <span>CLI not found on {computerName}</span>
-                  )}
-                </ListingRow.Meta>
-              </ListingRow.Main>
-              <ListingRow.Trail>
-                {provider.status === "signed_out" ? (
-                  <Button
-                    onClick={() => setActiveSignInId(provider.id)}
-                    size="sm"
-                    type="button"
-                    variant="secondary"
-                  >
-                    <Terminal aria-hidden="true" />
-                    Sign in on {computerName}
-                  </Button>
-                ) : provider.status === "ready" ? (
-                  <Button
-                    onClick={() => setActiveSignInId(provider.id)}
-                    size="xs"
-                    type="button"
-                    variant="ghost"
-                  >
-                    Reconnect
-                  </Button>
-                ) : null}
-              </ListingRow.Trail>
-            </ListingRow>
-          );
-        })}
-      </div>
+      {providers.length === 0 ? (
+        <div className="rounded-lg border border-line bg-card px-4 py-4 text-small-body text-muted-foreground">
+          Provider sign-in status on <span className="font-medium text-fg">{computerName}</span> is
+          managed on that computer.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-line bg-card">
+          {providers.map(provider => {
+            const view = PROVIDER_STATUS_VIEW[provider.status];
+            return (
+              <ListingRow
+                className="min-h-14 border-b border-line-soft py-3 last:border-b-0"
+                interactive={false}
+                key={provider.id}
+              >
+                <ListingRow.Icon>
+                  <ProviderLogo provider={provider.id} />
+                </ListingRow.Icon>
+                <ListingRow.Main>
+                  <ListingRow.Name>
+                    <ListingRow.Title>{provider.name}</ListingRow.Title>
+                    <ProviderStatusLabel label={view.label} tone={view.tone} />
+                  </ListingRow.Name>
+                  <ListingRow.Meta className="mt-1">
+                    {provider.status === "ready" ? (
+                      <span>Signed in as {provider.accountLabel ?? "your account"}</span>
+                    ) : provider.status === "signed_out" ? (
+                      <span className="text-warning">
+                        Sessions using {provider.name} fail until signed in on {computerName}
+                      </span>
+                    ) : (
+                      <span>CLI not found on {computerName}</span>
+                    )}
+                  </ListingRow.Meta>
+                </ListingRow.Main>
+                <ListingRow.Trail>
+                  {provider.status === "signed_out" ? (
+                    <Button
+                      onClick={() => setActiveSignInId(provider.id)}
+                      size="sm"
+                      type="button"
+                      variant="secondary"
+                    >
+                      <Terminal aria-hidden="true" />
+                      Sign in on {computerName}
+                    </Button>
+                  ) : provider.status === "ready" ? (
+                    <Button
+                      onClick={() => setActiveSignInId(provider.id)}
+                      size="xs"
+                      type="button"
+                      variant="ghost"
+                    >
+                      Reconnect
+                    </Button>
+                  ) : null}
+                </ListingRow.Trail>
+              </ListingRow>
+            );
+          })}
+        </div>
+      )}
 
       {activeProvider ? (
         <StatusCard
@@ -168,6 +175,10 @@ export function ComputerDetailsProvidersTab({
 export interface ComputerDetailsUpdateTabProps {
   computer: ComputerFixture;
   initialUpdateState?: UpdateRunState;
+  liveUpdateState?: UpdateRunState;
+  liveUpdateSteps?: readonly StepProgressItem[];
+  onStartUpdate?: () => void;
+  onCheckVersion?: () => void;
 }
 
 /**
@@ -178,9 +189,14 @@ export interface ComputerDetailsUpdateTabProps {
 export function ComputerDetailsUpdateTab({
   computer,
   initialUpdateState = "idle",
+  liveUpdateState,
+  liveUpdateSteps,
+  onStartUpdate,
+  onCheckVersion,
 }: ComputerDetailsUpdateTabProps) {
-  const [updateState, setUpdateState] = useState<UpdateRunState>(initialUpdateState);
-  const steps = buildSshUpdateSteps(updateState, computer.name);
+  const [localUpdateState, setLocalUpdateState] = useState<UpdateRunState>(initialUpdateState);
+  const updateState = liveUpdateState ?? localUpdateState;
+  const steps = liveUpdateSteps ?? buildSshUpdateSteps(updateState, computer.name);
 
   if (computer.originKind !== "ssh") {
     return (
@@ -188,7 +204,7 @@ export function ComputerDetailsUpdateTab({
         <StatusCard className="border border-line bg-sunken/70 p-3.5 shadow-none" tone="warning">
           <StatusCard.Header label={`${computer.name} runs CompozyOS ${computer.version}`} />
           <StatusCard.Body>
-            This app requires CompozyOS 0.8.0 or newer. One-click updates are available for
+            This app requires a compatible CompozyOS version. One-click updates are available for
             computers added over SSH — run this command directly on{" "}
             <span className="font-medium text-fg">{computer.name}</span> instead:
           </StatusCard.Body>
@@ -198,7 +214,10 @@ export function ComputerDetailsUpdateTab({
 
         <div className="flex items-center gap-2">
           <Button
-            onClick={() => toast.message(`Checking version on ${computer.name}…`)}
+            onClick={() => {
+              onCheckVersion?.();
+              toast.message(`Checking version on ${computer.name}…`);
+            }}
             size="sm"
             type="button"
             variant="secondary"
@@ -220,21 +239,25 @@ export function ComputerDetailsUpdateTab({
         <StatusCard.Header
           label={
             updateState === "done"
-              ? `${computer.name} updated to CompozyOS 0.8.0`
+              ? `${computer.name} updated`
               : `${computer.name} runs CompozyOS ${computer.version}`
           }
         />
         <StatusCard.Body>
           {updateState === "done"
             ? "Service restarted and reconnected. Your running work stays available."
-            : "This app requires CompozyOS 0.8.0 or newer. CompozyOS verifies the release signature on this computer before installing anything remotely."}
+            : "CompozyOS verifies the release signature on this computer before installing anything remotely."}
         </StatusCard.Body>
         {updateState === "idle" || updateState === "provenance_failed" ? (
           <StatusCard.Footer>
             <Button
               onClick={() => {
-                setUpdateState("running");
-                toast.message(`Updating ${computer.name} to 0.8.0…`);
+                if (onStartUpdate) {
+                  onStartUpdate();
+                } else {
+                  setLocalUpdateState("running");
+                  toast.message(`Updating ${computer.name}…`);
+                }
               }}
               size="sm"
               type="button"
@@ -250,7 +273,7 @@ export function ComputerDetailsUpdateTab({
 
       {updateState === "done" ? (
         <ActionResultBanner
-          description={`${computer.name} is now connected on CompozyOS 0.8.0.`}
+          description={`${computer.name} is now connected.`}
           icon={CheckCircle2}
           title="Update complete"
           tone="success"
@@ -260,7 +283,7 @@ export function ComputerDetailsUpdateTab({
       {updateState === "provenance_failed" ? (
         <Alert variant="destructive">
           <TriangleAlert aria-hidden="true" />
-          <AlertTitle>Couldn't verify this CompozyOS release</AlertTitle>
+          <AlertTitle>Couldn&apos;t verify this CompozyOS release</AlertTitle>
           <AlertDescription>
             Nothing was installed on {computer.name}. Try again later or verify your network
             connection to releases.compozy.com.
