@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import type { BrowserContext, Locator, Page } from "@playwright/test";
 
 import { appWindow, openCommandPalette } from "../fixtures/os-navigation";
 import { cliComputerStatus, expect, test } from "../fixtures/remote-computers";
@@ -19,6 +19,180 @@ async function sessionSidebar(session: Locator): Promise<Locator> {
   await expect(sidebar).toHaveAttribute("data-state", "open");
   return sidebar;
 }
+
+async function installPurchaseTurnstile(context: BrowserContext) {
+  await context.route("https://challenges.cloudflare.com/turnstile/v0/api.js**", route =>
+    route.fulfill({
+      contentType: "text/javascript",
+      body: `let verification;
+        window.turnstile = {
+          ready: (ready) => ready(),
+          render: (_, options) => { verification = options; return "fixture"; },
+          reset: () => {},
+          execute: () => verification.callback("pass-" + verification.action)
+        };`,
+    })
+  );
+}
+
+test.describe("Purchase from the cloud", () => {
+  test.use({ scenario: "browser-purchase" });
+
+  test("E2E-013 and IT-109 buy annual Pro before installing, then use the same account in Compozy", async ({
+    page,
+    context,
+    browser,
+    lab,
+  }) => {
+    // Safety Invariant 34. An account in a blocked state receives no Checkout Session.
+    await installPurchaseTurnstile(context);
+    const upgrade = lab.cloud_url + "/billing/upgrade?interval=year";
+    await page.goto(upgrade);
+    await expect(page.getByRole("button", { name: "Continue to checkout" })).toBeDisabled();
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await expect(page.getByText(lab.email)).toBeVisible();
+    expect(
+      (await context.cookies(lab.cloud_url)).some(cookie => cookie.name === "__Host-compozy_ws")
+    ).toBe(true);
+    await expect(page.getByRole("radio", { name: /Pro annual/ })).toBeChecked();
+    await page.getByRole("button", { name: "Continue to checkout" }).click();
+    await page.getByRole("button", { name: "Complete payment" }).click();
+    await expect(page.getByRole("heading")).toHaveText(
+      "You're on Pro. Open Compozy to use your computers."
+    );
+    await expect(page.getByRole("link", { name: "Open Compozy", exact: true })).toHaveAttribute(
+      "href",
+      "compozyos://open/"
+    );
+
+    const evidence = await context.request.get(lab.cloud_url + "/fixture/billing");
+    expect(evidence.ok()).toBe(true);
+    expect(await evidence.json()).toMatchObject({
+      plan: "pro",
+      devices: 0,
+      installations: 0,
+      checkouts: 1,
+      price: "price_pro_annual",
+      promotion_codes: true,
+      owned_checkout: true,
+    });
+    await page.goto(upgrade);
+    await expect(page.getByRole("heading")).toHaveText("You're already on Pro.");
+    await expect(page.getByRole("button", { name: "Manage billing" })).toBeVisible();
+    if (!lab.hosted_url) throw new Error("Missing foreign computer in purchase fixture");
+    await page.goto(upgrade + "&hostname=" + new URL(lab.hosted_url).hostname);
+    await expect(page.getByRole("heading")).toHaveText("This computer belongs to another account.");
+
+    const suspended = await browser.newContext();
+    try {
+      await installPurchaseTurnstile(suspended);
+      const blocked = await suspended.newPage();
+      await blocked.goto(upgrade);
+      await blocked.getByRole("button", { name: "Continue with GitHub" }).click();
+      await expect(blocked.locator("main")).toHaveAttribute("data-error-code", "account_suspended");
+      await expect(blocked.getByRole("button", { name: "Continue to checkout" })).toHaveCount(0);
+    } finally {
+      await suspended.close();
+    }
+
+    await page.goto(lab.controller.web_url + "/settings/account");
+    const login = page.waitForResponse(
+      response =>
+        new URL(response.url()).pathname === "/api/account/login" &&
+        response.request().method() === "POST"
+    );
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    const { verification_uri_complete: activationURL } = (await (await login).json()) as {
+      verification_uri_complete: string;
+    };
+    const activation = await context.newPage();
+    await activation.goto(activationURL);
+    await activation.getByRole("button", { name: "Continue with Google" }).click();
+    await expect(activation.getByRole("heading")).toHaveText(
+      "You're signed in. Return to CompozyOS."
+    );
+    await activation.close();
+    await expect
+      .poll(async () => {
+        const status = await context.request.get(lab.controller.web_url + "/api/account");
+        expect(status.ok()).toBe(true);
+        return (await status.json()) as { email?: string; plan?: string };
+      })
+      .toMatchObject({ email: lab.email, plan: "pro" });
+    const settings = await openSettings(page, "account");
+    await expect(settings.getByText("Pro", { exact: true }).first()).toBeVisible();
+    const current = await context.request.get(lab.cloud_url + "/fixture/billing");
+    expect(await current.json()).toMatchObject({
+      plan: "pro",
+      checkouts: 1,
+      devices: 1,
+      installations: 1,
+    });
+  });
+});
+
+test.describe("Purchase from a lapsed hosted route", () => {
+  test.use({ scenario: "hosted-purchase", viewport: { width: 390, height: 844 } });
+
+  test("E2E-012 return to the original hostname after buying Pro as its owner", async ({
+    page,
+    context,
+    browser,
+    lab,
+  }) => {
+    // IT-074 browser assertion. The real retained hosted listener serves the plan-required SPA state.
+    const hostedURL = lab.hosted_url;
+    const proxy = lab.hosted_proxy;
+    if (!hostedURL || !proxy) throw new Error("Missing retained hostname in purchase fixture");
+    const hostname = new URL(hostedURL).hostname;
+    await installPurchaseTurnstile(context);
+    await context.route(hostedURL + "/**", async route => {
+      const target = new URL(route.request().url());
+      const response = await route.fetch({
+        url: proxy + target.pathname + target.search,
+        maxRedirects: 0,
+      });
+      await route.fulfill({ response });
+    });
+    await context.route("https://cloud.compozy.com/billing/upgrade**", route => {
+      const target = new URL(route.request().url());
+      return route.fulfill({
+        status: 302,
+        headers: { location: lab.cloud_url + target.pathname + target.search },
+      });
+    });
+    await page.goto(hostedURL);
+    await expect(page.getByText("This computer's hosted route needs Pro")).toBeVisible();
+    const launched = context.waitForEvent("page", { timeout: 2_000 }).catch(() => null);
+    await page.getByRole("button", { name: "Upgrade to Pro" }).click();
+    const purchase = (await launched) ?? page;
+    await expect(purchase).toHaveURL(new RegExp("hostname=" + hostname.replaceAll(".", "\\.")));
+    await purchase.getByRole("button", { name: "Continue with Google" }).click();
+    await expect(purchase.getByText(lab.email)).toBeVisible();
+    await purchase.getByRole("button", { name: "Continue to checkout" }).click();
+    await purchase.getByRole("button", { name: "Complete payment" }).click();
+    await expect(purchase).toHaveURL(hostedURL + "/");
+    const evidence = await context.request.get(lab.cloud_url + "/fixture/billing");
+    expect(await evidence.json()).toMatchObject({
+      plan: "pro",
+      checkouts: 1,
+      owned_checkout: true,
+    });
+
+    const other = await browser.newContext();
+    try {
+      await installPurchaseTurnstile(other);
+      const denied = await other.newPage();
+      await denied.goto(lab.cloud_url + "/billing/upgrade?hostname=" + hostname);
+      await denied.getByRole("button", { name: "Continue with GitHub" }).click();
+      await expect(denied.getByRole("heading")).toHaveText(
+        "This computer belongs to another account."
+      );
+    } finally {
+      await other.close();
+    }
+  });
+});
 
 test.describe("SSH", () => {
   test.use({ scenario: "ssh-add" });

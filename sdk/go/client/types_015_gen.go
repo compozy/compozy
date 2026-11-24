@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// ObserveRetentionHealthPayload is a daemon API value.
+type ObserveRetentionHealthPayload struct {
+	Enabled                  bool       `json:"enabled"`
+	RetentionDays            int        `json:"retention_days"`
+	SweepIntervalSeconds     int64      `json:"sweep_interval_seconds"`
+	LastSweepStatus          string     `json:"last_sweep_status"`
+	LastSweepAt              *time.Time `json:"last_sweep_at,omitempty"`
+	LastCutoffAt             *time.Time `json:"last_cutoff_at,omitempty"`
+	LastSweepError           string     `json:"last_sweep_error,omitempty"`
+	DeletedEventSummaries    int64      `json:"deleted_event_summaries"`
+	DeletedTokenStats        int64      `json:"deleted_token_stats"`
+	DeletedTokenUsageDaily   int64      `json:"deleted_token_usage_daily"`
+	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
+}
+
+// OnboardingStatusPayload is a daemon API value.
+type OnboardingStatusPayload struct {
+	Completed   bool   `json:"completed"`
+	CompletedAt string `json:"completed_at,omitempty"`
+}
+
 // OnboardingStatusResponse is a daemon API value.
 type OnboardingStatusResponse struct {
 	Onboarding OnboardingStatusPayload `json:"onboarding"`
@@ -425,9 +446,4 @@ type ProfilePlacement struct {
 	Extension string `json:"extension"`
 	Resource  string `json:"resource"`
 	Profile   string `json:"profile"`
-}
-
-// ProfilePlanRequest is a daemon API value.
-type ProfilePlanRequest struct {
-	PlanRevision string `json:"plan_revision"`
 }

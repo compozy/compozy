@@ -346,5 +346,24 @@ func (s *registryScope) refreshComputerRoutes(entry *registryEntry, info remotep
 		}
 		return
 	}
+	if info.PlanLimited && entry.view.Enabled {
+		slices.SortFunc(routes, compareRoutes)
+		if entry.run == nil && entry.view.Status == NeedsPro && sameComputerRoutes(entry.view.Routes, routes) {
+			return
+		}
+		s.stop(entry)
+		entry.view.Routes = routes
+		entry.view = initialView(entry.view.Computer, false)
+		entry.view.Status, entry.view.Diagnosis = diagnose(activeFailure(ErrPlanRequired), s.registry.clock.Now())
+		entry.view.PlanState, entry.fault = PlanLimited, ErrPlanRequired
+		s.changed(entry.view)
+		return
+	}
+	if entry.run == nil && entry.view.Status == NeedsPro && entry.view.Enabled {
+		entry.view.Routes = routes
+		s.restart(entry)
+		s.changed(entry.view)
+		return
+	}
 	s.setRoutes(entry, routes)
 }

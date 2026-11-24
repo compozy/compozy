@@ -35,7 +35,7 @@ JOIN accounts a ON a.id = c.account_id
 WHERE t.state <> 'deleted'
   AND (t.state IN ('deleting', 'failed') OR c.unlinked_at IS NOT NULL OR a.state <> 'active'
        OR t.delete_after <= sqlc.arg(as_of)::timestamptz
-       OR greatest(t.created_at, c.last_control_at) <= sqlc.arg(idle_since)::timestamptz
+       OR (t.delete_after IS NULL AND greatest(t.created_at, c.last_control_at) <= sqlc.arg(idle_since)::timestamptz)
        OR (t.state IN ('reserved', 'provisioning') AND t.created_at <= sqlc.arg(unfinished_since)::timestamptz))
 ORDER BY t.created_at, t.computer_id;
 
@@ -47,7 +47,7 @@ SELECT EXISTS (
     WHERE t.computer_id = sqlc.arg(computer_id) AND t.state <> 'deleted'
       AND (t.state IN ('deleting', 'failed') OR c.unlinked_at IS NOT NULL OR a.state <> 'active'
            OR t.delete_after <= sqlc.arg(as_of)::timestamptz
-           OR greatest(t.created_at, c.last_control_at) <= sqlc.arg(idle_since)::timestamptz
+           OR (t.delete_after IS NULL AND greatest(t.created_at, c.last_control_at) <= sqlc.arg(idle_since)::timestamptz)
            OR (t.state IN ('reserved', 'provisioning') AND t.created_at <= sqlc.arg(unfinished_since)::timestamptz))
 );
 

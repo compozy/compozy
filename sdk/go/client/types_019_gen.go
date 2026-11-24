@@ -4,6 +4,31 @@ package client
 
 import "time"
 
+// RuntimeActivityPayload is a daemon API value.
+type RuntimeActivityPayload struct {
+	TurnID             string     `json:"turn_id,omitempty"`
+	TurnSource         string     `json:"turn_source,omitempty"`
+	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
+	DeadlineAt         *time.Time `json:"deadline_at,omitempty"`
+	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
+	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
+	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
+	CurrentTool        string     `json:"current_tool,omitempty"`
+	ToolCallID         string     `json:"tool_call_id,omitempty"`
+	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
+	IterationCurrent   int        `json:"iteration_current"`
+	IterationMax       int        `json:"iteration_max"`
+	IdleSeconds        int64      `json:"idle_seconds"`
+	ElapsedSeconds     int64      `json:"elapsed_seconds"`
+	ElapsedMS          int64      `json:"elapsed_ms"`
+}
+
+// RuntimeDefaults is a daemon API value.
+type RuntimeDefaults struct {
+	Worker RuntimeSpec `json:"worker,omitzero"`
+	Judge  RuntimeSpec `json:"judge,omitzero"`
+}
+
 // RuntimeIdentityPayload is a daemon API value.
 type RuntimeIdentityPayload struct {
 	SchemaVersion string                `json:"schema_version"`
@@ -421,28 +446,4 @@ type SessionCatalogPagePayload struct {
 	HasMore    bool   `json:"has_more"`
 	Total      *int   `json:"total,omitzero"`
 	Limit      int    `json:"limit"`
-}
-
-// SessionCatalogResponse is a daemon API value.
-type SessionCatalogResponse struct {
-	Sessions []SessionPayload          `json:"sessions"`
-	Page     SessionCatalogPagePayload `json:"page"`
-}
-
-// SessionChangeBasesResponse is a daemon API value.
-type SessionChangeBasesResponse struct {
-	Default    *ChangeBaseRefPayload  `json:"default"`
-	Resolvable bool                   `json:"resolvable"`
-	Refs       []ChangeBaseRefPayload `json:"refs"`
-	Truncated  bool                   `json:"truncated"`
-}
-
-// SessionChangeContentsResponse is a daemon API value.
-type SessionChangeContentsResponse struct {
-	Revision    string             `json:"revision"`
-	Path        string             `json:"path"`
-	OldPath     string             `json:"old_path,omitempty"`
-	Fingerprint string             `json:"fingerprint"`
-	Old         *ChangeSidePayload `json:"old,omitempty"`
-	New         *ChangeSidePayload `json:"new,omitempty"`
 }

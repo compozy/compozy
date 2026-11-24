@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/cloud/auth"
+	"github.com/compozy/compozy/internal/cloud/billing"
 	"github.com/compozy/compozy/internal/cloud/control"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
@@ -28,6 +29,7 @@ type ControlRoutesConfig struct {
 	Limiter       *AccountLimiter
 	Issuer        string
 	Logger        *slog.Logger
+	Billing       *billing.Service
 }
 
 type controlRoutes struct {
@@ -60,6 +62,11 @@ func (r *Router) RegisterControl(cfg ControlRoutesConfig) {
 	r.mux.Handle("GET /v1/account/events", h.device(h.accountEvents))
 	r.mux.Handle("GET /v1/account", h.device(h.account))
 	r.mux.HandleFunc("POST "+remoteproto.BrowserRedemptionPath, h.browserToken)
+	if cfg.Billing != nil {
+		r.mux.Handle("POST /v1/billing/checkout", h.device(h.billingCheckout))
+		r.mux.Handle("POST /v1/billing/portal", h.device(h.billingPortal))
+		r.mux.HandleFunc("POST /v1/billing/stripe-webhook", h.stripeWebhook)
+	}
 }
 
 func (r *controlRoutes) account(w http.ResponseWriter, req *http.Request, principal control.DevicePrincipal) {

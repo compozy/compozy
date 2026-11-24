@@ -66,6 +66,21 @@ A trusted admin device can change admin trust and scopes or revoke another devic
 
 Free has one slot. An enabled computer or active reservation uses it. A reservation lasts 15 minutes. Revalidating an active reservation returns the same ID. Compozy Cloud consumes the reservation in the transaction that links the computer. A new grant expires in 60 seconds and carries the requesting device's key thumbprint and the account security epoch. Free grants allow `direct` and `ssh`. Compozy Pro adds `cloud`.
 
+## Billing
+
+| Endpoint                          | Authorization and behavior                                          |
+| --------------------------------- | ------------------------------------------------------------------- |
+| `POST /v1/billing/checkout`       | Device access token and DPoP. Send `interval` as `month` or `year`. |
+| `POST /v1/billing/portal`         | Device access token and DPoP. Opens the Stripe Customer Portal.     |
+| `POST /v1/billing/stripe-webhook` | Stripe signature. Refreshes the current subscription from Stripe.   |
+| `GET /billing/upgrade`            | First-party web sign-in and plan selection.                         |
+
+Checkout and the portal return a `url`. Account reads return `payment_issue` and the active `subscription`, which includes the source, interval, period end, renewal setting, and refund deadline. A signed-in account may have Pro through Stripe or a complimentary grant. On a failed Stripe renewal, `payment_issue` is true while Stripe retries and the account stays on Pro.
+
+Set `COMPOZY_CLOUD_STRIPE_SECRET_KEY`, `COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO_ANNUAL`, and `STRIPE_PRICE_PRO_MONTHLY` on the cloud service. Use the same Stripe mode for the API key, prices, and webhook endpoint. Configure Managed Payments and enable monthly and annual switching, payment method updates, and period-end cancellation in the Customer Portal. Configure Smart Retries to cancel the subscription after the final attempt.
+
+Deliver `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, and `checkout.session.completed` to the signed webhook endpoint. Cloud also reconciles Stripe subscriptions every six hours.
+
 ## Computer authentication and control
 
 `POST /v1/computers/link` accepts the computer's name, platform, version, Ed25519 public JWK, and TLS root fingerprint. Supply the link token as a bearer credential or as `link_token` in the body. Repeating the token with the same computer key returns the original `computer_id` and `account_id`.
@@ -77,6 +92,8 @@ Connect to `GET /v1/computers/control?computer_id=…` over WebSocket. Reply to 
 ## Hosted tunnels
 
 A linked computer uses its key proof to provision or read its hosted tunnel at `POST /v1/computers/{id}/tunnel`. The response contains `hostname`, `connector_token`, and `mode`. Treat the connector token as a secret. A retained tunnel can return `mode: "entitlement_only"` during the retention period after Pro ends. In this mode, `GET /remote/v1/browser/status` reports `plan_required`.
+
+When Pro ends, the most recently used linked and enabled computer keeps the Free slot on direct and SSH routes. Other enabled computers show **Needs Pro**. Use [the cloud upgrade page](https://cloud.compozy.com/billing/upgrade) to restore the plan. The saved hosted URL allows its owner to buy Pro and return to the same hostname for seven days. During that window hosted API calls and webhook deliveries return `402 plan_required`. Cloud deletes the retained tunnel after seven days.
 
 Compozy Pro includes ten hosted routes by default. The Cloud reserves a slot before provisioning. A request beyond the account's limit returns `cloud_routes_limit_reached`. Turning off the hosted route removes the tunnel with `DELETE /v1/computers/{id}/tunnel`. Unlinking also deletes the tunnel. The Cloud sweeps tunnels after 14 days offline.
 

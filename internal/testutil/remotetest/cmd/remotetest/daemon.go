@@ -139,6 +139,9 @@ func runDaemon(ctx context.Context) error {
 	options := []daemon.Option{daemon.WithCompozyExecutableResolver(func() (string, error) {
 		return exec.LookPath(os.Getenv(daemonBinaryEnv))
 	})}
+	if os.Getenv(fixtureConnectorEnv) == "1" {
+		options = append(options, daemon.WithCloudflaredInstaller(fixtureConnectorPath))
+	}
 	if release := os.Getenv(releaseEnv); release != "" {
 		root, err := os.ReadFile(os.Getenv(trustEnv))
 		if err != nil {

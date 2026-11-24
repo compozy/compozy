@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// PutSettingsMCPServerRequest is a daemon API value.
+type PutSettingsMCPServerRequest struct {
+	Server          SettingsMCPServerPayload              `json:"server"`
+	SecretValues    *SettingsMCPSecretValuesPayload       `json:"secret_values,omitzero"`
+	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
+	PreserveHeaders bool                                  `json:"preserve_headers,omitzero"`
+	PreserveEnv     []string                              `json:"preserve_env,omitempty"`
+}
+
 // PutSettingsProviderRequest is a daemon API value.
 type PutSettingsProviderRequest struct {
 	Settings      SettingsProviderWritePayload         `json:"settings"`
@@ -434,15 +443,3 @@ type RestartActionStatus struct {
 
 // RestartOperationStatus is a daemon API value.
 type RestartOperationStatus string
-
-// RestartProgress is a daemon API value.
-type RestartProgress struct {
-	Phase     RestartProgressPhase `json:"phase"`
-	Stage     string               `json:"stage"`
-	Completed int64                `json:"completed"`
-	Total     int64                `json:"total"`
-	UpdatedAt time.Time            `json:"updated_at"`
-}
-
-// RestartProgressPhase is a daemon API value.
-type RestartProgressPhase string

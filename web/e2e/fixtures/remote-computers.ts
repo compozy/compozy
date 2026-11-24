@@ -13,7 +13,12 @@ import { BrowserArtifactSession } from "./browser-artifact-session";
 const execFileAsync = promisify(execFile);
 const repo = fileURLToPath(new URL("../../../", import.meta.url));
 
-type Scenario = "ssh-add" | "account-add" | "revoke-device";
+type Scenario =
+  | "ssh-add"
+  | "account-add"
+  | "revoke-device"
+  | "browser-purchase"
+  | "hosted-purchase";
 
 interface Daemon {
   web_url: string;
@@ -35,10 +40,13 @@ interface RemoteComputersLab {
   cloud_url: string;
   controller: Daemon;
   cli_controller?: Daemon;
-  computers: [Computer, ...Computer[]];
+  computers: Computer[];
   email: string;
   session_id?: string;
   session_title?: string;
+  hosted_url?: string;
+  hosted_proxy?: string;
+  stripe_url?: string;
 }
 
 export const test = base.extend<{ scenario: Scenario; lab: RemoteComputersLab }>({
@@ -69,7 +77,11 @@ export const test = base.extend<{ scenario: Scenario; lab: RemoteComputersLab }>
           }),
         ]);
         lab = JSON.parse(line) as RemoteComputersLab;
-        if (lab.scenario !== scenario || !lab.controller.web_url || !lab.computers.length) {
+        if (
+          lab.scenario !== scenario ||
+          !lab.controller.web_url ||
+          (scenario !== "browser-purchase" && !lab.computers.length)
+        ) {
           throw new Error(`Invalid manifest for remotetest scenario ${scenario}`);
         }
         await use(lab);

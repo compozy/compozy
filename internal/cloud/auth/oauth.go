@@ -68,6 +68,18 @@ func NewOAuth(google, github OAuthClient, options ...OAuthOption) (*OAuth, error
 
 func refuseRedirect(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
 
+func (s *Service) OAuthFormOrigins() []string {
+	var origins []string
+	for _, endpoint := range []string{s.oauth.endpoints.GoogleAuthorize, s.oauth.endpoints.GitHubAuthorize} {
+		parsed, err := url.Parse(endpoint)
+		if err == nil && parsed.Host != "" && parsed.User == nil &&
+			(parsed.Scheme == "https" || parsed.Scheme == "http") {
+			origins = append(origins, parsed.Scheme+"://"+parsed.Host)
+		}
+	}
+	return origins
+}
+
 func (o *OAuth) authorize(issuer, provider, state, verifier, nonce string, fresh bool) string {
 	client, endpoint, scope := o.github, o.endpoints.GitHubAuthorize, "user:email"
 	if provider == Google {

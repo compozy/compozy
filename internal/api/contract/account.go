@@ -117,9 +117,5 @@ type AccountApprovalsResponse struct {
 type AccountApprovalDecisionRequest struct {
 	Approve *bool `json:"approve"`
 }
-type AccountCheckoutRequest struct {
-	Interval string `json:"interval"`
-}
-type AccountBillingResponse struct {
-	URL string `json:"url"`
-}
+type AccountCheckoutRequest remoteproto.CheckoutRequest
+type AccountBillingResponse remoteproto.BillingURL

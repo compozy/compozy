@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// GridSection is a daemon API value.
+type GridSection struct {
+	Title string     `json:"title,omitempty"`
+	Tiles []GridTile `json:"tiles"`
+}
+
+// GridTile is a daemon API value.
+type GridTile struct {
+	ID       string            `json:"id"`
+	Title    string            `json:"title"`
+	Image    Image             `json:"image"`
+	Badge    *ViewBadge        `json:"badge,omitempty"`
+	Actions  []RowAction       `json:"actions,omitempty"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
+}
+
+// GroupID is a daemon API value.
+type GroupID string
+
 // GroupedAgentCatalogItemPayload is a daemon API value.
 type GroupedAgentCatalogItemPayload struct {
 	Name             string       `json:"name"`
@@ -427,20 +447,4 @@ type HookRunPayload struct {
 // HookRunsResponse is a daemon API value.
 type HookRunsResponse struct {
 	Runs []HookRunPayload `json:"runs"`
-}
-
-// HostResourcesResponse is a daemon API value.
-type HostResourcesResponse struct {
-	CPUCount     int       `json:"cpu_count"`
-	CPUUtil      *float64  `json:"cpu_util"`
-	MemTotal     *uint64   `json:"mem_total"`
-	MemAvailable *uint64   `json:"mem_available"`
-	SampledAt    time.Time `json:"sampled_at"`
-}
-
-// HostedPeer is a daemon API value.
-type HostedPeer struct {
-	ComputerID ComputerID `json:"computer_id"`
-	Name       string     `json:"name"`
-	HostedURL  string     `json:"hosted_url"`
 }

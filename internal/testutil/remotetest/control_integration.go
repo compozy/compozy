@@ -80,7 +80,7 @@ func (db *Database) SeedControlDevice(
 }
 
 func (db *Database) SeedControlComputer(
-	t *testing.T, account string, id remoteproto.ComputerID, linkedAt time.Time,
+	t Fixture, account string, id remoteproto.ComputerID, linkedAt time.Time,
 ) ed25519.PrivateKey {
 	t.Helper()
 	public, private, err := ed25519.GenerateKey(rand.Reader)
@@ -105,7 +105,7 @@ func (db *Database) Exec(t Fixture, statement string, args ...any) {
 	}
 }
 
-func jwkJSON(t *testing.T, jwk remoteproto.JWK) []byte {
+func jwkJSON(t Fixture, jwk remoteproto.JWK) []byte {
 	t.Helper()
 	data, err := json.Marshal(jwk)
 	if err != nil {

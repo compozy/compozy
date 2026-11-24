@@ -5,12 +5,15 @@ VALUES ($1, $2, $3, $3, $4);
 -- name: TouchCloudWebSession :one
 UPDATE cloud_web_sessions w SET last_used_at = greatest(w.last_used_at, sqlc.arg(as_of))
 FROM accounts a
-WHERE w.id_sha256 = $1 AND w.account_id = a.id AND a.state = 'active' AND w.revoked_at IS NULL
+WHERE w.id_sha256 = $1 AND w.account_id = a.id AND w.revoked_at IS NULL
   AND w.expires_at > sqlc.arg(as_of) AND w.last_used_at > sqlc.arg(idle_limit)::timestamptz
   AND (w.browser_device_id IS NULL OR EXISTS (
       SELECT 1 FROM devices d WHERE d.id = w.browser_device_id AND d.revoked_at IS NULL
   ))
-RETURNING w.account_id, a.email, w.browser_device_id;
+RETURNING w.account_id, a.email, w.browser_device_id, a.state;
+
+-- name: RevokePurchaseWebSession :exec
+UPDATE cloud_web_sessions SET revoked_at = $2 WHERE id_sha256 = $1 AND revoked_at IS NULL;
 
 -- name: BindCloudWebSession :execrows
 UPDATE cloud_web_sessions SET browser_device_id = $2

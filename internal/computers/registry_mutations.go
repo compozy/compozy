@@ -270,12 +270,16 @@ func (s *registryScope) entry(ctx context.Context, id remoteproto.ComputerID) (*
 
 func (s *registryScope) setRoutes(entry *registryEntry, routes []store.ComputerRoute) {
 	slices.SortFunc(routes, compareRoutes)
-	if slices.EqualFunc(entry.view.Routes, routes, func(a, b store.ComputerRoute) bool {
-		return a.ID == b.ID && a.Kind == b.Kind && a.Address == b.Address && a.Position == b.Position
-	}) {
+	if sameComputerRoutes(entry.view.Routes, routes) {
 		return
 	}
 	entry.view.Routes = routes
 	s.restart(entry)
 	s.changed(entry.view)
+}
+
+func sameComputerRoutes(left, right []store.ComputerRoute) bool {
+	return slices.EqualFunc(left, right, func(a, b store.ComputerRoute) bool {
+		return a.ID == b.ID && a.Kind == b.Kind && a.Address == b.Address && a.Position == b.Position
+	})
 }

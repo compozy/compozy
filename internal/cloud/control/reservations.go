@@ -40,6 +40,10 @@ func (s *Service) Reserve(
 		principal,
 		func(q *store.Queries, account store.ControlAccount, device store.ControlDevice) error {
 			now := s.config.Now()
+			tier, err := s.reconcilePlan(ctx, q, account.ID, now)
+			if err != nil {
+				return err
+			}
 			if previous != "" {
 				// A committed link has already consumed this setup's slot.
 				id, err := q.LinkedControlReservation(ctx, previous, account.ID, device.ID)
@@ -52,10 +56,6 @@ func (s *Service) Reserve(
 					result = reservation
 					return err
 				}
-			}
-			tier, err := s.reconcilePlan(ctx, q, account.ID, now)
-			if err != nil {
-				return err
 			}
 			if err := admitSlot(ctx, q, account.ID, tier, now); err != nil {
 				return err

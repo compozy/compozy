@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/cloud/api"
 	"github.com/compozy/compozy/internal/cloud/auth"
+	"github.com/compozy/compozy/internal/cloud/billing"
 	"github.com/compozy/compozy/internal/cloud/cloudflare"
 	"github.com/compozy/compozy/internal/cloud/control"
 	"github.com/compozy/compozy/internal/cloud/store"
@@ -29,6 +30,7 @@ type Config struct {
 	MonthlyPrice  string
 	AnnualPrice   string
 	HostedTunnels *cloudflare.Client
+	Stripe        *billing.Stripe
 }
 
 type App struct {
@@ -38,6 +40,7 @@ type App struct {
 	AccountLimit *api.AccountLimiter
 	Issuer       string
 	Auth         *auth.Service
+	Billing      *billing.Service
 
 	router   *api.Router
 	tunnels  *control.Service
@@ -69,6 +72,14 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 	}
 	a.AccountLimit = api.NewAccountLimiter(a.now)
 	a.router = api.NewRouter(db, a.Keys, a.Control.Ready, a.draining.Load, a.now)
+	domain := cloudflare.ProductionDomain
+	if cfg.Auth != nil && cfg.Auth.HostedDomain != "" {
+		domain = cfg.Auth.HostedDomain
+	}
+	a.Billing = billing.New(db, billing.Config{
+		Stripe: cfg.Stripe, Issuer: a.Issuer, HostedDomain: domain,
+		MonthlyPrice: cfg.MonthlyPrice, AnnualPrice: cfg.AnnualPrice, Now: a.now,
+	})
 	var authenticator api.DeviceAuthenticator
 	if cfg.Auth != nil {
 		if err := a.registerAuth(*cfg.Auth); err != nil {
@@ -87,7 +98,7 @@ func Open(ctx context.Context, cfg Config) (*App, error) {
 	}
 	a.router.RegisterControl(api.ControlRoutesConfig{
 		Service: service, Hub: a.Control, Authenticator: authenticator,
-		Limiter: a.AccountLimit, Issuer: a.Issuer, Logger: a.logger,
+		Limiter: a.AccountLimit, Issuer: a.Issuer, Logger: a.logger, Billing: a.Billing,
 	})
 	return a, nil
 }
@@ -97,7 +108,7 @@ func (a *App) registerAuth(cfg auth.Config) error {
 	if err != nil {
 		return err
 	}
-	if err := web.Register(a.Routes(), service); err != nil {
+	if err := web.Register(a.Routes(), service, a.Billing, a.AccountLimit); err != nil {
 		return err
 	}
 	api.RegisterAuthRoutes(a.Routes(), service)
@@ -117,6 +128,8 @@ func (a *App) RunBackground(ctx context.Context) {
 	var group sync.WaitGroup
 	group.Go(func() { a.Control.Listen(ctx, a.Store.ConnectDirect, a.logger) })
 	group.Go(func() { a.runRetention(ctx) })
+	group.Go(func() { a.runBillingReconciliation(ctx) })
+	group.Go(func() { a.runComplimentaryReconciliation(ctx) })
 	if a.tunnels != nil {
 		group.Go(func() { a.runHostedTunnelSweep(ctx) })
 	}
@@ -124,6 +137,39 @@ func (a *App) RunBackground(ctx context.Context) {
 		group.Go(func() { a.runAuthCleanup(ctx) })
 	}
 	group.Wait()
+}
+
+func (a *App) runBillingReconciliation(ctx context.Context) {
+	ticker := time.NewTicker(billing.ReconcileInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := a.Billing.Reconcile(ctx); err != nil && ctx.Err() == nil {
+				a.logger.WarnContext(ctx, "Stripe subscription reconciliation failed")
+			}
+		}
+	}
+}
+
+func (a *App) runComplimentaryReconciliation(ctx context.Context) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		work, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err := a.Billing.ReconcileComplimentary(work)
+		cancel()
+		if err != nil && ctx.Err() == nil {
+			a.logger.WarnContext(ctx, "Complimentary entitlement reconciliation failed")
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func (a *App) Close() {

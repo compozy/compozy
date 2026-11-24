@@ -164,20 +164,19 @@ func (s *Service) syncProfile(ctx context.Context, g *generation, creds cloudcli
 	if summary.Device.ID != next.Profile.Device.ID {
 		return ErrSignInRequired
 	}
+	if !sameProfile(summary, next.Profile) {
+		next.Profile = summary
+		if err := s.store.SaveInstallationAccount(ctx, next.AuthGeneration, next); err != nil {
+			return err
+		}
+		s.installation = next
+		if emit {
+			s.emitLocked(g, Change{Kind: "profile"})
+		}
+	}
 	if summary.Plan == "pro" {
 		delete(g.pending, checkoutInterest)
 		s.updateFeedLocked(g)
-	}
-	if sameProfile(summary, next.Profile) {
-		return nil
-	}
-	next.Profile = summary
-	if err := s.store.SaveInstallationAccount(ctx, next.AuthGeneration, next); err != nil {
-		return err
-	}
-	s.installation = next
-	if emit {
-		s.emitLocked(g, Change{Kind: "profile"})
 	}
 	return nil
 }

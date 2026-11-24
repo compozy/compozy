@@ -214,6 +214,20 @@ func (q *Queries) RetireBrowserOriginKey(ctx context.Context, arg RetireBrowserO
 	return err
 }
 
+const revokePurchaseWebSession = `-- name: RevokePurchaseWebSession :exec
+UPDATE cloud_web_sessions SET revoked_at = $2 WHERE id_sha256 = $1 AND revoked_at IS NULL
+`
+
+type RevokePurchaseWebSessionParams struct {
+	IDSha256  []byte
+	RevokedAt pgtype.Timestamptz
+}
+
+func (q *Queries) RevokePurchaseWebSession(ctx context.Context, arg RevokePurchaseWebSessionParams) error {
+	_, err := q.db.Exec(ctx, revokePurchaseWebSession, arg.IDSha256, arg.RevokedAt)
+	return err
+}
+
 const sweepBrowserCodes = `-- name: SweepBrowserCodes :exec
 DELETE FROM browser_codes WHERE expires_at <= $1
 `
@@ -246,12 +260,12 @@ func (q *Queries) SweepUnactivatedBrowserDevices(ctx context.Context, lastSeenAt
 const touchCloudWebSession = `-- name: TouchCloudWebSession :one
 UPDATE cloud_web_sessions w SET last_used_at = greatest(w.last_used_at, $2)
 FROM accounts a
-WHERE w.id_sha256 = $1 AND w.account_id = a.id AND a.state = 'active' AND w.revoked_at IS NULL
+WHERE w.id_sha256 = $1 AND w.account_id = a.id AND w.revoked_at IS NULL
   AND w.expires_at > $2 AND w.last_used_at > $3::timestamptz
   AND (w.browser_device_id IS NULL OR EXISTS (
       SELECT 1 FROM devices d WHERE d.id = w.browser_device_id AND d.revoked_at IS NULL
   ))
-RETURNING w.account_id, a.email, w.browser_device_id
+RETURNING w.account_id, a.email, w.browser_device_id, a.state
 `
 
 type TouchCloudWebSessionParams struct {
@@ -264,12 +278,18 @@ type TouchCloudWebSessionRow struct {
 	AccountID       string
 	Email           string
 	BrowserDeviceID pgtype.Text
+	State           string
 }
 
 func (q *Queries) TouchCloudWebSession(ctx context.Context, arg TouchCloudWebSessionParams) (TouchCloudWebSessionRow, error) {
 	row := q.db.QueryRow(ctx, touchCloudWebSession, arg.IDSha256, arg.AsOf, arg.IdleLimit)
 	var i TouchCloudWebSessionRow
-	err := row.Scan(&i.AccountID, &i.Email, &i.BrowserDeviceID)
+	err := row.Scan(
+		&i.AccountID,
+		&i.Email,
+		&i.BrowserDeviceID,
+		&i.State,
+	)
 	return i, err
 }
 

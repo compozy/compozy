@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// ProfilePlanRequest is a daemon API value.
+type ProfilePlanRequest struct {
+	PlanRevision string `json:"plan_revision"`
+}
+
 // ProfileRemovalSummary is a daemon API value.
 type ProfileRemovalSummary struct {
 	AgentInstances      int `json:"agent_instances"`
@@ -434,13 +439,4 @@ type PutResourceRequest struct {
 // PutSettingsHookRequest is a daemon API value.
 type PutSettingsHookRequest struct {
 	Declaration SettingsHookDeclarationPayload `json:"declaration"`
-}
-
-// PutSettingsMCPServerRequest is a daemon API value.
-type PutSettingsMCPServerRequest struct {
-	Server          SettingsMCPServerPayload              `json:"server"`
-	SecretValues    *SettingsMCPSecretValuesPayload       `json:"secret_values,omitzero"`
-	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
-	PreserveHeaders bool                                  `json:"preserve_headers,omitzero"`
-	PreserveEnv     []string                              `json:"preserve_env,omitempty"`
 }

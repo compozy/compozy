@@ -67,7 +67,7 @@ SELECT EXISTS (
     WHERE t.computer_id = $1 AND t.state <> 'deleted'
       AND (t.state IN ('deleting', 'failed') OR c.unlinked_at IS NOT NULL OR a.state <> 'active'
            OR t.delete_after <= $2::timestamptz
-           OR greatest(t.created_at, c.last_control_at) <= $3::timestamptz
+           OR (t.delete_after IS NULL AND greatest(t.created_at, c.last_control_at) <= $3::timestamptz)
            OR (t.state IN ('reserved', 'provisioning') AND t.created_at <= $4::timestamptz))
 )
 `
@@ -179,7 +179,7 @@ JOIN accounts a ON a.id = c.account_id
 WHERE t.state <> 'deleted'
   AND (t.state IN ('deleting', 'failed') OR c.unlinked_at IS NOT NULL OR a.state <> 'active'
        OR t.delete_after <= $1::timestamptz
-       OR greatest(t.created_at, c.last_control_at) <= $2::timestamptz
+       OR (t.delete_after IS NULL AND greatest(t.created_at, c.last_control_at) <= $2::timestamptz)
        OR (t.state IN ('reserved', 'provisioning') AND t.created_at <= $3::timestamptz))
 ORDER BY t.created_at, t.computer_id
 `

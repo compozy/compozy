@@ -48,6 +48,7 @@ type IdentityProvider struct {
 	now            func() time.Time
 	Origin         string
 	browserProfile *ProviderProfile
+	browserGitHub  *ProviderProfile
 	turnstileHost  string
 }
 
@@ -210,6 +211,13 @@ func (p *IdentityProvider) authorize(w http.ResponseWriter, r *http.Request) {
 	}
 	callback := target.Query()
 	profile := *p.browserProfile
+	if r.URL.Path == "/github/authorize" {
+		p.mu.Lock()
+		if p.browserGitHub != nil {
+			profile = *p.browserGitHub
+		}
+		p.mu.Unlock()
+	}
 	if query.Get("max_age") == "0" {
 		profile.AuthTime = new(p.now())
 	}
@@ -218,6 +226,12 @@ func (p *IdentityProvider) authorize(w http.ResponseWriter, r *http.Request) {
 	target.RawQuery = callback.Encode()
 	// #nosec G710 -- limited to the fixture cloud's callback.
 	http.Redirect(w, r, target.String(), http.StatusSeeOther)
+}
+
+func (p *IdentityProvider) SetBrowserGitHubProfile(profile ProviderProfile) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.browserGitHub = &profile
 }
 
 func (p *IdentityProvider) Turnstile() (*turnstile.Client, error) {

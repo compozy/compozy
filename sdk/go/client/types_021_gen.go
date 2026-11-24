@@ -4,6 +4,38 @@ package client
 
 import "time"
 
+// SessionHealthPayload is a daemon API value.
+type SessionHealthPayload struct {
+	LifecycleState      SessionState                     `json:"lifecycle_state,omitempty"`
+	Verified            *bool                            `json:"verified,omitempty"`
+	Escalated           *bool                            `json:"escalated,omitempty"`
+	Attention           string                           `json:"attention,omitempty"`
+	SessionID           string                           `json:"session_id"`
+	WorkspaceID         string                           `json:"workspace_id"`
+	AgentName           string                           `json:"agent_name"`
+	State               SessionHealthState               `json:"state"`
+	Health              SessionHealthStatus              `json:"health"`
+	ActivePrompt        bool                             `json:"active_prompt"`
+	Attachable          bool                             `json:"attachable"`
+	EligibleForWake     bool                             `json:"eligible_for_wake"`
+	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
+	LastActivityAt      *time.Time                       `json:"last_activity_at,omitempty"`
+	LastPresenceAt      *time.Time                       `json:"last_presence_at,omitempty"`
+	LastError           string                           `json:"last_error,omitempty"`
+	UpdatedAt           time.Time                        `json:"updated_at"`
+}
+
+// SessionHealthResponse is a daemon API value.
+type SessionHealthResponse struct {
+	Health SessionHealthPayload `json:"health"`
+}
+
+// SessionHealthState is a daemon API value.
+type SessionHealthState string
+
+// SessionHealthStatus is a daemon API value.
+type SessionHealthStatus string
+
 // SessionHistoryCleanupChoices is a daemon API value.
 type SessionHistoryCleanupChoices struct {
 	Everything int `json:"everything"`
@@ -411,38 +443,3 @@ type SessionProcessPayload struct {
 
 // SessionProcessPolicy is a daemon API value.
 type SessionProcessPolicy string
-
-// SessionProcessResult is a daemon API value.
-type SessionProcessResult struct {
-	PID       int                   `json:"pid"`
-	StartedAt time.Time             `json:"started_at"`
-	Outcome   SessionProcessOutcome `json:"outcome"`
-	Error     string                `json:"error,omitempty"`
-}
-
-// SessionProcessSummaryPayload is a daemon API value.
-type SessionProcessSummaryPayload struct {
-	Supported  bool  `json:"supported"`
-	Background int   `json:"background"`
-	Terminals  int   `json:"terminals"`
-	Total      int   `json:"total"`
-	Ports      []int `json:"ports"`
-	Trees      int   `json:"trees,omitempty"`
-}
-
-// SessionProcessTarget is a daemon API value.
-type SessionProcessTarget struct {
-	PID       int       `json:"pid"`
-	StartedAt time.Time `json:"started_at"`
-}
-
-// SessionProcessTreePayload is a daemon API value.
-type SessionProcessTreePayload struct {
-	ID       string                 `json:"id"`
-	Kind     SessionProcessKind     `json:"kind"`
-	Root     SessionProcessTarget   `json:"root"`
-	Lead     SessionProcessTarget   `json:"lead"`
-	Wrappers []SessionProcessTarget `json:"wrappers"`
-	Members  []SessionProcessTarget `json:"members"`
-	Ports    []int                  `json:"ports"`
-}

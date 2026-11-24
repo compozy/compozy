@@ -14,7 +14,7 @@ Run `compozy account status` to see your plan, remote computer usage, and this c
 ## Manage your account
 
 - `compozy account logout` revokes the session and closes its account stream. Signing in again with the same account reuses the device unless it was revoked.
-- `compozy account upgrade` opens monthly Pro checkout when billing is available. Use `compozy account upgrade --annual` for annual billing.
+- `compozy account upgrade` opens monthly Pro checkout. Use `compozy account upgrade --annual` for annual billing. You can also [buy Pro from a browser](/docs/account/billing) before installing CompozyOS.
 - A temporary cloud outage leaves an existing sign-in intact. Local sessions remain available and account operations resume when the cloud is reachable.
 
 ## Use the local API
@@ -37,5 +37,7 @@ The same account routes are available over the daemon's local HTTP and Unix sock
 | `POST /api/account/checkout` and `POST /api/account/billing-portal` | Open hosted checkout or the billing portal.                                           |
 
 Subscribe to the sign-in events before starting a login to receive progress for its attempt ID. Start a new account stream after signing in. The signed-in stream accepts `Last-Event-ID` or `after_sequence` from the same sign-in. On `stream_reset`, read the current account and approvals again. A `202` approval decision confirms delivery was accepted. Wait for the applied result or read the approval to confirm the outcome.
+
+Send `{"interval":"year"}` or `{"interval":"month"}` to checkout. Open the returned `url` in the operator's browser. Checkout completion and renewal changes emit `account.changed` with `plan` and `payment_issue`. A controller can follow this stream with remote access turned off.
 
 Development builds can use `COMPOZY_CLOUD_URL` to select a cloud origin. Builds that require sign-in use `https://cloud.compozy.com`.

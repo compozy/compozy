@@ -1,0 +1,64 @@
+package billing
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/compozy/compozy/internal/cloud/store"
+)
+
+const ReconcileInterval = 6 * time.Hour
+
+func (s *Service) Reconcile(ctx context.Context) error {
+	if s.cfg.Stripe == nil {
+		return nil
+	}
+	ids, err := s.db.BillingStripeSubscriptionIDs(ctx)
+	if err != nil {
+		return err
+	}
+	var failures []error
+	for _, id := range ids {
+		failure := s.reconcileOne(ctx, id)
+		if failure != nil {
+			failures = append(failures, failure)
+		}
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	return errors.Join(failures...)
+}
+
+func (s *Service) reconcileOne(ctx context.Context, id string) error {
+	work, cancel := context.WithTimeout(ctx, 3*stripeTimeout)
+	defer cancel()
+	return s.refreshSubscription(work, id, stripeEvent{}, "")
+}
+
+func (s *Service) ReconcileComplimentary(ctx context.Context) error {
+	now := s.cfg.Now()
+	accounts, err := s.db.ExpiredComplimentaryAccounts(ctx, now)
+	if err != nil {
+		return err
+	}
+	var failures []error
+	for _, accountID := range accounts {
+		err := s.db.Transaction(ctx, func(q *store.Queries) error {
+			marked, err := q.MarkComplimentaryReconciled(ctx, accountID, now)
+			if err != nil || !marked {
+				return err
+			}
+			subscriptions, err := q.Subscriptions(ctx, accountID)
+			if err != nil {
+				return err
+			}
+			return q.ApplyAccountPlan(ctx, accountID, s.status(subscriptions, now).Plan, now, true)
+		})
+		if err != nil {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
+}

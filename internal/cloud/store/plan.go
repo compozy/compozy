@@ -8,7 +8,10 @@ import (
 
 	"github.com/compozy/compozy/internal/cloud/plan"
 	"github.com/compozy/compozy/internal/cloud/store/sqlcgen"
+	"github.com/compozy/compozy/internal/remoteproto"
 )
+
+const hostedPlanRetention = 7 * 24 * time.Hour
 
 func (q *Queries) LockPlanAccount(ctx context.Context, accountID string) error {
 	if !q.inTx {
@@ -35,11 +38,37 @@ func (q *Queries) Subscriptions(ctx context.Context, accountID string) ([]plan.S
 	}
 	subscriptions := make([]plan.Subscription, 0, len(rows))
 	for _, row := range rows {
-		subscriptions = append(subscriptions, plan.Subscription{
-			Source: row.Source, PriceID: row.PriceID.String, Status: row.Status, EndsAt: row.EndsAt.Time,
-		})
+		subscriptions = append(subscriptions, planSubscription(row))
 	}
 	return subscriptions, nil
+}
+
+// ApplyAccountPlan expects the account row lock. Retention is set once per lapse.
+func (q *Queries) ApplyAccountPlan(
+	ctx context.Context, accountID string, tier plan.Plan, asOf time.Time, billingChanged bool,
+) error {
+	limited, err := q.ApplyControlPlan(ctx, accountID, tier)
+	if err != nil {
+		return err
+	}
+	var deleteAfter time.Time
+	if tier == plan.Free {
+		deleteAfter = asOf.Add(hostedPlanRetention)
+		released, err := q.generated.ReleaseExcessFreeReservations(ctx, sqlcgen.ReleaseExcessFreeReservationsParams{
+			AccountID: accountID, AsOf: timestamp(asOf),
+		})
+		if err != nil {
+			return err
+		}
+		billingChanged = billingChanged || released > 0
+	}
+	tunnels, err := q.generated.SetHostedPlanRetention(ctx, sqlcgen.SetHostedPlanRetentionParams{
+		AccountID: accountID, DeleteAfter: timestamp(deleteAfter),
+	})
+	if err != nil || (!billingChanged && !limited && tunnels == 0) {
+		return err
+	}
+	return q.NotifyControlEvent(ctx, ControlEvent{Type: remoteproto.ControlPlanChanged, AccountID: accountID})
 }
 
 func (q *Queries) AccountHostedRouteUsage(ctx context.Context, accountID string) (int64, error) {

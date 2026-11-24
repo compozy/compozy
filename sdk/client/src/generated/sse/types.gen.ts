@@ -100,6 +100,8 @@ export type Change = {
   device_id?: string;
   evict_remote?: boolean;
   kind?: string;
+  payment_issue?: boolean | null;
+  plan?: string;
   security_epoch?: number;
 };
 

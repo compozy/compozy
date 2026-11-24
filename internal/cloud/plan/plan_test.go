@@ -61,4 +61,20 @@ func TestPlan(t *testing.T) {
 			t.Fatalf("plan = %v, want pro", got)
 		}
 	})
+
+	t.Run("Should return to Free at the exact complimentary expiry (UT-137)", func(t *testing.T) {
+		t.Parallel()
+		start := time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC)
+		end := start.Add(30 * 24 * time.Hour)
+		rows := []Subscription{{Source: "complimentary", Status: "active", EndsAt: end}}
+		active := BillingStatus(rows, "monthly", "yearly", end.Add(-time.Nanosecond))
+		if view := active.AccountSubscription(); active.Plan != Pro || view == nil ||
+			view.CurrentPeriodEnd == nil || !view.CurrentPeriodEnd.Equal(end) || view.RefundEligibleUntil != nil {
+			t.Fatalf("active complimentary plan = %+v", active)
+		}
+		expired := BillingStatus(rows, "monthly", "yearly", end)
+		if expired.Plan != Free || expired.AccountSubscription() != nil || expired.PaymentIssue {
+			t.Fatalf("expired complimentary plan = %+v", expired)
+		}
+	})
 }

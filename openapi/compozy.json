@@ -5293,6 +5293,13 @@
           "kind": {
             "type": "string"
           },
+          "payment_issue": {
+            "nullable": true,
+            "type": "boolean"
+          },
+          "plan": {
+            "type": "string"
+          },
           "security_epoch": {
             "format": "uint64",
             "minimum": 0,

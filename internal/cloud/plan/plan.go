@@ -38,29 +38,29 @@ func GrantRoutes(tier Plan) []remoteproto.RouteKind {
 }
 
 type Subscription struct {
-	Source  string
-	PriceID string
-	Status  string
-	EndsAt  time.Time
+	ID, AccountID, Source, PriceID, Status, Interval, CustomerID string
+	LastInvoiceID                                                string
+	CurrentPeriodEnd, LastPaymentAt, EndsAt                      time.Time
+	CancelAtPeriodEnd, RefundablePayment                         bool
 }
 
 func Derive(subscriptions []Subscription, monthlyPrice, annualPrice string, now time.Time) Plan {
 	for _, subscription := range subscriptions {
-		switch subscription.Source {
-		case "complimentary":
-			if now.Before(subscription.EndsAt) {
-				return Pro
-			}
-		case "stripe":
-			if subscription.PriceID == "" ||
-				(subscription.PriceID != monthlyPrice && subscription.PriceID != annualPrice) {
-				continue
-			}
-			switch subscription.Status {
-			case "active", "trialing", "past_due":
-				return Pro
-			}
+		if subscription.Entitled(monthlyPrice, annualPrice, now) {
+			return Pro
 		}
 	}
 	return Free
+}
+
+func (s Subscription) Entitled(monthlyPrice, annualPrice string, now time.Time) bool {
+	switch s.Source {
+	case "complimentary":
+		return now.Before(s.EndsAt)
+	case "stripe":
+		return s.PriceID != "" && (s.PriceID == monthlyPrice || s.PriceID == annualPrice) &&
+			(s.Status == "active" || s.Status == "trialing" || s.Status == "past_due")
+	default:
+		return false
+	}
 }

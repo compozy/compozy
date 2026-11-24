@@ -97,9 +97,7 @@ func (c *Client) DecideApproval(ctx context.Context, creds Credentials, id, jws 
 }
 
 func (c *Client) Checkout(ctx context.Context, creds Credentials, interval string) (string, error) {
-	input := struct {
-		Interval string `json:"interval"`
-	}{Interval: interval}
+	input := remoteproto.CheckoutRequest{Interval: interval}
 	return c.billingURL(ctx, creds, "/v1/billing/checkout", input)
 }
 
@@ -108,9 +106,7 @@ func (c *Client) BillingPortal(ctx context.Context, creds Credentials) (string, 
 }
 
 func (c *Client) billingURL(ctx context.Context, creds Credentials, path string, body any) (string, error) {
-	var result struct {
-		URL string `json:"url"`
-	}
+	var result remoteproto.BillingURL
 	if err := c.deviceJSON(ctx, creds, http.MethodPost, path, body, &result); err != nil {
 		return "", err
 	}

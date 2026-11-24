@@ -10,7 +10,7 @@ import (
 )
 
 type CloudWebSession struct {
-	AccountID, Email, BrowserDeviceID string
+	AccountID, Email, BrowserDeviceID, State string
 }
 
 func (q *Queries) CreateWebSession(ctx context.Context, hash []byte, accountID string, now, expires time.Time) error {
@@ -24,8 +24,14 @@ func (q *Queries) TouchWebSession(ctx context.Context, hash []byte, now, idleLim
 		IDSha256: hash, AsOf: timestamp(now), IdleLimit: timestamp(idleLimit),
 	})
 	return CloudWebSession{
-		AccountID: row.AccountID, Email: row.Email, BrowserDeviceID: row.BrowserDeviceID.String,
+		AccountID: row.AccountID, Email: row.Email, BrowserDeviceID: row.BrowserDeviceID.String, State: row.State,
 	}, authLookupError(err)
+}
+
+func (q *Queries) RevokePurchaseWebSession(ctx context.Context, hash []byte, now time.Time) error {
+	return q.generated.RevokePurchaseWebSession(ctx, sqlcgen.RevokePurchaseWebSessionParams{
+		IDSha256: hash, RevokedAt: timestamp(now),
+	})
 }
 
 func (q *Queries) BindWebSession(ctx context.Context, hash []byte, accountID, deviceID string) error {
