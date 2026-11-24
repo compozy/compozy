@@ -4,6 +4,9 @@ package api_test
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json/v2"
 	"net/http"
@@ -12,6 +15,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/cloud/auth"
+	"github.com/compozy/compozy/internal/remoteproto"
 )
 
 func TestCloudBrowserSignIn(t *testing.T) {
@@ -88,6 +92,122 @@ func TestCloudBrowserSignIn(t *testing.T) {
 		f.clock.Advance(10 * 24 * time.Hour)
 		assertTurnstileFailure(t, f.request(t, http.MethodGet, next, nil, webCookie, binding))
 	})
+
+	t.Run("Should activate only a proof-bound key and sign the resulting epoch (UT-114)", func(t *testing.T) {
+		t.Parallel()
+		// Safety Invariants 22 and 24. The cloud transaction owns both the key and the signed grant epoch.
+		f := newAuthFixture(t)
+		_, deviceGrant := f.signIn(t, auth.Google, providerProfile{
+			subject: "G1", email: "browser@example.test", verified: true,
+		}, false)
+		account := f.redeem(t, deviceGrant)
+		computerKey := seedBrowserComputer(t, f, account.AccountID)
+		form, verifier, jkt := browserAuthorization(t, "testbox-a1b2.compozy.run")
+		callback := browserOAuth(t, f, form, "browser@example.test")
+		code := redirectQuery(t, callback).Get("code")
+		input := remoteproto.BrowserTokenRequest{
+			BrowserSessionRequest: remoteproto.BrowserSessionRequest{Code: code, CodeVerifier: verifier}, JKT: jkt,
+		}
+		assertAuthRow(t, f, "SELECT count(*) FROM device_keys WHERE state = 'pending'", 1)
+		assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE security_epoch = 1", 1)
+
+		wrongKey := input
+		wrongKey.JKT = auth.Secret()
+		redeemBrowser(t, f, computerKey, wrongKey).expect(t, http.StatusForbidden, "browser_key_mismatch")
+		wrongVerifier := input
+		wrongVerifier.CodeVerifier = auth.Secret()
+		redeemBrowser(t, f, computerKey, wrongVerifier).expect(t, http.StatusForbidden, "browser_code_invalid")
+		assertAuthRow(t, f, "SELECT count(*) FROM device_keys WHERE state = 'pending'", 1)
+		assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE security_epoch = 1", 1)
+
+		reply := redeemBrowser(t, f, computerKey, input)
+		reply.expect(t, http.StatusOK, "grant")
+		verifierJWS, err := remoteproto.NewJWSVerifier(authOrigin, f.cfg.Keys.JWKS(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		signed := authJSON[remoteproto.GrantResponse](t, reply)
+		grant, err := verifierJWS.VerifyGrant(t.Context(), signed.Grant, f.clock.Now())
+		if err != nil || grant.SecurityEpoch != 2 || !grant.Browser || grant.Route != remoteproto.RouteCloud ||
+			grant.Cnf.JKT != jkt || grant.Audience != "cmp_test" {
+			t.Fatalf("browser grant claims = %+v, error = %v", grant, err)
+		}
+		assertAuthRow(t, f, "SELECT count(*) FROM device_keys WHERE state = 'active' AND activated_at IS NOT NULL", 1)
+		assertAuthRow(t, f, "SELECT count(*) FROM accounts WHERE security_epoch = 2", 1)
+		f.clock.Advance(6 * time.Minute)
+		redeemBrowser(t, f, computerKey, input).expect(t, http.StatusForbidden, "browser_code_used")
+
+		response := f.request(
+			t,
+			http.MethodGet,
+			browserAuthorizePath+"?"+form.Encode(),
+			nil,
+			callback.cookie(t, webSessionCookie),
+		)
+		assertBrowserRedirect(t, response, form.Get("state"), "error")
+		if got := redirectQuery(t, response).Get("error"); got != "browser_key_rebind_required" {
+			t.Fatalf("an active key must stay assigned to its original device, got %q", got)
+		}
+		assertAuthRow(t, f, "SELECT count(*) FROM devices", 1)
+	})
+}
+
+func browserOAuth(t *testing.T, f authFixture, form url.Values, email string) authReply {
+	t.Helper()
+	page := f.request(t, http.MethodGet, browserAuthorizePath+"?"+form.Encode(), nil)
+	assertTurnstileFailure(t, page)
+	cookie := page.cookie(t, activationCookie)
+	request := form.Clone()
+	request.Set("cf-turnstile-response", "pass-browser_authorize")
+	oauth := f.request(t, http.MethodPost, browserAuthorizePath, request, cookie)
+	oauth.expect(t, http.StatusSeeOther, "")
+	callback := f.callbackPath(t, auth.Google, oauth, providerProfile{subject: "G1", email: email, verified: true})
+	return f.request(t, http.MethodGet, callback, nil, cookie)
+}
+
+func browserAuthorization(t *testing.T, hostname string) (url.Values, string, string) {
+	t.Helper()
+	_, key := newDeviceKey(t)
+	data, err := json.Marshal(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jkt, err := key.Thumbprint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier := auth.Secret()
+	challenge := sha256.Sum256([]byte(verifier))
+	return url.Values{
+		"hostname": {hostname}, "public_jwk": {base64.RawURLEncoding.EncodeToString(data)},
+		"state": {auth.Secret()}, "code_challenge": {base64.RawURLEncoding.EncodeToString(challenge[:])},
+		"provider": {auth.Google},
+	}, verifier, jkt
+}
+
+func redeemBrowser(
+	t *testing.T,
+	f authFixture,
+	key ed25519.PrivateKey,
+	input remoteproto.BrowserTokenRequest,
+) authReply {
+	t.Helper()
+	body, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proof, err := remoteproto.SignComputerProof(
+		key,
+		http.MethodPost,
+		authOrigin+remoteproto.BrowserTokenPath,
+		body,
+		f.clock.Now(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return callAuth(t, f.replica, http.MethodPost, remoteproto.BrowserTokenPath, input, nil,
+		map[string]string{remoteproto.ComputerProofHeader: proof})
 }
 
 func browserForm(t *testing.T) url.Values {
@@ -122,12 +242,24 @@ func assertBrowserRedirect(t *testing.T, reply authReply, state, result string) 
 	}
 }
 
-func seedBrowserComputer(t *testing.T, f authFixture, accountID string) {
+func seedBrowserComputer(t *testing.T, f authFixture, accountID string) ed25519.PrivateKey {
 	t.Helper()
+	public, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jwk, err := remoteproto.NewPublicJWK(public)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(jwk)
+	if err != nil {
+		t.Fatal(err)
+	}
 	now := f.clock.Now()
 	if _, err := f.conn.Exec(t.Context(), `INSERT INTO computers
 		(id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled)
-		VALUES ('cmp_test', $1, 'Test box', 'linux', '1', '{}', 'root', true)`, accountID); err != nil {
+		VALUES ('cmp_test', $1, 'Test box', 'linux', '1', $2, 'root', true)`, accountID, data); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.conn.Exec(t.Context(), `INSERT INTO tunnels (computer_id, hostname, state)
@@ -138,4 +270,5 @@ func seedBrowserComputer(t *testing.T, f authFixture, accountID string) {
 		VALUES ('csub_test', 'complimentary', $1, 'active', $2)`, accountID, now.AddDate(1, 0, 0)); err != nil {
 		t.Fatal(err)
 	}
+	return key
 }

@@ -3,6 +3,7 @@ package remotehost
 import (
 	"net"
 	"net/http"
+	"path"
 	"slices"
 	"strings"
 
@@ -41,6 +42,7 @@ func (h listenerHandler) guardHosted(next http.Handler) http.Handler {
 			http.NotFound(w, req)
 			return
 		}
+		w.Header().Set("Referrer-Policy", "no-referrer")
 		if err := RejectClaimToken(req); err != nil {
 			writeFailure(w, err)
 			return
@@ -51,9 +53,11 @@ func (h listenerHandler) guardHosted(next http.Handler) http.Handler {
 			if mode == remoteproto.HostedTunnelEntitlementOnly {
 				state = planRequiredCode
 			}
-			writeJSON(w, http.StatusOK, struct {
-				State string `json:"state"`
-			}{State: state})
+			writeJSON(w, http.StatusOK, remoteproto.BrowserStatus{State: state})
+			return
+		}
+		if h.hostedApp != nil && hostedStaticRequest(req) {
+			h.hostedApp.ServeHTTP(w, req)
 			return
 		}
 		if mode == remoteproto.HostedTunnelEntitlementOnly {
@@ -70,6 +74,19 @@ func (h listenerHandler) guardHosted(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, req)
 	})
+}
+
+func hostedStaticRequest(req *http.Request) bool {
+	if req.Method != http.MethodGet && req.Method != http.MethodHead {
+		return false
+	}
+	root, _, _ := strings.Cut(strings.TrimPrefix(path.Clean(req.URL.Path), "/"), "/")
+	switch root {
+	case "api", "c", "remote", "ws":
+		return false
+	default:
+		return true
+	}
 }
 
 func isHostedRequest(authority, hostname string) bool {

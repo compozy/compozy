@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// ExtensionLogsResponse is a daemon API value.
+type ExtensionLogsResponse struct {
+	Logs        []ExtensionLogPayload `json:"logs"`
+	StreamEpoch string                `json:"stream_epoch"`
+}
+
 // ExtensionPayload is a daemon API value.
 type ExtensionPayload struct {
 	Description                 string                            `json:"description,omitempty"`

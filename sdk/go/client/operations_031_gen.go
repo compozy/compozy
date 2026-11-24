@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+// ReadSessionFileContentParams carries the path, query, and header parameters.
+type ReadSessionFileContentParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Path        string  `url:"path"`
+	Reveal      *bool   `url:"reveal"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ReadSessionFileContent Read project file content
 func (c *Client) ReadSessionFileContent(ctx context.Context, params ReadSessionFileContentParams) (*FileContentResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/content"

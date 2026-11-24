@@ -65,7 +65,7 @@ func (q *Queries) ExpirePendingKey(ctx context.Context, deviceID, hostname strin
 type BrowserCode struct {
 	Hash                                            []byte
 	AccountID, DeviceID, ComputerID, JKT, Challenge string
-	ExpiresAt                                       time.Time
+	ExpiresAt, UsedAt                               time.Time
 }
 
 func (q *Queries) CreateBrowserCode(ctx context.Context, c BrowserCode) error {
@@ -73,6 +73,31 @@ func (q *Queries) CreateBrowserCode(ctx context.Context, c BrowserCode) error {
 		CodeSha256: c.Hash, AccountID: c.AccountID, DeviceID: c.DeviceID, ComputerID: c.ComputerID,
 		Jkt: c.JKT, CodeChallenge: c.Challenge, ExpiresAt: timestamp(c.ExpiresAt),
 	})
+}
+
+func (q *Queries) BrowserCode(ctx context.Context, hash []byte) (BrowserCode, error) {
+	row, err := q.generated.CloudBrowserCode(ctx, hash)
+	return BrowserCode{
+		Hash: hash, AccountID: row.AccountID, DeviceID: row.DeviceID, ComputerID: row.ComputerID,
+		JKT: row.Jkt, Challenge: row.CodeChallenge, ExpiresAt: row.ExpiresAt.Time, UsedAt: row.UsedAt.Time,
+	}, authLookupError(err)
+}
+
+func (q *Queries) UseBrowserCode(ctx context.Context, hash []byte, now time.Time) error {
+	return authChanged(q.generated.UseCloudBrowserCode(ctx, sqlcgen.UseCloudBrowserCodeParams{
+		CodeSha256: hash, AsOf: timestamp(now),
+	}))
+}
+
+func (q *Queries) ActivateBrowserKey(ctx context.Context, id, jkt, origin string, now time.Time) error {
+	if err := q.generated.RetireBrowserOriginKey(ctx, sqlcgen.RetireBrowserOriginKeyParams{
+		DeviceID: id, Origin: authText(origin), AsOf: timestamp(now),
+	}); err != nil {
+		return err
+	}
+	return authChanged(q.generated.ActivateBrowserKey(ctx, sqlcgen.ActivateBrowserKeyParams{
+		Jkt: jkt, DeviceID: id, AsOf: timestamp(now),
+	}))
 }
 
 func (q *Queries) SweepAuth(ctx context.Context, now time.Time) error {
@@ -83,6 +108,10 @@ func (q *Queries) SweepAuth(ctx context.Context, now time.Time) error {
 		if err := sweep(ctx, timestamp(now)); err != nil {
 			return err
 		}
+	}
+	const replayReceiptTTL = 24 * time.Hour
+	if err := q.generated.SweepBrowserCodes(ctx, timestamp(now.Add(-replayReceiptTTL))); err != nil {
+		return err
 	}
 	const abandonedDeviceTTL = 10 * time.Minute
 	return q.generated.SweepUnactivatedBrowserDevices(ctx, timestamp(now.Add(-abandonedDeviceTTL)))

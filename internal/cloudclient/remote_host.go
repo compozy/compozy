@@ -140,3 +140,11 @@ func (c *Client) DeleteHostedTunnel(ctx context.Context, id remoteproto.Computer
 	return c.computerJSONWithin(ctx, hostedTunnelRequestTimeout, http.MethodDelete, computerPath(id)+"/tunnel",
 		nil, nil, Credentials{}, key)
 }
+
+func (c *Client) RedeemBrowserCode(
+	ctx context.Context, key ed25519.PrivateKey, input remoteproto.BrowserTokenRequest,
+) (remoteproto.GrantResponse, error) {
+	var result remoteproto.GrantResponse
+	err := c.computerJSON(ctx, http.MethodPost, remoteproto.BrowserTokenPath, input, &result, Credentials{}, key)
+	return result, err
+}

@@ -1387,6 +1387,40 @@ export type Briefing = {
   usage: RunUsage;
 };
 
+export type BrowserApprovalStatus = {
+  approval_id: string;
+  expires_at: string;
+  state: string;
+};
+
+export type BrowserPeersResponse = {
+  peers: Array<HostedPeer>;
+};
+
+export type BrowserSessionRequest = {
+  code: string;
+  code_verifier: string;
+};
+
+export type BrowserSessionResponse = {
+  expires_at: number;
+  scopes: Array<string>;
+  session_id: string;
+};
+
+export type BrowserStatus = {
+  state: string;
+};
+
+export type BrowserStreamTicketRequest = {
+  path: string;
+};
+
+export type BrowserStreamTicketResponse = {
+  expires_at: string;
+  ticket: string;
+};
+
 export type Budget = {
   on_exceeded?: "halt" | "escalate";
   tokens: number;
@@ -4437,6 +4471,12 @@ export type HookRunPayload = {
 
 export type HookRunsResponse = {
   runs: Array<HookRunPayload>;
+};
+
+export type HostedPeer = {
+  computer_id: string;
+  hosted_url: string;
+  name: string;
 };
 
 export type HostedStatus = {
@@ -49609,3 +49649,367 @@ export type ListWorktreesAggregateResponses = {
 
 export type ListWorktreesAggregateResponse =
   ListWorktreesAggregateResponses[keyof ListWorktreesAggregateResponses];
+
+export type GetBrowserApprovalData = {
+  body?: never;
+  headers: {
+    /**
+     * Proof from the browser key
+     */
+    DPoP: string;
+  };
+  path: {
+    /**
+     * Approval ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/remote/v1/browser/approvals/{id}";
+};
+
+export type GetBrowserApprovalErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetBrowserApprovalError = GetBrowserApprovalErrors[keyof GetBrowserApprovalErrors];
+
+export type GetBrowserApprovalResponses = {
+  /**
+   * OK
+   */
+  200: BrowserApprovalStatus;
+};
+
+export type GetBrowserApprovalResponse =
+  GetBrowserApprovalResponses[keyof GetBrowserApprovalResponses];
+
+export type ListBrowserPeersData = {
+  body?: never;
+  headers: {
+    /**
+     * Proof from the browser key
+     */
+    DPoP: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/remote/v1/browser/peers";
+};
+
+export type ListBrowserPeersErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListBrowserPeersError = ListBrowserPeersErrors[keyof ListBrowserPeersErrors];
+
+export type ListBrowserPeersResponses = {
+  /**
+   * OK
+   */
+  200: BrowserPeersResponse;
+};
+
+export type ListBrowserPeersResponse = ListBrowserPeersResponses[keyof ListBrowserPeersResponses];
+
+export type EndBrowserSessionData = {
+  body?: never;
+  headers: {
+    /**
+     * Proof from the browser key
+     */
+    DPoP: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/remote/v1/browser/session";
+};
+
+export type EndBrowserSessionErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type EndBrowserSessionError = EndBrowserSessionErrors[keyof EndBrowserSessionErrors];
+
+export type EndBrowserSessionResponses = {
+  /**
+   * No Content
+   */
+  204: void;
+};
+
+export type EndBrowserSessionResponse =
+  EndBrowserSessionResponses[keyof EndBrowserSessionResponses];
+
+export type StartBrowserSessionData = {
+  /**
+   * JSON request body
+   */
+  body: BrowserSessionRequest;
+  headers: {
+    /**
+     * Proof from the browser key
+     */
+    DPoP: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/remote/v1/browser/session";
+};
+
+export type StartBrowserSessionErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type StartBrowserSessionError = StartBrowserSessionErrors[keyof StartBrowserSessionErrors];
+
+export type StartBrowserSessionResponses = {
+  /**
+   * Created
+   */
+  201: BrowserSessionResponse;
+};
+
+export type StartBrowserSessionResponse =
+  StartBrowserSessionResponses[keyof StartBrowserSessionResponses];
+
+export type GetBrowserStatusData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/remote/v1/browser/status";
+};
+
+export type GetBrowserStatusErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetBrowserStatusError = GetBrowserStatusErrors[keyof GetBrowserStatusErrors];
+
+export type GetBrowserStatusResponses = {
+  /**
+   * OK
+   */
+  200: BrowserStatus;
+};
+
+export type GetBrowserStatusResponse = GetBrowserStatusResponses[keyof GetBrowserStatusResponses];
+
+export type MintBrowserStreamTicketData = {
+  /**
+   * JSON request body
+   */
+  body: BrowserStreamTicketRequest;
+  headers: {
+    /**
+     * Proof from the browser key
+     */
+    DPoP: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/remote/v1/stream-tickets";
+};
+
+export type MintBrowserStreamTicketErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type MintBrowserStreamTicketError =
+  MintBrowserStreamTicketErrors[keyof MintBrowserStreamTicketErrors];
+
+export type MintBrowserStreamTicketResponses = {
+  /**
+   * Created
+   */
+  201: BrowserStreamTicketResponse;
+};
+
+export type MintBrowserStreamTicketResponse =
+  MintBrowserStreamTicketResponses[keyof MintBrowserStreamTicketResponses];

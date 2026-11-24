@@ -27,6 +27,8 @@ type StreamTicket struct {
 type StreamTicketClaim struct {
 	DeviceID string
 	Epoch    uint64
+	session  [32]byte
+	path     string
 }
 
 type streamTicketEntry struct {
@@ -56,10 +58,19 @@ func NewStreamTicketStore(
 	if ttl <= 0 {
 		return nil, errors.New("gateway: stream ticket TTL must be positive")
 	}
+	return newStreamTicketStore(maxEntries, ttl, now, entropy), nil
+}
+
+func newStreamTicketStore(
+	maxEntries int,
+	ttl time.Duration,
+	now func() time.Time,
+	entropy io.Reader,
+) *StreamTicketStore {
 	return &StreamTicketStore{
 		entries: make(map[string]streamTicketEntry), max: maxEntries,
 		ttl: ttl, now: now, entropy: entropy,
-	}, nil
+	}
 }
 
 func (s *StreamTicketStore) Reconfigure(ttl time.Duration) error {
@@ -74,6 +85,10 @@ func (s *StreamTicketStore) Reconfigure(ttl time.Duration) error {
 }
 
 func (s *StreamTicketStore) Mint(deviceID string, epoch uint64) (StreamTicket, error) {
+	return s.mint(StreamTicketClaim{DeviceID: deviceID, Epoch: epoch})
+}
+
+func (s *StreamTicketStore) mint(claim StreamTicketClaim) (StreamTicket, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -88,13 +103,17 @@ func (s *StreamTicketStore) Mint(deviceID string, epoch uint64) (StreamTicket, e
 	}
 	expiresAt := now.Add(s.ttl)
 	s.entries[HashCredential(ticket)] = streamTicketEntry{
-		claim:   StreamTicketClaim{DeviceID: deviceID, Epoch: epoch},
+		claim:   claim,
 		expires: expiresAt,
 	}
 	return StreamTicket{Ticket: ticket, ExpiresAt: expiresAt}, nil
 }
 
 func (s *StreamTicketStore) Consume(ticket string) (StreamTicketClaim, error) {
+	return s.consume(ticket, nil)
+}
+
+func (s *StreamTicketStore) consume(ticket string, accept func(StreamTicketClaim) bool) (StreamTicketClaim, error) {
 	if !ValidOpaqueSecret(ticket, streamTicketPrefix) {
 		return StreamTicketClaim{}, ErrStreamTicketInvalid
 	}
@@ -103,10 +122,14 @@ func (s *StreamTicketStore) Consume(ticket string) (StreamTicketClaim, error) {
 	defer s.mu.Unlock()
 
 	entry, ok := s.entries[digest]
-	delete(s.entries, digest)
 	if !ok || !s.now().Before(entry.expires) {
+		delete(s.entries, digest)
 		return StreamTicketClaim{}, ErrStreamTicketInvalid
 	}
+	if accept != nil && !accept(entry.claim) {
+		return StreamTicketClaim{}, ErrStreamTicketInvalid
+	}
+	delete(s.entries, digest)
 	return entry.claim, nil
 }
 

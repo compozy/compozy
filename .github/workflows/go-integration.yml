@@ -82,10 +82,14 @@ jobs:
 
       - uses: ./.github/actions/setup-bun
         with:
-          install-playwright: "false"
+          install-playwright: ${{ matrix.group == 'other' && 'true' || 'false' }}
 
       - name: Build integration fixture dependencies
         run: bun run turbo run build --filter=@compozy/extension-react --filter=@compozy/client
+
+      - name: Build the hosted browser fixture bundle
+        if: matrix.group == 'other'
+        run: bun run turbo run build --filter=./web
 
       - name: Run full integration suite
         env:

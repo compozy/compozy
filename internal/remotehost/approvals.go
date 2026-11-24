@@ -105,7 +105,7 @@ func (s *Sessions) applyApproval(ctx context.Context, envelope string) (remotepr
 		return res, nil
 	}
 	index := slices.IndexFunc(snapshot.Devices, func(device remoteproto.SnapshotDevice) bool {
-		return device.Admin && slices.Contains(device.JKTs, signer)
+		return device.Admin && !s.locallyRevoked[device.DeviceID] && slices.Contains(device.JKTs, signer)
 	})
 	if index < 0 {
 		res.Result = remoteproto.ErrApprovalSignature.Error()
