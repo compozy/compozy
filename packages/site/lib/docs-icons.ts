@@ -137,6 +137,7 @@ export const API_TAG_ICONS: Record<string, string> = {
   openai: "Sparkles",
   providers: "Bot",
   profiles: "Users",
+  remote: "Network",
   resources: "Database",
   roles: "Users",
   sessions: "Send",

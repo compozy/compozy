@@ -36,6 +36,7 @@ export const API_SECTIONS: ApiSection[] = [
       "providers",
       "extensions",
       "account",
+      "remote",
       "gateway",
       "app-tokens",
       "vault",
