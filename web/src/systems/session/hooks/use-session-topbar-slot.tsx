@@ -1,8 +1,14 @@
+import { use } from "react";
 import { AgentAvatar, Pill, StateGlyph, useTopbarSlot } from "@compozy/ui";
 
 import { isRemoteComputerId } from "@/lib/computer-scope";
 import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { ComputerChip, findComputerById, toComputerView, useComputers } from "@/systems/computers";
+import { OsShellContext, useOpenProjectFiles } from "@/systems/os";
+import {
+  SessionRemoteTopbarActions,
+  type RemoteSessionHeaderControls,
+} from "../components/session-remote-topbar-actions";
 import {
   agentAvatarAppearance,
   agentInstanceAvatarState,
@@ -12,7 +18,13 @@ import {
 } from "@/systems/agent";
 import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 import { PROFILE_SPRITE_URL } from "@/systems/profiles";
-import { WorkspaceBadge, useActiveWorkspace, workspaceBadgeIdentity } from "@/systems/workspace";
+import {
+  itemBindingSearch,
+  USER_SCOPE_SELECTOR,
+  WorkspaceBadge,
+  useActiveWorkspace,
+  workspaceBadgeIdentity,
+} from "@/systems/workspace";
 
 import {
   SessionLinkedWorkNarrowEntry,
@@ -193,18 +205,26 @@ function ownChipActions({
 }
 
 /**
- * An ordinary session's head: linked work entry, run verbs, then the Changes toggle. The composer's
+ * An ordinary session's head: linked work entry, remote Terminal/Files controls (scoped to the
+ * remote computer's granted device scopes), run verbs, then the Changes toggle. The composer's
  * context control opens and closes the inspector; a window without one keeps the head toggle.
  */
 function sessionActions(
   input: UseSessionTopbarSlotInput,
   actions: ReturnType<typeof sessionTopbarActions>,
-  linkedList: SessionLinkedWorkListProps
+  linkedList: SessionLinkedWorkListProps,
+  remote: RemoteSessionHeaderControls | null
 ) {
   const { session, linkedWork } = input;
+  const hasFilesScope = !remote || remote.computer.scopes.includes("files:read");
+
   return (
     <>
       {linkedWork.clipped ? <SessionLinkedWorkNarrowEntry {...linkedList} /> : null}
+      <SessionRemoteTopbarActions
+        hasFileRoot={sessionHasFileRoot(session.workspace_id)}
+        remote={remote}
+      />
       <SessionMarkSeenAction session={session} />
       <SessionPrimaryAction
         key={session.id}
@@ -213,11 +233,13 @@ function sessionActions(
         runningProcesses={sessionRunningProcesses(session)}
         processPorts={sessionProcessPorts(session)}
       />
-      <SessionReviewPanelToggle
-        workspaceId={session.workspace_id}
-        open={input.reviewOpen}
-        onToggle={input.onReviewToggle}
-      />
+      {hasFilesScope ? (
+        <SessionReviewPanelToggle
+          workspaceId={session.workspace_id}
+          open={input.reviewOpen}
+          onToggle={input.onReviewToggle}
+        />
+      ) : null}
       {input.sideChatsControl}
       {input.composerContextControl === false ? (
         <SessionPanelToggle
@@ -275,10 +297,45 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { registeredWorkspaces } = useActiveWorkspace();
   const workspaceNames = new Map(registeredWorkspaces.map(row => [row.id, row.name]));
   const linkedList = useLinkedWorkList(input, actions.lifecycleControllable, workspaceNames);
+  const shell = use(OsShellContext);
+  const openProjectFiles = useOpenProjectFiles();
   const computerId = useCurrentComputerId();
   const isRemote = isRemoteComputerId(computerId);
   const computers = useComputers({ enabled: isRemote });
   const remoteComputer = isRemote ? findComputerById(computers.computers, computerId) : undefined;
+  const remoteControls: RemoteSessionHeaderControls | null = remoteComputer
+    ? {
+        computer: remoteComputer,
+        disabled:
+          remoteComputer.status === "offline" || remoteComputer.status === "needs_pro",
+        onOpenTerminal: () => {
+          const workspaceTarget = session.workspace_id || USER_SCOPE_SELECTOR;
+          void shell?.coordinator.userOpen({
+            app: "terminal",
+            forceNewInstance: true,
+            route: {
+              pathname: "/terminal",
+              search: {
+                ...itemBindingSearch(workspaceTarget),
+                computer: computerId,
+                new: "1",
+              },
+            },
+          });
+        },
+        onOpenFiles: () => {
+          if (session.workspace_id) {
+            openProjectFiles?.(session.workspace_id, computerId);
+          }
+        },
+      }
+    : null;
+  const openSettingsSection = (section: "computers" | "account") => {
+    void shell?.coordinator.userOpen({
+      app: "settings",
+      route: { pathname: `/settings/${section}`, search: {} },
+    });
+  };
 
   useTopbarSlot({
     // The sessions list toggle leads every session head, open or closed (#1487); the board drawer
@@ -330,7 +387,20 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
           session={session}
           showState={false}
         />
-        {remoteComputer ? <ComputerChip computer={toComputerView(remoteComputer)} /> : null}
+        {remoteComputer ? (
+          <ComputerChip
+            computer={toComputerView(remoteComputer)}
+            onOpenDetails={shell ? () => openSettingsSection("computers") : undefined}
+            onReconnect={
+              remoteComputer.status === "offline" ? () => void computers.refetch() : undefined
+            }
+            onUpgrade={
+              remoteComputer.status === "needs_pro" && shell
+                ? () => openSettingsSection("account")
+                : undefined
+            }
+          />
+        ) : null}
         {sessionIsUnrestricted(session) ? (
           <SessionUnrestrictedBadge data-testid="session-topbar-unrestricted" />
         ) : null}
@@ -354,7 +424,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     // The run verbs lead; the Changes toggle trails as a quiet icon.
     actions: instance
       ? alwaysOnMainActions(input, instance)
-      : sessionActions(input, actions, linkedList),
+      : sessionActions(input, actions, linkedList, remoteControls),
     actionsDivider: !instance,
     // Per-session verbs live in the session list row menus; the head keeps only the view toggle.
     overflow: inWindow ? (

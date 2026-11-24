@@ -38,6 +38,7 @@ import type {
   RemoteScope,
 } from "../mocks/remote-computers-types";
 import type { ComputerSetupStatusPayload } from "../types";
+import { useComputerProviders } from "./use-computer-providers";
 import { useComputers } from "./use-computers";
 import { useLiveAddComputer } from "./use-live-add-computer";
 import { useLocalRemoteControls } from "./use-local-remote-controls";
@@ -133,9 +134,17 @@ export function useComputersSettingsPage() {
     return items;
   }, [availableQuery.data?.computers]);
 
-  const selectedComputer = useMemo(
+  const selectedComputerBase = useMemo(
     () => computers.find(item => item.id === selectedComputerId) ?? null,
     [computers, selectedComputerId]
+  );
+  const selectedProviders = useComputerProviders(selectedComputerBase);
+  const selectedComputer = useMemo<ComputerFixture | null>(
+    () =>
+      selectedComputerBase
+        ? { ...selectedComputerBase, providers: selectedProviders.providers }
+        : null,
+    [selectedComputerBase, selectedProviders.providers]
   );
 
   const openDetails = useCallback(
@@ -352,6 +361,7 @@ export function useComputersSettingsPage() {
     },
     addComputer,
     selectedComputer,
+    selectedProviders,
     detailsTab,
     openDetails,
     closeDetails: () => setSelectedComputerId(null),

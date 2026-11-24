@@ -10,7 +10,7 @@ import { test as base } from "@playwright/test";
 const execFileAsync = promisify(execFile);
 const repo = fileURLToPath(new URL("../../../", import.meta.url));
 
-type Scenario = "ssh-add" | "account-add" | "revoke-device";
+type Scenario = "ssh-add" | "account-add" | "revoke-device" | "remote-session";
 
 interface Daemon {
   web_url: string;
@@ -36,6 +36,10 @@ interface RemoteComputersLab {
   email: string;
   session_id?: string;
   session_title?: string;
+  workspace_id?: string;
+  hostname?: string;
+  project_file?: string;
+  project_file_content?: string;
 }
 
 export const test = base.extend<{ scenario: Scenario; lab: RemoteComputersLab }>({

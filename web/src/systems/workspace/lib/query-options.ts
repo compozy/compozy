@@ -55,10 +55,17 @@ export function computerWorkspacesOptions(
   });
 }
 
-export function workspaceDetailOptions(workspaceID: string) {
+export function workspaceDetailOptions(
+  workspaceID: string,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: workspaceKeys.detail(workspaceID),
-    queryFn: ({ signal }) => fetchWorkspace(workspaceID, signal),
+    queryKey: keys.detail(workspaceID),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchWorkspace(workspaceID, signal, computerId)
+        : fetchWorkspace(workspaceID, signal),
     staleTime: 60_000,
     refetchInterval: WORKSPACE_REFETCH_INTERVAL,
   });
@@ -72,11 +79,18 @@ export function workspaceDetailOptions(workspaceID: string) {
 export function worktreesListOptions(
   workspaceID: string,
   enabled = true,
-  availability?: { rootMissing: boolean; observedAt: number }
+  availability?: { rootMissing: boolean; observedAt: number },
+  computerId: ComputerId = LOCAL_COMPUTER_ID
 ) {
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: workspaceKeys.worktrees(workspaceID),
-    queryFn: ({ signal }) => fetchWorktrees(workspaceID, {}, signal),
+    queryKey: keys.worktrees(workspaceID),
+    queryFn: ({ signal }) =>
+      fetchWorktrees(
+        workspaceID,
+        isRemoteComputerId(computerId) ? { computerId } : {},
+        signal
+      ),
     // User-scope work has no worktrees (USW BR-4); the daemon rejects the read.
     enabled: query =>
       enabled &&

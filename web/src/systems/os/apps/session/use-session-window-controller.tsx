@@ -145,6 +145,8 @@ export function useSessionWindowController(input: {
   const remoteComputer = isRemote ? findComputerById(computers.computers, computerId) : undefined;
   const remoteOfflineComputerName =
     isRemote && remoteComputer?.status === "offline" ? remoteComputer.name : null;
+  const remoteEntitlementPausedComputerName =
+    isRemote && remoteComputer?.status === "needs_pro" ? remoteComputer.name : null;
 
   useSessionTopbarSlot({
     session,
@@ -217,5 +219,6 @@ export function useSessionWindowController(input: {
     promptRuntimeSnapshot,
     activityGoal: goal.snapshot,
     remoteOfflineComputerName,
+    remoteEntitlementPausedComputerName,
   };
 }

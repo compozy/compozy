@@ -22,7 +22,11 @@ import { useForkDeadSession } from "./use-fork-dead-session";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { useSessionWindowDerivedSessions } from "./hooks/use-session-window-derived-sessions";
 import type { useSessionWindowDerive } from "./use-session-window-derive";
+import { useQueryClient } from "@tanstack/react-query";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
+import { OsShellContext } from "../../contexts/os-shell-context";
+import { computerRegistryKeys } from "@/systems/computers";
+import { RemoteEntitlementPausedBanner } from "@/systems/session/components/remote-entitlement-paused-banner";
 import { RemoteOfflineComposerBanner } from "@/systems/session/components/remote-offline-composer-banner";
 import { sessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import { requestSessionInspectorSection } from "@/systems/session/hooks/use-session-inspector-focus";
@@ -170,6 +174,8 @@ export function SessionWindowContent({
   focused?: boolean;
 }) {
   const worktreeDialogs = use(WorktreeDialogActionsContext);
+  const shell = use(OsShellContext);
+  const queryClient = useQueryClient();
   const { derive, sideChat } = useSessionWindowDerivedSessions({ windowId, session, workspaceId });
   const page = useSessionWindowController({
     windowId,
@@ -203,7 +209,10 @@ export function SessionWindowContent({
     successorId,
     alwaysOnMain,
     remoteOfflineComputerName,
+    remoteEntitlementPausedComputerName,
   } = page;
+  const remoteComposerBlocked =
+    remoteOfflineComputerName !== null || remoteEntitlementPausedComputerName !== null;
   const environmentControl = useRef<SessionEnvironmentControlHandle>(null);
   const deadSession = useForkDeadSession(session, sessionId, workspaceId, sidebar.onSelectSession);
   const promptImageCapability = sessionPromptCapability(
@@ -275,8 +284,8 @@ export function SessionWindowContent({
                       />
                       <SessionReportSendContext value={successorId ? null : onSendPrompt}>
                         <SessionThread
-                          liveDataEnabled={liveDataEnabled && remoteOfflineComputerName === null}
-                          readOnly={successorId !== null || remoteOfflineComputerName !== null}
+                          liveDataEnabled={liveDataEnabled && !remoteComposerBlocked}
+                          readOnly={successorId !== null || remoteComposerBlocked}
                           sessionId={sessionId}
                           workspaceId={workspaceId}
                           agentName={agentName}
@@ -285,7 +294,7 @@ export function SessionWindowContent({
                           failure={session.failure}
                           statusSession={session}
                           stopCompletionNote={controls.stopCompletionNote}
-                          canPrompt={controls.canPrompt && remoteOfflineComputerName === null}
+                          canPrompt={controls.canPrompt && !remoteComposerBlocked}
                           onCancelPrompt={controls.handleCancelPrompt}
                           onQueuePrompt={controls.handleQueuePrompt}
                           onSteerPrompt={controls.handleSteerPrompt}
@@ -358,7 +367,27 @@ export function SessionWindowContent({
                         />
                       </SessionReportSendContext>
                       {remoteOfflineComputerName ? (
-                        <RemoteOfflineComposerBanner computerName={remoteOfflineComputerName} />
+                        <RemoteOfflineComposerBanner
+                          computerName={remoteOfflineComputerName}
+                          onReconnect={() =>
+                            void queryClient.invalidateQueries({
+                              queryKey: computerRegistryKeys.all,
+                            })
+                          }
+                        />
+                      ) : remoteEntitlementPausedComputerName ? (
+                        <RemoteEntitlementPausedBanner
+                          computerName={remoteEntitlementPausedComputerName}
+                          onUpgrade={
+                            shell
+                              ? () =>
+                                  void shell.coordinator.userOpen({
+                                    app: "settings",
+                                    route: { pathname: "/settings/account", search: {} },
+                                  })
+                              : undefined
+                          }
+                        />
                       ) : null}
                       {successorId ? (
                         <SupersededNotice

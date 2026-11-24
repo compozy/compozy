@@ -1,11 +1,10 @@
 /**
  * The terminal stream socket.
  *
- * Terminals are a local surface in v1 — remote/gateway terminal access is an
- * explicit non-goal — so this deliberately does not go through the gateway
- * stream-ticket path: that helper spends the same `?ticket=` parameter the
- * terminal attach pass already owns, and a second authority on one query
- * parameter is how a stream ends up authorised as the wrong thing.
+ * Local and remote (`/c/{computer_id}/...`) terminal streams deliberately avoid
+ * the gateway stream-ticket helper: that helper spends the same `?ticket=`
+ * parameter the terminal attach pass already owns, and a second authority on
+ * one query parameter is how a stream ends up authorised as the wrong thing.
  */
 
 import { TERMINAL_SUBPROTOCOL, type TerminalFrameBytes } from "../lib/terminal-wire";

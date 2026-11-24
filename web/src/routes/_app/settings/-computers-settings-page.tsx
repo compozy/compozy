@@ -148,6 +148,10 @@ export function ComputersSettingsPage() {
             }
           }}
           onRetryConnection={view.handleRetryConnection}
+          onRetryProviders={view.selectedProviders.refetch}
+          onSignInProvider={(provider, command) => {
+            void view.selectedProviders.signInProvider(provider, command);
+          }}
           onStartUpdate={() => {
             if (view.selectedComputer) {
               void view.handleStartUpdate(view.selectedComputer);
@@ -160,7 +164,10 @@ export function ComputersSettingsPage() {
           }}
           open
           placement="pane"
+          providersError={view.selectedProviders.error}
+          providersLoading={view.selectedProviders.isLoading}
           showRouteReorder={false}
+          signingInProviderId={view.selectedProviders.signingInProviderId}
         />
       ) : null}
 

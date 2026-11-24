@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Topbar, TopbarSlotProvider, UIProvider, useTopbarSlotValue } from "@compozy/ui";
 
+import { ComputerScopeContext } from "@/lib/computer-scope-context";
+
 import {
   filesAppPlace,
   filesAppPlaceStorageKey,
@@ -541,5 +543,91 @@ describe("FilesAppWindow", () => {
     await waitFor(() => expect(treeRow("web/src/")).toHaveAttribute("aria-expanded", "true"));
     await waitFor(() => expect(treeRow("web/src/")).toHaveAttribute("aria-selected", "true"));
     expect(treeRow("web/src/main.tsx")).not.toBeNull();
+  });
+
+  // US-012: remote FilesAppWindow routes workspace, worktree, and files reads through `/c/{id}`
+  // and renders plain-English copy when `files:read` is denied.
+  it("Should route remote Files reads through /c/{id} and render remote_scope_denied copy", async () => {
+    const COMPUTER_ID = "cmp_7f3k2q9x";
+    const remoteCalls: string[] = [];
+    let denyFiles = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const request = input instanceof Request ? input : new Request(String(input));
+        const url = new URL(request.url);
+        remoteCalls.push(url.pathname);
+        if (url.pathname === "/api/computers") {
+          return Response.json({ computers: [], local: { run_agents: true } });
+        }
+        if (url.pathname === `/c/${COMPUTER_ID}/api/workspaces`) {
+          const archived = url.searchParams.get("archived") === "true";
+          return Response.json({
+            workspaces: archived
+              ? []
+              : [{ id: "ws_remote", name: "remote-repo", root_dir: "/srv/repo", archived_at: null }],
+          });
+        }
+        if (url.pathname === `/c/${COMPUTER_ID}/api/workspaces/ws_remote/worktrees`) {
+          return Response.json({ worktrees: [], discovered: [], repo: { git_backed: true } });
+        }
+        if (url.pathname === `/c/${COMPUTER_ID}/api/workspaces/ws_remote/files/entries`) {
+          if (denyFiles) {
+            return Response.json(
+              {
+                code: "remote_scope_denied",
+                error: "scope files:read is required",
+                details: { scope: "files:read" },
+              },
+              { status: 403 }
+            );
+          }
+          return Response.json({
+            root: { kind: "workspace", workspace_id: "ws_remote", name: "remote-repo" },
+            entries: [{ name: "remote-notes.txt", path: "remote-notes.txt", kind: "file", size: 12 }],
+            truncated: false,
+          });
+        }
+        return new Response("not found", { status: 404 });
+      })
+    );
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <UIProvider>
+          <ComputerScopeContext value={COMPUTER_ID}>
+            <div style={{ height: 500 }}>
+              <FilesAppWindow workspaceId="ws_remote" onSwitchProject={() => {}} />
+            </div>
+          </ComputerScopeContext>
+        </UIProvider>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("files-root-name")).toHaveTextContent("remote-repo")
+    );
+    expect(remoteCalls).toContain(`/c/${COMPUTER_ID}/api/workspaces/ws_remote/files/entries`);
+    expect(remoteCalls).not.toContain("/api/workspaces/ws_remote/files/entries");
+
+    denyFiles = true;
+    view.unmount();
+    const deniedClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={deniedClient}>
+        <UIProvider>
+          <ComputerScopeContext value={COMPUTER_ID}>
+            <div style={{ height: 500 }}>
+              <FilesAppWindow workspaceId="ws_remote" onSwitchProject={() => {}} />
+            </div>
+          </ComputerScopeContext>
+        </UIProvider>
+      </QueryClientProvider>
+    );
+
+    expect(await screen.findByTestId("files-tree-error")).toHaveTextContent(
+      "Reading files isn't allowed from this device"
+    );
   });
 });

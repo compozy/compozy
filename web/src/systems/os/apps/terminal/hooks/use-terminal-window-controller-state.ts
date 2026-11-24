@@ -3,6 +3,9 @@ import { useState } from "react";
 
 import { toast, type Filter } from "@compozy/ui";
 
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import { remoteRejectionMessage } from "@/lib/remote-error-copy";
+import { findComputerById, useComputers } from "@/systems/computers";
 import { useProfileReadScope, useProfiles } from "@/systems/profiles";
 import { useSettingsGeneral } from "@/systems/settings";
 import {
@@ -10,6 +13,7 @@ import {
   controlTerminalRecording,
   rejectTerminalInputRequest,
   signalTerminal,
+  TerminalApiError,
   waitTerminal,
   terminalAggregateQuery,
   terminalAggregateScope,
@@ -86,6 +90,14 @@ export function useTerminalWindowControllerState(windowId: string) {
   const profiles = useProfiles();
   const settings = useSettingsGeneral();
   const pathname = useDesktop(state => state.windows[windowId]?.route.pathname ?? DEFAULT_ROUTE);
+  const computerId: ComputerId = useDesktop(state => {
+    const value = state.windows[windowId]?.route.search.computer;
+    return normalizeComputerId(typeof value === "string" ? value : undefined);
+  });
+  const isRemote = isRemoteComputerId(computerId);
+  const computers = useComputers({ enabled: isRemote });
+  const remoteComputer = isRemote ? findComputerById(computers.computers, computerId) : undefined;
+  const scopedTerminalKeys = terminalKeys.forComputer(computerId);
   // The `new` search key is the deliberate-creation mark: a window opened by
   // the head's New must open a fresh terminal, never adopt a windowless one.
   const createRequested = useDesktop(
@@ -96,14 +108,14 @@ export function useTerminalWindowControllerState(windowId: string) {
   const viewerWorkspaceId = useDesktop(state => state.client?.workspaceId ?? null);
   const viewerToken = useDesktop(state => state.clientAttachmentToken);
   const viewer: TerminalViewerIdentity | null =
-    viewerId && viewerToken && viewerWorkspaceId
+    !isRemote && viewerId && viewerToken && viewerWorkspaceId
       ? { id: viewerId, attachmentToken: viewerToken, workspaceId: viewerWorkspaceId }
       : null;
   // The window's scope: its binding (a project or `@user`), else its desktop. An
   // unbound window on the All projects desktop lists every project's terminals.
   const windowScope = useWindowDataWorkspace();
   const workspaceId = focusedWorkspaceSelector(windowScope);
-  const aggregateMode = windowScope?.kind === "all";
+  const aggregateMode = !isRemote && windowScope?.kind === "all";
   // The launcher reads every project's terminals; the same scope keeps the dock's live mark warm.
   const aggregateScope = terminalAggregateScope([], profile.destination, profile.aggregate);
   const aggregateCatalog = useQuery({
@@ -114,8 +126,13 @@ export function useTerminalWindowControllerState(windowId: string) {
   // The launcher's worktree rows: one store read across every project.
   const aggregateWorktrees = useWorktreeAggregate([], { enabled: aggregateMode });
   const journalUnlocked = useTerminalJournalUnlocked(workspaceId);
-  const catalogScope = terminalScope(workspaceId, profile.destination, profile.aggregate);
-  const destinationScope = terminalScope(workspaceId, profile.destination);
+  const catalogScope = terminalScope(
+    workspaceId,
+    profile.destination,
+    profile.aggregate,
+    computerId
+  );
+  const destinationScope = terminalScope(workspaceId, profile.destination, false, computerId);
   const journalScope = catalogScope;
   // The id-less route resolves only from a catalog read after this window
   // mounted (`isFetchedAfterMount`). A list another window just fetched is still
@@ -141,8 +158,13 @@ export function useTerminalWindowControllerState(windowId: string) {
     ...terminalJournalQuery(journalScope, journalFilters),
     enabled: terminalJournalQueryEnabled(workspaceId, journalUnlocked),
   });
-  const recordings = useTerminalRecordings(catalogScope.key, workspaceId !== "");
-  const recordingScope = terminalScope(workspaceId, replay?.profile ?? profile.destination);
+  const recordings = useTerminalRecordings(catalogScope.key, workspaceId !== "", computerId);
+  const recordingScope = terminalScope(
+    workspaceId,
+    replay?.profile ?? profile.destination,
+    false,
+    computerId
+  );
   const recording = useQuery({
     ...terminalRecordingQuery(recordingScope, replay?.id ?? ""),
     enabled: workspaceId !== "" && replay !== null,
@@ -151,6 +173,7 @@ export function useTerminalWindowControllerState(windowId: string) {
   useTerminalCatalogStream({
     workspaceId,
     profileKey: catalogScope.key.profileKey,
+    computerId,
     allProfiles: profile.aggregate,
     profiles: profiles.data?.map(candidate => candidate.name) ?? [],
     enabled: workspaceId !== "",
@@ -165,28 +188,37 @@ export function useTerminalWindowControllerState(windowId: string) {
   const invalidateTerminalReads = async () => {
     await Promise.all([
       queryClient.invalidateQueries({
-        queryKey: terminalKeys.catalog(catalogScope.key),
+        queryKey: scopedTerminalKeys.catalog(catalogScope.key),
         exact: true,
       }),
       queryClient.invalidateQueries({
-        queryKey: terminalKeys.inputRequests(catalogScope.key),
+        queryKey: scopedTerminalKeys.inputRequests(catalogScope.key),
         exact: true,
       }),
       queryClient.invalidateQueries({
-        queryKey: terminalKeys.journalScope(journalScope.key),
+        queryKey: scopedTerminalKeys.journalScope(journalScope.key),
       }),
     ]);
   };
 
-  // A bound window keeps its binding when it moves to another terminal.
+  // A bound window keeps its binding (and remote computer scope) when it moves to another terminal.
   const binding = useDesktop(
     state => state.windows[windowId]?.route.search[WINDOW_BINDING_SEARCH_KEY]
   );
-  const retargetSearch: Record<string, unknown> =
-    typeof binding === "string" ? { [WINDOW_BINDING_SEARCH_KEY]: binding } : {};
+  const retargetSearch: Record<string, unknown> = {
+    ...(typeof binding === "string" ? { [WINDOW_BINDING_SEARCH_KEY]: binding } : {}),
+    ...(isRemote ? { computer: computerId } : {}),
+  };
+  const formatMutationError = (error: unknown, fallback: string) =>
+    error instanceof TerminalApiError
+      ? remoteRejectionMessage(error.code, error.message, error.details)
+      : error instanceof Error
+        ? error.message
+        : fallback;
   const create = useTerminalWindowCreation({
     windowId,
     workspaceId,
+    computerId,
     catalogScope,
     destinationScope,
     coordinator,
@@ -194,23 +226,36 @@ export function useTerminalWindowControllerState(windowId: string) {
   });
   const close = useMutation({
     mutationFn: (terminalId: string) =>
-      closeTerminal(workspaceId, terminalId, terminalSelector(terminalId), "HUP"),
+      closeTerminal(
+        workspaceId,
+        terminalId,
+        terminalSelector(terminalId),
+        "HUP",
+        undefined,
+        computerId
+      ),
     // The terminal-limit dialog frees a slot without closing its launcher.
     // Normal window close is owned by the shell's terminal close guard.
     onSuccess: invalidateTerminalReads,
-    onError: error =>
-      toast.error(error instanceof Error ? error.message : "Failed to close terminal"),
+    onError: error => toast.error(formatMutationError(error, "Failed to close terminal")),
   });
   const stop = useMutation({
     mutationFn: (terminalId: string) =>
-      signalTerminal(workspaceId, terminalId, "TERM", terminalSelector(terminalId)),
+      signalTerminal(
+        workspaceId,
+        terminalId,
+        "TERM",
+        terminalSelector(terminalId),
+        undefined,
+        computerId
+      ),
     onSuccess: invalidateTerminalReads,
-    onError: error =>
-      toast.error(error instanceof Error ? error.message : "Failed to stop command"),
+    onError: error => toast.error(formatMutationError(error, "Failed to stop command")),
   });
   const answer = useTerminalInputAnswer(workspaceId, {
+    computerId,
     onSuccess: invalidateTerminalReads,
-    onError: error => toast.error(error.message),
+    onError: error => toast.error(formatMutationError(error, "Failed to answer")),
   });
   const reject = useMutation({
     mutationFn: (request: TerminalInputRequest) =>
@@ -219,30 +264,44 @@ export function useTerminalWindowControllerState(windowId: string) {
         request.terminal_id,
         request.id,
         "Rejected by the operator",
-        { profile: request.profile_name }
+        { profile: request.profile_name },
+        undefined,
+        computerId
       ),
     onSuccess: invalidateTerminalReads,
-    onError: error => toast.error(error instanceof Error ? error.message : "Failed to decline"),
+    onError: error => toast.error(formatMutationError(error, "Failed to decline")),
   });
   const wait = useMutation({
     mutationFn: (terminalId: string) =>
-      waitTerminal(workspaceId, terminalId, { until: "exit" }, terminalSelector(terminalId)),
+      waitTerminal(
+        workspaceId,
+        terminalId,
+        { until: "exit" },
+        terminalSelector(terminalId),
+        undefined,
+        computerId
+      ),
     onSuccess: invalidateTerminalReads,
-    onError: error =>
-      toast.error(error instanceof Error ? error.message : "Failed to wait for the command"),
+    onError: error => toast.error(formatMutationError(error, "Failed to wait for the command")),
   });
   const stopRecording = useMutation({
     mutationFn: (terminalId: string) =>
-      controlTerminalRecording(workspaceId, terminalId, "stop", terminalSelector(terminalId)),
+      controlTerminalRecording(
+        workspaceId,
+        terminalId,
+        "stop",
+        terminalSelector(terminalId),
+        undefined,
+        computerId
+      ),
     onSuccess: async recording => {
       queryClient.setQueryData<TerminalRecordingMap>(
-        terminalKeys.recordings(catalogScope.key),
+        scopedTerminalKeys.recordings(catalogScope.key),
         current => applyRecordingStopSuccess(current ?? {}, recording)
       );
       await invalidateTerminalReads();
     },
-    onError: error =>
-      toast.error(error instanceof Error ? error.message : "Failed to stop recording"),
+    onError: error => toast.error(formatMutationError(error, "Failed to stop recording")),
   });
 
   return {
@@ -253,9 +312,12 @@ export function useTerminalWindowControllerState(windowId: string) {
     answer,
     catalog,
     close,
+    computerId,
     coordinator,
     create,
     createRequested,
+    isRemote,
+    remoteComputer,
     windowedTerminalIds: new Set(windowedKeys === "" ? [] : windowedKeys.split("\n")),
     inputRequests,
     resolvedInputRequests,

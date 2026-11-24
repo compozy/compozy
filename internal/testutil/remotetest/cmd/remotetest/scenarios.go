@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -22,13 +23,16 @@ import (
 )
 
 const (
-	fixtureEmail = "pedro@example.com"
-	cliName      = "Linux CLI"
-	testHostName = "testhost"
-	searchTitle  = "Remote release handoff"
-	sshAdd       = "ssh-add"
-	accountAdd   = "account-add"
-	revokeDevice = "revoke-device"
+	fixtureEmail    = "pedro@example.com"
+	cliName         = "Linux CLI"
+	testHostName    = "testhost"
+	searchTitle     = "Remote release handoff"
+	sshAdd          = "ssh-add"
+	accountAdd      = "account-add"
+	revokeDevice    = "revoke-device"
+	remoteSession   = "remote-session"
+	projectFileName = "remote-notes.txt"
+	projectFileBody = "hello from remote computer project\n"
 )
 
 const echoFixture = `{
@@ -38,14 +42,18 @@ const echoFixture = `{
 }`
 
 type scenarioManifest struct {
-	Scenario      string           `json:"scenario"`
-	CloudURL      string           `json:"cloud_url"`
-	Controller    daemonInstance   `json:"controller"`
-	CLIController *daemonInstance  `json:"cli_controller,omitempty"`
-	Computers     []computerTarget `json:"computers"`
-	Email         string           `json:"email"`
-	SessionID     string           `json:"session_id,omitempty"`
-	SessionTitle  string           `json:"session_title,omitempty"`
+	Scenario           string           `json:"scenario"`
+	CloudURL           string           `json:"cloud_url"`
+	Controller         daemonInstance   `json:"controller"`
+	CLIController      *daemonInstance  `json:"cli_controller,omitempty"`
+	Computers          []computerTarget `json:"computers"`
+	Email              string           `json:"email"`
+	SessionID          string           `json:"session_id,omitempty"`
+	SessionTitle       string           `json:"session_title,omitempty"`
+	WorkspaceID        string           `json:"workspace_id,omitempty"`
+	Hostname           string           `json:"hostname,omitempty"`
+	ProjectFile        string           `json:"project_file,omitempty"`
+	ProjectFileContent string           `json:"project_file_content,omitempty"`
 }
 
 type computerTarget struct {
@@ -57,7 +65,7 @@ type computerTarget struct {
 
 func prepareScenario(f *fixture, repo, name string) scenarioManifest {
 	f.Helper()
-	if name != sshAdd && name != accountAdd && name != revokeDevice {
+	if name != sshAdd && name != accountAdd && name != revokeDevice && name != remoteSession {
 		f.Fatalf("unknown remotetest scenario %q", name)
 	}
 	const pgEnv = "COMPOZY_CLOUD_TEST_POSTGRES"
@@ -179,12 +187,33 @@ func prepareAccountHost(f *fixture, db *remotetest.Database, cloudURL, mock stri
 		if err := os.Mkdir(workspace, 0o700); err != nil {
 			f.Fatal(err)
 		}
+		if m.Scenario == remoteSession {
+			writeFile(f, filepath.Join(workspace, projectFileName), projectFileBody)
+			hostname, err := os.Hostname()
+			if err != nil {
+				f.Fatal(err)
+			}
+			m.Hostname = hostname
+			m.ProjectFile = projectFileName
+			m.ProjectFileContent = strings.TrimSpace(projectFileBody)
+		}
 		session := cliJSON[contract.SessionPayload](f, host, cloudURL, "session", "new",
 			"--cwd", workspace, "--agent", remotetest.SSHAgent, "--name", searchTitle)
 		if session.ID == "" {
 			f.Fatal("session fixture returned no ID")
 		}
-		m.SessionID, m.SessionTitle = session.ID, searchTitle
+		m.SessionID, m.SessionTitle, m.WorkspaceID = session.ID, searchTitle, session.WorkspaceID
+		if m.Scenario == remoteSession {
+			cliJSON[contract.Computer](f, m.Controller, cloudURL, "computer", "add", "account", string(linked.ComputerID))
+			controllerClient := httpClientFor(m.Controller)
+			defer controllerClient.CloseIdleConnections()
+			path := contract.ComputersPath + "/" + string(linked.ComputerID)
+			remotetest.Await(f, "controller's direct connection to remote host", 20*time.Second, func(ctx context.Context) bool {
+				var view contract.Computer
+				return requestJSON(ctx, controllerClient, http.MethodGet, path, nil, &view) == nil &&
+					view.Status == "connected"
+			})
+		}
 	}
 	m.Computers = []computerTarget{target}
 }

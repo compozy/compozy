@@ -10,6 +10,7 @@ import {
   CodeBlock,
   CopyIconButton,
   ListingRow,
+  SkeletonRows,
   StatusCard,
   toast,
 } from "@compozy/ui";
@@ -17,6 +18,7 @@ import {
 import { ProviderLogo } from "@/systems/settings/components/provider-logo";
 import { ProviderStatusLabel } from "@/systems/settings/components/provider-status-label";
 
+import { providerLoginCommand } from "../lib/provider-view";
 import type {
   ComputerFixture,
   ComputerProviderAuthFixture,
@@ -41,6 +43,14 @@ export interface ComputerDetailsProvidersTabProps {
   providers: readonly ComputerProviderAuthFixture[];
   /** Optional provider id already showing the inline remote sign-in terminal preview. */
   initialSignInProviderId?: ComputerProviderAuthFixture["id"] | null;
+  providersLoading?: boolean;
+  providersError?: Error | null;
+  onRetryProviders?: () => void;
+  /** False hides `Sign in on <name>` when this device lacks `terminal:operate`. */
+  canOperateTerminal?: boolean;
+  signingInProviderId?: string | null;
+  /** Launches a live remote terminal on `<computer>` running the provider's login command. */
+  onSignInProvider?: (provider: ComputerProviderAuthFixture, command: string) => void;
 }
 
 /** Provider sign-in readiness scoped to `<name>` with `Sign in on <name>` remote terminal launch (US-013). */
@@ -48,12 +58,27 @@ export function ComputerDetailsProvidersTab({
   computerName,
   providers,
   initialSignInProviderId = null,
+  providersLoading = false,
+  providersError = null,
+  onRetryProviders,
+  canOperateTerminal = true,
+  signingInProviderId = null,
+  onSignInProvider,
 }: ComputerDetailsProvidersTabProps) {
   const [activeSignInId, setActiveSignInId] = useState<ComputerProviderAuthFixture["id"] | null>(
     initialSignInProviderId
   );
 
   const activeProvider = providers.find(item => item.id === activeSignInId) ?? null;
+
+  const triggerSignIn = (provider: ComputerProviderAuthFixture) => {
+    const command = providerLoginCommand(provider);
+    if (onSignInProvider) {
+      onSignInProvider(provider, command);
+      return;
+    }
+    setActiveSignInId(provider.id);
+  };
 
   return (
     <div className="flex flex-col gap-4" data-slot="computer-details-providers-tab">
@@ -62,7 +87,31 @@ export function ComputerDetailsProvidersTab({
         never copied to this computer.
       </p>
 
-      {providers.length === 0 ? (
+      {providersLoading && providers.length === 0 ? (
+        <div
+          aria-busy="true"
+          className="rounded-lg border border-line bg-card p-3"
+          data-testid="computer-providers-loading"
+        >
+          <SkeletonRows count={3} />
+        </div>
+      ) : providersError && providers.length === 0 ? (
+        <Alert data-testid="computer-providers-error" variant="default">
+          <TriangleAlert aria-hidden="true" />
+          <AlertTitle>Couldn&apos;t load providers on {computerName}</AlertTitle>
+          <AlertDescription className="flex flex-col gap-2">
+            <span>{providersError.message}</span>
+            {onRetryProviders ? (
+              <div>
+                <Button onClick={onRetryProviders} size="xs" type="button" variant="secondary">
+                  <RefreshCw aria-hidden="true" />
+                  Retry
+                </Button>
+              </div>
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      ) : providers.length === 0 ? (
         <div className="rounded-lg border border-line bg-card px-4 py-4 text-small-body text-muted-foreground">
           Provider sign-in status on <span className="font-medium text-fg">{computerName}</span> is
           managed on that computer.
@@ -71,9 +120,11 @@ export function ComputerDetailsProvidersTab({
         <div className="overflow-hidden rounded-lg border border-line bg-card">
           {providers.map(provider => {
             const view = PROVIDER_STATUS_VIEW[provider.status];
+            const isSigningIn = signingInProviderId === provider.id;
             return (
               <ListingRow
                 className="min-h-14 border-b border-line-soft py-3 last:border-b-0"
+                data-provider-id={provider.id}
                 interactive={false}
                 key={provider.id}
               >
@@ -90,7 +141,9 @@ export function ComputerDetailsProvidersTab({
                       <span>Signed in as {provider.accountLabel ?? "your account"}</span>
                     ) : provider.status === "signed_out" ? (
                       <span className="text-warning">
-                        Sessions using {provider.name} fail until signed in on {computerName}
+                        {canOperateTerminal
+                          ? `Sessions using ${provider.name} fail until signed in on ${computerName}`
+                          : `Turn on Terminals permission on ${computerName} to sign in remotely.`}
                       </span>
                     ) : (
                       <span>CLI not found on {computerName}</span>
@@ -98,9 +151,10 @@ export function ComputerDetailsProvidersTab({
                   </ListingRow.Meta>
                 </ListingRow.Main>
                 <ListingRow.Trail>
-                  {provider.status === "signed_out" ? (
+                  {provider.status === "signed_out" && canOperateTerminal ? (
                     <Button
-                      onClick={() => setActiveSignInId(provider.id)}
+                      disabled={isSigningIn}
+                      onClick={() => triggerSignIn(provider)}
                       size="sm"
                       type="button"
                       variant="secondary"
@@ -108,9 +162,10 @@ export function ComputerDetailsProvidersTab({
                       <Terminal aria-hidden="true" />
                       Sign in on {computerName}
                     </Button>
-                  ) : provider.status === "ready" ? (
+                  ) : provider.status === "ready" && canOperateTerminal ? (
                     <Button
-                      onClick={() => setActiveSignInId(provider.id)}
+                      disabled={isSigningIn}
+                      onClick={() => triggerSignIn(provider)}
                       size="xs"
                       type="button"
                       variant="ghost"
@@ -125,7 +180,7 @@ export function ComputerDetailsProvidersTab({
         </div>
       )}
 
-      {activeProvider ? (
+      {activeProvider && !onSignInProvider ? (
         <StatusCard
           className="border border-line bg-sunken/70 p-3.5 shadow-none"
           data-slot="remote-provider-signin-terminal"
@@ -144,7 +199,7 @@ export function ComputerDetailsProvidersTab({
           </StatusCard.Header>
           <StatusCard.Body className="flex flex-col gap-2.5">
             <CodeBlock
-              code={`$ ${activeProvider.id} login\nOpen https://auth.openai.com/device?code=K7M2-9QP4 to finish signing in on ${computerName}\nWaiting for browser sign-in…`}
+              code={`$ ${providerLoginCommand(activeProvider)}\nOpen https://auth.openai.com/device?code=K7M2-9QP4 to finish signing in on ${computerName}\nWaiting for browser sign-in…`}
               copyable={false}
               density="compact"
             />

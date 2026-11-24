@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { appWindow, openAppWindow } from "../fixtures/os-navigation";
+import { appWindow, openAppWindow, windowID } from "../fixtures/os-navigation";
 import { cliComputerStatus, expect, test } from "../fixtures/remote-computers";
 
 async function openSettings(page: Page, section: "computers" | "account"): Promise<Locator> {
@@ -143,5 +143,61 @@ test.describe("Device revocation", () => {
       )
       .toBe("device_revoked");
     await expect(row).toBeHidden();
+  });
+});
+
+test.describe("Remote session terminal and files", () => {
+  test.use({ scenario: "remote-session" });
+
+  test("E2E-004 open Terminal and Files on a remote session", async ({ page, lab }) => {
+    const host = lab.computers[0];
+    const {
+      session_title: title,
+      hostname,
+      project_file: projectFile,
+      project_file_content: projectFileContent,
+    } = lab;
+    if (!host.id || !title || !hostname || !projectFile || !projectFileContent) {
+      throw new Error("The remote-session scenario did not seed required fixture fields.");
+    }
+
+    const session = await openAppWindow(page, "Session", "session");
+    const sidebar = await sessionSidebar(session);
+    const remoteRow = sidebar
+      .locator(`[data-slot="session-list-row"][data-computer-id="${host.id}"]`)
+      .filter({ hasText: title });
+    await expect(remoteRow).toBeVisible({ timeout: 20_000 });
+    await remoteRow.click();
+
+    await expect(session.getByTestId(`session-computer-chip-${host.id}`)).toBeVisible();
+    const sessionWindowId = await windowID(session);
+
+    await session.getByTestId("session-remote-terminal-action").click();
+    const terminal = appWindow(page, "terminal");
+    await expect(terminal).toBeVisible();
+    const log = terminal.locator('[role="log"]:visible').last();
+    await expect(log).toBeVisible({ timeout: 20_000 });
+    await expect(log).toHaveAttribute("data-readonly", "false", { timeout: 20_000 });
+    await log.click();
+    await page.keyboard.type("uname -n");
+    await page.keyboard.press("Enter");
+    await expect(log).toContainText(hostname, { timeout: 15_000 });
+
+    await page
+      .getByTestId("os-tab-bar")
+      .locator(`[role="tab"][data-lead-window-id="${sessionWindowId}"]`)
+      .click();
+    await expect(session).toBeVisible();
+
+    await session.getByTestId("session-remote-files-action").click();
+    const files = appWindow(page, "files");
+    await expect(files).toBeVisible();
+    const tree = files.getByTestId("files-tree");
+    await expect(tree).toBeVisible({ timeout: 20_000 });
+    await tree.locator(`[data-type="item"][data-item-path="${projectFile}"]`).click();
+    await expect(files.getByTestId("file-viewer-header")).toContainText(projectFile);
+    await expect(files.getByTestId("file-viewer")).toContainText(projectFileContent, {
+      timeout: 15_000,
+    });
   });
 });

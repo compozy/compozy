@@ -83,7 +83,12 @@ export {
   type ScopedComputerSkeletonProps,
 } from "./components/scoped-computer-status";
 export { useAccountRemoteEviction } from "./hooks/use-account-eviction";
+export {
+  useComputerProviders,
+  type ComputerProvidersController,
+} from "./hooks/use-computer-providers";
 export { useComputerWorkspaces } from "./hooks/use-computer-workspaces";
+export { providerLoginCommand, toComputerProviderAuthView } from "./lib/provider-view";
 export { findComputerById, useComputer, useComputers } from "./hooks/use-computers";
 export { useComputersSettingsPage } from "./hooks/use-computers-settings-page";
 export { useLiveAddComputer, type AddComputerLiveController } from "./hooks/use-live-add-computer";

@@ -207,10 +207,12 @@ export interface ComputerDiagnosisFixture {
 }
 
 export interface ComputerProviderAuthFixture {
-  id: "claude" | "codex" | "cursor";
+  id: string;
   name: string;
   status: "ready" | "signed_out" | "not_installed";
   accountLabel?: string;
+  /** Command run in the remote terminal when signing in (e.g. `claude login`). */
+  loginCommand?: string;
 }
 
 export type LoadBalancingWeight = 100 | 50 | 25 | 0;

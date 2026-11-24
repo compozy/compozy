@@ -2,6 +2,8 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
+import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import type { TerminalWindowActions } from "../lib/terminal-window-actions";
 import type { TerminalInfo } from "../types";
 import { useTerminalLimitWait } from "./use-terminal-limit-wait";
@@ -17,6 +19,7 @@ function hasTerminal(terminals: readonly TerminalInfo[], id: string): boolean {
 export interface UseTerminalWindowAppStateOptions {
   workspaceId: string;
   profile: string;
+  computerId?: ComputerId;
   terminals: readonly TerminalInfo[];
   /** The per-project cap, from `[terminal].max_per_workspace`. Absent until loaded. */
   limit?: number;
@@ -76,6 +79,7 @@ export interface TerminalWindowAppState {
 export function useTerminalWindowAppState({
   workspaceId,
   profile,
+  computerId,
   terminals,
   limit,
   readOnly,
@@ -89,10 +93,10 @@ export function useTerminalWindowAppState({
 }: UseTerminalWindowAppStateOptions): TerminalWindowAppState {
   const [journalOpen, setJournalOpen] = useState(false);
   const [limitOpen, setLimitOpen] = useState(false);
-  // Interaction state belongs to one `(workspace, profile)`: a dialog opened
+  // Interaction state belongs to one `(computer, workspace, profile)`: a dialog opened
   // for one project must not survive into another. Compared during render so
   // there is never a frame where the stale dialog shows over the new scope.
-  const scope = `${workspaceId} ${profile}`;
+  const scope = `${normalizeComputerId(computerId)} ${workspaceId} ${profile}`;
   const [previousScope, setPreviousScope] = useState(scope);
   if (previousScope !== scope) {
     setPreviousScope(scope);
@@ -114,7 +118,7 @@ export function useTerminalWindowAppState({
   const atLimit = limit !== undefined && destinationTerminals.length >= limit;
   const store = useTerminalStore();
   const activeProfile = active?.profile_name ?? profile;
-  useTerminalScopeCleanup({ workspaceId, profile: activeProfile, terminals, store });
+  useTerminalScopeCleanup({ workspaceId, profile: activeProfile, computerId, terminals, store });
 
   const awaitingRoute = routeOwned && requestedTerminalId === null && !readOnly;
   // One resolution per arrival at the id-less route in a scope: re-renders and

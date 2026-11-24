@@ -4,6 +4,8 @@ import { AlertCircle } from "@compozy/ui/icons";
 import { Button, Empty, type TerminalEngineLoader } from "@compozy/ui";
 import { useQuery } from "@tanstack/react-query";
 
+import type { ComputerId } from "@/lib/computer-scope";
+
 import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-attachment";
 import { useTerminalWindowBodyController } from "../hooks/use-terminal-window-body-controller";
 import { exitNoticeFromTerminal } from "../lib/terminal-exit";
@@ -31,6 +33,8 @@ export interface TerminalWindowBodyProps {
   viewerWorkspaceId?: string | null;
   workspaceId: string;
   profile: string;
+  computerId?: ComputerId;
+  headerStatusExtra?: React.ReactNode;
   readOnly?: boolean;
   inputRequests: readonly TerminalInputRequest[];
   resolvedInputRequests?: readonly TerminalResolvedInputRequest[];
@@ -74,6 +78,8 @@ function TerminalInteractiveWindowBody({
   viewerWorkspaceId,
   workspaceId,
   profile,
+  computerId,
+  headerStatusExtra,
   readOnly = false,
   inputRequests,
   resolvedInputRequests = EMPTY_RESOLVED,
@@ -95,6 +101,7 @@ function TerminalInteractiveWindowBody({
     terminal,
     workspaceId,
     profile,
+    computerId,
     viewer:
       viewerId && viewerToken
         ? {
@@ -120,6 +127,7 @@ function TerminalInteractiveWindowBody({
           onNewTerminal={newTerminal}
           onViewJournal={onViewJournal}
           recording={recording}
+          statusExtra={headerStatusExtra}
           terminal={{ ...terminal, viewers: pane?.viewers ?? terminal.viewers }}
           terminalCount={terminalCount}
         />
@@ -146,6 +154,7 @@ function TerminalInteractiveWindowBody({
         onStopRecording={controller.stopRecording}
         onViewJournal={onViewJournal}
         recording={recording}
+        statusExtra={headerStatusExtra}
         terminal={{ ...terminal, viewers: pane?.viewers ?? terminal.viewers }}
         terminalCount={terminalCount}
       />
@@ -155,7 +164,7 @@ function TerminalInteractiveWindowBody({
         engineLoader={engineLoader}
         exitRetentionMs={exitRetentionMs}
         handleRef={handleRef}
-        instanceId={terminalInstanceKey(workspaceId, profile, terminal.id)}
+        instanceId={terminalInstanceKey(workspaceId, profile, terminal.id, computerId)}
         isHostShortcut={isHostShortcut}
         readOnly={readOnly}
         onReconnect={connection.reconnect}
@@ -189,6 +198,8 @@ function TerminalPipeWindowBody({
   terminal,
   workspaceId,
   profile,
+  computerId,
+  headerStatusExtra,
   readOnly = false,
   pipeOutput,
   actions,
@@ -197,7 +208,7 @@ function TerminalPipeWindowBody({
   terminalCount,
   limit,
 }: TerminalWindowBodyProps) {
-  const scope = terminalScope(workspaceId, profile);
+  const scope = terminalScope(workspaceId, profile, false, computerId);
   const newTerminal = readOnly ? undefined : (actions.onOpenTerminalTab ?? actions.onOpenTerminal);
   return (
     <>
@@ -210,6 +221,7 @@ function TerminalPipeWindowBody({
         }
         onViewJournal={onViewJournal}
         onWait={readOnly ? undefined : () => actions.onWait(terminal.id)}
+        statusExtra={headerStatusExtra}
         terminal={terminal}
         terminalCount={terminalCount}
       />

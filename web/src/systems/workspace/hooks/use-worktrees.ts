@@ -26,12 +26,14 @@ import { reconcileWorktreeList, removeWorktreeFromList } from "../lib/worktree-l
 import type { WorktreeListingByWorkspace } from "../lib/workspace-tree";
 import { describeBranchOutcome } from "../lib/worktree-branch-outcome";
 import type { WorktreeBranchOutcome, WorktreePayload, WorktreesResponse } from "../types";
+import type { ComputerId } from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
 import { useWorkspaces } from "./use-workspaces";
 import { createdInProfileToast, useProfileReadScope } from "@/systems/profiles";
 
 interface UseWorktreesOptions {
   enabled?: boolean;
+  computerId?: ComputerId;
 }
 
 /**
@@ -39,13 +41,13 @@ interface UseWorktreesOptions {
  * parked on a gone root, which a later observation re-enables; otherwise the
  * caller re-renders only when the catalog data changes, not on every poll.
  */
-function useListingCatalog(workspaceIDs: readonly string[]) {
+function useListingCatalog(workspaceIDs: readonly string[], computerId?: ComputerId) {
   const queryClient = useQueryClient();
+  const keys = workspaceKeys.forComputer(computerId);
   return useWorkspaces({
+    computerId,
     notifyOnChangeProps: () =>
-      workspaceIDs.some(id =>
-        isWorktreeListGone(queryClient.getQueryState(workspaceKeys.worktrees(id))?.error)
-      )
+      workspaceIDs.some(id => isWorktreeListGone(queryClient.getQueryState(keys.worktrees(id))?.error))
         ? ["data", "dataUpdatedAt"]
         : ["data"],
   });
@@ -53,7 +55,7 @@ function useListingCatalog(workspaceIDs: readonly string[]) {
 
 /** One workspace's worktree listing, gated on the catalog's view of its root. */
 export function useWorktrees(workspaceID: string | null, options: UseWorktreesOptions = {}) {
-  const catalog = useListingCatalog(workspaceID === null ? [] : [workspaceID]);
+  const catalog = useListingCatalog(workspaceID === null ? [] : [workspaceID], options.computerId);
   const workspace = catalog.data?.find(item => item.id === workspaceID);
   return useQuery(
     worktreesListOptions(
@@ -61,7 +63,8 @@ export function useWorktrees(workspaceID: string | null, options: UseWorktreesOp
       options.enabled ?? true,
       workspace
         ? { rootMissing: workspace.root_missing === true, observedAt: catalog.dataUpdatedAt }
-        : undefined
+        : undefined,
+      options.computerId
     )
   );
 }
