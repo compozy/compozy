@@ -14,8 +14,8 @@ import {
 
 /** Owns the state and supporting models required to mount the desktop chrome. */
 export function useDesktopChromeController() {
-  useAccountRemoteEviction();
-  useComputers({ stream: true });
+  const { signedIn } = useAccountRemoteEviction();
+  useComputers({ enabled: signedIn, stream: signedIn });
   const activeWorkspace = useActiveWorkspace();
   const chrome = useDesktopChrome(
     activeWorkspace.desktopWorkspaceId,

@@ -1,6 +1,8 @@
 import { useContext, useEffect } from "react";
 import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
 
+import { accountKeys, type AccountStatusPayload } from "@/systems/account";
+
 import { openComputersStream } from "../adapters/computers-api";
 import { computerRegistryKeys } from "../lib/query-keys";
 import { computerDetailOptions, computersListOptions } from "../lib/query-options";
@@ -22,7 +24,9 @@ export function useComputers(
 ) {
   const contextClient = useContext(QueryClientContext);
   const queryClient = contextClient ?? NOOP_QUERY_CLIENT;
-  const enabled = (options.enabled ?? true) && contextClient !== undefined;
+  const cachedAccount = contextClient?.getQueryData<AccountStatusPayload>(accountKeys.status());
+  const signedOutInCache = cachedAccount !== undefined && !cachedAccount.signed_in;
+  const enabled = (options.enabled ?? true) && contextClient !== undefined && !signedOutInCache;
   const passive = options.passive ?? false;
   const stream = options.stream ?? false;
   const query = useQuery(computersListOptions(enabled && !passive), queryClient);

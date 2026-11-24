@@ -27,13 +27,8 @@ func TestDaemonComputersS7(t *testing.T) {
 	t.Run("Should isolate keyring keys, computer lists, and bridge routes across an account switch", func(t *testing.T) {
 		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
 
-		// Account A links C1; Account B links C2.
-		hostA, _ := startSessionComputerForEmail(t, f, filepath.Join(root, "switch-host-a"), s7AccountAEmail, false, false)
-		c1 := linkSessionComputer(t, hostA)
-		hostB, _ := startSessionComputerForEmail(t, f, filepath.Join(root, "switch-host-b"), s7AccountBEmail, false, false)
-		c2 := linkSessionComputer(t, hostB)
-
-		// IT-026. On one controller installation, sign in as A, add C1, sign out, sign in as B, add C2.
+		// IT-026. On one controller installation, sign in as A (first trusted device),
+		// link and add C1, sign out, sign in as B (first trusted device), link and add C2.
 		controllerHome := filepath.Join(root, "switch-controller")
 		controller, ring := startConfiguredDaemonAccount(t, f, controllerHome, daemonAccountBoot{})
 		progress := controller.stream(t, contract.AccountSignInEventsPath, "")
@@ -41,6 +36,8 @@ func TestDaemonComputersS7(t *testing.T) {
 
 		firstA := signInDaemonAccount(t, f, controller, progress, s7AccountAEmail)
 		accountAID, jktA := assertEnrolledAccount(t, f, firstA, ring)
+		hostA, _ := startSessionComputerForEmail(t, f, filepath.Join(root, "switch-host-a"), s7AccountAEmail, false, false)
+		c1 := linkSessionComputer(t, hostA)
 		addAccountComputer(t, controller, c1)
 		waitComputerRoute(t, controller, c1, remoteproto.RouteDirect)
 
@@ -50,6 +47,8 @@ func TestDaemonComputersS7(t *testing.T) {
 
 		firstB := signInDaemonAccount(t, f, controller, progress, s7AccountBEmail)
 		accountBID, jktB := assertEnrolledAccount(t, f, firstB, ring)
+		hostB, _ := startSessionComputerForEmail(t, f, filepath.Join(root, "switch-host-b"), s7AccountBEmail, false, false)
+		c2 := linkSessionComputer(t, hostB)
 		if jktA == jktB {
 			t.Fatalf("accounts A and B shared device key thumbprint %s", jktA)
 		}

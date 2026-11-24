@@ -308,9 +308,7 @@ func startConfiguredDaemonAccount(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !boot.automation {
-		cfg.Automation.Enabled = false
-	}
+	cfg.Automation.Enabled = boot.automation
 	cfg.HTTP.Host, cfg.HTTP.Port = "127.0.0.1", testutil.FreeTCPPort(t)
 	ring := boot.keyring
 	if ring == nil {

@@ -54,6 +54,7 @@ describe("useAccountRemoteEviction (IT-026 web adapter)", () => {
 
     await waitFor(() => {
       expect(queryClient.getQueryData(accountKeys.status())).toBeDefined();
+      expect(streamHandlers).not.toBeNull();
     });
     expect(queryClient.getQueryData(computerQueryKey("C1", "sessions"))).toEqual([
       "remote-c1-sess",
@@ -86,5 +87,31 @@ describe("useAccountRemoteEviction (IT-026 web adapter)", () => {
     expect(queryClient.getQueryData(computerQueryKey(LOCAL_COMPUTER_ID, "sessions"))).toEqual([
       "local-sess",
     ]);
+  });
+
+  it("Should not open /api/account/stream while signed out", async () => {
+    vi.spyOn(accountApi, "fetchAccountStatus").mockResolvedValue({
+      signed_in: false,
+      state: "signed_out",
+      gate: "off",
+      pre_account_install: false,
+      plan: "free",
+    } as unknown as accountApi.AccountStatusPayload);
+    const openStreamSpy = vi.spyOn(accountApi, "openAccountStream").mockReturnValue(() => {});
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useAccountRemoteEviction(), { wrapper });
+
+    await waitFor(() => {
+      expect(queryClient.getQueryData(accountKeys.status())).toBeDefined();
+    });
+    expect(result.current.signedIn).toBe(false);
+    expect(openStreamSpy).not.toHaveBeenCalled();
   });
 });
