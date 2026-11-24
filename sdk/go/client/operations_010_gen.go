@@ -10,6 +10,64 @@ import (
 	"strings"
 )
 
+// GetAgentInstanceAwayParams carries the path, query, and header parameters.
+type GetAgentInstanceAwayParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetAgentInstanceAway Read the operator's instance away digest
+func (c *Client) GetAgentInstanceAway(ctx context.Context, params GetAgentInstanceAwayParams) (*AgentInstanceAwayResponse, error) {
+	path := "/api/agent-instances/{id}/away"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceAwayResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentInstanceOccurrenceParams carries the path, query, and header parameters.
+type GetAgentInstanceOccurrenceParams struct {
+	ID          string  `url:"id"`
+	Occurrence  string  `url:"occurrence"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetAgentInstanceOccurrence Read an instance check occurrence
+func (c *Client) GetAgentInstanceOccurrence(ctx context.Context, params GetAgentInstanceOccurrenceParams) (*AgentInstanceOccurrenceResponse, error) {
+	path := "/api/agent-instances/{id}/occurrences/{occurrence}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	path = strings.ReplaceAll(path, "{occurrence}", url.PathEscape(params.Occurrence))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceOccurrenceResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetAgentMeParams carries the path, query, and header parameters.
 type GetAgentMeParams struct {
 	XCompozySessionID string `url:"X-Compozy-Session-ID"`
@@ -286,6 +344,30 @@ func (c *Client) GetComputer(ctx context.Context, params GetComputerParams) (*Co
 	return &out, nil
 }
 
+// GetComputerSetupParams carries the path, query, and header parameters.
+type GetComputerSetupParams struct {
+	SetupID string `url:"setup_id"`
+	WaitMs  *int   `url:"wait_ms"`
+}
+
+// GetComputerSetup Read or wait for SSH setup progress
+func (c *Client) GetComputerSetup(ctx context.Context, params GetComputerSetupParams) (*ComputerSetupStatus, error) {
+	path := "/api/computers/setups/{setup_id}"
+	path = strings.ReplaceAll(path, "{setup_id}", url.PathEscape(params.SetupID))
+	query := url.Values{}
+	if params.WaitMs != nil {
+		query.Set("wait_ms", strconv.Itoa(*params.WaitMs))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ComputerSetupStatus
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetDoctorParams carries the path, query, and header parameters.
 type GetDoctorParams struct {
 	Only    *string `url:"only"`
@@ -349,93 +431,4 @@ type GetExtensionInventoryParams struct {
 	Name      string  `url:"name"`
 	Workspace *string `url:"workspace"`
 	Profile   *string `url:"profile"`
-}
-
-// GetExtensionInventory List shipped and live resources for one extension
-func (c *Client) GetExtensionInventory(ctx context.Context, params GetExtensionInventoryParams) (*ExtensionInventoryPayload, error) {
-	path := "/api/extensions/{name}/inventory"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionInventoryPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetExtensionLogsParams carries the path, query, and header parameters.
-type GetExtensionLogsParams struct {
-	Name        string  `url:"name"`
-	Workspace   *string `url:"workspace"`
-	Profile     *string `url:"profile"`
-	Follow      *string `url:"follow"`
-	After       *string `url:"after"`
-	StreamEpoch *string `url:"stream_epoch"`
-}
-
-// GetExtensionLogs Read or follow redacted extension logs
-func (c *Client) GetExtensionLogs(ctx context.Context, params GetExtensionLogsParams) (*ExtensionLogsResponse, error) {
-	path := "/api/extensions/{name}/logs"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Follow != nil {
-		query.Set("follow", *params.Follow)
-	}
-	if params.After != nil {
-		query.Set("after", *params.After)
-	}
-	if params.StreamEpoch != nil {
-		query.Set("stream_epoch", *params.StreamEpoch)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionLogsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetExtensionProvenanceParams carries the path, query, and header parameters.
-type GetExtensionProvenanceParams struct {
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetExtensionProvenance Get extension provenance and trust evidence
-func (c *Client) GetExtensionProvenance(ctx context.Context, params GetExtensionProvenanceParams) (*ExtensionProvenanceResponse, error) {
-	path := "/api/extensions/{name}/provenance"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionProvenanceResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

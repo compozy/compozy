@@ -16,6 +16,7 @@ import (
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/procutil"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/vault"
 	"github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
@@ -190,7 +191,10 @@ func newVersionCommand() *cobra.Command {
 		Short: "Print the CompozyOS version",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return writeCommandOutput(cmd, outputBundle{
-				jsonValue: version.Current(),
+				jsonValue: struct {
+					version.Info
+					RemoteProtocol remoteproto.ProtocolRange `json:"remote_protocol"`
+				}{Info: version.Current(), RemoteProtocol: remoteproto.CurrentProtocol},
 				human: func() (string, error) {
 					return fmt.Sprintf("compozy %s", version.Current().Version), nil
 				},

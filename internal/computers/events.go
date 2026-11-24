@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/compozy/compozy/internal/computers/sshsetup"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
@@ -13,6 +14,7 @@ type Change struct {
 	ComputerID remoteproto.ComputerID
 	Computer   *View
 	Removed    bool
+	Setup      *sshsetup.Status
 }
 
 type Event struct {
@@ -82,8 +84,12 @@ func (r *eventRing) replay(after string) []Event {
 }
 
 func (r *eventRing) publish(change Change) {
+	name := "computer.changed"
+	if change.Setup != nil {
+		name = "computer.setup"
+	}
 	r.sequence++
-	event := Event{ID: strconv.FormatUint(r.sequence, 10), Event: "computer.changed", Data: change}
+	event := Event{ID: strconv.FormatUint(r.sequence, 10), Event: name, Data: change}
 	r.events[r.sequence%replayLimit] = event
 	for sub := range r.subscribers {
 		select {

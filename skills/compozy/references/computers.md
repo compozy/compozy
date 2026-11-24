@@ -8,6 +8,7 @@
 
 - Discover linked computers with `compozy computer available --json`, add one with `compozy computer add account <id>`, and inspect routes with `compozy computer status <name|id> --json`.
 - Target a computer through the local Unix socket with `compozy session list --computer <name|id> --json`. Select the local daemon with `--computer local`. Machine-local verbs return `flag_not_applicable` if you pass the flag.
+- Send a prompt with `compozy session prompt <session_id> --computer <name|id> "<message>"`. The host acknowledges acceptance and continues the turn after the controller disconnects. Read the reply with `compozy session history <session_id> --computer <name|id> --json`. Use `-o jsonl` on the prompt command to follow the live stream.
 - Use `GET /api/computers` for the registry and `GET /api/computers/stream` for `computer.changed`. Reconnect with `Last-Event-ID` or `after_sequence`; refetch after `stream_reset`.
 - Forward an operator API call through `/c/{computer_id}/api/…` on local HTTP or UDS. The registry and event cursors belong to the active account. The controller injects the remote proof, rejects requests carrying claim tokens, and refuses to chain through another controller.
 - `compozy computer remove <name|id>` removes the local entry. `--unlink` also frees the account slot. Use `compozy computer routes <name|id> remove <kind:address>` to remove a learned address.
@@ -19,6 +20,14 @@
 | `GET /v1/gate-policy`                          | Fetch the signed sign-in policy in compact JWS format |
 
 Verify the gate policy signature against the cloud JWKS. A grace policy applies only before its `until` deadline. For `429 rate_limited` and `503 cloud_unavailable`, honor the `Retry-After` header.
+
+## Set up an SSH computer
+
+Run `compozy computer add ssh <host> --json` to start a setup and get its ID. An operator can use the interactive CLI to confirm a host key, or pass a separately verified fingerprint with `--trust-host-fingerprint`. Read host suggestions from `GET /api/computers/ssh-hosts`.
+
+Inspect `compozy computer setup status <setup_id> --json` or long-poll `GET /api/computers/setups/{setup_id}?wait_ms=30000`. A `trust_host` prompt contains only the host and its fingerprint. For `needs_operator_secret`, direct the operator to the app or `compozy computer setup answer <setup_id>` from a TTY. The operator's password or code goes directly to SSH.
+
+Use `compozy__computer_setup_cancel` with `setup_id` on the controller where setup started. The CLI `compozy computer setup cancel <setup_id>` and the local DELETE route also release the slot. The tool requires approval in `approve-edits` and `auto` because cancellation ends the setup permanently. `computer_setup_linked` means the host already has a link. Manage it through the computer registry. Repeat the add command to resume an interrupted setup. Use `compozy computer update <name|id>` for a managed SSH upgrade.
 
 ## Local account
 

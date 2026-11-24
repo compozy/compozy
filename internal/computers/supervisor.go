@@ -152,7 +152,7 @@ func (s *supervisor) preflight(route store.ComputerRoute) routeProbe {
 	defer cancel()
 	probe := routeProbe{route: route}
 	r := s.scope.registry
-	origin, err := r.routeOrigin(ctx, route)
+	origin, err := r.routeOrigin(ctx, s.ctx, route)
 	if err != nil {
 		probe.problem = routeProblem{step: stepRoute, err: err}
 		return probe
@@ -313,6 +313,9 @@ func (s *supervisor) install(link, previous *connection) bool {
 	entry.fault = nil
 	view := &entry.view
 	view.Status, view.PlanState, view.Diagnosis = Connected, PlanOK, nil
+	if warning := sshServiceWarning(view.Routes, at); warning != nil {
+		view.Status, view.Diagnosis = NeedsAttention, warning
+	}
 	view.LastConnAt = &at
 	view.Platform, view.Version = link.descriptor.Platform, link.descriptor.Version
 	view.RouteInUse, view.Protocol = &link.route, &link.descriptor.Protocol

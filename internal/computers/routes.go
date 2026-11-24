@@ -86,22 +86,14 @@ func socketHost(address string) string {
 	return host
 }
 
-func (r *Registry) routeOrigin(ctx context.Context, route store.ComputerRoute) (*url.URL, error) {
+func (r *Registry) routeOrigin(ctx, owner context.Context, route store.ComputerRoute) (*url.URL, error) {
 	switch route.Kind {
 	case remoteproto.RouteDirect:
 		if socketHost(route.Address) != "" {
 			return &url.URL{Scheme: routeHTTPScheme, Host: route.Address}, nil
 		}
 	case remoteproto.RouteSSH:
-		if r.forward != nil {
-			socket, err := r.forward(ctx, route)
-			if err != nil {
-				return nil, ErrOffline
-			}
-			if ip := net.ParseIP(socketHost(socket)); ip != nil && ip.IsLoopback() {
-				return &url.URL{Scheme: routeHTTPScheme, Host: socket}, nil
-			}
-		}
+		return r.sshRouteOrigin(ctx, owner, route)
 	case remoteproto.RouteCloud:
 		target, err := url.Parse("https://" + route.Address)
 		if err == nil && target.Hostname() != "" && target.Host == route.Address && target.User == nil {

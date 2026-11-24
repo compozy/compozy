@@ -9,6 +9,59 @@ import (
 	"strings"
 )
 
+// ApproveAgentHeartbeatAuthority approve check-in authority
+func (c *Client) ApproveAgentHeartbeatAuthority(ctx context.Context, params ApproveAgentHeartbeatAuthorityParams, body HeartbeatScriptApprovalRequest) error {
+	path := "/api/agents/{name}/heartbeat/authority/approve"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
+}
+
+// ApproveAgentHeartbeatScriptParams carries the path, query, and header parameters.
+type ApproveAgentHeartbeatScriptParams struct {
+	Name        string  `url:"name"`
+	Script      string  `url:"script"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ApproveAgentHeartbeatScript Approve exact source script bytes (operator only)
+func (c *Client) ApproveAgentHeartbeatScript(ctx context.Context, params ApproveAgentHeartbeatScriptParams, body HeartbeatScriptApprovalRequest) (*HeartbeatScriptApprovalPayload, error) {
+	path := "/api/agents/{name}/heartbeat/scripts/{script}/approve"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	path = strings.ReplaceAll(path, "{script}", url.PathEscape(params.Script))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatScriptApprovalPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ApproveAgentSkillReviewParams carries the path, query, and header parameters.
+type ApproveAgentSkillReviewParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // ApproveAgentSkillReview Decide a skill review as the operator (experimental)
 func (c *Client) ApproveAgentSkillReview(ctx context.Context, params ApproveAgentSkillReviewParams, body AgentSkillReviewDecisionRequest) (*AgentSkillReviewResponse, error) {
 	path := "/api/agent-skill-reviews/{id}/approve"
@@ -387,58 +440,6 @@ func (c *Client) BlockTask(ctx context.Context, params BlockTaskParams, body Cre
 		path += "?" + query.Encode()
 	}
 	var out TaskBlockResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// BrowseDirectoryParams carries the path, query, and header parameters.
-type BrowseDirectoryParams struct {
-	Path       *string `url:"path"`
-	ShowHidden *bool   `url:"show_hidden"`
-	DirsOnly   *bool   `url:"dirs_only"`
-}
-
-// BrowseDirectory List directory entries and filesystem roots for the workspace folder picker
-func (c *Client) BrowseDirectory(ctx context.Context, params BrowseDirectoryParams) (*FSBrowseResponse, error) {
-	path := "/api/fs/browse"
-	query := url.Values{}
-	if params.Path != nil {
-		query.Set("path", *params.Path)
-	}
-	if params.ShowHidden != nil {
-		query.Set("show_hidden", strconv.FormatBool(*params.ShowHidden))
-	}
-	if params.DirsOnly != nil {
-		query.Set("dirs_only", strconv.FormatBool(*params.DirsOnly))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FSBrowseResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// BulkForceFailTaskRunsParams carries the path, query, and header parameters.
-type BulkForceFailTaskRunsParams struct {
-	Profile *string `url:"profile"`
-}
-
-// BulkForceFailTaskRuns Force fail a bounded set of queued or claimed task runs
-func (c *Client) BulkForceFailTaskRuns(ctx context.Context, params BulkForceFailTaskRunsParams, body BulkForceTaskRunRequest) (*BulkForceTaskRunResponse, error) {
-	path := "/api/runs/bulk/fail"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out BulkForceTaskRunResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}

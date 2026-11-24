@@ -139,6 +139,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__cmd_palette_invoke":    expectedNativeEntry("Running", " ", false, "💬", "auto"),
 		"compozy__cmd_palette_list":      expectedNativeEntry("Reading", " ", false, "💬", "auto"),
 		"compozy__command_list":          expectedNativeEntry("Reading", " ", false, "💬", "auto"),
+		"compozy__computer_setup_cancel": expectedNativeEntry("Canceling", " ", false, "🖥️", "auto"),
 		"compozy__config_diff":           expectedNativeEntry("Reading", " ", false, "⚙️", "auto"),
 		"compozy__config_get":            expectedNativeEntry("Reading", " ", false, "⚙️", "auto"),
 		"compozy__config_list":           expectedNativeEntry("Reading", " ", false, "⚙️", "auto"),

@@ -203,8 +203,13 @@ export type ActorIdentity = {
 };
 
 export type AddComputerRequest = {
-  computer_id: string;
+  computer_id?: string;
+  host?: string;
   kind: string;
+  name?: string;
+  port?: number;
+  trust_host_fingerprint?: string;
+  user?: string;
 };
 
 export type AddMarketplaceSourceRequest = {
@@ -1771,6 +1776,54 @@ export type ComputerRouteInUse = {
   id: string;
   kind: string;
   label: string;
+};
+
+export type ComputerSSHHost = {
+  alias: string;
+  hostname: string;
+  port: number;
+  source: string;
+  user: string;
+};
+
+export type ComputerSSHHostsResponse = {
+  hosts: Array<ComputerSSHHost>;
+};
+
+export type ComputerSetupAnswer = {
+  accept?: boolean | null;
+  kind: string;
+  value?: string;
+};
+
+export type ComputerSetupCanceled = {
+  setup_id: string;
+  state: string;
+};
+
+export type ComputerSetupPrompt = {
+  fingerprint?: string;
+  host?: string;
+  kind: string;
+};
+
+export type ComputerSetupStarted = {
+  computer_id: string | null;
+  setup_id: string;
+};
+
+export type ComputerSetupStatus = {
+  computer_id: string | null;
+  error: ErrorPayload | null;
+  prompt: ComputerSetupPrompt | null;
+  prompt_kind?: string;
+  setup_id: string;
+  state: string;
+  step: string;
+};
+
+export type ComputerUpdateStarted = {
+  setup_id: string;
 };
 
 export type ConfigApplyRecordPayload = {
@@ -21640,6 +21693,10 @@ export type AddAccountComputerErrors = {
    */
   409: ErrorPayload;
   /**
+   * SSH setup input failed
+   */
+  422: ErrorPayload;
+  /**
    * Too Many Requests
    */
   429: ErrorPayload;
@@ -21656,6 +21713,10 @@ export type AddAccountComputerResponses = {
    * Computer added
    */
   201: Computer;
+  /**
+   * SSH setup started
+   */
+  202: ComputerSetupStarted;
 };
 
 export type AddAccountComputerResponse =
@@ -21715,6 +21776,245 @@ export type ListAvailableComputersResponses = {
 
 export type ListAvailableComputersResponse =
   ListAvailableComputersResponses[keyof ListAvailableComputersResponses];
+
+export type CancelComputerSetupData = {
+  body?: never;
+  path: {
+    /**
+     * SSH setup ID
+     */
+    setup_id: string;
+  };
+  query?: never;
+  url: "/api/computers/setups/{setup_id}";
+};
+
+export type CancelComputerSetupErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CancelComputerSetupError = CancelComputerSetupErrors[keyof CancelComputerSetupErrors];
+
+export type CancelComputerSetupResponses = {
+  /**
+   * Setup stopped and slot released
+   */
+  200: ComputerSetupCanceled;
+};
+
+export type CancelComputerSetupResponse =
+  CancelComputerSetupResponses[keyof CancelComputerSetupResponses];
+
+export type GetComputerSetupData = {
+  body?: never;
+  path: {
+    /**
+     * SSH setup ID
+     */
+    setup_id: string;
+  };
+  query?: {
+    /**
+     * Wait for up to 30,000 ms
+     */
+    wait_ms?: number;
+  };
+  url: "/api/computers/setups/{setup_id}";
+};
+
+export type GetComputerSetupErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetComputerSetupError = GetComputerSetupErrors[keyof GetComputerSetupErrors];
+
+export type GetComputerSetupResponses = {
+  /**
+   * Current SSH setup status
+   */
+  200: ComputerSetupStatus;
+};
+
+export type GetComputerSetupResponse = GetComputerSetupResponses[keyof GetComputerSetupResponses];
+
+export type AnswerComputerSetupData = {
+  /**
+   * JSON request body
+   */
+  body: ComputerSetupAnswer;
+  path: {
+    /**
+     * SSH setup ID
+     */
+    setup_id: string;
+  };
+  query?: never;
+  url: "/api/computers/setups/{setup_id}/answer";
+};
+
+export type AnswerComputerSetupErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type AnswerComputerSetupError = AnswerComputerSetupErrors[keyof AnswerComputerSetupErrors];
+
+export type AnswerComputerSetupResponses = {
+  /**
+   * Answer accepted
+   */
+  204: void;
+};
+
+export type AnswerComputerSetupResponse =
+  AnswerComputerSetupResponses[keyof AnswerComputerSetupResponses];
+
+export type ListComputerSSHHostsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/computers/ssh-hosts";
+};
+
+export type ListComputerSSHHostsErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListComputerSSHHostsError =
+  ListComputerSSHHostsErrors[keyof ListComputerSSHHostsErrors];
+
+export type ListComputerSSHHostsResponses = {
+  /**
+   * SSH hosts
+   */
+  200: ComputerSSHHostsResponse;
+};
+
+export type ListComputerSSHHostsResponse =
+  ListComputerSSHHostsResponses[keyof ListComputerSSHHostsResponses];
 
 export type RemoveComputerData = {
   body?: never;
@@ -21964,6 +22264,65 @@ export type RemoveComputerRouteResponses = {
 
 export type RemoveComputerRouteResponse =
   RemoveComputerRouteResponses[keyof RemoveComputerRouteResponses];
+
+export type StartComputerUpdateData = {
+  body?: never;
+  path: {
+    /**
+     * Computer ID
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/computers/{id}/update";
+};
+
+export type StartComputerUpdateErrors = {
+  /**
+   * Bad Request
+   */
+  400: ErrorPayload;
+  /**
+   * Unauthorized
+   */
+  401: ErrorPayload;
+  /**
+   * Payment Required
+   */
+  402: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Not Found
+   */
+  404: ErrorPayload;
+  /**
+   * Conflict
+   */
+  409: ErrorPayload;
+  /**
+   * Too Many Requests
+   */
+  429: ErrorPayload;
+  /**
+   * Service Unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type StartComputerUpdateError = StartComputerUpdateErrors[keyof StartComputerUpdateErrors];
+
+export type StartComputerUpdateResponses = {
+  /**
+   * Update setup started
+   */
+  202: ComputerUpdateStarted;
+};
+
+export type StartComputerUpdateResponse =
+  StartComputerUpdateResponses[keyof StartComputerUpdateResponses];
 
 export type CaptureDaemonProfileData = {
   body?: never;

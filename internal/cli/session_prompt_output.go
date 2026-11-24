@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +17,22 @@ const (
 	idempotencyKeyField = "idempotency_key"
 	idempotencyKeyLabel = "Idempotency Key"
 )
+
+func sessionPromptCommandBundle(record SessionPromptRecord, target func() (string, bool)) outputBundle {
+	bundle := sessionPromptBundle(record)
+	prompt := record.Prompt
+	if target == nil || prompt.Status != store.SessionPromptResultStatusAccepted ||
+		prompt.Replayed || prompt.TargetSessionID == "" {
+		return bundle
+	}
+	computer, selected := target()
+	if selected && computer != localComputer {
+		bundle.human = func() (string, error) {
+			return fmt.Sprintf("%s  %s  active\n", prompt.TargetSessionID, computer), nil
+		}
+	}
+	return bundle
+}
 
 func sessionPromptBundle(record SessionPromptRecord) outputBundle {
 	if record.Prompt.Side != nil {

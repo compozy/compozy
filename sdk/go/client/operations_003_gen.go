@@ -9,6 +9,58 @@ import (
 	"strings"
 )
 
+// BrowseDirectoryParams carries the path, query, and header parameters.
+type BrowseDirectoryParams struct {
+	Path       *string `url:"path"`
+	ShowHidden *bool   `url:"show_hidden"`
+	DirsOnly   *bool   `url:"dirs_only"`
+}
+
+// BrowseDirectory List directory entries and filesystem roots for the workspace folder picker
+func (c *Client) BrowseDirectory(ctx context.Context, params BrowseDirectoryParams) (*FSBrowseResponse, error) {
+	path := "/api/fs/browse"
+	query := url.Values{}
+	if params.Path != nil {
+		query.Set("path", *params.Path)
+	}
+	if params.ShowHidden != nil {
+		query.Set("show_hidden", strconv.FormatBool(*params.ShowHidden))
+	}
+	if params.DirsOnly != nil {
+		query.Set("dirs_only", strconv.FormatBool(*params.DirsOnly))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FSBrowseResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// BulkForceFailTaskRunsParams carries the path, query, and header parameters.
+type BulkForceFailTaskRunsParams struct {
+	Profile *string `url:"profile"`
+}
+
+// BulkForceFailTaskRuns Force fail a bounded set of queued or claimed task runs
+func (c *Client) BulkForceFailTaskRuns(ctx context.Context, params BulkForceFailTaskRunsParams, body BulkForceTaskRunRequest) (*BulkForceTaskRunResponse, error) {
+	path := "/api/runs/bulk/fail"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out BulkForceTaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // BulkForceReleaseTaskRunsParams carries the path, query, and header parameters.
 type BulkForceReleaseTaskRunsParams struct {
 	Profile *string `url:"profile"`
@@ -68,6 +120,22 @@ func (c *Client) CancelAutomationRun(ctx context.Context, params CancelAutomatio
 	}
 	var out RunResponse
 	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CancelComputerSetupParams carries the path, query, and header parameters.
+type CancelComputerSetupParams struct {
+	SetupID string `url:"setup_id"`
+}
+
+// CancelComputerSetup Cancel an unlinked SSH setup
+func (c *Client) CancelComputerSetup(ctx context.Context, params CancelComputerSetupParams) (*ComputerSetupCanceled, error) {
+	path := "/api/computers/setups/{setup_id}"
+	path = strings.ReplaceAll(path, "{setup_id}", url.PathEscape(params.SetupID))
+	var out ComputerSetupCanceled
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -373,63 +441,4 @@ func (c *Client) CaptureDaemonProfile(ctx context.Context, params CaptureDaemonP
 type CheckAgentInstanceParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// CheckAgentInstance Check an agent instance
-func (c *Client) CheckAgentInstance(ctx context.Context, params CheckAgentInstanceParams, body AgentInstanceCheckRequest) (*AgentInstanceCheckResponse, error) {
-	path := "/api/agent-instances/{id}/check"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceCheckResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CheckSessionMCPParams carries the path, query, and header parameters.
-type CheckSessionMCPParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Name        string  `url:"name"`
-	Owner       *string `url:"owner"`
-	Profile     *string `url:"profile"`
-}
-
-// CheckSessionMCP Retry discovery for one session MCP server without restarting the runtime
-func (c *Client) CheckSessionMCP(ctx context.Context, params CheckSessionMCPParams) (*MCP, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/mcp/servers/{name}/check"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Owner != nil {
-		query.Set("owner", *params.Owner)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MCP
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CheckSettingsMCPServerParams carries the path, query, and header parameters.
-type CheckSettingsMCPServerParams struct {
-	Name        string  `url:"name"`
-	Scope       string  `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
 }

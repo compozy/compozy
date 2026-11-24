@@ -21,6 +21,9 @@ const (
 var ErrPlanLimit = &Error{http.StatusPaymentRequired, "plan_limit_reached",
 	"Free includes 1 remote computer. Upgrade to Pro for unlimited computers."}
 
+var errReservationLinked = &Error{http.StatusConflict, "computer_setup_linked",
+	"This computer is already linked. Remove it instead."}
+
 type LinkToken struct {
 	Token     string    `json:"token"`
 	ExpiresAt time.Time `json:"expires_at"`
@@ -38,6 +41,12 @@ func (s *Service) Reserve(
 		func(q *store.Queries, account store.ControlAccount, device store.ControlDevice) error {
 			now := s.config.Now()
 			if previous != "" {
+				// A committed link has already consumed this setup's slot.
+				id, err := q.LinkedControlReservation(ctx, previous, account.ID, device.ID)
+				if !errors.Is(err, store.ErrNotFound) {
+					result = store.SlotReservation{ID: previous, ComputerID: id}
+					return err
+				}
 				reservation, err := q.ActiveControlReservation(ctx, previous, account.ID, device.ID, now)
 				if !errors.Is(err, store.ErrNotFound) {
 					result = reservation
@@ -65,6 +74,11 @@ func (s *Service) ReleaseReservation(ctx context.Context, principal DevicePrinci
 		ctx,
 		principal,
 		func(q *store.Queries, account store.ControlAccount, device store.ControlDevice) error {
+			if _, err := q.LinkedControlReservation(ctx, id, account.ID, device.ID); err == nil {
+				return errReservationLinked
+			} else if !errors.Is(err, store.ErrNotFound) {
+				return err
+			}
 			return q.ReleaseControlReservation(ctx, id, account.ID, device.ID, s.config.Now())
 		},
 	)

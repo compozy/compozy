@@ -9,6 +9,8 @@
         "remove",
         "routes",
         "status",
-        "add"
+        "update",
+        "add",
+        "setup"
     ]
 }

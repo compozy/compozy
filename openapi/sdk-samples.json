@@ -85,6 +85,13 @@
             "resource": "loops",
             "app_access": "allowed"
         },
+        "answerComputerSetup": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.answerComputerSetup({ path: { \"setup_id\": \"setup_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.AnswerComputerSetup(ctx, client.AnswerComputerSetupParams{SetupID: \"setup_id\"}, client.ComputerSetupAnswer{ /* request fields */ })\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "computers",
+            "app_access": "denied"
+        },
         "answerSessionClarification": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.answerSessionClarification({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\", \"request_id\": \"request_id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.AnswerSessionClarification(ctx, client.AnswerSessionClarificationParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\", RequestID: \"request_id\"}, client.ClarificationAnswerRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -273,6 +280,13 @@
             "kind": "json",
             "resource": "automation",
             "app_access": "allowed"
+        },
+        "cancelComputerSetup": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.cancelComputerSetup({ path: { \"setup_id\": \"setup_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CancelComputerSetup(ctx, client.CancelComputerSetupParams{SetupID: \"setup_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
+            "app_access": "denied"
         },
         "cancelLoopNode": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.cancelLoopNode({ path: { \"workspace_id\": \"workspace_id\", \"run_id\": \"run_id\", \"node_id\": \"node_id\" }, body: { /* request fields */ } });",
@@ -1222,6 +1236,13 @@
         "getComputer": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.getComputer({ path: { \"id\": \"id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetComputer(ctx, client.GetComputerParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
+            "app_access": "denied"
+        },
+        "getComputerSetup": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.getComputerSetup({ path: { \"setup_id\": \"setup_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetComputerSetup(ctx, client.GetComputerSetupParams{SetupID: \"setup_id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "computers",
             "app_access": "denied"
@@ -2204,6 +2225,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListCmdPaletteCommands(ctx, client.ListCmdPaletteCommandsParams{Workspace: \"workspace\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "cmdPalette",
+            "app_access": "denied"
+        },
+        "listComputerSSHHosts": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.listComputerSSHHosts();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListComputerSSHHosts(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
             "app_access": "denied"
         },
         "listComputers": {
@@ -3863,6 +3891,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.StartAgentTaskRun(ctx, client.StartAgentTaskRunParams{XCompozySessionID: \"X-Compozy-Session-ID\", XCompozyAgent: \"X-Compozy-Agent\", RunID: \"run_id\"}, client.StartTaskRunRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "agent",
+            "app_access": "denied"
+        },
+        "startComputerUpdate": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.startComputerUpdate({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.StartComputerUpdate(ctx, client.StartComputerUpdateParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
             "app_access": "denied"
         },
         "startTask": {

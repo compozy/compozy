@@ -37,9 +37,11 @@ type ComputerRoute struct {
 }
 
 type ComputerSSHTarget struct {
-	User  string
-	Port  int
-	Alias string
+	User           string
+	Port           int
+	Alias          string
+	TunnelAddress  string
+	ServiceWarning string
 }
 
 type ComputerPatch struct {

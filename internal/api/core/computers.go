@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/computers"
+	"github.com/compozy/compozy/internal/computers/sshsetup"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -67,8 +68,15 @@ func (h *BaseHandlers) AddComputer(c *gin.Context) {
 		return
 	}
 	var input contract.AddComputerRequest
-	if err := decodeStrictJSONBody(c, &input); err != nil ||
-		input.Kind != contract.ComputerAddKindAccount || input.ComputerID == "" {
+	if err := decodeStrictJSONBody(c, &input); err != nil {
+		invalidComputerBody(c)
+		return
+	}
+	if input.Kind == contract.ComputerAddKindSSH && input.ComputerID == "" {
+		h.addSSHComputer(c, input)
+		return
+	}
+	if input.Kind != contract.ComputerAddKindAccount || input.ComputerID == "" {
 		invalidComputerBody(c)
 		return
 	}
@@ -126,6 +134,12 @@ func (h *BaseHandlers) StreamComputers(c *gin.Context) {
 	defer sub.Close()
 	serveAccountEvents(c, h, sub.Done, sub.Events, sub.Replay, nil, func(event computers.Event) SSEMessage {
 		change := contract.ComputerChange{ComputerID: event.Data.ComputerID, Removed: event.Data.Removed}
+		if event.Data.Setup != nil {
+			setup := setupDTO(*event.Data.Setup)
+			change.SetupID, change.Step, change.State = setup.SetupID, setup.Step, setup.State
+			change.Prompt, change.Error, change.Answered = setup.Prompt, setup.Error, event.Data.Setup.Answered
+			change.ComputerID = event.Data.Setup.ComputerID
+		}
 		if event.Data.Computer != nil {
 			change.Computer = new(computerDTO(*event.Data.Computer))
 		}
@@ -155,6 +169,10 @@ func invalidComputerBody(c *gin.Context) {
 }
 
 func (h *BaseHandlers) computerResult(c *gin.Context, status int, body any, err error) {
+	if fault, ok := errors.AsType[*sshsetup.Failure](err); ok {
+		c.AbortWithStatusJSON(fault.HTTPStatus, setupErrorDTO(fault))
+		return
+	}
 	if fault, ok := errors.AsType[*computers.Failure](err); ok {
 		c.AbortWithStatusJSON(fault.Status, contract.ErrorPayload{Code: fault.Code, Error: fault.Message,
 			Details: fault.Details})

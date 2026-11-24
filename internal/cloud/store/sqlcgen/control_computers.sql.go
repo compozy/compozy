@@ -387,6 +387,26 @@ func (q *Queries) CreateControlReservation(ctx context.Context, arg CreateContro
 	return i, err
 }
 
+const linkedControlReservation = `-- name: LinkedControlReservation :one
+SELECT c.id
+FROM link_tokens AS t
+JOIN computers AS c ON c.id = t.result_computer_id AND c.account_id = t.account_id
+WHERE t.reservation_id = $1 AND t.account_id = $2 AND t.device_id = $3 AND c.unlinked_at IS NULL
+`
+
+type LinkedControlReservationParams struct {
+	ReservationID pgtype.Text
+	AccountID     string
+	DeviceID      string
+}
+
+func (q *Queries) LinkedControlReservation(ctx context.Context, arg LinkedControlReservationParams) (string, error) {
+	row := q.db.QueryRow(ctx, linkedControlReservation, arg.ReservationID, arg.AccountID, arg.DeviceID)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const listControlPeers = `-- name: ListControlPeers :many
 SELECT computer.id, computer.name, tunnel.hostname
 FROM computers AS computer

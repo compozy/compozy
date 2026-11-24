@@ -27,6 +27,7 @@ func registerRootCommands(cmd *cobra.Command, deps commandDeps) {
 		newAccountCommand(deps),
 		newComputerCommand(deps),
 		newRemoteCommand(deps),
+		newServiceCommand(deps),
 		newGatewayCommand(deps),
 		newPairCommand(deps),
 		newDeviceCommand(deps),

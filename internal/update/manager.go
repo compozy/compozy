@@ -72,7 +72,7 @@ func NewManager(cfg *Config) (*Manager, error) {
 	if cfg.BundleVerifier != nil {
 		manager.bundleVerifier = cfg.BundleVerifier
 	} else {
-		manager.bundleVerifier = sigstoreBundleVerifier{cachePath: manager.sigstoreCachePath()}
+		manager.bundleVerifier = NewSigstoreBundleVerifier(manager.sigstoreCachePath())
 	}
 	if strings.TrimSpace(manager.homePaths.HomeDir) == "" {
 		return nil, errors.New("update: CompozyOS home directory is required")
@@ -289,7 +289,7 @@ func (m *Manager) resolveReleaseAssets(release *Release) (releaseAssets, error) 
 func (m *Manager) resolvePlanReleaseAssets(release *Release, includeRuntime bool) (releaseAssets, error) {
 	var archiveAsset ReleaseAsset
 	if includeRuntime {
-		archiveName, err := archiveAssetName(m.runtimeOS, m.runtimeArch)
+		archiveName, err := ArchiveAssetName(m.runtimeOS, m.runtimeArch)
 		if err != nil {
 			return releaseAssets{}, err
 		}
@@ -403,7 +403,7 @@ func (m *Manager) verifyReleaseArtifacts(
 	}
 
 	if archiveName != "" {
-		expectedChecksum, err := checksumForAsset(downloaded.checksumsPath, archiveName)
+		expectedChecksum, err := ChecksumForAsset(downloaded.checksumsPath, archiveName)
 		if err != nil {
 			return err
 		}
@@ -411,7 +411,7 @@ func (m *Manager) verifyReleaseArtifacts(
 			return err
 		}
 	}
-	expectedCompatibilityChecksum, err := checksumForAsset(downloaded.checksumsPath, compatibilityAssetName)
+	expectedCompatibilityChecksum, err := ChecksumForAsset(downloaded.checksumsPath, compatibilityAssetName)
 	if err != nil {
 		return err
 	}

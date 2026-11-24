@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -138,6 +139,36 @@ func TestRouteSelection(t *testing.T) {
 			t.Fatalf("wrong descriptor admitted: error = %v, grants = %d", problem.err, cloud.grants.Load())
 		}
 	})
+	t.Run("Should report a connected SSH host with lingering off (UT-047)", func(t *testing.T) {
+		t.Parallel()
+		clock := clockwork.NewFakeClock()
+		pin, pair := tunnelCertificates(t, clock.Now())
+		host := serveProbeTunnel(t, remoteproto.Descriptor{
+			ComputerID: probeComputer, TLSRootSHA256: pin, Protocol: remoteproto.CurrentProtocol,
+		}, pair, clock, false, func() bool { return true })
+		route := store.ComputerRoute{ID: "ssh", Kind: remoteproto.RouteSSH, SSH: &store.ComputerSSHTarget{
+			Alias: "devbox", User: "pedro", ServiceWarning: "linger_off",
+		}}
+		rows := []store.Computer{{
+			ID: probeComputer, AccountID: probeAccount, Enabled: true, TLSRootSHA: pin,
+			Routes: []store.ComputerRoute{route},
+		}}
+		address := probeURL(t, host.URL).Host
+		registry := New(
+			t.Context(),
+			&routingStore{computers: rows},
+			newRoutingAccount(t),
+			&routingCloud{},
+			WithClock(clock),
+			WithSSHForward(func(context.Context, store.ComputerRoute) (string, error) { return address, nil }),
+		)
+		t.Cleanup(registry.Close)
+		testutil.Eventually(t, "SSH connected with a lingering diagnosis", 5*time.Second, func() bool {
+			view, err := registry.Get(t.Context(), probeComputer)
+			return err == nil && view.RouteInUse != nil && view.Status == NeedsAttention && view.Diagnosis != nil &&
+				view.Diagnosis.Code == "linger_off" && strings.Contains(view.Diagnosis.Message, "sudo loginctl enable-linger pedro")
+		})
+	})
 }
 
 func testRouteHTTP(hosted *http.Client) func(remoteproto.RouteKind) *http.Client {
@@ -159,7 +190,7 @@ func TestComputerDiagnosis(t *testing.T) {
 	}{
 		{"Should diagnose an expired entitlement as needing attention", &Failure{Code: CodeLeaseExpired}, NeedsAttention},
 		{"Should show needs Pro when the entitlement explicitly requires a plan", ErrPlanRequired, NeedsPro},
-		{"Should show incompatible when protocol ranges do not overlap", ErrIncompatible, Incompatible},
+		{"Should show incompatible when protocol ranges do not overlap (UT-051)", ErrIncompatible, Incompatible},
 		{"Should show disabled when local use is switched off", ErrDisabled, Disabled},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -170,6 +201,59 @@ func TestComputerDiagnosis(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should find the shared wire version for overlapping peers (UT-051)", func(t *testing.T) {
+		t.Parallel()
+		controller := remoteproto.ProtocolRange{Min: 1, Max: 1}
+		host := remoteproto.ProtocolRange{Min: 2, Max: 2}
+		if _, ok := controller.Overlap(host); ok {
+			t.Fatal("disjoint ranges admitted a shared protocol")
+		}
+		controller.Max, host.Max = 2, 3
+		if shared, ok := controller.Overlap(host); !ok || shared != (remoteproto.ProtocolRange{Min: 2, Max: 2}) {
+			t.Fatalf("negotiated range = %+v, compatible = %t", shared, ok)
+		}
+	})
+}
+
+func TestRemoveSSHComputer(t *testing.T) {
+	t.Parallel()
+	t.Run("Should remove the computer when SSH uninstall fails (UT-050)", func(t *testing.T) {
+		t.Parallel()
+		route := store.ComputerRoute{ID: "ssh", Kind: remoteproto.RouteSSH, Address: "pedro@devbox:22"}
+		rows := []store.Computer{{ID: probeComputer, AccountID: probeAccount, Routes: []store.ComputerRoute{route}}}
+		storage := new(removalStore)
+		storage.computers = rows
+		var tried string
+		registry := New(t.Context(), storage, newRoutingAccount(t), &routingCloud{},
+			WithSSHUninstall(func(_ context.Context, route store.ComputerRoute) error {
+				tried = route.Address
+				return errors.New("host unreachable")
+			}))
+		t.Cleanup(registry.Close)
+		uninstall, err := registry.Remove(t.Context(), probeComputer, RemoveOptions{Uninstall: true})
+		if err != nil || uninstall != UninstallFailed || tried != route.Address || !storage.removed {
+			t.Fatalf(
+				"remove = %v, uninstall = %q, attempted = %q, removed = %t",
+				err,
+				uninstall,
+				tried,
+				storage.removed,
+			)
+		}
+		if _, err := registry.Get(t.Context(), probeComputer); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("removed computer lookup = %v", err)
+		}
+	})
+}
+
+type removalStore struct {
+	routingStore
+	removed bool
+}
+
+func (s *removalStore) RemoveComputer(_ context.Context, owner string, id remoteproto.ComputerID) error {
+	s.removed = owner == probeAccount && id == probeComputer
+	return nil
 }
 
 func waitUnitRoute(t *testing.T, registry *Registry, kind remoteproto.RouteKind) {
