@@ -164,97 +164,12 @@ export function BrowserSignInGate({
               {iconVisual.glyph}
             </span>
 
-            {kind === "sign_in" ? (
-              <>
-                <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
-                  Sign in to CompozyOS
-                </h1>
-                <p className="text-small-body leading-relaxed text-muted-foreground">
-                  Sign in with your CompozyOS account to open sessions and terminals on{" "}
-                  <span className="font-medium text-fg">{computerName}</span>.
-                </p>
-              </>
-            ) : null}
-
-            {kind === "waiting_approval" ? (
-              <>
-                <h1 className="inline-flex items-center justify-center gap-2 text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
-                  <Spinner aria-hidden="true" className="size-4 shrink-0 text-warning" />
-                  <span>Waiting for approval on {computerName}</span>
-                </h1>
-                <p className="text-small-body leading-relaxed text-muted-foreground">
-                  Approve <span className="font-medium text-fg">{deviceName}</span> on{" "}
-                  <span className="font-medium text-fg">{computerName}</span> in{" "}
-                  <span className="font-medium text-fg">Settings → Computers</span>, or on a trusted
-                  admin device such as{" "}
-                  <span className="font-medium text-fg">{trustedAdminDeviceName}</span> in{" "}
-                  <span className="font-medium text-fg">Settings → Account</span>.
-                </p>
-              </>
-            ) : null}
-
-            {kind === "approval_expired" ? (
-              <>
-                <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
-                  Approval request expired
-                </h1>
-                <p className="text-small-body leading-relaxed text-muted-foreground">
-                  Approval request expired. Try again. Requests time out after 10 minutes if nobody
-                  decides on <span className="font-medium text-fg">{computerName}</span>.
-                </p>
-              </>
-            ) : null}
-
-            {kind === "not_approved" ? (
-              <>
-                <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
-                  {computerName} didn&apos;t approve this device
-                </h1>
-                <p className="text-small-body leading-relaxed text-muted-foreground">
-                  This browser was not approved to connect to{" "}
-                  <span className="font-medium text-fg">{computerName}</span>. Request approval
-                  again if that was a mistake, or switch accounts.
-                </p>
-              </>
-            ) : null}
-
-            {kind === "another_account" ? (
-              <>
-                <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
-                  This computer belongs to another account
-                </h1>
-                <p className="text-small-body leading-relaxed text-muted-foreground">
-                  <span className="font-medium text-fg">{computerName}</span> is linked to a
-                  different CompozyOS account. Sign out to switch to the account that owns it.
-                </p>
-              </>
-            ) : null}
-
-            {kind === "needs_pro" ? (
-              <>
-                <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
-                  This computer&apos;s hosted route needs Pro
-                </h1>
-                <p className="text-small-body leading-relaxed text-muted-foreground">
-                  Your Pro plan ended, so browser access to{" "}
-                  <span className="font-medium text-fg">{computerName}</span> is paused. Agents on{" "}
-                  <span className="font-medium text-fg">{computerName}</span> keep running, and
-                  local or SSH access is unaffected.
-                </p>
-              </>
-            ) : null}
-
-            {kind === "device_removed" ? (
-              <>
-                <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
-                  This device was removed from your account
-                </h1>
-                <p className="text-small-body leading-relaxed text-muted-foreground">
-                  Open streams on this browser were closed. Sign in again to register this device
-                  and reconnect to <span className="font-medium text-fg">{computerName}</span>.
-                </p>
-              </>
-            ) : null}
+            <BrowserGateMessage
+              computerName={computerName}
+              deviceName={deviceName}
+              kind={kind}
+              trustedAdminDeviceName={trustedAdminDeviceName}
+            />
           </div>
 
           {kind === "waiting_approval" && browserFingerprint ? (
@@ -387,5 +302,110 @@ export function BrowserSignInGate({
         ) : null}
       </div>
     </BrandStage>
+  );
+}
+
+function BrowserGateMessage({
+  kind,
+  computerName,
+  deviceName,
+  trustedAdminDeviceName,
+}: Pick<BrowserSignInGateProps, "kind" | "computerName"> & {
+  deviceName: string;
+  trustedAdminDeviceName: string;
+}) {
+  return (
+    <>
+      {kind === "sign_in" ? (
+        <>
+          <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
+            Sign in to CompozyOS
+          </h1>
+          <p className="text-small-body leading-relaxed text-muted-foreground">
+            Sign in with your CompozyOS account to open sessions and terminals on{" "}
+            <span className="font-medium text-fg">{computerName}</span>.
+          </p>
+        </>
+      ) : null}
+
+      {kind === "waiting_approval" ? (
+        <>
+          <h1 className="inline-flex items-center justify-center gap-2 text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
+            <Spinner aria-hidden="true" className="size-4 shrink-0 text-warning" />
+            <span>Waiting for approval on {computerName}</span>
+          </h1>
+          <p className="text-small-body leading-relaxed text-muted-foreground">
+            Approve <span className="font-medium text-fg">{deviceName}</span> on{" "}
+            <span className="font-medium text-fg">{computerName}</span> in{" "}
+            <span className="font-medium text-fg">Settings → Computers</span>, or on a trusted admin
+            device such as <span className="font-medium text-fg">{trustedAdminDeviceName}</span> in{" "}
+            <span className="font-medium text-fg">Settings → Account</span>.
+          </p>
+        </>
+      ) : null}
+
+      {kind === "approval_expired" ? (
+        <>
+          <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
+            Approval request expired
+          </h1>
+          <p className="text-small-body leading-relaxed text-muted-foreground">
+            Approval request expired. Try again. Requests time out after 10 minutes if nobody
+            decides on <span className="font-medium text-fg">{computerName}</span>.
+          </p>
+        </>
+      ) : null}
+
+      {kind === "not_approved" ? (
+        <>
+          <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
+            {computerName} didn&apos;t approve this device
+          </h1>
+          <p className="text-small-body leading-relaxed text-muted-foreground">
+            This browser was not approved to connect to{" "}
+            <span className="font-medium text-fg">{computerName}</span>. Request approval again if
+            that was a mistake, or switch accounts.
+          </p>
+        </>
+      ) : null}
+
+      {kind === "another_account" ? (
+        <>
+          <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
+            This computer belongs to another account
+          </h1>
+          <p className="text-small-body leading-relaxed text-muted-foreground">
+            <span className="font-medium text-fg">{computerName}</span> is linked to a different
+            CompozyOS account. Sign out to switch to the account that owns it.
+          </p>
+        </>
+      ) : null}
+
+      {kind === "needs_pro" ? (
+        <>
+          <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
+            This computer&apos;s hosted route needs Pro
+          </h1>
+          <p className="text-small-body leading-relaxed text-muted-foreground">
+            Your Pro plan ended, so browser access to{" "}
+            <span className="font-medium text-fg">{computerName}</span> is paused. Agents on{" "}
+            <span className="font-medium text-fg">{computerName}</span> keep running, and local or
+            SSH access is unaffected.
+          </p>
+        </>
+      ) : null}
+
+      {kind === "device_removed" ? (
+        <>
+          <h1 className="text-empty-h1 font-medium tracking-empty-h1 text-fg-strong">
+            This device was removed from your account
+          </h1>
+          <p className="text-small-body leading-relaxed text-muted-foreground">
+            Open streams on this browser were closed. Sign in again to register this device and
+            reconnect to <span className="font-medium text-fg">{computerName}</span>.
+          </p>
+        </>
+      ) : null}
+    </>
   );
 }

@@ -109,56 +109,68 @@ export function RemoteSessionRow({
         <span className="font-mono text-micro text-subtle tabular-nums">{entry.updatedLabel}</span>
       </span>
 
-      <span className={SESSION_ROW_META_FRAME}>
-        <span className={SESSION_ROW_WHO_FRAME}>
-          {!hideProject ? (
-            <WorkspaceBadge
-              className="max-w-24 shrink-[1000]"
-              identity={{ kind: "project", name: entry.project }}
-            />
-          ) : null}
-
-          {!entry.isLocal && !hideComputer ? (
-            <>
-              {!hideProject ? (
-                <span aria-hidden="true" className="text-faint">
-                  ·
-                </span>
-              ) : null}
-              <ComputerMetaLabel
-                className="shrink-0"
-                iconKind={entry.iconKind}
-                name={entry.computerName}
-                offline={isOffline}
-                platform={entry.platform}
-              />
-            </>
-          ) : null}
-
-          {isOffline && hideComputer ? (
-            <span className="shrink-0 text-micro text-faint">Offline</span>
-          ) : null}
-
-          {isAttention && entry.needsYouPhrase ? (
-            <>
-              <span aria-hidden="true" className="text-faint">
-                ·
-              </span>
-              <span className="min-w-0 truncate text-attn">{entry.needsYouPhrase}</span>
-            </>
-          ) : entry.isLocal || hideComputer ? (
-            <>
-              {!hideProject || isOffline ? (
-                <span aria-hidden="true" className="text-faint">
-                  ·
-                </span>
-              ) : null}
-              <span className="min-w-0 truncate text-fg-2">{entry.model}</span>
-            </>
-          ) : null}
-        </span>
-      </span>
+      <RemoteSessionRowMeta entry={entry} hideComputer={hideComputer} hideProject={hideProject} />
     </div>
+  );
+}
+
+function RemoteSessionRowMeta({
+  entry,
+  hideComputer,
+  hideProject,
+}: {
+  entry: RemoteSessionRowEntry;
+  hideComputer: boolean;
+  hideProject: boolean;
+}) {
+  const isOffline = Boolean(entry.computerOffline);
+  const attention = entry.state === "attention" && !isOffline ? entry.needsYouPhrase : undefined;
+  const showComputer = !entry.isLocal && !hideComputer;
+  const showModel = !attention && (entry.isLocal || hideComputer);
+  const separator = (
+    <span aria-hidden="true" className="text-faint">
+      ·
+    </span>
+  );
+
+  return (
+    <span className={SESSION_ROW_META_FRAME}>
+      <span className={SESSION_ROW_WHO_FRAME}>
+        {!hideProject && (
+          <WorkspaceBadge
+            className="max-w-24 shrink-[1000]"
+            identity={{ kind: "project", name: entry.project }}
+          />
+        )}
+        {showComputer && (
+          <>
+            {!hideProject && separator}
+            <ComputerMetaLabel
+              className="shrink-0"
+              iconKind={entry.iconKind}
+              name={entry.computerName}
+              offline={isOffline}
+              platform={entry.platform}
+            />
+          </>
+        )}
+        {isOffline && hideComputer && (
+          <span className="shrink-0 text-micro text-faint">Offline</span>
+        )}
+        {attention && (
+          <>
+            {separator}
+            <span className="min-w-0 truncate text-attn">{attention}</span>
+          </>
+        )}
+        {showModel && (
+          <>
+            {(!hideProject || isOffline) && separator}
+            <span className="min-w-0 truncate text-fg-2">{entry.model}</span>
+          </>
+        )}
+      </span>
+    </span>
   );
 }
 

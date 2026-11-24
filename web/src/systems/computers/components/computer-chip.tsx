@@ -73,6 +73,13 @@ export function ComputerMetaLabel({
   );
 }
 
+const DEGRADED_LABELS: Partial<Record<ComputerFixture["status"], string>> = {
+  offline: "Offline",
+  connecting: "Connecting…",
+  needs_pro: "Needs Pro",
+  incompatible: "Update required",
+};
+
 export interface ComputerChipProps {
   computer: ComputerFixture;
   /** Opens the chip popover initially (for prototype states). */
@@ -105,15 +112,7 @@ export function ComputerChip({
   const isNeedsPro = computer.status === "needs_pro";
   const isWarning = computer.status === "needs_attention" || computer.status === "incompatible";
 
-  const degradedSuffix = isOffline
-    ? "Offline"
-    : isConnecting
-      ? "Connecting…"
-      : isNeedsPro
-        ? "Needs Pro"
-        : computer.status === "incompatible"
-          ? "Update required"
-          : null;
+  const degradedSuffix = DEGRADED_LABELS[computer.status];
 
   return (
     <Popover onOpenChange={setOpen} open={open}>
@@ -152,88 +151,106 @@ export function ComputerChip({
         )}
       </PopoverTrigger>
 
-      <PopoverContent align="start" className="w-80 p-3.5" sideOffset={6}>
-        <div className="flex flex-col gap-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <ComputerPlatformIcon
-                iconKind={computer.iconKind}
-                platform={computer.platform}
-                size="md"
-                tone="muted"
-              />
-              <div className="min-w-0">
-                <p className="truncate text-small-body font-medium text-fg">{computer.name}</p>
-                <p className="truncate text-eyebrow text-subtle">
-                  {computer.routeInUse?.label ??
-                    (isOffline
-                      ? `Last connected ${computer.lastConnectedLabel}`
-                      : (computer.routes[0]?.label ?? "No active route"))}
-                </p>
-              </div>
-            </div>
-            <ComputerStatusChip status={computer.status} />
-          </div>
-
-          <div className="flex items-center justify-between border-t border-line-soft pt-2.5 text-eyebrow">
-            <span className="text-subtle">Host capacity</span>
-            <ComputerLoadMeter computerName={computer.name} load={computer.load} />
-          </div>
-
-          <div className="flex flex-col gap-1.5 border-t border-line-soft pt-2.5">
-            <div className="flex items-center justify-between text-eyebrow">
-              <span className="text-subtle">Permissions on this device</span>
-              <span className="text-badge text-faint tabular-nums">
-                {DISPLAYED_REMOTE_SCOPES.filter(s => computer.scopes.includes(s.scope)).length} of{" "}
-                {DISPLAYED_REMOTE_SCOPES.length}
-              </span>
-            </div>
-            <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
-              {DISPLAYED_REMOTE_SCOPES.map(item => {
-                const granted = computer.scopes.includes(item.scope);
-                return (
-                  <li
-                    className={cn(
-                      "flex items-center gap-1.5 text-eyebrow",
-                      granted ? "text-fg-2" : "text-faint"
-                    )}
-                    key={item.scope}
-                  >
-                    <StateGlyph size="sm" state={granted ? "done" : "stopped"} />
-                    <span className="truncate">{item.label}</span>
-                  </li>
-                );
-              })}
-            </ul>
-            {!computer.scopes.includes("terminal:operate") ? (
-              <p className="pt-0.5 text-badge text-subtle">
-                Terminals are hidden while this device lacks terminal permission on {computer.name}.
-              </p>
-            ) : null}
-          </div>
-
-          <div className="flex items-center justify-end gap-2 border-t border-line-soft pt-2.5">
-            {isOffline && onReconnect ? (
-              <Button onClick={onReconnect} size="xs" type="button" variant="secondary">
-                <RefreshCw aria-hidden="true" data-icon="inline-start" />
-                Reconnect
-              </Button>
-            ) : null}
-            {isNeedsPro && onUpgrade ? (
-              <Button onClick={onUpgrade} size="xs" type="button" variant="default">
-                <Sparkles aria-hidden="true" data-icon="inline-start" />
-                Upgrade
-              </Button>
-            ) : null}
-            {onOpenDetails ? (
-              <Button onClick={onOpenDetails} size="xs" type="button" variant="quiet">
-                Computer details
-                <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      </PopoverContent>
+      <ComputerChipDetails
+        computer={computer}
+        onOpenDetails={onOpenDetails}
+        onReconnect={onReconnect}
+        onUpgrade={onUpgrade}
+      />
     </Popover>
+  );
+}
+
+function ComputerChipDetails({
+  computer,
+  onOpenDetails,
+  onReconnect,
+  onUpgrade,
+}: Pick<ComputerChipProps, "computer" | "onOpenDetails" | "onReconnect" | "onUpgrade">) {
+  const isOffline = computer.status === "offline";
+  const isNeedsPro = computer.status === "needs_pro";
+  return (
+    <PopoverContent align="start" className="w-80 p-3.5" sideOffset={6}>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <ComputerPlatformIcon
+              iconKind={computer.iconKind}
+              platform={computer.platform}
+              size="md"
+              tone="muted"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-small-body font-medium text-fg">{computer.name}</p>
+              <p className="truncate text-eyebrow text-subtle">
+                {computer.routeInUse?.label ??
+                  (isOffline
+                    ? `Last connected ${computer.lastConnectedLabel}`
+                    : (computer.routes[0]?.label ?? "No active route"))}
+              </p>
+            </div>
+          </div>
+          <ComputerStatusChip status={computer.status} />
+        </div>
+
+        <div className="flex items-center justify-between border-t border-line-soft pt-2.5 text-eyebrow">
+          <span className="text-subtle">Host capacity</span>
+          <ComputerLoadMeter computerName={computer.name} load={computer.load} />
+        </div>
+
+        <div className="flex flex-col gap-1.5 border-t border-line-soft pt-2.5">
+          <div className="flex items-center justify-between text-eyebrow">
+            <span className="text-subtle">Permissions on this device</span>
+            <span className="text-badge text-faint tabular-nums">
+              {DISPLAYED_REMOTE_SCOPES.filter(s => computer.scopes.includes(s.scope)).length} of{" "}
+              {DISPLAYED_REMOTE_SCOPES.length}
+            </span>
+          </div>
+          <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
+            {DISPLAYED_REMOTE_SCOPES.map(item => {
+              const granted = computer.scopes.includes(item.scope);
+              return (
+                <li
+                  className={cn(
+                    "flex items-center gap-1.5 text-eyebrow",
+                    granted ? "text-fg-2" : "text-faint"
+                  )}
+                  key={item.scope}
+                >
+                  <StateGlyph size="sm" state={granted ? "done" : "stopped"} />
+                  <span className="truncate">{item.label}</span>
+                </li>
+              );
+            })}
+          </ul>
+          {!computer.scopes.includes("terminal:operate") ? (
+            <p className="pt-0.5 text-badge text-subtle">
+              Terminals are hidden while this device lacks terminal permission on {computer.name}.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-line-soft pt-2.5">
+          {isOffline && onReconnect ? (
+            <Button onClick={onReconnect} size="xs" type="button" variant="secondary">
+              <RefreshCw aria-hidden="true" data-icon="inline-start" />
+              Reconnect
+            </Button>
+          ) : null}
+          {isNeedsPro && onUpgrade ? (
+            <Button onClick={onUpgrade} size="xs" type="button" variant="default">
+              <Sparkles aria-hidden="true" data-icon="inline-start" />
+              Upgrade
+            </Button>
+          ) : null}
+          {onOpenDetails ? (
+            <Button onClick={onOpenDetails} size="xs" type="button" variant="quiet">
+              Computer details
+              <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </PopoverContent>
   );
 }

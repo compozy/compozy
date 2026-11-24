@@ -115,18 +115,22 @@ test.describe("Purchase from the cloud", () => {
       await suspended.close();
     }
 
-    await page.goto(lab.controller.web_url + "/settings/account");
+    await page.goto(lab.controller.web_url + "/sign-in");
+    await expect(page.getByRole("heading", { name: "Sign in to CompozyOS" })).toBeVisible();
     const login = page.waitForResponse(
       response =>
         new URL(response.url()).pathname === "/api/account/login" &&
         response.request().method() === "POST"
     );
+    const activationTab = context.waitForEvent("page");
     await page.getByRole("button", { name: "Continue with Google" }).click();
-    const { verification_uri_complete: activationURL } = (await (await login).json()) as {
+    const loginResponse = await login;
+    expect(loginResponse.ok()).toBe(true);
+    const { verification_uri_complete: activationURL } = (await loginResponse.json()) as {
       verification_uri_complete: string;
     };
-    const activation = await context.newPage();
-    await activation.goto(activationURL);
+    const activation = await activationTab;
+    await expect(activation).toHaveURL(activationURL);
     await activation.getByRole("button", { name: "Continue with Google" }).click();
     await expect(activation.getByRole("heading")).toHaveText(
       "You're signed in. Return to CompozyOS."
@@ -139,6 +143,7 @@ test.describe("Purchase from the cloud", () => {
         return (await status.json()) as { email?: string; plan?: string };
       })
       .toMatchObject({ email: lab.email, plan: "pro" });
+    await cliOnboardingComplete(lab);
     const settings = await openSettings(page, "account");
     await expect(settings.getByText("Pro", { exact: true }).first()).toBeVisible();
     const current = await context.request.get(lab.cloud_url + "/fixture/billing");
@@ -152,7 +157,12 @@ test.describe("Purchase from the cloud", () => {
 });
 
 test.describe("Purchase from a lapsed hosted route", () => {
-  test.use({ scenario: "hosted-purchase", viewport: { width: 390, height: 844 } });
+  // The hosted origin is served through Playwright routes in this fixture.
+  test.use({
+    scenario: "hosted-purchase",
+    serviceWorkers: "block",
+    viewport: { width: 390, height: 844 },
+  });
 
   test("E2E-012 return to the original hostname after buying Pro as its owner", async ({
     page,
@@ -702,10 +712,9 @@ test.describe("Remote Gateway upgrade", () => {
       "Paired devices and connection profiles were removed. Set up remote computers again."
     );
     await expect(notice).toContainText("2 webhook triggers need confirmation");
-    await expect(notice.getByRole("link", { name: "Learn more" })).toHaveAttribute(
-      "href",
-      "https://compozy.com/blog/compozy-0-8-remote-computers"
-    );
+    await expect(
+      notice.getByRole("link", { name: "Remote Computers launch notes" })
+    ).toHaveAttribute("href", "https://compozy.com/blog/compozy-0-8-remote-computers");
     await expect(notice.getByRole("link", { name: "Review" })).toBeVisible();
 
     const dismissed = page.waitForResponse(

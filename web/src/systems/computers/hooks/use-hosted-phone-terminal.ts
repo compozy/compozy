@@ -53,6 +53,9 @@ export function useHostedPhoneTerminal(workspaceId: string, enabled: boolean) {
 
   const stopMutation = useMutation({
     mutationFn: (terminalId: string) => signalTerminal(workspaceId, terminalId, "INT", { profile }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: terminalKeys.catalog(scope.key) });
+    },
     onError: err => {
       toast.error(err instanceof Error ? err.message : "Couldn't stop command.");
     },
@@ -61,6 +64,9 @@ export function useHostedPhoneTerminal(workspaceId: string, enabled: boolean) {
   const waitMutation = useMutation({
     mutationFn: (terminalId: string) =>
       waitTerminal(workspaceId, terminalId, { until: "exit" }, { profile }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: terminalKeys.catalog(scope.key) });
+    },
   });
 
   const answerMutation = useMutation({

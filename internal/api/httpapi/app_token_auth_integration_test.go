@@ -36,7 +36,7 @@ func TestAppTokenRevocationFencesInflightMutationIntegration(t *testing.T) {
 
 func exerciseAppTokenRevocation(t *testing.T) {
 	t.Helper()
-	database, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), globaldb.GlobalDatabaseName))
+	database, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,120 +192,123 @@ func newIntegrationAppTokenService(t *testing.T, database *globaldb.GlobalDB) *a
 // IT-001. Keep the 0.7.8 credentials and exact token origins across the upgrade and local HTTP auth.
 func TestAppTokenGatewayUpgradeIntegration(t *testing.T) {
 	t.Parallel()
-	t.Run("Should migrate only app credentials and authenticate an existing token from its own origin", func(t *testing.T) {
-		t.Parallel()
-		ctx := t.Context()
-		path := filepath.Join(t.TempDir(), globaldb.GlobalDatabaseName)
-		prior, err := remotetest.OpenLegacyGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		const at = "2026-11-24T00:00:00Z"
-		const revokedAt = "2026-11-24T01:00:00Z"
-		secret, err := remotehost.GenerateOpaqueSecret(bytes.NewReader(bytes.Repeat([]byte{0x58}, 32)), "cpz_app_")
-		if err != nil {
-			t.Fatal(err)
-		}
-		activeHash := remotehost.HashCredential(secret)
-		rows := []struct{ id, name, kind, hash, revoked string }{
-			{"apt_active", "Dashboard", "app_token", activeHash, ""},
-			{"apt_revoked", "Past integration", "app_token", strings.Repeat("a", 64), revokedAt},
-			{"device_1", "Phone", "operator_device", strings.Repeat("b", 64), ""},
-			{"device_2", "Laptop", "operator_device", strings.Repeat("c", 64), ""},
-			{"device_3", "Tablet", "operator_device", strings.Repeat("d", 64), revokedAt},
-			{"profile_1", "CLI", "cli_profile", strings.Repeat("e", 64), ""},
-		}
-		for _, row := range rows {
-			if _, err := prior.ExecContext(ctx, `INSERT INTO gateway_device_sessions
-				(id, name, token_hash, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at, revoked_at)
-				VALUES (?, ?, ?, ?, 'local', ?, ?, ?, NULLIF(?, ''))`,
-				row.id, row.name, row.hash, row.kind, 2, at, at, row.revoked); err != nil {
+	t.Run(
+		"Should migrate only app credentials and authenticate an existing token from its own origin",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+			prior, err := remotetest.OpenLegacyGlobalDB(ctx, path)
+			if err != nil {
 				t.Fatal(err)
 			}
-		}
-		if _, err := prior.ExecContext(ctx, `INSERT INTO gateway_device_origins (device_id, origin, created_at)
+			const at = "2026-11-24T00:00:00Z"
+			const revokedAt = "2026-11-24T01:00:00Z"
+			secret, err := remotehost.GenerateOpaqueSecret(bytes.NewReader(bytes.Repeat([]byte{0x58}, 32)), "cpz_app_")
+			if err != nil {
+				t.Fatal(err)
+			}
+			activeHash := remotehost.HashCredential(secret)
+			rows := []struct{ id, name, kind, hash, revoked string }{
+				{"apt_active", "Dashboard", "app_token", activeHash, ""},
+				{"apt_revoked", "Past integration", "app_token", strings.Repeat("a", 64), revokedAt},
+				{"device_1", "Phone", "operator_device", strings.Repeat("b", 64), ""},
+				{"device_2", "Laptop", "operator_device", strings.Repeat("c", 64), ""},
+				{"device_3", "Tablet", "operator_device", strings.Repeat("d", 64), revokedAt},
+				{"profile_1", "CLI", "cli_profile", strings.Repeat("e", 64), ""},
+			}
+			for _, row := range rows {
+				if _, err := prior.ExecContext(ctx, `INSERT INTO gateway_device_sessions
+				(id, name, token_hash, actor_kind, pairing_origin, revoke_epoch, created_at, last_seen_at, revoked_at)
+				VALUES (?, ?, ?, ?, 'local', ?, ?, ?, NULLIF(?, ''))`,
+					row.id, row.name, row.hash, row.kind, 2, at, at, row.revoked); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO gateway_device_origins (device_id, origin, created_at)
 			VALUES ('apt_active', 'https://a.example', ?), ('apt_active', 'https://b.example', ?),
 			('device_1', 'https://phone.example', ?), ('device_2', 'https://laptop.example', ?),
 			('device_3', 'https://tablet.example', ?)`, at, at, at, at, at); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := prior.ExecContext(ctx, `INSERT INTO gateway_providers (name, install_source)
+				t.Fatal(err)
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO gateway_providers (name, install_source)
 			VALUES ('tailscale', 'builtin'), ('external', 'local')`); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := prior.ExecContext(ctx, `INSERT INTO extensions
+				t.Fatal(err)
+			}
+			if _, err := prior.ExecContext(ctx, `INSERT INTO extensions
 			(name, version, source, manifest_path, installed_at, provides_json, checksum)
 			VALUES ('tailscale', '0.1.0', 'bundled', 'extensions/tailscale/extension.json',
 			        ?, '["connectivity.provider"]', 'old-package')`, at); err != nil {
-			t.Fatal(err)
-		}
-		if err := prior.Close(); err != nil {
-			t.Fatal(err)
-		}
-		database, err := globaldb.OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := database.Close(context.WithoutCancel(ctx)); err != nil {
-				t.Error(err)
-			}
-		})
-		for _, want := range rows[:2] {
-			var name, hash, revoked, seen string
-			var epoch int
-			if err := database.ReadDB().QueryRowContext(ctx, `SELECT name, token_hash,
-				coalesce(revoked_at, ''), last_seen_at, revoke_epoch FROM app_tokens WHERE id = ?`, want.id).
-				Scan(&name, &hash, &revoked, &seen, &epoch); err != nil {
 				t.Fatal(err)
 			}
-			if name != want.name || hash != want.hash || revoked != want.revoked || seen != at || epoch != 2 {
-				t.Fatalf("token %s metadata changed during upgrade", want.id)
+			if err := prior.Close(); err != nil {
+				t.Fatal(err)
 			}
-		}
-		for query, want := range map[string]int{
-			"SELECT count(*) FROM extensions WHERE name = 'tailscale'":                          0,
-			"SELECT count(*) FROM app_tokens":                                                   2,
-			"SELECT count(*) FROM app_token_origins":                                            2,
-			"SELECT count(*) FROM sqlite_schema WHERE type = 'table' AND name GLOB 'gateway_*'": 0,
-		} {
-			var got int
-			if err := database.ReadDB().QueryRowContext(ctx, query).Scan(&got); err != nil || got != want {
-				t.Fatalf("%s = %d, %v, want %d", query, got, err, want)
+			database, err := globaldb.OpenGlobalDB(ctx, path)
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		notices, err := database.ListMigrationNotices(ctx)
-		if err != nil || len(notices) != 1 || notices[0].Key != "gateway_removed" ||
-			notices[0].Payload.Devices != 4 || notices[0].Payload.Providers != 2 {
-			t.Fatalf("migration notices = %+v, %v", notices, err)
-		}
+			t.Cleanup(func() {
+				if err := database.Close(context.WithoutCancel(ctx)); err != nil {
+					t.Error(err)
+				}
+			})
+			for _, want := range rows[:2] {
+				var name, hash, revoked, seen string
+				var epoch int
+				if err := database.ReadDB().QueryRowContext(ctx, `SELECT name, token_hash,
+				coalesce(revoked_at, ''), last_seen_at, revoke_epoch FROM app_tokens WHERE id = ?`, want.id).
+					Scan(&name, &hash, &revoked, &seen, &epoch); err != nil {
+					t.Fatal(err)
+				}
+				if name != want.name || hash != want.hash || revoked != want.revoked || seen != at || epoch != 2 {
+					t.Fatalf("token %s metadata changed during upgrade", want.id)
+				}
+			}
+			for query, want := range map[string]int{
+				"SELECT count(*) FROM extensions WHERE name = 'tailscale'":                          0,
+				"SELECT count(*) FROM app_tokens":                                                   2,
+				"SELECT count(*) FROM app_token_origins":                                            2,
+				"SELECT count(*) FROM sqlite_schema WHERE type = 'table' AND name GLOB 'gateway_*'": 0,
+			} {
+				var got int
+				if err := database.ReadDB().QueryRowContext(ctx, query).Scan(&got); err != nil || got != want {
+					t.Fatalf("%s = %d, %v, want %d", query, got, err, want)
+				}
+			}
+			notices, err := database.ListMigrationNotices(ctx)
+			if err != nil || len(notices) != 1 || notices[0].Key != "gateway_removed" ||
+				notices[0].Payload.Devices != 4 || notices[0].Payload.Providers != 2 {
+				t.Fatalf("migration notices = %+v, %v", notices, err)
+			}
 
-		service := newIntegrationAppTokenService(t, database)
-		router := newAppTokenTestRouter(t, service, func(string, string) bool { return true }, nil)
-		router.GET("/api/sessions", func(c *gin.Context) {
-			token, ok := core.AppTokenFromContext(c.Request.Context())
-			if !ok {
-				t.Error("app token was not attributed to the request")
+			service := newIntegrationAppTokenService(t, database)
+			router := newAppTokenTestRouter(t, service, func(string, string) bool { return true }, nil)
+			router.GET("/api/sessions", func(c *gin.Context) {
+				token, ok := core.AppTokenFromContext(c.Request.Context())
+				if !ok {
+					t.Error("app token was not attributed to the request")
+				}
+				c.JSON(http.StatusOK, map[string]string{"token_id": token.ID})
+			})
+			server := httptest.NewServer(router)
+			t.Cleanup(server.Close)
+			for _, tc := range []struct {
+				origin string
+				status int
+				body   string
+			}{
+				{"https://a.example", http.StatusOK, "apt_active"},
+				{"https://b.example", http.StatusOK, "apt_active"},
+				{"https://evil.example", http.StatusForbidden, "app_origin_not_allowed"},
+			} {
+				response := mustHTTPRequest(t, server.Client(), http.MethodGet, server.URL+"/api/sessions",
+					nil, map[string]string{"Origin": tc.origin, "Authorization": "Bearer " + secret})
+				body := readAndCloseHTTPBody(t, response)
+				if response.StatusCode != tc.status || !bytes.Contains(body, []byte(tc.body)) {
+					t.Fatalf("origin %s: status = %d body = %s", tc.origin, response.StatusCode, body)
+				}
 			}
-			c.JSON(http.StatusOK, map[string]string{"token_id": token.ID})
-		})
-		server := httptest.NewServer(router)
-		t.Cleanup(server.Close)
-		for _, tc := range []struct {
-			origin string
-			status int
-			body   string
-		}{
-			{"https://a.example", http.StatusOK, "apt_active"},
-			{"https://b.example", http.StatusOK, "apt_active"},
-			{"https://evil.example", http.StatusForbidden, "app_origin_not_allowed"},
-		} {
-			response := mustHTTPRequest(t, server.Client(), http.MethodGet, server.URL+"/api/sessions",
-				nil, map[string]string{"Origin": tc.origin, "Authorization": "Bearer " + secret})
-			body := readAndCloseHTTPBody(t, response)
-			if response.StatusCode != tc.status || !bytes.Contains(body, []byte(tc.body)) {
-				t.Fatalf("origin %s: status = %d body = %s", tc.origin, response.StatusCode, body)
-			}
-		}
-	})
+		},
+	)
 }

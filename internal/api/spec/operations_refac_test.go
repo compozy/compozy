@@ -103,12 +103,15 @@ func TestOperationsReturnDefensiveCopies(t *testing.T) {
 		t.Parallel()
 
 		const (
-			path      = "/api/account"
+			path      = "/api/daemon/profile/{kind}"
 			method    = "GET"
-			transport = TransportHTTP
+			transport = TransportUDS
 		)
 		operation := operationSpecFor(t, Operations(), path, method)
-		wantAuth := operation.Auth[transport]
+		wantAuth, ok := operation.Auth[transport]
+		if !ok {
+			t.Fatalf("operation %s %s has no authentication for %s", method, path, transport)
+		}
 		operation.Auth[transport] = OperationAuth("mutated-auth")
 
 		fresh := operationSpecFor(t, Operations(), path, method)

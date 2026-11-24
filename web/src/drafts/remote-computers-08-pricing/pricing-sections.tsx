@@ -125,16 +125,13 @@ export function PricingHero({
               </div>
 
               <div className="mt-7">
-                <a
-                  href="#download"
-                  onClick={event => {
-                    event.preventDefault();
-                    toast.message("Opening /download");
-                  }}
-                  className="block w-full [&>button]:w-full"
+                <SecondaryCta
+                  className="w-full"
+                  icon={Download}
+                  onClick={() => toast.message("Opening /download")}
                 >
-                  <SecondaryCta icon={Download}>Download</SecondaryCta>
-                </a>
+                  Download
+                </SecondaryCta>
               </div>
 
               <ul className="m-0 mt-8 list-none space-y-3.5 border-t border-[color:var(--light-080)] p-0 pt-7">
@@ -193,16 +190,13 @@ export function PricingHero({
               </div>
 
               <div className="mt-7">
-                <a
-                  href={proCheckoutUrl}
-                  onClick={event => {
-                    event.preventDefault();
-                    toast.message(`Opening ${proCheckoutUrl}`);
-                  }}
-                  className="block w-full [&>button]:w-full"
+                <PrimaryCta
+                  className="w-full"
+                  icon={ArrowRight}
+                  onClick={() => toast.message(`Opening ${proCheckoutUrl}`)}
                 >
-                  <PrimaryCta icon={ArrowRight}>Get Pro</PrimaryCta>
-                </a>
+                  Get Pro
+                </PrimaryCta>
               </div>
 
               <div className="mt-8 border-t border-[color:var(--light-100)] pt-7">
@@ -411,24 +405,15 @@ export function PricingClosingCta({ interval }: { interval: BillingInterval }) {
           </div>
           <div className="flex flex-col items-start gap-3.5 lg:items-end">
             <div className="flex flex-wrap gap-3">
-              <a
-                href={proCheckoutUrl}
-                onClick={event => {
-                  event.preventDefault();
-                  toast.message(`Opening ${proCheckoutUrl}`);
-                }}
+              <PrimaryCta
+                icon={ArrowRight}
+                onClick={() => toast.message(`Opening ${proCheckoutUrl}`)}
               >
-                <PrimaryCta icon={ArrowRight}>Get Pro</PrimaryCta>
-              </a>
-              <a
-                href="#download"
-                onClick={event => {
-                  event.preventDefault();
-                  toast.message("Opening /download");
-                }}
-              >
-                <SecondaryCta icon={Download}>Download</SecondaryCta>
-              </a>
+                Get Pro
+              </PrimaryCta>
+              <SecondaryCta icon={Download} onClick={() => toast.message("Opening /download")}>
+                Download
+              </SecondaryCta>
             </div>
             <InstallCommand command={INSTALL_COMMAND} />
           </div>

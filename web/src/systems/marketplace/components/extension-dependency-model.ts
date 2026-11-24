@@ -81,9 +81,13 @@ function installableDependencies(preview: Pick<ExtensionInstallPreview, "depende
 export function extensionDependencyGates(
   preview: Pick<ExtensionInstallPreview, "dependencies">
 ): ExtensionDependencyGate[] {
-  return installableDependencies(preview)
-    .filter(dependency => dependency.consent_required)
-    .map(dependency => ({ name: dependency.name, requiredBy: dependency.required_by }));
+  const gates: ExtensionDependencyGate[] = [];
+  for (const dependency of installableDependencies(preview)) {
+    if (dependency.consent_required) {
+      gates.push({ name: dependency.name, requiredBy: dependency.required_by });
+    }
+  }
+  return gates;
 }
 
 /**

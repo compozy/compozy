@@ -1,11 +1,8 @@
-import { useCallback, useContext, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { QueryClientContext } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
 
-import { toast, type EntityMode } from "@compozy/ui";
+import type { EntityMode } from "@compozy/ui";
 
-import { useOptionalUpgradeSheetActions } from "@/systems/account";
 import {
   isAutoComputerId,
   isRemoteComputerId,
@@ -14,13 +11,8 @@ import {
   type ComputerId,
 } from "@/lib/computer-scope";
 import {
-  buildAutoPlacementCandidates,
-  computerRegistryKeys,
-  describeNoEligibleComputerReason,
   findComputerById,
-  patchComputer,
   resolveEffectiveRunOnTarget,
-  useComputerPlacement,
   useComputers,
   type AutoPlacementCandidateView,
   type AutoResolutionSummary,
@@ -47,6 +39,11 @@ import {
 } from "@/systems/workspace";
 import { useSessionCreateSubmit } from "./use-session-create-submit";
 import { useSessionCreateTarget } from "./use-session-create-target";
+import {
+  sessionProjectComputer,
+  useSessionCreateComputerActions,
+  useSessionCreatePlacement,
+} from "./use-session-create-computer";
 import { useSessionCreateDialogActions } from "./use-session-create-dialog-actions";
 
 interface SessionCreateDialogContext {
@@ -191,15 +188,11 @@ export function useSessionCreateDialogViewModel(
   }: SessionCreateDialogContext,
   store: SessionCreateStore
 ): SessionCreateDialogApi {
-  const navigate = useNavigate();
-  const queryClient = useContext(QueryClientContext);
-  const upgradeSheet = useOptionalUpgradeSheetActions();
   const userHomeDir = useUserHomeDir();
   const flow = useSelector(store, snapshot => snapshot.context);
   const { draft, pendingSubmit } = flow;
   const [lastConcreteComputerId, setLastConcreteComputerId] =
     useState<ComputerId>(LOCAL_COMPUTER_ID);
-  const [reconnectingComputerIds, setReconnectingComputerIds] = useState<string[]>([]);
 
   const computers = useComputers({ enabled: flow.open, withHostResources: flow.open });
   const requestedComputerId = normalizeComputerId(draft.computerId) as RunOnTarget;
@@ -214,21 +207,12 @@ export function useSessionCreateDialogViewModel(
   const remoteState = resolveRemoteCreateAvailability(computerId, computers.computers);
   const pendingOp = pendingCreateOperation(flow.operation);
 
-  // When Auto is selected, projects come from the last concrete computer (defaulting to local,
-  // or the first connected remote if local has no focused workspace and local execution is off).
-  const firstConnectedRemoteId = computers.computerViews.find(
-    item => item.enabled && (item.status === "connected" || item.status === "needs_attention")
-  )?.id;
-  const projectSourceComputerId: ComputerId = isAuto
-    ? isRemoteComputerId(lastConcreteComputerId)
-      ? lastConcreteComputerId
-      : !computers.localView.localRunAgents &&
-          !activeWorkspace &&
-          !projectWorkspaceId &&
-          firstConnectedRemoteId
-        ? firstConnectedRemoteId
-        : LOCAL_COMPUTER_ID
-    : computerId;
+  const projectSourceComputerId = sessionProjectComputer({
+    computerId,
+    lastConcreteComputerId,
+    hasLocalProject: Boolean(activeWorkspace || projectWorkspaceId),
+    computers,
+  });
 
   // Each opening starts from the prefill; under All projects (or a remote computer) the picked
   // project (or User) is the destination, otherwise the project the opening named, else the
@@ -253,38 +237,19 @@ export function useSessionCreateDialogViewModel(
   // A named project the catalog has not confirmed blocks creation instead of falling back.
   const binding = target.namedProjectUnresolved ? null : destination.binding;
 
-  const placement = useComputerPlacement({
-    enabled: flow.open && isAuto && computers.loadBalancingEnabled,
-    workspace: destination.scope === "project" ? destination.runtimeWorkspaceId : null,
+  const placement = useSessionCreatePlacement({
+    isAuto,
+    open: flow.open,
+    computers,
     projectComputerId: projectSourceComputerId,
+    destination,
   });
-  const autoCandidates =
-    isAuto && placement.resolution
-      ? buildAutoPlacementCandidates(
-          placement.resolution.computerId,
-          computers.localView,
-          computers.computerViews
-        )
-      : [];
-  const autoNoEligible = isAuto && placement.noEligible;
-  const autoNoEligibleReason = autoNoEligible
-    ? describeNoEligibleComputerReason(destination.destinationLabel, placement.reasons)
-    : null;
   const localExecutionBlocked =
     computerId === LOCAL_COMPUTER_ID && !computers.localView.localRunAgents;
 
-  const agentsComputerId =
-    isAuto && placement.placement
-      ? normalizeComputerId(placement.placement.computer_id)
-      : projectSourceComputerId;
-  const agentsWorkspaceId =
-    isAuto && placement.placement
-      ? placement.placement.workspace_id
-      : destination.runtimeWorkspaceId;
-
   const agentList = useSessionCreateAgents({
-    computerId: agentsComputerId,
-    workspaceId: agentsWorkspaceId,
+    computerId: placement.agentsComputerId,
+    workspaceId: placement.agentsWorkspaceId,
     destination,
     target,
     open: flow.open,
@@ -336,49 +301,7 @@ export function useSessionCreateDialogViewModel(
     [store]
   );
 
-  const handleReconnectComputer = useCallback(
-    (targetId: string) => {
-      setReconnectingComputerIds(prev => (prev.includes(targetId) ? prev : [...prev, targetId]));
-      void patchComputer(targetId, { enabled: true })
-        .then(() => {
-          void queryClient?.invalidateQueries({ queryKey: computerRegistryKeys.all });
-        })
-        .catch(err => {
-          toast.error(err instanceof Error ? err.message : "Failed to reconnect computer.");
-        })
-        .finally(() => {
-          setReconnectingComputerIds(prev => prev.filter(item => item !== targetId));
-        });
-    },
-    [queryClient]
-  );
-
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      if (!nextOpen && upgradeSheet?.open) return;
-      actions.onOpenChange(nextOpen);
-    },
-    [actions, upgradeSheet?.open]
-  );
-
-  const handleUpgradeComputer = useCallback(() => {
-    if (upgradeSheet) {
-      upgradeSheet.openUpgradeSheet();
-      return;
-    }
-    store.trigger.dialogOpenChanged({ open: false });
-    void navigate({ to: "/settings/account" });
-  }, [navigate, store, upgradeSheet]);
-
-  const handleAddComputer = useCallback(() => {
-    store.trigger.dialogOpenChanged({ open: false });
-    void navigate({ to: "/settings/computers" });
-  }, [navigate, store]);
-
-  const submitDisabled =
-    remoteState.submitDisabled ||
-    localExecutionBlocked ||
-    (isAuto && (placement.isLoading || placement.noEligible || !placement.resolution));
+  const computerActions = useSessionCreateComputerActions(store, actions.onOpenChange);
 
   return {
     open: flow.open,
@@ -406,24 +329,20 @@ export function useSessionCreateDialogViewModel(
     computers: computers.computerViews,
     localComputer: computers.localView,
     loadBalancingEnabled: computers.loadBalancingEnabled,
-    autoResolution: isAuto ? placement.resolution : null,
-    autoLoading: isAuto && placement.isLoading,
-    autoCandidates,
-    autoNoEligible,
-    autoNoEligibleReason,
+    autoResolution: placement.autoResolution,
+    autoLoading: placement.autoLoading,
+    autoCandidates: placement.autoCandidates,
+    autoNoEligible: placement.autoNoEligible,
+    autoNoEligibleReason: placement.autoNoEligibleReason,
     computerLocked: draft.sent || pendingOp.isSubmitting,
-    submitDisabled,
+    submitDisabled: remoteState.submitDisabled || localExecutionBlocked || placement.submitBlocked,
     offlineComputer: remoteState.offlineComputer,
     offlineComputerName: remoteState.offlineComputer?.name ?? null,
     localExecutionBlocked,
-    reconnectingComputerIds,
     onComputerChange: handleComputerChange,
-    onReconnectComputer: handleReconnectComputer,
-    onUpgradeComputer: handleUpgradeComputer,
-    onAddComputer: handleAddComputer,
     destinationAxes: buildDestinationAxes(target, store),
     ...actions,
-    onOpenChange: handleOpenChange,
+    ...computerActions,
     submit,
   };
 }

@@ -45,17 +45,7 @@ export function useComputers(
   const stream = options.stream ?? false;
   const query = useQuery(computersListOptions(enabled && !passive), queryClient);
 
-  useEffect(() => {
-    if (!enabled || !stream || !contextClient) return;
-    return openComputersStream({
-      onComputerChanged: () => {
-        void contextClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
-      },
-      onReset: () => {
-        void contextClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
-      },
-    });
-  }, [contextClient, enabled, stream]);
+  useComputersStream(contextClient, enabled && stream);
 
   const computers = query.data?.computers ?? EMPTY_COMPUTERS;
   const enabledComputers = useMemo(
@@ -112,4 +102,18 @@ export function findComputerById(
 ): ComputerPayload | undefined {
   if (!computerId || computerId === "local") return undefined;
   return computers.find(computer => computer.id === computerId);
+}
+
+function useComputersStream(queryClient: QueryClient | undefined, enabled: boolean) {
+  useEffect(() => {
+    if (!enabled || !queryClient) return;
+    return openComputersStream({
+      onComputerChanged: () => {
+        void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
+      },
+      onReset: () => {
+        void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
+      },
+    });
+  }, [queryClient, enabled]);
 }

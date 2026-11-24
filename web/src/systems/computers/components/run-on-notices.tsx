@@ -36,47 +36,14 @@ export function RunOnNotices({
   onReconnectOffline,
   localExecutionBlocked = false,
 }: RunOnNoticesProps) {
-  const showAutoCandidates = Boolean(autoCandidates && autoCandidates.length > 0);
-  if (!showAutoCandidates && !autoNoEligible && !offlineComputer && !localExecutionBlocked) {
+  if (!autoCandidates?.length && !autoNoEligible && !offlineComputer && !localExecutionBlocked) {
     return null;
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {showAutoCandidates && autoCandidates ? (
-        <div
-          className="flex flex-col gap-2 rounded-md border border-line-soft bg-sunken px-3 py-2.5"
-          data-testid="auto-resolution-panel"
-        >
-          <div className="flex items-center gap-1.5 text-eyebrow font-medium text-fg">
-            <Scale aria-hidden="true" className="size-3.5 text-subtle" />
-            <span>Eligible computers for {projectName || "this project"}</span>
-          </div>
-          <div className="flex flex-col gap-1.5 border-t border-line-soft pt-2">
-            {autoCandidates.map(candidate => (
-              <div
-                className={cn(
-                  "flex items-center justify-between gap-2 text-eyebrow",
-                  candidate.winner ? "text-fg" : "text-muted-foreground"
-                )}
-                key={candidate.id}
-              >
-                <span className="flex min-w-0 items-center gap-1.5 truncate">
-                  <span className={cn("truncate", candidate.winner && "font-medium")}>
-                    {candidate.name}
-                  </span>
-                  {candidate.winner ? (
-                    <Pill form="tint" size="sm" tone="success">
-                      Chosen
-                    </Pill>
-                  ) : null}
-                  <span className="shrink-0 text-badge text-faint">{candidate.weightLabel}</span>
-                </span>
-                <ComputerLoadMeter computerName={candidate.name} load={candidate.load} />
-              </div>
-            ))}
-          </div>
-        </div>
+      {autoCandidates?.length ? (
+        <RunOnCandidates candidates={autoCandidates} projectName={projectName} />
       ) : null}
 
       {autoNoEligible ? (
@@ -129,6 +96,50 @@ export function RunOnNotices({
           </AlertDescription>
         </Alert>
       ) : null}
+    </div>
+  );
+}
+
+function RunOnCandidates({
+  candidates,
+  projectName,
+}: {
+  candidates: readonly AutoPlacementCandidateView[];
+  projectName?: string | null;
+}) {
+  return (
+    <div
+      className="flex flex-col gap-2 rounded-md border border-line-soft bg-sunken px-3 py-2.5"
+      data-testid="auto-resolution-panel"
+    >
+      <div className="flex items-center gap-1.5 text-eyebrow font-medium text-fg">
+        <Scale aria-hidden="true" className="size-3.5 text-subtle" />
+        <span>Eligible computers for {projectName || "this project"}</span>
+      </div>
+      <div className="flex flex-col gap-1.5 border-t border-line-soft pt-2">
+        {candidates.map(candidate => (
+          <div
+            className={cn(
+              "flex items-center justify-between gap-2 text-eyebrow",
+              candidate.winner ? "text-fg" : "text-muted-foreground"
+            )}
+            key={candidate.id}
+          >
+            <span className="flex min-w-0 items-center gap-1.5 truncate">
+              <span className={cn("truncate", candidate.winner && "font-medium")}>
+                {candidate.name}
+              </span>
+              {candidate.winner ? (
+                <Pill form="tint" size="sm" tone="success">
+                  Chosen
+                </Pill>
+              ) : null}
+              <span className="shrink-0 text-badge text-faint">{candidate.weightLabel}</span>
+            </span>
+            <ComputerLoadMeter computerName={candidate.name} load={candidate.load} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

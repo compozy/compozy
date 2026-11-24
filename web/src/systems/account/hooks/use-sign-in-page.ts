@@ -57,11 +57,6 @@ export function useSignInPage(options: UseSignInPageOptions = {}) {
 
   useEffect(() => {
     if (rateLimitUntilMs === null) return;
-    if (Date.now() >= rateLimitUntilMs) {
-      setRateLimitUntilMs(null);
-      setNotice(current => (current?.kind === "rate_limited" ? null : current));
-      return;
-    }
     const timer = setInterval(() => {
       const currentNow = Date.now();
       setNowMs(currentNow);
@@ -168,6 +163,7 @@ export function useSignInPage(options: UseSignInPageOptions = {}) {
       activeAttemptIdRef.current = response.attempt_id;
       setNotice(null);
       setCloudUnreachable(false);
+      void queryClient.invalidateQueries({ queryKey: accountKeys.status() });
       setWaiting({
         attemptId: response.attempt_id,
         provider,

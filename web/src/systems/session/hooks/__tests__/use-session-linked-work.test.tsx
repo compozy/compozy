@@ -13,6 +13,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "@compozy/ui";
+import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 
 import { SessionApiError } from "../../adapters/session-api-errors";
 import {
@@ -372,7 +373,7 @@ describe("useSessionLinkDialogModel", () => {
         session.id,
         expect.objectContaining({ q: "nothing in these titles", kind: "pull_requests", page: 1 }),
         expect.any(AbortSignal),
-        undefined
+        LOCAL_COMPUTER_ID
       )
     );
     await waitFor(() => {
@@ -402,7 +403,7 @@ describe("useSessionLinkDialogModel", () => {
       session.id,
       expect.objectContaining({ kind: "pull_requests", page: 2 }),
       expect.any(AbortSignal),
-      undefined
+      LOCAL_COMPUTER_ID
     );
     const { search } = result.current;
     expect(search.kind === "results" ? search.pullRequests : []).toEqual(

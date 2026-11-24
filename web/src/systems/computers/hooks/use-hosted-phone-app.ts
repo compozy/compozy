@@ -71,14 +71,12 @@ function collectPhoneApprovals(
  * optional terminal tab gated by `terminal:operate`, and computer switcher sheet.
  */
 export function useHostedPhoneApp() {
-  const queryClient = useQueryClient();
   const hosted = useHostedBrowserContext();
 
   const [activeTab, setActiveTab] = useState<HostedPhoneTab>("sessions");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [computerMenuOpen, setComputerMenuOpen] = useState(false);
   const [installHintVisible, setInstallHintVisible] = useState(initialInstallHintVisible);
-  const [pendingDecisionIds, setPendingDecisionIds] = useState<Set<string>>(() => new Set());
 
   const sessionsQuery = useInfiniteQuery(sessionsListOptions({ all_profiles: true }));
   const workspacesQuery = useQuery(workspacesListOptions(true));
@@ -107,37 +105,7 @@ export function useHostedPhoneApp() {
     ? workspaceNameById.get(terminalWorkspaceId)
     : undefined;
 
-  const decideMutation = useMutation({
-    mutationFn: async ({ item, approve }: { item: HostedPhoneApprovalItem; approve: boolean }) => {
-      await approveSession(item.workspaceId, item.sessionId, {
-        request_id: item.requestId,
-        turn_id: item.turnId,
-        decision: approve ? "allow-once" : "reject-once",
-      });
-    },
-    onMutate: ({ item }) => {
-      setPendingDecisionIds(prev => {
-        const next = new Set(prev);
-        next.add(item.id);
-        return next;
-      });
-    },
-    onSettled: (_data, _error, { item }) => {
-      setPendingDecisionIds(prev => {
-        if (!prev.has(item.id)) return prev;
-        const next = new Set(prev);
-        next.delete(item.id);
-        return next;
-      });
-    },
-    onSuccess: (_data, { approve }) => {
-      void queryClient.invalidateQueries({ queryKey: sessionKeys.all });
-      toast.success(approve ? "Approved command." : "Denied command.");
-    },
-    onError: err => {
-      toast.error(err instanceof Error ? err.message : "Couldn't apply decision.");
-    },
-  });
+  const { decide, pendingDecisionIds } = usePhoneApprovalDecision();
 
   const dismissInstallHint = () => {
     setInstallHintVisible(false);
@@ -176,8 +144,8 @@ export function useHostedPhoneApp() {
     workspaceNameById,
     approvals,
     pendingDecisionIds,
-    approveItem: (item: HostedPhoneApprovalItem) => decideMutation.mutate({ item, approve: true }),
-    denyItem: (item: HostedPhoneApprovalItem) => decideMutation.mutate({ item, approve: false }),
+    approveItem: (item: HostedPhoneApprovalItem) => decide({ item, approve: true }),
+    denyItem: (item: HostedPhoneApprovalItem) => decide({ item, approve: false }),
     canOperateTerminal,
     terminalWorkspaceId,
     terminalProjectLabel,
@@ -186,4 +154,41 @@ export function useHostedPhoneApp() {
     installHintVisible,
     dismissInstallHint,
   };
+}
+
+function usePhoneApprovalDecision() {
+  const queryClient = useQueryClient();
+  const [pendingDecisionIds, setPendingDecisionIds] = useState<Set<string>>(() => new Set());
+  const decideMutation = useMutation({
+    mutationFn: async ({ item, approve }: { item: HostedPhoneApprovalItem; approve: boolean }) => {
+      await approveSession(item.workspaceId, item.sessionId, {
+        request_id: item.requestId,
+        turn_id: item.turnId,
+        decision: approve ? "allow-once" : "reject-once",
+      });
+    },
+    onMutate: ({ item }) => {
+      setPendingDecisionIds(prev => {
+        const next = new Set(prev);
+        next.add(item.id);
+        return next;
+      });
+    },
+    onSettled: (_data, _error, { item }) => {
+      setPendingDecisionIds(prev => {
+        if (!prev.has(item.id)) return prev;
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    },
+    onSuccess: (_data, { approve }) => {
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+      toast.success(approve ? "Approved command." : "Denied command.");
+    },
+    onError: err => {
+      toast.error(err instanceof Error ? err.message : "Couldn't apply decision.");
+    },
+  });
+  return { decide: decideMutation.mutate, pendingDecisionIds };
 }

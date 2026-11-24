@@ -57,7 +57,7 @@ func preparePurchase(f *fixture, db *remotetest.Database, scenario string) scena
 		Computers:  []computerTarget{},
 		HostedURL:  "https://" + fixtureHostname,
 	}
-	startDaemon(f, controller, result.CloudURL)
+	startDaemon(f, controller, result.CloudURL, signInRequiredEnv+"=1")
 	replica.App.Routes().HandleFunc("GET /fixture/billing", func(w http.ResponseWriter, r *http.Request) {
 		writePurchaseEvidence(w, r, replica, stripe)
 	})
@@ -271,7 +271,9 @@ func prepareFreeUpgrade(f *fixture, db *remotetest.Database, assets remotetest.S
 		}
 		raw := []byte(fmt.Sprintf(
 			`{"id":"evt_checkout_%s","type":"checkout.session.completed","data":{"object":{"id":%q,"subscription":%q}}}`,
-			checkout.ID, checkout.ID, checkout.Sub,
+			checkout.ID,
+			checkout.ID,
+			checkout.Sub,
 		))
 		ctx, cancel := context.WithTimeout(f.Context(), 10*time.Second)
 		defer cancel()

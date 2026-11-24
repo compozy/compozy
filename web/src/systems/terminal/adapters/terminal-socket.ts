@@ -10,7 +10,7 @@
 
 import { isAccountSignInCloseCode, reportAccountGateSignal } from "@/lib/account-gate-signal";
 import { acquireHostedStreamTicket, appendHostedStreamTicket } from "@/lib/hosted-stream-auth";
-import { isHostedBrowserMode } from "@/lib/hosted-browser-auth";
+import { isHostedBrowserMode, reportHostedBrowserSocketClose } from "@/lib/hosted-browser-auth";
 import { TERMINAL_SUBPROTOCOL, type TerminalFrameBytes } from "../lib/terminal-wire";
 
 export interface TerminalSocket {
@@ -84,7 +84,10 @@ class HostedTerminalSocket implements TerminalSocket {
     native.onopen = event => this.onopen?.(event);
     native.onmessage = event => this.onmessage?.(event as MessageEvent<unknown>);
     native.onerror = event => this.onerror?.(event);
-    native.onclose = event => this.onclose?.(event);
+    native.onclose = event => {
+      reportHostedBrowserSocketClose(event);
+      this.onclose?.(event);
+    };
   }
 }
 

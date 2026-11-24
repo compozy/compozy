@@ -85,6 +85,7 @@ func (h *BaseHandlers) StreamWindowManager(c *gin.Context) {
 		}
 		return
 	}
+	h.closeStreamOnRemotePolicy(c.Request.Context(), conn)
 	var clientCommands windowmanager.ClientCommandConnection
 	if clientID != nil {
 		clientCommands, err = service.AttachClientCommands(c.Request.Context(), workspaceID, *clientID)

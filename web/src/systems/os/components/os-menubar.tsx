@@ -210,29 +210,16 @@ function WorkspaceChip({ workspace }: { workspace: OsMenuBarProps["workspace"] }
   );
 }
 
-export function OsMenuBar({
+function MenuBarIdentity({
   workspace,
-  scopeNotice,
-  menus,
-  notifications,
-  status,
-  updateIndicator,
-  onCommandClick,
-  onDesktopsClick,
-  desktopsOpen = false,
-  trafficLights = false,
-  commandShortcutLabel,
-  commandKeyShortcuts,
   logoMenu,
   workspaceMenu,
   scopeControl,
   hostedControl,
-  wrapBellTrigger,
-  pager,
-  usageControl,
-  className,
-  ...props
-}: OsMenuBarProps) {
+}: Pick<
+  OsMenuBarProps,
+  "workspace" | "logoMenu" | "workspaceMenu" | "scopeControl" | "hostedControl"
+>) {
   // Compact (<960px, `OS_COMPACT_BREAKPOINT`): the shell stops passing `menus`;
   // mark, globe toggle, and chip stay leading. Hidden actions stay in the palette.
   const wrapMenus = Boolean(logoMenu || workspaceMenu);
@@ -257,6 +244,51 @@ export function OsMenuBar({
   );
 
   return (
+    <div data-slot="os-menubar-identity" className="flex min-w-0 items-center gap-0.5">
+      {wrapMenus ? (
+        <Menubar aria-label="System menu" className={cn("gap-0.5", WINDOW_NO_DRAG)}>
+          {logoControl}
+        </Menubar>
+      ) : (
+        logoControl
+      )}
+      {scopeControl}
+      {wrapMenus ? (
+        <Menubar aria-label="Project" className={cn("min-w-0 gap-0.5", WINDOW_NO_DRAG)}>
+          {workspaceControl}
+        </Menubar>
+      ) : (
+        workspaceControl
+      )}
+      {hostedControl ? <div className="ml-1 flex items-center">{hostedControl}</div> : null}
+    </div>
+  );
+}
+
+export function OsMenuBar({
+  workspace,
+  scopeNotice,
+  menus,
+  notifications,
+  status,
+  updateIndicator,
+  onCommandClick,
+  onDesktopsClick,
+  desktopsOpen = false,
+  trafficLights = false,
+  commandShortcutLabel,
+  commandKeyShortcuts,
+  logoMenu,
+  workspaceMenu,
+  scopeControl,
+  hostedControl,
+  wrapBellTrigger,
+  pager,
+  usageControl,
+  className,
+  ...props
+}: OsMenuBarProps) {
+  return (
     <header
       data-slot="os-menubar"
       aria-label="System bar"
@@ -280,24 +312,13 @@ export function OsMenuBar({
         )}
       >
         <div className={cn("flex min-w-0 items-center gap-0.5", WINDOW_NO_DRAG)}>
-          <div data-slot="os-menubar-identity" className="flex min-w-0 items-center gap-0.5">
-            {wrapMenus ? (
-              <Menubar aria-label="System menu" className={cn("gap-0.5", WINDOW_NO_DRAG)}>
-                {logoControl}
-              </Menubar>
-            ) : (
-              logoControl
-            )}
-            {scopeControl}
-            {wrapMenus ? (
-              <Menubar aria-label="Project" className={cn("min-w-0 gap-0.5", WINDOW_NO_DRAG)}>
-                {workspaceControl}
-              </Menubar>
-            ) : (
-              workspaceControl
-            )}
-            {hostedControl ? <div className="ml-1 flex items-center">{hostedControl}</div> : null}
-          </div>
+          <MenuBarIdentity
+            hostedControl={hostedControl}
+            logoMenu={logoMenu}
+            scopeControl={scopeControl}
+            workspace={workspace}
+            workspaceMenu={workspaceMenu}
+          />
           {menus ? (
             <>
               <span aria-hidden="true" className="mx-1.5 h-4.5 w-px shrink-0 bg-line" />

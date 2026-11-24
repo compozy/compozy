@@ -1,7 +1,6 @@
-import { useEffect } from "react";
 import { ArrowUpRight, Check, Info, LogIn, X } from "@compozy/ui/icons";
 
-import { Button, cn, Pill, StatusDot } from "@compozy/ui";
+import { Button, cn, Pill, Sheet, SheetContent, SheetTitle, StatusDot } from "@compozy/ui";
 
 import type { HostedPeerFixture } from "../mocks/remote-computers-fixtures";
 import { ComputerPlatformIcon } from "./computer-platform-icon";
@@ -36,17 +35,6 @@ export function PhoneComputerMenu({
   onSelectPeer,
   onSignOut,
 }: PhoneComputerMenuProps) {
-  useEffect(() => {
-    if (!open) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
   const otherPeers = peers.filter(peer => !peer.current);
   const currentPeer = peers.find(peer => peer.current);
   const isPanel = presentation === "panel";
@@ -55,9 +43,7 @@ export function PhoneComputerMenu({
     <div
       className={cn(
         "relative z-10 flex flex-col overflow-hidden bg-popover",
-        isPanel
-          ? "w-full rounded-[inherit]"
-          : "max-h-[82%] w-full rounded-t-xl border-t border-line shadow-overlay"
+        isPanel ? "w-full rounded-[inherit]" : "min-h-0 flex-1"
       )}
       data-presentation={presentation}
       data-slot={isPanel ? "phone-computer-menu" : undefined}
@@ -70,7 +56,11 @@ export function PhoneComputerMenu({
 
       <div className="flex items-center justify-between gap-2 border-b border-line-soft px-4 py-2.5">
         <div className="flex min-w-0 flex-col">
-          <h2 className="text-item-title font-medium text-fg-strong">Computers</h2>
+          {isPanel ? (
+            <h2 className="text-item-title font-medium text-fg-strong">Computers</h2>
+          ) : (
+            <SheetTitle className="tracking-normal">Computers</SheetTitle>
+          )}
           <p className="text-eyebrow text-subtle">Hosted routes on your account</p>
         </div>
         <Button aria-label="Close computer menu" onClick={onClose} size="icon-sm" variant="quiet">
@@ -181,24 +171,25 @@ export function PhoneComputerMenu({
     </div>
   );
 
-  if (isPanel) return panel;
+  if (isPanel) return open ? panel : null;
 
   return (
-    <div
-      aria-label="Computers on your account"
-      aria-modal="true"
-      className="absolute inset-0 z-30 flex flex-col justify-end"
-      data-slot="phone-computer-menu"
-      role="dialog"
+    <Sheet
+      disablePointerDismissal={false}
+      modal
+      open={open}
+      onOpenChange={next => {
+        if (!next) onClose();
+      }}
     >
-      <button
-        aria-label="Close computer menu"
-        className="absolute inset-0 bg-overlay-scrim"
-        onClick={onClose}
-        tabIndex={-1}
-        type="button"
-      />
-      {panel}
-    </div>
+      <SheetContent
+        className="max-h-[82%] gap-0 rounded-t-xl border-t border-line"
+        data-slot="phone-computer-menu"
+        showCloseButton={false}
+        side="bottom"
+      >
+        {panel}
+      </SheetContent>
+    </Sheet>
   );
 }

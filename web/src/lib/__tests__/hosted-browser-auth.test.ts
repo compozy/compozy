@@ -194,21 +194,21 @@ describe("hosted-browser-auth (UT-072)", () => {
     expect(payload.ath).toBeUndefined();
   });
 
-  it("attaches DPoP headers via daemonFetch and emits device_removed on 401 device_revoked", async () => {
+  it("attaches DPoP headers via daemonFetch and emits device_removed on 403 device_revoked", async () => {
     setHostedBrowserMode(true);
     const signals: HostedBrowserSignal[] = [];
     const unsubscribe = observeHostedBrowserAccess(signal => signals.push(signal));
 
     const fetchMock = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       new Response(JSON.stringify({ code: "device_revoked", error: "Device was revoked" }), {
-        status: 401,
+        status: 403,
         headers: { "Content-Type": "application/json" },
       })
     );
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await daemonFetch("/api/sessions", { method: "GET" });
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(403);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [, init] = fetchMock.mock.calls[0]!;
     const headers = new Headers(init?.headers);

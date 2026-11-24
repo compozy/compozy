@@ -1,5 +1,5 @@
 import { ChevronDown, Plus } from "@compozy/ui/icons";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import {
   Button,
@@ -55,6 +55,7 @@ export interface RunOnPickerProps {
   hideWhenSingleComputer?: boolean;
   /** Opens the menu initially (for prototype states). */
   defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
   /** Forces the inline Reconnect pill visible on a specific offline computer (for review states). */
   highlightedReconnectId?: string;
   /** IDs of offline computers currently attempting an inline reconnect. */
@@ -65,6 +66,60 @@ export interface RunOnPickerProps {
   className?: string;
   triggerId?: string;
   testId?: string;
+}
+
+const TRIGGER_CLASS = {
+  field: "",
+  compact:
+    "h-7 w-auto min-w-0 gap-1.5 rounded-md border-line bg-surface-2/70 px-2.5 py-0 text-eyebrow hover:bg-surface-2 [&>svg:last-child]:hidden",
+  inline:
+    "inline-flex h-auto w-auto min-w-0 gap-1 rounded-sm border-transparent bg-transparent px-1 py-0.5 text-form-hint shadow-none hover:bg-surface-2 [&>svg:last-child]:hidden",
+};
+
+function isTypeAheadKey(event: KeyboardEvent) {
+  return event.key.trim().length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
+}
+
+function RemoteComputerOptions({
+  computers,
+  value,
+  testId,
+  separate,
+  highlightedReconnectId,
+  reconnectingIds,
+  onReconnect,
+  onUpgrade,
+  onSelect,
+}: Pick<
+  RunOnPickerProps,
+  "computers" | "value" | "highlightedReconnectId" | "reconnectingIds" | "onReconnect" | "onUpgrade"
+> & {
+  separate: boolean;
+  testId: string;
+  onSelect: (computer: RunOnTarget) => void;
+}) {
+  if (!computers.length) return null;
+  const reconnectingSet = new Set(reconnectingIds);
+  return (
+    <>
+      {separate && <CommandSeparator />}
+      <CommandSelectGroup heading="Computers">
+        {computers.map(computer => (
+          <RunOnComputerItem
+            computer={computer}
+            highlightReconnect={highlightedReconnectId === computer.id}
+            key={computer.id}
+            onReconnect={onReconnect}
+            onSelect={onSelect}
+            onUpgrade={onUpgrade}
+            reconnecting={reconnectingSet.has(computer.id)}
+            selected={value === computer.id}
+            testIdPrefix={testId}
+          />
+        ))}
+      </CommandSelectGroup>
+    </>
+  );
 }
 
 function triggerLabel(
@@ -148,8 +203,9 @@ export function RunOnPicker({
   disabled = false,
   hideWhenSingleComputer = true,
   defaultOpen = false,
+  onOpenChange,
   highlightedReconnectId,
-  reconnectingIds = [],
+  reconnectingIds,
   onReconnect,
   onUpgrade,
   onAddComputer,
@@ -178,16 +234,14 @@ export function RunOnPicker({
   }
 
   const current = triggerLabel(value, localComputer, enabledComputers, autoResolution, autoLoading);
-  const isCompact = variant === "compact";
-  const isInline = variant === "inline";
-  const showRunOnLabel = isCompact || isInline;
+  const showRunOnLabel = variant !== "field";
 
   if (locked) {
     return (
       <span
         className={cn(
           "inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2/60 text-small-body text-fg",
-          isCompact ? "h-7 px-2.5 text-eyebrow" : "h-input px-3",
+          variant === "compact" ? "h-7 px-2.5 text-eyebrow" : "h-input px-3",
           className
         )}
         data-locked="true"
@@ -203,43 +257,32 @@ export function RunOnPicker({
     );
   }
 
-  const handleSelect = (next: RunOnTarget) => {
-    onChange(next);
-    setOpen(false);
-    setQuery("");
+  const changeOpen = (next: boolean) => {
+    setOpen(next);
+    if (!next) setQuery("");
+    onOpenChange?.(next);
   };
 
-  const reconnectingSet = new Set(reconnectingIds);
+  const handleSelect = (next: RunOnTarget) => {
+    onChange(next);
+    changeOpen(false);
+  };
 
   return (
-    <CommandSelect
-      onOpenChange={next => {
-        setOpen(next);
-        if (!next) setQuery("");
-      }}
-      open={open}
-    >
+    <CommandSelect onOpenChange={changeOpen} open={open}>
       <CommandSelectTrigger
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={`Run on: ${current.name}${current.suffix ? ` ${current.suffix}` : ""}`}
-        className={cn(
-          isCompact &&
-            "h-7 w-auto min-w-0 gap-1.5 rounded-md border-line bg-surface-2/70 px-2.5 py-0 text-eyebrow hover:bg-surface-2 [&>svg:last-child]:hidden",
-          isInline &&
-            "inline-flex h-auto w-auto min-w-0 gap-1 rounded-sm border-transparent bg-transparent px-1 py-0.5 text-form-hint shadow-none hover:bg-surface-2 [&>svg:last-child]:hidden",
-          className
-        )}
+        className={cn(TRIGGER_CLASS[variant], className)}
         data-slot="run-on-picker-trigger"
         data-testid={testId}
         disabled={disabled}
         id={triggerId}
         onKeyDown={event => {
-          if (open || event.key.length !== 1 || event.metaKey || event.ctrlKey || event.altKey) {
-            return;
-          }
+          if (open || !isTypeAheadKey(event)) return;
           setQuery(event.key);
-          setOpen(true);
+          changeOpen(true);
         }}
         selected
       >
@@ -286,26 +329,17 @@ export function RunOnPicker({
             value={value}
           />
 
-          {enabledComputers.length > 0 ? (
-            <>
-              {showAuto || localComputer.localRunAgents ? <CommandSeparator /> : null}
-              <CommandSelectGroup heading="Computers">
-                {enabledComputers.map(computer => (
-                  <RunOnComputerItem
-                    computer={computer}
-                    highlightReconnect={highlightedReconnectId === computer.id}
-                    key={computer.id}
-                    onReconnect={onReconnect}
-                    onSelect={handleSelect}
-                    onUpgrade={onUpgrade}
-                    reconnecting={reconnectingSet.has(computer.id)}
-                    selected={value === computer.id}
-                    testIdPrefix={testId}
-                  />
-                ))}
-              </CommandSelectGroup>
-            </>
-          ) : null}
+          <RemoteComputerOptions
+            computers={enabledComputers}
+            highlightedReconnectId={highlightedReconnectId}
+            onReconnect={onReconnect}
+            onSelect={handleSelect}
+            onUpgrade={onUpgrade}
+            reconnectingIds={reconnectingIds}
+            separate={showAuto || localComputer.localRunAgents}
+            testId={testId}
+            value={value}
+          />
         </CommandList>
 
         {onAddComputer ? (
@@ -314,7 +348,7 @@ export function RunOnPicker({
               className="h-8 w-full justify-start gap-2 px-2.5 text-small-body font-normal text-muted-foreground hover:text-fg"
               data-testid={`${testId}-add-computer`}
               onClick={() => {
-                setOpen(false);
+                changeOpen(false);
                 onAddComputer();
               }}
               size="sm"

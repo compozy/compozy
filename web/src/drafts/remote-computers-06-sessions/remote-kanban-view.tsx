@@ -1,3 +1,4 @@
+import { createContext, useContext } from "react";
 import { Layers, Plus, SquareKanban } from "@compozy/ui/icons";
 
 import { Button, cn, Pill, type TopbarSlotValue } from "@compozy/ui";
@@ -27,6 +28,37 @@ import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
 import { DraftShell } from "../always-on-agents-shared/draft-shell";
 import { buildRemoteBoardColumns, useRemoteKanbanView } from "./hooks/use-remote-kanban-view";
 
+const RemoteBoardContext = createContext<ReturnType<typeof useRemoteKanbanView> | null>(null);
+
+function RemoteBoardCard({ actions: _actions, ...props }: SessionBoardCardProps) {
+  const board = useContext(RemoteBoardContext);
+  const meta = board?.entryMap.get(props.session.id);
+  const offline = Boolean(meta?.computerOffline);
+  return (
+    <div className={cn(offline && "opacity-60")}>
+      <SessionBoardCardView
+        {...props}
+        metaExtra={
+          meta && !meta.isLocal && !board?.grouped ? (
+            <ComputerMetaLabel
+              className="ml-1"
+              iconKind={meta.iconKind}
+              name={meta.computerName}
+              offline={offline}
+              platform={meta.platform}
+            />
+          ) : offline && board?.grouped ? (
+            <Pill className="ml-1" form="tint" size="sm" tone="neutral">
+              Offline
+            </Pill>
+          ) : undefined
+        }
+        runtime={boardRuntimeFixture(props.session)}
+      />
+    </div>
+  );
+}
+
 export interface RemoteKanbanViewProps {
   sessions?: readonly RemoteSessionRowEntry[];
   initialGrouped?: boolean;
@@ -42,34 +74,6 @@ export function RemoteKanbanView({
   initialGrouped = false,
 }: RemoteKanbanViewProps) {
   const board = useRemoteKanbanView(sessions, initialGrouped);
-
-  function RemoteBoardCard({ actions: _actions, ...props }: SessionBoardCardProps) {
-    const meta = board.entryMap.get(props.session.id);
-    const offline = Boolean(meta?.computerOffline);
-    return (
-      <div className={cn(offline && "opacity-60")}>
-        <SessionBoardCardView
-          {...props}
-          metaExtra={
-            meta && !meta.isLocal && !board.grouped ? (
-              <ComputerMetaLabel
-                className="ml-1"
-                iconKind={meta.iconKind}
-                name={meta.computerName}
-                offline={offline}
-                platform={meta.platform}
-              />
-            ) : offline && board.grouped ? (
-              <Pill className="ml-1" form="tint" size="sm" tone="neutral">
-                Offline
-              </Pill>
-            ) : undefined
-          }
-          runtime={boardRuntimeFixture(props.session)}
-        />
-      </div>
-    );
-  }
 
   const topbar: TopbarSlotValue = {
     crumb: "Sessions",
@@ -103,76 +107,78 @@ export function RemoteKanbanView({
       title="Sessions"
       topbar={topbar}
     >
-      <SessionBoardCardSlot value={RemoteBoardCard}>
-        <div className={SESSIONS_BOARD_FRAME}>
-          <div className={SESSIONS_BOARD_SCROLLER}>
-            {!board.grouped ? (
-              <SessionsBoardColumnsRow
-                collapsedColumns={board.collapsedColumns}
-                columns={board.flatColumns}
-                currentSessionId={board.selectedId}
-                layout="fill"
-                onColumnCollapsedChange={(id, next) =>
-                  board.setCollapsedColumns(prev => ({ ...prev, [id]: next }))
-                }
-                onOpen={session => board.setSelectedId(session.id)}
-                workspaceNameOf={session => board.entryMap.get(session.id)?.project ?? null}
-              />
-            ) : (
-              <div className={SESSIONS_BOARD_LANES}>
-                {board.swimlanes.map(lane => (
-                  <section
-                    aria-label={`${lane.project} · ${lane.computerName}`}
-                    className={cn(SESSIONS_BOARD_LANE, lane.offline && "opacity-70")}
-                    key={lane.key}
-                  >
-                    <header className={cn(SESSIONS_BOARD_LANE_HEADER, "min-h-9 gap-2 py-1")}>
-                      <WorkspaceBadge
-                        identity={{ kind: "project", name: lane.project }}
-                        variant="chrome"
-                      />
-                      <span aria-hidden="true" className="text-faint">
-                        ·
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 text-small-body text-muted-foreground">
-                        {!lane.isLocal ? (
-                          <ComputerPlatformIcon
-                            className="size-3.5 shrink-0"
-                            iconKind={lane.iconKind}
-                            platform={lane.platform}
-                            size="sm"
-                            tone="muted"
-                          />
+      <RemoteBoardContext value={board}>
+        <SessionBoardCardSlot value={RemoteBoardCard}>
+          <div className={SESSIONS_BOARD_FRAME}>
+            <div className={SESSIONS_BOARD_SCROLLER}>
+              {!board.grouped ? (
+                <SessionsBoardColumnsRow
+                  collapsedColumns={board.collapsedColumns}
+                  columns={board.flatColumns}
+                  currentSessionId={board.selectedId}
+                  layout="fill"
+                  onColumnCollapsedChange={(id, next) =>
+                    board.setCollapsedColumns(prev => ({ ...prev, [id]: next }))
+                  }
+                  onOpen={session => board.setSelectedId(session.id)}
+                  workspaceNameOf={session => board.entryMap.get(session.id)?.project ?? null}
+                />
+              ) : (
+                <div className={SESSIONS_BOARD_LANES}>
+                  {board.swimlanes.map(lane => (
+                    <section
+                      aria-label={`${lane.project} · ${lane.computerName}`}
+                      className={cn(SESSIONS_BOARD_LANE, lane.offline && "opacity-70")}
+                      key={lane.key}
+                    >
+                      <header className={cn(SESSIONS_BOARD_LANE_HEADER, "min-h-9 gap-2 py-1")}>
+                        <WorkspaceBadge
+                          identity={{ kind: "project", name: lane.project }}
+                          variant="chrome"
+                        />
+                        <span aria-hidden="true" className="text-faint">
+                          ·
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-small-body text-muted-foreground">
+                          {!lane.isLocal ? (
+                            <ComputerPlatformIcon
+                              className="size-3.5 shrink-0"
+                              iconKind={lane.iconKind}
+                              platform={lane.platform}
+                              size="sm"
+                              tone="muted"
+                            />
+                          ) : null}
+                          <span>{lane.computerName}</span>
+                        </span>
+                        {lane.offline ? (
+                          <Pill form="tint" size="sm" tone="neutral">
+                            Offline
+                          </Pill>
                         ) : null}
-                        <span>{lane.computerName}</span>
-                      </span>
-                      {lane.offline ? (
-                        <Pill form="tint" size="sm" tone="neutral">
-                          Offline
-                        </Pill>
-                      ) : null}
-                      <span className={SESSIONS_BOARD_LANE_COUNT}>{lane.entries.length}</span>
-                    </header>
-                    <SessionsBoardColumnsRow
-                      collapsedColumns={board.collapsedColumns}
-                      columns={buildRemoteBoardColumns(lane.entries)}
-                      currentSessionId={board.selectedId}
-                      layout="lane"
-                      onColumnCollapsedChange={(id, next) =>
-                        board.setCollapsedColumns(prev => ({ ...prev, [id]: next }))
-                      }
-                      onOpen={session => board.setSelectedId(session.id)}
-                      regionPrefix={`${lane.project} · ${lane.computerName}`}
-                      testIdPrefix={`remote-lane-${lane.project}-${lane.computerName}`}
-                      workspaceNameOf={() => null}
-                    />
-                  </section>
-                ))}
-              </div>
-            )}
+                        <span className={SESSIONS_BOARD_LANE_COUNT}>{lane.entries.length}</span>
+                      </header>
+                      <SessionsBoardColumnsRow
+                        collapsedColumns={board.collapsedColumns}
+                        columns={buildRemoteBoardColumns(lane.entries)}
+                        currentSessionId={board.selectedId}
+                        layout="lane"
+                        onColumnCollapsedChange={(id, next) =>
+                          board.setCollapsedColumns(prev => ({ ...prev, [id]: next }))
+                        }
+                        onOpen={session => board.setSelectedId(session.id)}
+                        regionPrefix={`${lane.project} · ${lane.computerName}`}
+                        testIdPrefix={`remote-lane-${lane.project}-${lane.computerName}`}
+                        workspaceNameOf={() => null}
+                      />
+                    </section>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </SessionBoardCardSlot>
+        </SessionBoardCardSlot>
+      </RemoteBoardContext>
     </DraftShell>
   );
 }

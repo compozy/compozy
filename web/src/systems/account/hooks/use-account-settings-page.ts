@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 
@@ -28,7 +28,7 @@ import {
   type AccountLoginResponse,
   type AccountStatusPayload,
 } from "../adapters/account-api";
-import { useOptionalUpgradeSheetActions } from "../contexts/upgrade-sheet-context";
+import { useOptionalUpgradeSheetActions } from "./use-optional-upgrade-sheet-actions";
 import {
   describeBillingApiError,
   isAccountCloudUnreachableError,
@@ -334,22 +334,7 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     },
   });
 
-  const billingPortalMutation = useMutation({
-    mutationFn: async () => {
-      const tab = openBillingBrowserWindow();
-      try {
-        const result = await openAccountBillingPortal();
-        tab.navigate(result.url);
-        return result;
-      } catch (err) {
-        tab.close();
-        throw err;
-      }
-    },
-    onError: err => {
-      toast.error(describeBillingApiError(err, "Couldn't open billing portal. Try again."));
-    },
-  });
+  const [isOpeningBillingPortal, startOpeningBillingPortal] = useTransition();
 
   const handleOpenUpgrade = useCallback(() => {
     if (sharedUpgradeSheet) {
@@ -359,10 +344,19 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     localUpgradeSheet.openUpgradeSheet();
   }, [sharedUpgradeSheet, localUpgradeSheet]);
 
-  const handleManageBilling = useCallback(() => {
-    if (billingPortalMutation.isPending) return;
-    billingPortalMutation.mutate();
-  }, [billingPortalMutation]);
+  const handleManageBilling = () => {
+    if (isOpeningBillingPortal) return;
+    const tab = openBillingBrowserWindow();
+    startOpeningBillingPortal(async () => {
+      try {
+        const result = await openAccountBillingPortal();
+        tab.navigate(result.url);
+      } catch (err) {
+        tab.close();
+        toast.error(describeBillingApiError(err, "Couldn't open billing portal. Try again."));
+      }
+    });
+  };
 
   const handleCancelSignIn = useCallback(() => {
     const attemptId = loginAttempt?.attempt_id;
@@ -413,7 +407,7 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
     signOutRequiresUnlink: Boolean(account?.installationLinked || signOutRequiresUnlink),
     signOutError,
     isSigningOut: signOutMutation.isPending,
-    isOpeningBillingPortal: billingPortalMutation.isPending,
+    isOpeningBillingPortal,
     isUpdatingEmail: lifecycle.isUpdatingEmail,
     createTokenOpen: lifecycle.createTokenOpen,
     createTokenError: lifecycle.createTokenError,

@@ -309,115 +309,32 @@ export function ComputerRow({
             {computer.routes.length > 0 ? (
               <>
                 {routeText || showLoad ? <ListingRow.MetaDot /> : null}
-                <button
-                  aria-expanded={openDisclosure === "routes"}
-                  className={cn(
-                    "inline-flex cursor-pointer items-center gap-0.5 rounded-xs text-eyebrow transition-colors duration-base hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none",
-                    openDisclosure === "routes" ? "font-medium text-fg" : "text-muted-foreground"
-                  )}
-                  onClick={() => toggleDisclosure("routes")}
-                  type="button"
-                >
-                  <span>{routesLabel}</span>
-                  <ChevronRight
-                    aria-hidden="true"
-                    className={cn(
-                      "size-3 transition-transform duration-base",
-                      openDisclosure === "routes" && "rotate-90"
-                    )}
-                  />
-                </button>
+                <ComputerDisclosureTrigger
+                  expanded={openDisclosure === "routes"}
+                  label={routesLabel}
+                  onToggle={() => toggleDisclosure("routes")}
+                />
               </>
             ) : null}
             <ListingRow.MetaDot />
-            <button
-              aria-expanded={openDisclosure === "permissions"}
-              className={cn(
-                "inline-flex cursor-pointer items-center gap-0.5 rounded-xs text-eyebrow transition-colors duration-base hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none",
-                openDisclosure === "permissions" ? "font-medium text-fg" : "text-muted-foreground"
-              )}
-              onClick={() => toggleDisclosure("permissions")}
-              type="button"
-            >
-              <span>Permissions</span>
-              <ChevronRight
-                aria-hidden="true"
-                className={cn(
-                  "size-3 transition-transform duration-base",
-                  openDisclosure === "permissions" && "rotate-90"
-                )}
-              />
-            </button>
+            <ComputerDisclosureTrigger
+              expanded={openDisclosure === "permissions"}
+              label="Permissions"
+              onToggle={() => toggleDisclosure("permissions")}
+            />
           </ListingRow.Meta>
 
           <InlineStatusNotice computer={computer} onOpenDetails={onOpenDetails} />
         </ListingRow.Main>
 
-        <ListingRow.Trail className="gap-2.5">
-          {computer.status === "needs_pro" ? (
-            <Button onClick={onUpgrade} size="xs" type="button" variant="secondary">
-              <Sparkles aria-hidden="true" />
-              Upgrade
-            </Button>
-          ) : null}
-          {computer.status === "incompatible" && computer.originKind === "ssh" ? (
-            <Button
-              onClick={() => onOpenDetails?.(computer, "update")}
-              size="xs"
-              type="button"
-              variant="secondary"
-            >
-              <RefreshCw aria-hidden="true" />
-              Update
-            </Button>
-          ) : null}
-          <Switch
-            aria-label={`Enable ${computer.name}`}
-            checked={computer.enabled && computer.status !== "needs_pro"}
-            disabled={computer.status === "needs_pro"}
-            onCheckedChange={next => onToggleEnabled?.(computer, next)}
-            size="sm"
-          />
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  aria-label={`Actions for ${computer.name}`}
-                  size="icon-sm"
-                  type="button"
-                  variant="ghost"
-                />
-              }
-            >
-              <Ellipsis aria-hidden="true" className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-44">
-              <DropdownMenuItem onClick={() => onOpenDetails?.(computer, "status")}>
-                <SlidersHorizontal aria-hidden="true" />
-                Details
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onOpenDetails?.(computer, "providers")}>
-                <Wrench aria-hidden="true" />
-                Providers
-              </DropdownMenuItem>
-              {computer.status === "incompatible" ? (
-                <DropdownMenuItem onClick={() => onOpenDetails?.(computer, "update")}>
-                  <RefreshCw aria-hidden="true" />
-                  Update
-                </DropdownMenuItem>
-              ) : null}
-              <DropdownMenuItem onClick={() => onRename?.(computer)}>
-                <Pencil aria-hidden="true" />
-                Rename
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => onRemove?.(computer)} variant="destructive">
-                <Trash2 aria-hidden="true" />
-                Remove
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </ListingRow.Trail>
+        <ComputerRowActions
+          computer={computer}
+          onOpenDetails={onOpenDetails}
+          onRemove={onRemove}
+          onRename={onRename}
+          onToggleEnabled={onToggleEnabled}
+          onUpgrade={onUpgrade}
+        />
       </ListingRow>
 
       {openDisclosure === "routes" ? (
@@ -425,5 +342,113 @@ export function ComputerRow({
       ) : null}
       {openDisclosure === "permissions" ? <ComputerPermissionsPanel computer={computer} /> : null}
     </div>
+  );
+}
+
+function ComputerRowActions({
+  computer,
+  onOpenDetails,
+  onRemove,
+  onRename,
+  onToggleEnabled,
+  onUpgrade,
+}: Pick<
+  ComputerRowProps,
+  "computer" | "onOpenDetails" | "onRemove" | "onRename" | "onToggleEnabled" | "onUpgrade"
+>) {
+  return (
+    <ListingRow.Trail className="gap-2.5">
+      {computer.status === "needs_pro" ? (
+        <Button onClick={onUpgrade} size="xs" type="button" variant="secondary">
+          <Sparkles aria-hidden="true" />
+          Upgrade
+        </Button>
+      ) : null}
+      {computer.status === "incompatible" && computer.originKind === "ssh" ? (
+        <Button
+          onClick={() => onOpenDetails?.(computer, "update")}
+          size="xs"
+          type="button"
+          variant="secondary"
+        >
+          <RefreshCw aria-hidden="true" />
+          Update
+        </Button>
+      ) : null}
+      <Switch
+        aria-label={`Enable ${computer.name}`}
+        checked={computer.enabled && computer.status !== "needs_pro"}
+        disabled={computer.status === "needs_pro"}
+        onCheckedChange={next => onToggleEnabled?.(computer, next)}
+        size="sm"
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              aria-label={`Actions for ${computer.name}`}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            />
+          }
+        >
+          <Ellipsis aria-hidden="true" className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuItem onClick={() => onOpenDetails?.(computer, "status")}>
+            <SlidersHorizontal aria-hidden="true" />
+            Details
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onOpenDetails?.(computer, "providers")}>
+            <Wrench aria-hidden="true" />
+            Providers
+          </DropdownMenuItem>
+          {computer.status === "incompatible" ? (
+            <DropdownMenuItem onClick={() => onOpenDetails?.(computer, "update")}>
+              <RefreshCw aria-hidden="true" />
+              Update
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem onClick={() => onRename?.(computer)}>
+            <Pencil aria-hidden="true" />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => onRemove?.(computer)} variant="destructive">
+            <Trash2 aria-hidden="true" />
+            Remove
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </ListingRow.Trail>
+  );
+}
+
+function ComputerDisclosureTrigger({
+  expanded,
+  label,
+  onToggle,
+}: {
+  expanded: boolean;
+  label: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      aria-expanded={expanded}
+      className={cn(
+        "inline-flex cursor-pointer items-center gap-0.5 rounded-xs text-eyebrow transition-colors duration-base hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none",
+        expanded ? "font-medium text-fg" : "text-muted-foreground"
+      )}
+      onClick={onToggle}
+      type="button"
+    >
+      <span>{label}</span>
+      <ChevronRight
+        aria-hidden="true"
+        className={cn("size-3 transition-transform duration-base", expanded && "rotate-90")}
+      />
+    </button>
   );
 }

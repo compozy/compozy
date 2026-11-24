@@ -191,7 +191,7 @@ class TicketedEventSource implements StreamEventSource {
    */
   private handleNativeError(native: StreamEventSource & { readonly url: string }): void {
     if (this.closed || this.native !== native) return;
-    if (native instanceof WebSocketEventSource && native.closedForSignIn) {
+    if (native instanceof WebSocketEventSource && native.closedForAccess) {
       this.close();
       return;
     }

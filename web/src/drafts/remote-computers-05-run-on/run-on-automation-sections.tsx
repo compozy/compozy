@@ -63,6 +63,90 @@ export interface AutomationScheduleInsetProps {
   onExpressionOpenChange: (open: boolean) => void;
 }
 
+function WeeklyScheduleControls({
+  expr,
+  daysCleared,
+  targetTimeZone,
+  onSchedulePatch,
+  onDaysClearedChange,
+}: Pick<
+  AutomationScheduleInsetProps,
+  "daysCleared" | "targetTimeZone" | "onSchedulePatch" | "onDaysClearedChange"
+> & { expr: string }) {
+  const dayTime = scheduleDayTime(expr);
+  const selectedDays = new Set(daysCleared ? [] : (dayTime?.days ?? []));
+  const builderApplies = dayTime !== null || daysCleared;
+  const clockValue = dayTime ? formatClock(dayTime.hour, dayTime.minute) : "09:00";
+
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-2.5 text-small-body text-muted-foreground",
+        !builderApplies && "opacity-50"
+      )}
+      data-testid="automation-schedule-days-row"
+    >
+      <span>On</span>
+      <fieldset className="flex gap-1" disabled={!builderApplies}>
+        <legend className="sr-only">Days</legend>
+        {SCHEDULE_CONSTANTS.DOW_LONG.map((day, index) => (
+          <Toggle
+            aria-label={day}
+            disabled={!builderApplies}
+            key={day}
+            onPressedChange={() => {
+              const days = daysCleared ? [] : (dayTime?.days ?? []);
+              const nextDays = days.includes(index)
+                ? days.filter(value => value !== index)
+                : [...days, index];
+              if (nextDays.length === 0) {
+                onDaysClearedChange(true);
+                return;
+              }
+              onDaysClearedChange(false);
+              onSchedulePatch({
+                mode: "cron",
+                expr: compileDayTime(nextDays, dayTime?.hour ?? 9, dayTime?.minute ?? 0),
+              });
+            }}
+            pressed={selectedDays.has(index)}
+            size="sm"
+          >
+            {SCHEDULE_CONSTANTS.DOW_SHORT[index].slice(0, 2)}
+          </Toggle>
+        ))}
+      </fieldset>
+      <span>at</span>
+      <span className="inline-flex items-center gap-2">
+        <Input
+          aria-label="Time"
+          className="w-auto min-w-28 font-mono tabular-nums"
+          disabled={!builderApplies}
+          onChange={event => {
+            const match = /^(\d{1,2}):(\d{2})$/.exec(event.target.value);
+            if (!match) return;
+            const hour = Number(match[1]);
+            const minute = Number(match[2]);
+            if (hour > 23 || minute > 59) return;
+            onSchedulePatch({
+              mode: "cron",
+              expr: compileDayTime(dayTime?.days ?? [...ALL_DAYS], hour, minute),
+            });
+          }}
+          type="time"
+          value={clockValue}
+        />
+        <span
+          className="font-mono text-form-hint text-subtle"
+          data-testid="automation-schedule-timezone"
+        >
+          · {targetTimeZone}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 /**
  * Mirrors production `ScheduleStart` (`starts/schedule-start.tsx`), adding the target
  * computer's effective automation timezone beside the schedule time (`09:00 · America/Sao_Paulo`).
@@ -79,10 +163,6 @@ export function AutomationScheduleInset({
   onExpressionOpenChange,
 }: AutomationScheduleInsetProps) {
   const expr = schedule.expr ?? "";
-  const dayTime = scheduleDayTime(expr);
-  const selectedDays = new Set(daysCleared ? [] : (dayTime?.days ?? []));
-  const builderApplies = dayTime !== null || daysCleared;
-  const clockValue = dayTime ? formatClock(dayTime.hour, dayTime.minute) : "09:00";
 
   return (
     <div className="rounded-lg bg-sunken p-3.5" data-testid="automation-start-inset-schedule">
@@ -114,71 +194,13 @@ export function AutomationScheduleInset({
               ))}
             </div>
 
-            <div
-              className={cn(
-                "flex flex-wrap items-center gap-2.5 text-small-body text-muted-foreground",
-                !builderApplies && "opacity-50"
-              )}
-              data-testid="automation-schedule-days-row"
-            >
-              <span>On</span>
-              <fieldset className="flex gap-1" disabled={!builderApplies}>
-                <legend className="sr-only">Days</legend>
-                {SCHEDULE_CONSTANTS.DOW_LONG.map((day, index) => (
-                  <Toggle
-                    aria-label={day}
-                    disabled={!builderApplies}
-                    key={day}
-                    onPressedChange={() => {
-                      const days = daysCleared ? [] : (dayTime?.days ?? []);
-                      const nextDays = days.includes(index)
-                        ? days.filter(value => value !== index)
-                        : [...days, index];
-                      if (nextDays.length === 0) {
-                        onDaysClearedChange(true);
-                        return;
-                      }
-                      onDaysClearedChange(false);
-                      onSchedulePatch({
-                        mode: "cron",
-                        expr: compileDayTime(nextDays, dayTime?.hour ?? 9, dayTime?.minute ?? 0),
-                      });
-                    }}
-                    pressed={selectedDays.has(index)}
-                    size="sm"
-                  >
-                    {SCHEDULE_CONSTANTS.DOW_SHORT[index].slice(0, 2)}
-                  </Toggle>
-                ))}
-              </fieldset>
-              <span>at</span>
-              <span className="inline-flex items-center gap-2">
-                <Input
-                  aria-label="Time"
-                  className="w-auto min-w-28 font-mono tabular-nums"
-                  disabled={!builderApplies}
-                  onChange={event => {
-                    const match = /^(\d{1,2}):(\d{2})$/.exec(event.target.value);
-                    if (!match) return;
-                    const hour = Number(match[1]);
-                    const minute = Number(match[2]);
-                    if (hour > 23 || minute > 59) return;
-                    onSchedulePatch({
-                      mode: "cron",
-                      expr: compileDayTime(dayTime?.days ?? [...ALL_DAYS], hour, minute),
-                    });
-                  }}
-                  type="time"
-                  value={clockValue}
-                />
-                <span
-                  className="font-mono text-form-hint text-subtle"
-                  data-testid="automation-schedule-timezone"
-                >
-                  · {targetTimeZone}
-                </span>
-              </span>
-            </div>
+            <WeeklyScheduleControls
+              daysCleared={daysCleared}
+              expr={expr}
+              onDaysClearedChange={onDaysClearedChange}
+              onSchedulePatch={onSchedulePatch}
+              targetTimeZone={targetTimeZone}
+            />
 
             {readout ? (
               <ScheduleReadout id="automation-schedule-readout" readout={readout} />

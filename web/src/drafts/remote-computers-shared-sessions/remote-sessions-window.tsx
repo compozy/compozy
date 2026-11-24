@@ -83,6 +83,183 @@ export interface RemoteSessionsWindowProps {
   className?: string;
 }
 
+function RemoteSessionToolButton({
+  label,
+  disabled,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            aria-label={label}
+            disabled={disabled}
+            size="icon-sm"
+            type="button"
+            variant="quiet"
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function RemoteSessionActions({
+  remoteComputerName,
+  hasTerminalScope,
+  hasFilesScope,
+  disabled,
+  isRunning,
+  railOpen,
+  onToggleRail,
+}: {
+  remoteComputerName: string | undefined;
+  hasTerminalScope: boolean;
+  hasFilesScope: boolean;
+  disabled: boolean;
+  isRunning: boolean;
+  railOpen: boolean;
+  onToggleRail: () => void;
+}) {
+  const suffix = remoteComputerName ? ` on ${remoteComputerName}` : "";
+  return (
+    <>
+      {hasTerminalScope && (
+        <RemoteSessionToolButton disabled={disabled} label={`Terminal${suffix}`}>
+          <SquareTerminal aria-hidden="true" className="size-4" />
+        </RemoteSessionToolButton>
+      )}
+      {hasFilesScope && (
+        <>
+          <RemoteSessionToolButton disabled={disabled} label={`Files${suffix}`}>
+            <FolderOpen aria-hidden="true" className="size-4" />
+          </RemoteSessionToolButton>
+          <RemoteSessionToolButton disabled={disabled} label={`Review${suffix}`}>
+            <FileDiff aria-hidden="true" className="size-4" />
+          </RemoteSessionToolButton>
+        </>
+      )}
+      {!disabled && isRunning && (
+        <SessionPrimaryAction
+          controlsBusy={false}
+          isStopping={false}
+          isUnarchiving={false}
+          onStop={() => undefined}
+          onUnarchive={() => undefined}
+          showStopAction
+          showUnarchiveAction={false}
+        />
+      )}
+      <SessionPanelToggle onToggle={onToggleRail} open={railOpen} panel="sidebar" />
+      <SessionPanelToggle onToggle={() => undefined} open={false} panel="inspector" />
+    </>
+  );
+}
+
+function RemoteSessionComposerBanner({
+  computerName,
+  isOffline,
+  entitlementPaused,
+  reconnecting,
+  onReconnect,
+}: {
+  computerName: string;
+  isOffline: boolean;
+  entitlementPaused: boolean;
+  reconnecting: boolean;
+  onReconnect: () => void;
+}) {
+  if (isOffline) {
+    return (
+      <div
+        className="flex items-center justify-between gap-3 rounded-md border border-warning/25 bg-warning-tint px-3 py-1.5 text-small-body"
+        data-testid="remote-offline-composer-banner"
+        role="status"
+      >
+        <span className="flex min-w-0 items-center gap-2 text-fg-2">
+          <WifiOff aria-hidden="true" className="size-3.5 shrink-0 text-warning" />
+          <span className="truncate">
+            <span className="font-medium text-fg">{computerName} is offline.</span> Showing the last
+            messages loaded in this session.
+          </span>
+        </span>
+        <Button
+          className="shrink-0"
+          disabled={reconnecting}
+          onClick={onReconnect}
+          size="xs"
+          type="button"
+          variant="secondary"
+        >
+          {reconnecting ? (
+            <Spinner aria-hidden="true" data-icon="inline-start" />
+          ) : (
+            <RefreshCw aria-hidden="true" data-icon="inline-start" />
+          )}
+          {reconnecting ? "Reconnecting…" : "Reconnect"}
+        </Button>
+      </div>
+    );
+  }
+  if (!entitlementPaused) return null;
+  return (
+    <div
+      className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface-2 px-3 py-1.5 text-small-body"
+      data-testid="remote-entitlement-paused-banner"
+      role="status"
+    >
+      <span className="flex min-w-0 items-center gap-2 text-fg-2">
+        <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0 text-warning" />
+        <span className="truncate">
+          <span className="font-medium text-fg">Remote access paused:</span> your Pro plan ended.
+          Running agents on {computerName} keep running.
+        </span>
+      </span>
+      <Button className="shrink-0" size="xs" type="button" variant="default">
+        <Sparkles aria-hidden="true" data-icon="inline-start" />
+        Upgrade
+      </Button>
+    </div>
+  );
+}
+
+function RemoteSessionTranscript({
+  transcript,
+  workingLabel,
+}: {
+  transcript: readonly TranscriptTurnFixture[];
+  workingLabel: string | null;
+}) {
+  return (
+    <TranscriptColumn>
+      {transcript.map(turn =>
+        turn.role === "user" ? (
+          <UserTurn key={turn.id}>{turn.text}</UserTurn>
+        ) : (
+          <div className="flex flex-col gap-2.5" key={turn.id}>
+            {turn.toolLine && (
+              <div className="inline-flex w-fit items-center gap-2 rounded-md border border-line-soft bg-sunken px-3 py-1.5 font-mono text-eyebrow text-muted-foreground">
+                <StateGlyph size="sm" state="done" />
+                <span>{turn.toolLine}</span>
+              </div>
+            )}
+            <AgentTurn>{turn.text}</AgentTurn>
+          </div>
+        )
+      )}
+      {workingLabel && <WorkingLine who={workingLabel} />}
+    </TranscriptColumn>
+  );
+}
+
 /**
  * Full CompozyOS Sessions window for remote-computer review (Screens 05 & 06):
  * - Composes `DraftShell`, `RemoteSessionsSidebar`, real window `Topbar` with `ComputerChip`
@@ -112,9 +289,8 @@ export function RemoteSessionsWindow({
   scope = "All projects",
   className,
 }: RemoteSessionsWindowProps) {
-  const initialSelectedId = activeSession.id;
   const [railOpen, setRailOpen] = useState(true);
-  const [selectedId, setSelectedId] = useState(initialSelectedId);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
 
   const isRemote = activeComputer !== null;
@@ -125,6 +301,7 @@ export function RemoteSessionsWindow({
   const composerDisabled = isOffline || entitlementPaused;
 
   const computerName = activeComputer?.name ?? hostName ?? "This computer";
+  const reconnect = () => setReconnecting(true);
 
   const topbar: TopbarSlotValue = {
     glyph: (
@@ -156,140 +333,23 @@ export function RemoteSessionsWindow({
           }
           defaultOpen={computerChipOpen}
           onOpenDetails={() => undefined}
-          onReconnect={isOffline ? () => setReconnecting(true) : undefined}
+          onReconnect={isOffline ? reconnect : undefined}
           onUpgrade={entitlementPaused ? () => undefined : undefined}
         />
       ) : undefined),
     actions: (
-      <>
-        {hasTerminalScope ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  aria-label={isRemote ? `Terminal on ${computerName}` : "Terminal"}
-                  disabled={isOffline || entitlementPaused}
-                  size="icon-sm"
-                  type="button"
-                  variant="quiet"
-                />
-              }
-            >
-              <SquareTerminal aria-hidden="true" className="size-4" />
-            </TooltipTrigger>
-            <TooltipContent>{isRemote ? `Terminal on ${computerName}` : "Terminal"}</TooltipContent>
-          </Tooltip>
-        ) : null}
-
-        {hasFilesScope ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  aria-label={isRemote ? `Files on ${computerName}` : "Files"}
-                  disabled={isOffline || entitlementPaused}
-                  size="icon-sm"
-                  type="button"
-                  variant="quiet"
-                />
-              }
-            >
-              <FolderOpen aria-hidden="true" className="size-4" />
-            </TooltipTrigger>
-            <TooltipContent>{isRemote ? `Files on ${computerName}` : "Files"}</TooltipContent>
-          </Tooltip>
-        ) : null}
-
-        {hasFilesScope ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  aria-label={isRemote ? `Review on ${computerName}` : "Review"}
-                  disabled={isOffline || entitlementPaused}
-                  size="icon-sm"
-                  type="button"
-                  variant="quiet"
-                />
-              }
-            >
-              <FileDiff aria-hidden="true" className="size-4" />
-            </TooltipTrigger>
-            <TooltipContent>{isRemote ? `Review on ${computerName}` : "Review"}</TooltipContent>
-          </Tooltip>
-        ) : null}
-
-        {!isOffline && !entitlementPaused && activeSession.state === "running" ? (
-          <SessionPrimaryAction
-            controlsBusy={false}
-            isStopping={false}
-            isUnarchiving={false}
-            onStop={() => undefined}
-            onUnarchive={() => undefined}
-            showStopAction
-            showUnarchiveAction={false}
-          />
-        ) : null}
-
-        <SessionPanelToggle
-          onToggle={() => setRailOpen(open => !open)}
-          open={railOpen}
-          panel="sidebar"
-        />
-        <SessionPanelToggle onToggle={() => undefined} open={false} panel="inspector" />
-      </>
+      <RemoteSessionActions
+        disabled={composerDisabled}
+        hasFilesScope={hasFilesScope}
+        hasTerminalScope={hasTerminalScope}
+        isRunning={activeSession.state === "running"}
+        onToggleRail={() => setRailOpen(open => !open)}
+        railOpen={railOpen}
+        remoteComputerName={activeComputer?.name}
+      />
     ),
     overflow: <SessionViewToggle onValueChange={next => onViewChange?.(next)} value="list" />,
   };
-
-  const composerAbove = isOffline ? (
-    <div
-      className="flex items-center justify-between gap-3 rounded-md border border-warning/25 bg-warning-tint px-3 py-1.5 text-small-body"
-      data-testid="remote-offline-composer-banner"
-      role="status"
-    >
-      <span className="flex min-w-0 items-center gap-2 text-fg-2">
-        <WifiOff aria-hidden="true" className="size-3.5 shrink-0 text-warning" />
-        <span className="truncate">
-          <span className="font-medium text-fg">{computerName} is offline.</span> Showing the last
-          messages loaded in this session.
-        </span>
-      </span>
-      <Button
-        className="shrink-0"
-        disabled={reconnecting}
-        onClick={() => setReconnecting(true)}
-        size="xs"
-        type="button"
-        variant="secondary"
-      >
-        {reconnecting ? (
-          <Spinner aria-hidden="true" data-icon="inline-start" />
-        ) : (
-          <RefreshCw aria-hidden="true" data-icon="inline-start" />
-        )}
-        {reconnecting ? "Reconnecting…" : "Reconnect"}
-      </Button>
-    </div>
-  ) : entitlementPaused ? (
-    <div
-      className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface-2 px-3 py-1.5 text-small-body"
-      data-testid="remote-entitlement-paused-banner"
-      role="status"
-    >
-      <span className="flex min-w-0 items-center gap-2 text-fg-2">
-        <TriangleAlert aria-hidden="true" className="size-3.5 shrink-0 text-warning" />
-        <span className="truncate">
-          <span className="font-medium text-fg">Remote access paused:</span> your Pro plan ended.
-          Running agents on {computerName} keep running.
-        </span>
-      </span>
-      <Button className="shrink-0" size="xs" type="button" variant="default">
-        <Sparkles aria-hidden="true" data-icon="inline-start" />
-        Upgrade
-      </Button>
-    </div>
-  ) : undefined;
 
   return (
     <DraftShell
@@ -311,7 +371,7 @@ export function RemoteSessionsWindow({
       <div className="flex min-h-0 min-w-0 flex-1">
         {railOpen ? (
           <RemoteSessionsSidebar
-            activeSessionId={selectedId}
+            activeSessionId={selectedId ?? activeSession.id}
             failedComputers={failedComputers}
             initialGroupBy={initialGroupBy}
             loadingComputers={loadingComputers}
@@ -323,29 +383,23 @@ export function RemoteSessionsWindow({
         ) : null}
 
         <div className="flex min-w-0 flex-1 flex-col border-l border-line bg-canvas">
-          <TranscriptColumn>
-            {transcript.map(turn =>
-              turn.role === "user" ? (
-                <UserTurn key={turn.id}>{turn.text}</UserTurn>
-              ) : (
-                <div className="flex flex-col gap-2.5" key={turn.id}>
-                  {turn.toolLine ? (
-                    <div className="inline-flex w-fit items-center gap-2 rounded-md border border-line-soft bg-sunken px-3 py-1.5 font-mono text-eyebrow text-muted-foreground">
-                      <StateGlyph size="sm" state="done" />
-                      <span>{turn.toolLine}</span>
-                    </div>
-                  ) : null}
-                  <AgentTurn>{turn.text}</AgentTurn>
-                </div>
-              )
-            )}
-            {isWorking && !isOffline && !entitlementPaused ? (
-              <WorkingLine who={`Claude on ${computerName}`} />
-            ) : null}
-          </TranscriptColumn>
+          <RemoteSessionTranscript
+            transcript={transcript}
+            workingLabel={isWorking && !composerDisabled ? `Claude on ${computerName}` : null}
+          />
 
           <DraftComposer
-            above={composerAbove}
+            above={
+              composerDisabled ? (
+                <RemoteSessionComposerBanner
+                  computerName={computerName}
+                  entitlementPaused={entitlementPaused}
+                  isOffline={isOffline}
+                  onReconnect={reconnect}
+                  reconnecting={reconnecting}
+                />
+              ) : undefined
+            }
             disabled={composerDisabled}
             placeholder={
               isOffline

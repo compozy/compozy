@@ -158,81 +158,17 @@ export function PlanUsageMeter({
   const readout = `${used} of ${limit}${unitSuffix}`;
 
   if (limit <= MAX_DISCRETE_SEGMENTS) {
-    const fillClass = used >= limit ? "bg-brand" : "bg-fg";
-
-    if (compact) {
-      return (
-        <div
-          className={cn("flex min-w-0 flex-wrap items-center gap-2.5", className)}
-          data-slot="plan-usage-meter"
-          data-state={used >= limit ? "at-limit" : "within-limit"}
-        >
-          <meter
-            aria-label={`${ariaPrefix}: ${readout}`}
-            className="sr-only"
-            max={limit}
-            min={0}
-            value={used}
-          />
-          <div aria-hidden="true" className="flex w-16 shrink-0 items-center gap-0.5">
-            {Array.from({ length: limit }, (_, index) => {
-              const filled = index < used;
-              return (
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "h-1 flex-1 rounded-full transition-colors duration-base",
-                    filled ? fillClass : "bg-surface-2"
-                  )}
-                  data-filled={filled ? "true" : "false"}
-                  key={index}
-                />
-              );
-            })}
-          </div>
-          <span className="text-meta text-muted-foreground tabular-nums">{readout}</span>
-          {action}
-        </div>
-      );
-    }
-
     return (
-      <div
-        className={cn("flex min-w-0 flex-col gap-2", className)}
-        data-slot="plan-usage-meter"
-        data-state={used >= limit ? "at-limit" : "within-limit"}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-small-body font-medium text-fg">{label}</span>
-          <div className="flex items-center gap-2.5">
-            <span className="text-meta text-muted-foreground tabular-nums">{readout}</span>
-            {action}
-          </div>
-        </div>
-        <meter
-          aria-label={`${ariaPrefix}: ${readout}`}
-          className="sr-only"
-          max={limit}
-          min={0}
-          value={used}
-        />
-        <div aria-hidden="true" className="flex w-full items-center gap-1">
-          {Array.from({ length: limit }, (_, index) => {
-            const filled = index < used;
-            return (
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "h-1 flex-1 rounded-full transition-colors duration-base",
-                  filled ? fillClass : "bg-surface-2"
-                )}
-                data-filled={filled ? "true" : "false"}
-                key={index}
-              />
-            );
-          })}
-        </div>
-      </div>
+      <DiscreteUsageMeter
+        action={action}
+        ariaPrefix={ariaPrefix}
+        className={className}
+        compact={compact}
+        label={label}
+        limit={limit}
+        readout={readout}
+        used={used}
+      />
     );
   }
 
@@ -280,6 +216,98 @@ export function PlanUsageMeter({
           <ProgressValue>{() => readout}</ProgressValue>
         </Progress>
         {action}
+      </div>
+    </div>
+  );
+}
+
+function DiscreteUsageMeter({
+  action,
+  ariaPrefix,
+  className,
+  compact,
+  label,
+  limit,
+  readout,
+  used,
+}: Pick<PlanUsageMeterProps, "action" | "className" | "compact" | "label" | "used"> & {
+  ariaPrefix: string;
+  limit: number;
+  readout: string;
+}) {
+  const fillClass = used >= limit ? "bg-brand" : "bg-fg";
+
+  if (compact) {
+    return (
+      <div
+        className={cn("flex min-w-0 flex-wrap items-center gap-2.5", className)}
+        data-slot="plan-usage-meter"
+        data-state={used >= limit ? "at-limit" : "within-limit"}
+      >
+        <meter
+          aria-label={`${ariaPrefix}: ${readout}`}
+          className="sr-only"
+          max={limit}
+          min={0}
+          value={used}
+        />
+        <div aria-hidden="true" className="flex w-16 shrink-0 items-center gap-0.5">
+          {Array.from({ length: limit }, (_, index) => {
+            const filled = index < used;
+            return (
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "h-1 flex-1 rounded-full transition-colors duration-base",
+                  filled ? fillClass : "bg-surface-2"
+                )}
+                data-filled={filled ? "true" : "false"}
+                key={index}
+              />
+            );
+          })}
+        </div>
+        <span className="text-meta text-muted-foreground tabular-nums">{readout}</span>
+        {action}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn("flex min-w-0 flex-col gap-2", className)}
+      data-slot="plan-usage-meter"
+      data-state={used >= limit ? "at-limit" : "within-limit"}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-small-body font-medium text-fg">{label}</span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-meta text-muted-foreground tabular-nums">{readout}</span>
+          {action}
+        </div>
+      </div>
+      <meter
+        aria-label={`${ariaPrefix}: ${readout}`}
+        className="sr-only"
+        max={limit}
+        min={0}
+        value={used}
+      />
+      <div aria-hidden="true" className="flex w-full items-center gap-1">
+        {Array.from({ length: limit }, (_, index) => {
+          const filled = index < used;
+          return (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "h-1 flex-1 rounded-full transition-colors duration-base",
+                filled ? fillClass : "bg-surface-2"
+              )}
+              data-filled={filled ? "true" : "false"}
+              key={index}
+            />
+          );
+        })}
       </div>
     </div>
   );

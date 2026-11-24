@@ -176,8 +176,11 @@ export function classifyHostedBrowserError(
     return { kind: "needs_pro" };
   }
 
+  if ((status === 401 || status === 403) && code === "device_revoked") {
+    return { kind: "device_removed" };
+  }
+
   if (status === 401) {
-    if (code === "device_revoked") return { kind: "device_removed" };
     if (code === "remote_session_expired") return { kind: "session_expired" };
     if (code === "browser_key_rebind_required") return { kind: "key_rebind_required" };
     return { kind: "sign_in_required", code };
@@ -214,6 +217,15 @@ export function reportHostedBrowserAccess(signal: HostedBrowserSignal): void {
   for (const listener of Array.from(listeners)) {
     listener(signal);
   }
+}
+
+/** Reports a revocation received on a hosted stream that was already authenticated. */
+export function reportHostedBrowserSocketClose(event: CloseEvent): boolean {
+  if (!isHostedBrowserMode() || event.code !== 4503 || event.reason !== "device_revoked") {
+    return false;
+  }
+  reportHostedBrowserAccess({ kind: "device_removed" });
+  return true;
 }
 
 /** Inspects a hosted listener HTTP response once and reports gate-relevant errors. */

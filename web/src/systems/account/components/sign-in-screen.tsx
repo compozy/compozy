@@ -167,15 +167,6 @@ export function SignInScreen({
   className,
 }: SignInScreenProps) {
   const consentId = useId();
-  const showStatusLink =
-    notice?.kind === "cloud_unreachable" ||
-    Boolean(notice && "showStatusLink" in notice && notice.showStatusLink);
-  const showSupportLink =
-    notice?.kind === "suspended" ||
-    Boolean(notice && "showSupportLink" in notice && notice.showSupportLink);
-  const showUnlinkAction =
-    notice?.kind === "linked_other_account" ||
-    Boolean(notice && "showUnlinkAction" in notice && notice.showUnlinkAction);
 
   return (
     <BrandStage
@@ -211,61 +202,12 @@ export function SignInScreen({
         </div>
 
         {notice ? (
-          <Alert
-            className="mt-6"
-            data-notice-kind={notice.kind}
-            data-testid="sign-in-notice"
-            variant={noticeVariant(notice.kind)}
-          >
-            <NoticeIcon kind={notice.kind} />
-            <AlertDescription className="text-fg">
-              {showSupportLink ? (
-                <span>
-                  Contact{" "}
-                  <a
-                    className="font-medium underline decoration-line-strong underline-offset-3 hover:text-fg-strong"
-                    href={COMPOZY_SUPPORT_MAILTO}
-                  >
-                    support@compozy.com
-                  </a>
-                  .
-                </span>
-              ) : (
-                notice.message
-              )}
-            </AlertDescription>
-            {notice.retryable || showStatusLink || showUnlinkAction ? (
-              <AlertActions className="justify-start pt-0.5">
-                {notice.retryable ? (
-                  <Button onClick={onRetryConnection} size="sm" type="button" variant="secondary">
-                    Try again
-                  </Button>
-                ) : null}
-                {showStatusLink ? (
-                  <a
-                    className={buttonVariants({ size: "sm", variant: "ghost" })}
-                    href={COMPOZY_STATUS_URL}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    Status
-                    <ExternalLink aria-hidden="true" className="size-3" />
-                  </a>
-                ) : null}
-                {showUnlinkAction && onUnlinkInstallation ? (
-                  <Button
-                    disabled={isUnlinking}
-                    onClick={onUnlinkInstallation}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Unlink
-                  </Button>
-                ) : null}
-              </AlertActions>
-            ) : null}
-          </Alert>
+          <SignInNotice
+            isUnlinking={isUnlinking}
+            notice={notice}
+            onRetryConnection={onRetryConnection}
+            onUnlinkInstallation={onUnlinkInstallation}
+          />
         ) : null}
 
         {tokenRevoked ? (
@@ -381,5 +323,81 @@ export function SignInScreen({
         )}
       </div>
     </BrandStage>
+  );
+}
+
+function SignInNotice({
+  notice,
+  isUnlinking,
+  onRetryConnection,
+  onUnlinkInstallation,
+}: Pick<SignInScreenProps, "isUnlinking" | "onRetryConnection" | "onUnlinkInstallation"> & {
+  notice: NonNullable<SignInScreenProps["notice"]>;
+}) {
+  const showStatusLink =
+    notice.kind === "cloud_unreachable" ||
+    Boolean("showStatusLink" in notice && notice.showStatusLink);
+  const showSupportLink =
+    notice.kind === "suspended" || Boolean("showSupportLink" in notice && notice.showSupportLink);
+  const showUnlinkAction =
+    notice.kind === "linked_other_account" ||
+    Boolean("showUnlinkAction" in notice && notice.showUnlinkAction);
+
+  return (
+    <Alert
+      className="mt-6"
+      data-notice-kind={notice.kind}
+      data-testid="sign-in-notice"
+      variant={noticeVariant(notice.kind)}
+    >
+      <NoticeIcon kind={notice.kind} />
+      <AlertDescription className="text-fg">
+        {showSupportLink ? (
+          <span>
+            Contact{" "}
+            <a
+              className="font-medium underline decoration-line-strong underline-offset-3 hover:text-fg-strong"
+              href={COMPOZY_SUPPORT_MAILTO}
+            >
+              support@compozy.com
+            </a>
+            .
+          </span>
+        ) : (
+          notice.message
+        )}
+      </AlertDescription>
+      {notice.retryable || showStatusLink || showUnlinkAction ? (
+        <AlertActions className="justify-start pt-0.5">
+          {notice.retryable ? (
+            <Button onClick={onRetryConnection} size="sm" type="button" variant="secondary">
+              Try again
+            </Button>
+          ) : null}
+          {showStatusLink ? (
+            <a
+              className={buttonVariants({ size: "sm", variant: "ghost" })}
+              href={COMPOZY_STATUS_URL}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Status
+              <ExternalLink aria-hidden="true" className="size-3" />
+            </a>
+          ) : null}
+          {showUnlinkAction && onUnlinkInstallation ? (
+            <Button
+              disabled={isUnlinking}
+              onClick={onUnlinkInstallation}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Unlink
+            </Button>
+          ) : null}
+        </AlertActions>
+      ) : null}
+    </Alert>
   );
 }

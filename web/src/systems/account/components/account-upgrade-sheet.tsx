@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   CheckCircle2,
   ExternalLink,
@@ -39,6 +38,8 @@ import {
   ACCOUNT_PRO_PLAN_OPTIONS,
 } from "@/systems/computers/mocks/remote-computers-fixtures-lane-a";
 
+import { useUpgradeSheetControls } from "../hooks/use-upgrade-sheet-controls";
+
 export type UpgradeSheetPhase = "select" | "waiting" | "waiting_timeout" | "done";
 export type UpgradeInterval = "year" | "month";
 
@@ -72,123 +73,62 @@ const BENEFIT_ICONS = {
   webhooks: Webhook,
 } as const;
 
+const PLAN_OPTIONS: RadioCardGroupOption<UpgradeInterval>[] = ACCOUNT_PRO_PLAN_OPTIONS.map(
+  option => ({
+    value: option.interval,
+    title: option.title,
+    badge: option.badge ? (
+      <Pill size="xs" tone="brand">
+        {option.badge}
+      </Pill>
+    ) : undefined,
+    description: (
+      <span className="mt-1 flex flex-col gap-0.5">
+        <span className="text-heading font-semibold text-fg-strong tabular-nums">
+          {option.price}
+        </span>
+        <span className="text-meta text-muted-foreground">{option.cadenceDetail}</span>
+      </span>
+    ),
+    className: "p-3.5",
+  })
+);
+
 /**
  * Upgrade to Compozy Pro dialog (`_uiux.md` U9, US-002):
  * - Annual pre-selected with monthly equivalent and savings badge
  * - Tax line and concise 4-item Pro benefit list
  * - Live post-checkout states: Waiting for checkout, 15m Check again, Cancelled, You're on Pro
  */
-export function UpgradeSheet({
-  open,
-  phase: controlledPhase,
-  initialPhase = "select",
-  interval: controlledInterval,
-  initialInterval = "year",
-  onIntervalChange,
-  checkoutCancelled = false,
-  checkoutError = null,
-  isStartingCheckout = false,
-  isCheckingStatus = false,
-  onClose,
-  onCancelWaiting,
-  onContinueToCheckout,
-  onReopenCheckout,
-  onCheckAgain,
-  onCompleteUpgrade,
-}: UpgradeSheetProps) {
-  const [uncontrolledPhase, setUncontrolledPhase] = useState<UpgradeSheetPhase>(initialPhase);
-  const [uncontrolledInterval, setUncontrolledInterval] =
-    useState<UpgradeInterval>(initialInterval);
-
-  const isControlledPhase = controlledPhase !== undefined;
-  const phase = isControlledPhase ? controlledPhase : uncontrolledPhase;
-  const interval = controlledInterval ?? uncontrolledInterval;
-
+export function UpgradeSheet(props: UpgradeSheetProps) {
+  const {
+    open,
+    checkoutCancelled = false,
+    checkoutError = null,
+    isStartingCheckout = false,
+    isCheckingStatus = false,
+    onClose,
+    onReopenCheckout,
+  } = props;
+  const {
+    phase,
+    interval,
+    handleIntervalChange,
+    handleContinue,
+    handleCheckAgain,
+    handleFinish,
+    handleCancelWaiting,
+  } = useUpgradeSheetControls(props);
   if (!open) return null;
 
   const selectedPlan =
     ACCOUNT_PRO_PLAN_OPTIONS.find(option => option.interval === interval) ??
     ACCOUNT_PRO_PLAN_OPTIONS[0]!;
-
-  const handleIntervalChange = (next: UpgradeInterval) => {
-    if (controlledInterval === undefined) {
-      setUncontrolledInterval(next);
-    }
-    onIntervalChange?.(next);
-  };
-
-  const planOptions: RadioCardGroupOption<UpgradeInterval>[] = ACCOUNT_PRO_PLAN_OPTIONS.map(
-    option => ({
-      value: option.interval,
-      title: option.title,
-      badge: option.badge ? (
-        <Pill size="xs" tone="brand">
-          {option.badge}
-        </Pill>
-      ) : undefined,
-      description: (
-        <span className="mt-1 flex flex-col gap-0.5">
-          <span className="text-heading font-semibold text-fg-strong tabular-nums">
-            {option.price}
-          </span>
-          <span className="text-meta text-muted-foreground">{option.cadenceDetail}</span>
-        </span>
-      ),
-      className: "p-3.5",
-    })
-  );
-
-  const waitingSteps: StepProgressItem[] = [
-    {
-      id: "open-browser",
-      title: "Opened Stripe Checkout in your browser",
-      status: "done",
-      detail: selectedPlan.title,
-      action: (
-        <Button onClick={() => onReopenCheckout?.()} size="xs" type="button" variant="ghost">
-          <ExternalLink aria-hidden="true" />
-          Reopen
-        </Button>
-      ),
-    },
-    {
-      id: "wait-confirmation",
-      title: phase === "waiting_timeout" ? "Still waiting for checkout" : "Waiting for checkout…",
-      status: phase === "waiting_timeout" ? "needs_input" : "running",
-      caption:
-        phase === "waiting_timeout"
-          ? "Already finished paying in your browser? Check your plan status now."
-          : "Your plan updates here automatically within seconds after payment, even with remote access turned off.",
-    },
-  ];
-
-  const handleContinue = () => {
-    onContinueToCheckout?.(interval);
-    if (!isControlledPhase) {
-      setUncontrolledPhase("waiting");
-    }
-  };
-
-  const handleCheckAgain = () => {
-    onCheckAgain?.();
-    if (!isControlledPhase) {
-      onCompleteUpgrade?.();
-      setUncontrolledPhase("done");
-    }
-  };
-
-  const handleFinish = () => {
-    onCompleteUpgrade?.();
-    onClose();
-  };
-
-  const handleCancelWaiting = () => {
-    if (onCancelWaiting) {
-      onCancelWaiting();
-      return;
-    }
-    onClose();
-  };
+  const done = phase === "done";
+  const timedOut = phase === "waiting_timeout";
+  const waiting = phase === "waiting" || timedOut;
+  const checkingStatus = timedOut && isCheckingStatus;
+  const reopenCheckout = () => onReopenCheckout?.();
 
   return (
     <Dialog
@@ -206,142 +146,35 @@ export function UpgradeSheet({
       >
         <EntityDialogHeader
           description={
-            phase === "done"
+            done
               ? "Your Pro plan is active across your account."
               : "Everything on this computer stays free. Pro adds remote scale and anywhere access."
           }
-          icon={phase === "done" ? CheckCircle2 : Sparkles}
+          icon={done ? CheckCircle2 : Sparkles}
           onClose={onClose}
-          title={phase === "done" ? "You're on Pro" : "Upgrade to Compozy Pro"}
-          tone={phase === "done" ? "neutral" : "brand"}
+          title={done ? "You're on Pro" : "Upgrade to Compozy Pro"}
+          tone={done ? "neutral" : "brand"}
         />
 
         <EntityDialogBody className="flex flex-col gap-5">
           {phase === "select" ? (
-            <>
-              {checkoutCancelled ? (
-                <Alert
-                  className="py-2.5"
-                  data-testid="upgrade-sheet-cancelled"
-                  role="status"
-                  variant="info"
-                >
-                  <Info aria-hidden="true" />
-                  <AlertDescription>Checkout was cancelled. Nothing was charged.</AlertDescription>
-                </Alert>
-              ) : null}
-
-              {checkoutError ? (
-                <Alert
-                  className="py-2.5"
-                  data-testid="upgrade-sheet-error"
-                  role="alert"
-                  variant="destructive"
-                >
-                  <TriangleAlert aria-hidden="true" />
-                  <AlertDescription>{checkoutError}</AlertDescription>
-                </Alert>
-              ) : null}
-
-              <div className="flex flex-col gap-2">
-                <RadioCardGroup
-                  aria-label="Choose a billing period"
-                  className="grid-cols-1 gap-2.5 sm:grid-cols-2"
-                  onValueChange={handleIntervalChange}
-                  options={planOptions}
-                  value={interval}
-                />
-                <p className="text-meta text-muted-foreground">
-                  Prices in USD. Plus applicable taxes, calculated at checkout.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2.5 border-t border-line-soft pt-4">
-                <p className="eyebrow text-subtle">What Pro adds</p>
-                <ul className="flex flex-col gap-2.5">
-                  {ACCOUNT_PRO_BENEFITS.map(benefit => {
-                    const Icon =
-                      BENEFIT_ICONS[benefit.id as keyof typeof BENEFIT_ICONS] ?? Sparkles;
-                    return (
-                      <li className="flex items-start gap-2.5" key={benefit.id}>
-                        <span
-                          aria-hidden="true"
-                          className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-sm bg-surface-2 text-fg"
-                        >
-                          <Icon className="size-3" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-small-body font-medium text-fg">{benefit.label}</p>
-                          <p className="text-meta text-muted-foreground">{benefit.detail}</p>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            </>
+            <UpgradePlanSelection
+              checkoutCancelled={checkoutCancelled}
+              checkoutError={checkoutError}
+              interval={interval}
+              onIntervalChange={handleIntervalChange}
+            />
           ) : null}
-
-          {phase === "waiting" || phase === "waiting_timeout" ? (
-            <div className="flex flex-col gap-4">
-              <StepProgressList steps={waitingSteps} />
-
-              <div
-                aria-live="polite"
-                className="flex flex-wrap items-center justify-between gap-2 border-t border-line-soft pt-3.5 text-meta text-muted-foreground"
-              >
-                <span className="inline-flex items-center gap-2">
-                  {phase === "waiting" ? (
-                    <>
-                      <Spinner aria-hidden="true" className="size-3" />
-                      <span>Listening for account update…</span>
-                    </>
-                  ) : (
-                    <span>Still waiting? Check again</span>
-                  )}
-                </span>
-                <Button
-                  disabled={isCheckingStatus}
-                  onClick={handleCheckAgain}
-                  size="xs"
-                  type="button"
-                  variant={phase === "waiting_timeout" ? "secondary" : "ghost"}
-                >
-                  {isCheckingStatus ? (
-                    <Spinner aria-hidden="true" className="size-3" />
-                  ) : (
-                    <RefreshCw aria-hidden="true" />
-                  )}
-                  Check again
-                </Button>
-              </div>
-            </div>
+          {waiting ? (
+            <UpgradeCheckoutWait
+              isCheckingStatus={isCheckingStatus}
+              onCheckAgain={handleCheckAgain}
+              onReopenCheckout={onReopenCheckout}
+              planTitle={selectedPlan.title}
+              timedOut={timedOut}
+            />
           ) : null}
-
-          {phase === "done" ? (
-            <div className="flex flex-col gap-4">
-              <ActionResultBanner
-                description="Unlimited computers, hosted routes, phone access, and hosted webhooks are active now. No restart needed."
-                icon={CheckCircle2}
-                title="You're on Pro"
-                tone="success"
-              />
-              <div className="flex flex-col divide-y divide-line-soft border-t border-line-soft">
-                <div className="flex items-center justify-between gap-3 py-2.5 text-small-body">
-                  <span className="text-muted-foreground">Remote computers</span>
-                  <span className="font-medium text-fg">Unlimited</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 py-2.5 text-small-body">
-                  <span className="text-muted-foreground">Hosted routes</span>
-                  <span className="font-medium text-fg tabular-nums">Up to 10 computers</span>
-                </div>
-                <div className="flex items-center justify-between gap-3 py-2.5 text-small-body">
-                  <span className="text-muted-foreground">Plan</span>
-                  <span className="font-medium text-fg">{selectedPlan.title}</span>
-                </div>
-              </div>
-            </div>
-          ) : null}
+          {done ? <UpgradeComplete planTitle={selectedPlan.title} /> : null}
         </EntityDialogBody>
 
         {phase === "select" ? (
@@ -357,20 +190,20 @@ export function UpgradeSheet({
           />
         ) : null}
 
-        {phase === "waiting" || phase === "waiting_timeout" ? (
+        {waiting ? (
           <EntityDialogFooter
             cancelLabel="Cancel"
             hint="Closing this window will not cancel a completed payment."
-            isSaving={phase === "waiting_timeout" && isCheckingStatus}
+            isSaving={checkingStatus}
             onCancel={handleCancelWaiting}
-            onPrimary={phase === "waiting_timeout" ? handleCheckAgain : () => onReopenCheckout?.()}
-            primaryDisabled={phase === "waiting_timeout" && isCheckingStatus}
-            primaryIcon={phase === "waiting_timeout" ? RefreshCw : ExternalLink}
-            primaryLabel={phase === "waiting_timeout" ? "Check again" : "Reopen checkout"}
+            onPrimary={timedOut ? handleCheckAgain : reopenCheckout}
+            primaryDisabled={checkingStatus}
+            primaryIcon={timedOut ? RefreshCw : ExternalLink}
+            primaryLabel={timedOut ? "Check again" : "Reopen checkout"}
           />
         ) : null}
 
-        {phase === "done" ? (
+        {done ? (
           <DialogFooter className="min-h-editor-footer items-center" variant="ruled">
             <Button onClick={handleFinish} type="button">
               Done
@@ -379,5 +212,181 @@ export function UpgradeSheet({
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function UpgradePlanSelection({
+  checkoutCancelled,
+  checkoutError,
+  interval,
+  onIntervalChange: handleIntervalChange,
+}: {
+  checkoutCancelled: boolean;
+  checkoutError: string | null;
+  interval: UpgradeInterval;
+  onIntervalChange: (next: UpgradeInterval) => void;
+}) {
+  return (
+    <>
+      {checkoutCancelled ? (
+        <Alert
+          className="py-2.5"
+          data-testid="upgrade-sheet-cancelled"
+          role="status"
+          variant="info"
+        >
+          <Info aria-hidden="true" />
+          <AlertDescription>Checkout was cancelled. Nothing was charged.</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {checkoutError ? (
+        <Alert
+          className="py-2.5"
+          data-testid="upgrade-sheet-error"
+          role="alert"
+          variant="destructive"
+        >
+          <TriangleAlert aria-hidden="true" />
+          <AlertDescription>{checkoutError}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <div className="flex flex-col gap-2">
+        <RadioCardGroup
+          aria-label="Choose a billing period"
+          className="grid-cols-1 gap-2.5 sm:grid-cols-2"
+          onValueChange={handleIntervalChange}
+          options={PLAN_OPTIONS}
+          value={interval}
+        />
+        <p className="text-meta text-muted-foreground">
+          Prices in USD. Plus applicable taxes, calculated at checkout.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2.5 border-t border-line-soft pt-4">
+        <p className="eyebrow text-subtle">What Pro adds</p>
+        <ul className="flex flex-col gap-2.5">
+          {ACCOUNT_PRO_BENEFITS.map(benefit => {
+            const Icon = BENEFIT_ICONS[benefit.id as keyof typeof BENEFIT_ICONS] ?? Sparkles;
+            return (
+              <li className="flex items-start gap-2.5" key={benefit.id}>
+                <span
+                  aria-hidden="true"
+                  className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-sm bg-surface-2 text-fg"
+                >
+                  <Icon className="size-3" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-small-body font-medium text-fg">{benefit.label}</p>
+                  <p className="text-meta text-muted-foreground">{benefit.detail}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </>
+  );
+}
+
+function UpgradeCheckoutWait({
+  timedOut,
+  planTitle,
+  onReopenCheckout,
+  onCheckAgain: handleCheckAgain,
+  isCheckingStatus,
+}: {
+  timedOut: boolean;
+  planTitle: string;
+  onReopenCheckout?: () => void;
+  onCheckAgain: () => void;
+  isCheckingStatus: boolean;
+}) {
+  const waitingSteps: StepProgressItem[] = [
+    {
+      id: "open-browser",
+      title: "Opened Stripe Checkout in your browser",
+      status: "done",
+      detail: planTitle,
+      action: (
+        <Button onClick={() => onReopenCheckout?.()} size="xs" type="button" variant="ghost">
+          <ExternalLink aria-hidden="true" />
+          Reopen
+        </Button>
+      ),
+    },
+    {
+      id: "wait-confirmation",
+      title: timedOut ? "Still waiting for checkout" : "Waiting for checkout…",
+      status: timedOut ? "needs_input" : "running",
+      caption: timedOut
+        ? "Already finished paying in your browser? Check your plan status now."
+        : "Your plan updates here automatically within seconds after payment, even with remote access turned off.",
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <StepProgressList steps={waitingSteps} />
+
+      <div
+        aria-live="polite"
+        className="flex flex-wrap items-center justify-between gap-2 border-t border-line-soft pt-3.5 text-meta text-muted-foreground"
+      >
+        <span className="inline-flex items-center gap-2">
+          {!timedOut ? (
+            <>
+              <Spinner aria-hidden="true" className="size-3" />
+              <span>Listening for account update…</span>
+            </>
+          ) : (
+            <span>Still waiting? Check again</span>
+          )}
+        </span>
+        <Button
+          disabled={isCheckingStatus}
+          onClick={handleCheckAgain}
+          size="xs"
+          type="button"
+          variant={timedOut ? "secondary" : "ghost"}
+        >
+          {isCheckingStatus ? (
+            <Spinner aria-hidden="true" className="size-3" />
+          ) : (
+            <RefreshCw aria-hidden="true" />
+          )}
+          Check again
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function UpgradeComplete({ planTitle }: { planTitle: string }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <ActionResultBanner
+        description="Unlimited computers, hosted routes, phone access, and hosted webhooks are active now. No restart needed."
+        icon={CheckCircle2}
+        title="You're on Pro"
+        tone="success"
+      />
+      <div className="flex flex-col divide-y divide-line-soft border-t border-line-soft">
+        <div className="flex items-center justify-between gap-3 py-2.5 text-small-body">
+          <span className="text-muted-foreground">Remote computers</span>
+          <span className="font-medium text-fg">Unlimited</span>
+        </div>
+        <div className="flex items-center justify-between gap-3 py-2.5 text-small-body">
+          <span className="text-muted-foreground">Hosted routes</span>
+          <span className="font-medium text-fg tabular-nums">Up to 10 computers</span>
+        </div>
+        <div className="flex items-center justify-between gap-3 py-2.5 text-small-body">
+          <span className="text-muted-foreground">Plan</span>
+          <span className="font-medium text-fg">{planTitle}</span>
+        </div>
+      </div>
+    </div>
   );
 }

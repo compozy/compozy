@@ -1270,7 +1270,7 @@ func TestExtensionRemoveDependencyGuard(t *testing.T) {
 			if testCase.force {
 				args = append(args, "--force")
 			}
-			_, _, err = executeRootCommand(t, deps, args...)
+			_, _, err := executeRootCommand(t, deps, args...)
 			if testCase.force {
 				if err != nil {
 					t.Fatalf("forced remove: %v", err)

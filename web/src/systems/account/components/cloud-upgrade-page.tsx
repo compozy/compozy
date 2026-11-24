@@ -374,44 +374,28 @@ export function CloudUpgradePage({
   const [promoOpen, setPromoOpen] = useState(initialPromoNoteOpen);
 
   const interval = controlledInterval ?? uncontrolledInterval;
-  const setInterval = (next: UpgradeInterval) => {
+  const selectInterval = (next: UpgradeInterval) => {
     setUncontrolledInterval(next);
     onIntervalChange?.(next);
   };
 
-  const isHostedFlow = Boolean(hostname);
-  const headerAccessory =
-    hostname && computerName && platform && iconKind ? (
-      <div className="inline-flex max-w-full items-center gap-1.5 rounded-pill border border-line bg-sunken px-2.5 py-1 text-eyebrow text-muted-foreground">
-        <ComputerPlatformIcon
-          className="size-4 bg-transparent"
-          iconKind={iconKind}
-          platform={platform}
-          size="sm"
-        />
-        <span className="truncate font-medium text-fg">{computerName}</span>
-        <span aria-hidden="true" className="text-faint">
-          ·
-        </span>
-        <span className="truncate font-mono text-mono-id text-subtle">{hostname}</span>
-      </div>
-    ) : null;
-
-  const belowCard =
-    isHostedFlow && computerName && status === "ready" ? (
-      <p className="text-center text-eyebrow leading-relaxed text-faint">
-        Nothing on {computerName} is unlocked until Pro is active.
-      </p>
-    ) : null;
-
   return (
     <CloudPageChrome
-      belowCard={belowCard}
+      belowCard={
+        <CloudUpgradeAccessNote hostname={hostname} computerName={computerName} status={status} />
+      }
       cardClassName="p-5 sm:p-6"
       className={className}
       dataCloudKind={`billing-${status}`}
       dataSlot="cloud-upgrade-page"
-      headerAccessory={headerAccessory}
+      headerAccessory={
+        <CloudUpgradeComputerBadge
+          hostname={hostname}
+          computerName={computerName}
+          platform={platform}
+          iconKind={iconKind}
+        />
+      }
       maxWidthClass="max-w-[440px]"
       onOpenLegalLink={onOpenLegalLink}
       statement={STAGE_STATEMENT[status]}
@@ -470,7 +454,7 @@ export function CloudUpgradePage({
           interval={interval}
           isRateLimited={status === "rate_limited"}
           onContinueToCheckout={onContinueToCheckout}
-          onIntervalChange={setInterval}
+          onIntervalChange={selectInterval}
           onOpenLegalLink={onOpenLegalLink}
           onOpenStatus={onOpenStatus}
           onPromoOpenChange={setPromoOpen}
@@ -483,5 +467,42 @@ export function CloudUpgradePage({
         />
       ) : null}
     </CloudPageChrome>
+  );
+}
+
+function CloudUpgradeComputerBadge({
+  hostname,
+  computerName,
+  platform,
+  iconKind,
+}: Pick<CloudUpgradePageProps, "hostname" | "computerName" | "platform" | "iconKind">) {
+  return;
+  hostname && computerName && platform && iconKind ? (
+    <div className="inline-flex max-w-full items-center gap-1.5 rounded-pill border border-line bg-sunken px-2.5 py-1 text-eyebrow text-muted-foreground">
+      <ComputerPlatformIcon
+        className="size-4 bg-transparent"
+        iconKind={iconKind}
+        platform={platform}
+        size="sm"
+      />
+      <span className="truncate font-medium text-fg">{computerName}</span>
+      <span aria-hidden="true" className="text-faint">
+        ·
+      </span>
+      <span className="truncate font-mono text-mono-id text-subtle">{hostname}</span>
+    </div>
+  ) : null;
+}
+
+function CloudUpgradeAccessNote({
+  hostname,
+  computerName,
+  status,
+}: Pick<CloudUpgradePageProps, "hostname" | "computerName" | "status">) {
+  if (!hostname || !computerName || status !== "ready") return null;
+  return (
+    <p className="text-center text-eyebrow leading-relaxed text-faint">
+      Nothing on {computerName} is unlocked until Pro is active.
+    </p>
   );
 }

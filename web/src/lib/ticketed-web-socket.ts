@@ -1,6 +1,6 @@
 import { isAccountSignInCloseCode, reportAccountGateSignal } from "./account-gate-signal";
 import { acquireHostedStreamTicket, appendHostedStreamTicket } from "./hosted-stream-auth";
-import { isHostedBrowserMode } from "./hosted-browser-auth";
+import { isHostedBrowserMode, reportHostedBrowserSocketClose } from "./hosted-browser-auth";
 
 /** The `WebSocket` surface the window-manager stream consumes. */
 export interface StreamWebSocket {
@@ -85,6 +85,7 @@ class TicketedWebSocket implements StreamWebSocket {
       if (isAccountSignInCloseCode(event.code)) {
         reportAccountGateSignal({ kind: "sign_in_required", code: "sign_in_required" });
       }
+      reportHostedBrowserSocketClose(event);
       this.onclose?.(event);
     };
   }

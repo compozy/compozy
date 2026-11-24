@@ -75,26 +75,21 @@ export function RunOnShot({
         <div className="flex flex-col gap-4 rounded-lg bg-card p-5 shadow-card">
           <Field>
             <FieldLabel htmlFor="landing-run-on">Run on</FieldLabel>
-            {inlineMenuOpen ? (
-              <div className="flex flex-col gap-1.5">
-                <div
-                  onClick={event => {
-                    event.preventDefault();
-                    setInlineMenuOpen(false);
-                  }}
-                >
-                  <RunOnPicker
-                    allowAuto
-                    autoResolution={autoResolution}
-                    computers={PICKER_COMPUTERS}
-                    defaultOpen={false}
-                    loadBalancingEnabled
-                    localComputer={LOCAL_COMPUTER}
-                    onChange={handleSelect}
-                    triggerId="landing-run-on"
-                    value={target}
-                  />
-                </div>
+            <div className="flex flex-col gap-1.5">
+              <RunOnPicker
+                allowAuto
+                autoResolution={autoResolution}
+                computers={PICKER_COMPUTERS}
+                loadBalancingEnabled
+                localComputer={LOCAL_COMPUTER}
+                onChange={handleSelect}
+                onOpenChange={open => {
+                  if (open) setInlineMenuOpen(false);
+                }}
+                triggerId="landing-run-on"
+                value={target}
+              />
+              {inlineMenuOpen ? (
                 <div className="overflow-hidden rounded-md border border-line-strong bg-popover shadow-overlay">
                   <Command className="bg-popover">
                     <CommandInput
@@ -174,20 +169,8 @@ export function RunOnShot({
                     </CommandList>
                   </Command>
                 </div>
-              </div>
-            ) : (
-              <RunOnPicker
-                allowAuto
-                autoResolution={autoResolution}
-                computers={PICKER_COMPUTERS}
-                defaultOpen={false}
-                loadBalancingEnabled
-                localComputer={LOCAL_COMPUTER}
-                onChange={handleSelect}
-                triggerId="landing-run-on"
-                value={target}
-              />
-            )}
+              ) : null}
+            </div>
           </Field>
 
           {!inlineMenuOpen ? (

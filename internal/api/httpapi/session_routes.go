@@ -62,12 +62,16 @@ func registerSessionRoutes(api operatorRouteGroups, handlers *Handlers) {
 	workspaceSessions.DELETE("/:session_id/runtime", handlers.ClearSessionRuntime)
 	registerSessionPromptRoutes(workspaceSessions, handlers)
 	registerSessionReadRoutes(workspaceSessions, handlers)
-	workspaceSessions.GET("/:session_id/recap", handlers.SessionRecap)
-	workspaceSessions.GET("/:session_id/usage", handlers.SessionUsage)
-	workspaceSessions.GET("/:session_id/usage/turns", handlers.SessionUsageTurns)
+	registerSessionSummaryRoutes(workspaceSessions, handlers)
 	workspaceSessions.POST("/:session_id/approve", handlers.approveSession)
 	workspaceSessions.GET("/:session_id/clarifications", handlers.ListSessionClarifications)
 	workspaceSessions.POST("/:session_id/clarifications/:request_id/answer", handlers.AnswerSessionClarification)
+}
+
+func registerSessionSummaryRoutes(sessions gin.IRouter, handlers *Handlers) {
+	sessions.GET("/:session_id/recap", handlers.SessionRecap)
+	sessions.GET("/:session_id/usage", handlers.SessionUsage)
+	sessions.GET("/:session_id/usage/turns", handlers.SessionUsageTurns)
 }
 
 func registerSessionProcessRoutes(api gin.IRouter, handlers *Handlers) {

@@ -116,6 +116,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"PATCH /api/remote",
 			"PATCH /api/remote/devices/:id",
 			"POST /api/remote/link",
+			"GET /api/account/tokens",
+			"POST /api/account/tokens",
+			"DELETE /api/account/tokens/:id",
 			"DELETE /api/ingress/bindings/:subject_kind/:subject_id",
 			"POST /api/ingress/bindings",
 			"GET /api/migration-notices",
@@ -3550,12 +3553,25 @@ func TestSignedOutRouteRegistration(t *testing.T) {
 		t.Run("Should declare and gate every "+transport+" operator route", func(t *testing.T) {
 			t.Parallel()
 			engine := gin.New()
-			handler := core.NewBaseHandlers(nil)
 			gate := &routeAccountGate{mode: account.GateEnforced}
-			handler.Account, handler.Remote = gate, testRouteRemoteHost{}
 			if transport == "HTTP" {
-				httpapi.RegisterRoutes(engine, &httpapi.Handlers{BaseHandlers: handler})
+				_, err := httpapi.New(
+					httpapi.WithEngine(engine),
+					httpapi.WithHomePaths(newTestHomePaths(t)),
+					httpapi.WithHost("127.0.0.1"),
+					httpapi.WithSessionManager(&stubSessionManager{}),
+					httpapi.WithTaskService(&stubTaskManager{}),
+					httpapi.WithObserver(stubObserver{}),
+					httpapi.WithWorkspaceResolver(stubWorkspaceService{}),
+					httpapi.WithAccountService(gate),
+					httpapi.WithRemoteHost(testRouteRemoteHost{}),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
 			} else {
+				handler := core.NewBaseHandlers(nil)
+				handler.Account, handler.Remote = gate, testRouteRemoteHost{}
 				RegisterRoutes(engine, &Handlers{BaseHandlers: handler})
 			}
 			for _, route := range engine.Routes() {
@@ -3612,7 +3628,9 @@ func callAccountGateRoute(
 	t *testing.T, engine *gin.Engine, method, path, body string,
 ) *httptest.ResponseRecorder {
 	t.Helper()
-	request := httptest.NewRequestWithContext(t.Context(), method, "http://localhost"+path, strings.NewReader(body))
+	request := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
+	request.Host = "127.0.0.1"
+	request.RemoteAddr = "127.0.0.1:12345"
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 	engine.ServeHTTP(response, request)

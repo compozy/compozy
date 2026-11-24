@@ -3,14 +3,22 @@ import {
   ChevronDown,
   MessagesSquare,
   Plus,
-  RefreshCw,
   Smartphone,
   Terminal,
-  WifiOff,
   X,
 } from "@compozy/ui/icons";
 
-import { Button, cn, Logo, PillCount, StatusDot, toast } from "@compozy/ui";
+import { useState } from "react";
+
+import {
+  Button,
+  cn,
+  Logo,
+  OverlayContainerContext,
+  PillCount,
+  StatusDot,
+  toast,
+} from "@compozy/ui";
 
 import { ComputerPlatformIcon } from "@/systems/computers/components/computer-platform-icon";
 import { PhoneComputerMenu } from "@/systems/computers/components/phone-computer-menu";
@@ -29,7 +37,12 @@ import {
 } from "@/systems/computers/mocks/remote-computers-fixtures-phone";
 
 import { usePhoneApp, type PhoneTabId } from "./hooks/use-phone-app";
-import { PhoneApprovalsPane, PhoneSessionList, PhoneTerminalPane } from "./phone-panes";
+import {
+  PhoneApprovalsPane,
+  PhoneOfflineStrip,
+  PhoneSessionList,
+  PhoneTerminalPane,
+} from "./phone-panes";
 import { PhoneSessionView } from "./phone-session-view";
 
 export type { PhoneTabId };
@@ -79,6 +92,8 @@ export function PhoneApp({
     initialShowInstallHint,
   });
 
+  const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
+
   if (app.openSession) {
     return (
       <div className="relative flex min-h-0 flex-1 flex-col" data-layout="phone">
@@ -104,9 +119,10 @@ export function PhoneApp({
 
   return (
     <div
-      className="relative flex min-h-0 flex-1 flex-col bg-canvas"
+      className="relative flex min-h-0 flex-1 transform-gpu flex-col bg-canvas"
       data-layout="phone"
       data-slot="phone-app"
+      ref={setOverlayHost}
     >
       <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line-soft px-3">
         <div className="flex min-w-0 items-center gap-2">
@@ -141,22 +157,7 @@ export function PhoneApp({
         </Button>
       </header>
 
-      {app.offline ? (
-        <div
-          className="flex shrink-0 items-center justify-between gap-2 border-b border-line-soft bg-warning-tint px-3.5 py-2"
-          data-slot="phone-offline-strip"
-          role="status"
-        >
-          <div className="flex min-w-0 items-center gap-2 text-eyebrow text-fg">
-            <WifiOff aria-hidden="true" className="size-3.5 shrink-0 text-warning" />
-            <span className="truncate">{computer.name} is offline. Reconnecting…</span>
-          </div>
-          <Button className="shrink-0" onClick={app.handleRetry} size="xs" variant="secondary">
-            <RefreshCw className="size-3" />
-            Retry now
-          </Button>
-        </div>
-      ) : null}
+      {app.offline && <PhoneOfflineStrip computerName={computer.name} onRetry={app.handleRetry} />}
 
       {app.installHintVisible && !app.offline && app.activeTab === "sessions" ? (
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line-soft bg-sunken px-3.5 py-2 text-eyebrow text-muted-foreground">
@@ -200,75 +201,93 @@ export function PhoneApp({
         />
       ) : null}
 
-      <nav
-        aria-label="Phone navigation"
-        className="flex shrink-0 items-center justify-around border-t border-line-soft bg-sunken px-2 py-1.5"
-        data-slot="phone-bottom-dock"
+      <PhoneDock
+        activeTab={app.activeTab}
+        canOperateTerminal={app.canOperateTerminal}
+        onTabChange={app.setActiveTab}
+        pendingApprovalCount={app.pendingApprovalCount}
+      />
+
+      <OverlayContainerContext value={overlayHost}>
+        <PhoneComputerMenu
+          currentComputerName={computer.name}
+          onClose={() => app.setComputerMenuOpen(false)}
+          onSelectPeer={peer => {
+            app.setComputerMenuOpen(false);
+            toast.message(`Opening https://${peer.hostname}`);
+          }}
+          onSignOut={app.handleSignOut}
+          open={overlayHost !== null && app.computerMenuOpen}
+          peers={peers}
+          presentation="sheet"
+        />
+      </OverlayContainerContext>
+    </div>
+  );
+}
+
+function PhoneDock({
+  activeTab,
+  canOperateTerminal,
+  pendingApprovalCount,
+  onTabChange,
+}: {
+  activeTab: PhoneTabId;
+  canOperateTerminal: boolean;
+  pendingApprovalCount: number;
+  onTabChange: (tab: PhoneTabId) => void;
+}) {
+  return (
+    <nav
+      aria-label="Phone navigation"
+      className="flex shrink-0 items-center justify-around border-t border-line-soft bg-sunken px-2 py-1.5"
+      data-slot="phone-bottom-dock"
+    >
+      <button
+        aria-current={activeTab === "sessions" ? "page" : undefined}
+        className={cn(
+          "flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-micro transition-colors focus-visible:shadow-focus-ring focus-visible:outline-none",
+          activeTab === "sessions" ? "bg-selected font-medium text-fg-strong" : "text-subtle"
+        )}
+        onClick={() => onTabChange("sessions")}
+        type="button"
       >
+        <MessagesSquare className="size-4" />
+        <span>Sessions</span>
+      </button>
+
+      {canOperateTerminal ? (
         <button
-          aria-current={app.activeTab === "sessions" ? "page" : undefined}
+          aria-current={activeTab === "terminal" ? "page" : undefined}
           className={cn(
             "flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-micro transition-colors focus-visible:shadow-focus-ring focus-visible:outline-none",
-            app.activeTab === "sessions" ? "bg-selected font-medium text-fg-strong" : "text-subtle"
+            activeTab === "terminal" ? "bg-selected font-medium text-fg-strong" : "text-subtle"
           )}
-          onClick={() => app.setActiveTab("sessions")}
+          onClick={() => onTabChange("terminal")}
           type="button"
         >
-          <MessagesSquare className="size-4" />
-          <span>Sessions</span>
+          <Terminal className="size-4" />
+          <span>Terminal</span>
         </button>
+      ) : null}
 
-        {app.canOperateTerminal ? (
-          <button
-            aria-current={app.activeTab === "terminal" ? "page" : undefined}
-            className={cn(
-              "flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-micro transition-colors focus-visible:shadow-focus-ring focus-visible:outline-none",
-              app.activeTab === "terminal"
-                ? "bg-selected font-medium text-fg-strong"
-                : "text-subtle"
-            )}
-            onClick={() => app.setActiveTab("terminal")}
-            type="button"
-          >
-            <Terminal className="size-4" />
-            <span>Terminal</span>
-          </button>
-        ) : null}
-
-        <button
-          aria-current={app.activeTab === "approvals" ? "page" : undefined}
-          className={cn(
-            "relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-micro transition-colors focus-visible:shadow-focus-ring focus-visible:outline-none",
-            app.activeTab === "approvals" ? "bg-selected font-medium text-fg-strong" : "text-subtle"
-          )}
-          onClick={() => app.setActiveTab("approvals")}
-          type="button"
-        >
-          <span className="relative inline-flex">
-            <Bell className="size-4" />
-            {app.pendingApprovalCount > 0 ? (
-              <PillCount
-                className="absolute -top-1.5 -right-2.5"
-                count={app.pendingApprovalCount}
-              />
-            ) : null}
-          </span>
-          <span>Approvals</span>
-        </button>
-      </nav>
-
-      <PhoneComputerMenu
-        currentComputerName={computer.name}
-        onClose={() => app.setComputerMenuOpen(false)}
-        onSelectPeer={peer => {
-          app.setComputerMenuOpen(false);
-          toast.message(`Opening https://${peer.hostname}`);
-        }}
-        onSignOut={app.handleSignOut}
-        open={app.computerMenuOpen}
-        peers={peers}
-        presentation="sheet"
-      />
-    </div>
+      <button
+        aria-current={activeTab === "approvals" ? "page" : undefined}
+        className={cn(
+          "relative flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 text-micro transition-colors focus-visible:shadow-focus-ring focus-visible:outline-none",
+          activeTab === "approvals" ? "bg-selected font-medium text-fg-strong" : "text-subtle"
+        )}
+        onClick={() => onTabChange("approvals")}
+        type="button"
+      >
+        <span className="relative inline-flex">
+          <Bell className="size-4" />
+          {pendingApprovalCount > 0 ? (
+            <PillCount className="absolute -top-1.5 -right-2.5" count={pendingApprovalCount} />
+          ) : null}
+        </span>
+        <span>Approvals</span>
+      </button>
+    </nav>
   );
 }

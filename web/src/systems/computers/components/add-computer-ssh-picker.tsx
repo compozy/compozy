@@ -40,6 +40,34 @@ export interface AddComputerSshPickerProps {
   onSwitchToCommand?: () => void;
 }
 
+function parseSshTarget(raw: string, value: SshTargetDraft): SshTargetDraft | null {
+  const clean = raw.trim();
+  if (!clean) return null;
+  const atIndex = clean.indexOf("@");
+  const parsedUser = atIndex > 0 ? clean.slice(0, atIndex) : value.user;
+  const hostPart = atIndex > 0 ? clean.slice(atIndex + 1) : clean;
+  const colonIndex = hostPart.lastIndexOf(":");
+  const parsedHost = colonIndex > 0 ? hostPart.slice(0, colonIndex) : hostPart;
+  const parsedPort = colonIndex > 0 ? hostPart.slice(colonIndex + 1) : value.port || "22";
+
+  return {
+    host: parsedHost,
+    user: parsedUser,
+    port: parsedPort,
+    name: parsedHost.split(".")[0] || parsedHost,
+  };
+}
+
+function sshHostLabel(value: SshTargetDraft, matched?: SshHostSuggestionFixture) {
+  return value.host
+    ? matched
+      ? `${matched.alias} (${matched.user}@${matched.hostname})`
+      : value.user
+        ? `${value.user}@${value.host}${value.port && value.port !== "22" ? `:${value.port}` : ""}`
+        : value.host
+    : undefined;
+}
+
 /**
  * SSH host selector fed by `~/.ssh/config` and `~/.ssh/known_hosts`, with
  * free-entry support and compact inline disclosure for User, Port, and Name.
@@ -79,32 +107,14 @@ export function AddComputerSshPicker({
   };
 
   const selectCustomHost = (raw: string) => {
-    const clean = raw.trim();
-    if (!clean) return;
-    const atIndex = clean.indexOf("@");
-    const parsedUser = atIndex > 0 ? clean.slice(0, atIndex) : value.user;
-    const hostPart = atIndex > 0 ? clean.slice(atIndex + 1) : clean;
-    const colonIndex = hostPart.lastIndexOf(":");
-    const parsedHost = colonIndex > 0 ? hostPart.slice(0, colonIndex) : hostPart;
-    const parsedPort = colonIndex > 0 ? hostPart.slice(colonIndex + 1) : value.port || "22";
-
-    onChange({
-      host: parsedHost,
-      user: parsedUser,
-      port: parsedPort,
-      name: parsedHost.split(".")[0] || parsedHost,
-    });
+    const target = parseSshTarget(raw, value);
+    if (!target) return;
+    onChange(target);
     setOpen(false);
     setSearch("");
   };
 
-  const triggerLabel = value.host
-    ? matched
-      ? `${matched.alias} (${matched.user}@${matched.hostname})`
-      : value.user
-        ? `${value.user}@${value.host}${value.port && value.port !== "22" ? `:${value.port}` : ""}`
-        : value.host
-    : undefined;
+  const triggerLabel = sshHostLabel(value, matched);
 
   return (
     <FormSection

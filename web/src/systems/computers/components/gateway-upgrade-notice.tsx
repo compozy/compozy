@@ -47,7 +47,7 @@ export function GatewayUpgradeNotice() {
             rel="noreferrer"
             target="_blank"
           >
-            Learn more
+            Remote Computers launch notes
           </a>
           <Button
             disabled={dismiss.isPending}

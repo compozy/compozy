@@ -319,9 +319,11 @@ function SessionIdentityCard({
     <SettingsGroup data-testid="account-identity" title="Profile">
       <SettingRow
         control={
-          <Button onClick={onRequestSignOut} size="sm" type="button" variant="outline">
-            Sign out
-          </Button>
+          <div>
+            <Button onClick={onRequestSignOut} size="sm" type="button" variant="outline">
+              Sign out
+            </Button>
+          </div>
         }
         description={
           <span className="inline-flex flex-wrap items-center gap-1.5">

@@ -111,10 +111,10 @@ export { SignInScreen, type SignInScreenProps } from "./components/sign-in-scree
 export {
   AccountUpgradeSheetProvider,
   ConnectedUpgradeSheet,
-  useOptionalUpgradeSheetActions,
   type AccountUpgradeSheetProviderProps,
-  type UpgradeSheetActions,
-} from "./contexts/upgrade-sheet-context";
+} from "./components/account-upgrade-sheet-provider";
+export type { UpgradeSheetActions } from "./contexts/upgrade-sheet-context";
+export { useOptionalUpgradeSheetActions } from "./hooks/use-optional-upgrade-sheet-actions";
 export { useAccountGateWatcher } from "./hooks/use-account-gate-watcher";
 export {
   useAccountSettingsPage,

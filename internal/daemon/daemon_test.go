@@ -2560,7 +2560,9 @@ func TestBootWaitsForSignInToRecoverWork(t *testing.T) {
 		WithAccountOptions(account.WithSignInRequired(true))(d)
 		started, resumed := make(chan struct{}, 1), make(chan struct{}, 1)
 		d.newExtensionManager = func(extensionManagerDeps) extensionRuntime {
-			return &fakeExtensionRuntime{onStart: func() { started <- struct{}{} }}
+			return &profileProjectionFailureRuntime{
+				fakeExtensionRuntime: &fakeExtensionRuntime{onStart: func() { started <- struct{}{} }},
+			}
 		}
 		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
 			return &signInRecoverySessionManager{
@@ -5527,7 +5529,6 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 	if !d.verifyBoundaries {
 		t.Fatal("WithBoundaryVerification(true) did not apply")
 	}
-
 }
 
 func TestBootConfigEnsuresManagedAgents(t *testing.T) {

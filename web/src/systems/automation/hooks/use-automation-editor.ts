@@ -23,7 +23,11 @@ import {
 } from "./use-automation-actions";
 import { createWorkspaceEditorLogic, type WorkspaceEditorFailure } from "./automation-editor-store";
 import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
-import { useComputerWorkspaces } from "@/systems/computers";
+import {
+  resolveEffectiveRunOnTarget,
+  useComputers,
+  useComputerWorkspaces,
+} from "@/systems/computers";
 import { useAgents } from "@/systems/agent";
 
 /** What the save produced: the daemon entity decides the detail route. */
@@ -124,7 +128,19 @@ export function useAutomationEditor({
   const submitError = useSelector(store, snapshot => snapshot.context.submitError);
   const submitErrorField = useSelector(store, snapshot => snapshot.context.submitErrorField);
   const [handle] = useState(createAutomationDialogHandle);
-  const targetComputerId = normalizeComputerId(editor?.draft.computerId);
+  const creatingJob = editor?.mode === "create" && editor.draft.start === "schedule";
+  const computers = useComputers({ enabled: creatingJob });
+  const requestedComputerId = normalizeComputerId(editor?.draft.computerId);
+  const targetComputerId =
+    creatingJob && computers.data
+      ? resolveEffectiveRunOnTarget({
+          requested: requestedComputerId,
+          local: computers.localView,
+          computers: computers.computerViews,
+          loadBalancingEnabled: false,
+          allowAuto: false,
+        })
+      : requestedComputerId;
   const isRemoteComputer = isRemoteComputerId(targetComputerId);
   const remoteWorkspacesQuery = useComputerWorkspaces(
     targetComputerId,
@@ -191,12 +207,11 @@ export function useAutomationEditor({
   const save = async (current: AutomationEditorState): Promise<AutomationSaveResult> => {
     const request = buildAutomationFormRequest(current.draft);
     if (request.entity === "job") {
-      const computerId = normalizeComputerId(current.draft.computerId);
       const automation =
         current.mode === "create"
-          ? await createJob.mutateAsync({ ...request.create, computerId })
+          ? await createJob.mutateAsync({ ...request.create, computerId: targetComputerId })
           : await updateJob.mutateAsync({
-              computerId,
+              computerId: targetComputerId,
               data: request.update,
               id: current.id,
               profile: current.profile,
@@ -238,6 +253,7 @@ export function useAutomationEditor({
     editor: editor
       ? {
           ...editor,
+          draft: creatingJob ? { ...editor.draft, computerId: targetComputerId } : editor.draft,
           isPending: pendingRequest !== null,
           onCancel: close,
           onChange: (draft: AutomationFormDraft) =>

@@ -1,18 +1,8 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
-import { UpgradeSheet } from "../components/account-upgrade-sheet";
-import {
-  useUpgradeSheet,
-  type OpenUpgradeSheetOptions,
-  type UpgradeSheetController,
-} from "../hooks/use-upgrade-sheet";
-
-export interface UpgradeSheetActions {
-  open: boolean;
-  openUpgradeSheet: (options?: OpenUpgradeSheetOptions) => void;
-}
-
-const UpgradeSheetContext = createContext<UpgradeSheetActions | null>(null);
+import { UpgradeSheetContext } from "../contexts/upgrade-sheet-context";
+import { useUpgradeSheet, type UpgradeSheetController } from "../hooks/use-upgrade-sheet";
+import { UpgradeSheet } from "./account-upgrade-sheet";
 
 export interface AccountUpgradeSheetProviderProps {
   children: ReactNode;
@@ -29,9 +19,11 @@ export function AccountUpgradeSheetProvider({
   waitingTimeoutMs,
 }: AccountUpgradeSheetProviderProps) {
   const sheet = useUpgradeSheet({ waitingTimeoutMs });
+  const { open, openUpgradeSheet } = sheet;
+  const actions = useMemo(() => ({ open, openUpgradeSheet }), [open, openUpgradeSheet]);
 
   return (
-    <UpgradeSheetContext value={{ open: sheet.open, openUpgradeSheet: sheet.openUpgradeSheet }}>
+    <UpgradeSheetContext value={actions}>
       {children}
       <ConnectedUpgradeSheet sheet={sheet} />
     </UpgradeSheetContext>
@@ -57,9 +49,4 @@ export function ConnectedUpgradeSheet({ sheet }: { sheet: UpgradeSheetController
       phase={sheet.phase}
     />
   );
-}
-
-/** Returns the shell-level Upgrade sheet trigger when mounted inside `AccountUpgradeSheetProvider`. */
-export function useOptionalUpgradeSheetActions(): UpgradeSheetActions | null {
-  return useContext(UpgradeSheetContext);
 }

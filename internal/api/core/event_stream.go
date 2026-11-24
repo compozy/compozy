@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -49,6 +50,7 @@ func (h *BaseHandlers) prepareEventStream(c *gin.Context) (FlushWriter, func(), 
 	}
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	c.Request = c.Request.WithContext(ctx)
+	h.closeStreamOnRemotePolicy(ctx, connection)
 	socket := &eventStreamSocket{connection: connection, cancel: cancel}
 	var workers sync.WaitGroup
 	cleanup := func() {
@@ -97,6 +99,15 @@ func (h *BaseHandlers) prepareEventStream(c *gin.Context) (FlushWriter, func(), 
 		}
 	})
 	return socket, cleanup, true
+}
+
+func (h *BaseHandlers) closeStreamOnRemotePolicy(ctx context.Context, connection *websocket.Conn) {
+	remotehost.OnStreamClose(ctx, func(code int, reason string) {
+		if err := connection.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason),
+			time.Now().Add(time.Second)); err != nil && h.Logger != nil {
+			h.Logger.Debug("api: remote policy stream close frame failed", "error", err)
+		}
+	})
 }
 
 func (h *BaseHandlers) closeEventStreamForSignIn(ctx context.Context, connection *websocket.Conn) {

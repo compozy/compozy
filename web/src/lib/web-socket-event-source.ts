@@ -1,4 +1,5 @@
 import { isAccountSignInCloseCode, reportAccountGateSignal } from "./account-gate-signal";
+import { reportHostedBrowserSocketClose } from "./hosted-browser-auth";
 import type { StreamEventSource } from "./ticketed-event-source";
 
 /** One connection attempt; ticketing and reconnect belong to TicketedEventSource. */
@@ -7,7 +8,7 @@ export class WebSocketEventSource extends EventTarget implements StreamEventSour
   onerror: ((event: Event) => void) | null = null;
   onopen: ((event: Event) => void) | null = null;
   readonly url: string;
-  closedForSignIn = false;
+  closedForAccess = false;
 
   private readonly socket: WebSocket;
   private closed = false;
@@ -29,8 +30,10 @@ export class WebSocketEventSource extends EventTarget implements StreamEventSour
     this.socket.onerror = () => this.fail();
     this.socket.onclose = event => {
       if (isAccountSignInCloseCode(event.code)) {
-        this.closedForSignIn = true;
+        this.closedForAccess = true;
         reportAccountGateSignal({ kind: "sign_in_required", code: "sign_in_required" });
+      } else if (reportHostedBrowserSocketClose(event)) {
+        this.closedForAccess = true;
       }
       this.fail();
     };
@@ -73,7 +76,7 @@ export class WebSocketEventSource extends EventTarget implements StreamEventSour
     }
     if (data.length === 0) return;
     if (type === "sign_in_required") {
-      this.closedForSignIn = true;
+      this.closedForAccess = true;
       reportAccountGateSignal({ kind: "sign_in_required", code: "sign_in_required" });
       this.close();
       return;

@@ -13,10 +13,8 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as accountApi from "../../adapters/account-api";
-import {
-  AccountUpgradeSheetProvider,
-  useOptionalUpgradeSheetActions,
-} from "../../contexts/upgrade-sheet-context";
+import { useOptionalUpgradeSheetActions } from "../../hooks/use-optional-upgrade-sheet-actions";
+import { AccountUpgradeSheetProvider } from "../account-upgrade-sheet-provider";
 import * as billingWindow from "../../lib/billing-window";
 import { accountKeys } from "../../lib/query-keys";
 import { accountStatusStoryFixture } from "../../mocks/handlers";

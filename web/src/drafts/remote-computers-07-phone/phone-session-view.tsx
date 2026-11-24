@@ -1,14 +1,5 @@
 import { useState } from "react";
-import {
-  ArrowLeft,
-  Check,
-  RefreshCw,
-  Send,
-  ShieldCheck,
-  Terminal,
-  WifiOff,
-  X,
-} from "@compozy/ui/icons";
+import { ArrowLeft, Check, Send, ShieldCheck, Terminal, X } from "@compozy/ui/icons";
 
 import {
   Button,
@@ -33,6 +24,8 @@ import {
   type PhoneTranscriptEntry,
 } from "@/systems/computers/mocks/remote-computers-fixtures-phone";
 import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
+
+import { PhoneOfflineStrip } from "./phone-panes";
 
 export interface PhoneSessionViewProps {
   session: UnifiedSessionFixture;
@@ -128,22 +121,7 @@ export function PhoneSessionView({
         ) : null}
       </header>
 
-      {offline ? (
-        <div
-          className="flex shrink-0 items-center justify-between gap-2 border-b border-line-soft bg-warning-tint px-3.5 py-2"
-          data-slot="phone-offline-strip"
-          role="status"
-        >
-          <div className="flex min-w-0 items-center gap-2 text-eyebrow text-fg">
-            <WifiOff aria-hidden="true" className="size-3.5 shrink-0 text-warning" />
-            <span className="truncate">{computerName} is offline. Reconnecting…</span>
-          </div>
-          <Button className="shrink-0" onClick={onRetryConnection} size="xs" variant="secondary">
-            <RefreshCw className="size-3" />
-            Retry now
-          </Button>
-        </div>
-      ) : null}
+      {offline && <PhoneOfflineStrip computerName={computerName} onRetry={onRetryConnection} />}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div
@@ -152,73 +130,13 @@ export function PhoneSessionView({
             offline && "opacity-75"
           )}
         >
-          {entries.map(entry => {
-            if (entry.kind === "user") {
-              return (
-                <div className="flex justify-end" key={entry.id}>
-                  <div className="max-w-[86%] rounded-xl bg-chat-fill-user px-3.5 py-2.5 text-small-body leading-relaxed text-fg">
-                    <p>{entry.text}</p>
-                    <span className="mt-1 block text-right font-mono text-micro text-faint">
-                      {entry.timestamp}
-                    </span>
-                  </div>
-                </div>
-              );
-            }
-
-            if (entry.kind === "tool") {
-              return (
-                <ToolCallRow
-                  defaultExpanded
-                  key={entry.id}
-                  preview={entry.preview}
-                  previewVariant="chip"
-                  status={entry.toolStatus ?? "success"}
-                  toolName={entry.toolName ?? "Ran"}
-                >
-                  {entry.toolOutput ? (
-                    <ToolCallRow.Output>
-                      <CodeBlock
-                        code={entry.toolOutput}
-                        copyable={false}
-                        density="compact"
-                        wrapLines
-                      />
-                    </ToolCallRow.Output>
-                  ) : null}
-                </ToolCallRow>
-              );
-            }
-
-            if (entry.kind === "marker") {
-              return (
-                <Marker
-                  icon={<ShieldCheck className="size-3" />}
-                  key={entry.id}
-                  tone={approvalDecision === "pending" ? "warning" : "neutral"}
-                >
-                  <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-                    <span className="shrink-0">{entry.text}</span>
-                    {entry.command ? (
-                      <code
-                        className="inline-block max-w-full truncate whitespace-nowrap font-mono text-transcript-body text-muted-foreground"
-                        title={entry.command}
-                      >
-                        {entry.command}
-                      </code>
-                    ) : null}
-                  </span>
-                </Marker>
-              );
-            }
-
-            return (
-              <div className="flex flex-col gap-1" key={entry.id}>
-                <p className="text-transcript-message leading-relaxed text-fg">{entry.text}</p>
-                <span className="font-mono text-micro text-faint">{entry.timestamp}</span>
-              </div>
-            );
-          })}
+          {entries.map(entry => (
+            <PhoneTranscriptRow
+              approvalPending={approvalDecision === "pending"}
+              entry={entry}
+              key={entry.id}
+            />
+          ))}
 
           {approvalDecision === "allowed" ? (
             <>
@@ -321,6 +239,75 @@ export function PhoneSessionView({
           </Button>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function PhoneTranscriptRow({
+  entry,
+  approvalPending,
+}: {
+  entry: PhoneTranscriptEntry;
+  approvalPending: boolean;
+}) {
+  if (entry.kind === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[86%] rounded-xl bg-chat-fill-user px-3.5 py-2.5 text-small-body leading-relaxed text-fg">
+          <p>{entry.text}</p>
+          <span className="mt-1 block text-right font-mono text-micro text-faint">
+            {entry.timestamp}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (entry.kind === "tool") {
+    return (
+      <ToolCallRow
+        defaultExpanded
+
+        preview={entry.preview}
+        previewVariant="chip"
+        status={entry.toolStatus ?? "success"}
+        toolName={entry.toolName ?? "Ran"}
+      >
+        {entry.toolOutput ? (
+          <ToolCallRow.Output>
+            <CodeBlock code={entry.toolOutput} copyable={false} density="compact" wrapLines />
+          </ToolCallRow.Output>
+        ) : null}
+      </ToolCallRow>
+    );
+  }
+
+  if (entry.kind === "marker") {
+    return (
+      <Marker
+        icon={<ShieldCheck className="size-3" />}
+
+        tone={approvalPending ? "warning" : "neutral"}
+      >
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+          <span className="shrink-0">{entry.text}</span>
+          {entry.command ? (
+            <code
+              className="inline-block max-w-full truncate whitespace-nowrap font-mono text-transcript-body text-muted-foreground"
+              title={entry.command}
+            >
+              {entry.command}
+            </code>
+          ) : null}
+        </span>
+      </Marker>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-transcript-message leading-relaxed text-fg">{entry.text}</p>
+      <span className="font-mono text-micro text-faint">{entry.timestamp}</span>
     </div>
   );
 }

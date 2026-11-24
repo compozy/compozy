@@ -22,6 +22,50 @@ function handleInlineAction(event: MouseEvent<HTMLButtonElement>, callback?: () 
   callback?.();
 }
 
+const STATUS_TONES = {
+  connected: "success",
+  connecting: "faint",
+  offline: "faint",
+  needs_attention: "warning",
+  needs_pro: "brand",
+  incompatible: "warning",
+  disabled: "faint",
+} as const;
+
+function ComputerItemDetails({
+  computer,
+  dimmed,
+  reconnecting,
+}: {
+  computer: ComputerFixture;
+  dimmed: boolean;
+  reconnecting: boolean;
+}) {
+  return (
+    <span className={cn("flex min-w-0 flex-1 flex-col gap-0.5", dimmed && "opacity-70")}>
+      <span className="flex items-center gap-1.5 text-small-body font-medium text-fg">
+        <span className="truncate">{computer.name}</span>
+        {computer.status === "needs_attention" && (
+          <TriangleAlert
+            aria-label={computer.attentionReason?.summary ?? "Needs attention"}
+            className="size-3 shrink-0 text-warning"
+          />
+        )}
+      </span>
+      <span className="flex items-center gap-1.5 truncate text-eyebrow text-subtle">
+        {computer.status === "connecting" || reconnecting ? (
+          <Spinner aria-hidden="true" className="size-3 shrink-0" />
+        ) : (
+          <StatusDot size="sm" tone={STATUS_TONES[computer.status]} />
+        )}
+        <span className="truncate">
+          {reconnecting ? "Reconnecting…" : routeShortLabel(computer)}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 export interface RunOnComputerItemProps {
   computer: ComputerFixture;
   selected: boolean;
@@ -31,6 +75,65 @@ export interface RunOnComputerItemProps {
   onSelect: (computerId: string) => void;
   onReconnect?: (computerId: string) => void;
   onUpgrade?: (computerId: string) => void;
+}
+
+function ComputerItemAction({
+  computer,
+  highlightReconnect,
+  reconnecting,
+  onReconnect,
+  onUpgrade,
+}: Pick<
+  RunOnComputerItemProps,
+  "computer" | "highlightReconnect" | "reconnecting" | "onReconnect" | "onUpgrade"
+>) {
+  if (computer.status === "connected" || computer.status === "needs_attention") {
+    return <ComputerLoadMeter computerName={computer.name} load={computer.load} />;
+  }
+  if (computer.status === "offline" && onReconnect) {
+    return (
+      <Button
+        className={cn(
+          "h-6 px-2 text-badge transition-opacity",
+          highlightReconnect || reconnecting
+            ? "opacity-100"
+            : "opacity-0 group-hover/run-on-item:opacity-100 group-data-[selected=true]/run-on-item:opacity-100 focus-visible:opacity-100"
+        )}
+        disabled={reconnecting}
+        onClick={event => handleInlineAction(event, () => onReconnect(computer.id))}
+        size="xs"
+        type="button"
+        variant="secondary"
+      >
+        {reconnecting ? (
+          <Spinner aria-hidden="true" className="size-3" />
+        ) : (
+          <RefreshCw aria-hidden="true" className="size-3" />
+        )}
+        {reconnecting ? "Reconnecting" : "Reconnect"}
+      </Button>
+    );
+  }
+  if (computer.status !== "needs_pro") return null;
+  return (
+    <span className="pointer-events-auto flex items-center gap-1.5 opacity-100">
+      <Pill form="tint" size="sm" tone="brand">
+        Needs Pro
+      </Pill>
+      {onUpgrade && (
+        <Button
+          className="h-6 px-2 text-badge"
+          onClick={event => handleInlineAction(event, () => onUpgrade(computer.id))}
+          size="xs"
+          type="button"
+          variant="secondary"
+        >
+          <Sparkles aria-hidden="true" className="size-3" />
+          Upgrade
+        </Button>
+      )}
+    </span>
+  );
 }
 
 /** One remote computer row inside `RunOnPicker`: status, load meter, inline Reconnect or Upgrade. */
@@ -44,13 +147,8 @@ export function RunOnComputerItem({
   onReconnect,
   onUpgrade,
 }: RunOnComputerItemProps) {
-  const isOffline = computer.status === "offline";
-  const isNeedsPro = computer.status === "needs_pro";
-  const isIncompatible = computer.status === "incompatible";
-  const isConnecting = computer.status === "connecting";
-  const isAttention = computer.status === "needs_attention";
-  const isBlocked = isNeedsPro || isIncompatible;
-  const showReconnectAlways = isOffline && (highlightReconnect || reconnecting);
+  const isBlocked = computer.status === "needs_pro" || computer.status === "incompatible";
+  const dimmed = isBlocked || computer.status === "offline";
 
   return (
     <CommandItem
@@ -66,98 +164,23 @@ export function RunOnComputerItem({
       value={`${computer.name} ${computer.status} ${computer.routeInUse?.label ?? ""}`}
     >
       <ComputerPlatformIcon
-        className={cn("size-4 shrink-0", (isOffline || isBlocked) && "opacity-60")}
+        className={cn("size-4 shrink-0", dimmed && "opacity-60")}
         iconKind={computer.iconKind}
         platform={computer.platform}
         size="sm"
         tone="muted"
       />
 
-      <span
-        className={cn(
-          "flex min-w-0 flex-1 flex-col gap-0.5",
-          (isOffline || isBlocked) && "opacity-70"
-        )}
-      >
-        <span className="flex items-center gap-1.5 text-small-body font-medium text-fg">
-          <span className="truncate">{computer.name}</span>
-          {isAttention ? (
-            <TriangleAlert
-              aria-label={computer.attentionReason?.summary ?? "Needs attention"}
-              className="size-3 shrink-0 text-warning"
-            />
-          ) : null}
-        </span>
-        <span className="flex items-center gap-1.5 truncate text-eyebrow text-subtle">
-          {isConnecting || reconnecting ? (
-            <Spinner aria-hidden="true" className="size-3 shrink-0" />
-          ) : (
-            <StatusDot
-              size="sm"
-              tone={
-                computer.status === "connected"
-                  ? "success"
-                  : isAttention || isIncompatible
-                    ? "warning"
-                    : isNeedsPro
-                      ? "brand"
-                      : "faint"
-              }
-            />
-          )}
-          <span className="truncate">
-            {reconnecting ? "Reconnecting…" : routeShortLabel(computer)}
-          </span>
-        </span>
-      </span>
+      <ComputerItemDetails computer={computer} dimmed={dimmed} reconnecting={reconnecting} />
 
       <span className="flex shrink-0 items-center gap-1.5">
-        {computer.status === "connected" || isAttention ? (
-          <ComputerLoadMeter computerName={computer.name} load={computer.load} />
-        ) : null}
-
-        {isOffline && onReconnect ? (
-          <Button
-            className={cn(
-              "h-6 px-2 text-badge transition-opacity",
-              showReconnectAlways
-                ? "opacity-100"
-                : "opacity-0 group-hover/run-on-item:opacity-100 group-data-[selected=true]/run-on-item:opacity-100 focus-visible:opacity-100"
-            )}
-            disabled={reconnecting}
-            onClick={event => handleInlineAction(event, () => onReconnect(computer.id))}
-            size="xs"
-            type="button"
-            variant="secondary"
-          >
-            {reconnecting ? (
-              <Spinner aria-hidden="true" className="size-3" />
-            ) : (
-              <RefreshCw aria-hidden="true" className="size-3" />
-            )}
-            {reconnecting ? "Reconnecting" : "Reconnect"}
-          </Button>
-        ) : null}
-
-        {isNeedsPro ? (
-          <span className="pointer-events-auto flex items-center gap-1.5 opacity-100">
-            <Pill form="tint" size="sm" tone="brand">
-              Needs Pro
-            </Pill>
-            {onUpgrade ? (
-              <Button
-                className="h-6 px-2 text-badge"
-                onClick={event => handleInlineAction(event, () => onUpgrade(computer.id))}
-                size="xs"
-                type="button"
-                variant="secondary"
-              >
-                <Sparkles aria-hidden="true" className="size-3" />
-                Upgrade
-              </Button>
-            ) : null}
-          </span>
-        ) : null}
+        <ComputerItemAction
+          computer={computer}
+          highlightReconnect={highlightReconnect}
+          onReconnect={onReconnect}
+          onUpgrade={onUpgrade}
+          reconnecting={reconnecting}
+        />
       </span>
     </CommandItem>
   );

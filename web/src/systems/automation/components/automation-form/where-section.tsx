@@ -1,16 +1,9 @@
-import { useEffect } from "react";
-
 import { Alert, AlertDescription, Field, FieldDescription, FieldLabel } from "@compozy/ui";
 import { WifiOff } from "@compozy/ui/icons";
 
 import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import { useOptionalUpgradeSheetActions } from "@/systems/account";
-import {
-  findComputerById,
-  resolveEffectiveRunOnTarget,
-  RunOnPicker,
-  useComputers,
-} from "@/systems/computers";
+import { findComputerById, RunOnPicker, useComputers } from "@/systems/computers";
 
 import { AutomationFormSection } from "./automation-form-section";
 
@@ -38,27 +31,7 @@ export function WhereSection({
 }: WhereSectionProps) {
   const computers = useComputers();
   const upgradeSheet = useOptionalUpgradeSheetActions();
-  const scopedComputerId = normalizeComputerId(computerId);
-  const effectiveComputerId =
-    mode === "create"
-      ? resolveEffectiveRunOnTarget({
-          requested: scopedComputerId,
-          local: computers.localView,
-          computers: computers.computerViews,
-          loadBalancingEnabled: false,
-          allowAuto: false,
-        })
-      : scopedComputerId;
-
-  useEffect(() => {
-    if (
-      mode === "create" &&
-      effectiveComputerId !== "auto" &&
-      effectiveComputerId !== scopedComputerId
-    ) {
-      onComputerChange(effectiveComputerId);
-    }
-  }, [effectiveComputerId, mode, onComputerChange, scopedComputerId]);
+  const effectiveComputerId = normalizeComputerId(computerId);
 
   const hasRemote = computers.computerViews.some(computer => computer.enabled);
   const show = hasRemote || !computers.localView.localRunAgents;

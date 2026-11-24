@@ -1,15 +1,8 @@
-import {
-  CloudOff,
-  ExternalLink,
-  Info,
-  KeyRound,
-  RefreshCw,
-  ShieldCheck,
-  Sparkles,
-  TriangleAlert,
-} from "@compozy/ui/icons";
+import { ExternalLink, KeyRound, ShieldCheck, Sparkles, TriangleAlert } from "@compozy/ui/icons";
 
-import { Alert, AlertDescription, AlertTitle, Button, Pill } from "@compozy/ui";
+import { Button, Pill } from "@compozy/ui";
+
+export { AccountBanners } from "@/systems/account/components/account-profile-section";
 
 import { PlanUsageMeter } from "@/systems/account/components/plan-usage-meter";
 import type {
@@ -35,67 +28,6 @@ function formatDateLabel(iso: string | null): string | null {
 function providerLabel(provider: AccountProvider | null): string {
   if (provider === "github") return "Signed in with GitHub";
   return "Signed in with Google";
-}
-
-export interface AccountBannersProps {
-  account: AccountStateFixture;
-  onRetryCloud: () => void;
-  onManageBilling: () => void;
-}
-
-/**
- * Top-of-page notices for Settings → Account (one message, one place):
- * - Cloud unreachable: single warning + Try again
- * - Payment failed (`past_due`): single destructive alert + Manage billing
- * - Downgraded grace window: single info alert (Upgrade lives once in the Plan header)
- */
-export function AccountBanners({ account, onRetryCloud, onManageBilling }: AccountBannersProps) {
-  return (
-    <>
-      {account.cloudUnreachable ? (
-        <Alert className="gap-y-1 py-2.5" variant="warning">
-          <CloudOff aria-hidden="true" />
-          <AlertTitle className="flex flex-wrap items-center justify-between gap-2">
-            <span>Can&apos;t reach Compozy Cloud.</span>
-            <Button onClick={onRetryCloud} size="xs" type="button" variant="secondary">
-              <RefreshCw aria-hidden="true" />
-              Try again
-            </Button>
-          </AlertTitle>
-          <AlertDescription>
-            Local work is unaffected. Cached account details stay visible until Compozy Cloud
-            answers again.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {account.signedIn && account.paymentIssue ? (
-        <Alert className="gap-y-1 py-2.5" variant="destructive">
-          <TriangleAlert aria-hidden="true" />
-          <AlertTitle className="flex flex-wrap items-center justify-between gap-2">
-            <span>Payment failed. Update your card.</span>
-            <Button onClick={onManageBilling} size="xs" type="button" variant="secondary">
-              <ExternalLink aria-hidden="true" />
-              Manage billing
-            </Button>
-          </AlertTitle>
-          <AlertDescription>Pro stays active while Stripe retries your payment.</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {account.signedIn && account.hostedRouteGraceDaysLeft !== null ? (
-        <Alert className="gap-y-1 py-2.5" variant="info">
-          <Info aria-hidden="true" />
-          <AlertTitle>Pro ended. 1 computer stays active.</AlertTitle>
-          <AlertDescription>
-            Your most recently used computer stays connected over LAN and SSH. Hosted route
-            addresses stay reserved for {account.hostedRouteGraceDaysLeft} more days so you can
-            re-subscribe without re-adding computers.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-    </>
-  );
 }
 
 export function AccountIdentitySection({

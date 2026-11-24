@@ -44,50 +44,24 @@ export function KeyFingerprint({
   const { prefix, chunks } = splitFingerprint(value);
 
   if (layout === "grid") {
-    const resolvedColumns: 3 | 4 =
-      columns ?? (chunks.length % 3 === 0 && chunks.length % 4 !== 0 ? 3 : 4);
     return (
-      <div
-        className={cn(
-          "flex flex-col gap-2 rounded-md border border-line bg-code-bg px-3 py-2.5",
-          className
-        )}
-        data-columns={resolvedColumns}
-        data-layout="grid"
-        data-slot="key-fingerprint"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <span className="eyebrow text-subtle">
-            {label ?? (prefix ? `${prefix} fingerprint` : "Key fingerprint")}
-          </span>
-          {copyable ? (
-            <CopyIconButton
-              copiedLabel="Fingerprint copied"
-              copiedToastLabel="Fingerprint copied"
-              copyLabel="Copy key fingerprint"
-              value={value}
-            />
-          ) : null}
-        </div>
-        <div
-          className={cn(
-            "grid gap-x-3 gap-y-1 font-mono text-small-body tracking-wide text-fg tabular-nums select-all",
-            resolvedColumns === 3 ? "grid-cols-3" : "grid-cols-4"
-          )}
-          title={value}
-        >
-          {chunks.map((chunk, idx) => (
-            <span key={`${idx}-${chunk}`}>{chunk}</span>
-          ))}
-        </div>
-      </div>
+      <FingerprintGrid
+        value={value}
+        label={label}
+        columns={columns}
+        copyable={copyable}
+        className={className}
+        prefix={prefix}
+        chunks={chunks}
+      />
     );
   }
 
+  const algorithm = prefix ? prefix + ":" : "";
   const compactDisplay =
     chunks.length > 4
-      ? `${prefix ? `${prefix}:` : ""}${chunks[0]} ${chunks[1]} … ${chunks[chunks.length - 1]}`
-      : `${prefix ? `${prefix}:` : ""}${chunks.join(" ")}`;
+      ? `${algorithm}${chunks[0]} ${chunks[1]} … ${chunks[chunks.length - 1]}`
+      : `${algorithm}${chunks.join(" ")}`;
 
   return (
     <span
@@ -111,5 +85,54 @@ export function KeyFingerprint({
         />
       ) : null}
     </span>
+  );
+}
+
+function FingerprintGrid({
+  value,
+  label,
+  columns,
+  copyable,
+  className,
+  prefix,
+  chunks,
+}: Omit<KeyFingerprintProps, "layout"> & { prefix: string | null; chunks: string[] }) {
+  const resolvedColumns: 3 | 4 =
+    columns ?? (chunks.length % 3 === 0 && chunks.length % 4 !== 0 ? 3 : 4);
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-2 rounded-md border border-line bg-code-bg px-3 py-2.5",
+        className
+      )}
+      data-columns={resolvedColumns}
+      data-layout="grid"
+      data-slot="key-fingerprint"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="eyebrow text-subtle">
+          {label ?? (prefix ? `${prefix} fingerprint` : "Key fingerprint")}
+        </span>
+        {copyable ? (
+          <CopyIconButton
+            copiedLabel="Fingerprint copied"
+            copiedToastLabel="Fingerprint copied"
+            copyLabel="Copy key fingerprint"
+            value={value}
+          />
+        ) : null}
+      </div>
+      <div
+        className={cn(
+          "grid gap-x-3 gap-y-1 font-mono text-small-body tracking-wide text-fg tabular-nums select-all",
+          resolvedColumns === 3 ? "grid-cols-3" : "grid-cols-4"
+        )}
+        title={value}
+      >
+        {chunks.map((chunk, idx) => (
+          <span key={`${idx}-${chunk}`}>{chunk}</span>
+        ))}
+      </div>
+    </div>
   );
 }

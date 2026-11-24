@@ -1,4 +1,4 @@
-import { Bell } from "@compozy/ui/icons";
+import { Bell, RefreshCw, WifiOff } from "@compozy/ui/icons";
 
 import { Button, cn, CodeBlock, Empty, Pill, StateGlyph, Surface, toast } from "@compozy/ui";
 
@@ -244,6 +244,31 @@ export function PhoneApprovalsPane({
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+export function PhoneOfflineStrip({
+  computerName,
+  onRetry,
+}: {
+  computerName: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div
+      className="flex shrink-0 items-center justify-between gap-2 border-b border-line-soft bg-warning-tint px-3.5 py-2"
+      data-slot="phone-offline-strip"
+      role="status"
+    >
+      <div className="flex min-w-0 items-center gap-2 text-eyebrow text-fg">
+        <WifiOff aria-hidden="true" className="size-3.5 shrink-0 text-warning" />
+        <span className="truncate">{computerName} is offline. Reconnecting…</span>
+      </div>
+      <Button className="shrink-0" onClick={onRetry} size="xs" variant="secondary">
+        <RefreshCw className="size-3" />
+        Retry now
+      </Button>
     </div>
   );
 }
