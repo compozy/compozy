@@ -359,7 +359,7 @@ func newSetupFixture(t *testing.T, pin bool) setupFixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
+		if err := db.Close(context.Background()); err != nil {
 			t.Error(err)
 		}
 	})

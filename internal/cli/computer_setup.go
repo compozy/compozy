@@ -167,9 +167,9 @@ func computerSetupStep(step string) string {
 	case sshsetup.StepConnect, sshsetup.StepForward:
 		return "Connecting"
 	case sshsetup.StepInstall:
-		return "Installing Compozy"
+		return "Installing CompozyOS"
 	case sshsetup.StepService:
-		return "Starting Compozy service"
+		return "Starting CompozyOS service"
 	case sshsetup.StepLink:
 		return "Linking to your account"
 	default:

@@ -42,11 +42,11 @@ func serviceVerb(
 				case result.Warning == service.NoManager:
 					return "This computer has no supported user service manager.", nil
 				case result.Running:
-					return fmt.Sprintf("Compozy service is running (%s).", result.Manager), nil
+					return fmt.Sprintf("CompozyOS service is running (%s).", result.Manager), nil
 				case result.Installed:
-					return "Compozy service is installed and stopped.", nil
+					return "CompozyOS service is installed and stopped.", nil
 				default:
-					return "Compozy service is not installed.", nil
+					return "CompozyOS service is not installed.", nil
 				}
 			}})
 		}}
