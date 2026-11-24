@@ -26,7 +26,7 @@ Run `compozy computer add ssh <host> --json` to start a setup and get its ID. An
 
 Inspect `compozy computer setup status <setup_id> --json` or long-poll `GET /api/computers/setups/{setup_id}?wait_ms=30000`. A `trust_host` prompt contains only the host and its fingerprint. For `needs_operator_secret`, direct the operator to the app or `compozy computer setup answer <setup_id>` from a TTY. The operator's password or code goes directly to SSH.
 
-Use `compozy__computer_setup_cancel` with `setup_id`, the CLI `compozy computer setup cancel <setup_id>`, or the matching local DELETE route to release the slot. The tool requires approval in `approve-edits` and `auto` because cancellation ends the setup permanently. `computer_setup_linked` means the host already has a link. Manage it through the computer registry. Repeat the add command to resume an interrupted setup. Use `compozy computer update <name|id>` for a managed SSH upgrade.
+Use `compozy__computer_setup_cancel` with `setup_id` on the controller where setup started. The CLI `compozy computer setup cancel <setup_id>` and the local DELETE route also release the slot. The tool requires approval in `approve-edits` and `auto` because cancellation ends the setup permanently. `computer_setup_linked` means the host already has a link. Manage it through the computer registry. Repeat the add command to resume an interrupted setup. Use `compozy computer update <name|id>` for a managed SSH upgrade.
 
 ## Local account
 

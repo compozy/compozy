@@ -22085,7 +22085,6 @@ export interface components {
       output_views?: components["schemas"]["ResultViews"] | null;
       preview?: string;
       read_only: boolean;
-      remote_scope?: string;
       requires_interaction: boolean;
       /** @enum {string} */
       risk: "read" | "mutating" | "open_world" | "destructive";

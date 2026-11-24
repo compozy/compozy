@@ -7,13 +7,16 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/service"
 )
+
+const serviceInstallVerb = "install"
 
 func newServiceCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{Use: "service", Short: "Manage the persistent user daemon"}
 	cmd.AddCommand(
-		serviceVerb(deps, "install", "Install and start the user service", (*service.Manager).Install),
+		serviceVerb(deps, serviceInstallVerb, "Install and start the user service", (*service.Manager).Install),
 		serviceVerb(deps, "uninstall", "Stop and remove the user service", (*service.Manager).Uninstall),
 		serviceVerb(deps, "status", "Show user service status", (*service.Manager).Status),
 	)
@@ -37,6 +40,12 @@ func serviceVerb(
 			if err != nil {
 				return err
 			}
+			if name == serviceInstallVerb && result.Installed {
+				if err := waitForServiceDaemon(cmd.Context(), deps, paths); err != nil {
+					return err
+				}
+				result.Running = true
+			}
 			return writeCommandOutput(cmd, outputBundle{jsonValue: result, human: func() (string, error) {
 				switch {
 				case result.Warning == service.NoManager:
@@ -50,4 +59,22 @@ func serviceVerb(
 				}
 			}})
 		}}
+}
+
+func waitForServiceDaemon(ctx context.Context, deps commandDeps, paths config.HomePaths) error {
+	target, err := resolveLocalClientTarget(deps, paths)
+	if err != nil {
+		return err
+	}
+	client, err := deps.newClient(target)
+	if err != nil {
+		return err
+	}
+	_, err = pollUntil(ctx, deps.startTimeout, deps.pollInterval, nil,
+		"cli: user service daemon did not become ready before timeout",
+		func(ctx context.Context, _ pollEvent) (DaemonStatus, bool, error) {
+			status, err := client.DaemonStatus(ctx)
+			return status, err == nil && status.PID > 0 && status.Status == daemonRunningStatus, nil
+		})
+	return err
 }

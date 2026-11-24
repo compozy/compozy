@@ -116,6 +116,9 @@ func startSSHFixtureHost(
 	t.Cleanup(func() {
 		if t.Failed() {
 			t.Logf("sshd log from %s:\n%s", name, host.readLog())
+			t.Logf("user service log from %s:\n%s", name, host.readCommandOutput(
+				"journalctl", "--no-pager", "-n", "80", "_SYSTEMD_USER_UNIT=compozy.service",
+			))
 		}
 		cleanDocker(t, "rm", "-f", name)
 	})
@@ -209,9 +212,13 @@ func (h sshFixtureHost) tryCommand(t *testing.T, args ...string) ([]byte, error)
 }
 
 func (h sshFixtureHost) readLog() string {
+	return h.readCommandOutput("cat", sshFixtureLog)
+}
+
+func (h sshFixtureHost) readCommandOutput(args ...string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	out, _ := exec.CommandContext(ctx, "docker", "exec", h.container, "cat", sshFixtureLog).Output()
+	out, _ := exec.CommandContext(ctx, "docker", append([]string{"exec", h.container}, args...)...).Output()
 	return string(out)
 }
 

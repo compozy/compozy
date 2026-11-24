@@ -46045,9 +46045,6 @@
           "read_only": {
             "type": "boolean"
           },
-          "remote_scope": {
-            "type": "string"
-          },
           "requires_interaction": {
             "type": "boolean"
           },

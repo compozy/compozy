@@ -33,7 +33,6 @@ type ToolDescriptorPayload struct {
 	RequiresInteraction bool                  `json:"requires_interaction"`
 	ConcurrencySafe     bool                  `json:"concurrency_safe"`
 	MaxResultBytes      int64                 `json:"max_result_bytes,omitzero"`
-	RemoteScope         string                `json:"remote_scope,omitempty"`
 	Toolsets            []tools.ToolsetID     `json:"toolsets,omitempty"`
 	Tags                []string              `json:"tags,omitempty"`
 	SearchHints         []string              `json:"search_hints,omitempty"`

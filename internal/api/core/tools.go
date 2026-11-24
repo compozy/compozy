@@ -314,7 +314,6 @@ func toolDescriptorPayload(d *toolspkg.Descriptor) contract.ToolDescriptorPayloa
 		RequiresInteraction: d.RequiresInteraction,
 		ConcurrencySafe:     d.ConcurrencySafe,
 		MaxResultBytes:      d.ExecutionMetadata().MaxResultBytes,
-		RemoteScope:         string(d.ExecutionMetadata().RemoteScope),
 		Toolsets:            append([]toolspkg.ToolsetID(nil), d.Toolsets...),
 		Tags:                append([]string(nil), d.Tags...),
 		SearchHints:         append([]string(nil), d.SearchHints...),

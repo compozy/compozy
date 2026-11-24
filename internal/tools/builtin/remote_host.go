@@ -1,9 +1,6 @@
 package builtin
 
-import (
-	"github.com/compozy/compozy/internal/remoteproto"
-	toolspkg "github.com/compozy/compozy/internal/tools"
-)
+import toolspkg "github.com/compozy/compozy/internal/tools"
 
 var singleResultRemoteHost = map[toolspkg.ToolID]SingleResultReason{
 	toolspkg.ToolIDRemoteStatus:        SingleResultMinimal,
@@ -32,7 +29,6 @@ func remoteHostDescriptors() []toolspkg.Descriptor {
 		[]string{"ssh", "computer", "setup"},
 		[]string{"cancel ssh computer setup", "release free computer slot"},
 	)
-	cancel.ToolExecutionMetadata = &toolspkg.ToolExecutionMetadata{RemoteScope: remoteproto.ScopeAdmin}
 	cancel.OutputSchema = []byte(`{"type":"object","additionalProperties":false,"required":["setup_id","state"],
 		"properties":{"setup_id":{"type":"string"},"state":{"const":"cancelled"}}}`) //nolint:misspell // Public state.
 	return []toolspkg.Descriptor{descriptor, cancel}

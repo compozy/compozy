@@ -12985,7 +12985,6 @@ export type ToolDescriptorPayload = {
   output_views?: ResultViews | null;
   preview?: string;
   read_only: boolean;
-  remote_scope?: string;
   requires_interaction: boolean;
   risk: "read" | "mutating" | "open_world" | "destructive";
   search_hints?: Array<string>;

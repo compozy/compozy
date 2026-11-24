@@ -62,6 +62,7 @@ var nativeEntries = map[string]Entry{
 	"compozy__cmd_palette_invoke":    nativeEntry("Running", " ", false, "💬", "auto"),
 	"compozy__cmd_palette_list":      nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__command_list":          nativeEntry("Reading", " ", false, "💬", "auto"),
+	"compozy__computer_setup_cancel": nativeEntry("Canceling", " ", false, "🖥️", "auto"),
 	"compozy__config_diff":           nativeEntry("Reading", " ", false, "⚙️", "auto"),
 	"compozy__config_get":            nativeEntry("Reading", " ", false, "⚙️", "auto"),
 	"compozy__config_list":           nativeEntry("Reading", " ", false, "⚙️", "auto"),
