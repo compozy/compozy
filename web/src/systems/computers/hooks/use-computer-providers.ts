@@ -1,9 +1,8 @@
-import { use, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { toast } from "@compozy/ui";
 
 import { remoteRejectionMessage } from "@/lib/remote-error-copy";
-import { OsShellContext } from "@/systems/os";
 import { useProfileReadScopeParams } from "@/systems/profiles";
 import { useProviders } from "@/systems/providers";
 import {
@@ -15,6 +14,19 @@ import { itemBindingSearch, USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 import { providerLoginCommand, toComputerProviderAuthView } from "../lib/provider-view";
 import type { ComputerFixture, ComputerProviderAuthFixture } from "../mocks/remote-computers-types";
+
+export interface RemoteTerminalWindowSpec {
+  app: "terminal";
+  instanceKey: string;
+  route: {
+    pathname: string;
+    search: Record<string, string>;
+  };
+}
+
+export interface UseComputerProvidersOptions {
+  openTerminalWindow?: (spec: RemoteTerminalWindowSpec) => Promise<unknown> | void;
+}
 
 export interface ComputerProvidersController {
   providers: readonly ComputerProviderAuthFixture[];
@@ -30,9 +42,10 @@ export interface ComputerProvidersController {
  * `_user_stories.md` US-013) plus the `Sign in on <name>` remote terminal launcher.
  */
 export function useComputerProviders(
-  computer: ComputerFixture | null
+  computer: ComputerFixture | null,
+  options: UseComputerProvidersOptions = {}
 ): ComputerProvidersController {
-  const shell = use(OsShellContext);
+  const { openTerminalWindow } = options;
   const profileScope = useProfileReadScopeParams();
   const profile =
     "profile" in profileScope && profileScope.profile ? profileScope.profile : "default";
@@ -64,7 +77,7 @@ export function useComputerProviders(
           computer.id
         );
         holdPendingTerminalCommand(computer.id, terminal.id, command);
-        await shell?.coordinator.userOpen({
+        await openTerminalWindow?.({
           app: "terminal",
           instanceKey: terminal.id,
           route: {
@@ -87,7 +100,7 @@ export function useComputerProviders(
         setSigningInProviderId(null);
       }
     },
-    [computer, profile, shell]
+    [computer, openTerminalWindow, profile]
   );
 
   return {

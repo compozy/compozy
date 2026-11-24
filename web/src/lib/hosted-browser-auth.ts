@@ -74,7 +74,7 @@ function currentLocation(): {
 }
 
 /**
- * True when the current origin is a Compozy hosted computer address
+ * True when the current origin is a CompozyOS hosted computer address
  * (`*.compozy.run`) or is landing on the hosted browser callback path.
  */
 export function isHostedOriginCandidate(

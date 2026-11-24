@@ -279,7 +279,8 @@ func (p billingPages) success(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, overview.HostedURL, http.StatusSeeOther)
 		return
 	}
-	page.Title, page.Success, page.Email = "You're on Pro. Open CompozyOS to use your computers.", err == nil, session.Email
+	page.Title = "You're on Pro. Open CompozyOS to use your computers."
+	page.Success, page.Email = err == nil, session.Email
 	if err == nil {
 		page.Overview = overview
 	}

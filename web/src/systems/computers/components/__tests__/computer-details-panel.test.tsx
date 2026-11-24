@@ -175,7 +175,9 @@ describe("ComputerDetailsPanel", () => {
     const devbox = { ...DETAILS_DEVBOX, id: DEVBOX_ID, name: "devbox", providers: [] };
 
     function LiveProvidersHarness() {
-      const live = useComputerProviders(devbox);
+      const live = useComputerProviders(devbox, {
+        openTerminalWindow: spec => shell.coordinator.userOpen(spec),
+      });
       return (
         <ComputerDetailsPanel
           computer={{ ...devbox, providers: live.providers }}

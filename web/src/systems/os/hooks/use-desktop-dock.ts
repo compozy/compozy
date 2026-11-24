@@ -101,20 +101,20 @@ export function useDesktopDock(
   );
   // The rail keeps catalog order without group seams (shell-rail v2).
   // Hosted browser sessions without `terminal:operate` omit the Terminal item.
-  const entries: OsDockItemData[] = dockStripDescriptors()
-    .filter(app => app.id !== "terminal" || hosted === null || hosted.canOperateTerminal)
-    .map(app => {
-      const state = windowStates[app.id];
-      return {
-        id: app.id,
-        name: app.id === sessionApp.id ? "Sessions" : app.title,
-        icon: dockIconForApp(app),
-        running:
-          app.id === "terminal" ? terminalLive === true : state === "open" || state === "focused",
-        active: state === "focused" && (app.id !== "terminal" || terminalLive === true),
-        badge: dockBadgeFor(app, badges),
-      };
+  const entries: OsDockItemData[] = [];
+  for (const app of dockStripDescriptors()) {
+    if (app.id === "terminal" && hosted !== null && !hosted.canOperateTerminal) continue;
+    const state = windowStates[app.id];
+    entries.push({
+      id: app.id,
+      name: app.id === sessionApp.id ? "Sessions" : app.title,
+      icon: dockIconForApp(app),
+      running:
+        app.id === "terminal" ? terminalLive === true : state === "open" || state === "focused",
+      active: state === "focused" && (app.id !== "terminal" || terminalLive === true),
+      badge: dockBadgeFor(app, badges),
     });
+  }
 
   // Sessions launches its picker window: the latest session already has its
   // one home (plain click jumps there), so a new placement starts from the list.

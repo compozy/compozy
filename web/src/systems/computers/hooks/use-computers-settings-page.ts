@@ -39,7 +39,7 @@ import type {
   RemoteScope,
 } from "../mocks/remote-computers-types";
 import type { ComputerSetupStatusPayload } from "../types";
-import { useComputerProviders } from "./use-computer-providers";
+import { useComputerProviders, type UseComputerProvidersOptions } from "./use-computer-providers";
 import { useComputers } from "./use-computers";
 import { useLiveAddComputer } from "./use-live-add-computer";
 import { useLocalComputerSettings } from "./use-local-computer-settings";
@@ -69,7 +69,7 @@ const FALLBACK_ACCOUNT: AccountStateFixture = {
   hostedRouteGraceDaysLeft: null,
 };
 
-export function useComputersSettingsPage() {
+export function useComputersSettingsPage(options: UseComputerProvidersOptions = {}) {
   const queryClient = useQueryClient();
 
   const accountQuery = useQuery(accountStatusOptions());
@@ -155,7 +155,7 @@ export function useComputersSettingsPage() {
     () => computers.find(item => item.id === selectedComputerId) ?? null,
     [computers, selectedComputerId]
   );
-  const selectedProviders = useComputerProviders(selectedComputerBase);
+  const selectedProviders = useComputerProviders(selectedComputerBase, options);
   const selectedComputer = useMemo<ComputerFixture | null>(
     () =>
       selectedComputerBase

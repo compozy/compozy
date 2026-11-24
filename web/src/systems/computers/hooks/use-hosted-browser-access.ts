@@ -33,7 +33,6 @@ import {
   toHostedPeerViews,
 } from "../lib/hosted-browser-view";
 import type { HostedPeerFixture } from "../mocks/remote-computers-types";
-import type { BrowserSignInGateKind } from "../components/browser-sign-in-gate";
 
 export type { HostedBrowserGateState } from "../lib/hosted-browser-bootstrap";
 
@@ -335,25 +334,24 @@ export function useHostedBrowserAccess({
   };
 
   const primaryGateAction = () => {
-    const kind: BrowserSignInGateKind | "checking" | "ready" = state.kind;
-    if (kind === "needs_pro") {
+    if (state.kind === "needs_pro") {
       openExternal(buildUpgradeProUrl(hostname));
       return;
     }
-    if (kind === "approval_expired" || kind === "not_approved") {
+    if (state.kind === "approval_expired" || state.kind === "not_approved") {
       clearPendingApproval();
       redirectingRef.current = false;
       beginAuthorize({ provider: state.provider, replaceKey: false });
       return;
     }
-    if (kind === "device_removed") {
+    if (state.kind === "device_removed") {
       clearPendingApproval();
       clearHostedSessionMeta();
       redirectingRef.current = false;
       setState({ kind: "sign_in" });
       return;
     }
-    if (kind === "another_account") {
+    if (state.kind === "another_account") {
       handleSignOut();
       return;
     }

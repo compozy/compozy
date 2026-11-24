@@ -162,6 +162,7 @@ export async function acquireHostedStreamTicket(
   const path = new URL(targetUrl, baseOrigin).pathname;
 
   const { data, error, response } = await apiClient.POST("/remote/v1/stream-tickets", {
+    params: { header: { DPoP: "" } },
     body: { path },
     signal,
   });

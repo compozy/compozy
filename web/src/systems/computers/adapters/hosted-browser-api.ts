@@ -55,6 +55,7 @@ export async function startHostedBrowserSession(
   signal?: AbortSignal
 ): Promise<BrowserSessionResponsePayload> {
   const { data, error, response } = await apiClient.POST("/remote/v1/browser/session", {
+    params: { header: { DPoP: "" } },
     body,
     signal,
   });
@@ -66,7 +67,10 @@ export async function startHostedBrowserSession(
 
 /** Ends the current browser session without revoking the device (`DELETE /remote/v1/browser/session`). */
 export async function endHostedBrowserSession(signal?: AbortSignal): Promise<void> {
-  const { error, response } = await apiClient.DELETE("/remote/v1/browser/session", { signal });
+  const { error, response } = await apiClient.DELETE("/remote/v1/browser/session", {
+    params: { header: { DPoP: "" } },
+    signal,
+  });
   if (apiRequestFailed(response, error)) {
     throwHostedBrowserError("Failed to sign out browser session", response, error);
   }
@@ -78,7 +82,7 @@ export async function fetchHostedBrowserApproval(
   signal?: AbortSignal
 ): Promise<BrowserApprovalStatusPayload> {
   const { data, error, response } = await apiClient.GET("/remote/v1/browser/approvals/{id}", {
-    params: { path: { id: approvalId } },
+    params: { path: { id: approvalId }, header: { DPoP: "" } },
     signal,
   });
   if (apiRequestFailed(response, error)) {
@@ -91,7 +95,10 @@ export async function fetchHostedBrowserApproval(
 export async function fetchHostedBrowserPeers(
   signal?: AbortSignal
 ): Promise<BrowserPeersResponsePayload> {
-  const { data, error, response } = await apiClient.GET("/remote/v1/browser/peers", { signal });
+  const { data, error, response } = await apiClient.GET("/remote/v1/browser/peers", {
+    params: { header: { DPoP: "" } },
+    signal,
+  });
   if (apiRequestFailed(response, error)) {
     throwHostedBrowserError("Failed to list hosted computers", response, error);
   }

@@ -310,6 +310,7 @@ export interface HostedPeerFixture {
   platform: ComputerPlatform;
   iconKind: ComputerIconKind;
   hostname: string;
+  hostedUrl?: string;
   online: boolean;
   current?: boolean;
 }
