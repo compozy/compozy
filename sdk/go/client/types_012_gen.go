@@ -7,6 +7,48 @@ import (
 	"time"
 )
 
+// LoopEffectiveConfig is a daemon API value.
+type LoopEffectiveConfig struct {
+	HumanGateEnabled   bool                  `json:"human_gate_enabled"`
+	ReattemptStrategy  LoopReattemptStrategy `json:"reattempt_strategy"`
+	EnabledChecks      json.RawMessage       `json:"enabled_checks_json"`
+	IterationCap       int                   `json:"iteration_cap"`
+	BudgetTokens       int                   `json:"budget_tokens"`
+	BudgetWallSec      int                   `json:"budget_wall_sec"`
+	BudgetOnExceeded   LoopBudgetExceeded    `json:"budget_on_exceeded"`
+	NoProgressWindow   int                   `json:"no_progress_window"`
+	FanOutWidth        int                   `json:"fan_out_width"`
+	GateMaxRevisions   int                   `json:"gate_max_revisions"`
+	RuntimeDefaults    LoopRuntimeDefaults   `json:"runtime_defaults"`
+	RuntimeRules       []LoopRuntimeRule     `json:"runtime_rules"`
+	RunRuntimeRules    []LoopRuntimeRule     `json:"run_runtime_rules,omitempty"`
+	Environment        LoopEnvironment       `json:"environment"`
+	RequestExpireAfter string                `json:"request_expire_after"`
+	Sources            map[string]string     `json:"sources,omitempty"`
+}
+
+// LoopEmitSpec is a daemon API value.
+type LoopEmitSpec struct {
+	Kind    string         `json:"kind"`
+	Payload map[string]any `json:"payload,omitempty"`
+}
+
+// LoopEnvironment is a daemon API value.
+type LoopEnvironment struct {
+	Mode        LoopEnvironmentMode `json:"mode"`
+	WorktreeRef string              `json:"worktree_ref,omitempty"`
+	Directory   string              `json:"directory,omitempty"`
+}
+
+// LoopEnvironmentMode is a daemon API value.
+type LoopEnvironmentMode string
+
+// LoopForkRef is a daemon API value.
+type LoopForkRef struct {
+	RunID      string `json:"run_id"`
+	Generation int64  `json:"generation"`
+}
+
 // LoopGateBlockingIssuePayload is a daemon API value.
 type LoopGateBlockingIssuePayload struct {
 	ID   string `json:"id"`
@@ -402,46 +444,4 @@ type LoopReattemptStrategy string
 // LoopRequestAggregates is a daemon API value.
 type LoopRequestAggregates struct {
 	Pending int `json:"pending"`
-}
-
-// LoopRequestPayload is a daemon API value.
-type LoopRequestPayload struct {
-	WorkspaceID      string          `json:"workspace_id,omitempty"`
-	ProfileID        string          `json:"profile_id"`
-	LoopRunID        string          `json:"loop_run_id"`
-	LoopName         string          `json:"loop_name,omitempty"`
-	Generation       int             `json:"generation"`
-	NodeID           string          `json:"node_id"`
-	ItemIndex        int             `json:"item_index"`
-	Kind             string          `json:"kind"`
-	State            string          `json:"state"`
-	Prompt           string          `json:"prompt"`
-	Context          json.RawMessage `json:"context"`
-	Expect           json.RawMessage `json:"expect,omitempty"`
-	EditSchema       json.RawMessage `json:"edit_schema,omitempty"`
-	RespondSchema    json.RawMessage `json:"respond_schema,omitempty"`
-	ProposedPreview  json.RawMessage `json:"proposed_preview,omitempty"`
-	Decisions        []string        `json:"decisions"`
-	Agents           string          `json:"agents"`
-	AnsweredDecision string          `json:"answered_decision,omitempty"`
-	ActorKind        string          `json:"actor_kind,omitempty"`
-	ActorID          string          `json:"actor_id,omitempty"`
-	OpenedAt         time.Time       `json:"opened_at"`
-	AnsweredAt       *time.Time      `json:"answered_at,omitempty"`
-	ResolvedAt       *time.Time      `json:"resolved_at,omitempty"`
-	ExpiresAt        *time.Time      `json:"expires_at,omitempty"`
-}
-
-// LoopRequestProvenance is a daemon API value.
-type LoopRequestProvenance struct {
-	ActorKind  string    `json:"actor_kind"`
-	ActorID    string    `json:"actor_id"`
-	AnsweredAt time.Time `json:"answered_at"`
-}
-
-// LoopRequestsResponse is a daemon API value.
-type LoopRequestsResponse struct {
-	Items      []LoopRequestPayload  `json:"items"`
-	Aggregates LoopRequestAggregates `json:"aggregates"`
-	NextCursor string                `json:"next_cursor"`
 }

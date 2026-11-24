@@ -43,6 +43,7 @@ func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) 
 	if roleSource != RoleFieldSourceGlobal {
 		// Listener and device policy belong to the installation's operator.
 		overlay.Remote = remoteOverlay{}
+		overlay.Computers = computersOverlay{}
 	}
 	if roleSource == RoleFieldSourceWorkspace || roleSource == RoleFieldSourceWorkspaceProfile {
 		overlay.Tools.Policy.restrictTo(dst.Tools.Policy)

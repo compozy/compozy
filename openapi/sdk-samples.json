@@ -946,6 +946,13 @@
             "resource": "skills",
             "app_access": "denied"
         },
+        "endBrowserSession": {
+            "typescript": "",
+            "go": "c, err := client.New(ctx, client.WithBaseURL(\"http://127.0.0.1:2123\"))\nif err != nil { return err }\n\nerr = c.EndBrowserSession(ctx, client.EndBrowserSessionParams{DPoP: \"DPoP\"})\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "remote",
+            "app_access": "denied"
+        },
         "enqueueTaskRun": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tasks.enqueueTaskRun({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.EnqueueTaskRun(ctx, client.EnqueueTaskRunParams{ID: \"id\"}, client.EnqueueTaskRunRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -1212,6 +1219,20 @@
             "resource": "automation",
             "app_access": "allowed"
         },
+        "getBrowserApproval": {
+            "typescript": "",
+            "go": "c, err := client.New(ctx, client.WithBaseURL(\"http://127.0.0.1:2123\"))\nif err != nil { return err }\n\nresult, err := c.GetBrowserApproval(ctx, client.GetBrowserApprovalParams{ID: \"id\", DPoP: \"DPoP\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "remote",
+            "app_access": "denied"
+        },
+        "getBrowserStatus": {
+            "typescript": "",
+            "go": "c, err := client.New(ctx, client.WithBaseURL(\"http://127.0.0.1:2123\"))\nif err != nil { return err }\n\nresult, err := c.GetBrowserStatus(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "remote",
+            "app_access": "denied"
+        },
         "getCmdPalettePersonalization": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.cmdPalette.getCmdPalettePersonalization({ query: { \"workspace\": \"workspace\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetCmdPalettePersonalization(ctx, client.GetCmdPalettePersonalizationParams{Workspace: \"workspace\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -1350,6 +1371,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetHookRuns(ctx, client.GetHookRunsParams{WorkspaceID: \"workspace_id\", Session: \"session\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "hooks",
+            "app_access": "denied"
+        },
+        "getHostResources": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.diagnostics.getHostResources();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetHostResources(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "diagnostics",
             "app_access": "denied"
         },
         "getLoop": {
@@ -2213,6 +2241,13 @@
             "resource": "computers",
             "app_access": "denied"
         },
+        "listBrowserPeers": {
+            "typescript": "",
+            "go": "c, err := client.New(ctx, client.WithBaseURL(\"http://127.0.0.1:2123\"))\nif err != nil { return err }\n\nresult, err := c.ListBrowserPeers(ctx, client.ListBrowserPeersParams{DPoP: \"DPoP\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "remote",
+            "app_access": "denied"
+        },
         "listCmdPaletteClients": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.cmdPalette.listCmdPaletteClients({ query: { \"workspace\": \"workspace\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListCmdPaletteClients(ctx, client.ListCmdPaletteClientsParams{Workspace: \"workspace\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2787,6 +2822,13 @@
             "resource": "tasks",
             "app_access": "allowed"
         },
+        "mintBrowserStreamTicket": {
+            "typescript": "",
+            "go": "c, err := client.New(ctx, client.WithBaseURL(\"http://127.0.0.1:2123\"))\nif err != nil { return err }\n\nresult, err := c.MintBrowserStreamTicket(ctx, client.MintBrowserStreamTicketParams{DPoP: \"DPoP\"}, client.BrowserStreamTicketRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "remote",
+            "app_access": "denied"
+        },
         "mintGatewayPairing": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.gateway.mintGatewayPairing();",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.MintGatewayPairing(ctx)\nif err != nil { return err }\nfmt.Println(result)",
@@ -2874,6 +2916,13 @@
         "patchComputer": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.patchComputer({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PatchComputer(ctx, client.PatchComputerParams{ID: \"id\"}, client.PatchComputerRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
+            "app_access": "denied"
+        },
+        "patchLocalComputer": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.patchLocalComputer({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PatchLocalComputer(ctx, client.PatchLocalComputerRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "computers",
             "app_access": "denied"
@@ -2988,6 +3037,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PrepareWorktreeExitPlan(ctx, client.PrepareWorktreeExitPlanParams{WorkspaceID: \"workspace_id\", WorktreeID: \"worktree_id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "worktrees",
+            "app_access": "denied"
+        },
+        "previewComputerPlacement": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.computers.previewComputerPlacement({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PreviewComputerPlacement(ctx, client.ComputerPlacementRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "computers",
             "app_access": "denied"
         },
         "previewExtensionEnable": {
@@ -3891,6 +3947,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.StartAgentTaskRun(ctx, client.StartAgentTaskRunParams{XCompozySessionID: \"X-Compozy-Session-ID\", XCompozyAgent: \"X-Compozy-Agent\", RunID: \"run_id\"}, client.StartTaskRunRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "agent",
+            "app_access": "denied"
+        },
+        "startBrowserSession": {
+            "typescript": "",
+            "go": "c, err := client.New(ctx, client.WithBaseURL(\"http://127.0.0.1:2123\"))\nif err != nil { return err }\n\nresult, err := c.StartBrowserSession(ctx, client.StartBrowserSessionParams{DPoP: \"DPoP\"}, client.BrowserSessionRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "remote",
             "app_access": "denied"
         },
         "startComputerUpdate": {

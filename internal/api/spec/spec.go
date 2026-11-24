@@ -23,6 +23,7 @@ const (
 	specEventStreamUpgrade     = "WebSocket upgrade; each text message contains one complete SSE frame"
 	specExpectedRevisionKey    = "expected_revision"
 	specFormatInt64            = "int64"
+	specParameterInHeader      = openapi3.ParameterInHeader
 	specParameterInPath        = openapi3.ParameterInPath
 	specParameterInQuery       = openapi3.ParameterInQuery
 	specArrayKind              = "array"
@@ -196,6 +197,7 @@ type Transport string
 const (
 	TransportHTTP                   Transport = "http"
 	TransportUDS                    Transport = "uds"
+	TransportHostedHTTP             Transport = "hosted_http"
 	workspaceRootMissingDescription           = "Workspace root is missing"
 )
 
@@ -236,6 +238,8 @@ const (
 	OperationAuthDevice         OperationAuth = "device"
 	OperationAuthLocalSocket    OperationAuth = "local_socket"
 	OperationAuthPrivatePreAuth OperationAuth = "private_pre_auth"
+	OperationAuthBrowserDPoP    OperationAuth = "browser_dpop"
+	OperationAuthBrowserSession OperationAuth = "browser_session_dpop"
 )
 
 // AppAccess is an explicit local-browser authorization decision.

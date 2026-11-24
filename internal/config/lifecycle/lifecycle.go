@@ -124,6 +124,7 @@ var Matrix = []Rule{
 	{Pattern: "daemon.socket", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "daemon.shutdown_grace", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "daemon.load.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
+	{Pattern: "computers.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "automation.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "loops.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "goals.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},

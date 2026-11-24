@@ -138,12 +138,17 @@ type ToolInvokeRequest struct {
 
 // ToolInvokeResponse is the stable result envelope returned by invoke endpoints.
 type ToolInvokeResponse struct {
+	Meta       *ToolInvokeMetadata    `json:"_meta,omitempty"`
 	ToolID     tools.ToolID           `json:"tool_id"`
 	Status     string                 `json:"status"`
 	Result     tools.ToolResult       `json:"result"`
 	Truncated  bool                   `json:"truncated"`
 	DurationMS int64                  `json:"duration_ms"`
 	Events     []ToolCallEventPayload `json:"events"`
+}
+
+type ToolInvokeMetadata struct {
+	ComputerID remoteproto.ComputerID `json:"computer_id"`
 }
 
 // ToolArtifactPageResponse is one exact byte page from a retained oversized result.

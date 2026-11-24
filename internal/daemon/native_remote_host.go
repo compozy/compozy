@@ -12,7 +12,7 @@ import (
 )
 
 func (n *daemonNativeTools) remoteHostBindings() map[toolspkg.ToolID]nativeToolBinding {
-	return map[toolspkg.ToolID]nativeToolBinding{
+	bindings := map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDRemoteStatus: {
 			call:         n.remoteHostStatus,
 			availability: n.dependencyAvailability(func() bool { return n.deps.Remote != nil }),
@@ -22,6 +22,8 @@ func (n *daemonNativeTools) remoteHostBindings() map[toolspkg.ToolID]nativeToolB
 			availability: n.dependencyAvailability(func() bool { return n.sshSetupService() != nil }),
 		},
 	}
+	addNativeToolBindings(bindings, n.controllerComputerBindings())
+	return bindings
 }
 
 func (n *daemonNativeTools) sshSetupService() *sshsetup.Manager {
@@ -38,7 +40,7 @@ func (n *daemonNativeTools) computerSetupCancel(
 	ctx context.Context, _ toolspkg.Scope, req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	if _, remote := remotehost.PrincipalFromContext(ctx); remote {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError("tool_not_forwardable", req.ToolID,
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeNotForwardable, req.ToolID,
 			"SSH setup is local to this controller.", nil)
 	}
 	var input struct {
@@ -75,7 +77,7 @@ func (n *daemonNativeTools) remoteHostStatus(
 	ctx context.Context, _ toolspkg.Scope, req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	if _, remote := remotehost.PrincipalFromContext(ctx); remote {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError("tool_not_forwardable", req.ToolID,
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeNotForwardable, req.ToolID,
 			"Remote status is local to this computer.", nil)
 	}
 	status := contract.RemoteStatusResponse(n.deps.Remote.Status())

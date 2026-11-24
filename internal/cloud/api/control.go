@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/cloud/auth"
 	"github.com/compozy/compozy/internal/cloud/control"
+	"github.com/compozy/compozy/internal/remoteproto"
 )
 
 const (
@@ -58,6 +59,7 @@ func (r *Router) RegisterControl(cfg ControlRoutesConfig) {
 	r.mux.Handle("POST /v1/approvals/{id}/decision", h.device(h.decideApproval))
 	r.mux.Handle("GET /v1/account/events", h.device(h.accountEvents))
 	r.mux.Handle("GET /v1/account", h.device(h.account))
+	r.mux.HandleFunc("POST "+remoteproto.BrowserRedemptionPath, h.browserToken)
 }
 
 func (r *controlRoutes) account(w http.ResponseWriter, req *http.Request, principal control.DevicePrincipal) {

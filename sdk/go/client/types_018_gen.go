@@ -7,6 +7,66 @@ import (
 	"time"
 )
 
+// ResultContract is a daemon API value.
+type ResultContract struct {
+	FailureField string `json:"failure_field"`
+	MessageField string `json:"message_field,omitempty"`
+}
+
+// ResultTrust is a daemon API value.
+type ResultTrust string
+
+// ResultViewContract is a daemon API value.
+type ResultViewContract struct {
+	Schema json.RawMessage `json:"schema"`
+	Digest string          `json:"digest,omitempty"`
+}
+
+// ResultViews is a daemon API value.
+type ResultViews struct {
+	Compact ResultViewContract `json:"compact"`
+	Full    ResultViewContract `json:"full"`
+}
+
+// ResumeSessionFromLaterRequest is a daemon API value.
+type ResumeSessionFromLaterRequest struct {
+	WithChildren bool `json:"with_children,omitempty"`
+}
+
+// ResumeTaskRequest is a daemon API value.
+type ResumeTaskRequest struct {
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// RetryConfig is a daemon API value.
+type RetryConfig struct {
+	Strategy   RetryStrategy `json:"strategy"`
+	MaxRetries int           `json:"max_retries"`
+	BaseDelay  string        `json:"base_delay"`
+}
+
+// RetrySpec is a daemon API value.
+type RetrySpec struct {
+	MaxAttempts  int          `json:"max_attempts,omitzero"`
+	OnFailure    string       `json:"on_failure,omitempty"`
+	Backoff      *BackoffSpec `json:"backoff,omitzero"`
+	NonRetryable []string     `json:"non_retryable,omitempty"`
+}
+
+// RetryStrategy is a daemon API value.
+type RetryStrategy string
+
+// RetryTaskRunRequest is a daemon API value.
+type RetryTaskRunRequest struct {
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// RetryTaskRunResponse is a daemon API value.
+type RetryTaskRunResponse struct {
+	PreviousRun TaskRunPayload `json:"previous_run"`
+	Run         TaskRunPayload `json:"run"`
+}
+
 // ReviewContinuation is a daemon API value.
 type ReviewContinuation struct {
 	ReviewID          string   `json:"review_id"`
@@ -382,69 +442,4 @@ type RuntimeActivityPayload struct {
 type RuntimeDefaults struct {
 	Worker RuntimeSpec `json:"worker,omitzero"`
 	Judge  RuntimeSpec `json:"judge,omitzero"`
-}
-
-// RuntimeIdentityPayload is a daemon API value.
-type RuntimeIdentityPayload struct {
-	SchemaVersion string                `json:"schema_version"`
-	Daemon        DaemonIdentityPayload `json:"daemon"`
-}
-
-// RuntimeLimits is a daemon API value.
-type RuntimeLimits struct {
-	MaxRuntimeSeconds int64 `json:"max_runtime_seconds"`
-	SummaryMaxBytes   int   `json:"summary_max_bytes"`
-	ContextMaxBytes   int   `json:"context_body_max_bytes"`
-}
-
-// RuntimeMCP is a daemon API value.
-type RuntimeMCP struct {
-	RuntimeMCP string          `json:"runtime_mcp"`
-	Servers    []RuntimeMCPRow `json:"servers"`
-}
-
-// RuntimeMCPImportRequest is a daemon API value.
-type RuntimeMCPImportRequest struct {
-	Scope       SettingsScopeKind `json:"scope,omitempty"`
-	WorkspaceID string            `json:"workspace_id,omitempty"`
-	Profile     string            `json:"profile,omitempty"`
-	Name        string            `json:"name,omitempty"`
-}
-
-// RuntimeMCPImportResponse is a daemon API value.
-type RuntimeMCPImportResponse struct {
-	MCPServer SettingsMCPServerItemPayload `json:"mcp_server"`
-	Source    Server                       `json:"source"`
-	Notes     []string                     `json:"notes"`
-	Partial   bool                         `json:"partial"`
-	Warnings  []string                     `json:"warnings,omitempty"`
-}
-
-// RuntimeMCPRow is a daemon API value.
-type RuntimeMCPRow struct {
-	Name      string `json:"name"`
-	Scope     string `json:"scope"`
-	Transport string `json:"transport"`
-	State     string `json:"state"`
-}
-
-// RuntimeMatch is a daemon API value.
-type RuntimeMatch struct {
-	ID         string `json:"id,omitempty"`
-	Type       string `json:"type,omitempty"`
-	Complexity string `json:"complexity,omitempty"`
-}
-
-// RuntimeMode is a daemon API value.
-type RuntimeMode string
-
-// RuntimePolicy is a daemon API value.
-type RuntimePolicy struct {
-	Mode RuntimeMode `json:"mode"`
-}
-
-// RuntimeRule is a daemon API value.
-type RuntimeRule struct {
-	Match   RuntimeMatch `json:"match"`
-	Runtime RuntimeSpec  `json:"runtime"`
 }

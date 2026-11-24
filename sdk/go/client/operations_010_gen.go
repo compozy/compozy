@@ -10,6 +10,27 @@ import (
 	"strings"
 )
 
+// GetAgentInstance Get an agent instance
+func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstanceParams) (*AgentInstanceResponse, error) {
+	path := "/api/agent-instances/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetAgentInstanceAwayParams carries the path, query, and header parameters.
 type GetAgentInstanceAwayParams struct {
 	ID          string  `url:"id"`
@@ -242,6 +263,35 @@ func (c *Client) GetAutomationTrigger(ctx context.Context, params GetAutomationT
 	return &out, nil
 }
 
+// GetBrowserApprovalParams carries the path, query, and header parameters.
+type GetBrowserApprovalParams struct {
+	ID   string `url:"id"`
+	DPoP string `url:"DPoP"`
+}
+
+// GetBrowserApproval Read the approval for the waiting browser key
+func (c *Client) GetBrowserApproval(ctx context.Context, params GetBrowserApprovalParams) (*BrowserApprovalStatus, error) {
+	path := "/remote/v1/browser/approvals/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	headers := http.Header{}
+	headers.Set("DPoP", params.DPoP)
+	var out BrowserApprovalStatus
+	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetBrowserStatus Read the hosted listener status
+func (c *Client) GetBrowserStatus(ctx context.Context) (*BrowserStatus, error) {
+	path := "/remote/v1/browser/status"
+	var out BrowserStatus
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetCmdPalettePersonalizationParams carries the path, query, and header parameters.
 type GetCmdPalettePersonalizationParams struct {
 	Workspace   string  `url:"workspace"`
@@ -396,39 +446,4 @@ func (c *Client) GetDoctor(ctx context.Context, params GetDoctorParams) (*Doctor
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetExtensionParams carries the path, query, and header parameters.
-type GetExtensionParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// GetExtension Get one installed extension
-func (c *Client) GetExtension(ctx context.Context, params GetExtensionParams) (*ExtensionResponse, error) {
-	path := "/api/extensions/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetExtensionInventoryParams carries the path, query, and header parameters.
-type GetExtensionInventoryParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
 }

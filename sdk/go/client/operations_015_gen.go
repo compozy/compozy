@@ -9,6 +9,48 @@ import (
 	"strings"
 )
 
+// GetSessionRecapParams carries the path, query, and header parameters.
+type GetSessionRecapParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetSessionRecap Get a deterministic session recap
+func (c *Client) GetSessionRecap(ctx context.Context, params GetSessionRecapParams) (*SessionRecapResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/recap"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionRecapResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionStatusParams carries the path, query, and header parameters.
+type GetSessionStatusParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetSessionStatus Read compact session status and wake eligibility
 func (c *Client) GetSessionStatus(ctx context.Context, params GetSessionStatusParams) (*SessionStatusResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/status"
@@ -405,32 +447,4 @@ func (c *Client) GetSettingsRestartStatus(ctx context.Context, params GetSetting
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetSettingsRoles Read the background-role routing settings section
-func (c *Client) GetSettingsRoles(ctx context.Context) (*SettingsRolesResponse, error) {
-	path := "/api/settings/roles"
-	var out SettingsRolesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsShell Read the operator shell settings section
-func (c *Client) GetSettingsShell(ctx context.Context) (*SettingsShellResponse, error) {
-	path := "/api/settings/shell"
-	var out SettingsShellResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsSkillsParams carries the path, query, and header parameters.
-type GetSettingsSkillsParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	AgentName   *string `url:"agent_name"`
 }

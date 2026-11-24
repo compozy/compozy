@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"encoding/json/v2"
 	"net/http"
+	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strconv"
 	"testing"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cli"
+	"github.com/compozy/compozy/internal/computers"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/sse"
@@ -74,18 +77,7 @@ func TestDaemonComputerJourneys(t *testing.T) {
 				break
 			}
 		}
-		var list, stderr bytes.Buffer
-		code := cli.ExecuteContext(t.Context(), []string{
-			"session", "list", "--all", "--computer", controllerTestName, "--json",
-		}, &list, &stderr)
-		var sessions []struct {
-			ID         string                 `json:"id"`
-			ComputerID remoteproto.ComputerID `json:"computer_id"`
-		}
-		if code != 0 || json.Unmarshal(list.Bytes(), &sessions) != nil || len(sessions) != 1 ||
-			sessions[0].ID != session || sessions[0].ComputerID != id {
-			t.Fatalf("targeted CLI session list exit %d, stdout %s, stderr %s", code, list.Bytes(), stderr.Bytes())
-		}
+		assertTargetedSessionCLI(t, controller, id, session)
 	})
 
 	t.Run("Should finish a session turn while the controller is stopped", func(t *testing.T) {
@@ -117,6 +109,181 @@ func TestDaemonComputerJourneys(t *testing.T) {
 			t.Fatalf("the host transcript lost the admitted prompt: %s", reply.body)
 		}
 	})
+
+	// IT-090. Rule 14 blocks new sessions while preserving durable history.
+	t.Run("Should keep local sessions readable when this computer becomes a controller", func(t *testing.T) {
+		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+		host, _ := startSessionComputer(t, f, filepath.Join(root, "settings-host"), false)
+		id := linkSessionComputer(t, host)
+		controller, _ := startComputerController(
+			t,
+			f,
+			filepath.Join(root, "settings-controller"),
+			registryTestEmail,
+			nil,
+		)
+		old := makeSessionIDs(t, controller, "Controller history")
+		patch := contract.PatchLocalComputerRequest{RunAgents: new(false)}
+		local := contract.ComputersPath + "/local"
+		controller.uds(t, http.MethodPatch, local, patch).expect(t, http.StatusBadRequest, "config_invalid")
+		addAccountComputer(t, controller, id)
+		controller.uds(t, http.MethodPatch, local, patch).expect(t, http.StatusOK, `"run_agents":false`)
+		controller.uds(t, http.MethodPost, controllerSessions, contract.CreateSessionRequest{
+			Scope: "user", AgentName: config.DefaultAgentName, Name: "Rejected controller session",
+		}).expect(t, http.StatusConflict, "local_execution_disabled")
+		expectComputerSessions(
+			t,
+			controller.uds(t, http.MethodGet, controllerSessions+"?all_workspaces=true", nil),
+			old,
+		)
+	})
+
+	// IT-091. Rules 13 and 16, Safety Invariants 5, 11 and 16. Auto operates on
+	// the winning computer in the workspace that owns the project there.
+	t.Run("Should place a session using live resources and the matching repository", func(t *testing.T) {
+		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+		host, _ := startSessionComputer(t, f, filepath.Join(root, "placement-host"), true)
+		id := linkSessionComputer(t, host)
+		home := filepath.Join(root, "placement-controller")
+		configureComputerACP(t, home)
+		controller, _ := startComputerController(t, f, home, registryTestEmail, nil)
+		addAccountComputer(t, controller, id)
+		waitComputerRoute(t, controller, id, remoteproto.RouteDirect)
+		localWorkspace := registerPlacementProject(t, controller, "https://github.com/compozy/placement-fixture.git")
+		remoteWorkspace := registerPlacementProject(t, host, "git@github.com:compozy/placement-fixture.git")
+		controller.uds(t, http.MethodPatch, contract.ComputersPath+"/local", contract.PatchLocalComputerRequest{
+			LoadBalancing: new(true), LoadBalancingWeight: new(25),
+		}).expect(t, http.StatusOK, `"load_balancing_weight":25`)
+		controller.uds(t, http.MethodPatch, computerAPI(id), contract.PatchComputerRequest{
+			Weight: new(100),
+		}).expect(t, http.StatusOK, `"load_balancing_weight":100`)
+		localSample := readLiveResources(t, controller, contract.HostResourcesPath, f.clock.Now())
+		remoteSample := readLiveResources(t, controller, bridgeAPI(id, contract.HostResourcesPath), f.clock.Now())
+		wantComputer, wantWorkspace, target := id, remoteWorkspace, host
+		if liveResourceScore(localSample, 25) >= liveResourceScore(remoteSample, 100) {
+			wantComputer, wantWorkspace, target = computers.LocalID, localWorkspace, controller
+		}
+		if liveResourceScore(localSample, 25) == 0 && liveResourceScore(remoteSample, 100) == 0 {
+			t.Fatalf(
+				"the integration runner saturated both live samples: local=%+v remote=%+v",
+				localSample,
+				remoteSample,
+			)
+		}
+		assertAutoComputerSession(t, controller, target, localWorkspace, wantWorkspace, wantComputer)
+	})
+}
+
+func assertTargetedSessionCLI(
+	t *testing.T,
+	controller daemonAccountFixture,
+	id remoteproto.ComputerID,
+	session string,
+) {
+	t.Helper()
+	// IT-092. Safety Invariant 11. The CLI selects through the same account-scoped UDS bridge.
+	var list, stderr bytes.Buffer
+	code := cli.ExecuteContext(t.Context(), []string{
+		"session", "list", "--computer", controllerTestName, "--json",
+	}, &list, &stderr)
+	var sessions []struct {
+		contract.SessionPayload
+		ComputerID remoteproto.ComputerID `json:"computer_id"`
+	}
+	path := controllerSessions + "?all_workspaces=true&state=active"
+	reply := controller.uds(t, http.MethodGet, bridgeAPI(id, path), nil)
+	reply.expect(t, http.StatusOK, session)
+	want := authJSON[contract.SessionCatalogResponse](t, reply).Sessions
+	if code != 0 || json.Unmarshal(list.Bytes(), &sessions) != nil || len(sessions) != 1 || len(want) != 1 ||
+		sessions[0].ComputerID != id || !reflect.DeepEqual(sessions[0].SessionPayload, want[0]) {
+		t.Fatalf(
+			"targeted CLI list exit %d, stdout %s, stderr %s, bridge %s",
+			code,
+			list.Bytes(),
+			stderr.Bytes(),
+			reply.body,
+		)
+	}
+	list.Reset()
+	stderr.Reset()
+	code = cli.ExecuteContext(t.Context(), []string{
+		"daemon", "status", "--computer", controllerTestName, "--json",
+	}, &list, &stderr)
+	if code != 2 || !bytes.Contains(append(list.Bytes(), stderr.Bytes()...), []byte(`"flag_not_applicable"`)) {
+		t.Fatalf("daemon status exit %d, stdout %s, stderr %s", code, list.Bytes(), stderr.Bytes())
+	}
+}
+
+func registerPlacementProject(t *testing.T, computer daemonAccountFixture, origin string) string {
+	t.Helper()
+	project := prepareOperatorProject(t, t.TempDir())
+	command := exec.CommandContext(t.Context(), "git", "remote", "add", "origin", origin)
+	command.Dir = project
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("configure the project origin: %v: %s", err, out)
+	}
+	return registerOperatorWorkspace(t, computer, project)
+}
+
+func readLiveResources(
+	t *testing.T,
+	controller daemonAccountFixture,
+	path string,
+	now time.Time,
+) contract.HostResourcesResponse {
+	t.Helper()
+	reply := controller.uds(t, http.MethodGet, path, nil)
+	reply.expect(t, http.StatusOK, "sampled_at")
+	sample := authJSON[contract.HostResourcesResponse](t, reply)
+	if sample.CPUCount < 1 || sample.CPUUtil == nil || sample.MemTotal == nil || sample.MemAvailable == nil ||
+		*sample.MemTotal == 0 || sample.SampledAt.IsZero() || now.Sub(sample.SampledAt) > 15*time.Second {
+		t.Fatalf("%s did not return live resources: %s", path, reply.body)
+	}
+	return sample
+}
+
+func liveResourceScore(sample contract.HostResourcesResponse, weight int) float64 {
+	free := float64(*sample.MemAvailable) / float64(*sample.MemTotal)
+	if *sample.CPUUtil >= 0.95 || free <= 0.05 {
+		return 0
+	}
+	return float64(weight*sample.CPUCount) * (1 - *sample.CPUUtil) * free
+}
+
+func assertAutoComputerSession(
+	t *testing.T,
+	controller, target daemonAccountFixture,
+	source, workspace string,
+	id remoteproto.ComputerID,
+) {
+	t.Helper()
+	preview := controller.uds(
+		t,
+		http.MethodPost,
+		contract.ComputersPath+"/placement",
+		contract.ComputerPlacementRequest{
+			Workspace: source,
+		},
+	)
+	preview.expect(t, http.StatusOK, string(id))
+	placement := authJSON[contract.ComputerPlacementResponse](t, preview)
+	if placement.ComputerID != id || placement.WorkspaceID != workspace {
+		t.Fatalf("Auto preview = %+v, want %s in %s", placement, id, workspace)
+	}
+	created := controller.uds(t, http.MethodPost, controllerSessions, contract.CreateSessionRequest{
+		Scope:     "workspace",
+		Workspace: source,
+		AgentName: computerFixtureAgent,
+		Computer:  "auto",
+		Name:      "Auto placement",
+	})
+	created.expect(t, http.StatusCreated, "Auto placement")
+	result := authJSON[contract.SessionResponse](t, created)
+	if result.ComputerID != id || result.Session.WorkspaceID != workspace {
+		t.Fatalf("Auto session = %+v, want %s in %s", result, id, workspace)
+	}
+	target.uds(t, http.MethodGet, controllerSessions+"/"+result.Session.ID, nil).
+		expect(t, http.StatusOK, "Auto placement")
 }
 
 func configureComputerACP(t *testing.T, home string) {

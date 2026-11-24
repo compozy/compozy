@@ -89,7 +89,7 @@ func (c *Config) validateCore() error {
 			return err
 		}
 	}
-	return c.Remote.Validate()
+	return errors.Join(c.Computers.Validate(), c.Remote.Validate())
 }
 
 func (c *Config) validateProviders() error {

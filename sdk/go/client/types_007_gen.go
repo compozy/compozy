@@ -7,6 +7,58 @@ import (
 	"time"
 )
 
+// DeleteProfilePlan is a daemon API value.
+type DeleteProfilePlan struct {
+	Revision          string                `json:"revision"`
+	Removed           ProfileRemovalSummary `json:"removed"`
+	SelectionsToSweep int                   `json:"selections_to_sweep"`
+	ApprovalBlockers  []string              `json:"approval_blockers"`
+}
+
+// DeleteProfileResponse is a daemon API value.
+type DeleteProfileResponse struct {
+	Deleted bool                  `json:"deleted"`
+	Removed ProfileRemovalSummary `json:"removed"`
+}
+
+// DeleteResourceRequest is a daemon API value.
+type DeleteResourceRequest struct {
+	ExpectedVersion int64 `json:"expected_version"`
+}
+
+// DependencyKind is a daemon API value.
+type DependencyKind string
+
+// Deprecation is a daemon API value.
+type Deprecation struct {
+	Code           string `json:"code"`
+	Surface        string `json:"surface"`
+	Replacement    string `json:"replacement,omitempty"`
+	RemovalRelease string `json:"removal_release"`
+	Message        string `json:"message"`
+}
+
+// DesktopID is a daemon API value.
+type DesktopID string
+
+// DesktopTransition is a daemon API value.
+type DesktopTransition string
+
+// DetailBody is a daemon API value.
+type DetailBody struct {
+	IsLoading bool        `json:"is_loading,omitempty"`
+	Markdown  string      `json:"markdown,omitempty"`
+	Metadata  []MetaField `json:"metadata,omitempty"`
+	Actions   []RowAction `json:"actions,omitempty"`
+}
+
+// DevLinkExtensionRequest is a daemon API value.
+type DevLinkExtensionRequest struct {
+	OriginPath           string `json:"origin_path"`
+	GenerationHash       string `json:"generation_hash"`
+	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
+}
+
 // DeviceID is a daemon API value.
 type DeviceID string
 
@@ -393,19 +445,4 @@ type ExtensionKitItemPayload struct {
 	ID   string       `json:"id"`
 	Name string       `json:"name"`
 	Live bool         `json:"live"`
-}
-
-// ExtensionLogPayload is a daemon API value.
-type ExtensionLogPayload struct {
-	Sequence       int64     `json:"sequence"`
-	Timestamp      time.Time `json:"timestamp"`
-	Message        string    `json:"message"`
-	GenerationHash string    `json:"generation_hash,omitempty"`
-	StreamEpoch    string    `json:"stream_epoch"`
-}
-
-// ExtensionLogsResponse is a daemon API value.
-type ExtensionLogsResponse struct {
-	Logs        []ExtensionLogPayload `json:"logs"`
-	StreamEpoch string                `json:"stream_epoch"`
 }

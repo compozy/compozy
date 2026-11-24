@@ -1699,6 +1699,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/computers/local": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update local execution and load balancing */
+    patch: operations["patchLocalComputer"];
+    trace?: never;
+  };
+  "/api/computers/placement": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resolve Auto placement for a project */
+    post: operations["previewComputerPlacement"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/computers/setups/{setup_id}": {
     parameters: {
       query?: never;
@@ -2414,6 +2448,23 @@ export interface paths {
     };
     /** List supported hook taxonomy metadata */
     get: operations["getHookEvents"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/host/resources": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the latest host resource sample */
+    get: operations["getHostResources"];
     put?: never;
     post?: never;
     delete?: never;
@@ -8911,6 +8962,92 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/remote/v1/browser/approvals/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the approval for the waiting browser key */
+    get: operations["getBrowserApproval"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/remote/v1/browser/peers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List other hosted computers on this account */
+    get: operations["listBrowserPeers"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/remote/v1/browser/session": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Redeem a hosted sign-in code */
+    post: operations["startBrowserSession"];
+    /** Revoke the current browser session */
+    delete: operations["endBrowserSession"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/remote/v1/browser/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the hosted listener status */
+    get: operations["getBrowserStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/remote/v1/stream-tickets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mint a single-use ticket for one stream path */
+    post: operations["mintBrowserStreamTicket"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -10234,6 +10371,36 @@ export interface components {
       tone: string;
       usage: components["schemas"]["RunUsage"];
     };
+    BrowserApprovalStatus: {
+      approval_id: string;
+      /** Format: date-time */
+      expires_at: string;
+      state: string;
+    };
+    BrowserPeersResponse: {
+      peers: components["schemas"]["HostedPeer"][];
+    };
+    BrowserSessionRequest: {
+      code: string;
+      code_verifier: string;
+    };
+    BrowserSessionResponse: {
+      /** Format: int64 */
+      expires_at: number;
+      scopes: string[];
+      session_id: string;
+    };
+    BrowserStatus: {
+      state: string;
+    };
+    BrowserStreamTicketRequest: {
+      path: string;
+    };
+    BrowserStreamTicketResponse: {
+      /** Format: date-time */
+      expires_at: string;
+      ticket: string;
+    };
     Budget: {
       /** @enum {string} */
       on_exceeded?: "halt" | "escalate";
@@ -10620,6 +10787,15 @@ export interface components {
     ComputerListResponse: {
       computers: components["schemas"]["Computer"][];
       local: components["schemas"]["LocalComputer"];
+    };
+    ComputerPlacementRequest: {
+      project_computer_id?: string;
+      workspace: string;
+    };
+    ComputerPlacementResponse: {
+      computer_id: string;
+      name: string;
+      workspace_id: string;
     };
     ComputerRoute: {
       address: string;
@@ -11119,11 +11295,13 @@ export interface components {
     };
     CreateSessionRequest: {
       agent_name?: string;
+      computer?: string;
       folder_id?: string;
       lineage_kind?: string;
       name?: string;
       new_worktree?: components["schemas"]["NewSessionWorktreeRequest"] | null;
       parent_session_id?: string;
+      project_computer_id?: string;
       scope?: string;
       workspace?: string;
       workspace_path?: string;
@@ -13311,6 +13489,22 @@ export interface components {
     HookRunsResponse: {
       runs: components["schemas"]["HookRunPayload"][];
     };
+    HostResourcesResponse: {
+      cpu_count: number;
+      /** Format: double */
+      cpu_util: number | null;
+      /** Format: uint64 */
+      mem_available: number | null;
+      /** Format: uint64 */
+      mem_total: number | null;
+      /** Format: date-time */
+      sampled_at: string;
+    };
+    HostedPeer: {
+      computer_id: string;
+      hosted_url: string;
+      name: string;
+    };
     HostedStatus: {
       diagnosis?: string;
       enabled: boolean;
@@ -13428,6 +13622,8 @@ export interface components {
       title: string;
     };
     LocalComputer: {
+      load_balancing: boolean;
+      load_balancing_weight: number;
       run_agents: boolean;
     };
     LogEventPayload: {
@@ -15199,6 +15395,11 @@ export interface components {
       enabled?: boolean | null;
       load_balancing_weight?: number | null;
       name?: string | null;
+    };
+    PatchLocalComputerRequest: {
+      load_balancing?: boolean | null;
+      load_balancing_weight?: number | null;
+      run_agents?: boolean | null;
     };
     PatchLoopRequest: {
       definition: components["schemas"]["LoopDefinitionDocument"];
@@ -17880,6 +18081,7 @@ export interface components {
       repair: components["schemas"]["SessionRepairPayload"];
     };
     SessionResponse: {
+      computer_id?: string;
       session: components["schemas"]["SessionPayload"];
     };
     SessionRuntimeMCP: {
@@ -21932,6 +22134,7 @@ export interface components {
         | "input_request_superseded"
         | "invalid_cwd"
         | "journal_unavailable"
+        | "local_execution_disabled"
         | "message_hop_limit"
         | "message_rate_limited"
         | "model_not_found"
@@ -21944,6 +22147,8 @@ export interface components {
         | "recording_already_started"
         | "recording_not_active"
         | "recording_unavailable"
+        | "remote_scope_denied"
+        | "secret_answer_operator_only"
         | "session_archive_stop_failed"
         | "session_busy"
         | "session_in_later"
@@ -21967,7 +22172,9 @@ export interface components {
         | "tool_canceled"
         | "tool_conflict"
         | "tool_denied"
+        | "tool_forward_denied"
         | "tool_invalid_input"
+        | "tool_not_forwardable"
         | "tool_not_found"
         | "tool_result_persistence_failed"
         | "tool_result_too_large"
@@ -22150,6 +22357,7 @@ export interface components {
         | "input_request_superseded"
         | "invalid_cwd"
         | "journal_unavailable"
+        | "local_execution_disabled"
         | "message_hop_limit"
         | "message_rate_limited"
         | "model_not_found"
@@ -22162,6 +22370,8 @@ export interface components {
         | "recording_already_started"
         | "recording_not_active"
         | "recording_unavailable"
+        | "remote_scope_denied"
+        | "secret_answer_operator_only"
         | "session_archive_stop_failed"
         | "session_busy"
         | "session_in_later"
@@ -22185,7 +22395,9 @@ export interface components {
         | "tool_canceled"
         | "tool_conflict"
         | "tool_denied"
+        | "tool_forward_denied"
         | "tool_invalid_input"
+        | "tool_not_forwardable"
         | "tool_not_found"
         | "tool_result_persistence_failed"
         | "tool_result_too_large"
@@ -22298,6 +22510,9 @@ export interface components {
     ToolErrorResponse: {
       error: components["schemas"]["ToolErrorPayload"];
     };
+    ToolInvokeMetadata: {
+      computer_id: string;
+    };
     ToolInvokeRequest: {
       agent_name?: string;
       approval_token?: string;
@@ -22310,6 +22525,7 @@ export interface components {
       workspace_id?: string;
     };
     ToolInvokeResponse: {
+      _meta?: components["schemas"]["ToolInvokeMetadata"] | null;
       /** Format: int64 */
       duration_ms: number;
       events: components["schemas"]["ToolCallEventPayload"][];
@@ -23911,6 +24127,7 @@ export interface components {
       default_agent?: string;
       id: string;
       name: string;
+      repository_key?: string;
       root_dir: string;
       root_missing?: boolean;
       /** Format: date-time */
@@ -34453,6 +34670,200 @@ export interface operations {
       };
     };
   };
+  patchLocalComputer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PatchLocalComputerRequest"];
+      };
+    };
+    responses: {
+      /** @description Local computer settings */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LocalComputer"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  previewComputerPlacement: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ComputerPlacementRequest"];
+      };
+    };
+    responses: {
+      /** @description Selected computer and workspace */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ComputerPlacementResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   getComputerSetup: {
     parameters: {
       query?: {
@@ -37906,6 +38317,26 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getHostResources: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Host resource sample */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HostResourcesResponse"];
         };
       };
     };
@@ -55056,6 +55487,8 @@ export interface operations {
       query?: {
         /** @description List archived projects instead of active projects */
         archived?: boolean;
+        /** @description Include normalized Git repository identities */
+        include_repository?: boolean;
       };
       header?: never;
       path?: never;
@@ -71304,6 +71737,584 @@ export interface operations {
         };
       };
       /** @description Worktree catalog stream is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getBrowserApproval: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Proof from the browser key */
+        DPoP: string;
+      };
+      path: {
+        /** @description Approval ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BrowserApprovalStatus"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listBrowserPeers: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Proof from the browser key */
+        DPoP: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BrowserPeersResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  startBrowserSession: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Proof from the browser key */
+        DPoP: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BrowserSessionRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BrowserSessionResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  endBrowserSession: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Proof from the browser key */
+        DPoP: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getBrowserStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BrowserStatus"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  mintBrowserStreamTicket: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Proof from the browser key */
+        DPoP: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BrowserStreamTicketRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BrowserStreamTicketResponse"];
+        };
+      };
+      /** @description Bad Request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Payment Required */
+      402: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Too Many Requests */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service Unavailable */
       503: {
         headers: {
           [name: string]: unknown;

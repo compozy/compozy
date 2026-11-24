@@ -2,9 +2,21 @@ package builtin
 
 import toolspkg "github.com/compozy/compozy/internal/tools"
 
+const (
+	computerTag     = "computer"
+	remoteAccessTag = "remote access"
+)
+
 var singleResultRemoteHost = map[toolspkg.ToolID]SingleResultReason{
 	toolspkg.ToolIDRemoteStatus:        SingleResultMinimal,
 	toolspkg.ToolIDComputerSetupCancel: SingleResultMinimal,
+	toolspkg.ToolIDComputerSetupAnswer: SingleResultMinimal,
+	toolspkg.ToolIDComputerSetupStatus: SingleResultMinimal,
+	toolspkg.ToolIDComputerList:        SingleResultMinimal,
+	toolspkg.ToolIDComputerStatus:      SingleResultMinimal,
+	toolspkg.ToolIDComputerAdd:         SingleResultMinimal,
+	toolspkg.ToolIDComputerRemove:      SingleResultMinimal,
+	toolspkg.ToolIDAccountStatus:       SingleResultMinimal,
 }
 
 func remoteHostDescriptors() []toolspkg.Descriptor {
@@ -19,7 +31,7 @@ func remoteHostDescriptors() []toolspkg.Descriptor {
 		false,
 		false,
 		nil,
-		[]string{"remote access", "computer", "listeners"},
+		[]string{remoteAccessTag, computerTag, "listeners"},
 		[]string{"remote status", "is remote access enabled"},
 	)
 	descriptor.OutputSchema = []byte(remoteStatusOutput)
@@ -34,12 +46,12 @@ func remoteHostDescriptors() []toolspkg.Descriptor {
 		true,
 		false,
 		nil,
-		[]string{"ssh", "computer", "setup"},
+		[]string{"ssh", computerTag, "setup"},
 		[]string{"cancel ssh computer setup", "release free computer slot"},
 	)
 	cancel.OutputSchema = []byte(`{"type":"object","additionalProperties":false,"required":["setup_id","state"],
 		"properties":{"setup_id":{"type":"string"},"state":{"const":"cancelled"}}}`) //nolint:misspell // Public state.
-	return []toolspkg.Descriptor{descriptor, cancel}
+	return append([]toolspkg.Descriptor{descriptor, cancel}, controllerComputerDescriptors()...)
 }
 
 const remoteStatusOutput = `{

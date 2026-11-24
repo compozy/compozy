@@ -7,6 +7,137 @@ import (
 	"time"
 )
 
+// VaultSecretsResponse is a daemon API value.
+type VaultSecretsResponse struct {
+	Secrets []VaultSecretPayload `json:"secrets"`
+}
+
+// VerdictPolicy is a daemon API value.
+type VerdictPolicy string
+
+// ViewBadge is a daemon API value.
+type ViewBadge struct {
+	Label string `json:"label"`
+	Tone  string `json:"tone"`
+}
+
+// ViewChrome is a daemon API value.
+type ViewChrome struct {
+	IsLoading   bool        `json:"is_loading,omitempty"`
+	SearchText  *string     `json:"search_text,omitempty"`
+	EventCount  int64       `json:"event_count,omitempty"`
+	Placeholder string      `json:"search_placeholder,omitempty"`
+	ThrottleMs  int         `json:"throttle_ms,omitempty"`
+	Filtering   *bool       `json:"filtering,omitempty"`
+	Complete    bool        `json:"complete,omitempty"`
+	ActiveChip  string      `json:"active_chip,omitempty"`
+	Columns     int         `json:"columns,omitempty"`
+	Pagination  *Pagination `json:"pagination,omitempty"`
+	OnSearch    string      `json:"on_search,omitempty"`
+	OnChip      string      `json:"on_chip,omitempty"`
+	OnSelection string      `json:"on_selection,omitempty"`
+	OnLoadMore  string      `json:"on_load_more,omitempty"`
+}
+
+// ViewFrame is a daemon API value.
+type ViewFrame struct {
+	ViewSession string       `json:"view_session"`
+	Revision    string       `json:"revision"`
+	InReplyTo   int64        `json:"in_reply_to,omitempty"`
+	Generation  uint64       `json:"generation"`
+	Payload     *ViewPayload `json:"payload,omitempty"`
+	Patch       *ViewPatch   `json:"patch,omitempty"`
+	Effects     []Effect     `json:"effects,omitempty"`
+	Handlers    []string     `json:"handlers"`
+}
+
+// ViewKind is a daemon API value.
+type ViewKind string
+
+// ViewPatch is a daemon API value.
+type ViewPatch struct {
+	ViewID string    `json:"view_id"`
+	From   string    `json:"from"`
+	To     string    `json:"to"`
+	Ops    []PatchOp `json:"ops"`
+}
+
+// ViewPayload is a daemon API value.
+type ViewPayload struct {
+	View     string      `json:"view"`
+	Chrome   *ViewChrome `json:"chrome,omitempty"`
+	Sections []Section   `json:"sections,omitempty"`
+	Chips    []Chip      `json:"chips,omitempty"`
+	Empty    *EmptyState `json:"empty,omitempty"`
+	Detail   *DetailBody `json:"detail,omitempty"`
+	Form     *FormBody   `json:"form,omitempty"`
+	Grid     *GridBody   `json:"grid,omitempty"`
+}
+
+// Visibility is a daemon API value.
+type Visibility string
+
+// WaitExpiry is a daemon API value.
+type WaitExpiry struct {
+	After    string       `json:"after"`
+	Escalate []EffectSpec `json:"escalate,omitempty"`
+	Route    NodeID       `json:"route,omitempty"`
+}
+
+// WaitingOn is a daemon API value.
+type WaitingOn string
+
+// WebhookDeliveryPayload is a daemon API value.
+type WebhookDeliveryPayload struct {
+	Matched int          `json:"matched"`
+	Runs    []RunPayload `json:"runs,omitempty"`
+}
+
+// WebhookDeliveryResponse is a daemon API value.
+type WebhookDeliveryResponse struct {
+	Result WebhookDeliveryPayload `json:"result"`
+}
+
+// Weights is a daemon API value.
+type Weights struct {
+	Version                    int      `json:"version"`
+	FrecencyHalfLifeDays       int      `json:"frecency_half_life_days"`
+	QueryHalfLifeDays          int      `json:"query_half_life_days"`
+	Deadband                   float64  `json:"deadband"`
+	FallbackWeakMatchThreshold float64  `json:"fallback_weak_match_threshold"`
+	MatchAliasExact            float64  `json:"match_alias_exact"`
+	MatchExact                 float64  `json:"match_exact"`
+	MatchPrefix                float64  `json:"match_prefix"`
+	MatchTokenPrefix           float64  `json:"match_token_prefix"`
+	MatchCompactPrefix         float64  `json:"match_compact_prefix"`
+	MatchWordBoundaryMin       float64  `json:"match_word_boundary_min"`
+	MatchWordBoundaryMax       float64  `json:"match_word_boundary_max"`
+	MatchContains              float64  `json:"match_contains"`
+	MatchSubsequenceMin        float64  `json:"match_subsequence_min"`
+	MatchSubsequenceMax        float64  `json:"match_subsequence_max"`
+	SecondaryFieldMultiplier   float64  `json:"secondary_field_multiplier"`
+	SecondaryFieldCap          float64  `json:"secondary_field_cap"`
+	FrecencyScale              float64  `json:"frecency_scale"`
+	FrecencyCap                float64  `json:"frecency_cap"`
+	QueryLearningCap           float64  `json:"query_learning_cap"`
+	ContextBoost               float64  `json:"context_boost"`
+	PromotionCommandFloor      float64  `json:"promotion_command_floor"`
+	PromotionPathFloor         float64  `json:"promotion_path_floor"`
+	PromotionDefaultFloor      float64  `json:"promotion_default_floor"`
+	PromotionTabFloor          float64  `json:"promotion_tab_floor"`
+	GhostMinScore              float64  `json:"ghost_min_score"`
+	MinEntityQueryLength       int      `json:"min_entity_query_length"`
+	MaxQueryLength             int      `json:"max_query_length"`
+	PruneAfterDays             int      `json:"prune_after_days"`
+	PruneThreshold             float64  `json:"prune_threshold"`
+	EntitySectionVisibleCap    int      `json:"entity_section_visible_cap"`
+	DomainViewMountCap         int      `json:"domain_view_mount_cap"`
+	GroupOrder                 []string `json:"group_order"`
+}
+
+// WindowID is a daemon API value.
+type WindowID string
+
 // WindowManagerActor is a daemon API value.
 type WindowManagerActor struct {
 	Kind string `json:"kind,omitempty"`
@@ -315,133 +446,4 @@ type WorkspaceFolderPayload struct {
 	WorkspaceCount int       `json:"workspace_count"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
-}
-
-// WorkspaceFolderResponse is a daemon API value.
-type WorkspaceFolderResponse struct {
-	Folder WorkspaceFolderPayload `json:"folder"`
-}
-
-// WorkspaceID is a daemon API value.
-type WorkspaceID string
-
-// WorkspaceLayoutResponse is a daemon API value.
-type WorkspaceLayoutResponse struct {
-	Folders    []WorkspaceFolderPayload    `json:"folders"`
-	Placements []WorkspacePlacementPayload `json:"placements"`
-}
-
-// WorkspacePayload is a daemon API value.
-type WorkspacePayload struct {
-	RootMissing  bool       `json:"root_missing,omitzero"`
-	ArchivedAt   *time.Time `json:"archived_at,omitzero"`
-	ID           string     `json:"id"`
-	RootDir      string     `json:"root_dir"`
-	AddDirs      []string   `json:"add_dirs"`
-	Name         string     `json:"name"`
-	DefaultAgent string     `json:"default_agent,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
-}
-
-// WorkspacePlacementPayload is a daemon API value.
-type WorkspacePlacementPayload struct {
-	WorkspaceID string `json:"workspace_id"`
-	FolderID    string `json:"folder_id,omitempty"`
-	Position    int    `json:"position"`
-}
-
-// WorkspaceProfileHintPayload is a daemon API value.
-type WorkspaceProfileHintPayload struct {
-	Name    string `json:"name"`
-	Path    string `json:"path"`
-	Message string `json:"message"`
-	Action  string `json:"action"`
-}
-
-// WorkspaceResponse is a daemon API value.
-type WorkspaceResponse struct {
-	Workspace WorkspacePayload `json:"workspace"`
-}
-
-// WorkspaceSkillPayload is a daemon API value.
-type WorkspaceSkillPayload struct {
-	Name   string `json:"name"`
-	Dir    string `json:"dir"`
-	Source string `json:"source"`
-}
-
-// WorkspacesResponse is a daemon API value.
-type WorkspacesResponse struct {
-	Workspaces []WorkspacePayload `json:"workspaces"`
-}
-
-// WorktreeBindingAvailability is a daemon API value.
-type WorktreeBindingAvailability struct {
-	Available         bool   `json:"available"`
-	UnavailableReason string `json:"unavailable_reason,omitempty"`
-}
-
-// WorktreeBindingsPayload is a daemon API value.
-type WorktreeBindingsPayload struct {
-	AgentActivity string `json:"agent_activity"`
-}
-
-// WorktreeBranchOutcomePayload is a daemon API value.
-type WorktreeBranchOutcomePayload struct {
-	Name    string `json:"name"`
-	Deleted bool   `json:"deleted"`
-	Reason  string `json:"reason,omitempty"`
-	Detail  string `json:"detail,omitempty"`
-}
-
-// WorktreeCatalogEventPayload is a daemon API value.
-type WorktreeCatalogEventPayload struct {
-	Kind        string `json:"kind"`
-	WorkspaceID string `json:"workspace_id"`
-	WorktreeID  string `json:"worktree_id"`
-	Error       string `json:"error,omitempty"`
-}
-
-// WorktreeCleanupResponse is a daemon API value.
-type WorktreeCleanupResponse struct {
-	Branch *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
-}
-
-// WorktreeExitAction is a daemon API value.
-type WorktreeExitAction string
-
-// WorktreeExitActionPlan is a daemon API value.
-type WorktreeExitActionPlan struct {
-	Action        WorktreeExitAction `json:"action"`
-	Label         string             `json:"label"`
-	Enabled       bool               `json:"enabled"`
-	BlockedReason string             `json:"blocked_reason,omitempty"`
-	Publish       bool               `json:"publish,omitzero"`
-	URL           string             `json:"url,omitempty"`
-	PRNumber      int                `json:"pr_number,omitzero"`
-}
-
-// WorktreeExitCleanupEvidence is a daemon API value.
-type WorktreeExitCleanupEvidence struct {
-	ForgeState string `json:"forge_state,omitempty"`
-	Stale      bool   `json:"stale,omitzero"`
-	Safe       bool   `json:"safe"`
-	Source     string `json:"source,omitempty"`
-	Summary    string `json:"summary,omitempty"`
-	Blocker    string `json:"blocker,omitempty"`
-	Downgraded bool   `json:"downgraded,omitzero"`
-}
-
-// WorktreeExitCommitScope is a daemon API value.
-type WorktreeExitCommitScope struct {
-	IncludePaths       []string `json:"include_paths,omitempty"`
-	Fingerprint        string   `json:"fingerprint,omitempty"`
-	Complete           bool     `json:"complete,omitzero"`
-	ChangedFiles       int      `json:"changed_files"`
-	Insertions         int      `json:"insertions"`
-	Deletions          int      `json:"deletions"`
-	UntrackedFiles     []string `json:"untracked_files"`
-	UntrackedTotal     int      `json:"untracked_total"`
-	UntrackedTruncated bool     `json:"untracked_truncated,omitzero"`
 }

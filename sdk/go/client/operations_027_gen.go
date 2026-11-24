@@ -156,7 +156,8 @@ func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspace
 
 // ListWorkspacesParams carries the path, query, and header parameters.
 type ListWorkspacesParams struct {
-	Archived *bool `url:"archived"`
+	Archived          *bool `url:"archived"`
+	IncludeRepository *bool `url:"include_repository"`
 }
 
 // ListWorkspaces lists active workspaces.
@@ -170,6 +171,9 @@ func (c *Client) ListWorkspacesWithParams(ctx context.Context, params ListWorksp
 	query := url.Values{}
 	if params.Archived != nil {
 		query.Set("archived", strconv.FormatBool(*params.Archived))
+	}
+	if params.IncludeRepository != nil {
+		query.Set("include_repository", strconv.FormatBool(*params.IncludeRepository))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -359,6 +363,23 @@ func (c *Client) MarkTaskRead(ctx context.Context, params MarkTaskReadParams) (*
 	return &out, nil
 }
 
+// MintBrowserStreamTicketParams carries the path, query, and header parameters.
+type MintBrowserStreamTicketParams struct {
+	DPoP string `url:"DPoP"`
+}
+
+// MintBrowserStreamTicket Mint a single-use ticket for one stream path
+func (c *Client) MintBrowserStreamTicket(ctx context.Context, params MintBrowserStreamTicketParams, body BrowserStreamTicketRequest) (*BrowserStreamTicketResponse, error) {
+	path := "/remote/v1/stream-tickets"
+	headers := http.Header{}
+	headers.Set("DPoP", params.DPoP)
+	var out BrowserStreamTicketResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // MintGatewayPairing Mint a bounded one-time gateway pairing artifact
 func (c *Client) MintGatewayPairing(ctx context.Context) (*GatewayPairingArtifactPayload, error) {
 	path := "/api/gateway/pairings"
@@ -416,32 +437,6 @@ func (c *Client) MintTerminalAttachTicket(ctx context.Context, params MintTermin
 
 // MoveSessionParams carries the path, query, and header parameters.
 type MoveSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// MoveSession Move a session into a folder or back to the workspace root
-func (c *Client) MoveSession(ctx context.Context, params MoveSessionParams, body MoveSessionRequest) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/move"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MoveSessionToLaterParams carries the path, query, and header parameters.
-type MoveSessionToLaterParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`

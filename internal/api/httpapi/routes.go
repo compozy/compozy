@@ -48,6 +48,7 @@ func registerLocalRoutes(router gin.IRouter, handlers *Handlers) {
 }
 
 func registerStatusRoutes(api operatorRouteGroups, handlers *Handlers) {
+	api.group("/host", remoteproto.ScopeSessions).GET("/resources", handlers.GetHostResources)
 	status := api.group("/status", remoteproto.ScopeSessions)
 	status.GET("", handlers.GetStatus)
 	status.GET("/identity", handlers.GetRuntimeIdentity)

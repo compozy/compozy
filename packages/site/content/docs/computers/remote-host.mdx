@@ -39,6 +39,16 @@ On a linked computer with Compozy Pro, run `compozy remote cloud-route enable`. 
 
 Read the assigned hostname and connector state with `compozy remote status --json`. If it reports **Hosted route can't reach Cloudflare (port 7844 blocked)**, allow the outbound connection on port 7844. The daemon retries with backoff. Run `compozy remote cloud-route disable` to remove the hosted route and its tunnel. Unlinking the computer also deletes its tunnel.
 
+### Browser access
+
+The hosted listener serves the installable CompozyOS web app. It serves a standalone web app manifest at `/manifest.webmanifest`. The service worker handles versioned app assets. Session data and API responses always come from the computer.
+
+Browser sign-in starts on Compozy Cloud. The browser sends its one-time code and PKCE verifier to `POST /remote/v1/browser/session` with a `DPoP` proof from its origin's key. A successful response sets the secure, HTTP-only `__Host-compozy_rs` session cookie. Each browser API call includes a fresh `DPoP` proof. `DELETE /remote/v1/browser/session` ends that session.
+
+For `EventSource` or WebSocket connections, call `POST /remote/v1/stream-tickets` with the cookie, a fresh `DPoP` proof, and the stream's path. Open that path with the returned ticket in the `remote_ticket` query parameter within 30 seconds. For terminal streams, also include the independent terminal attach `ticket`.
+
+`GET /remote/v1/browser/peers` lists the account's other computers with active hosted routes. Open another computer at its own hosted address. The `/c/` bridge is unavailable to hosted browsers. Revoking the browser device closes its sessions and streams across all its hosted origins. If the computer's plan expires while its hosted route is retained, `GET /remote/v1/browser/status` returns `plan_required` and the app shell remains available.
+
 ## Webhook ingress
 
 An active hosted route supplies the public base URL for incoming webhooks. If you run your own HTTPS endpoint, set `remote.ingress.public_url` and forward webhook requests to the tunnel listener. The advertised URL keeps the trigger's existing path.
@@ -53,5 +63,9 @@ Read the trigger to get its full URL. Confirm it with `POST /api/ingress/binding
 The device list shows devices that opened a session or requested approval on this computer. The last seen time reflects the most recent session opened here.
 
 Set `remote.require_device_approval = true` to approve new device keys on this computer. Run `compozy remote devices list --json` to see pending requests and their key fingerprints. Use `compozy remote devices approve <device>` or `compozy remote devices deny <device>`. Add `--approval-id` to select a key if the device has multiple pending requests.
+
+An account admin whose device key is already approved on the target computer can decide through `POST /api/account/approvals/{id}/decision` on their own installation over local HTTP or UDS. Its daemon signs the decision with that device key and returns `202` when Compozy Cloud accepts it for delivery. Follow `GET /api/account/stream` or read `GET /api/account/approvals/{id}` to confirm the outcome applied by the target computer.
+
+A browser that receives `device_pending_approval` can poll `GET /remote/v1/browser/approvals/{id}` with a `DPoP` proof from the requesting key. Once approved, it needs a fresh authorization code and PKCE verifier for that same key.
 
 You can narrow a device's scopes on this computer or revoke the device across the account. Revocation and scope narrowing end affected remote streams. If the computer loses contact with Compozy Cloud, it can honor a valid lease for up to fifteen minutes.

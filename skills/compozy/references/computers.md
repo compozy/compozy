@@ -17,6 +17,17 @@
 - Account, controller registry, and agent-kernel routes return `route_not_remote` through a tunnel. A second bridge hop returns `remote_bridge_not_transitive`.
 - `compozy computer remove <name|id>` removes the local entry. `--unlink` also frees the account slot. Use `compozy computer routes <name|id> remove <kind:address>` to remove a learned address.
 
+Use `compozy__computer_list` for the registry and local execution settings. Pass `id` to `compozy__computer_status` and `compozy__computer_remove`. Add a linked computer with `compozy__computer_add` using `{"kind":"account","id":"<id>"}`.
+
+Call native tools with a declared `remote_scope` using an optional `computer` name or ID. `compozy__session_list` accepts `{"computer":"devbox"}`. The source session policy, pre-call hooks and approvals apply before the destination checks the device's scopes and its own operator policy. The result is the destination's result and `_meta.computer_id` identifies where it ran. A session confined to workspace paths receives `tool_forward_denied`. Task leases and controller-local tools return `tool_not_forwardable` when given `computer`.
+
+## Automatic session placement
+
+- Read `GET /api/host/resources` locally or through a computer's bridge. It reports logical CPUs, CPU utilization, physical memory in bytes, and a sample timestamp. Auto uses samples up to 15 seconds old and falls back to weight when all eligible computers lack usable samples.
+- Update Auto and local execution with `PATCH /api/computers/local`. The local settings also appear in `GET /api/computers`. Add a remote computer before turning off local execution. `local_execution_disabled` blocks new local sessions, Loop runs, and automation runs. Existing records remain readable.
+- Set weights on `/api/computers/local` or `/api/computers/{id}` with `load_balancing_weight`. Prefer is `100`, Normal is `50`, Less often is `25`, and Manual only is `0`.
+- Preview Auto with `POST /api/computers/placement`, using the draft workspace in `workspace` and its computer in `project_computer_id` if it belongs to a linked computer. With `computer` set to `auto`, `POST /api/sessions` selects the matching repository workspace again and returns the chosen `computer_id`. `no_eligible_computer` means the draft cannot be placed.
+
 | Endpoint                                       | Purpose                                               |
 | ---------------------------------------------- | ----------------------------------------------------- |
 | `GET /healthz`                                 | Check replica readiness                               |
@@ -31,11 +42,13 @@ Run `compozy computer add ssh <host> --json` to start a setup and get its ID. An
 
 Inspect `compozy computer setup status <setup_id> --json` or long-poll `GET /api/computers/setups/{setup_id}?wait_ms=30000`. A `trust_host` prompt contains only the host and its fingerprint. For `needs_operator_secret`, direct the operator to the app or `compozy computer setup answer <setup_id>` from a TTY. The operator's password or code goes directly to SSH.
 
+Start SSH setup with `compozy__computer_add` using `kind` set to `ssh` and `host` set to the host. Follow progress with `compozy__computer_setup_status` and `wait_ms` up to `30000`. Use `compozy__computer_setup_answer` with `setup_id` and `accept` to relay the operator's host-key decision. Enter SSH secrets through the app or the CLI.
+
 Use `compozy__computer_setup_cancel` with `setup_id` on the controller where setup started. The CLI `compozy computer setup cancel <setup_id>` and the local DELETE route also release the slot. The tool requires approval in `approve-edits` and `auto` because cancellation ends the setup permanently. `computer_setup_linked` means the host already has a link. Manage it through the computer registry. Repeat the add command to resume an interrupted setup. Use `compozy computer update <name|id>` for a managed SSH upgrade.
 
 ## Local account
 
-Use `compozy account login` to sign in through the browser. Show the activation URL and code to the operator and let them approve the grant. Use `compozy account status --json` to read the account, plan usage, and current device. Use `compozy account logout` to end the session on this computer. `compozy account upgrade --annual` opens annual checkout when billing is available.
+Use `compozy account login` to sign in through the browser. Show the activation URL and code to the operator and let them approve the grant. Use `compozy account status --json` or `compozy__account_status` to read the account, plan usage, and current device. Use `compozy account logout` to end the session on this computer. `compozy account upgrade --annual` opens annual checkout when billing is available.
 
 Local HTTP and UDS expose the same `/api/account` routes for sign-in, status, devices, approvals, and billing. Subscribe to `GET /api/account/sign-in/events` before starting a login. It carries attempt progress and state without account details. Follow `GET /api/account/stream` after sign-in. On `stream_reset`, read current status and approvals before following changes again.
 
@@ -69,5 +82,11 @@ The same operations are available over HTTP and UDS under `/api/remote`. Use `co
 ## Hosted route and webhook ingress
 
 On a linked Pro computer, run `compozy remote cloud-route enable`. Read `cloud_route.hostname`, `cloud_route.state`, and any `cloud_route.diagnosis` from local remote status. A blocked Cloudflare port 7844 shows a diagnosis while the daemon retries. The controller learns the hostname through the account list and tries it after direct and SSH. Turning the hosted route off with `compozy remote cloud-route disable` or unlinking removes the tunnel.
+
+A hosted browser reaches the computer at its own HTTPS hostname. Compozy Cloud starts sign-in at `GET /v1/browser/authorize`. The browser redeems the callback code through `POST /remote/v1/browser/session` with its PKCE verifier and a `DPoP` proof. The daemon exchanges the code at `POST /v1/browser/token` and issues a secure HTTP-only session cookie after the new key is trusted and any required approval is complete.
+
+If the browser receives `device_pending_approval`, poll `GET /remote/v1/browser/approvals/{id}` with a proof from the waiting key. After approval, authorize again with that key and a fresh code. An approved account admin can decide through `POST /api/account/approvals/{id}/decision` over local HTTP or UDS. Confirm the result on `/api/account/stream` or with `GET /api/account/approvals/{id}`.
+
+Browser requests use the session cookie and fresh proofs. For a stream, mint a single-use ticket for its path at `POST /remote/v1/stream-tickets` and send it as `remote_ticket`. Keep the terminal attach `ticket` separate. Use `GET /remote/v1/browser/peers` to discover other hosted origins. Each origin requires its own browser sign-in. Revoking the browser device ends its sessions and streams across all its origins.
 
 The hosted route supplies the advertised HTTPS base for webhook triggers. For a self-managed HTTPS endpoint, set `remote.ingress.public_url` and forward to the tunnel listener. Keep the displayed trigger path and sign deliveries with its configured secret. Use local HTTP or UDS `POST /api/ingress/bindings` with `subject_kind: "webhook_trigger"`, `subject_id: "<trigger-id>"`, and `confirmed: true` after the operator confirms the current URL. Confirm again when the base changes. Remove a binding with `DELETE /api/ingress/bindings/webhook_trigger/{subject_id}`.

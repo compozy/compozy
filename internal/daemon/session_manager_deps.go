@@ -26,6 +26,7 @@ type SessionManagerDeps struct {
 	PromptInputAugmenter    session.PromptInputAugmenter
 	CommandService          session.CommandService
 	WorkAdmission           admission.Checker
+	LocalExecution          func() error
 	AgentResolver           session.AgentResolver
 	SkillRegistry           session.SkillRegistry
 	MCPResolver             session.MCPResolver
@@ -92,6 +93,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		PromptInputAugmenter: state.promptAugmenter,
 		CommandService:       state.commandService,
 		WorkAdmission:        &d.admission,
+		LocalExecution:       d.checkLocalExecution,
 		AgentResolver: agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 			soul:      state.soulCatalog,
 			heartbeat: state.heartbeatCatalog,

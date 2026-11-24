@@ -18,7 +18,10 @@ Run this scenario on staging after the cloud and daemon sign-in slices are integ
 6. Sign out with an account stream open and check that it closes. Sign in to a different account and resume with the prior account's event ID. Confirm the daemon returns `stream_reset` and only the new account's approvals are visible.
 7. Stop the staging cloud during a signed-in run. Confirm an account action reports `account_cloud_unreachable`, the installation still reports signed in, and a local session can be started.
 8. Open an owned hosted route from two origins in the same browser, then repeat with the browser binding cookie cleared. Check that a registered key stays with its original device and that the hosted route can start again with a new key.
+9. Require device approval on the hosted computer. Sign in from a fresh browser and leave it waiting for six minutes. From an approved account admin installation, approve the browser key. Check that the browser signs in again and opens the sessions list. Repeat in a new browser and deny its request. Check that the browser shows the denial.
 
 The S1b HTTP and Postgres integration suite covers the cloud portion with fake provider and Turnstile endpoints. Keep the staging walk pending until the real OAuth apps, Turnstile widget, and hosted listener are available.
 
 The daemon and Postgres integration suite covers enrollment, sign-out, cloud unavailability, and account stream isolation (IT-010, IT-011, IT-012, IT-099, IT-103).
+
+The hosted browser backend integration covers key activation, account ownership, peer discovery, and approval retry (UT-114, IT-072, IT-073, IT-077, IT-080). The hosted sign-in screens are exercised by E2E-006 after UI integration.

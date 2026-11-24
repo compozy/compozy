@@ -2,6 +2,7 @@ package remotehost
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"net/http"
 	"sync"
@@ -92,6 +93,13 @@ func (h *Host) start(ctx context.Context, cfg config.RemoteConfig, syncCloud boo
 }
 
 func (h *Host) newListenerHandler(identity Identity, keys hostKeys, run *hostRun) func(Listener) http.Handler {
+	tickets := newStreamTicketStore(DefaultStreamTicketLimit, DefaultStreamTicketTTL, h.opts.Now, rand.Reader)
+	var redeem func(context.Context, remoteproto.BrowserTokenRequest) (remoteproto.GrantResponse, error)
+	if cloud, ok := h.cloud.(browserCloud); ok {
+		redeem = func(ctx context.Context, input remoteproto.BrowserTokenRequest) (remoteproto.GrantResponse, error) {
+			return cloud.RedeemBrowserCode(ctx, keys.signing, input)
+		}
+	}
 	var leafMu sync.Mutex
 	savedExpiry := identity.TLSLeafNotAfter
 	tlsConfig := keys.ca.serverTLS(h.opts.Now, func(ctx context.Context, expiry time.Time) error {
@@ -114,6 +122,7 @@ func (h *Host) newListenerHandler(identity Identity, keys hostKeys, run *hostRun
 				BrowserSignIn: kind == ListenerHosted,
 			},
 			kind: kind, tls: tlsConfig, sessions: run.sessions, operator: h.opts.Operator, run: run,
+			hostedApp: h.opts.HostedApp, redeemBrowserCode: redeem, browserTickets: tickets,
 			webhook: func() http.Handler {
 				if handler := h.webhook.Load(); handler != nil {
 					return *handler

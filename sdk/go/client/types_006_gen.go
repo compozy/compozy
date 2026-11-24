@@ -7,6 +7,55 @@ import (
 	"time"
 )
 
+// ComputerSetupStarted is a daemon API value.
+type ComputerSetupStarted struct {
+	SetupID    string      `json:"setup_id"`
+	ComputerID *ComputerID `json:"computer_id"`
+}
+
+// ComputerSetupStatus is a daemon API value.
+type ComputerSetupStatus struct {
+	SetupID    string               `json:"setup_id"`
+	Step       string               `json:"step"`
+	State      string               `json:"state"`
+	Prompt     *ComputerSetupPrompt `json:"prompt"`
+	PromptKind string               `json:"prompt_kind,omitempty"`
+	Error      *ErrorPayload        `json:"error"`
+	ComputerID *ComputerID          `json:"computer_id"`
+}
+
+// ComputerUpdateStarted is a daemon API value.
+type ComputerUpdateStarted struct {
+	SetupID string `json:"setup_id"`
+}
+
+// ConcurrencyPolicy is a daemon API value.
+type ConcurrencyPolicy string
+
+// ConfigApplyRecordPayload is a daemon API value.
+type ConfigApplyRecordPayload struct {
+	ID                string                  `json:"id"`
+	DesiredConfigHash string                  `json:"desired_config_hash"`
+	ActiveConfigHash  string                  `json:"active_config_hash"`
+	Generation        int64                   `json:"generation"`
+	Actor             string                  `json:"actor"`
+	WriteTarget       SettingsWriteTargetKind `json:"write_target,omitempty"`
+	WritePath         string                  `json:"write_path,omitempty"`
+	DiffClass         SettingsApplyLifecycle  `json:"diff_class"`
+	Status            ConfigApplyStatus       `json:"status"`
+	Lifecycle         SettingsApplyLifecycle  `json:"lifecycle"`
+	NextAction        SettingsApplyNextAction `json:"next_action"`
+	Diagnostics       []DiagnosticItem        `json:"diagnostics,omitempty"`
+	CreatedAt         time.Time               `json:"created_at"`
+	AppliedAt         *time.Time              `json:"applied_at,omitempty"`
+	UpdatedAt         time.Time               `json:"updated_at"`
+}
+
+// ConfigApplyRecordsResponse is a daemon API value.
+type ConfigApplyRecordsResponse struct {
+	Entries []ConfigApplyRecordPayload `json:"entries"`
+}
+
 // ConfigApplyStatus is a daemon API value.
 type ConfigApplyStatus string
 
@@ -226,16 +275,18 @@ type CreateSessionFolderRequest struct {
 
 // CreateSessionRequest is a daemon API value.
 type CreateSessionRequest struct {
-	Scope           string                     `json:"scope,omitempty"`
-	AgentName       string                     `json:"agent_name,omitempty"`
-	Name            string                     `json:"name,omitempty"`
-	Workspace       string                     `json:"workspace,omitempty"`
-	WorkspacePath   string                     `json:"workspace_path,omitempty"`
-	Worktree        string                     `json:"worktree,omitempty"`
-	NewWorktree     *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
-	ParentSessionID string                     `json:"parent_session_id,omitempty"`
-	LineageKind     string                     `json:"lineage_kind,omitempty"`
-	FolderID        string                     `json:"folder_id,omitempty"`
+	Computer          string                     `json:"computer,omitempty"`
+	ProjectComputerID ComputerID                 `json:"project_computer_id,omitempty"`
+	Scope             string                     `json:"scope,omitempty"`
+	AgentName         string                     `json:"agent_name,omitempty"`
+	Name              string                     `json:"name,omitempty"`
+	Workspace         string                     `json:"workspace,omitempty"`
+	WorkspacePath     string                     `json:"workspace_path,omitempty"`
+	Worktree          string                     `json:"worktree,omitempty"`
+	NewWorktree       *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
+	ParentSessionID   string                     `json:"parent_session_id,omitempty"`
+	LineageKind       string                     `json:"lineage_kind,omitempty"`
+	FolderID          string                     `json:"folder_id,omitempty"`
 }
 
 // CreateSupportBundleRequest is a daemon API value.
@@ -393,56 +444,4 @@ type DeleteLoopInputDefaultResponse struct {
 	Key      string                 `json:"key"`
 	Scope    LoopInputDefaultsScope `json:"scope"`
 	Deleted  bool                   `json:"deleted"`
-}
-
-// DeleteProfilePlan is a daemon API value.
-type DeleteProfilePlan struct {
-	Revision          string                `json:"revision"`
-	Removed           ProfileRemovalSummary `json:"removed"`
-	SelectionsToSweep int                   `json:"selections_to_sweep"`
-	ApprovalBlockers  []string              `json:"approval_blockers"`
-}
-
-// DeleteProfileResponse is a daemon API value.
-type DeleteProfileResponse struct {
-	Deleted bool                  `json:"deleted"`
-	Removed ProfileRemovalSummary `json:"removed"`
-}
-
-// DeleteResourceRequest is a daemon API value.
-type DeleteResourceRequest struct {
-	ExpectedVersion int64 `json:"expected_version"`
-}
-
-// DependencyKind is a daemon API value.
-type DependencyKind string
-
-// Deprecation is a daemon API value.
-type Deprecation struct {
-	Code           string `json:"code"`
-	Surface        string `json:"surface"`
-	Replacement    string `json:"replacement,omitempty"`
-	RemovalRelease string `json:"removal_release"`
-	Message        string `json:"message"`
-}
-
-// DesktopID is a daemon API value.
-type DesktopID string
-
-// DesktopTransition is a daemon API value.
-type DesktopTransition string
-
-// DetailBody is a daemon API value.
-type DetailBody struct {
-	IsLoading bool        `json:"is_loading,omitempty"`
-	Markdown  string      `json:"markdown,omitempty"`
-	Metadata  []MetaField `json:"metadata,omitempty"`
-	Actions   []RowAction `json:"actions,omitempty"`
-}
-
-// DevLinkExtensionRequest is a daemon API value.
-type DevLinkExtensionRequest struct {
-	OriginPath           string `json:"origin_path"`
-	GenerationHash       string `json:"generation_hash"`
-	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
 }

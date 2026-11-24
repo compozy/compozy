@@ -7,6 +7,18 @@ func runtimeStatusOperations() []OperationSpec {
 		daemonProfileOperation(),
 		{
 			Method:      httpMethodGet,
+			Path:        contract.HostResourcesPath,
+			OperationID: "getHostResources",
+			Summary:     "Get the latest host resource sample",
+			Tags:        []string{specDiagnosticsKey},
+			AppAccess:   AppAccessDenied,
+			Transports:  []Transport{TransportHTTP, TransportUDS},
+			Responses: []ResponseSpec{
+				{Status: 200, Description: "Host resource sample", Body: contract.HostResourcesResponse{}},
+			},
+		},
+		{
+			Method:      httpMethodGet,
 			Path:        "/api/doctor",
 			AppAccess:   AppAccessDenied,
 			OperationID: "getDoctor",

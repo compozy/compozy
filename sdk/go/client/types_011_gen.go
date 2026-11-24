@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+// HostedStatus is a daemon API value.
+type HostedStatus struct {
+	Enabled   bool    `json:"enabled"`
+	State     string  `json:"state"`
+	Hostname  *string `json:"hostname"`
+	Diagnosis string  `json:"diagnosis,omitempty"`
+}
+
+// Image is a daemon API value.
+type Image struct {
+	URL   string `json:"url,omitempty"`
+	Token string `json:"token,omitempty"`
+	Emoji string `json:"emoji,omitempty"`
+}
+
+// Input is a daemon API value.
+type Input struct {
+	Type        InputType `json:"type"`
+	Required    bool      `json:"required,omitzero"`
+	Description string    `json:"description,omitempty"`
+	Ref         *InputRef `json:"ref,omitzero"`
+	Enum        []string  `json:"enum,omitempty"`
+	Default     any       `json:"default,omitempty"`
+}
+
+// InputRef is a daemon API value.
+type InputRef struct {
+	Kind InputRefKind `json:"kind"`
+}
+
 // InputRefKind is a daemon API value.
 type InputRefKind string
 
@@ -110,7 +140,9 @@ type LineageKind string
 
 // LocalComputer is a daemon API value.
 type LocalComputer struct {
-	RunAgents bool `json:"run_agents"`
+	RunAgents           bool `json:"run_agents"`
+	LoadBalancing       bool `json:"load_balancing"`
+	LoadBalancingWeight int  `json:"load_balancing_weight"`
 }
 
 // LogEventPayload is a daemon API value.
@@ -403,46 +435,4 @@ type LoopEffectSpec struct {
 	Emit *LoopEmitSpec  `json:"emit,omitzero"`
 	Tool string         `json:"tool,omitempty"`
 	With map[string]any `json:"with,omitempty"`
-}
-
-// LoopEffectiveConfig is a daemon API value.
-type LoopEffectiveConfig struct {
-	HumanGateEnabled   bool                  `json:"human_gate_enabled"`
-	ReattemptStrategy  LoopReattemptStrategy `json:"reattempt_strategy"`
-	EnabledChecks      json.RawMessage       `json:"enabled_checks_json"`
-	IterationCap       int                   `json:"iteration_cap"`
-	BudgetTokens       int                   `json:"budget_tokens"`
-	BudgetWallSec      int                   `json:"budget_wall_sec"`
-	BudgetOnExceeded   LoopBudgetExceeded    `json:"budget_on_exceeded"`
-	NoProgressWindow   int                   `json:"no_progress_window"`
-	FanOutWidth        int                   `json:"fan_out_width"`
-	GateMaxRevisions   int                   `json:"gate_max_revisions"`
-	RuntimeDefaults    LoopRuntimeDefaults   `json:"runtime_defaults"`
-	RuntimeRules       []LoopRuntimeRule     `json:"runtime_rules"`
-	RunRuntimeRules    []LoopRuntimeRule     `json:"run_runtime_rules,omitempty"`
-	Environment        LoopEnvironment       `json:"environment"`
-	RequestExpireAfter string                `json:"request_expire_after"`
-	Sources            map[string]string     `json:"sources,omitempty"`
-}
-
-// LoopEmitSpec is a daemon API value.
-type LoopEmitSpec struct {
-	Kind    string         `json:"kind"`
-	Payload map[string]any `json:"payload,omitempty"`
-}
-
-// LoopEnvironment is a daemon API value.
-type LoopEnvironment struct {
-	Mode        LoopEnvironmentMode `json:"mode"`
-	WorktreeRef string              `json:"worktree_ref,omitempty"`
-	Directory   string              `json:"directory,omitempty"`
-}
-
-// LoopEnvironmentMode is a daemon API value.
-type LoopEnvironmentMode string
-
-// LoopForkRef is a daemon API value.
-type LoopForkRef struct {
-	RunID      string `json:"run_id"`
-	Generation int64  `json:"generation"`
 }
