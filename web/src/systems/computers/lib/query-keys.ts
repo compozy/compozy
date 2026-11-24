@@ -1,3 +1,5 @@
+import { computerQueryKey, type ComputerId } from "@/lib/computer-scope";
+
 export const computerRegistryKeys = {
   all: ["computers"] as const,
   list: () => [...computerRegistryKeys.all, "list"] as const,
@@ -6,4 +8,12 @@ export const computerRegistryKeys = {
   sshHosts: () => [...computerRegistryKeys.all, "ssh-hosts"] as const,
   remoteStatus: () => [...computerRegistryKeys.all, "remote", "status"] as const,
   remoteDevices: () => [...computerRegistryKeys.all, "remote", "devices"] as const,
+  placement: (workspace: string, projectComputerId?: string) =>
+    [
+      ...computerRegistryKeys.all,
+      "placement",
+      workspace.trim(),
+      projectComputerId ?? "local",
+    ] as const,
+  hostResources: (computerId: ComputerId) => computerQueryKey(computerId, "host-resources"),
 };

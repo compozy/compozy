@@ -38,8 +38,10 @@ import type {
   RemoteScope,
 } from "../mocks/remote-computers-types";
 import type { ComputerSetupStatusPayload } from "../types";
+import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import { useComputers } from "./use-computers";
 import { useLiveAddComputer } from "./use-live-add-computer";
+import { useLocalComputerSettings } from "./use-local-computer-settings";
 import { useLocalRemoteControls } from "./use-local-remote-controls";
 
 const FALLBACK_ACCOUNT: AccountStateFixture = {
@@ -75,19 +77,25 @@ export function useComputersSettingsPage() {
   const currentDeviceIsAdmin = Boolean(accountQuery.data?.device?.admin);
   const currentDeviceName = accountQuery.data?.device?.name ?? "This device";
 
-  const computersQuery = useComputers({ enabled: signedIn, stream: signedIn });
+  const computersQuery = useComputers({
+    enabled: signedIn,
+    stream: signedIn,
+    withHostResources: true,
+  });
   const availableQuery = useQuery(availableComputersOptions(signedIn));
   const localRemote = useLocalRemoteControls({ signedIn, currentDeviceId });
+  const localSettings = useLocalComputerSettings({
+    signedIn,
+    localRunAgents: computersQuery.local?.run_agents ?? true,
+  });
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedComputerId, setSelectedComputerId] = useState<string | null>(null);
   const [detailsTab, setDetailsTab] = useState<ComputerDetailsTabId>("status");
   const [removeTarget, setRemoveTarget] = useState<ComputerFixture | null>(null);
   const [renameTarget, setRenameTarget] = useState<ComputerFixture | null>(null);
-  const [disableAgentsOpen, setDisableAgentsOpen] = useState(false);
   const [uninstallWarning, setUninstallWarning] = useState<string | null>(null);
   const [addingAccountId, setAddingAccountId] = useState<string | null>(null);
-  const [localRunAgentsOverride, setLocalRunAgentsOverride] = useState<boolean | null>(null);
   const [updateSetupId, setUpdateSetupId] = useState<string | null>(null);
   const [updateStatus, setUpdateStatus] = useState<ComputerSetupStatusPayload | null>(null);
 
@@ -104,24 +112,29 @@ export function useComputersSettingsPage() {
   }, [accountQuery.data, cloudUnreachable]);
 
   const computers = useMemo<ComputerFixture[]>(
-    () => computersQuery.computers.map(toComputerView),
-    [computersQuery.computers]
+    () =>
+      computersQuery.computers.map(computer =>
+        toComputerView(computer, { load: computersQuery.hostResources.get(computer.id) })
+      ),
+    [computersQuery.computers, computersQuery.hostResources]
   );
 
-  const local = useMemo<LocalComputerFixture>(() => {
-    const view = toLocalComputerView(computersQuery.local, {
-      name: accountQuery.data?.device?.name ?? "This computer",
-      remote: localRemote.remoteStatus,
-    });
-    return localRunAgentsOverride !== null
-      ? { ...view, localRunAgents: localRunAgentsOverride }
-      : view;
-  }, [
-    computersQuery.local,
-    accountQuery.data?.device?.name,
-    localRemote.remoteStatus,
-    localRunAgentsOverride,
-  ]);
+  const local = useMemo<LocalComputerFixture>(
+    () =>
+      toLocalComputerView(computersQuery.local, {
+        name: accountQuery.data?.device?.name ?? "This computer",
+        remote: localRemote.remoteStatus,
+        activeLocalSessions: localSettings.activeLocalSessions,
+        load: computersQuery.hostResources.get(LOCAL_COMPUTER_ID),
+      }),
+    [
+      computersQuery.local,
+      computersQuery.hostResources,
+      accountQuery.data?.device?.name,
+      localRemote.remoteStatus,
+      localSettings.activeLocalSessions,
+    ]
+  );
 
   const unaddedComputers = useMemo<AccountUnaddedComputerFixture[]>(() => {
     const items: AccountUnaddedComputerFixture[] = [];
@@ -303,20 +316,6 @@ export function useComputersSettingsPage() {
     }
   }, []);
 
-  const handleRequestToggleRunAgents = useCallback(
-    (next: boolean) => {
-      if (!next && local.activeLocalSessions > 0) {
-        setDisableAgentsOpen(true);
-        return;
-      }
-      setLocalRunAgentsOverride(next);
-      toast.message(
-        next ? "This computer can now run agents." : "Stopped starting new agents on this computer."
-      );
-    },
-    [local.activeLocalSessions]
-  );
-
   const handleRetryCloud = useCallback(() => {
     void Promise.all([
       accountQuery.refetch(),
@@ -366,19 +365,21 @@ export function useComputersSettingsPage() {
     revokeApprovalFailure: localRemote.revokeApprovalFailure,
     isRevoking: localRemote.isRevoking,
     closeRevokeDialog: localRemote.closeRevokeDialog,
-    disableAgentsOpen,
-    setDisableAgentsOpen,
+    disableAgentsOpen: localSettings.disableAgentsOpen,
+    setDisableAgentsOpen: localSettings.setDisableAgentsOpen,
+    isUpdatingLocalSettings: localSettings.isUpdatingLocalSettings,
+    loadBalancingEnabled: computersQuery.loadBalancingEnabled,
+    isUpdatingLoadBalancing: localSettings.isUpdatingLoadBalancing,
     addingAccountId,
     liveUpdateState: toLiveUpdateState(updateStatus),
     liveUpdateSteps: selectedComputer
       ? buildLiveUpdateSteps(updateStatus, selectedComputer.name)
       : undefined,
-    handleRequestToggleRunAgents,
-    handleConfirmDisableAgents: () => {
-      setDisableAgentsOpen(false);
-      setLocalRunAgentsOverride(false);
-      toast.message("Stopped starting new agents on this computer.");
-    },
+    handleRequestToggleRunAgents: localSettings.handleRequestToggleRunAgents,
+    handleConfirmDisableAgents: localSettings.handleConfirmDisableAgents,
+    handleToggleLoadBalancing: localSettings.handleToggleLoadBalancing,
+    handleChangeLocalWeight: localSettings.handleChangeLocalWeight,
+    handleChangeComputerWeight: localSettings.handleChangeComputerWeight,
     handleToggleRemoteEnabled: localRemote.handleToggleRemoteEnabled,
     handleToggleRequireApproval: localRemote.handleToggleRequireApproval,
     handleToggleLocalDeviceScope: localRemote.handleToggleLocalDeviceScope,

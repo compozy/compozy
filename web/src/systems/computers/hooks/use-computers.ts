@@ -1,6 +1,7 @@
-import { useContext, useEffect } from "react";
+import { useContext, useEffect, useMemo } from "react";
 import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
 
+import { LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
 import { accountKeys, type AccountStatusPayload } from "@/systems/account";
 
 import { openComputersStream } from "../adapters/computers-api";
@@ -8,10 +9,13 @@ import { computerRegistryKeys } from "../lib/query-keys";
 import { computerDetailOptions, computersListOptions } from "../lib/query-options";
 import { toComputerView, toLocalComputerView } from "../lib/computer-view";
 import type { ComputerPayload } from "../types";
+import { useComputersHostResources } from "./use-host-resources";
 
 const NOOP_QUERY_CLIENT = new QueryClient({
   defaultOptions: { queries: { enabled: false, retry: false } },
 });
+
+const EMPTY_COMPUTERS: ComputerPayload[] = [];
 
 /**
  * Reads `/api/computers` and stays synchronized with `/api/computers/stream` (`computer.changed`).
@@ -20,7 +24,12 @@ const NOOP_QUERY_CLIENT = new QueryClient({
  * triggering a standalone HTTP request on mount (avoids redundant fetches in list/palette views).
  */
 export function useComputers(
-  options: { enabled?: boolean; stream?: boolean; passive?: boolean } = {}
+  options: {
+    enabled?: boolean;
+    stream?: boolean;
+    passive?: boolean;
+    withHostResources?: boolean;
+  } = {}
 ) {
   const contextClient = useContext(QueryClientContext);
   const queryClient = contextClient ?? NOOP_QUERY_CLIENT;
@@ -43,17 +52,40 @@ export function useComputers(
     });
   }, [contextClient, enabled, stream]);
 
-  const computers = query.data?.computers ?? [];
-  const enabledComputers = computers.filter(computer => computer.enabled);
+  const computers = query.data?.computers ?? EMPTY_COMPUTERS;
+  const enabledComputers = useMemo(
+    () => computers.filter(computer => computer.enabled),
+    [computers]
+  );
   const local = query.data?.local;
+  const loadBalancingEnabled = Boolean(local?.load_balancing);
+  const shouldPollResources =
+    Boolean(options.withHostResources) && enabled && (computers.length > 0 || loadBalancingEnabled);
+  const hostResources = useComputersHostResources(computers, {
+    enabled: shouldPollResources,
+    includeLocal: local?.run_agents ?? true,
+  });
+
+  const computerViews = useMemo(
+    () =>
+      computers.map(computer => toComputerView(computer, { load: hostResources.get(computer.id) })),
+    [computers, hostResources]
+  );
+  const localView = useMemo(
+    () => toLocalComputerView(local, { load: hostResources.get(LOCAL_COMPUTER_ID) }),
+    [local, hostResources]
+  );
 
   return {
     ...query,
     computers,
     enabledComputers,
-    computerViews: computers.map(toComputerView),
+    computerViews,
     local,
-    localView: toLocalComputerView(local),
+    localView,
+    loadBalancingEnabled,
+    localLoadBalancingWeight: local?.load_balancing_weight ?? 50,
+    hostResources,
   };
 }
 

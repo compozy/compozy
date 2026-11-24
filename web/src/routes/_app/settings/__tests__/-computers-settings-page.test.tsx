@@ -98,11 +98,17 @@ function makeView(overrides: Record<string, unknown> = {}) {
     closeRevokeDialog: vi.fn(),
     disableAgentsOpen: false,
     setDisableAgentsOpen: vi.fn(),
+    isUpdatingLocalSettings: false,
+    loadBalancingEnabled: false,
+    isUpdatingLoadBalancing: false,
     addingAccountId: null,
     liveUpdateState: "idle",
     liveUpdateSteps: undefined,
     handleRequestToggleRunAgents: vi.fn(),
     handleConfirmDisableAgents: vi.fn(),
+    handleToggleLoadBalancing: vi.fn(),
+    handleChangeLocalWeight: vi.fn(),
+    handleChangeComputerWeight: vi.fn(),
     handleToggleRemoteEnabled: vi.fn(),
     handleToggleRequireApproval: vi.fn(),
     handleToggleLocalDeviceScope: vi.fn(),
@@ -165,7 +171,7 @@ describe("ComputersSettingsPage", () => {
     expect(dismiss).toHaveBeenCalledWith(null);
   });
 
-  it("renders empty state when no remote computers are added", () => {
+  it("renders empty state when no remote computers are added and disables local execution switch", () => {
     const openAdd = vi.fn();
     state.view = makeView({
       computers: [],
@@ -176,7 +182,27 @@ describe("ComputersSettingsPage", () => {
     render(<ComputersSettingsPage />);
 
     expect(screen.getByTestId("computers-empty")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Run agents on this computer" })).toBeDisabled();
+    expect(screen.getByText(/Add a computer first/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("computers-load-balancing")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Add computer/i }));
     expect(openAdd).toHaveBeenCalledWith(true);
+  });
+
+  it("renders Load balancing section and Stop running agents confirmation dialog", () => {
+    const onConfirmDisable = vi.fn();
+    state.view = makeView({
+      loadBalancingEnabled: true,
+      disableAgentsOpen: true,
+      handleConfirmDisableAgents: onConfirmDisable,
+    });
+
+    render(<ComputersSettingsPage />);
+
+    expect(screen.getByTestId("computers-load-balancing")).toBeInTheDocument();
+    expect(screen.getByText("Stop running agents on this computer?")).toBeInTheDocument();
+    expect(screen.getByText(/2 sessions are running here/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Stop running agents" }));
+    expect(onConfirmDisable).toHaveBeenCalledTimes(1);
   });
 });

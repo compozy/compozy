@@ -13,7 +13,6 @@ import type {
   ComputerStatus,
   DiagnosisHop,
   HostedRouteState,
-  LoadBalancingWeight,
   LocalComputerFixture,
   PendingApprovalFixture,
   RemoteScope,
@@ -24,10 +23,16 @@ import type {
   ComputerPayload,
   ComputerRoutePayload,
   ComputerSSHHostPayload,
+  HostResourcesResponse,
   LocalComputerPayload,
   RemoteDevicePayload,
   RemoteStatusPayload,
 } from "../types";
+import {
+  normalizeLoadBalancingWeight,
+  toHostLoadView,
+  UNSAMPLED_LOCAL_LOAD,
+} from "./placement-view";
 
 const KNOWN_PLATFORMS: ReadonlySet<ComputerPlatform> = new Set([
   "darwin_arm64",
@@ -114,13 +119,6 @@ function isRouteIdentityMismatch(lastError: string | null | undefined): boolean 
     lower.includes("different computer at this address") ||
     lower.includes("identity mismatch")
   );
-}
-
-function normalizeWeight(weight: number): LoadBalancingWeight {
-  if (weight >= 100) return 100;
-  if (weight >= 50) return 50;
-  if (weight >= 25) return 25;
-  return 0;
 }
 
 function formatRelativeLabel(iso: string | null | undefined, emptyFallback = "never"): string {
@@ -229,7 +227,10 @@ function buildAttentionReason(
  * Projects a live generated `Computer` DTO into the view model consumed by
  * `ComputerRow`, `ComputerDetailsPanel`, `RunOnPicker`, and `ComputerChip`.
  */
-export function toComputerView(computer: ComputerPayload): ComputerFixture {
+export function toComputerView(
+  computer: ComputerPayload,
+  options: { load?: HostResourcesResponse | null } = {}
+): ComputerFixture {
   const platform = normalizeComputerPlatform(computer.platform);
   const routes: ComputerRouteFixture[] = computer.routes.map(route => ({
     id: route.id,
@@ -273,8 +274,8 @@ export function toComputerView(computer: ComputerPayload): ComputerFixture {
     routeInUse,
     routes,
     scopes,
-    load: null,
-    loadBalancingWeight: normalizeWeight(computer.load_balancing_weight),
+    load: toHostLoadView(options.load),
+    loadBalancingWeight: normalizeLoadBalancingWeight(computer.load_balancing_weight),
     attentionReason: buildAttentionReason(computer),
     diagnosis: buildDiagnosisView(computer),
     providers: [],
@@ -302,6 +303,7 @@ export function toLocalComputerView(
     platform?: ComputerPlatform;
     remote?: RemoteStatusPayload;
     activeLocalSessions?: number;
+    load?: HostResourcesResponse | null;
   } = {}
 ): LocalComputerFixture {
   const platform = options.platform ?? "darwin_arm64";
@@ -322,15 +324,8 @@ export function toLocalComputerView(
     hostedRouteState: hostedState,
     hostedUrl: remote?.cloud_route?.hostname ?? "",
     requireDeviceApproval: Boolean(remote?.require_device_approval),
-    load: {
-      cpuCount: 0,
-      cpuUtil: 0,
-      memTotalBytes: 0,
-      memAvailableBytes: 0,
-      sampledAt: "",
-      sampledAgoLabel: "",
-    },
-    loadBalancingWeight: 50,
+    load: toHostLoadView(options.load) ?? UNSAMPLED_LOCAL_LOAD,
+    loadBalancingWeight: normalizeLoadBalancingWeight(local?.load_balancing_weight ?? 50),
     projects: [],
   };
 }

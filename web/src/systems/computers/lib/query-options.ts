@@ -1,10 +1,14 @@
 import { queryOptions } from "@tanstack/react-query";
 
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+
 import {
   fetchAvailableComputers,
   fetchComputer,
   fetchComputers,
   fetchComputerSSHHosts,
+  fetchHostResources,
+  previewComputerPlacement,
 } from "../adapters/computers-api";
 import { fetchRemoteDevices, fetchRemoteStatus } from "../adapters/remote-host-api";
 import { computerRegistryKeys } from "./query-keys";
@@ -65,6 +69,41 @@ export function remoteDevicesOptions(enabled = true) {
     queryFn: ({ signal }) => fetchRemoteDevices(signal),
     enabled,
     staleTime: 15_000,
+    retry: false,
+  });
+}
+
+export function computerPlacementOptions(
+  input: { workspace: string; projectComputerId?: string },
+  enabled = true
+) {
+  const workspace = input.workspace.trim();
+  const projectComputerId =
+    input.projectComputerId && isRemoteComputerId(input.projectComputerId)
+      ? input.projectComputerId
+      : undefined;
+  return queryOptions({
+    queryKey: computerRegistryKeys.placement(workspace, projectComputerId),
+    queryFn: ({ signal }) =>
+      previewComputerPlacement(
+        {
+          workspace,
+          ...(projectComputerId ? { project_computer_id: projectComputerId } : {}),
+        },
+        signal
+      ),
+    enabled: enabled && workspace !== "",
+    staleTime: 5_000,
+    retry: false,
+  });
+}
+
+export function hostResourcesOptions(computerId: ComputerId, enabled = true) {
+  return queryOptions({
+    queryKey: computerRegistryKeys.hostResources(computerId),
+    queryFn: ({ signal }) => fetchHostResources(computerId, signal),
+    enabled,
+    staleTime: 10_000,
     retry: false,
   });
 }

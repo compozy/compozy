@@ -3,6 +3,9 @@ import type { QueryClient } from "@tanstack/react-query";
 /** Reserved computer identifier for the local daemon (ADR-004). */
 export const LOCAL_COMPUTER_ID = "local" as const;
 
+/** Reserved Run on target identifier for load-balanced Auto placement (US-015). */
+export const AUTO_COMPUTER_ID = "auto" as const;
+
 export type ComputerId = typeof LOCAL_COMPUTER_ID | (string & {});
 
 export function normalizeComputerId(computerId?: string | null): ComputerId {
@@ -11,8 +14,13 @@ export function normalizeComputerId(computerId?: string | null): ComputerId {
   return trimmed === "" ? LOCAL_COMPUTER_ID : trimmed;
 }
 
+export function isAutoComputerId(computerId?: string | null): boolean {
+  return normalizeComputerId(computerId) === AUTO_COMPUTER_ID;
+}
+
 export function isRemoteComputerId(computerId?: string | null): boolean {
-  return normalizeComputerId(computerId) !== LOCAL_COMPUTER_ID;
+  const normalized = normalizeComputerId(computerId);
+  return normalized !== LOCAL_COMPUTER_ID && normalized !== AUTO_COMPUTER_ID;
 }
 
 /**

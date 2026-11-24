@@ -44,6 +44,8 @@ export interface RunOnPickerProps {
   allowAuto?: boolean;
   /** Resolved target when `Auto` is available; `null` when no computer is eligible for the project. */
   autoResolution?: AutoResolutionSummary | null;
+  /** True while the daemon is resolving `POST /api/computers/placement` for Auto. */
+  autoLoading?: boolean;
   /** Visual density matching the host surface. */
   variant?: "field" | "compact" | "inline";
   /** Static locked chip after a session is created — preserves exact height with zero layout jump. */
@@ -69,7 +71,8 @@ function triggerLabel(
   value: RunOnTarget,
   localComputer: LocalComputerFixture,
   computers: readonly ComputerFixture[],
-  autoResolution: AutoResolutionSummary | null | undefined
+  autoResolution: AutoResolutionSummary | null | undefined,
+  autoLoading: boolean
 ): {
   kind: "auto" | "local" | "remote";
   name: string;
@@ -78,13 +81,19 @@ function triggerLabel(
   computer?: ComputerFixture;
 } {
   if (value === "auto") {
+    if (autoLoading) {
+      return { kind: "auto", name: "Auto", suffix: "Checking…", degraded: "connecting" };
+    }
     if (autoResolution) {
       return { kind: "auto", name: "Auto", suffix: `→ ${autoResolution.computerName}` };
     }
     return { kind: "auto", name: "Auto", suffix: "No computer ready", degraded: "warning" };
   }
   if (value === "local") {
-    return { kind: "local", name: "This computer" };
+    return {
+      kind: "local",
+      name: localComputer.localRunAgents ? "This computer" : "Choose computer",
+    };
   }
   const found = computers.find(item => item.id === value);
   if (!found) {
@@ -139,6 +148,7 @@ export function RunOnPicker({
   loadBalancingEnabled = false,
   allowAuto = true,
   autoResolution = null,
+  autoLoading = false,
   variant = "field",
   locked = false,
   disabled = false,
@@ -173,7 +183,7 @@ export function RunOnPicker({
     return null;
   }
 
-  const current = triggerLabel(value, localComputer, enabledComputers, autoResolution);
+  const current = triggerLabel(value, localComputer, enabledComputers, autoResolution, autoLoading);
   const isCompact = variant === "compact";
   const isInline = variant === "inline";
 
@@ -327,13 +337,15 @@ export function RunOnPicker({
                     aria-hidden="true"
                     className={cn(
                       "size-4 shrink-0",
-                      autoResolution ? "text-subtle" : "text-warning"
+                      autoResolution || autoLoading ? "text-subtle" : "text-warning"
                     )}
                   />
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="flex items-center gap-1.5 text-small-body font-medium text-fg">
                       <span>Auto</span>
-                      {autoResolution ? (
+                      {autoLoading ? (
+                        <Spinner aria-hidden="true" className="size-3" />
+                      ) : autoResolution ? (
                         <span className="font-normal text-muted-foreground">
                           → {autoResolution.computerName}
                         </span>
@@ -342,12 +354,14 @@ export function RunOnPicker({
                     <span
                       className={cn(
                         "truncate text-eyebrow",
-                        autoResolution ? "text-subtle" : "text-warning"
+                        autoResolution || autoLoading ? "text-subtle" : "text-warning"
                       )}
                     >
-                      {autoResolution
-                        ? "Picks the least busy computer"
-                        : "No computer can run this project"}
+                      {autoLoading
+                        ? "Checking eligible computers…"
+                        : autoResolution
+                          ? "Picks the least busy computer"
+                          : "No computer can run this project"}
                     </span>
                   </span>
                 </CommandItem>

@@ -2,6 +2,8 @@ import { use, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useSelector } from "@xstate/store-react";
 import {
+  AUTO_COMPUTER_ID,
+  isAutoComputerId,
   isRemoteComputerId,
   LOCAL_COMPUTER_ID,
   normalizeComputerId,
@@ -12,6 +14,7 @@ import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { TerminalQuote } from "@/systems/terminal/parts";
 import { ownerDataScope, windowBindingValue, type DestinationKind } from "@/systems/workspace";
 
+import type { CreatedSessionPayload } from "../adapters/session-api";
 import { sessionCreateBinding } from "../lib/session-create-binding";
 import { activateCreatedSessionWorkspace } from "../lib/session-create-navigation";
 import { writeLastSessionProject } from "../lib/session-create-target";
@@ -22,7 +25,7 @@ import {
 } from "../lib/session-terminal-quote";
 import { sessionStore } from "../stores/session-store";
 import type { SessionCreateStore } from "../stores/session-create-store";
-import type { CreateSessionParams, SessionPayload } from "../types";
+import type { CreateSessionParams } from "../types";
 import { useCreateSession } from "./use-session-actions";
 import type { SessionEnvironmentModel } from "./use-session-environment";
 import type { SessionCreateTarget } from "./use-session-create-target";
@@ -31,6 +34,8 @@ interface UseSessionCreateSubmitOptions {
   agents: readonly AgentPayload[];
   binding: ReturnType<typeof sessionCreateBinding>;
   computerId?: ComputerId;
+  /** Source computer owning the draft workspace when `computerId === "auto"`. */
+  projectComputerId?: ComputerId;
   environment: SessionEnvironmentModel;
   environmentWorkspaceId: string;
   runtimeWorkspaceId: string | null;
@@ -66,6 +71,7 @@ export function useSessionCreateSubmit({
   agents,
   binding,
   computerId = LOCAL_COMPUTER_ID,
+  projectComputerId = LOCAL_COMPUTER_ID,
   environment,
   environmentWorkspaceId,
   runtimeWorkspaceId,
@@ -78,6 +84,8 @@ export function useSessionCreateSubmit({
   const shell = use(OsShellContext);
   const createSession = useCreateSession();
   const scopedComputerId = normalizeComputerId(computerId);
+  const scopedProjectComputerId = normalizeComputerId(projectComputerId);
+  const isAuto = isAutoComputerId(scopedComputerId);
   const isRemote = isRemoteComputerId(scopedComputerId);
   const flow = useSelector(store, snapshot => snapshot.context);
   const pendingSubmit = flow.pendingSubmit;
@@ -145,7 +153,7 @@ export function useSessionCreateSubmit({
       store.trigger.validationFailed({ message: validated.message });
       return;
     }
-    if (scope === "project" && !isRemote) {
+    if (scope === "project" && !isRemote && !isAuto) {
       const readiness = environment.ensureReady();
       if (readiness === "blocked") {
         store.trigger.validationFailed({
@@ -168,15 +176,26 @@ export function useSessionCreateSubmit({
       }
     }
     const terminalQuote = claimPendingTerminalQuoteForCreate();
+    const requestPayload: CreateSessionParams = isAuto
+      ? {
+          ...stripLocalOnlyAutoFields(validated.request),
+          computer: AUTO_COMPUTER_ID,
+          ...(isRemoteComputerId(scopedProjectComputerId)
+            ? { project_computer_id: scopedProjectComputerId }
+            : {}),
+        }
+      : validated.request;
     store.trigger.submissionRequested({
       agentName: validated.agentName,
       workspaceId: runtimeWorkspaceId ?? "",
       execute: () =>
         executeCreatedSession(
           createSessionAsync({
-            ...validated.request,
+            ...requestPayload,
             ...(isRemote ? { computerId: scopedComputerId } : {}),
-            ...(scope === "project" && !isRemote && worktreeId ? { worktree: worktreeId } : {}),
+            ...(scope === "project" && !isRemote && !isAuto && worktreeId
+              ? { worktree: worktreeId }
+              : {}),
             ...(profile ? { profile } : {}),
           }),
           validated.pendingPrompt,
@@ -186,7 +205,7 @@ export function useSessionCreateSubmit({
         openCreatedSession(
           session,
           {
-            computerId: scopedComputerId,
+            computerId: isAuto ? LOCAL_COMPUTER_ID : scopedComputerId,
             scope,
             currentWorkspaceId: actingWorkspaceId,
             allProjectsTarget,
@@ -196,6 +215,14 @@ export function useSessionCreateSubmit({
         ),
     });
   };
+}
+
+function stripLocalOnlyAutoFields(request: CreateSessionParams): CreateSessionParams {
+  const next: CreateSessionParams = { ...request };
+  delete next.folder_id;
+  delete next.worktree;
+  delete next.parent_session_id;
+  return next;
 }
 
 function validateSessionCreate(
@@ -224,7 +251,7 @@ function validateSessionCreate(
 }
 
 async function openCreatedSession(
-  session: SessionPayload,
+  session: CreatedSessionPayload,
   landing: SessionLanding,
   navigate: ReturnType<typeof useNavigate>,
   shell: OsShellHandle | null
@@ -232,12 +259,13 @@ async function openCreatedSession(
   // Named before the workspace switch: the route reconciliation that lands it — after the
   // target workspace hydrates — prefers the operator's existing Session window (#825).
   shell?.coordinator.noteCreatedSession(session.id);
-  if (isRemoteComputerId(landing.computerId)) {
+  const actualComputerId = normalizeComputerId(session.computer_id ?? landing.computerId);
+  if (isRemoteComputerId(actualComputerId)) {
     await navigate({
       to: "/agents/$name/sessions/$id",
       params: { name: session.agent_name, id: session.id },
       search: {
-        computer: landing.computerId,
+        computer: actualComputerId,
         ...(session.workspace_id
           ? { workspace: windowBindingValue(ownerDataScope(session.workspace_id)) }
           : {}),
@@ -265,10 +293,10 @@ async function openCreatedSession(
 }
 
 async function executeCreatedSession(
-  create: Promise<SessionPayload>,
+  create: Promise<CreatedSessionPayload>,
   pendingPrompt: string | null,
   quote: TerminalQuote | null
-): Promise<SessionPayload> {
+): Promise<CreatedSessionPayload> {
   try {
     const session = await create;
     if (quote) stageChosenSessionTerminalQuote(session.id, quote);

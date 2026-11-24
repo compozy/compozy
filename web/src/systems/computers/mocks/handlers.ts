@@ -127,6 +127,35 @@ export const computersHandlers = [
         headers: { "Content-Type": "text/event-stream" },
       })
   ),
+  http.patch("/api/computers/local", async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json({ ...DEFAULT_COMPUTERS_LIST.local, ...body });
+  }),
+  http.post("/api/computers/placement", () =>
+    HttpResponse.json({
+      computer_id: DEFAULT_COMPUTERS_LIST.computers[0]?.id ?? "local",
+      name: DEFAULT_COMPUTERS_LIST.computers[0]?.name ?? "This computer",
+      workspace_id: "ws_devbox_api",
+    })
+  ),
+  http.get("/api/host/resources", () =>
+    HttpResponse.json({
+      cpu_count: 8,
+      cpu_util: 0.22,
+      mem_total: 32 * 1024 * 1024 * 1024,
+      mem_available: 18 * 1024 * 1024 * 1024,
+      sampled_at: new Date().toISOString(),
+    })
+  ),
+  http.get("/c/:computerId/api/host/resources", () =>
+    HttpResponse.json({
+      cpu_count: 16,
+      cpu_util: 0.18,
+      mem_total: 64 * 1024 * 1024 * 1024,
+      mem_available: 42 * 1024 * 1024 * 1024,
+      sampled_at: new Date().toISOString(),
+    })
+  ),
   http.get("/api/computers/:id", ({ params }) => {
     const found = DEFAULT_COMPUTERS_LIST.computers.find(c => c.id === params.id);
     if (!found) {
