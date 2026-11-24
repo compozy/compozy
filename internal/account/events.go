@@ -40,7 +40,10 @@ type seenResult struct {
 func newGeneration(parent context.Context, id int64) *generation {
 	ctx, cancel := context.WithCancel(parent)
 	// The high bits bind the numeric SSE cursor to the durable auth generation.
-	base := uint64(id) << 32
+	var base uint64
+	if id > 0 {
+		base = uint64(id) << 32
+	}
 	return &generation{
 		ctx:      ctx,
 		cancel:   cancel,

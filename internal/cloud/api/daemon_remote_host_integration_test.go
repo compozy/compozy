@@ -20,7 +20,7 @@ import (
 
 func TestDaemonRemoteHost(t *testing.T) {
 	f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
-	daemon, ring := startDaemonAccountFixture(t, f)
+	daemon, ring := startDaemonAccountFixture(t, f, t.TempDir())
 	t.Run(
 		"Should link, admit a newly enrolled device on the same control link, disable, and unlink",
 		func(t *testing.T) {

@@ -105,11 +105,20 @@ func accountEventPayload(event store.ControlEvent) (string, remoteproto.CloudAcc
 	case remoteproto.ControlPlanChanged:
 		return "plan.changed", remoteproto.CloudAccountEvent{}
 	case remoteproto.ControlApprovalPending:
-		return "approval.pending", remoteproto.CloudAccountEvent{ApprovalID: event.ResourceID, ComputerID: event.ComputerID}
+		return "approval.pending", remoteproto.CloudAccountEvent{
+			ApprovalID: event.ResourceID,
+			ComputerID: event.ComputerID,
+		}
 	case remoteproto.ControlApprovalDecided:
-		return "approval_decided", remoteproto.CloudAccountEvent{ApprovalID: event.ResourceID, ComputerID: event.ComputerID}
+		return "approval_decided", remoteproto.CloudAccountEvent{
+			ApprovalID: event.ResourceID,
+			ComputerID: event.ComputerID,
+		}
 	case remoteproto.ControlApprovalApplied:
-		return "approval.applied", remoteproto.CloudAccountEvent{ApprovalID: event.ResourceID, ComputerID: event.ComputerID}
+		return "approval.applied", remoteproto.CloudAccountEvent{
+			ApprovalID: event.ResourceID,
+			ComputerID: event.ComputerID,
+		}
 	default:
 		return "", remoteproto.CloudAccountEvent{}
 	}

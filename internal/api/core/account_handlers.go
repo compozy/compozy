@@ -192,7 +192,7 @@ func decodeAccountRequest(c *gin.Context, input any, optional bool) bool {
 func invalidAccountRequest(c *gin.Context) {
 	c.JSON(
 		http.StatusBadRequest,
-		contract.ErrorPayload{Code: "invalid_request", Error: "Check the account request and try again."},
+		contract.ErrorPayload{Code: cmdPaletteInvalidRequestError, Error: "Check the account request and try again."},
 	)
 }
 

@@ -111,7 +111,10 @@ func TestAccountSignIn(t *testing.T) {
 		if code := awaitAccountTest(t, canceled); code != "google" {
 			t.Fatalf("canceled grant = %q, want the first grant", code)
 		}
-		expectSignIn(t, events, SignInEvent{AttemptID: first.AttemptID, State: "cancelled"}) //nolint:misspell
+		expectSignIn(t, events, SignInEvent{
+			AttemptID: first.AttemptID,
+			State:     "cancelled", //nolint:misspell // Account sign-in wire state.
+		})
 		expectSignIn(t, events, SignInEvent{AttemptID: second.AttemptID, State: "waiting"})
 		unblock()
 		s.Close()
@@ -461,7 +464,7 @@ func testAuthorized(string) (remoteproto.DeviceFlowTokenResponse, error) {
 }
 
 func testProfile() (remoteproto.AccountSummary, error) {
-	return remoteproto.AccountSummary{Email: "pedro@example.com", AccountPlan: remoteproto.AccountPlan{Plan: "free"},
+	return remoteproto.AccountSummary{Email: "pedro@example.com", Plan: "free",
 		Device: remoteproto.AccountDevice{ID: "dev_test", Admin: true}}, nil
 }
 

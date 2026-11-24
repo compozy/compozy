@@ -36,11 +36,13 @@ import (
 const accountStreamPath = contract.AccountPath + "/stream"
 
 func TestDaemonCloudAccount(t *testing.T) {
+	// Create the home before the descriptive subtest name can lengthen the Unix socket path.
+	home := t.TempDir()
 	t.Run(
 		"Should sign in, isolate approval streams, sign out, and admit local work during an outage",
 		func(t *testing.T) {
 			f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
-			d, ring := startDaemonAccountFixture(t, f)
+			d, ring := startDaemonAccountFixture(t, f, home)
 
 			// IT-010, IT-099. The daemon owns the grant and the device credential.
 			progress := d.stream(t, contract.AccountSignInEventsPath, "")
@@ -114,7 +116,7 @@ func TestDaemonCloudAccount(t *testing.T) {
 				expect(t, http.StatusServiceUnavailable, "account_cloud_unreachable")
 			d.uds(t, http.MethodGet, contract.AccountPath, nil).expect(t, http.StatusOK, second.Email)
 			local := d.request(t, http.MethodPost, "/api/sessions", contract.CreateSessionRequest{
-				Scope: "global", AgentName: config.DefaultAgentName,
+				Scope: "user", AgentName: config.DefaultAgentName,
 			})
 			local.expect(t, http.StatusCreated, "session")
 			if created := authJSON[contract.SessionResponse](t, local); created.Session.ID == "" {
@@ -240,9 +242,8 @@ type daemonAccountFixture struct {
 	httpBase              string
 }
 
-func startDaemonAccountFixture(t *testing.T, f authFixture) (daemonAccountFixture, *daemonAccountKeyring) {
+func startDaemonAccountFixture(t *testing.T, f authFixture, home string) (daemonAccountFixture, *daemonAccountKeyring) {
 	t.Helper()
-	home := t.TempDir()
 	t.Setenv("COMPOZY_HOME", home)
 	t.Setenv("COMPOZY_CLOUD_URL", f.replica.Server.URL)
 	paths, err := config.ResolveHomePathsFrom(home)
@@ -253,15 +254,27 @@ func startDaemonAccountFixture(t *testing.T, f authFixture) (daemonAccountFixtur
 	if _, _, err := config.EnsureBootstrapAgent(paths); err != nil {
 		t.Fatal(err)
 	}
-	cfg := config.DefaultWithHome(paths)
-	cfg.UserScope.WorkDir = home
+	// User sessions resolve their provider and working directory from the profile config on disk.
+	target, err := config.ResolveConfigWriteTarget(paths, "", config.WriteScopeUser, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.EditConfigOverlay(paths, "", target, func(editor *config.OverlayEditor) error {
+		if err := editor.SetValue([]string{"defaults", "provider"}, "codex"); err != nil {
+			return err
+		}
+		return editor.SetValue([]string{"user_scope", "work_dir"}, home)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg.Automation.Enabled = false
 	cfg.HTTP.Host, cfg.HTTP.Port = "127.0.0.1", testutil.FreeTCPPort(t)
 	ring := &daemonAccountKeyring{}
 	daemonInstance, err := daemon.New(
 		daemon.WithHomePaths(paths),
 		daemon.WithConfig(&cfg),
-		daemon.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+		daemon.WithLogger(slog.New(slog.NewTextHandler(t.Output(), &slog.HandlerOptions{Level: slog.LevelWarn}))),
 		daemon.WithNow(f.clock.Now),
 		daemon.WithAccountOptions(account.WithClock(f.clock), account.WithKeyring(ring)),
 	)

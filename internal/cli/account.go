@@ -15,6 +15,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const accountSignInHint = "Sign in to use CompozyOS: compozy account login"
+
 func newAccountCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{Use: "account", Short: "Manage the Compozy Cloud account on this computer"}
 	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return newCLIUsageError(err.Error()) })
@@ -69,7 +71,7 @@ func runAccountStatus(cmd *cobra.Command, client accountCommandClient) error {
 	result := status.CLIStatus()
 	return writeCommandOutput(cmd, outputBundle{jsonValue: result, human: func() (string, error) {
 		if !status.SignedIn {
-			return "Sign in to use CompozyOS: compozy account login", nil
+			return accountSignInHint, nil
 		}
 		plan := accountPlanLabel(result.Plan)
 		if result.RemoteComputersLimit != nil {
@@ -167,7 +169,10 @@ func runAccountLogin(cmd *cobra.Command, deps commandDeps, client accountCommand
 		return err
 	}
 	if !status.SignedIn {
-		return errors.New("Sign in to use CompozyOS: compozy account login")
+		return &daemonAPIError{
+			statusCode: http.StatusUnauthorized,
+			payload:    contract.ErrorPayload{Code: "sign_in_required", Error: accountSignInHint},
+		}
 	}
 	return writeCommandOutput(cmd, outputBundle{jsonValue: status.CLIStatus(), human: func() (string, error) {
 		return fmt.Sprintf("Signed in as %s (%s)", status.Email, accountPlanLabel(status.Plan)), nil
@@ -222,14 +227,19 @@ func awaitAccountLogin(ctx context.Context, stream io.Reader, attemptID string) 
 		case "signed_in":
 			complete = true
 			return sse.ErrStop
-		case "expired", "failed", "cancelled": //nolint:misspell // Public protocol state.
+		case "expired", string(bootstrapPhaseFailed), "cancelled": //nolint:misspell // Public protocol state.
 			return accountLoginFailure(progress.Code)
 		default:
 			return nil
 		}
 	})
 	if err == nil && !complete {
-		return errors.New("Account sign-in updates ended. Try again.")
+		return &daemonAPIError{
+			statusCode: http.StatusServiceUnavailable,
+			payload: contract.ErrorPayload{
+				Code: "account_operation_failed", Error: "Account sign-in updates ended. Try again.",
+			},
+		}
 	}
 	return err
 }
