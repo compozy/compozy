@@ -116,7 +116,7 @@ func TestDaemonCloudAccount(t *testing.T) {
 				expect(t, http.StatusServiceUnavailable, "account_cloud_unreachable")
 			d.uds(t, http.MethodGet, contract.AccountPath, nil).expect(t, http.StatusOK, second.Email)
 			local := d.request(t, http.MethodPost, "/api/sessions", contract.CreateSessionRequest{
-				Scope: "global", AgentName: config.DefaultAgentName,
+				Scope: "user", AgentName: config.DefaultAgentName,
 			})
 			local.expect(t, http.StatusCreated, "session")
 			if created := authJSON[contract.SessionResponse](t, local); created.Session.ID == "" {
