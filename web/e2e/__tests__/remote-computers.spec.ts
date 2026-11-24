@@ -320,7 +320,6 @@ test.describe("Device revocation", () => {
     await expect(row).toBeHidden();
   });
 });
-
 test.describe("Hosted browser", () => {
   test.use({ scenario: "hosted-browser" });
 
@@ -419,5 +418,77 @@ test.describe("Hosted browser", () => {
     } finally {
       await hostedBrowser.close();
     }
+  });
+});
+
+test.describe("Free limit upgrade", () => {
+  test.use({ scenario: "free-upgrade" });
+
+  test("E2E-008 stop at Checking your plan on Free, upgrade via Stripe Checkout, and proceed with the SSH add", async ({
+    page,
+    context,
+    lab,
+  }) => {
+    const host = lab.computers[0];
+    const settings = await openSettings(page, "computers");
+    await settings.getByTestId("computers-add-button").click();
+
+    const dialog = page.getByRole("dialog", { name: "Add computer" });
+    await dialog.getByRole("radio", { name: /^SSH/ }).click();
+    await dialog.locator("#add-computer-ssh-host").click();
+    await page.getByRole("option", { name: new RegExp(host.name) }).click();
+    await dialog.getByRole("button", { name: "Add computer", exact: true }).click();
+
+    // Stops at Checking your plan before touching the second host (US-003 AC-1 / EC-3).
+    await expect(dialog.getByText("Checking your plan")).toBeVisible();
+    await expect(dialog.getByText(/Free includes 1 remote computer/i).first()).toBeVisible();
+
+    // Open the U9 Upgrade sheet with annual preselected (US-002 AC-1).
+    await dialog.getByRole("button", { name: /Upgrade/i }).click();
+    const sheet = page.getByTestId("account-upgrade-sheet");
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole("radio", { name: /Pro annual/ })).toBeChecked();
+    await expect(
+      sheet.getByText("Prices in USD. Plus applicable taxes, calculated at checkout.")
+    ).toBeVisible();
+
+    // Continue to checkout opens fake Stripe Checkout in a new browser tab.
+    const checkoutTabPromise = context.waitForEvent("page");
+    await sheet.getByRole("button", { name: "Continue to checkout" }).click();
+    await expect(sheet).toHaveAttribute("data-phase", "waiting");
+    await expect(sheet.getByText("Waiting for checkout…")).toBeVisible();
+
+    const checkoutTab = await checkoutTabPromise;
+    await expect(checkoutTab).toHaveURL(/\/fixture-checkout\//);
+    await checkoutTab.getByRole("button", { name: "Complete payment" }).click();
+
+    // Account stream completes checkout with remote access off (US-002 AC-2 / AC-5).
+    await expect(sheet).toHaveAttribute("data-phase", "done", { timeout: 10_000 });
+    await expect(sheet.getByText("You're on Pro").first()).toBeVisible();
+    if (!checkoutTab.isClosed()) {
+      await checkoutTab.close();
+    }
+    await sheet.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(sheet).toBeHidden();
+
+    // Add computer retries past Checking your plan and completes SSH setup.
+    await expect(dialog.getByText("Trust this host?")).toBeVisible({ timeout: 20_000 });
+    await dialog.getByRole("button", { name: "Trust and continue" }).click();
+    await dialog.getByRole("button", { name: `Open ${host.name}` }).click({ timeout: 45_000 });
+    const computer = settings
+      .getByTestId("computers-list")
+      .locator("[data-computer-id]")
+      .filter({ has: page.getByText(host.name, { exact: true }) })
+      .filter({ hasText: "via SSH" });
+    await expect(computer).toContainText("Connected");
+
+    // Settings → Account shows Pro and Manage billing without a reload.
+    const accountSettings = await openSettings(page, "account");
+    await expect(
+      accountSettings.getByTestId("account-identity").getByText("Pro", { exact: true })
+    ).toBeVisible();
+    await expect(
+      accountSettings.getByRole("button", { name: "Manage billing" })
+    ).toBeVisible();
   });
 });

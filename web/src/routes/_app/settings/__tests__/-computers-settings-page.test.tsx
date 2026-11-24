@@ -31,6 +31,8 @@ import {
   ACCOUNT_DEVICES,
   ACCOUNT_PRESETS,
   ACCOUNT_UNADDED_COMPUTERS,
+  ACCOUNT_UNADDED_FREE,
+  COMPUTERS_DOWNGRADED,
   COMPUTERS_PRO,
   LOCAL_COMPUTER,
 } from "@/systems/computers/mocks/remote-computers-fixtures";
@@ -110,7 +112,11 @@ function makeView(overrides: Record<string, unknown> = {}) {
     handleChangeLocalWeight: vi.fn(),
     handleChangeComputerWeight: vi.fn(),
     handleToggleRemoteEnabled: vi.fn(),
+    handleToggleHostedRoute: vi.fn(),
     handleToggleRequireApproval: vi.fn(),
+    handleOpenUpgrade: vi.fn(),
+    handleOpenUpgradeFromAdd: vi.fn(),
+    fallbackUpgradeSheet: null,
     handleToggleLocalDeviceScope: vi.fn(),
     handleApproveLocalPending: vi.fn(),
     handleDenyLocalPending: vi.fn(),
@@ -204,5 +210,85 @@ describe("ComputersSettingsPage", () => {
     expect(screen.getByText(/2 sessions are running here/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Stop running agents" }));
     expect(onConfirmDisable).toHaveBeenCalledTimes(1);
+  });
+
+  it("wires every S12 paywall surface on Free/downgraded and Hosted route switch on Pro", () => {
+    const openUpgrade = vi.fn();
+    const openUpgradeFromAdd = vi.fn();
+    const toggleHostedRoute = vi.fn();
+
+    // Pro shows interactive Hosted route switch.
+    state.view = makeView({
+      account: ACCOUNT_PRESETS.pro,
+      handleToggleHostedRoute: toggleHostedRoute,
+    });
+    const { rerender } = render(<ComputersSettingsPage />);
+    fireEvent.click(screen.getByRole("switch", { name: "Hosted route" }));
+    expect(toggleHostedRoute).toHaveBeenCalledTimes(1);
+
+    // Free / downgraded wires Hosted route paywall, Free slot meter, Needs Pro rows, and On your account paywall.
+    state.view = makeView({
+      account: ACCOUNT_PRESETS.downgraded,
+      computers: COMPUTERS_DOWNGRADED,
+      unaddedComputers: ACCOUNT_UNADDED_FREE,
+      handleOpenUpgrade: openUpgrade,
+      handleOpenUpgradeFromAdd: openUpgradeFromAdd,
+      addDialogOpen: true,
+      addComputer: {
+        sshSuggestions: [],
+        unaddedComputers: ACCOUNT_UNADDED_FREE,
+        controller: {
+          method: "ssh",
+          setMethod: vi.fn(),
+          draft: { host: "testhost2", user: "pedro", port: "22", name: "testhost2" },
+          setDraft: vi.fn(),
+          sshStage: "plan_limit",
+          setupStatus: {
+            setup_id: "stp_limit",
+            computer_id: null,
+            state: "failed",
+            step: "admit",
+            prompt: null,
+            error: {
+              code: "plan_limit_reached",
+              error: "Free includes 1 remote computer. Upgrade to Pro for unlimited computers.",
+            },
+          },
+          hostKeyPrompt: null,
+          secretCountdownSeconds: 180,
+          secretError: null,
+          isAgentInitiated: false,
+          linkedCommitReached: false,
+          addedIds: [],
+          detectedCommandComputer: null,
+          onStartSsh: vi.fn(),
+          onTrustHost: vi.fn(),
+          onDeclineHost: vi.fn(),
+          onSubmitSecret: vi.fn(),
+          onConfirmCancel: vi.fn(),
+          onRetrySetup: vi.fn(),
+          onAddAccountComputer: vi.fn(),
+          onBackToPicker: vi.fn(),
+          onRemoveLinked: vi.fn(),
+        },
+      },
+    });
+    rerender(<ComputersSettingsPage />);
+
+    expect(
+      screen.getByText(/Hosted route is part of Pro/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 active · 2 need Pro")).toBeInTheDocument();
+    expect(
+      screen.getByText("This computer can only be reached through the hosted route (Pro)")
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Upgrade to Pro" }));
+    expect(openUpgradeFromAdd).toHaveBeenCalledTimes(1);
+
+    const upgradeButtons = screen.getAllByRole("button", { name: /^Upgrade$/i });
+    expect(upgradeButtons.length).toBeGreaterThanOrEqual(4);
+    fireEvent.click(upgradeButtons[0]!);
+    expect(openUpgrade).toHaveBeenCalledTimes(1);
   });
 });

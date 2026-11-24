@@ -2,6 +2,7 @@ import { AgentAvatar, Pill, StateGlyph, useTopbarSlot } from "@compozy/ui";
 
 import { isRemoteComputerId } from "@/lib/computer-scope";
 import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { useOptionalUpgradeSheetActions } from "@/systems/account";
 import { ComputerChip, findComputerById, toComputerView, useComputers } from "@/systems/computers";
 import {
   agentAvatarAppearance,
@@ -278,6 +279,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const computerId = useCurrentComputerId();
   const isRemote = isRemoteComputerId(computerId);
   const computers = useComputers({ enabled: isRemote });
+  const upgradeSheet = useOptionalUpgradeSheetActions();
   const remoteComputer = isRemote ? findComputerById(computers.computers, computerId) : undefined;
 
   useTopbarSlot({
@@ -330,7 +332,12 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
           session={session}
           showState={false}
         />
-        {remoteComputer ? <ComputerChip computer={toComputerView(remoteComputer)} /> : null}
+        {remoteComputer ? (
+          <ComputerChip
+            computer={toComputerView(remoteComputer)}
+            onUpgrade={upgradeSheet ? () => upgradeSheet.openUpgradeSheet() : undefined}
+          />
+        ) : null}
         {sessionIsUnrestricted(session) ? (
           <SessionUnrestrictedBadge data-testid="session-topbar-unrestricted" />
         ) : null}

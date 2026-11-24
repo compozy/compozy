@@ -4,6 +4,7 @@ import { Alert, AlertDescription, Field, FieldDescription, FieldLabel } from "@c
 import { WifiOff } from "@compozy/ui/icons";
 
 import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import { useOptionalUpgradeSheetActions } from "@/systems/account";
 import {
   findComputerById,
   resolveEffectiveRunOnTarget,
@@ -36,6 +37,7 @@ export function WhereSection({
   timeZone,
 }: WhereSectionProps) {
   const computers = useComputers();
+  const upgradeSheet = useOptionalUpgradeSheetActions();
   const scopedComputerId = normalizeComputerId(computerId);
   const effectiveComputerId =
     mode === "create"
@@ -88,6 +90,7 @@ export function WhereSection({
           onChange={next => {
             if (next !== "auto") onComputerChange(next);
           }}
+          onUpgrade={upgradeSheet ? () => upgradeSheet.openUpgradeSheet() : undefined}
           testId="automation-run-on-picker"
           triggerId="automation-run-on"
           value={effectiveComputerId}

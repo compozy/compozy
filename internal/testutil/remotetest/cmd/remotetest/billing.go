@@ -3,8 +3,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -245,4 +247,77 @@ func runFixtureConnector(ctx context.Context, args []string) error {
 		return err
 	}
 	return nil
+}
+
+func prepareFreeUpgrade(f *fixture, db *remotetest.Database, assets remotetest.SSHAssets) scenarioManifest {
+	f.Helper()
+	stripe := remotetest.StartStripe(f, time.Now, true)
+	replica := startCloud(f, db, assets.Gateway, func(cfg *cloud.Config, _ *remotetest.IdentityProvider) {
+		cfg.Stripe = stripe.Client
+		cfg.MonthlyPrice, cfg.AnnualPrice = remotetest.StripeMonthly, remotetest.StripeAnnual
+		cfg.Auth.MonthlyPriceID, cfg.Auth.AnnualPriceID = cfg.MonthlyPrice, cfg.AnnualPrice
+	})
+	webhookClient := &http.Client{Timeout: 10 * time.Second}
+	f.Cleanup(webhookClient.CloseIdleConnections)
+	stripe.SetOnComplete(func(checkout remotetest.StripeCheckout) {
+		if checkout.Sub == "" {
+			return
+		}
+		raw := []byte(fmt.Sprintf(
+			`{"id":"evt_checkout_%s","type":"checkout.session.completed","data":{"object":{"id":%q,"subscription":%q}}}`,
+			checkout.ID, checkout.ID, checkout.Sub,
+		))
+		ctx, cancel := context.WithTimeout(f.Context(), 10*time.Second)
+		defer cancel()
+		req, err := http.NewRequestWithContext(
+			ctx, http.MethodPost, replica.Server.URL+"/v1/billing/stripe-webhook", bytes.NewReader(raw),
+		)
+		if err != nil {
+			slog.WarnContext(ctx, "Could not build fixture stripe webhook", "error", err)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Stripe-Signature", remotetest.StripeSignature(raw, time.Now()))
+		resp, err := webhookClient.Do(req)
+		if err != nil {
+			slog.WarnContext(ctx, "Could not deliver fixture stripe webhook", "error", err)
+			return
+		}
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			slog.DebugContext(ctx, "Could not close fixture stripe webhook response", "error", closeErr)
+		}
+	})
+
+	controller := prepareDaemon(f, false)
+	mock := filepath.Join(f.TempDir(), "echo.json")
+	writeFile(f, mock, echoFixture)
+	host2, releaseEnv := prepareSSH(f, controller, assets, replica.Server.URL, mock, testHost2Name)
+	startDaemon(f, controller, replica.Server.URL, releaseEnv...)
+	controller.DeviceID = signIn(f, controller)
+	cliJSON[contract.OnboardingStatusResponse](f, controller, replica.Server.URL, "onboarding", "complete")
+
+	conn, err := replica.App.Store.ConnectDirect(f.Context())
+	if err != nil {
+		f.Fatalf("connect cloud db for free-upgrade: %v", err)
+	}
+	var accountID string
+	queryErr := conn.QueryRow(f.Context(), "SELECT id FROM accounts WHERE email = $1", fixtureEmail).Scan(&accountID)
+	closeErr := conn.Close(f.Context())
+	if queryErr != nil {
+		f.Fatalf("load fixture account id for free-upgrade: %v", queryErr)
+	}
+	if closeErr != nil {
+		f.Fatalf("close cloud db connection for free-upgrade: %v", closeErr)
+	}
+	db.SeedControlComputer(f, accountID, "cmp_free_slot_1", time.Now())
+	cliJSON[contract.Computer](f, controller, replica.Server.URL, "computer", "add", "account", "cmp_free_slot_1")
+
+	return scenarioManifest{
+		Scenario:   freeUpgrade,
+		CloudURL:   replica.Server.URL,
+		Controller: controller,
+		Email:      fixtureEmail,
+		StripeURL:  stripe.Origin,
+		Computers:  []computerTarget{host2},
+	}
 }

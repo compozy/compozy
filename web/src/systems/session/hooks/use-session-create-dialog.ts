@@ -5,6 +5,7 @@ import { useSelector, useStore } from "@xstate/store-react";
 
 import { toast, type EntityMode } from "@compozy/ui";
 
+import { useOptionalUpgradeSheetActions } from "@/systems/account";
 import {
   isAutoComputerId,
   isRemoteComputerId,
@@ -192,6 +193,7 @@ export function useSessionCreateDialogViewModel(
 ): SessionCreateDialogApi {
   const navigate = useNavigate();
   const queryClient = useContext(QueryClientContext);
+  const upgradeSheet = useOptionalUpgradeSheetActions();
   const userHomeDir = useUserHomeDir();
   const flow = useSelector(store, snapshot => snapshot.context);
   const { draft, pendingSubmit } = flow;
@@ -351,10 +353,22 @@ export function useSessionCreateDialogViewModel(
     [queryClient]
   );
 
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen && upgradeSheet?.open) return;
+      actions.onOpenChange(nextOpen);
+    },
+    [actions, upgradeSheet?.open]
+  );
+
   const handleUpgradeComputer = useCallback(() => {
+    if (upgradeSheet) {
+      upgradeSheet.openUpgradeSheet();
+      return;
+    }
     store.trigger.dialogOpenChanged({ open: false });
     void navigate({ to: "/settings/account" });
-  }, [navigate, store]);
+  }, [navigate, store, upgradeSheet]);
 
   const handleAddComputer = useCallback(() => {
     store.trigger.dialogOpenChanged({ open: false });
@@ -409,6 +423,7 @@ export function useSessionCreateDialogViewModel(
     onAddComputer: handleAddComputer,
     destinationAxes: buildDestinationAxes(target, store),
     ...actions,
+    onOpenChange: handleOpenChange,
     submit,
   };
 }

@@ -16,6 +16,7 @@ import {
 import {
   patchRemoteDevice,
   patchRemoteStatus,
+  RemoteHostApiError,
   revokeRemoteDevice,
 } from "../adapters/remote-host-api";
 import { extractLocalPendingApprovals, toRemoteDeviceView } from "../lib/computer-view";
@@ -33,10 +34,12 @@ export function useLocalRemoteControls({
   signedIn,
   currentDeviceId,
   currentDeviceIsAdmin = false,
+  onPlanRequired,
 }: {
   signedIn: boolean;
   currentDeviceId: string | null;
   currentDeviceIsAdmin?: boolean;
+  onPlanRequired?: () => void;
 }) {
   const queryClient = useQueryClient();
 
@@ -107,6 +110,18 @@ export function useLocalRemoteControls({
       void queryClient.invalidateQueries({ queryKey: accountKeys.status() });
     },
     onError: err => {
+      if (
+        err instanceof RemoteHostApiError &&
+        (err.code === "plan_required" || err.code === "plan_limit_reached")
+      ) {
+        toast.error(
+          err.code === "plan_limit_reached"
+            ? "Free includes 1 remote computer. Upgrade to Pro for unlimited computers."
+            : "Hosted route is part of Pro."
+        );
+        onPlanRequired?.();
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Failed to update remote access.");
     },
   });

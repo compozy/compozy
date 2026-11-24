@@ -107,5 +107,11 @@ export const handlers = [
   compozyApiMock.post("/api/account/approvals/{id}/decision", ({ params }) =>
     HttpResponse.json({ approval_id: params.id, state: "delivering" }, { status: 202 })
   ),
+  compozyApiMock.post("/api/account/checkout", () =>
+    HttpResponse.json({ url: "https://checkout.stripe.com/c/pay/cs_story_fixture" })
+  ),
+  compozyApiMock.post("/api/account/billing-portal", () =>
+    HttpResponse.json({ url: "https://billing.stripe.com/p/session/bps_story_fixture" })
+  ),
   compozyApiMock.post("/api/account/logout", () => HttpResponse.json({ state: "signed_out" })),
 ];

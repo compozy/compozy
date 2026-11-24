@@ -2,7 +2,7 @@ import { Plus } from "@compozy/ui/icons";
 
 import { Button } from "@compozy/ui";
 
-import { AccountRevokeDeviceDialog } from "@/systems/account";
+import { AccountRevokeDeviceDialog, ConnectedUpgradeSheet } from "@/systems/account";
 import {
   AccountComputersSection,
   AddComputerDialog,
@@ -19,12 +19,13 @@ import {
 import { SettingsPageFrame, SettingsPageState, useSettingsTopbar } from "@/systems/settings";
 
 /**
- * Settings → Computers (`_uiux.md` U1, U2, U7):
- * - This computer (Run agents, Remote access, Hosted route read-only/API state,
+ * Settings → Computers (`_uiux.md` U1, U2, U7, U9):
+ * - This computer (Run agents, Remote access, Hosted route Pro paywall/toggle,
  *   Require approval for new devices, Devices disclosure)
- * - Computers list with status, route, load, inline routes & permissions disclosures
- * - On your account (linked elsewhere, one-click Add)
- * - Add computer modal (SSH, On your account, Link with a command)
+ * - Computers list with Free slot meter, status, Needs Pro Upgrade CTA, route, load,
+ *   inline routes & permissions disclosures
+ * - On your account (linked elsewhere, one-click Add or Pro paywall)
+ * - Add computer modal (SSH with plan-limit Upgrade CTA, On your account, Link with a command)
  * - Right-docked Computer details panel
  */
 export function ComputersSettingsPage() {
@@ -62,6 +63,7 @@ export function ComputersSettingsPage() {
   const connectedCount = view.computers.filter(
     item => item.status === "connected" || item.status === "needs_attention"
   ).length;
+  const needsProCount = view.computers.filter(item => item.status === "needs_pro").length;
 
   return (
     <>
@@ -77,6 +79,31 @@ export function ComputersSettingsPage() {
               </span>
             ),
           },
+          ...(needsProCount > 0
+            ? [
+                {
+                  key: "needs-pro",
+                  content: (
+                    <span data-testid="computers-needs-pro-count">{needsProCount} need Pro</span>
+                  ),
+                },
+              ]
+            : []),
+          ...(view.account.signedIn &&
+          view.account.plan === "free" &&
+          view.account.remoteComputersLimit !== null
+            ? [
+                {
+                  key: "free-slot",
+                  content: (
+                    <span data-testid="computers-free-slot">
+                      {view.account.remoteComputersUsed} of {view.account.remoteComputersLimit}{" "}
+                      remote computers used
+                    </span>
+                  ),
+                },
+              ]
+            : []),
           ...(view.local.remoteEnabled
             ? [
                 {
@@ -109,6 +136,7 @@ export function ComputersSettingsPage() {
           onToggleHostedRoute={view.handleToggleHostedRoute}
           onToggleRemoteEnabled={view.handleToggleRemoteEnabled}
           onToggleRequireApproval={view.handleToggleRequireApproval}
+          onUpgrade={view.handleOpenUpgrade}
           pendingApprovals={view.localPendingApprovals}
         />
 
@@ -121,6 +149,7 @@ export function ComputersSettingsPage() {
           onRemoveRoute={view.handleRemoveRoute}
           onRename={view.setRenameTarget}
           onToggleEnabled={view.handleToggleEnabled}
+          onUpgrade={view.handleOpenUpgrade}
           selectedComputerId={view.selectedComputer?.id ?? null}
         />
 
@@ -129,6 +158,7 @@ export function ComputersSettingsPage() {
           addingComputerId={view.addingAccountId}
           computers={view.unaddedComputers}
           onAddAccountComputer={view.handleAddAccountComputer}
+          onUpgrade={view.handleOpenUpgrade}
         />
 
         <LoadBalancingSection
@@ -186,6 +216,7 @@ export function ComputersSettingsPage() {
           const match = view.computers.find(c => c.name === name);
           if (match) view.openDetails(match, "status");
         }}
+        onUpgrade={view.handleOpenUpgradeFromAdd}
         open={view.addDialogOpen}
         sshSuggestions={view.addComputer.sshSuggestions}
         unaddedComputers={view.addComputer.unaddedComputers}
@@ -224,6 +255,10 @@ export function ComputersSettingsPage() {
         onConfirm={view.handleConfirmDisableAgents}
         open={view.disableAgentsOpen}
       />
+
+      {view.fallbackUpgradeSheet ? (
+        <ConnectedUpgradeSheet sheet={view.fallbackUpgradeSheet} />
+      ) : null}
     </>
   );
 }

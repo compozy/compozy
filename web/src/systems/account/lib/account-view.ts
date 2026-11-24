@@ -88,8 +88,20 @@ export function toAccountView(
 ): AccountStateFixture {
   const plan = normalizePlan(status.plan);
   const subscription = status.subscription ?? null;
+  const subscriptionSource =
+    subscription?.source === "complimentary"
+      ? "complimentary"
+      : subscription?.source === "stripe"
+        ? "stripe"
+        : null;
+  const subscriptionInterval =
+    subscription?.interval === "year" || subscription?.interval === "month"
+      ? subscription.interval
+      : null;
   const cancelAtPeriodEnd = Boolean(subscription?.cancel_at_period_end);
   const periodEnd = subscription?.current_period_end ?? null;
+  const refundEligibleUntil = subscription?.refund_eligible_until ?? null;
+  const isComplimentary = subscriptionSource === "complimentary";
   const fallbackName = status.name?.trim() || status.email?.split("@")[0] || "Account";
 
   return {
@@ -109,12 +121,144 @@ export function toAccountView(
     cloudRoutesLimit: status.cloud_routes_limit,
     paymentIssue: status.payment_issue,
     cancelAtPeriodEnd,
-    renewsAt: !cancelAtPeriodEnd ? periodEnd : null,
-    endsAt: cancelAtPeriodEnd ? periodEnd : null,
+    renewsAt: !cancelAtPeriodEnd && !isComplimentary ? periodEnd : null,
+    endsAt: cancelAtPeriodEnd || isComplimentary ? periodEnd : null,
+    subscriptionSource,
+    subscriptionInterval,
+    refundEligibleUntil,
     formerSubscriber: false,
     cloudUnreachable: Boolean(options.cloudUnreachable),
     hostedRouteGraceDaysLeft: null,
   };
+}
+
+export const COMPOZY_REFUNDS_URL = "https://compozy.com/legal/refunds";
+export const COMPOZY_SUPPORT_MAILTO = "mailto:support@compozy.com";
+
+const REFUND_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+export interface AccountDeleteProInfo {
+  source: "stripe" | "complimentary";
+  interval: "year" | "month" | null;
+  currentPeriodEnd: string | null;
+  refundEligibleUntil: string | null;
+}
+
+export interface AccountDeleteProImpact {
+  heading: string;
+  periodLine: string;
+  refundLine: string | null;
+  refundEligible: boolean;
+  confirmLabel: string;
+  showRefundPolicyLink: boolean;
+}
+
+function formatUtcFullDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function formatUtcShortDate(ms: number): string {
+  return new Date(ms).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
+ * Projects an active Pro subscription into the exact copy required by `_uiux.md` U3,
+ * US-028 AC-4/EC-1, and Rule 27 (reused by S15's Delete account dialog).
+ */
+export function describeDeleteAccountProImpact(
+  subscription: AccountDeleteProInfo,
+  now: Date = new Date()
+): AccountDeleteProImpact {
+  const heading = "Deleting your account also cancels Pro.";
+  const confirmLabel = "Delete account and cancel Pro";
+
+  if (subscription.source === "complimentary") {
+    return {
+      heading,
+      periodLine: "Your complimentary Pro ends now.",
+      refundLine: null,
+      refundEligible: false,
+      confirmLabel,
+      showRefundPolicyLink: false,
+    };
+  }
+
+  const intervalSuffix =
+    subscription.interval === "year"
+      ? " (annual)"
+      : subscription.interval === "month"
+        ? " (monthly)"
+        : "";
+  const paidUntil = formatUtcFullDate(subscription.currentPeriodEnd);
+  const periodLine = paidUntil
+    ? `Pro${intervalSuffix} is paid until ${paidUntil} and ends now.`
+    : `Pro${intervalSuffix} ends now.`;
+
+  const refundUntilMs = subscription.refundEligibleUntil
+    ? Date.parse(subscription.refundEligibleUntil)
+    : Number.NaN;
+  const refundEligible = !Number.isNaN(refundUntilMs) && refundUntilMs > now.getTime();
+  const refundLine = refundEligible
+    ? `Your last payment on ${formatUtcShortDate(refundUntilMs - REFUND_WINDOW_MS)} is refunded in full.`
+    : "Refunds cover 14 days after a payment, so no refund applies.";
+
+  return {
+    heading,
+    periodLine,
+    refundLine,
+    refundEligible,
+    confirmLabel,
+    showRefundPolicyLink: true,
+  };
+}
+
+/** Extracts `AccountDeleteProInfo` when the account has active Pro entitlement. */
+export function accountDeleteProInfoFromView(
+  account: AccountStateFixture
+): AccountDeleteProInfo | null {
+  if (account.plan !== "pro") return null;
+  return {
+    source: account.subscriptionSource === "complimentary" ? "complimentary" : "stripe",
+    interval: account.subscriptionInterval ?? null,
+    currentPeriodEnd: account.endsAt ?? account.renewsAt,
+    refundEligibleUntil: account.refundEligibleUntil ?? null,
+  };
+}
+
+/** Maps billing API errors to plain product copy from `_dx.md`. */
+export function describeBillingApiError(error: unknown, fallback: string): string {
+  if (error instanceof AccountApiError) {
+    switch (error.code) {
+      case "account_cloud_unreachable":
+      case "cloud_unavailable":
+        return "Can't reach Compozy Cloud. Local work is unaffected.";
+      case "account_suspended":
+        return "This account is suspended. Contact support@compozy.com.";
+      case "account_deleting":
+        return "Your account is being deleted. Try again in a few minutes.";
+      case "account_token_local_only":
+        return "Account tokens unlock local use only. Sign in with Google or GitHub for this.";
+      case "rate_limited":
+        return "Too many requests. Try again in a moment.";
+      case "already_pro":
+        return "You're already on Pro.";
+      default:
+        return error.message || fallback;
+    }
+  }
+  return error instanceof Error ? error.message : fallback;
 }
 
 /** Projects a live `/api/account/devices` item into `AccountDeviceFixture`. */

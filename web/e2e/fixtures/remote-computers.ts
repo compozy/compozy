@@ -19,7 +19,8 @@ type Scenario =
   | "revoke-device"
   | "browser-purchase"
   | "hosted-purchase"
-  | "hosted-browser";
+  | "hosted-browser"
+  | "free-upgrade";
 
 interface Daemon {
   web_url: string;

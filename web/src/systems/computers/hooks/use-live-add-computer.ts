@@ -72,6 +72,7 @@ export interface UseLiveAddComputerInput {
   addedComputers: readonly ComputerPayload[];
   onOpenModal?: () => void;
   onRequestRemoveById?: (computerId: string) => void;
+  onPlanRequired?: () => void;
 }
 
 export function useLiveAddComputer({
@@ -80,6 +81,7 @@ export function useLiveAddComputer({
   addedComputers,
   onOpenModal,
   onRequestRemoveById,
+  onPlanRequired,
 }: UseLiveAddComputerInput) {
   const queryClient = useQueryClient();
 
@@ -392,10 +394,22 @@ export function useLiveAddComputer({
         void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
         toast.success(`Added ${computer.name} to your computers.`);
       } catch (err) {
+        if (
+          err instanceof ComputersApiError &&
+          (err.code === "plan_required" || err.code === "plan_limit_reached")
+        ) {
+          toast.error(
+            err.code === "plan_required"
+              ? "This computer can only be reached through the hosted route (Pro)."
+              : "Free includes 1 remote computer. Upgrade to Pro for unlimited computers."
+          );
+          onPlanRequired?.();
+          return;
+        }
         toast.error(err instanceof Error ? err.message : `Failed to add ${computer.name}.`);
       }
     },
-    [queryClient]
+    [onPlanRequired, queryClient]
   );
 
   const handleRemoveLinked = useCallback(() => {
