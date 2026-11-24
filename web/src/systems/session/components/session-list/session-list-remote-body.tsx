@@ -6,6 +6,57 @@ import {
   type ScopedComputerFailureItem,
 } from "@/systems/computers";
 
+import type { RemoteSessionsFanoutResult } from "../../hooks/use-remote-sessions-fanout";
+import { SessionListComputerContext } from "../../lib/session-list-computer";
+import { buildSessionListThreads } from "../../lib/session-list-threads";
+import type { GroupRowProps } from "./session-list-group-body";
+import { SessionListGroupToggle } from "./session-list-group-toggle";
+import { SessionListThreadList } from "./session-list-thread-list";
+
+export function SessionListRemoteGroups({
+  remote,
+  view,
+  onSelectSession,
+  ...rows
+}: GroupRowProps & { remote: RemoteSessionsFanoutResult }) {
+  return (
+    <SessionListComputerContext value={remote.computerBySessionId}>
+      {remote.projectComputerGroups.map(group => {
+        const collapsed = view.collapsedGroupKeys.has(group.key);
+        return (
+          <section key={group.key} data-group-key={group.key}>
+            <SessionListGroupToggle
+              collapsed={collapsed}
+              count={null}
+              identity={<span className="truncate text-small-body font-medium">{group.label}</span>}
+              onToggle={() => view.toggleGroup(group.key)}
+            />
+            {collapsed ? null : (
+              <SessionListThreadList
+                {...rows}
+                emptyMessage={null}
+                onSelectSession={session =>
+                  onSelectSession({ ...session, computerId: group.computerId })
+                }
+                readOnly
+                threads={buildSessionListThreads(
+                  group.rows.map(row => row.session),
+                  ""
+                )}
+              />
+            )}
+          </section>
+        );
+      })}
+      <SessionListRemoteFooter
+        {...remote}
+        onLoadMore={remote.loadMore}
+        testIdPrefix={rows.testIdPrefix}
+      />
+    </SessionListComputerContext>
+  );
+}
+
 /** Per-computer loading skeletons, inline retryable failures, and oldest-cursor Load more. */
 export function SessionListRemoteFooter({
   loadingComputers,

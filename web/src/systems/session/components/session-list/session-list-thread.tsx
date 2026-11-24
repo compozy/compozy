@@ -43,6 +43,7 @@ export interface SessionListThreadProps {
   onSelectSession: (session: SessionListTarget) => void;
   selection?: SessionRowSelection;
   sessionActions: SessionLifecycleActionHandlers;
+  showActions?: boolean;
   testIdPrefix: string;
   /** Each row's folder, order, and drag wiring, root and children alike. */
   layoutFor?: (session: SessionPayload) => SessionThreadRootLayout | undefined;
@@ -66,6 +67,7 @@ function SessionListThreadView({
   onSelectSession,
   selection,
   sessionActions,
+  showActions,
   testIdPrefix,
   layoutFor,
 }: SessionListThreadProps) {
@@ -95,6 +97,7 @@ function SessionListThreadView({
           onSelect={() => onSelectSession(session)}
           selection={selection}
           sessionActions={sessionActions}
+          showActions={showActions}
           testIdPrefix={testIdPrefix}
           trailing={trailing}
         />
@@ -123,6 +126,7 @@ function SessionListThreadView({
                   onSelect={() => onSelectSession(child)}
                   selection={selection}
                   sessionActions={sessionActions}
+                  showActions={showActions}
                   testIdPrefix={testIdPrefix}
                   trailing={trailing}
                 />
@@ -161,6 +165,7 @@ function SessionListThreadView({
                     onSelect={() => onSelectSession(child)}
                     selection={selection}
                     sessionActions={sessionActions}
+                    showActions={showActions}
                     testIdPrefix={testIdPrefix}
                     trailing={trailing}
                   />
