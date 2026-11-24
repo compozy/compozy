@@ -45,7 +45,7 @@ func (h listenerHandler) guardHosted(next http.Handler) http.Handler {
 		if req.Method == http.MethodGet && req.URL.Path == remoteproto.BrowserStatusPath {
 			state := view.status.State
 			if mode == remoteproto.HostedTunnelEntitlementOnly {
-				state = "plan_required"
+				state = planRequiredCode
 			}
 			writeJSON(w, http.StatusOK, struct {
 				State string `json:"state"`

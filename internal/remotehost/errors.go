@@ -7,7 +7,10 @@ import (
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
-const invalidRemoteRequestCode = "invalid_remote_request"
+const (
+	invalidRemoteRequestCode = "invalid_remote_request"
+	planRequiredCode         = "plan_required"
+)
 
 var (
 	// ErrDeviceRevoked reports an epoch fence invalidated by revocation.
@@ -42,7 +45,7 @@ var (
 	}
 	ErrPlanRequired = &Failure{
 		http.StatusPaymentRequired,
-		"plan_required",
+		planRequiredCode,
 		"The plan does not allow this route.",
 		nil,
 	}

@@ -8,6 +8,8 @@ import (
 const (
 	HostedTunnelActive          = "active"
 	HostedTunnelEntitlementOnly = "entitlement_only"
+	HostedRouteReady            = "ready"
+	HostedRouteOff              = "off"
 	BrowserStatusPath           = "/remote/v1/browser/status"
 )
 
@@ -25,7 +27,7 @@ func (r HostedTunnelRequest) Origin() (string, bool) {
 	if err != nil || !host.Addr().IsLoopback() || host.Port() == 0 || host.Addr().Zone() != "" {
 		return "", false
 	}
-	return (&url.URL{Scheme: "http", Host: host.String()}).String(), true
+	return (&url.URL{Scheme: httpScheme, Host: host.String()}).String(), true
 }
 
 type HostedTunnel struct {

@@ -7,6 +7,8 @@ import (
 	"net/url"
 )
 
+const recordTypeCNAME = "CNAME"
+
 type ingressRule struct {
 	Hostname string `json:"hostname,omitempty"`
 	Service  string `json:"service"`
@@ -81,7 +83,7 @@ func (c *Client) tokenFor(ctx context.Context, path string) (string, error) {
 		return "", err
 	}
 	if token == "" {
-		return "", errors.New("Cloudflare API did not return connector credentials")
+		return "", errors.New("missing connector credentials in Cloudflare response")
 	}
 	return token, nil
 }
@@ -140,7 +142,7 @@ func (c *Client) ensureRecord(ctx context.Context, hostname, tunnelID string) er
 	}
 	if record.ID == "" {
 		return c.request(ctx, http.MethodPost, c.records, dnsRecord{
-			Name: hostname, Type: "CNAME", Content: tunnelID + ".cfargotunnel.com", Proxied: true,
+			Name: hostname, Type: recordTypeCNAME, Content: tunnelID + ".cfargotunnel.com", Proxied: true,
 		}, nil)
 	}
 	if !record.Proxied {
@@ -151,7 +153,7 @@ func (c *Client) ensureRecord(ctx context.Context, hostname, tunnelID string) er
 }
 
 func (c *Client) findRecord(ctx context.Context, hostname, tunnelID string) (dnsRecord, error) {
-	query := url.Values{"name.exact": {hostname}, "type": {"CNAME"}}
+	query := url.Values{"name.exact": {hostname}, "type": {recordTypeCNAME}}
 	var records []dnsRecord
 	if err := c.request(ctx, http.MethodGet, c.records+"?"+query.Encode(), nil, &records); err != nil {
 		return dnsRecord{}, err
@@ -160,7 +162,7 @@ func (c *Client) findRecord(ctx context.Context, hostname, tunnelID string) (dns
 		return dnsRecord{}, nil
 	}
 	record := records[0]
-	if len(records) != 1 || record.Name != hostname || record.Type != "CNAME" ||
+	if len(records) != 1 || record.Name != hostname || record.Type != recordTypeCNAME ||
 		record.Content != tunnelID+".cfargotunnel.com" || !resourceID.MatchString(record.ID) {
 		return dnsRecord{}, ErrOutsideDomain
 	}

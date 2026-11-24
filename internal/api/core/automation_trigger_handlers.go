@@ -394,7 +394,8 @@ func (h *BaseHandlers) deliverWebhook(
 			})
 		case errors.Is(err, ingress.ErrNotConfirmed):
 			c.JSON(http.StatusConflict, contract.ErrorPayload{
-				Error: "Confirm this webhook's current endpoint before accepting deliveries.", Code: ingress.ErrNotConfirmed.Error(),
+				Error: "Confirm this webhook's current endpoint before accepting deliveries.",
+				Code:  ingress.ErrNotConfirmed.Error(),
 			})
 		default:
 			h.respondError(c, StatusForAutomationError(err), err)

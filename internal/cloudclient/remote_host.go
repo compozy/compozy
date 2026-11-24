@@ -78,7 +78,12 @@ func (c *Client) computerJSON(
 }
 
 func (c *Client) computerJSONWithin(
-	ctx context.Context, timeout time.Duration, method, path string, input, output any, device Credentials, key ed25519.PrivateKey,
+	ctx context.Context,
+	timeout time.Duration,
+	method, path string,
+	input, output any,
+	device Credentials,
+	key ed25519.PrivateKey,
 ) error {
 	request, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

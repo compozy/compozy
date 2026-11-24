@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/remoteproto"
 )
 
 func newRemoteCloudRouteCommand(deps commandDeps) *cobra.Command {
@@ -45,7 +46,7 @@ func changeHostedRoute(enabled bool) func(*cobra.Command, remoteCommandClient, [
 			switch {
 			case !status.CloudRoute.Enabled:
 				return "Hosted route is off.", nil
-			case status.CloudRoute.State == "ready" && status.CloudRoute.Hostname != nil:
+			case status.CloudRoute.State == remoteproto.HostedRouteReady && status.CloudRoute.Hostname != nil:
 				return fmt.Sprintf("Hosted route ready: %s", *status.CloudRoute.Hostname), nil
 			case status.CloudRoute.Diagnosis != "":
 				return status.CloudRoute.Diagnosis, nil
@@ -58,7 +59,7 @@ func changeHostedRoute(enabled bool) func(*cobra.Command, remoteCommandClient, [
 
 func hostedRouteSettled(status contract.RemoteStatusResponse) bool {
 	switch status.CloudRoute.State {
-	case "ready", "entitlement_only", "off":
+	case remoteproto.HostedRouteReady, remoteproto.HostedTunnelEntitlementOnly, remoteproto.HostedRouteOff:
 		return true
 	default:
 		return status.CloudRoute.Diagnosis != ""

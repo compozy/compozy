@@ -65,7 +65,13 @@ func (h *Host) reconfigureListeners(
 	publish := func(endpoints []string, bound string) error {
 		hosted = bound
 		if h.config.Direct.Enabled || cfg.Direct.Enabled {
-			if err := h.cloud.UpdateRemoteAccess(ctx, h.identity.ComputerID, run.control.key, true, endpoints); err != nil {
+			if err := h.cloud.UpdateRemoteAccess(
+				ctx,
+				h.identity.ComputerID,
+				run.control.key,
+				true,
+				endpoints,
+			); err != nil {
 				return err
 			}
 		}

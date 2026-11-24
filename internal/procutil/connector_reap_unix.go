@@ -21,7 +21,8 @@ func ReapRemoteConnectors(ctx context.Context, home, directory string) error {
 			continue
 		}
 		relative, err := filepath.Rel(directory, p.ConnectorExecutable)
-		if err != nil || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		if err != nil || relative == "." || relative == ".." ||
+			strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 			continue
 		}
 		members := []ScannedProcess{p}

@@ -121,7 +121,9 @@ func (d *Daemon) bootDeviceGateway(
 	state.deps.Gateway = service
 	state.deps.Ingress = ingressManager
 	if host := state.runtimeWorkers.remote; host != nil {
-		host.SetWebhookHandler(httpapi.NewRemoteWebhookRoutes(state.deps.Automation, ingressManager.AdmitDelivery, d.now))
+		host.SetWebhookHandler(
+			httpapi.NewRemoteWebhookRoutes(state.deps.Automation, ingressManager.AdmitDelivery, d.now),
+		)
 	}
 	return reconcileGatewayPolicy(ctx, state, policy)
 }

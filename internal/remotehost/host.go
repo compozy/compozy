@@ -180,15 +180,15 @@ func NewHost(
 		name: cmp.Or(name, "CompozyOS"), platform: runtimePlatform(), version: version.Current().Version,
 		config: cfg.Clone(), identity: identity,
 	}
-	if !cfg.Enabled {
-		return host, host.clearIngress(ctx)
-	}
-	if identity.ComputerID == "" {
+	if host.config.Enabled && identity.ComputerID == "" {
 		host.config.Enabled = false
 		opts.Logger.WarnContext(ctx, ErrNotLinked.Message, "code", ErrNotLinked.Code)
-		return host, host.clearIngress(ctx)
 	}
-	err = host.start(ctx, cfg, false)
+	if host.config.Enabled {
+		err = host.start(ctx, cfg, false)
+	} else {
+		err = host.clearIngress(ctx)
+	}
 	if err != nil {
 		cancel()
 		return nil, err
@@ -216,9 +216,16 @@ func (h *Host) Close() {
 func (h *Host) Status() Status {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	status := Status{ComputerID: h.identity.ComputerID, Listener: h.config.Listener, ControlLink: "disconnected",
-		Direct: DirectStatus{Enabled: h.config.Direct.Enabled}, CloudRoute: HostedStatus{State: "off"},
-		RequireDeviceApproval: h.config.RequireDeviceApproval}
+	status := Status{
+		ComputerID:  h.identity.ComputerID,
+		Listener:    h.config.Listener,
+		ControlLink: "disconnected",
+		Direct: DirectStatus{
+			Enabled: h.config.Direct.Enabled,
+		},
+		CloudRoute:            HostedStatus{State: remoteproto.HostedRouteOff},
+		RequireDeviceApproval: h.config.RequireDeviceApproval,
+	}
 	run := h.run
 	if run == nil {
 		return status

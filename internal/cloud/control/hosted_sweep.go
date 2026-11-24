@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/cloud/store"
-	"github.com/compozy/compozy/internal/remoteproto"
 )
 
 const (
@@ -93,7 +92,12 @@ func (s *Service) DeleteHostedGeneration(ctx context.Context, ref store.TunnelRe
 		if tunnel.Generation != ref.Generation || (tunnel.State != tunnelDeleting && tunnel.State != tunnelFailed) {
 			return nil
 		}
-		if err := s.config.HostedTunnels.Delete(ctx, tunnel.Hostname, tunnel.Generation, tunnel.CloudflareID); err != nil {
+		if err := s.config.HostedTunnels.Delete(
+			ctx,
+			tunnel.Hostname,
+			tunnel.Generation,
+			tunnel.CloudflareID,
+		); err != nil {
 			return err
 		}
 		tunnel.State, tunnel.CloudflareID, tunnel.Origin = tunnelDeleted, "", ""
@@ -128,7 +132,12 @@ func (s *Service) SweepHostedTunnels(ctx context.Context) error {
 		return nil
 	}
 	now := s.config.Now()
-	candidates, err := s.db.SweepableHostedTunnels(ctx, now, now.Add(-hostedIdleLimit), now.Add(-hostedProvisionTimeLimit))
+	candidates, err := s.db.SweepableHostedTunnels(
+		ctx,
+		now,
+		now.Add(-hostedIdleLimit),
+		now.Add(-hostedProvisionTimeLimit),
+	)
 	if err != nil {
 		return err
 	}
@@ -171,7 +180,13 @@ func (s *Service) LogHostedTunnelCapacity(ctx context.Context) error {
 		level = slog.LevelWarn
 	}
 	if level != slog.LevelInfo {
-		s.config.Logger.Log(ctx, level, "Cloudflare tunnel capacity threshold reached", "cloud_tunnels_allocated", count)
+		s.config.Logger.Log(
+			ctx,
+			level,
+			"Cloudflare tunnel capacity threshold reached",
+			"cloud_tunnels_allocated",
+			count,
+		)
 	}
 	return nil
 }
@@ -184,7 +199,7 @@ func (s *Service) attachHostedRoutes(
 		return err
 	}
 	for i := range computers {
-		computers[i].HostedHostname = hosts[remoteproto.ComputerID(computers[i].ID)]
+		computers[i].HostedHostname = hosts[computers[i].ID]
 	}
 	return nil
 }

@@ -23,8 +23,8 @@ const (
 )
 
 var (
-	ErrOutsideDomain = errors.New("Cloudflare resource is outside the hosted-route namespace")
-	errNotFound      = errors.New("Cloudflare resource not found")
+	ErrOutsideDomain = errors.New("resource is outside the Cloudflare hosted-route namespace")
+	errNotFound      = errors.New("resource not found in Cloudflare")
 	labelPattern     = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
 	tunnelIDPattern  = regexp.MustCompile(`^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$`)
 	resourceID       = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
@@ -51,7 +51,7 @@ func New(cfg Config) (*Client, error) {
 		return nil, ErrOutsideDomain
 	}
 	if !resourceID.MatchString(cfg.AccountID) || !resourceID.MatchString(cfg.ZoneID) || cfg.Token == "" {
-		return nil, errors.New("Cloudflare account ID, zone ID and API token are required for hosted routes")
+		return nil, errors.New("hosted routes require a Cloudflare account ID, zone ID and API token")
 	}
 	base := cfg.BaseURL
 	if base == "" {
@@ -117,15 +117,15 @@ func (c *Client) request(
 		return errNotFound
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("Cloudflare API returned HTTP %d", resp.StatusCode)
+		return fmt.Errorf("unexpected HTTP %d from Cloudflare", resp.StatusCode)
 	}
 	var envelope response
 	if err := json.UnmarshalRead(io.LimitReader(resp.Body, 1<<20), &envelope); err != nil || !envelope.Success {
-		return errors.New("Cloudflare API returned an unsuccessful response")
+		return errors.New("unsuccessful response from Cloudflare")
 	}
 	if output != nil {
 		if err := json.Unmarshal(envelope.Result, output); err != nil {
-			return errors.New("Cloudflare API returned an invalid result")
+			return errors.New("invalid result from Cloudflare")
 		}
 	}
 	return nil

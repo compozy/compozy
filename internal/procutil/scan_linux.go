@@ -47,7 +47,7 @@ func readLinuxProcesses(ctx context.Context, proc fs.FS, clock linuxClock, envir
 			if env, e := fs.ReadFile(proc, entry.Name()+"/environ"); e == nil {
 				processMarkers(&p, env)
 				if p.RemoteConnector {
-					executable, err := os.Readlink(filepath.Join("/proc", entry.Name(), "exe"))
+					executable, err := fs.ReadLink(proc, entry.Name()+"/exe")
 					if err == nil {
 						p.ConnectorExecutable = executable
 					}

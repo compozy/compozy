@@ -27,29 +27,38 @@ func waitParentOwnedCommand(cmd *exec.Cmd, started, done chan<- error) {
 	err := startParentOwnedCommand(cmd)
 	started <- err
 	if err == nil {
-		done <- errors.Join(cmd.Wait(), releaseParentOwnedCommand(cmd))
+		done <- errors.Join(waitParentOwnedExit(cmd), releaseParentOwnedCommand(cmd))
 	}
+}
+
+func waitParentOwnedExit(cmd *exec.Cmd) error {
+	err := cmd.Wait()
+	// An exit status confirms the child was reaped, including after a shutdown signal.
+	if _, exited := errors.AsType[*exec.ExitError](err); exited {
+		return nil
+	}
+	return err
 }
 
 func StopParentOwnedCommand(cmd *exec.Cmd, done <-chan error) error {
 	select {
-	case <-done:
-		return nil
+	case err := <-done:
+		return err
 	default:
 	}
 	signalErr := SignalCommandProcessGroup(cmd, syscall.SIGTERM)
 	timer := time.NewTimer(ownedProcessGrace)
 	defer timer.Stop()
 	select {
-	case <-done:
-		return signalErr
+	case err := <-done:
+		return errors.Join(signalErr, err)
 	case <-timer.C:
 	}
 	killErr := KillCommandProcessGroupAndWait(cmd, ownedProcessGrace)
 	timer.Reset(ownedProcessGrace)
 	select {
-	case <-done:
-		return errors.Join(signalErr, killErr)
+	case err := <-done:
+		return errors.Join(signalErr, killErr, err)
 	case <-timer.C:
 		return errors.Join(signalErr, killErr, errors.New("timed out reaping connector"))
 	}

@@ -92,7 +92,7 @@ func downloadCloudflared(ctx context.Context, pin cloudflaredPin) (binary []byte
 		ctx,
 		http.MethodGet,
 		cloudflaredReleaseURL+cloudflaredVersion+"/"+pin.asset,
-		nil,
+		http.NoBody,
 	)
 	if err != nil {
 		return nil, err

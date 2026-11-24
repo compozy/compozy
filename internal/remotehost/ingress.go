@@ -12,8 +12,10 @@ import (
 type ingressBaseKey struct{}
 
 func WebhookIngressBase(ctx context.Context) string {
-	base, _ := ctx.Value(ingressBaseKey{}).(string)
-	return base
+	if base, ok := ctx.Value(ingressBaseKey{}).(string); ok {
+		return base
+	}
+	return ""
 }
 
 func (h *Host) SetWebhookHandler(handler http.Handler) {
@@ -29,18 +31,21 @@ func (r *hostRun) selectedIngress() ingress.RemoteEndpoint {
 	if cfg == nil || r.unlinked.Load() {
 		return ingress.RemoteEndpoint{}
 	}
-	public, _ := ingress.AdvertisedBase("", cfg.Ingress.PublicURL)
+	public, err := ingress.AdvertisedBase("", cfg.Ingress.PublicURL)
+	hasPublic := err == nil
 	if !cfg.CloudRoute.Enabled {
-		return ingress.RemoteEndpoint{Base: public, Managed: public != "", Reachable: public != ""}
+		return ingress.RemoteEndpoint{Base: public, Managed: hasPublic, Reachable: hasPublic}
 	}
 	view := r.hostedView()
-	if r.hostedEntitlement(view) == remoteproto.HostedTunnelEntitlementOnly {
-		return ingress.RemoteEndpoint{Base: public, Managed: true, Reachable: public != ""}
+	mode := r.hostedEntitlement(view)
+	if mode == remoteproto.HostedTunnelEntitlementOnly {
+		return ingress.RemoteEndpoint{Base: public, Managed: true, Reachable: hasPublic}
 	}
 	if hostname := hostnameValue(view); hostname != "" {
-		base, _ := ingress.AdvertisedBase(hostname, "")
-		return ingress.RemoteEndpoint{Base: base, Managed: true, Reachable: view.status.State == hostedStateReady &&
-			r.hostedEntitlement(view) == remoteproto.HostedTunnelActive}
+		base, err := ingress.AdvertisedBase(hostname, "")
+		ready := err == nil && view.status.State == remoteproto.HostedRouteReady &&
+			mode == remoteproto.HostedTunnelActive
+		return ingress.RemoteEndpoint{Base: base, Managed: true, Reachable: ready}
 	}
 	return ingress.RemoteEndpoint{Base: public, Managed: true, Pending: true}
 }
@@ -70,17 +75,14 @@ func (h listenerHandler) webhookRoutes() http.HandlerFunc {
 			return
 		}
 		var base string
+		var err error
 		switch h.kind {
 		case ListenerHosted:
-			base, _ = ingress.AdvertisedBase(hostnameValue(h.run.hostedView()), "")
+			base, err = ingress.AdvertisedBase(hostnameValue(h.run.hostedView()), "")
 		case ListenerTunnel:
-			if cfg.Ingress.PublicURL == "" {
-				http.NotFound(w, req)
-				return
-			}
-			base, _ = ingress.AdvertisedBase("", cfg.Ingress.PublicURL)
+			base, err = ingress.AdvertisedBase("", cfg.Ingress.PublicURL)
 		}
-		if base == "" || h.webhook == nil {
+		if err != nil || base == "" || h.webhook == nil {
 			http.NotFound(w, req)
 			return
 		}

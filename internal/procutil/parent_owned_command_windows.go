@@ -30,11 +30,7 @@ func discardSuspendedCommand(cmd *exec.Cmd, failure error) error {
 		killErr = nil
 	}
 	releaseErr := releaseParentOwnedCommand(cmd)
-	waitErr := cmd.Wait()
-	if _, exited := errors.AsType[*exec.ExitError](waitErr); exited {
-		waitErr = nil
-	}
-	return errors.Join(failure, killErr, releaseErr, waitErr)
+	return errors.Join(failure, killErr, releaseErr, waitParentOwnedExit(cmd))
 }
 
 func releaseParentOwnedCommand(cmd *exec.Cmd) error {

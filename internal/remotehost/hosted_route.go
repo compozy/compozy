@@ -17,7 +17,6 @@ import (
 const (
 	hostedStateStarting = "starting"
 	hostedStateRetrying = "retrying"
-	hostedStateReady    = "ready"
 	hostedRefresh       = time.Minute
 	hostedStartTimeout  = 35 * time.Second
 	hostedProbeInterval = 250 * time.Millisecond
@@ -111,7 +110,7 @@ func (h *hostedRun) supervise(ctx context.Context, credentials remoteproto.Hoste
 			backoff = time.Second
 		}
 		state, mode := hostedStateRetrying, credentials.Mode
-		if cloudclient.FailureCode(err) == "plan_required" {
+		if cloudclient.FailureCode(err) == planRequiredCode {
 			state, mode = remoteproto.HostedTunnelEntitlementOnly, remoteproto.HostedTunnelEntitlementOnly
 			credentials.Hostname = ""
 		}
@@ -174,7 +173,7 @@ func (h *hostedRun) observeProcess(
 			everReady = everReady || ready
 			if err == nil && ready {
 				readyDeadline = nil
-				state := hostedStateReady
+				state := remoteproto.HostedRouteReady
 				if credentials.Mode == remoteproto.HostedTunnelEntitlementOnly {
 					state = remoteproto.HostedTunnelEntitlementOnly
 				}
@@ -191,8 +190,8 @@ func (h *hostedRun) observeProcess(
 		}
 		next, err := h.fetch(ctx)
 		if err != nil {
-			if cloudclient.FailureCode(err) == "plan_required" || cloudclient.FailureCode(err) == "computer_not_owned" ||
-				cloudclient.FailureCode(err) == "account_suspended" {
+			switch cloudclient.FailureCode(err) {
+			case planRequiredCode, "computer_not_owned", "account_suspended":
 				process.stop(h.logger)
 				return everReady, "", err
 			}
@@ -232,7 +231,7 @@ func validHostedHostname(hostname string) bool {
 		return false
 	}
 	for label := range strings.SplitSeq(hostname, ".") {
-		if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
 			return false
 		}
 		for _, ch := range label {

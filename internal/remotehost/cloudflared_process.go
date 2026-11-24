@@ -31,15 +31,15 @@ type cloudflaredDiagnostics struct {
 var _ io.Writer = (*cloudflaredDiagnostics)(nil)
 
 func (d *cloudflaredDiagnostics) Write(p []byte) (int, error) {
-	data := append(d.tail, p...)
-	for line := range bytes.SplitSeq(data, []byte{'\n'}) {
+	d.tail = append(d.tail, p...)
+	for line := range bytes.SplitSeq(d.tail, []byte{'\n'}) {
 		if bytes.Contains(line, []byte("failed to dial to edge with quic")) && bytes.Contains(line, []byte("7844")) {
 			d.blocked.Store(true)
 		}
 	}
-	_, last, found := bytes.CutLast(data, []byte{'\n'})
+	_, last, found := bytes.CutLast(d.tail, []byte{'\n'})
 	if !found {
-		last = data
+		last = d.tail
 	}
 	d.tail = append(d.tail[:0], last[max(0, len(last)-2048):]...)
 	return len(p), nil
@@ -123,7 +123,7 @@ func cloudflaredMetricsAddress(ctx context.Context) (string, error) {
 }
 
 func (p *cloudflaredProcess) ready(ctx context.Context, client *http.Client) (bool, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.readyURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.readyURL, http.NoBody)
 	if err != nil {
 		return false, err
 	}
