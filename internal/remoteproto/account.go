@@ -43,13 +43,39 @@ type BillingURL struct {
 	URL string `json:"url"`
 }
 
+const SignInNoticeTTL = 7 * 24 * time.Hour
+
+type AccountSignInNotice struct {
+	DeviceID DeviceID  `json:"device_id"`
+	Name     string    `json:"name"`
+	Kind     string    `json:"kind"`
+	Location string    `json:"location"`
+	At       time.Time `json:"at"`
+}
+
+type AccountEmailPatch struct {
+	MarketingOptIn *bool  `json:"marketing_opt_in"`
+	Source         string `json:"source,omitempty"`
+}
+
+type AccountDeleteRequest struct {
+	ConfirmEmail string `json:"confirm_email"`
+}
+
+type AccountDeleteResponse struct {
+	State                 string `json:"state"`
+	SubscriptionCancelled bool   `json:"subscription_cancelled"`
+	Refund                string `json:"refund"`
+}
+
 type AccountSummary struct {
 	AccountPlan
-	Email          string        `json:"email"`
-	Name           string        `json:"name"`
-	Provider       string        `json:"provider"`
-	Device         AccountDevice `json:"device"`
-	MarketingOptIn bool          `json:"marketing_opt_in"`
+	Email          string                `json:"email"`
+	Name           string                `json:"name"`
+	Provider       string                `json:"provider"`
+	Device         AccountDevice         `json:"device"`
+	MarketingOptIn bool                  `json:"marketing_opt_in"`
+	RecentSignIns  []AccountSignInNotice `json:"recent_sign_ins"`
 }
 
 type AccountApproval struct {

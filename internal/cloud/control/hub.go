@@ -93,7 +93,7 @@ func (h *Hub) publish(event store.ControlEvent) {
 
 func routesToSubscription(event store.ControlEvent, computer remoteproto.ComputerID) bool {
 	switch event.Type {
-	case remoteproto.ControlDevicesChanged, remoteproto.ControlApprovalPending, remoteproto.ControlApprovalApplied:
+	case remoteproto.ControlDevicesChanged, remoteproto.ControlConsentChanged, remoteproto.ControlApprovalPending, remoteproto.ControlApprovalApplied:
 		return computer == ""
 	case remoteproto.ControlLinkReplaced:
 		return event.ComputerID == computer

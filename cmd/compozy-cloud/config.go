@@ -93,17 +93,24 @@ func loadServeConfig(getenv func(string) string) (serveConfig, error) {
 	if err != nil {
 		return serveConfig{}, err
 	}
+	resend, unsubscribeKey, err := loadResend(getenv, environment)
+	if err != nil {
+		return serveConfig{}, err
+	}
 	return serveConfig{
 		Address: cmp.Or(getenv(envAddress), ":8080"),
 		Cloud: cloud.Config{
-			Postgres:      store.Config{PooledDSN: pooled, DirectDSN: direct},
-			Keys:          keys,
-			Issuer:        issuer,
-			Auth:          auth,
-			MonthlyPrice:  getenv("STRIPE_PRICE_PRO_MONTHLY"),
-			AnnualPrice:   getenv("STRIPE_PRICE_PRO_ANNUAL"),
-			HostedTunnels: tunnels,
-			Stripe:        stripe,
+			Postgres:       store.Config{PooledDSN: pooled, DirectDSN: direct},
+			Keys:           keys,
+			Issuer:         issuer,
+			Auth:           auth,
+			MonthlyPrice:   getenv("STRIPE_PRICE_PRO_MONTHLY"),
+			AnnualPrice:    getenv("STRIPE_PRICE_PRO_ANNUAL"),
+			HostedTunnels:  tunnels,
+			Stripe:         stripe,
+			Email:          resend,
+			UnsubscribeKey: unsubscribeKey,
+			MetricsToken:   strings.TrimSpace(getenv("COMPOZY_CLOUD_METRICS_TOKEN")),
 		},
 	}, nil
 }

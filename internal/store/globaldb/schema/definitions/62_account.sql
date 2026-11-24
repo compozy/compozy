@@ -15,5 +15,6 @@ CREATE TABLE installation_account (
   plan_json TEXT,
   signed_out_reason TEXT,
   auth_generation INTEGER NOT NULL DEFAULT 0 CHECK (auth_generation >= 0),
-  last_validated_at TEXT
+  last_validated_at TEXT,
+  sign_in_notices_dismissed_at TEXT
 );

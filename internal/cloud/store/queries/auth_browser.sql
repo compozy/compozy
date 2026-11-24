@@ -5,12 +5,18 @@ VALUES ($1, $2, $3, $3, $4);
 -- name: TouchCloudWebSession :one
 UPDATE cloud_web_sessions w SET last_used_at = greatest(w.last_used_at, sqlc.arg(as_of))
 FROM accounts a
-WHERE w.id_sha256 = $1 AND w.account_id = a.id AND w.revoked_at IS NULL
+WHERE w.id_sha256 = $1 AND w.account_id = a.id
   AND w.expires_at > sqlc.arg(as_of) AND w.last_used_at > sqlc.arg(idle_limit)::timestamptz
-  AND (w.browser_device_id IS NULL OR EXISTS (
-      SELECT 1 FROM devices d WHERE d.id = w.browser_device_id AND d.revoked_at IS NULL
+  AND (a.state <> 'active' OR (
+      w.revoked_at IS NULL AND (w.browser_device_id IS NULL OR EXISTS (
+          SELECT 1 FROM devices d WHERE d.id = w.browser_device_id AND d.revoked_at IS NULL
+      ))
   ))
-RETURNING w.account_id, a.email, w.browser_device_id, a.state;
+RETURNING w.account_id, a.email, w.browser_device_id, a.state, w.fresh_notice_event_id;
+
+-- name: InsertNoticeWebSession :exec
+INSERT INTO cloud_web_sessions (id_sha256, account_id, created_at, last_used_at, expires_at, fresh_notice_event_id)
+VALUES ($1, $2, $3, $3, $4, $5);
 
 -- name: RevokePurchaseWebSession :exec
 UPDATE cloud_web_sessions SET revoked_at = $2 WHERE id_sha256 = $1 AND revoked_at IS NULL;
@@ -37,8 +43,8 @@ DELETE FROM device_keys
 WHERE device_id = $1 AND origin = $2 AND state = 'pending' AND pending_expires_at <= sqlc.arg(as_of);
 
 -- name: InsertCloudBrowserCode :exec
-INSERT INTO browser_codes (code_sha256, account_id, device_id, computer_id, jkt, code_challenge, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7);
+INSERT INTO browser_codes (code_sha256, account_id, device_id, computer_id, jkt, code_challenge, expires_at, request_location)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 
 -- name: CloudBrowserCode :one
 SELECT * FROM browser_codes WHERE code_sha256 = $1;

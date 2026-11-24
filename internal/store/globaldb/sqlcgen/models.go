@@ -860,23 +860,24 @@ type IngressEndpointState struct {
 }
 
 type InstallationAccount struct {
-	ID                int64          `json:"id"`
-	InstallationID    string         `json:"installation_id"`
-	PreAccountInstall int64          `json:"pre_account_install"`
-	State             string         `json:"state"`
-	Source            sql.NullString `json:"source"`
-	AccountID         sql.NullString `json:"account_id"`
-	Email             sql.NullString `json:"email"`
-	Name              sql.NullString `json:"name"`
-	Provider          sql.NullString `json:"provider"`
-	DeviceID          sql.NullString `json:"device_id"`
-	DeviceName        sql.NullString `json:"device_name"`
-	DeviceAdmin       sql.NullInt64  `json:"device_admin"`
-	MarketingOptIn    int64          `json:"marketing_opt_in"`
-	PlanJson          sql.NullString `json:"plan_json"`
-	SignedOutReason   sql.NullString `json:"signed_out_reason"`
-	AuthGeneration    int64          `json:"auth_generation"`
-	LastValidatedAt   sql.NullString `json:"last_validated_at"`
+	ID                       int64          `json:"id"`
+	InstallationID           string         `json:"installation_id"`
+	PreAccountInstall        int64          `json:"pre_account_install"`
+	State                    string         `json:"state"`
+	Source                   sql.NullString `json:"source"`
+	AccountID                sql.NullString `json:"account_id"`
+	Email                    sql.NullString `json:"email"`
+	Name                     sql.NullString `json:"name"`
+	Provider                 sql.NullString `json:"provider"`
+	DeviceID                 sql.NullString `json:"device_id"`
+	DeviceName               sql.NullString `json:"device_name"`
+	DeviceAdmin              sql.NullInt64  `json:"device_admin"`
+	MarketingOptIn           int64          `json:"marketing_opt_in"`
+	PlanJson                 sql.NullString `json:"plan_json"`
+	SignedOutReason          sql.NullString `json:"signed_out_reason"`
+	AuthGeneration           int64          `json:"auth_generation"`
+	LastValidatedAt          sql.NullString `json:"last_validated_at"`
+	SignInNoticesDismissedAt sql.NullString `json:"sign_in_notices_dismissed_at"`
 }
 
 type LoopAdmissionClaim struct {

@@ -11,6 +11,63 @@ import (
 	"strings"
 )
 
+// GetWorktreeStatusParams carries the path, query, and header parameters.
+type GetWorktreeStatusParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	WorktreeID  string `url:"worktree_id"`
+	Refresh     *bool  `url:"refresh"`
+	Forge       *bool  `url:"forge"`
+}
+
+// GetWorktreeStatus Read or refresh worktree status
+func (c *Client) GetWorktreeStatus(ctx context.Context, params GetWorktreeStatusParams) (*WorktreeStatusResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	query := url.Values{}
+	if params.Refresh != nil {
+		query.Set("refresh", strconv.FormatBool(*params.Refresh))
+	}
+	if params.Forge != nil {
+		query.Set("forge", strconv.FormatBool(*params.Forge))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorktreeStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// HeartbeatAgentTaskRunParams carries the path, query, and header parameters.
+type HeartbeatAgentTaskRunParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+	RunID             string `url:"run_id"`
+}
+
+// HeartbeatAgentTaskRun Extend a claimed task-run lease for the calling agent
+func (c *Client) HeartbeatAgentTaskRun(ctx context.Context, params HeartbeatAgentTaskRunParams, body AgentTaskHeartbeatRequest) (*AgentTaskLeaseResponse, error) {
+	path := "/api/agent/tasks/{run_id}/heartbeat"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	var out AgentTaskLeaseResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ImportRuntimeMCPServerParams carries the path, query, and header parameters.
+type ImportRuntimeMCPServerParams struct {
+	Runtime string `url:"runtime"`
+	Name    string `url:"name"`
+}
+
 // ImportRuntimeMCPServer Copy a runtime MCP server into CompozyOS
 func (c *Client) ImportRuntimeMCPServer(ctx context.Context, params ImportRuntimeMCPServerParams, body RuntimeMCPImportRequest) (*RuntimeMCPImportResponse, error) {
 	path := "/api/settings/runtime-mcp-servers/{runtime}/{name}/import"
@@ -373,71 +430,4 @@ type ListAgentInstanceCheckInsParams struct {
 	Limit       *int    `url:"limit"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListAgentInstanceCheckIns List instance wake events
-func (c *Client) ListAgentInstanceCheckIns(ctx context.Context, params ListAgentInstanceCheckInsParams) (*AgentInstanceCheckInsResponse, error) {
-	path := "/api/agent-instances/{id}/check-ins"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceCheckInsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentInstanceReportsParams carries the path, query, and header parameters.
-type ListAgentInstanceReportsParams struct {
-	ID          string  `url:"id"`
-	State       *string `url:"state"`
-	Cursor      *string `url:"cursor"`
-	Limit       *string `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListAgentInstanceReports List durable instance reports
-func (c *Client) ListAgentInstanceReports(ctx context.Context, params ListAgentInstanceReportsParams) (*AgentInstanceReportsResponse, error) {
-	path := "/api/agent-instances/{id}/reports"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", *params.Limit)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceReportsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

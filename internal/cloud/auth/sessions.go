@@ -174,12 +174,16 @@ func (s *Service) Refresh(ctx context.Context, proof DeviceProof) (remoteproto.D
 }
 
 func (s *Service) Logout(ctx context.Context, proof DeviceProof) error {
-	return s.withRefresh(ctx, proof, func(q *store.Queries, d store.AuthDeviceSession, now time.Time) error {
+	err := s.withRefresh(ctx, proof, func(q *store.Queries, d store.AuthDeviceSession, now time.Time) error {
 		if err := q.RevokeDeviceSessions(ctx, d.DeviceID, now); err != nil {
 			return err
 		}
 		return sessionEvent(ctx, q, d, "device_session_signed_out", now)
 	})
+	if f, ok := errors.AsType[*Failure](err); ok && f.Reason == errAccountSuspended.Code {
+		return errAccountSuspended
+	}
+	return err
 }
 
 type sessionWrite func(*store.Queries, store.AuthDeviceSession, time.Time) error

@@ -15,14 +15,19 @@ import (
 )
 
 type loginAttempt struct {
-	id      string
-	ctx     context.Context
-	cancel  context.CancelFunc
-	grant   remoteproto.DeviceFlowResponse
-	expires time.Time
+	id             string
+	ctx            context.Context
+	cancel         context.CancelFunc
+	grant          remoteproto.DeviceFlowResponse
+	expires        time.Time
+	marketingOptIn bool
 }
 
 func (s *Service) StartLogin(ctx context.Context, provider string) (Login, error) {
+	return s.StartLoginWithConsent(ctx, provider, false)
+}
+
+func (s *Service) StartLoginWithConsent(ctx context.Context, provider string, marketingOptIn bool) (Login, error) {
 	if provider != "" && provider != "google" && provider != "github" {
 		return Login{}, &cloudclient.Failure{Status: http.StatusBadRequest, Code: "invalid_request",
 			Message: "Choose Google or GitHub."}
@@ -37,7 +42,7 @@ func (s *Service) StartLogin(ctx context.Context, provider string) (Login, error
 	}
 	s.cancelAttemptLocked()
 	attemptCtx, cancel := context.WithCancel(s.ctx)
-	a := &loginAttempt{id: "att_" + uuid.New().String(), ctx: attemptCtx, cancel: cancel}
+	a := &loginAttempt{id: "att_" + uuid.New().String(), ctx: attemptCtx, cancel: cancel, marketingOptIn: marketingOptIn}
 	s.attempt = a
 	input := remoteproto.DeviceFlowRequest{Provider: provider, ClientName: s.name, ClientPlatform: s.platform,
 		InstallationID: s.installation.InstallationID}
@@ -268,21 +273,30 @@ func (s *Service) finishEnrollment(
 		profile = remoteproto.AccountSummary{Email: result.Email,
 			Device: remoteproto.AccountDevice{ID: device.DeviceID, Name: s.name, Admin: device.Admin}}
 	}
-	if err := s.commitLogin(a, result.AccountID, profile, session, now); err != nil {
+	generation, err := s.commitLogin(a, result.AccountID, profile, session, now)
+	if err != nil {
 		s.finishAttempt(a, "failed", cloudclient.FailureCode(err))
 		if err := s.cloud.Logout(s.ctx, session.refresh, session.key); err != nil && s.ctx.Err() == nil {
 			s.logger.Debug("enrollment cleanup deferred by cloud", "code", cloudclient.FailureCode(err))
+		}
+		return
+	}
+	if a.marketingOptIn && generation.ctx.Err() == nil {
+		creds := cloudclient.Credentials{Key: key, AccessToken: session.access}
+		if _, err := s.patchMarketingConsent(generation.ctx, generation, creds, true, "sign_in"); err != nil &&
+			generation.ctx.Err() == nil {
+			s.logger.Warn("Sign-in email preference could not be saved", "code", cloudclient.FailureCode(err))
 		}
 	}
 }
 
 func (s *Service) commitLogin(
 	a *loginAttempt, id string, profile remoteproto.AccountSummary, session deviceSession, now time.Time,
-) error {
+) (*generation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.loginCurrentLocked(a) {
-		return errCancelled
+		return nil, errCancelled
 	}
 	next := s.installation
 	previousID := next.AccountID
@@ -291,15 +305,18 @@ func (s *Service) commitLogin(
 	}
 	oldRefresh, err := s.credentials.read(refreshEntry, id)
 	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
-		return errKeyring
+		return nil, errKeyring
 	}
 	if err := s.credentials.write(refreshEntry, id, session.refresh); err != nil {
-		return err
+		return nil, err
 	}
 	next.State, next.Source, next.AccountID, next.SignedOutReason = SignedIn, "session", id, ""
 	next.Profile, next.LastValidatedAt = profile, now
+	if previousID != id {
+		next.SignInNoticesDismissedAt = time.Time{}
+	}
 	if err := s.transitionLocked(s.ctx, next, session); err != nil {
-		return errors.Join(err, s.restoreRefresh(id, oldRefresh))
+		return nil, errors.Join(err, s.restoreRefresh(id, oldRefresh))
 	}
 	if previousID != "" && previousID != id {
 		if err := s.credentials.remove(refreshEntry, previousID); err != nil {
@@ -309,7 +326,7 @@ func (s *Service) commitLogin(
 	s.endAttemptLocked(a, string(SignedIn), "")
 	s.sendProgressLocked(SignInEvent{State: string(SignedIn)})
 	s.emitLocked(s.generation, Change{Kind: "sign_in"})
-	return nil
+	return s.generation, nil
 }
 
 func (s *Service) restoreRefresh(id, oldRefresh string) error {

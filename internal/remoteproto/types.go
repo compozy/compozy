@@ -180,6 +180,7 @@ const (
 	ControlChallenge        ControlType = "challenge"
 	ControlAuthenticate     ControlType = "authenticate"
 	ControlDevicesChanged   ControlType = "devices_changed"
+	ControlConsentChanged   ControlType = "consent_changed"
 	ControlComputersChanged ControlType = "computers_changed"
 	ControlPlanChanged      ControlType = "plan_changed"
 	ControlLinkReplaced     ControlType = "link_replaced"

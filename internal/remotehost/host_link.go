@@ -111,7 +111,7 @@ func (h *Host) registerComputer(ctx context.Context, token string) (Identity, er
 	}
 	request := cloudclient.ComputerLinkRequest{
 		Name: h.name, Platform: h.platform, Version: h.version, ComputerJWK: jwk,
-		TLSRootSHA256: keys.ca.fingerprint(), LinkToken: token,
+		TLSRootSHA256: keys.ca.fingerprint(), LinkToken: token, InstallationID: h.account.Status().InstallationID,
 	}
 	reply, err := h.submitLink(ctx, request, keys)
 	if err != nil {

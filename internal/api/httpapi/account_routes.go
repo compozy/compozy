@@ -5,6 +5,9 @@ import "github.com/gin-gonic/gin"
 func registerAccountRoutes(api gin.IRouter, handlers *Handlers) {
 	routes := api.Group("/account", handlers.privilegedMutationGuard())
 	routes.GET("", handlers.GetAccount)
+	routes.PATCH("", handlers.PatchAccountEmail)
+	routes.DELETE("", handlers.DeleteAccount)
+	routes.POST("/sign-in-notices/dismiss", handlers.DismissAccountSignInNotices)
 	routes.POST("/login", handlers.StartAccountLogin)
 	routes.DELETE("/login", handlers.CancelAccountLogin)
 	routes.GET("/sign-in/events", handlers.StreamAccountSignIn)

@@ -61,6 +61,8 @@ func (r *Router) RegisterControl(cfg ControlRoutesConfig) {
 	r.mux.Handle("POST /v1/approvals/{id}/decision", h.device(h.decideApproval))
 	r.mux.Handle("GET /v1/account/events", h.device(h.accountEvents))
 	r.mux.Handle("GET /v1/account", h.device(h.account))
+	r.mux.Handle("PATCH /v1/account", h.device(h.patchAccountEmail))
+	r.mux.Handle("DELETE /v1/account", h.device(h.deleteAccount))
 	r.mux.HandleFunc("POST "+remoteproto.BrowserRedemptionPath, h.browserToken)
 	if cfg.Billing != nil {
 		r.mux.Handle("POST /v1/billing/checkout", h.device(h.billingCheckout))

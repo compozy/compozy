@@ -10,6 +10,43 @@ import (
 	"strings"
 )
 
+// GetAgentHeartbeatStatus Read Heartbeat policy status, wake state, and optional session health
+func (c *Client) GetAgentHeartbeatStatus(ctx context.Context, params GetAgentHeartbeatStatusParams) (*HeartbeatStatusResponse, error) {
+	path := "/api/agents/{name}/heartbeat/status"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.SessionID != nil {
+		query.Set("session_id", *params.SessionID)
+	}
+	if params.IncludeSessionHealth != nil {
+		query.Set("include_session_health", strconv.FormatBool(*params.IncludeSessionHealth))
+	}
+	if params.IncludeRecentWakeEvents != nil {
+		query.Set("include_recent_wake_events", strconv.FormatBool(*params.IncludeRecentWakeEvents))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentInstanceParams carries the path, query, and header parameters.
+type GetAgentInstanceParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetAgentInstance Get an agent instance
 func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstanceParams) (*AgentInstanceResponse, error) {
 	path := "/api/agent-instances/{id}"
@@ -398,52 +435,4 @@ func (c *Client) GetComputer(ctx context.Context, params GetComputerParams) (*Co
 type GetComputerSetupParams struct {
 	SetupID string `url:"setup_id"`
 	WaitMs  *int   `url:"wait_ms"`
-}
-
-// GetComputerSetup Read or wait for SSH setup progress
-func (c *Client) GetComputerSetup(ctx context.Context, params GetComputerSetupParams) (*ComputerSetupStatus, error) {
-	path := "/api/computers/setups/{setup_id}"
-	path = strings.ReplaceAll(path, "{setup_id}", url.PathEscape(params.SetupID))
-	query := url.Values{}
-	if params.WaitMs != nil {
-		query.Set("wait_ms", strconv.Itoa(*params.WaitMs))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ComputerSetupStatus
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetDoctorParams carries the path, query, and header parameters.
-type GetDoctorParams struct {
-	Only    *string `url:"only"`
-	Exclude *string `url:"exclude"`
-	Quiet   *bool   `url:"quiet"`
-}
-
-// GetDoctor Run runtime diagnostics
-func (c *Client) GetDoctor(ctx context.Context, params GetDoctorParams) (*DoctorPayload, error) {
-	path := "/api/doctor"
-	query := url.Values{}
-	if params.Only != nil {
-		query.Set("only", *params.Only)
-	}
-	if params.Exclude != nil {
-		query.Set("exclude", *params.Exclude)
-	}
-	if params.Quiet != nil {
-		query.Set("quiet", strconv.FormatBool(*params.Quiet))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out DoctorPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

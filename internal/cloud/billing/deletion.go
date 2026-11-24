@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/compozy/compozy/internal/cloud/plan"
 	"github.com/compozy/compozy/internal/cloud/store"
@@ -20,9 +21,16 @@ func (s *Service) CancelForDeletion(ctx context.Context, accountID string) error
 	if err != nil {
 		return err
 	}
+	requestedAt, err := s.db.AccountDeletionRequestedAt(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if requestedAt.IsZero() {
+		requestedAt = s.cfg.Now()
+	}
 	for _, sub := range subscriptions {
 		if sub.Source == stripeSource && sub.Entitled(s.cfg.MonthlyPrice, s.cfg.AnnualPrice, s.cfg.Now()) {
-			if err := s.cancelForDeletion(ctx, sub); err != nil {
+			if err := s.cancelForDeletion(ctx, sub, requestedAt); err != nil {
 				return err
 			}
 		}
@@ -78,7 +86,7 @@ func (s *Service) finishDeletingCheckout(ctx context.Context, checkout store.Bil
 	return nil
 }
 
-func (s *Service) cancelForDeletion(ctx context.Context, sub plan.Subscription) error {
+func (s *Service) cancelForDeletion(ctx context.Context, sub plan.Subscription, requestedAt time.Time) error {
 	if s.cfg.Stripe == nil {
 		return ErrUnavailable
 	}
@@ -94,7 +102,7 @@ func (s *Service) cancelForDeletion(ctx context.Context, sub plan.Subscription) 
 		if err != nil || !current.Entitled(s.cfg.MonthlyPrice, s.cfg.AnnualPrice, now) {
 			return err
 		}
-		if until := current.RefundEligibleUntil(); now.Before(until) {
+		if until := current.RefundEligibleUntil(); requestedAt.Before(until) {
 			if err := s.cfg.Stripe.refundInvoice(ctx, current.LastInvoiceID, current.ID); err != nil {
 				return err
 			}
@@ -181,6 +189,49 @@ func (s *Stripe) cancelSubscription(ctx context.Context, id string) error {
 	}
 	if current.ID != id || current.Status != "canceled" {
 		return errors.Join(err, errors.New("Stripe has not confirmed immediate cancellation"))
+	}
+	return nil
+}
+
+func (s *Service) RedactDeletingCustomer(ctx context.Context, accountID string) error {
+	subscriptions, err := s.db.Subscriptions(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	customers := make(map[string]struct{})
+	for _, sub := range subscriptions {
+		if sub.Source == "stripe" && sub.CustomerID != "" {
+			customers[sub.CustomerID] = struct{}{}
+		}
+	}
+	for customer := range customers {
+		if s.cfg.Stripe == nil {
+			return ErrUnavailable
+		}
+		if err := s.cfg.Stripe.deleteCustomer(ctx, customer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Stripe) deleteCustomer(ctx context.Context, id string) error {
+	if !validStripeID(id, "cus_") {
+		return errors.New("invalid Stripe customer for account deletion")
+	}
+	var result struct {
+		ID      string `json:"id"`
+		Deleted bool   `json:"deleted"`
+	}
+	err := s.request(ctx, http.MethodDelete, "/v1/customers/"+url.PathEscape(id), nil, "delete_customer_"+id, &result)
+	if stripeCode(err, "resource_missing") {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if result.ID != id || !result.Deleted {
+		return errors.New("Stripe has not confirmed customer redaction")
 	}
 	return nil
 }

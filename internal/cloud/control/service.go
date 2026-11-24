@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/compozy/compozy/internal/cloud/billing"
 	"github.com/compozy/compozy/internal/cloud/cloudflare"
+	"github.com/compozy/compozy/internal/cloud/email"
 	"github.com/compozy/compozy/internal/cloud/plan"
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -38,6 +40,9 @@ type ServiceConfig struct {
 	Now           func() time.Time
 	Logger        *slog.Logger
 	HostedTunnels *cloudflare.Client
+	Billing       *billing.Service
+	Email         *email.Resend
+	Unsubscribe   *email.UnsubscribeLinks
 }
 
 type Service struct {
@@ -141,9 +146,9 @@ func activeAccount(account store.ControlAccount) error {
 	switch account.State {
 	case accountActive:
 		return nil
-	case "suspended":
+	case accountSuspended:
 		return errAccountSuspended
-	case "deleting":
+	case accountDeleting:
 		return errAccountDeleting
 	default:
 		return ErrUnauthorized

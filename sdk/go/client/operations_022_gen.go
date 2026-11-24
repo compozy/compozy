@@ -9,6 +9,72 @@ import (
 	"strings"
 )
 
+// ListLoopRequestsAggregateParams carries the path, query, and header parameters.
+type ListLoopRequestsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	RunID         *string   `url:"run_id"`
+	State         *string   `url:"state"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
+// ListLoopRequestsAggregate List Loop human requests
+func (c *Client) ListLoopRequestsAggregate(ctx context.Context, params ListLoopRequestsAggregateParams) (*LoopRequestsResponse, error) {
+	path := "/api/loop-requests"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.RunID != nil {
+		query.Set("run_id", *params.RunID)
+	}
+	if params.State != nil {
+		query.Set("state", *params.State)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopRequestsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListLoopRunsParams carries the path, query, and header parameters.
+type ListLoopRunsParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	Loop          *string `url:"loop"`
+	Status        *string `url:"status"`
+	Origin        *string `url:"origin"`
+	OriginSession *string `url:"origin_session"`
+	Live          *bool   `url:"live"`
+	Cursor        *string `url:"cursor"`
+	Limit         *int    `url:"limit"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // ListLoopRuns List Loop runs
 func (c *Client) ListLoopRuns(ctx context.Context, params ListLoopRunsParams) (*LoopRunsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loop-runs"
@@ -362,62 +428,4 @@ type ListProcessesParams struct {
 	Orphaned      *bool   `url:"orphaned"`
 	Profile       *string `url:"profile"`
 	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// ListProcesses List processes grouped by session, including left-running processes
-func (c *Client) ListProcesses(ctx context.Context, params ListProcessesParams) (*ProcessesResponse, error) {
-	path := "/api/processes"
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.Orphaned != nil {
-		query.Set("orphaned", strconv.FormatBool(*params.Orphaned))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ProcessesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListProfileOperations List profile lifecycle operations
-func (c *Client) ListProfileOperations(ctx context.Context) (*[]ProfileOperation, error) {
-	path := "/api/profiles/ops"
-	var out []ProfileOperation
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListProfiles List profiles
-func (c *Client) ListProfiles(ctx context.Context) (*[]Profile, error) {
-	path := "/api/profiles"
-	var out []Profile
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListProviderModelsParams carries the path, query, and header parameters.
-type ListProviderModelsParams struct {
-	ProviderID   *string `url:"provider_id"`
-	View         *string `url:"view"`
-	SourceID     *string `url:"source_id"`
-	Refresh      *bool   `url:"refresh"`
-	IncludeStale *bool   `url:"include_stale"`
 }

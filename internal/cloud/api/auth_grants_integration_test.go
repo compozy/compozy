@@ -33,6 +33,8 @@ func TestCloudDeviceGrant(t *testing.T) {
 		first.expect(t, http.StatusOK, g.UserCode)
 		first.expect(t, http.StatusOK, "Requested from Lisbon, PT")
 		first.expect(t, http.StatusOK, "Only continue if you started this sign-in on your own computer.")
+		// UT-132, Safety Invariant 30. The edge's coarse location is persisted without the requesting IP.
+		assertAuthRow(t, f, `SELECT count(*) FROM device_grants WHERE request_location = 'Lisbon, PT'`, 1)
 		cookie := first.cookie(t, activationCookie)
 		redirect := f.continueGrant(t, g, auth.GitHub, cookie, false)
 		authorize := redirectQuery(t, redirect)

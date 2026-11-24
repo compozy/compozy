@@ -18,22 +18,29 @@ func (s *Service) Account(ctx context.Context, principal DevicePrincipal) (remot
 			if err != nil {
 				return err
 			}
-			session, err := q.ReadDeviceSession(ctx, principal.SessionID, account.ID)
-			if err != nil {
-				return err
-			}
-			entitlement, err := s.accountPlan(ctx, q, identity)
-			if err != nil {
-				return err
-			}
-			result = remoteproto.AccountSummary{
-				AccountPlan: entitlement, Email: identity.Email, Name: identity.Name, Provider: session.Provider,
-				MarketingOptIn: identity.MarketingOptIn, Device: viewDevice(device, principal.DeviceID),
-			}
-			return nil
+			result, err = s.accountSummary(ctx, q, identity, device, principal)
+			return err
 		},
 	)
 	return result, err
+}
+
+func (s *Service) accountSummary(
+	ctx context.Context, q *store.Queries, identity store.AuthAccount, device store.ControlDevice, principal DevicePrincipal,
+) (remoteproto.AccountSummary, error) {
+	session, err := q.ReadDeviceSession(ctx, principal.SessionID, identity.ID)
+	if err != nil {
+		return remoteproto.AccountSummary{}, err
+	}
+	entitlement, err := s.accountPlan(ctx, q, identity)
+	if err != nil {
+		return remoteproto.AccountSummary{}, err
+	}
+	notices, err := q.RecentSignIns(ctx, identity.ID, s.config.Now())
+	return remoteproto.AccountSummary{
+		AccountPlan: entitlement, Email: identity.Email, Name: identity.Name, Provider: session.Provider,
+		MarketingOptIn: identity.MarketingOptIn, Device: viewDevice(device, principal.DeviceID), RecentSignIns: notices,
+	}, err
 }
 
 func (s *Service) accountPlan(

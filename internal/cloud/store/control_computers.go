@@ -12,21 +12,22 @@ import (
 )
 
 type ControlComputer struct {
-	ID            remoteproto.ComputerID
-	AccountID     string
-	Name          string
-	Platform      string
-	Version       string
-	Key           remoteproto.JWK
-	TLSRootSHA256 string
-	RemoteEnabled bool
-	PlanLimited   bool
-	LastSessionAt time.Time
-	LastControlAt time.Time
-	LinkID        string
-	LinkedAt      time.Time
-	UnlinkedAt    time.Time
-	Endpoints     []string
+	ID             remoteproto.ComputerID
+	AccountID      string
+	InstallationID string
+	Name           string
+	Platform       string
+	Version        string
+	Key            remoteproto.JWK
+	TLSRootSHA256  string
+	RemoteEnabled  bool
+	PlanLimited    bool
+	LastSessionAt  time.Time
+	LastControlAt  time.Time
+	LinkID         string
+	LinkedAt       time.Time
+	UnlinkedAt     time.Time
+	Endpoints      []string
 }
 
 func controlComputer(row sqlcgen.Computer, err error) (ControlComputer, error) {
@@ -41,7 +42,7 @@ func controlComputer(row sqlcgen.Computer, err error) (ControlComputer, error) {
 		ID: remoteproto.ComputerID(row.ID), AccountID: row.AccountID, Name: row.Name, Platform: row.Platform,
 		Version: row.Version, Key: key, TLSRootSHA256: row.TlsRootSha256, RemoteEnabled: row.RemoteEnabled,
 		PlanLimited: row.PlanLimited, LastSessionAt: row.LastSessionAt.Time, LastControlAt: row.LastControlAt.Time,
-		LinkID: row.ControlLinkID.String, LinkedAt: row.LinkedAt.Time,
+		LinkID: row.ControlLinkID.String, LinkedAt: row.LinkedAt.Time, InstallationID: row.InstallationID.String,
 		UnlinkedAt: row.UnlinkedAt.Time, Endpoints: []string{},
 	}, nil
 }
@@ -83,7 +84,7 @@ func (q *Queries) CreateControlComputer(ctx context.Context, computer ControlCom
 	return controlComputer(q.generated.CreateControlComputer(ctx, sqlcgen.CreateControlComputerParams{
 		ID: string(computer.ID), AccountID: computer.AccountID, Name: computer.Name, Platform: computer.Platform,
 		Version: computer.Version, ComputerJwk: string(jwk), TlsRootSha256: computer.TLSRootSHA256,
-		LinkedAt: timestamp(computer.LinkedAt),
+		LinkedAt: timestamp(computer.LinkedAt), InstallationID: dbText(computer.InstallationID),
 	}))
 }
 

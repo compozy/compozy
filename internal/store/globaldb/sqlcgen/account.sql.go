@@ -11,7 +11,7 @@ import (
 )
 
 const readInstallationAccount = `-- name: ReadInstallationAccount :one
-SELECT id, installation_id, pre_account_install, state, source, account_id, email, name, provider, device_id, device_name, device_admin, marketing_opt_in, plan_json, signed_out_reason, auth_generation, last_validated_at FROM installation_account WHERE id = 1
+SELECT id, installation_id, pre_account_install, state, source, account_id, email, name, provider, device_id, device_name, device_admin, marketing_opt_in, plan_json, signed_out_reason, auth_generation, last_validated_at, sign_in_notices_dismissed_at FROM installation_account WHERE id = 1
 `
 
 func (q *Queries) ReadInstallationAccount(ctx context.Context) (InstallationAccount, error) {
@@ -35,6 +35,7 @@ func (q *Queries) ReadInstallationAccount(ctx context.Context) (InstallationAcco
 		&i.SignedOutReason,
 		&i.AuthGeneration,
 		&i.LastValidatedAt,
+		&i.SignInNoticesDismissedAt,
 	)
 	return i, err
 }
@@ -46,26 +47,28 @@ UPDATE installation_account SET
   device_id = ?7, device_name = ?8, device_admin = ?9,
   marketing_opt_in = ?10, plan_json = ?11,
   signed_out_reason = ?12, auth_generation = ?13,
-  last_validated_at = ?14
-WHERE id = 1 AND auth_generation = ?15
+  last_validated_at = ?14,
+  sign_in_notices_dismissed_at = ?15
+WHERE id = 1 AND auth_generation = ?16
 `
 
 type SaveInstallationAccountParams struct {
-	State              string         `json:"state"`
-	Source             sql.NullString `json:"source"`
-	AccountID          sql.NullString `json:"account_id"`
-	Email              sql.NullString `json:"email"`
-	Name               sql.NullString `json:"name"`
-	Provider           sql.NullString `json:"provider"`
-	DeviceID           sql.NullString `json:"device_id"`
-	DeviceName         sql.NullString `json:"device_name"`
-	DeviceAdmin        sql.NullInt64  `json:"device_admin"`
-	MarketingOptIn     int64          `json:"marketing_opt_in"`
-	PlanJson           sql.NullString `json:"plan_json"`
-	SignedOutReason    sql.NullString `json:"signed_out_reason"`
-	AuthGeneration     int64          `json:"auth_generation"`
-	LastValidatedAt    sql.NullString `json:"last_validated_at"`
-	PreviousGeneration int64          `json:"previous_generation"`
+	State                    string         `json:"state"`
+	Source                   sql.NullString `json:"source"`
+	AccountID                sql.NullString `json:"account_id"`
+	Email                    sql.NullString `json:"email"`
+	Name                     sql.NullString `json:"name"`
+	Provider                 sql.NullString `json:"provider"`
+	DeviceID                 sql.NullString `json:"device_id"`
+	DeviceName               sql.NullString `json:"device_name"`
+	DeviceAdmin              sql.NullInt64  `json:"device_admin"`
+	MarketingOptIn           int64          `json:"marketing_opt_in"`
+	PlanJson                 sql.NullString `json:"plan_json"`
+	SignedOutReason          sql.NullString `json:"signed_out_reason"`
+	AuthGeneration           int64          `json:"auth_generation"`
+	LastValidatedAt          sql.NullString `json:"last_validated_at"`
+	SignInNoticesDismissedAt sql.NullString `json:"sign_in_notices_dismissed_at"`
+	PreviousGeneration       int64          `json:"previous_generation"`
 }
 
 func (q *Queries) SaveInstallationAccount(ctx context.Context, arg SaveInstallationAccountParams) (int64, error) {
@@ -84,6 +87,7 @@ func (q *Queries) SaveInstallationAccount(ctx context.Context, arg SaveInstallat
 		arg.SignedOutReason,
 		arg.AuthGeneration,
 		arg.LastValidatedAt,
+		arg.SignInNoticesDismissedAt,
 		arg.PreviousGeneration,
 	)
 	if err != nil {

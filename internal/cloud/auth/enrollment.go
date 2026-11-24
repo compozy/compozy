@@ -3,8 +3,6 @@ package auth
 import (
 	"context"
 	"errors"
-	"net/netip"
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/cloud/store"
@@ -141,13 +139,7 @@ func registerEnrolledDevice(
 	if err := q.RecordAuthDeviceChange(ctx, d.AccountID); err != nil {
 		return d, err
 	}
-	details := map[string]any{deviceIDDetail: d.ID, "kind": d.Kind, "admin": d.Admin, "location": token.Location}
-	if _, err := netip.ParseAddr(strings.TrimSpace(d.Name)); err != nil {
-		details["device_name"] = d.Name
-	}
-	return d, q.AppendSecurityEvent(ctx, store.SecurityEvent{
-		Type: "device_enrolled", AccountID: d.AccountID, Actor: accountActorPrefix + d.ID, At: now, Details: details,
-	})
+	return d, q.RecordDeviceEnrollment(ctx, d.AccountID, remoteproto.DeviceID(d.ID), d.Name, d.Kind, token.Location, d.Admin, now)
 }
 
 func recoverDeviceAdmin(ctx context.Context, q *store.Queries, d store.AuthDevice, now time.Time) error {

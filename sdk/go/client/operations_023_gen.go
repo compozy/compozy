@@ -9,6 +9,64 @@ import (
 	"strings"
 )
 
+// ListProcesses List processes grouped by session, including left-running processes
+func (c *Client) ListProcesses(ctx context.Context, params ListProcessesParams) (*ProcessesResponse, error) {
+	path := "/api/processes"
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.Orphaned != nil {
+		query.Set("orphaned", strconv.FormatBool(*params.Orphaned))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProcessesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProfileOperations List profile lifecycle operations
+func (c *Client) ListProfileOperations(ctx context.Context) (*[]ProfileOperation, error) {
+	path := "/api/profiles/ops"
+	var out []ProfileOperation
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProfiles List profiles
+func (c *Client) ListProfiles(ctx context.Context) (*[]Profile, error) {
+	path := "/api/profiles"
+	var out []Profile
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProviderModelsParams carries the path, query, and header parameters.
+type ListProviderModelsParams struct {
+	ProviderID   *string `url:"provider_id"`
+	View         *string `url:"view"`
+	SourceID     *string `url:"source_id"`
+	Refresh      *bool   `url:"refresh"`
+	IncludeStale *bool   `url:"include_stale"`
+}
+
 // ListProviderModels List provider model catalog entries across providers
 func (c *Client) ListProviderModels(ctx context.Context, params ListProviderModelsParams) (*ProviderModelListResponse, error) {
 	path := "/api/model-catalog/models"
@@ -372,64 +430,6 @@ func (c *Client) ListSessionDescendants(ctx context.Context, params ListSessionD
 		path += "?" + query.Encode()
 	}
 	var out SessionsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionEventsParams carries the path, query, and header parameters.
-type ListSessionEventsParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	SessionID     string  `url:"session_id"`
-	Since         *string `url:"since"`
-	Limit         *int    `url:"limit"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Type          *string `url:"type"`
-	AgentName     *string `url:"agent_name"`
-	TurnID        *string `url:"turn_id"`
-	Archive       *string `url:"archive"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// ListSessionEvents List persisted session events
-func (c *Client) ListSessionEvents(ctx context.Context, params ListSessionEventsParams) (*SessionEventsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/events"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if params.TurnID != nil {
-		query.Set("turn_id", *params.TurnID)
-	}
-	if params.Archive != nil {
-		query.Set("archive", *params.Archive)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionEventsResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

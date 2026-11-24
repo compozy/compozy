@@ -58,6 +58,16 @@ export type AccountCheckoutRequest = {
   interval: string;
 };
 
+export type AccountDeleteRequest = {
+  confirm_email: string;
+};
+
+export type AccountDeleteResponse = {
+  refund: string;
+  state: string;
+  subscription_cancelled: boolean;
+};
+
 export type AccountDevice = {
   admin: boolean;
   id: string;
@@ -83,6 +93,11 @@ export type AccountDeviceSummary = {
 
 export type AccountDevicesResponse = {
   devices: Array<AccountDevice>;
+};
+
+export type AccountEmailPatchRequest = {
+  marketing_opt_in: boolean | null;
+  source?: string;
 };
 
 export type AccountGrace = {
@@ -14557,6 +14572,58 @@ export type ValueWritable =
       vault_ref: string;
     };
 
+export type DeleteAccountData = {
+  /**
+   * JSON request body
+   */
+  body: AccountDeleteRequest;
+  path?: never;
+  query?: never;
+  url: "/api/account";
+};
+
+export type DeleteAccountErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type DeleteAccountError = DeleteAccountErrors[keyof DeleteAccountErrors];
+
+export type DeleteAccountResponses = {
+  /**
+   * Deletion started
+   */
+  202: AccountDeleteResponse;
+};
+
+export type DeleteAccountResponse = DeleteAccountResponses[keyof DeleteAccountResponses];
+
 export type GetAccountData = {
   body?: never;
   path?: never;
@@ -14605,6 +14672,59 @@ export type GetAccountResponses = {
 };
 
 export type GetAccountResponse = GetAccountResponses[keyof GetAccountResponses];
+
+export type PatchAccountEmailData = {
+  /**
+   * JSON request body
+   */
+  body: AccountEmailPatchRequest;
+  path?: never;
+  query?: never;
+  url: "/api/account";
+};
+
+export type PatchAccountEmailErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PatchAccountEmailError = PatchAccountEmailErrors[keyof PatchAccountEmailErrors];
+
+export type PatchAccountEmailResponses = {
+  /**
+   * Updated installation account
+   */
+  200: AccountStatusResponse;
+};
+
+export type PatchAccountEmailResponse =
+  PatchAccountEmailResponses[keyof PatchAccountEmailResponses];
 
 export type ListAccountApprovalsData = {
   body?: never;
@@ -15196,6 +15316,57 @@ export type LogoutAccountResponses = {
 };
 
 export type LogoutAccountResponse = LogoutAccountResponses[keyof LogoutAccountResponses];
+
+export type DismissAccountSignInNoticesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/account/sign-in-notices/dismiss";
+};
+
+export type DismissAccountSignInNoticesErrors = {
+  /**
+   * Invalid account request
+   */
+  400: ErrorPayload;
+  /**
+   * Sign-in required or session rejected
+   */
+  401: ErrorPayload;
+  /**
+   * Device or account permission required
+   */
+  403: ErrorPayload;
+  /**
+   * Account resource not found
+   */
+  404: ErrorPayload;
+  /**
+   * Account operation conflicts with current state
+   */
+  409: ErrorPayload;
+  /**
+   * Cloud rate limit
+   */
+  429: ErrorPayload;
+  /**
+   * Account or cloud unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type DismissAccountSignInNoticesError =
+  DismissAccountSignInNoticesErrors[keyof DismissAccountSignInNoticesErrors];
+
+export type DismissAccountSignInNoticesResponses = {
+  /**
+   * Notices dismissed
+   */
+  204: void;
+};
+
+export type DismissAccountSignInNoticesResponse =
+  DismissAccountSignInNoticesResponses[keyof DismissAccountSignInNoticesResponses];
 
 export type ListAgentInstancesData = {
   body?: never;

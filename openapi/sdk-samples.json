@@ -645,6 +645,13 @@
             "resource": "account",
             "app_access": "denied"
         },
+        "deleteAccount": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.deleteAccount({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.DeleteAccount(ctx, client.AccountDeleteRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "account",
+            "app_access": "denied"
+        },
         "deleteAgent": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.deleteAgent({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.DeleteAgent(ctx, client.DeleteAgentParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -860,6 +867,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.DisableSkill(ctx, client.DisableSkillParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "skills",
+            "app_access": "denied"
+        },
+        "dismissAccountSignInNotices": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.dismissAccountSignInNotices();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.DismissAccountSignInNotices(ctx)\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "account",
             "app_access": "denied"
         },
         "dismissAutomationSuggestion": {
@@ -2909,6 +2923,13 @@
         "patchAccountDevice": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.patchAccountDevice({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PatchAccountDevice(ctx, client.PatchAccountDeviceParams{ID: \"id\"}, client.AccountDevicePatch{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "account",
+            "app_access": "denied"
+        },
+        "patchAccountEmail": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.account.patchAccountEmail({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PatchAccountEmail(ctx, client.AccountEmailPatchRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "account",
             "app_access": "denied"

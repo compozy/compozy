@@ -59,6 +59,7 @@ type StripeFixture struct {
 	refunds       map[string]url.Values
 	deleteFailure bool
 	deletes       []string
+	redacted      []string
 }
 
 func StartStripe(t Fixture, now func() time.Time, browser bool) *StripeFixture {
@@ -171,6 +172,12 @@ func (f *StripeFixture) DeletionCalls() ([]string, map[string]url.Values) {
 	return slices.Clone(f.deletes), refunds
 }
 
+func (f *StripeFixture) RedactedCustomers() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.redacted)
+}
+
 func (f *StripeFixture) serve(w http.ResponseWriter, r *http.Request) {
 	if f.browser && strings.HasPrefix(r.URL.Path, "/fixture-checkout/") {
 		f.browserCheckout(w, r)
@@ -192,6 +199,8 @@ func (f *StripeFixture) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		api.WriteJSON(w, http.StatusOK, map[string]string{"url": "https://billing.stripe.com/p/session/fixture"})
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/v1/customers/"):
+		f.redactCustomer(w, r)
 	case strings.HasPrefix(r.URL.Path, "/v1/subscriptions/"):
 		f.subscription(w, r)
 	case r.URL.Path == "/v1/invoices":
@@ -207,6 +216,20 @@ func (f *StripeFixture) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func (f *StripeFixture) redactCustomer(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/v1/customers/")
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, sub := range f.subscriptions {
+		if "cus_"+sub.Account == id && sub.Status != "canceled" {
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
+	}
+	f.redacted = append(f.redacted, id)
+	api.WriteJSON(w, http.StatusOK, map[string]any{"id": id, "deleted": true})
 }
 
 func (f *StripeFixture) createCheckout(w http.ResponseWriter, r *http.Request) {

@@ -102,6 +102,8 @@ func accountEventPayload(event store.ControlEvent) (string, remoteproto.CloudAcc
 		return "computers.changed", remoteproto.CloudAccountEvent{
 			ComputerID: event.ComputerID, SecurityEpoch: event.SecurityEpoch,
 		}
+	case remoteproto.ControlConsentChanged:
+		return "consent.changed", remoteproto.CloudAccountEvent{}
 	case remoteproto.ControlPlanChanged:
 		return "plan.changed", remoteproto.CloudAccountEvent{}
 	case remoteproto.ControlApprovalPending:

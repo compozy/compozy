@@ -9,6 +9,30 @@ import (
 	"strings"
 )
 
+// DeleteAgentHeartbeat Delete HEARTBEAT.md through managed authoring
+func (c *Client) DeleteAgentHeartbeat(ctx context.Context, params DeleteAgentHeartbeatParams, body HeartbeatDeleteByPathRequest) (*HeartbeatMutationResponse, error) {
+	path := "/api/agents/{name}/heartbeat"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatMutationResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteAgentSoulParams carries the path, query, and header parameters.
+type DeleteAgentSoulParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
 // DeleteAgentSoul Delete SOUL.md through managed authoring
 func (c *Client) DeleteAgentSoul(ctx context.Context, params DeleteAgentSoulParams, body AgentSoulDeleteByPathRequest) (*AgentSoulMutationResponse, error) {
 	path := "/api/agents/{name}/soul"
@@ -413,25 +437,4 @@ func (c *Client) DeleteTask(ctx context.Context, params DeleteTaskParams) error 
 type DeleteTaskExecutionProfileParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// DeleteTaskExecutionProfile Delete one task execution profile
-func (c *Client) DeleteTaskExecutionProfile(ctx context.Context, params DeleteTaskExecutionProfileParams) error {
-	path := "/api/tasks/{id}/execution-profile"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteTerminalParams carries the path, query, and header parameters.
-type DeleteTerminalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
 }

@@ -161,7 +161,7 @@ func (q *Queries) ConsumeControlReservation(ctx context.Context, arg ConsumeCont
 }
 
 const controlComputer = `-- name: ControlComputer :one
-SELECT id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled, plan_limited, last_session_at, last_control_at, linked_at, unlinked_at, lease_sequence, control_link_id FROM computers WHERE id = $1
+SELECT id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled, plan_limited, last_session_at, last_control_at, linked_at, unlinked_at, lease_sequence, control_link_id, installation_id FROM computers WHERE id = $1
 `
 
 func (q *Queries) ControlComputer(ctx context.Context, id string) (Computer, error) {
@@ -183,12 +183,13 @@ func (q *Queries) ControlComputer(ctx context.Context, id string) (Computer, err
 		&i.UnlinkedAt,
 		&i.LeaseSequence,
 		&i.ControlLinkID,
+		&i.InstallationID,
 	)
 	return i, err
 }
 
 const controlComputers = `-- name: ControlComputers :many
-SELECT id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled, plan_limited, last_session_at, last_control_at, linked_at, unlinked_at, lease_sequence, control_link_id FROM computers WHERE account_id = $1 AND unlinked_at IS NULL ORDER BY lower(name), id
+SELECT id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled, plan_limited, last_session_at, last_control_at, linked_at, unlinked_at, lease_sequence, control_link_id, installation_id FROM computers WHERE account_id = $1 AND unlinked_at IS NULL ORDER BY lower(name), id
 `
 
 func (q *Queries) ControlComputers(ctx context.Context, accountID string) ([]Computer, error) {
@@ -216,6 +217,7 @@ func (q *Queries) ControlComputers(ctx context.Context, accountID string) ([]Com
 			&i.UnlinkedAt,
 			&i.LeaseSequence,
 			&i.ControlLinkID,
+			&i.InstallationID,
 		); err != nil {
 			return nil, err
 		}
@@ -281,22 +283,23 @@ func (q *Queries) ControlLinkToken(ctx context.Context, tokenSha256 []byte) (Lin
 }
 
 const createControlComputer = `-- name: CreateControlComputer :one
-INSERT INTO computers (id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled, linked_at)
+INSERT INTO computers (id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled, linked_at, installation_id)
 VALUES ($1, $2, $3, $4, $5,
-        $6::text::jsonb, $7, true, $8)
+        $6::text::jsonb, $7, true, $8, $9)
 ON CONFLICT (id) DO NOTHING
-RETURNING id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled, plan_limited, last_session_at, last_control_at, linked_at, unlinked_at, lease_sequence, control_link_id
+RETURNING id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled, plan_limited, last_session_at, last_control_at, linked_at, unlinked_at, lease_sequence, control_link_id, installation_id
 `
 
 type CreateControlComputerParams struct {
-	ID            string
-	AccountID     string
-	Name          string
-	Platform      string
-	Version       string
-	ComputerJwk   string
-	TlsRootSha256 string
-	LinkedAt      pgtype.Timestamptz
+	ID             string
+	AccountID      string
+	Name           string
+	Platform       string
+	Version        string
+	ComputerJwk    string
+	TlsRootSha256  string
+	LinkedAt       pgtype.Timestamptz
+	InstallationID pgtype.Text
 }
 
 func (q *Queries) CreateControlComputer(ctx context.Context, arg CreateControlComputerParams) (Computer, error) {
@@ -309,6 +312,7 @@ func (q *Queries) CreateControlComputer(ctx context.Context, arg CreateControlCo
 		arg.ComputerJwk,
 		arg.TlsRootSha256,
 		arg.LinkedAt,
+		arg.InstallationID,
 	)
 	var i Computer
 	err := row.Scan(
@@ -327,6 +331,7 @@ func (q *Queries) CreateControlComputer(ctx context.Context, arg CreateControlCo
 		&i.UnlinkedAt,
 		&i.LeaseSequence,
 		&i.ControlLinkID,
+		&i.InstallationID,
 	)
 	return i, err
 }
@@ -604,7 +609,7 @@ const updateControlComputer = `-- name: UpdateControlComputer :one
 UPDATE computers SET name = $3, remote_enabled = $4,
     plan_limited = CASE WHEN $4 THEN plan_limited ELSE false END
 WHERE id = $1 AND account_id = $2 AND unlinked_at IS NULL
-RETURNING id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled, plan_limited, last_session_at, last_control_at, linked_at, unlinked_at, lease_sequence, control_link_id
+RETURNING id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled, plan_limited, last_session_at, last_control_at, linked_at, unlinked_at, lease_sequence, control_link_id, installation_id
 `
 
 type UpdateControlComputerParams struct {
@@ -638,6 +643,7 @@ func (q *Queries) UpdateControlComputer(ctx context.Context, arg UpdateControlCo
 		&i.UnlinkedAt,
 		&i.LeaseSequence,
 		&i.ControlLinkID,
+		&i.InstallationID,
 	)
 	return i, err
 }

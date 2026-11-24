@@ -20,9 +20,9 @@ SELECT sqlc.arg(computer_id)::text, 'direct', address, sqlc.arg(reported_at)::ti
 FROM unnest(sqlc.arg(addresses)::text[]) AS endpoint(address);
 
 -- name: CreateControlComputer :one
-INSERT INTO computers (id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled, linked_at)
+INSERT INTO computers (id, account_id, name, platform, version, computer_jwk, tls_root_sha256, remote_enabled, linked_at, installation_id)
 VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(name), sqlc.arg(platform), sqlc.arg(version),
-        sqlc.arg(computer_jwk)::text::jsonb, sqlc.arg(tls_root_sha256), true, sqlc.arg(linked_at))
+        sqlc.arg(computer_jwk)::text::jsonb, sqlc.arg(tls_root_sha256), true, sqlc.arg(linked_at), sqlc.narg(installation_id))
 ON CONFLICT (id) DO NOTHING
 RETURNING *;
 

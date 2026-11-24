@@ -28,6 +28,7 @@ type Installation struct {
 	Source, AccountID, SignedOutReason string
 	AuthGeneration                     int64
 	LastValidatedAt                    time.Time
+	SignInNoticesDismissedAt           time.Time
 	Profile                            remoteproto.AccountSummary
 }
 
@@ -49,6 +50,8 @@ type Cloud interface {
 	Refresh(context.Context, string, crypto.Signer) (remoteproto.DeviceSessionTokens, error)
 	Logout(context.Context, string, crypto.Signer) error
 	Account(context.Context, cloudclient.Credentials) (remoteproto.AccountSummary, error)
+	PatchAccountEmail(context.Context, cloudclient.Credentials, remoteproto.AccountEmailPatch) (remoteproto.AccountSummary, error)
+	DeleteAccount(context.Context, cloudclient.Credentials, remoteproto.AccountDeleteRequest) (remoteproto.AccountDeleteResponse, error)
 	Devices(context.Context, cloudclient.Credentials) ([]remoteproto.AccountDevice, error)
 	PatchDevice(
 		context.Context,

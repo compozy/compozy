@@ -11,6 +11,7 @@ import (
 
 type CloudWebSession struct {
 	AccountID, Email, BrowserDeviceID, State string
+	FreshNoticeEventID                       int64
 }
 
 func (q *Queries) CreateWebSession(ctx context.Context, hash []byte, accountID string, now, expires time.Time) error {
@@ -19,12 +20,21 @@ func (q *Queries) CreateWebSession(ctx context.Context, hash []byte, accountID s
 	})
 }
 
+func (q *Queries) CreateNoticeWebSession(
+	ctx context.Context, hash []byte, accountID string, eventID int64, now, expires time.Time,
+) error {
+	return q.generated.InsertNoticeWebSession(ctx, sqlcgen.InsertNoticeWebSessionParams{
+		IDSha256: hash, AccountID: accountID, CreatedAt: timestamp(now), ExpiresAt: timestamp(expires),
+		FreshNoticeEventID: pgtype.Int8{Int64: eventID, Valid: true},
+	})
+}
+
 func (q *Queries) TouchWebSession(ctx context.Context, hash []byte, now, idleLimit time.Time) (CloudWebSession, error) {
 	row, err := q.generated.TouchCloudWebSession(ctx, sqlcgen.TouchCloudWebSessionParams{
 		IDSha256: hash, AsOf: timestamp(now), IdleLimit: timestamp(idleLimit),
 	})
 	return CloudWebSession{
-		AccountID: row.AccountID, Email: row.Email, BrowserDeviceID: row.BrowserDeviceID.String, State: row.State,
+		AccountID: row.AccountID, Email: row.Email, BrowserDeviceID: row.BrowserDeviceID.String, State: row.State, FreshNoticeEventID: row.FreshNoticeEventID.Int64,
 	}, authLookupError(err)
 }
 
@@ -69,15 +79,15 @@ func (q *Queries) ExpirePendingKey(ctx context.Context, deviceID, hostname strin
 }
 
 type BrowserCode struct {
-	Hash                                            []byte
-	AccountID, DeviceID, ComputerID, JKT, Challenge string
-	ExpiresAt, UsedAt                               time.Time
+	Hash                                                      []byte
+	AccountID, DeviceID, ComputerID, JKT, Challenge, Location string
+	ExpiresAt, UsedAt                                         time.Time
 }
 
 func (q *Queries) CreateBrowserCode(ctx context.Context, c BrowserCode) error {
 	return q.generated.InsertCloudBrowserCode(ctx, sqlcgen.InsertCloudBrowserCodeParams{
 		CodeSha256: c.Hash, AccountID: c.AccountID, DeviceID: c.DeviceID, ComputerID: c.ComputerID,
-		Jkt: c.JKT, CodeChallenge: c.Challenge, ExpiresAt: timestamp(c.ExpiresAt),
+		Jkt: c.JKT, CodeChallenge: c.Challenge, ExpiresAt: timestamp(c.ExpiresAt), RequestLocation: authText(c.Location),
 	})
 }
 
@@ -85,7 +95,7 @@ func (q *Queries) BrowserCode(ctx context.Context, hash []byte) (BrowserCode, er
 	row, err := q.generated.CloudBrowserCode(ctx, hash)
 	return BrowserCode{
 		Hash: hash, AccountID: row.AccountID, DeviceID: row.DeviceID, ComputerID: row.ComputerID,
-		JKT: row.Jkt, Challenge: row.CodeChallenge, ExpiresAt: row.ExpiresAt.Time, UsedAt: row.UsedAt.Time,
+		JKT: row.Jkt, Challenge: row.CodeChallenge, Location: row.RequestLocation.String, ExpiresAt: row.ExpiresAt.Time, UsedAt: row.UsedAt.Time,
 	}, authLookupError(err)
 }
 

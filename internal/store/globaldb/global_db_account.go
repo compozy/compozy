@@ -37,10 +37,18 @@ func (r *AccountRepo) ReadInstallationAccount(ctx context.Context) (account.Inst
 			return account.Installation{}, fmt.Errorf("read installation account validation time: %w", err)
 		}
 	}
+	var dismissedAt time.Time
+	if row.SignInNoticesDismissedAt.Valid {
+		dismissedAt, err = time.Parse(time.RFC3339Nano, row.SignInNoticesDismissedAt.String)
+		if err != nil {
+			return account.Installation{}, fmt.Errorf("read notice dismissal timestamp: %w", err)
+		}
+	}
 	return account.Installation{
 		InstallationID: row.InstallationID, PreAccountInstall: row.PreAccountInstall == 1,
 		State: account.State(row.State), Source: row.Source.String, AccountID: row.AccountID.String,
 		SignedOutReason: row.SignedOutReason.String, AuthGeneration: row.AuthGeneration, LastValidatedAt: validatedAt,
+		SignInNoticesDismissedAt: dismissedAt,
 		Profile: remoteproto.AccountSummary{
 			AccountPlan: plan, Email: row.Email.String, Name: row.Name.String, Provider: row.Provider.String,
 			MarketingOptIn: row.MarketingOptIn == 1, Device: remoteproto.AccountDevice{
@@ -73,6 +81,9 @@ func (r *AccountRepo) SaveInstallationAccount(
 	}
 	if !installation.LastValidatedAt.IsZero() {
 		params.LastValidatedAt = accountText(store.FormatTimestamp(installation.LastValidatedAt))
+	}
+	if !installation.SignInNoticesDismissedAt.IsZero() {
+		params.SignInNoticesDismissedAt = accountText(store.FormatTimestamp(installation.SignInNoticesDismissedAt))
 	}
 	if profile.Plan != "" {
 		plan, err := json.Marshal(profile.AccountPlan)

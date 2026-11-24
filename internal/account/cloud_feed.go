@@ -135,7 +135,7 @@ func (s *Service) handleCloudEvent(
 	case "approval.applied":
 		s.publishResult(g, payload.ApprovalID, payload.Result)
 		return nil
-	case "plan.changed", "devices.changed", "computers.changed":
+	case "plan.changed", "devices.changed", "computers.changed", "consent.changed":
 		if err := s.syncProfile(ctx, g, creds, false); err != nil {
 			return err
 		}
@@ -155,19 +155,26 @@ func (s *Service) syncProfile(ctx context.Context, g *generation, creds cloudcli
 	if err != nil {
 		return err
 	}
+	_, err = s.applyCloudSummary(ctx, g, summary, emit)
+	return err
+}
+
+func (s *Service) applyCloudSummary(
+	ctx context.Context, g *generation, summary remoteproto.AccountSummary, emit bool,
+) (Installation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed || s.generation != g || ctx.Err() != nil {
-		return ErrSignInRequired
+		return Installation{}, ErrSignInRequired
 	}
 	next := s.installation
 	if summary.Device.ID != next.Profile.Device.ID {
-		return ErrSignInRequired
+		return Installation{}, ErrSignInRequired
 	}
 	if !sameProfile(summary, next.Profile) {
 		next.Profile = summary
 		if err := s.store.SaveInstallationAccount(ctx, next.AuthGeneration, next); err != nil {
-			return err
+			return Installation{}, err
 		}
 		s.installation = next
 		if emit {
@@ -178,7 +185,7 @@ func (s *Service) syncProfile(ctx context.Context, g *generation, creds cloudcli
 		delete(g.pending, checkoutInterest)
 		s.updateFeedLocked(g)
 	}
-	return nil
+	return withVisibleNotices(s.installation, s.clock.Now()), nil
 }
 
 func sameProfile(a, b remoteproto.AccountSummary) bool {

@@ -9,6 +9,64 @@ import (
 	"strings"
 )
 
+// ListSessionEventsParams carries the path, query, and header parameters.
+type ListSessionEventsParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	SessionID     string  `url:"session_id"`
+	Since         *string `url:"since"`
+	Limit         *int    `url:"limit"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Type          *string `url:"type"`
+	AgentName     *string `url:"agent_name"`
+	TurnID        *string `url:"turn_id"`
+	Archive       *string `url:"archive"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
+// ListSessionEvents List persisted session events
+func (c *Client) ListSessionEvents(ctx context.Context, params ListSessionEventsParams) (*SessionEventsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/events"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	}
+	if params.Type != nil {
+		query.Set("type", *params.Type)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if params.TurnID != nil {
+		query.Set("turn_id", *params.TurnID)
+	}
+	if params.Archive != nil {
+		query.Set("archive", *params.Archive)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionEventsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionFacetsParams carries the path, query, and header parameters.
 type ListSessionFacetsParams struct {
 	ExcludeInstanceMain       *bool     `url:"exclude_instance_main"`
@@ -377,39 +435,4 @@ type ListSessionSidesParams struct {
 	SessionID   string  `url:"session_id"`
 	Archived    *string `url:"archived"`
 	Profile     *string `url:"profile"`
-}
-
-// ListSessionSides List all side chats attached to a session, newest updated first
-func (c *Client) ListSessionSides(ctx context.Context, params ListSessionSidesParams) (*SessionSidesResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/sides"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Archived != nil {
-		query.Set("archived", *params.Archived)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionSidesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionSubagentsParams carries the path, query, and header parameters.
-type ListSessionSubagentsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Origin      *string `url:"origin"`
-	Status      *string `url:"status"`
-	Limit       *int    `url:"limit"`
-	Cursor      *string `url:"cursor"`
-	Order       *string `url:"order"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

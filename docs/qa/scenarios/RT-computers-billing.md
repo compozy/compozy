@@ -16,4 +16,6 @@ qa_status: pending
 5. Restart the host the next day and revisit the saved hostname. From **Upgrade to Pro**, complete Checkout as the owner and confirm the browser returns to that hostname. Attempt the same upgrade as a different account and verify `computer_not_owned`.
 6. Repeat the lapse and let seven days pass. Confirm the tunnel is deleted and a restart starts no hosted connector.
 
-Use IT-060 through IT-066, IT-074, IT-082, IT-109, E2E-012, and E2E-013 as the integration evidence.
+7. With an annual payment made five days ago, delete the account from a trusted admin device. Check the immediate sign-out, the full refund, and the cancellation before the computers are unlinked. Repeat with a payment more than fourteen days old and confirm cancellation with no refund.
+
+Use IT-111 for deletion and IT-060 through IT-066, IT-074, IT-082, IT-109, E2E-012, and E2E-013 as the integration evidence.

@@ -30,6 +30,14 @@ Use separate OAuth clients, Stripe prices and webhook secrets, Turnstile credent
 
 Apply the cloud schema migration before enabling sign-in. Cloudflare supplies the request location and client IP to private replicas. The service stores the coarse location and uses the IP only for Turnstile verification.
 
+## Account email and metrics
+
+Verify the sender domain `mail.compozy.com` in Resend and publish its SPF, DKIM, and DMARC records. Set `COMPOZY_CLOUD_RESEND_API_KEY` and `COMPOZY_CLOUD_RESEND_NEWS_SEGMENT` for each environment. The optional `COMPOZY_CLOUD_RESEND_FROM` defaults to `no-reply@mail.compozy.com`. The API key needs access to send mail and manage contacts.
+
+Create the Resend contact property `compozy_unsubscribe_url`. Set `COMPOZY_CLOUD_UNSUBSCRIBE_KEY` to an unpadded base64url encoding of 32 random bytes and use the same key on both replicas. Keep the key stable for already-sent links. Use the contact property for the opt-out link in product news. A sender supplying RFC 8058 headers uses the contact's HTTPS URL for `List-Unsubscribe` and `List-Unsubscribe=One-Click` for `List-Unsubscribe-Post`. Include the company's postal address in the message footer.
+
+To scrape account counts, set `COMPOZY_CLOUD_METRICS_TOKEN` and send it as a bearer credential to `GET /metrics`. The page exposes aggregate counts by first sign-in provider and activity windows of 1, 7, and 30 days. Installation counts include session, link, and token sources.
+
 ## Billing
 
 - Set `STRIPE_PRICE_PRO_MONTHLY` and `STRIPE_PRICE_PRO_ANNUAL` to the same environment's recurring Managed Payments prices. Supply `COMPOZY_CLOUD_STRIPE_SECRET_KEY` to the cloud containers.

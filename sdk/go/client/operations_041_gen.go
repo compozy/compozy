@@ -9,6 +9,51 @@ import (
 	"strings"
 )
 
+// UpdateSettingsPersona Update profile-layerable persona defaults
+func (c *Client) UpdateSettingsPersona(ctx context.Context, params UpdateSettingsPersonaParams, body UpdateSettingsPersonaRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/persona"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateSettingsProviderUsageParams carries the path, query, and header parameters.
+type UpdateSettingsProviderUsageParams struct {
+	CollectionProfile *string `url:"collection_profile"`
+}
+
+// UpdateSettingsProviderUsage Update the provider usage settings section
+func (c *Client) UpdateSettingsProviderUsage(ctx context.Context, params UpdateSettingsProviderUsageParams, body SettingsProviderUsageUpdateRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/provider-usage"
+	query := url.Values{}
+	if params.CollectionProfile != nil {
+		query.Set("collection_profile", *params.CollectionProfile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UpdateSettingsRoles Update the background-role routing settings section
 func (c *Client) UpdateSettingsRoles(ctx context.Context, body UpdateSettingsRolesRequest) (*SettingsApplyResponse, error) {
 	path := "/api/settings/roles"
@@ -388,22 +433,4 @@ func (c *Client) WaitTerminal(ctx context.Context, params WaitTerminalParams, bo
 type WakeAgentHeartbeatParams struct {
 	Name    string  `url:"name"`
 	Profile *string `url:"profile"`
-}
-
-// WakeAgentHeartbeat Request one advisory Heartbeat wake for an eligible session
-func (c *Client) WakeAgentHeartbeat(ctx context.Context, params WakeAgentHeartbeatParams, body HeartbeatWakeByPathRequest) (*HeartbeatWakeResponse, error) {
-	path := "/api/agents/{name}/heartbeat/wake"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatWakeResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -12,7 +12,7 @@ import (
 )
 
 const accountBillingCheckout = `-- name: AccountBillingCheckout :one
-SELECT id, account_id, interval, hostname FROM billing_checkouts WHERE id = $1 AND account_id = $2
+SELECT id, account_id, interval, hostname, expired_at FROM billing_checkouts WHERE id = $1 AND account_id = $2 AND expired_at IS NULL
 `
 
 type AccountBillingCheckoutParams struct {
@@ -28,12 +28,13 @@ func (q *Queries) AccountBillingCheckout(ctx context.Context, arg AccountBilling
 		&i.AccountID,
 		&i.Interval,
 		&i.Hostname,
+		&i.ExpiredAt,
 	)
 	return i, err
 }
 
 const billingCheckouts = `-- name: BillingCheckouts :many
-SELECT id, account_id, interval, hostname FROM billing_checkouts WHERE account_id = $1 ORDER BY id
+SELECT id, account_id, interval, hostname, expired_at FROM billing_checkouts WHERE account_id = $1 ORDER BY id
 `
 
 func (q *Queries) BillingCheckouts(ctx context.Context, accountID string) ([]BillingCheckout, error) {
@@ -50,6 +51,7 @@ func (q *Queries) BillingCheckouts(ctx context.Context, accountID string) ([]Bil
 			&i.AccountID,
 			&i.Interval,
 			&i.Hostname,
+			&i.ExpiredAt,
 		); err != nil {
 			return nil, err
 		}

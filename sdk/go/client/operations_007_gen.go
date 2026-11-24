@@ -10,6 +10,27 @@ import (
 	"strings"
 )
 
+// DeleteTaskExecutionProfile Delete one task execution profile
+func (c *Client) DeleteTaskExecutionProfile(ctx context.Context, params DeleteTaskExecutionProfileParams) error {
+	path := "/api/tasks/{id}/execution-profile"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteTerminalParams carries the path, query, and header parameters.
+type DeleteTerminalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+}
+
 // DeleteTerminal Terminate one terminal
 func (c *Client) DeleteTerminal(ctx context.Context, params DeleteTerminalParams, body TerminalCloseRequest) (*TerminalExitResponse, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/{id}"
@@ -289,6 +310,12 @@ func (c *Client) DisableSkill(ctx context.Context, params DisableSkillParams) (*
 	return &out, nil
 }
 
+// DismissAccountSignInNotices Dismiss sign-in notices on this installation
+func (c *Client) DismissAccountSignInNotices(ctx context.Context) error {
+	path := "/api/account/sign-in-notices/dismiss"
+	return c.doContent(ctx, "POST", path, nil, nil, nil, "", "")
+}
+
 // DismissAutomationSuggestionParams carries the path, query, and header parameters.
 type DismissAutomationSuggestionParams struct {
 	WorkspaceID  string `url:"workspace_id"`
@@ -417,31 +444,4 @@ type DownloadTerminalRecordingParams struct {
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// DownloadTerminalRecording Download one terminal recording
-func (c *Client) DownloadTerminalRecording(ctx context.Context, params DownloadTerminalRecordingParams) (*[]byte, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/recordings/{id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out []byte
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "application/x-asciicast"); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DraftAgentInstructionsParams carries the path, query, and header parameters.
-type DraftAgentInstructionsParams struct {
-	Profile *string `url:"profile"`
 }

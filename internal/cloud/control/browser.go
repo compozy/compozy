@@ -79,6 +79,9 @@ func (s *Service) RedeemBrowserCode(
 		if err := q.AdvanceDeviceActivity(ctx, code.DeviceID, now); err != nil {
 			return err
 		}
+		if err := q.AdvanceAccountActivity(ctx, account.ID, now); err != nil {
+			return err
+		}
 		result, err = s.issueGrant(ctx, q, account, device, code.JKT, computer.ID, remoteproto.RouteCloud, true, now)
 		return err
 	})
@@ -161,8 +164,21 @@ func admitBrowserKey(
 	if key.State == store.KeyActive {
 		return nil
 	}
+	previouslyActivated, err := q.HasActivatedBrowserKey(ctx, code.DeviceID)
+	if err != nil {
+		return err
+	}
 	if err := q.ActivateBrowserKey(ctx, code.DeviceID, code.JKT, origin, now); err != nil {
 		return browserCodeError(err)
+	}
+	if !previouslyActivated {
+		device, err := findDevice(ctx, q, account.ID, remoteproto.DeviceID(code.DeviceID))
+		if err != nil {
+			return err
+		}
+		if err := q.RecordDeviceEnrollment(ctx, account.ID, device.ID, device.Name, device.Kind, code.Location, device.Admin, now); err != nil {
+			return err
+		}
 	}
 	account.SecurityEpoch, err = q.AdvanceSecurity(ctx, store.ControlEvent{
 		Type: remoteproto.ControlSnapshot, AccountID: account.ID,

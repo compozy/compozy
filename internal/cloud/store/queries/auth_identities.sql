@@ -1,5 +1,8 @@
 -- name: FindIdentityAccount :one
-SELECT account_id FROM identities WHERE provider = $1 AND subject = $2;
+SELECT i.account_id FROM identities i WHERE i.provider = sqlc.arg(provider) AND i.subject = sqlc.arg(subject)
+UNION ALL
+SELECT h.account_id FROM account_deletion_identity_holds h
+WHERE h.subject_sha256 = sha256(convert_to(sqlc.arg(provider)::text || ':' || sqlc.arg(subject)::text, 'UTF8'));
 
 -- name: LockAuthAccount :one
 SELECT * FROM accounts WHERE id = $1 FOR UPDATE;
@@ -13,7 +16,9 @@ VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (email) DO NOTHING RETURNING *;
 
 -- name: UpdateAuthAccountEmail :exec
-UPDATE accounts SET email = $2 WHERE id = $1;
+UPDATE accounts
+SET email = $2, contact_synced_at = CASE WHEN marketing_opt_in THEN NULL ELSE contact_synced_at END
+WHERE id = $1;
 
 -- name: RecordSignInIdentity :one
 INSERT INTO identities AS i (provider, subject, account_id, email, created_at, last_sign_in_at)

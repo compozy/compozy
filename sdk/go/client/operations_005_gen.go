@@ -388,6 +388,16 @@ func (c *Client) DecideAccountApproval(ctx context.Context, params DecideAccount
 	return &out, nil
 }
 
+// DeleteAccount Start account deletion and sign out
+func (c *Client) DeleteAccount(ctx context.Context, body AccountDeleteRequest) (*AccountDeleteResponse, error) {
+	path := "/api/account"
+	var out AccountDeleteResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // DeleteAgentParams carries the path, query, and header parameters.
 type DeleteAgentParams struct {
 	Name      string  `url:"name"`
@@ -418,30 +428,6 @@ func (c *Client) DeleteAgent(ctx context.Context, params DeleteAgentParams) (*De
 
 // DeleteAgentHeartbeatParams carries the path, query, and header parameters.
 type DeleteAgentHeartbeatParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// DeleteAgentHeartbeat Delete HEARTBEAT.md through managed authoring
-func (c *Client) DeleteAgentHeartbeat(ctx context.Context, params DeleteAgentHeartbeatParams, body HeartbeatDeleteByPathRequest) (*HeartbeatMutationResponse, error) {
-	path := "/api/agents/{name}/heartbeat"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatMutationResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteAgentSoulParams carries the path, query, and header parameters.
-type DeleteAgentSoulParams struct {
 	Name    string  `url:"name"`
 	Profile *string `url:"profile"`
 }

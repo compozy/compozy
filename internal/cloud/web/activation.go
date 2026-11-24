@@ -86,7 +86,12 @@ func (p signInPages) callback(w http.ResponseWriter, r *http.Request) {
 	result, err := p.service.CompleteOAuth(r.Context(), auth.Callback{
 		Provider: provider, State: query.Get("state"), Code: query.Get("code"), Denied: query.Get("error") != "",
 		Cookie: readCookie(r, activationCookie), BrowserBinding: readCookie(r, browserCookie), UserAgent: r.UserAgent(),
+		Location: p.service.RequestLocation(r.Header),
 	})
+	if result.NoticeEventID != 0 {
+		p.afterNoticeOAuth(w, r, result, err)
+		return
+	}
 	if result.WebSession != "" {
 		setCookie(w, webSessionCookie, result.WebSession, auth.WebSessionTTL)
 	}

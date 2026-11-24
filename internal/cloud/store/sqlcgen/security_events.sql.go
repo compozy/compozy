@@ -11,10 +11,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const appendSecurityEvent = `-- name: AppendSecurityEvent :exec
+const appendSecurityEvent = `-- name: AppendSecurityEvent :one
 INSERT INTO security_events (account_id, type, actor, at, details_json)
 VALUES ($1, $2, $3, $4,
-        $5::text::jsonb)
+        $5::text::jsonb) RETURNING id
 `
 
 type AppendSecurityEventParams struct {
@@ -25,15 +25,17 @@ type AppendSecurityEventParams struct {
 	DetailsJson string
 }
 
-func (q *Queries) AppendSecurityEvent(ctx context.Context, arg AppendSecurityEventParams) error {
-	_, err := q.db.Exec(ctx, appendSecurityEvent,
+func (q *Queries) AppendSecurityEvent(ctx context.Context, arg AppendSecurityEventParams) (int64, error) {
+	row := q.db.QueryRow(ctx, appendSecurityEvent,
 		arg.AccountID,
 		arg.EventType,
 		arg.Actor,
 		arg.At,
 		arg.DetailsJson,
 	)
-	return err
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const compactSecurityEvents = `-- name: CompactSecurityEvents :exec

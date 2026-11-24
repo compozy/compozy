@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// AgentFallbackRoutePayload is a daemon API value.
+type AgentFallbackRoutePayload struct {
+	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider        string                              `json:"provider"`
+	Model           string                              `json:"model"`
+	ReasoningEffort Effort                              `json:"reasoning_effort,omitempty"`
+	Speed           Speed                               `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Command         string                              `json:"command,omitempty"`
+}
+
 // AgentIdentityPayload is a daemon API value.
 type AgentIdentityPayload struct {
 	SessionID string `json:"session_id"`

@@ -117,7 +117,7 @@ func (s *Service) Status() Installation {
 	if s.attempt != nil && result.State != SignedIn {
 		result.State = SigningIn
 	}
-	return result
+	return withVisibleNotices(result, s.clock.Now())
 }
 
 // SessionLifetime ends when the current identity stops owning remote connections.

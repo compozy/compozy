@@ -27,7 +27,7 @@ func (p signInPages) browserAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := p.service.ReuseBrowserSession(
-		r.Context(), request, readCookie(r, webSessionCookie), readCookie(r, browserCookie), r.UserAgent(),
+		r.Context(), request, readCookie(r, webSessionCookie), readCookie(r, browserCookie), r.UserAgent(), p.service.RequestLocation(r.Header),
 	)
 	if result.Redirect != "" {
 		redirectBrowser(w, r, result)
