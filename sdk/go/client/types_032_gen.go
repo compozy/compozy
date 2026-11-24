@@ -4,6 +4,24 @@ package client
 
 import "time"
 
+// WorktreeExitForgeCapabilities is a daemon API value.
+type WorktreeExitForgeCapabilities struct {
+	Provider           string   `json:"provider"`
+	RequestNoun        string   `json:"request_noun"`
+	OpenActionLabel    string   `json:"open_action_label"`
+	ViewActionLabel    string   `json:"view_action_label"`
+	SupportsDraft      bool     `json:"supports_draft"`
+	CompareURLTemplate string   `json:"compare_url_template,omitempty"`
+	CredentialSource   string   `json:"credential_source,omitempty"`
+	DefaultBranch      string   `json:"default_branch,omitempty"`
+	TemplatePaths      []string `json:"template_paths,omitempty"`
+}
+
+// WorktreeExitOperationResponse is a daemon API value.
+type WorktreeExitOperationResponse struct {
+	OperationID string `json:"op_id"`
+}
+
 // WorktreeExitPRPrefill is a daemon API value.
 type WorktreeExitPRPrefill struct {
 	Title string `json:"title,omitempty"`

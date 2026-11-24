@@ -11,6 +11,40 @@ import (
 	"strings"
 )
 
+// GetLoopRunBriefing Explain the current Loop run state
+func (c *Client) GetLoopRunBriefing(ctx context.Context, params GetLoopRunBriefingParams) (*Briefing, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out Briefing
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopRunNodesParams carries the path, query, and header parameters.
+type GetLoopRunNodesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	State       *string `url:"state"`
+	Generation  *int    `url:"generation"`
+	Cursor      *string `url:"cursor"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetLoopRunNodes Get the computed Loop run node roster
 func (c *Client) GetLoopRunNodes(ctx context.Context, params GetLoopRunNodesParams) (*RosterPage, error) {
 	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes"
@@ -404,36 +438,4 @@ func (c *Client) GetProvider(ctx context.Context, params GetProviderParams) (*Pr
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetProviderModelStatus List provider model catalog source status across providers
-func (c *Client) GetProviderModelStatus(ctx context.Context) (*ProviderModelStatusResponse, error) {
-	path := "/api/model-catalog/sources/status"
-	var out ProviderModelStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetProviderModelStatusByProviderParams carries the path, query, and header parameters.
-type GetProviderModelStatusByProviderParams struct {
-	ProviderID string `url:"provider_id"`
-}
-
-// GetProviderModelStatusByProvider List provider model catalog source status for one provider
-func (c *Client) GetProviderModelStatusByProvider(ctx context.Context, params GetProviderModelStatusByProviderParams) (*ProviderModelStatusResponse, error) {
-	path := "/api/model-catalog/providers/{provider_id}/models/status"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
-	var out ProviderModelStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetProviderUsageParams carries the path, query, and header parameters.
-type GetProviderUsageParams struct {
-	ProviderID string  `url:"provider_id"`
-	Profile    *string `url:"profile"`
 }

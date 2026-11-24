@@ -4,11 +4,33 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// BulkForceReleaseTaskRuns Force release a bounded set of claimed task runs
+func (c *Client) BulkForceReleaseTaskRuns(ctx context.Context, params BulkForceReleaseTaskRunsParams, body BulkForceTaskRunRequest) (*BulkForceTaskRunResponse, error) {
+	path := "/api/runs/bulk/release"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out BulkForceTaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CancelAutomationRunParams carries the path, query, and header parameters.
+type CancelAutomationRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
 
 // CancelAutomationRun Cancel an orphaned automation run
 func (c *Client) CancelAutomationRun(ctx context.Context, params CancelAutomationRunParams) (*RunResponse, error) {
@@ -419,25 +441,6 @@ func (c *Client) CheckSettingsUpdate(ctx context.Context) (*SettingsUpdateRespon
 	path := "/api/settings/update/check"
 	var out SettingsUpdateResponse
 	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ClaimNextAgentTaskParams carries the path, query, and header parameters.
-type ClaimNextAgentTaskParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-}
-
-// ClaimNextAgentTask Atomically claim the next matching task run for the calling agent
-func (c *Client) ClaimNextAgentTask(ctx context.Context, params ClaimNextAgentTaskParams, body AgentTaskClaimNextRequest) (*AgentTaskClaimResponse, error) {
-	path := "/api/agent/tasks/claim-next"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentTaskClaimResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

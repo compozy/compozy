@@ -26826,6 +26826,162 @@
         ],
         "type": "object"
       },
+      "SessionArchiveStoppedFailure": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "root_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "root_id",
+          "title",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "SessionArchiveStoppedRequest": {
+        "properties": {
+          "all_workspaces": {
+            "type": "boolean"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SessionArchiveStoppedResponse": {
+        "properties": {
+          "archived": {
+            "items": {
+              "$ref": "#/components/schemas/SessionArchiveStoppedThread"
+            },
+            "type": "array"
+          },
+          "archived_session_count": {
+            "type": "integer"
+          },
+          "archived_thread_count": {
+            "type": "integer"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "failure_count": {
+            "type": "integer"
+          },
+          "failures": {
+            "items": {
+              "$ref": "#/components/schemas/SessionArchiveStoppedFailure"
+            },
+            "type": "array"
+          },
+          "failures_truncated": {
+            "type": "boolean"
+          },
+          "skip_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SessionArchiveStoppedSkip"
+            },
+            "type": "array"
+          },
+          "skipped_truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived",
+          "archived_session_count",
+          "archived_thread_count",
+          "dry_run",
+          "failure_count",
+          "failures",
+          "failures_truncated",
+          "skip_counts",
+          "skipped",
+          "skipped_truncated"
+        ],
+        "type": "object"
+      },
+      "SessionArchiveStoppedSkip": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "root_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "root_id",
+          "title",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "SessionArchiveStoppedThread": {
+        "properties": {
+          "restore_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "root_id": {
+            "type": "string"
+          },
+          "session_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "restore_ids",
+          "root_id",
+          "session_ids",
+          "title",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
       "SessionAttachPayload": {
         "properties": {
           "attach_expires_at": {
@@ -76561,6 +76717,103 @@
           "sessions"
         ],
         "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/sessions/archive-stopped": {
+      "post": {
+        "operationId": "archiveStoppedSessions",
+        "parameters": [
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionArchiveStoppedRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionArchiveStoppedResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Choose exactly one of workspace_id and all_workspaces"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent identity is denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace not found or archived"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Archive every stopped thread of one workspace or all workspaces that is not running, waiting on the operator, holding queued input, pinned, in Later, or an always-on agent's main session; dry_run reports the same result without archiving",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"

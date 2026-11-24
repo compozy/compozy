@@ -7539,6 +7539,50 @@ export type SessionApprovalResponse = {
   resolved_decision?: string;
 };
 
+export type SessionArchiveStoppedFailure = {
+  code: string;
+  message: string;
+  root_id: string;
+  title: string;
+  workspace_id: string;
+};
+
+export type SessionArchiveStoppedRequest = {
+  all_workspaces?: boolean;
+  dry_run?: boolean;
+  workspace_id?: string;
+};
+
+export type SessionArchiveStoppedResponse = {
+  archived: Array<SessionArchiveStoppedThread>;
+  archived_session_count: number;
+  archived_thread_count: number;
+  dry_run: boolean;
+  failure_count: number;
+  failures: Array<SessionArchiveStoppedFailure>;
+  failures_truncated: boolean;
+  skip_counts: {
+    [key: string]: number;
+  };
+  skipped: Array<SessionArchiveStoppedSkip>;
+  skipped_truncated: boolean;
+};
+
+export type SessionArchiveStoppedSkip = {
+  reason: string;
+  root_id: string;
+  title: string;
+  workspace_id: string;
+};
+
+export type SessionArchiveStoppedThread = {
+  restore_ids: Array<string>;
+  root_id: string;
+  session_ids: Array<string>;
+  title: string;
+  workspace_id: string;
+};
+
 export type SessionAttachPayload = {
   attach_expires_at: string;
   attached_at: string;
@@ -26913,6 +26957,57 @@ export type CreateSessionResponses = {
 };
 
 export type CreateSessionResponse = CreateSessionResponses[keyof CreateSessionResponses];
+
+export type ArchiveStoppedSessionsData = {
+  /**
+   * JSON request body
+   */
+  body: SessionArchiveStoppedRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/sessions/archive-stopped";
+};
+
+export type ArchiveStoppedSessionsErrors = {
+  /**
+   * Choose exactly one of workspace_id and all_workspaces
+   */
+  400: ErrorPayload;
+  /**
+   * Agent identity is denied
+   */
+  403: ErrorPayload;
+  /**
+   * Workspace not found or archived
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type ArchiveStoppedSessionsError =
+  ArchiveStoppedSessionsErrors[keyof ArchiveStoppedSessionsErrors];
+
+export type ArchiveStoppedSessionsResponses = {
+  /**
+   * OK
+   */
+  200: SessionArchiveStoppedResponse;
+};
+
+export type ArchiveStoppedSessionsResponse =
+  ArchiveStoppedSessionsResponses[keyof ArchiveStoppedSessionsResponses];
 
 export type GetSessionAttentionSummaryData = {
   body?: never;

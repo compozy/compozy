@@ -4213,6 +4213,70 @@ describe("SessionList breadth and Group by", () => {
     expect(setGroupBy).toHaveBeenCalledWith("project");
   });
 
+  // #1924 (T-09): View options archives the list's stopped threads in its own scope.
+  it.each([
+    {
+      name: "Archive stopped in all projects",
+      scope: { allProjects: true },
+      body: { all_workspaces: true, dry_run: false },
+    },
+    {
+      name: "Archive stopped",
+      scope: { focusedWorkspaceId: "ws-alpha" },
+      body: { workspace_id: "ws-alpha", dry_run: false },
+    },
+  ])("Should offer $name in View options for the list's scope", async ({ name, scope, body }) => {
+    const user = userEvent.setup();
+    let answer!: (response: Response) => void;
+    const reads = globalThis.fetch;
+    // The run is held open so the item reads as in flight; every other read answers as before.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>((input, init) =>
+        new URL((input as Request).url).pathname === "/api/sessions/archive-stopped"
+          ? new Promise(resolve => (answer = resolve))
+          : reads(input, init)
+      )
+    );
+    try {
+      renderList({ view: { ...view, ...scope } });
+      await user.click(screen.getByRole("button", { name: "View options" }));
+      await user.click(await screen.findByRole("menuitem", { name }));
+
+      const sent = await waitFor(() => {
+        const request = vi
+          .mocked(globalThis.fetch)
+          .mock.calls.map(([input]) => input as Request)
+          .find(input => new URL(input.url).pathname === "/api/sessions/archive-stopped");
+        expect(request).toBeDefined();
+        return request!;
+      });
+      expect(new URL(sent.url).search).toBe("?profile=default");
+      expect(sent.method).toBe("POST");
+      expect(await sent.clone().json()).toEqual(body);
+      await user.click(screen.getByRole("button", { name: "View options" }));
+      expect(await screen.findByRole("menuitem", { name })).toHaveAttribute(
+        "aria-disabled",
+        "true"
+      );
+      answer(Response.json({ archived: [], skip_counts: {}, failures: [] }));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each<{ case: string; patch: Partial<SessionListViewModel> }>([
+    { case: "the archive shelf", patch: { allProjects: true, shelf: "archive" } },
+    { case: "All profiles", patch: { allProjects: true, aggregate: true, scopeLabel: null } },
+    { case: "the User scope", patch: { allProjects: false, focusedWorkspaceId: "@user" } },
+  ])("Should not offer Archive stopped on $case", async ({ patch }) => {
+    const user = userEvent.setup();
+    renderList({ view: { ...view, ...patch } });
+    await user.click(screen.getByRole("button", { name: "View options" }));
+    expect(await screen.findByRole("menuitemradio", { name: "Created" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /^Archive stopped/ })).not.toBeInTheDocument();
+  });
+
   // #1846: the toolbar's fold control is a menu; its name and checked item say the current depth.
   it.each([
     { foldAll: null, name: "Expand or collapse", checked: "nothing", pick: "Expand groups" },

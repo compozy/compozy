@@ -141,7 +141,7 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_compact`, `compozy__session_status`, `compozy__session_history`,
 `compozy__session_events`, `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
-`compozy__session_unarchive`, `compozy__session_cleanup`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_mark_seen`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
+`compozy__session_unarchive`, `compozy__session_archive_stopped`, `compozy__session_cleanup`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_mark_seen`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
 `compozy__session_clarify_answer`, `compozy__session_prompt_cancel`, `compozy__session_changes`.
 
@@ -627,7 +627,20 @@ inside the session's workspace and profile, `stop` and `processes` cover the inc
 a failed stop archives nothing. A tree containing the calling session is denied. Unarchive restores
 subagent families only, so restore other children one by one.
 The CLI fallback is `compozy session archive <id> [--stop] [--with-children]`. Unarchive before
-prompting or resuming a session. `compozy__session_cleanup` deletes the profile's archived history in bulk. Its default
+prompting or resuming a session. `compozy__session_archive_stopped` archives every stopped thread
+of a project in one call, reversibly: each thread (top-level session with every child, subagent, and
+side chat) archives whole, and nothing is stopped. Threads that are running, waiting on you, have
+queued input, are pinned, in Later, or hold an always-on main session are skipped and counted in
+`skip_counts`; the thread containing the calling session is always skipped as `caller`. Input is
+`{workspace?, all_workspaces?, dry_run?}`; it defaults to the caller's workspace, `dry_run: true`
+previews and runs without approval, and `all_workspaces` needs operator authority or unrestricted
+workspace access (otherwise `tool_denied` with reason `workspace_access_denied`) and takes precedence
+over `workspace`, as on `compozy__session_cleanup`. The result's
+`archived[].session_ids` lists the archived sessions root first. To undo, call
+`compozy__session_unarchive` on each of `archived[].restore_ids` in order: the same list without
+subagents, which restore with their parent. The CLI fallback is
+`compozy session archive --stopped [--workspace <ref> | --all-workspaces] [--dry-run]`.
+`compozy__session_cleanup` deletes the profile's archived history in bulk. Its default
 `action: "plan"` with `dry_run` true only previews and runs without approval: every count is a
 number of sessions, and `kept_live` counts child sessions still in the session list or in Later,
 which always stay with everything under them. `dry_run: false` asks for approval, then deletes in

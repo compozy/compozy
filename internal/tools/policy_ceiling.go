@@ -80,7 +80,8 @@ func asksAtEditLevel(id ToolID) bool {
 		ToolIDSessionApprove, ToolIDSessionClarifyAnswer,
 		ToolIDSessionReparent, ToolIDAgentCreate, ToolIDAgentInstanceCreate, ToolIDAgentInstanceEnsureMain,
 		ToolIDAgentInstancePause, ToolIDAgentInstanceResume, ToolIDCmdPaletteInvoke,
-		ToolIDSessionArchive, ToolIDWorkspaceArchive, ToolIDTaskExecutionProfileSet, ToolIDMCPAllow, ToolIDMCPImport:
+		ToolIDSessionArchive, ToolIDSessionArchiveStopped, ToolIDWorkspaceArchive, ToolIDTaskExecutionProfileSet,
+		ToolIDMCPAllow, ToolIDMCPImport:
 		return true
 	}
 	for _, prefix := range selfEscalationToolPrefixes {
@@ -107,13 +108,16 @@ func isOwnAgentMemoryWrite(d Descriptor) bool {
 // inputSkipsPermissionCeiling reports a call whose input keeps it within what
 // the permission mode lets through without asking, whatever the tool's declared
 // risk: an always-on instance's self-service call at approve-reads, and a
-// session cleanup that only previews or reads its run, or stops it.
+// session cleanup that only previews or reads its run, or stops it; and an
+// Archive stopped dry run, which only reads.
 func (e *EffectivePolicyEvaluator) inputSkipsPermissionCeiling(d Descriptor, input json.RawMessage) bool {
 	switch e.permissionMode() {
 	case PermissionModeApproveReads:
-		return isInstanceSelfServiceCall(d, input) || classifySessionCleanupCall(d, input) == sessionCleanupReads
+		return isInstanceSelfServiceCall(d, input) || classifySessionCleanupCall(d, input) == sessionCleanupReads ||
+			isSessionArchiveStoppedPreview(d, input)
 	case PermissionModeApproveEdits, PermissionModeAuto:
-		return classifySessionCleanupCall(d, input) != sessionCleanupDeletes
+		return classifySessionCleanupCall(d, input) != sessionCleanupDeletes ||
+			isSessionArchiveStoppedPreview(d, input)
 	default:
 		return false
 	}
@@ -164,4 +168,16 @@ func classifySessionCleanupCall(d Descriptor, input json.RawMessage) sessionClea
 		}
 	}
 	return sessionCleanupDeletes
+}
+
+// isSessionArchiveStoppedPreview reports an Archive stopped call with
+// dry_run=true; dry_run defaults to false, so a call without it archives.
+func isSessionArchiveStoppedPreview(d Descriptor, input json.RawMessage) bool {
+	if d.Source.Kind != SourceBuiltin || d.ID != ToolIDSessionArchiveStopped || len(input) == 0 {
+		return false
+	}
+	var call struct {
+		DryRun bool `json:"dry_run"`
+	}
+	return json.Unmarshal(input, &call) == nil && call.DryRun
 }

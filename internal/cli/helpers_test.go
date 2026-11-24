@@ -162,6 +162,9 @@ type stubClient struct {
 	startSessionHistoryCleanupFn func(
 		context.Context, contract.SessionHistoryCleanupRequest,
 	) (contract.SessionHistoryCleanupStartResponse, error)
+	archiveStoppedSessionsFn func(
+		context.Context, contract.SessionArchiveStoppedRequest,
+	) (contract.SessionArchiveStoppedResponse, error)
 	resumeSessionFromLaterFn         func(context.Context, string, bool) (SessionRecord, error)
 	markSessionSeenFn                func(context.Context, string) (SessionRecord, error)
 	setSessionPinnedFn               func(context.Context, string, bool) (SessionRecord, error)
@@ -1388,6 +1391,16 @@ func (s *stubClient) UnarchiveSession(ctx context.Context, id string) (SessionRe
 		return s.unarchiveSessionFn(ctx, id)
 	}
 	return SessionRecord{}, errors.New("unexpected UnarchiveSession call")
+}
+
+func (s *stubClient) ArchiveStoppedSessions(
+	ctx context.Context,
+	request contract.SessionArchiveStoppedRequest,
+) (contract.SessionArchiveStoppedResponse, error) {
+	if s.archiveStoppedSessionsFn != nil {
+		return s.archiveStoppedSessionsFn(ctx, request)
+	}
+	return contract.SessionArchiveStoppedResponse{}, errors.New("unexpected ArchiveStoppedSessions call")
 }
 
 func (s *stubClient) PreviewSessionHistoryCleanup(

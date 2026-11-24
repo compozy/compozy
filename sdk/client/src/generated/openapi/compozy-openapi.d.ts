@@ -3242,6 +3242,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/archive-stopped": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Archive every stopped thread of one workspace or all workspaces that is not running, waiting on the operator, holding queued input, pinned, in Later, or an always-on agent's main session; dry_run reports the same result without archiving */
+    post: operations["archiveStoppedSessions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/attention-summary": {
     parameters: {
       query?: never;
@@ -16029,6 +16046,45 @@ export interface components {
       outcome: string;
       request_id: string;
       resolved_decision?: string;
+    };
+    SessionArchiveStoppedFailure: {
+      code: string;
+      message: string;
+      root_id: string;
+      title: string;
+      workspace_id: string;
+    };
+    SessionArchiveStoppedRequest: {
+      all_workspaces?: boolean;
+      dry_run?: boolean;
+      workspace_id?: string;
+    };
+    SessionArchiveStoppedResponse: {
+      archived: components["schemas"]["SessionArchiveStoppedThread"][];
+      archived_session_count: number;
+      archived_thread_count: number;
+      dry_run: boolean;
+      failure_count: number;
+      failures: components["schemas"]["SessionArchiveStoppedFailure"][];
+      failures_truncated: boolean;
+      skip_counts: {
+        [key: string]: number;
+      };
+      skipped: components["schemas"]["SessionArchiveStoppedSkip"][];
+      skipped_truncated: boolean;
+    };
+    SessionArchiveStoppedSkip: {
+      reason: string;
+      root_id: string;
+      title: string;
+      workspace_id: string;
+    };
+    SessionArchiveStoppedThread: {
+      restore_ids: string[];
+      root_id: string;
+      session_ids: string[];
+      title: string;
+      workspace_id: string;
     };
     SessionAttachPayload: {
       /** Format: date-time */
@@ -40274,6 +40330,79 @@ export interface operations {
         };
       };
       /** @description New-work admission is unavailable while the daemon is draining */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  archiveStoppedSessions: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SessionArchiveStoppedRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionArchiveStoppedResponse"];
+        };
+      };
+      /** @description Choose exactly one of workspace_id and all_workspaces */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace not found or archived */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
       503: {
         headers: {
           [name: string]: unknown;

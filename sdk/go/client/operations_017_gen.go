@@ -11,6 +11,62 @@ import (
 	"strings"
 )
 
+// GetToolset Inspect one named toolset expansion
+func (c *Client) GetToolset(ctx context.Context, params GetToolsetParams) (*ToolsetResponse, error) {
+	path := "/api/toolsets/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.SessionID != nil {
+		query.Set("session_id", *params.SessionID)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolsetResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetVaultSecretMetadataParams carries the path, query, and header parameters.
+type GetVaultSecretMetadataParams struct {
+	Ref string `url:"ref"`
+}
+
+// GetVaultSecretMetadata Read redacted vault secret metadata
+func (c *Client) GetVaultSecretMetadata(ctx context.Context, params GetVaultSecretMetadataParams) (*VaultSecretResponse, error) {
+	path := "/api/vault/secrets/metadata"
+	query := url.Values{}
+	query.Set("ref", params.Ref)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out VaultSecretResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetWindowManagerMigrationParams carries the path, query, and header parameters.
+type GetWindowManagerMigrationParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // GetWindowManagerMigration Read window layout migration status
 func (c *Client) GetWindowManagerMigration(ctx context.Context, params GetWindowManagerMigrationParams) (*MigrationStatus, error) {
 	path := "/api/workspaces/{workspace_id}/window-manager/migration"
@@ -385,53 +441,4 @@ func (f InvokeToolFrame) MarshalJSON() ([]byte, error) {
 
 func (f *InvokeToolFrame) setResponseStatus(status int) {
 	f.StatusCode = status
-}
-
-// AsToolInvokeResponse decodes this payload as ToolInvokeResponse.
-func (f InvokeToolFrame) AsToolInvokeResponse() (*ToolInvokeResponse, error) {
-	var out ToolInvokeResponse
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsToolErrorResponse decodes this payload as ToolErrorResponse.
-func (f InvokeToolFrame) AsToolErrorResponse() (*ToolErrorResponse, error) {
-	var out ToolErrorResponse
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// InvokeTool Invoke a registry tool through executable dispatch
-func (c *Client) InvokeTool(ctx context.Context, params InvokeToolParams, body ToolInvokeRequest) (*InvokeToolFrame, error) {
-	path := "/api/tools/{id}/invoke"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out InvokeToolFrame
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentCatalogParams carries the path, query, and header parameters.
-type ListAgentCatalogParams struct {
-	Workspace *string `url:"workspace"`
-	Group     *string `url:"group"`
-	Name      *string `url:"name"`
-	Q         *string `url:"q"`
-	Category  *string `url:"category"`
-	Status    *string `url:"status"`
-	Cursor    *string `url:"cursor"`
-	Limit     *int    `url:"limit"`
-	Profile   *string `url:"profile"`
 }

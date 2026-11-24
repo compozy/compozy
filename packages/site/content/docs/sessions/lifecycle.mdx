@@ -906,6 +906,58 @@ session's workspace and profile. With `--stop`, live children stop first and a f
 nothing. `GET /api/workspaces/:workspace/sessions/:id/descendants` lists what the option includes.
 Unarchiving restores subagents with their parent; restore other children one by one.
 
+### Archiving every stopped thread
+
+Archive stopped archives, in one request, every stopped thread of one project or of all
+unarchived projects of the active profile. A thread is a top-level session with everything nested
+under it: child sessions, subagents, and side chats. It archives whole or not at all, and nothing is
+stopped.
+
+```bash
+curl -X POST http://localhost:2123/api/sessions/archive-stopped \
+  -H 'Content-Type: application/json' \
+  -d '{"workspace_id": "ws_alpha", "dry_run": true}'
+```
+
+Send exactly one of `workspace_id` or `all_workspaces: true`; `?profile=` selects another profile,
+and `all_profiles` is refused. The same route serves UDS. With `dry_run: true` the response reports
+what would be archived and changes nothing. App tokens are denied.
+
+A thread is skipped, with the first matching reason, when:
+
+| Reason           | When                                                                     |
+| ---------------- | ------------------------------------------------------------------------ |
+| `instance_main`  | A session in it is the main session of an always-on agent.               |
+| `running`        | A session in it is not stopped, or is resuming.                          |
+| `waiting_on_you` | A session in it has a pending or orphaned permission or clarify request. |
+| `queued_input`   | A session in it has queued or dispatching input.                         |
+| `pinned`         | A session in it is pinned.                                               |
+| `later`          | A session in it is in Later.                                             |
+| `caller`         | The thread contains the session that made the request.                   |
+
+Sessions already archived inside a thread do not block it and are not archived again. Each thread
+archives in its own transaction that checks every rule again, so a thread that changed after the
+read is skipped with its current reason, and one failed thread (`archive_failed`) leaves the others
+archived. A thread that stopped being a top-level thread after the read (archived, deleted or moved
+under another session meanwhile) has nothing left to archive and is left out of the report.
+`archived[].session_ids` lists every session the request archived, top-level session first.
+`archived[].restore_ids` is the same list without subagents, which restore with their parent;
+unarchive those one by one, in order, to undo it. `skip_counts` and `failure_count` count
+every skipped and failed thread, while `skipped` and `failures` list the first 100 and set
+`skipped_truncated` or `failures_truncated` past that.
+
+From the CLI, `compozy session archive --stopped` does the same for the current project, or for
+`--workspace <ref>` or `--all-workspaces`; `--dry-run` previews. It prints a summary such as
+`Archived 14 threads (31 sessions) in platform.` followed by `Skipped 3 threads: 2 waiting_on_you,
+1 running.`, prints the response unchanged with `-o json`, and exits `1` when any thread failed.
+`--stopped` takes no session ID and cannot be combined with `--stop`, `--with-children`, or the
+process flags (exit `2`).
+
+Agents call `compozy__session_archive_stopped` with `{workspace?, all_workspaces?, dry_run?}`. It
+defaults to the caller's workspace and always skips the caller's own thread as `caller`;
+`dry_run: true` runs without approval, and `all_workspaces` needs operator authority or unrestricted
+workspace access.
+
 ## Stop reasons
 
 The session manager currently emits these persisted stop classifications:

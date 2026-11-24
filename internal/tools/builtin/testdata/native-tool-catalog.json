@@ -2632,6 +2632,21 @@
     "full_output_schema_digest": "2d5d1fd161998e466ee627b8bb67d61f103ba5af8ecba76fccae5d0bac8a8f00"
   },
   {
+    "tool_id": "compozy__session_archive_stopped",
+    "native_name": "session_archive_stopped",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "e8135c284183bd9953ed4f8e42e9d0419b4efcb0a9fe1bb3e177c2028d72a0c4",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
+    "result_contract": "single",
+    "single_result_reason": "minimal"
+  },
+  {
     "tool_id": "compozy__session_changes",
     "native_name": "session_changes",
     "toolsets": [
