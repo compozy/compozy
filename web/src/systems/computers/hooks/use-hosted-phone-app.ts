@@ -65,6 +65,19 @@ function collectPhoneApprovals(
   return items;
 }
 
+function phoneTerminalWorkspace(
+  selectedSession: SessionPayload | null,
+  sessions: readonly SessionPayload[],
+  firstWorkspaceId: string | undefined
+): string {
+  return (
+    selectedSession?.workspace_id?.trim() ||
+    sessions.find(item => Boolean(item.workspace_id?.trim()))?.workspace_id?.trim() ||
+    firstWorkspaceId ||
+    ""
+  );
+}
+
 /**
  * Controller hook for the compact hosted phone layout (`< 1024px`, U8):
  * sessions list + live catalog stream, cross-session command approvals,
@@ -96,11 +109,7 @@ export function useHostedPhoneApp() {
   const resolvedTab: HostedPhoneTab =
     activeTab === "terminal" && !canOperateTerminal ? "sessions" : activeTab;
 
-  const terminalWorkspaceId =
-    selectedSession?.workspace_id?.trim() ||
-    sessions.find(item => Boolean(item.workspace_id?.trim()))?.workspace_id?.trim() ||
-    workspaces[0]?.id ||
-    "";
+  const terminalWorkspaceId = phoneTerminalWorkspace(selectedSession, sessions, workspaces[0]?.id);
   const terminalProjectLabel = terminalWorkspaceId
     ? workspaceNameById.get(terminalWorkspaceId)
     : undefined;

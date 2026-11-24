@@ -211,87 +211,12 @@ export function BrowserSignInGate({
             </div>
           ) : null}
 
-          <div className="flex flex-col gap-2">
-            {kind === "sign_in" ? (
-              <>
-                <Button
-                  className="w-full"
-                  onClick={() =>
-                    onSignInProvider ? onSignInProvider("google") : onPrimaryAction?.()
-                  }
-                  size="cta-lg"
-                  variant="secondary"
-                >
-                  <GoogleLogo aria-hidden="true" className="size-4 shrink-0" />
-                  Continue with Google
-                </Button>
-                <Button
-                  className="w-full"
-                  onClick={() =>
-                    onSignInProvider ? onSignInProvider("github") : onPrimaryAction?.()
-                  }
-                  size="cta-lg"
-                  variant="secondary"
-                >
-                  <GithubLogo className="size-4 shrink-0" />
-                  Continue with GitHub
-                </Button>
-              </>
-            ) : null}
-
-            {kind === "waiting_approval" ? (
-              <Button className="w-full" onClick={onSecondaryAction} size="lg" variant="ghost">
-                Cancel and switch account
-              </Button>
-            ) : null}
-
-            {kind === "approval_expired" ? (
-              <>
-                <Button className="w-full" onClick={onPrimaryAction} size="cta-lg">
-                  <RefreshCw className="size-4" />
-                  Request approval again
-                </Button>
-                <Button className="w-full" onClick={onSecondaryAction} size="lg" variant="ghost">
-                  Sign in with another account
-                </Button>
-              </>
-            ) : null}
-
-            {kind === "not_approved" ? (
-              <>
-                <Button className="w-full" onClick={onPrimaryAction} size="cta-lg">
-                  Try again
-                </Button>
-                <Button className="w-full" onClick={onSecondaryAction} size="lg" variant="ghost">
-                  Switch account
-                </Button>
-              </>
-            ) : null}
-
-            {kind === "another_account" ? (
-              <Button className="w-full" onClick={onPrimaryAction} size="cta-lg">
-                Sign out and switch account
-              </Button>
-            ) : null}
-
-            {kind === "needs_pro" ? (
-              <>
-                <Button className="w-full" onClick={onPrimaryAction} size="cta-lg">
-                  Upgrade to Pro
-                  <ExternalLink className="size-3.5" />
-                </Button>
-                <Button className="w-full" onClick={onSecondaryAction} size="lg" variant="ghost">
-                  Learn more
-                </Button>
-              </>
-            ) : null}
-
-            {kind === "device_removed" ? (
-              <Button className="w-full" onClick={onPrimaryAction} size="cta-lg">
-                Sign in again
-              </Button>
-            ) : null}
-          </div>
+          <BrowserGateActions
+            kind={kind}
+            onPrimaryAction={onPrimaryAction}
+            onSecondaryAction={onSecondaryAction}
+            onSignInProvider={onSignInProvider}
+          />
         </Surface>
 
         {kind === "sign_in" ? (
@@ -302,6 +227,104 @@ export function BrowserSignInGate({
         ) : null}
       </div>
     </BrandStage>
+  );
+}
+
+function BrowserGateActions({
+  kind,
+  onSignInProvider,
+  onPrimaryAction,
+  onSecondaryAction,
+}: Pick<
+  BrowserSignInGateProps,
+  "kind" | "onSignInProvider" | "onPrimaryAction" | "onSecondaryAction"
+>) {
+  const signIn = (provider: AccountProvider) => {
+    if (onSignInProvider) {
+      onSignInProvider(provider);
+    } else {
+      onPrimaryAction?.();
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {kind === "sign_in" ? (
+        <>
+          <Button
+            className="w-full"
+            onClick={() => signIn("google")}
+            size="cta-lg"
+            variant="secondary"
+          >
+            <GoogleLogo aria-hidden="true" className="size-4 shrink-0" />
+            Continue with Google
+          </Button>
+          <Button
+            className="w-full"
+            onClick={() => signIn("github")}
+            size="cta-lg"
+            variant="secondary"
+          >
+            <GithubLogo className="size-4 shrink-0" />
+            Continue with GitHub
+          </Button>
+        </>
+      ) : null}
+
+      {kind === "waiting_approval" ? (
+        <Button className="w-full" onClick={onSecondaryAction} size="lg" variant="ghost">
+          Cancel and switch account
+        </Button>
+      ) : null}
+
+      {kind === "approval_expired" ? (
+        <>
+          <Button className="w-full" onClick={onPrimaryAction} size="cta-lg">
+            <RefreshCw className="size-4" />
+            Request approval again
+          </Button>
+          <Button className="w-full" onClick={onSecondaryAction} size="lg" variant="ghost">
+            Sign in with another account
+          </Button>
+        </>
+      ) : null}
+
+      {kind === "not_approved" ? (
+        <>
+          <Button className="w-full" onClick={onPrimaryAction} size="cta-lg">
+            Try again
+          </Button>
+          <Button className="w-full" onClick={onSecondaryAction} size="lg" variant="ghost">
+            Switch account
+          </Button>
+        </>
+      ) : null}
+
+      {kind === "another_account" ? (
+        <Button className="w-full" onClick={onPrimaryAction} size="cta-lg">
+          Sign out and switch account
+        </Button>
+      ) : null}
+
+      {kind === "needs_pro" ? (
+        <>
+          <Button className="w-full" onClick={onPrimaryAction} size="cta-lg">
+            Upgrade to Pro
+            <ExternalLink className="size-3.5" />
+          </Button>
+          <Button className="w-full" onClick={onSecondaryAction} size="lg" variant="ghost">
+            Learn more
+          </Button>
+        </>
+      ) : null}
+
+      {kind === "device_removed" ? (
+        <Button className="w-full" onClick={onPrimaryAction} size="cta-lg">
+          Sign in again
+        </Button>
+      ) : null}
+    </div>
   );
 }
 

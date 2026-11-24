@@ -12,7 +12,12 @@ import {
 import { Button, Pill, Spinner } from "@compozy/ui";
 
 import type { UpgradeInterval } from "@/systems/account/components/account-upgrade-sheet";
-import type { AccountProvider } from "@/systems/computers/mocks/remote-computers-fixtures";
+import { ComputerPlatformIcon } from "@/systems/computers/components/computer-platform-icon";
+import type {
+  AccountProvider,
+  ComputerIconKind,
+  ComputerPlatform,
+} from "@/systems/computers/mocks/remote-computers-fixtures";
 import { ACCOUNT_PRO_PLAN_OPTIONS } from "@/systems/computers/mocks/remote-computers-fixtures-lane-a";
 import {
   CLOUD_DOWNLOAD_URL,
@@ -36,6 +41,35 @@ export interface CloudUpgradeAccountStripProps {
   ownerVerified?: boolean;
   switchLabel: string;
   onSignOut?: () => void;
+}
+
+export function CloudUpgradeComputerBadge({
+  hostname,
+  computerName,
+  platform,
+  iconKind,
+}: {
+  hostname?: string;
+  computerName?: string;
+  platform?: ComputerPlatform;
+  iconKind?: ComputerIconKind;
+}) {
+  if (!hostname || !computerName || !platform || !iconKind) return null;
+  return (
+    <div className="inline-flex max-w-full items-center gap-1.5 rounded-pill border border-line bg-sunken px-2.5 py-1 text-eyebrow text-muted-foreground">
+      <ComputerPlatformIcon
+        className="size-4 bg-transparent"
+        iconKind={iconKind}
+        platform={platform}
+        size="sm"
+      />
+      <span className="truncate font-medium text-fg">{computerName}</span>
+      <span aria-hidden="true" className="text-faint">
+        ·
+      </span>
+      <span className="truncate font-mono text-mono-id text-subtle">{hostname}</span>
+    </div>
+  );
 }
 
 /**

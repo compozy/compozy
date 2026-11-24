@@ -326,22 +326,21 @@ export function SignInScreen({
   );
 }
 
+type SignInNoticeProps = Pick<
+  SignInScreenProps,
+  "isUnlinking" | "onRetryConnection" | "onUnlinkInstallation"
+> & {
+  notice: NonNullable<SignInScreenProps["notice"]>;
+};
+
 function SignInNotice({
   notice,
   isUnlinking,
   onRetryConnection,
   onUnlinkInstallation,
-}: Pick<SignInScreenProps, "isUnlinking" | "onRetryConnection" | "onUnlinkInstallation"> & {
-  notice: NonNullable<SignInScreenProps["notice"]>;
-}) {
-  const showStatusLink =
-    notice.kind === "cloud_unreachable" ||
-    Boolean("showStatusLink" in notice && notice.showStatusLink);
+}: SignInNoticeProps) {
   const showSupportLink =
     notice.kind === "suspended" || Boolean("showSupportLink" in notice && notice.showSupportLink);
-  const showUnlinkAction =
-    notice.kind === "linked_other_account" ||
-    Boolean("showUnlinkAction" in notice && notice.showUnlinkAction);
 
   return (
     <Alert
@@ -367,37 +366,59 @@ function SignInNotice({
           notice.message
         )}
       </AlertDescription>
-      {notice.retryable || showStatusLink || showUnlinkAction ? (
-        <AlertActions className="justify-start pt-0.5">
-          {notice.retryable ? (
-            <Button onClick={onRetryConnection} size="sm" type="button" variant="secondary">
-              Try again
-            </Button>
-          ) : null}
-          {showStatusLink ? (
-            <a
-              className={buttonVariants({ size: "sm", variant: "ghost" })}
-              href={COMPOZY_STATUS_URL}
-              rel="noreferrer"
-              target="_blank"
-            >
-              Status
-              <ExternalLink aria-hidden="true" className="size-3" />
-            </a>
-          ) : null}
-          {showUnlinkAction && onUnlinkInstallation ? (
-            <Button
-              disabled={isUnlinking}
-              onClick={onUnlinkInstallation}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Unlink
-            </Button>
-          ) : null}
-        </AlertActions>
-      ) : null}
+      <SignInNoticeActions
+        isUnlinking={isUnlinking}
+        notice={notice}
+        onRetryConnection={onRetryConnection}
+        onUnlinkInstallation={onUnlinkInstallation}
+      />
     </Alert>
+  );
+}
+
+function SignInNoticeActions({
+  notice,
+  isUnlinking,
+  onRetryConnection,
+  onUnlinkInstallation,
+}: SignInNoticeProps) {
+  const showStatusLink =
+    notice.kind === "cloud_unreachable" ||
+    Boolean("showStatusLink" in notice && notice.showStatusLink);
+  const showUnlinkAction =
+    notice.kind === "linked_other_account" ||
+    Boolean("showUnlinkAction" in notice && notice.showUnlinkAction);
+  if (!notice.retryable && !showStatusLink && !showUnlinkAction) return null;
+
+  return (
+    <AlertActions className="justify-start pt-0.5">
+      {notice.retryable && (
+        <Button onClick={onRetryConnection} size="sm" type="button" variant="secondary">
+          Try again
+        </Button>
+      )}
+      {showStatusLink && (
+        <a
+          className={buttonVariants({ size: "sm", variant: "ghost" })}
+          href={COMPOZY_STATUS_URL}
+          rel="noreferrer"
+          target="_blank"
+        >
+          Status
+          <ExternalLink aria-hidden="true" className="size-3" />
+        </a>
+      )}
+      {showUnlinkAction && onUnlinkInstallation && (
+        <Button
+          disabled={isUnlinking}
+          onClick={onUnlinkInstallation}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          Unlink
+        </Button>
+      )}
+    </AlertActions>
   );
 }

@@ -16,9 +16,12 @@ import {
   buildAutoPlacementCandidates,
   computerRegistryKeys,
   describeNoEligibleComputerReason,
+  findComputerById,
   patchComputer,
+  resolveEffectiveRunOnTarget,
   useComputerPlacement,
-  type useComputers,
+  useComputers,
+  type RunOnTarget,
 } from "@/systems/computers";
 
 import type { resolveSessionCreateDestination } from "../lib/session-create-destination";
@@ -27,7 +30,7 @@ import type { SessionCreateStore } from "../stores/session-create-store";
 type ComputerCatalog = ReturnType<typeof useComputers>;
 type SessionDestination = ReturnType<typeof resolveSessionCreateDestination>;
 
-export function sessionProjectComputer({
+function sessionProjectComputer({
   computerId,
   lastConcreteComputerId,
   hasLocalProject,
@@ -45,6 +48,71 @@ export function sessionProjectComputer({
     item => item.enabled && (item.status === "connected" || item.status === "needs_attention")
   );
   return firstConnectedRemote?.id ?? LOCAL_COMPUTER_ID;
+}
+
+function resolveRemoteCreateAvailability(
+  computerId: RunOnTarget,
+  computers: ComputerCatalog["computers"]
+) {
+  const isRemote = isRemoteComputerId(computerId);
+  const selectedComputer = isRemote ? findComputerById(computers, computerId) : undefined;
+  const offlineComputer =
+    selectedComputer?.status === "offline"
+      ? { id: selectedComputer.id, name: selectedComputer.name }
+      : null;
+  return {
+    isRemote,
+    offlineComputer,
+    submitDisabled:
+      selectedComputer !== undefined &&
+      selectedComputer.status !== "connected" &&
+      selectedComputer.status !== "needs_attention",
+  };
+}
+
+export function useSessionCreateComputerTarget({
+  hasLocalProject,
+  open,
+  requested,
+  store,
+}: {
+  hasLocalProject: boolean;
+  open: boolean;
+  requested: ComputerId;
+  store: SessionCreateStore;
+}) {
+  const [lastConcreteComputerId, setLastConcreteComputerId] =
+    useState<ComputerId>(LOCAL_COMPUTER_ID);
+  const computers = useComputers({ enabled: open, withHostResources: open });
+  const computerId = resolveEffectiveRunOnTarget({
+    requested: normalizeComputerId(requested),
+    local: computers.localView,
+    computers: computers.computerViews,
+    loadBalancingEnabled: computers.loadBalancingEnabled,
+    allowAuto: true,
+  });
+  const projectSourceComputerId = sessionProjectComputer({
+    computerId,
+    lastConcreteComputerId,
+    hasLocalProject,
+    computers,
+  });
+  const onComputerChange = useCallback(
+    (next: RunOnTarget) => {
+      if (next !== "auto") setLastConcreteComputerId(normalizeComputerId(next));
+      store.trigger.computerSelected({ computerId: next });
+    },
+    [store]
+  );
+  return {
+    computerId,
+    computers,
+    isAuto: isAutoComputerId(computerId),
+    localExecutionBlocked: computerId === LOCAL_COMPUTER_ID && !computers.localView.localRunAgents,
+    onComputerChange,
+    projectSourceComputerId,
+    remoteState: resolveRemoteCreateAvailability(computerId, computers.computers),
+  };
 }
 
 function placementView(

@@ -13,7 +13,6 @@ import {
 } from "@compozy/ui";
 
 import type { UpgradeInterval } from "@/systems/account/components/account-upgrade-sheet";
-import { ComputerPlatformIcon } from "@/systems/computers/components/computer-platform-icon";
 import type {
   AccountProvider,
   ComputerIconKind,
@@ -30,6 +29,7 @@ import {
   CloudUpgradeAccountStrip,
   CloudUpgradeAlreadyProView,
   CloudUpgradeBlockedAccountView,
+  CloudUpgradeComputerBadge,
   CloudUpgradeRedirectingView,
   CloudUpgradeSuccessView,
   CloudUpgradeUnavailableView,
@@ -468,30 +468,6 @@ export function CloudUpgradePage({
       ) : null}
     </CloudPageChrome>
   );
-}
-
-function CloudUpgradeComputerBadge({
-  hostname,
-  computerName,
-  platform,
-  iconKind,
-}: Pick<CloudUpgradePageProps, "hostname" | "computerName" | "platform" | "iconKind">) {
-  return;
-  hostname && computerName && platform && iconKind ? (
-    <div className="inline-flex max-w-full items-center gap-1.5 rounded-pill border border-line bg-sunken px-2.5 py-1 text-eyebrow text-muted-foreground">
-      <ComputerPlatformIcon
-        className="size-4 bg-transparent"
-        iconKind={iconKind}
-        platform={platform}
-        size="sm"
-      />
-      <span className="truncate font-medium text-fg">{computerName}</span>
-      <span aria-hidden="true" className="text-faint">
-        ·
-      </span>
-      <span className="truncate font-mono text-mono-id text-subtle">{hostname}</span>
-    </div>
-  ) : null;
 }
 
 function CloudUpgradeAccessNote({

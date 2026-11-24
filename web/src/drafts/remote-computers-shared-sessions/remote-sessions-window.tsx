@@ -113,23 +113,24 @@ function RemoteSessionToolButton({
 }
 
 function RemoteSessionActions({
-  remoteComputerName,
-  hasTerminalScope,
-  hasFilesScope,
+  computer,
+  canOperateTerminal,
   disabled,
   isRunning,
   railOpen,
   onToggleRail,
 }: {
-  remoteComputerName: string | undefined;
-  hasTerminalScope: boolean;
-  hasFilesScope: boolean;
+  computer: ComputerFixture | null;
+  canOperateTerminal?: boolean;
   disabled: boolean;
   isRunning: boolean;
   railOpen: boolean;
   onToggleRail: () => void;
 }) {
-  const suffix = remoteComputerName ? ` on ${remoteComputerName}` : "";
+  const suffix = computer ? ` on ${computer.name}` : "";
+  const hasTerminalScope =
+    canOperateTerminal ?? (!computer || computer.scopes.includes("terminal:operate"));
+  const hasFilesScope = !computer || computer.scopes.includes("files:read");
   return (
     <>
       {hasTerminalScope && (
@@ -260,6 +261,84 @@ function RemoteSessionTranscript({
   );
 }
 
+const TOPBAR_STATES = {
+  running: "running",
+  attention: "attention",
+  done: "done",
+  idle: "done",
+} as const;
+
+const SESSION_MODELS = {
+  codex: "gpt-6-astra",
+  claude: "claude-opus-5-5",
+} as const;
+
+function RemoteSessionComputerChip({
+  computer,
+  defaultOpen,
+  entitlementPaused,
+  reconnecting,
+  onReconnect,
+}: {
+  computer: ComputerFixture;
+  defaultOpen: boolean;
+  entitlementPaused: boolean;
+  reconnecting: boolean;
+  onReconnect?: () => void;
+}) {
+  const status = entitlementPaused ? "needs_pro" : reconnecting ? "connecting" : computer.status;
+  return (
+    <ComputerChip
+      computer={{ ...computer, status }}
+      defaultOpen={defaultOpen}
+      onOpenDetails={() => undefined}
+      onReconnect={onReconnect}
+      onUpgrade={entitlementPaused ? () => undefined : undefined}
+    />
+  );
+}
+
+function RemoteSessionComposer({
+  computerName,
+  isOffline,
+  entitlementPaused,
+  reconnecting,
+  onReconnect,
+  provider,
+}: {
+  computerName: string;
+  isOffline: boolean;
+  entitlementPaused: boolean;
+  reconnecting: boolean;
+  onReconnect: () => void;
+  provider: RemoteSessionRowEntry["provider"];
+}) {
+  const disabled = isOffline || entitlementPaused;
+  const placeholder = isOffline
+    ? `${computerName} is offline`
+    : entitlementPaused
+      ? `${computerName} needs Pro to send messages`
+      : `Message Claude on ${computerName}`;
+  return (
+    <DraftComposer
+      above={
+        disabled ? (
+          <RemoteSessionComposerBanner
+            computerName={computerName}
+            entitlementPaused={entitlementPaused}
+            isOffline={isOffline}
+            onReconnect={onReconnect}
+            reconnecting={reconnecting}
+          />
+        ) : undefined
+      }
+      disabled={disabled}
+      placeholder={placeholder}
+      runtime={{ provider, model: SESSION_MODELS[provider] }}
+    />
+  );
+}
+
 /**
  * Full CompozyOS Sessions window for remote-computer review (Screens 05 & 06):
  * - Composes `DraftShell`, `RemoteSessionsSidebar`, real window `Topbar` with `ComputerChip`
@@ -293,59 +372,35 @@ export function RemoteSessionsWindow({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
 
-  const isRemote = activeComputer !== null;
   const isOffline = activeComputer?.status === "offline" || hostConnectionLost;
-  const hasTerminalScope =
-    canOperateTerminal ?? (!isRemote || activeComputer.scopes.includes("terminal:operate"));
-  const hasFilesScope = !isRemote || activeComputer.scopes.includes("files:read");
   const composerDisabled = isOffline || entitlementPaused;
 
   const computerName = activeComputer?.name ?? hostName ?? "This computer";
   const reconnect = () => setReconnecting(true);
 
   const topbar: TopbarSlotValue = {
-    glyph: (
-      <StateGlyph
-        size="sm"
-        state={
-          isOffline
-            ? "idle"
-            : activeSession.state === "running"
-              ? "running"
-              : activeSession.state === "attention"
-                ? "attention"
-                : "done"
-        }
-      />
-    ),
+    glyph: <StateGlyph size="sm" state={isOffline ? "idle" : TOPBAR_STATES[activeSession.state]} />,
     glyphPresentation: "state",
     crumb: activeSession.title,
     context:
       topbarContext ??
       (activeComputer ? (
-        <ComputerChip
-          computer={
-            entitlementPaused
-              ? { ...activeComputer, status: "needs_pro" }
-              : reconnecting
-                ? { ...activeComputer, status: "connecting" }
-                : activeComputer
-          }
+        <RemoteSessionComputerChip
+          computer={activeComputer}
           defaultOpen={computerChipOpen}
-          onOpenDetails={() => undefined}
+          entitlementPaused={entitlementPaused}
           onReconnect={isOffline ? reconnect : undefined}
-          onUpgrade={entitlementPaused ? () => undefined : undefined}
+          reconnecting={reconnecting}
         />
       ) : undefined),
     actions: (
       <RemoteSessionActions
+        canOperateTerminal={canOperateTerminal}
+        computer={activeComputer}
         disabled={composerDisabled}
-        hasFilesScope={hasFilesScope}
-        hasTerminalScope={hasTerminalScope}
         isRunning={activeSession.state === "running"}
         onToggleRail={() => setRailOpen(open => !open)}
         railOpen={railOpen}
-        remoteComputerName={activeComputer?.name}
       />
     ),
     overflow: <SessionViewToggle onValueChange={next => onViewChange?.(next)} value="list" />,
@@ -388,30 +443,13 @@ export function RemoteSessionsWindow({
             workingLabel={isWorking && !composerDisabled ? `Claude on ${computerName}` : null}
           />
 
-          <DraftComposer
-            above={
-              composerDisabled ? (
-                <RemoteSessionComposerBanner
-                  computerName={computerName}
-                  entitlementPaused={entitlementPaused}
-                  isOffline={isOffline}
-                  onReconnect={reconnect}
-                  reconnecting={reconnecting}
-                />
-              ) : undefined
-            }
-            disabled={composerDisabled}
-            placeholder={
-              isOffline
-                ? `${computerName} is offline`
-                : entitlementPaused
-                  ? `${computerName} needs Pro to send messages`
-                  : `Message Claude on ${computerName}`
-            }
-            runtime={{
-              provider: activeSession.provider,
-              model: activeSession.provider === "codex" ? "gpt-6-astra" : "claude-opus-5-5",
-            }}
+          <RemoteSessionComposer
+            computerName={computerName}
+            entitlementPaused={entitlementPaused}
+            isOffline={isOffline}
+            onReconnect={reconnect}
+            provider={activeSession.provider}
+            reconnecting={reconnecting}
           />
         </div>
       </div>

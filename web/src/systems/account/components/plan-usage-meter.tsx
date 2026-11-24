@@ -79,54 +79,16 @@ export function PlanUsageMeter({
   }
 
   if (needsProCount > 0) {
-    const total = used + needsProCount;
-    const summary = `${used} active · ${needsProCount} need Pro`;
-
-    if (compact) {
-      return (
-        <div
-          className={cn("flex min-w-0 flex-wrap items-center gap-2.5", className)}
-          data-slot="plan-usage-meter"
-          data-state="downgraded"
-        >
-          <StackedProgress
-            ariaLabel={`${ariaPrefix}: ${summary}`}
-            className="h-1 w-20 shrink-0"
-            segments={[
-              { value: used, tone: "brand", label: "Active" },
-              { value: needsProCount, tone: "neutral", label: "Needs Pro" },
-            ]}
-            total={total}
-          />
-          <span className="text-meta text-muted-foreground tabular-nums">{summary}</span>
-          {action}
-        </div>
-      );
-    }
-
     return (
-      <div
-        className={cn("flex min-w-0 flex-col gap-2", className)}
-        data-slot="plan-usage-meter"
-        data-state="downgraded"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-small-body font-medium text-fg">{label}</span>
-          <div className="flex items-center gap-2.5">
-            <span className="text-meta text-muted-foreground tabular-nums">{summary}</span>
-            {action}
-          </div>
-        </div>
-        <StackedProgress
-          ariaLabel={`${ariaPrefix}: ${summary}`}
-          className="h-1"
-          segments={[
-            { value: used, tone: "brand", label: "Active" },
-            { value: needsProCount, tone: "neutral", label: "Needs Pro" },
-          ]}
-          total={total}
-        />
-      </div>
+      <DowngradedUsageMeter
+        action={action}
+        ariaPrefix={ariaPrefix}
+        className={className}
+        compact={compact}
+        label={label}
+        needsProCount={needsProCount}
+        used={used}
+      />
     );
   }
 
@@ -172,6 +134,96 @@ export function PlanUsageMeter({
     );
   }
 
+  return (
+    <ContinuousUsageMeter
+      action={action}
+      ariaPrefix={ariaPrefix}
+      className={className}
+      compact={compact}
+      label={label}
+      limit={limit}
+      readout={readout}
+      used={used}
+    />
+  );
+}
+
+type UsageMeterViewProps = Pick<
+  PlanUsageMeterProps,
+  "action" | "className" | "compact" | "label" | "used"
+> & { ariaPrefix: string };
+
+function DowngradedUsageMeter({
+  action,
+  ariaPrefix,
+  className,
+  compact,
+  label,
+  needsProCount,
+  used,
+}: UsageMeterViewProps & { needsProCount: number }) {
+  const total = used + needsProCount;
+  const summary = `${used} active · ${needsProCount} need Pro`;
+
+  if (compact) {
+    return (
+      <div
+        className={cn("flex min-w-0 flex-wrap items-center gap-2.5", className)}
+        data-slot="plan-usage-meter"
+        data-state="downgraded"
+      >
+        <StackedProgress
+          ariaLabel={`${ariaPrefix}: ${summary}`}
+          className="h-1 w-20 shrink-0"
+          segments={[
+            { value: used, tone: "brand", label: "Active" },
+            { value: needsProCount, tone: "neutral", label: "Needs Pro" },
+          ]}
+          total={total}
+        />
+        <span className="text-meta text-muted-foreground tabular-nums">{summary}</span>
+        {action}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn("flex min-w-0 flex-col gap-2", className)}
+      data-slot="plan-usage-meter"
+      data-state="downgraded"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-small-body font-medium text-fg">{label}</span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-meta text-muted-foreground tabular-nums">{summary}</span>
+          {action}
+        </div>
+      </div>
+      <StackedProgress
+        ariaLabel={`${ariaPrefix}: ${summary}`}
+        className="h-1"
+        segments={[
+          { value: used, tone: "brand", label: "Active" },
+          { value: needsProCount, tone: "neutral", label: "Needs Pro" },
+        ]}
+        total={total}
+      />
+    </div>
+  );
+}
+
+function ContinuousUsageMeter({
+  action,
+  ariaPrefix,
+  className,
+  compact,
+  label,
+  limit,
+  readout,
+  used,
+}: UsageMeterViewProps & { limit: number; readout: string }) {
+  const state = used >= limit ? "at-limit" : "within-limit";
   const pct = Math.max(0, Math.min(100, Math.round((used / limit) * 100)));
 
   if (compact) {
@@ -179,7 +231,7 @@ export function PlanUsageMeter({
       <div
         className={cn("flex min-w-0 flex-wrap items-center gap-2.5", className)}
         data-slot="plan-usage-meter"
-        data-state={used >= limit ? "at-limit" : "within-limit"}
+        data-state={state}
       >
         <meter
           aria-label={`${ariaPrefix}: ${readout}`}
@@ -208,7 +260,7 @@ export function PlanUsageMeter({
     <div
       className={cn("flex min-w-0 flex-col gap-1.5", className)}
       data-slot="plan-usage-meter"
-      data-state={used >= limit ? "at-limit" : "within-limit"}
+      data-state={state}
     >
       <div className="flex items-center justify-between gap-2">
         <Progress className="flex-1" tone="brand" value={pct}>
@@ -230,8 +282,7 @@ function DiscreteUsageMeter({
   limit,
   readout,
   used,
-}: Pick<PlanUsageMeterProps, "action" | "className" | "compact" | "label" | "used"> & {
-  ariaPrefix: string;
+}: UsageMeterViewProps & {
   limit: number;
   readout: string;
 }) {

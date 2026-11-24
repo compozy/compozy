@@ -54,72 +54,30 @@ export function PhoneSessionView({
   const [approvalDecision, setApprovalDecision] = useState<"pending" | "allowed" | "denied">(
     session.state === "attention" ? "pending" : "allowed"
   );
-  const [draft, setDraft] = useState("");
-
-  const handleSend = () => {
-    const trimmed = draft.trim();
-    if (!trimmed || offline) return;
+  const appendMessage = (text: string) => {
     setEntries(current => [
       ...current,
       {
         id: `msg-user-${current.length + 1}`,
         kind: "user",
-        text: trimmed,
+        text,
         timestamp: "now",
       },
     ]);
-    setDraft("");
     toast.success(`Sent to ${computerName}`);
   };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-canvas" data-slot="phone-session-view">
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line-soft px-2.5 py-1.5">
-        {onBack ? (
-          <Button
-            aria-label="Back to sessions"
-            className="shrink-0"
-            onClick={onBack}
-            size="icon"
-            variant="quiet"
-          >
-            <ArrowLeft className="size-4" />
-          </Button>
-        ) : null}
-
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-          <div className="flex items-center gap-1.5">
-            <StateGlyph
-              size="sm"
-              state={offline ? "idle" : approvalDecision === "pending" ? "attention" : "running"}
-              still={offline}
-            />
-            <h1 className="truncate text-body font-medium text-fg-strong">{session.title}</h1>
-          </div>
-          <div className="flex items-center gap-1.5 text-micro text-subtle">
-            <WorkspaceBadge identity={{ kind: "project", name: session.project }} />
-            <span aria-hidden="true">·</span>
-            <span>{session.model}</span>
-            <span aria-hidden="true">·</span>
-            <span className="inline-flex items-center gap-1">
-              <StatusDot size="sm" tone={offline ? "warning" : "success"} />
-              {offline ? `${computerName} · Offline` : computerName}
-            </span>
-          </div>
-        </div>
-
-        {canOperateTerminal && onOpenTerminal ? (
-          <Button
-            aria-label={`Open terminal on ${computerName}`}
-            disabled={offline}
-            onClick={onOpenTerminal}
-            size="icon"
-            variant="quiet"
-          >
-            <Terminal className="size-4" />
-          </Button>
-        ) : null}
-      </header>
+      <PhoneSessionHeader
+        approvalPending={approvalDecision === "pending"}
+        canOperateTerminal={canOperateTerminal}
+        computerName={computerName}
+        offline={offline}
+        onBack={onBack}
+        onOpenTerminal={onOpenTerminal}
+        session={session}
+      />
 
       {offline && <PhoneOfflineStrip computerName={computerName} onRetry={onRetryConnection} />}
 
@@ -209,37 +167,122 @@ export function PhoneSessionView({
         </div>
       ) : null}
 
-      <footer className="shrink-0 border-t border-line-soft bg-canvas pt-2.5 pb-3.5">
-        <div className="mx-auto flex w-full max-w-3xl items-end gap-2 px-3">
-          <Textarea
-            aria-label={
-              offline ? `${computerName} is offline` : `Message session on ${computerName}`
-            }
-            className="max-h-28 min-h-10 resize-none rounded-lg py-2.5"
-            disabled={offline}
-            onChange={event => setDraft(event.target.value)}
-            onKeyDown={event => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder={offline ? `${computerName} is offline` : `Message on ${computerName}…`}
-            rows={1}
-            value={offline ? "" : draft}
-          />
-          <Button
-            aria-label="Send message"
-            className="size-10 shrink-0"
-            disabled={offline || draft.trim() === ""}
-            onClick={handleSend}
-            size="icon-lg"
-          >
-            <Send className="size-4" />
-          </Button>
-        </div>
-      </footer>
+      <PhoneSessionComposer computerName={computerName} offline={offline} onSend={appendMessage} />
     </div>
+  );
+}
+
+function PhoneSessionComposer({
+  computerName,
+  offline,
+  onSend,
+}: {
+  computerName: string;
+  offline: boolean;
+  onSend: (text: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const handleSend = () => {
+    const trimmed = draft.trim();
+    if (!trimmed || offline) return;
+    onSend(trimmed);
+    setDraft("");
+  };
+
+  return (
+    <footer className="shrink-0 border-t border-line-soft bg-canvas pt-2.5 pb-3.5">
+      <div className="mx-auto flex w-full max-w-3xl items-end gap-2 px-3">
+        <Textarea
+          aria-label={offline ? `${computerName} is offline` : `Message session on ${computerName}`}
+          className="max-h-28 min-h-10 resize-none rounded-lg py-2.5"
+          disabled={offline}
+          onChange={event => setDraft(event.target.value)}
+          onKeyDown={event => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              handleSend();
+            }
+          }}
+          placeholder={offline ? `${computerName} is offline` : `Message on ${computerName}…`}
+          rows={1}
+          value={offline ? "" : draft}
+        />
+        <Button
+          aria-label="Send message"
+          className="size-10 shrink-0"
+          disabled={offline || draft.trim() === ""}
+          onClick={handleSend}
+          size="icon-lg"
+        >
+          <Send className="size-4" />
+        </Button>
+      </div>
+    </footer>
+  );
+}
+
+function PhoneSessionHeader({
+  session,
+  computerName,
+  offline,
+  canOperateTerminal,
+  approvalPending,
+  onBack,
+  onOpenTerminal,
+}: Pick<
+  PhoneSessionViewProps,
+  "session" | "computerName" | "canOperateTerminal" | "onBack" | "onOpenTerminal"
+> & {
+  offline: boolean;
+  approvalPending: boolean;
+}) {
+  return (
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line-soft px-2.5 py-1.5">
+      {onBack ? (
+        <Button
+          aria-label="Back to sessions"
+          className="shrink-0"
+          onClick={onBack}
+          size="icon"
+          variant="quiet"
+        >
+          <ArrowLeft className="size-4" />
+        </Button>
+      ) : null}
+
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+        <div className="flex items-center gap-1.5">
+          <StateGlyph
+            size="sm"
+            state={offline ? "idle" : approvalPending ? "attention" : "running"}
+            still={offline}
+          />
+          <h1 className="truncate text-body font-medium text-fg-strong">{session.title}</h1>
+        </div>
+        <div className="flex items-center gap-1.5 text-micro text-subtle">
+          <WorkspaceBadge identity={{ kind: "project", name: session.project }} />
+          <span aria-hidden="true">·</span>
+          <span>{session.model}</span>
+          <span aria-hidden="true">·</span>
+          <span className="inline-flex items-center gap-1">
+            <StatusDot size="sm" tone={offline ? "warning" : "success"} />
+            {offline ? `${computerName} · Offline` : computerName}
+          </span>
+        </div>
+      </div>
+
+      {canOperateTerminal && onOpenTerminal ? (
+        <Button
+          aria-label={`Open terminal on ${computerName}`}
+          disabled={offline}
+          onClick={onOpenTerminal}
+          size="icon"
+          variant="quiet"
+        >
+          <Terminal className="size-4" />
+        </Button>
+      ) : null}
+    </header>
   );
 }
 

@@ -259,11 +259,8 @@ export function ComputerRow({
 }: ComputerRowProps) {
   const [openDisclosure, setOpenDisclosure] = useState<ExpandedDisclosure>(defaultDisclosure);
   const dimmed = !computer.enabled || computer.status === "needs_pro";
-  const routeText = primaryRouteText(computer);
-  const showLoad = computer.status === "connected" || computer.status === "needs_attention";
   const showAttentionIcon =
     computer.status === "needs_attention" || computer.status === "incompatible";
-  const routesLabel = computer.routes.length === 1 ? "1 route" : `${computer.routes.length} routes`;
 
   const toggleDisclosure = (next: Exclude<ExpandedDisclosure, null>) => {
     setOpenDisclosure(current => (current === next ? null : next));
@@ -298,31 +295,11 @@ export function ComputerRow({
             />
           </ListingRow.Name>
 
-          <ListingRow.Meta className="mt-1">
-            {routeText ? <span className="truncate text-muted-foreground">{routeText}</span> : null}
-            {showLoad ? (
-              <>
-                {routeText ? <ListingRow.MetaDot /> : null}
-                <ComputerLoadMeter computerName={computer.name} load={computer.load} />
-              </>
-            ) : null}
-            {computer.routes.length > 0 ? (
-              <>
-                {routeText || showLoad ? <ListingRow.MetaDot /> : null}
-                <ComputerDisclosureTrigger
-                  expanded={openDisclosure === "routes"}
-                  label={routesLabel}
-                  onToggle={() => toggleDisclosure("routes")}
-                />
-              </>
-            ) : null}
-            <ListingRow.MetaDot />
-            <ComputerDisclosureTrigger
-              expanded={openDisclosure === "permissions"}
-              label="Permissions"
-              onToggle={() => toggleDisclosure("permissions")}
-            />
-          </ListingRow.Meta>
+          <ComputerRowMetadata
+            computer={computer}
+            openDisclosure={openDisclosure}
+            toggleDisclosure={toggleDisclosure}
+          />
 
           <InlineStatusNotice computer={computer} onOpenDetails={onOpenDetails} />
         </ListingRow.Main>
@@ -342,6 +319,47 @@ export function ComputerRow({
       ) : null}
       {openDisclosure === "permissions" ? <ComputerPermissionsPanel computer={computer} /> : null}
     </div>
+  );
+}
+
+function ComputerRowMetadata({
+  computer,
+  openDisclosure,
+  toggleDisclosure,
+}: {
+  computer: ComputerFixture;
+  openDisclosure: ExpandedDisclosure;
+  toggleDisclosure: (next: Exclude<ExpandedDisclosure, null>) => void;
+}) {
+  const routeText = primaryRouteText(computer);
+  const showLoad = computer.status === "connected" || computer.status === "needs_attention";
+  const routesLabel = computer.routes.length === 1 ? "1 route" : `${computer.routes.length} routes`;
+  return (
+    <ListingRow.Meta className="mt-1">
+      {routeText ? <span className="truncate text-muted-foreground">{routeText}</span> : null}
+      {showLoad ? (
+        <>
+          {routeText ? <ListingRow.MetaDot /> : null}
+          <ComputerLoadMeter computerName={computer.name} load={computer.load} />
+        </>
+      ) : null}
+      {computer.routes.length > 0 ? (
+        <>
+          {routeText || showLoad ? <ListingRow.MetaDot /> : null}
+          <ComputerDisclosureTrigger
+            expanded={openDisclosure === "routes"}
+            label={routesLabel}
+            onToggle={() => toggleDisclosure("routes")}
+          />
+        </>
+      ) : null}
+      <ListingRow.MetaDot />
+      <ComputerDisclosureTrigger
+        expanded={openDisclosure === "permissions"}
+        label="Permissions"
+        onToggle={() => toggleDisclosure("permissions")}
+      />
+    </ListingRow.Meta>
   );
 }
 

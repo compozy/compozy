@@ -1,22 +1,12 @@
-import { useCallback, useState } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
 
 import type { EntityMode } from "@compozy/ui";
 
-import {
-  isAutoComputerId,
-  isRemoteComputerId,
-  LOCAL_COMPUTER_ID,
-  normalizeComputerId,
-  type ComputerId,
-} from "@/lib/computer-scope";
-import {
-  findComputerById,
-  resolveEffectiveRunOnTarget,
-  useComputers,
-  type AutoPlacementCandidateView,
-  type AutoResolutionSummary,
-  type RunOnTarget,
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
+import type {
+  AutoPlacementCandidateView,
+  AutoResolutionSummary,
+  RunOnTarget,
 } from "@/systems/computers";
 import type {
   ComputerFixture,
@@ -40,8 +30,8 @@ import {
 import { useSessionCreateSubmit } from "./use-session-create-submit";
 import { useSessionCreateTarget } from "./use-session-create-target";
 import {
-  sessionProjectComputer,
   useSessionCreateComputerActions,
+  useSessionCreateComputerTarget,
   useSessionCreatePlacement,
 } from "./use-session-create-computer";
 import { useSessionCreateDialogActions } from "./use-session-create-dialog-actions";
@@ -125,31 +115,6 @@ export function useSessionCreateDialogController(): SessionCreateDialogControlle
   return { store: useStore(sessionCreateStoreLogic) };
 }
 
-function resolveRemoteCreateAvailability(
-  computerId: RunOnTarget,
-  computers: ReturnType<typeof useComputers>["computers"]
-): {
-  isRemote: boolean;
-  offlineComputer: { id: string; name: string } | null;
-  submitDisabled: boolean;
-} {
-  const isRemote = isRemoteComputerId(computerId);
-  const selectedComputer = isRemote ? findComputerById(computers, computerId) : undefined;
-  const offlineComputer =
-    isRemote && selectedComputer?.status === "offline"
-      ? { id: selectedComputer.id, name: selectedComputer.name }
-      : null;
-  return {
-    isRemote,
-    offlineComputer,
-    submitDisabled:
-      isRemote &&
-      selectedComputer !== undefined &&
-      selectedComputer.status !== "connected" &&
-      selectedComputer.status !== "needs_attention",
-  };
-}
-
 function buildDestinationAxes(
   target: ReturnType<typeof useSessionCreateTarget>,
   store: SessionCreateStore
@@ -177,6 +142,25 @@ function buildDestinationAxes(
   return axes;
 }
 
+function resolveDialogDestination(
+  target: ReturnType<typeof useSessionCreateTarget>,
+  local: Parameters<typeof resolveSessionCreateDestination>[0]
+) {
+  const destination = resolveSessionCreateDestination(
+    target.projectAxis || target.namedProject
+      ? {
+          activeWorkspace: target.workspace,
+          projectWorkspaceId: target.workspace?.id ?? null,
+          dataScope: target.scope,
+          userHomeDir: local.userHomeDir,
+        }
+      : local
+  );
+  // A named project the catalog has not confirmed blocks creation instead of falling back.
+  const binding = target.namedProjectUnresolved ? null : destination.binding;
+  return { destination, binding };
+}
+
 /** Projects session-create state into the dialog API and validates durable launch requests. */
 export function useSessionCreateDialogViewModel(
   {
@@ -191,27 +175,21 @@ export function useSessionCreateDialogViewModel(
   const userHomeDir = useUserHomeDir();
   const flow = useSelector(store, snapshot => snapshot.context);
   const { draft, pendingSubmit } = flow;
-  const [lastConcreteComputerId, setLastConcreteComputerId] =
-    useState<ComputerId>(LOCAL_COMPUTER_ID);
-
-  const computers = useComputers({ enabled: flow.open, withHostResources: flow.open });
-  const requestedComputerId = normalizeComputerId(draft.computerId) as RunOnTarget;
-  const computerId = resolveEffectiveRunOnTarget({
-    requested: requestedComputerId,
-    local: computers.localView,
-    computers: computers.computerViews,
-    loadBalancingEnabled: computers.loadBalancingEnabled,
-    allowAuto: true,
-  });
-  const isAuto = isAutoComputerId(computerId);
-  const remoteState = resolveRemoteCreateAvailability(computerId, computers.computers);
   const pendingOp = pendingCreateOperation(flow.operation);
 
-  const projectSourceComputerId = sessionProjectComputer({
+  const {
     computerId,
-    lastConcreteComputerId,
-    hasLocalProject: Boolean(activeWorkspace || projectWorkspaceId),
     computers,
+    isAuto,
+    localExecutionBlocked,
+    onComputerChange,
+    projectSourceComputerId,
+    remoteState,
+  } = useSessionCreateComputerTarget({
+    hasLocalProject: Boolean(activeWorkspace || projectWorkspaceId),
+    open: flow.open,
+    requested: draft.computerId,
+    store,
   });
 
   // Each opening starts from the prefill; under All projects (or a remote computer) the picked
@@ -224,18 +202,12 @@ export function useSessionCreateDialogViewModel(
     computerId: projectSourceComputerId,
     open: flow.open,
   });
-  const destinationInput =
-    target.projectAxis || target.namedProject
-      ? {
-          activeWorkspace: target.workspace,
-          projectWorkspaceId: target.workspace?.id ?? null,
-          dataScope: target.scope,
-          userHomeDir,
-        }
-      : { activeWorkspace, projectWorkspaceId, dataScope, userHomeDir };
-  const destination = resolveSessionCreateDestination(destinationInput);
-  // A named project the catalog has not confirmed blocks creation instead of falling back.
-  const binding = target.namedProjectUnresolved ? null : destination.binding;
+  const { destination, binding } = resolveDialogDestination(target, {
+    activeWorkspace,
+    projectWorkspaceId,
+    dataScope,
+    userHomeDir,
+  });
 
   const placement = useSessionCreatePlacement({
     isAuto,
@@ -244,9 +216,6 @@ export function useSessionCreateDialogViewModel(
     projectComputerId: projectSourceComputerId,
     destination,
   });
-  const localExecutionBlocked =
-    computerId === LOCAL_COMPUTER_ID && !computers.localView.localRunAgents;
-
   const agentList = useSessionCreateAgents({
     computerId: placement.agentsComputerId,
     workspaceId: placement.agentsWorkspaceId,
@@ -255,6 +224,7 @@ export function useSessionCreateDialogViewModel(
     open: flow.open,
     agents,
   });
+  const showEnvironment = destination.scope === "project" && !isAuto;
   const environment = useSessionEnvironment({
     workspaceId: destination.environmentWorkspaceId,
     target: draft.environment,
@@ -264,12 +234,7 @@ export function useSessionCreateDialogViewModel(
       );
       store.trigger.environmentSelected({ environment: next });
     },
-    enabled:
-      flow.open &&
-      !remoteState.isRemote &&
-      !isAuto &&
-      destination.scope === "project" &&
-      binding !== null,
+    enabled: flow.open && !remoteState.isRemote && showEnvironment && binding !== null,
   });
 
   const submit = useSessionCreateSubmit({
@@ -291,16 +256,6 @@ export function useSessionCreateDialogViewModel(
     store,
   });
 
-  const handleComputerChange = useCallback(
-    (next: RunOnTarget) => {
-      if (next !== "auto") {
-        setLastConcreteComputerId(normalizeComputerId(next));
-      }
-      store.trigger.computerSelected({ computerId: next });
-    },
-    [store]
-  );
-
   const computerActions = useSessionCreateComputerActions(store, actions.onOpenChange);
 
   return {
@@ -321,7 +276,7 @@ export function useSessionCreateDialogViewModel(
     pendingAgentName: pendingOp.pendingAgentName,
     pendingWorkspaceId: pendingOp.pendingWorkspaceId,
     userHomeDir,
-    environment: destination.scope === "project" && !isAuto ? environment.field : undefined,
+    environment: showEnvironment ? environment.field : undefined,
     environmentListingState: isAuto ? "unsupported" : environment.listingState,
     environmentListingError: environment.listingError,
     isAwaitingEnvironment: pendingSubmit !== null,
@@ -339,7 +294,7 @@ export function useSessionCreateDialogViewModel(
     offlineComputer: remoteState.offlineComputer,
     offlineComputerName: remoteState.offlineComputer?.name ?? null,
     localExecutionBlocked,
-    onComputerChange: handleComputerChange,
+    onComputerChange,
     destinationAxes: buildDestinationAxes(target, store),
     ...actions,
     ...computerActions,

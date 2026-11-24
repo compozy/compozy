@@ -18,31 +18,32 @@ const NOOP_QUERY_CLIENT = new QueryClient({
 
 const EMPTY_COMPUTERS: ComputerPayload[] = [];
 
+function canReadComputerRegistry(queryClient: QueryClient | undefined, enabled: boolean) {
+  if (!enabled || !queryClient || isHostedBrowserMode()) return false;
+  const cachedAccount = queryClient.getQueryData<AccountStatusPayload>(accountKeys.status());
+  return cachedAccount === undefined || cachedAccount.signed_in;
+}
+
 /**
  * Reads `/api/computers` and stays synchronized with `/api/computers/stream` (`computer.changed`).
  *
  * When `passive` is true, observes the cache populated by the shell-level stream without
  * triggering a standalone HTTP request on mount (avoids redundant fetches in list/palette views).
  */
-export function useComputers(
-  options: {
-    enabled?: boolean;
-    stream?: boolean;
-    passive?: boolean;
-    withHostResources?: boolean;
-  } = {}
-) {
+export function useComputers({
+  enabled: requested = true,
+  stream = false,
+  passive = false,
+  withHostResources = false,
+}: {
+  enabled?: boolean;
+  stream?: boolean;
+  passive?: boolean;
+  withHostResources?: boolean;
+} = {}) {
   const contextClient = useContext(QueryClientContext);
   const queryClient = contextClient ?? NOOP_QUERY_CLIENT;
-  const cachedAccount = contextClient?.getQueryData<AccountStatusPayload>(accountKeys.status());
-  const signedOutInCache = cachedAccount !== undefined && !cachedAccount.signed_in;
-  const enabled =
-    (options.enabled ?? true) &&
-    !isHostedBrowserMode() &&
-    contextClient !== undefined &&
-    !signedOutInCache;
-  const passive = options.passive ?? false;
-  const stream = options.stream ?? false;
+  const enabled = canReadComputerRegistry(contextClient, requested);
   const query = useQuery(computersListOptions(enabled && !passive), queryClient);
 
   useComputersStream(contextClient, enabled && stream);
@@ -55,7 +56,7 @@ export function useComputers(
   const local = query.data?.local;
   const loadBalancingEnabled = Boolean(local?.load_balancing);
   const shouldPollResources =
-    Boolean(options.withHostResources) && enabled && (computers.length > 0 || loadBalancingEnabled);
+    withHostResources && enabled && (computers.length > 0 || loadBalancingEnabled);
   const hostResources = useComputersHostResources(computers, {
     enabled: shouldPollResources,
     includeLocal: local?.run_agents ?? true,

@@ -127,8 +127,6 @@ export function UpgradeSheet(props: UpgradeSheetProps) {
   const done = phase === "done";
   const timedOut = phase === "waiting_timeout";
   const waiting = phase === "waiting" || timedOut;
-  const checkingStatus = timedOut && isCheckingStatus;
-  const reopenCheckout = () => onReopenCheckout?.();
 
   return (
     <Dialog
@@ -144,17 +142,7 @@ export function UpgradeSheet(props: UpgradeSheetProps) {
         showCloseButton={false}
         unframed
       >
-        <EntityDialogHeader
-          description={
-            done
-              ? "Your Pro plan is active across your account."
-              : "Everything on this computer stays free. Pro adds remote scale and anywhere access."
-          }
-          icon={done ? CheckCircle2 : Sparkles}
-          onClose={onClose}
-          title={done ? "You're on Pro" : "Upgrade to Compozy Pro"}
-          tone={done ? "neutral" : "brand"}
-        />
+        <UpgradeSheetHeader done={done} onClose={onClose} />
 
         <EntityDialogBody className="flex flex-col gap-5">
           {phase === "select" ? (
@@ -191,15 +179,12 @@ export function UpgradeSheet(props: UpgradeSheetProps) {
         ) : null}
 
         {waiting ? (
-          <EntityDialogFooter
-            cancelLabel="Cancel"
-            hint="Closing this window will not cancel a completed payment."
-            isSaving={checkingStatus}
+          <UpgradeCheckoutFooter
+            isCheckingStatus={isCheckingStatus}
             onCancel={handleCancelWaiting}
-            onPrimary={timedOut ? handleCheckAgain : reopenCheckout}
-            primaryDisabled={checkingStatus}
-            primaryIcon={timedOut ? RefreshCw : ExternalLink}
-            primaryLabel={timedOut ? "Check again" : "Reopen checkout"}
+            onCheckAgain={handleCheckAgain}
+            onReopenCheckout={onReopenCheckout}
+            timedOut={timedOut}
           />
         ) : null}
 
@@ -212,6 +197,50 @@ export function UpgradeSheet(props: UpgradeSheetProps) {
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function UpgradeSheetHeader({ done, onClose }: { done: boolean; onClose: () => void }) {
+  return (
+    <EntityDialogHeader
+      description={
+        done
+          ? "Your Pro plan is active across your account."
+          : "Everything on this computer stays free. Pro adds remote scale and anywhere access."
+      }
+      icon={done ? CheckCircle2 : Sparkles}
+      onClose={onClose}
+      title={done ? "You're on Pro" : "Upgrade to Compozy Pro"}
+      tone={done ? "neutral" : "brand"}
+    />
+  );
+}
+
+function UpgradeCheckoutFooter({
+  isCheckingStatus,
+  onCancel,
+  onCheckAgain,
+  onReopenCheckout,
+  timedOut,
+}: {
+  isCheckingStatus: boolean;
+  onCancel: () => void;
+  onCheckAgain: () => void;
+  onReopenCheckout?: () => void;
+  timedOut: boolean;
+}) {
+  const checkingStatus = timedOut && isCheckingStatus;
+  return (
+    <EntityDialogFooter
+      cancelLabel="Cancel"
+      hint="Closing this window will not cancel a completed payment."
+      isSaving={checkingStatus}
+      onCancel={onCancel}
+      onPrimary={timedOut ? onCheckAgain : () => onReopenCheckout?.()}
+      primaryDisabled={checkingStatus}
+      primaryIcon={timedOut ? RefreshCw : ExternalLink}
+      primaryLabel={timedOut ? "Check again" : "Reopen checkout"}
+    />
   );
 }
 
