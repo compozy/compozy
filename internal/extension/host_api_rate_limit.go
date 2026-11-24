@@ -92,6 +92,7 @@ func hostAPIJobUpdateTouchesImmutableConfigFields(req apicontract.UpdateJobReque
 		req.Schedule != nil ||
 		req.Task != nil ||
 		req.LoopTarget != nil ||
+		req.LoopInputCommand != nil ||
 		req.Retry != nil ||
 		req.FireLimit != nil
 }

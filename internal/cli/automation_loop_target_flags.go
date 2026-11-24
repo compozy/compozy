@@ -15,6 +15,7 @@ const (
 	automationLoopWorkspaceFlag    = "loop-workspace"
 	automationLoopInputFlag        = "loop-input"
 	automationLoopInputMappingFlag = "loop-input-mapping"
+	automationLoopInputCommandFlag = "loop-input-command"
 )
 
 type automationCreateTargetInput struct {
@@ -25,6 +26,7 @@ type automationCreateTargetInput struct {
 	LoopWorkspaceRef      string
 	LoopInputFlags        []string
 	LoopInputMappingFlags []string
+	LoopInputCommand      string
 }
 
 type automationCreateTarget struct {
@@ -69,6 +71,12 @@ func bindAutomationCreateTargetFlags(
 		automationLoopInputFlag,
 		nil,
 		"Static Loop input as key=value; repeat for multiple inputs",
+	)
+	cmd.Flags().StringVar(
+		&input.LoopInputCommand,
+		automationLoopInputCommandFlag,
+		"",
+		"Resolve Loop inputs at each fire by running a shell command in the workspace",
 	)
 	if allowInputMapping {
 		cmd.Flags().StringVar(
@@ -204,6 +212,10 @@ func buildAutomationLoopTarget(
 	if err != nil {
 		return automationCreateTarget{}, err
 	}
+	inputCommand, err := parseAutomationLoopInputCommand(input.LoopInputCommand)
+	if err != nil {
+		return automationCreateTarget{}, err
+	}
 	inputMapping, err := parseAutomationLoopInputMappings(input.LoopInputMappingFlags)
 	if err != nil {
 		return automationCreateTarget{}, err
@@ -215,6 +227,7 @@ func buildAutomationLoopTarget(
 			LoopName:     loopName,
 			Inputs:       inputs,
 			InputMapping: inputMapping,
+			InputCommand: inputCommand,
 		},
 	}, nil
 }
@@ -222,7 +235,19 @@ func buildAutomationLoopTarget(
 func automationLoopTargetOptionsPresent(input automationCreateTargetInput) bool {
 	return strings.TrimSpace(input.LoopWorkspaceRef) != "" ||
 		len(input.LoopInputFlags) > 0 ||
-		len(input.LoopInputMappingFlags) > 0
+		len(input.LoopInputMappingFlags) > 0 ||
+		strings.TrimSpace(input.LoopInputCommand) != ""
+}
+
+func parseAutomationLoopInputCommand(raw string) (string, error) {
+	if raw == "" {
+		return "", nil
+	}
+	command := strings.TrimSpace(raw)
+	if command == "" {
+		return "", errors.New("cli: --loop-input-command must not be blank")
+	}
+	return command, nil
 }
 
 func resolveAutomationLoopWorkspace(

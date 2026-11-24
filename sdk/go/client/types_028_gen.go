@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// TaskRunSessionPayload is a daemon API value.
+type TaskRunSessionPayload struct {
+	SessionID   string    `json:"session_id"`
+	WorkspaceID string    `json:"workspace_id,omitempty"`
+	AgentName   string    `json:"agent_name,omitempty"`
+	Name        string    `json:"name,omitempty"`
+	State       string    `json:"state,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// TaskRunStatus is a daemon API value.
+type TaskRunStatus string
+
 // TaskRunSummaryPayload is a daemon API value.
 type TaskRunSummaryPayload struct {
 	ID                   string                 `json:"id"`
@@ -431,12 +445,4 @@ type TerminalRecordingRequest struct {
 // TerminalRecordingResponse is a daemon API value.
 type TerminalRecordingResponse struct {
 	Recording TerminalRecordingPayload `json:"recording"`
-}
-
-// TerminalRecordingState is a daemon API value.
-type TerminalRecordingState string
-
-// TerminalRejectInputRequest is a daemon API value.
-type TerminalRejectInputRequest struct {
-	Reason string `json:"reason"`
 }

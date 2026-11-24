@@ -296,6 +296,7 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 			parseTerminalAPIError,
 			parseSessionDeriveAPIError,
 			parseProviderModelRefreshAPIError,
+			parseLoopInputValidationAPIError,
 			parseDaemonAPIError,
 			parseToolAPIError,
 		} {

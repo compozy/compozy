@@ -9,6 +9,66 @@ import (
 	"strings"
 )
 
+// GetSessionCommands List commands available to a session
+func (c *Client) GetSessionCommands(ctx context.Context, params GetSessionCommandsParams) (*SessionCommandsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/commands"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionCommandsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionGoalParams carries the path, query, and header parameters.
+type GetSessionGoalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetSessionGoal Get the newest visible session Goal
+func (c *Client) GetSessionGoal(ctx context.Context, params GetSessionGoalParams) (*SessionGoalResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/goal"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionGoalResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionHealthParams carries the path, query, and header parameters.
+type GetSessionHealthParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetSessionHealth Read metadata-only session health and wake eligibility
 func (c *Client) GetSessionHealth(ctx context.Context, params GetSessionHealthParams) (*SessionHealthResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/health"
@@ -375,69 +435,4 @@ type GetSessionUsageTurnsParams struct {
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionUsageTurns Get per-turn session usage and native compaction markers
-func (c *Client) GetSessionUsageTurns(ctx context.Context, params GetSessionUsageTurnsParams) (*SessionUsageTurnsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionUsageTurnsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsAttentionParams carries the path, query, and header parameters.
-type GetSettingsAttentionParams struct {
-	Scope   *string `url:"scope"`
-	Profile *string `url:"profile"`
-}
-
-// GetSettingsAttention Read the operator attention settings section
-func (c *Client) GetSettingsAttention(ctx context.Context, params GetSettingsAttentionParams) (*SettingsAttentionResponse, error) {
-	path := "/api/settings/attention"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsAttentionResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsAutomation Read the automation settings section
-func (c *Client) GetSettingsAutomation(ctx context.Context) (*SettingsAutomationResponse, error) {
-	path := "/api/settings/automation"
-	var out SettingsAutomationResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsCmdPaletteParams carries the path, query, and header parameters.
-type GetSettingsCmdPaletteParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

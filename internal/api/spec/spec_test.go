@@ -3486,6 +3486,8 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addCheckInToolSchemaFields(baseline)
 		addSessionCatalogExcludeRootParameter(baseline, current)
 		addSessionCatalogFolderParameter(t, baseline)
+		// #1926: the session list page counts its running sessions beside its total.
+		addSessionCatalogPageWorkingSchema(t, baseline)
 		addDaemonReadinessSchema(t, baseline, current)
 		addSubagentRemovedStreamEvent(t, baseline, current)
 		// #1644: session payloads name the parent a continued child is listed under.
@@ -3495,6 +3497,22 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		// Loop run outcomes explain a terminal decision with optional reason_code, node_id, and message.
 		if addLoopRunOutcomeDiagnosticSchemas(baseline) == 0 {
 			t.Fatal("approved Loop run outcome diagnostics: no historical outcome schemas found")
+		}
+		// Authored gate terminal status arrives as the constrained on_result route map.
+		if addLoopOnResultSchemas(baseline) == 0 {
+			t.Fatal("approved Loop on_result grammar: no historical gate or contract schemas found")
+		}
+		// Loop run reads add the optional settled terminal cause.
+		if addLoopRunTerminalSchemas(baseline, current) == 0 {
+			t.Fatal("approved Loop terminal read projection: no historical run payload schemas found")
+		}
+		// #1943: automation Loop targets carry the optional fire-time input command.
+		if addAutomationLoopInputCommandSchema(baseline) == 0 {
+			t.Fatal("approved automation Loop input command: no historical Loop target schemas found")
+		}
+		// #1943: the job update request can patch only the fire-time command.
+		if addAutomationJobUpdateLoopInputCommandSchema(baseline) == 0 {
+			t.Fatal("approved automation job update command: no historical update request schemas found")
 		}
 		// #1845: install requests, previews, responses and operation errors gain the experimental dependency fields.
 		if added := addExtensionDependencyFields(baseline, newComponents); added < 5 {
@@ -6352,6 +6370,28 @@ func addSessionCatalogFolderParameter(t *testing.T, baseline map[string]any) {
 	}
 }
 
+// The two list operations' page gained one optional nullable integer, working, beside total.
+// Keep the historical baseline and the full comparison for every other page property.
+func addSessionCatalogPageWorkingSchema(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	for _, path := range []string{"/api/sessions", "/api/workspaces/{workspace_id}/sessions"} {
+		node := paths[path].(map[string]any)["get"].(map[string]any)
+		for _, key := range []string{"responses", "200", "content", "application/json", "schema", "properties", "page"} {
+			next, ok := node[key].(map[string]any)
+			if !ok {
+				t.Fatalf("%s: historical list response has no %s", path, key)
+			}
+			node = next
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s: historical list page has no properties", path)
+		}
+		properties["working"] = map[string]any{"type": "integer", "nullable": true}
+	}
+}
+
 func addCheckInToolSchemaFields(value any) {
 	switch node := value.(type) {
 	case []any:
@@ -7528,6 +7568,64 @@ func addSideChatLineageKind(value any) int {
 			kind["enum"] = append(legacy, "side")
 			count++
 		}
+	}
+	return count
+}
+
+// addAutomationLoopInputCommandSchema adds the optional input_command to every historical
+// automation Loop target schema (the objects carrying inputs/input_mapping). The field stays
+// optional, so stored jobs and triggers keep decoding unchanged.
+func addAutomationLoopInputCommandSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAutomationLoopInputCommandSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAutomationLoopInputCommandSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["inputs"] == nil || properties["input_mapping"] == nil ||
+			properties["loop_name"] == nil {
+			return count
+		}
+		if _, exists := properties["input_command"]; exists {
+			return count
+		}
+		properties["input_command"] = map[string]any{"type": "string"}
+		count++
+	}
+	return count
+}
+
+// addAutomationJobUpdateLoopInputCommandSchema adds the optional command-only update field to every
+// historical automation job update request (the payload carrying prompt/schedule/task plus a
+// loop_target, but none of the create-time scope fields).
+func addAutomationJobUpdateLoopInputCommandSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAutomationJobUpdateLoopInputCommandSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAutomationJobUpdateLoopInputCommandSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["loop_target"] == nil || properties["prompt"] == nil ||
+			properties["schedule"] == nil || properties["task"] == nil ||
+			properties["enabled"] == nil || properties["fire_limit"] == nil ||
+			properties["scope"] != nil || properties["target_kind"] != nil {
+			return count
+		}
+		if _, exists := properties["loop_input_command"]; exists {
+			return count
+		}
+		properties["loop_input_command"] = map[string]any{"nullable": true, "type": "string"}
+		count++
 	}
 	return count
 }

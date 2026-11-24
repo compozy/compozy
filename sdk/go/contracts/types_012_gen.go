@@ -293,6 +293,7 @@ type LoopTarget struct {
 	LoopName     string            `json:"loop_name"`
 	Inputs       map[string]any    `json:"inputs,omitempty"`
 	InputMapping map[string]string `json:"input_mapping,omitempty"`
+	InputCommand string            `json:"input_command,omitempty"`
 }
 
 type LoopTerminalPayload struct {

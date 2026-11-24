@@ -489,6 +489,135 @@ func TestLinterShouldValidateExclusiveRoutes(t *testing.T) {
 	}
 }
 
+func TestLinterShouldValidateAuthoredTerminalStatus(t *testing.T) {
+	t.Parallel()
+
+	gateNodeDefinition := func(onResult map[string]any, terminalStates ...dsl.TerminalState) dsl.Definition {
+		definition := routeDefinitionForTest()
+		node := requireNode(t, &definition, "router")
+		node.Kind = string(dsl.ControlGate)
+		node.Routes = nil
+		node.Default = ""
+		node.Criteria = []dsl.GateCriterion{{ID: "verify", Type: dsl.CriterionCommand, Check: "true"}}
+		node.OnResult = onResult
+		if terminalStates != nil {
+			definition.Contract.TerminalStates = terminalStates
+		}
+		return definition
+	}
+
+	t.Run("Should accept an authored halt status", func(t *testing.T) {
+		t.Parallel()
+
+		definition := gateNodeDefinition(map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "failed"},
+		})
+		requireLintCodes(t, loop.NewLinter().Lint(definition))
+	})
+
+	t.Run("Should reject an unknown terminal status", func(t *testing.T) {
+		t.Parallel()
+
+		definition := gateNodeDefinition(map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "exploded"},
+		})
+		errs := loop.NewLinter().Lint(definition)
+		requireLintCodes(t, errs, loop.CodeRouteMappingInvalid)
+		requireLintMessageContains(t, errs, loop.CodeRouteMappingInvalid, "closed enum")
+	})
+
+	t.Run("Should reject a status outside contract terminal states", func(t *testing.T) {
+		t.Parallel()
+
+		definition := gateNodeDefinition(map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "blocked"},
+		}, dsl.TerminalDone, dsl.TerminalFailed)
+		errs := loop.NewLinter().Lint(definition)
+		requireLintCodes(t, errs, loop.CodeRouteMappingInvalid)
+		requireLintMessageContains(t, errs, loop.CodeRouteMappingInvalid, "contract.terminal_states")
+	})
+
+	t.Run("Should reject mixing route and action fields", func(t *testing.T) {
+		t.Parallel()
+
+		definition := gateNodeDefinition(map[string]any{
+			"fail": map[string]any{"route": "quick", "action": "halt"},
+		})
+		errs := loop.NewLinter().Lint(definition)
+		requireLintCodes(t, errs, loop.CodeRouteMappingInvalid)
+		requireLintMessageContains(t, errs, loop.CodeRouteMappingInvalid, "exactly one route field")
+	})
+
+	t.Run("Should reject terminal status without halt", func(t *testing.T) {
+		t.Parallel()
+
+		definition := gateNodeDefinition(map[string]any{
+			"fail": map[string]any{"action": "revise", "terminal_status": "failed"},
+		})
+		errs := loop.NewLinter().Lint(definition)
+		requireLintCodes(t, errs, loop.CodeRouteMappingInvalid)
+		requireLintMessageContains(t, errs, loop.CodeRouteMappingInvalid, "requires action halt")
+	})
+
+	t.Run("Should accept contract on_result", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Contract.Verification = []dsl.GateCriterion{{
+			ID: "check", Type: dsl.CriterionCommand, Check: "true",
+		}}
+		definition.Contract.OnResult = map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "failed"},
+		}
+		requireLintCodes(t, loop.NewLinter().Lint(definition))
+	})
+
+	t.Run("Should reject contract on_result without verification", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Contract.OnResult = map[string]any{
+			"fail": map[string]any{"action": "halt", "terminal_status": "failed"},
+		}
+		errs := loop.NewLinter().Lint(definition)
+		requireLintCodes(t, errs, loop.CodeRouteMappingInvalid)
+		requireLintMessageContains(
+			t,
+			errs,
+			loop.CodeRouteMappingInvalid,
+			"requires at least one verification criterion",
+		)
+	})
+
+	t.Run("Should reject a contract on_result route target", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Contract.Verification = []dsl.GateCriterion{{
+			ID: "check", Type: dsl.CriterionCommand, Check: "true",
+		}}
+		definition.Contract.OnResult = map[string]any{
+			"fail": map[string]any{"route": "quick"},
+		}
+		errs := loop.NewLinter().Lint(definition)
+		requireLintCodes(t, errs, loop.CodeRouteMappingInvalid)
+		requireLintMessageContains(t, errs, loop.CodeRouteMappingInvalid, "not supported on the contract gate")
+	})
+
+	t.Run("Should reject an unknown contract on_result outcome", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Contract.Verification = []dsl.GateCriterion{{
+			ID: "check", Type: dsl.CriterionCommand, Check: "true",
+		}}
+		definition.Contract.OnResult = map[string]any{"exploded": "halt"}
+		errs := loop.NewLinter().Lint(definition)
+		requireLintCodes(t, errs, loop.CodeRouteMappingInvalid)
+		requireLintMessageContains(t, errs, loop.CodeRouteMappingInvalid, "not supported")
+	})
+}
+
 func TestMetricShouldParseAndLintGateCriteria(t *testing.T) {
 	t.Parallel()
 

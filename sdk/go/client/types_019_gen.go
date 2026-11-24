@@ -7,6 +7,58 @@ import (
 	"time"
 )
 
+// SessionChangesResponse is a daemon API value.
+type SessionChangesResponse struct {
+	Scope       string                     `json:"scope"`
+	Root        FileRootPayload            `json:"root"`
+	Head        ChangeHeadPayload          `json:"head"`
+	Base        ChangeBasePayload          `json:"base"`
+	PullRequest *SessionPullRequestPayload `json:"pull_request,omitempty"`
+	Totals      ChangeTotalsPayload        `json:"totals"`
+	Files       []FileChangePayload        `json:"files"`
+	Truncated   bool                       `json:"truncated"`
+	Revision    string                     `json:"revision"`
+}
+
+// SessionChildrenPayload is a daemon API value.
+type SessionChildrenPayload struct {
+	Total    int `json:"total"`
+	NeedsYou int `json:"needs_you"`
+	Working  int `json:"working"`
+	Waiting  int `json:"waiting"`
+	InReview int `json:"in_review"`
+	Done     int `json:"done"`
+}
+
+// SessionCommandPayload is a daemon API value.
+type SessionCommandPayload struct {
+	ID                string               `json:"id"`
+	CanonicalToken    string               `json:"canonical_token"`
+	DisplayName       string               `json:"display_name"`
+	Description       string               `json:"description"`
+	Lane              string               `json:"lane"`
+	Source            SessionCommandSource `json:"source"`
+	Placements        []string             `json:"placements"`
+	InputHint         string               `json:"input_hint,omitempty"`
+	Available         bool                 `json:"available"`
+	UnavailableReason string               `json:"unavailable_reason,omitempty"`
+}
+
+// SessionCommandSource is a daemon API value.
+type SessionCommandSource struct {
+	Kind   string `json:"kind"`
+	ID     string `json:"id,omitempty"`
+	Key    string `json:"key,omitempty"`
+	Scope  string `json:"scope"`
+	Origin string `json:"origin,omitempty"`
+}
+
+// SessionCommandsChangedPayload is a daemon API value.
+type SessionCommandsChangedPayload struct {
+	SessionID string `json:"session_id"`
+	Revision  string `json:"revision"`
+}
+
 // SessionCommandsResponse is a daemon API value.
 type SessionCommandsResponse struct {
 	Commands []SessionCommandPayload `json:"commands"`
@@ -390,49 +442,4 @@ type SessionHistoryCleanupChoices struct {
 	Everything int `json:"everything"`
 	Children   int `json:"children"`
 	Subagents  int `json:"subagents"`
-}
-
-// SessionHistoryCleanupCounts is a daemon API value.
-type SessionHistoryCleanupCounts struct {
-	Sessions  int `json:"sessions"`
-	Children  int `json:"children"`
-	Subagents int `json:"subagents"`
-	Total     int `json:"total"`
-}
-
-// SessionHistoryCleanupFailure is a daemon API value.
-type SessionHistoryCleanupFailure struct {
-	SessionID   string `json:"session_id"`
-	WorkspaceID string `json:"workspace_id"`
-	Title       string `json:"title"`
-	Code        string `json:"code"`
-	Message     string `json:"message"`
-}
-
-// SessionHistoryCleanupPlan is a daemon API value.
-type SessionHistoryCleanupPlan struct {
-	ArchivedBefore *time.Time                       `json:"archived_before,omitempty"`
-	CountedAt      time.Time                        `json:"counted_at"`
-	Counts         SessionHistoryCleanupCounts      `json:"counts"`
-	KeptLive       int                              `json:"kept_live"`
-	Choices        SessionHistoryCleanupChoices     `json:"choices"`
-	Workspaces     []SessionHistoryCleanupWorkspace `json:"workspaces"`
-	Threads        int                              `json:"threads"`
-}
-
-// SessionHistoryCleanupPreviewResponse is a daemon API value.
-type SessionHistoryCleanupPreviewResponse struct {
-	Plan SessionHistoryCleanupPlan `json:"plan"`
-}
-
-// SessionHistoryCleanupRequest is a daemon API value.
-type SessionHistoryCleanupRequest struct {
-	WorkspaceID    string                         `json:"workspace_id,omitempty"`
-	AllWorkspaces  bool                           `json:"all_workspaces,omitempty"`
-	Delete         SessionHistoryCleanupSelection `json:"delete"`
-	OlderThanDays  *int                           `json:"older_than_days,omitempty"`
-	ArchivedBefore *time.Time                     `json:"archived_before,omitempty"`
-	SessionIDs     []string                       `json:"session_ids,omitempty"`
-	CountedAt      *time.Time                     `json:"counted_at,omitempty"`
-	DryRun         bool                           `json:"dry_run,omitempty"`
 }

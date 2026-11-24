@@ -2899,7 +2899,7 @@ min_version = "0.4.0"
 [[requires.extensions]]
 name = "acme-local"
 source = "local_path"
-ref = "/opt/acme-local"
+ref = "deps/acme-local"
 `
 
 	t.Run("Should load a valid dependency declaration", func(t *testing.T) {
@@ -2910,7 +2910,7 @@ ref = "/opt/acme-local"
 		}
 		want := []ExtensionDependency{
 			{Name: "acme-core", Source: "curated", Ref: "acme/core", MinVersion: "0.4.0"},
-			{Name: "acme-local", Source: "local_path", Ref: "/opt/acme-local"},
+			{Name: "acme-local", Source: "local_path", Ref: "deps/acme-local"},
 		}
 		if !reflect.DeepEqual(manifest.Requires.Extensions, want) {
 			t.Fatalf("Requires.Extensions = %#v, want %#v", manifest.Requires.Extensions, want)
@@ -2951,6 +2951,10 @@ ref = "/opt/acme-local"
 		{"an unknown source", dependenciesFloor, entry("acme-core", "ftp", "acme/core", ""),
 			"requires.extensions[0].source"},
 		{"a missing ref", dependenciesFloor, entry("acme-core", "curated", "", ""), "requires.extensions[0].ref"},
+		{"an absolute local ref", dependenciesFloor, entry("acme-core", "local_path", t.TempDir(), ""),
+			"requires.extensions[0].ref"},
+		{"a local ref that escapes its source root", dependenciesFloor,
+			entry("acme-core", "local_path", "../acme-core", ""), "requires.extensions[0].ref"},
 		{"an invalid min_version", dependenciesFloor, entry("acme-core", "curated", "acme/core", "latest"),
 			"requires.extensions[0].min_version"},
 		{"dependencies below the dependencies floor", "0.7.8", entry("acme-core", "curated", "acme/core", ""),

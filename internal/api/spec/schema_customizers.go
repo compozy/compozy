@@ -55,6 +55,7 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 		schema.MaxLength = &maxLength
 	},
 	reflect.TypeFor[dsl.Graph]():        customizeLoopGraphSchema,
+	reflect.TypeFor[dsl.Contract]():     customizeLoopContractSchema,
 	reflect.TypeFor[dsl.StopWhenSpec](): customizeStopWhenSpecSchema,
 	reflect.TypeFor[dsl.EffectSpec](): func(schema *openapi3.Schema) {
 		*schema = *loopEffectSchema()
@@ -69,6 +70,8 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 		*schema = *loopEffectSchema()
 	},
 	reflect.TypeFor[contract.LoopRunEventPayload]():                  customizeLoopRunEventPayloadSchema,
+	reflect.TypeFor[contract.LoopRunTerminal]():                      customizeLoopRunTerminalSchema,
+	reflect.TypeFor[contract.LoopContract]():                         customizeLoopContractSchema,
 	reflect.TypeFor[contract.LoopGenerationStartedRunEventPayload](): customizeLoopGenerationStartedRunEventPayloadSchema,
 	reflect.TypeFor[contract.LoopGateVerdictRunEventPayload]():       customizeLoopGateVerdictRunEventPayloadSchema,
 	reflect.TypeFor[contract.WindowManagerRevision](): func(schema *openapi3.Schema) {

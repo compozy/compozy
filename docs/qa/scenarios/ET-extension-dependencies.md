@@ -26,7 +26,8 @@ Fixture: local packages with `min_compozy_version` at the dependencies floor:
 - `acme-core` 0.5.1, no dependencies;
 - `acme-base` 1.0.0, no dependencies, with a `[gateway]` permission so it needs a gateway digest;
 - `acme-tool` 1.2.0 requiring `acme-core` (`min_version = "0.4.0"`) and `acme-base`, both
-  `source = "local_path"`.
+  `source = "local_path"`. Put their directories inside the `acme-tool` source root and use
+  relative refs `deps/acme-core` and `deps/acme-base`.
 
 Steps:
 
@@ -90,6 +91,11 @@ Steps:
 13. With a disabled unverified dependency installed, the preview lists it with its
     `installed_version`, `registry_tier: "unverified"` and, if its gateway confirmation no longer
     covers it, its gateway digest; the CLI calls it `unverified` and the Web shows `Not verified`.
+14. Preview and install a local dependent with an in-tree relative ref, then repeat with an
+    absolute ref, a ref escaping through `..`, and a symlink to a directory outside the source
+    root. Only the in-tree ref succeeds. Publish the valid local manifest to a test source and
+    preview it as a remote package. Both preview and install refuse its `local_path` dependency
+    with a validation error before installing any package.
 
 Pass: no dependency is installed, enabled or updated without consent for that exact artifact;
 removal never cascades; the dependent's runtime state never changes because of the guard.

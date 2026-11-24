@@ -4,6 +4,11 @@ package client
 
 import "time"
 
+// WorktreeCleanupResponse is a daemon API value.
+type WorktreeCleanupResponse struct {
+	Branch *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
+}
+
 // WorktreeExitAction is a daemon API value.
 type WorktreeExitAction string
 

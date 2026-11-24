@@ -44,7 +44,11 @@ func newDependencyFixture(t *testing.T) *dependencyFixture {
 		Profiles: deps.ProfileManager, Logger: discardLogger(),
 	}, withDaemonExtensionMarketplace(validNativeExtensionConfig(true), deps.ExtensionSources),
 		withDaemonExtensionAutomation(&fakeAutomationManager{})).(*daemonExtensionService)
-	return &dependencyFixture{service: service, registry: registry, deps: deps, dirs: make(map[string]string)}
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &dependencyFixture{service: service, registry: registry, deps: deps, dirs: map[string]string{"root": root}}
 }
 
 // dir reserves one package directory per name so manifests can reference each other before they are written.
@@ -53,25 +57,38 @@ func (f *dependencyFixture) dir(t *testing.T, name string) string {
 	if dir, ok := f.dirs[name]; ok {
 		return dir
 	}
-	f.dirs[name] = t.TempDir()
-	return f.dirs[name]
+	return f.childDir(t, "root", name)
+}
+
+func (f *dependencyFixture) childDir(t *testing.T, parent, name string) string {
+	t.Helper()
+	path := filepath.Join(f.dir(t, parent), name)
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	f.dirs[name] = path
+	return path
 }
 
 // write stores name@version requiring each "dep" or "dep>=min" entry as a local_path dependency.
 func (f *dependencyFixture) write(t *testing.T, name, version string, requires ...string) string {
 	t.Helper()
+	dir := f.dir(t, name)
 	var builder strings.Builder
 	fmt.Fprintf(&builder, "name = %q\nversion = %q\nmin_compozy_version = %q\n", name, version,
 		dependencyFixtureMinVersion)
 	for _, entry := range requires {
 		dependency, minVersion, _ := strings.Cut(entry, ">=")
+		ref, err := filepath.Rel(dir, f.dir(t, dependency))
+		if err != nil {
+			t.Fatal(err)
+		}
 		fmt.Fprintf(&builder, "\n[[requires.extensions]]\nname = %q\nsource = \"local_path\"\nref = %q\n",
-			dependency, f.dir(t, dependency))
+			dependency, filepath.ToSlash(ref))
 		if minVersion != "" {
 			fmt.Fprintf(&builder, "min_version = %q\n", minVersion)
 		}
 	}
-	dir := f.dir(t, name)
 	if err := os.WriteFile(filepath.Join(dir, "extension.toml"), []byte(builder.String()), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +107,7 @@ func (f *dependencyFixture) resolve(t *testing.T, root *extensionpkg.Manifest, t
 	[]contract.ExtensionDependencyPayload, error,
 ) {
 	t.Helper()
-	graph, err := f.service.resolveDependencies(t.Context(), root, "", target, nil, dependencyOperator(t))
+	graph, err := f.service.resolveDependencies(t.Context(), root, f.dir(t, "root"), target, nil, dependencyOperator(t))
 	if err != nil {
 		return nil, err
 	}
@@ -135,13 +152,11 @@ func dependencyRoot(requires ...extensionpkg.ExtensionDependency) *extensionpkg.
 	return &extensionpkg.Manifest{Name: "root", Requires: extensionpkg.ManifestRequires{Extensions: requires}}
 }
 
-func (f *dependencyFixture) localDependency(t *testing.T, name, minVersion string) extensionpkg.ExtensionDependency {
-	t.Helper()
+func localDependency(name string) extensionpkg.ExtensionDependency {
 	return extensionpkg.ExtensionDependency{
-		Name:       name,
-		Source:     string(contract.InstallExtensionSourceLocalPath),
-		Ref:        f.dir(t, name),
-		MinVersion: minVersion,
+		Name:   name,
+		Source: string(contract.InstallExtensionSourceLocalPath),
+		Ref:    name,
 	}
 }
 
@@ -238,11 +253,11 @@ func TestExtensionDependencyResolution(t *testing.T) {
 			profile: extensionDefaultProfileLens(),
 		}
 
-		items, err := fixture.resolve(t, dependencyRoot(fixture.localDependency(t, "dep-global", "")), workspaceTarget)
+		items, err := fixture.resolve(t, dependencyRoot(localDependency("dep-global")), workspaceTarget)
 		if err != nil || dependencyStates(items)["dep-global"] != dependencyStateMet {
 			t.Fatalf("global dependency from a workspace = %+v, %v; want met", items, err)
 		}
-		items, err = fixture.resolve(t, dependencyRoot(fixture.localDependency(t, "dep-other-profile", "")),
+		items, err = fixture.resolve(t, dependencyRoot(localDependency("dep-other-profile")),
 			extensionMutationTarget{profile: extensionDefaultProfileLens()})
 		if err != nil || dependencyStates(items)["dep-other-profile"] != dependencyStateMissing {
 			t.Fatalf("dependency installed for another profile = %+v, %v; want missing", items, err)
@@ -252,10 +267,11 @@ func TestExtensionDependencyResolution(t *testing.T) {
 	t.Run("Should order transitive dependencies first", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDependencyFixture(t)
+		fixture.childDir(t, "dep-a", "dep-b")
 		fixture.write(t, "dep-a", "1.0.0", "dep-b")
 		fixture.write(t, "dep-b", "1.0.0")
 
-		items, err := fixture.resolve(t, dependencyRoot(fixture.localDependency(t, "dep-a", "")),
+		items, err := fixture.resolve(t, dependencyRoot(localDependency("dep-a")),
 			extensionMutationTarget{profile: extensionDefaultProfileLens()})
 		if err != nil {
 			t.Fatalf("resolveDependencies() error = %v", err)
@@ -273,12 +289,13 @@ func TestExtensionDependencyResolution(t *testing.T) {
 		fixture := newDependencyFixture(t)
 		fixture.write(t, "dep-d", "0.2.0")
 		fixture.install(t, "dep-d", contract.InstallExtensionRequest{})
-		fixture.write(t, "dep-b", "1.0.0", "dep-d>=0.1.0")
-		fixture.write(t, "dep-c", "1.0.0", "dep-d>=0.3.0")
+		const sharedDependency = "\n[[requires.extensions]]\nname = \"dep-d\"\nsource = \"git\"\n" +
+			"ref = \"https://example.com/dep-d.git\"\n"
+		appendDependencyManifest(t, fixture.write(t, "dep-b", "1.0.0"), sharedDependency+"min_version = \"0.1.0\"\n")
+		appendDependencyManifest(t, fixture.write(t, "dep-c", "1.0.0"), sharedDependency+"min_version = \"0.3.0\"\n")
 
-		items, err := fixture.resolve(t, dependencyRoot(
-			fixture.localDependency(t, "dep-b", ""), fixture.localDependency(t, "dep-c", ""),
-		), extensionMutationTarget{profile: extensionDefaultProfileLens()})
+		items, err := fixture.resolve(t, dependencyRoot(localDependency("dep-b"), localDependency("dep-c")),
+			extensionMutationTarget{profile: extensionDefaultProfileLens()})
 		if err != nil {
 			t.Fatalf("resolveDependencies() error = %v", err)
 		}
@@ -304,9 +321,14 @@ func TestExtensionDependencyResolution(t *testing.T) {
 			name: "a cycle",
 			build: func(t *testing.T, fixture *dependencyFixture) *extensionpkg.Manifest {
 				t.Helper()
+				fixture.childDir(t, "dep-a", "dep-b")
 				fixture.write(t, "dep-a", "1.0.0", "dep-b")
-				fixture.write(t, "dep-b", "1.0.0", "dep-a")
-				return dependencyRoot(fixture.localDependency(t, "dep-a", ""))
+				appendDependencyManifest(
+					t,
+					fixture.write(t, "dep-b", "1.0.0"),
+					"\n[[requires.extensions]]\nname = \"dep-a\"\nsource = \"git\"\nref = \"https://example.com/dep-a.git\"\n",
+				)
+				return dependencyRoot(localDependency("dep-a"))
 			},
 			reason: extensionpkg.DependencyGraphReasonCycle,
 			path:   []string{"root", "dep-a", "dep-b", "dep-a"},
@@ -354,14 +376,15 @@ func TestExtensionDependencyResolution(t *testing.T) {
 	t.Run("Should refuse a diamond declared with conflicting sources and install nothing", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDependencyFixture(t)
+		fixture.childDir(t, "dep-b", "dep-d")
 		fixture.write(t, "dep-d", "1.0.0")
 		fixture.write(t, "dep-b", "1.0.0", "dep-d")
 		cDir := fixture.write(t, "dep-c", "1.0.0")
-		otherD := t.TempDir()
-		conflicting := fmt.Sprintf(
-			"\n[[requires.extensions]]\nname = \"dep-d\"\nsource = \"local_path\"\nref = %q\n",
-			otherD,
-		)
+		otherD := filepath.Join(cDir, "dep-d")
+		if err := os.Mkdir(otherD, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		conflicting := "\n[[requires.extensions]]\nname = \"dep-d\"\nsource = \"local_path\"\nref = \"dep-d\"\n"
 		appendDependencyManifest(t, cDir, conflicting)
 		rootDir := fixture.write(t, "root", "1.0.0", "dep-b", "dep-c")
 
@@ -391,6 +414,12 @@ func TestExtensionDependencyResolution(t *testing.T) {
 // writeDependencyChain writes dep-1 requiring dep-2 and so on down to dep-levels, and returns a root requiring dep-1.
 func writeDependencyChain(t *testing.T, fixture *dependencyFixture, levels int) *extensionpkg.Manifest {
 	t.Helper()
+	parent := "root"
+	for level := range levels {
+		child := fmt.Sprintf("dep-%d", level+1)
+		fixture.childDir(t, parent, child)
+		parent = child
+	}
 	for level := 1; level <= levels; level++ {
 		var next []string
 		if level < levels {
@@ -398,7 +427,7 @@ func writeDependencyChain(t *testing.T, fixture *dependencyFixture, levels int) 
 		}
 		fixture.write(t, fmt.Sprintf("dep-%d", level), "1.0.0", next...)
 	}
-	return dependencyRoot(fixture.localDependency(t, "dep-1", ""))
+	return dependencyRoot(localDependency("dep-1"))
 }
 
 func appendDependencyManifest(t *testing.T, dir, content string) {
@@ -606,43 +635,60 @@ func TestExtensionDependencyInstall(t *testing.T) {
 		}
 	})
 
-	t.Run("Should resolve a relative local_path ref against the dependent's directory", func(t *testing.T) {
+	t.Run("Should install a local dependency under the dependent's source directory", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDependencyFixture(t)
-		// The daemon's working directory is this package; ../dep-core must not resolve against it.
-		parent := t.TempDir()
-		fixture.dirs["dep-core"], fixture.dirs["root"] = filepath.Join(
-			parent,
-			"dep-core",
-		), filepath.Join(
-			parent,
-			"root",
-		)
-		for _, dir := range []string{fixture.dirs["dep-core"], fixture.dirs["root"]} {
-			if err := os.Mkdir(dir, 0o700); err != nil {
-				t.Fatal(err)
-			}
-		}
 		fixture.write(t, "dep-core", "1.0.0")
-		writeDaemonFile(t, filepath.Join(fixture.dirs["root"], "extension.toml"), fmt.Sprintf(
-			"name = \"root\"\nversion = \"1.0.0\"\nmin_compozy_version = %q\n\n[[requires.extensions]]\n"+
-				"name = \"dep-core\"\nsource = \"local_path\"\nref = \"../dep-core\"\n", dependencyFixtureMinVersion))
+		fixture.write(t, "root", "1.0.0", "dep-core")
 
 		item, err := fixture.service.Install(t.Context(), fixture.rootRequest(t,
 			map[string]contract.ExtensionDependencyConsent{"dep-core": {AllowUnverified: true}},
 		), dependencyOperator(t))
 		if err != nil || !slices.Equal(item.InstallDependenciesInstalled, []string{"dep-core"}) {
-			t.Fatalf("Install() = %v, %v; want dep-core installed from the sibling directory",
+			t.Fatalf("Install() = %v, %v; want dep-core installed from the source directory",
 				item.InstallDependenciesInstalled, err)
 		}
-		_, err = fixture.resolve(t, dependencyRoot(extensionpkg.ExtensionDependency{
-			Name: "dep-other", Source: string(contract.InstallExtensionSourceLocalPath), Ref: "../dep-other",
-		}), extensionMutationTarget{profile: extensionDefaultProfileLens()})
-		gate, ok := errors.AsType[*extensionpkg.DependencyGateError](err)
-		if !ok || gate.Dependency != "dep-other" || !errors.Is(err, extensionpkg.ErrManifestInvalid) {
-			t.Fatalf("error = %v, want a relative ref without a local dependent refused naming dep-other", err)
-		}
 	})
+
+	for _, tc := range []struct {
+		name   string
+		source func(t *testing.T, fixture *dependencyFixture) string
+	}{
+		{
+			name: "Should refuse a local dependency of a nonlocal package",
+			source: func(_ *testing.T, _ *dependencyFixture) string {
+				return ""
+			},
+		},
+		{
+			name: "Should refuse a local dependency symlink pointing outside the source directory",
+			source: func(t *testing.T, fixture *dependencyFixture) string {
+				t.Helper()
+				root := fixture.dir(t, "root")
+				if err := os.Symlink(t.TempDir(), filepath.Join(root, "dep-core")); err != nil {
+					t.Fatal(err)
+				}
+				return root
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newDependencyFixture(t)
+			_, err := fixture.service.resolveDependencies(
+				t.Context(), dependencyRoot(localDependency("dep-core")), tc.source(t, fixture),
+				extensionMutationTarget{profile: extensionDefaultProfileLens()}, nil, dependencyOperator(t),
+			)
+			gate, gated := errors.AsType[*extensionpkg.DependencyGateError](err)
+			validation, invalid := errors.AsType[*extensionpkg.ManifestValidationError](err)
+			if !gated || gate.Dependency != "dep-core" || !invalid || validation.Field != "requires.extensions.ref" {
+				t.Fatalf("resolveDependencies() error = %v, want a validation refusal for dep-core", err)
+			}
+			if fixture.installed(t, "dep-core") || fixture.installed(t, "root") {
+				t.Fatal("refusal installed a package")
+			}
+		})
+	}
 
 	t.Run("Should report a dependency kept installed after its enable failed", func(t *testing.T) {
 		t.Parallel()
@@ -753,14 +799,15 @@ func TestExtensionDependencyInstall(t *testing.T) {
 			}
 			newer := market.publish(t, "1.1.0")
 			// dep-first is declared before open-design, so stop-at-first-failure would have installed it first.
-			firstDir, rootDir := t.TempDir(), t.TempDir()
+			rootDir := t.TempDir()
+			firstDir := filepath.Join(rootDir, "dep-first")
 			writeDaemonFile(t, filepath.Join(firstDir, "extension.toml"), fmt.Sprintf(
 				"name = \"dep-first\"\nversion = \"1.0.0\"\nmin_compozy_version = %q\n", dependencyFixtureMinVersion))
 			writeDaemonFile(t, filepath.Join(rootDir, "extension.toml"), fmt.Sprintf(
 				"name = \"root\"\nversion = \"1.0.0\"\nmin_compozy_version = %q\n\n"+
-					"[[requires.extensions]]\nname = \"dep-first\"\nsource = \"local_path\"\nref = %q\n\n"+
+					"[[requires.extensions]]\nname = \"dep-first\"\nsource = \"local_path\"\nref = \"dep-first\"\n\n"+
 					"[[requires.extensions]]\nname = \"open-design\"\nsource = \"marketplace\"\nref = \"team/design\"\n",
-				dependencyFixtureMinVersion, firstDir))
+				dependencyFixtureMinVersion))
 			req := contract.InstallExtensionRequest{
 				Source: contract.InstallExtensionSourceLocalPath, Ref: rootDir, AllowUnverified: true,
 			}

@@ -28,9 +28,35 @@
   `unmet_dependencies`. New codes `extension_dependencies_required`,
   `extension_dependency_graph_invalid`, `extension_dependency_in_use`. CLI `install
   --with-dependencies` and `--allow-unverified-dependency`; Web Add lists "Also installs" with
-  per-dependency trust dialogs. No schema change; dependencies install into the dependent's scope and
-  profile. QA: new ET-extension-dependencies and the dependency part of
+  per-dependency trust dialogs. Dependencies install into the dependent's scope and profile.
+  Local dependencies need local install provenance and a relative ref whose real path stays within
+  the dependent's source directory. QA: new ET-extension-dependencies and the dependency part of
   ET-web-extension-union-install.
+
+## Authored terminal status on Loop gates (GH-1944) — 2026-11-21
+
+- **DSL.** Gate `on_result` values keep the string action and `{route: node_id}` forms unchanged
+  and gain `{action: halt, terminal_status: <state>}`. The synthetic contract gate gains
+  `contract.on_result` with the same grammar; `{route: node_id}` is rejected there because the
+  definition-of-done gate has no forward targets. `terminal_status` must be a closed terminal state
+  and, when `contract.terminal_states` is declared, a member of that set. Omitting the new keys
+  keeps today's behavior (`halt` → `failed`, rejected DoD → `next_generation`).
+- **CLI/HTTP/UDS.** `GET /api/loops/runs` and `GET /api/loops/runs/{run_id}` add the optional
+  `terminal` object on the run payload (`status`, `cause`, `reason_code`, `gate_id`, `node_id`,
+  `message`, `at`), projected from the settled status event. `loop status` renders the cause,
+  reason, and deciding node; `loop runs` appends the reason to a settled status. The materialized
+  `LoopContract` exposes `on_result`. OpenAPI and both SDKs are regenerated. No route or verb
+  changed.
+- **Extensibility, hooks and config.** No hook, config key, or extension contract changed. Hook
+  payloads keep their cause and status vocabulary; only authored gates can now choose `blocked` at
+  the gate boundary without a `loop.gate.pre` denial.
+- **State and isolation.** No schema or migration change. The terminal projection reads the run's
+  own last `status_changed` event under the caller's workspace/profile scope; the settlement path
+  still reuses the existing `CoordinatorTerminal` boundary write and `OnBlocked` effect.
+- **Web, official skill, docs and QA.** Gate field hints in Web mention the object form;
+  `skills/compozy/references/loops.md` documents the grammar, the terminal vocabulary, and the
+  read projection. Automation runs keep only `loop_run_id`; they do not project Loop run status,
+  so they carry no new field.
 
 ## Session facet counts for always-on mains (GH-1897)
 

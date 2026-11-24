@@ -1124,6 +1124,160 @@ func TestSessionArchiveCommandsReturnUpdatedSession(t *testing.T) {
 	})
 }
 
+// Invariant (#1924): --stopped archives a whole project through one request, prints the
+// response DTO unchanged with -o json, exits 1 when a thread failed, and refuses a session ID
+// or the single-session flags as usage errors (exit 2) before any request.
+func TestSessionArchiveStoppedCommand(t *testing.T) {
+	t.Parallel()
+
+	newDeps := func(t *testing.T, requests *[]contract.SessionArchiveStoppedRequest,
+		response contract.SessionArchiveStoppedResponse,
+	) commandDeps {
+		t.Helper()
+		return newWorkspaceTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{
+					ID: "ws-" + ref, Name: ref, RootDir: "/workspace/" + ref,
+				}}, nil
+			},
+			archiveStoppedSessionsFn: func(
+				_ context.Context, request contract.SessionArchiveStoppedRequest,
+			) (contract.SessionArchiveStoppedResponse, error) {
+				*requests = append(*requests, request)
+				response.DryRun = request.DryRun
+				return response, nil
+			},
+		})
+	}
+	report := contract.SessionArchiveStoppedResponse{
+		Archived: []contract.SessionArchiveStoppedThread{
+			{
+				RootID:      "sess-root",
+				WorkspaceID: "ws-platform",
+				Title:       "Fix",
+				SessionIDs:  []string{"sess-root", "sess-child"},
+			},
+		},
+		ArchivedThreadCount:  1,
+		ArchivedSessionCount: 2,
+		SkipCounts:           map[string]int{"running": 1, "waiting_on_you": 2},
+		Skipped: []contract.SessionArchiveStoppedSkip{
+			{RootID: "sess-a", Reason: "waiting_on_you"},
+			{RootID: "sess-b", Reason: "waiting_on_you"},
+			{RootID: "sess-c", Reason: "running"},
+		},
+		Failures: []contract.SessionArchiveStoppedFailure{},
+	}
+
+	t.Run("Should preview and archive one project with the golden summary", func(t *testing.T) {
+		t.Parallel()
+		var requests []contract.SessionArchiveStoppedRequest
+		deps := newDeps(t, &requests, report)
+		preview, _, err := executeRootCommand(t, deps, "session", "archive", "--stopped",
+			"--workspace", "platform", "--dry-run")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session archive --stopped --dry-run) error = %v", err)
+		}
+		want := "Would archive 1 thread (2 sessions) in platform.\n" +
+			"Skipped 3 threads: 2 waiting_on_you, 1 running."
+		if strings.TrimSpace(preview) != want {
+			t.Fatalf("dry run output = %q, want %q", preview, want)
+		}
+		archived, _, err := executeRootCommand(t, deps, "session", "archive", "--stopped", "--workspace", "platform")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session archive --stopped) error = %v", err)
+		}
+		if !strings.HasPrefix(archived, "Archived 1 thread (2 sessions) in platform.") {
+			t.Fatalf("archive output = %q, want the Archived summary", archived)
+		}
+		wantRequests := []contract.SessionArchiveStoppedRequest{
+			{WorkspaceID: "ws-platform", DryRun: true},
+			{WorkspaceID: "ws-platform"},
+		}
+		if !slices.Equal(requests, wantRequests) {
+			t.Fatalf("requests = %+v, want %+v", requests, wantRequests)
+		}
+	})
+
+	t.Run("Should print the response unchanged with -o json in either scope", func(t *testing.T) {
+		t.Parallel()
+		var requests []contract.SessionArchiveStoppedRequest
+		deps := newDeps(t, &requests, report)
+		// Serial subtests: every scope appends to the shared requests.
+		for _, scope := range [][]string{{"--all-workspaces"}, {"--workspace", "platform"}} {
+			args := append([]string{"session", "archive", "--stopped", "-o", "json"}, scope...)
+			t.Run("Should print the DTO for "+strings.Join(scope, " "), func(t *testing.T) {
+				output, _, err := executeRootCommand(t, deps, args...)
+				if err != nil {
+					t.Fatalf("executeRootCommand(%v) error = %v", args, err)
+				}
+				var decoded map[string]any
+				if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+					t.Fatalf("json.Unmarshal(%v) error = %v", args, err)
+				}
+				var want map[string]any
+				encoded, err := json.Marshal(report)
+				if err != nil {
+					t.Fatalf("json.Marshal(report) error = %v", err)
+				}
+				if err := json.Unmarshal(encoded, &want); err != nil {
+					t.Fatalf("json.Unmarshal(report) error = %v", err)
+				}
+				if !reflect.DeepEqual(decoded, want) {
+					t.Fatalf("%v output = %v, want the response DTO %v", args, decoded, want)
+				}
+			})
+		}
+		wantRequests := []contract.SessionArchiveStoppedRequest{{AllWorkspaces: true}, {WorkspaceID: "ws-platform"}}
+		if !slices.Equal(requests, wantRequests) {
+			t.Fatalf("requests = %+v, want %+v", requests, wantRequests)
+		}
+	})
+
+	t.Run("Should exit 1 after printing when a thread failed", func(t *testing.T) {
+		t.Parallel()
+		failed := report
+		failed.Failures = []contract.SessionArchiveStoppedFailure{{
+			RootID: "sess-x", Title: "Broken", Code: "archive_failed", Message: "database is locked",
+		}}
+		var requests []contract.SessionArchiveStoppedRequest
+		deps := newDeps(t, &requests, failed)
+		code, stdout, _ := executeRootCommandWithExit(t, deps, "session", "archive", "--stopped",
+			"--workspace", "platform")
+		if code != 1 || !strings.Contains(stdout, "Failed 1 thread:") ||
+			!strings.Contains(stdout, "sess-x Broken: database is locked") {
+			t.Fatalf("exit = %d stdout = %q, want exit 1 listing the failure", code, stdout)
+		}
+	})
+
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{args: []string{"sess-1", "--stopped"}, want: "drop the session ID"},
+		{args: []string{"--stopped", "--stop"}, want: "--stopped cannot be combined with --stop"},
+		{args: []string{"--stopped", "--with-children"}, want: "--stopped cannot be combined with --with-children"},
+		{
+			args: []string{"--stopped", "--terminate-processes"},
+			want: "--stopped cannot be combined with --terminate-processes",
+		},
+		{args: []string{"--stopped", "--keep-processes"}, want: "--stopped cannot be combined with --keep-processes"},
+		{args: []string{"sess-1", "--dry-run"}, want: "--dry-run requires --stopped"},
+	} {
+		t.Run("Should refuse "+strings.Join(tc.args, " ")+" as a usage error", func(t *testing.T) {
+			t.Parallel()
+			var requests []contract.SessionArchiveStoppedRequest
+			deps := newDeps(t, &requests, report)
+			args := append([]string{"session", "archive"}, tc.args...)
+			code, _, stderr := executeRootCommandWithExit(t, deps, args...)
+			if code != 2 || len(requests) != 0 || !strings.Contains(stderr, tc.want) {
+				t.Fatalf("exit = %d requests = %d stderr = %q, want usage exit 2 naming %q without a request",
+					code, len(requests), stderr, tc.want)
+			}
+		})
+	}
+}
+
 func TestSessionMarkSeenCommandForwardsTheSession(t *testing.T) {
 	t.Run("Should mark the session as seen and surface a refusal", func(t *testing.T) {
 		t.Parallel()

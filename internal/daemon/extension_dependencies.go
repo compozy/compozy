@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/fileutil"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -303,28 +304,39 @@ func (r *dependencyResolver) acquire(ctx context.Context, node *dependencyNode) 
 	return r.checkInstalledElsewhere(node)
 }
 
-// resolveDependencyRef resolves a relative local_path ref against the dependent's source directory, never the
-// daemon's working directory. The result is an absolute path, which a local_path install already accepts, so it
-// reaches nothing a manifest could not name directly. A dependent without a local source directory (a published
-// or remotely installed package) cannot declare a relative ref.
 func resolveDependencyRef(
 	dependency extensionpkg.ExtensionDependency, parentDir string,
 ) (extensionpkg.ExtensionDependency, error) {
-	if contract.InstallExtensionSource(dependency.Source) != contract.InstallExtensionSourceLocalPath ||
-		filepath.IsAbs(dependency.Ref) {
+	if contract.InstallExtensionSource(dependency.Source) != contract.InstallExtensionSourceLocalPath {
 		return dependency, nil
 	}
-	if parentDir == "" {
-		return dependency, &extensionpkg.DependencyGateError{
-			Dependency: dependency.Name,
-			Err: &extensionpkg.ManifestValidationError{
-				Field: "requires.extensions.ref", Value: dependency.Ref,
-				Message: "a relative local_path ref needs a local_path dependent; use an absolute path",
-			},
-		}
+	if !filepath.IsAbs(parentDir) {
+		return dependency, invalidLocalDependencyRef(
+			dependency,
+			"local_path dependency requires a local_path dependent",
+		)
 	}
-	dependency.Ref = filepath.Join(parentDir, dependency.Ref)
+	if !filepath.IsLocal(dependency.Ref) {
+		return dependency, invalidLocalDependencyRef(dependency, "local_path ref must stay inside the source directory")
+	}
+	_, resolved, err := fileutil.ResolveExistingPathWithinRoot(parentDir, filepath.Join(parentDir, dependency.Ref))
+	if err != nil {
+		return dependency, invalidLocalDependencyRef(
+			dependency,
+			"local_path ref must resolve inside the source directory",
+		)
+	}
+	dependency.Ref = resolved
 	return dependency, nil
+}
+
+func invalidLocalDependencyRef(dependency extensionpkg.ExtensionDependency, message string) error {
+	return &extensionpkg.DependencyGateError{
+		Dependency: dependency.Name,
+		Err: &extensionpkg.ManifestValidationError{
+			Field: "requires.extensions.ref", Value: dependency.Ref, Message: message,
+		},
+	}
 }
 
 // checkInstalledElsewhere marks a missing node whose package is installed for another scope or profile with

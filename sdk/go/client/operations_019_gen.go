@@ -9,6 +9,20 @@ import (
 	"strings"
 )
 
+// ListAgentsAggregateParams carries the path, query, and header parameters.
+type ListAgentsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Group         *string   `url:"group"`
+	Name          *string   `url:"name"`
+	Q             *string   `url:"q"`
+	Category      *string   `url:"category"`
+	Status        *string   `url:"status"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+}
+
 // ListAgentsAggregate List a filtered agent fleet with exact session metrics
 func (c *Client) ListAgentsAggregate(ctx context.Context, params ListAgentsAggregateParams) (*AgentCatalogResponse, error) {
 	path := "/api/agents/aggregate"

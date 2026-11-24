@@ -9,6 +9,63 @@ import (
 	"strings"
 )
 
+// GetSkillShadows Get resolver provenance and shadow declarations for one skill
+func (c *Client) GetSkillShadows(ctx context.Context, params GetSkillShadowsParams) (*SkillShadowsResponse, error) {
+	path := "/api/skills/{name}/shadows"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.ForAgent != nil {
+		query.Set("for_agent", *params.ForAgent)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SkillShadowsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetStatus Get the runtime status snapshot
+func (c *Client) GetStatus(ctx context.Context) (*StatusPayload, error) {
+	path := "/api/status"
+	var out StatusPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSubagentParams carries the path, query, and header parameters.
+type GetSubagentParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SubagentID  string `url:"subagent_id"`
+}
+
+// GetSubagent Read one subagent
+func (c *Client) GetSubagent(ctx context.Context, params GetSubagentParams) (*SubagentPayload, error) {
+	path := "/api/workspaces/{workspace_id}/subagents/{subagent_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{subagent_id}", url.PathEscape(params.SubagentID))
+	var out SubagentPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSupportBundleParams carries the path, query, and header parameters.
+type GetSupportBundleParams struct {
+	OperationID string `url:"operation_id"`
+}
+
 // GetSupportBundle Get support bundle operation status
 func (c *Client) GetSupportBundle(ctx context.Context, params GetSupportBundleParams) (*SupportBundleOperationResponse, error) {
 	path := "/api/support/bundles/{operation_id}"
@@ -372,46 +429,6 @@ func (c *Client) GetTerminal(ctx context.Context, params GetTerminalParams) (*Te
 
 // GetToolParams carries the path, query, and header parameters.
 type GetToolParams struct {
-	ID          string  `url:"id"`
-	WorkspaceID *string `url:"workspace_id"`
-	Workspace   *string `url:"workspace"`
-	SessionID   *string `url:"session_id"`
-	AgentName   *string `url:"agent_name"`
-	Profile     *string `url:"profile"`
-}
-
-// GetTool Get one operator-visible registry tool
-func (c *Client) GetTool(ctx context.Context, params GetToolParams) (*ToolResponse, error) {
-	path := "/api/tools/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.SessionID != nil {
-		query.Set("session_id", *params.SessionID)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetToolsetParams carries the path, query, and header parameters.
-type GetToolsetParams struct {
 	ID          string  `url:"id"`
 	WorkspaceID *string `url:"workspace_id"`
 	Workspace   *string `url:"workspace"`

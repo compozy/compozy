@@ -508,14 +508,17 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
 		dependencyDir := writeNativeLocalExtensionFixture(t, "dep-core", "1.0.0")
 		rootDir := writeNativeLocalExtensionFixture(t, "dep-root", "1.0.0")
+		if err := os.Rename(dependencyDir, filepath.Join(rootDir, "dep-core")); err != nil {
+			t.Fatal(err)
+		}
 		manifestPath := filepath.Join(rootDir, "extension.toml")
 		content, err := os.ReadFile(manifestPath)
 		if err != nil {
 			t.Fatal(err)
 		}
 		content = bytes.Replace(content, []byte(`"0.5.0"`), []byte(`"0.7.9"`), 1)
-		content = fmt.Appendf(content, "\n[[requires.extensions]]\nname = \"dep-core\"\n"+
-			"source = \"local_path\"\nref = %q\n", dependencyDir)
+		content = append(content, "\n[[requires.extensions]]\nname = \"dep-core\"\n"+
+			"source = \"local_path\"\nref = \"dep-core\"\n"...)
 		if err := os.WriteFile(manifestPath, content, 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -554,14 +557,17 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, deps, nativeApproveAllPolicyInputs())
 		dependencyDir := writeNativeLocalExtensionFixture(t, "dep-core", "1.0.0")
 		rootDir := writeNativeLocalExtensionFixture(t, "dep-root", "1.0.0")
+		if err := os.Rename(dependencyDir, filepath.Join(rootDir, "dep-core")); err != nil {
+			t.Fatal(err)
+		}
 		manifestPath := filepath.Join(rootDir, "extension.toml")
 		content, err := os.ReadFile(manifestPath)
 		if err != nil {
 			t.Fatal(err)
 		}
 		content = bytes.Replace(content, []byte(`"0.5.0"`), []byte(`"0.7.9"`), 1)
-		content = fmt.Appendf(content, "\n[[requires.extensions]]\nname = \"dep-core\"\n"+
-			"source = \"local_path\"\nref = %q\n", dependencyDir)
+		content = append(content, "\n[[requires.extensions]]\nname = \"dep-core\"\n"+
+			"source = \"local_path\"\nref = \"dep-core\"\n"...)
 		if err := os.WriteFile(manifestPath, content, 0o600); err != nil {
 			t.Fatal(err)
 		}

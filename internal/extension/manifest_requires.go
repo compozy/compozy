@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -107,8 +108,14 @@ func validateExtensionDependency(field string, dependency ExtensionDependency) e
 	}
 	switch contract.InstallExtensionSource(dependency.Source) {
 	case contract.InstallExtensionSourceCurated, contract.InstallExtensionSourceMarketplace,
-		contract.InstallExtensionSourceGitHub, contract.InstallExtensionSourceGit,
-		contract.InstallExtensionSourceLocalPath:
+		contract.InstallExtensionSourceGitHub, contract.InstallExtensionSourceGit:
+	case contract.InstallExtensionSourceLocalPath:
+		if !filepath.IsLocal(dependency.Ref) {
+			return &ManifestValidationError{
+				Field: field + "." + manifestDependencyRefKey, Value: dependency.Ref,
+				Message: "local_path ref must be relative to and stay inside the dependent's source directory",
+			}
+		}
 	default:
 		return &ManifestValidationError{
 			Field: field + "." + manifestDependencySourceKey, Value: dependency.Source,

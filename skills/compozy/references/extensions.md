@@ -355,10 +355,12 @@ as a GitHub repository. Inspect source state with `compozy marketplace sources l
 
 Dependencies are experimental and may change without a deprecation window. A package declares the
 extensions it needs with `[[requires.extensions]]` entries: `name`, `source` (`curated`,
-`marketplace`, `github`, `git`, `local_path`), `ref`, and an optional `min_version` lower bound. A
-relative `local_path` ref resolves against the dependent package's own source directory; a dependent
-without a local source directory (published or remotely installed) must use an absolute path. Self
-and duplicate names are invalid, and the manifest must set `min_compozy_version` to at least `0.7.9`
+`marketplace`, `github`, `git`, `local_path`), `ref`, and an optional `min_version` lower bound.
+Only a dependent installed from `local_path` can declare a `local_path` dependency. Use a relative
+`ref` such as `deps/acme-core` that resolves to an existing path inside the dependent's source
+directory. Absolute paths, traversal outside that directory, and symlinks that lead outside it
+are refused. Self and duplicate names are invalid, and the manifest must set
+`min_compozy_version` to at least `0.7.9`
 so older daemons refuse it instead of ignoring the table. The catalog feed carries no dependency
 field: browsing never shows dependencies; install preview reads them from the downloaded package.
 

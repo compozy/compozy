@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// MarketplaceEntryResponse is a daemon API value.
+type MarketplaceEntryResponse struct {
+	Entry     MarketplaceListingPayload          `json:"entry"`
+	Extension *MarketplaceExtensionDetailPayload `json:"extension,omitzero"`
+}
+
 // MarketplaceExtensionDetailPayload is a daemon API value.
 type MarketplaceExtensionDetailPayload struct {
 	ResolvedRef  string                     `json:"resolved_ref,omitempty"`

@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+// SkillActivationPayload is a daemon API value.
+type SkillActivationPayload struct {
+	Active  bool                           `json:"active"`
+	Reasons []SkillActivationReasonPayload `json:"reasons,omitempty"`
+}
+
+// SkillActivationReasonCode is a daemon API value.
+type SkillActivationReasonCode string
+
+// SkillActivationReasonPayload is a daemon API value.
+type SkillActivationReasonPayload struct {
+	Gate    string                    `json:"gate"`
+	Code    SkillActivationReasonCode `json:"code"`
+	Missing []string                  `json:"missing,omitempty"`
+	Message string                    `json:"message"`
+}
+
+// SkillContentResponse is a daemon API value.
+type SkillContentResponse struct {
+	Content string `json:"content"`
+}
+
 // SkillDiagnosticPayload is a daemon API value.
 type SkillDiagnosticPayload struct {
 	Name               string                            `json:"name"`
@@ -423,25 +445,4 @@ type SubagentRuntimePayload struct {
 	Model           string `json:"model"`
 	ReasoningEffort string `json:"reasoning_effort"`
 	Speed           string `json:"speed"`
-}
-
-// SubagentSummaryPayload is a daemon API value.
-type SubagentSummaryPayload struct {
-	Live       int    `json:"live"`
-	Total      int    `json:"total"`
-	Failed     int    `json:"failed"`
-	Attention  int    `json:"attention"`
-	MostUrgent string `json:"most_urgent"`
-}
-
-// SubagentUpdatedEvent is a daemon API value.
-type SubagentUpdatedEvent struct {
-	SessionID string          `json:"session_id"`
-	Subagent  SubagentPayload `json:"subagent"`
-}
-
-// SubagentUsagePayload is a daemon API value.
-type SubagentUsagePayload struct {
-	TotalTokens int64 `json:"total_tokens"`
-	ToolUses    int64 `json:"tool_uses"`
 }

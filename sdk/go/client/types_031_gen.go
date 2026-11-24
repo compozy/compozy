@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// WebhookDeliveryResponse is a daemon API value.
+type WebhookDeliveryResponse struct {
+	Result WebhookDeliveryPayload `json:"result"`
+}
+
 // Weights is a daemon API value.
 type Weights struct {
 	Version                    int      `json:"version"`
@@ -441,9 +446,4 @@ type WorktreeCatalogEventPayload struct {
 	WorkspaceID string `json:"workspace_id"`
 	WorktreeID  string `json:"worktree_id"`
 	Error       string `json:"error,omitempty"`
-}
-
-// WorktreeCleanupResponse is a daemon API value.
-type WorktreeCleanupResponse struct {
-	Branch *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
 }

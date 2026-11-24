@@ -55,7 +55,7 @@ it has never run. The human table shows it as the **Last Run** column.
 | `event`                      | Yes                     | Event name to match. Built-in events are documented below, and extension events use `ext.*`.                                                                 |
 | `agent` / `agent_name`       | Agent targets           | Agent to run when the trigger matches. After trimming, it must match `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters). It must be empty for Loop targets. |
 | `prompt`                     | Agent targets           | Go `text/template` rendered against the activation envelope. Must be empty for Loop targets.                                                                 |
-| `loop_target`                | Loop targets            | Selects `workspace_id`, `loop_name`, static `inputs`, and optional event `input_mapping`.                                                                    |
+| `loop_target`                | Loop targets            | Selects `workspace_id`, `loop_name`, static `inputs`, optional fire-time `input_command`, and optional event `input_mapping`.                                |
 | `filter`                     | No                      | Exact-match conditions on envelope fields.                                                                                                                   |
 | `enabled`                    | No                      | Defaults to `true` for parsed config definitions.                                                                                                            |
 | `retry`                      | No                      | Same retry policy as jobs. Defaults to `none`.                                                                                                               |
@@ -100,6 +100,9 @@ start kind.
 
 `loop_target.inputs` provides static values. `loop_target.input_mapping` can derive additional
 Loop inputs from the activation envelope with the Loop start-binding template grammar.
+`loop_target.input_command` runs a shell command in the target workspace at each firing before the
+Loop starts and merges its `key=value` output over the static inputs; the command contract and its
+skip/failure behavior are documented in [Schedules](./schedules#fire-time-input-command).
 
 ```json
 {

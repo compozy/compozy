@@ -182,3 +182,41 @@ invoked again after it settled, it detached all three (daemon reads confirmed ev
 needs two invocations within one React turn, which a pointer cannot produce; the lifecycle hook
 suite owns it. At rest the end slot shows the time, so progress appears on hover or focus, as
 before #1472.
+
+## Archive stopped (issue #1924)
+
+Added 2026-11-21. Use a project with a stopped thread whose root has child sessions, a second
+stopped thread, one running session, one live session waiting on a pending permission, and one
+pinned stopped session. Add a second project with one stopped thread. The live waiting session
+counts as running: `running` is classified before `waiting on you`, which applies to stopped
+threads with an unresolved interaction.
+
+1. Open the first project's menu (session list group header, overview tile, or menubar row):
+   "Archive stopped" sits above "Archive project". Choose it: no dialog opens; while the request
+   runs the item reads disabled. The toast reads "Archived 2 threads" with "3 skipped: 2 running,
+   1 pinned" (largest count first; equal counts follow the reason code) and an
+   "Undo" action. Both threads, children included, leave the active list; the running, waiting and
+   pinned rows stay.
+2. Choose "Undo" before the toast closes: the toast reads "Restored 2 threads", every archived
+   session returns (roots before their children), and nothing that was skipped changes.
+3. Choose "Archive stopped" again right away on a project whose stopped threads are already
+   archived: the toast reads "No stopped threads to archive" with the skip summary and no Undo.
+4. Switch the list to All projects. View options ends with "Archive stopped in all projects";
+   choosing it archives the eligible threads of both projects in one toast. Under one project the
+   item reads "Archive stopped"; on the Archived or Later shelf, under All profiles, or in the User
+   scope it is absent.
+5. With a thread whose archive fails (or a restore that fails), the error toast names up to three
+   titles and "and {n} more"; Undo stays available for the threads that were archived.
+
+Verification ownership: the session hook suite (`use-archive-stopped.test.tsx`) owns the request
+scope, the toast outcomes, the in-flight hold, and Undo's exact, root-first replay; the project
+menu tree suite owns placement; the session list suite owns the View options entry per scope.
+
+QA 2026-11-22 (PR #1940 at `db3f92bd5`, Web bundle served by an isolated lab daemon): steps 1-4 pass.
+The menu placement, no-dialog run, toast "Archived 4 threads" / "4 skipped: 2 running, 1 in Later,
+1 pinned" with Undo, "Restored 4 threads" (child and subagent included), the empty toast without Undo,
+"Archive stopped in all projects" across both projects, "Archive stopped" under one project, and its
+absence on the Archived shelf and in the User scope were all observed; archiving the open session still
+shows the toast. All profiles and step 5's failure toasts were not reachable in the walk; the hook and
+session list suites own them. The bulk-selection walk above stays deferred, so `qa_status` stays
+`skipped`. Report: [2026-11-22-archive-stopped-1940](../reports/2026-11-22-archive-stopped-1940.md).

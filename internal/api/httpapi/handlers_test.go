@@ -510,6 +510,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/extensions/update",
 		"POST /api/notifications/attention/acknowledge",
 		"POST /api/sessions",
+		"POST /api/sessions/archive-stopped",
 		"POST /api/sessions/history-cleanup",
 		"POST /api/sessions/history-cleanup/stop",
 		"POST /api/sessions/:session_id/pull-request/refresh",
