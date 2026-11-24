@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BurntSushi/toml"
+
 	"github.com/compozy/compozy/internal/extension/agentplugin"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -2590,4 +2592,407 @@ func TestManifestRetiredMemoryEntries(t *testing.T) {
 			})
 		}
 	}
+}
+
+// Invariant: an env input bound to an author-declared requires_env name is valid (rule 1b), needs the
+// subprocessInputsFloor release (rule 1c), and never borrows the daemon environment (rule 5c).
+// Owner: extension manifest inputs and readiness. Canonical suite: manifest_test.go.
+func TestManifestSubprocessInputs(t *testing.T) {
+	t.Parallel()
+	subprocessManifest := func(inputType, requiresEnv, minVersion, extra string) string {
+		return fmt.Sprintf(`name = "acme"
+version = "1.0.0"
+min_compozy_version = %q
+%s
+[[inputs]]
+id = "acme_value"
+prompt = "Acme value"
+type = %q
+required = true
+binding = { type = "env", name = "ACME_VALUE" }
+%s`, minVersion, requiresEnv, inputType, extra)
+	}
+	declared := `requires_env = ["ACME_VALUE"]`
+	// The suite stamps daemon 0.6.0, so validate inputs without the daemon compatibility gate.
+	validateInputs := func(t *testing.T, raw string) (*Manifest, error) {
+		t.Helper()
+		var document manifestDocument
+		if _, err := toml.Decode(raw, &document); err != nil {
+			t.Fatalf("toml.Decode() error = %v", err)
+		}
+		manifest, err := document.toManifest()
+		if err != nil {
+			t.Fatalf("toManifest() error = %v", err)
+		}
+		return &manifest, ValidateManifestInputs(&manifest)
+	}
+
+	for _, inputType := range []string{"secret", "string", "identifier", "boolean"} {
+		t.Run("Should accept a "+inputType+" input bound to author-declared requires_env", func(t *testing.T) {
+			t.Parallel()
+			manifest, err := validateInputs(t, subprocessManifest(inputType, declared, subprocessInputsFloor, ""))
+			if err != nil {
+				t.Fatalf("ValidateManifestInputs() error = %v", err)
+			}
+			if !manifest.SubprocessOnlyInput(manifest.Inputs[0]) {
+				t.Fatalf("SubprocessOnlyInput() = false, want true")
+			}
+		})
+	}
+
+	rejections := []struct {
+		name, requiresEnv, minVersion, field, message string
+	}{
+		{
+			name:        "an env input whose name is not in requires_env",
+			requiresEnv: `requires_env = ["OTHER"]`,
+			minVersion:  subprocessInputsFloor,
+			field:       "inputs[0].binding",
+			message:     "requires_env",
+		},
+		{
+			name:       "a required env input whose name is only folded into requires_env",
+			minVersion: subprocessInputsFloor,
+			field:      "inputs[0].binding",
+			message:    "requires_env",
+		},
+		{
+			name:        "a subprocess-only input below the subprocess inputs floor",
+			requiresEnv: declared,
+			minVersion:  "0.7.8",
+			field:       "min_compozy_version",
+			message:     subprocessInputsFloor,
+		},
+	}
+	for _, test := range rejections {
+		t.Run("Should reject "+test.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := validateInputs(t, subprocessManifest("string", test.requiresEnv, test.minVersion, ""))
+			validationErr, ok := errors.AsType[*ManifestValidationError](err)
+			if !ok || validationErr.Field != test.field || !strings.Contains(validationErr.Message, test.message) {
+				t.Fatalf("error = %v, want field %q naming %q", err, test.field, test.message)
+			}
+		})
+	}
+
+	t.Run("Should keep server-referenced inputs valid without the subprocess floor", func(t *testing.T) {
+		t.Parallel()
+		server := `[resources.mcp_servers.acme]
+command = "acme"
+env = { ACME_VALUE = "acme_value" }
+`
+		for _, requiresEnv := range []string{"", declared} {
+			manifest, err := loadManifestTOMLContent(
+				"extension.toml", []byte(subprocessManifest("string", requiresEnv, "0.5.0", server)),
+			)
+			if err != nil {
+				t.Fatalf("loadManifestTOMLContent(%q) error = %v", requiresEnv, err)
+			}
+			if manifest.SubprocessOnlyInput(manifest.Inputs[0]) {
+				t.Fatalf("SubprocessOnlyInput(%q) = true, want false", requiresEnv)
+			}
+		}
+	})
+
+	input := func(required bool, inputDefault string) ManifestInput {
+		value := ManifestInput{
+			ID: "acme_value", Prompt: "Acme value", Type: "boolean", Required: required,
+			Binding: marketplace.InputBinding{Type: "env", Name: "ACME_VALUE"},
+		}
+		if inputDefault != "" {
+			value.Default = json.RawMessage(inputDefault)
+		}
+		return value
+	}
+	readiness := []struct {
+		name          string
+		input         ManifestInput
+		server        bool
+		undeclared    bool // a released manifest: no author-declared requires_env
+		record        *InputValueRecord
+		daemonValue   string
+		missingEnv    []string
+		invalidInputs []string
+		daemonEnv     []string
+		set           bool
+		state         string
+	}{
+		{
+			name:  "treat a binding-backed value as set",
+			input: input(true, ""),
+			record: &InputValueRecord{
+				Type: "boolean", Value: json.RawMessage(`true`), SecretRef: "vault:acme", Active: true,
+			},
+			set:   true,
+			state: "set",
+		},
+		{name: "treat a default as set", input: input(true, "false"), set: true, state: "set"},
+		{
+			name:        "ignore the daemon environment for a subprocess-only input",
+			input:       input(true, ""),
+			daemonValue: "true",
+			missingEnv:  []string{"ACME_VALUE"},
+			state:       "missing",
+		},
+		{
+			name:          "block a required value that fails the manifest type",
+			input:         input(true, ""),
+			record:        &InputValueRecord{Type: "boolean", Active: true, Invalid: "stored value does not match"},
+			missingEnv:    []string{"ACME_VALUE"},
+			invalidInputs: []string{"acme_value"},
+			state:         "invalid",
+		},
+		{
+			name:          "report an optional invalid value without blocking start",
+			input:         input(false, ""),
+			record:        &InputValueRecord{Type: "string", Value: json.RawMessage(`"eu"`), Active: true},
+			invalidInputs: []string{"acme_value"},
+			state:         "invalid",
+		},
+		{name: "not block start for an unset optional input", input: input(false, ""), state: "missing"},
+		{
+			name:        "keep a server-consumed input ready on the daemon environment",
+			input:       input(true, ""),
+			server:      true,
+			daemonValue: "true",
+			daemonEnv:   []string{"acme_value"},
+			set:         true,
+			state:       "daemon_env",
+		},
+		{
+			name:        "keep a released required server input folded into requires_env on daemon_env",
+			input:       input(true, ""),
+			server:      true,
+			undeclared:  true,
+			daemonValue: "true",
+			daemonEnv:   []string{"acme_value"},
+			set:         true,
+			state:       "daemon_env",
+		},
+	}
+	for _, test := range readiness {
+		t.Run("Should "+test.name, func(t *testing.T) {
+			t.Parallel()
+			manifest := &Manifest{Inputs: []ManifestInput{test.input}, DeclaredRequiresEnv: []string{"ACME_VALUE"}}
+			if test.undeclared {
+				manifest.DeclaredRequiresEnv = nil
+			}
+			manifest.RequiresEnv = manifestRequiredEnv(manifest.DeclaredRequiresEnv, manifest.Inputs)
+			if test.server {
+				manifest.Resources.MCPServers = map[string]MCPServerConfig{
+					"acme": {Command: "acme", Env: map[string]string{"ACME_VALUE": "acme_value"}},
+				}
+			}
+			state := InputState{Values: map[string]InputValueRecord{}}
+			if test.record != nil {
+				state.Values["acme_value"] = *test.record
+			}
+			getenv := func(string) string { return test.daemonValue }
+			ready := InputReadiness(manifest, state, getenv)
+			if !slices.Equal(ready.MissingEnv, test.missingEnv) || len(ready.MissingInputs) != 0 ||
+				!slices.Equal(ready.InvalidInputs, test.invalidInputs) ||
+				!slices.Equal(ready.DaemonEnvInputs, test.daemonEnv) {
+				t.Fatalf("InputReadiness() = %#v", ready)
+			}
+			described := DescribeInputState(manifest, state, getenv)
+			if len(described) != 1 || described[0].Set != test.set || described[0].State != test.state {
+				t.Fatalf("DescribeInputState() = %#v, want set %v state %q", described, test.set, test.state)
+			}
+			requiredErr := ready.RequiredError(manifest)
+			if len(test.missingEnv) == 0 && requiredErr != nil {
+				t.Fatalf("RequiredError() = %v, want nil for a nonblocking input", requiredErr)
+			}
+			required, ok := errors.AsType[*InputsRequiredError](requiredErr)
+			if len(test.missingEnv) > 0 && (!ok || !slices.Equal(required.MissingInputs, []string{"acme_value"})) {
+				t.Fatalf("RequiredError() = %#v, want acme_value", required)
+			}
+			if ok && !slices.Equal(required.InvalidInputs, test.invalidInputs) {
+				t.Fatalf("RequiredError().InvalidInputs = %v, want %v", required.InvalidInputs, test.invalidInputs)
+			}
+		})
+	}
+
+	t.Run("Should describe setup receivers, required missing and bare env without secret defaults", func(t *testing.T) {
+		t.Parallel()
+		manifest := &Manifest{
+			Inputs: []ManifestInput{
+				{
+					ID: "project", Prompt: "Project", Type: "identifier", Required: true,
+					Binding: marketplace.InputBinding{Type: "env", Name: "PROJECT_ID"},
+				},
+				{
+					ID: "token", Prompt: "Token", Type: "secret", Default: json.RawMessage(`"leak"`),
+					Binding: marketplace.InputBinding{Type: "env", Name: "API_TOKEN"},
+				},
+				{
+					ID: "mode", Prompt: "Mode", Type: "boolean", Default: json.RawMessage(`true`),
+					Binding: marketplace.InputBinding{Type: "env", Name: "MODE"},
+				},
+			},
+			DeclaredRequiresEnv: []string{"PROJECT_ID", "API_TOKEN", "BARE"},
+		}
+		manifest.RequiresEnv = manifestRequiredEnv(manifest.DeclaredRequiresEnv, manifest.Inputs)
+		manifest.Resources.MCPServers = map[string]MCPServerConfig{
+			"acme":   {Command: "acme", Env: map[string]string{"MODE": "mode"}},
+			"remote": {Transport: "http", URL: "https://example.com/mcp", Auth: &MCPServerAuthConfig{Method: "oauth"}},
+		}
+		payload := DescribeInputSetup(manifest, InputState{}, func(string) string { return "" })
+		if !slices.Equal(payload.Missing, []string{"project"}) || !slices.Equal(payload.MissingEnv, []string{"BARE"}) ||
+			!slices.Equal(payload.MCPAuthServers, []string{"remote"}) || len(payload.Inputs) != 3 {
+			t.Fatalf("DescribeInputSetup() = %#v", payload)
+		}
+		want := map[string]struct {
+			state   string
+			targets []string
+			def     string
+		}{
+			"project": {"missing", []string{"subprocess"}, ""},
+			"token":   {"missing", []string{"subprocess"}, ""},
+			"mode":    {"set", []string{"mcp:acme"}, "true"},
+		}
+		for _, input := range payload.Inputs {
+			expected := want[input.ID]
+			if input.State != expected.state || !slices.Equal(input.Targets, expected.targets) ||
+				string(input.Default) != expected.def {
+				t.Fatalf("input %s = %#v, want %#v", input.ID, input, expected)
+			}
+		}
+	})
+
+	t.Run("Should keep a bare requires_env key in missing_env", func(t *testing.T) {
+		t.Parallel()
+		manifest, err := loadManifestTOMLContent("extension.toml", []byte(`name = "bare"
+version = "1.0.0"
+min_compozy_version = "0.5.0"
+requires_env = ["BARE_KEY"]
+`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ready := InputReadiness(manifest, InputState{}, func(string) string { return "" })
+		if !slices.Equal(ready.MissingEnv, []string{"BARE_KEY"}) {
+			t.Fatalf("MissingEnv = %v, want [BARE_KEY]", ready.MissingEnv)
+		}
+	})
+}
+
+// Invariant: [[requires.extensions]] declares named, sourced dependencies with an optional semver lower
+// bound (rule 10), survives encode, and needs the dependenciesFloor release (rule 1c).
+// Owner: extension manifest validation. Canonical suite: manifest_test.go.
+func TestManifestExtensionDependencies(t *testing.T) {
+	// Serial: the suite stamps daemon 0.6.0, below the floor a dependency manifest must declare.
+	withDaemonVersion(t, dependenciesFloor)
+
+	dependencyManifest := func(minVersion, entries string) []byte {
+		return fmt.Appendf(nil, `name = "acme-tool"
+version = "1.0.0"
+min_compozy_version = %q
+%s`, minVersion, entries)
+	}
+	valid := `
+[[requires.extensions]]
+name = "acme-core"
+source = "Curated"
+ref = " acme/core "
+min_version = "0.4.0"
+
+[[requires.extensions]]
+name = "acme-local"
+source = "local_path"
+ref = "deps/acme-local"
+`
+
+	t.Run("Should load a valid dependency declaration", func(t *testing.T) {
+		t.Parallel()
+		manifest, err := loadManifestTOMLContent("extension.toml", dependencyManifest(dependenciesFloor, valid))
+		if err != nil {
+			t.Fatalf("loadManifestTOMLContent() error = %v", err)
+		}
+		want := []ExtensionDependency{
+			{Name: "acme-core", Source: "curated", Ref: "acme/core", MinVersion: "0.4.0"},
+			{Name: "acme-local", Source: "local_path", Ref: "deps/acme-local"},
+		}
+		if !reflect.DeepEqual(manifest.Requires.Extensions, want) {
+			t.Fatalf("Requires.Extensions = %#v, want %#v", manifest.Requires.Extensions, want)
+		}
+	})
+
+	t.Run("Should round-trip dependencies through the generated manifest", func(t *testing.T) {
+		t.Parallel()
+		manifest, err := loadManifestTOMLContent("extension.toml", dependencyManifest(dependenciesFloor, valid))
+		if err != nil {
+			t.Fatalf("loadManifestTOMLContent() error = %v", err)
+		}
+		encoded, err := encodeManifestTOML(manifest)
+		if err != nil {
+			t.Fatalf("encodeManifestTOML() error = %v", err)
+		}
+		decoded, err := loadManifestTOMLContent("extension.toml", encoded)
+		if err != nil {
+			t.Fatalf("loadManifestTOMLContent(encoded) error = %v\n%s", err, encoded)
+		}
+		if !reflect.DeepEqual(decoded.Requires, manifest.Requires) {
+			t.Fatalf("decoded Requires = %#v, want %#v", decoded.Requires, manifest.Requires)
+		}
+	})
+
+	entry := func(name, source, ref, minVersion string) string {
+		return fmt.Sprintf("\n[[requires.extensions]]\nname = %q\nsource = %q\nref = %q\nmin_version = %q\n",
+			name, source, ref, minVersion)
+	}
+	rejections := []struct {
+		name, minVersion, entries, field string
+	}{
+		{"a self dependency", dependenciesFloor, entry("acme-tool", "curated", "acme/tool", ""),
+			"requires.extensions[0].name"},
+		{"a duplicate dependency name", dependenciesFloor,
+			entry("acme-core", "curated", "acme/core", "") + entry("acme-core", "git", "https://x/acme.git", ""),
+			"requires.extensions[1].name"},
+		{"an unknown source", dependenciesFloor, entry("acme-core", "ftp", "acme/core", ""),
+			"requires.extensions[0].source"},
+		{"a missing ref", dependenciesFloor, entry("acme-core", "curated", "", ""), "requires.extensions[0].ref"},
+		{"an absolute local ref", dependenciesFloor, entry("acme-core", "local_path", t.TempDir(), ""),
+			"requires.extensions[0].ref"},
+		{"a local ref that escapes its source root", dependenciesFloor,
+			entry("acme-core", "local_path", "../acme-core", ""), "requires.extensions[0].ref"},
+		{"an invalid min_version", dependenciesFloor, entry("acme-core", "curated", "acme/core", "latest"),
+			"requires.extensions[0].min_version"},
+		{"dependencies below the dependencies floor", "0.7.8", entry("acme-core", "curated", "acme/core", ""),
+			"min_compozy_version"},
+		{"an unknown requires key", dependenciesFloor, "\n[requires]\nbundles = []\n", "requires.bundles"},
+	}
+	for _, test := range rejections {
+		t.Run("Should reject "+test.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := loadManifestTOMLContent("extension.toml", dependencyManifest(test.minVersion, test.entries))
+			validation, ok := errors.AsType[*ManifestValidationError](err)
+			if !ok || validation.Field != test.field {
+				t.Fatalf("load error = %v, want field %q", err, test.field)
+			}
+			if test.field == "min_compozy_version" && !strings.Contains(err.Error(), dependenciesFloor) {
+				t.Fatalf("load error = %v, want floor %s", err, dependenciesFloor)
+			}
+		})
+	}
+
+	t.Run("Should compare dependency versions against their lower bound", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			version, minVersion string
+			want                bool
+		}{
+			{"0.5.1", "0.4.0", true}, {"0.4.0", "0.4.0", true}, {"0.3.9", "0.4.0", false}, {"0.1.0", "", true},
+		}
+		for _, item := range cases {
+			if got := VersionSatisfies(item.version, item.minVersion); got != item.want {
+				t.Fatalf("VersionSatisfies(%q, %q) = %v, want %v", item.version, item.minVersion, got, item.want)
+			}
+		}
+		if got := HigherVersion("0.4.0", "0.6.0"); got != "0.6.0" {
+			t.Fatalf("HigherVersion() = %q, want 0.6.0", got)
+		}
+		if got := HigherVersion("0.6.0", ""); got != "0.6.0" {
+			t.Fatalf("HigherVersion(empty) = %q, want 0.6.0", got)
+		}
+	})
 }

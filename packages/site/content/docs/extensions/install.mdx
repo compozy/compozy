@@ -94,6 +94,11 @@ compozy extension install compozy/context7
 compozy extension install compozy/grafana --input-file inputs.json
 ```
 
+On a terminal with human output, a refused install prompts for each input the refusal lists (secret
+values are hidden, defaults are shown in brackets and Enter accepts them) and retries. Without a
+terminal, or with `-o json|toon`, it never prompts: it names the missing inputs, points to `--input`
+and `--input-file`, and exits with code 2.
+
 Context7's API key is optional. For Grafana, `inputs.json` can provide both the URL and an existing
 secret reference:
 
@@ -136,7 +141,8 @@ archive returns `409 extension_source_changed` with `listed_digest` and `fetched
 current entry before retrying. In the Marketplace, a changed source reloads the listing and opens a
 new confirmation; it does not install the refreshed artifact automatically. A newly unverified publisher
 requires fresh consent. `422 extension_inputs_required` includes missing input IDs in `inputs` and their candidate-manifest
-field declarations in `input_definitions` (type, prompt, required, binding and non-secret default).
+field declarations in `input_definitions` (type, prompt, required, binding and non-secret default), and
+the digest of the package it acquired in `fetched_digest`; pin a retry to it with `expected_digest`.
 Clients can collect these fields and retry the same scoped update without another preview download.
 Stored values and secret references are excluded. Native batch-update partial results retain this
 metadata in `operation_error` alongside completed updates.
@@ -531,6 +537,92 @@ installed instance's scope. Validate the package with `compozy extension validat
 The publisher derives v3 feed inputs from the package and checks their equality. Editing a generated
 feed cannot change what a package requests; change its manifest and republish.
 
+## Declare inputs for the extension process
+
+An `env` input also reaches the extension's own subprocess when its binding name is listed in
+`requires_env`. No MCP server is needed, and a secret input needs no `secret_env` entry:
+
+```toml
+[extension]
+name = "acme-tool"
+version = "1.0.0"
+min_compozy_version = "0.7.9"
+requires_env = ["ACME_TOKEN", "ACME_PROJECT"]
+
+[[inputs]]
+id = "api_token"
+prompt = "API token for Acme"
+type = "secret"
+required = true
+binding = { type = "env", name = "ACME_TOKEN" }
+
+[[inputs]]
+id = "project_id"
+prompt = "Acme project"
+type = "identifier"
+required = false
+default = "default-project"
+binding = { type = "env", name = "ACME_PROJECT" }
+```
+
+SDK-built extensions declare the same inputs in code with `inputs` (TypeScript) or `Inputs` (Go);
+`compozy extension build` writes them into the generated manifest. See
+[Declare install inputs](/docs/extensions/develop#declare-install-inputs).
+
+A manifest whose input reaches only the subprocess must set `min_compozy_version` to `0.7.9` or newer;
+older daemons then refuse the package instead of misreading it. An input that is not referenced by a
+server and whose name is not in `requires_env` fails validation on `inputs[N].binding`.
+
+Install refuses with `422 extension_inputs_required` while a required subprocess input is missing;
+subprocess and MCP inputs appear together in `inputs` and `input_definitions`. Values supplied through
+`--input`, `--input-file`, an update, or `compozy extension secrets set <extension> --env <NAME>` are stored as
+instance env bindings in the Vault, non-secret values included. At launch the subprocess receives each
+bound value as its env name, or the input default when nothing is bound. If a server also references
+the input, the server receives it as well.
+
+The daemon's own environment is never copied into the extension process. An input used only by the
+subprocess is satisfied by a stored value or a default, not by a daemon environment variable. An
+input that a server also consumes stays ready when only the daemon environment provides it, as
+before, but the extension process does not receive that value until one is stored for the instance.
+
+A stored value is checked against the input type each time it is read. If a package update changes
+the type and the old value no longer fits, the input reads as invalid: a required invalid input
+blocks enable like a missing one, and an optional invalid input is omitted from the process and its
+MCP servers. Supply a new value to repair it.
+
+## Complete inputs after install
+
+`compozy extension setup <name>` completes the inputs of one installed extension in the selected
+scope, workspace, and profile:
+
+```bash
+compozy extension setup acme-tool                       # prompt for what is missing
+compozy extension setup acme-tool --all                 # revisit every input
+compozy extension setup acme-tool --input project=platform
+compozy extension setup acme-tool -o json               # read state, never prompt
+```
+
+- By default it prompts for required inputs that are missing or invalid, and for every input that
+  only the daemon environment satisfies. Enter keeps such an input unbound. For an input the
+  extension process uses, setup says the process still does not receive it; for an input only an
+  MCP server uses, it says a value saved here is stored for that server.
+- `--all` prompts for every input; Enter keeps a value that is already set. Secrets are never shown.
+- `--input` and `--input-file` write without prompting, then report what is still missing.
+- A write restarts an enabled instance only when a value changed; rerunning with nothing missing
+  changes nothing. Only that instance restarts; other extensions, profiles and workspaces keep
+  running.
+- A globally installed extension keeps one set of values for every workspace, so set it up with
+  `--scope global`; a workspace-scoped write to a global installation is refused before setup
+  prompts for any value.
+- When an input feeds an MCP server that signs in with OAuth, the output ends with
+  `Sign in: compozy mcp auth login <server>`. Setup does not sign in.
+- Exit codes: 0 when nothing required is missing or for any `-o json|toon` read; 2 when required
+  inputs remain missing in human output or a value is invalid; 1 for other errors.
+
+Agents use `compozy__extensions_setup`, which may fill only missing, invalid, or daemon-environment
+inputs of their own workspace's installation. Changing a value that is already set, or any value of a
+global installation, is operator-only.
+
 ## Install one package in several scopes
 
 Installing the same source in another workspace adds an installation for that workspace. Each
@@ -638,6 +730,7 @@ workspace is selected. Owner selection does not change the caller's workspace or
 | Update             | `compozy__extensions_update`            | `compozy extension update`         |
 | Remove             | `compozy__extensions_remove`            | `compozy extension remove`         |
 | Enable / disable   | `compozy__extensions_enable`/`_disable` | `compozy extension enable/disable` |
+| Complete inputs    | `compozy__extensions_setup`             | HTTP/UDS `{name}/inputs` route     |
 | Publish            | `compozy__extensions_publish`           | `compozy extension publish`        |
 | Restore built-in   | `compozy__extensions_restore`           | `compozy extension restore`        |
 | Removed built-ins  | `compozy__extensions_removed_list`      | `compozy extension removed`        |

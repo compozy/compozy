@@ -1,4 +1,5 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
+import { apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
 import type {
   PromoteSessionInputRequest,
@@ -15,9 +16,10 @@ export async function cancelQueuedSessionPrompt(
   workspaceId: string,
   id: string,
   queueEntryId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPromptPayload> {
-  const { data, error, response } = await apiClient.DELETE(
+  const { data, error, response } = await apiClientFor(computerId).DELETE(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
     {
       params: {
@@ -54,9 +56,10 @@ export async function cancelQueuedSessionPrompt(
 export async function clearSessionInputs(
   workspaceId: string,
   id: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionInputClearResponse> {
-  const { data, error, response } = await apiClient.DELETE(
+  const { data, error, response } = await apiClientFor(computerId).DELETE(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
     {
       params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
@@ -72,9 +75,10 @@ export async function clearSessionInputs(
 export async function fetchSessionInputs(
   workspaceId: string,
   id: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionInputsResponse> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
     {
       params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
@@ -97,9 +101,10 @@ export async function replaceSessionInput(
   id: string,
   queueEntryId: string,
   params: ReplaceSessionInputRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionInputPayload> {
-  const { data, error, response } = await apiClient.PUT(
+  const { data, error, response } = await apiClientFor(computerId).PUT(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
     {
       params: {
@@ -133,9 +138,10 @@ export async function promoteSessionInputToSteer(
   id: string,
   queueEntryId: string,
   params: PromoteSessionInputRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<SessionPromptPayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}/steer",
     {
       params: {

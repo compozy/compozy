@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// ComputerRouteInUse is a daemon API value.
+type ComputerRouteInUse struct {
+	ID    string    `json:"id"`
+	Kind  RouteKind `json:"kind"`
+	Label string    `json:"label"`
+}
+
 // ComputerSSHHost is a daemon API value.
 type ComputerSSHHost struct {
 	Alias    string `json:"alias"`
@@ -165,6 +172,7 @@ type Contract struct {
 	RuntimeDefaults  *RuntimeDefaults   `json:"runtime_defaults,omitzero"`
 	RuntimeRules     []RuntimeRule      `json:"runtime_rules,omitempty"`
 	TerminalStates   []DslTerminalState `json:"terminal_states,omitempty"`
+	OnResult         map[string]any     `json:"on_result,omitempty"`
 	OnDone           []EffectSpec       `json:"on_done,omitempty"`
 	OnNoOp           []EffectSpec       `json:"on_noop,omitempty"`
 	OnBlocked        []EffectSpec       `json:"on_blocked,omitempty"`
@@ -436,13 +444,3 @@ type DaemonIdentityPayload struct {
 	Version     string                  `json:"version"`
 	Readiness   *DaemonReadinessPayload `json:"readiness,omitzero"`
 }
-
-// DaemonReadinessPayload is a daemon API value.
-type DaemonReadinessPayload struct {
-	Phase DaemonReadinessPhase `json:"phase"`
-	Step  string               `json:"step,omitempty"`
-	Since time.Time            `json:"since"`
-}
-
-// DaemonReadinessPhase is a daemon API value.
-type DaemonReadinessPhase string

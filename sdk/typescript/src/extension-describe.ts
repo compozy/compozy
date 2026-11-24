@@ -1,4 +1,5 @@
 import {
+  SDK_INPUTS_MIN_COMPOZY_VERSION,
   SDK_MIN_COMPOZY_VERSION,
   SDK_NAME,
   type ExtensionDescribeProcess,
@@ -8,6 +9,7 @@ import type {
   CmdPaletteConfig,
   DescribePayload,
   DescribeHookEvent,
+  DescribeInput,
   DescribeProfile,
   DescribeResourcePath,
   ExtensionDefinition,
@@ -75,6 +77,7 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
     throw new Error("subprocess command is required");
   }
   const viewIDs = cmdPaletteViewIDs(input.definition.resources?.cmd_palette);
+  const inputs = normalizeDescribeInputs(input.definition.inputs);
 
   return {
     name: input.definition.name.trim(),
@@ -85,6 +88,7 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
     provides: normalizeStringList(input.definition.capabilities?.provides),
     permissions: normalizeHostMethodList(input.definition.permissions?.requires),
     requires_env: normalizeStringList(input.definition.requires_env),
+    ...(inputs.length === 0 ? {} : { inputs }),
     profiles: normalizeDescribeProfiles(input.definition.profiles),
     resources: {
       skills: normalizeDescribeResourcePaths(input.definition.resources?.skills),
@@ -113,9 +117,46 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
       name: SDK_NAME,
       version: input.sdkVersion,
       protocol_version: "1",
-      min_compozy_version: SDK_MIN_COMPOZY_VERSION,
+      // The TS definition declares no author floor, so the SDK floor is the one inputs may raise.
+      min_compozy_version: describeInputsFloor(SDK_MIN_COMPOZY_VERSION, inputs.length > 0),
     },
   };
+}
+
+/**
+ * Raises floor to SDK_INPUTS_MIN_COMPOZY_VERSION when inputs are emitted, since released daemons
+ * reject them; a higher floor wins, matching the Go SDK.
+ */
+export function describeInputsFloor(floor: string, hasInputs: boolean): string {
+  return hasInputs && versionCoreLess(floor, SDK_INPUTS_MIN_COMPOZY_VERSION)
+    ? SDK_INPUTS_MIN_COMPOZY_VERSION
+    : floor;
+}
+
+// Orders versions by their numeric cores; under SemVer a prerelease of the same core precedes the
+// release, and build metadata never affects the order, as in the Go SDK.
+function versionCoreLess(left: string, right: string): boolean {
+  const core = (version: string) =>
+    (version.split(/[-+]/, 1)[0] ?? "").split(".").map(part => Number.parseInt(part, 10) || 0);
+  const prerelease = (version: string) => (version.split("+", 1)[0] ?? "").includes("-");
+  const [a, b] = [core(left), core(right)];
+  for (let index = 0; index < 3; index++) {
+    if ((a[index] ?? 0) !== (b[index] ?? 0)) {
+      return (a[index] ?? 0) < (b[index] ?? 0);
+    }
+  }
+  return prerelease(left) && !prerelease(right);
+}
+
+function normalizeDescribeInputs(inputs: DescribeInput[] | undefined): DescribeInput[] {
+  return (inputs ?? []).map(input => ({
+    id: input.id.trim(),
+    prompt: input.prompt.trim(),
+    type: input.type,
+    required: input.required,
+    binding: { type: input.binding.type, name: input.binding.name.trim() },
+    ...(input.default === undefined ? {} : { default: structuredClone(input.default) }),
+  }));
 }
 
 function normalizeDescribeResourcePaths(

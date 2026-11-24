@@ -7,6 +7,76 @@ import (
 	"time"
 )
 
+// ExtensionEnablePreviewPayload is a daemon API value.
+type ExtensionEnablePreviewPayload struct {
+	MissingInputs      []string                    `json:"missing_inputs"`
+	Extension          string                      `json:"extension"`
+	Changes            []ExtensionKitChangePayload `json:"changes"`
+	AgentConflicts     []string                    `json:"agent_conflicts"`
+	MissingEnv         []string                    `json:"missing_env"`
+	AutomationStarting []string                    `json:"automation_starting"`
+}
+
+// ExtensionEnablementPayload is a daemon API value.
+type ExtensionEnablementPayload struct {
+	Profile string `json:"profile"`
+	Enabled bool   `json:"enabled"`
+}
+
+// ExtensionInputStatePayload is a daemon API value.
+type ExtensionInputStatePayload struct {
+	ID     string `json:"id"`
+	Type   string `json:"type"`
+	Set    bool   `json:"set"`
+	Active bool   `json:"active"`
+	State  string `json:"state,omitempty"`
+}
+
+// ExtensionInputStatusPayload is a daemon API value.
+type ExtensionInputStatusPayload struct {
+	ID       string                         `json:"id"`
+	Prompt   string                         `json:"prompt"`
+	Type     string                         `json:"type"`
+	Required bool                           `json:"required"`
+	Binding  MarketplaceInputBindingPayload `json:"binding"`
+	Default  json.RawMessage                `json:"default,omitempty"`
+	Targets  []string                       `json:"targets"`
+	State    string                         `json:"state"`
+}
+
+// ExtensionInputsPayload is a daemon API value.
+type ExtensionInputsPayload struct {
+	Extension      string                        `json:"extension"`
+	WorkspaceID    string                        `json:"workspace_id"`
+	Profile        string                        `json:"profile"`
+	Enabled        bool                          `json:"enabled"`
+	Inputs         []ExtensionInputStatusPayload `json:"inputs"`
+	Missing        []string                      `json:"missing"`
+	Invalid        []string                      `json:"invalid"`
+	DaemonEnv      []string                      `json:"daemon_env"`
+	MissingEnv     []string                      `json:"missing_env"`
+	MCPAuthServers []string                      `json:"mcp_auth_servers"`
+	Changed        []string                      `json:"changed,omitempty"`
+	Reloaded       bool                          `json:"reloaded,omitzero"`
+}
+
+// ExtensionInstallDeclaredProfilePayload is a daemon API value.
+type ExtensionInstallDeclaredProfilePayload struct {
+	Name        string                         `json:"name"`
+	Create      bool                           `json:"create"`
+	Credentials []ProfileCredentialRequirement `json:"credentials,omitempty"`
+}
+
+// ExtensionInstallPreviewPayload is a daemon API value.
+type ExtensionInstallPreviewPayload struct {
+	DigestSHA256     string                                   `json:"digest_sha256,omitempty"`
+	Inputs           []MarketplaceInputPayload                `json:"inputs"`
+	Name             string                                   `json:"name"`
+	DeclaredProfiles []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
+	Placements       []ExtensionPlacementPayload              `json:"placements"`
+	Dependencies     []ExtensionDependencyPayload             `json:"dependencies,omitempty"`
+}
+
 // ExtensionInventoryPayload is a daemon API value.
 type ExtensionInventoryPayload struct {
 	Extension   string                    `json:"extension"`
@@ -58,6 +128,7 @@ type ExtensionPayload struct {
 	MCPServers          []MarketplaceServerPayload        `json:"mcp_servers,omitempty"`
 	Inputs              []ExtensionInputStatePayload      `json:"inputs,omitempty"`
 	MissingInputs       []string                          `json:"missing_inputs,omitempty"`
+	UnmetDependencies   []ExtensionDependencyPayload      `json:"unmet_dependencies,omitempty"`
 	Contents            ExtensionContentsPayload          `json:"contents"`
 	Origin              *MarketplaceOriginPayload         `json:"origin,omitzero"`
 	Name                string                            `json:"name"`
@@ -371,74 +442,4 @@ type FileSearchQuery struct {
 	WholeWord     bool     `json:"whole_word"`
 	Include       []string `json:"include"`
 	Exclude       []string `json:"exclude"`
-}
-
-// FileSearchResponse is a daemon API value.
-type FileSearchResponse struct {
-	Root              FileRootPayload  `json:"root"`
-	Query             FileSearchQuery  `json:"query"`
-	Engine            string           `json:"engine"`
-	Files             []FileSearchFile `json:"files"`
-	Totals            FileSearchTotals `json:"totals"`
-	Truncated         bool             `json:"truncated"`
-	TimedOut          bool             `json:"timed_out"`
-	SensitiveExcluded int              `json:"sensitive_excluded"`
-}
-
-// FileSearchTotals is a daemon API value.
-type FileSearchTotals struct {
-	Files   int `json:"files"`
-	Matches int `json:"matches"`
-}
-
-// FireLimitConfig is a daemon API value.
-type FireLimitConfig struct {
-	Max    int    `json:"max"`
-	Window string `json:"window"`
-}
-
-// FocusPolicy is a daemon API value.
-type FocusPolicy string
-
-// ForceFailTaskRunRequest is a daemon API value.
-type ForceFailTaskRunRequest struct {
-	Reason   string          `json:"reason"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ForceReleaseTaskRunRequest is a daemon API value.
-type ForceReleaseTaskRunRequest struct {
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ForkLoopRequest is a daemon API value.
-type ForkLoopRequest struct {
-	Generation int64          `json:"generation"`
-	Inputs     map[string]any `json:"inputs,omitempty"`
-	Reason     string         `json:"reason,omitempty"`
-	RequestID  string         `json:"request_id,omitempty"`
-}
-
-// ForkLoopResponse is a daemon API value.
-type ForkLoopResponse struct {
-	Run      LoopRunPayload `json:"run"`
-	Replayed bool           `json:"replayed,omitzero"`
-}
-
-// ForkSessionRequest is a daemon API value.
-type ForkSessionRequest struct {
-	MessageID           string `json:"message_id,omitempty"`
-	Name                string `json:"name,omitempty"`
-	IdempotencyKey      string `json:"idempotency_key"`
-	ExpectedEpoch       *int64 `json:"expected_epoch,omitzero"`
-	ExpectedGeneration  *int64 `json:"expected_generation,omitzero"`
-	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitzero"`
-}
-
-// ForkSessionWorktreeRequest is a daemon API value.
-type ForkSessionWorktreeRequest struct {
-	Worktree    string                     `json:"worktree,omitempty"`
-	NewWorktree *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
-	Confirmed   bool                       `json:"confirmed"`
 }

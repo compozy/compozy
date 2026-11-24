@@ -318,6 +318,8 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 	extensions.GET("/:name/secrets", handlers.ListExtensionSecrets)
 	extensions.PUT("/:name/secrets", privileged, handlers.SetExtensionSecrets)
 	extensions.DELETE("/:name/secrets/:env_name", privileged, handlers.DeleteExtensionSecret)
+	extensions.GET("/:name/inputs", handlers.GetExtensionInputs)
+	extensions.PUT("/:name/inputs", privileged, handlers.SetExtensionInputs)
 	extensions.GET("/:name/inventory", handlers.ExtensionInventory)
 	extensions.GET("/:name", handlers.ExtensionStatus)
 	extensions.POST("/:name/reload", privileged, handlers.ReloadDevExtension)

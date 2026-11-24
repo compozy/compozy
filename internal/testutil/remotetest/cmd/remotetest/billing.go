@@ -129,24 +129,7 @@ func writePurchaseEvidence(
 func prepareRetainedHost(f *fixture, db *remotetest.Database, m *scenarioManifest) {
 	f.Helper()
 	host := prepareDaemon(f, true)
-	addr, err := new(net.ListenConfig).Listen(f.Context(), "tcp4", "127.0.0.1:0")
-	if err != nil {
-		f.Fatal(err)
-	}
-	origin := addr.Addr().String()
-	if err := addr.Close(); err != nil {
-		f.Fatal(err)
-	}
-	config := filepath.Join(host.Home, "config.toml")
-	content, err := os.ReadFile(config)
-	if err != nil {
-		f.Fatal(err)
-	}
-	writeFile(
-		f,
-		config,
-		strings.Replace(string(content), "[remote]\n", "[remote]\nhosted_listener = '"+origin+"'\n", 1),
-	)
+	origin := configureHostedListener(f, host)
 	installFixtureConnector(f, host.Home)
 	startDaemon(f, host, m.CloudURL, fixtureConnectorEnv+"=1")
 	signIn(f, host)
@@ -170,6 +153,29 @@ func prepareRetainedHost(f *fixture, db *remotetest.Database, m *scenarioManifes
 	f.Cleanup(edge.Close)
 	m.HostedProxy = edge.URL
 	m.Computers = append(m.Computers, computerTarget{ID: result.ComputerID, Name: result.Name, Socket: host.Socket})
+}
+
+func configureHostedListener(f *fixture, host daemonInstance) string {
+	f.Helper()
+	addr, err := new(net.ListenConfig).Listen(f.Context(), "tcp4", "127.0.0.1:0")
+	if err != nil {
+		f.Fatal(err)
+	}
+	origin := addr.Addr().String()
+	if err := addr.Close(); err != nil {
+		f.Fatal(err)
+	}
+	config := filepath.Join(host.Home, "config.toml")
+	content, err := os.ReadFile(config)
+	if err != nil {
+		f.Fatal(err)
+	}
+	writeFile(
+		f,
+		config,
+		strings.Replace(string(content), "[remote]\n", "[remote]\nhosted_listener = '"+origin+"'\n", 1),
+	)
+	return origin
 }
 
 func seedRetainedTunnel(f *fixture, db *remotetest.Database, id, origin string) {

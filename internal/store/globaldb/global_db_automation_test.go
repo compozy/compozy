@@ -56,6 +56,9 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"automation_trigger_overlays",
 		"automation_suggestions",
 	)
+	// Fresh databases take the column order from schema/definitions/30_automation.sql, where
+	// loop_input_command precedes created_at. Only upgraded databases append it at the end via
+	// ALTER TABLE in migration 00219; assertTableColumns compares sets, not positions.
 	assertTableColumns(t, globalDB.db, "automation_jobs", []string{
 		"id",
 		"profile_id",
@@ -75,12 +78,15 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"loop_name",
 		"loop_inputs",
 		"loop_input_mapping",
+		"loop_input_command",
 		"created_at",
 		"updated_at",
 		"grant_ceiling",
 	})
 	// Migration 00181 rebuilds the table with grant_ceiling first and
-	// target_instance_scope after target_kind, on fresh and upgraded databases alike.
+	// target_instance_scope after target_kind, on fresh and upgraded databases alike. The fresh
+	// column order comes from schema/definitions/30_automation.sql; loop_input_command is appended
+	// at the end only on upgraded databases, so the comparison is set-based.
 	assertTableColumns(t, globalDB.db, "automation_triggers", []string{
 		"grant_ceiling",
 		"id",
@@ -105,6 +111,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"loop_name",
 		"loop_inputs",
 		"loop_input_mapping",
+		"loop_input_command",
 		"created_at",
 		"updated_at",
 	})
@@ -2206,6 +2213,7 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 			Inputs: map[string]any{
 				"tasks": "task-ref",
 			},
+			InputCommand: "scripts/next-spec.sh",
 		}
 		createdLoopJob, err := globalDB.CreateJob(ctx, loopJob)
 		if err != nil {
@@ -2223,6 +2231,20 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 		}
 		if got, want := storedLoopJob.LoopTarget.LoopName, "triage"; got != want {
 			t.Fatalf("GetJob(loop target).LoopTarget.LoopName = %q, want %q", got, want)
+		}
+		if got, want := storedLoopJob.LoopTarget.InputCommand, "scripts/next-spec.sh"; got != want {
+			t.Fatalf("GetJob(loop target).LoopTarget.InputCommand = %q, want %q", got, want)
+		}
+		storedLoopJob.LoopTarget.InputCommand = ""
+		if _, err := globalDB.UpdateJob(ctx, storedLoopJob); err != nil {
+			t.Fatalf("UpdateJob(clear loop input command) error = %v", err)
+		}
+		clearedLoopJob, err := globalDB.GetJob(ctx, createdLoopJob.ID)
+		if err != nil {
+			t.Fatalf("GetJob(cleared loop input command) error = %v", err)
+		}
+		if got := clearedLoopJob.LoopTarget.InputCommand; got != "" {
+			t.Fatalf("GetJob(cleared loop input command).LoopTarget.InputCommand = %q, want empty", got)
 		}
 		agentJob := automationJobForTest(
 			automation.AutomationScopeWorkspace,
@@ -2273,6 +2295,7 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 			InputMapping: map[string]string{
 				"title": "{{ .trigger.payload.title }}",
 			},
+			InputCommand: "scripts/next-spec.sh",
 		}
 		createdLoopTrigger, err := globalDB.CreateTrigger(ctx, loopTrigger)
 		if err != nil {
@@ -2287,6 +2310,9 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 		}
 		if got, want := storedLoopTrigger.LoopTarget.InputMapping["title"], "{{ .trigger.payload.title }}"; got != want {
 			t.Fatalf("GetTrigger(loop target).LoopTarget.InputMapping[title] = %q, want %q", got, want)
+		}
+		if got, want := storedLoopTrigger.LoopTarget.InputCommand, "scripts/next-spec.sh"; got != want {
+			t.Fatalf("GetTrigger(loop target).LoopTarget.InputCommand = %q, want %q", got, want)
 		}
 		agentTrigger := automationWebhookTriggerForTest(
 			automation.AutomationScopeWorkspace,

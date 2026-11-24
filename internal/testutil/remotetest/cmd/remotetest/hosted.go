@@ -161,17 +161,7 @@ func prepareHostedBrowser(
 	edgePort := startHostedBrowserEdge(f, cloudURL, idp, fake, profile)
 
 	controller := prepareDaemon(f, true)
-	cfgPath := filepath.Join(controller.Home, "config.toml")
-	existing, err := os.ReadFile(cfgPath)
-	if err != nil {
-		f.Fatal(err)
-	}
-	writeFile(f, cfgPath, strings.Replace(
-		string(existing),
-		"[remote]\nlistener = '127.0.0.1:0'\n",
-		"[remote]\nlistener = '127.0.0.1:0'\nhosted_listener = '127.0.0.1:0'\n",
-		1,
-	))
+	configureHostedListener(f, controller)
 	installFixtureConnector(f, controller.Home)
 	configureLocalAgent(f, controller, mock)
 	startDaemon(

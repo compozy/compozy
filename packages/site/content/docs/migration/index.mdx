@@ -24,9 +24,9 @@ Back up your global and workspace `.compozy/` directories before changing instal
 
 ## Remote Computers, mandatory sign-in, and Remote Gateway removal (v0.8.0)
 
-v0.8.0 replaces the legacy Remote Gateway with [Remote Computers](/docs/computers) and requires a
+v0.8.0 replaces the legacy Remote Gateway with [Remote Computers](https://compozy.com/docs/computers) and requires a
 one-time sign-in with Google or GitHub on official release builds. Read the launch post
-[Compozy 0.8: your agents on all your computers](/blog/compozy-0-8-remote-computers).
+[Compozy 0.8: your agents on all your computers](https://compozy.com/blog/compozy-0-8-remote-computers).
 
 ### Sign in after updating
 
@@ -36,13 +36,14 @@ one-time sign-in with Google or GitHub on official release builds. Read the laun
   run `compozy account login`. First sign-in needs an internet connection; local sessions keep
   working offline after enrollment.
 - Compozy Cloud never sees your prompts, transcripts, files, or code. See
-  [Why CompozyOS asks you to sign in](/docs/account/sign-in) and
-  [Account tokens](/docs/account/tokens) for CI and headless runners.
+  [Why CompozyOS asks you to sign in](https://compozy.com/docs/account/sign-in) and
+  [Account tokens](https://compozy.com/docs/account/tokens) for CI and headless runners.
 
 ### Remote Gateway removal
 
 The upgrade removes Remote Gateway, the bundled Tailscale extension, connectivity provider manifests
-and scaffolds, and old pairing codes. The extension flag `--confirm-gateway-requirement` is retired. At first boot it removes the `[gateway]` settings and connection
+and scaffolds, and old pairing codes. The upgrade retires the extension flag
+`--confirm-gateway-requirement`. At first boot it removes the `[gateway]` settings and connection
 profiles from `config.toml` and removes their local credential directory. Add each computer again.
 
 | Removed command   | Use instead                                             |
@@ -61,7 +62,7 @@ profiles from `config.toml` and removes their local credential directory. Add ea
   and the `compozy__gateway` tool are retired. Use a hosted route or configure
   `remote.ingress.public_url` before confirming a new webhook address.
 - Official install methods no longer include `go install`; use the desktop app, verified installer,
-  Homebrew, npm, or Linux release packages from [Download](/download). Source builds live in the
+  Homebrew, npm, or Linux release packages from [Download](https://compozy.com/download). Source builds live in the
   contributor guide and run as development builds without the sign-in gate.
 
 <a id="always-on-vocabulary"></a>

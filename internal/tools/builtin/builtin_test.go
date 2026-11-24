@@ -831,6 +831,90 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		)
 	})
 
+	t.Run("Should require a bounded lesson and evidence on skill proposals [UT-007]", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: the propose schema requires the lesson and 1-20 evidence sessions and bounds confidence.
+		propose := descriptors[toolspkg.ToolIDAgentSkillPropose]
+		input := compileNativeSchema(t, propose, propose.InputSchema, "input")
+		evidence := func(count int) string {
+			ids := make([]string, count)
+			for i := range ids {
+				ids[i] = fmt.Sprintf(`"sess-%d"`, i)
+			}
+			return "[" + strings.Join(ids, ",") + "]"
+		}
+		payload := func(lesson, ids string) string {
+			return `{"name":"release-checklist","description":"Use before tagging.","body":"Check the changelog.",` +
+				`"lesson":` + lesson + `,"evidence_session_ids":` + ids + `}`
+		}
+		lesson := `{"cue":"Tagging","lesson":"Check the changelog.","evidence":"sess-0 failed."}`
+		for _, testCase := range []struct {
+			name         string
+			payload      string
+			valid        bool
+			matchesKind  func(jsonschema.ErrorKind) bool
+			expectedKind string
+		}{
+			{name: "Should accept 20 evidence sessions", payload: payload(lesson, evidence(20)), valid: true},
+			{
+				name:    "Should accept a high confidence lesson",
+				payload: payload(`{"cue":"Tagging","lesson":"Check.","evidence":"Failed.","confidence":"high"}`, evidence(1)),
+				valid:   true,
+			},
+			{
+				name:         "Should reject 21 evidence sessions",
+				payload:      payload(lesson, evidence(21)),
+				matchesKind:  validationErrorKindIsMaxItems,
+				expectedKind: "maxItems",
+			},
+			{
+				name:         "Should reject an empty evidence list",
+				payload:      payload(lesson, evidence(0)),
+				matchesKind:  validationErrorKindIsMinItems,
+				expectedKind: "minItems",
+			},
+			{
+				name:         "Should reject a confidence outside the enum",
+				payload:      payload(`{"cue":"Tagging","lesson":"Check.","evidence":"Failed.","confidence":"certain"}`, evidence(1)),
+				matchesKind:  validationErrorKindIsEnum,
+				expectedKind: "enum",
+			},
+			{
+				name:         "Should reject a proposal without a lesson",
+				payload:      `{"name":"release-checklist","description":"d","body":"b","evidence_session_ids":["sess-0"]}`,
+				matchesKind:  validationErrorKindIsRequired,
+				expectedKind: "required",
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				instance, err := jsonschema.UnmarshalJSON(strings.NewReader(testCase.payload))
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = input.Validate(instance)
+				if testCase.valid {
+					if err != nil {
+						t.Fatalf("agent_skill_propose schema rejected %s: %v", testCase.payload, err)
+					}
+					return
+				}
+				validationErr, ok := errors.AsType[*jsonschema.ValidationError](err)
+				if !ok {
+					t.Fatalf("agent_skill_propose validation error = %T %v, want *jsonschema.ValidationError", err, err)
+				}
+				if !validationErrorContainsKind(validationErr, testCase.matchesKind) {
+					t.Fatalf(
+						"agent_skill_propose validation cause = %#v, want %s",
+						validationErr,
+						testCase.expectedKind,
+					)
+				}
+			})
+		}
+	})
+
 	t.Run("Should advertise spawn worktree, inheritance, and first prompt contracts", func(t *testing.T) {
 		t.Parallel()
 
@@ -1444,6 +1528,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__extensions_enable", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__extensions_setup", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__extensions_info", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__extensions_init", risk: toolspkg.RiskMutating,
@@ -1715,6 +1801,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: "compozy__session_stop", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_unarchive", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_archive_stopped", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_cleanup", risk: toolspkg.RiskDestructive,
 			readOnly: false, destructive: true, openWorld: false},
@@ -2263,6 +2351,26 @@ func validationErrorKindIsType(errorKind jsonschema.ErrorKind) bool {
 
 func validationErrorKindIsNot(errorKind jsonschema.ErrorKind) bool {
 	_, ok := errorKind.(*jsonschemakind.Not)
+	return ok
+}
+
+func validationErrorKindIsMaxItems(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.MaxItems)
+	return ok
+}
+
+func validationErrorKindIsMinItems(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.MinItems)
+	return ok
+}
+
+func validationErrorKindIsEnum(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.Enum)
+	return ok
+}
+
+func validationErrorKindIsRequired(errorKind jsonschema.ErrorKind) bool {
+	_, ok := errorKind.(*jsonschemakind.Required)
 	return ok
 }
 
@@ -4012,6 +4120,7 @@ func TestCheckInWritableInventory(t *testing.T) {
 			"compozy__extensions_reload":              false,
 			"compozy__extensions_remove":              false,
 			"compozy__extensions_restore":             false,
+			"compozy__extensions_setup":               false,
 			"compozy__extensions_update":              false,
 			"compozy__goal_control":                   false,
 			"compozy__goal_report":                    false,
@@ -4052,6 +4161,7 @@ func TestCheckInWritableInventory(t *testing.T) {
 			"compozy__session_approve":                false,
 			"compozy__session_archive":                false,
 			"compozy__session_clarify_answer":         false,
+			"compozy__session_archive_stopped":        false,
 			"compozy__session_cleanup":                false,
 			"compozy__session_compact":                false,
 			"compozy__session_continue":               false,

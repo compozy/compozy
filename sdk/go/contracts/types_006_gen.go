@@ -2,7 +2,10 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type ContextPostCompactPayload struct {
 	Event           HookEvent `json:"event"`
@@ -227,6 +230,20 @@ type DescribeHookEvent struct {
 	Profile string    `json:"profile,omitempty"`
 }
 
+type DescribeInput struct {
+	ID       string               `json:"id"`
+	Prompt   string               `json:"prompt"`
+	Type     string               `json:"type"`
+	Required bool                 `json:"required"`
+	Binding  DescribeInputBinding `json:"binding"`
+	Default  json.RawMessage      `json:"default,omitempty"`
+}
+
+type DescribeInputBinding struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+}
+
 type DescribePayload struct {
 	Name                 string                           `json:"name"`
 	Version              string                           `json:"version"`
@@ -234,6 +251,7 @@ type DescribePayload struct {
 	Provides             []string                         `json:"provides"`
 	Permissions          []string                         `json:"permissions"`
 	RequiresEnv          []string                         `json:"requires_env,omitempty"`
+	Inputs               []DescribeInput                  `json:"inputs,omitempty"`
 	Profiles             []DescribeProfile                `json:"profiles,omitempty"`
 	Resources            DescribeResources                `json:"resources"`
 	Subprocess           DescribeSubprocess               `json:"subprocess"`
@@ -258,14 +276,4 @@ type DescribeProfile struct {
 type DescribeProfileCredential struct {
 	Provider string `json:"provider"`
 	Slot     string `json:"slot"`
-}
-
-type DescribeProfileDefaults struct {
-	Agent    string `json:"agent,omitempty"`
-	Provider string `json:"provider,omitempty"`
-}
-
-type DescribeResourcePath struct {
-	Path    string `json:"path"`
-	Profile string `json:"profile,omitempty"`
 }

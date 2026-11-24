@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+type SessionCreateResult struct {
+	SessionID string `json:"session_id"`
+}
+
+type SessionDerivationPayload struct {
+	Kind                  LineageKind `json:"kind"`
+	SourceSessionID       string      `json:"source_session_id"`
+	Seed                  string      `json:"seed"`
+	NativeState           string      `json:"native_state,omitempty"`
+	NativeForkError       string      `json:"native_fork_error,omitempty"`
+	FirstPrompt           string      `json:"first_prompt"`
+	InheritedMessageCount *int        `json:"inherited_message_count,omitzero"`
+	ReplayMessageCount    *int        `json:"replay_message_count,omitzero"`
+	ReplayOmittedCount    *int        `json:"replay_omitted_count,omitzero"`
+}
+
 type SessionEvent struct {
 	Type      string    `json:"type"`
 	Timestamp time.Time `json:"timestamp"`
@@ -232,37 +248,6 @@ type SessionMessagePersistedPayload struct {
 }
 
 type SessionPostCreatePatch struct {
-	Deny        bool    `json:"deny,omitempty"`
-	DenyReason  string  `json:"deny_reason,omitempty"`
-	SessionName *string `json:"session_name,omitempty"`
-	SessionType *string `json:"session_type,omitempty"`
-	AgentName   *string `json:"agent_name,omitempty"`
-	WorkspaceID *string `json:"workspace_id,omitempty"`
-	Workspace   *string `json:"workspace,omitempty"`
-}
-
-type SessionPostCreatePayload struct {
-	Event           HookEvent `json:"event"`
-	Timestamp       time.Time `json:"timestamp"`
-	LineageKind     string    `json:"lineage_kind,omitempty"`
-	ParentSessionID string    `json:"parent_session_id,omitempty"`
-	ProfileID       string    `json:"profile_id,omitempty"`
-	SessionID       string    `json:"session_id,omitempty"`
-	SessionName     string    `json:"session_name,omitempty"`
-	SessionType     string    `json:"session_type,omitempty"`
-	AgentName       string    `json:"agent_name,omitempty"`
-	WorkspaceID     string    `json:"workspace_id,omitempty"`
-	Workspace       string    `json:"workspace,omitempty"`
-	WorktreeID      string    `json:"worktree_id,omitempty"`
-	ACPSessionID    string    `json:"acp_session_id,omitempty"`
-	State           string    `json:"state,omitempty"`
-	SoulSnapshotID  string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest      string    `json:"soul_digest,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-}
-
-type SessionPostResumePatch struct {
 	Deny        bool    `json:"deny,omitempty"`
 	DenyReason  string  `json:"deny_reason,omitempty"`
 	SessionName *string `json:"session_name,omitempty"`

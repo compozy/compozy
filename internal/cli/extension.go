@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -80,6 +81,7 @@ func newExtensionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newExtensionInventoryCommand(deps))
 	cmd.AddCommand(newExtensionProvenanceCommand(deps))
 	cmd.AddCommand(newExtensionSecretsCommand(deps))
+	cmd.AddCommand(newExtensionSetupCommand(deps))
 	cmd.AddCommand(newExtensionPublishCommand(deps))
 	return cmd
 }
@@ -131,6 +133,7 @@ type extensionInstallFlags struct {
 	scope           string
 	workspaceRef    string
 	inputs          extensionInputFlags
+	dependencies    extensionDependencyFlags
 	version         string
 	asset           string
 	allowUnverified bool
@@ -175,6 +178,7 @@ func (f *extensionInstallFlags) register(cmd *cobra.Command) {
 		"Allow install when the extension checksum is not registry-verified",
 	)
 	cmd.Flags().BoolVar(&f.yes, yesFlagName, false, "Skip confirmation when using --allow-unverified")
+	f.dependencies.register(cmd)
 }
 
 func runExtensionInstall(
@@ -198,6 +202,9 @@ func runExtensionInstall(
 		plan.Attempts[index].WorkspaceID = selected.workspaceID
 		plan.Attempts[index].Profile = selected.profile
 	}
+	if err := f.dependencies.apply(plan); err != nil {
+		return err
+	}
 	plan, err = resolvePluginInstallPlan(cmd.Context(), deps, plan)
 	if err != nil {
 		return err
@@ -218,8 +225,23 @@ func runExtensionInstall(
 	if err := confirmExtensionUnverifiedInstall(cmd, f.allowUnverified, f.yes); err != nil {
 		return err
 	}
-	item, err := executeExtensionInstallPlan(cmd.Context(), deps, plan)
+	if err := f.dependencies.confirmUnverified(cmd, f.yes); err != nil {
+		return err
+	}
+	if f.dependencies.withDependencies {
+		if err := pinExtensionDependencyDigests(cmd.Context(), deps, plan, preview); err != nil {
+			return err
+		}
+	}
+	item, err := executeExtensionInstallPlanWithPrompts(cmd, deps, plan)
 	if err != nil {
+		if len(item.InstallDependenciesInstalled) > 0 {
+			_, writeErr := fmt.Fprintf(cmd.ErrOrStderr(), "Installed dependencies first: %s.\n",
+				strings.Join(item.InstallDependenciesInstalled, ", "))
+			if writeErr != nil {
+				return errors.Join(err, fmt.Errorf("cli: write partial extension install notice: %w", writeErr))
+			}
+		}
 		return err
 	}
 	report := extensionInstallValidationReport(deps, plan, &item)
@@ -231,6 +253,7 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
 	var global bool
 	var permanent bool
+	var force bool
 	command := &cobra.Command{
 		Use:   cliRemoveNameUse,
 		Short: "Remove an installed extension from disk and the registry",
@@ -239,6 +262,7 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 			if err := validateExtensionPermanentRemoveFlags(permanent, workspaceRef); err != nil {
 				return err
 			}
+			withExtensionForce(cmd, force)
 			baseClient, err := requireExtensionDaemonClient(cmd.Context(), deps)
 			if err != nil {
 				return err
@@ -283,6 +307,7 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 		false,
 		"Remove a bundled built-in permanently; it will not return until restored (global only)",
 	)
+	registerExtensionForceFlag(command, &force)
 	return command
 }
 
@@ -371,11 +396,13 @@ func newExtensionEnableCommand(deps commandDeps) *cobra.Command {
 }
 
 func newExtensionDisableCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	var force bool
+	command := &cobra.Command{
 		Use:   cliUseDisableName,
 		Short: "Disable an installed extension",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			withExtensionForce(cmd, force)
 			item, err := setExtensionProfileEnablement(cmd, deps, args[0], false)
 			if err != nil {
 				return err
@@ -383,6 +410,8 @@ func newExtensionDisableCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, extensionEnablementBundle(item))
 		},
 	}
+	registerExtensionForceFlag(command, &force)
+	return command
 }
 
 func newExtensionStatusCommand(deps commandDeps) *cobra.Command {

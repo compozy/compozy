@@ -2,10 +2,79 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// MarketplaceServerPayload is a daemon API value.
+type MarketplaceServerPayload struct {
+	Name        string          `json:"name"`
+	Owner       string          `json:"owner"`
+	Scope       string          `json:"scope,omitempty"`
+	Transport   string          `json:"transport"`
+	Launch      string          `json:"launch"`
+	Status      string          `json:"status,omitempty"`
+	RuntimeName string          `json:"runtime_name,omitempty"`
+	Auth        *MCPAuthSummary `json:"auth,omitzero"`
+	Profile     string          `json:"profile,omitempty"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+}
+
+// MarketplaceSourcePayload is a daemon API value.
+type MarketplaceSourcePayload struct {
+	Name         string           `json:"name"`
+	Kind         string           `json:"kind"`
+	Source       string           `json:"source"`
+	Enabled      bool             `json:"enabled"`
+	State        string           `json:"state"`
+	Plugins      int              `json:"plugins"`
+	Installable  int              `json:"installable"`
+	LastReadAt   *time.Time       `json:"last_read_at,omitempty"`
+	ErrorClass   string           `json:"error_class,omitempty"`
+	Error        string           `json:"error,omitempty"`
+	DocumentPath string           `json:"document_path,omitempty"`
+	Owner        string           `json:"owner,omitempty"`
+	Stability    string           `json:"stability"`
+	Diagnostics  []DiagnosticItem `json:"diagnostics"`
+}
+
+// MarketplaceSourcePreviewPayload is a daemon API value.
+type MarketplaceSourcePreviewPayload struct {
+	Name         string           `json:"name"`
+	Owner        string           `json:"owner,omitempty"`
+	DocumentPath string           `json:"document_path"`
+	Plugins      int              `json:"plugins"`
+	Installable  int              `json:"installable"`
+	Diagnostics  []DiagnosticItem `json:"diagnostics"`
+}
+
+// MarketplaceSourceResponse is a daemon API value.
+type MarketplaceSourceResponse struct {
+	Source MarketplaceSourcePayload `json:"source"`
+}
+
+// MarketplaceSourceSummary is a daemon API value.
+type MarketplaceSourceSummary struct {
+	Name       string     `json:"name"`
+	Kind       string     `json:"kind"`
+	State      string     `json:"state"`
+	Count      int        `json:"count"`
+	LastReadAt *time.Time `json:"last_read_at,omitempty"`
+}
+
+// MarketplaceSourcesResponse is a daemon API value.
+type MarketplaceSourcesResponse struct {
+	Sources []MarketplaceSourcePayload `json:"sources"`
+}
+
+// Mergeable is a daemon API value.
+type Mergeable string
+
+// Meta is a daemon API value.
+type Meta struct {
+	Name        string      `json:"name"`
+	Version     int         `json:"version,omitzero"`
+	Description string      `json:"description,omitempty"`
+	Catalog     CatalogMeta `json:"catalog"`
+}
 
 // MetaField is a daemon API value.
 type MetaField struct {
@@ -373,75 +442,4 @@ type OpenSessionSideRequest struct {
 // OpenURLEffect is a daemon API value.
 type OpenURLEffect struct {
 	URL string `json:"url"`
-}
-
-// OperatorNotificationEventPayload is a daemon API value.
-type OperatorNotificationEventPayload struct {
-	Kind           string    `json:"kind,omitempty"`
-	Action         string    `json:"action,omitempty"`
-	Resource       string    `json:"resource,omitempty"`
-	NotificationID string    `json:"notification_id"`
-	SessionID      string    `json:"session_id"`
-	ProfileID      string    `json:"profile_id"`
-	ProfileName    string    `json:"profile_name"`
-	WorkspaceID    string    `json:"workspace_id"`
-	Title          string    `json:"title"`
-	Body           string    `json:"body"`
-	At             time.Time `json:"at"`
-}
-
-// OptionalStringList is a daemon API value.
-// OptionalStringList preserves its custom JSON wire representation.
-type OptionalStringList = json.RawMessage
-
-// Origin is a daemon API value.
-type Origin struct {
-	Kind OriginKind `json:"kind"`
-	Ref  string     `json:"ref"`
-}
-
-// OriginKind is a daemon API value.
-type OriginKind string
-
-// OutlineEntry is a daemon API value.
-type OutlineEntry struct {
-	Sequence     int64     `json:"sequence"`
-	TurnID       string    `json:"turn_id"`
-	Preview      string    `json:"preview"`
-	ReplyPreview string    `json:"reply_preview"`
-	At           time.Time `json:"at"`
-}
-
-// OutlineResult is a daemon API value.
-type OutlineResult struct {
-	Entries []OutlineEntry `json:"entries"`
-}
-
-// OverviewAgentSharePayload is a daemon API value.
-type OverviewAgentSharePayload struct {
-	AgentName string  `json:"agent_name"`
-	Tokens    int64   `json:"tokens"`
-	Fraction  float64 `json:"fraction"`
-}
-
-// OverviewAttentionItemPayload is a daemon API value.
-type OverviewAttentionItemPayload struct {
-	NotificationID string    `json:"notification_id,omitempty"`
-	Kind           string    `json:"kind"`
-	Title          string    `json:"title"`
-	Detail         string    `json:"detail,omitempty"`
-	TaskID         string    `json:"task_id,omitempty"`
-	RunID          string    `json:"run_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	WorkspaceID    string    `json:"workspace_id"`
-	OccurredAt     time.Time `json:"occurred_at"`
-	Actions        []string  `json:"actions"`
-}
-
-// OverviewAttentionPayload is a daemon API value.
-type OverviewAttentionPayload struct {
-	Snapshot string                         `json:"snapshot,omitempty"`
-	Total    int                            `json:"total"`
-	ByKind   map[string]int                 `json:"by_kind"`
-	Items    []OverviewAttentionItemPayload `json:"items"`
 }

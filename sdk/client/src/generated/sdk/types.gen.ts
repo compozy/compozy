@@ -904,19 +904,31 @@ export type AgentSkillDraftFile = {
   path: string;
 };
 
+export type AgentSkillLesson = {
+  confidence?: string;
+  cue: string;
+  evidence: string;
+  lesson: string;
+};
+
 export type AgentSkillReviewDecisionRequest = {
   digest: string;
 };
 
 export type AgentSkillReviewPayload = {
   agent: string;
+  base_digest?: string;
   created_at: string;
   decided_at?: string | null;
   decided_by?: string;
+  decided_via?: string;
   digest: string;
+  evidence_session_ids: Array<string>;
   files?: Array<AgentSkillDraftFile>;
   id: string;
   instance_id: string;
+  kind: string;
+  lesson?: AgentSkillLesson | null;
   name: string;
   problem?: string;
   profile_id: string;
@@ -926,6 +938,7 @@ export type AgentSkillReviewPayload = {
 };
 
 export type AgentSkillReviewResponse = {
+  duplicate_of_pending?: boolean;
   review: AgentSkillReviewPayload;
 };
 
@@ -2006,6 +2019,28 @@ export type Contract = {
   on_exhausted?: Array<EffectSpec>;
   on_failed?: Array<EffectSpec>;
   on_noop?: Array<EffectSpec>;
+  on_result?: {
+    [key: string]:
+      | "continue"
+      | "done"
+      | "next_generation"
+      | "halt"
+      | "escalate"
+      | {
+          action: "continue" | "done" | "next_generation" | "escalate";
+        }
+      | {
+          action: "halt";
+          terminal_status?:
+            | "done"
+            | "no-op"
+            | "blocked"
+            | "failed"
+            | "exhausted"
+            | "stalled"
+            | "canceled";
+        };
+  };
   on_stalled?: Array<EffectSpec>;
   runtime_defaults?: RuntimeDefaults | null;
   runtime_rules?: Array<RuntimeRule>;
@@ -2748,6 +2783,39 @@ export type ExtensionDeclaredProfilePayload = {
   needs_setup: boolean;
 };
 
+export type ExtensionDependencyConsent = {
+  allow_unverified?: boolean;
+  expected_digest?: string;
+};
+
+export type ExtensionDependencyParentPayload = {
+  name: string;
+  ref: string;
+  source: string;
+};
+
+export type ExtensionDependencyPayload = {
+  consent_required?: boolean;
+  depth: number;
+  digest_sha256?: string;
+  installed_version?: string;
+  min_version?: string;
+  name: string;
+  ref: string;
+  registry_tier?: string;
+  required_by: Array<string>;
+  retry_command?: string;
+  source: string;
+  state: string;
+  version?: string;
+};
+
+export type ExtensionDependentPayload = {
+  name: string;
+  profile: string;
+  workspace_id: string;
+};
+
 export type ExtensionEnableError = {
   code: string;
   error: string;
@@ -2771,7 +2839,34 @@ export type ExtensionInputStatePayload = {
   active: boolean;
   id: string;
   set: boolean;
+  state?: string;
   type: string;
+};
+
+export type ExtensionInputStatusPayload = {
+  binding: MarketplaceInputBindingPayload;
+  default?: unknown;
+  id: string;
+  prompt: string;
+  required: boolean;
+  state: string;
+  targets: Array<string>;
+  type: string;
+};
+
+export type ExtensionInputsPayload = {
+  changed?: Array<string>;
+  daemon_env: Array<string>;
+  enabled: boolean;
+  extension: string;
+  inputs: Array<ExtensionInputStatusPayload>;
+  invalid: Array<string>;
+  mcp_auth_servers: Array<string>;
+  missing: Array<string>;
+  missing_env: Array<string>;
+  profile: string;
+  reloaded?: boolean;
+  workspace_id: string;
 };
 
 export type ExtensionInstallDeclaredProfilePayload = {
@@ -2782,6 +2877,7 @@ export type ExtensionInstallDeclaredProfilePayload = {
 
 export type ExtensionInstallPreviewPayload = {
   declared_profiles: Array<ExtensionInstallDeclaredProfilePayload>;
+  dependencies?: Array<ExtensionDependencyPayload>;
   digest_sha256?: string;
   inputs: Array<MarketplaceInputPayload>;
   name: string;
@@ -2827,16 +2923,26 @@ export type ExtensionOperationErrorPayload = {
   agents?: Array<string>;
   code: string;
   declared_env?: Array<string>;
+  dependencies?: Array<ExtensionDependencyPayload>;
+  dependencies_installed?: Array<string>;
+  dependency?: string;
+  dependents?: Array<ExtensionDependentPayload>;
   diagnostic?: DiagnosticItem | null;
   env_name?: string;
   error: string;
   fetched_digest?: string;
   input_definitions?: Array<MarketplaceInputPayload>;
   input_id?: string;
+  input_ids?: Array<string>;
   inputs?: Array<string>;
   installed_origin?: MarketplaceOriginPayload | null;
+  invalid?: Array<string>;
   listed_digest?: string;
   missing_env?: Array<string>;
+  parents?: Array<ExtensionDependencyParentPayload>;
+  path?: Array<string>;
+  reason?: string;
+  retry_command?: string;
 };
 
 export type ExtensionPayload = {
@@ -2881,6 +2987,7 @@ export type ExtensionPayload = {
   state: string;
   trust?: ExtensionTrustReportPayload | null;
   type: string;
+  unmet_dependencies?: Array<ExtensionDependencyPayload>;
   update_available: boolean;
   uptime_seconds?: number;
   version: string;
@@ -2987,6 +3094,8 @@ export type ExtensionUpdateResponse = {
 };
 
 export type ExtensionValidationErrorPayload = {
+  dependencies_installed?: Array<string>;
+  dependency?: string;
   diagnostic?: DiagnosticItem | null;
   error: string;
   issues: Array<ValidationIssue>;
@@ -3696,7 +3805,29 @@ export type Graph = {
         }
     >;
     on_result?: {
-      [key: string]: unknown;
+      [key: string]:
+        | "continue"
+        | "revise"
+        | "next_generation"
+        | "halt"
+        | "escalate"
+        | {
+            route: string;
+          }
+        | {
+            action: "continue" | "revise" | "next_generation" | "escalate";
+          }
+        | {
+            action: "halt";
+            terminal_status?:
+              | "done"
+              | "no-op"
+              | "blocked"
+              | "failed"
+              | "exhausted"
+              | "stalled"
+              | "canceled";
+          };
     };
     on_retry?: Array<
       | {
@@ -4406,6 +4537,12 @@ export type InstallExtensionRequest = {
   allow_unverified?: boolean;
   asset?: string;
   /**
+   * Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies.
+   */
+  dependencies?: {
+    [key: string]: ExtensionDependencyConsent;
+  };
+  /**
    * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
    */
   enable?: boolean;
@@ -4432,12 +4569,17 @@ export type InstallExtensionRequest = {
   source: "curated" | "marketplace" | "github" | "git" | "local_path";
   version?: string;
   /**
+   * Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse.
+   */
+  with_dependencies?: boolean;
+  /**
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
   workspace_id?: string;
 };
 
 export type InstallExtensionResponse = {
+  dependencies_installed?: Array<string>;
   enable_error?: ExtensionEnableError | null;
   extension: ExtensionPayload;
 };
@@ -4699,6 +4841,28 @@ export type LoopContract = {
   on_exhausted?: Array<LoopEffectSpec>;
   on_failed?: Array<LoopEffectSpec>;
   on_noop?: Array<LoopEffectSpec>;
+  on_result?: {
+    [key: string]:
+      | "continue"
+      | "done"
+      | "next_generation"
+      | "halt"
+      | "escalate"
+      | {
+          action: "continue" | "done" | "next_generation" | "escalate";
+        }
+      | {
+          action: "halt";
+          terminal_status?:
+            | "done"
+            | "no-op"
+            | "blocked"
+            | "failed"
+            | "exhausted"
+            | "stalled"
+            | "canceled";
+        };
+  };
   on_stalled?: Array<LoopEffectSpec>;
   runtime_defaults?: LoopRuntimeDefaults | null;
   runtime_rules?: Array<LoopRuntimeRule>;
@@ -5311,6 +5475,7 @@ export type LoopRunPayload = {
     | "exhausted"
     | "stalled"
     | "canceled";
+  terminal?: LoopRunTerminal | null;
   tokens_used: number;
   workspace_id: string;
 };
@@ -5332,6 +5497,16 @@ export type LoopRunResponse = {
   run: LoopRunPayload;
   waits: Array<LoopNodeWaitPayload>;
   watch_events?: LoopWatchEventsState | null;
+};
+
+export type LoopRunTerminal = {
+  at?: string;
+  cause?: string;
+  gate_id?: string;
+  message?: string;
+  node_id?: string;
+  reason_code?: string;
+  status: "done" | "no-op" | "blocked" | "failed" | "exhausted" | "stalled" | "canceled";
 };
 
 export type LoopRunsAggregatePayload = {
@@ -5401,6 +5576,7 @@ export type LoopStartBinding = {
 };
 
 export type LoopTarget = {
+  input_command?: string;
   input_mapping?: {
     [key: string]: string;
   };
@@ -7757,6 +7933,50 @@ export type SessionApprovalResponse = {
   resolved_decision?: string;
 };
 
+export type SessionArchiveStoppedFailure = {
+  code: string;
+  message: string;
+  root_id: string;
+  title: string;
+  workspace_id: string;
+};
+
+export type SessionArchiveStoppedRequest = {
+  all_workspaces?: boolean;
+  dry_run?: boolean;
+  workspace_id?: string;
+};
+
+export type SessionArchiveStoppedResponse = {
+  archived: Array<SessionArchiveStoppedThread>;
+  archived_session_count: number;
+  archived_thread_count: number;
+  dry_run: boolean;
+  failure_count: number;
+  failures: Array<SessionArchiveStoppedFailure>;
+  failures_truncated: boolean;
+  skip_counts: {
+    [key: string]: number;
+  };
+  skipped: Array<SessionArchiveStoppedSkip>;
+  skipped_truncated: boolean;
+};
+
+export type SessionArchiveStoppedSkip = {
+  reason: string;
+  root_id: string;
+  title: string;
+  workspace_id: string;
+};
+
+export type SessionArchiveStoppedThread = {
+  restore_ids: Array<string>;
+  root_id: string;
+  session_ids: Array<string>;
+  title: string;
+  workspace_id: string;
+};
+
 export type SessionAttachPayload = {
   attach_expires_at: string;
   attached_at: string;
@@ -7823,6 +8043,7 @@ export type SessionCatalogPagePayload = {
   limit: number;
   next_cursor?: string;
   total?: number | null;
+  working?: number | null;
 };
 
 export type SessionCatalogResponse = {
@@ -9023,7 +9244,14 @@ export type SessionsResponse = {
 
 export type SetExtensionEnablementRequest = {
   enabled: boolean;
+  force?: boolean;
   profile: string;
+};
+
+export type SetExtensionInputsRequest = {
+  inputs: {
+    [key: string]: Value;
+  };
 };
 
 export type SetExtensionSecretsRequest = {
@@ -13550,6 +13778,7 @@ export type UpdateExtensionsRequest = {
 export type UpdateJobRequest = {
   enabled?: boolean | null;
   fire_limit?: FireLimitConfig | null;
+  loop_input_command?: string | null;
   loop_target?: LoopTarget | null;
   name?: string | null;
   prompt?: string | null;
@@ -14352,6 +14581,12 @@ export type InstallExtensionRequestWritable = {
   allow_unverified?: boolean;
   asset?: string;
   /**
+   * Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies.
+   */
+  dependencies?: {
+    [key: string]: ExtensionDependencyConsent;
+  };
+  /**
    * Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
    */
   enable?: boolean;
@@ -14378,9 +14613,19 @@ export type InstallExtensionRequestWritable = {
   source: "curated" | "marketplace" | "github" | "git" | "local_path";
   version?: string;
   /**
+   * Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse.
+   */
+  with_dependencies?: boolean;
+  /**
    * Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound.
    */
   workspace_id?: string;
+};
+
+export type SetExtensionInputsRequestWritable = {
+  inputs: {
+    [key: string]: ValueWritable;
+  };
 };
 
 export type UpdateAgentRequestWritable = {
@@ -16529,11 +16774,19 @@ export type ListAgentSkillReviewsData = {
      */
     workspace?: string;
     /**
-     * pending, approved or rejected
+     * pending, approved, rejected or reverted
      */
     state?: string;
     /**
-     * Page cursor
+     * new or edit
+     */
+    kind?: string;
+    /**
+     * operator or auto_approve
+     */
+    decided_via?: string;
+    /**
+     * Page cursor bound to the filters it was issued for
      */
     cursor?: string;
     /**
@@ -23044,13 +23297,17 @@ export type PreviewExtensionInstallErrors = {
    */
   403: ErrorPayload;
   /**
+   * A marketplace dependency listing was not found
+   */
+  404: ExtensionOperationErrorPayload;
+  /**
    * The approved source digest changed
    */
   409: ExtensionOperationErrorPayload;
   /**
-   * Package validation failure
+   * Extension trust decision, dependency graph refusal, or package validation failure
    */
-  422: ExtensionValidationErrorPayload;
+  422: ErrorPayload | ExtensionOperationErrorPayload | ExtensionValidationErrorPayload;
   /**
    * Extension service is not configured
    */
@@ -23176,6 +23433,10 @@ export type RemoveExtensionData = {
      */
     permanent?: boolean;
     /**
+     * Experimental. Remove even while an installed dependent still needs the extension; the dependent then reports unmet_dependencies. Removal never cascades.
+     */
+    force?: boolean;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -23197,9 +23458,9 @@ export type RemoveExtensionErrors = {
    */
   404: ErrorPayload;
   /**
-   * Extension is in use
+   * Extension is in use, or experimental: an installed dependent still needs it
    */
-  409: ErrorPayload;
+  409: ErrorPayload | ExtensionOperationErrorPayload;
   /**
    * Extension is not a built-in
    */
@@ -23413,7 +23674,11 @@ export type SetExtensionEnablementErrors = {
    */
   404: ErrorPayload;
   /**
-   * Extension inputs are required
+   * Experimental: an installed dependent still needs the extension (extension_dependency_in_use)
+   */
+  409: ExtensionOperationErrorPayload;
+  /**
+   * Extension inputs are required, or experimental: its dependencies are unmet
    */
   422: ExtensionOperationErrorPayload;
   /**
@@ -23434,6 +23699,113 @@ export type SetExtensionEnablementResponses = {
 
 export type SetExtensionEnablementResponse =
   SetExtensionEnablementResponses[keyof SetExtensionEnablementResponses];
+
+export type GetExtensionInputsData = {
+  body?: never;
+  path: {
+    /**
+     * Extension name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Installation scope: global or workspace
+     */
+    scope?: string;
+    /**
+     * Operator workspace reference; omit for the global instance
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/extensions/{name}/inputs";
+};
+
+export type GetExtensionInputsErrors = {
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Extension not found
+   */
+  404: ExtensionOperationErrorPayload;
+};
+
+export type GetExtensionInputsError = GetExtensionInputsErrors[keyof GetExtensionInputsErrors];
+
+export type GetExtensionInputsResponses = {
+  /**
+   * OK
+   */
+  200: ExtensionInputsPayload;
+};
+
+export type GetExtensionInputsResponse =
+  GetExtensionInputsResponses[keyof GetExtensionInputsResponses];
+
+export type SetExtensionInputsData = {
+  /**
+   * JSON request body
+   */
+  body: SetExtensionInputsRequestWritable;
+  path: {
+    /**
+     * Extension name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Installation scope: global or workspace
+     */
+    scope?: string;
+    /**
+     * Operator workspace reference; omit for the global instance
+     */
+    workspace?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/extensions/{name}/inputs";
+};
+
+export type SetExtensionInputsErrors = {
+  /**
+   * Invalid request
+   */
+  400: ExtensionOperationErrorPayload;
+  /**
+   * Forbidden, or an agent tried to overwrite inputs that are already set
+   */
+  403: ExtensionOperationErrorPayload;
+  /**
+   * Extension not found
+   */
+  404: ExtensionOperationErrorPayload;
+  /**
+   * Invalid input value
+   */
+  422: ExtensionOperationErrorPayload;
+};
+
+export type SetExtensionInputsError = SetExtensionInputsErrors[keyof SetExtensionInputsErrors];
+
+export type SetExtensionInputsResponses = {
+  /**
+   * OK
+   */
+  200: ExtensionInputsPayload;
+};
+
+export type SetExtensionInputsResponse =
+  SetExtensionInputsResponses[keyof SetExtensionInputsResponses];
 
 export type GetExtensionInventoryData = {
   body?: never;
@@ -28968,6 +29340,57 @@ export type CreateSessionResponses = {
 };
 
 export type CreateSessionResponse = CreateSessionResponses[keyof CreateSessionResponses];
+
+export type ArchiveStoppedSessionsData = {
+  /**
+   * JSON request body
+   */
+  body: SessionArchiveStoppedRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/sessions/archive-stopped";
+};
+
+export type ArchiveStoppedSessionsErrors = {
+  /**
+   * Choose exactly one of workspace_id and all_workspaces
+   */
+  400: ErrorPayload;
+  /**
+   * Agent identity is denied
+   */
+  403: ErrorPayload;
+  /**
+   * Workspace not found or archived
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type ArchiveStoppedSessionsError =
+  ArchiveStoppedSessionsErrors[keyof ArchiveStoppedSessionsErrors];
+
+export type ArchiveStoppedSessionsResponses = {
+  /**
+   * OK
+   */
+  200: SessionArchiveStoppedResponse;
+};
+
+export type ArchiveStoppedSessionsResponse =
+  ArchiveStoppedSessionsResponses[keyof ArchiveStoppedSessionsResponses];
 
 export type GetSessionAttentionSummaryData = {
   body?: never;

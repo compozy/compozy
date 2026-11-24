@@ -7,6 +7,80 @@ import (
 	"time"
 )
 
+// Ref is a daemon API value.
+type Ref struct {
+	ID     string          `json:"id"`
+	Kind   string          `json:"kind,omitempty"`
+	Script string          `json:"script,omitempty"`
+	With   json.RawMessage `json:"with,omitempty"`
+}
+
+// Reference is a daemon API value.
+type Reference struct {
+	ID              string     `json:"id"`
+	Identifier      string     `json:"identifier,omitempty"`
+	Title           string     `json:"title"`
+	Status          TaskStatus `json:"status"`
+	Priority        Priority   `json:"priority,omitempty"`
+	Owner           *Ownership `json:"owner,omitempty"`
+	Scope           TaskScope  `json:"scope"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	LatestEventSeq  int64      `json:"latest_event_seq"`
+	Paused          bool       `json:"paused,omitzero"`
+	EffectivePaused bool       `json:"effective_paused,omitzero"`
+	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
+}
+
+// RejectPolicy is a daemon API value.
+type RejectPolicy struct {
+	Route NodeID `json:"route"`
+}
+
+// ReloadExtensionRequest is a daemon API value.
+type ReloadExtensionRequest struct {
+	GenerationHash string `json:"generation_hash"`
+}
+
+// RemoteDevicePatchRequest is a daemon API value.
+type RemoteDevicePatchRequest struct {
+	Scopes     *[]Scope `json:"scopes,omitempty"`
+	Approved   *bool    `json:"approved,omitempty"`
+	ApprovalID string   `json:"approval_id,omitempty"`
+}
+
+// RemoteDeviceResponse is a daemon API value.
+type RemoteDeviceResponse struct {
+	ID              DeviceID   `json:"id"`
+	Name            string     `json:"name"`
+	Scopes          []Scope    `json:"scopes"`
+	Admin           bool       `json:"admin"`
+	LastSeenAt      *time.Time `json:"last_seen_at"`
+	PendingApproval bool       `json:"pending_approval"`
+	Approvals       []Approval `json:"approvals,omitempty"`
+}
+
+// RemoteDevicesResponse is a daemon API value.
+type RemoteDevicesResponse struct {
+	Devices []RemoteDeviceResponse `json:"devices"`
+}
+
+// RemoteLinkRequest is a daemon API value.
+type RemoteLinkRequest struct {
+	LinkToken string `json:"link_token,omitempty"`
+}
+
+// RemoteLinkResponse is a daemon API value.
+type RemoteLinkResponse struct {
+	ComputerID              ComputerID `json:"computer_id,omitempty"`
+	Name                    string     `json:"name,omitempty"`
+	Enabled                 bool       `json:"enabled,omitzero"`
+	AttemptID               string     `json:"attempt_id,omitempty"`
+	VerificationURI         string     `json:"verification_uri,omitempty"`
+	VerificationURIComplete string     `json:"verification_uri_complete,omitempty"`
+	UserCode                string     `json:"user_code,omitempty"`
+	ExpiresAt               time.Time  `json:"expires_at,omitzero"`
+}
+
 // RemotePatchRequest is a daemon API value.
 type RemotePatchRequest struct {
 	Enabled               *bool `json:"enabled,omitempty"`
@@ -373,75 +447,3 @@ type ReviewContinuation struct {
 
 // ReviewDecision is a daemon API value.
 type ReviewDecision string
-
-// ReviewPolicy is a daemon API value.
-type ReviewPolicy string
-
-// ReviewProfile is a daemon API value.
-type ReviewProfile struct {
-	AgentName             string               `json:"agent_name,omitempty"`
-	Provider              string               `json:"provider,omitempty"`
-	Model                 string               `json:"model,omitempty"`
-	ReasoningEffort       string               `json:"reasoning_effort,omitempty"`
-	Speed                 Speed                `json:"speed,omitempty"`
-	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
-	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
-	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
-	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
-	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
-}
-
-// ReviewSpec is a daemon API value.
-type ReviewSpec struct {
-	Decisions  []ReviewDecision `json:"decisions,omitempty"`
-	When       string           `json:"when,omitempty"`
-	Prompt     string           `json:"prompt,omitempty"`
-	Responders *ResponderSpec   `json:"responders,omitzero"`
-	OnReject   *RejectPolicy    `json:"on_reject,omitzero"`
-	Expires    *WaitExpiry      `json:"expires,omitzero"`
-}
-
-// Revision is a daemon API value.
-type Revision uint64
-
-// RiskClass is a daemon API value.
-type RiskClass string
-
-// RoleDiagnostic is a daemon API value.
-type RoleDiagnostic struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Agent   string `json:"agent,omitempty"`
-}
-
-// RoleFallbackStatus is a daemon API value.
-type RoleFallbackStatus struct {
-	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Provider           string                              `json:"provider"`
-	Model              string                              `json:"model"`
-	ReasoningEffort    string                              `json:"reasoning_effort,omitempty"`
-	Speed              Speed                               `json:"speed,omitempty"`
-	ACPOptions         []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	Command            string                              `json:"command,omitempty"`
-	CommandFingerprint string                              `json:"command_fingerprint,omitempty"`
-}
-
-// RoleResolutionMode is a daemon API value.
-type RoleResolutionMode string
-
-// RoleStatus is a daemon API value.
-type RoleStatus struct {
-	Role            string                    `json:"role"`
-	Enabled         bool                      `json:"enabled"`
-	ResolutionMode  RoleResolutionMode        `json:"resolution_mode"`
-	Agent           *string                   `json:"agent"`
-	Provider        *string                   `json:"provider"`
-	Model           *string                   `json:"model"`
-	ReasoningEffort *string                   `json:"reasoning_effort"`
-	Speed           *Speed                    `json:"speed"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options"`
-	Timeout         *string                   `json:"timeout,omitzero"`
-	FallbackChain   []RoleFallbackStatus      `json:"fallback_chain"`
-	Provenance      map[string]string         `json:"provenance"`
-	Diagnostics     []RoleDiagnostic          `json:"diagnostics"`
-}

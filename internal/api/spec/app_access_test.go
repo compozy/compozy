@@ -238,6 +238,13 @@ func TestAppAccessPolicy(t *testing.T) {
 		},
 		AppAccessDenied: {
 			"getAccount",
+			"createAccountToken",
+			"deleteAccount",
+			"dismissAccountSignInNotices",
+			"dismissMigrationNotice",
+			"listAccountTokens",
+			"patchAccountEmail",
+			"revokeAccountToken",
 			"startAccountLogin",
 			"cancelAccountLogin",
 			"streamAccountSignIn",
@@ -293,9 +300,9 @@ func TestAppAccessPolicy(t *testing.T) {
 			"refreshSessionWorkLink",
 			"removeSessionWorkLink",
 			// Archived-history cleanup deletes in bulk: operators and the approved native tool only.
-			"planSessionHistoryCleanup",
-			"getSessionHistoryCleanup",
-			"stopSessionHistoryCleanup",
+			"planSessionHistoryCleanup", "getSessionHistoryCleanup", "stopSessionHistoryCleanup",
+			// Archive stopped sessions in bulk: operators and the native tool only.
+			"archiveStoppedSessions",
 			// Skill review: drafts an agent proposed and the operator-only approve/reject decision.
 			"listAgentSkillReviews",
 			"getAgentSkillReview",
@@ -509,6 +516,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"listCmdPaletteCommands",
 			"listExtensionCommands",
 			"listExtensionEnablement",
+			"getExtensionInputs",
 			"listExtensionSecrets",
 			"listExtensions",
 			"listLogs",
@@ -602,6 +610,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"runWorktreeExitAction",
 			"searchTools",
 			"setExtensionEnablement",
+			"setExtensionInputs",
 			"setExtensionSecrets",
 			"setSettingsMCPServerEnabled",
 			"setSettingsProviderEnabled",

@@ -64,7 +64,7 @@ type AccountDeleteRequest struct {
 
 type AccountDeleteResponse struct {
 	State                 string `json:"state"`
-	SubscriptionCancelled bool   `json:"subscription_cancelled"`
+	SubscriptionCancelled bool   `json:"subscription_cancelled"` //nolint:misspell // Account deletion wire field.
 	Refund                string `json:"refund"`
 }
 

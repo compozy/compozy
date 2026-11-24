@@ -575,6 +575,8 @@ type extensionServiceStub struct {
 	listSecretsFn      func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionSecretsPayload, error)
 	setSecretsFn       func(context.Context, string, contract.SetExtensionSecretsRequest, taskpkg.ActorContext) (contract.ExtensionSecretsPayload, error)
 	deleteSecretFn     func(context.Context, string, string, taskpkg.ActorContext) error
+	inputsFn           func(context.Context, string, string, taskpkg.ActorContext) (contract.ExtensionInputsPayload, error)
+	setInputsFn        func(context.Context, string, string, contract.SetExtensionInputsRequest, taskpkg.ActorContext) (contract.ExtensionInputsPayload, error)
 	marketplaceTrustFn func(context.Context, extensionpkg.MarketplaceTrustEvidence) (contract.ExtensionTrustReportPayload, error)
 	devFn              func(context.Context, contract.DevLinkExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
 	reloadDevFn        func(context.Context, string, contract.ReloadExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
@@ -729,6 +731,31 @@ func (s extensionServiceStub) SetExtensionSecrets(
 		return s.setSecretsFn(ctx, name, req, actor)
 	}
 	return contract.ExtensionSecretsPayload{}, nil
+}
+
+func (s extensionServiceStub) ExtensionInputs(
+	ctx context.Context,
+	name string,
+	scope string,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionInputsPayload, error) {
+	if s.inputsFn != nil {
+		return s.inputsFn(ctx, name, scope, actor)
+	}
+	return contract.ExtensionInputsPayload{}, nil
+}
+
+func (s extensionServiceStub) SetExtensionInputs(
+	ctx context.Context,
+	name string,
+	scope string,
+	req contract.SetExtensionInputsRequest,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionInputsPayload, error) {
+	if s.setInputsFn != nil {
+		return s.setInputsFn(ctx, name, scope, req, actor)
+	}
+	return contract.ExtensionInputsPayload{}, nil
 }
 
 func (s extensionServiceStub) DeleteExtensionSecret(
@@ -1082,6 +1109,7 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 			http.StatusConflict, diagnosticcontract.CodeExtensionNameConflict},
 		{"source changed", &extensionpkg.SourceChangedError{ListedDigest: strings.Repeat("a", 64), FetchedDigest: strings.Repeat("b", 64)}, http.StatusConflict, diagnosticcontract.CodeExtensionSourceChanged},
 		{"inputs required", &extensionpkg.InputsRequiredError{MissingInputs: []string{"workspace"}, MissingEnv: []string{"TOKEN"},
+			Digest: strings.Repeat("e", 64),
 			InputDefinitions: []extensionpkg.ManifestInput{{ID: "workspace", Prompt: "Workspace", Type: "identifier", Required: true,
 				Binding: marketplacepkg.InputBinding{Type: "url_query", Name: "workspace"}}}}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputsRequired},
 		{"invalid input", &extensionpkg.InputValidationError{InputID: "workspace", Reason: "value must be a string"}, http.StatusUnprocessableEntity, diagnosticcontract.CodeExtensionInputInvalid},
@@ -1126,7 +1154,8 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 				}
 			case diagnosticcontract.CodeExtensionInputsRequired:
 				if !reflect.DeepEqual(payload.Inputs, []string{"workspace"}) ||
-					!reflect.DeepEqual(payload.MissingEnv, []string{"TOKEN"}) {
+					!reflect.DeepEqual(payload.MissingEnv, []string{"TOKEN"}) ||
+					payload.FetchedDigest != strings.Repeat("e", 64) {
 					t.Fatalf("required inputs = %#v", payload)
 				}
 				if len(payload.InputDefinitions) != 1 || payload.InputDefinitions[0].ID != "workspace" ||
@@ -1231,6 +1260,289 @@ func TestExtensionOperationErrorPayloads(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: setup routes map domain refusals onto their stable codes and never echo values.
+// Owner: core extension input handlers; suite: TestExtensionInputHandlers.
+func TestExtensionInputHandlers(t *testing.T) {
+	t.Parallel()
+	t.Run("Should read input state with the scope selector [T-08]", func(t *testing.T) {
+		t.Parallel()
+		var gotScope string
+		service := extensionServiceStub{inputsFn: func(
+			_ context.Context, name, scope string, _ taskpkg.ActorContext,
+		) (contract.ExtensionInputsPayload, error) {
+			gotScope = scope
+			return contract.ExtensionInputsPayload{Extension: name, Missing: []string{"project"}}, nil
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.GET("/extensions/:name/inputs", handlers.GetExtensionInputs)
+		response := performRequest(t, engine, http.MethodGet, "/extensions/kit/inputs?scope=global", nil)
+		if response.Code != http.StatusOK || gotScope != "global" ||
+			!strings.Contains(response.Body.String(), `"missing":["project"]`) {
+			t.Fatalf("status=%d scope=%q body=%s", response.Code, gotScope, response.Body.String())
+		}
+	})
+	for _, testCase := range []struct {
+		name   string
+		err    error
+		status int
+		check  func(contract.ExtensionOperationErrorPayload) bool
+	}{
+		{
+			name:   "Should refuse an agent overwrite with the listed input ids [T-10]",
+			err:    &extensionpkg.InputOverwriteDeniedError{InputIDs: []string{"project"}},
+			status: http.StatusForbidden,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionInputOverwriteDenied &&
+					reflect.DeepEqual(payload.InputIDs, []string{"project"})
+			},
+		},
+		{
+			name:   "Should map an invalid value onto its input id",
+			err:    &extensionpkg.InputValidationError{InputID: "project", Reason: "value must be a string"},
+			status: http.StatusUnprocessableEntity,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionInputInvalid && payload.InputID == "project"
+			},
+		},
+		{
+			name:   "Should report an uninstalled extension as not found [T-08]",
+			err:    &extensionpkg.ExtensionNotFoundError{Name: "kit"},
+			status: http.StatusNotFound,
+			check:  func(contract.ExtensionOperationErrorPayload) bool { return true },
+		},
+		{
+			name: "Should list required invalid inputs in invalid",
+			err: &extensionpkg.InputsRequiredError{
+				MissingInputs: []string{"project"}, InvalidInputs: []string{"project"},
+			},
+			status: http.StatusUnprocessableEntity,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionInputsRequired &&
+					reflect.DeepEqual(payload.Invalid, []string{"project"})
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			service := extensionServiceStub{setInputsFn: func(
+				context.Context, string, string, contract.SetExtensionInputsRequest, taskpkg.ActorContext,
+			) (contract.ExtensionInputsPayload, error) {
+				return contract.ExtensionInputsPayload{}, testCase.err
+			}}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+			engine := gin.New()
+			engine.PUT("/extensions/:name/inputs", handlers.SetExtensionInputs)
+			response := performRequest(t, engine, http.MethodPut, "/extensions/kit/inputs",
+				[]byte(`{"inputs":{"project":{"value":"planted-input-value"}}}`))
+			if response.Code != testCase.status {
+				t.Fatalf("status = %d, want %d; body=%s", response.Code, testCase.status, response.Body.String())
+			}
+			var payload contract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("json.Unmarshal(error) error = %v", err)
+			}
+			if !testCase.check(payload) || strings.Contains(response.Body.String(), "planted-input-value") {
+				t.Fatalf("payload = %#v body=%s", payload, response.Body.String())
+			}
+		})
+	}
+}
+
+// Invariant: install and preview carry the experimental dependency fields, and dependency refusals map onto
+// their codes naming the dependency and the dependencies already installed [T-16].
+// Owner: core extension install handlers; suite: TestExtensionDependencyHandlers.
+func TestExtensionDependencyHandlers(t *testing.T) {
+	t.Parallel()
+	t.Run("Should forward per-dependency consent and report installed dependencies", func(t *testing.T) {
+		t.Parallel()
+		var got contract.InstallExtensionRequest
+		service := extensionServiceStub{installFn: func(
+			_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext,
+		) (contract.ExtensionPayload, error) {
+			got = req
+			return contract.ExtensionPayload{
+				Name:                         "acme-tool",
+				InstallDependenciesInstalled: []string{"acme-core"},
+			}, nil
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions", handlers.InstallExtension)
+		expectedDigest := strings.Repeat("a", 64)
+		request := fmt.Appendf(nil, `{"source":"curated","ref":"acme/tool","with_dependencies":true,`+
+			`"dependencies":{"acme-core":{"allow_unverified":true,"expected_digest":%q}}}`,
+			expectedDigest)
+		response := performRequest(t, engine, http.MethodPost, "/extensions", request)
+		if response.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want 201; body=%s", response.Code, response.Body.String())
+		}
+		want := map[string]contract.ExtensionDependencyConsent{
+			"acme-core": {AllowUnverified: true, ExpectedDigest: expectedDigest},
+		}
+		if !got.WithDependencies || !reflect.DeepEqual(got.Dependencies, want) {
+			t.Fatalf("forwarded request = %+v", got)
+		}
+		var payload contract.InstallExtensionResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(install) error = %v", err)
+		}
+		if !reflect.DeepEqual(payload.DependenciesInstalled, []string{"acme-core"}) {
+			t.Fatalf("dependencies_installed = %v", payload.DependenciesInstalled)
+		}
+	})
+	dependencies := []contract.ExtensionDependencyPayload{{
+		Name: "acme-core", Source: "curated", Ref: "acme/core", MinVersion: "0.4.0",
+		RequiredBy: []string{"acme-tool"}, Depth: 1, State: "version_unmet", InstalledVersion: "0.3.0",
+		RetryCommand: "compozy extension update acme-core",
+	}}
+	for _, testCase := range []struct {
+		name   string
+		err    error
+		status int
+		check  func(contract.ExtensionOperationErrorPayload) bool
+	}{
+		{
+			name:   "Should list unmet dependencies and the update retry command",
+			err:    &extensionpkg.DependenciesRequiredError{Dependencies: dependencies},
+			status: http.StatusUnprocessableEntity,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionDependenciesRequired &&
+					reflect.DeepEqual(payload.Dependencies, dependencies) &&
+					payload.RetryCommand == "compozy extension update acme-core"
+			},
+		},
+		{
+			name: "Should describe an invalid graph with its reason, path and parents",
+			err: &extensionpkg.DependencyGraphInvalidError{
+				Reason: extensionpkg.DependencyGraphReasonConflictingSource, Path: []string{"acme-core"},
+				Parents: []contract.ExtensionDependencyParentPayload{
+					{Name: "acme-b", Source: "curated", Ref: "acme/core"},
+					{Name: "acme-c", Source: "git", Ref: "https://example.test/core.git"},
+				},
+			},
+			status: http.StatusUnprocessableEntity,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionDependencyGraphInvalid &&
+					payload.Reason == "conflicting_source" &&
+					reflect.DeepEqual(payload.Parents, []contract.ExtensionDependencyParentPayload{
+						{Name: "acme-b", Source: "curated", Ref: "acme/core"},
+						{Name: "acme-c", Source: "git", Ref: "https://example.test/core.git"},
+					}) &&
+					reflect.DeepEqual(payload.Path, []string{"acme-core"})
+			},
+		},
+		{
+			name: "Should name the dependency that lacks unverified consent",
+			err: &extensionpkg.DependencyGateError{
+				Dependency: "acme-core", Err: extensionpkg.NewExtensionChecksumUnverifiedError("acme-core", "git"),
+			},
+			status: http.StatusUnprocessableEntity,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionChecksumUnverified &&
+					payload.Dependency == "acme-core"
+			},
+		},
+		{
+			name: "Should report the conflicting dependency and the dependencies already installed",
+			err: &extensionpkg.DependenciesInstalledError{Installed: []string{"acme-base"}, Err: &extensionpkg.DependencyGateError{
+				Dependency: "acme-core", Err: extensionpkg.ErrExtensionExists,
+			}},
+			status: http.StatusConflict,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionExists &&
+					payload.Dependency == "acme-core" &&
+					reflect.DeepEqual(payload.DependenciesInstalled, []string{"acme-base"})
+			},
+		},
+		{
+			name: "Should keep extension_exists for a dependency whose installed package differs",
+			err: &extensionpkg.DependencyGateError{
+				Dependency: "acme-core", Err: fmt.Errorf("%w: acme-core 1.0.0 differs", extensionpkg.ErrExtensionExists),
+			},
+			status: http.StatusConflict,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionExists && payload.Dependency == "acme-core"
+			},
+		},
+		{
+			name: "Should keep the root agent conflict after dependencies were installed",
+			err: &extensionpkg.DependenciesInstalledError{
+				Installed: []string{"acme-core"}, Err: &extensionpkg.AgentConflictError{Agents: []string{"zed", "ada"}},
+			},
+			status: http.StatusConflict,
+			check: func(payload contract.ExtensionOperationErrorPayload) bool {
+				return payload.Code == diagnosticcontract.CodeExtensionAgentConflict && payload.Dependency == "" &&
+					reflect.DeepEqual(payload.Agents, []string{"ada", "zed"}) &&
+					reflect.DeepEqual(payload.DependenciesInstalled, []string{"acme-core"})
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			service := extensionServiceStub{installFn: func(
+				context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext,
+			) (contract.ExtensionPayload, error) {
+				return contract.ExtensionPayload{}, testCase.err
+			}}
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+			engine := gin.New()
+			engine.POST("/extensions", handlers.InstallExtension)
+			response := performRequest(t, engine, http.MethodPost, "/extensions",
+				[]byte(`{"source":"curated","ref":"acme/tool","with_dependencies":true}`))
+			if response.Code != testCase.status {
+				t.Fatalf("status = %d, want %d; body=%s", response.Code, testCase.status, response.Body.String())
+			}
+			var payload contract.ExtensionOperationErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("json.Unmarshal(error) error = %v", err)
+			}
+			if !testCase.check(payload) {
+				t.Fatalf("payload = %#v body=%s", payload, response.Body.String())
+			}
+		})
+	}
+}
+
+// Invariant: a dependency's missing marketplace digest keeps the validation payload's field issue and names the
+// dependency (G-2). Owner: core extension install handlers; suite: TestExtensionDependencyHandlers.
+func TestExtensionDependencyValidationPayload(t *testing.T) {
+	t.Parallel()
+	t.Run("Should keep the expected_digest issue and name the dependency", func(t *testing.T) {
+		t.Parallel()
+		service := extensionServiceStub{installFn: func(
+			context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext,
+		) (contract.ExtensionPayload, error) {
+			return contract.ExtensionPayload{}, &extensionpkg.DependenciesInstalledError{
+				Installed: []string{"acme-base"},
+				Err: &extensionpkg.DependencyGateError{
+					Dependency: "acme-core",
+					Err: &extensionpkg.ManifestValidationError{
+						Field: "expected_digest", Message: "a listed digest is required for marketplace plugins",
+					},
+				},
+			}
+		}}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{Extensions: service})
+		engine := gin.New()
+		engine.POST("/extensions", handlers.InstallExtension)
+		response := performRequest(t, engine, http.MethodPost, "/extensions",
+			[]byte(`{"source":"curated","ref":"acme/tool","with_dependencies":true}`))
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.ExtensionValidationErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(error) error = %v", err)
+		}
+		installed := payload.DependenciesInstalled
+		if len(payload.Issues) != 1 || payload.Issues[0].Field != "expected_digest" ||
+			payload.Dependency != "acme-core" || !reflect.DeepEqual(installed, []string{"acme-base"}) {
+			t.Fatalf("payload = %#v body=%s", payload, response.Body.String())
+		}
+	})
 }
 
 func mustJSONMarshal(t *testing.T, value any) []byte {

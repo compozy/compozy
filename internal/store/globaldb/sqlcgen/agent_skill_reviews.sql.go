@@ -11,7 +11,8 @@ import (
 )
 
 const decideAgentSkillReview = `-- name: DecideAgentSkillReview :execrows
-UPDATE agent_skill_reviews SET state = ?1, decided_by = ?2, decided_at = ?3
+UPDATE agent_skill_reviews SET state = ?1, decided_by = ?2,
+decided_at = ?3, decided_via = 'operator'
 WHERE id = ?4 AND state = 'pending' AND digest = ?5
 AND (?1 = 'approved' OR ?1 = 'rejected')
 `
@@ -38,8 +39,24 @@ func (q *Queries) DecideAgentSkillReview(ctx context.Context, arg DecideAgentSki
 	return result.RowsAffected()
 }
 
+const getAgentSkillEvidenceSession = `-- name: GetAgentSkillEvidenceSession :one
+SELECT profile_id, workspace_id FROM sessions WHERE id = ?1
+`
+
+type GetAgentSkillEvidenceSessionRow struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) GetAgentSkillEvidenceSession(ctx context.Context, id string) (GetAgentSkillEvidenceSessionRow, error) {
+	row := q.db.QueryRowContext(ctx, getAgentSkillEvidenceSession, id)
+	var i GetAgentSkillEvidenceSessionRow
+	err := row.Scan(&i.ProfileID, &i.WorkspaceID)
+	return i, err
+}
+
 const getAgentSkillReview = `-- name: GetAgentSkillReview :one
-SELECT id, instance_id, profile_id, workspace_id, agent_name, skill_name, digest, state, draft_path, source_session_id, decided_by, created_at, decided_at FROM agent_skill_reviews WHERE id = ?
+SELECT id, instance_id, profile_id, workspace_id, agent_name, skill_name, digest, state, draft_path, source_session_id, decided_by, created_at, decided_at, kind, skill_key, base_digest, snapshot_path, proposed_digest, installed_digest, prev_install_marker, lesson, evidence_session_ids, decided_via, reverted_by, reverted_at FROM agent_skill_reviews WHERE id = ?
 `
 
 func (q *Queries) GetAgentSkillReview(ctx context.Context, id string) (AgentSkillReview, error) {
@@ -59,23 +76,44 @@ func (q *Queries) GetAgentSkillReview(ctx context.Context, id string) (AgentSkil
 		&i.DecidedBy,
 		&i.CreatedAt,
 		&i.DecidedAt,
+		&i.Kind,
+		&i.SkillKey,
+		&i.BaseDigest,
+		&i.SnapshotPath,
+		&i.ProposedDigest,
+		&i.InstalledDigest,
+		&i.PrevInstallMarker,
+		&i.Lesson,
+		&i.EvidenceSessionIds,
+		&i.DecidedVia,
+		&i.RevertedBy,
+		&i.RevertedAt,
 	)
 	return i, err
 }
 
-const getAgentSkillReviewByDigest = `-- name: GetAgentSkillReviewByDigest :one
-SELECT id, instance_id, profile_id, workspace_id, agent_name, skill_name, digest, state, draft_path, source_session_id, decided_by, created_at, decided_at FROM agent_skill_reviews WHERE instance_id = ? AND skill_name = ? AND digest = ?
-ORDER BY created_at DESC, id DESC LIMIT 1
+const getAgentSkillReviewByIdentity = `-- name: GetAgentSkillReviewByIdentity :one
+SELECT id, instance_id, profile_id, workspace_id, agent_name, skill_name, digest, state, draft_path, source_session_id, decided_by, created_at, decided_at, kind, skill_key, base_digest, snapshot_path, proposed_digest, installed_digest, prev_install_marker, lesson, evidence_session_ids, decided_via, reverted_by, reverted_at FROM agent_skill_reviews
+WHERE instance_id = ?1 AND skill_name = ?2 AND digest = ?3
+AND base_digest = ?4 AND state IN ('pending', 'rejected')
+ORDER BY state = 'pending' DESC, created_at DESC, id DESC LIMIT 1
 `
 
-type GetAgentSkillReviewByDigestParams struct {
+type GetAgentSkillReviewByIdentityParams struct {
 	InstanceID string `json:"instance_id"`
 	SkillName  string `json:"skill_name"`
 	Digest     string `json:"digest"`
+	BaseDigest string `json:"base_digest"`
 }
 
-func (q *Queries) GetAgentSkillReviewByDigest(ctx context.Context, arg GetAgentSkillReviewByDigestParams) (AgentSkillReview, error) {
-	row := q.db.QueryRowContext(ctx, getAgentSkillReviewByDigest, arg.InstanceID, arg.SkillName, arg.Digest)
+// Proposal identity (instance, skill, digest, base digest); only pending and rejected reviews participate.
+func (q *Queries) GetAgentSkillReviewByIdentity(ctx context.Context, arg GetAgentSkillReviewByIdentityParams) (AgentSkillReview, error) {
+	row := q.db.QueryRowContext(ctx, getAgentSkillReviewByIdentity,
+		arg.InstanceID,
+		arg.SkillName,
+		arg.Digest,
+		arg.BaseDigest,
+	)
 	var i AgentSkillReview
 	err := row.Scan(
 		&i.ID,
@@ -91,32 +129,48 @@ func (q *Queries) GetAgentSkillReviewByDigest(ctx context.Context, arg GetAgentS
 		&i.DecidedBy,
 		&i.CreatedAt,
 		&i.DecidedAt,
+		&i.Kind,
+		&i.SkillKey,
+		&i.BaseDigest,
+		&i.SnapshotPath,
+		&i.ProposedDigest,
+		&i.InstalledDigest,
+		&i.PrevInstallMarker,
+		&i.Lesson,
+		&i.EvidenceSessionIds,
+		&i.DecidedVia,
+		&i.RevertedBy,
+		&i.RevertedAt,
 	)
 	return i, err
 }
 
 const insertAgentSkillReview = `-- name: InsertAgentSkillReview :execrows
 INSERT INTO agent_skill_reviews
-(id, instance_id, profile_id, workspace_id, agent_name, skill_name, digest, state, draft_path, source_session_id, created_at)
+(id, instance_id, profile_id, workspace_id, agent_name, skill_name, digest, state, draft_path, source_session_id,
+created_at, kind, base_digest, lesson, evidence_session_ids)
 SELECT ?1, ?2, ?3, ?4,
 ?5, ?6, ?7, 'pending', ?8,
-?9, ?10
+?9, ?10, ?11, ?12, ?13,
+?14
 WHERE (SELECT count(*) FROM agent_skill_reviews WHERE instance_id = ?2 AND state = 'pending') < 5
-AND NOT EXISTS (SELECT 1 FROM agent_skill_reviews WHERE instance_id = ?2
-AND skill_name = ?6 AND digest = ?7)
 `
 
 type InsertAgentSkillReviewParams struct {
-	ID              string         `json:"id"`
-	InstanceID      string         `json:"instance_id"`
-	ProfileID       string         `json:"profile_id"`
-	WorkspaceID     string         `json:"workspace_id"`
-	AgentName       string         `json:"agent_name"`
-	SkillName       string         `json:"skill_name"`
-	Digest          string         `json:"digest"`
-	DraftPath       string         `json:"draft_path"`
-	SourceSessionID sql.NullString `json:"source_session_id"`
-	CreatedAt       string         `json:"created_at"`
+	ID                 string         `json:"id"`
+	InstanceID         string         `json:"instance_id"`
+	ProfileID          string         `json:"profile_id"`
+	WorkspaceID        string         `json:"workspace_id"`
+	AgentName          string         `json:"agent_name"`
+	SkillName          string         `json:"skill_name"`
+	Digest             string         `json:"digest"`
+	DraftPath          string         `json:"draft_path"`
+	SourceSessionID    sql.NullString `json:"source_session_id"`
+	CreatedAt          string         `json:"created_at"`
+	Kind               string         `json:"kind"`
+	BaseDigest         string         `json:"base_digest"`
+	Lesson             string         `json:"lesson"`
+	EvidenceSessionIds string         `json:"evidence_session_ids"`
 }
 
 func (q *Queries) InsertAgentSkillReview(ctx context.Context, arg InsertAgentSkillReviewParams) (int64, error) {
@@ -131,6 +185,10 @@ func (q *Queries) InsertAgentSkillReview(ctx context.Context, arg InsertAgentSki
 		arg.DraftPath,
 		arg.SourceSessionID,
 		arg.CreatedAt,
+		arg.Kind,
+		arg.BaseDigest,
+		arg.Lesson,
+		arg.EvidenceSessionIds,
 	)
 	if err != nil {
 		return 0, err
@@ -139,22 +197,26 @@ func (q *Queries) InsertAgentSkillReview(ctx context.Context, arg InsertAgentSki
 }
 
 const listAgentSkillReviews = `-- name: ListAgentSkillReviews :many
-SELECT id, instance_id, profile_id, workspace_id, agent_name, skill_name, digest, state, draft_path, source_session_id, decided_by, created_at, decided_at FROM agent_skill_reviews
+SELECT id, instance_id, profile_id, workspace_id, agent_name, skill_name, digest, state, draft_path, source_session_id, decided_by, created_at, decided_at, kind, skill_key, base_digest, snapshot_path, proposed_digest, installed_digest, prev_install_marker, lesson, evidence_session_ids, decided_via, reverted_by, reverted_at FROM agent_skill_reviews
 WHERE profile_id = ?1 AND workspace_id = ?2
 AND (?3 = '' OR instance_id = ?3)
 AND (?4 = '' OR state = ?4)
-AND (created_at > ?5 OR (created_at = ?5 AND id > ?6))
-ORDER BY created_at, id LIMIT ?7
+AND (?5 = '' OR kind = ?5)
+AND (?6 = '' OR decided_via = ?6)
+AND (created_at > ?7 OR (created_at = ?7 AND id > ?8))
+ORDER BY created_at, id LIMIT ?9
 `
 
 type ListAgentSkillReviewsParams struct {
-	ProfileID      string `json:"profile_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	InstanceID     any    `json:"instance_id"`
-	ReviewState    any    `json:"review_state"`
-	AfterCreatedAt string `json:"after_created_at"`
-	AfterID        string `json:"after_id"`
-	PageLimit      int64  `json:"page_limit"`
+	ProfileID        string `json:"profile_id"`
+	WorkspaceID      string `json:"workspace_id"`
+	InstanceID       any    `json:"instance_id"`
+	ReviewState      any    `json:"review_state"`
+	ReviewKind       any    `json:"review_kind"`
+	ReviewDecidedVia any    `json:"review_decided_via"`
+	AfterCreatedAt   string `json:"after_created_at"`
+	AfterID          string `json:"after_id"`
+	PageLimit        int64  `json:"page_limit"`
 }
 
 func (q *Queries) ListAgentSkillReviews(ctx context.Context, arg ListAgentSkillReviewsParams) ([]AgentSkillReview, error) {
@@ -163,6 +225,8 @@ func (q *Queries) ListAgentSkillReviews(ctx context.Context, arg ListAgentSkillR
 		arg.WorkspaceID,
 		arg.InstanceID,
 		arg.ReviewState,
+		arg.ReviewKind,
+		arg.ReviewDecidedVia,
 		arg.AfterCreatedAt,
 		arg.AfterID,
 		arg.PageLimit,
@@ -188,6 +252,18 @@ func (q *Queries) ListAgentSkillReviews(ctx context.Context, arg ListAgentSkillR
 			&i.DecidedBy,
 			&i.CreatedAt,
 			&i.DecidedAt,
+			&i.Kind,
+			&i.SkillKey,
+			&i.BaseDigest,
+			&i.SnapshotPath,
+			&i.ProposedDigest,
+			&i.InstalledDigest,
+			&i.PrevInstallMarker,
+			&i.Lesson,
+			&i.EvidenceSessionIds,
+			&i.DecidedVia,
+			&i.RevertedBy,
+			&i.RevertedAt,
 		); err != nil {
 			return nil, err
 		}

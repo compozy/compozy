@@ -11,6 +11,15 @@ import (
 	"strings"
 )
 
+// GetMarketplaceSectionsParams carries the path, query, and header parameters.
+type GetMarketplaceSectionsParams struct {
+	Q           *string `url:"q"`
+	PerSection  *int    `url:"per_section"`
+	Scope       *string `url:"scope"`
+	Profile     *string `url:"profile"`
+	WorkspaceID *string `url:"workspace_id"`
+}
+
 // GetMarketplaceSections Browse Featured and category sections
 func (c *Client) GetMarketplaceSections(ctx context.Context, params GetMarketplaceSectionsParams) (*MarketplaceSectionsResponse, error) {
 	path := "/api/marketplace/sections"
@@ -431,13 +440,4 @@ func (c *Client) GetSchedulerBacklog(ctx context.Context, params GetSchedulerBac
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetSessionParams carries the path, query, and header parameters.
-type GetSessionParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	SessionID     string  `url:"session_id"`
-	IncludeHealth *bool   `url:"include_health"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
 }

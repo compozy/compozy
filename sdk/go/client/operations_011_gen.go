@@ -85,6 +85,38 @@ func (c *Client) GetExtension(ctx context.Context, params GetExtensionParams) (*
 	return &out, nil
 }
 
+// GetExtensionInputsParams carries the path, query, and header parameters.
+type GetExtensionInputsParams struct {
+	Name      string  `url:"name"`
+	Scope     *string `url:"scope"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// GetExtensionInputs Read declared extension inputs and their setup state without values
+func (c *Client) GetExtensionInputs(ctx context.Context, params GetExtensionInputsParams) (*ExtensionInputsPayload, error) {
+	path := "/api/extensions/{name}/inputs"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionInputsPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetExtensionInventoryParams carries the path, query, and header parameters.
 type GetExtensionInventoryParams struct {
 	Name      string  `url:"name"`
@@ -407,34 +439,4 @@ func (c *Client) GetHookCatalog(ctx context.Context, params GetHookCatalogParams
 type GetHookEventsParams struct {
 	Family   *string `url:"family"`
 	SyncOnly *bool   `url:"sync_only"`
-}
-
-// GetHookEvents List supported hook taxonomy metadata
-func (c *Client) GetHookEvents(ctx context.Context, params GetHookEventsParams) (*HookEventsResponse, error) {
-	path := "/api/hooks/events"
-	query := url.Values{}
-	if params.Family != nil {
-		query.Set("family", *params.Family)
-	}
-	if params.SyncOnly != nil {
-		query.Set("sync_only", strconv.FormatBool(*params.SyncOnly))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HookEventsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetHookRunsParams carries the path, query, and header parameters.
-type GetHookRunsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Session     string  `url:"session"`
-	Event       *string `url:"event"`
-	Outcome     *string `url:"outcome"`
-	Since       *string `url:"since"`
-	Last        *int    `url:"last"`
 }

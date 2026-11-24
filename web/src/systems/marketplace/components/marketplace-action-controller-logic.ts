@@ -2,6 +2,7 @@ import { createStoreLogic, type EnqueueObject } from "@xstate/store";
 
 import type { ExtensionInstallPreview } from "@/systems/extensions";
 import type { ExtensionInstallRequest, MarketplaceCatalogListing } from "../types";
+import { unmetExtensionDependencies } from "./extension-dependency-model";
 import { createExtensionInputDraft, prepareExtensionInputs } from "./extension-install-model";
 
 export interface MarketplaceInstallPreview {
@@ -12,10 +13,12 @@ export interface MarketplaceInstallPreview {
 
 /**
  * Add opens the install review only when a gate has something to decide: a prefilled draft the
- * install would reject (a required input with no usable default, an empty one included). Trust consent is decided before preview and name conflicts never
- * reach Add. Otherwise Add finishes inline.
+ * install would reject (a required input with no usable default, an empty one included), or a
+ * dependency to install, turn on, or update first. Trust consent is decided before preview and
+ * name conflicts never reach Add. Otherwise Add finishes inline.
  */
 export function marketplaceInstallNeedsReview(preview: ExtensionInstallPreview): boolean {
+  if (unmetExtensionDependencies(preview).length > 0) return true;
   return !prepareExtensionInputs(preview.inputs, createExtensionInputDraft(preview.inputs)).valid;
 }
 

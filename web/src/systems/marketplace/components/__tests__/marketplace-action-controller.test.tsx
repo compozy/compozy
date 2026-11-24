@@ -11,6 +11,7 @@ import {
   renderHook,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
@@ -1320,6 +1321,256 @@ describe("Add", () => {
     await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
     expect(io.preview).toHaveBeenCalledOnce();
   });
+});
+
+// T-20 [US-014]: Add previews dependencies, gates each one in order, and installs them jointly.
+// Invariant: no dependency is installed without its own consent; a cancel or too-old dependency sends nothing.
+describe("Add with dependencies", () => {
+  const CORE_DIGEST = "a".repeat(64);
+  const UTIL_DIGEST = "e".repeat(64);
+  const LOG_DIGEST = "c".repeat(64);
+  const blockedCore = {
+    missing: {},
+    version_unmet: {
+      installed_version: "0.3.0",
+      retry_command: "compozy extension update acme-core --scope global",
+    },
+    // An installed dependency no update reaches: the daemon names no command (G-7).
+    not_updatable: { state: "version_unmet", installed_version: "0.3.0" },
+    // A missing dependency whose source only offers a version below min_version (G-4).
+    source_too_old: { state: "version_unmet", version: "0.3.5" },
+    // A different copy another profile uses; dependency installs never replace it (G-3).
+    installed_elsewhere: {
+      installed_version: "0.3.0",
+      retry_command: "compozy extension update acme-core --scope global --profile other",
+    },
+    // Another cell's copy no command can bring to min_version.
+    elsewhere_no_command: { state: "installed_elsewhere", installed_version: "0.3.0" },
+  } as const;
+  const dependencyPreview = (
+    state:
+      | "missing"
+      | "version_unmet"
+      | "not_updatable"
+      | "source_too_old"
+      | "installed_elsewhere"
+      | "elsewhere_no_command" = "missing"
+  ) => ({
+    name: "kit",
+    inputs: [],
+    declared_profiles: [],
+    placements: [],
+    dependencies: [
+      {
+        name: "acme-core",
+        source: "github",
+        ref: "acme/core",
+        min_version: "0.4.0",
+        required_by: ["acme-net", "kit"],
+        depth: 2,
+        state,
+        version: "0.5.1",
+        digest_sha256: CORE_DIGEST,
+        consent_required: true,
+        ...blockedCore[state],
+      },
+      {
+        name: "acme-net",
+        source: "curated",
+        ref: "acme/net",
+        required_by: ["kit"],
+        depth: 1,
+        state: "disabled",
+        installed_version: "1.0.0",
+        registry_tier: "unverified",
+      },
+      {
+        name: "acme-util",
+        source: "github",
+        ref: "acme/util",
+        required_by: ["kit"],
+        depth: 1,
+        state: "missing",
+        version: "1.0.0",
+        digest_sha256: UTIL_DIGEST,
+        consent_required: true,
+      },
+      {
+        name: "acme-log",
+        source: "curated",
+        ref: "acme/log",
+        required_by: ["kit"],
+        depth: 1,
+        state: "missing",
+        version: "2.0.0",
+        digest_sha256: LOG_DIGEST,
+        registry_tier: "community",
+      },
+      {
+        name: "acme-met",
+        source: "curated",
+        ref: "acme/met",
+        required_by: ["kit"],
+        depth: 1,
+        state: "met",
+      },
+    ],
+  });
+
+  it("Should list Also installs, confirm each dependency gate in order, and send per-dependency consent", async () => {
+    io.preview.mockResolvedValueOnce(dependencyPreview());
+    io.install.mockResolvedValueOnce({
+      dependencies_installed: ["acme-core", "acme-net"],
+      extension: extensionFixtures[0],
+    });
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+
+    const section = await screen.findByRole("region", { name: "Also installs" });
+    expect(within(section).getByTestId("extension-install-dependency-acme-core")).toHaveTextContent(
+      "Not verified"
+    );
+    const net = within(section).getByTestId("extension-install-dependency-acme-net");
+    expect(net).toHaveTextContent("Turns on");
+    // A disabled unverified dependency keeps its tier and shows its installed version (B-7).
+    expect(net).toHaveTextContent("Not verified");
+    expect(net).toHaveTextContent("1.0.0");
+    expect(within(section).getByTestId("extension-install-dependency-acme-log")).toHaveTextContent(
+      "Checked by CompozyOS"
+    );
+    expect(within(section).queryByTestId("extension-install-dependency-acme-met")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByTestId("extension-trust-dialog")).toHaveTextContent(
+      "Install acme-core?"
+    );
+    expect(screen.queryByTestId("extension-install-summary-dialog")).toBeNull();
+    await user.click(screen.getByTestId("extension-trust-confirm"));
+    expect(await screen.findByTestId("extension-trust-dialog")).toHaveTextContent(
+      "Install acme-util?"
+    );
+    expect(io.install).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("extension-trust-confirm"));
+
+    await waitFor(() => expect(io.install).toHaveBeenCalledOnce());
+    const request = io.install.mock.calls[0]![0];
+    expect(request).toMatchObject({
+      enable: true,
+      expected_digest: verified.digest_sha256,
+      with_dependencies: true,
+      dependencies: {
+        "acme-core": { expected_digest: CORE_DIGEST, allow_unverified: true },
+        "acme-util": { expected_digest: UTIL_DIGEST, allow_unverified: true },
+        "acme-log": { expected_digest: LOG_DIGEST },
+      },
+    });
+    // No blanket consent: the dependent's own request keeps allow_unverified off.
+    expect(request.allow_unverified).toBe(false);
+    expect(request.dependencies).not.toHaveProperty("acme-met");
+    await waitFor(() =>
+      expect(io.success).toHaveBeenCalledWith(
+        `${verified.name} added with acme-core, acme-net`,
+        expect.anything()
+      )
+    );
+  });
+
+  it("Should name the dependencies a failed Add already installed", async () => {
+    io.preview.mockResolvedValueOnce(dependencyPreview());
+    io.install.mockRejectedValueOnce(
+      new MarketplaceApiError(
+        "acme-log failed to install",
+        422,
+        "extension_inputs_required",
+        false,
+        {
+          dependenciesInstalled: ["acme-core", "acme-net"],
+        }
+      )
+    );
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+    await screen.findByRole("region", { name: "Also installs" });
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await user.click(await screen.findByTestId("extension-trust-confirm"));
+    await user.click(await screen.findByTestId("extension-trust-confirm"));
+
+    await waitFor(() =>
+      expect(io.error).toHaveBeenCalledWith("acme-log failed to install", {
+        description: "Installed first: acme-core, acme-net · extension_inputs_required",
+      })
+    );
+    expect(io.success).not.toHaveBeenCalled();
+  });
+
+  it("Should abort the whole Add when a dependency gate is canceled", async () => {
+    io.preview.mockResolvedValueOnce(dependencyPreview());
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+    await screen.findByRole("region", { name: "Also installs" });
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    const gate = await screen.findByTestId("extension-trust-dialog");
+    expect(gate).toHaveTextContent("Install acme-core?");
+    await user.click(within(gate).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(screen.queryByTestId("extension-trust-dialog")).toBeNull());
+    expect(screen.queryByTestId("extension-install-summary-dialog")).toBeNull();
+    expect(io.install).not.toHaveBeenCalled();
+  });
+
+  it("Should block Add with update guidance when a dependency is too old", async () => {
+    io.preview.mockResolvedValueOnce(dependencyPreview("version_unmet"));
+    renderRow(verified);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+
+    const row = await screen.findByTestId("extension-install-dependency-acme-core");
+    expect(row).toHaveTextContent(
+      "Update acme-core to 0.4.0 or later first: run compozy extension update acme-core --scope global"
+    );
+    const add = screen.getByRole("button", { name: "Add" });
+    expect(add).toBeDisabled();
+    await user.click(add);
+    expect(screen.queryByTestId("extension-trust-dialog")).toBeNull();
+    expect(io.install).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["source_too_old", "Its source has no version of acme-core at 0.4.0 or later"],
+    [
+      "not_updatable",
+      "No update of acme-core reaches 0.4.0. Reinstall it from a source with 0.4.0 or later first",
+    ],
+    [
+      "elsewhere_no_command",
+      "Another profile or workspace uses a different copy of acme-core. Reinstall it there from a source with 0.4.0 or later first",
+    ],
+    [
+      "installed_elsewhere",
+      "Another profile or workspace uses a different copy of acme-core. Run compozy extension update acme-core --scope global --profile other first",
+    ],
+  ] as const)(
+    "Should block Add without update or consent prompts when acme-core is %s",
+    async (state, guidance) => {
+      io.preview.mockResolvedValueOnce(dependencyPreview(state));
+      renderRow(verified);
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: `Add ${verified.name}` }));
+
+      const row = await screen.findByTestId("extension-install-dependency-acme-core");
+      expect(row).toHaveTextContent(guidance);
+      expect(row).not.toHaveTextContent("Update acme-core to");
+      const add = screen.getByRole("button", { name: "Add" });
+      expect(add).toBeDisabled();
+      await user.click(add);
+      expect(screen.queryByTestId("extension-trust-dialog")).toBeNull();
+      expect(io.install).not.toHaveBeenCalled();
+    }
+  );
 });
 
 describe("Marketplace update recovery", () => {

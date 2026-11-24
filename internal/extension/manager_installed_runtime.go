@@ -6,6 +6,10 @@ import (
 	"fmt"
 )
 
+// ErrDevelopmentRestartDeferred reports that a development base keeps its launch-time inputs: it
+// relaunches with the stored values only through `extension dev reload`.
+var ErrDevelopmentRestartDeferred = errors.New("extension: development base restarts through extension dev reload")
+
 func (m *Manager) startInstalledPackage(ctx context.Context, info *ExtensionInfo) error {
 	key := GlobalInstanceKey(info.Name)
 	ext := &managedExtension{
@@ -113,4 +117,70 @@ func (m *Manager) newInstalledInstance(ctx context.Context, key InstanceKey) (*m
 		}
 	}
 	return &managedExtension{key: key, info: *info, phase: ExtensionPhaseDiscover, logRing: m.logRingFor(key)}, nil
+}
+
+// RestartInstance restarts only the runtime that serves one instance after its launch inputs change.
+// A lazily started profile runtime is invalidated and relaunches on its next call; an installed base
+// or scoped runtime is stopped and started again from the registry. A development base is not restarted
+// here and reports ErrDevelopmentRestartDeferred. Every other runtime keeps running.
+func (m *Manager) RestartInstance(ctx context.Context, key InstanceKey) error {
+	if ctx == nil {
+		return ErrContextRequired
+	}
+	if m == nil {
+		return ErrManagerRequired
+	}
+	key = key.Normalize()
+	if err := key.Validate(); err != nil {
+		return err
+	}
+	source, development, err := m.readInstanceSource(ctx, key)
+	if err != nil {
+		return err
+	}
+	runtimeKey := runtimeKeyForInstallation(key, source)
+	if development || (runtimeKey.IsProfileScoped() && !source.IsProfileScoped()) {
+		// A dev overlay base restarts through `extension dev reload`; this only drops profile runtimes.
+		if development && !runtimeKey.IsProfileScoped() {
+			return ErrDevelopmentRestartDeferred
+		}
+		return m.InvalidateProfileRuntime(ctx, key)
+	}
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
+	m.mu.Lock()
+	started := m.started && !m.stopping
+	current := m.instanceLocked(runtimeKey)
+	if started && current != nil {
+		current.supervisionStopped = true
+	}
+	m.mu.Unlock()
+	if !started {
+		return nil
+	}
+	if err := m.stopManagedExtension(ctx, current); err != nil {
+		return err
+	}
+	if runtimeKey.IsGlobal() && !runtimeKey.IsProfileScoped() {
+		info, err := m.registry.Get(key.Name)
+		if err != nil {
+			return err
+		}
+		base := &managedExtension{
+			key: runtimeKey, info: *info, phase: ExtensionPhaseDiscover, logRing: m.logRingFor(runtimeKey),
+		}
+		m.mu.Lock()
+		m.extensions[key.Name] = base
+		m.mu.Unlock()
+		if !base.info.Enabled {
+			return nil
+		}
+		return m.startOne(ctx, base)
+	}
+	m.mu.Lock()
+	if m.scopedExtensions[runtimeKey] == current {
+		delete(m.scopedExtensions, runtimeKey)
+	}
+	m.mu.Unlock()
+	return m.startScopedInstallation(ctx, runtimeKey)
 }

@@ -22,6 +22,7 @@ compozy automation triggers create [flags]
   -h, --help                             help for create
       --loop string                      Loop name; choose either --loop or --agent
       --loop-input stringArray           Static Loop input as key=value; repeat for multiple inputs
+      --loop-input-command string        Resolve Loop inputs at each fire by running a shell command in the workspace
       --loop-input-mapping stringArray   Loop input mapping as key=template; repeat for multiple mappings
       --loop-workspace string            Workspace that owns the Loop; required for global automation
       --name string                      Trigger name

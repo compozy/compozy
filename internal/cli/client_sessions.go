@@ -386,3 +386,24 @@ func (c *daemonClient) SteerSessionPrompt(
 	}
 	return c.doSessionPrompt(ctx, http.MethodPost, path, request)
 }
+
+const sessionArchiveStoppedPath = "/api/sessions/archive-stopped"
+
+type sessionArchiveStoppedClient interface {
+	ArchiveStoppedSessions(
+		context.Context,
+		contract.SessionArchiveStoppedRequest,
+	) (contract.SessionArchiveStoppedResponse, error)
+}
+
+var _ sessionArchiveStoppedClient = (*daemonClient)(nil)
+
+// ArchiveStoppedSessions archives, or with DryRun previews, every eligible stopped thread in scope.
+func (c *daemonClient) ArchiveStoppedSessions(
+	ctx context.Context,
+	request contract.SessionArchiveStoppedRequest,
+) (contract.SessionArchiveStoppedResponse, error) {
+	var response contract.SessionArchiveStoppedResponse
+	err := c.doJSON(ctx, http.MethodPost, sessionArchiveStoppedPath, nil, request, &response)
+	return response, err
+}

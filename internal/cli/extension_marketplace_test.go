@@ -3,7 +3,11 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,6 +17,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 )
 
@@ -355,6 +360,240 @@ func TestExtensionInstallCommandInputs(t *testing.T) {
 	})
 }
 
+// Invariant: an extension_inputs_required refusal prompts on a terminal and retries once with the merged
+// values; without a terminal or with structured output it keeps the --input guidance and exit code 2.
+// Owner: CLI install boundary (T-12). Canonical suite: extension_marketplace_test.go.
+func TestExtensionInstallPromptsForRequiredInputs(t *testing.T) {
+	t.Parallel()
+	refusal := func() *extensionOperationAPIError {
+		return &extensionOperationAPIError{
+			statusCode: 422,
+			status:     "422 Unprocessable Entity",
+			payload: contract.ExtensionOperationErrorPayload{
+				Error:         "extension: inputs required",
+				Code:          diagnosticcontract.CodeExtensionInputsRequired,
+				Inputs:        []string{"token"},
+				FetchedDigest: strings.Repeat("d", 64),
+				InputDefinitions: []contract.MarketplaceInputPayload{
+					{ID: "label", Prompt: "Label", Type: "string"},
+					{ID: "token", Prompt: "API token", Type: "secret", Required: true},
+				},
+			},
+		}
+	}
+	newDeps := func(t *testing.T, terminal bool, calls *[]InstallExtensionRequest) commandDeps {
+		t.Helper()
+		deps, _ := newExtensionLocalDeps(t, &stubClient{
+			previewExtensionInstallFn: func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error) {
+				return ExtensionInstallPreviewRecord{
+					Name:         "typed",
+					DigestSHA256: strings.Repeat("c", 64),
+					Inputs: []contract.MarketplaceInputPayload{
+						{ID: "label", Type: "string"},
+						{ID: "token", Type: "secret", Required: true},
+					},
+				}, nil
+			},
+			installExtensionFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionRecord, error) {
+				*calls = append(*calls, req)
+				if len(*calls) == 1 {
+					return ExtensionRecord{}, refusal()
+				}
+				return ExtensionRecord{Name: "typed"}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+		deps.inputIsTerminal = func(io.Reader) bool { return terminal }
+		deps.outputIsTerminal = func(io.Writer) bool { return terminal }
+		return deps
+	}
+
+	t.Run("Should prompt for the listed inputs and retry with the merged values", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, true, &calls)
+		_, stderr, err := executeRootCommandWithInput(
+			t, deps, "s3cret-token\n", "extension", "install", "compozy/typed", "--input", "label=team",
+		)
+		if err != nil {
+			t.Fatalf("install with prompt error = %v", err)
+		}
+		if len(calls) != 2 {
+			t.Fatalf("install calls = %d, want a refusal and one retry", len(calls))
+		}
+		retry := calls[1].Inputs
+		if string(retry["token"].Value) != `"s3cret-token"` || string(retry["label"].Value) != `"team"` {
+			t.Fatalf("retry inputs = %#v, want prompted token merged with --input label", retry)
+		}
+		if !strings.Contains(stderr, "API token (secret): ") || strings.Contains(stderr, "Label") {
+			t.Fatalf("prompt output = %q, want only the listed secret input", stderr)
+		}
+		if strings.Contains(stderr, "s3cret-token") {
+			t.Fatal("prompt output echoed the secret value")
+		}
+		if calls[1].ExpectedDigest != strings.Repeat("c", 64) {
+			t.Fatalf("retry digest = %q, want the pinned listing digest kept", calls[1].ExpectedDigest)
+		}
+	})
+
+	t.Run("Should pin an unpinned retry to the refused package digest", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, true, &calls)
+		_, _, err := executeRootCommandWithInput(
+			t, deps, "s3cret-token\n",
+			"extension", "install", "git:https://example.com/r.git@v2", "--allow-unverified", "--yes",
+		)
+		if err != nil {
+			t.Fatalf("install with prompt error = %v", err)
+		}
+		if len(calls) != 2 || calls[0].ExpectedDigest != "" || calls[1].ExpectedDigest != strings.Repeat("d", 64) {
+			t.Fatalf("install calls = %#v, want an unpinned refusal and a retry pinned to its digest", calls)
+		}
+	})
+
+	for _, testCase := range []struct {
+		name     string
+		terminal bool
+		args     []string
+	}{
+		{name: "without a terminal", terminal: false},
+		{name: "with JSON output", terminal: true, args: []string{"-o", "json"}},
+	} {
+		t.Run("Should keep the input guidance and exit code "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+			var calls []InstallExtensionRequest
+			deps := newDeps(t, testCase.terminal, &calls)
+			args := append([]string{"extension", "install", "compozy/typed"}, testCase.args...)
+			_, stderr, err := executeRootCommandWithInput(t, deps, "unused\n", args...)
+			if err == nil || len(calls) != 1 || strings.Contains(stderr, "(secret)") {
+				t.Fatalf("calls=%d stderr=%q err=%v, want one refused call without prompt", len(calls), stderr, err)
+			}
+			if code := cliExitCodeForError(err); code != 2 {
+				t.Fatalf("exit code = %d, want 2", code)
+			}
+			want := "extension inputs required: token. Pass --input id=value or --input-file inputs.json."
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("error = %q, want unchanged guidance", err)
+			}
+		})
+	}
+
+	t.Run("Should not retry when the prompt is aborted", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, true, &calls)
+		_, _, err := executeRootCommandWithInput(t, deps, "", "extension", "install", "compozy/typed")
+		if !errors.Is(err, errExtensionInputPromptAborted) || len(calls) != 1 {
+			t.Fatalf("aborted prompt: calls=%d err=%v, want abort without retry", len(calls), err)
+		}
+	})
+
+	for _, tc := range []struct {
+		name  string
+		input string
+	}{
+		{name: "Should report installed dependencies when the root input prompt is aborted"},
+		{name: "Should report each installed dependency once after a root input retry", input: "token-value\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var calls []InstallExtensionRequest
+			core := contract.ExtensionDependencyPayload{
+				Name: "acme-core", Source: "curated", Ref: "acme/core", State: "missing",
+				DigestSHA256: strings.Repeat("a", 64),
+			}
+			deps, _ := newExtensionLocalDeps(t, &stubClient{
+				previewExtensionInstallFn: func(
+					context.Context, InstallExtensionRequest,
+				) (ExtensionInstallPreviewRecord, error) {
+					return ExtensionInstallPreviewRecord{Name: "typed"}, nil
+				},
+				installExtensionFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionRecord, error) {
+					calls = append(calls, req)
+					switch len(calls) {
+					case 1:
+						return ExtensionRecord{}, &extensionOperationAPIError{
+							statusCode: http.StatusUnprocessableEntity,
+							payload: contract.ExtensionOperationErrorPayload{
+								Code:         diagnosticcontract.CodeExtensionDependenciesRequired,
+								Dependencies: []contract.ExtensionDependencyPayload{core},
+							},
+						}
+					case 2:
+						err := refusal()
+						err.payload.DependenciesInstalled = []string{"acme-core", "acme-base"}
+						return ExtensionRecord{}, err
+					default:
+						return ExtensionRecord{
+							Name: "typed", InstallDependenciesInstalled: []string{"acme-core", "acme-extra"},
+						}, nil
+					}
+				},
+			})
+			markExtensionDaemonRunning(&deps)
+			deps.inputIsTerminal = func(io.Reader) bool { return true }
+			deps.outputIsTerminal = func(io.Writer) bool { return true }
+			stdout, stderr, err := executeRootCommandWithInput(t, deps, "y\n"+tc.input,
+				"extension", "install", "git:https://example.com/r.git@v2", "--allow-unverified", "--yes")
+			if tc.input == "" {
+				if !errors.Is(err, errExtensionInputPromptAborted) || len(calls) != 2 ||
+					!strings.Contains(stderr, "Installed dependencies first: acme-core, acme-base.") {
+					t.Fatalf("aborted install: calls=%d stderr=%q err=%v", len(calls), stderr, err)
+				}
+				return
+			}
+			if err != nil || len(calls) != 3 ||
+				!strings.Contains(stdout, "Installed dependencies first: acme-core, acme-base, acme-extra.") {
+				t.Fatalf("retried install: calls=%d stdout=%q err=%v", len(calls), stdout, err)
+			}
+			want := map[string]contract.ExtensionDependencyConsent{"acme-core": {ExpectedDigest: core.DigestSHA256}}
+			if !calls[2].WithDependencies || !reflect.DeepEqual(calls[2].Dependencies, want) ||
+				string(calls[2].Inputs["token"].Value) != `"token-value"` {
+				t.Fatal("final retry did not retain dependency consent and add the root input")
+			}
+		})
+	}
+
+	t.Run("Should report completed dependencies from a validation response without a diagnostic", func(t *testing.T) {
+		t.Parallel()
+		mux := http.NewServeMux()
+		mux.HandleFunc("POST /api/extensions", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			err := json.NewEncoder(w).Encode(contract.ExtensionValidationErrorPayload{
+				Error: "invalid extension manifest", Dependency: "acme-market",
+				DependenciesInstalled: []string{"acme-core"},
+				Issues: []contract.ValidationIssue{
+					{
+						Field:    "expected_digest",
+						Message:  "a listed digest is required",
+						Severity: contract.IssueSeverityError,
+					},
+				},
+			})
+			if err != nil {
+				t.Errorf("encode validation response: %v", err)
+			}
+		})
+		server := httptest.NewServer(mux)
+		t.Cleanup(server.Close)
+		client, err := NewClient(ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL})
+		if err != nil {
+			t.Fatal(err)
+		}
+		deps, _ := newExtensionLocalDeps(t, client)
+		markExtensionDaemonRunning(&deps)
+		_, stderr, err := executeRootCommand(t, deps, "extension", "install", "git:https://example.com/r.git@v2",
+			"--allow-unverified", "--yes", "-o", "json")
+		validation, ok := errors.AsType[*extensionValidationAPIError](err)
+		if !ok || validation.payload.Dependency != "acme-market" ||
+			!strings.Contains(stderr, "Installed dependencies first: acme-core.") {
+			t.Fatalf("install error = %v, stderr = %q; want validation with completed dependencies", err, stderr)
+		}
+	})
+}
+
 func TestExtensionMarketplaceInstallRequiresDaemon(t *testing.T) {
 	t.Parallel()
 
@@ -693,6 +932,362 @@ func TestPluginSourceInstallSelection(t *testing.T) {
 			if len(selected.Attempts) != 1 || selected.Attempts[0].Source != tc.wantSource ||
 				selected.Attempts[0].ExpectedDigest == "" {
 				t.Fatalf("selection = %+v", selected)
+			}
+		})
+	}
+}
+
+// Invariant: the experimental dependency flow consents per artifact: a TTY shows one consolidated preview and each
+// dependency's own trust gates, a non-TTY needs --with-dependencies, bare --allow-unverified never consents for a
+// dependency, and remove refuses while dependents need the extension unless --force is passed [T-19].
+// Owner: CLI extension install/remove commands. Canonical suite: extension_marketplace_test.go.
+func TestExtensionInstallDependencyFlow(t *testing.T) {
+	t.Parallel()
+	core := contract.ExtensionDependencyPayload{
+		Name: "acme-core", Source: "curated", Ref: "acme/core", RequiredBy: []string{"typed"}, Depth: 1,
+		State: "missing", Version: "0.5.1", DigestSHA256: strings.Repeat("a", 64), ConsentRequired: true,
+	}
+	other := contract.ExtensionDependencyPayload{
+		Name: "acme-other", Source: "curated", Ref: "acme/other", RequiredBy: []string{"typed"}, Depth: 1,
+		State: "missing", Version: "1.0.0", DigestSHA256: strings.Repeat("b", 64), ConsentRequired: true,
+	}
+	required := func(items ...contract.ExtensionDependencyPayload) error {
+		return &extensionOperationAPIError{statusCode: 422, status: "422 Unprocessable Entity",
+			payload: contract.ExtensionOperationErrorPayload{
+				Error: "extension: dependencies required", Code: diagnosticcontract.CodeExtensionDependenciesRequired,
+				Dependencies: items,
+			}}
+	}
+	newDeps := func(
+		t *testing.T, terminal bool, calls *[]InstallExtensionRequest, first error,
+	) commandDeps {
+		t.Helper()
+		deps, _ := newExtensionLocalDeps(t, &stubClient{
+			previewExtensionInstallFn: func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error) {
+				return ExtensionInstallPreviewRecord{
+					Name: "typed", DigestSHA256: strings.Repeat("c", 64),
+					Dependencies: []contract.ExtensionDependencyPayload{core, other},
+				}, nil
+			},
+			installExtensionFn: func(_ context.Context, req InstallExtensionRequest) (ExtensionRecord, error) {
+				*calls = append(*calls, req)
+				if len(*calls) == 1 && first != nil {
+					return ExtensionRecord{}, first
+				}
+				return ExtensionRecord{Name: "typed", InstallDependenciesInstalled: []string{"acme-core"}}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+		deps.inputIsTerminal = func(io.Reader) bool { return terminal }
+		deps.outputIsTerminal = func(io.Writer) bool { return terminal }
+		return deps
+	}
+
+	t.Run("Should show one consolidated preview and run each dependency trust gate on a TTY", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, true, &calls, required(core, other))
+		stdout, stderr, err := executeRootCommandWithInput(
+			t,
+			deps,
+			"y\ny\ny\n",
+			"extension",
+			"install",
+			"compozy/typed",
+		)
+		if err != nil || len(calls) != 2 {
+			t.Fatalf("install calls = %d, err = %v; want a refusal and one consented retry", len(calls), err)
+		}
+		if first := calls[0]; first.WithDependencies || len(first.Dependencies) != 0 {
+			t.Fatalf("first request includes dependency consent before the prompt: %+v", first)
+		}
+		want := map[string]contract.ExtensionDependencyConsent{
+			"acme-core":  {ExpectedDigest: core.DigestSHA256, AllowUnverified: true},
+			"acme-other": {ExpectedDigest: other.DigestSHA256, AllowUnverified: true},
+		}
+		if retry := calls[1]; !retry.WithDependencies || !reflect.DeepEqual(retry.Dependencies, want) {
+			t.Fatalf("retry = %+v, want with_dependencies and per-extension consent %+v", retry, want)
+		}
+		for _, text := range []string{"Dependencies (experimental):", "acme-core 0.5.1 from curated acme/core",
+			"Install these dependencies first", "acme-core is not registry-verified",
+			"acme-other is not registry-verified"} {
+			if !strings.Contains(stderr, text) {
+				t.Fatalf("stderr = %q, want %q", stderr, text)
+			}
+		}
+		if !strings.Contains(stdout, "Installed dependencies first: acme-core.") {
+			t.Fatalf("stdout = %q, want the installed dependencies", stdout)
+		}
+	})
+
+	t.Run("Should install nothing more when the consolidated consent is declined", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, true, &calls, required(core))
+		_, _, err := executeRootCommandWithInput(t, deps, "n\n", "extension", "install", "compozy/typed")
+		if !errors.Is(err, errExtensionDependenciesDeclined) || len(calls) != 1 {
+			t.Fatalf("declined consent: calls = %d, err = %v", len(calls), err)
+		}
+	})
+
+	t.Run("Should require --with-dependencies without a TTY", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, false, &calls, required(core))
+		_, stderr, err := executeRootCommandWithInput(t, deps, "y\n", "extension", "install", "compozy/typed")
+		if err == nil || len(calls) != 1 || strings.Contains(stderr, "Install these dependencies") {
+			t.Fatalf("calls = %d, stderr = %q, err = %v; want one refusal without a prompt", len(calls), stderr, err)
+		}
+		if !strings.Contains(err.Error(), "--with-dependencies") || cliExitCodeForError(err) != 2 {
+			t.Fatalf(
+				"error = %q (exit %d), want --with-dependencies guidance and exit 2",
+				err,
+				cliExitCodeForError(err),
+			)
+		}
+	})
+
+	t.Run("Should print the update command for a version_unmet dependency", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		unmet := core
+		unmet.State, unmet.RetryCommand = "version_unmet", "compozy extension update acme-core"
+		refusal := required(unmet)
+		refusal.(*extensionOperationAPIError).payload.RetryCommand = unmet.RetryCommand
+		deps := newDeps(t, true, &calls, refusal)
+		_, _, err := executeRootCommandWithInput(t, deps, "y\n", "extension", "install", "compozy/typed")
+		if err == nil || len(calls) != 1 || cliExitCodeForError(err) != 2 ||
+			!strings.Contains(err.Error(), "Run first: compozy extension update acme-core") {
+			t.Fatalf("calls = %d, err = %v; want the update guidance and exit 2 without a prompt", len(calls), err)
+		}
+	})
+
+	t.Run("Should refuse without a prompt when the source has no satisfying version", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		tooOld := core
+		tooOld.State, tooOld.Version, tooOld.MinVersion = "version_unmet", "1.5.0", "2.0.0"
+		deps := newDeps(t, true, &calls, required(tooOld))
+		_, stderr, err := executeRootCommandWithInput(t, deps, "y\ny\ny\n", "extension", "install", "compozy/typed")
+		want := "The source of acme-core provides 1.5.0; no version satisfies min_version 2.0.0"
+		if err == nil || len(calls) != 1 || cliExitCodeForError(err) != 2 ||
+			strings.Contains(stderr, "Install these dependencies") ||
+			strings.Contains(err.Error(), "--with-dependencies") || !strings.Contains(err.Error(), want) {
+			t.Fatalf("calls = %d, stderr = %q, err = %v; want one refusal naming the source version", len(calls),
+				stderr, err)
+		}
+	})
+
+	t.Run("Should print the scoped update command for a copy another profile uses", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		elsewhere := core
+		elsewhere.State, elsewhere.InstalledVersion = "installed_elsewhere", "0.3.0"
+		elsewhere.RetryCommand = "compozy extension update acme-core --scope global --profile other"
+		refusal := required(elsewhere)
+		refusal.(*extensionOperationAPIError).payload.RetryCommand = elsewhere.RetryCommand
+		deps := newDeps(t, true, &calls, refusal)
+		_, _, err := executeRootCommandWithInput(t, deps, "y\n", "extension", "install", "compozy/typed")
+		if err == nil || len(calls) != 1 ||
+			!strings.Contains(err.Error(), "Run first: "+elsewhere.RetryCommand) {
+			t.Fatalf("calls = %d, err = %v; want the scoped update guidance without a prompt", len(calls), err)
+		}
+	})
+
+	// Invariant: without a working retry command the guidance never suggests `extension update` (G-7).
+	t.Run("Should guide a reinstall when no update reaches the blocked dependency", func(t *testing.T) {
+		t.Parallel()
+		unmet, elsewhere := core, core
+		unmet.State, unmet.InstalledVersion, unmet.MinVersion = "version_unmet", "0.3.0", "0.4.0"
+		elsewhere.State, elsewhere.InstalledVersion, elsewhere.MinVersion = "installed_elsewhere", "0.3.0", "0.4.0"
+		for _, scenario := range []struct {
+			dependency contract.ExtensionDependencyPayload
+			want       string
+		}{
+			{unmet, "No update of acme-core 0.3.0 reaches min_version 0.4.0; reinstall it from a source"},
+			{elsewhere, "Another scope or profile uses a different copy of acme-core 0.3.0; reinstall it there " +
+				"from a source that provides 0.4.0 or later first."},
+		} {
+			dependency, want := scenario.dependency, scenario.want
+			var calls []InstallExtensionRequest
+			deps := newDeps(t, true, &calls, required(dependency))
+			_, _, err := executeRootCommandWithInput(t, deps, "y\n", "extension", "install", "compozy/typed")
+			if err == nil || len(calls) != 1 || cliExitCodeForError(err) != 2 ||
+				!strings.Contains(err.Error(), want) || strings.Contains(err.Error(), "extension update") {
+				t.Fatalf("calls = %d, err = %v; want %q without an update command", len(calls), err, want)
+			}
+		}
+	})
+
+	t.Run("Should guide enable without the install-only --with-dependencies flag", func(t *testing.T) {
+		t.Parallel()
+		disabled := core
+		disabled.State = "disabled"
+		refusal, ok := required(disabled, other).(*extensionOperationAPIError)
+		if !ok {
+			t.Fatal("required() did not build an extension operation error")
+		}
+		refusal.enabling = true
+		message := refusal.Error()
+		for _, text := range []string{
+			"Enable first: compozy extension enable acme-core.",
+			"Install acme-other first, or reinstall this extension with " +
+				"`compozy extension install <source> --with-dependencies`",
+		} {
+			if !strings.Contains(message, text) {
+				t.Fatalf("message = %q, want %q", message, text)
+			}
+		}
+		if strings.Contains(message, "Pass --with-dependencies") {
+			t.Fatalf("message = %q suggests a flag enable does not accept", message)
+		}
+	})
+
+	t.Run("Should not let bare --allow-unverified consent for a dependency", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		gate := &extensionOperationAPIError{statusCode: 422, status: "422 Unprocessable Entity",
+			payload: contract.ExtensionOperationErrorPayload{
+				Error: "checksum unverified", Code: diagnosticcontract.CodeExtensionChecksumUnverified,
+				Dependency: "acme-core",
+			}}
+		deps := newDeps(t, false, &calls, gate)
+		_, _, err := executeRootCommandWithInput(t, deps, "", "extension", "install", "compozy/typed",
+			"--with-dependencies", "--allow-unverified", "--yes", "-o", "json")
+		if len(calls) != 1 || !calls[0].AllowUnverified || calls[0].Dependencies["acme-core"].AllowUnverified {
+			t.Fatalf("request = %+v, want root-only allow_unverified", calls)
+		}
+		if err == nil || !strings.Contains(err.Error(), "--allow-unverified-dependency acme-core") {
+			t.Fatalf("error = %v, want the per-dependency flag naming acme-core", err)
+		}
+	})
+
+	t.Run("Should consent only for the named dependency with both artifacts pinned", func(t *testing.T) {
+		t.Parallel()
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, false, &calls, nil)
+		_, _, err := executeRootCommandWithInput(t, deps, "", "extension", "install", "compozy/typed",
+			"--with-dependencies", "--allow-unverified-dependency", "acme-core", "--yes",
+			"-o", "json")
+		if err != nil || len(calls) != 1 {
+			t.Fatalf("install calls = %d, err = %v", len(calls), err)
+		}
+		request := calls[0]
+		wantCore := contract.ExtensionDependencyConsent{
+			ExpectedDigest: core.DigestSHA256, AllowUnverified: true,
+		}
+		wantOther := contract.ExtensionDependencyConsent{ExpectedDigest: other.DigestSHA256}
+		if !request.WithDependencies || request.AllowUnverified ||
+			request.Dependencies["acme-core"] != wantCore || request.Dependencies["acme-other"] != wantOther {
+			t.Fatalf("request = %+v, want consent for acme-core only", request)
+		}
+	})
+
+	t.Run("Should prompt before an unverified dependency like the root --allow-unverified", func(t *testing.T) {
+		t.Parallel()
+		for _, answer := range []string{"n", "y"} {
+			var calls []InstallExtensionRequest
+			deps := newDeps(t, true, &calls, nil)
+			_, stderr, err := executeRootCommandWithInput(t, deps, answer+"\n", "extension", "install",
+				"compozy/typed", "--with-dependencies", "--allow-unverified-dependency", "acme-core")
+			if !strings.Contains(stderr, "Dependency checksums of acme-core are unverified") {
+				t.Fatalf("answer %s: stderr = %q, want the dependency trust prompt", answer, stderr)
+			}
+			if answer == "n" && (err == nil || len(calls) != 0) {
+				t.Fatalf("declined prompt: calls = %d, err = %v; want nothing installed", len(calls), err)
+			}
+			if answer == "y" && (err != nil || len(calls) != 1 || !calls[0].Dependencies["acme-core"].AllowUnverified) {
+				t.Fatalf("accepted prompt: calls = %+v, err = %v; want acme-core consent", calls, err)
+			}
+		}
+		var calls []InstallExtensionRequest
+		deps := newDeps(t, false, &calls, nil)
+		_, _, err := executeRootCommandWithInput(t, deps, "", "extension", "install", "compozy/typed",
+			"--with-dependencies", "--allow-unverified-dependency", "acme-core", "-o", "json")
+		if err == nil || !strings.Contains(err.Error(), "--allow-unverified-dependency requires --yes") ||
+			len(calls) != 0 {
+			t.Fatalf("structured output: calls = %d, err = %v; want --yes required", len(calls), err)
+		}
+	})
+
+	t.Run("Should call only official and community dependencies registry-verified", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			dependency contract.ExtensionDependencyPayload
+			want       string
+		}{
+			{contract.ExtensionDependencyPayload{RegistryTier: "official"}, "registry-verified (official)"},
+			{contract.ExtensionDependencyPayload{RegistryTier: "community"}, "registry-verified (community)"},
+			{contract.ExtensionDependencyPayload{RegistryTier: "unverified", State: "disabled"}, "unverified"},
+			{contract.ExtensionDependencyPayload{}, "unverified"},
+			{contract.ExtensionDependencyPayload{RegistryTier: "official", ConsentRequired: true}, "unverified"},
+		} {
+			if got := extensionDependencyTrustWord(tc.dependency); got != tc.want {
+				t.Fatalf("trust word for %+v = %q, want %q", tc.dependency, got, tc.want)
+			}
+		}
+	})
+}
+
+// Invariant: remove prints the dependents and exits 1 on extension_dependency_in_use; --force carries force to the
+// daemon request [T-19].
+func TestExtensionRemoveDependencyGuard(t *testing.T) {
+	t.Parallel()
+	inUse := &extensionOperationAPIError{statusCode: 409, status: "409 Conflict",
+		payload: contract.ExtensionOperationErrorPayload{
+			Error: "extension: dependency in use", Code: diagnosticcontract.CodeExtensionDependencyInUse,
+			Dependents: []contract.ExtensionDependentPayload{{Name: "acme-tool", Profile: "default"}},
+		}}
+	for _, testCase := range []struct {
+		name  string
+		force bool
+	}{
+		{name: "Should print the dependents and exit 1 without --force"},
+		{name: "Should carry --force to the removal", force: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			mux := http.NewServeMux()
+			mux.HandleFunc("DELETE /api/extensions/acme-core", func(w http.ResponseWriter, r *http.Request) {
+				query := r.URL.Query()
+				if testCase.force && !reflect.DeepEqual(query["force"], []string{"true"}) ||
+					!testCase.force && query.Has("force") {
+					t.Errorf("remove query = %v, --force = %t", query, testCase.force)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if testCase.force {
+					_, _ = io.WriteString(w, `{"extension":{"name":"acme-core","status":"removed"}}`)
+					return
+				}
+				w.WriteHeader(http.StatusConflict)
+				if err := json.NewEncoder(w).Encode(inUse.payload); err != nil {
+					t.Errorf("encode removal refusal: %v", err)
+				}
+			})
+			server := httptest.NewServer(mux)
+			t.Cleanup(server.Close)
+			client, err := NewClient(ClientTarget{kind: clientTargetSSHForward, baseURL: server.URL})
+			if err != nil {
+				t.Fatal(err)
+			}
+			deps, _ := newExtensionLocalDeps(t, client)
+			markExtensionDaemonRunning(&deps)
+			args := []string{"extension", "remove", "acme-core", "--global"}
+			if testCase.force {
+				args = append(args, "--force")
+			}
+			_, _, err = executeRootCommand(t, deps, args...)
+			if testCase.force {
+				if err != nil {
+					t.Fatalf("forced remove: %v", err)
+				}
+				return
+			}
+			if err == nil || cliExitCodeForError(err) != 1 ||
+				!strings.Contains(err.Error(), "acme-tool (workspace global, profile default)") ||
+				!strings.Contains(err.Error(), "--force") {
+				t.Fatalf("error = %v (exit %d), want the dependents, --force guidance and exit 1",
+					err, cliExitCodeForError(err))
 			}
 		})
 	}

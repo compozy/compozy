@@ -14,6 +14,7 @@ qa_status: pending
 3. Verify `compozy service status --json` on the VM and `compozy computer status <name> --json` on the controller. Run `compozy session new --computer <name> --workspace '<absolute path on the VM>' --agent general` with a workspace registered on the VM. Send a prompt with `compozy session prompt <session_id> --computer <name> "<message>"`. Quit the controller as soon as the command confirms acceptance. Restart the controller and use `compozy session history <session_id> --computer <name> --json` to verify that the reply was recorded after the controller quit.
 4. Interrupt a second setup before linking. Repeat the add command and verify it resumes at the first incomplete step. Cancel it and verify the slot becomes available before another add proceeds.
 5. Rotate a trusted VM host key and verify the controller reports `ssh_host_key_changed`. Confirm the previously trusted key stays pinned.
+6. Open the remote session in the controller's Web app. Check that its Goal, clarification, composer commands, linked work, prompt queue, side chats, and inspector usage load from the remote computer. Switch to a local session and verify that each window keeps its own data.
 
 E2E-002 trusts the SSH host key, starts a session on the new computer through Run on, and verifies the reply to `echo` and the computer name in the sidebar. E2E-003 adds an account-linked computer and finds one of its sessions in the project-grouped sidebar and Search, including when the controller has no local projects.
 

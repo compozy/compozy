@@ -47,6 +47,7 @@ const (
 	specAPIExtensionsNameLogsPath       = specAPIExtensionsNamePath + "/logs"
 	specAPIExtensionsNameInventoryPath  = specAPIExtensionsNamePath + "/inventory"
 	specAPIExtensionsNameSecretsPath    = specAPIExtensionsNamePath + "/secrets"
+	specAPIExtensionsNameInputsPath     = specAPIExtensionsNamePath + "/inputs"
 	specAPIExtensionsNameSecretPath     = specAPIExtensionsNameSecretsPath + "/{env_name}"
 	specAPIExtensionsNameEnablementPath = specAPIExtensionsNamePath + "/enablement"
 	specAPIResourcesKindIDPath          = "/api/resources/{kind}/{id}"

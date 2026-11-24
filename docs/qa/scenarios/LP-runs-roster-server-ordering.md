@@ -47,3 +47,8 @@ targeted re-walk must confirm server-owned progress excludes non-materialized fa
 
 QA result 2026-09-01: passed. The sparse run settled with server-owned progress `3/3`; rejected
 source indexes did not enlarge the denominator, and the native runs read agreed.
+
+QA impact 2026-11-21: additive `terminal` object on the run read (`status`, `cause`,
+`reason_code`, `gate_id`, `node_id`, `message`, `at`). The re-walk must confirm a settled run
+exposes the cause/reason/node, a live run omits `terminal`, and an authored gate
+`{action: halt, terminal_status: blocked}` surfaces `blocked` with its reason on CLI and HTTP/UDS.

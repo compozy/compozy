@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+type PermissionOption struct {
+	Decision string `json:"decision,omitempty"`
+	OptionID string `json:"option_id,omitempty"`
+	Kind     string `json:"kind,omitempty"`
+	Label    string `json:"label,omitempty"`
+}
+
+type PermissionRequestPatch struct {
+	Deny          bool    `json:"deny,omitempty"`
+	DenyReason    string  `json:"deny_reason,omitempty"`
+	Decision      *string `json:"decision,omitempty"`
+	DecisionClass *string `json:"decision_class,omitempty"`
+	Reason        *string `json:"reason,omitempty"`
+}
+
 type PermissionRequestPayload struct {
 	Event           HookEvent          `json:"event"`
 	Timestamp       time.Time          `json:"timestamp"`
@@ -234,7 +249,3 @@ type ProviderModelRefreshResponse struct {
 type ProviderModelStatusResponse struct {
 	Sources []ModelCatalogSourceStatusPayload `json:"sources"`
 }
-
-type ReasonCode string
-
-type ReasoningSource string

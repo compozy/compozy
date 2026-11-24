@@ -86,6 +86,10 @@ func (s *daemonExtensionService) validateReinstallAuthority(
 	request contract.InstallExtensionRequest,
 	actor taskpkg.ActorContext,
 ) error {
+	// A dependency attach of the installed bytes replaces nothing, so it needs no replace authority (D9).
+	if prepared.keepInstalled && prepared.published.MatchesInstalled(installed) {
+		return nil
+	}
 	if err := prepared.published.ValidateReinstall(installed); err != nil {
 		return err
 	}

@@ -4,6 +4,73 @@ package client
 
 import "time"
 
+// RuntimeSpec is a daemon API value.
+type RuntimeSpec struct {
+	Provider   string      `json:"provider,omitempty"`
+	Model      string      `json:"model,omitempty"`
+	Reasoning  string      `json:"reasoning,omitempty"`
+	Speed      Speed       `json:"speed,omitempty"`
+	ACPOptions []Selection `json:"acp_options,omitempty"`
+}
+
+// RuntimemcpRuntimeMode is a daemon API value.
+type RuntimemcpRuntimeMode struct {
+	Mode       string `json:"mode"`
+	CanDisable bool   `json:"can_disable"`
+}
+
+// ScheduleMode is a daemon API value.
+type ScheduleMode string
+
+// ScheduleSpec is a daemon API value.
+type ScheduleSpec struct {
+	Mode                ScheduleMode           `json:"mode"`
+	Expr                string                 `json:"expr,omitempty"`
+	Interval            string                 `json:"interval,omitempty"`
+	Time                string                 `json:"time,omitempty"`
+	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
+	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
+}
+
+// SchedulerBacklogPayload is a daemon API value.
+type SchedulerBacklogPayload struct {
+	Runs  []SchedulerBacklogRunPayload `json:"runs"`
+	Total int                          `json:"total"`
+}
+
+// SchedulerBacklogResponse is a daemon API value.
+type SchedulerBacklogResponse struct {
+	Backlog SchedulerBacklogPayload `json:"backlog"`
+}
+
+// SchedulerBacklogRunPayload is a daemon API value.
+type SchedulerBacklogRunPayload struct {
+	Task TaskSummaryPayload `json:"task"`
+	Run  TaskRunPayload     `json:"run"`
+}
+
+// SchedulerCatchUpPolicy is a daemon API value.
+type SchedulerCatchUpPolicy string
+
+// SchedulerCountersPayload is a daemon API value.
+type SchedulerCountersPayload struct {
+	Cycles              int        `json:"cycles"`
+	WakeAttempts        int        `json:"wake_attempts"`
+	WakeSkipped         int        `json:"wake_skipped"`
+	WakeSucceeded       int        `json:"wake_succeeded"`
+	WakeFailed          int        `json:"wake_failed"`
+	CapacityWaitingRuns int        `json:"capacity_waiting_runs"`
+	SpawnRequested      int        `json:"spawn_requested"`
+	NeedsAttention      int        `json:"needs_attention"`
+	LastCycleAt         *time.Time `json:"last_cycle_at,omitempty"`
+}
+
+// SchedulerDrainRequest is a daemon API value.
+type SchedulerDrainRequest struct {
+	Reason         string `json:"reason,omitempty"`
+	TimeoutSeconds *int64 `json:"timeout_seconds,omitzero"`
+}
+
 // SchedulerDrainResponse is a daemon API value.
 type SchedulerDrainResponse struct {
 	Scheduler       SchedulerStatusPayload `json:"scheduler"`
@@ -180,6 +247,53 @@ type SessionApprovalResponse struct {
 	ResolvedDecision string `json:"resolved_decision,omitempty"`
 }
 
+// SessionArchiveStoppedFailure is a daemon API value.
+type SessionArchiveStoppedFailure struct {
+	RootID      string `json:"root_id"`
+	WorkspaceID string `json:"workspace_id"`
+	Title       string `json:"title"`
+	Code        string `json:"code"`
+	Message     string `json:"message"`
+}
+
+// SessionArchiveStoppedRequest is a daemon API value.
+type SessionArchiveStoppedRequest struct {
+	WorkspaceID   string `json:"workspace_id,omitempty"`
+	AllWorkspaces bool   `json:"all_workspaces,omitempty"`
+	DryRun        bool   `json:"dry_run,omitempty"`
+}
+
+// SessionArchiveStoppedResponse is a daemon API value.
+type SessionArchiveStoppedResponse struct {
+	DryRun               bool                           `json:"dry_run"`
+	Archived             []SessionArchiveStoppedThread  `json:"archived"`
+	ArchivedThreadCount  int                            `json:"archived_thread_count"`
+	ArchivedSessionCount int                            `json:"archived_session_count"`
+	SkipCounts           map[string]int                 `json:"skip_counts"`
+	Skipped              []SessionArchiveStoppedSkip    `json:"skipped"`
+	SkippedTruncated     bool                           `json:"skipped_truncated"`
+	Failures             []SessionArchiveStoppedFailure `json:"failures"`
+	FailuresTruncated    bool                           `json:"failures_truncated"`
+	FailureCount         int                            `json:"failure_count"`
+}
+
+// SessionArchiveStoppedSkip is a daemon API value.
+type SessionArchiveStoppedSkip struct {
+	RootID      string `json:"root_id"`
+	WorkspaceID string `json:"workspace_id"`
+	Title       string `json:"title"`
+	Reason      string `json:"reason"`
+}
+
+// SessionArchiveStoppedThread is a daemon API value.
+type SessionArchiveStoppedThread struct {
+	RootID      string   `json:"root_id"`
+	WorkspaceID string   `json:"workspace_id"`
+	Title       string   `json:"title"`
+	SessionIDs  []string `json:"session_ids"`
+	RestoreIDs  []string `json:"restore_ids"`
+}
+
 // SessionAttachPayload is a daemon API value.
 type SessionAttachPayload struct {
 	SessionID       string    `json:"session_id"`
@@ -278,6 +392,7 @@ type SessionCatalogPagePayload struct {
 	NextCursor string `json:"next_cursor,omitempty"`
 	HasMore    bool   `json:"has_more"`
 	Total      *int   `json:"total,omitzero"`
+	Working    *int   `json:"working,omitzero"`
 	Limit      int    `json:"limit"`
 }
 
@@ -332,113 +447,4 @@ type SessionChildrenPayload struct {
 	Waiting  int `json:"waiting"`
 	InReview int `json:"in_review"`
 	Done     int `json:"done"`
-}
-
-// SessionCommandPayload is a daemon API value.
-type SessionCommandPayload struct {
-	ID                string               `json:"id"`
-	CanonicalToken    string               `json:"canonical_token"`
-	DisplayName       string               `json:"display_name"`
-	Description       string               `json:"description"`
-	Lane              string               `json:"lane"`
-	Source            SessionCommandSource `json:"source"`
-	Placements        []string             `json:"placements"`
-	InputHint         string               `json:"input_hint,omitempty"`
-	Available         bool                 `json:"available"`
-	UnavailableReason string               `json:"unavailable_reason,omitempty"`
-}
-
-// SessionCommandSource is a daemon API value.
-type SessionCommandSource struct {
-	Kind   string `json:"kind"`
-	ID     string `json:"id,omitempty"`
-	Key    string `json:"key,omitempty"`
-	Scope  string `json:"scope"`
-	Origin string `json:"origin,omitempty"`
-}
-
-// SessionCommandsChangedPayload is a daemon API value.
-type SessionCommandsChangedPayload struct {
-	SessionID string `json:"session_id"`
-	Revision  string `json:"revision"`
-}
-
-// SessionCommandsResponse is a daemon API value.
-type SessionCommandsResponse struct {
-	Commands []SessionCommandPayload `json:"commands"`
-	Revision string                  `json:"revision"`
-}
-
-// SessionCompactRequest is a daemon API value.
-type SessionCompactRequest struct{}
-
-// SessionCompactResponse is a daemon API value.
-type SessionCompactResponse struct {
-	SessionID string `json:"session_id"`
-	PromptID  string `json:"prompt_id"`
-	Command   string `json:"command"`
-	Status    string `json:"status"`
-}
-
-// SessionCompactionContextAfterPayload is a daemon API value.
-type SessionCompactionContextAfterPayload struct {
-	Used     int64  `json:"used"`
-	Size     *int64 `json:"size,omitzero"`
-	Sequence int64  `json:"sequence"`
-}
-
-// SessionCompactionPayload is a daemon API value.
-type SessionCompactionPayload struct {
-	ContextAfter *SessionCompactionContextAfterPayload `json:"context_after,omitzero"`
-	TurnID       string                                `json:"turn_id"`
-	Sequence     int64                                 `json:"sequence"`
-	At           time.Time                             `json:"at"`
-	CompactionID string                                `json:"compaction_id"`
-	Trigger      string                                `json:"trigger"`
-	Status       string                                `json:"status"`
-	ContextUsed  *int64                                `json:"context_used,omitzero"`
-	ContextSize  *int64                                `json:"context_size,omitzero"`
-}
-
-// SessionConfigOptionPayload is a daemon API value.
-type SessionConfigOptionPayload struct {
-	ID             string                            `json:"id"`
-	Label          string                            `json:"label,omitempty"`
-	Description    string                            `json:"description,omitempty"`
-	Category       string                            `json:"category,omitempty"`
-	Kind           string                            `json:"kind"`
-	CurrentValueID string                            `json:"current_value_id,omitempty"`
-	CurrentBool    *bool                             `json:"current_bool,omitempty"`
-	Values         []SessionConfigOptionValuePayload `json:"values,omitempty"`
-}
-
-// SessionConfigOptionValuePayload is a daemon API value.
-type SessionConfigOptionValuePayload struct {
-	Value       string `json:"value"`
-	Label       string `json:"label,omitempty"`
-	Description string `json:"description,omitempty"`
-	GroupID     string `json:"group_id,omitempty"`
-	GroupLabel  string `json:"group_label,omitempty"`
-}
-
-// SessionConsumerDegradedPayload is a daemon API value.
-type SessionConsumerDegradedPayload struct {
-	SessionID       string `json:"session_id"`
-	AfterSequence   int64  `json:"after_sequence"`
-	ThroughSequence int64  `json:"through_sequence"`
-	Refresh         bool   `json:"refresh"`
-}
-
-// SessionContextClearedByPayload is a daemon API value.
-type SessionContextClearedByPayload struct {
-	CompactionID string `json:"compaction_id"`
-	Sequence     int64  `json:"sequence"`
-}
-
-// SessionContextInjectedPayload is a daemon API value.
-type SessionContextInjectedPayload struct {
-	Estimate string                     `json:"estimate"`
-	Tokens   int64                      `json:"tokens"`
-	Stale    bool                       `json:"stale"`
-	Rows     []SessionContextRowPayload `json:"rows"`
 }

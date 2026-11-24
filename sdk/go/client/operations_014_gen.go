@@ -9,6 +9,15 @@ import (
 	"strings"
 )
 
+// GetSessionParams carries the path, query, and header parameters.
+type GetSessionParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	SessionID     string  `url:"session_id"`
+	IncludeHealth *bool   `url:"include_health"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // GetSession Get one session snapshot
 func (c *Client) GetSession(ctx context.Context, params GetSessionParams) (*SessionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"

@@ -328,6 +328,8 @@ type ExtensionResponse struct {
 type InstallExtensionResponse struct {
 	EnableError *ExtensionEnableError `json:"enable_error,omitzero"`
 	Extension   ExtensionPayload      `json:"extension"`
+	// DependenciesInstalled lists the dependencies a consented install added or enabled. Experimental.
+	DependenciesInstalled []string `json:"dependencies_installed,omitempty"`
 }
 
 // ExtensionLogsResponse wraps a bounded snapshot of redacted extension logs.

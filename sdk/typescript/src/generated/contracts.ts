@@ -822,6 +822,7 @@ export interface LoopTarget {
   loop_name: string;
   inputs?: Record<string, JSONValue>;
   input_mapping?: Record<string, string>;
+  input_command?: string;
 }
 
 export type RetryStrategy = string;
@@ -901,6 +902,7 @@ export interface AutomationJobUpdateParams {
   schedule?: ScheduleSpec;
   task?: JobTaskConfig;
   loop_target?: LoopTarget;
+  loop_input_command?: string;
   enabled?: boolean;
   retry?: RetryConfig;
   fire_limit?: FireLimitConfig;
@@ -1485,6 +1487,20 @@ export interface CoordinatorStoppedPayload {
   error?: string;
 }
 
+export interface DescribeInputBinding {
+  type: string;
+  name: string;
+}
+
+export interface DescribeInput {
+  id: string;
+  prompt: string;
+  type: string;
+  required: boolean;
+  binding: DescribeInputBinding;
+  default?: JSONValue;
+}
+
 export interface DescribeProfileDefaults {
   agent?: string;
   provider?: string;
@@ -1585,6 +1601,7 @@ export interface DescribePayload {
   provides: string[];
   permissions: string[];
   requires_env?: string[];
+  inputs?: DescribeInput[];
   profiles?: DescribeProfile[];
   resources: DescribeResources;
   subprocess: DescribeSubprocess;

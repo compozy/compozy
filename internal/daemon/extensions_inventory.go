@@ -3,7 +3,6 @@ package daemon
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -355,8 +354,9 @@ func (s *daemonExtensionService) previewExtensionAutomation(
 	ext *extensionpkg.Extension,
 	changes []contract.ExtensionKitChangePayload,
 ) ([]string, error) {
+	// A daemon with automation disabled wires no previewer and starts no package automation.
 	if s.automation == nil {
-		return nil, errors.New("daemon: extension automation previewer is required")
+		return nil, nil
 	}
 	jobs := slices.Clone(ext.AutomationJobs)
 	triggers := slices.Clone(ext.AutomationTriggers)

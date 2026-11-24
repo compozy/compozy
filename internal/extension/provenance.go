@@ -155,7 +155,7 @@ func extensionChecksumUnverifiedDiagnostic(
 	allowed bool,
 ) contract.DiagnosticItem {
 	title := "Extension checksum is unverified"
-	message := "The marketplace did not provide a verifiable checksum for this extension."
+	message := "The extension source did not provide a verifiable checksum."
 	if allowed {
 		message = "The extension was installed after an explicit allow_unverified trust decision."
 	}

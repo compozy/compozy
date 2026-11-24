@@ -36,8 +36,9 @@ func (d *Daemon) bindInstanceSkillReviews(
 		}
 		return state.agentSkillResources.SyncSkills(ctx)
 	}
+	reviews := provider.SkillReviews()
 	api.SkillProposals = &agentinstance.SkillProposalService{
-		Store: provider.SkillReviews(), Authority: api.Authority,
+		Store: reviews, Evidence: reviews, Authority: api.Authority,
 		DraftRoot: filepath.Join(d.homePaths.HomeDir, "skill-reviews"),
 	}
 	api.SkillTarget = func(ctx context.Context, instance agentinstance.Instance) (string, []string, error) {

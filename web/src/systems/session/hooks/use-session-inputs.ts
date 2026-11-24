@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useSelector } from "@xstate/store-react";
 import { sessionStore } from "../stores/session-store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -33,6 +34,7 @@ export function useSessionInputs(
   return useQuery(
     sessionInputsOptions(workspaceId, sessionId, {
       ...options,
+      computerId: useCurrentComputerId(),
       enabled: (options.enabled ?? true) && !suspended,
     })
   );
@@ -72,10 +74,11 @@ function removeCachedInput(
 
 export function useReplaceSessionInput(workspaceId: string, sessionId: string) {
   const queryClient = useQueryClient();
-  const queryKey = sessionKeys.inputQueue(workspaceId, sessionId);
+  const computerId = useCurrentComputerId();
+  const queryKey = sessionKeys.forComputer(computerId).inputQueue(workspaceId, sessionId);
   return useMutation<SessionInputPayload, Error, ReplaceSessionInputVariables>({
     mutationFn: ({ queueEntryId, request }) =>
-      replaceSessionInput(workspaceId, sessionId, queueEntryId, request),
+      replaceSessionInput(workspaceId, sessionId, queueEntryId, request, undefined, computerId),
     onSuccess: (replacement, { queueEntryId }) => {
       queryClient.setQueryData<SessionInputsResponse>(queryKey, current =>
         replaceCachedInput(current, queueEntryId, replacement)
@@ -89,10 +92,18 @@ export function useReplaceSessionInput(workspaceId: string, sessionId: string) {
 
 export function usePromoteSessionInput(workspaceId: string, sessionId: string) {
   const queryClient = useQueryClient();
-  const queryKey = sessionKeys.inputQueue(workspaceId, sessionId);
+  const computerId = useCurrentComputerId();
+  const queryKey = sessionKeys.forComputer(computerId).inputQueue(workspaceId, sessionId);
   return useMutation<SessionPromptPayload, Error, PromoteSessionInputVariables>({
     mutationFn: ({ queueEntryId, request }) =>
-      promoteSessionInputToSteer(workspaceId, sessionId, queueEntryId, request),
+      promoteSessionInputToSteer(
+        workspaceId,
+        sessionId,
+        queueEntryId,
+        request,
+        undefined,
+        computerId
+      ),
     onSuccess: (_result, { queueEntryId }) => {
       queryClient.setQueryData<SessionInputsResponse>(queryKey, current =>
         removeCachedInput(current, queueEntryId)
@@ -106,9 +117,11 @@ export function usePromoteSessionInput(workspaceId: string, sessionId: string) {
 
 export function useCancelSessionInput(workspaceId: string, sessionId: string) {
   const queryClient = useQueryClient();
-  const queryKey = sessionKeys.inputQueue(workspaceId, sessionId);
+  const computerId = useCurrentComputerId();
+  const queryKey = sessionKeys.forComputer(computerId).inputQueue(workspaceId, sessionId);
   return useMutation<SessionPromptPayload, Error, string>({
-    mutationFn: queueEntryId => cancelQueuedSessionPrompt(workspaceId, sessionId, queueEntryId),
+    mutationFn: queueEntryId =>
+      cancelQueuedSessionPrompt(workspaceId, sessionId, queueEntryId, undefined, computerId),
     onSuccess: (_result, queueEntryId) => {
       queryClient.setQueryData<SessionInputsResponse>(queryKey, current =>
         removeCachedInput(current, queueEntryId)
@@ -133,9 +146,10 @@ function survivingInputs(
 
 export function useClearSessionInputs(workspaceId: string, sessionId: string) {
   const queryClient = useQueryClient();
-  const queryKey = sessionKeys.inputQueue(workspaceId, sessionId);
+  const computerId = useCurrentComputerId();
+  const queryKey = sessionKeys.forComputer(computerId).inputQueue(workspaceId, sessionId);
   return useMutation<SessionInputClearResponse, Error, void>({
-    mutationFn: () => clearSessionInputs(workspaceId, sessionId),
+    mutationFn: () => clearSessionInputs(workspaceId, sessionId, undefined, computerId),
     onSuccess: response => {
       queryClient.setQueryData<SessionInputsResponse>(queryKey, current =>
         survivingInputs(current, response)

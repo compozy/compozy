@@ -160,7 +160,7 @@ var extensionTools = []toolspkg.Descriptor{
 		"extensions_remove",
 		"Extensions Remove",
 		"Remove one managed installed extension with rollback on reload failure.",
-		extensionNameInputSchema,
+		extensionForceInputSchema,
 		toolspkg.RiskDestructive,
 		false,
 		true,
@@ -184,7 +184,7 @@ var extensionTools = []toolspkg.Descriptor{
 		"extensions_disable",
 		"Extensions Disable",
 		"Disable one installed extension for the caller's active profile.",
-		extensionNameInputSchema,
+		extensionForceInputSchema,
 		toolspkg.RiskMutating,
 		false,
 		false,
@@ -225,9 +225,10 @@ func extensionDescriptors() []toolspkg.Descriptor {
 	items := make(
 		[]toolspkg.Descriptor,
 		0,
-		len(extensionTools)+len(extensionDistributionTools)+len(extensionBuiltinTools),
+		len(extensionTools)+len(extensionSetupTools)+len(extensionDistributionTools)+len(extensionBuiltinTools),
 	)
 	items = append(items, extensionTools...)
+	items = append(items, extensionSetupTools...)
 	items = append(items, extensionDistributionTools...)
 	items = append(items, extensionBuiltinTools...)
 	return items
@@ -299,6 +300,21 @@ const extensionNameInputSchema = `{
 	"additionalProperties":false
 }`
 
+// extensionForceInputSchema adds the experimental dependency-guard override to remove and disable.
+const extensionForceInputSchema = `{
+	"type":"object",
+	"required":["name"],
+	"properties":{
+		"owner":{"type":"string","pattern":"` + extensionOwnerPattern + `",
+			"description":"Definition owner; must equal extension:<name>."},
+		"name":{"type":"string"},
+		"force":{"type":"boolean","default":false,
+			"description":"Experimental. Proceed even while an installed dependent still needs this extension ` +
+	`(extension_dependency_in_use); the dependent then reports unmet_dependencies. Nothing cascades."}
+	},
+	"additionalProperties":false
+}`
+
 const extensionInstallInputSchema = `{
 	"type":"object",
 	"required":["source","ref"],
@@ -318,7 +334,23 @@ const extensionInstallInputSchema = `{
 		"replace":{"type":"boolean","default":false,
 			"description":"Replace the installed local extension; the previous version stays installed ` +
 	`only when the replacement fails before the reinstall transaction completes. A failure after it ` +
-	`returns, such as enable failing, does not restore it."}
+	`returns, such as enable failing, does not restore it."},
+		"with_dependencies":{"type":"boolean","default":false,
+			"description":"Experimental. Install missing and enable disabled requires.extensions dependencies ` +
+	`first, in the same scope and profile. Without it unmet dependencies refuse with ` +
+	`extension_dependencies_required."},
+		"dependencies":{"type":"object",
+			"description":"Experimental. Per-dependency trust consent keyed by dependency name; ` +
+	`allow_unverified above applies only to the requested extension.",
+			"additionalProperties":{
+				"type":"object",
+				"properties":{
+					"expected_digest":{"type":"string","pattern":"^[a-fA-F0-9]{64}$"},
+					"allow_unverified":{"type":"boolean"}
+				},
+				"additionalProperties":false
+			}
+		}
 	},
 	"additionalProperties":false
 }`

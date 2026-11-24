@@ -1,3 +1,4 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { archiveSession } from "../adapters/session-archive-api";
@@ -18,13 +19,17 @@ export function useCloseSideChat({
   profile: string;
 }) {
   const queryClient = useQueryClient();
+  const computerId = useCurrentComputerId();
   return useMutation<unknown, Error, { sideId: string }>({
-    mutationFn: ({ sideId }) => archiveSession(workspaceId, sideId, profile, undefined, true),
+    mutationFn: ({ sideId }) =>
+      archiveSession(workspaceId, sideId, profile, undefined, true, undefined, computerId),
     onSettled: (_data, _error, { sideId }) => {
       void queryClient.invalidateQueries({
-        predicate: query => isSessionSidesQuery(query.queryKey, parentSessionId),
+        predicate: query => isSessionSidesQuery(query.queryKey, parentSessionId, computerId),
       });
-      void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, sideId) });
+      void queryClient.invalidateQueries({
+        queryKey: sessionKeys.forComputer(computerId).detail(workspaceId, sideId),
+      });
     },
   });
 }

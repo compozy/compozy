@@ -186,6 +186,10 @@ const (
 	CodeExtensionSourceChanged           = "extension_source_changed"
 	CodeExtensionInputsRequired          = "extension_inputs_required"
 	CodeExtensionInputInvalid            = "extension_input_invalid"
+	CodeExtensionInputOverwriteDenied    = "extension_input_overwrite_denied"
+	CodeExtensionDependenciesRequired    = "extension_dependencies_required"
+	CodeExtensionDependencyGraphInvalid  = "extension_dependency_graph_invalid"
+	CodeExtensionDependencyInUse         = "extension_dependency_in_use"
 	CodeExtensionAgentConflict           = "extension_agent_conflict"
 	CodeExtensionEnvBindingDangling      = "extension_env_binding_dangling"
 	CodeExtensionEnvBindingInvalid       = "extension_env_binding_invalid"
@@ -231,6 +235,10 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeExtensionSourceChanged, Category: CategoryExtension},
 	{Code: CodeExtensionInputsRequired, Category: CategoryExtension},
 	{Code: CodeExtensionInputInvalid, Category: CategoryExtension},
+	{Code: CodeExtensionInputOverwriteDenied, Category: CategoryExtension},
+	{Code: CodeExtensionDependenciesRequired, Category: CategoryExtension},
+	{Code: CodeExtensionDependencyGraphInvalid, Category: CategoryExtension},
+	{Code: CodeExtensionDependencyInUse, Category: CategoryExtension},
 	{Code: CodeExtensionAgentConflict, Category: CategoryExtension},
 	{Code: CodeExtensionChecksumUnverified, Category: CategoryExtension},
 	{Code: CodeExtensionEnvBindingDangling, Category: CategoryExtension},

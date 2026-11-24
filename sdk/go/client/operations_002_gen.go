@@ -230,6 +230,28 @@ func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams
 	return &out, nil
 }
 
+// ArchiveStoppedSessionsParams carries the path, query, and header parameters.
+type ArchiveStoppedSessionsParams struct {
+	Profile *string `url:"profile"`
+}
+
+// ArchiveStoppedSessions Archive every stopped thread of one workspace or all workspaces that is not running, waiting on the operator, holding queued input, pinned, in Later, or an always-on agent's main session; dry_run reports the same result without archiving
+func (c *Client) ArchiveStoppedSessions(ctx context.Context, params ArchiveStoppedSessionsParams, body SessionArchiveStoppedRequest) (*SessionArchiveStoppedResponse, error) {
+	path := "/api/sessions/archive-stopped"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionArchiveStoppedResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ArchiveTaskParams carries the path, query, and header parameters.
 type ArchiveTaskParams struct {
 	ID      string  `url:"id"`
@@ -416,29 +438,4 @@ func (c *Client) BindSessionWorktree(ctx context.Context, params BindSessionWork
 type BlockTaskParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// BlockTask Create one typed task block
-func (c *Client) BlockTask(ctx context.Context, params BlockTaskParams, body CreateTaskBlockRequest) (*TaskBlockResponse, error) {
-	path := "/api/tasks/{id}/blocks"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskBlockResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// BrowseDirectoryParams carries the path, query, and header parameters.
-type BrowseDirectoryParams struct {
-	Path       *string `url:"path"`
-	ShowHidden *bool   `url:"show_hidden"`
-	DirsOnly   *bool   `url:"dirs_only"`
 }

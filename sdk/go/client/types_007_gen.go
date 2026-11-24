@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// DaemonReadinessPayload is a daemon API value.
+type DaemonReadinessPayload struct {
+	Phase DaemonReadinessPhase `json:"phase"`
+	Step  string               `json:"step,omitempty"`
+	Since time.Time            `json:"since"`
+}
+
+// DaemonReadinessPhase is a daemon API value.
+type DaemonReadinessPhase string
+
 // DaemonStatusPayload is a daemon API value.
 type DaemonStatusPayload struct {
 	Status         string                  `json:"status"`
@@ -401,48 +411,31 @@ type ExtensionDeclaredProfilePayload struct {
 	CredentialRequirements []ProfileCredentialRequirement `json:"credential_requirements,omitempty"`
 }
 
+// ExtensionDependencyConsent is a daemon API value.
+type ExtensionDependencyConsent struct {
+	ExpectedDigest  string `json:"expected_digest,omitempty"`
+	AllowUnverified bool   `json:"allow_unverified,omitzero"`
+}
+
+// ExtensionDependencyPayload is a daemon API value.
+type ExtensionDependencyPayload struct {
+	Name             string   `json:"name"`
+	Source           string   `json:"source"`
+	Ref              string   `json:"ref"`
+	MinVersion       string   `json:"min_version,omitempty"`
+	RequiredBy       []string `json:"required_by"`
+	Depth            int      `json:"depth"`
+	State            string   `json:"state"`
+	InstalledVersion string   `json:"installed_version,omitempty"`
+	Version          string   `json:"version,omitempty"`
+	DigestSHA256     string   `json:"digest_sha256,omitempty"`
+	RegistryTier     string   `json:"registry_tier,omitempty"`
+	ConsentRequired  bool     `json:"consent_required,omitzero"`
+	RetryCommand     string   `json:"retry_command,omitempty"`
+}
+
 // ExtensionEnableError is a daemon API value.
 type ExtensionEnableError struct {
 	Error string `json:"error"`
 	Code  string `json:"code"`
-}
-
-// ExtensionEnablePreviewPayload is a daemon API value.
-type ExtensionEnablePreviewPayload struct {
-	MissingInputs      []string                    `json:"missing_inputs"`
-	Extension          string                      `json:"extension"`
-	Changes            []ExtensionKitChangePayload `json:"changes"`
-	AgentConflicts     []string                    `json:"agent_conflicts"`
-	MissingEnv         []string                    `json:"missing_env"`
-	AutomationStarting []string                    `json:"automation_starting"`
-}
-
-// ExtensionEnablementPayload is a daemon API value.
-type ExtensionEnablementPayload struct {
-	Profile string `json:"profile"`
-	Enabled bool   `json:"enabled"`
-}
-
-// ExtensionInputStatePayload is a daemon API value.
-type ExtensionInputStatePayload struct {
-	ID     string `json:"id"`
-	Type   string `json:"type"`
-	Set    bool   `json:"set"`
-	Active bool   `json:"active"`
-}
-
-// ExtensionInstallDeclaredProfilePayload is a daemon API value.
-type ExtensionInstallDeclaredProfilePayload struct {
-	Name        string                         `json:"name"`
-	Create      bool                           `json:"create"`
-	Credentials []ProfileCredentialRequirement `json:"credentials,omitempty"`
-}
-
-// ExtensionInstallPreviewPayload is a daemon API value.
-type ExtensionInstallPreviewPayload struct {
-	DigestSHA256     string                                   `json:"digest_sha256,omitempty"`
-	Inputs           []MarketplaceInputPayload                `json:"inputs"`
-	Name             string                                   `json:"name"`
-	DeclaredProfiles []ExtensionInstallDeclaredProfilePayload `json:"declared_profiles"`
-	Placements       []ExtensionPlacementPayload              `json:"placements"`
 }

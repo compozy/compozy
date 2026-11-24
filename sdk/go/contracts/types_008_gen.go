@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+type ExtensionToolCallRequest struct {
+	ToolID           ToolID                       `json:"tool_id"`
+	Handler          string                       `json:"handler"`
+	SessionID        string                       `json:"session_id,omitempty"`
+	InvocationID     string                       `json:"invocation_id,omitempty"`
+	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
+	Input            json.RawMessage              `json:"input"`
+}
+
+type ExtensionToolCallResponse struct {
+	Result ToolResult `json:"result"`
+}
+
 type ExtensionToolRuntimeDescriptor struct {
 	Profile             string                `json:"profile,omitempty"`
 	ID                  ToolID                `json:"id"`
@@ -191,26 +204,4 @@ type FormBody struct {
 	Fields   []FormField `json:"fields"`
 	Submit   *RowAction  `json:"submit,omitempty"`
 	OnSubmit string      `json:"on_submit,omitempty"`
-}
-
-type FormField struct {
-	ID          string            `json:"id"`
-	Type        string            `json:"type"`
-	Label       string            `json:"label"`
-	Placeholder string            `json:"placeholder,omitempty"`
-	Required    bool              `json:"required,omitempty"`
-	Options     []string          `json:"options,omitempty"`
-	Directories bool              `json:"directories,omitempty"`
-	Default     any               `json:"default,omitempty"`
-	Error       string            `json:"error,omitempty"`
-	EmptyHint   string            `json:"empty_hint,omitempty"`
-	OnChange    string            `json:"on_change,omitempty"`
-	OnBlur      string            `json:"on_blur,omitempty"`
-	EventCount  int64             `json:"event_count,omitempty"`
-	Requires    map[string]string `json:"requires,omitempty"`
-	Fallback    string            `json:"fallback,omitempty"`
-}
-
-type GridBody struct {
-	Sections []GridSection `json:"sections"`
 }

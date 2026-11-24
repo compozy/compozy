@@ -162,7 +162,9 @@ describe("useSessionLinkedWork", () => {
       {
         branch: first!.branch,
         repository: first!.repository,
-      }
+      },
+      undefined,
+      "local"
     );
     await act(async () => finish({ items: items.slice(1) }));
 
@@ -175,11 +177,18 @@ describe("useSessionLinkedWork", () => {
     expect(undo.label).toBe("Undo");
     act(() => undo.onClick());
     await waitFor(() =>
-      expect(addSessionWorkLink).toHaveBeenCalledWith(WORKSPACE, session.id, session.profile_name, {
-        branch: first!.branch,
-        repository: first!.repository,
-        pr_number: 951,
-      })
+      expect(addSessionWorkLink).toHaveBeenCalledWith(
+        WORKSPACE,
+        session.id,
+        session.profile_name,
+        {
+          branch: first!.branch,
+          repository: first!.repository,
+          pr_number: 951,
+        },
+        undefined,
+        "local"
+      )
     );
   });
 
@@ -197,7 +206,9 @@ describe("useSessionLinkedWork", () => {
       WORKSPACE,
       session.id,
       session.profile_name,
-      { branch: second!.branch, repository: second!.repository }
+      { branch: second!.branch, repository: second!.repository },
+      undefined,
+      "local"
     );
   });
 
@@ -260,7 +271,9 @@ describe("useSessionLinkedWork", () => {
       WORKSPACE,
       session.id,
       session.profile_name,
-      expect.objectContaining({ branch: first!.branch })
+      expect.objectContaining({ branch: first!.branch }),
+      undefined,
+      "local"
     );
   });
 
@@ -295,7 +308,9 @@ describe("useSessionLinkedWork", () => {
         WORKSPACE,
         session.id,
         session.profile_name,
-        expect.objectContaining({ branch: first!.branch })
+        expect.objectContaining({ branch: first!.branch }),
+        undefined,
+        "local"
       )
     );
   });

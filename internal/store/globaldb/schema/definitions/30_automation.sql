@@ -44,6 +44,7 @@ CREATE TABLE automation_jobs (
 		loop_name    TEXT,
 		loop_inputs  TEXT,
 		loop_input_mapping TEXT,
+		loop_input_command TEXT,
 		created_at   TEXT NOT NULL,
 		updated_at   TEXT NOT NULL,
 		grant_ceiling TEXT NOT NULL DEFAULT '',
@@ -165,6 +166,7 @@ CREATE TABLE automation_triggers (
 		loop_name     TEXT,
 		loop_inputs   TEXT,
 		loop_input_mapping TEXT,
+		loop_input_command TEXT,
 		created_at    TEXT NOT NULL,
 		updated_at    TEXT NOT NULL,
 		CHECK (

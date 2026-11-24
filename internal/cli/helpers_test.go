@@ -114,10 +114,14 @@ type stubClient struct {
 		SettingsMCPAuthTarget,
 		SettingsMCPAuthBeginRequest,
 	) (SettingsMCPAuthBeginRecord, error)
-	exchangeSettingsMCPAuthFn  func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
-	logoutSettingsMCPAuthFn    func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
-	installExtensionFn         func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
-	previewExtensionInstallFn  func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error)
+	exchangeSettingsMCPAuthFn func(context.Context, SettingsMCPAuthTarget, SettingsMCPAuthExchangeRequest) (SettingsMCPAuthStatusRecord, error)
+	logoutSettingsMCPAuthFn   func(context.Context, SettingsMCPAuthTarget) (SettingsMCPAuthStatusRecord, error)
+	installExtensionFn        func(context.Context, InstallExtensionRequest) (ExtensionRecord, error)
+	previewExtensionInstallFn func(context.Context, InstallExtensionRequest) (ExtensionInstallPreviewRecord, error)
+	extensionInputsFn         func(context.Context, string, extensionCLIScope) (ExtensionInputsRecord, error)
+	setExtensionInputsFn      func(
+		context.Context, string, extensionCLIScope, contract.SetExtensionInputsRequest,
+	) (ExtensionInputsRecord, error)
 	updateExtensionFn          func(context.Context, string, UpdateExtensionRequest) (ExtensionUpdateRecord, error)
 	updateExtensionsFn         func(context.Context, UpdateExtensionsRequest) ([]ExtensionUpdateRecord, error)
 	removeExtensionFn          func(context.Context, string) (ManagedExtensionRemoveRecord, error)
@@ -162,6 +166,9 @@ type stubClient struct {
 	startSessionHistoryCleanupFn func(
 		context.Context, contract.SessionHistoryCleanupRequest,
 	) (contract.SessionHistoryCleanupStartResponse, error)
+	archiveStoppedSessionsFn func(
+		context.Context, contract.SessionArchiveStoppedRequest,
+	) (contract.SessionArchiveStoppedResponse, error)
 	resumeSessionFromLaterFn         func(context.Context, string, bool) (SessionRecord, error)
 	markSessionSeenFn                func(context.Context, string) (SessionRecord, error)
 	setSessionPinnedFn               func(context.Context, string, bool) (SessionRecord, error)
@@ -272,6 +279,7 @@ type stubClient struct {
 	getLoopTimelineFn  func(context.Context, string, string, LoopTimelineQuery) (contract.LoopTimelineResponse, error)
 	streamLoopEventsFn func(context.Context, string, string, int64, SSEHandler) error
 	cancelLoopRunFn    func(context.Context, string, string, agentidentity.Credentials) (contract.LoopMutationResponse, error)
+	forkLoopRunFn      func(context.Context, string, string, contract.ForkLoopRequest, agentidentity.Credentials) (contract.ForkLoopResponse, error)
 	listLoopNodesFn    func(context.Context, string, LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error)
 	pauseLoopNodeFn    func(context.Context, string, string, string, contract.LoopNodePauseRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
 	resumeLoopNodeFn   func(context.Context, string, string, string, contract.LoopNodeResumeRequest, agentidentity.Credentials) (contract.LoopMutationResponse, error)
@@ -1009,6 +1017,29 @@ func (s *stubClient) InstallExtension(
 	return ExtensionRecord{}, errors.New("unexpected InstallExtension call")
 }
 
+func (s *stubClient) ExtensionInputs(
+	ctx context.Context,
+	name string,
+	selected extensionCLIScope,
+) (ExtensionInputsRecord, error) {
+	if s.extensionInputsFn != nil {
+		return s.extensionInputsFn(ctx, name, selected)
+	}
+	return ExtensionInputsRecord{}, errors.New("unexpected ExtensionInputs call")
+}
+
+func (s *stubClient) SetExtensionInputs(
+	ctx context.Context,
+	name string,
+	selected extensionCLIScope,
+	request contract.SetExtensionInputsRequest,
+) (ExtensionInputsRecord, error) {
+	if s.setExtensionInputsFn != nil {
+		return s.setExtensionInputsFn(ctx, name, selected, request)
+	}
+	return ExtensionInputsRecord{}, errors.New("unexpected SetExtensionInputs call")
+}
+
 func (s *stubClient) PreviewExtensionInstall(
 	ctx context.Context,
 	request InstallExtensionRequest,
@@ -1387,6 +1418,16 @@ func (s *stubClient) UnarchiveSession(ctx context.Context, id string) (SessionRe
 		return s.unarchiveSessionFn(ctx, id)
 	}
 	return SessionRecord{}, errors.New("unexpected UnarchiveSession call")
+}
+
+func (s *stubClient) ArchiveStoppedSessions(
+	ctx context.Context,
+	request contract.SessionArchiveStoppedRequest,
+) (contract.SessionArchiveStoppedResponse, error) {
+	if s.archiveStoppedSessionsFn != nil {
+		return s.archiveStoppedSessionsFn(ctx, request)
+	}
+	return contract.SessionArchiveStoppedResponse{}, errors.New("unexpected ArchiveStoppedSessions call")
 }
 
 func (s *stubClient) PreviewSessionHistoryCleanup(
@@ -2243,8 +2284,15 @@ func (s *stubClient) RerunLoopRun(
 }
 
 func (s *stubClient) ForkLoopRun(
-	context.Context, string, string, contract.ForkLoopRequest, agentidentity.Credentials,
+	ctx context.Context,
+	workspaceID string,
+	runID string,
+	request contract.ForkLoopRequest,
+	credentials agentidentity.Credentials,
 ) (contract.ForkLoopResponse, error) {
+	if s.forkLoopRunFn != nil {
+		return s.forkLoopRunFn(ctx, workspaceID, runID, request, credentials)
+	}
 	return contract.ForkLoopResponse{}, errors.New("unexpected ForkLoopRun call")
 }
 

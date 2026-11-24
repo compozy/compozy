@@ -43,17 +43,19 @@ func (d *manifestDocument) toManifest() (Manifest, error) {
 		return Manifest{}, err
 	}
 	manifest := Manifest{
-		Inputs:            inputs,
-		Name:              name,
-		Version:           versionValue,
-		Description:       description,
-		MinCompozyVersion: minVersion,
-		RequiresEnv:       manifestRequiredEnv(requiresEnv, inputs),
-		Resources:         normalizeResourcesConfig(d.Resources),
-		Capabilities:      normalizeCapabilitiesConfig(d.Capabilities),
-		Permissions:       normalizePermissionsConfig(d.Permissions),
-		Subprocess:        normalizeSubprocessConfig(d.Subprocess),
-		Profiles:          normalizeManifestProfiles(d.Profiles),
+		Inputs:              inputs,
+		Name:                name,
+		Version:             versionValue,
+		Description:         description,
+		MinCompozyVersion:   minVersion,
+		RequiresEnv:         manifestRequiredEnv(requiresEnv, inputs),
+		DeclaredRequiresEnv: normalizeStrings(requiresEnv),
+		Resources:           normalizeResourcesConfig(d.Resources),
+		Capabilities:        normalizeCapabilitiesConfig(d.Capabilities),
+		Permissions:         normalizePermissionsConfig(d.Permissions),
+		Subprocess:          normalizeSubprocessConfig(d.Subprocess),
+		Profiles:            normalizeManifestProfiles(d.Profiles),
+		Requires:            normalizeManifestRequires(d.Requires),
 	}
 	return manifest, nil
 }

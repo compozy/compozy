@@ -9,8 +9,6 @@ import {
   fetchSessionInteractions,
   fetchSessionGoal,
   fetchSessionRecap,
-  fetchSessionUsage,
-  fetchSessionUsageTurns,
   fetchSessions,
 } from "../adapters/session-api";
 import { isSessionUnavailable, isTerminalInputReadError } from "../adapters/session-api-errors";
@@ -38,11 +36,7 @@ import {
   sessionStreamBackedRefetchInterval,
 } from "./session-stream-liveness";
 import { expiredInteractionsByRequest } from "./session-pending-interactions";
-import {
-  queryKeyHasScope,
-  SESSION_TRANSCRIPT_STALE_TIME_MS,
-  SESSION_WARM_CACHE_POLICY,
-} from "./session-query-policy";
+import { queryKeyHasScope, SESSION_WARM_CACHE_POLICY } from "./session-query-policy";
 import { PROFILE_AGGREGATE, profileViewKey, type ProfileScopeParams } from "@/systems/profiles";
 
 import {
@@ -84,6 +78,11 @@ export function sessionOwnerOptions(sessionId: string) {
 }
 
 export { isLiveSessionState };
+export {
+  sessionContextResetOptions,
+  sessionUsageOptions,
+  sessionUsageTurnsOptions,
+} from "./session-usage-options";
 
 function sessionDetailRefetchInterval(
   sessionId: string,
@@ -163,21 +162,26 @@ export function sessionHistoryOptions(workspace: string, id: string) {
  * Canonical command projection for the current session. SSE frames invalidate this exact key and
  * the composer refetches it whenever the native trigger popover opens.
  */
-export function sessionCommandsOptions(workspace: string, id: string, enabled = true) {
+export function sessionCommandsOptions(
+  workspace: string,
+  id: string,
+  enabled = true,
+  computerId?: ComputerId
+) {
   const workspaceId = workspace.trim();
   const sessionId = id.trim();
   return queryOptions({
-    queryKey: sessionKeys.commands(workspaceId, sessionId),
-    queryFn: ({ signal }) => fetchSessionCommands(workspaceId, sessionId, signal),
+    queryKey: sessionKeys.forComputer(computerId).commands(workspaceId, sessionId),
+    queryFn: ({ signal }) => fetchSessionCommands(workspaceId, sessionId, signal, computerId),
     staleTime: 30_000,
     enabled: enabled && workspaceId.length > 0 && sessionId.length > 0,
   });
 }
 
-export function sessionGoalOptions(workspace: string, id: string) {
+export function sessionGoalOptions(workspace: string, id: string, computerId?: ComputerId) {
   return queryOptions({
-    queryKey: sessionKeys.goal(workspace, id),
-    queryFn: ({ signal }) => fetchSessionGoal(workspace, id, signal),
+    queryKey: sessionKeys.forComputer(computerId).goal(workspace, id),
+    queryFn: ({ signal }) => fetchSessionGoal(workspace, id, signal, computerId),
     staleTime: Number.POSITIVE_INFINITY,
     enabled: !!workspace && !!id,
   });
@@ -189,10 +193,15 @@ export function sessionGoalOptions(workspace: string, id: string) {
  * and a successful answer reconciles the exact key. A short stale window lets focus/remount self-heal
  * a dropped wake.
  */
-export function sessionClarificationsOptions(workspace: string, id: string, enabled = true) {
+export function sessionClarificationsOptions(
+  workspace: string,
+  id: string,
+  enabled = true,
+  computerId?: ComputerId
+) {
   return queryOptions({
-    queryKey: sessionKeys.clarifications(workspace, id),
-    queryFn: ({ signal }) => fetchSessionClarifications(workspace, id, signal),
+    queryKey: sessionKeys.forComputer(computerId).clarifications(workspace, id),
+    queryFn: ({ signal }) => fetchSessionClarifications(workspace, id, signal, computerId),
     staleTime: 5_000,
     enabled: !!workspace && !!id && enabled,
   });
@@ -286,14 +295,20 @@ export const SESSION_INPUTS_REFETCH_INTERVAL_MS = SESSION_LIVE_REFETCH_INTERVAL_
 export function sessionInputsOptions(
   workspace: string,
   id: string,
-  options: { enabled?: boolean; sessionState?: SessionState; refetchInterval?: number } = {}
+  options: {
+    enabled?: boolean;
+    sessionState?: SessionState;
+    refetchInterval?: number;
+    computerId?: ComputerId;
+  } = {}
 ) {
+  const { computerId } = options;
   return queryOptions({
-    queryKey: sessionKeys.inputQueue(workspace, id),
-    queryFn: ({ signal }) => fetchSessionInputs(workspace, id, signal),
+    queryKey: sessionKeys.forComputer(computerId).inputQueue(workspace, id),
+    queryFn: ({ signal }) => fetchSessionInputs(workspace, id, signal, computerId),
     refetchInterval: query => {
       if (isTerminalInputReadError(query.state.error)) return false;
-      const cadence = sessionStreamBackedRefetchInterval(id, options.sessionState);
+      const cadence = sessionStreamBackedRefetchInterval(id, options.sessionState, computerId);
       if (cadence === false) return false;
       return Math.min(options.refetchInterval ?? cadence, cadence);
     },
@@ -379,28 +394,6 @@ export function sessionRecapOptions(workspace: string, id: string, limit?: numbe
 }
 
 /**
- * Session token-usage aggregate. Usage accrues live as the agent reports it; the
- * stream's `session_usage_changed` re-reads it, and the stream-backed cadence covers a
- * session without a live stream. A stopped session is terminal and never refetches.
- */
-export function sessionUsageOptions(
-  workspace: string,
-  id: string,
-  sessionState?: SessionState | null
-) {
-  return queryOptions({
-    queryKey: sessionKeys.usage(workspace, id),
-    queryFn: ({ signal }) => fetchSessionUsage(workspace, id, signal),
-    refetchInterval: isLiveSessionState(sessionState)
-      ? () => sessionStreamBackedRefetchInterval(id, sessionState)
-      : false,
-    staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
-    ...SESSION_WARM_CACHE_POLICY,
-    enabled: !!workspace && !!id,
-  });
-}
-
-/**
  * The profile-enforced detail read.
  *
  * The workspace-scoped route answers 200 for a session in any profile, so it
@@ -459,23 +452,6 @@ export function sessionAcrossProfilesOptions(sessionId: string, enabled = true) 
   });
 }
 
-export function sessionUsageTurnsOptions(
-  workspace: string,
-  id: string,
-  sessionState?: SessionState | null
-) {
-  return queryOptions({
-    queryKey: sessionKeys.usageTurns(workspace, id),
-    queryFn: ({ signal }) => fetchSessionUsageTurns(workspace, id, signal),
-    refetchInterval: isLiveSessionState(sessionState)
-      ? () => sessionStreamBackedRefetchInterval(id, sessionState)
-      : false,
-    staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
-    ...SESSION_WARM_CACHE_POLICY,
-    enabled: !!workspace && !!id,
-  });
-}
-
 /** The target's whole subtree from the daemon: a loaded catalog page cannot count it. */
 export function sessionDescendantsOptions(
   session: Pick<SessionPayload, "id" | "workspace_id" | "profile_name">
@@ -485,14 +461,5 @@ export function sessionDescendantsOptions(
     queryFn: ({ signal }) =>
       listSessionDescendants(session.workspace_id ?? "", session.id, session.profile_name, signal),
     staleTime: 0,
-  });
-}
-
-/** The shared reset generation is client-owned and only changed by transcript fence resets. */
-export function sessionContextResetOptions(workspaceId: string, sessionId: string) {
-  return queryOptions({
-    queryKey: sessionKeys.contextReset(workspaceId, sessionId),
-    queryFn: () => 0,
-    enabled: false,
   });
 }

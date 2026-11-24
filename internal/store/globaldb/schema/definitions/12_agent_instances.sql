@@ -157,16 +157,30 @@ CREATE TABLE agent_skill_reviews (
     agent_name TEXT NOT NULL DEFAULT '',
     skill_name TEXT NOT NULL,
     digest TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'rejected')),
+    state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'rejected', 'reverted')),
     draft_path TEXT NOT NULL,
     source_session_id TEXT,
     decided_by TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
-    decided_at TEXT
+    decided_at TEXT,
+    kind TEXT NOT NULL DEFAULT 'new' CHECK (kind IN ('new', 'edit')),
+    skill_key TEXT NOT NULL DEFAULT '',
+    base_digest TEXT NOT NULL DEFAULT '',
+    snapshot_path TEXT NOT NULL DEFAULT '',
+    proposed_digest TEXT NOT NULL DEFAULT '',
+    installed_digest TEXT NOT NULL DEFAULT '',
+    prev_install_marker BLOB,
+    lesson TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(lesson)),
+    evidence_session_ids TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(evidence_session_ids)),
+    decided_via TEXT NOT NULL DEFAULT '' CHECK (decided_via IN ('', 'operator', 'auto_approve')),
+    reverted_by TEXT NOT NULL DEFAULT '',
+    reverted_at TEXT
 );
 
 CREATE INDEX idx_agent_skill_reviews_instance ON agent_skill_reviews(instance_id, state, created_at, id);
 CREATE INDEX idx_agent_skill_reviews_scope ON agent_skill_reviews(profile_id, workspace_id, created_at, id);
+CREATE INDEX idx_agent_skill_reviews_key ON agent_skill_reviews(skill_key, state);
+CREATE INDEX idx_agent_skill_reviews_identity ON agent_skill_reviews(instance_id, skill_name, digest, base_digest, state);
 
 CREATE TABLE agent_instance_events (
     id TEXT PRIMARY KEY,

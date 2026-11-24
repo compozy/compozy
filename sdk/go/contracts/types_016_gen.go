@@ -4,6 +4,25 @@ package contracts
 
 import "time"
 
+type ResultViews struct {
+	Compact ResultViewContract `json:"compact"`
+	Full    ResultViewContract `json:"full"`
+}
+
+type RetentionHealth struct {
+	Enabled                  bool       `json:"enabled"`
+	RetentionDays            int        `json:"retention_days"`
+	SweepIntervalSeconds     int64      `json:"sweep_interval_seconds"`
+	LastSweepStatus          string     `json:"last_sweep_status"`
+	LastSweepAt              *time.Time `json:"last_sweep_at,omitempty"`
+	LastCutoffAt             *time.Time `json:"last_cutoff_at,omitempty"`
+	LastSweepError           string     `json:"last_sweep_error,omitempty"`
+	DeletedEventSummaries    int64      `json:"deleted_event_summaries"`
+	DeletedTokenStats        int64      `json:"deleted_token_stats"`
+	DeletedTokenUsageDaily   int64      `json:"deleted_token_usage_daily"`
+	DeletedPermissionLogRows int64      `json:"deleted_permission_log_rows"`
+}
+
 type RetryConfig struct {
 	Strategy   RetryStrategy `json:"strategy"`
 	MaxRetries int           `json:"max_retries"`
@@ -197,20 +216,4 @@ type SessionCreatePatch struct {
 	AgentName   *string `json:"agent_name,omitempty"`
 	WorkspaceID *string `json:"workspace_id,omitempty"`
 	Workspace   *string `json:"workspace,omitempty"`
-}
-
-type SessionCreateResult struct {
-	SessionID string `json:"session_id"`
-}
-
-type SessionDerivationPayload struct {
-	Kind                  LineageKind `json:"kind"`
-	SourceSessionID       string      `json:"source_session_id"`
-	Seed                  string      `json:"seed"`
-	NativeState           string      `json:"native_state,omitempty"`
-	NativeForkError       string      `json:"native_fork_error,omitempty"`
-	FirstPrompt           string      `json:"first_prompt"`
-	InheritedMessageCount *int        `json:"inherited_message_count,omitzero"`
-	ReplayMessageCount    *int        `json:"replay_message_count,omitzero"`
-	ReplayOmittedCount    *int        `json:"replay_omitted_count,omitzero"`
 }

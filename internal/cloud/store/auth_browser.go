@@ -36,7 +36,8 @@ func (q *Queries) TouchWebSession(ctx context.Context, hash []byte, now, idleLim
 		IDSha256: hash, AsOf: timestamp(now), IdleLimit: timestamp(idleLimit),
 	})
 	return CloudWebSession{
-		AccountID: row.AccountID, Email: row.Email, BrowserDeviceID: row.BrowserDeviceID.String, State: row.State, FreshNoticeEventID: row.FreshNoticeEventID.Int64,
+		AccountID: row.AccountID, Email: row.Email, BrowserDeviceID: row.BrowserDeviceID.String,
+		State: row.State, FreshNoticeEventID: row.FreshNoticeEventID.Int64,
 	}, authLookupError(err)
 }
 
@@ -89,7 +90,8 @@ type BrowserCode struct {
 func (q *Queries) CreateBrowserCode(ctx context.Context, c BrowserCode) error {
 	return q.generated.InsertCloudBrowserCode(ctx, sqlcgen.InsertCloudBrowserCodeParams{
 		CodeSha256: c.Hash, AccountID: c.AccountID, DeviceID: c.DeviceID, ComputerID: c.ComputerID,
-		Jkt: c.JKT, CodeChallenge: c.Challenge, ExpiresAt: timestamp(c.ExpiresAt), RequestLocation: authText(c.Location),
+		Jkt: c.JKT, CodeChallenge: c.Challenge,
+		ExpiresAt: timestamp(c.ExpiresAt), RequestLocation: authText(c.Location),
 	})
 }
 
@@ -97,7 +99,8 @@ func (q *Queries) BrowserCode(ctx context.Context, hash []byte) (BrowserCode, er
 	row, err := q.generated.CloudBrowserCode(ctx, hash)
 	return BrowserCode{
 		Hash: hash, AccountID: row.AccountID, DeviceID: row.DeviceID, ComputerID: row.ComputerID,
-		JKT: row.Jkt, Challenge: row.CodeChallenge, Location: row.RequestLocation.String, ExpiresAt: row.ExpiresAt.Time, UsedAt: row.UsedAt.Time,
+		JKT: row.Jkt, Challenge: row.CodeChallenge, Location: row.RequestLocation.String,
+		ExpiresAt: row.ExpiresAt.Time, UsedAt: row.UsedAt.Time,
 	}, authLookupError(err)
 }
 

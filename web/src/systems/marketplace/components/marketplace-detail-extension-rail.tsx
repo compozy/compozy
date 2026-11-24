@@ -21,6 +21,7 @@ interface MarketplaceExtensionManageCardProps {
   facts: ReturnType<typeof extensionTrustFacts>;
   onRequestProvenance: () => void;
   onRequestRemoval: () => void;
+  onRequestSetup: () => void;
   onToggleEnabled: (enabled: boolean) => void;
   togglePending: boolean;
 }
@@ -30,6 +31,7 @@ function MarketplaceExtensionManageCard({
   facts,
   onRequestProvenance,
   onRequestRemoval,
+  onRequestSetup,
   onToggleEnabled,
   togglePending,
 }: MarketplaceExtensionManageCardProps) {
@@ -45,6 +47,7 @@ function MarketplaceExtensionManageCard({
         facts={facts}
         onRequestProvenance={onRequestProvenance}
         onRequestRemoval={onRequestRemoval}
+        onRequestSetup={onRequestSetup}
         onToggleEnabled={onToggleEnabled}
         togglePending={togglePending}
       />

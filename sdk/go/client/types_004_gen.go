@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// Approval is a daemon API value.
+type Approval struct {
+	ID        string     `json:"id"`
+	DeviceID  DeviceID   `json:"device_id"`
+	JKT       string     `json:"jkt"`
+	Name      string     `json:"name"`
+	State     string     `json:"state"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	DecidedAt *time.Time `json:"decided_at"`
+}
+
+// ApprovalDelivery is a daemon API value.
+type ApprovalDelivery struct {
+	ApprovalID string `json:"approval_id"`
+	State      string `json:"state"`
+}
+
 // ApprovalExecutionStatus is a daemon API value.
 type ApprovalExecutionStatus string
 
@@ -429,16 +447,4 @@ type CancelTaskRequest struct {
 type CancelTaskRunRequest struct {
 	Reason   string          `json:"reason,omitempty"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// CancelWorktreeExitActionRequest is a daemon API value.
-type CancelWorktreeExitActionRequest struct {
-	OperationID string `json:"op_id"`
-}
-
-// CatalogMeta is a daemon API value.
-type CatalogMeta struct {
-	UseWhen  string   `json:"use_when,omitempty"`
-	Keywords []string `json:"keywords,omitempty"`
-	Category string   `json:"category,omitempty"`
 }

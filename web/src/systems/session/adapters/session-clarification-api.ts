@@ -1,4 +1,5 @@
-import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
+import type { ComputerId } from "@/lib/computer-scope";
+import { apiClientFor, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
 import type {
   AnswerClarificationBody,
@@ -27,9 +28,10 @@ export class ClarificationNotAnswerableError extends SessionApiError {
 export async function fetchSessionClarifications(
   workspaceId: string,
   id: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<ClarificationPending[]> {
-  const { data, error, response } = await apiClient.GET(
+  const { data, error, response } = await apiClientFor(computerId).GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications",
     {
       params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
@@ -57,9 +59,10 @@ export async function answerSessionClarification(
   id: string,
   requestId: string,
   body: AnswerClarificationBody,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<AnswerClarificationResult> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications/{request_id}/answer",
     {
       params: {

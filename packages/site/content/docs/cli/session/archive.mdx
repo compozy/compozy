@@ -7,18 +7,34 @@ description: "Archive a stopped session, or stop and archive a live one with --s
 
 Archive a stopped session, or stop and archive a live one with --stop
 
+### Synopsis
+
+Archive one session by ID, or with --stopped archive every stopped thread of a project (or of every project with --all-workspaces). Archiving is reversible with `compozy session unarchive`.
+
 ```
-compozy session archive <id> [flags]
+compozy session archive (<id> | --stopped) [flags]
+```
+
+### Examples
+
+```
+  # Preview, then archive, every stopped thread of a project
+  compozy session archive --stopped --workspace platform --dry-run
+  compozy session archive --stopped --workspace platform
 ```
 
 ### Options
 
 ```
+      --all-workspaces        With --stopped: archive stopped threads in every project
+      --dry-run               With --stopped: preview what would be archived
   -h, --help                  help for archive
       --keep-processes        Keep session-owned processes running (default)
       --stop                  Stop a live session through the normal stop path (canceling any active turn) before archiving it
+      --stopped               Archive every stopped thread of the project instead of one session; running, waiting, queued, pinned, Later, and main-instance threads are skipped
       --terminate-processes   Terminate session-owned background processes and terminals
       --with-children         Also archive the session's child sessions, recursively; with --stop a failed stop archives nothing
+      --workspace string      With --stopped: workspace ID, name, or path (defaults to the current workspace)
 ```
 
 ### Options inherited from parent commands
@@ -44,5 +60,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy session archive <id> -o json
+compozy session archive (<id> | --stopped) -o json
 ```

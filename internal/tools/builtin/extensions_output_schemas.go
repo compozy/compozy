@@ -51,6 +51,8 @@ const extensionSingleOutputSchema = `{
 	"properties":{
 		"enable_error":{"type":"object","required":["error","code"],
 			"properties":{"error":{"type":"string"},"code":{"type":"string"}},"additionalProperties":false},
+		"dependencies_installed":{"type":"array","items":{"type":"string"},
+			"description":"Experimental. Dependencies installed or enabled first, in order."},
 		"extension":` + extensionPayloadOutputSchema + `
 	},
 	"additionalProperties":false

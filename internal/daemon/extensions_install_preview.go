@@ -85,5 +85,24 @@ func (s *daemonExtensionService) PreviewInstall(
 			Kind: placement.Kind, Resource: placement.Resource, Profile: placement.Profile,
 		})
 	}
-	return result, nil
+	result.Dependencies, err = s.previewDependencies(ctx, prepared, req, actor)
+	return result, err
+}
+
+// previewDependencies resolves the graph from the acquired packages (D15) without mutating anything.
+func (s *daemonExtensionService) previewDependencies(
+	ctx context.Context, prepared preparedDaemonExtensionInstall, req contract.InstallExtensionRequest,
+	actor taskpkg.ActorContext,
+) (_ []contract.ExtensionDependencyPayload, resultErr error) {
+	graph, err := s.resolveDependencies(ctx, prepared.manifest, prepared.sourceDir, prepared.target, req.Dependencies,
+		actor)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := graph.Close(); closeErr != nil {
+			resultErr = errors.Join(resultErr, fmt.Errorf("daemon: close dependency preview: %w", closeErr))
+		}
+	}()
+	return graph.payloads(), nil
 }

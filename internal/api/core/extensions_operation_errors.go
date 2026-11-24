@@ -21,7 +21,6 @@ func extensionOperationErrorPayload(
 	payload := contract.ExtensionOperationErrorPayload{}
 	message := ErrorPayloadForStatus(status, err, maskInternal).Error
 	name := strings.TrimSpace(c.Param("name"))
-
 	kind := classifyExtensionError(err)
 	switch kind {
 	case extensionErrorMCPNameTaken:
@@ -31,7 +30,11 @@ func extensionOperationErrorPayload(
 		extensionErrorSourceUnreachable,
 		extensionErrorMarketplaceSourceNotFound,
 		extensionErrorInputsRequired,
-		extensionErrorInputInvalid:
+		extensionErrorInputInvalid,
+		extensionErrorInputOverwriteDenied,
+		extensionErrorDependenciesRequired,
+		extensionErrorDependencyGraphInvalid,
+		extensionErrorDependencyInUse:
 		payload, _ = ExtensionAcquisitionErrorPayload(err)
 	case extensionErrorKindRemoved:
 		payload.Code = diagnosticcontract.CodeExtensionKindRemoved
@@ -65,6 +68,46 @@ func extensionOperationErrorPayload(
 	case extensionErrorAgentPluginNotManifest,
 		extensionErrorAgentPluginSchemaUnsupported:
 		payload.Code = ExtensionAgentPluginErrorCode(err)
+	default:
+		var ok bool
+		if payload, ok = extensionFallbackOperationPayload(err, kind, message, name); !ok {
+			return contract.ExtensionOperationErrorPayload{}, false
+		}
+	}
+	payload.Error = message
+	// A failure attributed to a dependency keeps its own code and fields, and also names that dependency.
+	payload.Dependency, payload.DependenciesInstalled = dependencyErrorFields(err)
+	return payload, true
+}
+
+// extensionFallbackOperationPayload maps the built-in lifecycle conflicts, then the trust gates of a failure that
+// belongs to a dependency. A dependency manifest validation failure is left to the validation payload, which keeps
+// its field issue and names the dependency too.
+func extensionFallbackOperationPayload(
+	err error,
+	kind extensionErrorKind,
+	message string,
+	name string,
+) (contract.ExtensionOperationErrorPayload, bool) {
+	if payload, ok := extensionBuiltinOperationPayload(kind, message, name); ok {
+		return payload, true
+	}
+	if !dependencyErrorContext(err) || errors.Is(err, extensionpkg.ErrManifestInvalid) {
+		return contract.ExtensionOperationErrorPayload{}, false
+	}
+	return extensionDependencyGatePayload(err), true
+}
+
+// extensionBuiltinOperationPayload maps the built-in lifecycle conflicts (not a built-in, not removed,
+// existing copy, failed restore, failed removal compensation) onto their stable codes. It reports false for
+// every other kind.
+func extensionBuiltinOperationPayload(
+	kind extensionErrorKind,
+	message string,
+	name string,
+) (contract.ExtensionOperationErrorPayload, bool) {
+	payload := contract.ExtensionOperationErrorPayload{}
+	switch kind {
 	case extensionErrorNotBuiltin:
 		payload.Code = diagnosticcontract.CodeExtensionNotBuiltin
 		payload.Diagnostic = extensionOperationDiagnostic(
@@ -74,25 +117,6 @@ func extensionOperationErrorPayload(
 			message,
 			"",
 		)
-	default:
-		var ok bool
-		if payload, ok = extensionBuiltinOperationPayload(kind, message, name); !ok {
-			return contract.ExtensionOperationErrorPayload{}, false
-		}
-	}
-	payload.Error = message
-	return payload, true
-}
-
-// extensionBuiltinOperationPayload maps the built-in lifecycle conflicts (not removed, existing copy, failed
-// restore, failed removal compensation) onto their stable codes. It reports false for every other kind.
-func extensionBuiltinOperationPayload(
-	kind extensionErrorKind,
-	message string,
-	name string,
-) (contract.ExtensionOperationErrorPayload, bool) {
-	payload := contract.ExtensionOperationErrorPayload{}
-	switch kind {
 	case extensionErrorBuiltinNotRemoved:
 		payload.Code = diagnosticcontract.CodeExtensionBuiltinNotRemoved
 		payload.Diagnostic = extensionOperationDiagnostic(
@@ -208,8 +232,65 @@ func extensionEnvBindingErrorCode(kind extensionErrorKind) string {
 	}
 }
 
-// ExtensionAcquisitionErrorPayload maps candidate failures consistently across public transports.
+// ExtensionAcquisitionErrorPayload maps candidate failures consistently across public transports. A failure that
+// belongs to a dependency, or follows completed dependency installs, maps and names them; a dependency manifest
+// validation failure is left to the validation payload (ExtensionValidationErrorPayload), as on HTTP.
 func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErrorPayload, bool) {
+	payload, ok := extensionAcquisitionKindPayload(err)
+	if !dependencyErrorContext(err) {
+		return payload, ok
+	}
+	if !ok {
+		if errors.Is(err, extensionpkg.ErrManifestInvalid) {
+			return contract.ExtensionOperationErrorPayload{}, false
+		}
+		payload = extensionDependencyGatePayload(err)
+	}
+	payload.Dependency, payload.DependenciesInstalled = dependencyErrorFields(err)
+	return payload, true
+}
+
+func dependencyErrorContext(err error) bool {
+	_, gated := errors.AsType[*extensionpkg.DependencyGateError](err)
+	_, partial := errors.AsType[*extensionpkg.DependenciesInstalledError](err)
+	return gated || partial
+}
+
+// dependencyErrorFields names the dependency a failure belongs to and the dependencies installed before it.
+func dependencyErrorFields(err error) (dependency string, installed []string) {
+	if gate, gated := errors.AsType[*extensionpkg.DependencyGateError](err); gated {
+		dependency = gate.Dependency
+	}
+	if partial, ok := errors.AsType[*extensionpkg.DependenciesInstalledError](err); ok {
+		installed = slices.Clone(partial.Installed)
+	}
+	return dependency, installed
+}
+
+// extensionDependencyGatePayload maps trust refusals and package conflicts to API errors.
+func extensionDependencyGatePayload(err error) contract.ExtensionOperationErrorPayload {
+	payload := contract.ExtensionOperationErrorPayload{Error: err.Error()}
+	switch {
+	case errors.Is(err, extensionpkg.ErrExtensionExists):
+		payload.Code = diagnosticcontract.CodeExtensionExists
+	case errors.Is(err, extensionpkg.ErrExtensionAgentConflict):
+		payload.Code = diagnosticcontract.CodeExtensionAgentConflict
+		if conflict, ok := errors.AsType[*extensionpkg.AgentConflictError](err); ok && conflict != nil {
+			payload.Agents = slices.Sorted(slices.Values(conflict.Agents))
+		}
+	case errors.Is(err, extensionpkg.ErrExtensionUnverifiedPolicyBlocked):
+		payload.Code = diagnosticcontract.CodeExtensionUnverifiedPolicyBlocked
+	case errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified):
+		payload.Code = diagnosticcontract.CodeExtensionChecksumUnverified
+	case errors.Is(err, extensionpkg.ErrExtensionArchiveDigestMismatch):
+		payload.Code = diagnosticcontract.CodeExtensionArchiveDigestMismatch
+	default:
+		payload.Code = diagnosticcontract.CodeExtensionInstallFailed
+	}
+	return payload
+}
+
+func extensionAcquisitionKindPayload(err error) (contract.ExtensionOperationErrorPayload, bool) {
 	payload := contract.ExtensionOperationErrorPayload{}
 	switch classifyExtensionError(err) {
 	case extensionErrorMarketplaceSourceNotFound:
@@ -230,31 +311,69 @@ func ExtensionAcquisitionErrorPayload(err error) (contract.ExtensionOperationErr
 			payload.ListedDigest, payload.FetchedDigest = changed.ListedDigest, changed.FetchedDigest
 		}
 	case extensionErrorInputsRequired:
-		payload.Code = diagnosticcontract.CodeExtensionInputsRequired
-		if required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err); ok {
-			payload.Inputs, payload.MissingEnv = slices.Clone(required.MissingInputs), slices.Clone(required.MissingEnv)
-			for _, input := range required.InputDefinitions {
-				payload.InputDefinitions = append(payload.InputDefinitions, contract.MarketplaceInputPayload{
-					ID:       input.ID,
-					Prompt:   input.Prompt,
-					Type:     input.Type,
-					Required: input.Required,
-					Default:  slices.Clone(input.Default),
-					Binding: contract.MarketplaceInputBindingPayload{
-						Type: input.Binding.Type,
-						Name: input.Binding.Name,
-					},
-				})
-			}
-		}
+		addExtensionInputsRequiredFields(&payload, err)
 	case extensionErrorInputInvalid:
 		payload.Code = diagnosticcontract.CodeExtensionInputInvalid
 		if invalid, ok := errors.AsType[*extensionpkg.InputValidationError](err); ok {
 			payload.InputID = invalid.InputID
+		}
+	case extensionErrorInputOverwriteDenied:
+		payload.Code = diagnosticcontract.CodeExtensionInputOverwriteDenied
+		if denied, ok := errors.AsType[*extensionpkg.InputOverwriteDeniedError](err); ok {
+			payload.InputIDs = slices.Clone(denied.InputIDs)
+		}
+	case extensionErrorDependenciesRequired:
+		payload.Code = diagnosticcontract.CodeExtensionDependenciesRequired
+		if required, ok := errors.AsType[*extensionpkg.DependenciesRequiredError](err); ok {
+			payload.Dependencies = slices.Clone(required.Dependencies)
+			payload.RetryCommand = dependencyRetryCommand(required.Dependencies)
+		}
+	case extensionErrorDependencyGraphInvalid:
+		payload.Code = diagnosticcontract.CodeExtensionDependencyGraphInvalid
+		if invalid, ok := errors.AsType[*extensionpkg.DependencyGraphInvalidError](err); ok {
+			payload.Reason, payload.Path = invalid.Reason, slices.Clone(invalid.Path)
+			payload.Parents = slices.Clone(invalid.Parents)
+		}
+	case extensionErrorDependencyInUse:
+		payload.Code = diagnosticcontract.CodeExtensionDependencyInUse
+		if inUse, ok := errors.AsType[*extensionpkg.DependencyInUseError](err); ok {
+			payload.Dependents = slices.Clone(inUse.Dependents)
 		}
 	default:
 		return payload, false
 	}
 	payload.Error = err.Error()
 	return payload, true
+}
+
+// dependencyRetryCommand names the update that unblocks the first version_unmet dependency; nothing auto-updates.
+func dependencyRetryCommand(dependencies []contract.ExtensionDependencyPayload) string {
+	for _, dependency := range dependencies {
+		if dependency.RetryCommand != "" {
+			return dependency.RetryCommand
+		}
+	}
+	return ""
+}
+
+func addExtensionInputsRequiredFields(payload *contract.ExtensionOperationErrorPayload, err error) {
+	payload.Code = diagnosticcontract.CodeExtensionInputsRequired
+	if required, ok := errors.AsType[*extensionpkg.InputsRequiredError](err); ok {
+		payload.Inputs, payload.MissingEnv = slices.Clone(required.MissingInputs), slices.Clone(required.MissingEnv)
+		payload.Invalid = slices.Clone(required.InvalidInputs)
+		payload.FetchedDigest = required.Digest
+		for _, input := range required.InputDefinitions {
+			payload.InputDefinitions = append(payload.InputDefinitions, contract.MarketplaceInputPayload{
+				ID:       input.ID,
+				Prompt:   input.Prompt,
+				Type:     input.Type,
+				Required: input.Required,
+				Default:  slices.Clone(input.Default),
+				Binding: contract.MarketplaceInputBindingPayload{
+					Type: input.Binding.Type,
+					Name: input.Binding.Name,
+				},
+			})
+		}
+	}
 }

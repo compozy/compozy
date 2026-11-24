@@ -15696,18 +15696,25 @@ func TestNativeSubagentBindings(t *testing.T) {
 	t.Run("Should report exact oversized field errors", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
+			name  string
 			input nativeSubagentDelegateInput
 			want  string
 		}{
-			{nativeSubagentDelegateInput{Task: strings.Repeat("界", 120001)}, "task exceeds 120000 characters."},
-			{nativeSubagentDelegateInput{Task: "work", Title: strings.Repeat("界", 513)}, "title exceeds 512 characters."},
-			{nativeSubagentDelegateInput{Task: "work", IdempotencyKey: strings.Repeat("界", 257)}, "idempotency_key exceeds 256 characters."},
+			{"task", nativeSubagentDelegateInput{Task: strings.Repeat("界", 120001)}, "task exceeds 120000 characters."},
+			{"title", nativeSubagentDelegateInput{Task: "work", Title: strings.Repeat("界", 513)}, "title exceeds 512 characters."},
+			{"idempotency_key", nativeSubagentDelegateInput{Task: "work", IdempotencyKey: strings.Repeat("界", 257)}, "idempotency_key exceeds 256 characters."},
+			{"prior_subagent_id", nativeSubagentDelegateInput{Task: "work", PriorSubagentID: strings.Repeat("a", 65)}, "prior_subagent_id exceeds 64 characters."},
+			{"handoff_objections", nativeSubagentDelegateInput{Task: "work", Handoff: &nativeSubagentHandoffInput{Objections: strings.Repeat("a", 40001)}}, "handoff.objections exceeds 40000 characters."},
+			{"handoff_findings", nativeSubagentDelegateInput{Task: "work", Handoff: &nativeSubagentHandoffInput{Findings: strings.Repeat("a", 40001)}}, "handoff.findings exceeds 40000 characters."},
 		} {
-			_, err := tc.input.request(session.SubagentCaller{ToolCallID: "call"})
-			detail, ok := errors.AsType[*session.SubagentError](err)
-			if !ok || detail.Message != tc.want {
-				t.Fatalf("error = %v, want %s", err, tc.want)
-			}
+			t.Run("Should reject oversized "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				_, err := tc.input.request(session.SubagentCaller{ToolCallID: "call"})
+				detail, ok := errors.AsType[*session.SubagentError](err)
+				if !ok || detail.Message != tc.want {
+					t.Fatalf("error = %v, want %s", err, tc.want)
+				}
+			})
 		}
 	})
 	t.Run(
@@ -17050,6 +17057,154 @@ func TestNativeSessionCleanupTool(t *testing.T) {
 			t.Fatalf("ArchivedBefore = %v, want 7 days before the call", request.ArchivedBefore)
 		}
 	})
+}
+
+// Invariant (#1924): compozy__session_archive_stopped defaults to the caller's
+// workspace, hands the caller session to the manager so its thread is skipped
+// as caller, returns the report as the HTTP response DTO, and reaches every
+// workspace only for the operator or a session with unrestricted workspace
+// access, as compozy__session_cleanup does. Owner: the daemon native tool binding.
+func TestNativeSessionArchiveStoppedTool(t *testing.T) {
+	t.Parallel()
+
+	const callerProfileID = "profile-archive-stopped"
+	agent := toolspkg.Scope{WorkspaceID: "ws-1", SessionID: "sess-agent", AgentName: "coder"}
+	newRegistry := func(t *testing.T, access string) (*nativeArchiveStoppedSessions, *toolspkg.RuntimeRegistry) {
+		t.Helper()
+		sessions := &nativeArchiveStoppedSessions{}
+		sessions.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID: id, ProfileID: callerProfileID, WorkspaceID: "ws-1", State: session.StateActive,
+				EffectiveWorkspaceAccess: access,
+			}, nil
+		}
+		workspaces := nativeTestWorkspaceService(t)
+		get := workspaces.GetFn
+		workspaces.GetFn = func(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+			workspace, err := get(ctx, ref)
+			if err == nil && workspace.ID == "ws-closed" {
+				archivedAt := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+				workspace.ArchivedAt = &archivedAt
+			}
+			return workspace, err
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   sessions,
+			Workspaces: workspaces,
+		}, nativeApproveAllPolicyInputs())
+		return sessions, registry
+	}
+	call := func(
+		t *testing.T,
+		registry *toolspkg.RuntimeRegistry,
+		scope toolspkg.Scope,
+		input string,
+	) (toolspkg.ToolResult, error) {
+		t.Helper()
+		return registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionArchiveStopped, Input: json.RawMessage(input),
+		})
+	}
+
+	t.Run("Should archive the caller's workspace and skip the caller's thread", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		result, err := call(t, registry, agent, `{"dry_run":true}`)
+		if err != nil {
+			t.Fatalf("session_archive_stopped error = %v", err)
+		}
+		want := session.ArchiveStoppedRequest{
+			ProfileID: callerProfileID, WorkspaceID: "ws-1", DryRun: true, CallerSessionID: "sess-agent",
+		}
+		if len(sessions.requests) != 1 || sessions.requests[0] != want {
+			t.Fatalf("requests = %+v, want %+v", sessions.requests, want)
+		}
+		var payload contract.SessionArchiveStoppedResponse
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(structured) error = %v", err)
+		}
+		if !payload.DryRun || payload.ArchivedThreadCount != 1 || payload.ArchivedSessionCount != 2 ||
+			payload.SkipCounts["caller"] != 1 || len(payload.Skipped) != 1 ||
+			payload.Skipped[0].RootID != "sess-agent" || payload.Skipped[0].Reason != "caller" {
+			t.Fatalf("payload = %+v, want one archived thread and the caller's thread skipped", payload)
+		}
+		if want := "would archive 1 thread (2 sessions); skipped 1; failed 0"; result.Preview != want {
+			t.Fatalf("preview = %q, want %q", result.Preview, want)
+		}
+	})
+
+	t.Run("Should deny all workspaces to an agent session without unrestricted access", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		_, err := call(t, registry, agent, `{"all_workspaces":true,"dry_run":true}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if len(sessions.requests) != 0 {
+			t.Fatalf("requests after denial = %+v, want none", sessions.requests)
+		}
+	})
+
+	t.Run("Should refuse an archived workspace as not found", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		_, err := call(t, registry, toolspkg.Scope{Operator: true}, `{"workspace":"ws-closed","dry_run":true}`)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) || !strings.Contains(err.Error(), "archived") {
+			t.Fatalf("session_archive_stopped(archived workspace) error = %v, want an invalid input", err)
+		}
+		if len(sessions.requests) != 0 {
+			t.Fatalf("requests for an archived workspace = %+v, want none", sessions.requests)
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		access string
+		scope  toolspkg.Scope
+	}{
+		{name: "an unrestricted agent session", access: workspaceaccess.Unrestricted, scope: agent},
+		{name: "the operator", scope: toolspkg.Scope{Operator: true}},
+	} {
+		t.Run("Should reach all workspaces for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			sessions, registry := newRegistry(t, tc.access)
+			if _, err := call(t, registry, tc.scope, `{"all_workspaces":true}`); err != nil {
+				t.Fatalf("session_archive_stopped all_workspaces error = %v", err)
+			}
+			if len(sessions.requests) != 1 || !sessions.requests[0].AllWorkspaces ||
+				sessions.requests[0].WorkspaceID != "" || sessions.requests[0].DryRun {
+				t.Fatalf("requests = %+v, want one archive across all workspaces", sessions.requests)
+			}
+		})
+	}
+}
+
+// nativeArchiveStoppedSessions records the Archive stopped requests the native
+// tool hands the session manager and skips the caller's thread like it does.
+type nativeArchiveStoppedSessions struct {
+	apitest.StubSessionManager
+	requests []session.ArchiveStoppedRequest
+}
+
+var _ core.SessionArchiveStoppedManager = (*nativeArchiveStoppedSessions)(nil)
+
+func (s *nativeArchiveStoppedSessions) ArchiveStopped(
+	_ context.Context,
+	request session.ArchiveStoppedRequest,
+) (session.ArchiveStoppedReport, error) {
+	s.requests = append(s.requests, request)
+	report := session.ArchiveStoppedReport{
+		DryRun: request.DryRun,
+		Archived: []session.ArchiveStoppedThread{{
+			RootID: "sess-root", WorkspaceID: "ws-1", SessionIDs: []string{"sess-root", "sess-child"},
+		}},
+		SkipCounts: map[session.ArchiveStoppedSkipReason]int{},
+	}
+	if request.CallerSessionID != "" {
+		report.SkipCounts[session.ArchiveStoppedSkipCaller] = 1
+		report.Skipped = []session.ArchiveStoppedSkip{{
+			RootID: request.CallerSessionID, WorkspaceID: "ws-1", Reason: session.ArchiveStoppedSkipCaller,
+		}}
+	}
+	return report, nil
 }
 
 func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {

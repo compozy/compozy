@@ -19,7 +19,7 @@ func buildOperation(schemas openapi3.Schemas, spec OperationSpec) (*openapi3.Ope
 		operation.Extensions["x-compozy-stream"] = spec.Stream
 	}
 	if spec.Stability != "" {
-		operation.Extensions["x-stability"] = spec.Stability
+		operation.Extensions[schemaStabilityExtensionKey] = spec.Stability
 	}
 	if len(spec.Auth) > 0 {
 		auth := make(map[string]string, len(spec.Auth))

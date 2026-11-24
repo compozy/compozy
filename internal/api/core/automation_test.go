@@ -1904,6 +1904,92 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should patch only the Loop input command and preserve concurrent edits", func(t *testing.T) {
+		t.Parallel()
+
+		command := "scripts/next-spec.sh"
+		current := automationpkg.Job{
+			ID:         "job-1",
+			Name:       "renamed elsewhere",
+			TargetKind: automationpkg.TargetKindLoop,
+			LoopTarget: &automationpkg.LoopTarget{
+				WorkspaceID:  "ws-alpha",
+				LoopName:     "overnight",
+				Inputs:       map[string]any{"channel": "nightly"},
+				InputMapping: map[string]string{"topic": "input.topic"},
+				InputCommand: "scripts/old.sh",
+			},
+			Source: automationpkg.JobSourceDynamic,
+		}
+		next, err := applyJobPatch(current, contract.UpdateJobRequest{LoopInputCommand: &command})
+		if err != nil {
+			t.Fatalf("applyJobPatch() error = %v", err)
+		}
+		if next.LoopTarget == nil {
+			t.Fatal("applyJobPatch().LoopTarget = nil, want the preserved target")
+		}
+		if got, want := next.LoopTarget.InputCommand, command; got != want {
+			t.Fatalf("applyJobPatch().LoopTarget.InputCommand = %q, want %q", got, want)
+		}
+		if got, want := next.LoopTarget.LoopName, "overnight"; got != want {
+			t.Fatalf("applyJobPatch().LoopTarget.LoopName = %q, want the stored %q", got, want)
+		}
+		if got, want := next.LoopTarget.WorkspaceID, "ws-alpha"; got != want {
+			t.Fatalf("applyJobPatch().LoopTarget.WorkspaceID = %q, want the stored %q", got, want)
+		}
+		if got, want := next.LoopTarget.Inputs["channel"], "nightly"; got != want {
+			t.Fatalf("applyJobPatch().LoopTarget.Inputs[channel] = %#v, want the stored %#v", got, want)
+		}
+		if got, want := next.LoopTarget.InputMapping["topic"], "input.topic"; got != want {
+			t.Fatalf("applyJobPatch().LoopTarget.InputMapping[topic] = %q, want the stored %q", got, want)
+		}
+		if got, want := next.Name, "renamed elsewhere"; got != want {
+			t.Fatalf("applyJobPatch().Name = %q, want the concurrent edit %q", got, want)
+		}
+		if got, want := current.LoopTarget.InputCommand, "scripts/old.sh"; got != want {
+			t.Fatalf("applyJobPatch() mutated the current target command to %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject a Loop input command patch on a non-Loop job", func(t *testing.T) {
+		t.Parallel()
+
+		command := "scripts/next-spec.sh"
+		_, err := applyJobPatch(automationpkg.Job{
+			ID:         "job-1",
+			TargetKind: automationpkg.TargetKindAgent,
+			Source:     automationpkg.JobSourceDynamic,
+		}, contract.UpdateJobRequest{LoopInputCommand: &command})
+		if err == nil {
+			t.Fatal("applyJobPatch(loop_input_command on agent target) error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "requires a Loop target job") {
+			t.Fatalf("applyJobPatch() error = %q, want the Loop target requirement", err)
+		}
+	})
+
+	t.Run("Should clear the Loop input command with an empty value", func(t *testing.T) {
+		t.Parallel()
+
+		empty := ""
+		next, err := applyJobPatch(automationpkg.Job{
+			ID:         "job-1",
+			TargetKind: automationpkg.TargetKindLoop,
+			LoopTarget: &automationpkg.LoopTarget{
+				WorkspaceID:  "ws-alpha",
+				LoopName:     "overnight",
+				InputCommand: "scripts/old.sh",
+			},
+			Source: automationpkg.JobSourceDynamic,
+		}, contract.UpdateJobRequest{LoopInputCommand: &empty})
+		if err != nil {
+			t.Fatalf("applyJobPatch() error = %v", err)
+		}
+		if next.LoopTarget == nil || next.LoopTarget.InputCommand != "" {
+			t.Fatalf("applyJobPatch().LoopTarget = %#v, want an empty command", next.LoopTarget)
+		}
+	})
+
 	t.Run("Should map automation errors to HTTP status codes", func(t *testing.T) {
 		validationErr := NewAutomationValidationError(errors.New("bad request"))
 		if status := StatusForAutomationError(validationErr); status != http.StatusBadRequest {

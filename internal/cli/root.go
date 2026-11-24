@@ -107,6 +107,7 @@ type commandDeps struct {
 	runACPLogin                 func(context.Context, acp.AuthenticationRequest) error
 	acpLoginStderr              io.Writer
 	inputIsTerminal             func(io.Reader) bool
+	outputIsTerminal            func(io.Writer) bool
 	runMCPServe                 mcpServeRunner
 }
 

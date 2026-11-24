@@ -1,3 +1,15 @@
+import { QueryClient } from "@tanstack/react-query";
+import type { ComputerId } from "@/lib/computer-scope";
+import {
+  sessionClarificationsOptions,
+  sessionCommandsOptions,
+  sessionGoalOptions,
+  sessionInputsOptions,
+  sessionUsageOptions,
+  sessionUsageTurnsOptions,
+} from "../../lib/query-options";
+import { sessionLinkedWorkOptions } from "../../lib/session-linked-work-options";
+import { sessionSidesOptions } from "../../lib/session-side-query-options";
 import { moveSessionToLater, resumeSessionFromLater } from "../session-later-api";
 import { markSessionSeen } from "../session-mark-seen-api";
 import { fetchSessionSubagents, cancelSubagent, deleteSubagent } from "../subagent-api";
@@ -180,6 +192,75 @@ describe("fetchSessionCommands", () => {
       path: "/api/workspaces/ws_alpha/sessions/sess-001/commands",
     });
   });
+});
+
+it("reads a remote session from its computer and keeps the same local identifiers in a separate cache", async () => {
+  const client = new QueryClient();
+  const id = mockSession.id;
+  const workspace = WORKSPACE_ID;
+  const path = `/api/workspaces/${workspace}/sessions/${id}/`;
+  const reads: readonly [string, object, (computerId: ComputerId) => Promise<unknown>][] = [
+    [
+      "goal",
+      { goal: null },
+      computerId => client.fetchQuery(sessionGoalOptions(workspace, id, computerId)),
+    ],
+    [
+      "clarifications",
+      { clarifications: [] },
+      computerId =>
+        client.fetchQuery(sessionClarificationsOptions(workspace, id, true, computerId)),
+    ],
+    [
+      "commands",
+      { commands: [], revision: "one" },
+      computerId => client.fetchQuery(sessionCommandsOptions(workspace, id, true, computerId)),
+    ],
+    [
+      "links?all_profiles=true",
+      { items: [] },
+      computerId => client.fetchQuery(sessionLinkedWorkOptions(workspace, id, computerId)),
+    ],
+    [
+      "prompt/queue",
+      { inputs: [] },
+      computerId => client.fetchQuery(sessionInputsOptions(workspace, id, { computerId })),
+    ],
+    [
+      "sides",
+      { sides: [] },
+      computerId => client.fetchQuery(sessionSidesOptions(workspace, id, { computerId })),
+    ],
+    [
+      "usage",
+      { usage: sessionContextUsageFixture },
+      computerId => client.fetchQuery(sessionUsageOptions(workspace, id, undefined, computerId)),
+    ],
+    [
+      "usage/turns",
+      sessionContextTurnsFixture,
+      computerId =>
+        client.fetchQuery(sessionUsageTurnsOptions(workspace, id, undefined, computerId)),
+    ],
+  ];
+  try {
+    for (const [index, [suffix, response, fetchQuery]] of reads.entries()) {
+      mockJsonResponse(response);
+      await fetchQuery("cmp_target");
+      await expectFetchRequest({ path: "/c/cmp_target" + path + suffix, callIndex: index * 2 });
+      mockJsonResponse(response);
+      await fetchQuery("local");
+      await expectFetchRequest({ path: path + suffix, callIndex: index * 2 + 1 });
+    }
+    expect(client.getQueryCache().findAll({ queryKey: ["computer", "cmp_target"] })).toHaveLength(
+      reads.length
+    );
+    expect(client.getQueryCache().findAll({ queryKey: ["computer", "local"] })).toHaveLength(
+      reads.length
+    );
+  } finally {
+    client.clear();
+  }
 });
 
 describe("mutateSessionGoal", () => {

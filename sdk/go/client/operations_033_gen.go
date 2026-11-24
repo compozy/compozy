@@ -9,6 +9,17 @@ import (
 	"strings"
 )
 
+// RenameProfile Rename a profile
+func (c *Client) RenameProfile(ctx context.Context, params RenameProfileParams, body RenameProfileRequest) (*RenameProfileResponse, error) {
+	path := "/api/profiles/{name}/rename"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out RenameProfileResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // RenameSessionParams carries the path, query, and header parameters.
 type RenameSessionParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -435,12 +446,4 @@ func (c *Client) ResolveWorkspace(ctx context.Context, body ResolveWorkspaceRequ
 		return nil, err
 	}
 	return &out, nil
-}
-
-// RespondLoopRequestParams carries the path, query, and header parameters.
-type RespondLoopRequestParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	NodeID      string  `url:"node_id"`
-	Profile     *string `url:"profile"`
 }

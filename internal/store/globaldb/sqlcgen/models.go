@@ -244,19 +244,31 @@ type AgentInstanceWakeState struct {
 }
 
 type AgentSkillReview struct {
-	ID              string         `json:"id"`
-	InstanceID      string         `json:"instance_id"`
-	ProfileID       string         `json:"profile_id"`
-	WorkspaceID     string         `json:"workspace_id"`
-	AgentName       string         `json:"agent_name"`
-	SkillName       string         `json:"skill_name"`
-	Digest          string         `json:"digest"`
-	State           string         `json:"state"`
-	DraftPath       string         `json:"draft_path"`
-	SourceSessionID sql.NullString `json:"source_session_id"`
-	DecidedBy       string         `json:"decided_by"`
-	CreatedAt       string         `json:"created_at"`
-	DecidedAt       sql.NullString `json:"decided_at"`
+	ID                 string         `json:"id"`
+	InstanceID         string         `json:"instance_id"`
+	ProfileID          string         `json:"profile_id"`
+	WorkspaceID        string         `json:"workspace_id"`
+	AgentName          string         `json:"agent_name"`
+	SkillName          string         `json:"skill_name"`
+	Digest             string         `json:"digest"`
+	State              string         `json:"state"`
+	DraftPath          string         `json:"draft_path"`
+	SourceSessionID    sql.NullString `json:"source_session_id"`
+	DecidedBy          string         `json:"decided_by"`
+	CreatedAt          string         `json:"created_at"`
+	DecidedAt          sql.NullString `json:"decided_at"`
+	Kind               string         `json:"kind"`
+	SkillKey           string         `json:"skill_key"`
+	BaseDigest         string         `json:"base_digest"`
+	SnapshotPath       string         `json:"snapshot_path"`
+	ProposedDigest     string         `json:"proposed_digest"`
+	InstalledDigest    string         `json:"installed_digest"`
+	PrevInstallMarker  []byte         `json:"prev_install_marker"`
+	Lesson             string         `json:"lesson"`
+	EvidenceSessionIds string         `json:"evidence_session_ids"`
+	DecidedVia         string         `json:"decided_via"`
+	RevertedBy         string         `json:"reverted_by"`
+	RevertedAt         sql.NullString `json:"reverted_at"`
 }
 
 type AgentSoulRevision struct {
@@ -354,6 +366,7 @@ type AutomationJob struct {
 	LoopName         sql.NullString `json:"loop_name"`
 	LoopInputs       sql.NullString `json:"loop_inputs"`
 	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
+	LoopInputCommand sql.NullString `json:"loop_input_command"`
 	CreatedAt        string         `json:"created_at"`
 	UpdatedAt        string         `json:"updated_at"`
 	GrantCeiling     string         `json:"grant_ceiling"`
@@ -462,6 +475,7 @@ type AutomationTrigger struct {
 	LoopName            sql.NullString `json:"loop_name"`
 	LoopInputs          sql.NullString `json:"loop_inputs"`
 	LoopInputMapping    sql.NullString `json:"loop_input_mapping"`
+	LoopInputCommand    sql.NullString `json:"loop_input_command"`
 	CreatedAt           string         `json:"created_at"`
 	UpdatedAt           string         `json:"updated_at"`
 }

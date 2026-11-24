@@ -47,6 +47,8 @@ func (s *daemonExtensionService) enableInstalledExtension(
 	if err == nil {
 		*item = result.Extension
 	} else {
+		// The install outcome carries a masked enable error, so the unmasked cause is logged here.
+		s.logger.Warn("extension install enable failed", "extension", prepared.name, "error", err)
 		item.Enabled = false
 		item.InstallEnableError = installEnableError(err)
 	}

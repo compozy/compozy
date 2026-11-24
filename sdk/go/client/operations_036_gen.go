@@ -9,6 +9,45 @@ import (
 	"strings"
 )
 
+// SetExtensionInputsParams carries the path, query, and header parameters.
+type SetExtensionInputsParams struct {
+	Name      string  `url:"name"`
+	Scope     *string `url:"scope"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// SetExtensionInputs Write extension input values for one installed instance
+func (c *Client) SetExtensionInputs(ctx context.Context, params SetExtensionInputsParams, body SetExtensionInputsRequest) (*ExtensionInputsPayload, error) {
+	path := "/api/extensions/{name}/inputs"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionInputsPayload
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SetExtensionSecretsParams carries the path, query, and header parameters.
+type SetExtensionSecretsParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
 // SetExtensionSecrets Set or bind extension environment secrets
 func (c *Client) SetExtensionSecrets(ctx context.Context, params SetExtensionSecretsParams, body SetExtensionSecretsRequest) (*ExtensionSecretsPayload, error) {
 	path := "/api/extensions/{name}/secrets"
@@ -392,50 +431,4 @@ type StopSessionParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
-}
-
-// StopSession Stop a session without deleting persisted history
-func (c *Client) StopSession(ctx context.Context, params StopSessionParams, body StopSessionRequest) (*SessionStopPayload, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/stop"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionStopPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StopSessionHistoryCleanupParams carries the path, query, and header parameters.
-type StopSessionHistoryCleanupParams struct {
-	Profile *string `url:"profile"`
-}
-
-// StopSessionHistoryCleanup Stop the selected profile's running cleanup; sessions already deleted stay deleted
-func (c *Client) StopSessionHistoryCleanup(ctx context.Context, params StopSessionHistoryCleanupParams) (*SessionHistoryCleanupRunResponse, error) {
-	path := "/api/sessions/history-cleanup/stop"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionHistoryCleanupRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamAccountParams carries the path, query, and header parameters.
-type StreamAccountParams struct {
-	AfterSequence *string `url:"after_sequence"`
 }

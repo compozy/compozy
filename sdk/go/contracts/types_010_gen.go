@@ -4,6 +4,34 @@ package contracts
 
 import "time"
 
+type HeartbeatStatusRequest struct {
+	WorkspaceID             string `json:"workspace_id,omitempty"`
+	AgentName               string `json:"agent_name"`
+	SessionID               string `json:"session_id,omitempty"`
+	IncludeSessionHealth    bool   `json:"include_session_health,omitempty"`
+	IncludeRecentWakeEvents bool   `json:"include_recent_wake_events,omitempty"`
+}
+
+type HeartbeatStatusResponse struct {
+	AgentName        string                             `json:"agent_name"`
+	SourcePath       string                             `json:"source_path,omitempty"`
+	Enabled          bool                               `json:"enabled"`
+	Present          bool                               `json:"present"`
+	Active           bool                               `json:"active"`
+	Valid            bool                               `json:"valid"`
+	ValidationStatus AuthoredValidationStatus           `json:"validation_status"`
+	Digest           string                             `json:"digest,omitempty"`
+	ConfigDigest     string                             `json:"config_digest,omitempty"`
+	SnapshotID       string                             `json:"snapshot_id,omitempty"`
+	Summary          string                             `json:"summary,omitempty"`
+	Preferences      HeartbeatPreferencesPayload        `json:"preferences"`
+	Diagnostics      []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
+	WakeState        *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
+	WakeEvents       []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
+	SessionHealth    *SessionHealthPayload              `json:"session_health,omitempty"`
+	RevisionCursor   string                             `json:"revision_cursor,omitempty"`
+}
+
 type HeartbeatTimeWindowPayload struct {
 	Timezone string `json:"timezone"`
 	Start    string `json:"start"`
@@ -155,16 +183,4 @@ type InitializeExtension struct {
 	Name       string `json:"name"`
 	Version    string `json:"version"`
 	SourceTier string `json:"source_tier"`
-}
-
-type InitializeExtensionInfo struct {
-	Name       string `json:"name"`
-	Version    string `json:"version"`
-	SDKName    string `json:"sdk_name,omitempty"`
-	SDKVersion string `json:"sdk_version,omitempty"`
-}
-
-type InitializeMethods struct {
-	DaemonRequests    []string `json:"daemon_requests"`
-	ExtensionServices []string `json:"extension_services"`
 }

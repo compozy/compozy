@@ -9,6 +9,7 @@ import type {
   DescribeResources,
   DescribeProfile,
   DescribeHookEvent,
+  DescribeInput,
   ExtensionCommandGroupSpec,
   ExtensionCommandSpec,
   RiskClass,
@@ -119,6 +120,7 @@ export interface ExtensionDefinition extends Pick<
   "name" | "version" | "description" | "capabilities" | "permissions"
 > {
   requires_env?: string[];
+  inputs?: DescribeInput[];
   profiles?: DescribeProfile[];
   resources?: DescribeResources;
   subprocess?: DescribeSubprocess;

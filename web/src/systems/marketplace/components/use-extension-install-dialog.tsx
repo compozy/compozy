@@ -4,10 +4,17 @@ import { toast } from "@compozy/ui";
 
 import { useInstallMarketplaceExtension } from "../hooks/use-marketplace-actions";
 import type { ExtensionInstallRequest } from "../types";
+import { ExtensionDependencyGateDialog } from "./extension-dependency-gate-dialog";
+import {
+  blockedExtensionDependencies,
+  extensionDependencyGates,
+  extensionDependencyInstallFields,
+} from "./extension-dependency-model";
 import { ExtensionInstallDialog } from "./extension-install-dialog";
 import type { ExtensionInstallSource } from "./extension-install-model";
 import { createExtensionInstallLogic } from "./extension-install-dialog-store";
 import { ExtensionTrustDialog } from "./extension-trust-dialog";
+import { useExtensionDependencyGates } from "./use-extension-dependency-gates";
 import { previewExtensionInstall, type ExtensionInstallPreview } from "@/systems/extensions";
 
 const extensionInstallLogic = createExtensionInstallLogic();
@@ -20,8 +27,9 @@ export interface ExtensionInstallDialogController {
 }
 
 /**
- * Owns the source-union install entry point: the form gate, the daemon's explicit consent gate for
- * unverified archives, and the daemon's own validation messages on failure.
+ * Owns the source-union install entry point: the form gate, each previewed dependency's own trust
+ * gates, the daemon's explicit consent gate for unverified archives, and the daemon's own validation
+ * messages on failure.
  */
 export function useExtensionInstallDialog(
   options: {
@@ -36,13 +44,55 @@ export function useExtensionInstallDialog(
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
   const [initialSource, setInitialSource] = useState<ExtensionInstallSource>("local_path");
+  // Each open mounts a fresh form: a success closes through the store, never through the form.
+  const [formSession, setFormSession] = useState(0);
+  const dependencyGates = useExtensionDependencyGates();
+
+  const resetPreview = () => {
+    setPreview(null);
+    setPreviewRequest(null);
+    setPreviewError(null);
+  };
 
   const execute = async (request: ExtensionInstallRequest) => {
-    await install.mutateAsync(request);
-    toast.success(`${request.ref} installed`, {
+    const result = await install.mutateAsync(request);
+    resetPreview();
+    const alsoInstalled = result.dependencies_installed ?? [];
+    const message =
+      alsoInstalled.length > 0
+        ? `${request.ref} installed with ${alsoInstalled.join(", ")}`
+        : `${request.ref} installed`;
+    toast.success(message, {
       action: options.onInstalled
         ? { label: "View installed →", onClick: () => options.onInstalled?.() }
         : undefined,
+    });
+  };
+
+  /**
+   * Installs the previewed artifact with its dependencies in one request. Each dependency passes its
+   * own gates first, in preview order; the root's unverified opt-in never covers one, and a cancel
+   * aborts the whole install before anything is sent.
+   */
+  const installPreviewed = (previewed: ExtensionInstallPreview, form: ExtensionInstallRequest) => {
+    if (blockedExtensionDependencies(previewed).length > 0) return;
+    const request: ExtensionInstallRequest = {
+      ...form,
+      ...extensionDependencyInstallFields(previewed),
+      ...(previewed.digest_sha256 ? { expected_digest: previewed.digest_sha256 } : {}),
+    };
+    const gates = extensionDependencyGates(previewed);
+    if (gates.length === 0) {
+      store.trigger.installRequested({ execute, request });
+      return;
+    }
+    void dependencyGates.request(gates).then(confirmed => {
+      if (confirmed) {
+        store.trigger.installRequested({ execute, request });
+        return;
+      }
+      resetPreview();
+      store.trigger.installClosed();
     });
   };
 
@@ -52,29 +102,17 @@ export function useExtensionInstallDialog(
       <ExtensionInstallDialog
         error={state.phase === "form" ? (previewError ?? state.error) : null}
         initialSource={initialSource}
-        key={initialSource}
-        onFormChange={() => {
-          setPreview(null);
-          setPreviewRequest(null);
-          setPreviewError(null);
-        }}
+        key={`${initialSource}:${formSession}`}
+        onFormChange={resetPreview}
         onOpenChange={open => {
           if (!open) {
-            setPreview(null);
-            setPreviewRequest(null);
-            setPreviewError(null);
+            resetPreview();
             store.trigger.installClosed();
           }
         }}
         onSubmit={request => {
           if (preview && previewRequest && requestsMatch(previewRequest, request)) {
-            store.trigger.installRequested({
-              execute,
-              request: {
-                ...request,
-                ...(preview.digest_sha256 ? { expected_digest: preview.digest_sha256 } : {}),
-              },
-            });
+            installPreviewed(preview, request);
             return;
           }
           setPreview(null);
@@ -93,9 +131,18 @@ export function useExtensionInstallDialog(
             })
             .finally(() => setPreviewPending(false));
         }}
-        open={state.phase === "form" || (state.phase === "submitting" && !state.consented)}
+        open={
+          // A dependency gate replaces the form on screen until it is confirmed or canceled.
+          !dependencyGates.current &&
+          (state.phase === "form" || (state.phase === "submitting" && !state.consented))
+        }
         pending={previewPending || state.phase === "submitting"}
         preview={preview}
+      />
+      <ExtensionDependencyGateDialog
+        gate={dependencyGates.current}
+        onAccept={dependencyGates.accept}
+        onCancel={dependencyGates.cancel}
       />
       <ExtensionTrustDialog
         action="install"
@@ -120,7 +167,9 @@ export function useExtensionInstallDialog(
     dialogs,
     isOpen: state.phase !== "closed",
     open: (source = "local_path") => {
+      resetPreview();
       setInitialSource(source);
+      setFormSession(session => session + 1);
       store.trigger.installOpened();
     },
   };

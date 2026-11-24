@@ -10,6 +10,23 @@ import (
 	"strings"
 )
 
+// ListAutomationJobsParams carries the path, query, and header parameters.
+type ListAutomationJobsParams struct {
+	Scope         *string   `url:"scope"`
+	WorkspaceID   *string   `url:"workspace_id"`
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Source        *string   `url:"source"`
+	Target        *string   `url:"target"`
+	Enabled       *bool     `url:"enabled"`
+	Q             *string   `url:"q"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+	Loop          *string   `url:"loop"`
+}
+
 // ListAutomationJobs List automation jobs
 func (c *Client) ListAutomationJobs(ctx context.Context, params ListAutomationJobsParams) (*JobsResponse, error) {
 	path := "/api/automation/jobs"

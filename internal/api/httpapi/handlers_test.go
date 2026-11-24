@@ -255,6 +255,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/extensions/:name/preview",
 		"GET /api/extensions/:name/inventory",
 		"GET /api/extensions/:name/enablement",
+		"GET /api/extensions/:name/inputs",
 		"GET /api/extensions/:name/logs",
 		"GET /api/extensions/:name/provenance",
 		"GET /api/extensions/:name/secrets",
@@ -562,6 +563,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/extensions/update",
 		"POST /api/notifications/attention/acknowledge",
 		"POST /api/sessions",
+		"POST /api/sessions/archive-stopped",
 		"POST /api/sessions/history-cleanup",
 		"POST /api/sessions/history-cleanup/stop",
 		"POST /api/sessions/:session_id/pull-request/refresh",
@@ -674,6 +676,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PUT /api/agents/:name",
 		"PUT /api/extensions/:name",
 		"PUT /api/extensions/:name/enablement",
+		"PUT /api/extensions/:name/inputs",
 		"PUT /api/extensions/:name/secrets",
 		"PUT /api/settings/hooks/:name",
 		"PUT /api/settings/mcp-servers/:name",
@@ -1651,7 +1654,7 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 			) (contract.ExtensionEnablementPayload, error) {
 				enablementName = name
 				enablementReq = req
-				return contract.ExtensionEnablementPayload(req), nil
+				return contract.ExtensionEnablementPayload{Profile: req.Profile, Enabled: req.Enabled}, nil
 			},
 		},
 		homePaths,

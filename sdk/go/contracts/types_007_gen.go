@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type DescribeProfileDefaults struct {
+	Agent    string `json:"agent,omitempty"`
+	Provider string `json:"provider,omitempty"`
+}
+
+type DescribeResourcePath struct {
+	Path    string `json:"path"`
+	Profile string `json:"profile,omitempty"`
+}
+
 type DescribeResources struct {
 	Skills     []DescribeResourcePath `json:"skills,omitempty"`
 	Loops      []DescribeResourcePath `json:"loops,omitempty"`
@@ -196,17 +206,4 @@ type ExtensionManifestSummary struct {
 
 type ExtensionProvideToolsResponse struct {
 	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
-}
-
-type ExtensionToolCallRequest struct {
-	ToolID           ToolID                       `json:"tool_id"`
-	Handler          string                       `json:"handler"`
-	SessionID        string                       `json:"session_id,omitempty"`
-	InvocationID     string                       `json:"invocation_id,omitempty"`
-	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
-	Input            json.RawMessage              `json:"input"`
-}
-
-type ExtensionToolCallResponse struct {
-	Result ToolResult `json:"result"`
 }

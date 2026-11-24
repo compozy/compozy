@@ -264,7 +264,7 @@ func (f *StripeFixture) createCheckout(w http.ResponseWriter, r *http.Request) {
 	id := fmt.Sprintf("cs_fixture_%d", len(f.checkouts)+1)
 	target := "https://checkout.stripe.com/c/pay/" + id
 	if f.browser {
-		target = f.Origin + "/fixture-checkout/" + id
+		target = "https://checkout.stripe.com/fixture-checkout/" + id
 	}
 	f.checkouts = append(f.checkouts, StripeCheckout{ID: id, Form: r.Form.Clone(), Status: "open"})
 	api.WriteJSON(w, http.StatusOK, map[string]any{

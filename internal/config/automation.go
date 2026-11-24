@@ -414,6 +414,9 @@ func validateConfigLoopTarget(target *automationpkg.LoopTarget, path string, sch
 	if scheduleOnly && len(target.InputMapping) > 0 {
 		return errors.New(path + ".input_mapping must be empty for scheduled loop targets")
 	}
+	if err := automationpkg.ValidateLoopTargetInputCommand(target.InputCommand, path+".input_command"); err != nil {
+		return err
+	}
 	for key, value := range target.InputMapping {
 		if strings.TrimSpace(key) == "" {
 			return errors.New(path + ".input_mapping keys must be non-empty")

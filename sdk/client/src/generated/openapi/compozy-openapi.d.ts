@@ -2100,6 +2100,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/extensions/{name}/inputs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read declared extension inputs and their setup state without values */
+    get: operations["getExtensionInputs"];
+    /** Write extension input values for one installed instance */
+    put: operations["setExtensionInputs"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/extensions/{name}/inventory": {
     parameters: {
       query?: never;
@@ -3621,6 +3639,23 @@ export interface paths {
     put?: never;
     /** Create a session */
     post: operations["createSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sessions/archive-stopped": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Archive every stopped thread of one workspace or all workspaces that is not running, waiting on the operator, holding queued input, pinned, in Later, or an always-on agent's main session; dry_run reports the same result without archiving */
+    post: operations["archiveStoppedSessions"];
     delete?: never;
     options?: never;
     head?: never;
@@ -9768,20 +9803,31 @@ export interface components {
       content: string;
       path: string;
     };
+    AgentSkillLesson: {
+      confidence?: string;
+      cue: string;
+      evidence: string;
+      lesson: string;
+    };
     AgentSkillReviewDecisionRequest: {
       digest: string;
     };
     AgentSkillReviewPayload: {
       agent: string;
+      base_digest?: string;
       /** Format: date-time */
       created_at: string;
       /** Format: date-time */
       decided_at?: string | null;
       decided_by?: string;
+      decided_via?: string;
       digest: string;
+      evidence_session_ids: string[];
       files?: components["schemas"]["AgentSkillDraftFile"][];
       id: string;
       instance_id: string;
+      kind: string;
+      lesson?: components["schemas"]["AgentSkillLesson"] | null;
       name: string;
       problem?: string;
       profile_id: string;
@@ -9790,6 +9836,7 @@ export interface components {
       workspace_id: string;
     };
     AgentSkillReviewResponse: {
+      duplicate_of_pending?: boolean;
       review: components["schemas"]["AgentSkillReviewPayload"];
     };
     AgentSkillReviewsResponse: {
@@ -10867,6 +10914,27 @@ export interface components {
       on_exhausted?: components["schemas"]["EffectSpec"][];
       on_failed?: components["schemas"]["EffectSpec"][];
       on_noop?: components["schemas"]["EffectSpec"][];
+      on_result?: {
+        [key: string]:
+          | ("continue" | "done" | "next_generation" | "halt" | "escalate")
+          | {
+              /** @enum {string} */
+              action: "continue" | "done" | "next_generation" | "escalate";
+            }
+          | {
+              /** @enum {string} */
+              action: "halt";
+              /** @enum {string} */
+              terminal_status?:
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+            };
+      };
       on_stalled?: components["schemas"]["EffectSpec"][];
       runtime_defaults?: components["schemas"]["RuntimeDefaults"] | null;
       runtime_rules?: components["schemas"]["RuntimeRule"][];
@@ -11612,6 +11680,35 @@ export interface components {
       name: string;
       needs_setup: boolean;
     };
+    ExtensionDependencyConsent: {
+      allow_unverified?: boolean;
+      expected_digest?: string;
+    };
+    ExtensionDependencyParentPayload: {
+      name: string;
+      ref: string;
+      source: string;
+    };
+    ExtensionDependencyPayload: {
+      consent_required?: boolean;
+      depth: number;
+      digest_sha256?: string;
+      installed_version?: string;
+      min_version?: string;
+      name: string;
+      ref: string;
+      registry_tier?: string;
+      required_by: string[];
+      retry_command?: string;
+      source: string;
+      state: string;
+      version?: string;
+    };
+    ExtensionDependentPayload: {
+      name: string;
+      profile: string;
+      workspace_id: string;
+    };
     ExtensionEnableError: {
       code: string;
       error: string;
@@ -11632,7 +11729,32 @@ export interface components {
       active: boolean;
       id: string;
       set: boolean;
+      state?: string;
       type: string;
+    };
+    ExtensionInputStatusPayload: {
+      binding: components["schemas"]["MarketplaceInputBindingPayload"];
+      default?: unknown;
+      id: string;
+      prompt: string;
+      required: boolean;
+      state: string;
+      targets: string[];
+      type: string;
+    };
+    ExtensionInputsPayload: {
+      changed?: string[];
+      daemon_env: string[];
+      enabled: boolean;
+      extension: string;
+      inputs: components["schemas"]["ExtensionInputStatusPayload"][];
+      invalid: string[];
+      mcp_auth_servers: string[];
+      missing: string[];
+      missing_env: string[];
+      profile: string;
+      reloaded?: boolean;
+      workspace_id: string;
     };
     ExtensionInstallDeclaredProfilePayload: {
       create: boolean;
@@ -11641,6 +11763,7 @@ export interface components {
     };
     ExtensionInstallPreviewPayload: {
       declared_profiles: components["schemas"]["ExtensionInstallDeclaredProfilePayload"][];
+      dependencies?: components["schemas"]["ExtensionDependencyPayload"][];
       digest_sha256?: string;
       inputs: components["schemas"]["MarketplaceInputPayload"][];
       name: string;
@@ -11690,16 +11813,26 @@ export interface components {
       agents?: string[];
       code: string;
       declared_env?: string[];
+      dependencies?: components["schemas"]["ExtensionDependencyPayload"][];
+      dependencies_installed?: string[];
+      dependency?: string;
+      dependents?: components["schemas"]["ExtensionDependentPayload"][];
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       env_name?: string;
       error: string;
       fetched_digest?: string;
       input_definitions?: components["schemas"]["MarketplaceInputPayload"][];
       input_id?: string;
+      input_ids?: string[];
       inputs?: string[];
       installed_origin?: components["schemas"]["MarketplaceOriginPayload"] | null;
+      invalid?: string[];
       listed_digest?: string;
       missing_env?: string[];
+      parents?: components["schemas"]["ExtensionDependencyParentPayload"][];
+      path?: string[];
+      reason?: string;
+      retry_command?: string;
     };
     ExtensionPayload: {
       bound_env_keys?: string[];
@@ -11744,6 +11877,7 @@ export interface components {
       state: string;
       trust?: components["schemas"]["ExtensionTrustReportPayload"] | null;
       type: string;
+      unmet_dependencies?: components["schemas"]["ExtensionDependencyPayload"][];
       update_available: boolean;
       /** Format: int64 */
       uptime_seconds?: number;
@@ -11853,6 +11987,8 @@ export interface components {
       transport?: string;
     };
     ExtensionValidationErrorPayload: {
+      dependencies_installed?: string[];
+      dependency?: string;
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       issues: components["schemas"]["ValidationIssue"][];
@@ -12578,7 +12714,28 @@ export interface components {
             }
         )[];
         on_result?: {
-          [key: string]: unknown;
+          [key: string]:
+            | ("continue" | "revise" | "next_generation" | "halt" | "escalate")
+            | {
+                route: string;
+              }
+            | {
+                /** @enum {string} */
+                action: "continue" | "revise" | "next_generation" | "escalate";
+              }
+            | {
+                /** @enum {string} */
+                action: "halt";
+                /** @enum {string} */
+                terminal_status?:
+                  | "done"
+                  | "no-op"
+                  | "blocked"
+                  | "failed"
+                  | "exhausted"
+                  | "stalled"
+                  | "canceled";
+              };
         };
         on_retry?: (
           | {
@@ -13282,6 +13439,10 @@ export interface components {
     InstallExtensionRequest: {
       allow_unverified?: boolean;
       asset?: string;
+      /** @description Experimental. Per-dependency trust consent keyed by dependency name. There is no blanket consent; the root allow_unverified does not apply to dependencies. */
+      dependencies?: {
+        [key: string]: components["schemas"]["ExtensionDependencyConsent"];
+      };
       /**
        * @description Enable after installation under the same operation lock. Activation failure returns 201 with enable_error and retains the installed package and inputs.
        * @default false
@@ -13307,10 +13468,13 @@ export interface components {
        */
       source: "curated" | "marketplace" | "github" | "git" | "local_path";
       version?: string;
+      /** @description Experimental. Install missing and enable disabled dependencies declared under requires.extensions, dependencies first, in this scope and profile. Without it, unmet dependencies refuse with extension_dependencies_required. version_unmet dependencies always refuse. */
+      with_dependencies?: boolean;
       /** @description Registered workspace ID. Required for workspace scope unless the caller is already workspace-bound. */
       workspace_id?: string;
     };
     InstallExtensionResponse: {
+      dependencies_installed?: string[];
       enable_error?: components["schemas"]["ExtensionEnableError"] | null;
       extension: components["schemas"]["ExtensionPayload"];
     };
@@ -13570,6 +13734,27 @@ export interface components {
       on_exhausted?: components["schemas"]["LoopEffectSpec"][];
       on_failed?: components["schemas"]["LoopEffectSpec"][];
       on_noop?: components["schemas"]["LoopEffectSpec"][];
+      on_result?: {
+        [key: string]:
+          | ("continue" | "done" | "next_generation" | "halt" | "escalate")
+          | {
+              /** @enum {string} */
+              action: "continue" | "done" | "next_generation" | "escalate";
+            }
+          | {
+              /** @enum {string} */
+              action: "halt";
+              /** @enum {string} */
+              terminal_status?:
+                | "done"
+                | "no-op"
+                | "blocked"
+                | "failed"
+                | "exhausted"
+                | "stalled"
+                | "canceled";
+            };
+      };
       on_stalled?: components["schemas"]["LoopEffectSpec"][];
       runtime_defaults?: components["schemas"]["LoopRuntimeDefaults"] | null;
       runtime_rules?: components["schemas"]["LoopRuntimeRule"][];
@@ -14305,6 +14490,7 @@ export interface components {
         | "exhausted"
         | "stalled"
         | "canceled";
+      terminal?: components["schemas"]["LoopRunTerminal"] | null;
       /** Format: int64 */
       tokens_used: number;
       workspace_id: string;
@@ -14325,6 +14511,17 @@ export interface components {
       run: components["schemas"]["LoopRunPayload"];
       waits: components["schemas"]["LoopNodeWaitPayload"][];
       watch_events?: components["schemas"]["LoopWatchEventsState"] | null;
+    };
+    LoopRunTerminal: {
+      /** Format: date-time */
+      at?: string;
+      cause?: string;
+      gate_id?: string;
+      message?: string;
+      node_id?: string;
+      reason_code?: string;
+      /** @enum {string} */
+      status: "done" | "no-op" | "blocked" | "failed" | "exhausted" | "stalled" | "canceled";
     };
     LoopRunsAggregatePayload: {
       failed: number;
@@ -14385,6 +14582,7 @@ export interface components {
       kind: string;
     };
     LoopTarget: {
+      input_command?: string;
       input_mapping?: {
         [key: string]: string;
       };
@@ -16738,6 +16936,45 @@ export interface components {
       request_id: string;
       resolved_decision?: string;
     };
+    SessionArchiveStoppedFailure: {
+      code: string;
+      message: string;
+      root_id: string;
+      title: string;
+      workspace_id: string;
+    };
+    SessionArchiveStoppedRequest: {
+      all_workspaces?: boolean;
+      dry_run?: boolean;
+      workspace_id?: string;
+    };
+    SessionArchiveStoppedResponse: {
+      archived: components["schemas"]["SessionArchiveStoppedThread"][];
+      archived_session_count: number;
+      archived_thread_count: number;
+      dry_run: boolean;
+      failure_count: number;
+      failures: components["schemas"]["SessionArchiveStoppedFailure"][];
+      failures_truncated: boolean;
+      skip_counts: {
+        [key: string]: number;
+      };
+      skipped: components["schemas"]["SessionArchiveStoppedSkip"][];
+      skipped_truncated: boolean;
+    };
+    SessionArchiveStoppedSkip: {
+      reason: string;
+      root_id: string;
+      title: string;
+      workspace_id: string;
+    };
+    SessionArchiveStoppedThread: {
+      restore_ids: string[];
+      root_id: string;
+      session_ids: string[];
+      title: string;
+      workspace_id: string;
+    };
     SessionAttachPayload: {
       /** Format: date-time */
       attach_expires_at: string;
@@ -16847,6 +17084,7 @@ export interface components {
       limit: number;
       next_cursor?: string;
       total?: number | null;
+      working?: number | null;
     };
     SessionCatalogResponse: {
       page: components["schemas"]["SessionCatalogPagePayload"];
@@ -18085,7 +18323,13 @@ export interface components {
     };
     SetExtensionEnablementRequest: {
       enabled: boolean;
+      force?: boolean;
       profile: string;
+    };
+    SetExtensionInputsRequest: {
+      inputs: {
+        [key: string]: components["schemas"]["Value"];
+      };
     };
     SetExtensionSecretsRequest: {
       bindings: components["schemas"]["ExtensionSecretBindingInput"][];
@@ -22703,6 +22947,7 @@ export interface components {
     UpdateJobRequest: {
       enabled?: boolean | null;
       fire_limit?: components["schemas"]["FireLimitConfig"] | null;
+      loop_input_command?: string | null;
       loop_target?: components["schemas"]["LoopTarget"] | null;
       name?: string | null;
       prompt?: string | null;
@@ -27481,9 +27726,13 @@ export interface operations {
         instance_id?: string;
         /** @description Workspace reference */
         workspace?: string;
-        /** @description pending, approved or rejected */
+        /** @description pending, approved, rejected or reverted */
         state?: string;
-        /** @description Page cursor */
+        /** @description new or edit */
+        kind?: string;
+        /** @description operator or auto_approve */
+        decided_via?: string;
+        /** @description Page cursor bound to the filters it was issued for */
         cursor?: string;
         /** @description Page size, 1-100; default 50 */
         limit?: number;
@@ -36505,6 +36754,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description A marketplace dependency listing was not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
       /** @description The approved source digest changed */
       409: {
         headers: {
@@ -36514,13 +36772,16 @@ export interface operations {
           "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
-      /** @description Package validation failure */
+      /** @description Extension trust decision, dependency graph refusal, or package validation failure */
       422: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ExtensionValidationErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ExtensionOperationErrorPayload"]
+            | components["schemas"]["ExtensionValidationErrorPayload"];
         };
       };
       /** @description Extension service is not configured */
@@ -36814,6 +37075,8 @@ export interface operations {
         workspace?: string;
         /** @description Remove a bundled built-in permanently. It is not re-enrolled at boot or update until restored. Global only. */
         permanent?: boolean;
+        /** @description Experimental. Remove even while an installed dependent still needs the extension; the dependent then reports unmet_dependencies. Removal never cascades. */
+        force?: boolean;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -36862,13 +37125,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Extension is in use */
+      /** @description Extension is in use, or experimental: an installed dependent still needs it */
       409: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
       /** @description Extension is not a built-in */
@@ -37011,7 +37276,16 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Extension inputs are required */
+      /** @description Experimental: an installed dependent still needs the extension (extension_dependency_in_use) */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Extension inputs are required, or experimental: its dependencies are unmet */
       422: {
         headers: {
           [name: string]: unknown;
@@ -37027,6 +37301,125 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getExtensionInputs: {
+    parameters: {
+      query?: {
+        /** @description Installation scope: global or workspace */
+        scope?: string;
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionInputsPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Extension not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+    };
+  };
+  setExtensionInputs: {
+    parameters: {
+      query?: {
+        /** @description Installation scope: global or workspace */
+        scope?: string;
+        /** @description Operator workspace reference; omit for the global instance */
+        workspace?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Extension name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SetExtensionInputsRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionInputsPayload"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Forbidden, or an agent tried to overwrite inputs that are already set */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Extension not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
+        };
+      };
+      /** @description Invalid input value */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExtensionOperationErrorPayload"];
         };
       };
     };
@@ -44345,6 +44738,79 @@ export interface operations {
         };
       };
       /** @description New-work admission is unavailable while the daemon is draining */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  archiveStoppedSessions: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SessionArchiveStoppedRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionArchiveStoppedResponse"];
+        };
+      };
+      /** @description Choose exactly one of workspace_id and all_workspaces */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent identity is denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace not found or archived */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
       503: {
         headers: {
           [name: string]: unknown;

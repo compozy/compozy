@@ -9,6 +9,33 @@ import (
 	"strings"
 )
 
+// DeleteAgent Durably delete one effective authored agent definition
+func (c *Client) DeleteAgent(ctx context.Context, params DeleteAgentParams) (*DeleteAgentResponse, error) {
+	path := "/api/agents/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out DeleteAgentResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteAgentHeartbeatParams carries the path, query, and header parameters.
+type DeleteAgentHeartbeatParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
 // DeleteAgentHeartbeat Delete HEARTBEAT.md through managed authoring
 func (c *Client) DeleteAgentHeartbeat(ctx context.Context, params DeleteAgentHeartbeatParams, body HeartbeatDeleteByPathRequest) (*HeartbeatMutationResponse, error) {
 	path := "/api/agents/{name}/heartbeat"
@@ -415,26 +442,6 @@ func (c *Client) DeleteSubagent(ctx context.Context, params DeleteSubagentParams
 
 // DeleteTaskParams carries the path, query, and header parameters.
 type DeleteTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// DeleteTask Delete one task
-func (c *Client) DeleteTask(ctx context.Context, params DeleteTaskParams) error {
-	path := "/api/tasks/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteTaskExecutionProfileParams carries the path, query, and header parameters.
-type DeleteTaskExecutionProfileParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
 }

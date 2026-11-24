@@ -10,6 +10,26 @@ import (
 	"strings"
 )
 
+// DeleteTask Delete one task
+func (c *Client) DeleteTask(ctx context.Context, params DeleteTaskParams) error {
+	path := "/api/tasks/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteTaskExecutionProfileParams carries the path, query, and header parameters.
+type DeleteTaskExecutionProfileParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // DeleteTaskExecutionProfile Delete one task execution profile
 func (c *Client) DeleteTaskExecutionProfile(ctx context.Context, params DeleteTaskExecutionProfileParams) error {
 	path := "/api/tasks/{id}/execution-profile"
@@ -426,12 +446,4 @@ func (c *Client) DownloadTerminalArtifact(ctx context.Context, params DownloadTe
 		return nil, err
 	}
 	return &out, nil
-}
-
-// DownloadTerminalRecordingParams carries the path, query, and header parameters.
-type DownloadTerminalRecordingParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

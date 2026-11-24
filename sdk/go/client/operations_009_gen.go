@@ -10,6 +10,16 @@ import (
 	"strings"
 )
 
+// FindSessionFilesParams carries the path, query, and header parameters.
+type FindSessionFilesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Q           string  `url:"q"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // FindSessionFiles Find project files
 func (c *Client) FindSessionFiles(ctx context.Context, params FindSessionFilesParams) (*FileFindResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files/find"

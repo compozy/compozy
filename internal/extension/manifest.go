@@ -104,13 +104,18 @@ type Manifest struct {
 
 	MinCompozyVersion string `toml:"min_compozy_version" json:"min_compozy_version"`
 
-	Inputs       []ManifestInput    `toml:"inputs,omitempty"       json:"inputs,omitempty"`
-	RequiresEnv  []string           `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
-	Resources    ResourcesConfig    `toml:"resources"              json:"resources"`
-	Capabilities CapabilitiesConfig `toml:"capabilities"           json:"capabilities"`
-	Permissions  PermissionsConfig  `toml:"permissions"            json:"permissions"`
-	Subprocess   SubprocessConfig   `toml:"subprocess"             json:"subprocess"`
-	Profiles     []ManifestProfile  `toml:"profiles,omitempty"     json:"profiles,omitempty"`
+	Inputs      []ManifestInput `toml:"inputs,omitempty"       json:"inputs,omitempty"`
+	RequiresEnv []string        `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
+	// DeclaredRequiresEnv is the author-declared requires_env before required env inputs are folded
+	// into RequiresEnv. It is not serialized; encode keeps writing the folded RequiresEnv.
+	DeclaredRequiresEnv []string           `toml:"-"                  json:"-"`
+	Resources           ResourcesConfig    `toml:"resources"          json:"resources"`
+	Capabilities        CapabilitiesConfig `toml:"capabilities"       json:"capabilities"`
+	Permissions         PermissionsConfig  `toml:"permissions"        json:"permissions"`
+	Subprocess          SubprocessConfig   `toml:"subprocess"         json:"subprocess"`
+	Profiles            []ManifestProfile  `toml:"profiles,omitempty" json:"profiles,omitempty"`
+	// Requires declares the extensions this package depends on. Experimental.
+	Requires ManifestRequires `toml:"requires,omitempty" json:"requires,omitzero"`
 }
 
 // ResourcesConfig declares static assets packaged with an extension.
@@ -280,6 +285,7 @@ type manifestDocument struct {
 	Permissions  PermissionsConfig       `toml:"permissions"            json:"permissions"`
 	Subprocess   SubprocessConfig        `toml:"subprocess"             json:"subprocess"`
 	Profiles     []ManifestProfile       `toml:"profiles,omitempty"     json:"profiles,omitempty"`
+	Requires     ManifestRequires        `toml:"requires,omitempty"     json:"requires,omitzero"`
 }
 
 type manifestCore struct {

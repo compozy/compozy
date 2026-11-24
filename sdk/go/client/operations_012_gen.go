@@ -9,6 +9,36 @@ import (
 	"strings"
 )
 
+// GetHookEvents List supported hook taxonomy metadata
+func (c *Client) GetHookEvents(ctx context.Context, params GetHookEventsParams) (*HookEventsResponse, error) {
+	path := "/api/hooks/events"
+	query := url.Values{}
+	if params.Family != nil {
+		query.Set("family", *params.Family)
+	}
+	if params.SyncOnly != nil {
+		query.Set("sync_only", strconv.FormatBool(*params.SyncOnly))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HookEventsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetHookRunsParams carries the path, query, and header parameters.
+type GetHookRunsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Session     string  `url:"session"`
+	Event       *string `url:"event"`
+	Outcome     *string `url:"outcome"`
+	Since       *string `url:"since"`
+	Last        *int    `url:"last"`
+}
+
 // GetHookRuns List hook run history for one session
 func (c *Client) GetHookRuns(ctx context.Context, params GetHookRunsParams) (*HookRunsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/hooks/runs"
@@ -415,13 +445,4 @@ func (c *Client) GetMarketplaceCatalogEntry(ctx context.Context, params GetMarke
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetMarketplaceSectionsParams carries the path, query, and header parameters.
-type GetMarketplaceSectionsParams struct {
-	Q           *string `url:"q"`
-	PerSection  *int    `url:"per_section"`
-	Scope       *string `url:"scope"`
-	Profile     *string `url:"profile"`
-	WorkspaceID *string `url:"workspace_id"`
 }

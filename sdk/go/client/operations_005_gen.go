@@ -9,6 +9,32 @@ import (
 	"strings"
 )
 
+// ControlTerminalRecordingParams carries the path, query, and header parameters.
+type ControlTerminalRecordingParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+}
+
+// ControlTerminalRecording Start or stop terminal recording
+func (c *Client) ControlTerminalRecording(ctx context.Context, params ControlTerminalRecordingParams, body TerminalRecordingRequest) (*TerminalRecordingResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}/recording"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalRecordingResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CreateAccountToken Create an account token for local use
 func (c *Client) CreateAccountToken(ctx context.Context, body AccountTokenCreate) (*AccountTokenCreated, error) {
 	path := "/api/account/tokens"
@@ -413,31 +439,4 @@ type DeleteAgentParams struct {
 	Name      string  `url:"name"`
 	Workspace *string `url:"workspace"`
 	Profile   *string `url:"profile"`
-}
-
-// DeleteAgent Durably delete one effective authored agent definition
-func (c *Client) DeleteAgent(ctx context.Context, params DeleteAgentParams) (*DeleteAgentResponse, error) {
-	path := "/api/agents/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out DeleteAgentResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteAgentHeartbeatParams carries the path, query, and header parameters.
-type DeleteAgentHeartbeatParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
 }

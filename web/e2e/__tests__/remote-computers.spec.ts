@@ -35,10 +35,23 @@ async function installPurchaseTurnstile(context: BrowserContext) {
           ready: (ready) => ready(),
           render: (_, options) => { verification = options; return "fixture"; },
           reset: () => {},
-          execute: () => verification.callback("pass-" + verification.action)
+          execute: () => setTimeout(() => verification.callback("pass-" + verification.action), 0)
         };`,
     })
   );
+}
+
+// The daemon accepts HTTPS checkout URLs. Forward the Stripe origin to the fixture server.
+async function installStripeCheckout(context: BrowserContext, stripeURL?: string) {
+  if (!stripeURL) throw new Error("Missing Stripe checkout fixture");
+  await context.route("https://checkout.stripe.com/fixture-checkout/**", async route => {
+    const target = new URL(route.request().url());
+    const response = await route.fetch({
+      url: stripeURL + target.pathname + target.search,
+      maxRedirects: 0,
+    });
+    await route.fulfill({ response });
+  });
 }
 
 test.describe("Purchase from the cloud", () => {
@@ -52,6 +65,7 @@ test.describe("Purchase from the cloud", () => {
   }) => {
     // Safety Invariant 34. An account in a blocked state receives no Checkout Session.
     await installPurchaseTurnstile(context);
+    await installStripeCheckout(context, lab.stripe_url);
     const upgrade = lab.cloud_url + "/billing/upgrade?interval=year";
     await page.goto(upgrade);
     await expect(page.getByRole("button", { name: "Continue to checkout" })).toBeDisabled();
@@ -152,6 +166,7 @@ test.describe("Purchase from a lapsed hosted route", () => {
     if (!hostedURL || !proxy) throw new Error("Missing retained hostname in purchase fixture");
     const hostname = new URL(hostedURL).hostname;
     await installPurchaseTurnstile(context);
+    await installStripeCheckout(context, lab.stripe_url);
     await context.route(hostedURL + "/**", async route => {
       const target = new URL(route.request().url());
       const response = await route.fetch({
@@ -448,12 +463,12 @@ test.describe("Hosted browser", () => {
       });
 
       // Verify the installable PWA manifest on the hosted origin.
-      const manifestResponse = await hostedContext.request.get(
-        `https://${hostname}/manifest.webmanifest`
-      );
-      expect(manifestResponse.status()).toBe(200);
-      const manifest = (await manifestResponse.json()) as { display?: string };
-      expect(manifest.display).toBe("standalone");
+      const manifest = await hostedPage.evaluate(async () => {
+        const response = await fetch("/manifest.webmanifest");
+        const body = (await response.json()) as { display?: string };
+        return { status: response.status, display: body.display };
+      });
+      expect(manifest).toEqual({ status: 200, display: "standalone" });
 
       // Context 1: revoke the browser device in Settings -> Account -> Devices.
       const accountSettings = await openSettings(page, "account");
@@ -494,6 +509,7 @@ test.describe("Free limit upgrade", () => {
     context,
     lab,
   }) => {
+    await installStripeCheckout(context, lab.stripe_url);
     const host = lab.computers[0];
     const settings = await openSettings(page, "computers");
     await settings.getByTestId("computers-add-button").click();

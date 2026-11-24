@@ -14,6 +14,8 @@ type compactExtension struct {
 	DeclaredProfiles    []contract.ExtensionDeclaredProfilePayload `json:"declared_profiles,omitempty"`
 	Placements          []contract.ExtensionPlacementPayload       `json:"placements,omitempty"`
 	DormantPlacements   []contract.ExtensionPlacementPayload       `json:"dormant_placements,omitempty"`
+	// UnmetDependencies is the experimental repair signal a forced dependency removal leaves on a dependent.
+	UnmetDependencies []compactUnmetDependency `json:"unmet_dependencies,omitempty"`
 
 	MissingInputs       []string                    `json:"missing_inputs,omitempty"`
 	Name                string                      `json:"name"`
@@ -53,6 +55,7 @@ func projectCompactExtension(p *contract.ExtensionPayload) compactExtension {
 		DeclaredProfiles:    p.DeclaredProfiles,
 		Placements:          p.Placements,
 		DormantPlacements:   p.DormantPlacements,
+		UnmetDependencies:   compactUnmetDependencies(p.UnmetDependencies),
 		MissingInputs:       p.MissingInputs,
 		Name:                p.Name,
 		Profile:             p.Profile,
@@ -82,13 +85,40 @@ func projectCompactExtension(p *contract.ExtensionPayload) compactExtension {
 	}
 }
 
+// compactUnmetDependency keeps what an agent needs to repair one unmet dependency.
+type compactUnmetDependency struct {
+	Name             string `json:"name"`
+	MinVersion       string `json:"min_version,omitempty"`
+	State            string `json:"state"`
+	InstalledVersion string `json:"installed_version,omitempty"`
+	RetryCommand     string `json:"retry_command,omitempty"`
+}
+
+func compactUnmetDependencies(items []contract.ExtensionDependencyPayload) []compactUnmetDependency {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]compactUnmetDependency, len(items))
+	for i, item := range items {
+		result[i] = compactUnmetDependency{
+			Name: item.Name, MinVersion: item.MinVersion, State: item.State,
+			InstalledVersion: item.InstalledVersion, RetryCommand: item.RetryCommand,
+		}
+	}
+	return result
+}
+
 type extensionRecordResult struct {
-	Extension   compactExtension               `json:"extension"`
-	EnableError *contract.ExtensionEnableError `json:"enable_error,omitzero"`
+	Extension             compactExtension               `json:"extension"`
+	EnableError           *contract.ExtensionEnableError `json:"enable_error,omitzero"`
+	DependenciesInstalled []string                       `json:"dependencies_installed,omitempty"`
 }
 
 func compactExtensionRecord(p *contract.InstallExtensionResponse) any {
-	return extensionRecordResult{Extension: projectCompactExtension(&p.Extension), EnableError: p.EnableError}
+	return extensionRecordResult{
+		Extension: projectCompactExtension(&p.Extension), EnableError: p.EnableError,
+		DependenciesInstalled: p.DependenciesInstalled,
+	}
 }
 func compactExtensionList(p []contract.ExtensionPayload) any {
 	var items []compactExtension

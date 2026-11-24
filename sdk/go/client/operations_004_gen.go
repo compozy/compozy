@@ -10,6 +10,30 @@ import (
 	"strings"
 )
 
+// CaptureDaemonProfile Capture a runtime profile over the local socket Experimental: pin the exact SDK version.
+func (c *Client) CaptureDaemonProfile(ctx context.Context, params CaptureDaemonProfileParams) (*[]byte, error) {
+	path := "/api/daemon/profile/{kind}"
+	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
+	query := url.Values{}
+	if params.Seconds != nil {
+		query.Set("seconds", strconv.Itoa(*params.Seconds))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "application/octet-stream"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CheckAgentInstanceParams carries the path, query, and header parameters.
+type CheckAgentInstanceParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // CheckAgentInstance Check an agent instance
 func (c *Client) CheckAgentInstance(ctx context.Context, params CheckAgentInstanceParams, body AgentInstanceCheckRequest) (*AgentInstanceCheckResponse, error) {
 	path := "/api/agent-instances/{id}/check"
@@ -413,32 +437,6 @@ func (c *Client) ContinueSession(ctx context.Context, params ContinueSessionPara
 		path += "?" + query.Encode()
 	}
 	var out SessionDeriveResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ControlTerminalRecordingParams carries the path, query, and header parameters.
-type ControlTerminalRecordingParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-}
-
-// ControlTerminalRecording Start or stop terminal recording
-func (c *Client) ControlTerminalRecording(ctx context.Context, params ControlTerminalRecordingParams, body TerminalRecordingRequest) (*TerminalRecordingResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}/recording"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalRecordingResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}

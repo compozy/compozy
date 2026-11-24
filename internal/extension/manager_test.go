@@ -3485,3 +3485,104 @@ func loadCachedSkills(t *testing.T, manager *Manager, ext *managedExtension) {
 		t.Fatalf("loadSkillResources(%s) error = %v", ext.instanceKey().runtimeID(), err)
 	}
 }
+
+// Invariant: the real start path refuses a required invalid subprocess input (rules 4-5), and an
+// instance restart relaunches only that instance's runtime (rule 7, Safety Invariant 3).
+// Owner: extension runtime lifecycle; canonical suite: manager instance input launch.
+func TestManagerInstanceInputLaunch(t *testing.T) {
+	t.Parallel()
+	t.Run("Should defer a development base restart to dev reload", func(t *testing.T) {
+		t.Parallel()
+		manager := NewManager(nil)
+		base := InstanceKey{Name: "dev-kit", WorkspaceID: "workspace-a"}
+		manager.devExtensions[base] = &managedExtension{
+			key: base, info: ExtensionInfo{Name: base.Name, Enabled: true, Source: SourceWorkspace},
+		}
+		ctx := testutil.Context(t)
+		deferred := InstanceKey{Name: base.Name, ProfileID: store.DefaultProfileID, WorkspaceID: base.WorkspaceID}
+		if err := manager.RestartInstance(ctx, deferred); !errors.Is(err, ErrDevelopmentRestartDeferred) {
+			t.Fatalf("RestartInstance(default profile) error = %v, want ErrDevelopmentRestartDeferred", err)
+		}
+		profile := InstanceKey{Name: base.Name, ProfileID: "marketing", WorkspaceID: base.WorkspaceID}
+		if err := manager.RestartInstance(ctx, profile); err != nil {
+			t.Fatalf("RestartInstance(profile runtime) error = %v, want the profile runtime invalidated", err)
+		}
+	})
+	t.Run("Should refuse a required invalid input at start and restart only that instance [R-7][R-2]",
+		func(t *testing.T) {
+			t.Parallel()
+			withDaemonVersion(t, "0.5.0")
+			env := newRegistryTestEnv(t)
+			gated := createManagerTestExtension(t, managerTestManifest("ext-input-gated", managerManifestOptions{
+				requiresEnv: []string{"FLAG"},
+			})+`
+[[inputs]]
+id = "flag"
+prompt = "Flag"
+type = "boolean"
+required = true
+binding = { type = "env", name = "FLAG" }
+
+[resources.mcp_servers.flagger]
+command = "flagger"
+env = { FLAG = "flag" }
+`, nil)
+			bystander := createManagerTestExtension(
+				t, managerTestManifest("ext-input-bystander", managerManifestOptions{}), nil,
+			)
+			installManagerFixture(t, env.registry, gated, SourceUser, true)
+			installManagerFixture(t, env.registry, bystander, SourceUser, true)
+			values := map[string]string{"vault:flag": "not-a-boolean"}
+			bindings := &envResolutionBindingStore{bindings: map[string][]EnvBinding{
+				envResolutionBindingKey(gated.manifest.Name, "", ""): {{
+					ExtensionName: gated.manifest.Name, EnvName: "FLAG", SecretRef: "vault:flag", InputID: "flag",
+				}},
+			}}
+			bystanderProcess := newFakeProcess(101)
+			launcher := &fakeLauncher{queue: []*fakeProcess{bystanderProcess, newFakeProcess(202)}}
+			manager := NewManager(
+				env.registry,
+				WithEnvBindingStore(bindings),
+				WithSecretResolver(envResolutionSecretResolver{values: values}),
+				withProcessLauncher(launcher.launch),
+			)
+			if err := manager.Start(testutil.Context(t)); err != nil {
+				if _, ok := errors.AsType[*InputsRequiredError](err); !ok {
+					t.Fatalf("Start() error = %v, want only the input refusal", err)
+				}
+			}
+			t.Cleanup(func() {
+				if err := manager.Stop(testutil.Context(t)); err != nil {
+					t.Fatalf("Stop() cleanup error = %v", err)
+				}
+			})
+			if got := launcher.launchCount(); got != 1 {
+				t.Fatalf("launches after start = %d, want only the bystander", got)
+			}
+			loaded, err := manager.Get(gated.manifest.Name)
+			if err != nil || loaded.Status.Active {
+				t.Fatalf("gated status = %#v error %v, want inactive", loaded, err)
+			}
+
+			values["vault:flag"] = "true"
+			key := InstanceKey{Name: gated.manifest.Name, ProfileID: store.DefaultProfileID}
+			if err := manager.RestartInstance(testutil.Context(t), key); err != nil {
+				t.Fatalf("RestartInstance() error = %v", err)
+			}
+			launcher.mu.Lock()
+			configs := slices.Clone(launcher.config)
+			launcher.mu.Unlock()
+			if len(configs) != 2 || launchEnvValue(configs[1].Env, "FLAG") != "true" {
+				t.Fatalf("launch configs = %d, want one relaunch with FLAG=true", len(configs))
+			}
+			bystanderProcess.mu.Lock()
+			bystanderShutdowns := bystanderProcess.shutdownCnt
+			bystanderProcess.mu.Unlock()
+			if bystanderShutdowns != 0 {
+				t.Fatalf("bystander shutdowns = %d, want the other runtime untouched", bystanderShutdowns)
+			}
+			if loaded, err := manager.Get(gated.manifest.Name); err != nil || !loaded.Status.Active {
+				t.Fatalf("gated status after restart = %#v error %v, want active", loaded, err)
+			}
+		})
+}

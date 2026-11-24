@@ -363,6 +363,97 @@ func TestToolRegistrationValidation(t *testing.T) {
 	})
 }
 
+func TestDescribeInputs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should emit normalized inputs and raise the compatibility floor", func(t *testing.T) {
+		t.Parallel()
+
+		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+			Name: "acme-tool", Version: "1.2.0", RequiresEnv: []string{"ACME_TOKEN"},
+			Inputs: []compozysdk.Input{{
+				ID: " api_token ", Prompt: " API token for Acme ", Type: "secret", Required: true,
+				Binding: compozysdk.InputBinding{Type: "env", Name: " ACME_TOKEN "},
+			}},
+			Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
+		}, compozysdk.WithStderr(io.Discard))
+
+		payload, err := extension.Describe()
+		if err != nil {
+			t.Fatalf("Describe() error = %v", err)
+		}
+		want := []contracts.DescribeInput{{
+			ID: "api_token", Prompt: "API token for Acme", Type: "secret", Required: true,
+			Binding: contracts.DescribeInputBinding{Type: "env", Name: "ACME_TOKEN"},
+		}}
+		if !reflect.DeepEqual(payload.Inputs, want) {
+			t.Fatalf("Describe().Inputs = %#v, want %#v", payload.Inputs, want)
+		}
+		if payload.SDK.MinCompozyVersion != compozysdk.InputsMinCompozyVersion {
+			t.Fatalf(
+				"Describe().SDK.MinCompozyVersion = %q, want %q",
+				payload.SDK.MinCompozyVersion, compozysdk.InputsMinCompozyVersion,
+			)
+		}
+	})
+
+	t.Run("Should keep the higher of the declared floor and the inputs floor", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct{ declared, want string }{
+			{declared: "0.5.0", want: compozysdk.InputsMinCompozyVersion},
+			{declared: "0.8.0", want: "0.8.0"},
+			{declared: compozysdk.InputsMinCompozyVersion + "-rc.1", want: compozysdk.InputsMinCompozyVersion},
+			{declared: "0.7.10+build.1", want: "0.7.10+build.1"},
+		} {
+			extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+				Name: "acme-tool", Version: "1.2.0", RequiresEnv: []string{"ACME_REGION"},
+				MinCompozyVersion: tc.declared,
+				Inputs: []compozysdk.Input{{
+					ID: "region", Prompt: "Region", Type: "identifier",
+					Binding: compozysdk.InputBinding{Type: "env", Name: "ACME_REGION"},
+				}},
+				Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
+			}, compozysdk.WithStderr(io.Discard))
+			payload, err := extension.Describe()
+			if err != nil {
+				t.Fatalf("Describe() error = %v", err)
+			}
+			if payload.SDK.MinCompozyVersion != tc.want {
+				t.Fatalf("declared %q: Describe().SDK.MinCompozyVersion = %q, want %q",
+					tc.declared, payload.SDK.MinCompozyVersion, tc.want)
+			}
+		}
+	})
+
+	t.Run("Should omit inputs and keep the base floor when none are declared", func(t *testing.T) {
+		t.Parallel()
+
+		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
+			Name: "acme-tool", Version: "1.2.0", Inputs: []compozysdk.Input{},
+			Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
+		}, compozysdk.WithStderr(io.Discard))
+
+		payload, err := extension.Describe()
+		if err != nil {
+			t.Fatalf("Describe() error = %v", err)
+		}
+		data, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if bytes.Contains(data, []byte(`"inputs"`)) {
+			t.Fatalf("Describe() JSON = %s, want inputs omitted", data)
+		}
+		if payload.SDK.MinCompozyVersion != compozysdk.MinCompozyVersion {
+			t.Fatalf(
+				"Describe().SDK.MinCompozyVersion = %q, want %q",
+				payload.SDK.MinCompozyVersion, compozysdk.MinCompozyVersion,
+			)
+		}
+	})
+}
+
 func TestSchemaDigestFixturesMatchPublishedDaemonIdentities(t *testing.T) {
 	t.Parallel()
 

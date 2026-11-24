@@ -163,6 +163,8 @@ type ListAgentSkillReviewsParams struct {
 	InstanceID *string `url:"instance_id"`
 	Workspace  *string `url:"workspace"`
 	State      *string `url:"state"`
+	Kind       *string `url:"kind"`
+	DecidedVia *string `url:"decided_via"`
 	Cursor     *string `url:"cursor"`
 	Limit      *int    `url:"limit"`
 	Profile    *string `url:"profile"`
@@ -180,6 +182,12 @@ func (c *Client) ListAgentSkillReviews(ctx context.Context, params ListAgentSkil
 	}
 	if params.State != nil {
 		query.Set("state", *params.State)
+	}
+	if params.Kind != nil {
+		query.Set("kind", *params.Kind)
+	}
+	if params.DecidedVia != nil {
+		query.Set("decided_via", *params.DecidedVia)
 	}
 	if params.Cursor != nil {
 		query.Set("cursor", *params.Cursor)
@@ -428,21 +436,4 @@ func (c *Client) ListAutomationJobRuns(ctx context.Context, params ListAutomatio
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListAutomationJobsParams carries the path, query, and header parameters.
-type ListAutomationJobsParams struct {
-	Scope         *string   `url:"scope"`
-	WorkspaceID   *string   `url:"workspace_id"`
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Source        *string   `url:"source"`
-	Target        *string   `url:"target"`
-	Enabled       *bool     `url:"enabled"`
-	Q             *string   `url:"q"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
-	Loop          *string   `url:"loop"`
 }

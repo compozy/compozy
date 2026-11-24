@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// CancelWorktreeExitActionRequest is a daemon API value.
+type CancelWorktreeExitActionRequest struct {
+	OperationID string `json:"op_id"`
+}
+
+// CatalogMeta is a daemon API value.
+type CatalogMeta struct {
+	UseWhen  string   `json:"use_when,omitempty"`
+	Keywords []string `json:"keywords,omitempty"`
+	Category string   `json:"category,omitempty"`
+}
+
 // Change is a daemon API value.
 type Change struct {
 	Kind          string          `json:"kind,omitempty"`
@@ -432,11 +444,4 @@ type ComputerRoute struct {
 	InUse     bool      `json:"in_use"`
 	Learned   bool      `json:"learned"`
 	LastError *string   `json:"last_error"`
-}
-
-// ComputerRouteInUse is a daemon API value.
-type ComputerRouteInUse struct {
-	ID    string    `json:"id"`
-	Kind  RouteKind `json:"kind"`
-	Label string    `json:"label"`
 }

@@ -31,6 +31,8 @@ type extensionOperationAPIError struct {
 	statusCode int
 	status     string
 	payload    contract.ExtensionOperationErrorPayload
+	// enabling marks a refusal of `extension enable`, whose dependency guidance differs from install's.
+	enabling bool
 }
 
 type extensionValidationAPIError struct {
@@ -132,6 +134,9 @@ func (e *extensionOperationAPIError) Error() string {
 	if e == nil {
 		return nilToolErrorString
 	}
+	if message, ok := extensionDependencyErrorMessage(e.payload, e.enabling); ok {
+		return message
+	}
 	if e.payload.Code == diagnosticcontract.CodeExtensionInputsRequired {
 		return fmt.Sprintf("extension inputs required: %s. Pass --input id=value or --input-file inputs.json. (%s)",
 			strings.Join(e.payload.Inputs, ", "), e.payload.Code)
@@ -143,9 +148,12 @@ func (e *extensionOperationAPIError) cliExitCode() int {
 	if e == nil {
 		return 1
 	}
-	if e.payload.Code == diagnosticcontract.CodeExtensionInputsRequired ||
-		e.payload.Code == diagnosticcontract.CodeExtensionInputInvalid {
+	switch e.payload.Code {
+	case diagnosticcontract.CodeExtensionInputsRequired, diagnosticcontract.CodeExtensionInputInvalid,
+		diagnosticcontract.CodeExtensionDependenciesRequired:
 		return 2
+	case diagnosticcontract.CodeExtensionDependencyInUse:
+		return 1
 	}
 	if strings.HasPrefix(strings.TrimSpace(e.payload.Code), extensionAgentPluginDiagnosticPrefix) {
 		return 1
@@ -288,6 +296,7 @@ func readAPIErrorBody(statusCode int, status string, body []byte) error {
 			parseTerminalAPIError,
 			parseSessionDeriveAPIError,
 			parseProviderModelRefreshAPIError,
+			parseLoopInputValidationAPIError,
 			parseDaemonAPIError,
 			parseToolAPIError,
 		} {
@@ -353,11 +362,14 @@ func isSkillSourceValidationCode(code string) bool {
 
 func parseExtensionValidationAPIError(statusCode int, status string, body []byte) (bool, error) {
 	var payload contract.ExtensionValidationErrorPayload
-	if json.Unmarshal(body, &payload) != nil || payload.Diagnostic == nil || len(payload.Issues) == 0 {
+	if json.Unmarshal(body, &payload) != nil || len(payload.Issues) == 0 ||
+		(payload.Diagnostic == nil && payload.Dependency == "" && len(payload.DependenciesInstalled) == 0) {
 		return false, nil
 	}
 	payload.Error = redactToolDiagnostic(payload.Error)
-	payload.Diagnostic = new(diagnosticspkg.RedactItem(*payload.Diagnostic))
+	if payload.Diagnostic != nil {
+		payload.Diagnostic = new(diagnosticspkg.RedactItem(*payload.Diagnostic))
+	}
 	for index := range payload.Issues {
 		payload.Issues[index].Path = redactToolDiagnostic(payload.Issues[index].Path)
 		payload.Issues[index].Scope = redactToolDiagnostic(payload.Issues[index].Scope)

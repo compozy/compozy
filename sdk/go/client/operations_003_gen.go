@@ -9,6 +9,31 @@ import (
 	"strings"
 )
 
+// BlockTask Create one typed task block
+func (c *Client) BlockTask(ctx context.Context, params BlockTaskParams, body CreateTaskBlockRequest) (*TaskBlockResponse, error) {
+	path := "/api/tasks/{id}/blocks"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskBlockResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// BrowseDirectoryParams carries the path, query, and header parameters.
+type BrowseDirectoryParams struct {
+	Path       *string `url:"path"`
+	ShowHidden *bool   `url:"show_hidden"`
+	DirsOnly   *bool   `url:"dirs_only"`
+}
+
 // BrowseDirectory List directory entries and filesystem roots for the workspace folder picker
 func (c *Client) BrowseDirectory(ctx context.Context, params BrowseDirectoryParams) (*FSBrowseResponse, error) {
 	path := "/api/fs/browse"
@@ -410,28 +435,4 @@ func (c *Client) CancelWorktreeExitAction(ctx context.Context, params CancelWork
 type CaptureDaemonProfileParams struct {
 	Kind    string `url:"kind"`
 	Seconds *int   `url:"seconds"`
-}
-
-// CaptureDaemonProfile Capture a runtime profile over the local socket Experimental: pin the exact SDK version.
-func (c *Client) CaptureDaemonProfile(ctx context.Context, params CaptureDaemonProfileParams) (*[]byte, error) {
-	path := "/api/daemon/profile/{kind}"
-	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
-	query := url.Values{}
-	if params.Seconds != nil {
-		query.Set("seconds", strconv.Itoa(*params.Seconds))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out []byte
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "application/octet-stream"); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CheckAgentInstanceParams carries the path, query, and header parameters.
-type CheckAgentInstanceParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

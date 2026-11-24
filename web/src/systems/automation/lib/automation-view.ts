@@ -31,7 +31,7 @@ export type {
   AutomationStart,
 } from "./automation-sentence";
 
-export type AutomationSkipReasonCode = "self_overlap" | "misfire_grace_exceeded";
+export type AutomationSkipReasonCode = "self_overlap" | "misfire_grace_exceeded" | "no inputs";
 
 export interface AutomationLastRun {
   id: string;
@@ -101,7 +101,9 @@ function toLastRun(entity: AutomationEntity): AutomationLastRun | undefined {
   if (!run) return undefined;
   const reason = run.skip_reason;
   const skipReason =
-    reason === "self_overlap" || reason === "misfire_grace_exceeded" ? reason : undefined;
+    reason === "self_overlap" || reason === "misfire_grace_exceeded" || reason === "no inputs"
+      ? reason
+      : undefined;
   return {
     id: run.id,
     status: run.status,

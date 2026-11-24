@@ -77,7 +77,9 @@ func (q *Queries) LockClaimedAccountDeletion(ctx context.Context, id string, lea
 }
 
 func (q *Queries) AdvanceAccountDeletion(ctx context.Context, id string, now time.Time) error {
-	return q.generated.AdvanceAccountDeletion(ctx, sqlcgen.AdvanceAccountDeletionParams{AccountID: id, AsOf: timestamp(now)})
+	return q.generated.AdvanceAccountDeletion(ctx, sqlcgen.AdvanceAccountDeletionParams{
+		AccountID: id, AsOf: timestamp(now),
+	})
 }
 
 func (q *Queries) RetryAccountDeletion(ctx context.Context, id string, lease, retry time.Time) error {
@@ -101,7 +103,9 @@ func (q *Queries) DeletingAccountTunnels(ctx context.Context, id string) ([]Tunn
 	}
 	results := make([]TunnelRef, 0, len(rows))
 	for _, row := range rows {
-		results = append(results, TunnelRef{ComputerID: remoteproto.ComputerID(row.ComputerID), Generation: row.Generation})
+		results = append(results, TunnelRef{
+			ComputerID: remoteproto.ComputerID(row.ComputerID), Generation: row.Generation,
+		})
 	}
 	return results, nil
 }

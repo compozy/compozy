@@ -236,14 +236,17 @@ type CreateJobRequest struct {
 
 // UpdateJobRequest is the shared automation job patch payload.
 type UpdateJobRequest struct {
-	Name       *string                        `json:"name,omitempty"`
-	Prompt     *string                        `json:"prompt,omitempty"`
-	Schedule   *automationpkg.ScheduleSpec    `json:"schedule,omitempty"`
-	Task       *automationpkg.JobTaskConfig   `json:"task,omitempty"`
-	LoopTarget *automationpkg.LoopTarget      `json:"loop_target,omitempty"`
-	Enabled    *bool                          `json:"enabled,omitempty"`
-	Retry      *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit  *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	Name       *string                      `json:"name,omitempty"`
+	Prompt     *string                      `json:"prompt,omitempty"`
+	Schedule   *automationpkg.ScheduleSpec  `json:"schedule,omitempty"`
+	Task       *automationpkg.JobTaskConfig `json:"task,omitempty"`
+	LoopTarget *automationpkg.LoopTarget    `json:"loop_target,omitempty"`
+	// LoopInputCommand patches only the Loop target's fire-time command and preserves every other
+	// target field, so a concurrent edit cannot be reverted by a read-modify-write client.
+	LoopInputCommand *string                        `json:"loop_input_command,omitempty"`
+	Enabled          *bool                          `json:"enabled,omitempty"`
+	Retry            *automationpkg.RetryConfig     `json:"retry,omitempty"`
+	FireLimit        *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
 }
 
 // HasChanges reports whether the patch includes any mutable field.
@@ -253,6 +256,7 @@ func (r UpdateJobRequest) HasChanges() bool {
 		r.Schedule != nil ||
 		r.Task != nil ||
 		r.LoopTarget != nil ||
+		r.LoopInputCommand != nil ||
 		r.Enabled != nil ||
 		r.Retry != nil ||
 		r.FireLimit != nil

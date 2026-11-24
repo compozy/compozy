@@ -12,7 +12,7 @@ func sessionInputsClearDescriptor() toolspkg.Descriptor {
 		"Clear parked session input with attributed per-entry transcript traces; in-flight dispatch remains intact.",
 		sessionIDInputSchema, toolspkg.RiskMutating, false, false, false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, "inputs", sessionsQueueKey}, []string{"clear queued session input"},
+		[]string{sessionsSessionsKey, inputsTagKey, sessionsQueueKey}, []string{"clear queued session input"},
 	)
 	descriptor.OutputSchema = json.RawMessage(`{
 		"type":"object","required":["inputs","cleared_count","queue_generation"],

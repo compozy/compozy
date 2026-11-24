@@ -10,6 +10,14 @@ import (
 	"strings"
 )
 
+// DownloadTerminalRecordingParams carries the path, query, and header parameters.
+type DownloadTerminalRecordingParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // DownloadTerminalRecording Download one terminal recording
 func (c *Client) DownloadTerminalRecording(ctx context.Context, params DownloadTerminalRecordingParams) (*[]byte, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/recordings/{id}"
@@ -430,14 +438,4 @@ func (c *Client) FindFiles(ctx context.Context, params FindFilesParams) (*FileFi
 		return nil, err
 	}
 	return &out, nil
-}
-
-// FindSessionFilesParams carries the path, query, and header parameters.
-type FindSessionFilesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Q           string  `url:"q"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }
