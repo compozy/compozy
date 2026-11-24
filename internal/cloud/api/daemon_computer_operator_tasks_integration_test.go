@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -367,9 +368,7 @@ func (c *operatorTrafficCapture) wrap(next http.Handler) http.Handler {
 		if containsOperatorClaimToken(in) || containsOperatorClaimToken(out) {
 			c.secret.Store(true)
 		}
-		for name, values := range res.Header {
-			w.Header()[name] = values
-		}
+		maps.Copy(w.Header(), res.Header)
 		w.WriteHeader(res.StatusCode)
 		_, _ = io.Copy(w, res.Body)
 		_ = res.Body.Close()
