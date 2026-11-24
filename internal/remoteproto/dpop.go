@@ -106,7 +106,34 @@ func (v *DPoPVerifier) VerifyDPoP(token string, binding DPoPBinding, now time.Ti
 	if len(token) > maxProofSize || binding.JKT == "" || binding.Method == "" {
 		return DPoPProof{}, ErrDPoPInvalid
 	}
-	if jws, err := parseCompact(token); err == nil && verifyDeviceSignature(jws, dpopType, binding.JKT) {
+	jws, err := parseCompact(token)
+	if err != nil {
+		return DPoPProof{}, ErrDPoPInvalid
+	}
+	return v.verify(jws, binding, now)
+}
+
+// VerifyBrowserDPoP proves possession before a browser code or an approval can be read.
+func (v *DPoPVerifier) VerifyBrowserDPoP(token, method, target string, now time.Time) (string, error) {
+	if len(token) > maxProofSize || method == "" {
+		return "", ErrDPoPInvalid
+	}
+	jws, err := parseCompact(token)
+	if err != nil || jws.header.JWK == nil {
+		return "", ErrDPoPInvalid
+	}
+	jkt, err := jws.header.JWK.Thumbprint()
+	if err != nil {
+		return "", ErrDPoPInvalid
+	}
+	if _, err := v.verify(jws, DPoPBinding{Method: method, URL: target, JKT: jkt}, now); err != nil {
+		return "", err
+	}
+	return jkt, nil
+}
+
+func (v *DPoPVerifier) verify(jws compactJWS, binding DPoPBinding, now time.Time) (DPoPProof, error) {
+	if verifyDeviceSignature(jws, dpopType, binding.JKT) {
 		var proof DPoPProof
 		if err := json.Unmarshal(jws.body, &proof); err == nil && proof.matches(binding, now) {
 			if err := v.consume(proof.JTI, now); err != nil {

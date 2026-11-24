@@ -122,6 +122,14 @@ func (r *RemoteHostRepo) RemoteApproval(
 	return remoteHostTx{q: r.readQueries}.Approval(ctx, id, jkt)
 }
 
+func (r *RemoteHostRepo) RemoteApprovalByID(ctx context.Context, id string) (remotehost.Approval, error) {
+	row, err := r.readQueries.GetRemoteApprovalByID(ctx, id)
+	if err != nil {
+		return remotehost.Approval{}, remoteRecordError(err)
+	}
+	return remoteApprovalFromRow(row), nil
+}
+
 func (r *RemoteHostRepo) WriteRemote(ctx context.Context, run func(context.Context, remotehost.Tx) error) error {
 	return r.executeWriteQuery(ctx, "globaldb.WriteRemote", func(ctx context.Context, q *sqlcgen.Queries) error {
 		return run(ctx, remoteHostTx{q})

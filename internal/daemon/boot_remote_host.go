@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/ingress"
 	"github.com/compozy/compozy/internal/remotehost"
@@ -50,6 +51,10 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 	if !ok || workers.account == nil {
 		return nil
 	}
+	app, err := httpapi.NewHostedAppHandler(state.logger, state.startedAt)
+	if err != nil {
+		return fmt.Errorf("daemon: load hosted web app: %w", err)
+	}
 	state.remoteOperator = &remoteOperatorHandler{}
 	host, err := remotehost.NewHost(
 		ctx,
@@ -62,6 +67,7 @@ func (d *Daemon) bootRemoteHost(ctx context.Context, state *bootState, cleanup *
 			Logger:             state.logger,
 			Home:               d.homePaths.HomeDir,
 			Operator:           state.remoteOperator,
+			HostedApp:          app,
 			Persist:            d.persistRemoteConfig,
 			InstallCloudflared: d.installCloudflared,
 			SyncIngress:        remoteIngressSync(state, d.now),

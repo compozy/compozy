@@ -9,6 +9,41 @@ import (
 	"strings"
 )
 
+// GetExtensionParams carries the path, query, and header parameters.
+type GetExtensionParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// GetExtension Get one installed extension
+func (c *Client) GetExtension(ctx context.Context, params GetExtensionParams) (*ExtensionResponse, error) {
+	path := "/api/extensions/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetExtensionInventoryParams carries the path, query, and header parameters.
+type GetExtensionInventoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
 // GetExtensionInventory List shipped and live resources for one extension
 func (c *Client) GetExtensionInventory(ctx context.Context, params GetExtensionInventoryParams) (*ExtensionInventoryPayload, error) {
 	path := "/api/extensions/{name}/inventory"
@@ -406,36 +441,6 @@ func (c *Client) GetHookRuns(ctx context.Context, params GetHookRunsParams) (*Ho
 
 // GetLoopParams carries the path, query, and header parameters.
 type GetLoopParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetLoop Inspect one Loop definition
-func (c *Client) GetLoop(ctx context.Context, params GetLoopParams) (*LoopResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loops/{name}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetLoopAnnotationsParams carries the path, query, and header parameters.
-type GetLoopAnnotationsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Name        string  `url:"name"`
 	Profile     *string `url:"profile"`

@@ -7,6 +7,50 @@ import (
 	"time"
 )
 
+// QuietWarning is a daemon API value.
+type QuietWarning struct {
+	QuietSince time.Time  `json:"quiet_since"`
+	WarnedAt   time.Time  `json:"warned_at"`
+	StopAt     *time.Time `json:"stop_at"`
+}
+
+// ReasonCode is a daemon API value.
+type ReasonCode string
+
+// ReasoningSource is a daemon API value.
+type ReasoningSource string
+
+// RecapPayload is a daemon API value.
+type RecapPayload struct {
+	Session        SessionPayload            `json:"session"`
+	ActiveRun      *TaskRunPayload           `json:"active_run,omitzero"`
+	RecentMarkers  []TranscriptMarkerPayload `json:"recent_markers"`
+	RecentMessages []UIMessage               `json:"recent_messages"`
+	PendingInputs  int                       `json:"pending_inputs"`
+	PendingMarkers int                       `json:"pending_markers"`
+	Snapshot       RecapSnapshotPayload      `json:"snapshot"`
+}
+
+// RecapSnapshotPayload is a daemon API value.
+type RecapSnapshotPayload struct {
+	GeneratedAt      time.Time `json:"generated_at"`
+	EventCursor      int64     `json:"event_cursor"`
+	TranscriptCursor int64     `json:"transcript_cursor"`
+	QueueGeneration  int64     `json:"queue_generation"`
+	Consistency      string    `json:"consistency"`
+}
+
+// RecoverTaskRequest is a daemon API value.
+type RecoverTaskRequest struct {
+	Note string `json:"note,omitempty"`
+}
+
+// RecoverTaskRunRequest is a daemon API value.
+type RecoverTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
 // Redaction is a daemon API value.
 type Redaction struct {
 	Path   string     `json:"path"`
@@ -401,43 +445,4 @@ type ResultViewContract struct {
 type ResultViews struct {
 	Compact ResultViewContract `json:"compact"`
 	Full    ResultViewContract `json:"full"`
-}
-
-// ResumeSessionFromLaterRequest is a daemon API value.
-type ResumeSessionFromLaterRequest struct {
-	WithChildren bool `json:"with_children,omitempty"`
-}
-
-// ResumeTaskRequest is a daemon API value.
-type ResumeTaskRequest struct {
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// RetryConfig is a daemon API value.
-type RetryConfig struct {
-	Strategy   RetryStrategy `json:"strategy"`
-	MaxRetries int           `json:"max_retries"`
-	BaseDelay  string        `json:"base_delay"`
-}
-
-// RetrySpec is a daemon API value.
-type RetrySpec struct {
-	MaxAttempts  int          `json:"max_attempts,omitzero"`
-	OnFailure    string       `json:"on_failure,omitempty"`
-	Backoff      *BackoffSpec `json:"backoff,omitzero"`
-	NonRetryable []string     `json:"non_retryable,omitempty"`
-}
-
-// RetryStrategy is a daemon API value.
-type RetryStrategy string
-
-// RetryTaskRunRequest is a daemon API value.
-type RetryTaskRunRequest struct {
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// RetryTaskRunResponse is a daemon API value.
-type RetryTaskRunResponse struct {
-	PreviousRun TaskRunPayload `json:"previous_run"`
-	Run         TaskRunPayload `json:"run"`
 }

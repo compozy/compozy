@@ -9,6 +9,32 @@ import (
 	"strings"
 )
 
+// PutLoopAnnotations Replace Loop editor annotations
+func (c *Client) PutLoopAnnotations(ctx context.Context, params PutLoopAnnotationsParams, body PutLoopAnnotationsRequest) (*LoopAnnotationsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/annotations"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopAnnotationsResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutLoopConfigParams carries the path, query, and header parameters.
+type PutLoopConfigParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+}
+
 // PutLoopConfig Replace Loop config override
 func (c *Client) PutLoopConfig(ctx context.Context, params PutLoopConfigParams, body PutLoopConfigRequest) (*LoopConfigResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loops/{name}/config"
@@ -416,14 +442,4 @@ func (c *Client) ReadSessionFileBytes(ctx context.Context, params ReadSessionFil
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ReadSessionFileContentParams carries the path, query, and header parameters.
-type ReadSessionFileContentParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Path        string  `url:"path"`
-	Reveal      *bool   `url:"reveal"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }
