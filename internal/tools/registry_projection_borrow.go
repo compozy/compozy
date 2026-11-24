@@ -10,9 +10,10 @@ func WithImmutableProjection(ctx context.Context) context.Context {
 }
 
 func projectionDescriptor(ctx context.Context, descriptor Descriptor) Descriptor {
-	if !computerForwardingDisabled(ctx) && len(descriptor.computerInputSchema) > 0 {
-		descriptor.InputSchema = descriptor.computerInputSchema
-		descriptor.InputSchemaDigest = descriptor.computerInputDigest
+	if metadata := descriptor.ToolExecutionMetadata; metadata != nil && metadata.computerInput != nil &&
+		!computerForwardingDisabled(ctx) {
+		descriptor.InputSchema = metadata.computerInput.schema
+		descriptor.InputSchemaDigest = metadata.computerInput.digest
 	}
 	if borrowed, ok := ctx.Value(immutableProjectionKey{}).(bool); ok && borrowed {
 		return descriptor

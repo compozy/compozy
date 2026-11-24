@@ -16,6 +16,11 @@ import (
 
 const computerArgument = "computer"
 
+type computerInputProjection struct {
+	schema json.RawMessage
+	digest string
+}
+
 type ComputerForwarder interface {
 	ResolveComputer(context.Context, Scope, Descriptor, CallRequest) (remoteproto.ComputerID, error)
 	CallComputer(context.Context, remoteproto.ComputerID, CallRequest) (ToolResult, error)
@@ -32,12 +37,12 @@ func WithoutComputerForwarding(ctx context.Context) context.Context {
 }
 
 func computerForwardingDisabled(ctx context.Context) bool {
-	disabled, _ := ctx.Value(noComputerForwardingKey{}).(bool)
-	return disabled
+	return ctx.Value(noComputerForwardingKey{}) != nil
 }
 
 func prepareComputerInputSchema(descriptor *Descriptor) error {
-	if descriptor.Source.Kind != SourceBuiltin || descriptor.ExecutionMetadata().RemoteScope == "" {
+	metadata := descriptor.ExecutionMetadata()
+	if descriptor.Source.Kind != SourceBuiltin || metadata.RemoteScope == "" {
 		return nil
 	}
 	var schema map[string]jsontext.Value
@@ -63,9 +68,13 @@ func prepareComputerInputSchema(descriptor *Descriptor) error {
 	if err != nil {
 		return err
 	}
-	descriptor.computerInputSchema = projected
-	descriptor.computerInputDigest, err = SchemaDigest(projected)
-	return err
+	digest, err := SchemaDigest(projected)
+	if err != nil {
+		return err
+	}
+	metadata.computerInput = &computerInputProjection{schema: projected, digest: digest}
+	descriptor.ToolExecutionMetadata = &metadata
+	return nil
 }
 
 func splitComputerInput(req CallRequest) (CallRequest, error) {
@@ -84,7 +93,7 @@ func splitComputerInput(req CallRequest) (CallRequest, error) {
 	if req.ToolID == ToolIDComputerSetupAnswer && hasSSHSecretAnswer(args) {
 		return req, computerCallError(
 			req.ToolID,
-			"secret_answer_operator_only",
+			ErrorCodeSecretAnswerOperatorOnly,
 			"Answer SSH secrets in the app or CLI.",
 			http.StatusForbidden,
 		)
@@ -144,7 +153,7 @@ func checkComputerForwardable(ctx context.Context, desc Descriptor, req CallRequ
 		desc.ExecutionMetadata().RemoteScope == "" {
 		return computerCallError(
 			req.ToolID,
-			"tool_not_forwardable",
+			ErrorCodeNotForwardable,
 			fmt.Sprintf("%s can't run on another computer.", req.ToolID),
 			http.StatusBadRequest,
 		)

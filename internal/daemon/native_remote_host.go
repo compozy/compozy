@@ -40,7 +40,7 @@ func (n *daemonNativeTools) computerSetupCancel(
 	ctx context.Context, _ toolspkg.Scope, req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	if _, remote := remotehost.PrincipalFromContext(ctx); remote {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError("tool_not_forwardable", req.ToolID,
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeNotForwardable, req.ToolID,
 			"SSH setup is local to this controller.", nil)
 	}
 	var input struct {
@@ -77,7 +77,7 @@ func (n *daemonNativeTools) remoteHostStatus(
 	ctx context.Context, _ toolspkg.Scope, req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	if _, remote := remotehost.PrincipalFromContext(ctx); remote {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError("tool_not_forwardable", req.ToolID,
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeNotForwardable, req.ToolID,
 			"Remote status is local to this computer.", nil)
 	}
 	status := contract.RemoteStatusResponse(n.deps.Remote.Status())

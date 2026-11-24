@@ -1,7 +1,6 @@
 package core
 
 import (
-	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -13,11 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
-
-func DrainComputerResponse(body io.ReadCloser) {
-	_, _ = io.Copy(io.Discard, body)
-	_ = body.Close()
-}
 
 const localComputerPrefix = "/c/local"
 

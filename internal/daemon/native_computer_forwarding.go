@@ -49,7 +49,7 @@ func (f *nativeComputerForwarder) ResolveComputer(
 	if _, remote := remotehost.PrincipalFromContext(ctx); remote {
 		return "", nativeComputerToolError(
 			req.ToolID,
-			"tool_not_forwardable",
+			toolspkg.ErrorCodeNotForwardable,
 			"This call is already on a remote computer.",
 			http.StatusBadRequest,
 			nil,
@@ -58,7 +58,7 @@ func (f *nativeComputerForwarder) ResolveComputer(
 	if !f.sourceMayForward(ctx, scope, descriptor) {
 		return "", nativeComputerToolError(
 			req.ToolID,
-			"tool_forward_denied",
+			toolspkg.ErrorCodeForwardDenied,
 			"This session can't use other computers.",
 			http.StatusForbidden,
 			nil,
@@ -123,7 +123,7 @@ func (f *nativeComputerForwarder) CallComputer(
 	if err != nil {
 		return toolspkg.ToolResult{}, asComputerToolError(req.ToolID, err)
 	}
-	defer core.DrainComputerResponse(response.Body)
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return toolspkg.ToolResult{}, decodeForwardedToolError(req.ToolID, response.StatusCode, response.Body)
 	}
@@ -166,7 +166,10 @@ func decodeForwardedToolError(id toolspkg.ToolID, status int, body io.Reader) er
 		if len(remoteError.Details) > 0 {
 			failure.RemoteDetails = make(map[string]stdjson.RawMessage, len(remoteError.Details))
 			for key, value := range remoteError.Details {
-				encoded, _ := stdjson.Marshal(value)
+				encoded, err := stdjson.Marshal(value)
+				if err != nil {
+					return err
+				}
 				failure.RemoteDetails[key] = encoded
 			}
 		}

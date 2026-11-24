@@ -33,7 +33,7 @@ func (n *daemonNativeTools) controllerComputerBindings() map[toolspkg.ToolID]nat
 func controllerComputerCall(call toolspkg.NativeToolFunc) toolspkg.NativeToolFunc {
 	return func(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest) (toolspkg.ToolResult, error) {
 		if _, remote := remotehost.PrincipalFromContext(ctx); remote {
-			return toolspkg.ToolResult{}, nativeComputerToolError(req.ToolID, "tool_not_forwardable",
+			return toolspkg.ToolResult{}, nativeComputerToolError(req.ToolID, toolspkg.ErrorCodeNotForwardable,
 				"This tool is available on the controller.", http.StatusBadRequest, nil)
 		}
 		result, err := call(ctx, scope, req)
@@ -114,6 +114,11 @@ func (n *daemonNativeTools) computerAdd(
 	}
 	if err := json.Unmarshal(req.Input, &input); err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if (input.Kind == contract.ComputerAddKindAccount && input.ID == "") ||
+		(input.Kind == contract.ComputerAddKindSSH && input.Host == "") {
+		return toolspkg.ToolResult{}, nativeComputerToolError(req.ToolID, toolspkg.ErrorCodeInvalidInput,
+			"Provide id for an account computer or host for SSH setup.", http.StatusBadRequest, nil)
 	}
 	if input.Kind == contract.ComputerAddKindAccount {
 		view, err := n.computersService().AddFromAccount(ctx, input.ID)

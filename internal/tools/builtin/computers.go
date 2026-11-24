@@ -54,7 +54,7 @@ func controllerComputerDescriptors() []toolspkg.Descriptor {
 			"Accept or reject the SSH host key shown by computer setup. The operator enters secrets in the app or CLI.",
 			`{"type":"object","additionalProperties":false,"required":["setup_id","accept"],"properties":{"setup_id":{"type":"string","minLength":1},"accept":{"type":"boolean"}}}`,
 			emptyInputSchema,
-			toolspkg.RiskMutating,
+			toolspkg.RiskOpenWorld,
 		),
 		controllerComputerDescriptor(
 			toolspkg.ToolIDAccountStatus,
@@ -74,17 +74,17 @@ func controllerComputerDescriptor(
 ) toolspkg.Descriptor {
 	descriptor := nativeDescriptor(id, strings.TrimPrefix(id.String(), "compozy__"), title, description, input, risk,
 		risk == toolspkg.RiskRead, risk == toolspkg.RiskDestructive, risk == toolspkg.RiskOpenWorld,
-		nil, []string{"computer", "remote access"}, []string{title})
+		nil, []string{computerTag, remoteAccessTag}, []string{title})
 	descriptor.OutputSchema = []byte(output)
 	return descriptor
 }
 
 const computerAddInput = `{"type":"object","additionalProperties":false,"required":["kind"],"properties":{
-	"kind":{"enum":["ssh","account"]},"id":{"type":"string","minLength":1},"host":{"type":"string","minLength":1},
+	"kind":{"type":"string","enum":["ssh","account"]},
+	"id":{"type":"string","minLength":1,"description":"Required when kind is account."},
+	"host":{"type":"string","minLength":1,"description":"Required when kind is ssh."},
 	"user":{"type":"string"},"port":{"type":"integer","minimum":1,"maximum":65535},"name":{"type":"string"},
-	"trust_host_fingerprint":{"type":"string"}},"oneOf":[
-		{"properties":{"kind":{"const":"ssh"}},"required":["host"]},
-		{"properties":{"kind":{"const":"account"}},"required":["id"]}]}`
+	"trust_host_fingerprint":{"type":"string"}}}`
 
 const computerStatusOutput = `{"type":"object",
 	"required":["id","name","status","enabled","load_balancing_weight","routes","scopes"],

@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -31,6 +32,7 @@ import (
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
@@ -189,12 +191,12 @@ func TestDaemonComputerOperatorForwarding(t *testing.T) {
 		}
 
 		host.uds(t, http.MethodPatch, contract.RemoteDevicesPath+"/"+device.ID, contract.RemoteDevicePatchRequest{
-			Scopes: new([]remoteproto.Scope{remoteproto.ScopeFilesRead}),
+			Scopes: new([]remoteproto.Scope{remoteproto.ScopeFilesR}),
 		}).expect(t, http.StatusOK, "files:read")
 		f.clock.Advance(3 * time.Second)
 		testutil.Eventually(t, "controller reconnects with files:read only", 10*time.Second, func() bool {
 			scopes := readControllerComputer(t, controller, computer).Scopes
-			return len(scopes) == 1 && scopes[0] == remoteproto.ScopeFilesRead
+			return len(scopes) == 1 && scopes[0] == remoteproto.ScopeFilesR
 		})
 		controller.uds(t, http.MethodPost, path, call).expect(t, http.StatusForbidden, "remote_scope_denied")
 	})

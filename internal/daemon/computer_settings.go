@@ -58,7 +58,7 @@ func (d *Daemon) patchLocalComputers(
 		}
 		return nil
 	}, func(next config.Config) error {
-		if err := d.validateComputerSettings(ctx, registry, next.Computers); err != nil {
+		if err := validateComputerSettings(ctx, registry, d.computerSettings(), next.Computers); err != nil {
 			return err
 		}
 		d.localComputers.Store(new(next.Computers))
@@ -72,10 +72,9 @@ func (d *Daemon) patchLocalComputers(
 	return next.Computers, err
 }
 
-func (d *Daemon) validateComputerSettings(
-	ctx context.Context, registry *computers.Registry, next config.ComputersConfig,
+func validateComputerSettings(
+	ctx context.Context, registry *computers.Registry, previous, next config.ComputersConfig,
 ) error {
-	previous := d.computerSettings()
 	if !previous.LocalRunAgents || next.LocalRunAgents {
 		return ctx.Err()
 	}

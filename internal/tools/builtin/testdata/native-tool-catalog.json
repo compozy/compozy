@@ -874,7 +874,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": true,
-    "input_schema_digest": "e49fb339694c6d4bb446d8dbc11b2185213c86ab34d50b3f245ed2db6a09d988",
+    "input_schema_digest": "3d896a1bef18aa18611b875372f33e97bb86e2eea7dd437458246a42655fbf9a",
     "output_schema_digest": "e991e33dfe01ce0943b1b334c7470f8172c435605d97552af5898fc149b0a3f0",
     "result_contract": "single",
     "single_result_reason": "minimal"
@@ -906,10 +906,10 @@
   {
     "tool_id": "compozy__computer_setup_answer",
     "native_name": "computer_setup_answer",
-    "risk": "mutating",
+    "risk": "open_world",
     "read_only": false,
     "destructive": false,
-    "open_world": false,
+    "open_world": true,
     "input_schema_digest": "2ab5c9afd0611cb7fec3c6b231c69a4e2b0c63dc1aab321865c9c92949b62305",
     "output_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
     "result_contract": "single",

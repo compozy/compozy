@@ -40,7 +40,7 @@ func (h *BaseHandlers) computerPlacement(
 	settings := h.Computers.LocalSettings()
 	if !settings.LoadBalancing {
 		return contract.ComputerPlacementResponse{}, computers.NoEligibleComputer(
-			map[string]string{"auto": "load_balancing_disabled"},
+			map[string]string{computers.AutoPlacement: "load_balancing_disabled"},
 		)
 	}
 	views, err := h.Computers.List(ctx)
@@ -108,11 +108,12 @@ func (h *BaseHandlers) samplePlacementCandidate(
 	source remoteproto.ComputerID,
 	project, sourceWorkspace string,
 ) {
-	if c.ComputerID == source {
+	switch {
+	case c.ComputerID == source:
 		c.WorkspaceID = sourceWorkspace
-	} else if c.ComputerID == computers.LocalID {
+	case c.ComputerID == computers.LocalID:
 		c.WorkspaceID = h.localWorkspaceForPlacement(ctx, project)
-	} else {
+	default:
 		var catalog contract.WorkspacesResponse
 		if err := h.readPlacementComputer(ctx, c.ComputerID, placementWorkspacesPath, &catalog); err == nil {
 			for _, workspace := range catalog.Workspaces {
@@ -180,7 +181,7 @@ func (h *BaseHandlers) readPlacementComputer(
 	if err != nil {
 		return err
 	}
-	defer DrainComputerResponse(response.Body)
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("computer placement probe: HTTP %d", response.StatusCode)
 	}

@@ -10,6 +10,7 @@ type ToolExecutionMetadata struct {
 	Idempotent                 bool              `json:"idempotent,omitempty"`
 	InputErrorCode             ErrorCode         `json:"input_error_code,omitempty"`
 	RemoteScope                remoteproto.Scope `json:"remote_scope,omitempty"`
+	computerInput              *computerInputProjection
 }
 
 func NewToolExecutionMetadata(

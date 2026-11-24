@@ -21,7 +21,7 @@ func workAdmissionErrorPayload(err error) *contract.ErrorPayload {
 		}
 	case errors.Is(err, admission.ErrLocalExecutionDisabled):
 		return &contract.ErrorPayload{
-			Code: admission.LocalExecutionDisabledCode, Error: admission.ErrLocalExecutionDisabled.Error(),
+			Code: admission.LocalExecutionDisabledCode, Error: admission.LocalExecutionDisabledMessage,
 		}
 	default:
 		return nil

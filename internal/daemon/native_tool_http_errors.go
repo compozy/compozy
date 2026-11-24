@@ -20,11 +20,11 @@ func nativeHTTPStatusToolError(id toolspkg.ToolID, err error, status int) error 
 		result := toolspkg.NewToolError(
 			admission.LocalExecutionDisabledCode,
 			id,
-			admission.ErrLocalExecutionDisabled.Error(),
+			admission.LocalExecutionDisabledMessage,
 			err,
 		)
 		result.HTTPStatus = http.StatusConflict
-		result.PublicMessage = admission.ErrLocalExecutionDisabled.Error()
+		result.PublicMessage = admission.LocalExecutionDisabledMessage
 		return result
 	}
 	if errors.Is(err, admission.ErrStarting) {

@@ -15,7 +15,7 @@ func gatewayDescriptors() []toolspkg.Descriptor {
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDGateway},
-		[]string{"gateway", "remote access", "exposure", descriptorKeywordAudit, "devices", "providers"},
+		[]string{"gateway", remoteAccessTag, "exposure", descriptorKeywordAudit, "devices", "providers"},
 		[]string{"gateway status", "gateway audit", "repair remote exposure", "manage paired devices"},
 	)
 	descriptor.OutputSchema = []byte(gatewayOutputSchema)

@@ -22,7 +22,7 @@ func (h *BaseHandlers) placeSessionCreation(
 	c *gin.Context,
 	req *contract.CreateSessionRequest,
 ) (remoteproto.ComputerID, bool) {
-	if req.Computer != "auto" {
+	if req.Computer != computers.AutoPlacement {
 		if (req.Computer != "" && req.Computer != string(computers.LocalID)) || req.ProjectComputerID != "" {
 			invalidComputerBody(c)
 			return "", false
@@ -107,7 +107,7 @@ func (h *BaseHandlers) createPlacedRemoteSession(
 		h.computerResult(c, 0, nil, err)
 		return
 	}
-	defer DrainComputerResponse(response.Body)
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusCreated {
 		var failure contract.ErrorPayload
 		if err := json.UnmarshalRead(response.Body, &failure); err != nil {

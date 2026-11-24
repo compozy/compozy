@@ -10,6 +10,7 @@ import (
 )
 
 const LocalID remoteproto.ComputerID = "local"
+const AutoPlacement = "auto"
 
 const maxResourceSampleAge = 15 * time.Second
 

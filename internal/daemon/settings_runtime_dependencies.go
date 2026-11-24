@@ -125,7 +125,9 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 	previous *compozyconfig.Config,
 	next *compozyconfig.Config,
 ) []settingspkg.ApplyFailure {
-	if err := a.daemon.validateComputerSettings(ctx, a.state.runtimeWorkers.computers, next.Computers); err != nil {
+	if err := validateComputerSettings(
+		ctx, a.state.runtimeWorkers.computers, previous.Computers, next.Computers,
+	); err != nil {
 		return []settingspkg.ApplyFailure{
 			configApplyFailure("computers", "Computer settings could not be applied", err),
 		}
