@@ -398,7 +398,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		// One durable row needs you by its unseen failure, one live row by its open question.
 		failed := &Session{
 			ID: "durable-failed", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-read-00",
-			AgentName: "coder", Provider: "claude", State: StateStopped,
+			AgentName: "coder", Provider: "claude", State: StateStopped, RuntimeStatus: store.SessionRuntimeReady,
 			failure:   &store.SessionFailure{Kind: store.FailurePrompt},
 			CreatedAt: benchmarkSessionTime.Add(2 * time.Hour), UpdatedAt: benchmarkSessionTime,
 		}
