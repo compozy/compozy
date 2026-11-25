@@ -260,6 +260,11 @@ describe("Root sign-in gate and 4401 watcher (UT-120, UT-138)", () => {
     expect(await screen.findByTestId("sessions-page")).toBeInTheDocument();
     const navigateSpy = vi.spyOn(router, "navigate");
 
+    // Seed account-scoped metadata before the 4401 revoke transition (AST-010).
+    queryClient.setQueryData(accountKeys.devices(), { devices: [{ id: "dev_a" }] });
+    queryClient.setQueryData(accountKeys.approvals(), { approvals: [{ id: "apr_a" }] });
+    queryClient.setQueryData(accountKeys.tokens(), { tokens: [{ id: "atk_a" }] });
+
     // Daemon signs out and closes operator streams with 4401.
     mocks.fetchAccountStatus.mockResolvedValue(
       makeStatus({
@@ -278,6 +283,9 @@ describe("Root sign-in gate and 4401 watcher (UT-120, UT-138)", () => {
     expect(await screen.findByTestId("u0-sign-in-page")).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/sign-in");
     expect(navigateSpy).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryData(accountKeys.devices())).toBeUndefined();
+    expect(queryClient.getQueryData(accountKeys.approvals())).toBeUndefined();
+    expect(queryClient.getQueryData(accountKeys.tokens())).toBeUndefined();
 
     // Additional 4401 signals while already on /sign-in do not loop navigation.
     await act(async () => {

@@ -2,11 +2,14 @@ import { useSelector, useStore } from "@xstate/store-react";
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
 
 import type { WorktreePayload, WorktreesResponse } from "../types";
 import { workspaceKeys } from "../lib/query-keys";
 import { worktreeMaterializationFailureOptions } from "../lib/query-options";
+import { useWorktreeCatalogStream } from "./use-worktree-catalog-stream";
 import {
   useCancelWorktreeCreate,
   useCreateWorktree,
@@ -83,20 +86,33 @@ function deriveStatus(
  * keeps fresh. A failure keeps the request so the caller can retry, pick another
  * target, or fall back to the workspace root without losing what was typed.
  */
-export function useWorktreeMaterialization(workspaceId: string): WorktreeMaterialization {
+export function useWorktreeMaterialization(
+  workspaceId: string,
+  computerId?: ComputerId
+): WorktreeMaterialization {
+  const scopedComputerId = useCurrentComputerId(computerId);
+  const keys = workspaceKeys.forComputer(scopedComputerId);
   const store = useStore(worktreeMaterializationLogic);
   const queryClient = useQueryClient();
   const request = useSelector(store, snapshot => snapshot.context);
-  const createWorktree = useCreateWorktree(workspaceId);
-  const cancelCreate = useCancelWorktreeCreate(workspaceId);
-  const dismissWorktree = useDismissWorktree(workspaceId);
-  const worktrees = useWorktrees(workspaceId, { enabled: request.status === "active" });
+  const createWorktree = useCreateWorktree(workspaceId, scopedComputerId);
+  const cancelCreate = useCancelWorktreeCreate(workspaceId, scopedComputerId);
+  const dismissWorktree = useDismissWorktree(workspaceId, undefined, scopedComputerId);
+  const worktrees = useWorktrees(workspaceId, {
+    enabled: request.status === "active",
+    computerId: scopedComputerId,
+  });
+  const remoteActive = isRemoteComputerId(scopedComputerId) && request.status === "active";
+  useWorktreeCatalogStream(remoteActive ? [{ id: workspaceId }] : [], {
+    enabled: remoteActive,
+    computerId: scopedComputerId,
+  });
 
   const worktree = request.worktreeId
     ? worktrees.data?.worktrees.find(row => row.id === request.worktreeId)
     : undefined;
   const failure = useQuery(
-    worktreeMaterializationFailureOptions(workspaceId, request.worktreeId ?? "")
+    worktreeMaterializationFailureOptions(workspaceId, request.worktreeId ?? "", scopedComputerId)
   );
   const derived = deriveStatus(request, worktree);
 
@@ -123,7 +139,7 @@ export function useWorktreeMaterialization(workspaceId: string): WorktreeMateria
   const reset = () => {
     if (request.worktreeId) {
       queryClient.removeQueries({
-        queryKey: workspaceKeys.worktreeMaterializationFailure(workspaceId, request.worktreeId),
+        queryKey: keys.worktreeMaterializationFailure(workspaceId, request.worktreeId),
         exact: true,
       });
     }
@@ -160,7 +176,7 @@ export function useWorktreeMaterialization(workspaceId: string): WorktreeMateria
           // A failed creation keeps its name until dismissed, so Retry releases
           // it first; otherwise repeating the same name is refused as taken.
           const failed = queryClient
-            .getQueryData<WorktreesResponse>(workspaceKeys.worktrees(workspaceId))
+            .getQueryData<WorktreesResponse>(keys.worktrees(workspaceId))
             ?.worktrees.find(row => row.id === request.worktreeId && row.state === "failed");
           if (failed) await dismissWorktree.mutateAsync({ worktreeID: failed.id });
           return createWorktree.mutateAsync(value.trim() ? { name: value } : {});

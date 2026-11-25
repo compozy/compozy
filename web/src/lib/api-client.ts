@@ -3,7 +3,12 @@ import createClient, { type Client } from "openapi-fetch";
 import type { paths as compozyPaths } from "@compozy/client";
 import { reportAccountGateResponse } from "./account-gate-signal";
 import { createClientId } from "./client-id";
-import { isRemoteComputerId, LOCAL_COMPUTER_ID, normalizeComputerId } from "./computer-scope";
+import {
+  isRemoteComputerId,
+  LOCAL_COMPUTER_ID,
+  normalizeComputerId,
+  onAccountScopeEvicted,
+} from "./computer-scope";
 import {
   buildBrowserDPoP,
   isHostedBrowserMode,
@@ -163,6 +168,8 @@ export function apiClientFor(computerId?: string | null): Client<compozyPaths> {
 export function clearRemoteApiClients(): void {
   remoteApiClients.clear();
 }
+
+onAccountScopeEvicted(clearRemoteApiClients);
 
 export function apiErrorMessage(error: unknown): string | undefined {
   if (typeof error === "string") {

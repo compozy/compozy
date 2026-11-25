@@ -1,6 +1,6 @@
 import { createStoreLogic } from "@xstate/store";
 
-import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import { isRemoteComputerId, normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
 import type { TerminalQuote } from "@/systems/terminal/parts";
 
@@ -76,6 +76,7 @@ export interface SessionCreateTargetSeed {
 const NO_TARGET_SEED: SessionCreateTargetSeed = { project: null, profile: null };
 
 type SessionCreateStoreEvents = {
+  accountScopeEvicted: {};
   agentSelected: { agentName: string; workspaceId: string };
   computerSelected: { computerId: ComputerId };
   /** The submit is waiting on the environment; the dialog stays open and editable. */
@@ -206,6 +207,17 @@ export const sessionCreateStoreLogic = createStoreLogic<
       },
       submitError: null,
     }),
+    accountScopeEvicted: context => {
+      if (!isRemoteComputerId(context.draft.computerId)) return;
+      return {
+        ...context,
+        open: false,
+        draft: EMPTY_SESSION_CREATE_DRAFT,
+        operation: { status: "idle" },
+        pendingSubmit: null,
+        submitError: null,
+      };
+    },
     computerSelected: (context, event) => {
       if (context.operation.status !== "idle" || context.draft.sent) return;
       const nextDraft = setSessionDraftComputer(context.draft, event.computerId);

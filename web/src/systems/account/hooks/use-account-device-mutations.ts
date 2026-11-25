@@ -1,7 +1,9 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "@compozy/ui";
+
+import { onAccountScopeEvicted } from "@/lib/computer-scope";
 
 import { patchRemoteStatus } from "@/systems/computers/adapters/remote-host-api";
 import { computerRegistryKeys } from "@/systems/computers/lib/query-keys";
@@ -19,6 +21,15 @@ export function useAccountDeviceMutations(devices: readonly AccountDeviceFixture
   const queryClient = useQueryClient();
   const [revokeTarget, setRevokeTarget] = useState<AccountDeviceFixture | null>(null);
   const [revokeApprovalFailure, setRevokeApprovalFailure] = useState<string | null>(null);
+
+  useEffect(
+    () =>
+      onAccountScopeEvicted(() => {
+        setRevokeTarget(null);
+        setRevokeApprovalFailure(null);
+      }),
+    []
+  );
 
   const toggleAdminMutation = useMutation({
     mutationFn: ({ id, admin }: { id: string; admin: boolean }) =>

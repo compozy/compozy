@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { hashKey, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import type { ComputerId } from "@/lib/computer-scope";
+
 import {
   buildWorktreeCreatePreview,
   deriveWorktreeParentDir,
@@ -103,9 +106,15 @@ function fieldForRefusal(refusal: WorktreeRefusal | null): WorktreeCreateFieldEr
 export function useWorktreeCreateDialog(
   workspaceId: string,
   listing: WorktreesResponse | undefined,
-  options: { generatedName: string; onCreated?: (worktree: WorktreePayload) => void }
+  options: {
+    generatedName: string;
+    onCreated?: (worktree: WorktreePayload) => void;
+    computerId?: ComputerId;
+  }
 ): WorktreeCreateDialogModel {
-  const { generatedName, onCreated } = options;
+  const { generatedName, onCreated, computerId } = options;
+  const scopedComputerId = useCurrentComputerId(computerId);
+  const keys = workspaceKeys.forComputer(scopedComputerId);
   const [draft, setDraftState] = useState<WorktreeCreateDraft>(EMPTY_DRAFT);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [pendingWorktree, setPendingWorktree] = useState<WorktreePayload | null>(
@@ -117,14 +126,14 @@ export function useWorktreeCreateDialog(
   const completedWorktreeID = useRef<string | null>(null);
   const completionSubscription = useRef<(() => void) | null>(null);
   const queryClient = useQueryClient();
-  const createMutation = useCreateWorktree(workspaceId);
-  const cancelMutation = useCancelWorktreeCreate(workspaceId);
+  const createMutation = useCreateWorktree(workspaceId, scopedComputerId);
+  const cancelMutation = useCancelWorktreeCreate(workspaceId, scopedComputerId);
   const profileDestination = useAggregateDestination();
   const worktrees = listing?.worktrees ?? [];
   const catalogPending = worktrees.find(worktree => worktree.state === "pending") ?? null;
   const trackedPending = pendingWorktree ?? catalogPending;
   const creationFailure = useQuery(
-    worktreeMaterializationFailureOptions(workspaceId, trackedPending?.id ?? "")
+    worktreeMaterializationFailureOptions(workspaceId, trackedPending?.id ?? "", scopedComputerId)
   );
 
   const parentDir = deriveWorktreeParentDir(worktrees);
@@ -185,11 +194,10 @@ export function useWorktreeCreateDialog(
 
   useEffect(() => {
     if (pendingWorktree || !catalogPending) return;
-    const worktreesQueryHash = hashKey(workspaceKeys.worktrees(workspaceId));
+    const worktreesKey = workspaceKeys.forComputer(scopedComputerId).worktrees(workspaceId);
+    const worktreesQueryHash = hashKey(worktreesKey);
     const finishFromCatalog = () => {
-      const catalog = queryClient.getQueryData<WorktreesResponse>(
-        workspaceKeys.worktrees(workspaceId)
-      );
+      const catalog = queryClient.getQueryData<WorktreesResponse>(worktreesKey);
       const authoritative = catalog?.worktrees.find(
         candidate => candidate.id === catalogPending.id
       );
@@ -204,7 +212,7 @@ export function useWorktreeCreateDialog(
     });
     finishFromCatalog();
     return unsubscribe;
-  }, [catalogPending, onCreated, pendingWorktree, queryClient, workspaceId]);
+  }, [catalogPending, onCreated, pendingWorktree, queryClient, scopedComputerId, workspaceId]);
 
   const listedAccepted =
     trackedPending === null
@@ -266,14 +274,14 @@ export function useWorktreeCreateDialog(
             let catalogSeen = false;
             const finishFromCatalog = () => {
               const failure = queryClient.getQueryData<string>(
-                workspaceKeys.worktreeMaterializationFailure(workspaceId, worktree.id)
+                keys.worktreeMaterializationFailure(workspaceId, worktree.id)
               );
               if (failure?.trim()) {
                 stopCompletionSubscription();
                 return;
               }
               const catalog = queryClient.getQueryData<WorktreesResponse>(
-                workspaceKeys.worktrees(workspaceId)
+                keys.worktrees(workspaceId)
               );
               const authoritative = catalog?.worktrees.find(
                 candidate => candidate.id === worktree.id
@@ -304,7 +312,7 @@ export function useWorktreeCreateDialog(
               stopCompletionSubscription();
               onCreated?.(authoritative);
             };
-            const worktreesQueryHash = hashKey(workspaceKeys.worktrees(workspaceId));
+            const worktreesQueryHash = hashKey(keys.worktrees(workspaceId));
             completionSubscription.current = queryClient.getQueryCache().subscribe(event => {
               if (hashKey(event.query.queryKey) === worktreesQueryHash) finishFromCatalog();
             });

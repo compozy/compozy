@@ -4,7 +4,7 @@ import { useRouter } from "@tanstack/react-router";
 
 import { toast } from "@compozy/ui";
 
-import { evictRemoteComputerQueries } from "@/lib/computer-scope";
+import { evictAccountScopedState, onAccountScopeEvicted } from "@/lib/computer-scope";
 import { unlinkRemoteHost } from "@/systems/computers/adapters/remote-host-api";
 import { computerRegistryKeys } from "@/systems/computers/lib/query-keys";
 import { computersListOptions, remoteStatusOptions } from "@/systems/computers/lib/query-options";
@@ -26,10 +26,10 @@ import {
   openAccountStream,
   startAccountLogin,
   type AccountLoginResponse,
-  type AccountStatusPayload,
 } from "../adapters/account-api";
 import { useOptionalUpgradeSheetActions } from "./use-optional-upgrade-sheet-actions";
 import {
+  buildSignedOutAccountStatus,
   describeBillingApiError,
   isAccountCloudUnreachableError,
   toAccountDeviceView,
@@ -143,10 +143,27 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
   const [signOutRequiresUnlink, setSignOutRequiresUnlink] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
+  useEffect(
+    () =>
+      onAccountScopeEvicted(() => {
+        setLoginAttempt(null);
+        setLoginError(null);
+        setLinkMismatchNotice(false);
+        setSignOutOpen(false);
+        setSignOutRequiresUnlink(false);
+        setSignOutError(null);
+      }),
+    []
+  );
+
   useEffect(() => {
     if (!isSession) return;
     return openAccountStream({
-      onAccountChanged: () => {
+      onAccountChanged: event => {
+        if (event.evict_remote) {
+          evictAccountScopedState(queryClient);
+          return;
+        }
         void queryClient.invalidateQueries({ queryKey: accountKeys.all });
         void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteDevices() });
         void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteStatus() });
@@ -172,8 +189,7 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
           setLoginAttempt(null);
           setLoginError(null);
           setLinkMismatchNotice(false);
-          void queryClient.invalidateQueries({ queryKey: accountKeys.all });
-          void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
+          evictAccountScopedState(queryClient);
           toast.success("Signed in to CompozyOS.");
         } else if (progress.state === "failed" || progress.state === "expired") {
           setLoginAttempt(null);
@@ -197,8 +213,7 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
           setLoginAttempt(null);
           setLoginError(null);
           setLinkMismatchNotice(false);
-          void queryClient.invalidateQueries({ queryKey: accountKeys.all });
-          void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
+          evictAccountScopedState(queryClient);
         }
       },
     });
@@ -272,17 +287,11 @@ export function useAccountSettingsPage(): UseAccountSettingsPageResult {
       logoutAccount({ unlink: Boolean(account?.installationLinked || signOutRequiresUnlink) }),
     onSuccess: () => {
       const gate = statusQuery.data?.gate;
+      const signedOutStatus = buildSignedOutAccountStatus(statusQuery.data, "signed_out");
       setSignOutOpen(false);
       setSignOutRequiresUnlink(false);
       setSignOutError(null);
-      evictRemoteComputerQueries(queryClient, { includeComputers: true });
-      queryClient.setQueryData<AccountStatusPayload | undefined>(accountKeys.status(), current =>
-        current
-          ? { ...current, signed_in: false, state: "signed_out", signed_out_reason: "signed_out" }
-          : current
-      );
-      void queryClient.invalidateQueries({ queryKey: accountKeys.all });
-      void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
+      evictAccountScopedState(queryClient, signedOutStatus ? { seedStatus: signedOutStatus } : {});
       toast.message("Signed out of CompozyOS.");
       if (gate && gate !== "off") {
         void router.navigate({ to: "/sign-in", replace: true });

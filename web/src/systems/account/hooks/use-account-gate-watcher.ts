@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 
 import { observeAccountGateSignal } from "@/lib/account-gate-signal";
-import { evictRemoteComputerQueries } from "@/lib/computer-scope";
+import { evictAccountScopedState } from "@/lib/computer-scope";
 import { isHostedOriginCandidate } from "@/lib/hosted-browser-auth";
 
 import { fetchAccountStatus, openAccountSignInStream } from "../adapters/account-api";
@@ -37,10 +37,14 @@ export function useAccountGateWatcher(): void {
     inFlightRef.current = true;
     try {
       const next = await fetchAccountStatus();
-      queryClient.setQueryData(accountKeys.status(), next);
-      if (!isAccountGateBlocked(next)) return;
+      if (!isAccountGateBlocked(next)) {
+        queryClient.setQueryData(accountKeys.status(), next);
+        return;
+      }
 
-      evictRemoteComputerQueries(queryClient, { includeComputers: true });
+      // Cancel and remove all prior account- and computer-scoped caches and stores, seeding
+      // only the newly confirmed blocked status (Rule 23, AST-010).
+      evictAccountScopedState(queryClient, { seedStatus: next });
       const location = router.state?.location;
       if (!location || typeof router.navigate !== "function") return;
       if (location.pathname === "/sign-in") return;

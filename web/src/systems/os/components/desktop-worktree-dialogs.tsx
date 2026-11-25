@@ -2,6 +2,8 @@ import { lazy, Suspense, type ReactNode } from "react";
 
 import { ConfirmDialog } from "@compozy/ui";
 
+import { normalizeComputerId } from "@/lib/computer-scope";
+import { ComputerScopeContext } from "@/lib/computer-scope-context";
 import { useWorktrees, WorktreeBulkRemoveDialog } from "@/systems/workspace";
 
 import type { useWorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
@@ -112,32 +114,38 @@ export function DesktopWorktreeDialogs({ model, worktreeDialogs }: DesktopWorktr
         </DeferredWorktreeDialog>
       ) : null}
       {worktreeDialogs.removeTarget ? (
-        <DeferredWorktreeDialog onClose={worktreeDialogs.closeRemove}>
-          <WorktreeRemoveDialogBoundary
-            workspaceId={worktreeDialogs.removeTarget.workspaceId}
-            worktree={worktreeDialogs.removeTarget.worktree}
-            onClose={worktreeDialogs.closeRemove}
-          />
-        </DeferredWorktreeDialog>
+        <ComputerScopeContext value={normalizeComputerId(worktreeDialogs.removeTarget.computerId)}>
+          <DeferredWorktreeDialog onClose={worktreeDialogs.closeRemove}>
+            <WorktreeRemoveDialogBoundary
+              workspaceId={worktreeDialogs.removeTarget.workspaceId}
+              worktree={worktreeDialogs.removeTarget.worktree}
+              onClose={worktreeDialogs.closeRemove}
+            />
+          </DeferredWorktreeDialog>
+        </ComputerScopeContext>
       ) : null}
       {worktreeDialogs.missingTarget ? (
-        <DeferredWorktreeDialog onClose={worktreeDialogs.closeMissing}>
-          <WorktreeMissingDialogBoundary
-            workspaceId={worktreeDialogs.missingTarget.workspaceId}
-            worktree={worktreeDialogs.missingTarget.worktree}
-            onClose={worktreeDialogs.closeMissing}
-          />
-        </DeferredWorktreeDialog>
+        <ComputerScopeContext value={normalizeComputerId(worktreeDialogs.missingTarget.computerId)}>
+          <DeferredWorktreeDialog onClose={worktreeDialogs.closeMissing}>
+            <WorktreeMissingDialogBoundary
+              workspaceId={worktreeDialogs.missingTarget.workspaceId}
+              worktree={worktreeDialogs.missingTarget.worktree}
+              onClose={worktreeDialogs.closeMissing}
+            />
+          </DeferredWorktreeDialog>
+        </ComputerScopeContext>
       ) : null}
       {worktreeDialogs.contextTarget ? (
-        <DeferredWorktreeDialog onClose={worktreeDialogs.closeContext}>
-          <WorktreeContextDialogBoundary
-            workspaceId={worktreeDialogs.contextTarget.workspaceId}
-            worktree={worktreeDialogs.contextTarget.worktree}
-            onCleanUp={worktreeDialogs.requestContextCleanup}
-            onClose={worktreeDialogs.closeContext}
-          />
-        </DeferredWorktreeDialog>
+        <ComputerScopeContext value={normalizeComputerId(worktreeDialogs.contextTarget.computerId)}>
+          <DeferredWorktreeDialog onClose={worktreeDialogs.closeContext}>
+            <WorktreeContextDialogBoundary
+              workspaceId={worktreeDialogs.contextTarget.workspaceId}
+              worktree={worktreeDialogs.contextTarget.worktree}
+              onCleanUp={worktreeDialogs.requestContextCleanup}
+              onClose={worktreeDialogs.closeContext}
+            />
+          </DeferredWorktreeDialog>
+        </ComputerScopeContext>
       ) : null}
     </>
   );
