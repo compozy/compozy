@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/compozy/compozy/internal/cloud/plan"
 	"github.com/compozy/compozy/internal/cloud/store"
@@ -23,7 +24,8 @@ func TestCloudStore(t *testing.T) {
 
 	t.Run("Should count only linked enabled computers and active reservations (UT-004)", func(t *testing.T) {
 		t.Parallel()
-		db, conn, cloud := openCloudStore(t)
+		db := remotetest.NewDatabase(t)
+		conn, cloud := openCloudStore(t, db)
 		ctx := t.Context()
 		now := time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC)
 		seedPlanUsage(t, conn, now)
@@ -63,8 +65,16 @@ func TestCloudStore(t *testing.T) {
 
 	t.Run("Should enforce append-only audit storage and compact expired rows (UT-139)", func(t *testing.T) {
 		t.Parallel()
-		_, conn, cloud := openCloudStore(t)
+		db := remotetest.NewOwnedDatabase(t)
+		conn, cloud := openCloudStore(t, db)
 		ctx := t.Context()
+		var nonSuperuserOwner bool
+		if err := conn.QueryRow(ctx, `
+			SELECT NOT r.rolsuper AND r.rolcanlogin AND r.rolname = session_user AND r.rolname = current_user
+			FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = current_database()
+		`).Scan(&nonSuperuserOwner); err != nil || !nonSuperuserOwner {
+			t.Fatalf("expected to connect as a non-superuser database owner, got %t: %v", nonSuperuserOwner, err)
+		}
 		now := time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC)
 		old := now.AddDate(-1, 0, -1)
 		safe := map[string]any{"device_name": "laptop", "location": "Lisbon, PT"}
@@ -93,10 +103,11 @@ func TestCloudStore(t *testing.T) {
 		for _, query := range []string{
 			"UPDATE security_events SET type = 'changed'",
 			"DELETE FROM security_events",
-			"TRUNCATE security_events",
+			"TRUNCATE security_events CASCADE",
 		} {
-			if _, err := conn.Exec(ctx, query); err == nil {
-				t.Errorf("%s bypassed append-only trigger", query)
+			_, err := conn.Exec(ctx, query)
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); !ok || pgErr.Code != "55000" {
+				t.Errorf("%s: expected append-only rejection, got %v", query, err)
 			}
 		}
 		for range 2 {
@@ -105,12 +116,12 @@ func TestCloudStore(t *testing.T) {
 			}
 		}
 		assertAuditRetention(t, conn)
+		assertRetentionMarkerRestored(t, conn, now.AddDate(-1, 0, 0))
 	})
 }
 
-func openCloudStore(t *testing.T) (*remotetest.Database, *pgx.Conn, *store.Store) {
+func openCloudStore(t *testing.T, db *remotetest.Database) (*pgx.Conn, *store.Store) {
 	t.Helper()
-	db := remotetest.NewDatabase(t)
 	db.Migrate(t)
 	cfg := db.Config(t, "store")
 	cloud, err := store.Open(t.Context(), cfg)
@@ -129,7 +140,7 @@ func openCloudStore(t *testing.T) (*remotetest.Database, *pgx.Conn, *store.Store
 			t.Errorf("close Postgres connection: %v", err)
 		}
 	})
-	return db, conn, cloud
+	return conn, cloud
 }
 
 func seedPlanUsage(t *testing.T, conn *pgx.Conn, now time.Time) {
@@ -188,5 +199,30 @@ func assertAuditRetention(t *testing.T, conn *pgx.Conn) {
 	}
 	if !maps.Equal(counts, map[string]int64{"device_enrolled": 2, "device_revoked": 1}) {
 		t.Fatalf("compacted counts = %v", counts)
+	}
+}
+
+func assertRetentionMarkerRestored(t *testing.T, conn *pgx.Conn, cutoff time.Time) {
+	t.Helper()
+	ctx := t.Context()
+	err := pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SET LOCAL compozy.security_event_retention = 'off'"); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, "INSERT INTO security_event_retention (cutoff) VALUES ($1)", cutoff); err != nil {
+			return err
+		}
+		var marker string
+		if err := tx.QueryRow(ctx, "SELECT current_setting('compozy.security_event_retention')").
+			Scan(&marker); err != nil {
+			return err
+		}
+		if marker != "off" {
+			t.Errorf("retention marker after compaction = %q, want previous value %q", marker, "off")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("check retention marker in an open transaction: %v", err)
 	}
 }

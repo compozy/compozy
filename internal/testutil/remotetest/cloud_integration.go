@@ -34,6 +34,42 @@ type Database struct {
 
 func NewDatabase(t *testing.T) *Database {
 	t.Helper()
+	return OpenDatabase(t, cloudTestPostgresDSN(t))
+}
+
+// NewOwnedDatabase uses the test server's bootstrap login to provision a database for a fresh owner login.
+func NewOwnedDatabase(t *testing.T) *Database {
+	t.Helper()
+	dsn := cloudTestPostgresDSN(t)
+	appURL := parseCloudTestPostgresURL(t, dsn)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	admin := openCloudTestPostgresPool(t, ctx, dsn)
+	name := "remote_" + strings.ToLower(rand.Text())
+	identifier := pgx.Identifier{name}.Sanitize()
+	password := rand.Text()
+	if _, err := admin.Exec(ctx, "CREATE ROLE "+identifier+" LOGIN NOSUPERUSER PASSWORD '"+password+"'"); err != nil {
+		t.Fatalf("create cloud test database owner: %v", err)
+	}
+	cleanupCloudTestPostgres(t, admin, "DROP ROLE "+identifier)
+	if _, err := admin.Exec(ctx, "CREATE DATABASE "+identifier+" OWNER "+identifier); err != nil {
+		t.Fatalf("create owned cloud test database: %v", err)
+	}
+	cleanupCloudTestPostgres(t, admin, "DROP DATABASE "+identifier)
+	appURL.User = url.UserPassword(name, password)
+	appURL.Path = "/" + name
+	query := appURL.Query()
+	query.Del("user")
+	query.Del("password")
+	query.Del("database")
+	query.Del("dbname")
+	appURL.RawQuery = query.Encode()
+	appDSN := appURL.String()
+	return &Database{Schema: "public", Pool: openCloudTestPostgresPool(t, ctx, appDSN), dsn: appDSN}
+}
+
+func cloudTestPostgresDSN(t *testing.T) string {
+	t.Helper()
 	dsn := os.Getenv(postgresEnv)
 	if dsn == "" {
 		if os.Getenv("CI") == "true" {
@@ -41,31 +77,42 @@ func NewDatabase(t *testing.T) *Database {
 		}
 		t.Skipf("set %s to run the Postgres-backed cloud suite", postgresEnv)
 	}
-	return OpenDatabase(t, dsn)
+	return dsn
 }
 
 func OpenDatabase(t Fixture, dsn string) *Database {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	pool, err := pgxpool.New(ctx, dsn)
-	if err != nil {
-		t.Fatal("could not configure cloud test Postgres")
-	}
-	t.Cleanup(pool.Close)
+	pool := openCloudTestPostgresPool(t, ctx, dsn)
 	schema := "remote_" + strings.ToLower(rand.Text())
 	identifier := pgx.Identifier{schema}.Sanitize()
 	if _, err := pool.Exec(ctx, "CREATE SCHEMA "+identifier); err != nil {
 		t.Fatalf("create cloud test schema: %v", err)
 	}
+	cleanupCloudTestPostgres(t, pool, "DROP SCHEMA "+identifier+" CASCADE")
+	return &Database{Schema: schema, Pool: pool, dsn: dsn}
+}
+
+func openCloudTestPostgresPool(t Fixture, ctx context.Context, dsn string) *pgxpool.Pool {
+	t.Helper()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal("could not configure cloud test Postgres")
+	}
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+func cleanupCloudTestPostgres(t Fixture, pool *pgxpool.Pool, statement string) {
+	t.Helper()
 	t.Cleanup(func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if _, err := pool.Exec(cleanup, "DROP SCHEMA "+identifier+" CASCADE"); err != nil {
-			t.Errorf("drop cloud test schema: %v", err)
+		if _, err := pool.Exec(cleanup, statement); err != nil {
+			t.Errorf("clean up cloud test Postgres (%s): %v", statement, err)
 		}
 	})
-	return &Database{Schema: schema, Pool: pool, dsn: dsn}
 }
 
 func (db *Database) Config(t Fixture, replica string) store.Config {
@@ -93,15 +140,21 @@ func (db *Database) ApplicationName(replica, kind string) string {
 
 func (db *Database) connectionURL(t Fixture, application string) string {
 	t.Helper()
-	parsed, err := url.Parse(db.dsn)
-	if err != nil || parsed.Hostname() == "" {
-		t.Fatalf("%s must be a Postgres URL", postgresEnv)
-	}
+	parsed := parseCloudTestPostgresURL(t, db.dsn)
 	query := parsed.Query()
 	query.Set("search_path", db.Schema)
 	query.Set("application_name", application)
 	parsed.RawQuery = query.Encode()
 	return parsed.String()
+}
+
+func parseCloudTestPostgresURL(t Fixture, dsn string) *url.URL {
+	t.Helper()
+	parsed, err := url.Parse(dsn)
+	if err != nil || parsed.Hostname() == "" {
+		t.Fatalf("%s must be a Postgres URL", postgresEnv)
+	}
+	return parsed
 }
 
 type Replica struct {
