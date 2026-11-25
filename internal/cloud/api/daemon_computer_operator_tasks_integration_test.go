@@ -158,15 +158,17 @@ func TestDaemonComputerOperatorForwarding(t *testing.T) {
 		created := controller.uds(t, http.MethodPost, path, call)
 		created.expect(t, http.StatusOK, "Forwarded session")
 		result := authJSON[contract.ToolInvokeResponse](t, created)
-		var session contract.SessionPayload
-		if err := json.Unmarshal(result.Result.Structured, &session); err != nil ||
-			result.Meta == nil || result.Meta.ComputerID != computer || session.ID == "" || session.WorkspaceID != workspace {
+		var forwarded contract.SessionResponse
+		if err := json.Unmarshal(result.Result.Structured, &forwarded); err != nil ||
+			result.Meta == nil || result.Meta.ComputerID != computer ||
+			forwarded.Session.ID == "" || forwarded.Session.WorkspaceID != workspace {
 			t.Fatalf("forwarded session result = %s (%v)", created.body, err)
 		}
-		host.uds(t, http.MethodGet, controllerSessions+"/"+session.ID, nil).
+		sessionID := forwarded.Session.ID
+		host.uds(t, http.MethodGet, controllerSessions+"/"+sessionID, nil).
 			expect(t, http.StatusOK, "Forwarded session")
-		controller.uds(t, http.MethodGet, controllerSessions+"/"+session.ID, nil).expect(t, http.StatusNotFound, "")
-		assertForwardedSessionList(t, controller, host, computer, allowed, session.ID)
+		controller.uds(t, http.MethodGet, controllerSessions+"/"+sessionID, nil).expect(t, http.StatusNotFound, "")
+		assertForwardedSessionList(t, controller, host, computer, allowed, sessionID)
 
 		before := arrivals.Load()
 		deniedCall := contract.ToolInvokeRequest{Input: input, SessionID: denied}

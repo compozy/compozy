@@ -491,7 +491,8 @@ func TestDaemonSignOutKeepsClaimedWork(t *testing.T) {
 			).
 				expect(t, http.StatusOK, run)
 			lease := "/tasks/" + run
-			callAgent(lease+"/start", struct{}{}, true).expect(t, http.StatusOK, "running")
+			callAgent(lease+"/start", contract.StartTaskRunRequest{IdempotencyKey: "it-102-start"}, true).
+				expect(t, http.StatusOK, "running")
 			d.uds(t, http.MethodPost, contract.AccountLogoutPath, contract.AccountLogoutRequest{}).
 				expect(t, http.StatusOK, "signed_out")
 			expectTerminalClose(t, terminal.connection, 4401)
