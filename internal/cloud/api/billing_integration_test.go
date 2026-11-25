@@ -598,7 +598,7 @@ func testCloudConversions(t *testing.T) {
 			"route": remoteproto.RouteCloud,
 		},
 	).expect(t, http.StatusPaymentRequired, "plan_required")
-	for _, interval := range []string{"month", "year"} {
+	for _, interval := range []string{"year", "month"} {
 		remoteCloudRequest(
 			t,
 			f,
@@ -613,11 +613,17 @@ func testCloudConversions(t *testing.T) {
 	if len(checkouts) != 2 {
 		t.Fatalf("expected two Stripe checkouts, got %d", len(checkouts))
 	}
-	completed := stripe.Complete(checkouts[0].ID)
-	stripe.Expire(checkouts[1].ID)
+	annual, monthly := checkouts[0], checkouts[1]
+	if annual.Status != "expired" {
+		t.Fatalf("the replaced annual Checkout has status %q", annual.Status)
+	}
+	completed := stripe.Complete(monthly.ID)
+	if completed.Sub == "" {
+		t.Fatal("the monthly Checkout did not accept payment")
+	}
 	conversionCheckoutEvent(t, f, "evt_conversion_complete", "completed", completed.ID, completed.Sub)
 	conversionCheckoutEvent(t, f, "evt_conversion_complete", "completed", completed.ID, completed.Sub)
-	conversionCheckoutEvent(t, f, "evt_conversion_expired", "expired", checkouts[1].ID, "")
+	conversionCheckoutEvent(t, f, "evt_conversion_expired", "expired", annual.ID, "")
 	stripe.Put(remotetest.StripeSubscription{
 		ID: completed.Sub, Account: owner.account, Status: "canceled", Price: remotetest.StripeMonthly,
 		Interval: "month", PeriodEnd: f.clock.Now(), CancellationReason: "cancellation_requested",
