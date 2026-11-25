@@ -110,11 +110,8 @@ func assertUnredeemedBrowserKeys(t *testing.T, browser hostedBrowser, host daemo
 			Scan(&device, &jkt); err != nil {
 			t.Fatal(err)
 		}
-		if snapshot := readHostedBrowserSnapshot(
-			t,
-			host,
-		); snapshot.SecurityEpoch != epoch ||
-			snapshot.Allows(device, jkt, nil) {
+		snapshot := readRemoteHostSnapshot(t, host)
+		if snapshot.SecurityEpoch != epoch || snapshot.Allows(device, jkt, nil) {
 			t.Fatal("an unredeemed browser key changed the host's applied security snapshot")
 		}
 		f.clock.Advance(61 * time.Second)
