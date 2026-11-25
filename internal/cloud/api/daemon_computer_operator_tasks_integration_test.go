@@ -263,21 +263,30 @@ func assertForwardedSessionList(
 	t *testing.T,
 	controller, host daemonAccountFixture,
 	computer remoteproto.ComputerID,
-	caller, session string,
+	caller, projectSessionID string,
 ) {
 	t.Helper()
-	// UT-105 wire control. Only the controller envelope identifies the computer.
+	// UT-105: an unscoped operator list reads the destination profile's User sessions.
+	userSession := host.uds(t, http.MethodPost, controllerSessions, contract.CreateSessionRequest{
+		Scope: "user", AgentName: computerFixtureAgent, Name: "Target User session",
+	})
+	userSession.expect(t, http.StatusCreated, "Target User session")
+	userSessionID := authJSON[contract.SessionResponse](t, userSession).Session.ID
+
 	path := computerInvokePath(toolspkg.ToolIDSessionList)
 	remote := controller.uds(t, http.MethodPost, path, contract.ToolInvokeRequest{
 		SessionID: caller, Input: json.RawMessage(`{"computer":"devbox"}`),
 	})
-	remote.expect(t, http.StatusOK, session)
+	remote.expect(t, http.StatusOK, userSessionID)
 	canonical := host.uds(t, http.MethodPost, path, contract.ToolInvokeRequest{Input: json.RawMessage(`{}`)})
-	canonical.expect(t, http.StatusOK, session)
+	canonical.expect(t, http.StatusOK, userSessionID)
 	want, got := authJSON[contract.ToolInvokeResponse](t, canonical), authJSON[contract.ToolInvokeResponse](t, remote)
-	if got.Meta == nil || got.Meta.ComputerID != computer ||
+	if want.Meta != nil || got.Meta == nil || got.Meta.ComputerID != computer ||
 		!bytes.Equal(got.Result.Structured, want.Result.Structured) {
 		t.Fatalf("forwarded list differs from target list: got %s, want %s", remote.body, canonical.body)
+	}
+	if bytes.Contains(got.Result.Structured, []byte(projectSessionID)) {
+		t.Fatalf("forwarded User list included project session %s", projectSessionID)
 	}
 }
 

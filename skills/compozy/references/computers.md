@@ -19,7 +19,7 @@
 
 Use `compozy__computer_list` for the registry and local execution settings. Pass `id` to `compozy__computer_status` and `compozy__computer_remove`. Add a linked computer with `compozy__computer_add` using `{"kind":"account","id":"<id>"}`.
 
-Call native tools with a declared `remote_scope` using an optional `computer` name or ID. `compozy__session_list` accepts `{"computer":"devbox"}`. The source session policy, pre-call hooks and approvals apply before the destination checks the device's scopes and its own operator policy. The result is the destination's result and `_meta.computer_id` identifies where it ran. A session confined to workspace paths receives `tool_forward_denied`. Task leases and controller-local tools return `tool_not_forwardable` when given `computer`.
+Call native tools with a declared `remote_scope` using an optional `computer` name or ID. `compozy__session_list` with `{"computer":"devbox"}` lists sessions in User on the destination. Supply the destination's workspace name or ID in `workspace` to list a project. The source session policy, pre-call hooks and approvals apply before the destination checks the device's scopes and its own operator policy. The result is the destination's result and `_meta.computer_id` identifies where it ran. A session confined to workspace paths receives `tool_forward_denied`. Task leases and controller-local tools return `tool_not_forwardable` when given `computer`.
 
 ## Automatic session placement
 
