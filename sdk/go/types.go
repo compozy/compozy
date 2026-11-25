@@ -48,8 +48,6 @@ const ExtensionServiceMethodToolsCall = "tools/call"
 // ExtensionServiceMethodWatchPoll is the watch-source poll service method.
 const ExtensionServiceMethodWatchPoll = "watch/poll"
 
-const ()
-
 const (
 	// ExtensionServiceMethodForgeCapabilities reports provider vocabulary and availability.
 	ExtensionServiceMethodForgeCapabilities = "forge/capabilities"
