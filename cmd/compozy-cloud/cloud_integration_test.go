@@ -648,10 +648,13 @@ func restoreFixtureEnvironment(t *testing.T, rejectPut func(string) bool) map[st
 		key := strings.TrimPrefix(r.URL.Path, "/restore-fixture/")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Query().Get("list-type") == "2":
+			prefix := r.URL.Query().Get("prefix")
 			type item struct{ Key string }
 			var items []item
 			for name := range objects {
-				items = append(items, item{name})
+				if strings.HasPrefix(name, prefix) {
+					items = append(items, item{name})
+				}
 			}
 			if err := xml.NewEncoder(w).Encode(struct {
 				XMLName  xml.Name `xml:"ListBucketResult"`

@@ -74,7 +74,9 @@ func (s *Sessions) BeginRequest(
 	request, cancel := context.WithCancelCause(ctx)
 	live := &liveRequest{principal: principal, session: session, cancel: cancel}
 	if !mutation {
-		live.tunnel, _ = ctx.Value(tunnelLifetimeKey{}).(*tunnelLifetime)
+		if tunnel, ok := ctx.Value(tunnelLifetimeKey{}).(*tunnelLifetime); ok {
+			live.tunnel = tunnel
+		}
 	}
 	s.live[live] = struct{}{}
 	request = context.WithValue(request, requestKey{}, live)
@@ -137,8 +139,8 @@ func (s *Sessions) endRequests(match func(Session) error) int {
 }
 
 func (s *Sessions) renewTunnelRequests(ctx context.Context, session Session, now time.Time) {
-	tunnel, _ := ctx.Value(tunnelLifetimeKey{}).(*tunnelLifetime)
-	if tunnel == nil {
+	tunnel, ok := ctx.Value(tunnelLifetimeKey{}).(*tunnelLifetime)
+	if !ok || tunnel == nil {
 		return
 	}
 	s.mu.Lock()

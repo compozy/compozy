@@ -237,7 +237,7 @@ func (s *supervisor) mint(ctx context.Context, link *connection) routeProblem {
 		if err != nil {
 			return err
 		}
-		session, err := link.tunnel.mint(ctx, grant, credentials.Key, r.clock.Now())
+		session, err := link.mint(ctx, grant, credentials.Key, r.clock.Now())
 		if err != nil {
 			failure = activeFailure(err)
 			return err
