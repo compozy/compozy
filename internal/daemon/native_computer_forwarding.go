@@ -93,7 +93,7 @@ func (f *nativeComputerForwarder) sourceMayForward(
 			WorkspaceID: info.WorkspaceID, AgentName: info.AgentName},
 		Target: workspaceaccess.TargetRef{
 			Kind:        workspaceaccess.TargetAggregate,
-			AllProfiles: true,
+			AllProfiles: descriptor.ReadOnly,
 			Surface:     "remote_computers",
 		},
 		Seam:     workspaceaccess.SeamTool,

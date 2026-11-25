@@ -98,10 +98,7 @@ func TestDaemonComputerOperatorTerminal(t *testing.T) {
 		if err := os.Mkdir(project, 0o700); err != nil {
 			t.Fatal(err)
 		}
-		fifo := filepath.Join(project, "resume")
-		if output, err := exec.CommandContext(t.Context(), "mkfifo", fifo).CombinedOutput(); err != nil {
-			t.Fatalf("create terminal replay fixture: %s: %v", output, err)
-		}
+		fifo := prepareOperatorTerminalReplay(t, project)
 		workspace := registerOperatorWorkspace(t, host, project)
 		path := openOperatorTerminal(t, controller, id, workspace)
 		socket := attachOperatorTerminal(t, controller, id, path, 0)
@@ -212,6 +209,15 @@ func startOperatorTerminalReplay(t *testing.T, socket *websocket.Conn) uint64 {
 		t.Fatalf("remote shell PID %s absent from the target process table: %s: %v", pid, result, err)
 	}
 	return cursor
+}
+
+func prepareOperatorTerminalReplay(t *testing.T, project string) string {
+	t.Helper()
+	fifo := filepath.Join(project, "resume")
+	if output, err := exec.CommandContext(t.Context(), "mkfifo", fifo).CombinedOutput(); err != nil {
+		t.Fatalf("create terminal replay fixture: %s: %v", output, err)
+	}
+	return fifo
 }
 
 func releaseOperatorTerminalReplay(t *testing.T, fifo string) {
@@ -448,7 +454,9 @@ func TestDaemonSignOutKeepsClaimedWork(t *testing.T) {
 			progress := d.stream(t, contract.AccountSignInEventsPath, "")
 			const address = "continuation@example.test"
 			signInDaemonAccount(t, f, d, progress, address)
-			workspace := registerOperatorWorkspace(t, d, prepareOperatorProject(t, root))
+			project := prepareOperatorProject(t, root)
+			fifo := prepareOperatorTerminalReplay(t, project)
+			workspace := registerOperatorWorkspace(t, d, project)
 			local := operatorBridge{t: t, host: d, controller: d}
 			run := local.enqueueTask(workspace, taskpkg.WorktreeModeNone)
 			session := local.createSession(workspace)
@@ -500,10 +508,11 @@ func TestDaemonSignOutKeepsClaimedWork(t *testing.T) {
 			}).expect(t, http.StatusUnauthorized, "sign_in_required")
 			waitDaemonAccountState(t, d, account.SignedOut, "signed_out")
 			releaseTurn()
+			releaseOperatorTerminalReplay(t, fifo)
 
 			signInDaemonAccount(t, f, d, progress, address)
 			now := attachDaemonTerminal(t, d, terminal.path, terminal.cursor)
-			_, _ = readOperatorOutput(t, now, "\r\nsign-out-pty-still-running\r\n")
+			readOperatorOutput(t, now, "sign-out-pty-still-running\r\n")
 			testutil.Eventually(t, "turn finishes across sign-out", 8*time.Second, func() bool {
 				reply := d.uds(t, http.MethodGet, sessionPath+"/history", nil)
 				return reply.StatusCode == http.StatusOK &&
@@ -528,7 +537,7 @@ func openSignOutTerminal(t *testing.T, d daemonAccountFixture, workspace string)
 	reply.expect(t, http.StatusCreated, "sign-out PTY")
 	path += "/" + string(authJSON[contract.TerminalResponse](t, reply).Terminal.ID)
 	socket := attachDaemonTerminal(t, d, path, 0)
-	input := "printf 'sign-out-pty-%s\n' ready; sleep 3; printf 'sign-out-pty-%s\n' still-running\n"
+	input := "printf 'sign-out-pty-%s\\n' ready; read line < resume; printf 'sign-out-pty-%s\\n' still-running\n"
 	frame, err := terminalwire.EncodeClient(terminalwire.Frame{Op: terminalwire.ClientOpInput, Payload: []byte(input)})
 	if err != nil {
 		t.Fatal(err)

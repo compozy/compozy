@@ -49,6 +49,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 	"github.com/compozy/compozy/internal/version"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/zalando/go-keyring"
 )
 
@@ -268,10 +269,24 @@ func seedLegacyAccountHome(t *testing.T, paths config.HomePaths, project string)
 			t.Fatal(err)
 		}
 	}
-	if _, err := db.ExecContext(ctx, `INSERT INTO automation_jobs
-		(id, profile_id, scope, name, agent_name, workspace_id, prompt, enabled, retry, fire_limit, created_at, updated_at)
-		VALUES ('job_legacy_upgrade', ?, 'workspace', 'Keep this job', ?, 'ws_legacy_upgrade',
-		        'Keep this prompt', 0, '{}', '{}', ?, ?)`, store.DefaultProfileID, config.DefaultAgentName, at, at); err != nil {
+	// v0.7.8 persisted dynamic job definitions as resources.
+	job := automation.Job{
+		ID: "job_legacy_upgrade", ProfileID: store.DefaultProfileID,
+		Scope: automation.AutomationScopeWorkspace, WorkspaceID: "ws_legacy_upgrade",
+		Name: "Keep this job", AgentName: config.DefaultAgentName, Prompt: "Keep this prompt",
+		Schedule: &automation.ScheduleSpec{Mode: automation.ScheduleModeEvery, Interval: "24h"},
+		Source:   automation.JobSourceDynamic, Retry: automation.DefaultRetryConfig(),
+		FireLimit: automation.DefaultFireLimitConfig(), CreatedAt: created, UpdatedAt: created,
+	}
+	spec, err := json.Marshal(job)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO resource_records
+		(kind, id, version, scope_kind, scope_id, owner_kind, owner_id, source_kind, source_id,
+		 spec_json, created_at, updated_at)
+		VALUES ('automation.job', ?, 1, 'workspace', ?, 'daemon', 'automation.dynamic',
+		        'daemon', 'automation.dynamic', ?, ?, ?)`, job.ID, job.WorkspaceID, string(spec), at, at); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -791,7 +806,8 @@ func TestRequiredSignInDaemon(t *testing.T) {
 		reply.expect(t, http.StatusOK, "Keep this job")
 		job := authJSON[contract.JobResponse](t, reply).Job
 		if job.ID != "job_legacy_upgrade" || job.Name != "Keep this job" || job.AgentName != config.DefaultAgentName ||
-			job.Prompt != "Keep this prompt" || job.Enabled || job.WorkspaceID != workspace.ID {
+			job.Prompt != "Keep this prompt" || job.Enabled || job.WorkspaceID != workspace.ID ||
+			job.Schedule == nil || job.Schedule.Mode != automation.ScheduleModeEvery || job.Schedule.Interval != "24h" {
 			t.Fatalf("upgraded job = %+v", job)
 		}
 		d.stop()
@@ -895,7 +911,8 @@ func TestRequiredSignInDaemon(t *testing.T) {
 
 		// Reopening with the gate off exposes the same local session without changing the stored account state.
 		d, _ = startConfiguredDaemonAccount(t, f, home, daemonAccountBoot{keyring: ring})
-		d.uds(t, http.MethodGet, "/api/sessions?workspace_id=user", nil).expect(t, http.StatusOK, kept)
+		d.uds(t, http.MethodGet, "/api/sessions?workspace_id="+workspaceaccess.UserSelector, nil).
+			expect(t, http.StatusOK, kept)
 	})
 
 	t.Run(
@@ -936,12 +953,14 @@ func TestRequiredSignInDaemon(t *testing.T) {
 			if status != 1 || !strings.Contains(stderr, "Sign in to use CompozyOS: compozy account login") {
 				t.Fatalf("computer list exit = %d, stderr = %q", status, stderr)
 			}
+			workspace := registerOperatorWorkspace(t, d, t.TempDir())
 			created := d.uds(t, http.MethodPost, "/api/automation/jobs", contract.CreateJobRequest{
-				Scope:     automation.AutomationScopeGlobal,
-				AgentName: operatorTaskAgent,
-				Name:      "Grace job",
-				Prompt:    accountTransitionPrompt,
-				Schedule:  automation.ScheduleSpec{Mode: automation.ScheduleModeEvery, Interval: "1m"},
+				Scope:       automation.AutomationScopeWorkspace,
+				WorkspaceID: workspace,
+				AgentName:   operatorTaskAgent,
+				Name:        "Grace job",
+				Prompt:      accountTransitionPrompt,
+				Schedule:    automation.ScheduleSpec{Mode: automation.ScheduleModeEvery, Interval: "1m"},
 			})
 			created.expect(t, http.StatusCreated, "Grace job")
 			jobID := authJSON[contract.JobResponse](t, created).Job.ID
