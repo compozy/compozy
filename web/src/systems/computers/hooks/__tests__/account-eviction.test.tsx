@@ -19,6 +19,7 @@ import {
   isSessionStreamLive,
   retainSessionStreamLiveness,
 } from "@/systems/session/lib/session-stream-liveness";
+import { createDeferred } from "@/test/event-recorder";
 
 import { computerRegistryKeys } from "../../lib/query-keys";
 import { useAccountRemoteEviction } from "../use-account-eviction";
@@ -210,15 +211,13 @@ describe("useAccountRemoteEviction (IT-026 web adapter)", () => {
 
     // Start an in-flight account devices fetch for Account A so eviction must abort it.
     let inFlightSignal: AbortSignal | undefined;
-    let resolveInFlight: ((value: unknown) => void) | null = null;
+    const lateDevices = createDeferred<unknown>();
     const inFlightFetch = queryClient
       .fetchQuery({
         queryKey: accountKeys.devices(),
         queryFn: ({ signal }) => {
           inFlightSignal = signal;
-          return new Promise(resolve => {
-            resolveInFlight = resolve;
-          });
+          return lateDevices.promise;
         },
       })
       .catch(() => undefined);
@@ -248,7 +247,7 @@ describe("useAccountRemoteEviction (IT-026 web adapter)", () => {
       });
 
       // Even if the cancelled in-flight request resolves late, A's devices must not land in cache.
-      resolveInFlight?.({ devices: [{ id: "dev_a_late", name: "Late Account A Device" }] });
+      lateDevices.resolve({ devices: [{ id: "dev_a_late", name: "Late Account A Device" }] });
       await inFlightFetch;
 
       await waitFor(() => {

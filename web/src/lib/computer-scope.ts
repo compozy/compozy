@@ -71,7 +71,8 @@ export function onAccountScopeEvicted(listener: () => void): () => void {
 }
 
 function notifyAccountScopeEvicted(): void {
-  for (const listener of [...accountScopeEvictionListeners]) {
+  const listeners = Array.from(accountScopeEvictionListeners);
+  for (const listener of listeners) {
     listener();
   }
 }

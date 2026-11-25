@@ -45,7 +45,7 @@ export function extractRegisteredRoutes(
   const methodMatcher = /^\s*(\w+)\.(GET|POST|PATCH|PUT|DELETE)\("([^"]*)"/;
   const helperMatcher = /^\s*((?:\w+\.)?\w+)\((\w+),/;
 
-  function visit(body: string, groups: Map<string, string>) {
+  function visit(body: string, groups: Map<string, string>, packagePrefix = "") {
     for (const line of body.split("\n")) {
       const assignment = line.match(assignmentMatcher);
       if (assignment) {
@@ -74,10 +74,12 @@ export function extractRegisteredRoutes(
       const call = line.match(helperMatcher);
       if (call) {
         const name = call[1] ?? "";
-        const helper = helpers.get(name) ?? sharedHelpers.get(name);
+        const helperName = name.includes(".") ? name : `${packagePrefix}${name}`;
+        const helper = helpers.get(helperName) ?? sharedHelpers.get(helperName);
         const prefix = groups.get(call[2] ?? "");
         if (helper && prefix !== undefined) {
-          visit(helper.body, new Map([[helper.router, prefix]]));
+          const helperPackagePrefix = helperName.slice(0, helperName.lastIndexOf(".") + 1);
+          visit(helper.body, new Map([[helper.router, prefix]]), helperPackagePrefix);
         }
       }
     }

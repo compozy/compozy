@@ -21,11 +21,10 @@ import { SessionWindowClearDialog, SessionWindowRowDialogs } from "./session-win
 import { useForkDeadSession } from "./use-fork-dead-session";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { useSessionWindowDerivedSessions } from "./hooks/use-session-window-derived-sessions";
+import { useSessionWindowWorktreeDialogs } from "./hooks/use-session-window-worktree-dialogs";
 import type { useSessionWindowDerive } from "./use-session-window-derive";
 import { useQueryClient } from "@tanstack/react-query";
-import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
 import { OsShellContext } from "../../contexts/os-shell-context";
-import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { computerRegistryKeys } from "@/systems/computers";
 import { RemoteEntitlementPausedBanner } from "@/systems/session/components/remote-entitlement-paused-banner";
 import { RemoteOfflineComposerBanner } from "@/systems/session/components/remote-offline-composer-banner";
@@ -214,8 +213,8 @@ export function SessionWindowContent({
   liveDataEnabled: boolean;
   focused?: boolean;
 }) {
-  const computerId = useCurrentComputerId();
-  const worktreeDialogs = use(WorktreeDialogActionsContext);
+  const { computerId, onOpenWorktreeContext, onResolveMissingWorktree } =
+    useSessionWindowWorktreeDialogs();
   const { derive, sideChat } = useSessionWindowDerivedSessions({ windowId, session, workspaceId });
   const page = useSessionWindowController({
     windowId,
@@ -223,12 +222,8 @@ export function SessionWindowContent({
     workspaceId,
     session,
     liveDataEnabled,
-    onOpenWorktreeContext: worktreeDialogs
-      ? (wsId, wt) => worktreeDialogs.requestContextWorktree(wsId, wt, computerId)
-      : undefined,
-    onResolveMissingWorktree: worktreeDialogs
-      ? (wsId, wt) => worktreeDialogs.requestResolveMissingWorktree(wsId, wt, computerId)
-      : undefined,
+    onOpenWorktreeContext,
+    onResolveMissingWorktree,
     origin: derive.origin,
     onOpenOriginSource: derive.onOpenOriginSource,
     sideChatsControl: sideChat.control,

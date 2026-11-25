@@ -2,7 +2,7 @@
 // Owning layer: workspace worktree HTTP adapter. No existing suite owns this adapter.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
+import { expectFetchRequest, mockEmptyResponse, mockJsonResponse } from "@/test/fetch-test-utils";
 import { buildWorktreeFixture } from "../../mocks/worktree-fixtures";
 
 import {
@@ -77,23 +77,24 @@ describe("fetchWorktrees", () => {
       path: "/c/cmp_remote/api/workspaces/ws_alpha/worktrees",
     });
 
-    mockJsonResponse({}, { status: 204 });
+    mockEmptyResponse({ status: 204 });
     await cancelWorktreeCreate("ws_alpha", "wt_remote_1", undefined, "cmp_remote");
     await expectFetchRequest({
+      callIndex: 1,
       method: "POST",
       path: "/c/cmp_remote/api/workspaces/ws_alpha/worktrees/wt_remote_1/cancel",
     });
 
-    mockJsonResponse({ branch: null }, { status: 200 });
     await dismissWorktree("ws_alpha", "wt_remote_1", { computerId: "cmp_remote" });
     await expectFetchRequest({
+      callIndex: 2,
       method: "POST",
       path: "/c/cmp_remote/api/workspaces/ws_alpha/worktrees/wt_remote_1/dismiss",
     });
 
-    mockJsonResponse({ branch: null }, { status: 200 });
     await removeWorktree("ws_alpha", "wt_remote_1", { computerId: "cmp_remote" });
     await expectFetchRequest({
+      callIndex: 3,
       method: "DELETE",
       path: "/c/cmp_remote/api/workspaces/ws_alpha/worktrees/wt_remote_1",
     });
