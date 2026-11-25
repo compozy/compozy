@@ -395,10 +395,28 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			AgentName: "coder", Provider: "claude", State: StateStarting,
 			CreatedAt: benchmarkSessionTime.Add(time.Hour),
 		}
+		// One durable row needs you by its unseen failure, one live row by its open question.
+		failed := &Session{
+			ID: "durable-failed", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-read-00",
+			AgentName: "coder", Provider: "claude", State: StateStopped,
+			failure:   &store.SessionFailure{Kind: store.FailurePrompt},
+			CreatedAt: benchmarkSessionTime.Add(2 * time.Hour), UpdatedAt: benchmarkSessionTime,
+		}
+		if err := manager.sessionCatalog.RegisterSession(
+			t.Context(), new(sessionCatalogInfoFromRuntime(failed.Info())),
+		); err != nil {
+			t.Fatal(err)
+		}
+		manager.sessions["live-asking"] = &Session{
+			ID: "live-asking", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-read-00",
+			AgentName: "coder", Provider: "claude", State: StateActive, PendingClarifyCount: 1,
+			CreatedAt: benchmarkSessionTime.Add(3 * time.Hour),
+		}
 		query := ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "ws-read-00"}
 		page, err := manager.ListPage(t.Context(), query)
-		if err != nil || page.Total != 3 || page.Working == nil || *page.Working != 1 || page.NeedsYou == nil {
-			t.Fatalf("page total = %d, working = %v, needs-you = %v, err = %v; want 3, 1 and a count",
+		if err != nil || page.Total != 5 || page.Working == nil || *page.Working != 1 ||
+			page.NeedsYou == nil || *page.NeedsYou != 2 {
+			t.Fatalf("page total = %d, working = %v, needs-you = %v, err = %v; want 5, 1 and 2",
 				page.Total, page.Working, page.NeedsYou, err)
 		}
 		query.SkipTotal = true
