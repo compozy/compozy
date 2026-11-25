@@ -15,6 +15,7 @@ qa_status: pending
 4. Interrupt a second setup before linking. Repeat the add command and verify it resumes at the first incomplete step. Cancel it and verify the slot becomes available before another add proceeds.
 5. Rotate a trusted VM host key and verify the controller reports `ssh_host_key_changed`. Confirm the previously trusted key stays pinned.
 6. Open the remote session in the controller's Web app. Check that its Goal, clarification, composer commands, linked work, prompt queue, side chats, and inspector usage load from the remote computer. Switch to a local session and verify that each window keeps its own data.
+7. With SSH connected and a lingering-service warning present, enable Auto, turn off local execution, and start a session for a matching project. Verify Auto selects the SSH computer when its resources allow the session.
 
 E2E-002 trusts the SSH host key, starts a session on the new computer through Run on, and verifies the reply to `echo` and the computer name in the sidebar. E2E-003 adds an account-linked computer and finds one of its sessions in the project-grouped sidebar and Search, including when the controller has no local projects.
 

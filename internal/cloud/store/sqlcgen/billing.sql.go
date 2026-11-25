@@ -47,11 +47,18 @@ func (q *Queries) BillingCheckoutInterval(ctx context.Context, id string) (strin
 }
 
 const billingCheckouts = `-- name: BillingCheckouts :many
-SELECT id, account_id, interval, hostname, expired_at FROM billing_checkouts WHERE account_id = $1 ORDER BY id
+SELECT id, account_id, interval, hostname, expired_at FROM billing_checkouts
+WHERE account_id = $1 AND ($2::boolean OR expired_at IS NULL)
+ORDER BY id
 `
 
-func (q *Queries) BillingCheckouts(ctx context.Context, accountID string) ([]BillingCheckout, error) {
-	rows, err := q.db.Query(ctx, billingCheckouts, accountID)
+type BillingCheckoutsParams struct {
+	AccountID      string
+	IncludeExpired bool
+}
+
+func (q *Queries) BillingCheckouts(ctx context.Context, arg BillingCheckoutsParams) ([]BillingCheckout, error) {
+	rows, err := q.db.Query(ctx, billingCheckouts, arg.AccountID, arg.IncludeExpired)
 	if err != nil {
 		return nil, err
 	}
@@ -77,11 +84,16 @@ func (q *Queries) BillingCheckouts(ctx context.Context, accountID string) ([]Bil
 }
 
 const billingStripeSubscriptionIDs = `-- name: BillingStripeSubscriptionIDs :many
-SELECT id FROM subscriptions WHERE source = 'stripe' ORDER BY id
+SELECT id FROM subscriptions
+WHERE source = 'stripe'
+  AND (stripe_synced_at IS NULL OR stripe_synced_at <= $1::timestamptz)
+  AND (status NOT IN ('canceled', 'incomplete_expired')
+       OR COALESCE(ends_at, stripe_synced_at, 'infinity'::timestamptz) > $1)
+ORDER BY id
 `
 
-func (q *Queries) BillingStripeSubscriptionIDs(ctx context.Context) ([]string, error) {
-	rows, err := q.db.Query(ctx, billingStripeSubscriptionIDs)
+func (q *Queries) BillingStripeSubscriptionIDs(ctx context.Context, cutoff pgtype.Timestamptz) ([]string, error) {
+	rows, err := q.db.Query(ctx, billingStripeSubscriptionIDs, cutoff)
 	if err != nil {
 		return nil, err
 	}
@@ -98,6 +110,23 @@ func (q *Queries) BillingStripeSubscriptionIDs(ctx context.Context) ([]string, e
 		return nil, err
 	}
 	return items, nil
+}
+
+const billingStripeSubscriptionStale = `-- name: BillingStripeSubscriptionStale :one
+SELECT EXISTS (SELECT 1 FROM subscriptions WHERE id = $1 AND source = 'stripe'
+  AND (stripe_synced_at IS NULL OR stripe_synced_at <= $2::timestamptz))
+`
+
+type BillingStripeSubscriptionStaleParams struct {
+	ID     string
+	Cutoff pgtype.Timestamptz
+}
+
+func (q *Queries) BillingStripeSubscriptionStale(ctx context.Context, arg BillingStripeSubscriptionStaleParams) (bool, error) {
+	row := q.db.QueryRow(ctx, billingStripeSubscriptionStale, arg.ID, arg.Cutoff)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const billingSubscription = `-- name: BillingSubscription :one
@@ -218,6 +247,20 @@ SELECT pg_advisory_xact_lock(hashtext($1::text))
 // SPDX-License-Identifier: FSL-1.1-MIT
 func (q *Queries) LockStripeSubscription(ctx context.Context, subscriptionID string) error {
 	_, err := q.db.Exec(ctx, lockStripeSubscription, subscriptionID)
+	return err
+}
+
+const markBillingCheckoutExpired = `-- name: MarkBillingCheckoutExpired :exec
+UPDATE billing_checkouts SET expired_at = $1 WHERE id = $2
+`
+
+type MarkBillingCheckoutExpiredParams struct {
+	AsOf pgtype.Timestamptz
+	ID   string
+}
+
+func (q *Queries) MarkBillingCheckoutExpired(ctx context.Context, arg MarkBillingCheckoutExpiredParams) error {
+	_, err := q.db.Exec(ctx, markBillingCheckoutExpired, arg.AsOf, arg.ID)
 	return err
 }
 

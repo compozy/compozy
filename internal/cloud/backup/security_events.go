@@ -16,6 +16,8 @@ import (
 
 const (
 	archivePrefix = "security-events/"
+	partsPrefix   = "security-event-parts/"
+	manifestExt   = ".manifest.json"
 	keyTimeFormat = "20060102T150405.000000Z"
 )
 
@@ -24,9 +26,14 @@ type eventBatch struct {
 	Through         time.Time             `json:"through"`
 	PreviousID      int64                 `json:"previous_id"`
 	Events          []store.ArchivedEvent `json:"events"`
+	PartCount       int                   `json:"part_count,omitzero"`
+	LastEventID     int64                 `json:"last_event_id,omitzero"`
 }
 
 func (b eventBatch) lastID() int64 {
+	if b.PartCount > 0 {
+		return b.LastEventID
+	}
 	if len(b.Events) == 0 {
 		return b.PreviousID
 	}
@@ -63,14 +70,63 @@ func shipSecurityEvents(ctx context.Context, bucket *R2, db *store.Store) (time.
 		return time.Time{}, errors.New("security archive clock did not advance")
 	}
 	batch := eventBatch{PreviousThrough: previous.Through, Through: at, PreviousID: previous.lastID(), Events: events}
-	payload, err := json.Marshal(batch)
-	if err != nil || len(payload) > maxArchiveSize {
-		return time.Time{}, errors.New("encode security archive: batch exceeds limit or is invalid")
-	}
-	if err := bucket.Write(ctx, archiveKey(at), payload); err != nil {
+	if err := bucket.writeBatch(ctx, batch); err != nil {
 		return time.Time{}, err
 	}
 	return at, nil
+}
+
+func (r *R2) writeBatch(ctx context.Context, batch eventBatch) error {
+	key := archiveKey(batch.Through)
+	if len(batch.Events) != 0 {
+		count, err := r.writeParts(ctx, batch.Through, batch.Events)
+		if err != nil {
+			return err
+		}
+		batch.LastEventID, batch.PartCount = batch.lastID(), count
+		batch.Events = nil
+		key = archivePrefix + batch.Through.UTC().Format(keyTimeFormat) + manifestExt
+	}
+	payload, err := json.Marshal(batch)
+	if err != nil {
+		return err
+	}
+	// Only this final write publishes the coverage and event cursor to readers.
+	return r.Write(ctx, key, payload)
+}
+
+func (r *R2) writeParts(ctx context.Context, at time.Time, events []store.ArchivedEvent) (int, error) {
+	payload := []byte{'['}
+	count := 0
+	flush := func() error {
+		payload = append(payload, ']')
+		if err := r.Write(ctx, partKey(at, count), payload); err != nil {
+			return err
+		}
+		count++
+		payload = payload[:1]
+		return nil
+	}
+	for _, event := range events {
+		encoded, err := json.Marshal(event)
+		if err != nil {
+			return 0, err
+		}
+		if len(encoded)+2 > maxArchiveSize {
+			return 0, fmt.Errorf("security archive event %d exceeds the object limit", event.ID)
+		}
+		if len(payload) > 1 && len(payload)+len(encoded)+2 > maxArchiveSize {
+			if err := flush(); err != nil {
+				return 0, err
+			}
+		}
+		if len(payload) > 1 {
+			payload = append(payload, ',')
+		}
+		payload = append(payload, encoded...)
+	}
+	err := flush()
+	return count, err
 }
 
 func (r *R2) RestoreEvents(
@@ -103,7 +159,10 @@ func (r *R2) RestoreEvents(
 		case !batch.PreviousThrough.Equal(covered) || batch.PreviousID != lastID:
 			return 0, nil, errors.New("security archive is discontinuous")
 		}
-		events = append(events, batch.Events...)
+		events, err = r.appendBatch(ctx, events, batch)
+		if err != nil {
+			return 0, nil, err
+		}
 		covered, lastID = batch.Through, batch.lastID()
 		if !covered.Before(through) {
 			return lastID, events, nil
@@ -135,20 +194,66 @@ func (r *R2) readBatch(ctx context.Context, key string) (eventBatch, error) {
 		!batch.Through.After(batch.PreviousThrough) || batch.PreviousID < 0 {
 		return eventBatch{}, errors.New("invalid security archive batch")
 	}
-	id := batch.PreviousID
-	for _, event := range batch.Events {
-		if event.ID <= id || event.At.IsZero() || event.Type == "" || event.Actor == "" {
-			return eventBatch{}, errors.New("invalid security archive event")
+	if strings.HasSuffix(key, manifestExt) {
+		if len(batch.Events) != 0 || batch.PartCount <= 0 || batch.LastEventID <= batch.PreviousID ||
+			int64(batch.PartCount) > batch.LastEventID-batch.PreviousID {
+			return eventBatch{}, errors.New("invalid security archive manifest")
 		}
-		id = event.ID
+	} else if batch.PartCount != 0 || batch.LastEventID != 0 {
+		return eventBatch{}, errors.New("invalid inline security archive batch")
+	} else if _, err := validateArchiveEvents(batch.PreviousID, batch.Events); err != nil {
+		return eventBatch{}, err
 	}
 	return batch, nil
 }
 
+func (r *R2) appendBatch(
+	ctx context.Context,
+	events []store.ArchivedEvent,
+	batch eventBatch,
+) ([]store.ArchivedEvent, error) {
+	if batch.PartCount == 0 {
+		return append(events, batch.Events...), nil
+	}
+	lastID := batch.PreviousID
+	for i := range batch.PartCount {
+		raw, err := r.Read(ctx, partKey(batch.Through, i))
+		if err != nil {
+			return nil, err
+		}
+		var part []store.ArchivedEvent
+		if err := json.Unmarshal(raw, &part); err != nil || len(part) == 0 {
+			return nil, errors.New("invalid security archive part")
+		}
+		lastID, err = validateArchiveEvents(lastID, part)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, part...)
+	}
+	if lastID != batch.LastEventID {
+		return nil, errors.New("security archive parts do not reach the manifest cursor")
+	}
+	return events, nil
+}
+
+func validateArchiveEvents(afterID int64, events []store.ArchivedEvent) (int64, error) {
+	for _, event := range events {
+		if event.ID <= afterID || event.At.IsZero() || event.Type == "" || event.Actor == "" {
+			return 0, errors.New("invalid security archive event")
+		}
+		afterID = event.ID
+	}
+	return afterID, nil
+}
+
 func parseArchiveKey(key string) (time.Time, error) {
 	raw, ok := strings.CutPrefix(key, archivePrefix)
-	stamp, suffix := strings.CutSuffix(raw, ".json")
-	if !ok || !suffix {
+	stamp, validSuffix := strings.CutSuffix(raw, manifestExt)
+	if !validSuffix {
+		stamp, validSuffix = strings.CutSuffix(raw, ".json")
+	}
+	if !ok || !validSuffix {
 		return time.Time{}, errors.New("unexpected security archive object key")
 	}
 	at, err := time.Parse(keyTimeFormat, stamp)
@@ -159,3 +264,7 @@ func parseArchiveKey(key string) (time.Time, error) {
 }
 
 func archiveKey(at time.Time) string { return archivePrefix + at.UTC().Format(keyTimeFormat) + ".json" }
+
+func partKey(at time.Time, part int) string {
+	return fmt.Sprintf("%s%s/%d.json", partsPrefix, at.UTC().Format(keyTimeFormat), part)
+}

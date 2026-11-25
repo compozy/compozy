@@ -7,7 +7,6 @@ import (
 
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/remoteproto"
-	"github.com/zalando/go-keyring"
 )
 
 type tokenCloud interface {
@@ -26,15 +25,13 @@ func (s *Service) startToken(ctx context.Context) error {
 		s.token = ""
 		return nil
 	}
-	if s.token == "" && s.installation.Source == SourceToken {
-		token, err := s.credentials.read(tokenEntry, s.installation.InstallationID)
-		if errors.Is(err, keyring.ErrNotFound) {
+	if s.installation.Source == SourceToken {
+		if err := s.credentials.remove(legacyTokenEntry, s.installation.InstallationID); err != nil {
+			s.logger.WarnContext(ctx, "Previous account token could not be removed", "error", err)
+		}
+		if s.token == "" {
 			return s.signedOutLocked(ctx, ReauthRequired, "session_invalid")
 		}
-		if err != nil {
-			return errKeyring
-		}
-		s.token = token
 	}
 	s.exchangeToken(ctx)
 	return ctx.Err()
@@ -86,9 +83,6 @@ func (s *Service) saveTokenIdentityLocked(ctx context.Context, result remoteprot
 		return ErrTokenLocalOnly
 	}
 	next := s.installation
-	if err := s.credentials.write(tokenEntry, next.InstallationID, s.token); err != nil {
-		return err
-	}
 	next.LastValidatedAt = s.clock.Now()
 	if next.State == SignedIn && next.Source == SourceToken && next.AccountID == result.AccountID &&
 		next.TokenName == result.TokenName && next.Profile.Email == result.Email {

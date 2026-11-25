@@ -48,11 +48,11 @@ func checkAccountGate(cmd *cobra.Command, deps commandDeps) error {
 	class := accountCommandClass(cmd, deps)
 	client, err := accountClientFromDeps(deps)
 	if err != nil {
-		return cliAccountStatusUnavailable(class)
+		return cliAccountStatusUnavailable(class, err)
 	}
 	current, err := client.ReadAccount(cmd.Context())
 	if err != nil {
-		return cliAccountStatusUnavailable(class)
+		return cliAccountStatusUnavailable(class, err)
 	}
 	if current.Grace != nil && current.Gate == account.GateGrace {
 		if _, err := fmt.Fprintf(cmd.ErrOrStderr(),
@@ -80,11 +80,11 @@ func checkAccountGate(cmd *cobra.Command, deps commandDeps) error {
 	return nil
 }
 
-func cliAccountStatusUnavailable(class cliAccountClass) error {
+func cliAccountStatusUnavailable(class cliAccountClass, err error) error {
 	if class == accountCommandBootstrap || class == accountCommandContinuation {
 		return nil
 	}
-	return cliSignInRequired()
+	return err
 }
 
 func handOffInstallToSignIn(cmd *cobra.Command, deps commandDeps) error {

@@ -27,6 +27,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -332,6 +333,53 @@ func serveDrainFixture() error {
 
 func TestCloudRestore(t *testing.T) {
 	t.Parallel()
+	t.Run("Should publish coverage only after all parts of a large security archive are durable", func(t *testing.T) {
+		// AST-005: A bounded R2 upload retries the full fenced backlog without advancing on partial failure.
+		t.Parallel()
+		source := remotetest.NewDatabase(t)
+		source.Migrate(t)
+		var failPart atomic.Bool
+		env := restoreFixtureEnvironment(t, func(key string) bool {
+			return failPart.Load() && strings.HasSuffix(key, "/1.json")
+		})
+		env[envNeonDirect] = source.Config(t, "archive-backlog").DirectDSN
+		point, err := parseRestoreTime(strings.TrimSpace(runRestoreCommand(t, env, "backup", "security-events")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		const eventCount, detailSize = 6, 6 << 20
+		source.Exec(t, `INSERT INTO %s.security_events (type, actor, at, details_json)
+			SELECT 'archive_fixture', 'system', clock_timestamp(), jsonb_build_object('detail', repeat('x', $1))
+			FROM generate_series(1, $2)`, detailSize, eventCount)
+		failPart.Store(true)
+		var output bytes.Buffer
+		if err := shipEvents(t.Context(), func(key string) string { return env[key] }, &output); err == nil ||
+			!strings.Contains(err.Error(), "HTTP 503") || output.Len() != 0 {
+			t.Fatalf("partial shipment = %q, %v", &output, err)
+		}
+		bucket, err := archiveBucket(func(key string) string { return env[key] }, development)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := bucket.RestoreEvents(t.Context(), point, point.Add(time.Microsecond)); err == nil {
+			t.Fatal("partial shipment advanced the restore cutoff")
+		}
+		failPart.Store(false)
+		through, err := parseRestoreTime(strings.TrimSpace(runRestoreCommand(t, env, "backup", "security-events")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		last, events, err := bucket.RestoreEvents(t.Context(), point, through)
+		if err != nil || len(events) != eventCount || last != events[eventCount-1].ID {
+			t.Fatalf("restored %d events at cursor %d: %v", len(events), last, err)
+		}
+		for _, event := range events {
+			if detail, ok := event.Details["detail"].(string); !ok || len(detail) != detailSize {
+				t.Fatalf("restore lost part of archived event %d", event.ID)
+			}
+		}
+	})
+
 	t.Run("Should finalize a copied database without reviving revoked access (IT-107)", func(t *testing.T) {
 		// Safety Invariant 32. The retry must keep the 1000-epoch bump and reconcile both external providers.
 		t.Parallel()
@@ -360,7 +408,7 @@ func TestCloudRestore(t *testing.T) {
 		source.Exec(t, `INSERT INTO %s.subscriptions (id, account_id, source, status, price_id, interval)
             VALUES ('sub_restore', $1, 'stripe', 'active', $2, 'month')`, account, remotetest.StripeMonthly)
 
-		env := restoreFixtureEnvironment(t)
+		env := restoreFixtureEnvironment(t, nil)
 		env[envNeonDirect] = cfg.Postgres.DirectDSN
 		runRestoreCommand(t, env, "backup", "security-events")
 		copyCloudRestorePoint(t, source, restored)
@@ -576,7 +624,7 @@ func runRestoreCommand(t *testing.T, env map[string]string, args ...string) stri
 	return out.String()
 }
 
-func restoreFixtureEnvironment(t *testing.T) map[string]string {
+func restoreFixtureEnvironment(t *testing.T, rejectPut func(string) bool) map[string]string {
 	t.Helper()
 	var mu sync.Mutex
 	objects := make(map[string][]byte)
@@ -606,6 +654,10 @@ func restoreFixtureEnvironment(t *testing.T) map[string]string {
 				t.Error(err)
 			}
 		case r.Method == http.MethodPut && r.Header.Get("If-None-Match") == "*":
+			if rejectPut != nil && rejectPut(key) {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
 			if _, exists := objects[key]; exists {
 				w.WriteHeader(http.StatusPreconditionFailed)
 				return

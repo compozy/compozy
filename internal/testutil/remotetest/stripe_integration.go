@@ -34,6 +34,7 @@ type StripeInvoice struct {
 type StripeSubscription struct {
 	ID, Account, Status, Price, Interval string
 	PeriodEnd                            time.Time
+	EndedAt                              time.Time
 	CancellationReason                   string
 	Invoices                             []StripeInvoice
 }
@@ -57,7 +58,9 @@ type StripeFixture struct {
 	reads         map[string]int
 	onRead        func(*http.Request, StripeSubscription)
 	onComplete    func(StripeCheckout)
+	beforeExpire  func(string)
 	refunds       map[string]url.Values
+	refundFailure bool
 	deleteFailure bool
 	deletes       []string
 	redacted      []string
@@ -106,6 +109,12 @@ func (f *StripeFixture) SetOnComplete(afterComplete func(StripeCheckout)) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.onComplete = afterComplete
+}
+
+func (f *StripeFixture) SetBeforeExpire(beforeExpire func(string)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.beforeExpire = beforeExpire
 }
 
 func (f *StripeFixture) SetReplayEvents(events []map[string]any, fail bool) {
@@ -169,6 +178,12 @@ func (f *StripeFixture) FailDeletion(fail bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.deleteFailure = fail
+}
+
+func (f *StripeFixture) FailRefund(fail bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refundFailure = fail
 }
 
 func (f *StripeFixture) DeletionCalls() ([]string, map[string]url.Values) {
@@ -277,17 +292,30 @@ func (f *StripeFixture) checkoutIndex(id string) int {
 }
 
 func (f *StripeFixture) readCheckout(w http.ResponseWriter, r *http.Request) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
 	tail := strings.TrimPrefix(r.URL.Path, "/v1/checkout/sessions/")
 	id, action, _ := strings.Cut(tail, "/")
+	expire := action == "expire" && r.Method == http.MethodPost
+	if expire {
+		f.mu.Lock()
+		beforeExpire := f.beforeExpire
+		f.mu.Unlock()
+		if beforeExpire != nil {
+			beforeExpire(id)
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	index := f.checkoutIndex(id)
 	if index < 0 {
 		http.NotFound(w, r)
 		return
 	}
 	checkout := &f.checkouts[index]
-	if action == "expire" && r.Method == http.MethodPost && checkout.Status == "open" {
+	if expire {
+		if checkout.Status != "open" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		checkout.Status = "expired"
 	}
 	payment := "unpaid"
@@ -313,6 +341,9 @@ func (f *StripeFixture) subscription(w http.ResponseWriter, r *http.Request) {
 		}
 		if ok {
 			s.Status = "canceled"
+			if s.EndedAt.IsZero() {
+				s.EndedAt = f.now()
+			}
 			f.subscriptions[id] = s
 		}
 	} else {
@@ -333,6 +364,7 @@ func (f *StripeFixture) subscription(w http.ResponseWriter, r *http.Request) {
 	}
 	api.WriteJSON(w, http.StatusOK, map[string]any{
 		"id": s.ID, "status": s.Status, "customer": "cus_" + s.Account, "latest_invoice": latest,
+		"ended_at":             s.EndedAt.Unix(),
 		"metadata":             map[string]string{"compozy_account_id": s.Account},
 		"cancellation_details": map[string]string{"reason": s.CancellationReason},
 		"items": map[string]any{"data": []map[string]any{{
@@ -367,6 +399,10 @@ func (f *StripeFixture) refund(w http.ResponseWriter, r *http.Request) {
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.refundFailure {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
 	f.refunds[key] = r.Form.Clone()
 	api.WriteJSON(w, http.StatusOK, map[string]string{"id": "re_fixture", "status": "succeeded"})
 }

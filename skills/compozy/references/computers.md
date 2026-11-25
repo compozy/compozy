@@ -27,6 +27,7 @@ Call native tools with a declared `remote_scope` using an optional `computer` na
 - Update Auto and local execution with `PATCH /api/computers/local`. The local settings also appear in `GET /api/computers`. Add a remote computer before turning off local execution. `local_execution_disabled` blocks new local sessions, Loop runs, and automation runs. Existing records remain readable.
 - Set weights on `/api/computers/local` or `/api/computers/{id}` with `load_balancing_weight`. Prefer is `100`, Normal is `50`, Less often is `25`, and Manual only is `0`.
 - Preview Auto with `POST /api/computers/placement`, using the draft workspace in `workspace` and its computer in `project_computer_id` if it belongs to a linked computer. With `computer` set to `auto`, `POST /api/sessions` selects the matching repository workspace again and returns the chosen `computer_id`. `no_eligible_computer` means the draft cannot be placed.
+- A computer with a live route remains eligible for Auto when an SSH service warning sets its display status to `needs_attention`.
 
 | Endpoint                                       | Purpose                                               |
 | ---------------------------------------------- | ----------------------------------------------------- |
@@ -54,7 +55,7 @@ Release builds report a local gate of `enforced`, `grace`, or `off` in `GET /api
 
 Use `compozy status --json` to check the local daemon while signed out.
 
-On CI, provide a named account token through the launcher's `COMPOZY_ACCOUNT_TOKEN` secret. Operators create one with `compozy account token create --name ci`. Keep its one-time value out of logs and tool results. The only cloud endpoint that accepts it is `POST /v1/account-tokens/exchange`. Remote and billing operations return `account_token_local_only`.
+On CI, provide a named account token through the launcher's `COMPOZY_ACCOUNT_TOKEN` secret every time the daemon starts. The daemon keeps the token in memory for its own lifetime. Operators create one with `compozy account token create --name ci`. Keep its one-time value out of logs and tool results. The only cloud endpoint that accepts it is `POST /v1/account-tokens/exchange`. Remote and billing operations return `account_token_local_only`.
 
 Local HTTP and UDS expose the same `/api/account` routes for sign-in, status, devices, approvals, and billing. Subscribe to `GET /api/account/sign-in/events` before starting a login. It carries attempt progress and state without account details. Follow `GET /api/account/stream` after sign-in. On `stream_reset`, read current status and approvals before following changes again.
 

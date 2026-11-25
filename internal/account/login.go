@@ -335,11 +335,6 @@ func (s *Service) commitLogin(
 		return nil, errors.Join(err, s.restoreRefresh(id, oldRefresh))
 	}
 	s.token = ""
-	if previousSource == SourceToken {
-		if err := s.credentials.remove(tokenEntry, next.InstallationID); err != nil {
-			s.logger.Warn("previous account token could not be removed", "code", cloudclient.FailureCode(err))
-		}
-	}
 	if s.linkedAccountID == id {
 		s.linkedEmail = profile.Email
 	}

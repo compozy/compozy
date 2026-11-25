@@ -7,6 +7,7 @@ package api_test
 import (
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -85,6 +86,25 @@ func TestCloudDeviceGrant(t *testing.T) {
 		f.request(t, http.MethodGet, path, nil, cookie).expect(t, http.StatusBadRequest, "access_denied")
 		f.poll(t, g).expect(t, http.StatusBadRequest, "access_denied")
 		assertAuthRow(t, f, "SELECT count(*) FROM enrollment_tokens", 0)
+	})
+
+	t.Run("Should allow a fresh browser when old code-entry windows fill the cache", func(t *testing.T) {
+		// RC-16: A full bounded cache must preserve activation for browsers with no failures.
+		t.Parallel()
+		f := newAuthFixture(t)
+		find := f.replica.App.Auth.FindActivation
+		for i := range 16_384 {
+			if _, err := find(t.Context(), strconv.Itoa(i), ""); err == nil || err.Error() != "user_code_invalid" {
+				t.Fatalf("recording a browser code failure: %v", err)
+			}
+		}
+		g := f.startGrant(t, auth.GitHub)
+		if grant, err := find(t.Context(), "fresh-browser", g.UserCode); err != nil || grant.UserCode != g.UserCode {
+			t.Fatalf("a fresh browser could not resolve its code: %v", err)
+		}
+		if _, err := find(t.Context(), "fresh-browser", ""); err == nil || err.Error() != "user_code_invalid" {
+			t.Fatalf("a fresh browser could not record its first mistake: %v", err)
+		}
 	})
 
 	t.Run("Should authorize one racing browser and refuse invalid callback bindings (UT-123)", func(t *testing.T) {

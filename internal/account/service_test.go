@@ -318,6 +318,32 @@ func TestAccountRefresh(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retry a failed access refresh before the next daily refresh", func(t *testing.T) {
+		// AST-006: A scheduled credential retry attempts the exchange as soon as backoff elapses.
+		t.Parallel()
+		calls := make(chan struct{}, 2)
+		unreachable := &cloudclient.Failure{Status: http.StatusServiceUnavailable}
+		var count atomic.Int32
+		cloud := accountCloudStub{refresh: func() (remoteproto.DeviceSessionTokens, error) {
+			calls <- struct{}{}
+			if count.Add(1) == 1 {
+				return remoteproto.DeviceSessionTokens{}, unreachable
+			}
+			return testTokens(), nil
+		}}
+		s, store, clock := newAccountTest(t, &cloud, signedInInstallation())
+		if _, err := s.refresh(s.generation, true); !errors.Is(err, unreachable) {
+			t.Fatalf("access refresh error = %v", err)
+		}
+		awaitAccountTest(t, calls)
+		clock.Advance(minRefreshBackoff)
+		awaitAccountTest(t, calls)
+		s.Close()
+		if state := store.current(); state.State != SignedIn || !state.LastValidatedAt.Equal(clock.Now()) {
+			t.Fatalf("scheduled retry did not validate the session: %+v", state)
+		}
+	})
+
 	t.Run("Should persist explicit revocation or suspension and close the session (UT-116)", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct{ name, reason string }{
@@ -392,6 +418,114 @@ func TestAccountRefresh(t *testing.T) {
 			t.Fatalf("reopened state = %s", reopened.Status().State)
 		}
 	})
+
+	t.Run("Should sign out and close the account lifetime with a locked keyring", func(t *testing.T) {
+		// RC-12: Local sign-out closes account access even when the credential cannot be sent to Cloud.
+		t.Parallel()
+		installation := signedInInstallation()
+		installation.InstallationID = "ins_test"
+		store := &accountStoreStub{state: installation}
+		cloud := &accountCloudStub{logout: func() error {
+			t.Error("cloud logout called without credentials")
+			return nil
+		}}
+		s, err := New(t.Context(), store, cloud, t.TempDir(), WithKeyring(&accountKeyringStub{locked: true}),
+			WithClock(clockwork.NewFakeClockAt(accountTestTime())))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(s.Close)
+		lifetime, _, err := s.SessionLifetime()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Logout(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if state := store.current(); lifetime.Err() == nil || state.State != SignedOut || state.AccountID != "" {
+			t.Fatalf("local sign-out did not clear the account: %+v", state)
+		}
+	})
+}
+
+func TestLauncherAccountToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should exchange a launcher token only for the current daemon lifetime", func(t *testing.T) {
+		// AST-003: A source-token installation needs launcher reinjection, even with the same home.
+		t.Parallel()
+		home := t.TempDir()
+		ring := &accountKeyringStub{}
+		store := &accountStoreStub{state: Installation{InstallationID: "ins_test", State: SignedOut}}
+		cloud := &launcherTokenCloudStub{}
+		options := []Option{WithKeyring(ring), WithClock(clockwork.NewFakeClockAt(accountTestTime()))}
+		start := func(token string) *Service {
+			t.Helper()
+			s, err := New(t.Context(), store, cloud, home, append(options, WithAccountToken(token))...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(s.Close)
+			return s
+		}
+		s := start("fixture-launcher")
+		if state := s.Status(); state.State != SignedIn || state.Source != SourceToken {
+			t.Fatalf("launcher identity did not sign in: %+v", state)
+		}
+		if _, err := s.credentials.read(legacyTokenEntry, "ins_test"); !errors.Is(err, keyring.ErrNotFound) {
+			t.Fatal("launcher credential was written to the keyring")
+		}
+		s.Close()
+		// A previous implementation may have left a token on disk.
+		if err := s.credentials.write(legacyTokenEntry, "ins_test", "fixture-legacy"); err != nil {
+			t.Fatal(err)
+		}
+		restarted := start("")
+		if state := restarted.Status(); state.State != ReauthRequired || state.SignedOutReason != "session_invalid" ||
+			cloud.calls.Load() != 1 {
+			t.Fatalf("restart without launcher token: %+v, exchanges %d", state, cloud.calls.Load())
+		}
+		if _, err := restarted.credentials.read(legacyTokenEntry, "ins_test"); !errors.Is(err, keyring.ErrNotFound) {
+			t.Fatal("legacy launcher credential remained in the keyring")
+		}
+		restarted.Close()
+		if state := start("fixture-reinjected").Status(); state.State != SignedIn || state.Source != SourceToken ||
+			cloud.calls.Load() != 2 {
+			t.Fatalf("reinjected launcher token did not sign in: %+v, exchanges %d", state, cloud.calls.Load())
+		}
+	})
+
+	t.Run("Should boot a token-sourced home with a locked keyring", func(t *testing.T) {
+		// RC-11: The keyring cannot block boot when the previous identity came from the launcher.
+		t.Parallel()
+		installation := signedInInstallation()
+		installation.InstallationID, installation.Source = "ins_test", SourceToken
+		store := &accountStoreStub{state: installation}
+		cloud := &launcherTokenCloudStub{}
+		s, err := New(t.Context(), store, cloud, t.TempDir(), WithKeyring(&accountKeyringStub{locked: true}),
+			WithClock(clockwork.NewFakeClockAt(accountTestTime())))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(s.Close)
+		if state := s.Status(); state.State != ReauthRequired || cloud.calls.Load() != 0 {
+			t.Fatalf("boot without a fresh launcher credential: %+v, exchanges %d", state, cloud.calls.Load())
+		}
+	})
+}
+
+type launcherTokenCloudStub struct {
+	accountCloudStub
+	calls atomic.Int32
+}
+
+func (s *launcherTokenCloudStub) ExchangeAccountToken(
+	context.Context, string, string,
+) (remoteproto.AccountTokenIdentity, error) {
+	s.calls.Add(1)
+	return remoteproto.AccountTokenIdentity{
+		AccountID: testAccountID, TokenID: "atk_test", TokenName: "ci", Email: "pedro@example.com",
+	}, nil
 }
 
 type accountStoreStub struct {
@@ -416,9 +550,15 @@ func (s *accountStoreStub) SaveInstallationAccount(_ context.Context, _ int64, s
 	return nil
 }
 
-type accountKeyringStub struct{ entries sync.Map }
+type accountKeyringStub struct {
+	entries sync.Map
+	locked  bool
+}
 
 func (s *accountKeyringStub) Get(service, user string) (string, error) {
+	if s.locked {
+		return "", errors.New("fixture keyring locked")
+	}
 	value, ok := s.entries.Load([2]string{service, user})
 	if !ok {
 		return "", keyring.ErrNotFound
@@ -432,6 +572,9 @@ func (s *accountKeyringStub) Set(service, user, value string) error {
 }
 
 func (s *accountKeyringStub) Delete(service, user string) error {
+	if s.locked {
+		return errors.New("fixture keyring locked")
+	}
 	s.entries.Delete([2]string{service, user})
 	return nil
 }
@@ -444,6 +587,7 @@ type accountCloudStub struct {
 	enroll      func(remoteproto.DeviceEnrollRequest) (remoteproto.DeviceEnrollResponse, error)
 	profile     func() (remoteproto.AccountSummary, error)
 	patchEmail  func(cloudclient.Credentials, remoteproto.AccountEmailPatch) (remoteproto.AccountSummary, error)
+	logout      func() error
 	refresh     func() (remoteproto.DeviceSessionTokens, error)
 }
 
@@ -486,7 +630,12 @@ func (s *accountCloudStub) Refresh(context.Context, string, crypto.Signer) (remo
 	return s.refresh()
 }
 
-func (*accountCloudStub) Logout(context.Context, string, crypto.Signer) error { return nil }
+func (s *accountCloudStub) Logout(context.Context, string, crypto.Signer) error {
+	if s.logout != nil {
+		return s.logout()
+	}
+	return nil
+}
 
 func accountTestTime() time.Time { return time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC) }
 
@@ -594,13 +743,60 @@ func TestSignInGate(t *testing.T) {
 			t.Fatal("fresh home recorded an offline grace deadline")
 		}
 	})
+
+	for _, tc := range []struct {
+		name  string
+		setup func(*gateCloudStub)
+	}{
+		{"rate limiting", func(cloud *gateCloudStub) {
+			cloud.failure.Store(&cloudclient.Failure{Status: http.StatusTooManyRequests})
+		}},
+		{"JWKS unavailability", func(cloud *gateCloudStub) {
+			cloud.keysFailure.Store(&cloudclient.Failure{Status: http.StatusServiceUnavailable})
+		}},
+	} {
+		t.Run("Should keep signed grace through "+tc.name, func(t *testing.T) {
+			// RC-07: A failed policy verification fetch cannot revoke an unexpired signed grace.
+			t.Parallel()
+			cloud := testGateCloud(t, time.Hour, false)
+			service, store, _ := newAccountTest(t, cloud, Installation{State: SignedOut}, WithSignInRequired(true))
+			assertTestGate(t, service, GateGrace, "policy")
+			cached := store.current()
+			lifetime := service.OperatorLifetime()
+			tc.setup(cloud)
+			service.fetchGatePolicy(t.Context(), cloud)
+			assertTestGate(t, service, GateGrace, "policy")
+			if state := store.current(); state.GatePolicyJWS != cached.GatePolicyJWS ||
+				state.GatePolicyKeys != cached.GatePolicyKeys || !state.GatePolicyFetchedAt.Equal(cached.GatePolicyFetchedAt) ||
+				lifetime.Err() != nil {
+				t.Fatalf("temporary failure displaced the working policy or operator lifetime: %v", lifetime.Err())
+			}
+		})
+
+		t.Run("Should keep offline grace available after "+tc.name, func(t *testing.T) {
+			// RC-07: Only an authoritative response ends offline first-contact eligibility.
+			t.Parallel()
+			cloud := testGateCloud(t, 0, false)
+			tc.setup(cloud)
+			service, store, _ := newAccountTest(t, cloud, Installation{
+				State: SignedOut, PreAccountInstall: true,
+			}, WithSignInRequired(true))
+			cloud.failure.Store(&cloudclient.Failure{Status: http.StatusServiceUnavailable})
+			service.fetchGatePolicy(t.Context(), cloud)
+			assertTestGate(t, service, GateGrace, "offline")
+			if state := store.current(); !state.GatePolicyFetchedAt.IsZero() {
+				t.Fatal("unavailable policy was recorded as first contact")
+			}
+		})
+	}
 }
 
 type gateCloudStub struct {
 	accountCloudStub
-	policy  string
-	keys    remoteproto.JWKS
-	failure atomic.Pointer[cloudclient.Failure]
+	policy      string
+	keys        remoteproto.JWKS
+	failure     atomic.Pointer[cloudclient.Failure]
+	keysFailure atomic.Pointer[cloudclient.Failure]
 }
 
 func (s *gateCloudStub) GatePolicy(context.Context) (string, error) {
@@ -610,7 +806,12 @@ func (s *gateCloudStub) GatePolicy(context.Context) (string, error) {
 	return s.policy, nil
 }
 
-func (s *gateCloudStub) JWKS(context.Context) (remoteproto.JWKS, error) { return s.keys, nil }
+func (s *gateCloudStub) JWKS(context.Context) (remoteproto.JWKS, error) {
+	if failure := s.keysFailure.Load(); failure != nil {
+		return remoteproto.JWKS{}, failure
+	}
+	return s.keys, nil
+}
 
 func testGateCloud(t *testing.T, until time.Duration, foreign bool) *gateCloudStub {
 	t.Helper()

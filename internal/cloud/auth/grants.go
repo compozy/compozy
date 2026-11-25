@@ -6,10 +6,10 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"maps"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -137,8 +137,16 @@ func grantAvailable(g store.DeviceGrant, now time.Time) error {
 }
 
 type codeWindow struct {
+	next     *codeWindow
+	browser  string
 	failures int
 	until    time.Time
+}
+
+type codeEntries struct {
+	mu             sync.Mutex
+	windows        map[string]*codeWindow
+	oldest, newest *codeWindow
 }
 
 func (c *codeEntries) check(browser string, now time.Time, failed bool) error {
@@ -146,23 +154,45 @@ func (c *codeEntries) check(browser string, now time.Time, failed bool) error {
 	const maxBrowsers = 16_384
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !now.Before(c.nextSweep) {
-		maps.DeleteFunc(c.windows, func(_ string, w codeWindow) bool { return !now.Before(w.until) })
-		c.nextSweep = now.Add(time.Minute)
+
+	for c.oldest != nil && !now.Before(c.oldest.until) {
+		c.evictOldest()
 	}
-	entry := c.windows[browser]
-	if !now.Before(entry.until) {
-		entry = codeWindow{until: now.Add(window)}
-	}
-	if entry.failures >= 5 || (entry.failures == 0 && len(c.windows) >= maxBrowsers) {
-		return &Failure{Status: http.StatusTooManyRequests, Code: "rate_limited", Message: "Too many attempts.",
-			RetryAfter: int((entry.until.Sub(now) + time.Second - 1) / time.Second)}
+	if entry := c.windows[browser]; entry != nil {
+		if entry.failures >= 5 {
+			return &Failure{Status: http.StatusTooManyRequests, Code: "rate_limited", Message: "Too many attempts.",
+				RetryAfter: int((entry.until.Sub(now) + time.Second - 1) / time.Second)}
+		}
+		if failed {
+			entry.failures++
+		}
+		return nil
 	}
 	if failed {
-		entry.failures++
+		if len(c.windows) >= maxBrowsers {
+			c.evictOldest()
+		}
+		if c.windows == nil {
+			c.windows = make(map[string]*codeWindow)
+		}
+		entry := &codeWindow{browser: browser, failures: 1, until: now.Add(window)}
+		if c.newest == nil {
+			c.oldest = entry
+		} else {
+			c.newest.next = entry
+		}
+		c.newest = entry
 		c.windows[browser] = entry
 	}
 	return nil
+}
+
+func (c *codeEntries) evictOldest() {
+	delete(c.windows, c.oldest.browser)
+	c.oldest = c.oldest.next
+	if c.oldest == nil {
+		c.newest = nil
+	}
 }
 
 func (s *Service) CancelDeviceGrant(ctx context.Context, code string) error {

@@ -17,13 +17,14 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	if s.cfg.Stripe == nil {
 		return nil
 	}
-	ids, err := s.db.BillingStripeSubscriptionIDs(ctx)
+	cutoff := s.cfg.Now().Add(-ReconcileInterval)
+	ids, err := s.db.BillingStripeSubscriptionIDs(ctx, cutoff)
 	if err != nil {
 		return err
 	}
 	var failures []error
 	for _, id := range ids {
-		failure := s.reconcileOne(ctx, id)
+		failure := s.reconcileOne(ctx, id, cutoff)
 		if failure != nil {
 			failures = append(failures, failure)
 		}
@@ -34,10 +35,10 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	return errors.Join(failures...)
 }
 
-func (s *Service) reconcileOne(ctx context.Context, id string) error {
+func (s *Service) reconcileOne(ctx context.Context, id string, cutoff time.Time) error {
 	work, cancel := context.WithTimeout(ctx, 3*stripeTimeout)
 	defer cancel()
-	return s.refreshSubscription(work, id, stripeEvent{}, "")
+	return s.applySubscriptionRefresh(work, id, stripeEvent{}, "", cutoff)
 }
 
 func (s *Service) ReconcileComplimentary(ctx context.Context) error {

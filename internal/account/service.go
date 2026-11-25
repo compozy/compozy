@@ -194,12 +194,9 @@ func (s *Service) signedOutLocked(ctx context.Context, state State, reason strin
 		return err
 	}
 	s.sendProgressLocked(SignInEvent{State: string(state), SignedOutReason: reason})
-	if previous.Source == SourceToken {
-		return s.credentials.remove(tokenEntry, previous.InstallationID)
-	}
 	if previous.Source == SourceSession && previous.AccountID != "" {
 		if err := s.credentials.remove(refreshEntry, previous.AccountID); err != nil {
-			return err
+			s.logger.WarnContext(ctx, "Signed-out account credential could not be removed", "error", err)
 		}
 	}
 	return nil
@@ -225,12 +222,10 @@ func (s *Service) Logout(ctx context.Context) error {
 		return nil
 	}
 	if current.State == SignedIn && current.Source == SourceSession {
-		var err error
-		session, err = s.loadSession(current, session)
+		session, err := s.loadSession(current, session)
 		if err != nil {
-			return err
-		}
-		if err := s.cloud.Logout(s.ctx, session.refresh, session.key); err != nil && reauthReason(err) == "" {
+			s.logger.WarnContext(ctx, "Account credential unavailable for cloud sign-out", "error", err)
+		} else if err := s.cloud.Logout(s.ctx, session.refresh, session.key); err != nil && reauthReason(err) == "" {
 			return err
 		}
 	}
@@ -341,7 +336,7 @@ func (s *Service) refresh(g *generation, forAccess bool) (cloudclient.Credential
 		return cloudclient.Credentials{Key: session.key, AccessToken: session.access}, nil
 	}
 	if now.Before(retryAt) ||
-		(!forAccess && now.Before(current.LastValidatedAt.Add(dailyRefresh)) && !session.unsaved) {
+		(!forAccess && retryAt.IsZero() && now.Before(current.LastValidatedAt.Add(dailyRefresh)) && !session.unsaved) {
 		if !forAccess {
 			return cloudclient.Credentials{}, nil
 		}

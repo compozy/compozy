@@ -2433,7 +2433,7 @@ name = "other"
 		writeDaemonFile(t, filepath.Join(gatewayDir, "credentials", "old.cred"), "retired credential")
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewTextHandler(&logs, nil))
-		for range 2 {
+		for boot := range 2 {
 			d, err := New(WithHomePaths(home), WithLogger(logger))
 			if err != nil {
 				t.Fatal(err)
@@ -2449,7 +2449,14 @@ name = "other"
 			t.Cleanup(stop)
 
 			uds := daemonIntegrationUDSClient(home.DaemonSocket)
-			response := daemonIntegrationRequest(t, uds, http.MethodGet, "http://localhost/api/migration-notices", "", nil)
+			response := daemonIntegrationRequest(
+				t,
+				uds,
+				http.MethodGet,
+				"http://localhost/api/migration-notices",
+				"",
+				nil,
+			)
 			body := daemonIntegrationReadBody(t, response)
 			uds.CloseIdleConnections()
 			var notices contract.MigrationNoticesResponse
@@ -2460,18 +2467,27 @@ name = "other"
 				t.Fatalf("migration notices HTTP %d: %s", response.StatusCode, body)
 			}
 			notice := notices.Notices[0]
-			if notice.Key != "gateway_removed" || notice.Payload != (contract.GatewayRemovalNoticePayload{ConnectionProfiles: 2}) {
+			if notice.Key != "gateway_removed" ||
+				notice.Payload != (contract.GatewayRemovalNoticePayload{ConnectionProfiles: 2}) {
 				t.Fatalf("migration notice = %+v, want two removed profiles only", notice)
 			}
 			stop()
+			if boot == 0 {
+				if _, err := os.Lstat(gatewayDir); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("retired credential directory lookup = %v, want no directory", err)
+				}
+				// AST-007: A later boot preserves files created after the one-time Gateway migration.
+				writeDaemonFile(t, filepath.Join(gatewayDir, "credentials", "backup.cred"), "operator backup")
+			}
 		}
 
 		clean, err := os.ReadFile(home.ConfigFile)
 		if err != nil || bytes.Contains(clean, []byte("gateway")) || !bytes.Contains(clean, []byte("[automation]")) {
 			t.Fatalf("config after upgrade = %q, %v", clean, err)
 		}
-		if _, err := os.Lstat(gatewayDir); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("retired credential directory lookup = %v, want no directory", err)
+		backup, err := os.ReadFile(filepath.Join(gatewayDir, "credentials", "backup.cred"))
+		if err != nil || string(backup) != "operator backup" {
+			t.Fatalf("Gateway backup after a later boot = %q, %v", backup, err)
 		}
 		if strings.Count(logs.String(), "config_keys_removed") != 1 {
 			t.Fatalf("upgrade warning count != 1: %s", logs.String())
