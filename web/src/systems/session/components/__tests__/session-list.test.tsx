@@ -3529,6 +3529,7 @@ describe("SessionList folders and manual order", () => {
       facets: undefined,
       total: undefined,
       working: undefined,
+      needsYou: undefined,
       loading: false,
       placeholder: false,
       failed: false,
