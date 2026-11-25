@@ -506,6 +506,7 @@ jobs:
     uses: ./.github/workflows/cloud-deploy.yml
     with:
       target: staging
+    secrets: inherit
 
   sdk-go-test:
     name: Go SDK (race test)

@@ -6,6 +6,45 @@ on:
       target:
         type: string
         required: true
+    # Environment secrets reach a called workflow only when the caller passes
+    # them; ci.yml uses `secrets: inherit`. Unpassed secrets resolve to "".
+    # They stay optional because a required check runs against the caller,
+    # which cannot see `staging` environment secrets.
+    secrets:
+      COMPOZY_CLOUD_CLOUDFLARE_DEPLOY_API_TOKEN:
+        required: false
+      COMPOZY_CLOUD_CLOUDFLARE_TUNNEL_API_TOKEN:
+        required: false
+      COMPOZY_CLOUD_GITHUB_CLIENT_SECRET:
+        required: false
+      COMPOZY_CLOUD_GOOGLE_CLIENT_SECRET:
+        required: false
+      COMPOZY_CLOUD_GRAFANA_PROM_TOKEN:
+        required: false
+      COMPOZY_CLOUD_METRICS_TOKEN:
+        required: false
+      COMPOZY_CLOUD_NEON_DIRECT_URL:
+        required: false
+      COMPOZY_CLOUD_NEON_POOLED_URL:
+        required: false
+      COMPOZY_CLOUD_PKCE_ENC_KEY:
+        required: false
+      COMPOZY_CLOUD_RESEND_API_KEY:
+        required: false
+      COMPOZY_CLOUD_RESEND_CONTACTS_API_KEY:
+        required: false
+      COMPOZY_CLOUD_SENTRY_DSN:
+        required: false
+      COMPOZY_CLOUD_SIGNING_KEYS:
+        required: false
+      COMPOZY_CLOUD_STRIPE_SECRET_KEY:
+        required: false
+      COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET:
+        required: false
+      COMPOZY_CLOUD_TURNSTILE_SECRET_KEY:
+        required: false
+      COMPOZY_CLOUD_UNSUBSCRIBE_KEY:
+        required: false
   push:
     tags:
       - "cloud-v*"
