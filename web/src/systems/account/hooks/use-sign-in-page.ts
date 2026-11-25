@@ -4,9 +4,8 @@ import { useRouter } from "@tanstack/react-router";
 
 import { toast } from "@compozy/ui";
 
-import { evictRemoteComputerQueries } from "@/lib/computer-scope";
+import { evictAccountScopedState } from "@/lib/computer-scope";
 import { unlinkRemoteHost } from "@/systems/computers/adapters/remote-host-api";
-import { computerRegistryKeys } from "@/systems/computers/lib/query-keys";
 import type {
   SignInProvider,
   SignInWaitingAttemptFixture,
@@ -18,6 +17,7 @@ import {
   fetchAccountStatus,
   openAccountSignInStream,
   startAccountLogin,
+  type AccountStatusPayload,
 } from "../adapters/account-api";
 import { openBillingBrowserWindow, reopenBillingUrl } from "../lib/billing-window";
 import { accountKeys } from "../lib/query-keys";
@@ -75,14 +75,15 @@ export function useSignInPage(options: UseSignInPageOptions = {}) {
     setWaiting(null);
     setNotice(null);
     setCloudUnreachable(false);
+    let latest: AccountStatusPayload | undefined;
     try {
-      const latest = await fetchAccountStatus();
-      queryClient.setQueryData(accountKeys.status(), latest);
+      latest = await fetchAccountStatus();
     } catch {
-      await queryClient.invalidateQueries({ queryKey: accountKeys.status() });
+      latest = undefined;
     }
-    evictRemoteComputerQueries(queryClient, { includeComputers: true });
-    void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
+    // Cancel and remove all prior account- and computer-scoped caches and stores before
+    // seeding only the newly confirmed status (Rule 23, AST-010).
+    evictAccountScopedState(queryClient, latest ? { seedStatus: latest } : {});
     void router.navigate({ href: redirectTarget, replace: true });
   }, [queryClient, redirectTarget, router]);
 

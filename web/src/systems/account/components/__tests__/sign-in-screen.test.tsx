@@ -8,11 +8,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { computerQueryKey, LOCAL_COMPUTER_ID } from "@/lib/computer-scope";
+import { computerRegistryKeys } from "@/systems/computers/lib/query-keys";
 import {
   AccountApiError,
   type AccountSignInStreamHandlers,
   type AccountStatusPayload,
 } from "../../adapters/account-api";
+import { accountKeys } from "../../lib/query-keys";
 import {
   COMPOZY_PRIVACY_URL,
   COMPOZY_STATUS_URL,
@@ -410,5 +413,51 @@ describe("U0 SignInScreen states and legal/help links (UT-120, UT-138)", () => {
     expect(onRevoke).toHaveBeenCalledWith(expect.objectContaining({ deviceId: "dev_a" }));
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  // Regression test for AST-010: completing sign-in on /sign-in must cancel and remove all prior
+  // account- and computer-scoped queries and seed only the newly confirmed account status.
+  it("AST-010: evicts previous account devices, approvals, tokens, and remote queries on sign-in completion", async () => {
+    const signedOut = makeStatus({ state: "signed_out", signed_in: false });
+    const accountB = makeStatus({
+      state: "signed_in",
+      signed_in: true,
+      source: "session",
+      email: "b@example.test",
+      name: "Account B",
+      device: { id: "dev_b", name: "MacBook B", admin: true },
+    });
+    mocks.fetchAccountStatus.mockResolvedValueOnce(signedOut).mockResolvedValueOnce(accountB);
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(accountKeys.devices(), { devices: [{ id: "dev_a" }] });
+    queryClient.setQueryData(accountKeys.approvals(), { approvals: [{ id: "apr_a" }] });
+    queryClient.setQueryData(accountKeys.tokens(), { tokens: [{ id: "atk_a" }] });
+    queryClient.setQueryData(computerRegistryKeys.list(), { computers: [{ id: "C1" }] });
+    queryClient.setQueryData(computerQueryKey("C1", "sessions"), ["remote-c1"]);
+    queryClient.setQueryData(computerQueryKey(LOCAL_COMPUTER_ID, "sessions"), ["local-sess"]);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LiveSignInHarness redirectTo="/settings/account" />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => expect(streamHandlers).not.toBeNull());
+    await act(async () => {
+      streamHandlers?.onState?.({ state: "signed_in", signed_out_reason: null });
+    });
+
+    await waitFor(() => {
+      expect(queryClient.getQueryData(accountKeys.status())).toEqual(accountB);
+    });
+    expect(queryClient.getQueryData(accountKeys.devices())).toBeUndefined();
+    expect(queryClient.getQueryData(accountKeys.approvals())).toBeUndefined();
+    expect(queryClient.getQueryData(accountKeys.tokens())).toBeUndefined();
+    expect(queryClient.getQueryData(computerRegistryKeys.list())).toBeUndefined();
+    expect(queryClient.getQueryData(computerQueryKey("C1", "sessions"))).toBeUndefined();
+    expect(queryClient.getQueryData(computerQueryKey(LOCAL_COMPUTER_ID, "sessions"))).toEqual([
+      "local-sess",
+    ]);
   });
 });

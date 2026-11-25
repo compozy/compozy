@@ -84,6 +84,42 @@ function inferApprovalDeviceKind(deviceName: string): DeviceKind {
   return "desktop";
 }
 
+/**
+ * Builds a clean signed-out status snapshot preserving only installation-level gate metadata
+ * so none of the previous account's profile, device, billing, or notice fields survive sign-out
+ * or account deletion (Rule 23, AST-010).
+ */
+export function buildSignedOutAccountStatus(
+  current: AccountStatusPayload | undefined,
+  reason: "signed_out" | "account_deleted" = "signed_out"
+): AccountStatusPayload | undefined {
+  if (!current) return undefined;
+  return {
+    gate: current.gate,
+    grace: current.grace,
+    state: "signed_out",
+    source: null,
+    signed_out_reason: reason,
+    pre_account_install: current.pre_account_install,
+    installation_linked: false,
+    token_name: null,
+    signed_in: false,
+    email: "",
+    name: "",
+    provider: "",
+    device: null,
+    marketing_opt_in: false,
+    plan: "free",
+    subscription: null,
+    remote_computers_used: 0,
+    remote_computers_limit: 1,
+    cloud_routes_used: 0,
+    cloud_routes_limit: 0,
+    payment_issue: false,
+    recent_sign_ins: [],
+  };
+}
+
 /** Projects a live `/api/account` response into the `AccountStateFixture` view model. */
 export function toAccountView(
   status: AccountStatusPayload,

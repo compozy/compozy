@@ -1,7 +1,12 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createStore } from "@xstate/store";
 
-import { normalizeComputerId, type ComputerId } from "@/lib/computer-scope";
+import {
+  isRemoteComputerId,
+  normalizeComputerId,
+  onAccountScopeEvicted,
+  type ComputerId,
+} from "@/lib/computer-scope";
 import type { SessionState } from "../types";
 import { sessionKeys } from "./query-keys";
 
@@ -34,7 +39,32 @@ export const sessionStreamLivenessStore = createStore({
       const { [key]: _released, ...live } = context.live;
       return { live };
     },
+    remoteStreamsCleared: context => {
+      let changed = false;
+      const live: Record<string, number> = {};
+      for (const [key, count] of Object.entries(context.live)) {
+        if (isRemoteStreamKey(key)) {
+          changed = true;
+          continue;
+        }
+        live[key] = count;
+      }
+      return changed ? { live } : undefined;
+    },
   },
+});
+
+function isRemoteStreamKey(key: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(key);
+    return Array.isArray(parsed) && typeof parsed[0] === "string" && isRemoteComputerId(parsed[0]);
+  } catch {
+    return false;
+  }
+}
+
+onAccountScopeEvicted(() => {
+  sessionStreamLivenessStore.trigger.remoteStreamsCleared({});
 });
 
 function streamKey(sessionId: string, computerId?: ComputerId): string {

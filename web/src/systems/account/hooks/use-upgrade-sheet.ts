@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "@compozy/ui";
 
+import { evictAccountScopedState } from "@/lib/computer-scope";
 import { computerRegistryKeys } from "@/systems/computers/lib/query-keys";
 
 import {
@@ -106,6 +107,12 @@ export function useUpgradeSheet(options: UseUpgradeSheetOptions = {}): UpgradeSh
     const close = openAccountStream({
       onAccountChanged: event => {
         if (!active) return;
+        if (event.evict_remote) {
+          evictAccountScopedState(queryClient);
+          onUpgradedRef.current = undefined;
+          setOpen(false);
+          return;
+        }
         invalidateBillingQueries();
         if (event.plan === "pro") {
           markUpgraded();

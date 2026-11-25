@@ -1,11 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 
 import { toast } from "@compozy/ui";
 
-import { evictRemoteComputerQueries } from "@/lib/computer-scope";
-import { computerRegistryKeys } from "@/systems/computers/lib/query-keys";
+import { evictAccountScopedState, onAccountScopeEvicted } from "@/lib/computer-scope";
 import type { CreatedAccountTokenFixture } from "@/systems/computers/mocks/remote-computers-fixtures-lane-a";
 import type { AccountTokenFixture } from "@/systems/computers/mocks/remote-computers-types";
 
@@ -19,7 +18,7 @@ import {
   revokeAccountToken,
   type AccountStatusPayload,
 } from "../adapters/account-api";
-import { toAccountTokenView } from "../lib/account-view";
+import { buildSignedOutAccountStatus, toAccountTokenView } from "../lib/account-view";
 import { accountKeys } from "../lib/query-keys";
 import { accountTokensOptions } from "../lib/query-options";
 
@@ -44,6 +43,19 @@ export function useAccountLifecycleMutations({
   const [revokingTokenId, setRevokingTokenId] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  useEffect(
+    () =>
+      onAccountScopeEvicted(() => {
+        setCreateTokenOpen(false);
+        setCreateTokenError(null);
+        setCreatedToken(null);
+        setRevokingTokenId(null);
+        setDeleteOpen(false);
+        setDeleteError(null);
+      }),
+    []
+  );
 
   const tokens = useMemo<AccountTokenFixture[]>(
     () => (tokensQuery.data?.tokens ?? []).map(toAccountTokenView),
@@ -108,22 +120,14 @@ export function useAccountLifecycleMutations({
   const deleteAccountMutation = useMutation({
     mutationFn: () => deleteAccount(email),
     onSuccess: () => {
+      const signedOutStatus = buildSignedOutAccountStatus(
+        queryClient.getQueryData<AccountStatusPayload>(accountKeys.status()),
+        "account_deleted"
+      );
       setDeleteOpen(false);
       setDeleteError(null);
-      evictRemoteComputerQueries(queryClient, { includeComputers: true });
-      queryClient.setQueryData<AccountStatusPayload | undefined>(accountKeys.status(), current =>
-        current
-          ? {
-              ...current,
-              signed_in: false,
-              state: "signed_out",
-              signed_out_reason: "signed_out",
-              recent_sign_ins: [],
-            }
-          : current
-      );
-      void queryClient.invalidateQueries({ queryKey: accountKeys.all });
-      void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.all });
+      setCreatedToken(null);
+      evictAccountScopedState(queryClient, signedOutStatus ? { seedStatus: signedOutStatus } : {});
       if (gate && gate !== "off") {
         void router.navigate({ to: "/sign-in", replace: true });
       }

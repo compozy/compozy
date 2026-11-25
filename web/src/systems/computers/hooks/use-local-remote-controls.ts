@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "@compozy/ui";
 
+import { evictAccountScopedState, onAccountScopeEvicted } from "@/lib/computer-scope";
+
 import {
   AccountApiError,
   accountApprovalsOptions,
@@ -52,6 +54,15 @@ export function useLocalRemoteControls({
   const [revokeTarget, setRevokeTarget] = useState<AccountDeviceFixture | null>(null);
   const [revokeApprovalFailure, setRevokeApprovalFailure] = useState<string | null>(null);
 
+  useEffect(
+    () =>
+      onAccountScopeEvicted(() => {
+        setRevokeTarget(null);
+        setRevokeApprovalFailure(null);
+      }),
+    []
+  );
+
   // Poll `/api/remote` while Hosted route is starting or retrying until it reaches `ready`.
   const hostedRouteEnabled = Boolean(remoteStatusQuery.data?.cloud_route?.enabled);
   const hostedRouteState = remoteStatusQuery.data?.cloud_route?.state;
@@ -70,7 +81,11 @@ export function useLocalRemoteControls({
   useEffect(() => {
     if (!signedIn || !remoteEnabled) return;
     return openAccountStream({
-      onAccountChanged: () => {
+      onAccountChanged: event => {
+        if (event.evict_remote) {
+          evictAccountScopedState(queryClient);
+          return;
+        }
         void queryClient.invalidateQueries({ queryKey: accountKeys.approvals() });
         void queryClient.invalidateQueries({ queryKey: accountKeys.devices() });
         void queryClient.invalidateQueries({ queryKey: computerRegistryKeys.remoteDevices() });
