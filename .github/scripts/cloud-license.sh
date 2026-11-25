@@ -8,15 +8,17 @@ for directory in cmd/compozy-cloud internal/cloud infra/cloud-edge; do
   fi
 done
 
+# The first staging rollout rolled back 00002 before reaching 00008.
+# Those two pins record the corrected files for the next rollout.
 declare -A historical_migrations=(
   [internal/cloud/store/migrations/00001_cloud.sql]=1d338c3346782a1ea6cabda8962148a4a7640156
-  [internal/cloud/store/migrations/00002_security_events.sql]=845d96d9aae146ee71329ecd2b6c0f0e3ccd2964
+  [internal/cloud/store/migrations/00002_security_events.sql]=7f2d42368ec6fe481df6b7defc2b44ab1cad3b39
   [internal/cloud/store/migrations/00003_gate_policy.sql]=682691cf331953b3367d6f1580ef194ecb841228
   [internal/cloud/store/migrations/00004_cloud_auth.sql]=0b2d336847343c077cb05294c8784cfd07d683af
   [internal/cloud/store/migrations/00005_control_link.sql]=e3fd45ea13e1ce993cbcf164c4a959b65e10a641
   [internal/cloud/store/migrations/00006_hosted_tunnels.sql]=d0cd4a5ed6e282a9fa52507c3dbf18e6f965b2db
   [internal/cloud/store/migrations/00007_billing.sql]=e94e78d9be8b0a296418c39405b0f8ce9bd0324b
-  [internal/cloud/store/migrations/00008_account_lifecycle.sql]=f749add15c79bd856c28556602151a63003f0ea8
+  [internal/cloud/store/migrations/00008_account_lifecycle.sql]=6908789ca0224511acac7b84c13f283b55b3608b
 )
 
 failed=0
