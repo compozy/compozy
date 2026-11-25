@@ -830,9 +830,10 @@ func TestRequiredSignInDaemon(t *testing.T) {
 		if status != 1 || !strings.Contains(stderr, "Sign in to use CompozyOS: compozy account login") {
 			t.Fatalf("signed-out CLI exit = %d, stderr = %q", status, stderr)
 		}
-		status, stdout, stderr := runAccountFixtureCLI(t, "daemon", "status", "--json")
-		var daemonStatus contract.DaemonStatusPayload
-		if status != 0 || json.Unmarshal([]byte(stdout), &daemonStatus) != nil || daemonStatus.PID != os.Getpid() {
+		status, stdout, stderr := runAccountFixtureCLI(t, "status", "--json")
+		var runtimeStatus contract.StatusPayload
+		if status != 0 || json.Unmarshal([]byte(stdout), &runtimeStatus) != nil ||
+			runtimeStatus.Daemon.PID != os.Getpid() {
 			t.Fatalf("signed-out daemon status exit = %d, status = %q, stderr = %q", status, stdout, stderr)
 		}
 		d.stop()

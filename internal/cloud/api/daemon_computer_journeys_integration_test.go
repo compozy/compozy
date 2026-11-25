@@ -209,10 +209,10 @@ func assertTargetedSessionCLI(
 	list.Reset()
 	stderr.Reset()
 	code = cli.ExecuteContext(t.Context(), []string{
-		"daemon", "status", "--computer", controllerTestName, "--json",
+		"daemon", "start", "--computer", controllerTestName, "--json",
 	}, &list, &stderr)
 	if code != 2 || !bytes.Contains(append(list.Bytes(), stderr.Bytes()...), []byte(`"flag_not_applicable"`)) {
-		t.Fatalf("daemon status exit %d, stdout %s, stderr %s", code, list.Bytes(), stderr.Bytes())
+		t.Fatalf("daemon start exit %d, stdout %s, stderr %s", code, list.Bytes(), stderr.Bytes())
 	}
 }
 

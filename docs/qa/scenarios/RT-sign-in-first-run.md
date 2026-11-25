@@ -9,7 +9,7 @@ entry_points: Official desktop package; CLI over SSH; Cloud activation page
 qa_status: pending
 ---
 
-1. Start the packaged app with an empty home and verify a protected read returns `401 sign_in_required`. Run `compozy session list` and verify it exits with code 1 and shows the sign-in hint. Confirm `compozy daemon status --json`, account status, update status, and application assets still load.
+1. Start the packaged app with an empty home and verify a protected read returns `401 sign_in_required`. Run `compozy session list` and verify it exits with code 1 and shows the sign-in hint. Confirm `compozy status --json`, account status, update status, and application assets still load.
 2. Sign in with Google. Compare the activation page's code, computer name, and location against the challenge. Verify the shell opens and the protected read returns 200.
 3. Repeat on a headless host with `compozy account login --provider github --no-browser --news`. Use the printed URL and code, then verify the CLI reports the account and a local read succeeds.
 4. Confirm the email preference, follow its unsubscribe link, and confirm it turns off. Open the first sign-in notice and check its linked revoke flow from a freshly authenticated browser.

@@ -118,9 +118,9 @@ const (
 func accountCommandClass(cmd *cobra.Command, deps commandDeps) cliAccountClass {
 	path := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")
 	switch path {
-	case "account login", "account status", "account logout", "install", "version", "help",
+	case "account login", "account status", "account logout", "install", "version", "help", statusCommandKey,
 		"service install", "service uninstall", "service status",
-		"remote status", "daemon start", "daemon stop", "daemon restart", "daemon status", "daemon bootstrap":
+		"remote status", "daemon start", "daemon stop", "daemon restart", "daemon bootstrap":
 		return accountCommandBootstrap
 	case "me", "notify", "task start", "task heartbeat", "task complete", "task fail", "task release":
 		if credentials := agentCredentialsFromEnv(deps); credentials.SessionID != "" &&
