@@ -77,6 +77,7 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 			HasMore:    page.HasMore,
 			Total:      total,
 			Working:    page.Working,
+			NeedsYou:   page.NeedsYou,
 			Limit:      page.Limit,
 		},
 	})

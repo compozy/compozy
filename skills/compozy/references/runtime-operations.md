@@ -1780,8 +1780,9 @@ private context, and a failed transport dispatch produces no receipt.
 `GET /api/sessions` preserves exact filtered `page.total` by default. HTTP/UDS consumers that only
 need cursor continuation may use `skip_total=true`; that response omits `page.total`, never substitutes
 a loaded count, and retains `has_more`, `next_cursor`, and `limit`. Beside `page.total`, `page.working`
-counts the sessions in that total whose badge is running, under the same scope and filters; it is omitted
-with `skip_total=true` and on `sort=pinned`, which counts pins. Attention/badge filtering happens
+counts the sessions in that total whose badge is running, and `page.needs_you` those whose badge needs
+you, under the same scope and filters; both are omitted with `skip_total=true` and on `sort=pinned`,
+which counts pins. Attention/badge filtering happens
 before the SQL page cut. Paged reads do not sweep expired attach leases or acquire the writer.
 
 For one workspace and profile, pass `folder=<folder-id>` for a session folder or `folder=@root`

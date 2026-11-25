@@ -393,6 +393,7 @@ type SessionCatalogPagePayload struct {
 	HasMore    bool   `json:"has_more"`
 	Total      *int   `json:"total,omitzero"`
 	Working    *int   `json:"working,omitzero"`
+	NeedsYou   *int   `json:"needs_you,omitzero"`
 	Limit      int    `json:"limit"`
 }
 
@@ -437,14 +438,4 @@ type SessionChangesResponse struct {
 	Files       []FileChangePayload        `json:"files"`
 	Truncated   bool                       `json:"truncated"`
 	Revision    string                     `json:"revision"`
-}
-
-// SessionChildrenPayload is a daemon API value.
-type SessionChildrenPayload struct {
-	Total    int `json:"total"`
-	NeedsYou int `json:"needs_you"`
-	Working  int `json:"working"`
-	Waiting  int `json:"waiting"`
-	InReview int `json:"in_review"`
-	Done     int `json:"done"`
 }

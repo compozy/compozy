@@ -4,6 +4,14 @@ package client
 
 import "time"
 
+// SettingsAutomationConfigPayload is a daemon API value.
+type SettingsAutomationConfigPayload struct {
+	Enabled           bool            `json:"enabled"`
+	Timezone          string          `json:"timezone"`
+	MaxConcurrentJobs int             `json:"max_concurrent_jobs"`
+	DefaultFireLimit  FireLimitConfig `json:"default_fire_limit"`
+}
+
 // SettingsAutomationResponse is a daemon API value.
 type SettingsAutomationResponse struct {
 	Section         SettingsSectionName              `json:"section"`

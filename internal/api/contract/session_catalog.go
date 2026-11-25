@@ -22,7 +22,10 @@ type SessionCatalogPagePayload struct {
 	// working notion, under the same scope and filters. It is present whenever Total is,
 	// except on a pinned-sort read, which counts pins rather than sessions.
 	Working *int `json:"working,omitzero"`
-	Limit   int  `json:"limit"`
+	// NeedsYou counts the sessions in Total whose badge needs the operator, with the catalog
+	// facets' needs-you notion, under the same scope, filters and presence rule as Working.
+	NeedsYou *int `json:"needs_you,omitzero"`
+	Limit    int  `json:"limit"`
 }
 
 // SessionCatalogEventPayload is a workspace-identified wake signal. Clients must

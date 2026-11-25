@@ -140,6 +140,7 @@ func (n *daemonNativeTools) sessionListPayload(
 			HasMore:    page.HasMore,
 			Total:      &page.Total,
 			Working:    page.Working,
+			NeedsYou:   page.NeedsYou,
 			Limit:      page.Limit,
 		},
 	}

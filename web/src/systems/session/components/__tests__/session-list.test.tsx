@@ -3380,6 +3380,73 @@ describe("SessionList folders and manual order", () => {
     expect(within(beta).queryByRole("img")).not.toBeInTheDocument();
   });
 
+  // Invariant (#1926): a collapsed folder's leading column follows the rows' precedence,
+  // needs you over running, named for both, as project folders and groups do.
+  it("Should lead a collapsed folder with needs-you over running, named for both", async () => {
+    const user = userEvent.setup();
+    const rows = [
+      ...layoutRows.map(session => ({
+        ...session,
+        state: "active" as const,
+        badge: session.id === "f1" ? ("running" as const) : ("done" as const),
+      })),
+      {
+        ...layoutRows[1]!,
+        id: "f2",
+        name: "Filed two",
+        state: "active" as const,
+        badge: "waiting-for-input" as const,
+      },
+    ];
+    renderList({ sessions: rows, view: { ...view, sort: "manual", layout: fakeLayout() } });
+    const alpha = screen.getByTestId("session-sidebar-folder-fa-toggle");
+
+    await user.click(alpha);
+    expect(alpha).toHaveAttribute("aria-expanded", "false");
+    const leading = alpha.firstElementChild as HTMLElement;
+    const both = within(leading).getByRole("img", { name: "1 needs you, 1 session working" });
+    expect(leading.querySelector("[data-slot='session-folder-needs-you']")).toContainElement(both);
+  });
+
+  // Invariant (#1926): a collapsed paged folder takes its needs-you glyph from the daemon's
+  // needs-you count, since it never loads the rows that need you.
+  it("Should lead a collapsed paged folder with the daemon's needs-you count", () => {
+    const roots = layoutRows.filter(row => !row.folder_id);
+    renderList({
+      sessions: roots,
+      view: {
+        ...view,
+        sort: "manual",
+        layout: fakeLayout(),
+        partitions: new Map([
+          [
+            "@root",
+            {
+              ...sessionListCatalogFixture({ sessions: roots, total: roots.length, working: 0 }),
+              countOnly: false,
+              showNavigation: false,
+            },
+          ],
+          [
+            "fa",
+            {
+              ...sessionListCatalogFixture({ total: 3, working: 0, needsYou: 2 }),
+              countOnly: true,
+              showNavigation: false,
+            },
+          ],
+        ]),
+        folderOf: new Map(roots.map(row => [row.id, null])),
+      },
+    });
+
+    const alpha = screen.getByTestId("session-sidebar-folder-fa-toggle");
+    expect(alpha).toHaveAttribute("aria-expanded", "false");
+    expect(
+      within(alpha.firstElementChild as HTMLElement).getByRole("img", { name: "2 need you" })
+    ).toBeInTheDocument();
+  });
+
   // Invariant: a header toggle takes tree disclosure keys — ArrowLeft collapses,
   // ArrowRight expands, each a no-op in its own state — and is a session-walk stop.
   it("Should collapse and expand a folder from its header with the arrow keys", async () => {
@@ -3462,6 +3529,7 @@ describe("SessionList folders and manual order", () => {
       facets: undefined,
       total: undefined,
       working: undefined,
+      needsYou: undefined,
       loading: false,
       placeholder: false,
       failed: false,

@@ -140,6 +140,7 @@ function sessionsQuery({
     facets: undefined,
     total: undefined,
     working: undefined,
+    needsYou: undefined,
     sessions: data ?? [],
     failed: isError || data === undefined,
     loading: isLoading,

@@ -6381,7 +6381,7 @@ func addSessionCatalogFolderParameter(t *testing.T, baseline map[string]any) {
 	}
 }
 
-// The two list operations' page gained one optional nullable integer, working, beside total.
+// The two list operations' page gained optional nullable integers, working and needs_you, beside total.
 // Keep the historical baseline and the full comparison for every other page property.
 func addSessionCatalogPageWorkingSchema(t *testing.T, baseline map[string]any) {
 	t.Helper()
@@ -6400,6 +6400,8 @@ func addSessionCatalogPageWorkingSchema(t *testing.T, baseline map[string]any) {
 			t.Fatalf("%s: historical list page has no properties", path)
 		}
 		properties["working"] = map[string]any{"type": "integer", "nullable": true}
+		// Session folders show needs-you beside running when collapsed.
+		properties["needs_you"] = map[string]any{"type": "integer", "nullable": true}
 	}
 }
 

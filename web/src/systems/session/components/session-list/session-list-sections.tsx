@@ -25,6 +25,7 @@ import {
   type SessionListSections as Sections,
 } from "../../lib/session-folders";
 import {
+  countNeedsYouThreadSessions,
   countRunningThreadSessions,
   countThreadSessions,
   type SessionThreadModel,
@@ -175,6 +176,9 @@ export function SessionListSections({
             // stands in for the rows it does not load (#1926).
             running={
               page?.countOnly ? (page.working ?? 0) : countRunningThreadSessions(section.threads)
+            }
+            needsYou={
+              page?.countOnly ? (page.needsYou ?? 0) : countNeedsYouThreadSessions(section.threads)
             }
             expanded={page ? !page.countOnly : filtering || !collapsedFolders.has(folder.id)}
             onToggle={() => onToggleFolder(folder.id)}
