@@ -27685,6 +27685,10 @@
           "limit": {
             "type": "integer"
           },
+          "needs_you": {
+            "nullable": true,
+            "type": "integer"
+          },
           "next_cursor": {
             "type": "string"
           },

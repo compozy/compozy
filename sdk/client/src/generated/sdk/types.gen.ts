@@ -7747,6 +7747,7 @@ export type SessionCatalogFacetsResponse = {
 export type SessionCatalogPagePayload = {
   has_more: boolean;
   limit: number;
+  needs_you?: number | null;
   next_cursor?: string;
   total?: number | null;
   working?: number | null;

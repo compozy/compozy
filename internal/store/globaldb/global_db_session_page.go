@@ -112,15 +112,18 @@ func (g *SessionRepo) PageSessions(
 			}
 			page.Total = len(page.PinnedRootIDs)
 		} else {
-			// The running count shares the total's filters, so a folder's working rows match its total.
+			// The running and needs-you counts share the total's filters, so a folder's
+			// signal rows match its total.
 			countQuery := store.AppendWhere(
 				"SELECT COUNT(1), COALESCE(SUM(CASE WHEN "+sessionCatalogBadgeExpression+" = '"+
-					runtimeStatusRunning+"' THEN 1 ELSE 0 END), 0) FROM "+source,
+					runtimeStatusRunning+"' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN "+
+					sessionCatalogBadgeExpression+" IN ("+sessionCatalogNeedsYouBadges+") THEN 1 ELSE 0 END), 0) FROM "+
+					source,
 				where,
 			)
 			// dynamic-sql: page filters and exclusion slices alter the count query structure.
 			if err := tx.QueryRowContext(ctx, countQuery, append(sourceArgs, args...)...).
-				Scan(&page.Total, &page.Working); err != nil {
+				Scan(&page.Total, &page.Working, &page.NeedsYou); err != nil {
 				return store.SessionCatalogPage{}, fmt.Errorf("store: count session catalog page: %w", err)
 			}
 		}

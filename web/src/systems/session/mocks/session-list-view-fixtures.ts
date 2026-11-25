@@ -51,6 +51,7 @@ export function sessionListCatalogFixture(
     facets: undefined,
     total: undefined,
     working: undefined,
+    needsYou: undefined,
     loading: false,
     placeholder: false,
     failed: false,
