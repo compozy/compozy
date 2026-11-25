@@ -72,14 +72,7 @@ func newBillingDevice(t *testing.T, f authFixture, email string) remoteTestDevic
 	t.Helper()
 	token := newEnrollment(t, f, auth.Google, providerProfile{email: email, subject: email, verified: true}, false)
 	key, jwk := newDeviceKey(t)
-	proof, err := remoteproto.BuildDPoP(key, http.MethodPost, f.replica.App.Issuer+enrollPath, "", f.clock.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-	headers := map[string]string{"Authorization": "DPoP " + token.EnrollmentToken, "DPoP": proof}
-	reply := callAuth(t, f.replica, http.MethodPost, enrollPath, enrollInput(jwk), nil, headers)
-	reply.expect(t, http.StatusOK, "device_id")
-	result := authJSON[remoteproto.DeviceEnrollResponse](t, reply)
+	result := f.enroll(t, token, key, enrollInput(jwk))
 	return remoteTestDevice{key, result.AccessToken, result.DeviceID, token.AccountID}
 }
 

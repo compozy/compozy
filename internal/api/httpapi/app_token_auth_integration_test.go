@@ -51,9 +51,7 @@ func exerciseAppTokenRevocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	const revokeRoute = "/api/app-tokens/:app_token_id"
-	api := &Server{host: "127.0.0.1", httpExtendedServices: httpExtendedServices{
-		appTokenAuth: service, appAccess: func(string, string) bool { return true },
-	}}
+	api := &Server{host: "127.0.0.1", appTokenAuth: service, appAccess: func(string, string) bool { return true }}
 	middleware := api.appTokenAuthMiddleware()
 	handlers := newHandlers(&handlerConfig{appTokens: service, boundHost: "127.0.0.1"})
 	credentialID, credential := issued.Token.ID, issued.Secret

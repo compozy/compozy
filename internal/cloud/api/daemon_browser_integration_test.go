@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/store"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
@@ -165,7 +164,7 @@ func assertBrowserKeyIdentity(t *testing.T, f authFixture, host daemonAccountFix
 
 func readHostedBrowserSnapshot(t *testing.T, host daemonAccountFixture) remoteproto.SecuritySnapshot {
 	t.Helper()
-	db, err := store.OpenSQLiteReadPool(t.Context(), filepath.Join(filepath.Dir(host.socket), config.DatabaseName))
+	db, err := store.OpenSQLiteReadPool(t.Context(), host.databasePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,9 +319,9 @@ func assertBrowserApprovalFlow(
 		expect(t, http.StatusNotFound, "approval_not_found")
 	browser.request(t, hostname, http.MethodGet, path, nil, "", "").receipt().
 		expect(t, http.StatusOK, `"state":"pending"`)
-	device := activeBrowserDevice(t, browser.fixture, hostname)
+	device := hostedBrowserApprovalDevice(t, host, approvalID)
 	browser.fixture.clock.Advance(6 * time.Minute)
-	host.uds(t, http.MethodPatch, contract.RemoteDevicesPath+"/"+device, contract.RemoteDevicePatchRequest{
+	host.uds(t, http.MethodPatch, contract.RemoteDevicesPath+"/"+string(device), contract.RemoteDevicePatchRequest{
 		Approved: new(approve), ApprovalID: approvalID,
 	}).expect(t, http.StatusOK, approvalID)
 	wantState := "denied"
@@ -355,6 +354,19 @@ func assertBrowserApprovalFlow(
 	} else {
 		result.expect(t, http.StatusForbidden, "device_not_approved")
 	}
+}
+
+func hostedBrowserApprovalDevice(t *testing.T, host daemonAccountFixture, id string) remoteproto.DeviceID {
+	t.Helper()
+	for _, device := range remoteDaemonDevices(t, host) {
+		for _, approval := range device.Approvals {
+			if approval.ID == id {
+				return device.ID
+			}
+		}
+	}
+	t.Fatalf("host did not list browser approval %s", id)
+	return ""
 }
 
 func assertHostedBrowserPeers(t *testing.T, root string) {

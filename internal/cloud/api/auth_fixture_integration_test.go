@@ -179,7 +179,12 @@ func (f authFixture) request(t *testing.T, method, path string, input any, cooki
 func (r authReply) expect(t *testing.T, status int, fragment string) {
 	t.Helper()
 	if r.StatusCode != status || !bytes.Contains(r.body, []byte(fragment)) {
-		t.Fatalf("HTTP status %d, wanted %d with %q; response length %d", r.StatusCode, status, fragment, len(r.body))
+		var problem struct {
+			Code string `json:"code"`
+		}
+		_ = json.Unmarshal(r.body, &problem)
+		t.Fatalf("HTTP status %d, wanted %d with %q; error code %q, response length %d",
+			r.StatusCode, status, fragment, problem.Code, len(r.body))
 	}
 }
 
@@ -222,12 +227,15 @@ func newDeviceKey(t *testing.T) (*ecdsa.PrivateKey, remoteproto.JWK) {
 func newAccountEmailFixture(t *testing.T, local bool) (authFixture, *remotetest.ResendFixture) {
 	t.Helper()
 	resend := remotetest.StartResend(t)
-	f := newAuthFixtureWithReplica(t, func(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *remotetest.Replica {
-		cfg.Email = resend.Client
-		if local {
-			return remotetest.StartLocalReplica(t, cfg, register)
-		}
-		return remotetest.StartReplica(t, cfg, register)
-	})
+	f := newAuthFixtureWithReplica(
+		t,
+		func(t *testing.T, cfg cloud.Config, register func(*cloud.App)) *remotetest.Replica {
+			cfg.Email = resend.Client
+			if local {
+				return remotetest.StartLocalReplica(t, cfg, register)
+			}
+			return remotetest.StartReplica(t, cfg, register)
+		},
+	)
 	return f, resend
 }

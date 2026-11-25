@@ -162,7 +162,7 @@ func attachOperatorTerminal(
 func attachDaemonTerminal(t *testing.T, controller daemonAccountFixture, path string, after uint64) *websocket.Conn {
 	t.Helper()
 	reply := controller.request(t, http.MethodPost, path+"/attach-ticket",
-		contract.TerminalAttachTicketRequest{Mode: contract.TerminalAttachModeWrite, ClientID: "controller-window"})
+		contract.TerminalAttachTicketRequest{Mode: contract.TerminalAttachModeWrite})
 	reply.expect(t, http.StatusCreated, "ticket")
 	ticket := authJSON[contract.TerminalAttachTicketResponse](t, reply).Ticket
 	query := url.Values{
@@ -523,7 +523,7 @@ func openSignOutTerminal(t *testing.T, d daemonAccountFixture, workspace string)
 	t.Helper()
 	path := "/api/workspaces/" + workspace + "/terminals"
 	reply := d.uds(t, http.MethodPost, path, contract.TerminalCreateRequest{
-		Shell: "sh", Cols: 80, Rows: 24, Title: "sign-out PTY", ClientID: "controller-window",
+		Shell: "sh", Cols: 80, Rows: 24, Title: "sign-out PTY",
 	})
 	reply.expect(t, http.StatusCreated, "sign-out PTY")
 	path += "/" + string(authJSON[contract.TerminalResponse](t, reply).Terminal.ID)

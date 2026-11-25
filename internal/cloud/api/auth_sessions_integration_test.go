@@ -48,7 +48,7 @@ func TestCloudDeviceSessions(t *testing.T) {
 		assertAuthRow(t, f, `SELECT count(*) FROM security_events WHERE type = 'device_enrolled'
 			AND details_json->>'location' = 'Lisbon, PT' AND details_json->>'device_name' = 'MacBook Pro'`, 1)
 
-		headers := authProof(t, http.MethodGet, authProbePath, enrolled.AccessToken, key, f.clock.Now())
+		headers := f.deviceProof(t, http.MethodGet, authProbePath, enrolled.AccessToken, key)
 		callAuth(
 			t,
 			f.replica,
@@ -411,16 +411,16 @@ func (f authFixture) enroll(t *testing.T, token remoteproto.DeviceFlowTokenRespo
 func (f authFixture) deviceRequest(t *testing.T, method, path, token string, key *ecdsa.PrivateKey, input any,
 ) authReply {
 	t.Helper()
-	return callAuth(t, f.replica, method, path, input, nil, authProof(t, method, path, token, key, f.clock.Now()))
+	return callAuth(t, f.replica, method, path, input, nil, f.deviceProof(t, method, path, token, key))
 }
 
-func authProof(t *testing.T, method, path, token string, key *ecdsa.PrivateKey, now time.Time) map[string]string {
+func (f authFixture) deviceProof(t *testing.T, method, path, token string, key *ecdsa.PrivateKey) map[string]string {
 	t.Helper()
 	var access string
 	if path == authProbePath {
 		access = token
 	}
-	proof, err := remoteproto.BuildDPoP(key, method, authOrigin+path, access, now)
+	proof, err := remoteproto.BuildDPoP(key, method, f.replica.App.Issuer+path, access, f.clock.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

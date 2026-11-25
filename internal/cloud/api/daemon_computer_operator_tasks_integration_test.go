@@ -28,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
@@ -250,7 +251,8 @@ func makeForwardingSource(t *testing.T, controller daemonAccountFixture, agent s
 	id := authJSON[contract.SessionResponse](t, created).Session.ID
 	testutil.Eventually(t, "source agent session is active", 6*time.Second, func() bool {
 		status := controller.uds(t, http.MethodGet, controllerSessions+"/"+id+"/status", nil)
-		return status.StatusCode == http.StatusOK && bytes.Contains(status.body, []byte(`"state":"active"`))
+		return status.StatusCode == http.StatusOK &&
+			authJSON[contract.SessionStatusResponse](t, status).LifecycleState == session.StateActive
 	})
 	return id
 }

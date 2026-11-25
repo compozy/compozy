@@ -55,6 +55,9 @@ After your device is enrolled, CompozyOS caches your signed-in state locally in 
 
 ## CI and headless environments
 
+While signed out, `compozy session list` exits with code 1 and shows how to sign in.
+Use `compozy daemon status --json` to check the local daemon before signing in.
+
 For CI runners or headless automation where interactive browser sign-in is impractical, create a
 local-only account token from **Settings → Account → Account tokens** or the CLI:
 

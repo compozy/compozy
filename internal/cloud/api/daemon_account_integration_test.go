@@ -41,6 +41,7 @@ import (
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/sse"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -225,10 +226,10 @@ func TestDaemonCloudAccount(t *testing.T) {
 
 }
 
-func seedLegacyAccountHome(t *testing.T, filename, project string) {
+func seedLegacyAccountHome(t *testing.T, paths config.HomePaths, project string) {
 	t.Helper()
 	ctx := t.Context()
-	db, err := remotetest.OpenLegacyGlobalDB(ctx, filename)
+	db, err := remotetest.OpenLegacyGlobalDB(ctx, paths.DatabaseFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,18 +238,35 @@ func seedLegacyAccountHome(t *testing.T, filename, project string) {
 			t.Error(err)
 		}
 	}()
-	const at = "2026-10-01T00:00:00Z"
+	created := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	at := store.FormatTimestamp(created)
 	if _, err := db.ExecContext(ctx, `INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
 		VALUES ('ws_legacy_upgrade', ?, 'Legacy project', ?, ?)`, project, at, at); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.ExecContext(ctx, `INSERT INTO sessions
-		(id, profile_id, name, agent_name, workspace_id, state, created_at, updated_at)
-		VALUES ('sess_legacy_alpha', ?, 'Before upgrade one', ?, 'ws_legacy_upgrade', 'stopped', ?, ?),
-		       ('sess_legacy_beta', ?, 'Before upgrade two', ?, 'ws_legacy_upgrade', 'stopped', ?, ?)`,
-		store.DefaultProfileID, config.DefaultAgentName, at, at,
-		store.DefaultProfileID, config.DefaultAgentName, at, at); err != nil {
-		t.Fatal(err)
+	for id, name := range map[string]string{
+		"sess_legacy_alpha": "Before upgrade one",
+		"sess_legacy_beta":  "Before upgrade two",
+	} {
+		meta := store.SessionMeta{
+			ID: id, Name: name, ProfileID: store.DefaultProfileID, WorkspaceID: "ws_legacy_upgrade",
+			AgentName: config.DefaultAgentName, Provider: "codex", State: string(session.StateStopped),
+			SessionType: string(session.SessionTypeUser), RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt: created, UpdatedAt: created,
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO sessions
+			(id, profile_id, name, agent_name, provider, workspace_id, state, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			meta.ID, meta.ProfileID, meta.Name, meta.AgentName, meta.Provider, meta.WorkspaceID, meta.State, at, at,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.WriteSessionMeta(
+			store.SessionMetaFile(filepath.Join(paths.SessionsDir, id)),
+			&meta,
+		); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := db.ExecContext(ctx, `INSERT INTO automation_jobs
 		(id, profile_id, scope, name, agent_name, workspace_id, prompt, enabled, retry, fire_limit, created_at, updated_at)
@@ -383,6 +401,7 @@ type daemonAccountFixture struct {
 	httpClient, udsClient *http.Client
 	httpBase              string
 	socket                string
+	databasePath          string
 	stop                  func()
 }
 
@@ -475,11 +494,12 @@ func startConfiguredDaemonAccount(
 	}}
 	t.Cleanup(transport.CloseIdleConnections)
 	return daemonAccountFixture{
-		httpBase:   fmt.Sprintf("http://%s:%d", cfg.HTTP.Host, cfg.HTTP.Port),
-		httpClient: &http.Client{Timeout: 20 * time.Second},
-		udsClient:  &http.Client{Timeout: 10 * time.Second, Transport: transport},
-		socket:     paths.DaemonSocket,
-		stop:       stop,
+		httpBase:     fmt.Sprintf("http://%s:%d", cfg.HTTP.Host, cfg.HTTP.Port),
+		httpClient:   &http.Client{Timeout: 20 * time.Second},
+		udsClient:    &http.Client{Timeout: 10 * time.Second, Transport: transport},
+		socket:       paths.DaemonSocket,
+		databasePath: paths.DatabaseFile,
+		stop:         stop,
 	}, ring
 }
 
@@ -723,10 +743,14 @@ func TestRequiredSignInDaemon(t *testing.T) {
 			t.Fatal(err)
 		}
 		const zone = "America/Sao_Paulo"
-		if err := os.WriteFile(paths.ConfigFile, []byte("[automation]\nenabled = true\ntimezone = \""+zone+"\"\n"), 0o600); err != nil {
+		if err := os.WriteFile(
+			paths.ConfigFile,
+			[]byte("[automation]\nenabled = true\ntimezone = \""+zone+"\"\n"),
+			0o600,
+		); err != nil {
 			t.Fatal(err)
 		}
-		seedLegacyAccountHome(t, paths.DatabaseFile, project)
+		seedLegacyAccountHome(t, paths, project)
 		defer version.OverrideVersionForTesting("0.8.0")()
 		d, _ := startConfiguredDaemonAccount(t, f, home, daemonAccountBoot{signInRequired: true, automation: true})
 		reply := d.request(t, http.MethodGet, contract.AccountPath, nil)
@@ -781,7 +805,12 @@ func TestRequiredSignInDaemon(t *testing.T) {
 		if err := db.ReadDB().QueryRowContext(t.Context(), `SELECT pre_account_install,
 			(SELECT count(*) FROM migration_notices WHERE key = 'gateway_removed') FROM installation_account WHERE id = 1`).
 			Scan(&preAccount, &notices); err != nil || preAccount != 1 || notices != 0 {
-			t.Fatalf("installation_account pre_account_install = %d, gateway notices = %d, error = %v", preAccount, notices, err)
+			t.Fatalf(
+				"installation_account pre_account_install = %d, gateway notices = %d, error = %v",
+				preAccount,
+				notices,
+				err,
+			)
 		}
 	})
 
@@ -800,6 +829,11 @@ func TestRequiredSignInDaemon(t *testing.T) {
 		status, _, stderr := runAccountFixtureCLI(t, "session", "list")
 		if status != 1 || !strings.Contains(stderr, "Sign in to use CompozyOS: compozy account login") {
 			t.Fatalf("signed-out CLI exit = %d, stderr = %q", status, stderr)
+		}
+		status, stdout, stderr := runAccountFixtureCLI(t, "daemon", "status", "--json")
+		var daemonStatus contract.DaemonStatusPayload
+		if status != 0 || json.Unmarshal([]byte(stdout), &daemonStatus) != nil || daemonStatus.PID != os.Getpid() {
+			t.Fatalf("signed-out daemon status exit = %d, status = %q, stderr = %q", status, stdout, stderr)
 		}
 		d.stop()
 		db := openAccountFixtureDB(t, home)
@@ -860,7 +894,7 @@ func TestRequiredSignInDaemon(t *testing.T) {
 
 		// Reopening with the gate off exposes the same local session without changing the stored account state.
 		d, _ = startConfiguredDaemonAccount(t, f, home, daemonAccountBoot{keyring: ring})
-		d.uds(t, http.MethodGet, "/api/sessions?scope=user", nil).expect(t, http.StatusOK, kept)
+		d.uds(t, http.MethodGet, "/api/sessions?workspace_id=user", nil).expect(t, http.StatusOK, kept)
 	})
 
 	t.Run(
@@ -890,7 +924,7 @@ func TestRequiredSignInDaemon(t *testing.T) {
 				actual.Grace.Source != "policy" {
 				t.Fatalf("grace status = %+v", actual)
 			}
-			d.request(t, http.MethodGet, "/api/sessions", nil).expect(t, http.StatusOK, "sessions")
+			d.request(t, http.MethodGet, "/api/sessions?all_workspaces=true", nil).expect(t, http.StatusOK, "sessions")
 			d.request(t, http.MethodGet, "/api/computers", nil).expect(t, http.StatusUnauthorized, "sign_in_required")
 			enableAccountFixtureCLI(t)
 			status, _, stderr := runAccountFixtureCLI(t, "session", "list")

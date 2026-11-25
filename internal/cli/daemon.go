@@ -65,8 +65,25 @@ func newDaemonCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newDaemonUpdateCoordinatorCommand(deps))
 	cmd.AddCommand(newDaemonAppTransitionCommand(deps))
 	cmd.AddCommand(newDaemonAppDiagnosticBundleCommand(deps))
-	cmd.AddCommand(newDaemonStopCommand(deps), newDaemonRestartCommand(deps))
+	cmd.AddCommand(newDaemonStopCommand(deps), newDaemonRestartCommand(deps), newDaemonStatusCommand(deps))
 	return cmd
+}
+
+func newDaemonStatusCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use: statusCommandKey, Short: "Show local daemon status", Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			runtime, err := loadRuntimeContext(deps)
+			if err != nil {
+				return err
+			}
+			status, err := daemonStatusFromDeps(cmd.Context(), deps, runtime)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, daemonStatusBundle(status, deps.now))
+		},
+	}
 }
 
 func newDaemonUpdateCoordinatorCommand(deps commandDeps) *cobra.Command {

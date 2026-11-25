@@ -52,6 +52,8 @@ Use `compozy account login` to sign in through the browser. Show the activation 
 
 Release builds report a local gate of `enforced`, `grace`, or `off` in `GET /api/account`. If an operator action returns `sign_in_required`, direct the operator to `compozy account login`. During grace, local work can start until the reported deadline. Computers, devices and billing still require an account. For a linked host, sign out with `compozy account logout --unlink`.
 
+Use `compozy daemon status --json` to check the local daemon while signed out.
+
 On CI, provide a named account token through the launcher's `COMPOZY_ACCOUNT_TOKEN` secret. Operators create one with `compozy account token create --name ci`. Keep its one-time value out of logs and tool results. The only cloud endpoint that accepts it is `POST /v1/account-tokens/exchange`. Remote and billing operations return `account_token_local_only`.
 
 Local HTTP and UDS expose the same `/api/account` routes for sign-in, status, devices, approvals, and billing. Subscribe to `GET /api/account/sign-in/events` before starting a login. It carries attempt progress and state without account details. Follow `GET /api/account/stream` after sign-in. On `stream_reset`, read current status and approvals before following changes again.

@@ -348,16 +348,11 @@ type remoteTestDevice struct {
 
 func enrollRemoteDevice(t *testing.T, f authFixture, email, installation string) remoteTestDevice {
 	t.Helper()
-	cloud, err := cloudclient.New(cloudclient.WithClock(f.clock.Now))
-	if err != nil {
-		t.Fatal(err)
-	}
-	grant, err := cloud.StartDeviceFlow(t.Context(), remoteproto.DeviceFlowRequest{
+	reply := f.request(t, http.MethodPost, deviceFlowPath, remoteproto.DeviceFlowRequest{
 		Provider: auth.Google, InstallationID: installation, ClientName: "MacBook Pro", ClientPlatform: "macOS",
 	})
-	if err != nil {
-		t.Fatalf("start device flow: %v", err)
-	}
+	reply.expect(t, http.StatusOK, "device_code")
+	grant := authJSON[remoteproto.DeviceFlowResponse](t, reply)
 	cookie := f.openActivation(t, grant, auth.Google)
 	redirect := f.continueGrant(t, grant, auth.Google, cookie, false)
 	profile := providerProfile{email: email, subject: email, verified: true}
@@ -367,10 +362,7 @@ func enrollRemoteDevice(t *testing.T, f authFixture, email, installation string)
 	key, jwk := newDeviceKey(t)
 	input := enrollInput(jwk)
 	input.InstallationID = installation
-	result, err := cloud.Enroll(t.Context(), token.EnrollmentToken, key, input)
-	if err != nil {
-		t.Fatalf("enroll remote device: %v", err)
-	}
+	result := f.enroll(t, token, key, input)
 	return remoteTestDevice{key, result.AccessToken, result.DeviceID, token.AccountID}
 }
 
@@ -481,7 +473,7 @@ func TestDaemonInstallationLinkIdentity(t *testing.T) {
 		}
 		link := remoteCloudRequest(t, f, owner, http.MethodPost, "/v1/computers/link-tokens", nil)
 		link.expect(t, http.StatusCreated, "token")
-		token := authJSON[struct{ Token string }](t, link).Token
+		token := authJSON[cloudclient.ComputerLinkToken](t, link).Token
 		host, _ := startConfiguredDaemonAccount(
 			t,
 			f,

@@ -282,9 +282,11 @@ func TestCloudAdmin(t *testing.T) {
 
 	t.Run("Should scope exports and audit the operator's privacy and gate actions (IT-108)", func(t *testing.T) {
 		var stripe *remotetest.StripeFixture
+		resend := remotetest.StartResend(t)
 		f := newAdminFixture(t, func(cfg *cloud.Config) {
 			stripe = remotetest.StartStripe(t, cfg.Now, false)
 			configureBilling(cfg, stripe)
+			cfg.Email = resend.Client
 		})
 		const address = "admin-export@example.test"
 		owner := newBillingDevice(t, f.authFixture, address)
