@@ -468,12 +468,15 @@ func startConfiguredDaemonAccount(
 		if err := editor.SetValue([]string{"daemon", "socket"}, paths.DaemonSocket); err != nil {
 			return err
 		}
-		if boot.direct {
-			if err := editor.SetValue(
-				[]string{"remote", "listener"}, fmt.Sprintf("127.0.0.1:%d", testutil.FreeTCPPort(t)),
-			); err != nil {
+		// Keep the advertised direct endpoint stable when this daemon restarts.
+		listenerPath := []string{"remote", "listener"}
+		if boot.direct && !editor.HasPath(listenerPath) {
+			listener := fmt.Sprintf("127.0.0.1:%d", testutil.FreeTCPPort(t))
+			if err := editor.SetValue(listenerPath, listener); err != nil {
 				return err
 			}
+		}
+		if boot.direct {
 			if err := editor.SetValue([]string{"remote", "direct", "enabled"}, true); err != nil {
 				return err
 			}

@@ -198,6 +198,14 @@ func TestDaemonComputerOperatorForwarding(t *testing.T) {
 		host.uds(t, http.MethodPatch, contract.RemoteDevicesPath+"/"+device.ID, contract.RemoteDevicePatchRequest{
 			Scopes: new([]remoteproto.Scope{remoteproto.ScopeFilesR}),
 		}).expect(t, http.StatusOK, "files:read")
+		testutil.Eventually(t, "target applies the narrowed device scopes", 6*time.Second, func() bool {
+			for _, targetDevice := range remoteDaemonDevices(t, host) {
+				if string(targetDevice.ID) == device.ID {
+					return len(targetDevice.Scopes) == 1 && targetDevice.Scopes[0] == remoteproto.ScopeFilesR
+				}
+			}
+			return false
+		})
 		f.clock.Advance(3 * time.Second)
 		testutil.Eventually(t, "controller reconnects with files:read only", 10*time.Second, func() bool {
 			scopes := readControllerComputer(t, controller, computer).Scopes
