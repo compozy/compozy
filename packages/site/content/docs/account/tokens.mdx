@@ -29,8 +29,9 @@ compozy session list -o json
 ```
 
 When the CLI launcher starts a detached daemon, it hands the token to the daemon over an internal
-variable and the daemon removes both variables from its environment before starting any agent
-process, terminal, or hook. Child processes cannot read your account token from their environment.
+variable. The daemon removes both variables from its environment before starting any agent process,
+terminal, or hook. It keeps the token in memory for the lifetime of the daemon. Provide
+`COMPOZY_ACCOUNT_TOKEN` each time you start or restart a token-signed installation.
 
 ## What an account token can and cannot do
 

@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/cloud/observe"
@@ -102,7 +101,6 @@ func New(
 	return &Service{
 		db: db, issuer: issuer, signer: signer, access: access, proofs: remoteproto.NewDPoPVerifier(),
 		seal: seal, oauth: cfg.OAuth, cfg: cfg, limit: limit, now: now,
-		codes: codeEntries{windows: make(map[string]codeWindow)},
 	}, nil
 }
 
@@ -164,12 +162,6 @@ func requireActive(account store.AuthAccount) error {
 	default:
 		return errSessionInvalid
 	}
-}
-
-type codeEntries struct {
-	mu        sync.Mutex
-	windows   map[string]codeWindow
-	nextSweep time.Time
 }
 
 func (s *Service) ReplaceSigningKeys(keys remoteproto.JWKS) error {

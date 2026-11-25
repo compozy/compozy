@@ -21,6 +21,7 @@ import (
 
 	"github.com/compozy/compozy/internal/cloud"
 	"github.com/compozy/compozy/internal/cloud/auth"
+	"github.com/compozy/compozy/internal/cloud/billing"
 	"github.com/compozy/compozy/internal/cloud/observe"
 	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -131,6 +132,34 @@ func billingAccount(t *testing.T, f authFixture, device remoteTestDevice) remote
 
 func TestCloudSubscriptionRefresh(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should reconcile only stale subscriptions that can still affect billing", func(t *testing.T) {
+		// RC-14: Fresh webhook state and long-ended Stripe rows do not trigger redundant provider reads.
+		t.Parallel()
+		f, stripe := newBillingFixture(t, nil)
+		owner := newBillingDevice(t, f, "reconcile-window@example.test")
+		now := f.clock.Now()
+		stale := proStripeSub(now, "sub_stale", owner.account)
+		fresh := proStripeSub(now, "sub_fresh", owner.account)
+		ended := proStripeSub(now, "sub_ended", owner.account)
+		ended.Status, ended.EndedAt = "canceled", now.Add(-2*billing.ReconcileInterval)
+		for _, sub := range []remotetest.StripeSubscription{stale, fresh, ended} {
+			stripe.Put(sub)
+			deliverStripeEvent(t, f, "evt_"+sub.ID, stripeSubUpdated, sub.ID)
+		}
+		f.db.Exec(t, "UPDATE %s.subscriptions SET stripe_synced_at = $1 WHERE id IN ('sub_stale', 'sub_ended')",
+			now.Add(-2*billing.ReconcileInterval))
+		for range 2 {
+			if err := f.replica.App.Billing.Reconcile(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for id, want := range map[string]int{stale.ID: 2, fresh.ID: 1, ended.ID: 1} {
+			if got := stripe.Reads(id); got != want {
+				t.Errorf("Stripe reads for %s = %d, want %d", id, got, want)
+			}
+		}
+	})
 
 	t.Run(
 		"Should derive Pro from the current signed webhook trigger and deduplicate it (UT-060, UT-062)",
@@ -291,6 +320,56 @@ func TestCloudBillingCheckout(t *testing.T) {
 		testCloudConversions(t)
 	})
 
+	t.Run("Should leave one payable Checkout after concurrent account purchases", func(t *testing.T) {
+		// AST-001 and RC-15: Cloud replicas serialize competing Stripe Checkout sessions for one account.
+		t.Parallel()
+		f, stripe := newBillingFixture(t, nil)
+		owner := newBillingDevice(t, f, "competing-checkouts@example.test")
+		second := f
+		second.cfg.Postgres = f.db.Config(t, "checkout-replica")
+		second.cfg.Issuer = f.replica.App.Issuer
+		second.replica = remotetest.StartReplica(t, second.cfg, nil)
+		t.Run("Should request both Checkout intervals", func(t *testing.T) {
+			for _, purchase := range []struct {
+				fixture  authFixture
+				interval string
+			}{{f, "month"}, {second, "year"}} {
+				t.Run("Should open "+purchase.interval+" checkout", func(t *testing.T) {
+					t.Parallel()
+					remoteCloudRequest(t, purchase.fixture, owner, http.MethodPost, "/v1/billing/checkout",
+						remoteproto.CheckoutRequest{Interval: purchase.interval}).
+						expect(t, http.StatusOK, "checkout.stripe.com")
+				})
+			}
+		})
+		checkouts := stripe.Checkouts()
+		if len(checkouts) != 2 || checkouts[0].Status != "expired" || checkouts[1].Status != "open" {
+			t.Fatalf("competing checkouts were not replaced: %+v", checkouts)
+		}
+		if retired := stripe.Complete(checkouts[0].ID); retired.Sub != "" {
+			t.Fatal("the superseded Checkout still accepted payment")
+		}
+		if paid := stripe.Complete(checkouts[1].ID); paid.Sub == "" {
+			t.Fatal("the replacement Checkout did not accept payment")
+		}
+	})
+
+	t.Run("Should honor a payment completing during Stripe Checkout expiry", func(t *testing.T) {
+		// AST-001 and RC-15: The provider can win the race before any Stripe webhook arrives.
+		t.Parallel()
+		f, stripe := newBillingFixture(t, nil)
+		owner := newBillingDevice(t, f, "checkout-expiry-race@example.test")
+		const path = "/v1/billing/checkout"
+		remoteCloudRequest(t, f, owner, http.MethodPost, path, remoteproto.CheckoutRequest{Interval: "month"}).
+			expect(t, http.StatusOK, "checkout.stripe.com")
+		stripe.SetBeforeExpire(func(id string) { stripe.Complete(id) })
+		remoteCloudRequest(t, f, owner, http.MethodPost, path, remoteproto.CheckoutRequest{Interval: "year"}).
+			expect(t, http.StatusConflict, "already_pro")
+		checkouts := stripe.Checkouts()
+		if len(checkouts) != 1 || checkouts[0].Status != "complete" || billingAccount(t, f, owner).Plan != "pro" {
+			t.Fatalf("payment was not recognized before replacement: %+v", checkouts)
+		}
+	})
 }
 
 func TestStripeReplicaOrdering(t *testing.T) {
@@ -306,6 +385,10 @@ func TestStripeReplicaOrdering(t *testing.T) {
 			deliverStripeEvent(t, f, "evt_seed", stripeSubCreated, sub.ID)
 			secondConfig := f.cfg
 			secondConfig.Postgres = f.db.Config(t, "billing2")
+			if second == "reconciliation" {
+				// Keep the subscription overdue in the second replica's reconciliation window.
+				secondConfig.Now = func() time.Time { return f.clock.Now().Add(2 * billing.ReconcileInterval) }
+			}
 			replica := remotetest.StartLocalReplica(t, secondConfig, nil)
 			fetched, release := make(chan struct{}), make(chan struct{})
 			unblock := sync.OnceFunc(func() { close(release) })

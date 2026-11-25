@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/version"
+	"github.com/spf13/cobra"
 )
 
 func TestMachineLocalComputerFlag(t *testing.T) {
@@ -311,6 +313,27 @@ func TestRootUnknownCommand(t *testing.T) {
 		if err == nil || err.Error() != `unknown command "memory" for "compozy"` {
 			t.Fatalf("root error = %v, want unknown memory command", err)
 		}
+	})
+}
+
+func TestRootAccountGate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should report an unavailable daemon as a transport error", func(t *testing.T) {
+		// RC-13: The gate requires a known account state before issuing sign-in guidance.
+		t.Parallel()
+		const socket = "/tmp/compozy-gate-fixture.sock"
+		deps := newTestDeps(t, &daemonClient{
+			target: LocalClientTarget(socket),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return nil, os.ErrNotExist
+			})},
+		})
+		local := &cobra.Command{Use: "list"}
+		root := &cobra.Command{Use: "compozy"}
+		root.AddCommand(local)
+		local.SetContext(t.Context())
+		assertDaemonUnavailableDiagnostic(t, checkAccountGate(local, deps), socket)
 	})
 }
 

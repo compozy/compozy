@@ -100,6 +100,49 @@ func TestCloudBillingDeletion(t *testing.T) {
 		},
 	)
 
+	t.Run("Should cancel every subscription before retrying a failed refund", func(t *testing.T) {
+		// RC-06: A refund failure cannot leave Stripe renewing any of the deleting account's subscriptions.
+		t.Parallel()
+		f, stripe := newBillingFixture(t, nil)
+		owner := newBillingDevice(t, f, "refund-retry@example.test")
+		now := f.clock.Now()
+		refundable := proStripeSub(now, "sub_a_refundable", owner.account)
+		refundable.Invoices = []remotetest.StripeInvoice{
+			{ID: "in_retry", Reason: "subscription_create", Price: refundable.Price, PaidAt: now.AddDate(0, 0, -5)},
+		}
+		other := proStripeSub(now, "sub_b_other", owner.account)
+		for _, sub := range []remotetest.StripeSubscription{refundable, other} {
+			stripe.Put(sub)
+			deliverStripeEvent(t, f, "evt_"+sub.ID, stripeSubCreated, sub.ID)
+		}
+		f.db.Exec(t, "UPDATE %s.accounts SET state = 'deleting' WHERE id = $1", owner.account)
+		stripe.FailRefund(true)
+		if err := f.replica.App.Billing.CancelForDeletion(t.Context(), owner.account); err == nil {
+			t.Fatal("deletion accepted a failed refund")
+		}
+		if cancellations, refunds := stripe.DeletionCalls(); len(cancellations) != 2 || len(refunds) != 0 {
+			t.Fatalf("cancellations before refund retry = %v, refunds = %v", cancellations, refunds)
+		}
+		for _, sub := range []remotetest.StripeSubscription{refundable, other} {
+			row, err := f.replica.App.Store.BillingSubscription(t.Context(), sub.ID)
+			if err != nil || row.Status != "canceled" {
+				t.Fatalf("subscription %s was not canceled: %+v, %v", sub.ID, row, err)
+			}
+		}
+		deliverStripeEvent(t, f, "evt_refunded_sub_ended", stripeSubDeleted, refundable.ID)
+		stripe.FailRefund(false)
+		if err := f.replica.App.Billing.CancelForDeletion(t.Context(), owner.account); err != nil {
+			t.Fatal(err)
+		}
+		if cancellations, refunds := stripe.DeletionCalls(); len(cancellations) != 2 || len(refunds) != 1 {
+			t.Fatalf(
+				"refund retry repeated or missed a Stripe operation: cancellations %v, refunds %v",
+				cancellations,
+				refunds,
+			)
+		}
+	})
+
 	t.Run("Should leave complimentary grants intact during Stripe reconciliation (UT-137)", func(t *testing.T) {
 		t.Parallel()
 		f, stripe := newBillingFixture(t, nil)

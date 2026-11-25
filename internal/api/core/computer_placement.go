@@ -70,7 +70,7 @@ func (h *BaseHandlers) computerPlacement(
 			view := views[i-1]
 			candidates[i] = computers.PlacementCandidate{
 				ComputerID: view.ID, Name: view.Name, Enabled: view.Enabled,
-				Connected: view.Status == computers.Connected, Weight: view.Weight,
+				Connected: view.RouteInUse != nil, Weight: view.Weight,
 			}
 		}
 		c := &candidates[i]

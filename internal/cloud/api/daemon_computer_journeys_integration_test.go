@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/sse"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
@@ -148,7 +149,8 @@ func TestDaemonComputerJourneys(t *testing.T) {
 		id := linkSessionComputer(t, host)
 		home := filepath.Join(root, "placement-controller")
 		configureComputerACP(t, home)
-		controller, _ := startComputerController(t, f, home, registryTestEmail, nil)
+		forward := fixedFixtureForward(readRemoteDaemonStatus(t, host).Listener)
+		controller, registry := startComputerController(t, f, home, registryTestEmail, forward)
 		addAccountComputer(t, controller, id)
 		waitComputerRoute(t, controller, id, remoteproto.RouteDirect)
 		localWorkspace := registerPlacementProject(t, controller, "https://github.com/compozy/placement-fixture.git")
@@ -173,6 +175,41 @@ func TestDaemonComputerJourneys(t *testing.T) {
 			)
 		}
 		assertAutoComputerSession(t, controller, target, localWorkspace, wantWorkspace, wantComputer)
+
+		// AST-002: Auto considers live connectivity independently of a service warning.
+		if err := registry.AddSSHRoute(t.Context(), id, store.ComputerRoute{
+			Kind: remoteproto.RouteSSH, Address: "fixture@testhost",
+			SSH: &store.ComputerSSHTarget{User: "fixture", Port: 22, ServiceWarning: "linger_off"},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		host.uds(t, http.MethodPatch, contract.RemotePath, contract.RemotePatchRequest{Direct: new(false)}).
+			expect(t, http.StatusOK, `"enabled":false`)
+		testutil.Eventually(t, "connected SSH computer shows a service warning", 9*time.Second, func() bool {
+			view := readControllerComputer(t, controller, id)
+			return view.Status == string(computers.NeedsAttention) &&
+				view.RouteInUse != nil && view.RouteInUse.Kind == remoteproto.RouteSSH
+		})
+		controller.uds(t, http.MethodPatch, contract.ComputersPath+"/local", contract.PatchLocalComputerRequest{
+			RunAgents: new(false),
+		}).expect(t, http.StatusOK, `"run_agents":false`)
+		reply := controller.uds(t, http.MethodPost, contract.ComputersPath+"/placement",
+			contract.ComputerPlacementRequest{Workspace: localWorkspace})
+		if reply.StatusCode == http.StatusConflict {
+			reply.expect(t, http.StatusConflict, "no_eligible_computer")
+			failure := authJSON[contract.ErrorPayload](t, reply)
+			if reason := failure.Details[string(id)]; reason != "cpu_busy" && reason != "memory_busy" {
+				t.Fatalf("live SSH computer was excluded before resource checks: %s", reply.body)
+			}
+		} else {
+			reply.expect(t, http.StatusOK, string(id))
+			if placement := authJSON[contract.ComputerPlacementResponse](
+				t,
+				reply,
+			); placement.WorkspaceID != remoteWorkspace {
+				t.Fatalf("Auto selected the wrong SSH workspace: %+v", placement)
+			}
+		}
 	})
 }
 

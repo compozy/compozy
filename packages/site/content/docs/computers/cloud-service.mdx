@@ -91,9 +91,11 @@ A suspended account receives `403 account_suspended` for account operations and 
 
 Checkout and the portal return a `url`. Account reads return `payment_issue` and the active `subscription`, which includes the source, interval, period end, renewal setting, and refund deadline. A signed-in account may have Pro through Stripe or a complimentary grant. On a failed Stripe renewal, `payment_issue` is true while Stripe retries and the account stays on Pro.
 
+Opening another Checkout expires the account's previous open Checkout. If Stripe has already accepted the payment, the cloud records the subscription and reports `already_pro` for an active Pro plan.
+
 Set `COMPOZY_CLOUD_STRIPE_SECRET_KEY`, `COMPOZY_CLOUD_STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO_ANNUAL`, and `STRIPE_PRICE_PRO_MONTHLY` on the cloud service. Use the same Stripe mode for the API key, prices, and webhook endpoint. Configure Managed Payments and enable monthly and annual switching, payment method updates, and period-end cancellation in the Customer Portal. Configure Smart Retries to cancel the subscription after the final attempt.
 
-Deliver `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `checkout.session.completed`, and `checkout.session.expired` to the signed webhook endpoint. Cloud also reconciles Stripe subscriptions every six hours.
+Deliver `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `checkout.session.completed`, and `checkout.session.expired` to the signed webhook endpoint. Every six hours, the cloud reconciles Stripe subscriptions that were last synced before that window, skipping subscriptions that had already ended before it began.
 
 ## Computer authentication and control
 

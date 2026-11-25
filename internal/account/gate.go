@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
-	"net/http"
 	"time"
 
 	"github.com/compozy/compozy/internal/cloudclient"
@@ -197,19 +196,23 @@ func (s *Service) runGate(cloud gateCloud) {
 
 func (s *Service) fetchGatePolicy(ctx context.Context, cloud gateCloud) {
 	token, err := cloud.GatePolicy(ctx)
+	failure, typed := errors.AsType[*cloudclient.Failure](err)
+	unavailable := err != nil && (!typed || failure.Temporary())
 	var policy remoteproto.GatePolicy
 	var encodedKeys []byte
 	if err == nil {
-		keys, keysErr := cloud.JWKS(ctx)
-		if keysErr == nil {
+		var keys remoteproto.JWKS
+		keys, err = cloud.JWKS(ctx)
+		if err == nil {
 			policy = verifiedGatePolicy(ctx, keys, token, s.clock.Now())
 			if policy.Mode != "" {
-				encodedKeys, keysErr = json.Marshal(keys)
+				encodedKeys, err = json.Marshal(keys)
 			}
 		}
-		if keysErr != nil || len(encodedKeys) == 0 {
-			token, policy = "", remoteproto.GatePolicy{}
-		}
+		unavailable = err != nil
+	}
+	if len(encodedKeys) == 0 {
+		token = ""
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -219,7 +222,7 @@ func (s *Service) fetchGatePolicy(ctx context.Context, cloud gateCloud) {
 		return
 	}
 	next := s.installation
-	if failure, ok := errors.AsType[*cloudclient.Failure](err); ok && failure.Status >= http.StatusInternalServerError {
+	if unavailable {
 		if next.PreAccountInstall && next.AuthGeneration == 0 && next.GatePolicyFetchedAt.IsZero() &&
 			next.OfflineGraceStartedAt.IsZero() {
 			next.OfflineGraceStartedAt = now
@@ -230,6 +233,7 @@ func (s *Service) fetchGatePolicy(ctx context.Context, cloud gateCloud) {
 		s.gate.policy = policy
 	}
 	if next.GatePolicyJWS != s.installation.GatePolicyJWS ||
+		next.GatePolicyKeys != s.installation.GatePolicyKeys ||
 		next.GatePolicyFetchedAt != s.installation.GatePolicyFetchedAt ||
 		next.OfflineGraceStartedAt != s.installation.OfflineGraceStartedAt {
 		if err := s.store.SaveInstallationAccount(ctx, next.AuthGeneration, next); err != nil {

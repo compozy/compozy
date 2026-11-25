@@ -16,5 +16,6 @@ qa_status: pending
 5. Verify a formerly valid device and web session are revoked, the revoked device is still refused, and the retained device can sign in with its existing key. Confirm the Stripe subscription is `canceled` and the post-point tunnel is gone.
 6. Reopen staging. Connect the linked computer and read its signed snapshot at the new epoch. Confirm the revoked device is absent. Verify a mint with the pre-restore grant is refused and a freshly minted grant works.
 7. Record the restore point, archive cutoff, revision and provider results. Repeat before launch and quarterly using the restore runbook and IT-107.
+8. In a staging fixture with a security-event backlog larger than 32 MiB, interrupt shipment after its first part. Verify the restore cutoff does not advance. Retry with R2 available and confirm the restore reads every event through the reported cutoff.
 
 [Cloud restore runbook](../../runbooks/cloud/restore.md)

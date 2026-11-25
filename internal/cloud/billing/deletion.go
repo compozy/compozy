@@ -30,11 +30,34 @@ func (s *Service) CancelForDeletion(ctx context.Context, accountID string) error
 	if requestedAt.IsZero() {
 		requestedAt = s.cfg.Now()
 	}
+	var failures []error
+	var refunds []plan.Subscription
 	for _, sub := range subscriptions {
-		if sub.Source == stripeSource && sub.Entitled(s.cfg.MonthlyPrice, s.cfg.AnnualPrice, s.cfg.Now()) {
-			if err := s.cancelForDeletion(ctx, sub, requestedAt); err != nil {
-				return err
+		if sub.Source != stripeSource {
+			continue
+		}
+		if sub.Entitled(s.cfg.MonthlyPrice, s.cfg.AnnualPrice, s.cfg.Now()) {
+			sub, err = s.cancelForDeletion(ctx, sub)
+			if err != nil {
+				failures = append(failures, err)
+				continue
 			}
+		}
+		// Stripe's ended_at has whole-second precision and may arrive through a webhook during a retry.
+		if sub.Status == stripeStatusCanceled && !sub.EndsAt.Before(requestedAt.Truncate(time.Second)) &&
+			requestedAt.Before(sub.RefundEligibleUntil()) {
+			refunds = append(refunds, sub)
+		}
+	}
+	if err := errors.Join(failures...); err != nil {
+		return err
+	}
+	for _, sub := range refunds {
+		if s.cfg.Stripe == nil {
+			return ErrUnavailable
+		}
+		if err := s.cfg.Stripe.refundInvoice(ctx, sub.LastInvoiceID, sub.ID); err != nil {
+			return err
 		}
 	}
 	return s.db.Transaction(ctx, func(q *store.Queries) error {
@@ -47,7 +70,7 @@ func (s *Service) CancelForDeletion(ctx context.Context, accountID string) error
 }
 
 func (s *Service) ExpireCheckouts(ctx context.Context, accountID string) error {
-	checkouts, err := s.db.BillingCheckouts(ctx, accountID)
+	checkouts, err := s.db.BillingCheckouts(ctx, accountID, true)
 	if err != nil {
 		return err
 	}
@@ -63,51 +86,38 @@ func (s *Service) finishDeletingCheckout(ctx context.Context, checkout store.Bil
 	if s.cfg.Stripe == nil {
 		return ErrUnavailable
 	}
-	current, err := s.cfg.Stripe.checkout(ctx, checkout.ID)
+	current, err := s.cfg.Stripe.closeCheckout(ctx, checkout.ID)
 	if err != nil {
 		return err
 	}
-	if current.Status == "open" {
-		err := s.cfg.Stripe.request(ctx, http.MethodPost,
-			"/v1/checkout/sessions/"+url.PathEscape(checkout.ID)+"/expire", nil, "delete_"+checkout.ID, nil)
-		if err == nil {
-			return nil
-		}
-		// A payment can complete between reading an open Checkout and attempting expiry.
-		current, err = s.cfg.Stripe.checkout(ctx, checkout.ID)
-		if err != nil {
-			return err
-		}
-		if current.Status == "open" {
-			return ErrUnavailable
+	switch current.Status {
+	case stripeCheckoutExpired:
+		return nil
+	case stripeCheckoutComplete:
+		if current.Subscription != "" {
+			return s.refreshSubscription(ctx, current.Subscription, stripeEvent{}, checkout.AccountID)
 		}
 	}
-	if current.Status == "complete" && current.Subscription != "" {
-		return s.refreshSubscription(ctx, current.Subscription, stripeEvent{}, checkout.AccountID)
-	}
-	return nil
+	return ErrUnavailable
 }
 
-func (s *Service) cancelForDeletion(ctx context.Context, sub plan.Subscription, requestedAt time.Time) error {
+func (s *Service) cancelForDeletion(ctx context.Context, sub plan.Subscription) (plan.Subscription, error) {
 	if s.cfg.Stripe == nil {
-		return ErrUnavailable
+		return sub, ErrUnavailable
 	}
-	return s.db.Transaction(ctx, func(q *store.Queries) error {
+	var current plan.Subscription
+	err := s.db.Transaction(ctx, func(q *store.Queries) error {
 		if err := q.LockStripeSubscription(ctx, sub.ID); err != nil {
 			return err
 		}
 		if err := q.LockPlanAccount(ctx, sub.AccountID); err != nil {
 			return err
 		}
-		current, err := q.BillingSubscription(ctx, sub.ID)
+		var err error
+		current, err = q.BillingSubscription(ctx, sub.ID)
 		now := s.cfg.Now()
 		if err != nil || !current.Entitled(s.cfg.MonthlyPrice, s.cfg.AnnualPrice, now) {
 			return err
-		}
-		if until := current.RefundEligibleUntil(); requestedAt.Before(until) {
-			if err := s.cfg.Stripe.refundInvoice(ctx, current.LastInvoiceID, current.ID); err != nil {
-				return err
-			}
 		}
 		if err := s.cfg.Stripe.cancelSubscription(ctx, current.ID); err != nil {
 			return err
@@ -116,6 +126,7 @@ func (s *Service) cancelForDeletion(ctx context.Context, sub plan.Subscription, 
 		current.CancelAtPeriodEnd = false
 		return q.SaveStripeSubscription(ctx, current, now)
 	})
+	return current, err
 }
 
 type stripeInvoicePayment struct {

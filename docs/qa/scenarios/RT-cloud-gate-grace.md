@@ -13,5 +13,6 @@ qa_status: pending
 2. Switch the policy to enforcement. Observe the next refresh within 15 minutes and verify the operator stream closes with `4401`, the next recurring occurrence is skipped, and an already-running turn finishes.
 3. Upgrade a 0.7.x home while blocking access to the cloud. Check the seven-day deadline and restart midway through the window to confirm the deadline persists. Verify the gate enforces after the deadline. Repeat with a fresh home and confirm it starts enforced.
 4. Connect a test instance with a policy signed by an unknown key. Verify the daemon enforces sign-in.
+5. While a signed grace policy is active, inject a rate-limited policy response and then a JWKS outage. Verify the banner keeps its original deadline and the operator stream stays open. On an existing home without a cached policy, follow the transient responses with a Cloud outage and verify offline grace is available.
 
 Use UT-134 and IT-112 for the related automated evidence.

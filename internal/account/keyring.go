@@ -22,10 +22,10 @@ import (
 )
 
 const (
-	keyringService = "compozy.account"
-	deviceKeyEntry = "device-key"
-	refreshEntry   = "refresh"
-	tokenEntry     = "account-token"
+	keyringService   = "compozy.account"
+	deviceKeyEntry   = "device-key"
+	refreshEntry     = "refresh"
+	legacyTokenEntry = "account-token"
 )
 
 type systemKeyring struct{}

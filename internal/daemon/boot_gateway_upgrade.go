@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/compozy/compozy/internal/config"
@@ -30,9 +31,10 @@ func (d *Daemon) migrateRemovedGateway(ctx context.Context, state *bootState) {
 		state.logger.WarnContext(ctx, "config_keys_removal_failed", "error", err)
 		return
 	}
-	if len(keys) > 0 {
-		state.logger.WarnContext(ctx, "config_keys_removed", "keys", keys, "release_note", gatewayUpgradeURL)
+	if len(keys) == 0 {
+		return
 	}
+	state.logger.WarnContext(ctx, "config_keys_removed", "keys", keys, "release_note", gatewayUpgradeURL)
 	dir := filepath.Join(d.homePaths.HomeDir, "gateway")
 	if err := purgeRemovedGatewayCredentials(dir); err != nil {
 		state.logger.WarnContext(ctx, "gateway_credentials_cleanup_failed", "error", err)
@@ -44,20 +46,33 @@ func purgeRemovedGatewayCredentials(dir string) error {
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
-	if err != nil {
+	if err != nil || !info.IsDir() {
 		return err
 	}
-	var keyErr error
-	if info.IsDir() {
-		credentials := filepath.Join(dir, "credentials")
-		if info, err := os.Lstat(credentials); err == nil && info.IsDir() {
-			keyErr = deleteGatewayKeyringKeys(credentials)
-		}
+	credentials := filepath.Join(dir, "credentials")
+	info, err = os.Lstat(credentials)
+	if errors.Is(err, os.ErrNotExist) {
+		return removeEmptyGatewayDir(dir)
 	}
-	return errors.Join(keyErr, os.RemoveAll(dir))
+	if err != nil || !info.IsDir() {
+		return err
+	}
+	return errors.Join(
+		deleteGatewayCredentials(credentials),
+		removeEmptyGatewayDir(credentials),
+		removeEmptyGatewayDir(dir),
+	)
 }
 
-func deleteGatewayKeyringKeys(dir string) error {
+func removeEmptyGatewayDir(dir string) error {
+	err := os.Remove(dir)
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ENOTEMPTY) || errors.Is(err, syscall.EEXIST) {
+		return nil
+	}
+	return err
+}
+
+func deleteGatewayCredentials(dir string) error {
 	canonical, err := filepath.EvalSymlinks(dir)
 	if err != nil {
 		return err
@@ -79,6 +94,9 @@ func deleteGatewayKeyringKeys(dir string) error {
 			profile+suffix,
 		); err != nil &&
 			!errors.Is(err, keyring.ErrNotFound) {
+			cleanupErr = errors.Join(cleanupErr, err)
+		}
+		if err := os.Remove(filepath.Join(dir, entry.Name())); err != nil && !errors.Is(err, os.ErrNotExist) {
 			cleanupErr = errors.Join(cleanupErr, err)
 		}
 	}

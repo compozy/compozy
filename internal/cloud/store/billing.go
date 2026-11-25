@@ -62,8 +62,14 @@ func (q *Queries) SaveStripeSubscription(ctx context.Context, s plan.Subscriptio
 	return err
 }
 
-func (q *Queries) BillingStripeSubscriptionIDs(ctx context.Context) ([]string, error) {
-	return q.generated.BillingStripeSubscriptionIDs(ctx)
+func (q *Queries) BillingStripeSubscriptionIDs(ctx context.Context, cutoff time.Time) ([]string, error) {
+	return q.generated.BillingStripeSubscriptionIDs(ctx, timestamp(cutoff))
+}
+
+func (q *Queries) BillingStripeSubscriptionStale(ctx context.Context, id string, cutoff time.Time) (bool, error) {
+	return q.generated.BillingStripeSubscriptionStale(ctx, sqlcgen.BillingStripeSubscriptionStaleParams{
+		ID: id, Cutoff: timestamp(cutoff),
+	})
 }
 
 func (q *Queries) ExpiredComplimentaryAccounts(ctx context.Context, now time.Time) ([]string, error) {
@@ -106,8 +112,14 @@ func (q *Queries) AccountBillingCheckout(ctx context.Context, account, id string
 	return billingCheckout(row), err
 }
 
-func (q *Queries) BillingCheckouts(ctx context.Context, account string) ([]BillingCheckout, error) {
-	rows, err := q.generated.BillingCheckouts(ctx, account)
+func (q *Queries) BillingCheckouts(
+	ctx context.Context,
+	account string,
+	includeExpired bool,
+) ([]BillingCheckout, error) {
+	rows, err := q.generated.BillingCheckouts(ctx, sqlcgen.BillingCheckoutsParams{
+		AccountID: account, IncludeExpired: includeExpired,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +129,13 @@ func (q *Queries) BillingCheckouts(ctx context.Context, account string) ([]Billi
 	}
 	return results, nil
 }
+
+func (q *Queries) MarkBillingCheckoutExpired(ctx context.Context, id string, now time.Time) error {
+	return q.generated.MarkBillingCheckoutExpired(ctx, sqlcgen.MarkBillingCheckoutExpiredParams{
+		ID: id, AsOf: timestamp(now),
+	})
+}
+
 func (q *Queries) BillingCheckoutInterval(ctx context.Context, id string) (string, error) {
 	interval, err := q.generated.BillingCheckoutInterval(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {

@@ -113,6 +113,12 @@ func verifyStripeSignature(header string, raw []byte, secret string, now time.Ti
 }
 
 func (s *Service) refreshSubscription(ctx context.Context, id string, event stripeEvent, expectedAccount string) error {
+	return s.applySubscriptionRefresh(ctx, id, event, expectedAccount, time.Time{})
+}
+
+func (s *Service) applySubscriptionRefresh(
+	ctx context.Context, id string, event stripeEvent, expectedAccount string, cutoff time.Time,
+) error {
 	if id != "" && !validStripeID(id, "sub_") {
 		return ErrInvalidRequest
 	}
@@ -121,6 +127,12 @@ func (s *Service) refreshSubscription(ctx context.Context, id string, event stri
 	err := s.db.Transaction(ctx, func(q *store.Queries) error {
 		if id != "" {
 			if err := q.LockStripeSubscription(ctx, id); err != nil {
+				return err
+			}
+		}
+		if !cutoff.IsZero() {
+			stale, err := q.BillingStripeSubscriptionStale(ctx, id, cutoff)
+			if err != nil || !stale {
 				return err
 			}
 		}

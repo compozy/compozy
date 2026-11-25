@@ -18,6 +18,10 @@ const (
 	stripeVersion   = "2025-03-31.basil"
 	stripeTimeout   = 10 * time.Second
 	accountMetadata = "compozy_account_id"
+
+	stripeCheckoutOpen     = "open"
+	stripeCheckoutExpired  = "expired"
+	stripeCheckoutComplete = "complete"
 )
 
 type StripeConfig struct {
@@ -162,6 +166,21 @@ func (s *Stripe) checkout(ctx context.Context, id string) (stripeCheckout, error
 		err = errors.New("Stripe returned a different Checkout session")
 	}
 	return result, err
+}
+
+func (s *Stripe) closeCheckout(ctx context.Context, id string) (stripeCheckout, error) {
+	current, err := s.checkout(ctx, id)
+	if err != nil || current.Status != stripeCheckoutOpen {
+		return current, err
+	}
+	var expired stripeCheckout
+	err = s.request(ctx, http.MethodPost, "/v1/checkout/sessions/"+url.PathEscape(id)+"/expire",
+		nil, "expire_"+id, &expired)
+	if err == nil && expired.ID == id && expired.Status == stripeCheckoutExpired {
+		return expired, nil
+	}
+	// Payment may complete between the Checkout read and the expiry request.
+	return s.checkout(ctx, id)
 }
 
 func (s *Stripe) portal(ctx context.Context, customer, returnURL string) (string, error) {

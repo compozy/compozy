@@ -31,6 +31,8 @@ Enable `computers.load_balancing` on the controller and register the same Git re
 
 Auto considers enabled, connected computers that have a workspace for the repository. For samples up to 15 seconds old, a computer needs CPU utilization below 95% and available memory above 5%. The score multiplies the preference weight, logical CPU count, unused CPU share, and available memory share. If every eligible computer lacks a fresh, complete sample, the highest weight wins. Ties in that fallback favor this computer, then sort by name.
 
+An SSH computer with a live connection remains eligible when a service warning appears in its status.
+
 Set `computers.local_run_agents` to `false` once you have added a remote computer. Existing sessions, Loops, and automation history remain readable. New local sessions, Loop runs, and automation runs return `local_execution_disabled`.
 
 ## Use the controller API

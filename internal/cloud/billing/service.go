@@ -4,7 +4,6 @@ package billing
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"net/http"
 	"net/url"
@@ -157,51 +156,6 @@ func (s *Service) Overview(
 	return result, err
 }
 
-func (s *Service) Checkout(ctx context.Context, accountID string, target Target, authorize Authorize) (string, error) {
-	if !s.validTarget(target) {
-		return "", ErrInvalidRequest
-	}
-	if s.cfg.Stripe == nil {
-		return "", ErrUnavailable
-	}
-	price := s.cfg.AnnualPrice
-	if target.Interval == "month" {
-		price = s.cfg.MonthlyPrice
-	}
-	if price == "" {
-		return "", ErrUnavailable
-	}
-	var checkout stripeCheckout
-	err := s.accountTransaction(ctx, accountID, authorize, func(q *store.Queries, account store.AuthAccount) error {
-		if _, err := s.ownedHostedComputer(ctx, q, accountID, target.Hostname); err != nil {
-			return err
-		}
-		subscriptions, err := q.Subscriptions(ctx, accountID)
-		if err != nil {
-			return err
-		}
-		if s.status(subscriptions, s.cfg.Now()).Plan == plan.Pro {
-			return ErrAlreadyPro
-		}
-		checkout, err = s.cfg.Stripe.createCheckout(ctx, stripeCheckoutRequest{
-			AccountID: accountID, Email: account.Email, CustomerID: billingCustomer(subscriptions), PriceID: price,
-			SuccessURL: s.cfg.Issuer + SuccessPath + "?session_id={CHECKOUT_SESSION_ID}",
-			CancelURL:  s.cfg.Issuer + target.URL() + "&checkout=" + CheckoutCancelled,
-			Key:        "checkout_" + rand.Text(),
-		})
-		if err != nil {
-			return err
-		}
-		return q.InsertBillingCheckout(ctx, store.BillingCheckout{
-			ID: checkout.ID, AccountID: accountID, Interval: target.Interval, Hostname: target.Hostname,
-		})
-	})
-	if err == nil {
-		s.countCheckout(target.Interval, "created")
-	}
-	return checkout.URL, err
-}
-
 func (s *Service) Portal(ctx context.Context, accountID string, authorize Authorize) (string, error) {
 	if s.cfg.Stripe == nil {
 		return "", ErrUnavailable
@@ -251,7 +205,7 @@ func (s *Service) CompleteCheckout(
 	if current.ClientReference != accountID {
 		return result, ErrInvalidRequest
 	}
-	if current.Status != "complete" ||
+	if current.Status != stripeCheckoutComplete ||
 		(current.PaymentStatus != stripeStatusPaid && current.PaymentStatus != "no_payment_required") {
 		return result, ErrPaymentPending
 	}

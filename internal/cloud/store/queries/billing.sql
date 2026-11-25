@@ -31,7 +31,16 @@ SET stripe_customer_id = excluded.stripe_customer_id, status = excluded.status, 
 WHERE subscriptions.source = 'stripe' AND subscriptions.account_id = excluded.account_id;
 
 -- name: BillingStripeSubscriptionIDs :many
-SELECT id FROM subscriptions WHERE source = 'stripe' ORDER BY id;
+SELECT id FROM subscriptions
+WHERE source = 'stripe'
+  AND (stripe_synced_at IS NULL OR stripe_synced_at <= sqlc.arg(cutoff)::timestamptz)
+  AND (status NOT IN ('canceled', 'incomplete_expired')
+       OR COALESCE(ends_at, stripe_synced_at, 'infinity'::timestamptz) > sqlc.arg(cutoff))
+ORDER BY id;
+
+-- name: BillingStripeSubscriptionStale :one
+SELECT EXISTS (SELECT 1 FROM subscriptions WHERE id = sqlc.arg(id) AND source = 'stripe'
+  AND (stripe_synced_at IS NULL OR stripe_synced_at <= sqlc.arg(cutoff)::timestamptz));
 
 -- name: ExpiredComplimentaryAccounts :many
 SELECT DISTINCT s.account_id FROM subscriptions s
@@ -80,7 +89,12 @@ INSERT INTO billing_checkouts (id, account_id, interval, hostname) VALUES ($1, $
 SELECT * FROM billing_checkouts WHERE id = $1 AND account_id = $2 AND expired_at IS NULL;
 
 -- name: BillingCheckouts :many
-SELECT * FROM billing_checkouts WHERE account_id = $1 ORDER BY id;
+SELECT * FROM billing_checkouts
+WHERE account_id = sqlc.arg(account_id) AND (sqlc.arg(include_expired)::boolean OR expired_at IS NULL)
+ORDER BY id;
+
+-- name: MarkBillingCheckoutExpired :exec
+UPDATE billing_checkouts SET expired_at = sqlc.arg(as_of) WHERE id = sqlc.arg(id);
 
 -- name: BillingCheckoutInterval :one
 SELECT interval FROM billing_checkouts WHERE id = $1;
