@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/compozy/compozy/internal/apptoken"
 	"github.com/compozy/compozy/internal/computers"
 	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -38,6 +39,15 @@ func (h *BaseHandlers) BridgeComputer(c *gin.Context) {
 	request := c.Request
 	if computers.CarriesClaimToken(request) {
 		h.computerResult(c, 0, nil, computers.ErrClaimToken)
+		return
+	}
+	_, app := AppTokenFromContext(request.Context())
+	auth := strings.Fields(request.Header.Get("Authorization"))
+	if app || (len(auth) >= 2 && strings.EqualFold(auth[0], "Bearer") && apptoken.HasPrefix(auth[1])) {
+		RespondAppTokenError(c, apptoken.ErrRouteForbidden, true)
+		return
+	}
+	if !h.requireOperatorSurface(c, "Computer forwarding") {
 		return
 	}
 	if !h.computersReady(c) {

@@ -16,6 +16,7 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -382,6 +383,14 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DispatchRequest) (_ *Run,
 	if req.Kind != DispatchKindManual {
 		// Scheduled, trigger, and extension runs yield to host CPU pressure at admission.
 		ctx = admission.WithBackgroundWork(ctx)
+	} else {
+		notify := req.onAdmitted
+		req.onAdmitted = func(run Run) {
+			ctx = store.WithoutMutationCommitGuard(ctx)
+			if notify != nil {
+				notify(run)
+			}
+		}
 	}
 
 	attempt := 1

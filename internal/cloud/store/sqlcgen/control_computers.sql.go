@@ -527,12 +527,16 @@ const recordControlMint = `-- name: RecordControlMint :exec
 WITH minted AS (
 UPDATE computers AS computer SET last_session_at = greatest(last_session_at, $1::timestamptz)
 WHERE computer.id = $2 AND computer.account_id = $3
-  AND computer.remote_enabled AND NOT computer.plan_limited AND computer.unlinked_at IS NULL
+  AND computer.remote_enabled AND computer.unlinked_at IS NULL
   AND EXISTS (
       SELECT 1 FROM devices AS device
       JOIN device_keys AS key ON key.device_id = device.id
       WHERE device.id = $4::text AND device.account_id = computer.account_id
-        AND device.revoked_at IS NULL AND key.jkt = $5::text AND key.state = 'active'
+        AND (device.revoked_at IS NULL OR device.revoked_at >= $1::timestamptz)
+        AND key.jkt = $5::text AND (
+            key.state = 'active'
+            OR (key.activated_at IS NOT NULL AND key.revoked_at >= $1::timestamptz)
+        )
   )
 RETURNING computer.account_id
 )

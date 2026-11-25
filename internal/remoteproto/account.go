@@ -17,6 +17,17 @@ type AccountDevicePatch struct {
 	Scopes map[ComputerID][]Scope `json:"scopes,omitempty"`
 }
 
+const RemoteDevicesPath = "/api/remote/devices"
+
+// RemoteDeviceMutation relays a device's request through the linked computer.
+type RemoteDeviceMutation struct {
+	DeviceID       DeviceID `json:"device_id"`
+	Scopes         *[]Scope `json:"scopes,omitempty"`
+	CallerJKT      string   `json:"caller_jkt"`
+	DPoP           string   `json:"dpop"`
+	CredentialHash string   `json:"credential_hash,omitempty"`
+}
+
 type AccountPlan struct {
 	Plan                 string               `json:"plan"`
 	RemoteComputersUsed  int64                `json:"remote_computers_used"`

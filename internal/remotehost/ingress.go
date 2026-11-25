@@ -86,9 +86,8 @@ func (h listenerHandler) webhookRoutes() http.HandlerFunc {
 			http.NotFound(w, req)
 			return
 		}
-		if len(req.Header.Values("X-Compozy-Claim-Token")) != 0 {
-			writeFailure(w, &Failure{http.StatusBadRequest, "claim_token_not_remote",
-				"Task leases stay on the computer that owns them.", nil})
+		if err := RejectClaimToken(req); err != nil {
+			writeFailure(w, err)
 			return
 		}
 		handler := h.webhook()

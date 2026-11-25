@@ -33,21 +33,37 @@ var (
 )
 
 type DPoPProof struct {
-	Method    string  `json:"htm"`
-	URL       string  `json:"htu"`
-	IssuedAt  int64   `json:"iat"`
-	JTI       string  `json:"jti"`
-	TokenHash *string `json:"ath,omitempty"`
+	Method    string     `json:"htm"`
+	URL       string     `json:"htu"`
+	IssuedAt  int64      `json:"iat"`
+	JTI       string     `json:"jti"`
+	TokenHash *string    `json:"ath,omitempty"`
+	Audience  ComputerID `json:"aud,omitempty"`
 }
 
 type DPoPBinding struct {
-	Method     string
-	URL        string
-	JKT        string
-	Credential string
+	Method         string
+	URL            string
+	JKT            string
+	Credential     string
+	CredentialHash string
+	Audience       ComputerID
 }
 
 func BuildDPoP(signer crypto.Signer, method, target, credential string, now time.Time) (string, error) {
+	return buildDPoP(signer, method, target, credential, "", now)
+}
+
+// BuildTunnelDPoP includes the receiving computer in a proof that the host may delegate to Cloud.
+func BuildTunnelDPoP(
+	signer crypto.Signer, computer ComputerID, method, path, credential string, now time.Time,
+) (string, error) {
+	return buildDPoP(signer, method, "https://"+TunnelHost+path, credential, computer, now)
+}
+
+func buildDPoP(
+	signer crypto.Signer, method, target, credential string, audience ComputerID, now time.Time,
+) (string, error) {
 	if signer == nil || method == "" {
 		return "", ErrDPoPInvalid
 	}
@@ -59,7 +75,7 @@ func BuildDPoP(signer crypto.Signer, method, target, credential string, now time
 	if err != nil || key.Kty != keyEC {
 		return "", ErrDPoPInvalid
 	}
-	proof := DPoPProof{Method: method, URL: target, IssuedAt: now.Unix(), JTI: rand.Text()}
+	proof := DPoPProof{Method: method, URL: target, IssuedAt: now.Unix(), JTI: rand.Text(), Audience: audience}
 	if credential != "" {
 		proof.TokenHash = new(hashBase64([]byte(credential)))
 	}
@@ -103,6 +119,18 @@ func NewDPoPVerifier() *DPoPVerifier {
 }
 
 func (v *DPoPVerifier) VerifyDPoP(token string, binding DPoPBinding, now time.Time) (DPoPProof, error) {
+	proof, err := CheckDPoP(token, binding, now)
+	if err != nil {
+		return DPoPProof{}, err
+	}
+	if err := v.consume(proof.JTI, now); err != nil {
+		return DPoPProof{}, err
+	}
+	return proof, nil
+}
+
+// CheckDPoP verifies a proof when the consumer owns a separate replay fence.
+func CheckDPoP(token string, binding DPoPBinding, now time.Time) (DPoPProof, error) {
 	if len(token) > maxProofSize || binding.JKT == "" || binding.Method == "" {
 		return DPoPProof{}, ErrDPoPInvalid
 	}
@@ -110,11 +138,11 @@ func (v *DPoPVerifier) VerifyDPoP(token string, binding DPoPBinding, now time.Ti
 	if err != nil {
 		return DPoPProof{}, ErrDPoPInvalid
 	}
-	return v.verify(jws, binding, now)
+	return verifyDPoP(jws, binding, now)
 }
 
-// VerifyBrowserDPoP proves possession before a browser code or an approval can be read.
-func (v *DPoPVerifier) VerifyBrowserDPoP(token, method, target string, now time.Time) (string, error) {
+// BrowserDPoPKey validates a proof before the presented key has been authorized.
+func BrowserDPoPKey(token, method, target string, now time.Time) (string, error) {
 	if len(token) > maxProofSize || method == "" {
 		return "", ErrDPoPInvalid
 	}
@@ -126,19 +154,16 @@ func (v *DPoPVerifier) VerifyBrowserDPoP(token, method, target string, now time.
 	if err != nil {
 		return "", ErrDPoPInvalid
 	}
-	if _, err := v.verify(jws, DPoPBinding{Method: method, URL: target, JKT: jkt}, now); err != nil {
+	if _, err := verifyDPoP(jws, DPoPBinding{Method: method, URL: target, JKT: jkt}, now); err != nil {
 		return "", err
 	}
 	return jkt, nil
 }
 
-func (v *DPoPVerifier) verify(jws compactJWS, binding DPoPBinding, now time.Time) (DPoPProof, error) {
+func verifyDPoP(jws compactJWS, binding DPoPBinding, now time.Time) (DPoPProof, error) {
 	if verifyDeviceSignature(jws, dpopType, binding.JKT) {
 		var proof DPoPProof
 		if err := json.Unmarshal(jws.body, &proof); err == nil && proof.matches(binding, now) {
-			if err := v.consume(proof.JTI, now); err != nil {
-				return DPoPProof{}, err
-			}
 			return proof, nil
 		}
 	}
@@ -171,14 +196,18 @@ func (p DPoPProof) matches(binding DPoPBinding, now time.Time) bool {
 		return false
 	}
 	target, err := proofURL(binding.URL)
-	if err != nil || p.URL != target {
+	if err != nil || p.URL != target || (binding.Audience != "" && p.Audience != binding.Audience) {
 		return false
 	}
-	if binding.Credential == "" {
+	want := binding.CredentialHash
+	if binding.Credential != "" {
+		want = hashBase64([]byte(binding.Credential))
+	}
+	if want == "" {
 		return p.TokenHash == nil
 	}
 	return p.TokenHash != nil &&
-		subtle.ConstantTimeCompare([]byte(*p.TokenHash), []byte(hashBase64([]byte(binding.Credential)))) == 1
+		subtle.ConstantTimeCompare([]byte(*p.TokenHash), []byte(want)) == 1
 }
 
 func (v *DPoPVerifier) consume(jti string, now time.Time) error {

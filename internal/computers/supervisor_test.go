@@ -29,6 +29,68 @@ const probeAccount = "acc_routetest"
 
 func TestRouteSelection(t *testing.T) {
 	t.Parallel()
+	t.Run("Should retry credential renewal and keep the same tunnel", func(t *testing.T) {
+		t.Parallel()
+		// RC-04. The controller renews before expiry and keeps using the active route during a transient failure.
+		clock := clockwork.NewFakeClockAt(time.Unix(1_795_000_000, 0))
+		pin, pair := tunnelCertificates(t, clock.Now())
+		host := serveProbeTunnel(t, remoteproto.Descriptor{
+			ComputerID: probeComputer, TLSRootSHA256: pin, Protocol: remoteproto.CurrentProtocol,
+		}, pair, clock, false, func() bool { return true })
+		rows := []store.Computer{
+			{
+				ID:         probeComputer,
+				AccountID:  probeAccount,
+				Enabled:    true,
+				TLSRootSHA: pin,
+				Routes: []store.ComputerRoute{
+					{ID: "direct", Kind: remoteproto.RouteDirect, Address: probeURL(t, host.URL).Host},
+				},
+			},
+		}
+		cloud := &routingCloud{}
+		registry := New(t.Context(), &routingStore{computers: rows}, newRoutingAccount(t), cloud, WithClock(clock))
+		t.Cleanup(registry.Close)
+		waitUnitRoute(t, registry, remoteproto.RouteDirect)
+		scope, err := registry.current()
+		if err != nil {
+			t.Fatal(err)
+		}
+		link, err := scope.connection(t.Context(), probeComputer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		initial := link.auth.Load()
+		waitForRenewalTimer := func() {
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			if err := clock.BlockUntilContext(ctx, 4); err != nil {
+				t.Fatal(err)
+			}
+		}
+		waitForRenewalTimer()
+		cloud.unavailable.Store(true)
+		clock.Advance(55 * time.Minute)
+		testutil.Eventually(t, "controller attempts renewal", 3*time.Second, func() bool {
+			return cloud.grants.Load() == 2
+		})
+		if current, err := scope.connection(t.Context(), probeComputer); err != nil || current != link {
+			t.Fatalf("transient renewal failure removed the live tunnel: %v", err)
+		}
+		waitForRenewalTimer()
+		cloud.unavailable.Store(false)
+		clock.Advance(5 * time.Second)
+		testutil.Eventually(t, "controller installs the renewed credential", 3*time.Second, func() bool {
+			return link.auth.Load().expiresAt.After(initial.expiresAt)
+		})
+		if current, err := scope.connection(
+			t.Context(),
+			probeComputer,
+		); err != nil || current != link ||
+			cloud.grants.Load() != 3 {
+			t.Fatalf("renewal changed the tunnel or requested extra grants: %v, grants=%d", err, cloud.grants.Load())
+		}
+	})
 	t.Run("Should prefer direct before faster SSH and hosted routes", func(t *testing.T) {
 		t.Parallel()
 		// UT-032. Safety Invariants 2 and 15. Completion order cannot select the route.
@@ -278,7 +340,8 @@ func (*routingStore) RecordComputerConnection(context.Context, string, remotepro
 
 type routingCloud struct {
 	Cloud
-	grants atomic.Int32
+	grants      atomic.Int32
+	unavailable atomic.Bool
 }
 
 func (*routingCloud) Computers(context.Context, cloudclient.Credentials) ([]remoteproto.AccountComputer, error) {
@@ -289,6 +352,9 @@ func (c *routingCloud) ComputerGrant(
 	context.Context, cloudclient.Credentials, remoteproto.ComputerID, remoteproto.RouteKind,
 ) (string, error) {
 	c.grants.Add(1)
+	if c.unavailable.Load() {
+		return "", &cloudclient.Failure{Status: http.StatusServiceUnavailable, Code: "cloud_unavailable"}
+	}
 	return "fixture-grant", nil
 }
 

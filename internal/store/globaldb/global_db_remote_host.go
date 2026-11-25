@@ -48,6 +48,27 @@ func (r *RemoteHostRepo) SaveRemoteIdentity(ctx context.Context, identity remote
 	})
 }
 
+func (r *RemoteHostRepo) RemoteLeaseSequence(ctx context.Context) (uint64, error) {
+	row, err := r.readQueries.GetRemoteIdentity(ctx)
+	if err != nil {
+		return 0, remoteRecordError(err)
+	}
+	if row.LeaseSequence < 0 {
+		return 0, remoteproto.ErrLeaseInvalid
+	}
+	return uint64(row.LeaseSequence), nil
+}
+
+func (r *RemoteHostRepo) RemoteLastMint(ctx context.Context) (remoteproto.SessionMinted, error) {
+	row, err := r.readQueries.GetRemoteIdentity(ctx)
+	if err != nil {
+		return remoteproto.SessionMinted{}, remoteRecordError(err)
+	}
+	return remoteproto.SessionMinted{
+		At: row.LastMintAt, DeviceID: remoteproto.DeviceID(row.LastMintDeviceID), JKT: row.LastMintJkt,
+	}, nil
+}
+
 func (r *RemoteHostRepo) UpdateRemoteLeaf(ctx context.Context, id remoteproto.ComputerID, expires time.Time) error {
 	return r.executeWriteQuery(ctx, "globaldb.UpdateRemoteLeaf", func(ctx context.Context, q *sqlcgen.Queries) error {
 		return q.UpdateRemoteLeaf(ctx, sqlcgen.UpdateRemoteLeafParams{
@@ -175,8 +196,13 @@ func (t remoteHostTx) InsertSession(ctx context.Context, session remotehost.Sess
 	}); err != nil {
 		return err
 	}
-	return t.q.RecordRemoteDeviceConnection(ctx, sqlcgen.RecordRemoteDeviceConnectionParams{
+	if err := t.q.RecordRemoteDeviceConnection(ctx, sqlcgen.RecordRemoteDeviceConnectionParams{
 		DeviceID: string(session.DeviceID), LastSeenAt: session.CreatedAt.UnixNano(),
+	}); err != nil {
+		return err
+	}
+	return t.q.RecordRemoteLastMint(ctx, sqlcgen.RecordRemoteLastMintParams{
+		MintedAt: session.CreatedAt.Unix(), DeviceID: string(session.DeviceID), Jkt: session.JKT,
 	})
 }
 
@@ -297,6 +323,19 @@ func (t remoteHostTx) ClearLink(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (t remoteHostTx) AdvanceLeaseSequence(ctx context.Context, computer remoteproto.ComputerID, seq uint64) error {
+	if seq == 0 || seq > math.MaxInt64 {
+		return remoteproto.ErrLeaseInvalid
+	}
+	n, err := t.q.AdvanceRemoteLeaseSequence(ctx, sqlcgen.AdvanceRemoteLeaseSequenceParams{
+		Sequence: int64(seq), ComputerID: string(computer),
+	})
+	if err == nil && n == 0 {
+		return remoteproto.ErrLeaseInvalid
+	}
+	return err
 }
 
 func (t remoteHostTx) Sweep(ctx context.Context, now time.Time) error {

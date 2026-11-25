@@ -41,6 +41,32 @@ var testRequest = Request{Host: "devbox"}
 
 func TestSSHSetupReleaseAndArguments(t *testing.T) {
 	t.Parallel()
+	t.Run("Should wait for the SSH forward even when the local port accepts connections", func(t *testing.T) {
+		t.Parallel()
+		// RC-08. An unrelated listener is no evidence that OpenSSH bound its forward.
+		port, err := new(net.ListenConfig).Listen(t.Context(), "tcp4", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := port.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		forwarded := make(chan struct{})
+		done := make(chan error, 1)
+		ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+		defer cancel()
+		ready, _, err := awaitForward(ctx, forwarded, done)
+		if ready || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("unconfirmed forward at %s was published: ready=%t, error=%v", port.Addr(), ready, err)
+		}
+		close(forwarded)
+		ready, _, err = awaitForward(t.Context(), forwarded, done)
+		if !ready || err != nil {
+			t.Fatalf("confirmed forward was refused: ready=%t, error=%v", ready, err)
+		}
+	})
 	t.Run("Should pin every command and disable SSH connection sharing (UT-040)", func(t *testing.T) {
 		t.Parallel()
 		// Safety Invariant 19.

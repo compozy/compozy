@@ -83,9 +83,10 @@ func (h listenerHandler) serveTunnel(w http.ResponseWriter, req *http.Request) {
 	if h.wrapTunnelHandler != nil {
 		handler = h.wrapTunnelHandler(handler)
 	}
+	lifetime := context.WithValue(req.Context(), tunnelLifetimeKey{}, new(tunnelLifetime))
 	server := &http.Server{
 		Handler: handler, ReadHeaderTimeout: headerTimeout,
-		BaseContext: func(net.Listener) context.Context { return req.Context() },
+		BaseContext: func(net.Listener) context.Context { return lifetime },
 	}
 	server.SetKeepAlivesEnabled(false)
 	defer func() { _ = server.Close() }()

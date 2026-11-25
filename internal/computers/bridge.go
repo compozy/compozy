@@ -80,9 +80,6 @@ func (c *connection) bridgeRequest(ctx context.Context, req *http.Request, r *Re
 		return nil, ErrRouteNotRemote
 	}
 	now := r.clock.Now()
-	if !now.Before(c.expiresAt) {
-		return nil, ErrOffline
-	}
 	out := req.Clone(ctx)
 	out.RequestURI = ""
 	out.URL.Scheme, out.URL.Host, out.Host = routeHTTPScheme, remoteproto.TunnelHost, remoteproto.TunnelHost

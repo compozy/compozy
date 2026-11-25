@@ -10,7 +10,7 @@ import (
 const (
 	RemotePath        = "/api/remote"
 	RemoteLinkPath    = RemotePath + "/link"
-	RemoteDevicesPath = RemotePath + "/devices"
+	RemoteDevicesPath = remoteproto.RemoteDevicesPath
 )
 
 type RemoteStatusResponse remotehost.Status

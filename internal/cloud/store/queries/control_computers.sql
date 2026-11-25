@@ -75,12 +75,16 @@ RETURNING lease_sequence;
 WITH minted AS (
 UPDATE computers AS computer SET last_session_at = greatest(last_session_at, sqlc.arg(minted_at)::timestamptz)
 WHERE computer.id = sqlc.arg(computer_id) AND computer.account_id = sqlc.arg(account_id)
-  AND computer.remote_enabled AND NOT computer.plan_limited AND computer.unlinked_at IS NULL
+  AND computer.remote_enabled AND computer.unlinked_at IS NULL
   AND EXISTS (
       SELECT 1 FROM devices AS device
       JOIN device_keys AS key ON key.device_id = device.id
       WHERE device.id = sqlc.arg(device_id)::text AND device.account_id = computer.account_id
-        AND device.revoked_at IS NULL AND key.jkt = sqlc.arg(jkt)::text AND key.state = 'active'
+        AND (device.revoked_at IS NULL OR device.revoked_at >= sqlc.arg(minted_at)::timestamptz)
+        AND key.jkt = sqlc.arg(jkt)::text AND (
+            key.state = 'active'
+            OR (key.activated_at IS NOT NULL AND key.revoked_at >= sqlc.arg(minted_at)::timestamptz)
+        )
   )
 RETURNING computer.account_id
 )

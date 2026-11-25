@@ -3,7 +3,9 @@ package remotehost
 import (
 	"context"
 	"crypto/ed25519"
+	"errors"
 	"slices"
+	"time"
 
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/remoteproto"
@@ -37,24 +39,36 @@ func (h *Host) disableListeners(ctx context.Context, cfg config.RemoteConfig) er
 	return h.clearIngress(ctx)
 }
 
-func (h *Host) reconfigure(ctx context.Context, cfg config.RemoteConfig, enablingHosted bool) error {
+func (h *Host) reconfigure(ctx context.Context, cfg config.RemoteConfig) error {
 	run := h.run
-	hostedChanged := h.config.HostedListener != cfg.HostedListener || h.config.CloudRoute != cfg.CloudRoute
-	if h.config.Listener != cfg.Listener || hostedChanged || h.config.Direct.Enabled != cfg.Direct.Enabled ||
-		!slices.Equal(h.config.Direct.Addresses, cfg.Direct.Addresses) {
-		if err := h.reconfigureListeners(ctx, run, cfg, hostedChanged, enablingHosted); err != nil {
+	previous := h.config
+	listenersChanged := previous.Listener != cfg.Listener || previous.HostedListener != cfg.HostedListener ||
+		previous.CloudRoute != cfg.CloudRoute || previous.Direct.Enabled != cfg.Direct.Enabled ||
+		!slices.Equal(previous.Direct.Addresses, cfg.Direct.Addresses)
+	if listenersChanged {
+		if err := h.reconfigureListeners(ctx, run, previous, cfg); err != nil {
 			return err
 		}
 	}
+	if err := run.sessions.Reconfigure(ctx, cfg.RequireDeviceApproval, cfg.MaxScopes); err != nil {
+		if !listenersChanged {
+			return err
+		}
+		rollback, cancel := context.WithTimeout(run.ctx, 30*time.Second)
+		defer cancel()
+		return errors.Join(err, h.reconfigureListeners(rollback, run, cfg, previous))
+	}
 	run.setIngressConfig(cfg)
-	run.syncIngress(ctx)
-	return run.sessions.Reconfigure(ctx, cfg.RequireDeviceApproval, cfg.MaxScopes)
+	ingress, cancel := context.WithTimeout(run.ctx, headerTimeout)
+	defer cancel()
+	run.syncIngress(ingress)
+	return nil
 }
 
 func (h *Host) reconfigureListeners(
-	ctx context.Context, run *hostRun, cfg config.RemoteConfig, hostedChanged, enablingHosted bool,
+	ctx context.Context, run *hostRun, previous, cfg config.RemoteConfig,
 ) error {
-	off := h.config.CloudRoute.Enabled && !cfg.CloudRoute.Enabled
+	off := previous.CloudRoute.Enabled && !cfg.CloudRoute.Enabled
 	if off {
 		if err := h.withdrawHostedRoute(ctx, run); err != nil {
 			return err
@@ -64,7 +78,7 @@ func (h *Host) reconfigureListeners(
 	var initial remoteproto.HostedTunnel
 	publish := func(endpoints []string, bound string) error {
 		hosted = bound
-		if h.config.Direct.Enabled || cfg.Direct.Enabled {
+		if previous.Direct.Enabled || cfg.Direct.Enabled {
 			if err := h.cloud.UpdateRemoteAccess(
 				ctx,
 				h.identity.ComputerID,
@@ -75,7 +89,7 @@ func (h *Host) reconfigureListeners(
 				return err
 			}
 		}
-		if enablingHosted {
+		if !previous.CloudRoute.Enabled && cfg.CloudRoute.Enabled {
 			var err error
 			initial, err = h.provisionHosted(ctx, run, hosted)
 			return err
@@ -88,7 +102,7 @@ func (h *Host) reconfigureListeners(
 		}
 		return err
 	}
-	if hostedChanged {
+	if previous.HostedListener != cfg.HostedListener || previous.CloudRoute != cfg.CloudRoute {
 		h.replaceHostedRoute(run, hosted, initial)
 	}
 	return nil

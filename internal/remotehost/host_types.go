@@ -62,6 +62,7 @@ type Principal struct {
 	Browser   bool
 	session   Session
 	epoch     uint64
+	proof     string
 }
 
 type DPoPProof struct {
@@ -110,6 +111,8 @@ type Store interface {
 	SaveRemoteIdentity(context.Context, Identity) error
 	UpdateRemoteLeaf(context.Context, remoteproto.ComputerID, time.Time) error
 	RemoteSnapshot(context.Context, Identity) (remoteproto.SecuritySnapshot, error)
+	RemoteLeaseSequence(context.Context) (uint64, error)
+	RemoteLastMint(context.Context) (remoteproto.SessionMinted, error)
 	RemoteSession(context.Context, [32]byte) (Session, error)
 	RemoteGrantUsed(context.Context, string) (bool, error)
 	RemoteDeviceConnections(context.Context) (map[remoteproto.DeviceID]time.Time, error)
@@ -128,6 +131,7 @@ type Tx interface {
 	SetApproval(context.Context, Approval) error
 	UseDecision(context.Context, string, time.Time) (bool, error)
 	SaveSnapshot(context.Context, remoteproto.SecuritySnapshot, time.Time) error
+	AdvanceLeaseSequence(context.Context, remoteproto.ComputerID, uint64) error
 	ClearLink(context.Context) error
 	Sweep(context.Context, time.Time) error
 }

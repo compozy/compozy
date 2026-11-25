@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (s *Sessions) ApplySnapshot(ctx context.Context, snapshot remoteproto.SecuritySnapshot) (bool, error) {
@@ -50,9 +51,25 @@ func (s *Sessions) ApplyLease(ctx context.Context, lease remoteproto.Entitlement
 	s.serial.Lock()
 	defer s.serial.Unlock()
 	now := s.now()
-	result, err := s.security.ApplyLease(lease, now)
-	if err != nil || result != remoteproto.LeaseApplied || s.snapshotBlocked {
+	if lease.ComputerID != s.identity.ComputerID || lease.AccountID != s.identity.AccountID {
+		return remoteproto.ErrLeaseInvalid
+	}
+	if lease.Sequence <= s.leaseSequence {
+		return nil
+	}
+	next := *s.security
+	result, err := next.ApplyLease(lease, now)
+	if err != nil || result == remoteproto.LeaseIgnored {
 		return err
+	}
+	if err := s.store.WriteRemote(ctx, func(ctx context.Context, tx Tx) error {
+		return tx.AdvanceLeaseSequence(ctx, s.identity.ComputerID, lease.Sequence)
+	}); err != nil {
+		return err
+	}
+	s.leaseSequence, s.security = lease.Sequence, &next
+	if result != remoteproto.LeaseApplied || s.snapshotBlocked {
+		return nil
 	}
 	return s.applyEntitlement(ctx)
 }
@@ -126,29 +143,56 @@ func (s *Sessions) Reconfigure(ctx context.Context, requireApproval bool, maximu
 	if s.policy.requireApproval == policy.requireApproval && slices.Equal(s.policy.maxScopes, policy.maxScopes) {
 		return nil
 	}
-	blocked := s.blockCommits()
+	blocked, err := s.blockPolicyCommits(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		s.mu.Lock()
+		s.admission.blocked = blocked
+		s.mu.Unlock()
+	}()
 	state := admissionState{snapshot: s.security.Snapshot(), policy: policy}
-	err := s.revokeMatching(ctx, func(ctx context.Context, tx Tx, session Session) (error, error) {
-		if !state.allows(session) {
-			return ErrDeviceRevoked, nil
-		}
-		if policy.requireApproval {
-			approved, err := tx.Approval(ctx, session.DeviceID, session.JKT)
-			if errors.Is(err, ErrMissing) || (err == nil && approved.State != approvalApproved) {
+	err = s.revokeMatching(
+		store.WithoutMutationCommitGuard(ctx),
+		func(ctx context.Context, tx Tx, session Session) (error, error) {
+			if !state.allows(session) {
 				return ErrDeviceRevoked, nil
 			}
-			return nil, err
-		}
-		return nil, nil
-	}, nil)
+			if policy.requireApproval {
+				approved, err := tx.Approval(ctx, session.DeviceID, session.JKT)
+				if errors.Is(err, ErrMissing) || (err == nil && approved.State != approvalApproved) {
+					return ErrDeviceRevoked, nil
+				}
+				return nil, err
+			}
+			return nil, nil
+		},
+		nil,
+	)
 	s.mu.Lock()
 	if err == nil {
 		s.policy = policy
 		s.admission.policy = policy
 	}
-	s.admission.blocked = blocked
 	s.mu.Unlock()
 	return err
+}
+
+func (s *Sessions) blockPolicyCommits(ctx context.Context) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if p, remote := PrincipalFromContext(ctx); remote {
+		if err := CheckScope(p, remoteproto.ScopeAdmin); err != nil {
+			return false, err
+		}
+		if err := s.commitError(ctx); err != nil {
+			return false, err
+		}
+	}
+	blocked := s.admission.blocked
+	s.admission.blocked = true
+	return blocked, nil
 }
 
 func (s *Sessions) RevokeDevice(ctx context.Context, device remoteproto.DeviceID) (int, error) {

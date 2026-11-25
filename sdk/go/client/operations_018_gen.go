@@ -303,7 +303,7 @@ func (c *Client) InvokeTool(ctx context.Context, params InvokeToolParams, body T
 	return &out, nil
 }
 
-// LinkRemote Link this computer to the account
+// LinkRemote Link this computer from the local daemon
 func (c *Client) LinkRemote(ctx context.Context, body RemoteLinkRequest) (*RemoteLinkResponse, error) {
 	path := "/api/remote/link"
 	var out RemoteLinkResponse

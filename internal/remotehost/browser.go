@@ -47,7 +47,8 @@ func (h listenerHandler) startBrowserSession(w http.ResponseWriter, req *http.Re
 		writeFailure(w, ErrHostedUnavailable)
 		return
 	}
-	jkt, err := h.browserProof(req)
+	proof := requestProof(req, ListenerHosted, req.Header.Get("DPoP"))
+	jkt, err := remoteproto.BrowserDPoPKey(proof.Token, proof.Method, proof.URL, h.sessions.now())
 	if err != nil {
 		writeFailure(w, err)
 		return
@@ -64,7 +65,7 @@ func (h listenerHandler) startBrowserSession(w http.ResponseWriter, req *http.Re
 		writeFailure(w, err)
 		return
 	}
-	result, err := h.sessions.mintBrowser(req.Context(), grant.Grant, jkt)
+	result, err := h.sessions.mintBrowser(req.Context(), grant.Grant, proof)
 	if err != nil {
 		writeFailure(w, err)
 		return
@@ -75,7 +76,7 @@ func (h listenerHandler) startBrowserSession(w http.ResponseWriter, req *http.Re
 	})
 }
 
-func (s *Sessions) mintBrowser(ctx context.Context, token, jkt string) (MintResult, error) {
+func (s *Sessions) mintBrowser(ctx context.Context, token string, proof DPoPProof) (MintResult, error) {
 	grant, err := s.verifyMintGrant(ctx, token, s.now())
 	if err != nil {
 		return MintResult{}, err
@@ -83,15 +84,12 @@ func (s *Sessions) mintBrowser(ctx context.Context, token, jkt string) (MintResu
 	if !grant.Browser || grant.Route != remoteproto.RouteCloud {
 		return MintResult{}, ErrRouteMismatch
 	}
-	if grant.Cnf.JKT != jkt {
-		return MintResult{}, remoteproto.ErrDPoPInvalid
+	if _, err := s.proofs.VerifyDPoP(proof.Token, remoteproto.DPoPBinding{
+		Method: proof.Method, URL: proof.URL, JKT: grant.Cnf.JKT,
+	}, s.now()); err != nil {
+		return MintResult{}, err
 	}
 	return s.mintWhenReady(ctx, grant)
-}
-
-func (h listenerHandler) browserProof(req *http.Request) (string, error) {
-	proof := requestProof(req, ListenerHosted, req.Header.Get("DPoP"))
-	return h.sessions.proofs.VerifyBrowserDPoP(proof.Token, proof.Method, proof.URL, h.sessions.now())
 }
 
 func (h listenerHandler) authenticateBrowser(next http.HandlerFunc) http.HandlerFunc {
@@ -152,12 +150,13 @@ func (h listenerHandler) browserPeers(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h listenerHandler) browserApproval(w http.ResponseWriter, req *http.Request) {
-	jkt, err := h.browserProof(req)
+	proof := requestProof(req, ListenerHosted, req.Header.Get("DPoP"))
+	jkt, err := remoteproto.BrowserDPoPKey(proof.Token, proof.Method, proof.URL, h.sessions.now())
 	if err != nil {
 		writeFailure(w, err)
 		return
 	}
-	status, err := h.sessions.browserApproval(req.Context(), req.PathValue("id"), jkt)
+	status, err := h.sessions.browserApproval(req.Context(), req.PathValue("id"), jkt, proof)
 	if err != nil {
 		writeFailure(w, err)
 		return
@@ -165,7 +164,11 @@ func (h listenerHandler) browserApproval(w http.ResponseWriter, req *http.Reques
 	writeJSON(w, http.StatusOK, status)
 }
 
-func (s *Sessions) browserApproval(ctx context.Context, id, jkt string) (remoteproto.BrowserApprovalStatus, error) {
+func (s *Sessions) browserApproval(
+	ctx context.Context,
+	id, jkt string,
+	proof DPoPProof,
+) (remoteproto.BrowserApprovalStatus, error) {
 	s.serial.Lock()
 	defer s.serial.Unlock()
 	a, err := s.store.RemoteApprovalByID(ctx, id)
@@ -175,10 +178,16 @@ func (s *Sessions) browserApproval(ctx context.Context, id, jkt string) (remotep
 	if err != nil {
 		return remoteproto.BrowserApprovalStatus{}, err
 	}
-	if s.locallyRevoked[a.DeviceID] || !s.security.Snapshot().Allows(a.DeviceID, jkt, nil) {
+	if s.locallyRevoked[a.DeviceID] || !s.security.Snapshot().Allows(a.DeviceID, a.JKT, nil) {
 		return remoteproto.BrowserApprovalStatus{}, ErrDeviceRevoked
 	}
-	if a.State == approvalPending && !s.now().Before(a.ExpiresAt) {
+	now := s.now()
+	if _, err := s.proofs.VerifyDPoP(proof.Token, remoteproto.DPoPBinding{
+		Method: proof.Method, URL: proof.URL, JKT: a.JKT,
+	}, now); err != nil {
+		return remoteproto.BrowserApprovalStatus{}, err
+	}
+	if a.State == approvalPending && !now.Before(a.ExpiresAt) {
 		a.State = approvalExpired
 	}
 	return remoteproto.BrowserApprovalStatus{ApprovalID: a.ID, State: a.State, ExpiresAt: a.ExpiresAt}, nil

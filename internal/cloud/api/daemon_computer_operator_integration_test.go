@@ -31,6 +31,7 @@ import (
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/compozy/compozy/internal/testutil"
@@ -70,6 +71,31 @@ func TestDaemonComputerOperatorBridgeIsolation(t *testing.T) {
 		if got := targetCapture.requests.Load(); got != arrivals {
 			t.Fatalf("a chained request reached the second computer: before/after %d/%d", arrivals, got)
 		}
+
+		// RC-01. Both controller transports retain the caller boundary before forwarding.
+		issued := first.uds(
+			t,
+			http.MethodPost,
+			"/api/app-tokens",
+			contract.CreateAppTokenRequest{Name: "Bridge fixture"},
+		)
+		issued.expect(t, http.StatusCreated, "Bridge fixture")
+		token := authJSON[contract.AppTokenIssuedResponse](t, issued).Token
+		bridgePath := bridgeAPI(b, path)
+		for _, local := range []struct {
+			client *http.Client
+			origin string
+		}{{first.httpClient, first.httpBase}, {first.udsClient, "http://localhost"}} {
+			accountDaemonRequest(t, local.client, http.MethodGet, local.origin+bridgePath, nil,
+				map[string]string{"Authorization": "Bearer " + token, operatorProbeHeader: "bridge"}).
+				expect(t, http.StatusForbidden, "app_token_route_forbidden")
+			accountDaemonRequest(t, local.client, http.MethodGet, local.origin+bridgePath, nil,
+				map[string]string{agentidentity.HeaderSessionID: sessions[0], operatorProbeHeader: "bridge"}).
+				expect(t, http.StatusForbidden, "agent_scope_denied")
+		}
+		if got := targetCapture.requests.Load(); got != arrivals {
+			t.Fatalf("a refused caller reached the target: before/after %d/%d", arrivals, got)
+		}
 	})
 }
 
@@ -104,6 +130,13 @@ func TestDaemonComputerOperatorTerminal(t *testing.T) {
 		socket := attachOperatorTerminal(t, controller, id, path, 0)
 		cursor := startOperatorTerminalReplay(t, socket)
 
+		// RC-02. The terminal's journal is daemon-owned after its guarded admission.
+		epoch := readRemoteHostSnapshot(t, host).SecurityEpoch
+		enrollRemoteDevice(t, f, registryTestEmail, "terminal-epoch-change")
+		testutil.Eventually(t, "host applies the terminal test epoch", 5*time.Second, func() bool {
+			return readRemoteHostSnapshot(t, host).SecurityEpoch > epoch
+		})
+
 		// IT-041. Only the controller stops; the target produces the intervening output.
 		controller.stop()
 		releaseOperatorTerminalReplay(t, fifo)
@@ -115,7 +148,31 @@ func TestDaemonComputerOperatorTerminal(t *testing.T) {
 			t.Fatalf("terminal replay after %d missed output: %q", cursor, replay)
 		}
 		narrowOperatorTerminalScope(t, f.clock, host, controller, id, device, resumed)
+		host.uds(t, http.MethodDelete, path, nil).expect(t, http.StatusOK, "exit")
+		host.uds(t, http.MethodGet, "/api/workspaces/"+workspace+"/terminals/journal", nil).
+			expect(t, http.StatusOK, "s9b-replay")
+		assertOperatorTerminalProcessCompleted(t, host, path)
 	})
+}
+
+func assertOperatorTerminalProcessCompleted(t *testing.T, host daemonAccountFixture, path string) {
+	t.Helper()
+	db, err := store.OpenSQLiteReadPool(t.Context(), host.databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	id := path[strings.LastIndexByte(path, '/')+1:]
+	var completed bool
+	if err := db.QueryRowContext(t.Context(), "SELECT completed_at IS NOT NULL FROM tool_processes WHERE terminal_id = ?", id).
+		Scan(&completed); err != nil ||
+		!completed {
+		t.Fatalf("terminal process %s completion persisted = %t, error = %v", id, completed, err)
+	}
 }
 
 func registerOperatorWorkspace(t *testing.T, host daemonAccountFixture, root string) string {

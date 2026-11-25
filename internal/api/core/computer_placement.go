@@ -19,7 +19,10 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
-const placementWorkspacesPath = "/api/workspaces?include_repository=true"
+const (
+	placementWorkspacesPath  = "/api/workspaces?include_repository=true"
+	maxComputerResponseBytes = 4 << 20
+)
 
 func (h *BaseHandlers) PreviewComputerPlacement(c *gin.Context) {
 	if !h.computersReady(c) {
@@ -185,5 +188,5 @@ func (h *BaseHandlers) readPlacementComputer(
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("computer placement probe: HTTP %d", response.StatusCode)
 	}
-	return json.UnmarshalRead(response.Body, out)
+	return json.UnmarshalRead(http.MaxBytesReader(nil, response.Body, maxComputerResponseBytes), out)
 }

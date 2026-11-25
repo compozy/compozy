@@ -36,6 +36,7 @@ type Sessions struct {
 
 	serial             sync.Mutex
 	security           *remoteproto.SecurityState
+	leaseSequence      uint64
 	snapshotBlocked    bool
 	snapshotChanged    chan struct{}
 	snapshotRequested  uint64
@@ -81,6 +82,11 @@ func NewSessions(
 	if sessions.now == nil {
 		sessions.now = time.Now
 	}
+	sequence, err := store.RemoteLeaseSequence(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sessions.leaseSequence = sequence
 	snapshot, err := store.RemoteSnapshot(ctx, identity)
 	switch {
 	case err == nil:
@@ -239,6 +245,7 @@ func (s *Sessions) commitMint(
 		}
 		return MintResult{}, refusal
 	}
+	s.renewTunnelRequests(ctx, session, now)
 	s.emit(remoteproto.ControlSessionMinted, remoteproto.SessionMinted{
 		DeviceID: session.DeviceID, JKT: session.JKT, At: now.Unix(),
 	})
@@ -296,7 +303,7 @@ func (s *Sessions) authenticate(
 		scopes[scope] = true
 	}
 	return Principal{DeviceID: session.DeviceID, SessionID: session.ID, Scopes: scopes, Route: session.Route,
-		Browser: session.Browser, session: session, epoch: s.admission.snapshot.SecurityEpoch}, nil
+		Browser: session.Browser, session: session, epoch: s.admission.snapshot.SecurityEpoch, proof: proof.Token}, nil
 }
 
 func (s *Sessions) emit(kind remoteproto.ControlType, payload any) {

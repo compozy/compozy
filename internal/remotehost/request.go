@@ -3,15 +3,22 @@ package remotehost
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
 
 type requestKey struct{}
 
+type tunnelLifetimeKey struct{}
+type tunnelLifetime struct{ _ byte }
+
 type liveRequest struct {
 	principal Principal
+	session   Session
+	tunnel    *tunnelLifetime
 	cancel    context.CancelCauseFunc
 	mu        sync.Mutex
 	onClose   func(int, string)
@@ -65,7 +72,10 @@ func (s *Sessions) BeginRequest(
 	principal.epoch = s.admission.snapshot.SecurityEpoch
 	// #nosec G118 -- the registered request owns cancel until release or revocation.
 	request, cancel := context.WithCancelCause(ctx)
-	live := &liveRequest{principal: principal, cancel: cancel}
+	live := &liveRequest{principal: principal, session: session, cancel: cancel}
+	if !mutation {
+		live.tunnel, _ = ctx.Value(tunnelLifetimeKey{}).(*tunnelLifetime)
+	}
 	s.live[live] = struct{}{}
 	request = context.WithValue(request, requestKey{}, live)
 	if mutation {
@@ -82,19 +92,24 @@ func (s *Sessions) BeginRequest(
 
 func (s *Sessions) acquireCommit(ctx context.Context) (func(), error) {
 	s.mu.RLock()
-	p, ok := PrincipalFromContext(ctx)
-	err := s.commitError(ctx, p, ok)
-	if err != nil {
+	if err := s.commitError(ctx); err != nil {
 		s.mu.RUnlock()
 		return nil, err
 	}
 	return s.mu.RUnlock, nil
 }
 
-func (s *Sessions) commitError(ctx context.Context, p Principal, ok bool) error {
+func (s *Sessions) validateCommit(ctx context.Context) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.commitError(ctx)
+}
+
+func (s *Sessions) commitError(ctx context.Context) error {
 	if err := context.Cause(ctx); err != nil {
 		return err
 	}
+	p, ok := PrincipalFromContext(ctx)
 	if !ok || p.epoch != s.admission.snapshot.SecurityEpoch || s.admission.blocked {
 		return ErrDeviceRevoked
 	}
@@ -109,7 +124,7 @@ func (s *Sessions) endRequests(match func(Session) error) int {
 	s.mu.Lock()
 	var closed []closedRequest
 	for live := range s.live {
-		if reason := match(live.principal.session); reason != nil {
+		if reason := match(live.session); reason != nil {
 			closed = append(closed, closedRequest{live, reason})
 			delete(s.live, live)
 		}
@@ -119,6 +134,23 @@ func (s *Sessions) endRequests(match func(Session) error) int {
 		entry.live.end(entry.reason)
 	}
 	return len(closed)
+}
+
+func (s *Sessions) renewTunnelRequests(ctx context.Context, session Session, now time.Time) {
+	tunnel, _ := ctx.Value(tunnelLifetimeKey{}).(*tunnelLifetime)
+	if tunnel == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for live := range s.live {
+		prior := live.session
+		if live.tunnel == tunnel && prior.DeviceID == session.DeviceID && prior.JKT == session.JKT &&
+			prior.Route == session.Route && slices.Equal(prior.Scopes, session.Scopes) &&
+			s.admission.check(prior, now) == nil {
+			live.session = session
+		}
+	}
 }
 
 func (r *liveRequest) end(reason error) {

@@ -1,8 +1,10 @@
 package sshsetup
 
 import (
+	"bytes"
 	"cmp"
 	"context"
+	"crypto/rand"
 	"errors"
 	"net"
 	"net/netip"
@@ -136,13 +138,22 @@ func (p *forwardPool) connect(
 		return false, err
 	}
 	defer stop()
+	marker := "compozy-forward-" + rand.Text()
 	args := forwardArgs(t, p.pins, address, destination, interactive)
+	args = append([]string{"-o", "PermitLocalCommand=yes", "-o", "LocalCommand=echo " + marker}, args...)
+	forwardReady := make(chan struct{})
+	signal := sync.OnceFunc(func() { close(forwardReady) })
+	stdout := &sshOutput{onWrite: func(output []byte) {
+		if bytes.Contains(output, []byte(marker)) {
+			signal()
+		}
+	}}
 	done := make(chan error, 1)
 	go func() {
-		result, err := p.ssh.run(lifetime, args, nil, env)
+		result, err := runSSHCommand(p.ssh.command(lifetime, args, nil, env), stdout)
 		done <- sshFailure(t, result, err)
 	}()
-	ready, exited, err := awaitForward(lifetime, address, done)
+	ready, exited, err := awaitForward(lifetime, forwardReady, done)
 	if exited {
 		return false, err
 	}
@@ -163,25 +174,23 @@ func (p *forwardPool) forwardAskpass(ctx context.Context, t target) ([]string, f
 	return env, stop, true, err
 }
 
-func awaitForward(ctx context.Context, addr string, done <-chan error) (ready, exited bool, err error) {
+func awaitForward(ctx context.Context, forwarded <-chan struct{}, done <-chan error) (ready, exited bool, err error) {
 	startup := time.NewTimer(commandBudget)
 	defer startup.Stop()
-	ticker := time.NewTicker(50 * time.Millisecond)
-	defer ticker.Stop()
-	for {
+	select {
+	case err := <-done:
+		return false, true, err
+	case <-ctx.Done():
+		return false, false, ctx.Err()
+	case <-startup.C:
+		return false, false, errInterrupted
+	case <-forwarded:
+		// OpenSSH runs LocalCommand after binding its forwards with ExitOnForwardFailure.
 		select {
 		case err := <-done:
 			return false, true, err
-		case <-ctx.Done():
-			return false, false, ctx.Err()
-		case <-startup.C:
-			return false, false, errInterrupted
-		case <-ticker.C:
-			conn, err := (&net.Dialer{Timeout: 150 * time.Millisecond}).DialContext(ctx, "tcp4", addr)
-			if err == nil {
-				closeAskpass(conn)
-				return true, false, nil
-			}
+		default:
+			return true, false, nil
 		}
 	}
 }

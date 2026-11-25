@@ -9,12 +9,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/store"
 )
 
-const reconnectInterval = time.Second
+const (
+	reconnectInterval = time.Second
+	renewalLead       = 5 * time.Minute
+	renewalRetry      = 5 * time.Second
+)
 
 type supervisor struct {
 	scope    *registryScope
@@ -215,29 +221,41 @@ func (s *supervisor) dial(probe routeProbe) (*connection, routeProblem) {
 		return nil, routeProblem{step: stepRoute, err: err}
 	}
 	link := &connection{tunnel: tunnel, route: probe.route, descriptor: probe.descriptor}
+	if failure := s.mint(s.ctx, link); failure.err != nil {
+		tunnel.close()
+		return nil, failure
+	}
+	return link, routeProblem{}
+}
+
+func (s *supervisor) mint(ctx context.Context, link *connection) routeProblem {
+	r := s.scope.registry
+	var auth *connectionAuth
 	var failure routeProblem
-	err = s.scope.device(s.ctx, func(ctx context.Context, credentials cloudclient.Credentials) error {
-		grant, err := r.cloud.ComputerGrant(ctx, credentials, s.computer.ID, probe.route.Kind)
+	err := s.scope.device(ctx, func(ctx context.Context, credentials cloudclient.Credentials) error {
+		grant, err := r.cloud.ComputerGrant(ctx, credentials, s.computer.ID, link.route.Kind)
 		if err != nil {
 			return err
 		}
-		session, err := tunnel.mint(ctx, grant, credentials.Key, r.clock.Now())
+		session, err := link.tunnel.mint(ctx, grant, credentials.Key, r.clock.Now())
 		if err != nil {
 			failure = activeFailure(err)
 			return err
 		}
-		link.key, link.credential = credentials.Key, session.Credential
-		link.expiresAt, link.scopes = time.Unix(session.ExpiresAt, 0), session.Scopes
+		auth = &connectionAuth{
+			key: credentials.Key, credential: session.Credential,
+			expiresAt: time.Unix(session.ExpiresAt, 0), scopes: session.Scopes,
+		}
 		return nil
 	})
 	if err != nil {
-		tunnel.close()
 		if failure.err != nil {
-			return nil, failure
+			return failure
 		}
-		return nil, routeProblem{step: stepCloud, err: err}
+		return routeProblem{step: stepCloud, err: err}
 	}
-	return link, routeProblem{}
+	link.auth.Store(auth)
+	return routeProblem{}
 }
 
 func (s *supervisor) observe(link *connection) (*connection, error) {
@@ -246,6 +264,8 @@ func (s *supervisor) observe(link *connection) (*connection, error) {
 	defer health.Stop()
 	better := clock.NewTicker(betterRouteInterval)
 	defer better.Stop()
+	renewal := clock.NewTimer(renewalDelay(link.auth.Load(), clock.Now()))
+	defer renewal.Stop()
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -256,12 +276,48 @@ func (s *supervisor) observe(link *connection) (*connection, error) {
 			if err := link.check(s.ctx, clock.Now()); err != nil {
 				return nil, err
 			}
+		case <-renewal.Chan():
+			if err := s.renew(link, renewal); err != nil {
+				return nil, err
+			}
 		case <-better.Chan():
 			if replacement := s.betterLink(link); replacement != nil {
 				return replacement, nil
 			}
 		}
 	}
+}
+
+func renewalDelay(auth *connectionAuth, now time.Time) time.Duration {
+	return max(renewalRetry, auth.expiresAt.Add(-renewalLead).Sub(now))
+}
+
+func (s *supervisor) renew(link *connection, timer clockwork.Timer) error {
+	clock := s.scope.registry.clock
+	if !clock.Now().Before(link.auth.Load().expiresAt) {
+		return ErrSessionExpired
+	}
+	ctx, cancel := context.WithTimeout(s.ctx, headerTimeout)
+	defer cancel()
+	failure := s.mint(ctx, link)
+	now := clock.Now()
+	if failure.err != nil {
+		remaining := link.auth.Load().expiresAt.Sub(now)
+		if remaining <= 0 {
+			return failure.err
+		}
+		timer.Reset(min(remaining, max(renewalRetry, cloudclient.RetryDelay(now, failure.err))))
+		return nil
+	}
+	auth := link.auth.Load()
+	timer.Reset(renewalDelay(auth, now))
+	s.scope.mu.Lock()
+	defer s.scope.mu.Unlock()
+	if entry := s.currentEntry(); entry != nil && entry.link == link && !slices.Equal(entry.view.Scopes, auth.scopes) {
+		entry.view.Scopes = auth.scopes
+		s.scope.changed(entry.view)
+	}
+	return nil
 }
 
 func (s *supervisor) betterLink(current *connection) *connection {
@@ -319,7 +375,7 @@ func (s *supervisor) install(link, previous *connection) bool {
 	view.LastConnAt = &at
 	view.Platform, view.Version = link.descriptor.Platform, link.descriptor.Version
 	view.RouteInUse, view.Protocol = &link.route, &link.descriptor.Protocol
-	view.Scopes, view.RouteErrors = link.scopes, maps.Clone(s.errors)
+	view.Scopes, view.RouteErrors = link.auth.Load().scopes, maps.Clone(s.errors)
 	scope.changed(*view)
 	if previous != nil {
 		r.logger.InfoContext(s.ctx, "computers.route_switch", "computer_id", view.ID,

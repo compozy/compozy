@@ -50,6 +50,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/projectfiles"
 	"github.com/compozy/compozy/internal/projectfiles/changes"
+	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/sessioncleanup"
@@ -11173,6 +11174,26 @@ type recordingNativeWorkspaceAccessPolicy struct {
 
 func TestNativeComputerForwardingContainment(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reject an oversized remote tool response", func(t *testing.T) {
+		t.Parallel()
+		// RC-09. The native forwarding decoder enforces its limit on the entire result envelope.
+		id := toolspkg.ToolIDSessionList
+		body, err := json.Marshal(contract.ToolInvokeResponse{ToolID: id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		remote := computerResultFixture{body: io.MultiReader(bytes.NewReader(body),
+			strings.NewReader(strings.Repeat(" ", int(2*compozyconfig.MaxToolsMaxResultBytes))))}
+		forwarder := nativeComputerForwarder{computers: remote}
+		_, err = forwarder.CallComputer(
+			t.Context(),
+			"cmp_fixture",
+			toolspkg.CallRequest{ToolID: id, Input: json.RawMessage("{}")},
+		)
+		if _, tooLarge := errors.AsType[*http.MaxBytesError](err); !tooLarge {
+			t.Fatalf("remote tool response error = %v, want a body limit error", err)
+		}
+	})
 	// UT-107. Safety Invariant 11 and Tool forwarding rule 3. A child with a
 	// recorded workspace path ceiling cannot use the device's wider authority.
 	t.Run("Should deny forwarding outside the source session's workspace paths", func(t *testing.T) {
@@ -11204,6 +11225,21 @@ func TestNativeComputerForwardingContainment(t *testing.T) {
 			t.Fatalf("workspace-confined computer call = %v, workspace policy calls = %d", err, policy.calls)
 		}
 	})
+}
+
+type computerResultFixture struct {
+	core.ComputersService
+	body io.Reader
+}
+
+var _ core.ComputersService = computerResultFixture{}
+
+func (f computerResultFixture) RoundTrip(
+	context.Context,
+	remoteproto.ComputerID,
+	*http.Request,
+) (*http.Response, error) {
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(f.body)}, nil
 }
 
 type consentAwareNativeWorkspaceAccessPolicy struct {

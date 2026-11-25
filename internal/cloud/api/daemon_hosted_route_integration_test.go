@@ -129,6 +129,10 @@ func TestDaemonHostedRoute(t *testing.T) {
 			}
 			expectHostedWebhookRun(t, tunnelClient, first, "tunnel-first")
 			expectHostedWebhookRun(t, tunnelClient, second, "tunnel-second")
+			// RC-10. A declared task credential trailer is refused before delivery is claimed.
+			deliverHostedWebhook(t, tunnelClient, first, "declared-trailer", "X-Compozy-Claim-Token").
+				expect(t, http.StatusBadRequest, "claim_token_not_remote")
+			expectHostedWebhookRun(t, tunnelClient, first, "declared-trailer")
 
 			host.request(t, http.MethodPatch, contract.RemotePath, contract.RemotePatchRequest{CloudRoute: new(true)}).
 				expect(t, http.StatusOK, string(id))
@@ -366,6 +370,7 @@ func deliverHostedWebhook(
 	client *http.Client,
 	trigger contract.TriggerPayload,
 	delivery string,
+	trailers ...string,
 ) authReply {
 	t.Helper()
 	payload := []byte(`{"release":"ready"}`)
@@ -381,6 +386,13 @@ func deliverHostedWebhook(
 	req.Header.Set(core.WebhookTimestampHeader, now.Format(time.RFC3339Nano))
 	req.Header.Set(core.WebhookDeliveryIDHeader, delivery)
 	req.Header.Set(core.WebhookSignatureHeader, sig)
+	if len(trailers) != 0 {
+		req.ContentLength = -1
+		req.Trailer = make(http.Header, len(trailers))
+		for _, trailer := range trailers {
+			req.Trailer[trailer] = nil
+		}
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)

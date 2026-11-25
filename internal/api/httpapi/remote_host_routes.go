@@ -64,7 +64,7 @@ func newRemoteOperatorRouter(handlers *Handlers, browser bool) *gin.Engine {
 		registerOperatorRoutes(operator, handlers)
 		registerSignedOutOperatorRoutes(operator, handlers)
 		admin := operator.group("", remoteproto.ScopeAdmin)
-		registerRemoteHostRoutes(admin, handlers, nil)
+		core.RegisterRemoteHostAdminRoutes(admin.Group("/remote"), handlers.BaseHandlers)
 		core.RegisterIngressRoutes(admin, handlers.BaseHandlers, handlers.privilegedMutationGuard())
 		core.RegisterMigrationNoticeRoutes(admin, handlers.BaseHandlers, handlers.privilegedMutationGuard())
 		registerAppTokenRoutes(admin, handlers)

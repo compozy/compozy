@@ -14,7 +14,8 @@
 - Use the target's operator routes for files, Changes, worktrees, Tasks, the scheduler, settings, extensions, provider status, and Vault metadata. The target returns `remote_scope_denied` with the required scope in `details.scope`. Open and attach to a terminal with the target workspace and `terminal:operate`. Reconnect a live terminal with a fresh attach ticket and its last output cursor.
 - To execute a task there, enqueue it with `POST /api/tasks/{id}/runs` through the bridge. Prompt an agent session on the target to call `compozy__task_run_claim_next`. The lease owner calls the heartbeat and completion tools locally on that computer. Read the run through `GET /api/task-runs/{run_id}`.
 - A tool descriptor's `remote_scope` is the scope required for a remote operator invocation. Send `workspace_id` to select a target workspace. The destination applies its operator policy. Supplying `session_id`, `agent_name`, `turn_id`, or `approval_token` returns `remote_caller_override_forbidden`.
-- Account, controller registry, and agent-kernel routes return `route_not_remote` through a tunnel. A second bridge hop returns `remote_bridge_not_transitive`.
+- The controller bridge accepts local operators. It returns `app_token_route_forbidden` for app tokens and `agent_scope_denied` for identified agent callers. The controller renews the device credential five minutes before expiry on the current tunnel.
+- Account, controller registry, agent-kernel, and computer link and unlink routes return `route_not_remote` through a tunnel. A second bridge hop returns `remote_bridge_not_transitive`.
 - `compozy computer remove <name|id>` removes the local entry. `--unlink` also frees the account slot. Use `compozy computer routes <name|id> remove <kind:address>` to remove a learned address.
 
 Use `compozy__computer_list` for the registry and local execution settings. Pass `id` to `compozy__computer_status` and `compozy__computer_remove`. Add a linked computer with `compozy__computer_add` using `{"kind":"account","id":"<id>"}`.
@@ -91,6 +92,8 @@ Use `compozy remote link` to link this computer and turn on its remote access. U
 Read status with `compozy remote status --json` or `compozy__remote_status`. The tool is local to this computer and has no remote scope. Use `compozy remote disable` to close the listeners and keep the account link, `compozy remote enable` to reopen them, and `compozy remote unlink` to remove the account link and directory entry. A linked host revalidates its account link daily, including when its remote listeners are off.
 
 The same operations are available over HTTP and UDS under `/api/remote`. Use `compozy remote devices list --json` to read effective scopes for devices that opened a session or requested approval on this computer. Narrow one device with `compozy remote devices scopes <device> --set <scopes>`. Approve or deny a pending key with `compozy remote devices approve|deny <device>`, using `--approval-id` to choose among multiple pending keys. `compozy remote devices revoke <device>` revokes that device on the account.
+
+Link and unlink the host through its local API, or remove its link from the cloud account page. A trusted device with `remote:admin` can use `PATCH /api/remote/devices/{id}` and `DELETE /api/remote/devices/{id}` through a tunnel. Scopes apply to the receiving computer and revocation applies to the account. These operations use the requesting device's proof on a link-only SSH host.
 
 ## Hosted route and webhook ingress
 

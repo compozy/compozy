@@ -79,6 +79,12 @@ func (c *Client) RevalidateComputer(
 		remoteproto.ComputerRevalidation{InstallationID: installationID}, nil, Credentials{}, key)
 }
 
+func (c *Client) MutateRemoteDevice(
+	ctx context.Context, id remoteproto.ComputerID, key ed25519.PrivateKey, mutation remoteproto.RemoteDeviceMutation,
+) error {
+	return c.computerJSON(ctx, http.MethodPost, computerPath(id)+"/device-mutations", mutation, nil, Credentials{}, key)
+}
+
 func computerPath(id remoteproto.ComputerID) string {
 	return "/v1/computers/" + url.PathEscape(string(id))
 }

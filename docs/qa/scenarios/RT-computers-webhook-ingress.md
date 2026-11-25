@@ -19,6 +19,8 @@ qa_status: pending
    Deliver again using an unused delivery ID and observe the run.
 4. Repeat with an operator-owned HTTPS tunnel forwarding to the loopback listener and
    `remote.ingress.public_url` set. Check that the trigger path stays stable across the route change.
+   Declare an `X-Compozy-Claim-Token` trailer on a test delivery and expect `400 claim_token_not_remote`.
+   Resend that delivery ID without the declaration and confirm the run starts.
 5. Disable remote access while a delivery is in flight, inspect the resulting state on the owner,
    then retry according to the sender's redelivery rules after the route returns.
 

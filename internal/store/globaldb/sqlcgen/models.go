@@ -1704,14 +1704,18 @@ type RemoteGrantReplay struct {
 }
 
 type RemoteIdentity struct {
-	ID              int64  `json:"id"`
-	ComputerID      string `json:"computer_id"`
-	AccountID       string `json:"account_id"`
-	ComputerKeyRef  string `json:"computer_key_ref"`
-	TlsRootRef      string `json:"tls_root_ref"`
-	TlsRootSha256   string `json:"tls_root_sha256"`
-	TlsLeafNotAfter string `json:"tls_leaf_not_after"`
-	LinkedAt        string `json:"linked_at"`
+	ID               int64  `json:"id"`
+	ComputerID       string `json:"computer_id"`
+	AccountID        string `json:"account_id"`
+	ComputerKeyRef   string `json:"computer_key_ref"`
+	TlsRootRef       string `json:"tls_root_ref"`
+	TlsRootSha256    string `json:"tls_root_sha256"`
+	TlsLeafNotAfter  string `json:"tls_leaf_not_after"`
+	LinkedAt         string `json:"linked_at"`
+	LeaseSequence    int64  `json:"lease_sequence"`
+	LastMintAt       int64  `json:"last_mint_at"`
+	LastMintDeviceID string `json:"last_mint_device_id"`
+	LastMintJkt      string `json:"last_mint_jkt"`
 }
 
 type RemoteSecurityState struct {

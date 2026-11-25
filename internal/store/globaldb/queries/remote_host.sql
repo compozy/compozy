@@ -13,6 +13,17 @@ UPDATE remote_identity SET tls_leaf_not_after = ? WHERE id = 1 AND computer_id =
 -- name: DeleteRemoteIdentity :exec
 DELETE FROM remote_identity;
 
+-- name: AdvanceRemoteLeaseSequence :execrows
+UPDATE remote_identity SET lease_sequence = sqlc.arg(sequence)
+WHERE id = 1 AND computer_id = sqlc.arg(computer_id) AND lease_sequence < sqlc.arg(sequence);
+
+-- name: RecordRemoteLastMint :exec
+UPDATE remote_identity SET
+    last_mint_at = sqlc.arg(minted_at),
+    last_mint_device_id = sqlc.arg(device_id),
+    last_mint_jkt = sqlc.arg(jkt)
+WHERE id = 1 AND last_mint_at <= sqlc.arg(minted_at);
+
 -- name: GetRemoteSecurityState :one
 SELECT * FROM remote_security_state WHERE id = 1;
 

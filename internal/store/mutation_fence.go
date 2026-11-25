@@ -15,6 +15,11 @@ func ContextWithMutationCommitGuard(ctx context.Context, guard MutationCommitGua
 	return context.WithValue(ctx, mutationCommitGuardContextKey{}, guard)
 }
 
+// WithoutMutationCommitGuard marks work that has passed into runtime ownership.
+func WithoutMutationCommitGuard(ctx context.Context) context.Context {
+	return ContextWithMutationCommitGuard(ctx, nil)
+}
+
 // ContextWithMutationCommitFence carries a commit-time authorization check through service layers.
 func ContextWithMutationCommitFence(ctx context.Context, fence MutationCommitFence) context.Context {
 	if ctx == nil || fence == nil {

@@ -108,9 +108,10 @@ func (h *BaseHandlers) createPlacedRemoteSession(
 		return
 	}
 	defer func() { _ = response.Body.Close() }()
+	responseBody := http.MaxBytesReader(nil, response.Body, maxComputerResponseBytes)
 	if response.StatusCode != http.StatusCreated {
 		var failure contract.ErrorPayload
-		if err := json.UnmarshalRead(response.Body, &failure); err != nil {
+		if err := json.UnmarshalRead(responseBody, &failure); err != nil {
 			h.respondError(c, http.StatusBadGateway, err)
 			return
 		}
@@ -118,7 +119,7 @@ func (h *BaseHandlers) createPlacedRemoteSession(
 		return
 	}
 	var result contract.SessionResponse
-	if err := json.UnmarshalRead(response.Body, &result); err != nil {
+	if err := json.UnmarshalRead(responseBody, &result); err != nil {
 		h.respondError(c, http.StatusBadGateway, err)
 		return
 	}

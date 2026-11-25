@@ -517,9 +517,15 @@ func assertRestoredMint(
 		}
 	})
 	at := time.Now()
-	host, err := remotehost.NewSessions(t.Context(), db, remotehost.Identity{
-		ComputerID: computer, AccountID: snapshot.AccountID,
-	}, verifier, remotehost.SessionOptions{Now: func() time.Time { return at }})
+	identity := remotehost.Identity{
+		ComputerID: computer, AccountID: snapshot.AccountID, LinkedAt: at, TLSLeafNotAfter: at.Add(time.Hour),
+	}
+	if err := db.SaveRemoteIdentity(t.Context(), identity); err != nil {
+		t.Fatal(err)
+	}
+	host, err := remotehost.NewSessions(t.Context(), db, identity, verifier, remotehost.SessionOptions{
+		Now: func() time.Time { return at },
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

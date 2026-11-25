@@ -60,6 +60,7 @@ func newSessionFixture(t *testing.T, approval bool, report func(remoteproto.Cont
 	remoteOK(t, err)
 	identity := remotehost.Identity{ComputerID: "cmp_fixture", AccountID: "acc_fixture",
 		LinkedAt: clock.Now(), TLSLeafNotAfter: clock.Now().Add(time.Hour)}
+	remoteOK(t, db.SaveRemoteIdentity(t.Context(), identity))
 	fixture := &sessionFixture{
 		db: db, clock: clock, identity: identity, signer: signer, verifier: verifier,
 		keys: make(map[remoteproto.DeviceID]*ecdsa.PrivateKey), report: report,
@@ -289,6 +290,31 @@ func TestRemoteSigningKeyRetirement(t *testing.T) {
 }
 
 func TestRemoteSessionEpochAdmission(t *testing.T) {
+	t.Run("Should require a newer signed lease after restart", func(t *testing.T) {
+		t.Parallel()
+		// Lease sequence after restart (Invariant 6). An accepted sequence cannot authorize a second lifetime.
+		f := newSessionFixture(t, false, nil)
+		lease := remoteproto.EntitlementLease{
+			ComputerID: f.identity.ComputerID, AccountID: f.identity.AccountID, Plan: "free", Sequence: 2,
+			AllowedRoutes: []remoteproto.RouteKind{remoteproto.RouteDirect},
+			ValidUntil:    f.clock.Now().Add(remoteproto.LeaseTTL).Unix(), SecurityEpoch: f.snapshot.SecurityEpoch,
+		}
+		signed, err := f.signer.SignLease(lease)
+		remoteOK(t, err)
+		verified, err := f.verifier.VerifyLease(t.Context(), signed, f.clock.Now())
+		remoteOK(t, err)
+		remoteOK(t, f.sessions.ApplyLease(t.Context(), verified))
+		f.restart(t, false)
+
+		remoteOK(t, f.sessions.ApplyLease(t.Context(), verified))
+		if _, active := f.sessions.Entitlement(); active {
+			t.Fatal("replayed signed lease enabled the restarted host")
+		}
+		f.lease(t, lease.Sequence+1)
+		if current, active := f.sessions.Entitlement(); !active || current.Sequence != lease.Sequence+1 {
+			t.Fatalf("new lease did not enable the restarted host: %+v", current)
+		}
+	})
 	t.Run("Should hold a future grant until its snapshot arrives", func(t *testing.T) {
 		t.Parallel()
 		// UT-109. Safety Invariant 22.

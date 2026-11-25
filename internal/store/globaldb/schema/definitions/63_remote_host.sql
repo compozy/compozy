@@ -6,7 +6,11 @@ CREATE TABLE remote_identity (
     tls_root_ref TEXT NOT NULL,
     tls_root_sha256 TEXT NOT NULL,
     tls_leaf_not_after TEXT NOT NULL,
-    linked_at TEXT NOT NULL
+    linked_at TEXT NOT NULL,
+    lease_sequence INTEGER NOT NULL DEFAULT 0,
+    last_mint_at INTEGER NOT NULL DEFAULT 0,
+    last_mint_device_id TEXT NOT NULL DEFAULT '',
+    last_mint_jkt TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE remote_sessions (

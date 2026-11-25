@@ -11641,7 +11641,7 @@ export class remote extends HeyApiClient {
   }
 
   /**
-   * Unlink this computer
+   * Unlink this computer from the local daemon
    */
   public unlinkRemote<ThrowOnError extends boolean = true>(
     options?: Options<UnlinkRemoteData, ThrowOnError>
@@ -11659,7 +11659,7 @@ export class remote extends HeyApiClient {
   }
 
   /**
-   * Link this computer to the account
+   * Link this computer from the local daemon
    */
   public linkRemote<ThrowOnError extends boolean = true>(
     options: Options<LinkRemoteData, ThrowOnError>

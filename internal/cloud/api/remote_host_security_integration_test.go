@@ -22,6 +22,37 @@ import (
 func TestCloudRemoteHostSecurity(t *testing.T) {
 	// The CLI subtest uses the daemon socket under this home.
 	udsHome := t.TempDir()
+	t.Run("Should reconcile the latest committed mint across a dropped report and host restart", func(t *testing.T) {
+		// AST-004. The cloud's usage timestamp survives the loss of the original report.
+		f, _, second, relay := remoteFailoverFixture(t)
+		lab := newRemoteHostLab(t, f, t.TempDir())
+		tunnel := lab.start(t, lab.db, nil)
+		id := lab.host.Status().ComputerID
+		dropped := make(chan struct{})
+		var dropOnce atomic.Bool
+		relay.rules(nil, func(message remoteproto.ControlMessage) {
+			if message.Type == remoteproto.ControlSessionMinted && dropOnce.CompareAndSwap(false, true) {
+				relay.move("")
+				close(dropped)
+			}
+		})
+		mintAt := f.clock.Now().Unix()
+		lab.mint(t, tunnel, lab.member)
+		receiveRemote(t, dropped, 3*time.Second)
+		var missing bool
+		if err := f.conn.QueryRow(t.Context(), "SELECT last_session_at IS NULL FROM computers WHERE id = $1", id).
+			Scan(&missing); err != nil || !missing {
+			t.Fatalf("lost mint reached the cloud: missing=%t, error=%v", missing, err)
+		}
+		lab.host.Close()
+		relay.move(second.Server.URL)
+		lab.start(t, lab.db, nil)
+		testutil.Eventually(t, "cloud reconciles the committed mint on reconnect", 5*time.Second, func() bool {
+			var got time.Time
+			err := f.conn.QueryRow(t.Context(), "SELECT last_session_at FROM computers WHERE id = $1", id).Scan(&got)
+			return err == nil && got.Unix() == mintAt
+		})
+	})
 	t.Run(
 		"Should close revoked streams, reconcile narrowed scopes across replicas, and expire offline",
 		func(t *testing.T) {

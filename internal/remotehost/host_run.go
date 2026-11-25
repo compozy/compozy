@@ -28,7 +28,7 @@ func (h *Host) start(ctx context.Context, cfg config.RemoteConfig, syncCloud boo
 	run.setIngressConfig(cfg)
 	link := &controlLink{
 		cloud: h.cloud, id: identity.ComputerID, key: keys.signing, verifier: verifier,
-		logger: h.opts.Logger, outgoing: make(chan remoteproto.ControlMessage, 256),
+		logger: h.opts.Logger, outgoing: make(chan remoteproto.ControlMessage, 256), minted: make(chan struct{}, 1),
 		unlink: func(ctx context.Context) {
 			keys.ca.retire()
 			run.unlinked.Store(true)

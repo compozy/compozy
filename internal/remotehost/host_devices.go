@@ -2,6 +2,7 @@ package remotehost
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"slices"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/remoteproto"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type Device struct {
@@ -32,11 +34,11 @@ func (h *Host) Devices(ctx context.Context) ([]Device, error) {
 }
 
 func (h *Host) devices(ctx context.Context, includeUnseen remoteproto.DeviceID) ([]Device, error) {
-	identity, sessions, policy := h.deviceState()
+	identity, run, policy := h.deviceState()
 	if identity.ComputerID == "" {
 		return []Device{}, nil
 	}
-	snapshot, err := h.deviceSnapshot(ctx, identity, sessions)
+	snapshot, err := h.deviceSnapshot(ctx, identity, run)
 	if err != nil {
 		return nil, err
 	}
@@ -102,10 +104,10 @@ func approvalsForDevice(
 func (h *Host) deviceSnapshot(
 	ctx context.Context,
 	identity Identity,
-	sessions *Sessions,
+	run *hostRun,
 ) (remoteproto.SecuritySnapshot, error) {
-	if sessions != nil {
-		return sessions.Snapshot(), nil
+	if run != nil {
+		return run.sessions.Snapshot(), nil
 	}
 	snapshot, err := h.store.RemoteSnapshot(ctx, identity)
 	if errors.Is(err, ErrMissing) {
@@ -114,19 +116,15 @@ func (h *Host) deviceSnapshot(
 	return snapshot, err
 }
 
-func (h *Host) deviceState() (Identity, *Sessions, []remoteproto.Scope) {
+func (h *Host) deviceState() (Identity, *hostRun, []remoteproto.Scope) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.forgetUnlinkedLocked()
-	var sessions *Sessions
-	if h.run != nil {
-		sessions = h.run.sessions
-	}
-	return h.identity, sessions, slices.Clone(h.config.MaxScopes)
+	return h.identity, h.run, slices.Clone(h.config.MaxScopes)
 }
 
 func (h *Host) PatchDevice(ctx context.Context, id remoteproto.DeviceID, patch DevicePatch) (Device, error) {
-	identity, sessions, _ := h.deviceState()
+	identity, run, _ := h.deviceState()
 	if identity.ComputerID == "" {
 		return Device{}, ErrNotLinked
 	}
@@ -149,25 +147,52 @@ func (h *Host) PatchDevice(ctx context.Context, id remoteproto.DeviceID, patch D
 				nil,
 			}
 		}
-		if h.account.Status().AccountID != identity.AccountID {
-			return Device{}, account.ErrSignInRequired
-		}
-		_, err := h.account.PatchDevice(ctx, string(id), remoteproto.AccountDevicePatch{
-			Scopes: map[remoteproto.ComputerID][]remoteproto.Scope{identity.ComputerID: requested},
-		})
-		if err != nil {
+		if err := h.mutateDevice(ctx, identity, run, id, &requested); err != nil {
 			return Device{}, err
 		}
 	}
 	if patch.Approved != nil {
-		if sessions == nil {
+		if run == nil {
 			return Device{}, ErrNotLinked
 		}
-		if err := sessions.DecideLocal(ctx, id, patch.ApprovalID, *patch.Approved); err != nil {
+		if err := run.sessions.DecideLocal(ctx, id, patch.ApprovalID, *patch.Approved); err != nil {
 			return Device{}, err
 		}
 	}
 	return h.updatedDevice(ctx, id, requested)
+}
+
+func (h *Host) mutateDevice(
+	ctx context.Context, identity Identity, run *hostRun, target remoteproto.DeviceID, scopes *[]remoteproto.Scope,
+) error {
+	if principal, remote := PrincipalFromContext(ctx); remote {
+		if run == nil {
+			return ErrNotLinked
+		}
+		if err := CheckScope(principal, remoteproto.ScopeAdmin); err != nil {
+			return err
+		}
+		if err := run.sessions.validateCommit(ctx); err != nil {
+			return err
+		}
+		input := remoteproto.RemoteDeviceMutation{
+			DeviceID: target, Scopes: scopes, CallerJKT: principal.session.JKT, DPoP: principal.proof,
+		}
+		if !principal.Browser {
+			input.CredentialHash = base64.RawURLEncoding.EncodeToString(principal.session.CredentialHash[:])
+		}
+		return h.cloud.MutateRemoteDevice(ctx, identity.ComputerID, run.control.key, input)
+	}
+	if h.account.Status().AccountID != identity.AccountID {
+		return account.ErrSignInRequired
+	}
+	if scopes == nil {
+		return h.account.RevokeDevice(ctx, string(target))
+	}
+	_, err := h.account.PatchDevice(ctx, string(target), remoteproto.AccountDevicePatch{
+		Scopes: map[remoteproto.ComputerID][]remoteproto.Scope{identity.ComputerID: *scopes},
+	})
+	return err
 }
 
 func (h *Host) updatedDevice(
@@ -191,19 +216,21 @@ func (h *Host) updatedDevice(
 }
 
 func (h *Host) RevokeDevice(ctx context.Context, id remoteproto.DeviceID) error {
-	identity, sessions, _ := h.deviceState()
+	identity, run, _ := h.deviceState()
 	if identity.ComputerID == "" {
 		return ErrNotLinked
 	}
-	if h.account.Status().AccountID != identity.AccountID {
-		return account.ErrSignInRequired
-	}
-	if err := h.account.RevokeDevice(ctx, string(id)); err != nil {
+	if err := h.mutateDevice(ctx, identity, run, id, nil); err != nil {
 		return err
 	}
-	if sessions == nil {
+	if run == nil {
 		return nil
 	}
-	_, err := sessions.RevokeDevice(ctx, id)
+	// Cloud has committed the revocation, which can also invalidate the requesting session.
+	reconcile, cancel := context.WithTimeout(
+		context.WithoutCancel(store.WithoutMutationCommitGuard(ctx)), headerTimeout,
+	)
+	defer cancel()
+	_, err := run.sessions.RevokeDevice(reconcile, id)
 	return err
 }

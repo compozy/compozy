@@ -49,6 +49,24 @@ func (q *Queries) ActiveRemoteSessions(ctx context.Context, expiresAt int64) ([]
 	return items, nil
 }
 
+const advanceRemoteLeaseSequence = `-- name: AdvanceRemoteLeaseSequence :execrows
+UPDATE remote_identity SET lease_sequence = ?1
+WHERE id = 1 AND computer_id = ?2 AND lease_sequence < ?1
+`
+
+type AdvanceRemoteLeaseSequenceParams struct {
+	Sequence   int64  `json:"sequence"`
+	ComputerID string `json:"computer_id"`
+}
+
+func (q *Queries) AdvanceRemoteLeaseSequence(ctx context.Context, arg AdvanceRemoteLeaseSequenceParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, advanceRemoteLeaseSequence, arg.Sequence, arg.ComputerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteRemoteIdentity = `-- name: DeleteRemoteIdentity :exec
 DELETE FROM remote_identity
 `
@@ -115,7 +133,7 @@ func (q *Queries) GetRemoteApprovalByID(ctx context.Context, id string) (RemoteD
 }
 
 const getRemoteIdentity = `-- name: GetRemoteIdentity :one
-SELECT id, computer_id, account_id, computer_key_ref, tls_root_ref, tls_root_sha256, tls_leaf_not_after, linked_at FROM remote_identity WHERE id = 1
+SELECT id, computer_id, account_id, computer_key_ref, tls_root_ref, tls_root_sha256, tls_leaf_not_after, linked_at, lease_sequence, last_mint_at, last_mint_device_id, last_mint_jkt FROM remote_identity WHERE id = 1
 `
 
 func (q *Queries) GetRemoteIdentity(ctx context.Context) (RemoteIdentity, error) {
@@ -130,6 +148,10 @@ func (q *Queries) GetRemoteIdentity(ctx context.Context) (RemoteIdentity, error)
 		&i.TlsRootSha256,
 		&i.TlsLeafNotAfter,
 		&i.LinkedAt,
+		&i.LeaseSequence,
+		&i.LastMintAt,
+		&i.LastMintDeviceID,
+		&i.LastMintJkt,
 	)
 	return i, err
 }
@@ -423,6 +445,25 @@ type RecordRemoteDeviceConnectionParams struct {
 
 func (q *Queries) RecordRemoteDeviceConnection(ctx context.Context, arg RecordRemoteDeviceConnectionParams) error {
 	_, err := q.db.ExecContext(ctx, recordRemoteDeviceConnection, arg.DeviceID, arg.LastSeenAt)
+	return err
+}
+
+const recordRemoteLastMint = `-- name: RecordRemoteLastMint :exec
+UPDATE remote_identity SET
+    last_mint_at = ?1,
+    last_mint_device_id = ?2,
+    last_mint_jkt = ?3
+WHERE id = 1 AND last_mint_at <= ?1
+`
+
+type RecordRemoteLastMintParams struct {
+	MintedAt int64  `json:"minted_at"`
+	DeviceID string `json:"device_id"`
+	Jkt      string `json:"jkt"`
+}
+
+func (q *Queries) RecordRemoteLastMint(ctx context.Context, arg RecordRemoteLastMintParams) error {
+	_, err := q.db.ExecContext(ctx, recordRemoteLastMint, arg.MintedAt, arg.DeviceID, arg.Jkt)
 	return err
 }
 

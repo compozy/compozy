@@ -16,7 +16,7 @@ func (r *controlRoutes) provisionHostedTunnel(w http.ResponseWriter, req *http.R
 	if !ok {
 		return
 	}
-	r.hostedComputerRequest(w, req, body, func(computer store.ControlComputer, proof control.ComputerRequestAuth) {
+	r.computerKeyRequest(w, req, body, func(computer store.ControlComputer, proof control.ComputerRequestAuth) {
 		tunnel, err := r.config.Service.ProvisionHostedTunnel(req.Context(), computer, proof, input)
 		r.respond(w, req, http.StatusOK, tunnel, err)
 	})
@@ -32,7 +32,7 @@ func (r *controlRoutes) deleteComputerResource(w http.ResponseWriter, req *http.
 		r.fail(w, req, control.ErrInvalidInput)
 		return
 	}
-	r.hostedComputerRequest(w, req, body, func(computer store.ControlComputer, proof control.ComputerRequestAuth) {
+	r.computerKeyRequest(w, req, body, func(computer store.ControlComputer, proof control.ComputerRequestAuth) {
 		ctx, cancel := controlContext(req)
 		defer cancel()
 		err := r.config.Service.DeleteHostedTunnel(ctx, computer, proof)
@@ -40,7 +40,7 @@ func (r *controlRoutes) deleteComputerResource(w http.ResponseWriter, req *http.
 	})
 }
 
-func (r *controlRoutes) hostedComputerRequest(
+func (r *controlRoutes) computerKeyRequest(
 	w http.ResponseWriter, req *http.Request, body []byte,
 	run func(store.ControlComputer, control.ComputerRequestAuth),
 ) {

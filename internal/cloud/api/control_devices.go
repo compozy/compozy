@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/cloud/control"
+	"github.com/compozy/compozy/internal/cloud/store"
 	"github.com/compozy/compozy/internal/remoteproto"
 )
 
@@ -42,6 +43,20 @@ func (r *controlRoutes) revokeDevice(w http.ResponseWriter, req *http.Request, p
 	defer cancel()
 	err := r.config.Service.RevokeDevice(ctx, principal, remoteproto.DeviceID(req.PathValue("id")))
 	r.respond(w, req, http.StatusNoContent, nil, err)
+}
+
+func (r *controlRoutes) mutateRemoteDevice(w http.ResponseWriter, req *http.Request) {
+	var mutation remoteproto.RemoteDeviceMutation
+	body, ok := r.decode(w, req, &mutation, false)
+	if !ok {
+		return
+	}
+	r.computerKeyRequest(w, req, body, func(computer store.ControlComputer, proof control.ComputerRequestAuth) {
+		ctx, cancel := controlContext(req)
+		defer cancel()
+		err := r.config.Service.MutateRemoteDevice(ctx, computer, proof, mutation)
+		r.respond(w, req, http.StatusNoContent, nil, err)
+	})
 }
 
 func (r *controlRoutes) approvals(w http.ResponseWriter, req *http.Request, principal control.DevicePrincipal) {

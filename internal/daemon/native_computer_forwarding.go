@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/cloudclient"
 	"github.com/compozy/compozy/internal/computers"
 	"github.com/compozy/compozy/internal/computers/sshsetup"
+	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/remotehost"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/session"
@@ -128,7 +129,9 @@ func (f *nativeComputerForwarder) CallComputer(
 		return toolspkg.ToolResult{}, decodeForwardedToolError(req.ToolID, response.StatusCode, response.Body)
 	}
 	var result contract.ToolInvokeResponse
-	if err := json.UnmarshalRead(response.Body, &result); err != nil {
+	// The envelope can expand a tool result through base64 encoding.
+	bodyLimit := http.MaxBytesReader(nil, response.Body, 2*config.MaxToolsMaxResultBytes)
+	if err := json.UnmarshalRead(bodyLimit, &result); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	if result.ToolID != req.ToolID {

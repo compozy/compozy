@@ -142,9 +142,12 @@ func (s openSSH) command(ctx context.Context, args []string, stdin io.Reader, en
 }
 
 func (s openSSH) run(ctx context.Context, args []string, stdin io.Reader, env []string) (commandResult, error) {
-	cmd := s.command(ctx, args, stdin, env)
-	var stdout, stderr sshOutput
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	return runSSHCommand(s.command(ctx, args, stdin, env), &sshOutput{})
+}
+
+func runSSHCommand(cmd *exec.Cmd, stdout *sshOutput) (commandResult, error) {
+	var stderr sshOutput
+	cmd.Stdout, cmd.Stderr = stdout, &stderr
 	err := runProcess(cmd)
 	code := 0
 	if exit, ok := errors.AsType[*exec.ExitError](err); ok {
@@ -163,7 +166,10 @@ func runProcess(cmd *exec.Cmd) error {
 	return cmd.Wait()
 }
 
-type sshOutput struct{ buffer bytes.Buffer }
+type sshOutput struct {
+	buffer  bytes.Buffer
+	onWrite func([]byte)
+}
 
 func (b *sshOutput) Bytes() []byte { return b.buffer.Bytes() }
 
@@ -177,6 +183,9 @@ func (b *sshOutput) Write(p []byte) (int, error) {
 		b.buffer.Next(extra)
 	}
 	_, err := b.buffer.Write(p)
+	if b.onWrite != nil {
+		b.onWrite(b.buffer.Bytes())
+	}
 	return n, err
 }
 

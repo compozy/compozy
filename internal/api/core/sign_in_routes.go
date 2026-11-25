@@ -91,12 +91,22 @@ func RegisterRemoteHostRoutes(routes gin.IRouter, handlers *BaseHandlers, signIn
 		routes.POST("/link", handlers.LinkRemote)
 	})
 	signIn.RequireSignedIn(SignInAccount, func() {
-		routes.PATCH("", handlers.PatchRemoteStatus)
 		routes.DELETE("/link", handlers.UnlinkRemote)
-		routes.GET("/devices", handlers.ListRemoteDevices)
-		routes.PATCH("/devices/:id", handlers.PatchRemoteDevice)
-		routes.DELETE("/devices/:id", handlers.RevokeRemoteDevice)
+		registerRemoteHostSettingsRoutes(routes, handlers)
 	})
+}
+
+// RegisterRemoteHostAdminRoutes exposes the settings a remote admin can manage.
+func RegisterRemoteHostAdminRoutes(routes gin.IRouter, handlers *BaseHandlers) {
+	routes.GET("", handlers.RemoteStatus)
+	registerRemoteHostSettingsRoutes(routes, handlers)
+}
+
+func registerRemoteHostSettingsRoutes(routes gin.IRouter, handlers *BaseHandlers) {
+	routes.PATCH("", handlers.PatchRemoteStatus)
+	routes.GET("/devices", handlers.ListRemoteDevices)
+	routes.PATCH("/devices/:id", handlers.PatchRemoteDevice)
+	routes.DELETE("/devices/:id", handlers.RevokeRemoteDevice)
 }
 
 func (t *SignInRoutes) Validate() {

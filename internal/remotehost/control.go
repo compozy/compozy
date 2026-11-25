@@ -37,6 +37,7 @@ type controlLink struct {
 	sessions  *Sessions
 	verifier  *remoteproto.JWSVerifier
 	outgoing  chan remoteproto.ControlMessage
+	minted    chan struct{}
 	connected atomic.Bool
 	unlink    func(context.Context)
 	onLease   func(context.Context)
@@ -46,6 +47,10 @@ type controlLink struct {
 var errControlUnlinked = errors.New("computer unlinked by cloud")
 
 func (c *controlLink) report(kind remoteproto.ControlType, epoch uint64, value any) {
+	if kind == remoteproto.ControlSessionMinted {
+		c.signalMint()
+		return
+	}
 	message, err := controlMessage(kind, epoch, value)
 	if err != nil {
 		c.logger.Warn("Could not encode remote control report", "type", kind)
@@ -55,6 +60,13 @@ func (c *controlLink) report(kind remoteproto.ControlType, epoch uint64, value a
 	case c.outgoing <- message:
 	default:
 		c.logger.Warn("Remote control report queue is full", "type", kind, "computer_id", c.id)
+	}
+}
+
+func (c *controlLink) signalMint() {
+	select {
+	case c.minted <- struct{}{}:
+	default:
 	}
 }
 
@@ -149,6 +161,7 @@ func (c *controlLink) readUpdates(ctx context.Context, socket *websocket.Conn) (
 			}
 			ready = true
 			c.connected.Store(true)
+			c.signalMint()
 		}
 	}
 }
@@ -156,6 +169,7 @@ func (c *controlLink) readUpdates(ctx context.Context, socket *websocket.Conn) (
 func (c *controlLink) writeReports(ctx context.Context, socket *websocket.Conn) {
 	pings := time.NewTicker(controlPing)
 	defer pings.Stop()
+	var sentMintAt int64
 	for {
 		var err error
 		select {
@@ -167,11 +181,24 @@ func (c *controlLink) writeReports(ctx context.Context, socket *websocket.Conn) 
 			cancel()
 		case report := <-c.outgoing:
 			err = writeControl(ctx, socket, report)
+		case <-c.minted:
+			if c.connected.Load() {
+				sentMintAt, err = c.writeMint(ctx, socket, sentMintAt)
+			}
 		}
 		if err != nil {
 			return
 		}
 	}
+}
+
+func (c *controlLink) writeMint(ctx context.Context, socket *websocket.Conn, sentAt int64) (int64, error) {
+	mint, err := c.sessions.store.RemoteLastMint(ctx)
+	if err != nil || mint.At <= sentAt {
+		return sentAt, err
+	}
+	epoch := c.sessions.Snapshot().SecurityEpoch
+	return mint.At, sendControl(ctx, socket, remoteproto.ControlSessionMinted, epoch, mint)
 }
 
 func (c *controlLink) applyControl(

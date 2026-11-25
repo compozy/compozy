@@ -49,6 +49,12 @@ type HostCloud interface {
 	UnlinkComputer(context.Context, remoteproto.ComputerID, cloudclient.Credentials) error
 	UnlinkComputerWithKey(context.Context, remoteproto.ComputerID, ed25519.PrivateKey) error
 	RevalidateComputer(context.Context, remoteproto.ComputerID, ed25519.PrivateKey, string) error
+	MutateRemoteDevice(
+		context.Context,
+		remoteproto.ComputerID,
+		ed25519.PrivateKey,
+		remoteproto.RemoteDeviceMutation,
+	) error
 }
 
 type hostedCloud interface {
@@ -310,6 +316,14 @@ func (h *Host) ApplyConfig(ctx context.Context, cfg config.RemoteConfig) error {
 		return context.Canceled
 	}
 	h.forgetUnlinkedLocked()
+	if _, remote := PrincipalFromContext(ctx); remote {
+		if h.run == nil {
+			return ErrNotLinked
+		}
+		if err := h.run.sessions.validateCommit(ctx); err != nil {
+			return err
+		}
+	}
 	if err := h.applyConfigLocked(ctx, cfg); err != nil {
 		return err
 	}
@@ -331,7 +345,7 @@ func (h *Host) applyConfigLocked(ctx context.Context, cfg config.RemoteConfig) e
 	case h.run == nil:
 		return h.start(ctx, cfg, true)
 	default:
-		return h.reconfigure(ctx, cfg, enablingHosted)
+		return h.reconfigure(ctx, cfg)
 	}
 }
 

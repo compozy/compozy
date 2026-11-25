@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/remoteproto"
 	"github.com/compozy/compozy/internal/sse"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
 )
@@ -446,8 +448,90 @@ func assertListenerClosed(t *testing.T, address string) {
 	}
 }
 
+func readRemoteHostSnapshot(t *testing.T, host daemonAccountFixture) remoteproto.SecuritySnapshot {
+	t.Helper()
+	db, err := store.OpenSQLiteReadPool(t.Context(), host.databasePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	snapshot := remoteproto.SecuritySnapshot{Linked: true}
+	var devices []byte
+	if err := db.QueryRowContext(t.Context(), "SELECT applied_epoch, devices_json FROM remote_security_state WHERE id = 1").
+		Scan(&snapshot.SecurityEpoch, &devices); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(devices, &snapshot.Devices); err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
+}
+
 func TestDaemonInstallationLinkIdentity(t *testing.T) {
 	root := t.TempDir()
+	t.Run("Should manage devices and approval policy through a link-only host", func(t *testing.T) {
+		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)
+		const email = "remote-admin-link@example.test"
+		service := make(chan *account.Service, 1)
+		controller, _ := startComputerController(t, f, filepath.Join(root, "remote-admin"), email, nil,
+			daemon.WithAccountOptions(func(current *account.Service) { service <- current }))
+		admin := controllerCloudDevice(t, <-service)
+		member := enrollRemoteDevice(t, f, email, "remote-admin-member")
+		host, _ := startConfiguredDaemonAccount(t, f, filepath.Join(root, "link-only"),
+			daemonAccountBoot{direct: true, signInRequired: true})
+		link := remoteCloudRequest(t, f, admin, http.MethodPost, "/v1/computers/link-tokens", nil)
+		link.expect(t, http.StatusCreated, "token")
+		token := authJSON[cloudclient.ComputerLinkToken](t, link).Token
+		linked := host.uds(t, http.MethodPost, contract.RemoteLinkPath, contract.RemoteLinkRequest{LinkToken: token})
+		linked.expect(t, http.StatusOK, "computer_id")
+		id := authJSON[contract.RemoteLinkResponse](t, linked).ComputerID
+		status := waitForHostLease(t, host)
+		host.uds(t, http.MethodGet, contract.AccountPath, nil).expect(t, http.StatusOK, `"source":"link"`)
+		addAccountComputer(t, controller, id)
+		waitComputerRoute(t, controller, id, remoteproto.RouteDirect)
+
+		// Q-01. Link lifecycle is local even when the tunnel authenticates a trusted admin.
+		for _, method := range []string{http.MethodPost, http.MethodDelete} {
+			controller.uds(t, method, bridgeAPI(id, contract.RemoteLinkPath), nil).
+				expect(t, http.StatusNotFound, "route_not_remote")
+		}
+		host.uds(t, http.MethodGet, contract.RemotePath, nil).expect(t, http.StatusOK, string(id))
+
+		descriptor := remotetest.TunnelDescriptor(t, status.Listener)
+		tunnel := remotetest.DialTunnel(t, status.Listener, descriptor, f.clock.Now)
+		mintRemote(t, tunnel, member, fetchRemoteGrant(t, f, member, id), f.clock.Now())
+
+		// AST-009. A bound admin can change scopes and revoke a device without any host account session.
+		scopes := []remoteproto.Scope{remoteproto.ScopeSessions}
+		devicePath := bridgeAPI(id, contract.RemoteDevicesPath+"/"+string(member.id))
+		patched := controller.uds(t, http.MethodPatch, devicePath, contract.RemoteDevicePatchRequest{Scopes: &scopes})
+		patched.expect(t, http.StatusOK, string(member.id))
+		device := authJSON[contract.RemoteDeviceResponse](t, patched)
+		if !slices.Equal(device.Scopes, scopes) {
+			t.Fatalf("updated device scopes = %v, want %v", device.Scopes, scopes)
+		}
+		controller.uds(t, http.MethodDelete, devicePath, nil).expect(t, http.StatusNoContent, "")
+		remoteCloudRequest(t, f, member, http.MethodPost, "/v1/computers/"+string(id)+"/grants",
+			map[string]string{"route": "ssh"}).expect(t, http.StatusForbidden, "device_revoked")
+		testutil.Eventually(t, "host applies the revoked member", 5*time.Second, func() bool {
+			return !slices.ContainsFunc(
+				readRemoteHostSnapshot(t, host).Devices,
+				func(device remoteproto.SnapshotDevice) bool {
+					return device.DeviceID == member.id
+				},
+			)
+		})
+
+		// RC-03. An admitted policy change can close remote sessions after committing.
+		controller.uds(t, http.MethodPatch, bridgeAPI(id, contract.RemotePath),
+			contract.RemotePatchRequest{RequireDeviceApproval: new(true)}).
+			expect(t, http.StatusOK, `"require_device_approval":true`)
+		host.uds(t, http.MethodGet, contract.RemotePath, nil).expect(t, http.StatusOK, `"require_device_approval":true`)
+	})
 	t.Run("Should unlink on explicit logout and revalidate a disabled link-only host (IT-101)", func(t *testing.T) {
 		// Safety Invariant 14: a host link and an account session can never name different accounts.
 		f := newAuthFixtureWithReplica(t, remotetest.StartLocalReplica)

@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/account"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
+	"github.com/compozy/compozy/internal/store"
 )
 
 var errScheduledAdmissionDeferred = errors.New("automation: scheduled admission deferred")
@@ -147,6 +148,7 @@ func (d *Dispatcher) dispatchAgentSession(
 	if req.onAdmitted != nil {
 		req.onAdmitted(*cloneRun(runningRun))
 	}
+	ctx = store.WithoutMutationCommitGuard(ctx)
 	d.dispatchPostFireHook(ctx, req, *runningRun)
 
 	runErr := collectPromptError(ctx, events)

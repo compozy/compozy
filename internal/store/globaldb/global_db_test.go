@@ -692,9 +692,15 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			}
 			_, seedErr := prior.ExecContext(ctx, `INSERT INTO remote_sessions
 			(id, credential_sha256, device_id, device_jkt, scopes, route, browser, created_at, expires_at)
-			VALUES ('old', X'01', 'dev_one', 'key-one', '[]', 'ssh', 0, 100, 400),
-		       ('new', X'02', 'dev_one', 'key-one', '[]', 'ssh', 0, 200, 500),
-		       ('other', X'03', 'dev_two', 'key-two', '[]', 'ssh', 0, 150, 450)`)
+			VALUES ('old', X'01', 'dev_one', 'key-one', '[]', 'ssh', 0, 10000000100, 10000000400),
+		       ('new', X'02', 'dev_one', 'key-one', '[]', 'ssh', 0, 20000000200, 20000000500),
+		       ('other', X'03', 'dev_two', 'key-two', '[]', 'ssh', 0, 15000000150, 15000000450)`)
+			if seedErr != nil {
+				t.Fatal(errors.Join(seedErr, prior.Close()))
+			}
+			_, seedErr = prior.ExecContext(ctx, `INSERT INTO remote_identity
+			(id, computer_id, account_id, computer_key_ref, tls_root_ref, tls_root_sha256, tls_leaf_not_after, linked_at)
+			VALUES (1, 'cmp_upgrade', 'acc_upgrade', '', '', '', '2026-12-01T00:00:00Z', '2026-11-01T00:00:00Z')`)
 			if seedErr != nil {
 				t.Fatal(errors.Join(seedErr, prior.Close()))
 			}
@@ -720,9 +726,14 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(connections) != 2 || !connections["dev_one"].Equal(time.Unix(0, 200)) ||
-				!connections["dev_two"].Equal(time.Unix(0, 150)) {
+			if len(connections) != 2 || !connections["dev_one"].Equal(time.Unix(20, 200)) ||
+				!connections["dev_two"].Equal(time.Unix(15, 150)) {
 				t.Fatalf("migrated device connections = %v", connections)
+			}
+			// AST-004. The new control report can recover the latest recorded mint from an older database.
+			mint, err := upgraded.RemoteLastMint(ctx)
+			if err != nil || mint.At != 20 || mint.DeviceID != "dev_one" || mint.JKT != "key-one" {
+				t.Fatalf("migrated last mint = %+v, error=%v", mint, err)
 			}
 			status, err := store.Status(ctx, upgraded.db, MigrationStream())
 			if err != nil {

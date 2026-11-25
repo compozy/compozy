@@ -6,7 +6,6 @@ package api_test
 
 import (
 	"bytes"
-	"encoding/json/v2"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/remoteproto"
-	"github.com/compozy/compozy/internal/store"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/remotetest"
@@ -157,36 +155,20 @@ func assertBrowserKeyIdentity(t *testing.T, f authFixture, host daemonAccountFix
 	if err != nil || jkt != thumbprint || account == "" {
 		t.Fatalf("browser device key is not bound to its stored public JWK and account: %v", err)
 	}
-	if snapshot := readHostedBrowserSnapshot(t, host); !snapshot.Allows(remoteproto.DeviceID(device), thumbprint, nil) {
+	if snapshot := readRemoteHostSnapshot(t, host); !snapshot.Allows(remoteproto.DeviceID(device), thumbprint, nil) {
 		t.Fatal("the host minted a browser session before applying the trusted key")
 	}
 }
 
-func readHostedBrowserSnapshot(t *testing.T, host daemonAccountFixture) remoteproto.SecuritySnapshot {
-	t.Helper()
-	db, err := store.OpenSQLiteReadPool(t.Context(), host.databasePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			t.Error(err)
-		}
-	}()
-	snapshot := remoteproto.SecuritySnapshot{Linked: true}
-	var devices []byte
-	if err := db.QueryRowContext(t.Context(), "SELECT applied_epoch, devices_json FROM remote_security_state WHERE id = 1").
-		Scan(&snapshot.SecurityEpoch, &devices); err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal(devices, &snapshot.Devices); err != nil {
-		t.Fatal(err)
-	}
-	return snapshot
-}
-
 func assertBrowserDPoP(t *testing.T, browser hostedBrowser, hostname, sessionID string) {
 	t.Helper()
+	// RC-05. A proof from a key without an approval never consumes the authenticated replay budget.
+	path := strings.ReplaceAll(remoteproto.BrowserApprovalPath, "{id}", "missing")
+	unknown := browser.request(t, hostname, http.MethodGet, path, nil, "", "")
+	unknown.receipt().expect(t, http.StatusNotFound, "approval_not_found")
+	browser.request(t, hostname, http.MethodGet, path, nil, "", unknown.Proof).receipt().
+		expect(t, http.StatusNotFound, "approval_not_found")
+
 	signed := browser.request(t, hostname, http.MethodGet, hostedBrowserSessionsPath, nil, "", "")
 	signed.receipt().expect(t, http.StatusOK, sessionID)
 	browser.request(t, hostname, http.MethodGet, hostedBrowserSessionsPath, nil, "unsigned", "").receipt().

@@ -405,7 +405,7 @@ func (c *Client) UnexposeSkill(ctx context.Context, params UnexposeSkillParams, 
 	return &out, nil
 }
 
-// UnlinkRemote Unlink this computer
+// UnlinkRemote Unlink this computer from the local daemon
 func (c *Client) UnlinkRemote(ctx context.Context) error {
 	path := "/api/remote/link"
 	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")

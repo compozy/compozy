@@ -97,6 +97,9 @@ var (
 	ErrOffline = &Failure{
 		Status: http.StatusServiceUnavailable, Code: "computer_offline", Message: "The computer is offline.",
 	}
+	ErrSessionExpired = &Failure{
+		Status: http.StatusUnauthorized, Code: CodeSessionExpired, Message: "The remote session has expired.",
+	}
 	ErrDisabled = &Failure{
 		Status: http.StatusConflict, Code: "computer_disabled", Message: "This computer is turned off here.",
 	}

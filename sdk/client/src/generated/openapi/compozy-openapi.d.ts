@@ -3327,9 +3327,9 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Link this computer to the account */
+    /** Link this computer from the local daemon */
     post: operations["linkRemote"];
-    /** Unlink this computer */
+    /** Unlink this computer from the local daemon */
     delete: operations["unlinkRemote"];
     options?: never;
     head?: never;

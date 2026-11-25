@@ -48,7 +48,13 @@ func TestTunnelTransport(t *testing.T) {
 		// UT-038. Safety Invariants 11, 13 and 18.
 		clock := clockwork.NewFakeClock()
 		account := newRoutingAccount(t)
-		c := &connection{key: account.key, credential: "fixture-credential", expiresAt: clock.Now().Add(time.Hour)}
+		auth := &connectionAuth{
+			key:        account.key,
+			credential: "fixture-credential",
+			expiresAt:  clock.Now().Add(time.Hour),
+		}
+		c := &connection{descriptor: remoteproto.Descriptor{ComputerID: probeComputer}}
+		c.auth.Store(auth)
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/sessions", nil)
 		headers := []string{
 			"Cookie", "Authorization", "DPoP", claimHeader,
@@ -96,7 +102,8 @@ func TestTunnelTransport(t *testing.T) {
 			t.Fatal(err)
 		}
 		binding := remoteproto.DPoPBinding{
-			Method: http.MethodGet, URL: tunnelProofOrigin + "/api/sessions", JKT: jkt, Credential: c.credential,
+			Method: http.MethodGet, URL: tunnelProofOrigin + "/api/sessions", JKT: jkt, Credential: auth.credential,
+			Audience: probeComputer,
 		}
 		if _, err := remoteproto.NewDPoPVerifier().
 			VerifyDPoP(out.Header.Get("DPoP"), binding, clock.Now()); err != nil {

@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -48,6 +49,10 @@ type connection struct {
 	*tunnel
 	route      store.ComputerRoute
 	descriptor remoteproto.Descriptor
+	auth       atomic.Pointer[connectionAuth]
+}
+
+type connectionAuth struct {
 	key        crypto.Signer
 	credential string
 	expiresAt  time.Time
@@ -262,12 +267,17 @@ func remoteFailure(response *http.Response) error {
 }
 
 func (c *connection) authenticate(req *http.Request, now time.Time) error {
-	target := tunnelProofOrigin + req.URL.EscapedPath()
-	proof, err := remoteproto.BuildDPoP(c.key, req.Method, target, c.credential, now)
+	auth := c.auth.Load()
+	if !now.Before(auth.expiresAt) {
+		return ErrSessionExpired
+	}
+	proof, err := remoteproto.BuildTunnelDPoP(
+		auth.key, c.descriptor.ComputerID, req.Method, req.URL.EscapedPath(), auth.credential, now,
+	)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "CompozyRemote "+c.credential)
+	req.Header.Set("Authorization", "CompozyRemote "+auth.credential)
 	req.Header.Set("DPoP", proof)
 	return nil
 }

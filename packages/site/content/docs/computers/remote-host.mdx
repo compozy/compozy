@@ -19,6 +19,8 @@ The SSH forward targets the loopback listener at `127.0.0.1:47823` by default. T
 
 Local HTTP and UDS share the same remote routes, including `GET /api/remote`, for status, link settings, and devices. `compozy__remote_status` gives agents the same status that the CLI prints as JSON.
 
+Use local HTTP or UDS on the computer to call `POST /api/remote/link` or `DELETE /api/remote/link`. You can also remove the computer's link from its account in Compozy Cloud.
+
 ## Operator scopes
 
 | Scope              | Access on this computer                                                                                                               |
@@ -75,4 +77,6 @@ An account admin whose device key is already approved on the target computer can
 
 A browser that receives `device_pending_approval` can poll `GET /remote/v1/browser/approvals/{id}` with a `DPoP` proof from the requesting key. Once approved, it needs a fresh authorization code and PKCE verifier for that same key.
 
-You can narrow a device's scopes on this computer or revoke the device across the account. Revocation and scope narrowing end affected remote streams. If the computer loses contact with Compozy Cloud, it can honor a valid lease for up to fifteen minutes.
+An authenticated `remote:admin` device can set a device's scopes on this computer with `PATCH /api/remote/devices/{id}` or revoke the device across the account with `DELETE /api/remote/devices/{id}`. A computer linked through SSH setup can handle these requests using the requesting admin's device proof.
+
+Revocation and scope narrowing end affected remote streams. If the computer loses contact with Compozy Cloud, it can honor a valid lease for up to fifteen minutes. After restart it waits for a newer lease before admitting remote connections.

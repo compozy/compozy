@@ -81,26 +81,32 @@ func (s *Service) PatchDevice(
 			if !caller.Admin && (patch.Admin != nil || len(patch.Scopes) > 0 || id != caller.ID) {
 				return errAdminRequired
 			}
-			device, err := findDevice(ctx, q, account.ID, id)
-			if err != nil {
-				return err
-			}
-			event := store.ControlEvent{AccountID: account.ID, ResourceID: string(id)}
-			if err := s.applyDevicePatch(ctx, q, &device, patch, caller.ID, &event); err != nil {
-				return err
-			}
-			result = viewDevice(device, caller.ID)
-			if event.Type == "" {
-				return nil
-			}
-			if event.Type == remoteproto.ControlDevicesChanged {
-				return q.NotifyControlEvent(ctx, event)
-			}
-			_, err = q.AdvanceSecurity(ctx, event)
+			var err error
+			result, err = s.patchOwnedDevice(ctx, q, account.ID, caller.ID, id, patch)
 			return err
 		},
 	)
 	return result, err
+}
+
+func (s *Service) patchOwnedDevice(
+	ctx context.Context, q *store.Queries, account string, caller, id remoteproto.DeviceID,
+	patch remoteproto.AccountDevicePatch,
+) (remoteproto.AccountDevice, error) {
+	device, err := findDevice(ctx, q, account, id)
+	if err != nil {
+		return remoteproto.AccountDevice{}, err
+	}
+	event := store.ControlEvent{AccountID: account, ResourceID: string(id)}
+	if err := s.applyDevicePatch(ctx, q, &device, patch, caller, &event); err != nil {
+		return remoteproto.AccountDevice{}, err
+	}
+	if event.Type == remoteproto.ControlDevicesChanged {
+		err = q.NotifyControlEvent(ctx, event)
+	} else if event.Type != "" {
+		_, err = q.AdvanceSecurity(ctx, event)
+	}
+	return viewDevice(device, caller), err
 }
 
 func (s *Service) applyDevicePatch(

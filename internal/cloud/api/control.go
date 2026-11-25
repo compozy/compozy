@@ -56,6 +56,7 @@ func (r *Router) RegisterControl(cfg ControlRoutesConfig) {
 	r.mux.HandleFunc("PATCH /v1/computers/{id}", h.patchComputer)
 	r.mux.HandleFunc("DELETE /v1/computers/{id}", h.unlinkComputer)
 	r.mux.HandleFunc("POST /v1/computers/{id}/revalidate", h.revalidateComputer)
+	r.mux.HandleFunc("POST /v1/computers/{id}/device-mutations", h.mutateRemoteDevice)
 	r.mux.Handle("POST /v1/computers/{id}/grants", h.device(h.grant))
 	r.mux.HandleFunc("POST /v1/computers/{id}/tunnel", h.provisionHostedTunnel)
 	// The fixed reservations path takes precedence over computer subresources.

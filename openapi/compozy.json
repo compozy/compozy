@@ -80019,7 +80019,7 @@
             "description": "Service Unavailable"
           }
         },
-        "summary": "Unlink this computer",
+        "summary": "Unlink this computer from the local daemon",
         "tags": [
           "remote"
         ],
@@ -80134,7 +80134,7 @@
             "description": "Service Unavailable"
           }
         },
-        "summary": "Link this computer to the account",
+        "summary": "Link this computer from the local daemon",
         "tags": [
           "remote"
         ],
