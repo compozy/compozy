@@ -36,16 +36,19 @@ CREATE TRIGGER security_events_no_truncate BEFORE TRUNCATE ON security_events
 CREATE VIEW security_event_retention AS SELECT NULL::timestamptz AS cutoff WHERE false;
 
 -- +goose StatementBegin
-CREATE FUNCTION compact_security_events() RETURNS trigger LANGUAGE plpgsql
-SET compozy.security_event_retention TO 'on'
-AS $$
+CREATE FUNCTION compact_security_events() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    previous_retention text := current_setting('compozy.security_event_retention', true);
 BEGIN
+    -- A non-superuser can set this custom parameter at runtime.
+    PERFORM set_config('compozy.security_event_retention', 'on', true);
     WITH retired AS (
         DELETE FROM security_events WHERE at < NEW.cutoff RETURNING type
     )
     INSERT INTO security_event_counts (type, count)
         SELECT type, count(*) FROM retired GROUP BY type ORDER BY type
         ON CONFLICT (type) DO UPDATE SET count = security_event_counts.count + excluded.count;
+    PERFORM set_config('compozy.security_event_retention', coalesce(previous_retention, ''), true);
     RETURN NEW;
 END;
 $$;

@@ -2,6 +2,8 @@
 
 A main push that changes the cloud binary, service, shared protocol or edge Worker runs the staging deploy after the Go lanes and preflight succeed. The deploy applies Goose migrations through the direct Neon endpoint, rolls the containers in 50 percent and 100 percent steps and checks readiness, JWKS and device-flow creation. The readiness response identifies the commit and deploy attempt baked into the container image.
 
+Use the direct Neon URL for the non-superuser role that owns the Compozy Cloud database.
+
 After staging succeeds, create and push an immutable `cloud-v<semver>` tag on that exact main commit. The workflow verifies the staging job for that commit before asking the GitHub `production` environment reviewer to approve. Production uses the same migrations, gradual rollout and smoke sequence. Restrict creation of `cloud-v*` tags to release operators and keep the required reviewer enabled on `production`.
 
 ## Runtime bindings

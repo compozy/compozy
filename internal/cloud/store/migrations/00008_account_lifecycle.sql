@@ -66,10 +66,12 @@ CREATE OR REPLACE VIEW security_event_retention AS
     SELECT NULL::timestamptz AS cutoff, NULL::text AS deleted_account_id WHERE false;
 
 -- +goose StatementBegin
-CREATE OR REPLACE FUNCTION compact_security_events() RETURNS trigger LANGUAGE plpgsql
-SET compozy.security_event_retention TO 'on'
-AS $$
+CREATE OR REPLACE FUNCTION compact_security_events() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    previous_retention text := current_setting('compozy.security_event_retention', true);
 BEGIN
+    -- A non-superuser can set this custom parameter at runtime.
+    PERFORM set_config('compozy.security_event_retention', 'on', true);
     IF NEW.deleted_account_id IS NULL THEN
         WITH retired AS (
             DELETE FROM security_events WHERE at < NEW.cutoff RETURNING type
@@ -91,6 +93,7 @@ BEGIN
         SET security_event_counts = coalesce((SELECT jsonb_object_agg(type, total) FROM counts), '{}')
         WHERE account_id = NEW.deleted_account_id;
     END IF;
+    PERFORM set_config('compozy.security_event_retention', coalesce(previous_retention, ''), true);
     RETURN NEW;
 END;
 $$;
