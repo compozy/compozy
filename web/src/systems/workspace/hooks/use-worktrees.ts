@@ -26,7 +26,8 @@ import { reconcileWorktreeList, removeWorktreeFromList } from "../lib/worktree-l
 import type { WorktreeListingByWorkspace } from "../lib/workspace-tree";
 import { describeBranchOutcome } from "../lib/worktree-branch-outcome";
 import type { WorktreeBranchOutcome, WorktreePayload, WorktreesResponse } from "../types";
-import type { ComputerId } from "@/lib/computer-scope";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import { isRemoteComputerId, type ComputerId } from "@/lib/computer-scope";
 import { notifyUser } from "@/lib/user-feedback";
 import { useWorkspaces } from "./use-workspaces";
 import { createdInProfileToast, useProfileReadScope } from "@/systems/profiles";
@@ -124,21 +125,27 @@ export function useWorktreeListings(
 function reconcileThenInvalidate(
   queryClient: QueryClient,
   workspaceID: string,
-  worktree: WorktreePayload
+  worktree: WorktreePayload,
+  computerId?: ComputerId
 ): Promise<void> {
-  queryClient.setQueryData<WorktreesResponse>(workspaceKeys.worktrees(workspaceID), current =>
+  const keys = workspaceKeys.forComputer(computerId);
+  queryClient.setQueryData<WorktreesResponse>(keys.worktrees(workspaceID), current =>
     reconcileWorktreeList(current, worktree)
   );
-  return queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceID) });
+  return queryClient.invalidateQueries({ queryKey: keys.worktrees(workspaceID) });
 }
 
-export function useCreateWorktree(workspaceID: string) {
+export function useCreateWorktree(workspaceID: string, computerId?: ComputerId) {
   const queryClient = useQueryClient();
+  const scopedComputerId = useCurrentComputerId(computerId);
   // Stamped with the acting profile — `default` while the aggregate is on.
   const { aggregate, destination } = useProfileReadScope();
 
   return useMutation({
-    mutationFn: (params: CreateWorktreeParams) => createWorktree(workspaceID, params, destination),
+    mutationFn: (params: CreateWorktreeParams) =>
+      isRemoteComputerId(scopedComputerId)
+        ? createWorktree(workspaceID, params, destination, undefined, scopedComputerId)
+        : createWorktree(workspaceID, params, destination),
     // The 202 payload is the pending row; it appears in every list immediately
     // and materializes daemon-side.
     onSuccess: worktree => {
@@ -148,21 +155,26 @@ export function useCreateWorktree(workspaceID: string) {
       if (aggregate) {
         notifyUser({ message: createdInProfileToast(worktree.profile_name), tone: "success" });
       }
-      return reconcileThenInvalidate(queryClient, workspaceID, worktree);
+      return reconcileThenInvalidate(queryClient, workspaceID, worktree, scopedComputerId);
     },
   });
 }
 
-export function useCancelWorktreeCreate(workspaceID: string) {
+export function useCancelWorktreeCreate(workspaceID: string, computerId?: ComputerId) {
   const queryClient = useQueryClient();
+  const scopedComputerId = useCurrentComputerId(computerId);
 
   return useMutation({
-    mutationFn: (worktreeID: string) => cancelWorktreeCreate(workspaceID, worktreeID),
+    mutationFn: (worktreeID: string) =>
+      isRemoteComputerId(scopedComputerId)
+        ? cancelWorktreeCreate(workspaceID, worktreeID, undefined, scopedComputerId)
+        : cancelWorktreeCreate(workspaceID, worktreeID),
     onSuccess: (_data, worktreeID) => {
-      queryClient.setQueryData<WorktreesResponse>(workspaceKeys.worktrees(workspaceID), current =>
+      const keys = workspaceKeys.forComputer(scopedComputerId);
+      queryClient.setQueryData<WorktreesResponse>(keys.worktrees(workspaceID), current =>
         removeWorktreeFromList(current, worktreeID)
       );
-      return queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceID) });
+      return queryClient.invalidateQueries({ queryKey: keys.worktrees(workspaceID) });
     },
   });
 }
@@ -171,13 +183,17 @@ export function useCancelWorktreeCreate(workspaceID: string) {
  * Also the "It's back" path: adopting a registered `missing` path revalidates
  * Git identity and restores that record to `ready`.
  */
-export function useAdoptWorktree(workspaceID: string, profile?: string) {
+export function useAdoptWorktree(workspaceID: string, profile?: string, computerId?: ComputerId) {
   const queryClient = useQueryClient();
+  const scopedComputerId = useCurrentComputerId(computerId);
 
   return useMutation({
     mutationFn: (params: AdoptWorktreeParams) =>
-      adoptWorktree(workspaceID, params, undefined, profile),
-    onSuccess: worktree => reconcileThenInvalidate(queryClient, workspaceID, worktree),
+      isRemoteComputerId(scopedComputerId)
+        ? adoptWorktree(workspaceID, params, undefined, profile, scopedComputerId)
+        : adoptWorktree(workspaceID, params, undefined, profile),
+    onSuccess: worktree =>
+      reconcileThenInvalidate(queryClient, workspaceID, worktree, scopedComputerId),
   });
 }
 
@@ -221,58 +237,70 @@ function reportBranchOutcome(
 }
 
 /** Removes one authorized checkout and clears only its matching UI scope after success. */
-export function useRemoveWorktree(workspaceID: string, profile?: string) {
+export function useRemoveWorktree(workspaceID: string, profile?: string, computerId?: ComputerId) {
   const queryClient = useQueryClient();
+  const scopedComputerId = useCurrentComputerId(computerId);
+  const remoteScope = isRemoteComputerId(scopedComputerId) ? { computerId: scopedComputerId } : {};
 
   return useMutation({
     mutationFn: ({ worktreeID, force, deleteBranch }: WorktreeCleanupVariables) =>
-      removeWorktree(workspaceID, worktreeID, { force, deleteBranch, profile }),
+      removeWorktree(workspaceID, worktreeID, { force, deleteBranch, profile, ...remoteScope }),
     onSuccess: (outcome, variables) => {
       reportBranchOutcome(outcome, Boolean(variables.force), () =>
         removeWorktree(workspaceID, variables.worktreeID, {
           force: true,
           deleteBranch: true,
           profile,
+          ...remoteScope,
         })
       );
-      activeWorkspaceStore.trigger.worktreeRemoved({
-        workspaceId: workspaceID,
-        worktreeId: variables.worktreeID,
-      });
-      queryClient.setQueryData<WorktreesResponse>(workspaceKeys.worktrees(workspaceID), current =>
+      if (!isRemoteComputerId(scopedComputerId)) {
+        activeWorkspaceStore.trigger.worktreeRemoved({
+          workspaceId: workspaceID,
+          worktreeId: variables.worktreeID,
+        });
+      }
+      const keys = workspaceKeys.forComputer(scopedComputerId);
+      queryClient.setQueryData<WorktreesResponse>(keys.worktrees(workspaceID), current =>
         removeWorktreeFromList(current, variables.worktreeID)
       );
       queryClient.removeQueries({
-        queryKey: workspaceKeys.worktreeDetail(workspaceID, variables.worktreeID),
+        queryKey: keys.worktreeDetail(workspaceID, variables.worktreeID),
       });
-      return queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceID) });
+      return queryClient.invalidateQueries({ queryKey: keys.worktrees(workspaceID) });
     },
   });
 }
 
 /** Dismisses retained metadata and refreshes the catalog without deleting session/run history. */
-export function useDismissWorktree(workspaceID: string, profile?: string) {
+export function useDismissWorktree(workspaceID: string, profile?: string, computerId?: ComputerId) {
   const queryClient = useQueryClient();
+  const scopedComputerId = useCurrentComputerId(computerId);
+  const remoteScope = isRemoteComputerId(scopedComputerId) ? { computerId: scopedComputerId } : {};
 
   return useMutation({
     mutationFn: ({ worktreeID, force, deleteBranch }: WorktreeCleanupVariables) =>
-      dismissWorktree(workspaceID, worktreeID, { force, deleteBranch, profile }),
+      dismissWorktree(workspaceID, worktreeID, { force, deleteBranch, profile, ...remoteScope }),
     onSuccess: (outcome, variables) => {
       reportBranchOutcome(outcome, Boolean(variables.force), () =>
         dismissWorktree(workspaceID, variables.worktreeID, {
           force: true,
           deleteBranch: true,
           profile,
+          ...remoteScope,
         })
       );
-      activeWorkspaceStore.trigger.worktreeRemoved({
-        workspaceId: workspaceID,
-        worktreeId: variables.worktreeID,
-      });
-      queryClient.setQueryData<WorktreesResponse>(workspaceKeys.worktrees(workspaceID), current =>
+      if (!isRemoteComputerId(scopedComputerId)) {
+        activeWorkspaceStore.trigger.worktreeRemoved({
+          workspaceId: workspaceID,
+          worktreeId: variables.worktreeID,
+        });
+      }
+      const keys = workspaceKeys.forComputer(scopedComputerId);
+      queryClient.setQueryData<WorktreesResponse>(keys.worktrees(workspaceID), current =>
         removeWorktreeFromList(current, variables.worktreeID)
       );
-      return queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceID) });
+      return queryClient.invalidateQueries({ queryKey: keys.worktrees(workspaceID) });
     },
   });
 }

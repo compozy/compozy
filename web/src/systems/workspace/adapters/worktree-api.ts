@@ -94,9 +94,10 @@ export async function createWorktree(
    * profile, but the row still names the one that created it (US-009.EC-1).
    */
   profile?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<WorktreePayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/worktrees",
     {
       params: {
@@ -121,9 +122,10 @@ export async function createWorktree(
 export async function cancelWorktreeCreate(
   workspaceID: string,
   worktreeID: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  computerId?: ComputerId
 ): Promise<void> {
-  const { error, response } = await apiClient.POST(
+  const { error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/cancel",
     {
       params: { path: { workspace_id: workspaceID, worktree_id: worktreeID } },
@@ -148,9 +150,10 @@ export async function adoptWorktree(
   workspaceID: string,
   params: AdoptWorktreeParams,
   signal?: AbortSignal,
-  profile?: string
+  profile?: string,
+  computerId?: ComputerId
 ): Promise<WorktreePayload> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(computerId).POST(
     "/api/workspaces/{workspace_id}/worktrees/adopt",
     {
       params: { path: { workspace_id: workspaceID }, query: { profile } },
@@ -178,6 +181,7 @@ export interface WorktreeCleanupOptions {
   force?: boolean;
   deleteBranch?: boolean;
   profile?: string;
+  computerId?: ComputerId;
 }
 
 function cleanupQuery(options: WorktreeCleanupOptions) {
@@ -198,7 +202,7 @@ export async function removeWorktree(
   options: WorktreeCleanupOptions = {},
   signal?: AbortSignal
 ): Promise<WorktreeBranchOutcome | null> {
-  const { data, error, response } = await apiClient.DELETE(
+  const { data, error, response } = await apiClientFor(options.computerId).DELETE(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}",
     {
       params: {
@@ -227,10 +231,10 @@ export async function removeWorktree(
 export async function removeDiscoveredWorktree(
   workspaceID: string,
   path: string,
-  options: { force?: boolean; expectStale?: boolean } = {},
+  options: { force?: boolean; expectStale?: boolean; computerId?: ComputerId } = {},
   signal?: AbortSignal
 ): Promise<void> {
-  const { error, response } = await apiClient.POST(
+  const { error, response } = await apiClientFor(options.computerId).POST(
     "/api/workspaces/{workspace_id}/worktrees/discovered/remove",
     {
       params: { path: { workspace_id: workspaceID } },
@@ -261,7 +265,7 @@ export async function dismissWorktree(
   options: WorktreeCleanupOptions = {},
   signal?: AbortSignal
 ): Promise<WorktreeBranchOutcome | null> {
-  const { data, error, response } = await apiClient.POST(
+  const { data, error, response } = await apiClientFor(options.computerId).POST(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/dismiss",
     {
       params: {

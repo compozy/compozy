@@ -133,10 +133,19 @@ function worktreeScopeEnabled(workspaceID: string, worktreeID: string, enabled: 
  * One worktree record plus its last status, forge cache, and bindings summary.
  * The per-worktree stream owns freshness — no polling interval here either.
  */
-export function worktreeDetailOptions(workspaceID: string, worktreeID: string, enabled = true) {
+export function worktreeDetailOptions(
+  workspaceID: string,
+  worktreeID: string,
+  enabled = true,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: workspaceKeys.worktreeDetail(workspaceID, worktreeID),
-    queryFn: ({ signal }) => inspectWorktree(workspaceID, worktreeID, signal),
+    queryKey: keys.worktreeDetail(workspaceID, worktreeID),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? inspectWorktree(workspaceID, worktreeID, signal, computerId)
+        : inspectWorktree(workspaceID, worktreeID, signal),
     enabled: worktreeScopeEnabled(workspaceID, worktreeID, enabled),
     staleTime: 30_000,
   });
@@ -149,12 +158,16 @@ export function worktreeDetailOptions(workspaceID: string, worktreeID: string, e
 export function worktreeStatusOptions(
   workspaceID: string,
   worktreeID: string,
-  options: { enabled?: boolean; refresh?: boolean } = {}
+  options: { enabled?: boolean; refresh?: boolean; computerId?: ComputerId } = {}
 ) {
-  const { enabled = true, refresh } = options;
+  const { enabled = true, refresh, computerId = LOCAL_COMPUTER_ID } = options;
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: workspaceKeys.worktreeStatus(workspaceID, worktreeID),
-    queryFn: ({ signal }) => fetchWorktreeStatus(workspaceID, worktreeID, { refresh }, signal),
+    queryKey: keys.worktreeStatus(workspaceID, worktreeID),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchWorktreeStatus(workspaceID, worktreeID, { refresh }, signal, computerId)
+        : fetchWorktreeStatus(workspaceID, worktreeID, { refresh }, signal),
     enabled: worktreeScopeEnabled(workspaceID, worktreeID, enabled),
     staleTime: 15_000,
   });
@@ -164,19 +177,33 @@ export function worktreeStatusOptions(
  * The daemon recomputes the ladder on every read (it refreshes status itself),
  * so this key is invalidated after actions and stream frames rather than polled.
  */
-export function worktreeExitPlanOptions(workspaceID: string, worktreeID: string, enabled = true) {
+export function worktreeExitPlanOptions(
+  workspaceID: string,
+  worktreeID: string,
+  enabled = true,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: workspaceKeys.worktreeExit(workspaceID, worktreeID),
-    queryFn: ({ signal }) => fetchWorktreeExitPlan(workspaceID, worktreeID, signal),
+    queryKey: keys.worktreeExit(workspaceID, worktreeID),
+    queryFn: ({ signal }) =>
+      isRemoteComputerId(computerId)
+        ? fetchWorktreeExitPlan(workspaceID, worktreeID, signal, computerId)
+        : fetchWorktreeExitPlan(workspaceID, worktreeID, signal),
     enabled: worktreeScopeEnabled(workspaceID, worktreeID, enabled),
     staleTime: 0,
   });
 }
 
 /** Cache-only handoff from the catalog stream to an active materialization owner. */
-export function worktreeMaterializationFailureOptions(workspaceID: string, worktreeID: string) {
+export function worktreeMaterializationFailureOptions(
+  workspaceID: string,
+  worktreeID: string,
+  computerId: ComputerId = LOCAL_COMPUTER_ID
+) {
+  const keys = workspaceKeys.forComputer(computerId);
   return queryOptions({
-    queryKey: workspaceKeys.worktreeMaterializationFailure(workspaceID, worktreeID),
+    queryKey: keys.worktreeMaterializationFailure(workspaceID, worktreeID),
     queryFn: async () => "",
     enabled: false,
     staleTime: Number.POSITIVE_INFINITY,

@@ -25,6 +25,7 @@ import type { useSessionWindowDerive } from "./use-session-window-derive";
 import { useQueryClient } from "@tanstack/react-query";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
 import { OsShellContext } from "../../contexts/os-shell-context";
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
 import { computerRegistryKeys } from "@/systems/computers";
 import { RemoteEntitlementPausedBanner } from "@/systems/session/components/remote-entitlement-paused-banner";
 import { RemoteOfflineComposerBanner } from "@/systems/session/components/remote-offline-composer-banner";
@@ -213,6 +214,7 @@ export function SessionWindowContent({
   liveDataEnabled: boolean;
   focused?: boolean;
 }) {
+  const computerId = useCurrentComputerId();
   const worktreeDialogs = use(WorktreeDialogActionsContext);
   const { derive, sideChat } = useSessionWindowDerivedSessions({ windowId, session, workspaceId });
   const page = useSessionWindowController({
@@ -221,8 +223,12 @@ export function SessionWindowContent({
     workspaceId,
     session,
     liveDataEnabled,
-    onOpenWorktreeContext: worktreeDialogs?.requestContextWorktree,
-    onResolveMissingWorktree: worktreeDialogs?.requestResolveMissingWorktree,
+    onOpenWorktreeContext: worktreeDialogs
+      ? (wsId, wt) => worktreeDialogs.requestContextWorktree(wsId, wt, computerId)
+      : undefined,
+    onResolveMissingWorktree: worktreeDialogs
+      ? (wsId, wt) => worktreeDialogs.requestResolveMissingWorktree(wsId, wt, computerId)
+      : undefined,
     origin: derive.origin,
     onOpenOriginSource: derive.onOpenOriginSource,
     sideChatsControl: sideChat.control,
@@ -375,6 +381,7 @@ export function SessionWindowContent({
                             <SessionEnvironmentControl
                               ref={environmentControl}
                               binding={worktreeBinding}
+                              computerId={computerId}
                               sessionId={sessionId}
                               sessionTitle={sessionTitle}
                               workspaceId={workspaceId}

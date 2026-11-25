@@ -2,6 +2,9 @@ import { useState } from "react";
 
 import { formatRelativeTime } from "@compozy/ui";
 
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import type { ComputerId } from "@/lib/computer-scope";
+
 import type { WorktreeCommitDialog } from "../components/worktree-commit-dialog";
 import type { WorktreePrDialog } from "../components/worktree-pr-dialog";
 import type { WorktreeExitLadder, WorktreeExitLadderRow } from "../lib/worktree-exit-ladder";
@@ -44,6 +47,7 @@ export interface WorktreeDetailModel {
 interface UseWorktreeDetailContextParams {
   workspaceId: string;
   worktreeId: string;
+  computerId?: ComputerId;
   enabled?: boolean;
   onRemove?: () => void;
   onCleanUp?: () => void;
@@ -68,17 +72,25 @@ const COMMIT_ACTIONS = new Set(["commit", "commit_push"]);
 export function useWorktreeDetailContext({
   workspaceId,
   worktreeId,
+  computerId,
   enabled = true,
   onRemove,
   onCleanUp,
   onPrepareError,
 }: UseWorktreeDetailContextParams): WorktreeDetailModel {
-  const worktrees = useWorktrees(workspaceId || null, { enabled });
-  const status = useWorktreeStatus(workspaceId, worktreeId, { enabled });
-  const exit = useWorktreeExitLadder(workspaceId, worktreeId, { enabled });
-  const run = useRunWorktreeExitAction(workspaceId, worktreeId);
-  const prepare = usePrepareWorktreeExitPlan(workspaceId, worktreeId);
-  const cancel = useCancelWorktreeExitAction(workspaceId, worktreeId);
+  const scopedComputerId = useCurrentComputerId(computerId);
+  const worktrees = useWorktrees(workspaceId || null, { enabled, computerId: scopedComputerId });
+  const status = useWorktreeStatus(workspaceId, worktreeId, {
+    enabled,
+    computerId: scopedComputerId,
+  });
+  const exit = useWorktreeExitLadder(workspaceId, worktreeId, {
+    enabled,
+    computerId: scopedComputerId,
+  });
+  const run = useRunWorktreeExitAction(workspaceId, worktreeId, scopedComputerId);
+  const prepare = usePrepareWorktreeExitPlan(workspaceId, worktreeId, scopedComputerId);
+  const cancel = useCancelWorktreeExitAction(workspaceId, worktreeId, scopedComputerId);
   const staging = useSessionPromptStaging({ workspaceId, worktreeId, enabled });
   const [dialog, setDialog] = useState<"commit" | "pr" | null>(null);
 

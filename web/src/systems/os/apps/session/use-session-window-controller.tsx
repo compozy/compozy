@@ -162,9 +162,11 @@ export function useSessionWindowController(input: {
     stopping: controls.isStopping,
   });
 
+  const computerId = useCurrentComputerId();
   const worktreeBinding = useSessionWorktreeBinding({
     workspaceId,
     worktreeId: session.worktree_id,
+    computerId,
     availability: session.worktree_binding,
     commandCatalog: sessionCommands.catalog,
     enabled: liveDataEnabled,

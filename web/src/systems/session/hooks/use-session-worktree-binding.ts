@@ -1,3 +1,5 @@
+import { useCurrentComputerId } from "@/hooks/use-current-computer-id";
+import type { ComputerId } from "@/lib/computer-scope";
 import { useWorktrees, type WorktreePayload } from "@/systems/workspace";
 
 import type { SessionPayload } from "../types";
@@ -9,6 +11,7 @@ export const WORKTREE_COMMAND_TOKEN = "/worktree";
 interface UseSessionWorktreeBindingParams {
   workspaceId: string;
   worktreeId: string | undefined;
+  computerId?: ComputerId;
   commandCatalog?: SessionCommandMenuCatalog;
   availability?: SessionPayload["worktree_binding"];
   enabled?: boolean;
@@ -33,13 +36,16 @@ export interface SessionWorktreeBinding {
 export function useSessionWorktreeBinding({
   workspaceId,
   worktreeId,
+  computerId,
   commandCatalog,
   availability,
   enabled = true,
 }: UseSessionWorktreeBindingParams): SessionWorktreeBinding {
+  const scopedComputerId = useCurrentComputerId(computerId);
   const boundId = worktreeId?.trim() ?? "";
   const worktrees = useWorktrees(workspaceId || null, {
     enabled: enabled && workspaceId !== "",
+    computerId: scopedComputerId,
   });
   const command = findSessionCommand(commandCatalog, WORKTREE_COMMAND_TOKEN);
   const listing = worktrees.data?.worktrees ?? [];
